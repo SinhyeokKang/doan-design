@@ -52,7 +52,7 @@
 `--storage local --git-init`이고 `ReadStorage`가 `not_git`이면, 다른 쓰기보다 먼저 저장소를 만든다.
 
 - **거절 (아무것도 쓰지 않음)**
-  - 폴더가 HOME이거나 그 상위면 `local_not_git` 계열로 거절한다. 메시지는 "HOME에는 저장소를 만들지 않는다"이다.
+  - 폴더가 HOME이거나 그 상위면 거절한다. 코드는 `local_not_git`이고 message와 NextSteps가 HOME 전용이다("Doan doesn’t create a Git repository in your home folder…"). NextSteps에 `--git-init`을 적지 않는다.
   - `--git-init`과 `--storage repo`를 함께 쓰거나, `--git-init`만 쓰면 `usage_error`다.
   - 이미 저장소면 `--git-init`은 아무것도 하지 않는다.
 - **git 위치**: clone(TS `locateGit`)과 같은 규칙을 Go에 둔다(사용자 결정).
@@ -89,7 +89,8 @@
   - 고르면 Share 확인과 같은 `SettingsDialog`를 연다(사용자 결정).
     - 모달이고, 포커스는 Cancel에 있다. Escape는 Cancel이다. 주 버튼은 prominent "Create Repository"이고, 경고색은 쓰지 않는다.
     - 제목: "Create a Git repository in `<folder>`?" `<folder>`는 페이지 경로 줄과 같은 `~/…` 경로다(사용자 결정).
-    - 설명: "Keep out of Git needs a Git repository. Doan will run git init here, then keep .doan/ out of it. It makes no commit, branch or remote, and the repository stays if you switch back."
+    - 설명: "Keep out of Git needs a Git repository. Doan will run `git init` here, then keep `.doan/` out of it. Doan makes no commit, branch or remote, and the repository stays if you switch back to Include in Git."
+    - 대화상자는 `aria-describedby`로 설명을 잇는다. 공용 `SettingsDialog`를 고치므로 Share 확인 창도 같이 바뀐다(사용자 결정).
   - 창이 열려 있는 동안 페이지를 잠근다(`projectSettingsLocked`). deep link를 버리는 것과 포커스 반환을 미루는 것도 Share 확인과 같다.
   - 다음 경우에는 창을 닫는다.
     - 프로젝트가 Missing이 되거나 reroot된다.
@@ -97,11 +98,21 @@
   - Create Repository를 누르면 `doan config --storage local --git-init`을 실행한다.
     - 성공하고 결과의 `written`에 `.git/`이 있으면, 안내 줄을 "Created a Git repository here. Doan's lines stay in .gitattributes."로 한다.
     - Cancel이든 성공이든 포커스는 선택된 쪽으로 간다. Cancel이면 Include in Git이다.
-- **오류 문구**
-  - `git_missing`: "Git isn't installed, so Doan can't create a repository here. Install the Command Line Tools with `xcode-select --install`, then check again, or choose Include in Git." `ProjectSetupDialog`의 `CHIPS`에 `xcode-select --install`을 더한다.
-  - `git_init_failed`: Set Up 폼과 Project Settings는 "Couldn't create a Git repository here, so nothing was set up." 한 문장만 보여 준다. 복구 문장은 없다(사용자 결정). 설정 패널은 소켓의 기존 `init_failed`로 받으므로 출시 문구 "Couldn't set up this folder. Check folder access and try again."를 그대로 쓴다(사용자 결정).
+- **HOME과 그 위** (사용자 결정): 앱은 HOME 경로를 알고 있으므로 이 폴더들에서는 `notGit`을 계획에 쓰지 않는다. `.git/` 줄, 패널 한 줄, 확인 창이 나오지 않는다. Keep out of Git으로 Set Up 하면 거절되고 전용 문구를 보여 준다: "Doan doesn’t create a Git repository in your home folder. Choose Include in Git, or choose a folder inside it." Include in Git으로 Set Up 된 홈 폴더 프로젝트의 Project Settings에서는 Keep out of Git이 비활성이고, 이유는 "Doan doesn’t create a Git repository in your home folder." 한 문장이다(사용자 결정).
+- **오류 문구** (화면별, 사용자 결정)
+  - `git_missing`
+    - Set Up 폼: "Git isn't installed, so Doan can't create a repository here. Install the Command Line Tools with `xcode-select --install`, then try again, or choose Include in Git."
+    - 설정 패널: "…`xcode-select --install`, then check again, or choose Include in Git." (Check again 버튼이 있다)
+    - Project Settings: "…`xcode-select --install`, then choose Keep out of Git again."
+  - `git_init_failed`: Set Up 폼은 "Couldn't create a Git repository here, so nothing was set up.", Project Settings는 "Couldn't create a Git repository here, so nothing changed." 한 문장만 보여 준다. 복구 문장은 없다(사용자 결정). 설정 패널은 소켓의 기존 `init_failed`로 받으므로 출시 문구 "Couldn't set up this folder. Check folder access and try again."를 그대로 쓴다(사용자 결정).
   - 설정 패널의 오류 버튼: `git_init_failed`와 `cleanup_failed`는 기존 Set Up 거절처럼 Choose another folder와 Retry다. `git_missing`은 Choose another folder와 Check again이다(사용자 결정).
-  - `cleanup_failed`: "Setup failed, and Doan couldn't remove the Git repository it created at `<path>/.git`. Remove it or keep it, then try again." `<path>/.git`은 모든 화면에서 코드 칩으로 보여 준다(사용자 결정). Set Up 폼은 `CHIPS`에 이 경로를 더한다.
+  - `cleanup_failed`: Set Up 폼과 패널은 "Setup failed, and Doan couldn't remove the Git repository it created at `<path>/.git`. Remove it or keep it, then try again.", Project Settings는 "Couldn't switch to Keep out of Git, and Doan couldn't remove the Git repository it created at `<path>/.git`. Remove it or keep it, then try again."
+  - 실패 뒤에는 폴더를 다시 읽는다(사용자 결정). `.git`이 남았으면 저장소로 읽힌다. Project Settings는 이유 줄이 사라지고 Keep out of Git이 즉시 쓰는 일반 전환이 된다. 오류는 다음 동작까지 남는다. Set Up 폼은 Will add에서 `.git/` 줄이 빠지고, 설정 패널은 카드 아래 `git init` 줄이 빠진다.
+  - 오류 문장은 선택해 복사할 수 있다(`selectable`).
+- **코드 칩** (사용자 결정): `git init`, `.doan/`, `xcode-select --install`, `<path>/.git`은 세 화면 모두 코드 칩이다. Set Up 폼은 `CHIPS`에 더하고, 설정 패널 알림과 Project Settings 메시지·확인 창 설명에도 같은 칩 렌더링을 둔다.
+- **스크린리더** (사용자 결정): 저장소를 만든다는 고지를 동의 버튼에 `aria-describedby`로 잇는다. 설정 패널은 제출 버튼 → 카드 아래 한 줄, Set Up 폼은 Set Up Project → Will add 목록이다.
+- **Project Settings의 이유 문장**은 이제 정보 문장이라 경고 아이콘 없이 보여 준다.
+- 커밋 안내("If `.doan/` was committed before…")는 PRODUCT 규칙대로 새 저장소에서도 항상 보여 준다(사용자 결정).
 - 기존 `local_not_git` 문구 세 곳은 그대로 둔다. 이전 CLI를 쓸 때와, ls와 init 사이에 상황이 바뀐 경우에 여전히 맞는 문장이기 때문이다.
 
 ## 받아들인 위험
@@ -215,3 +226,4 @@
 6. 경쟁 상황에서는 `.git`을 먼저 배타적으로 확보한다.
 7. 첫 실행과 Add Projects 설정 패널은 저장 방식 카드 아래에 한 줄을 보여 준다.
 8. 초안 질문 라운드(5개): 위 '화면'의 오류 문구, 패널 버튼, 확인 창 제목의 경로, `.git` 경로 칩.
+9. 디자인 프리셋 검수(critique, audit, clarify) 라운드(6개): HOME에서 미리 숨김, 화면별 오류 문구, 세 화면 코드 칩, 스크린리더 연결 세 곳, 실패 뒤 다시 읽은 상태, 커밋 안내 유지.
