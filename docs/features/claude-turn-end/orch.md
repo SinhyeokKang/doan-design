@@ -1,0 +1,44 @@
+# claude-turn-end — orch
+
+원본: [spec.md](./spec.md) · [design.md](./design.md) · [tasks.md](./tasks.md) · 체인 [chain-261112](../chain-261112/chain.md) 링크 2
+
+- 시작 hash: `8e9c33e9` (origin/develop, PR #177 병합 뒤)
+- 통합 브랜치: `feat/claude-turn-end` (lead가 만들었다)
+- 끝: `feat/claude-turn-end` push와 develop 대상 PR. 병합하지 않는다. 링크 1(`canvas-svg-sprites`) PR이 먼저 병합된다.
+
+## 결정 기록
+
+1. PoC(tasks 1)는 설치된 Claude CLI의 기존 로그인으로 돈다. 세션 기록은 실제 `~/.claude/projects/` 아래 임시 cwd 이름의 디렉터리에 남는다(사용자, 체인 시작 점검 3).
+2. `/runtime-test` 로그인(tasks 9)은 실제 HOME, 임시 `DOAN_RUNTIME`·repo, 계속 쓰는 userData `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`를 쓴다. probe마다 로그아웃하지 않고, 병합 전에 lead가 로그아웃하고 지운다(사용자, 체인 시작 점검 4). design.md '실제 앱 확인의 로그인'과 tasks 9를 이 규칙으로 고쳤다.
+3. Claude 2.1.284가 첫 프롬프트 uuid를 echo하지 않거나 `background_tasks_changed`를 보내지 않으면 최소 버전을 올릴지 사용자에게 묻는다. 미리 정하지 않았다(사용자, 체인 시작 점검 5).
+4. 사용자가 일하는 중에 격리 앱 창이 뜰 수 있다(사용자, 체인 시작 점검 6).
+5. 워커는 Claude만 쓴다. 모델 계열을 넘지 않는다(체인 상시 권한).
+6. A(PoC)와 C(tasks 3–6)는 같은 워커가 같은 worktree에서 이어서 한다. PoC에서 본 원시 프레임과 fixture가 테스트와 구현의 근거라서 맥락을 잇는다(conductor 판단).
+7. tasks 10의 문서 승격은 conductor가 한다. 같은 항목의 `runners.ts` `TURN_USAGE_MS` 주석은 코드라서 C가 tasks 5에서 고친다(conductor 판단 — conductor는 batch 코드를 고치지 않는다).
+8. tasks 9는 통합 뒤 새 워커 E가 통합 HEAD에서 돈다(conductor 판단 — `/orchestrate` §4의 통합 검증을 워커 결과가 아닌 결합 결과로 한다).
+
+## batch
+
+| batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
+|---|---|---|---|---|---|---|
+| A | tasks 1 PoC | `.scratch/claude-turn-end/`(커밋 안 함), tasks.md 'PoC 결과', design.md `PROMOTION_SETTLE_MS` 값과 기록 필드 | 없음 | Opus high — 실제 CLI 프레임을 해석해 멈춤 조건을 판정해야 하고, 틀리면 이후 설계 전체가 틀린다 | tasks 1 '확인': 스크립트 로그와 'PoC 결과' 수치 일치, 실제 상태 비교 통과 | 대기 |
+| B | tasks 8 노티스 버튼 세로 가운데 | `app/src/renderer/ds/surfaces.css`, `app/src/renderer/ds/controls.test.ts`, `.doan/canvases/claude-turn-end.html`(override 줄 삭제만), `.doan/ds/notice.html`, `docs/DESIGN.md` 'Notices'·'Conversation strip' | 없음 | Sonnet high — 규칙 한 줄과 문서의 기계적 변경이지만 실제 앱 probe 단계가 많다 | tasks 8 '확인': app test 녹색, 두 줄 Home strip의 버튼 세로 가운데·아이콘 첫 줄, 한 줄 노티스 높이 44 px | 대기 |
+| C | tasks 3–6 (+ tasks 10의 `TURN_USAGE_MS` 주석) | `app/src/main/conversation/**`(fixtures 포함), preload, 로그아웃·Restart to Update·프로젝트 Remove의 `stop_required` 계산, tasks 3의 renderer 테스트와 renderer stub | A | Opus high — 프로세스 그룹 정리, 예약 해제 순서, 보류한 종료의 동시성. 틀리면 POSTMORTEM 2026-10-27·10-28 회귀가 다시 난다 | 각 tasks의 '확인', `node .agents/skills/verify/scripts/verify.mjs` PASS | 대기 |
+| D | tasks 7 스레드 UI + `/design-sync` | renderer 스레드 UI(`turnStatus.ts`, `homeRun.ts`, `threadItems.ts`, `ConversationThread.tsx`, `conversationStrip.ts`, 관련 CSS), `docs/DESIGN.md` 백그라운드 줄 측정값 | B, C 통합 | Opus high — 포커스 이동, Stop 경합, `sending` 항목 정리(POSTMORTEM 2026-11-05)와 초안 측정 | app test 녹색, `/design-sync` 측정 통과 | 대기 |
+| E | tasks 9 `/runtime-test` | `.scratch/`의 probe만 | C, D 통합 | Opus medium — 정해진 probe를 실제 앱에서 재고 수치를 완료 조건과 대조한다 | probe 수치가 spec 완료 조건 1–5를 만족, 실제 상태 비교 통과 | 대기 |
+| R-B · R-C · R-D | 각 batch `/code-review` | 없음(보고만) | 각 batch | R-B Sonnet medium, R-C Opus high, R-D Opus high — diff 난이도에 맞춘다 | `/code-review` 보고 | 대기 |
+| Z | tasks 10 문서 승격과 삭제 | PRODUCT, ARCHITECTURE, BACKLOG, DESIGN, `docs/features/claude-turn-end/` | E | conductor | 문서 diff 검토, verify PASS | 대기 |
+
+tasks 2(`/design-draft`)는 lead 단계에서 끝났다(`8de3b646`, `6b7faccf`).
+
+## 파일 겹침과 순서
+
+- A와 B는 파일이 겹치지 않아 병렬로 돈다.
+- C는 A의 PoC 결과를 conductor가 검토한 뒤 같은 워커에 새 Task로 보낸다. B와 파일이 겹치지 않아 B와 병렬로 돌 수 있다.
+- D는 B(`surfaces.css`, DESIGN.md)와 C(목록 필드, renderer stub과 테스트)를 통합한 뒤 시작한다.
+- E는 C·D 통합 뒤, Z는 E 뒤다.
+- GUI probe: B·D·E의 실제 앱 창은 서로 겹치지 않게 순서대로 띄운다. 링크 1의 probe와 같은 순간에 겹치면 PR 본문에 남긴다.
+
+## 리뷰와 수정 기록
+
+(진행하며 채운다.)
