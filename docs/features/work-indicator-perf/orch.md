@@ -12,6 +12,7 @@
 - conductor 판단 — PR #167 인계: 기준선은 버디가 있는 develop(`4dbc7cc7`)에서 잰다. 작업 표시의 픽셀 비교에서는 reduced motion으로 버디를 멈추거나 `.docked-buddy-slot` 영역을 가린다. 성능 측정 표에는 버디가 켜진 상태와 멈춘 상태를 함께 적어 버디 비용(renderer Task 약 53–57 ms/s)을 나눌 수 있게 한다.
 - conductor 판단 — PR #167 인계: 대화 패널에 거는 `contain`·`content-visibility`는 입력창 위 88px 버디 창과 툴바 위 버디를 자르지 않아야 한다. B 배치의 픽셀 비교 항목에 넣는다.
 - conductor 판단 — chain.md 링크 1 인계: 마커와 그라디언트 레이어는 부모 overlay에 둔다(iframe 안은 16384 device px 경계). 2W×2H 그라디언트는 2W×DPR 96000 device px까지 크기 탈락이 없었으나, 큰 면적에서 1–4프레임 덜 그려진 변형이 있었으므로 B 배치는 큰 확대에서 이것을 drift로 보고 design의 대안(보이는 영역으로 자르기)을 먼저 검토한다.
+- 사용자 결정(lead 경유): probe는 되도록 백그라운드로 돌린다. 격리 앱 창은 포커스를 가져가지 않고(`showInactive`, `app.focus` 없음) 사용자 창 뒤나 작업 영역 밖에 두며, 실행 중 앞으로 올리지 않는다. 가려진 창도 렌더하도록 `--disable-backgrounding-occluded-windows`, `--disable-renderer-backgrounding`, `--disable-background-timer-throttling`으로 띄운다. 백그라운드 수치를 믿기 전에 잠깐 보이는 창과 그린 프레임/s·측정값이 같은지 한 번 확인하고 PR 본문에 남긴다. 스크린샷과 녹화는 `webContents.capturePage`·CDP로 한다. 창이 앞에 있어야 하는 측정은 사용자에게 먼저 묻고 짧게 한다. 모든 브리프에 `briefs/background-probe.md`로 넣는다.
 - conductor 판단 — tasks 3: 링크 1(`frame-first-selection`)의 재로드 회귀 테스트는 `CanvasController.test.ts` 'working-frame marker' › "stays on its frame through repeated reloads without hiding or restarting, and lands on the new layout without the slide"이다(`8286c893`).
 - conductor 판단 — 측정 간섭: 성능 수치(P, M)는 다른 워커의 빌드·테스트가 돌지 않을 때만 잰다. 구현 배치 A·B·C는 병렬로 돌리되, GUI probe는 conductor가 한 번에 하나씩 허락한다. 픽셀 비교는 애니메이션 시점을 고정하므로 부하에 영향받지 않는다.
 
@@ -19,7 +20,7 @@
 
 | 배치 | 항목(tasks) | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| P | 1(PoC 기준선·요소별 비용·baseline·그라디언트 위험) | `.scratch/work-indicator-perf/`(conductor checkout), tasks.md 'PoC 결과' | 없음 | Opus high — tracing 해석, 격리, `yes` PID 관리, 시제품 판단이 필요하다 | probe가 두 조건 수치 출력, 실제 사용자 상태 비교 통과, `yes` PID 잔존 0 | 대기 |
+| P | 1(PoC 기준선·요소별 비용·baseline·그라디언트 위험) | `.scratch/work-indicator-perf/`(conductor checkout), tasks.md 'PoC 결과' | 없음 | Opus high — tracing 해석, 격리, `yes` PID 관리, 시제품 판단이 필요하다 | probe가 두 조건 수치 출력, 실제 사용자 상태 비교 통과, `yes` PID 잔존 0 | 진행 중(worktree `wip-p`, dispatch `ctx_d7c11a1267d5`) |
 | (conductor) | 2(사용자 공유) | tasks.md 2 | P | — | 공유 요약을 tasks.md에 기록 | 대기 |
 | A | 3의 점 필드 테스트, 4, 5 | `agentIndicator.ts`·`.test.ts`, `dotField.ts`·`.test.ts`, 새 Worker 진입점, `CanvasAgent.tsx`, `rendererImports.test.ts`, 필요하면 `electron.vite.config.*` | P | Opus high — Worker·OffscreenCanvas·CSP·빌드 산출물 확인, 상태 전환 메시지 설계 | typecheck·lint·test, 빌드 산출물에서 Worker·CSP 확인, 픽셀 채널 차 ≤2, fill 호출 수 | 대기 |
 | B | 3의 마커 테스트, 6, 8 | `styles.css`, `CanvasController.ts`(`drawWork`), `CanvasController.test.ts` 'working-frame marker', 보드 글로우·알림 열·대화 패널 컨테이너의 CSS | P | Opus high — drift 0 가드레일, 상태 규칙 옮기기, 큰 확대 레이어 위험 | typecheck·lint·test, tasks 6·8 픽셀 비교 전부 채널 차 ≤2, 멈춘 상태 Paint 0, 버디 창 잘림 없음 | 대기 |
