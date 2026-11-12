@@ -40,6 +40,8 @@ type Context struct {
 	Executable      func() (string, error)
 	Launch          func(bundle string, background bool) error
 	Sleep           func(time.Duration)
+	// Git finds and runs git for init and config --git-init; Run fills it from the environment.
+	Git repo.GitHost
 }
 type Outcome struct {
 	Result any
@@ -64,6 +66,8 @@ type Flags struct {
 	SpendCopilotRequest, Initialize                                           bool
 	Output                                                                    string
 	Force                                                                     bool
+	// GitInit lets init and config --storage local create a Git repository in a folder that belongs to none.
+	GitInit bool
 	// Given tells an empty flag value from an absent flag.
 	Given map[string]bool
 }

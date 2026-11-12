@@ -132,3 +132,11 @@ func writeAttributes(root string) (bool, error) {
 	}
 	return true, nil
 }
+
+// gitInitDecision says whether --storage local should create a repository first.
+func gitInitDecision(s repo.StorageInfo, root, home string, f Flags) (bool, *Error) {
+	return false, nil
+}
+
+// notFoundStorageReason is ls's error.storageReason for a folder with no config.
+func notFoundStorageReason(searched string, s repo.StorageInfo) string { return "" }
