@@ -33,21 +33,6 @@ export function partitionDots(dots: Dot[], spots: readonly Dot[], radius: number
   return { near, far };
 }
 
-// Near dots grouped by their alpha rounded to an 8-bit step, each keeping its own radius, so a frame draws one path
-// and one fill per step instead of one fill per dot (thousands per frame). The canvas stores 8-bit channels, so a step
-// is within half a level of each dot's own alpha. Groups come in order of first appearance, dots in input order.
-export interface AlphaStep { alpha: number; dots: { x: number; y: number; r: number }[] }
-export function alphaSteps(near: readonly { dot: Dot; distance: number }[], radius: number, size: { base: number; max: number }, alpha: { base: number; max: number }): AlphaStep[] {
-  const steps = new Map<number, AlphaStep>();
-  for (const { dot, distance } of near) {
-    const level = Math.round(dotScale(distance, radius, alpha.base, alpha.max) * 255);
-    let step = steps.get(level);
-    if (!step) { step = { alpha: level / 255, dots: [] }; steps.set(level, step); }
-    step.dots.push({ x: dot.x, y: dot.y, r: dotScale(distance, radius, size.base, size.max) });
-  }
-  return [...steps.values()];
-}
-
 // The spot's point reflection through the area's centre. With an odd row count, `autoCursor`'s zig-zag reflected this
 // way is the same path walked backwards at the same speed, and the two spots cross at the centre on the middle row.
 export function opposingCursor(spot: Dot, width: number, height: number): Dot {
@@ -100,7 +85,7 @@ export const DOT_FIELD = { gap: 12, baseRadius: 1.5, maxRadius: 2, baseAlpha: 0.
 type DotContext = Pick<CanvasRenderingContext2D, "globalAlpha" | "fillStyle" | "clearRect" | "beginPath" | "moveTo" | "arc" | "fill">;
 
 // Dots outside every spot's radius all share the base size and alpha, so they go into one path and one fill (malmoi R8):
-// a full board is thousands of dots each frame. Near dots go one path per alpha step (`alphaSteps`).
+// a full board is thousands of dots each frame.
 export function drawDotField(ctx: DotContext, width: number, height: number, dots: Dot[], spots: readonly Dot[], color: string): void {
   const { baseRadius, maxRadius, baseAlpha, maxAlpha, radius } = DOT_FIELD;
   ctx.clearRect(0, 0, width, height);
@@ -112,10 +97,10 @@ export function drawDotField(ctx: DotContext, width: number, height: number, dot
     for (const dot of far) { ctx.moveTo(dot.x + baseRadius, dot.y); ctx.arc(dot.x, dot.y, baseRadius, 0, Math.PI * 2); }
     ctx.fill();
   }
-  for (const step of alphaSteps(near, radius, { base: baseRadius, max: maxRadius }, { base: baseAlpha, max: maxAlpha })) {
-    ctx.globalAlpha = step.alpha;
+  for (const { dot, distance } of near) {
+    ctx.globalAlpha = dotScale(distance, radius, baseAlpha, maxAlpha);
     ctx.beginPath();
-    for (const dot of step.dots) { ctx.moveTo(dot.x + dot.r, dot.y); ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2); }
+    ctx.arc(dot.x, dot.y, dotScale(distance, radius, baseRadius, maxRadius), 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
