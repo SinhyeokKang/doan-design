@@ -25,14 +25,14 @@ Set Up 폼, 설정 패널, Project Settings 확인 창은 새 UI다. 그래서 `
    - 커밋 경계: 문서만.
 2. [x] **초안 (`/design-draft`).** design.md '초안 요청'의 캔버스, 프레임, 상태를 그린다.
    - 확인: `doan check`와 `doan ls`가 통과하고, 사용자가 앱에서 초안을 확인했다.
-3. [ ] **형식과 fixture.** design.md '형식 변경'을 반영한다.
+3. [x] **형식과 fixture.** design.md '형식 변경'을 반영한다.
    - CLI envelope 스키마의 `error.storageReason`
    - `git_init_failed`: `envelope.go`의 코드 목록과 exit 값, mapping fixture, `formats/types.ts`
    - 소켓 v2 `OnboardingChange`의 `.git/`
    - fixture 두 개
    - 확인: `go test ./...`와 `npm --prefix app test`의 schema·fixture 테스트가 녹색이다.
    - 커밋 경계.
-4. [ ] **테스트 먼저 (`/tdd`).** design.md '순수 함수'의 Go·TS 함수와, 아래 셸 동작을 테스트로 고정한다.
+4. [x] **테스트 먼저 (`/tdd`).** design.md '순수 함수'의 Go·TS 함수와, 아래 셸 동작을 테스트로 고정한다.
    - **Go, 저장소를 만드는 기본 동작**
      - `init`과 `config`에 `--git-init`을 주면 비 Git 폴더에 `.git/`, exclude 쌍, `.doan/`이 생긴다.
      - 플래그가 없으면 `local_not_git`이고, NextSteps에 사람 동의 문장이 있다.
@@ -65,7 +65,7 @@ Set Up 폼, 설정 패널, Project Settings 확인 창은 새 UI다. 그래서 `
      - 오류 문구 세 개.
    - 확인: 새 테스트만 red다.
    - 커밋 경계: 새 함수는 stub으로 export한다. 그래야 typecheck와 `go vet`이 통과한다.
-5. [ ] **Go.** 다음을 구현한다.
+5. [x] **Go.** 다음을 구현한다.
    - `ls`와 `find`의 `storageReason`
    - `repo/gitinit.go`: 위치 판정, 환경, 확보, 실행, 되돌리기
    - `Context` 주입
@@ -75,13 +75,13 @@ Set Up 폼, 설정 패널, Project Settings 확인 창은 새 UI다. 그래서 `
    - `skill.md`
    - 확인: `go test ./...`가 녹색이고 `go vet ./...`가 통과한다. guide 출력 예산 테스트(`skill_test.go`)도 녹색이다.
    - 커밋 경계.
-6. [ ] **app main.** 다음 파일을 구현한다.
+6. [x] **app main.** 다음 파일을 구현한다.
    - `folderState.ts`, `initArgs`, `plannedChanges`, `projectAdder.ts`
    - `shell.ts`와 `cli.ts`: 인자와 CLI 환경의 PATH·`DEVELOPER_DIR`
    - `configBridge.ts`, `operations.ts`
    - 확인: `npm --prefix app test`가 녹색이다.
    - 커밋 경계.
-7. [ ] **renderer.** 다음을 구현한다.
+7. [x] **renderer.** 다음을 구현한다.
    - `ProjectSetupDialog.tsx`, `Onboarding.tsx`, `storageRules.ts`, `ProjectSettingsPage.tsx`
    - `notGit`을 폼까지 넘기는 경로
    - 첫 구현이므로 `/design-sync`로 2번 초안과 맞춘다.
@@ -90,7 +90,7 @@ Set Up 폼, 설정 패널, Project Settings 확인 창은 새 UI다. 그래서 `
      - `node .scratch/design-sync/<screen>/measure.mjs` 측정이 통과한다.
      - `node .agents/skills/verify/scripts/verify.mjs --eval`이 PASS다. onboarding DTO가 바뀌기 때문이다(POSTMORTEM 2026-11-07).
    - 커밋 경계.
-8. [ ] **실제 앱 확인 (`/runtime-test`).**
+8. [x] **실제 앱 확인 (`/runtime-test`).**
    - 준비:
      - `npm --prefix app run package`로 패키지 앱을 만든다.
      - 격리 조건으로 띄운다. 임시 userData·HOME·SHELL을 쓰고, 가짜 SHELL의 PATH는 실제 git을 찾게 한다.
@@ -113,7 +113,7 @@ Set Up 폼, 설정 패널, Project Settings 확인 창은 새 UI다. 그래서 `
    - 테스트로만 확인한 항목:
      - git 없음(완료 조건 8)과 되돌리기(완료 조건 9)는 실제 앱에서 만들 수 없다. 4번 테스트로만 확인했다고 남긴다.
    - 확인: probe 로그가 spec.md 완료 조건 1–9를 위처럼 만족한다.
-9. [ ] **에이전트 평가 (`/agent-eval`).** guide(`skill.md`)와 `local_not_git` NextSteps가 바뀌었다.
+9. [x] **에이전트 평가 (`/agent-eval`).** guide(`skill.md`)와 `local_not_git` NextSteps가 바뀌었다.
    - 범위:
      - O4 시나리오(`eval/scenarios/O4/`, `init --storage local`).
      - 비 Git 폴더에서 에이전트가 사람 동의 없이 `--git-init`을 붙이지 않는지 보는 시나리오가 필요하면, 그 추가 여부를 사용자에게 묻는다.

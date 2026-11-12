@@ -33,6 +33,7 @@
 - B 수정 라운드 1에서 측정이 결함 하나를 찾았다: 설정 패널 저장 방식 radio에서 화살표 키를 누르면 재계획 동안 radio가 비활성이 되어 포커스가 빠졌다. 고치고 `projectFocus.test.ts`와 실제 앱 측정 행으로 고정했다. conductor 판단 — R-B3 권고와 AGENTS.md 'Workflow'(버그를 고쳤으면 `/postmortem`)에 따라 POSTMORTEM에 적는다. 교훈: 컨트롤을 비활성화하는 비동기 재계획은 포커스를 잃고, 단위 테스트는 최종 상태만 본다.
 - R-B3 결과(`review-B3.md`): 🔴 0, 🟡 1(HOME realpath 배선을 고정하는 테스트가 되돌려도 통과한다). B 수정 라운드 2(`kogi-b2`, `ctx_f291605251dc`, Opus medium)가 테스트를 보강한다. ARCHITECTURE §7의 끊긴 문장은 conductor가 고쳤다.
   - conductor 판단 — `app:home`이 HOME의 real path를 돌려주는 부작용(symlink HOME 사용자의 `~` 줄임이 real path 기준)을 받아들인다. 저장된 root가 real path라서 줄임이 오히려 맞아진다.
+- 통합 verify: `ea786635` 코드에서 `verify.mjs --eval` PASS(`verify-integration.log`).
 - 리드 알림: 사용자가 바뀐 초안(`16a7420d`)을 확인했다(`d2d54fb9`). conductor가 병합했고, B에 'UI go'를 보냈다.
 
 ## 배치
@@ -44,7 +45,7 @@
 | A | 3 전부, 4의 Go 항목, 5 | `schema/**`, `cli/**`(`skill.md`, `onboarding.go` 포함), `app/src/formats/types.ts`, 형식 fixture | 없음 | Opus high — 배타적 `.git` 확보, dev/ino 되돌리기, 환경 허용 목록, git 위치 판정처럼 틀리면 사용자 폴더를 망가뜨리는 경쟁·보안 판단이 많다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`의 schema·fixture 테스트, `npm --prefix app run typecheck` | 구현 완료, 통합(tasks 3 `c93bde4b`, tasks 4 Go `14ba8dda`, tasks 5 `5b8c88ce`), 리뷰 대기. 워커 `kogi-a` `ctx_d24068c0c6ce`는 수정 라운드용으로 retain |
 | B | 4의 TS 항목, 6, 7(`/design-sync` 포함) | `app/src/main/**`(`formats/types.ts` 제외), `app/src/renderer/**`, `.scratch/design-sync/keep-out-git-init-*/` | A의 tasks 3 커밋 통합 | Opus high — 동의 근거별 `--git-init` 전달, Project Settings 확인 창의 잠금·deep link·포커스·외부 변화 처리, 첫 구현 design-sync | typecheck·lint·test, design-sync 측정 통과, `verify.mjs --eval` PASS | 진행(1단계 main, 2단계 'UI go' 보냄), 워커 `kogi-b` `ctx_48f44956b076`. 2단계는 리드 알림 뒤 'UI go' |
 | R-A·R-B | 각 배치 `/code-review` | 보고만 | 해당 배치 | Opus high — 두 배치 모두 경쟁·동의 경계가 핵심이다 | 🔴 0 | R-A 🔴0 🟡3 → 수정 통합 `bb4dde50`. R-B1 🔴0 🟡4, R-B2 🔴0 🟡3 → B 수정 라운드 1 통합(`42d7d516`, `a74fb14d`, `ea786635`). 수정 재리뷰 R-B3 진행(`ctx_831008d3f58f`, Opus medium — 수정 diff로 좁다) |
-| T | 8(`/runtime-test`) | `.scratch/keep-out-git-init/runtime/`, 보고만 | A·B 통합 | Sonnet high — 정해진 probe 목록을 격리 조건으로 실행하는 단계가 많고 판단은 적다 | spec 완료 조건 1–9 probe 로그 | 진행(`kogi-b`, `ctx_6a72ead601b8`) |
+| T | 8(`/runtime-test`) | `.scratch/keep-out-git-init/runtime/`, 보고만 | A·B 통합 | Sonnet high — 정해진 probe 목록을 격리 조건으로 실행하는 단계가 많고 판단은 적다 | spec 완료 조건 1–9 probe 로그 | 완료: CLI 24/24, 앱 41/41, 첫 실행(`onboarding project select`) 10/10, exit 0, 실제 상태 그대로, 포커스 가져감 없음. 조건 1–7 통과, 8·9는 테스트 전용. 하지 못함: 픽셀, 첫 실행 설정 패널 UI, 확인 창 중 deep link (`runtime/report.md`) |
 | E | 9의 새 시나리오(필요하면 runner의 비 Git 작업 폴더 옵션) | `eval/**` | A 통합 | Opus high — runner 격리(에이전트 설정, HOME 위치)를 건드릴 수 있고 rubric 판단이 필요하다 | eval 단위 테스트, `--self-test --scenarios O4,<새 id>` PASS, `verify.mjs --eval` PASS | 구현 완료, 통합(`81d7a6fd`, `51b0bd75`, `b8bf6caf`). 새 시나리오 id O5, runner 옵션 `git: false`(bare `seed.git`, Codex `--skip-git-repo-check`). R-E 🔴0 🟡3 → E 수정 라운드 1(`ctx_12574afc222e`, Opus medium). 🟡3(§14 문장)은 tasks 10 |
 | (conductor) | 9(package 뒤 실제 라운드, 기록) | `docs/USABILITY-EVAL.md` | A·E 통합(라운드는 CLI만 쓴다) | — | 라운드 결과 기록 | 완료: `keep-out-git-init-261112`, package `0c24baca`, O4·O5 × Claude·Codex 4/4 pass, runner exit 0 |
 | (conductor) | 10(승격과 삭제) | PRODUCT·ARCHITECTURE·DESIGN·USABILITY-EVAL, feature 디렉터리 삭제 | 8·9 | — | 문서 diff 검토, verify PASS | 대기 |
