@@ -65,6 +65,10 @@ export class ConversationStore {
   // Each conversation's latest stage signal, pushed or on a read's reply. Kept for a
   // conversation not read yet as its events are; the indicator uses it only for the turn and seq it names.
   private stages = new Map<string, StageSignal>();
+  // Streamed deltas waiting for the next frame (streamBatch), and what will apply them: a frame, or the timer when no
+  // frame comes (a hidden window), so the seen and promotion rules still hear them.
+  private held: ConversationEvent[] = [];
+  private nextFrame: { frame: number | null; timer: ReturnType<typeof setTimeout> } | null = null;
 
   constructor(private host: ConversationStoreHost) {}
 
@@ -178,6 +182,7 @@ export class ConversationStore {
     this.threads.delete(conversationId);
     this.questions.delete(conversationId);
     this.stages.delete(conversationId);
+    this.held = this.held.filter(event => event.conversationId !== conversationId);
     this.queues.delete(conversationId);
     this.taking.delete(conversationId);
     this.taken.delete(conversationId);
@@ -257,15 +262,43 @@ export class ConversationStore {
     return !c || c.phase !== "ended" || c.working;
   }
 
-  // conversation:event, subscribed at App mount so nothing is lost before a read.
+  // conversation:event, subscribed at App mount so nothing is lost before a read. Each delta used to redraw the
+  // whole thread, the largest main-thread cost while a reply streams, so deltas apply at most once per frame.
   event(event: ConversationEvent): void {
     if (this.deletedIds.has(event.conversationId)) return;
-    if (event.type === "question.resolved") this.questions.get(event.conversationId)?.delete(event.requestId);
-    const thread = this.threads.get(event.conversationId);
-    if (!thread) { this.unclaimed = [...this.unclaimed, event].slice(-500); return; }
-    this.threads.set(event.conversationId, { ...thread, events: mergeConversationEvents(thread.events, [event], event.conversationId) });
-    this.tell(event.conversationId, "event");
-    this.host.changed();
+    const { apply, held } = streamBatch(this.held, event);
+    this.held = held;
+    if (!held.length) this.cancelFrame();
+    else if (!this.nextFrame) {
+      const run = () => this.applyHeld();
+      this.nextFrame = { frame: typeof requestAnimationFrame === "function" ? requestAnimationFrame(run) : null, timer: setTimeout(run, HIDDEN_FRAME_MS) };
+    }
+    this.apply(apply);
+  }
+  private applyHeld(): void {
+    this.cancelFrame();
+    const { apply, held } = streamBatch(this.held, "frame");
+    this.held = held;
+    this.apply(apply);
+  }
+  private cancelFrame(): void {
+    if (!this.nextFrame) return;
+    if (this.nextFrame.frame !== null) cancelAnimationFrame(this.nextFrame.frame);
+    clearTimeout(this.nextFrame.timer);
+    this.nextFrame = null;
+  }
+  private apply(events: readonly ConversationEvent[]): void {
+    let changed = false;
+    for (const event of events) {
+      if (this.deletedIds.has(event.conversationId)) continue;
+      if (event.type === "question.resolved") this.questions.get(event.conversationId)?.delete(event.requestId);
+      const thread = this.threads.get(event.conversationId);
+      if (!thread) { this.unclaimed = [...this.unclaimed, event].slice(-500); continue; }
+      this.threads.set(event.conversationId, { ...thread, events: mergeConversationEvents(thread.events, [event], event.conversationId) });
+      this.tell(event.conversationId, "event");
+      changed = true;
+    }
+    if (changed) this.host.changed();
   }
   // conversation:stage, and the stage a conversation:read reply carries once its events are merged: either may come
   // first (POSTMORTEM 2026-10-26), so newerStage orders them by rev against the history's current turn.
@@ -297,7 +330,11 @@ export class ConversationStore {
       const thread = this.threads.get(conversationId);
       if (!thread) return;
       if ("error" in reply) { this.threads.set(conversationId, { ...thread, read: "error" }); this.host.changed(); return; }
-      const events = mergeConversationEvents(reply.events, thread.events, conversationId);
+      // The reply redraws the thread anyway, so its waiting deltas come in with it rather than a frame later.
+      const waiting = this.held.filter(event => event.conversationId === conversationId);
+      this.held = this.held.filter(event => event.conversationId !== conversationId);
+      if (!this.held.length) this.cancelFrame();
+      const events = mergeConversationEvents(reply.events, [...thread.events, ...waiting], conversationId);
       this.threads.set(conversationId, { events, read: "ready", liveAfter: reply.lastSeq ?? events.at(-1)?.seq ?? 0 });
       // After the set: stage() reads the current turn from the merged history.
       if (reply.stage) this.stage(reply.stage);
@@ -339,6 +376,16 @@ export class ConversationStore {
       if (reply.reason === "attachment_limit") this.host.notice(ATTACHMENT_LIMIT_TEXT);
     });
   }
+}
+
+// Without frames the timer applies waiting deltas; a hidden window's timers run at most once a second anyway.
+const HIDDEN_FRAME_MS = 100;
+// One step of streaming at most once per frame: a delta waits for the next frame; a frame applies what waited; any
+// other event (the message's end, the turn's end) applies at once after what waited, so the final text never lags.
+export function streamBatch(held: readonly ConversationEvent[], next: ConversationEvent | "frame"): { apply: ConversationEvent[]; held: ConversationEvent[] } {
+  if (next === "frame") return { apply: [...held], held: [] };
+  if (next.type === "message.delta") return { apply: [], held: [...held, next] };
+  return { apply: [...held, next], held: [] };
 }
 
 // The phase Send now reads, with turnOf's order: a turn that runs or waits for a
