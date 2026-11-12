@@ -5445,6 +5445,32 @@ describe("canvas text", () => {
     });
   });
 
+  describe("clears it when the board cannot be drawn", () => {
+    it("a row that loses its width (noWidth)", () => {
+      const h = harness();
+      try {
+        range(h);
+        h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ path: h.row.path, id: h.row.id, url: h.row.url }, h.other] }]);
+        expect(h.state().status).toBe("noWidth");
+        expect(painted(h)).toEqual([]);
+        expect(copied(h)).toBeNull();
+      } finally { h.controller.dispose(); }
+    });
+
+    it("a reload whose first layout never comes (failed)", () => {
+      vi.useFakeTimers();
+      const h = harness();
+      try {
+        range(h);
+        h.controller.command("reload");
+        vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
+        expect(h.state().status).toBe("failed");
+        expect(painted(h)).toEqual([]);
+        expect(copied(h)).toBeNull();
+      } finally { h.controller.dispose(); }
+    });
+  });
+
   it("keeps it through Space, a wheel pan, a pinch and a zoom", () => {
     const h = harness();
     try {

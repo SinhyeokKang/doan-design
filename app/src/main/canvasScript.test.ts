@@ -1,5 +1,6 @@
 import { runInNewContext } from "node:vm";
 import { describe, expect, test } from "vitest";
+import { MAX_COPY_TEXT, MAX_TEXT_RECTS } from "../renderer/canvasMessage";
 import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, escapeTarget, frameBottom, frameStep, nextHeight, textBoundary, textDragState, textQuote, type ChainLink } from "./canvasScript";
 
 describe("nextHeight", () => {
@@ -913,6 +914,7 @@ interface FakeEvent {
   screenX?: number;
   screenY?: number;
   pointerId?: number;
+  buttons?: number;
   clipboardData?: unknown;
   prevented: boolean;
   stopped: boolean;
@@ -1112,6 +1114,24 @@ describe("canvasScript selection input", () => {
   });
 
   // The app takes one Select step per forwarded Esc, so a held Esc's auto-repeats stay in the canvas.
+  // A press inside a nested iframe shows here only as focus moving into it (no pointerdown), and it is still the next
+  // press in the canvas: the text range goes.
+  test("focus moving into a nested iframe drops the text range and posts an empty one", () => {
+    const t = textCanvas();
+    t.canvas.fireWindow("pointerdown", input({ target: t.one, clientX: 60, clientY: 5, screenX: 1060, screenY: 1005, pointerId: 7 }));
+    t.canvas.fireWindow("pointermove", input({ target: t.canvas.html, clientX: 110, clientY: 5, screenX: 1110, screenY: 1005, pointerId: 7, buttons: 1 }));
+    t.canvas.fireWindow("pointerup", input({ target: t.canvas.html, clientX: 110, clientY: 5, screenX: 1110, screenY: 1005, pointerId: 7 }));
+    expect(t.ranges().at(-1)).toMatchObject({ text: "world" });
+    t.canvas.document.activeElement = t.nested;
+    t.canvas.fireWindow("blur", {});
+    t.canvas.advance(0);
+    expect(t.ranges().at(-1)).toMatchObject({ dragging: false, rects: [] });
+    const data = new Map<string, string>();
+    const copy = Object.assign(input({ target: null }), { clipboardData: { setData: (type: string, value: string) => data.set(type, value) }, stopImmediatePropagation() {} });
+    t.canvas.fireWindow("copy", copy);
+    expect(data.size).toBe(0);
+  });
+
   test("does not forward a held Esc's auto-repeats", () => {
     const { canvas, span } = heroCanvas();
     canvas.fireWindow("keydown", input({ target: span, key: "Escape" }));
@@ -2450,6 +2470,18 @@ describe("textBoundary", () => {
   });
 });
 
+// The injected script cannot import, so it repeats the caps canvasMessage.ts drops a text range over; a lower cap on
+// the app's side would silently drop every clipped range.
+describe("text range caps", () => {
+  test("the script clips to the same caps the app's parser accepts", () => {
+    const source = canvasScriptSource();
+    // The bundler may print a literal as 1e5; Number reads either form.
+    const value = (name: string) => Number(new RegExp(`const ${name} = ([0-9_.e]+);`).exec(source)?.[1]?.replaceAll("_", ""));
+    expect(value("MAX_COPY_TEXT")).toBe(MAX_COPY_TEXT);
+    expect(value("MAX_TEXT_RECTS")).toBe(MAX_TEXT_RECTS);
+  });
+});
+
 // The copy cap counts code points and never splits a surrogate pair (clipHtml is the code-point clip the script uses).
 describe("copy text cap", () => {
   const CAP = 100_000;
@@ -2476,7 +2508,8 @@ function textCanvas() {
   const editable = node("div", {}, [], { isContentEditable: true });
   const row = node("div", {}, [hero, side]);
   const header = node("header");
-  const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [header, row, note, field, editable]) });
+  const nested = node("iframe");
+  const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [header, row, note, field, editable, nested]) });
   canvas.posted.length = 0;
   const texts: FakeText[] = [];
   const text = (parent: FakeNode, data: string, left: number, top: number): FakeText => {
@@ -2526,7 +2559,9 @@ function textCanvas() {
     anchorNode: null as unknown, anchorOffset: 0, focusNode: null as unknown, focusOffset: 0,
     get rangeCount() { return selection.ranges.length; },
     removeAllRanges() { selection.ranges = []; selection.anchorNode = selection.focusNode = null; },
-    addRange(r: FakeRange) { selection.ranges.push(r); selection.anchorNode = r.startContainer; selection.anchorOffset = r.startOffset; selection.focusNode = r.endContainer; selection.focusOffset = r.endOffset; },
+    // Set to make the next addRange throw, as a range from another document would.
+    failAdd: false,
+    addRange(r: FakeRange) { if (selection.failAdd) { selection.failAdd = false; throw new Error("addRange failed"); } selection.ranges.push(r); selection.anchorNode = r.startContainer; selection.anchorOffset = r.startOffset; selection.focusNode = r.endContainer; selection.focusOffset = r.endOffset; },
     setBaseAndExtent(a: unknown, ao: number, f: unknown, fo: number) { const r = new FakeRange(); r.setStart(a, ao); r.setEnd(f, fo); selection.ranges = [r]; selection.anchorNode = a; selection.anchorOffset = ao; selection.focusNode = f; selection.focusOffset = fo; },
     toString() { sheetsAtRead.push((doc.adoptedStyleSheets ?? []).map(sheet => sheet.text)); return selection.ranges.map(r => r.toString()).join(""); },
   };
@@ -2559,7 +2594,7 @@ function textCanvas() {
   });
   const ranges = () => ofType(canvas, "text-range");
   const ours = () => doc.adoptedStyleSheets.map(sheet => sheet.text);
-  return { canvas, one, two, hero, three, side, note, field, editable, row, tLead, t1, t2, t3, tNote, tEdit, selection, carets, captured, ranges, ours, sheetsAtRead, pointAt, doc };
+  return { canvas, one, two, hero, three, side, note, field, editable, nested, row, tLead, t1, t2, t3, tNote, tEdit, selection, carets, captured, ranges, ours, sheetsAtRead, pointAt, doc };
 }
 
 describe("canvasScript text drag", () => {
@@ -2567,7 +2602,8 @@ describe("canvasScript text drag", () => {
   // Screen px are the client px plus 1000, so a drag's 4 px are measured in screen px only.
   const at = (x: number, y: number, over: Partial<FakeEvent> = {}): Partial<FakeEvent> => ({ clientX: x, clientY: y, screenX: x + 1000, screenY: y + 1000, pointerId: 7, ...over });
   const down = (t: T, target: unknown, x: number, y: number, over: Partial<FakeEvent> = {}) => { const e = input({ target, type: "pointerdown", ...at(x, y, over) }); t.canvas.fireWindow("pointerdown", e); return e; };
-  const move = (t: T, x: number, y: number, over: Partial<FakeEvent> = {}) => t.canvas.fireWindow("pointermove", input({ target: t.canvas.html, ...at(x, y, over) }));
+  // The primary button is held unless a test says otherwise.
+  const move = (t: T, x: number, y: number, over: Partial<FakeEvent> = {}) => t.canvas.fireWindow("pointermove", input({ target: t.canvas.html, ...at(x, y, { buttons: 1, ...over }) }));
   const up = (t: T, x: number, y: number) => t.canvas.fireWindow("pointerup", input({ target: t.canvas.html, ...at(x, y) }));
   // A drag over "Hello world" from before "world" (x 60) to after it (x 110).
   const dragWorld = (t: T) => { down(t, t.one, 60, 5); move(t, 80, 5); move(t, 110, 5); up(t, 110, 5); };
@@ -2622,11 +2658,17 @@ describe("canvasScript text drag", () => {
     const press = down(t, t.one, 60, 5);
     expect([press.prevented, press.stopped]).toEqual([true, true]);
     move(t, 110, 5);
-    for (const type of ["mousedown", "mouseup", "dblclick"]) {
+    for (const type of ["mousedown", "dblclick"]) {
       const event = input({ target: t.one });
       t.canvas.fireWindow(type, event);
-      if (type !== "mouseup") expect([type, event.prevented, event.stopped]).toEqual([type, true, true]);
+      expect([type, event.prevented, event.stopped]).toEqual([type, true, true]);
     }
+    // No mouseup reaches the canvas: the prevented pointerdown keeps Chromium from sending it, and the script itself
+    // listens for none, so one that did arrive would change nothing.
+    expect(t.canvas.windowListeners.has("mouseup")).toBe(false);
+    const before = t.canvas.posted.length;
+    t.canvas.fireWindow("mouseup", input({ target: t.one }));
+    expect(t.canvas.posted).toHaveLength(before);
   });
 
   test("takes the pointer capture on html once it becomes a drag and lets it go at the end", () => {
@@ -2833,13 +2875,61 @@ describe("canvasScript text drag", () => {
     expect(t.ranges().at(-1)).toMatchObject({ text: "Hello world\nSecond line".slice(6, 16) });
   });
 
-  test("text-point outside a drag or for an old epoch changes nothing", () => {
+  test("text-point outside a drag changes nothing", () => {
     const t = textCanvas();
     dragWorld(t);
     const count = t.ranges().length;
     t.canvas.fromParent({ type: "text-point", epoch: 0, x: 40, y: 75 });
     t.canvas.runFrame();
     expect(t.ranges()).toHaveLength(count);
+  });
+
+  test("text-point with an epoch other than the last clear-text changes nothing", () => {
+    const t = textCanvas();
+    t.canvas.fromParent({ type: "clear-text", epoch: 3 });
+    down(t, t.one, 60, 5); move(t, 80, 5);
+    for (const epoch of [2, 4]) t.canvas.fromParent({ type: "text-point", epoch, x: 40, y: 75 });
+    up(t, 40, 75);
+    expect(t.ranges().at(-1)).toMatchObject({ epoch: 3, text: "wo" });
+  });
+
+  // A pointerup lost outside the frame before the capture was taken leaves a press behind; a later move with no button
+  // held must not turn it into a drag.
+  test("a press does not become a drag on a move with no primary button held", () => {
+    const t = textCanvas();
+    down(t, t.one, 60, 5);
+    move(t, 110, 5, { buttons: 0 });
+    t.canvas.runFrame();
+    move(t, 120, 5);
+    t.canvas.runFrame();
+    expect(t.ranges()).toEqual([]);
+    expect(t.captured.size).toBe(0);
+    expect(t.ours()).toEqual([]);
+    click(t.canvas, t.one);
+    expect(ofType(t.canvas, "select")).toHaveLength(1);
+  });
+
+  test("the click ending a drag during which a pick started picks nothing; the next click picks", () => {
+    const t = textCanvas();
+    t.canvas.fromParent({ type: "measure" });
+    const document = (ofType(t.canvas, "layout").at(-1) as { document: string }).document;
+    down(t, t.one, 60, 5); move(t, 110, 5);
+    t.canvas.fromParent({ type: "pick-start", seq: 1, document });
+    up(t, 110, 5);
+    click(t.canvas, t.one);
+    expect(ofType(t.canvas, "picked")).toEqual([]);
+    click(t.canvas, t.one);
+    expect(ofType(t.canvas, "picked")).toHaveLength(1);
+  });
+
+  test("a read that throws still removes the user-select sheet and puts back the canvas's selection", () => {
+    const t = textCanvas();
+    t.selection.setBaseAndExtent(t.t2, 4, t.t2, 1);
+    down(t, t.one, 60, 5); move(t, 110, 5);
+    t.selection.failAdd = true;
+    expect(() => up(t, 110, 5)).toThrow("addRange failed");
+    expect(t.ours()).toEqual([]);
+    expect([t.selection.anchorNode, t.selection.anchorOffset, t.selection.focusNode, t.selection.focusOffset]).toEqual([t.t2, 4, t.t2, 1]);
   });
 
   test("posts the rects again after a layout, and drops the range when its text left the document", () => {
