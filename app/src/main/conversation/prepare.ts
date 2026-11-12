@@ -270,7 +270,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         runtime: provider, command: lease.command, args: [...adapter.args, ...runArgs], configDir, cwd,
         env: { ...lease.env, PATH: `${dirname(cli)}:${lease.env.PATH}`, ...(provider === "claude" ? promptSuggestionEnv(lease.promptSuggestion) : {}) }, ...(stored ? { sessionId: stored.session.sessionId } : {}),
         owner: { kind: "doan", provider, connectionId: connection.connectionId, accountId: connection.account.id, workspaceId: connection.account.workspace, profile: connection.profile },
-        release: lease.release, recheck: () => { recheck(); },
+        release: lease.release, ...(lease.quiet ? { quiet: lease.quiet } : {}), recheck: () => { recheck(); },
         ...(adapter.acp?.authenticate ? { authenticate: adapter.acp.authenticate } : {}),
         ...(adapter.verifyByRun ? { confirm: () => auth.confirm(provider, connection.connectionId) } : {}),
         ...(versions && ran ? { incompatible: () => versions.incompatible(provider, ran), compatible: () => versions.compatible(provider, ran) } : {}),

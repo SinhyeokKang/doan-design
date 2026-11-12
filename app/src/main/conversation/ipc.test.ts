@@ -811,3 +811,19 @@ describe("fast in the replies", () => {
     } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
   });
 });
+// A Stop names the turn it was pressed for (a running turn's, or a done turn's background line); the service decides.
+it("passes a Stop's turn on to the service and refuses a malformed one", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")); const prepare = vi.fn();
+  try {
+    const service = new ConversationService(new ConversationStore(dir), prepare, vi.fn(), () => {});
+    const interrupt = vi.spyOn(service, "interrupt").mockResolvedValue();
+    const handle = conversationHandler(service, prepare, () => []);
+    const id = "11111111-1111-4111-8111-111111111111", turnId = "22222222-2222-4222-8222-222222222222";
+    expect(await handle(true, "interrupt", { conversationId: id, turnId })).toBeUndefined();
+    expect(interrupt).toHaveBeenLastCalledWith(id, turnId);
+    expect(await handle(true, "interrupt", { conversationId: id })).toBeUndefined();
+    expect(interrupt).toHaveBeenLastCalledWith(id, undefined);
+    expect(await handle(true, "interrupt", { conversationId: id, turnId: "../x" })).toEqual({ error: "bad_request" });
+    expect(interrupt).toHaveBeenCalledTimes(2);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

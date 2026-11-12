@@ -342,14 +342,20 @@ export class AuthManager {
     const { command, env, profileDir, promptSuggestion } = await this.launch(provider, undefined, added);
     // A sign-in or sign-out may have started while the CLI was being located.
     this.admit(provider);
+    // quiet: a conversation run whose turn ended while its background work goes on. A sign-out or replacement stops it
+    // without asking (stopRuns), as it stops a list read, and still waits for its lease.
+    let quiet = false;
     const counts = (delta: number) => {
       this.runs.set(provider, (this.runs.get(provider) ?? 0) + delta);
-      if (use === "run") this.conversations.set(provider, (this.conversations.get(provider) ?? 0) + delta);
+      if (use === "run" && !quiet) this.conversations.set(provider, (this.conversations.get(provider) ?? 0) + delta);
     };
     counts(1);
     try { await this.hold(provider); } catch (error) { counts(-1); throw error; }
     let released = false;
-    return { command, env, profileDir, ...(promptSuggestion === undefined ? {} : { promptSuggestion }), quiet: () => {}, release: async () => {
+    return { command, env, profileDir, ...(promptSuggestion === undefined ? {} : { promptSuggestion }), quiet: (on: boolean) => {
+      if (released || use !== "run" || on === quiet) return;
+      quiet = on; this.conversations.set(provider, (this.conversations.get(provider) ?? 0) + (on ? -1 : 1));
+    }, release: async () => {
       if (released) return;
       released = true;
       // The run counts until its write-back lands, so a sign-out cannot delete a vault the write-back recreates.

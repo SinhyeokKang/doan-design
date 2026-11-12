@@ -27,7 +27,7 @@ function fixture(options: { provider?: Provider; legacy?: boolean; listed?: Canv
   const quiet = vi.fn();
   const owner = { kind: "doan" as const, provider, connectionId: "conn", accountId: "acct", workspaceId: "org", profile: provider };
   const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: provider, configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, quiet, ...(options.legacy ? {} : { owner }), ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
-  const listed: Canvas[] = [...options.listed ?? []];
+  const listed: Canvas[] = [...options.listed ?? [{ path: ".doan/canvases/a.html", id: "a" }]];
   const drafts = new DraftStore(join(dir, "conversations"));
   // The transcript the service reads after a turn whose steered message was never reported (io.ts in the app).
   let transcript = "";
@@ -165,6 +165,8 @@ describe("a steered message the agent never reported (Claude)", () => {
     const id = await h.startCanvas();
     const { itemId } = h.service.queue(id, { text: "also this", anchors: [] });
     const now = h.service.sendNow(id, itemId);
+    // A refused Send now rejects; the cases that expect it await it again.
+    now.catch(() => {});
     await tick();
     const messageId = vi.mocked(h.runs[0]!.runner.steer).mock.calls[0]![2];
     return { id, itemId, now, messageId };
@@ -181,7 +183,7 @@ describe("a steered message the agent never reported (Claude)", () => {
     expect(h.reads[0]).toEqual({ configDir: "/profile", sessionId: "s1", from: 100 });
     await now;
     expect(h.drafts.queued(id)).toEqual([]);
-    expect(h.drafts.returned(id)).toBeNull();
+    expect(h.drafts.returned(id)).toBeUndefined();
   });
   it("finds a folded message by its attachment's source_uuid", async () => {
     const h = fixture(); const { id, messageId } = await steered(h);
@@ -204,7 +206,7 @@ describe("a steered message the agent never reported (Claude)", () => {
     h.setTranscript(h.userLine(messageId));
     h.runs[0]!.exited(); await stopping;
     expect(h.types(id)).toEqual(["user.message", "turn.started", "user.message", "interrupted"]);
-    expect(h.drafts.returned(id)).toBeNull();
+    expect(h.drafts.returned(id)).toBeUndefined();
     expect(h.summary(id).stopping).toBeUndefined();
   });
   it("on a sign-out of its provider, does the same", async () => {
@@ -222,7 +224,7 @@ describe("a steered message the agent never reported (Claude)", () => {
     await h.service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "fresh", anchors: [] });
     h.setTranscript(h.userLine(messageId));
     h.runs[0]!.exited();
-    expect(h.drafts.returned(id)).toBeNull();
+    expect(h.drafts.returned(id)).toBeUndefined();
     expect(h.drafts.queued(id)).toEqual([]);
   });
   it("on archive, hands a message the transcript does not have back as a draft", async () => {
@@ -241,8 +243,8 @@ describe("a steered message the agent never reported (Claude)", () => {
     expect(h.drafts.queued(id)).toEqual([]);
   });
   it("writes the held end after 2 s without the group gone, and the message goes back to the queue", async () => {
-    fake(); const h = fixture(); const { id, now } = await steered(h);
-    now.catch(() => {});
+    const h = fixture(); const { id } = await steered(h);
+    fake();
     h.runs[0]!.emit({ type: "turn.done" });
     await vi.advanceTimersByTimeAsync(1_999);
     expect(h.types(id)).toEqual(["user.message", "turn.started"]);
@@ -298,14 +300,23 @@ describe("background work after a done turn", () => {
   });
   it("Stop of the line stops that done turn's group through stop(), says stopping, and a second press does nothing more", async () => {
     const h = fixture(); const { id, turnId } = await background(h);
+    // The group goes while the stop waits.
+    vi.mocked(h.runs[0]!.runner.stop).mockImplementation(() => new Promise<void>(resolve => setTimeout(() => { h.runs[0]!.exited(); resolve(); }, 5)));
+    let seen: unknown;
+    h.changes.length = 0;
+    const first = h.service.interrupt(id, turnId);
+    seen = h.summary(id).background;
     await h.service.interrupt(id, turnId);
-    expect(h.runs[0]!.runner.stop).toHaveBeenCalledOnce();
-    expect(h.summary(id).background).toEqual({ turnId, stopping: true });
-    await h.service.interrupt(id, turnId);
+    await first;
+    expect(seen).toEqual({ turnId, stopping: true });
     expect(h.runs[0]!.runner.stop).toHaveBeenCalledOnce();
     expect(h.types(id)).toEqual(["user.message", "turn.started", "turn.done"]);
-    h.runs[0]!.exited();
     expect(h.summary(id).background).toBeUndefined();
+  });
+  it("brings the line's Stop back with a refusal when the group is still there after the stop", async () => {
+    const h = fixture(); const { id, turnId } = await background(h);
+    await expect(h.service.interrupt(id, turnId)).rejects.toThrow("busy");
+    expect(h.summary(id).background).toEqual({ turnId });
   });
   it("a Stop that names an earlier turn does nothing to a send started since", async () => {
     const h = fixture(); const { id, turnId } = await background(h);

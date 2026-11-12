@@ -1810,10 +1810,10 @@ describe("send now", () => {
       const second = h.service.queue(id, { text: "two", anchors: [] });
       const sent = h.service.sendNow(id, second.itemId);
       if (accepted) { calls[0]!.accept(); await tick(); }
-      h.service.receive(id, { type: "turn.done" });
+      // A Claude turn's end with a steer unread waits for its group to go and the transcript read (no file here).
+      h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
       expect(await answer(sent)).toBe("not_running");
       expect(h.service.list("/repo")[0]!.working).toBe(true);
-      h.open.mock.calls[0]![2]();
       await vi.waitFor(() => expect(userMessages(h, id)).toHaveLength(2));
       expect(userMessages(h, id).at(-1)).toMatchObject({ text: "one\n\ntwo" });
       // A late answer and read of the earlier steer change nothing now (POSTMORTEM 2026-10-27, 2026-10-28).
@@ -1834,7 +1834,7 @@ describe("send now", () => {
     const second = h.service.queue(id, { text: "two", anchors: [] });
     const sent = h.service.sendNow(id, second.itemId);
     calls[0]!.accept(); await tick();
-    h.service.receive(id, end);
+    h.service.receive(id, end); h.open.mock.calls[0]![2]();
     expect(await answer(sent)).toBe("not_running");
     expect(h.service.takeDraft(id)).toEqual({ text: "one\n\ntwo", anchors: [], attachments: [], reason });
   });
@@ -1844,7 +1844,7 @@ describe("send now", () => {
     const item = h.service.queue(id, { text: "one", anchors: [] });
     const sent = h.service.sendNow(id, item.itemId);
     calls[0]!.accept();
-    await h.service.stopRuns("claude");
+    await h.service.stopRuns("claude"); h.open.mock.calls[0]![2]();
     expect(await answer(sent)).toBe("not_running");
     expect(h.service.takeDraft(id)).toMatchObject({ text: "one", reason: "interrupted" });
   });
@@ -1884,7 +1884,7 @@ describe("send now", () => {
     const queued = h.service.queue(id, { text: "two", anchors: [] });
     const archived = h.service.sendNow(id, queued.itemId);
     calls[0]!.accept();
-    await h.service.start(canvasStart);
+    await h.service.start(canvasStart); h.open.mock.calls[0]![2]();
     expect(h.store.list().find(m => m.conversationId === id)?.state).toBe("archived");
     expect(await answer(archived)).toBe("not_running");
     read(calls[0]!.messageId);
@@ -1911,7 +1911,7 @@ describe("send now", () => {
     const refused = h.service.sendNow(id, queued.itemId);
     calls[0]!.refuse(new Error("RPC timeout"));
     expect(await answer(refused)).toBe("not_running");
-    h.service.receive(id, { type: "turn.failed", code: "rate_limited" });
+    h.service.receive(id, { type: "turn.failed", code: "rate_limited" }); h.open.mock.calls[0]![2]();
     expect(h.service.takeDraft(id)).toMatchObject({ text: "two", reason: "turn_failed" });
   });
   it("lets the agent's read decide over a refusal already answered, while the turn runs and the message is queued", async () => {
@@ -1997,7 +1997,7 @@ describe("send now", () => {
     // Waiting for a permission answer still runs.
     const waiting = h.service.sendNow(id, item.itemId);
     expect(await answer(waiting)).toBe("pending");
-    h.service.receive(id, { type: "turn.done" });
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
     expect(await answer(waiting)).toBe("not_running");
     await expect(h.service.sendNow(id, item.itemId)).rejects.toThrow("not_running");
   });
@@ -2015,7 +2015,7 @@ describe("send now", () => {
     const item = h.service.queue(id, { text: "next", anchors: [] });
     const sent = h.service.sendNow(id, item.itemId);
     calls[0]!.accept(); await tick();
-    h.service.receive(id, { type: "turn.done" });
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
     expect(await answer(sent)).toBe("not_running");
     h.service.refreshed("/repo", []);
     h.passBindingWindow();
