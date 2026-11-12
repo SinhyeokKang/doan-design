@@ -7,13 +7,13 @@ import { query, type EffortLevel, type PermissionResult, type PermissionUpdate, 
 import { openAcp } from "./acpRunner";
 import { CodexDispatcher, RpcError } from "./dispatcher";
 import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeVerdict } from "./handshake";
-import { OwnedGroup } from "./process";
+import { afterTurnCleanup, OwnedGroup } from "./process";
 import { object } from "./sessions";
 import { applyClaudeFastUnavailable, parseClaudeModels, parseCodexModels } from "./models";
 import { parseClaudeSkills, parseCodexSkills } from "./skills";
 import { CodexStartupWatch, codexProfileServers } from "./mcpStartup";
 import { connectorLabels } from "../mcpConnectors/presets";
-import { CLAUDE_QUESTION_TOOL, claudePermissionSummary, claudeQuestion, claudeQuestionResult, claudeReportedMode, claudeUnansweredSupport, endSteerWait, endTransport, initialTransport, normalizeClaude, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
+import { backgroundTasks, CLAUDE_QUESTION_TOOL, claudePermissionSummary, claudeQuestion, claudeQuestionResult, claudeReportedMode, claudeUnansweredSupport, endPromptWait, endSteerWait, endTransport, initialTransport, normalizeClaude, promptTransport, steerTransport, storedAnswers, transportError, type ClaudeQuestion } from "./transport";
 import { questionAnswer } from "./questionAnswer";
 import { promptSuggestionText } from "./promptSuggestion";
 import { claudePermission, codexDefaults, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
@@ -81,10 +81,10 @@ function verdicts(input: Prepared): (verdict: HandshakeVerdict) => void {
 }
 // A Claude turn's usage read keeps the CLI's input open, and the next send waits for that process (service.ts
 // EXIT_WAIT_MS, 10 s). After closing, the CLI may still generate its prompt suggestion (up to 30 s in Claude Code
-// 2.1.318), so it is not its own exit that keeps the wait inside the budget: the next send ends a process that only
-// waits for its suggestion once this read is over (endSuggestion). This cap plus that group stop (SIGKILL after
-// 0.5 s) stays inside the wait, so a CLI that never answers delays the next send by at most this, never refuses it as
-// busy. An answer took 0.2-1 s (PoC).
+// 2.1.318), so it is not its own exit that keeps the wait inside the budget: the next send ends a finished turn's
+// process once this read is over (endAfterTurn), killed at once when only its suggestion is left and through SIGTERM
+// (SIGKILL after 0.5 s) otherwise. This cap plus that stop stays inside the wait, so a CLI that never answers delays the
+// next send by at most this, never refuses it as busy. An answer took 0.2-1 s (PoC).
 const TURN_USAGE_MS = 3000;
 function timeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -304,8 +304,18 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   let readWait: ReturnType<typeof setTimeout> | undefined, readExpired = false;
   // After a done turn's terminal (no steered message unread) the CLI may send one prompt_suggestion before it exits.
   // suggestionSeen: one came, whatever it said. suggestionEnded: the next send asked to end the process
-  // (endSuggestion), so a later suggestion belongs to no one.
-  let doneTurn = false, suggestionSeen = false, suggestionEnded = false;
+  // (endAfterTurn), so a later suggestion belongs to no one. cleanupLater: it asked during the usage read, so the
+  // decision waits for the input to close.
+  let doneTurn = false, suggestionSeen = false, suggestionEnded = false, cleanupLater = false;
+  // The live background tasks (background_tasks_changed), and whether the done turn's end reported them.
+  let background: string[] = [], backgroundShown = false;
+  // A finished turn's process ended for the next send: killed at once when nothing but its suggestion is left, otherwise
+  // through SIGTERM, whose handling stops background work in the CLI's own way (process.ts afterTurnCleanup).
+  const cleanup = () => {
+    const decision = afterTurnCleanup({ finished, inputClosed, background: background.length, doneTurn, promptRead: state.prompt === undefined });
+    if (decision === "kill") void group?.kill(); else if (decision === "term") void group?.stop();
+    return decision;
+  };
   const endReadWait = () => { clearTimeout(readWait); readWait = undefined; };
   async function* messages(): AsyncGenerator<SDKUserMessage> {
     pulled = true;
@@ -410,7 +420,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       const expireRead = () => {
         readWait = undefined;
         if (finished || state.terminal) return;
-        const result = endSteerWait(state); state = result.state; readExpired = true;
+        // An unread prompt means the CLI never took this turn's message: the turn fails rather than ends done.
+        const result = state.prompt !== undefined ? endPromptWait(state) : endSteerWait(state); state = result.state; readExpired = true;
         for (const event of result.events) emit(event);
         closeInput(); void group?.stop();
       };
@@ -421,6 +432,14 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             // Only after the turn's own done terminal: a frame before it, or after a failed or stopped turn, is not this
             // turn's suggestion. The first one decides; normalizeClaude drops it like any frame after the terminal.
             const after = state.terminal;
+            const tasks = backgroundTasks(background, raw);
+            if (tasks) {
+              const had = background.length; background = tasks;
+              if (after && doneTurn && tasks.length && !backgroundShown) { backgroundShown = true; input.backgroundChanged?.(true); }
+              // The work a done turn left is over: the CLI calls the model for its notice right after this frame (PoC,
+              // 16-119 ms), which no person asked for. The set is empty, so a kill orphans nothing.
+              if (after && doneTurn && had && !tasks.length) { void group?.kill(); if (backgroundShown) input.backgroundChanged?.(false); }
+            }
             if (after && doneTurn && !suggestionSeen && object(raw) && raw.type === "prompt_suggestion") {
               suggestionSeen = true;
               const text = promptSuggestionText(raw);
@@ -431,9 +450,11 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             // turn stays that process's.
             const reported = input.permissionMode === "plan" ? claudeReportedMode(raw) : undefined;
             if (reported && reported !== "plan") input.planApproved?.(reported);
+            const prompted = state.prompt !== undefined;
             const result = normalizeClaude(state, raw, input.cwd, labels); state = result.state;
             for (const id of result.consumed ?? []) input.steerConsumed?.(id);
-            if (result.consumed?.length) endReadWait();
+            // A read ends the wait a held success result armed; a result still holding re-arms it below.
+            if (result.consumed?.length || (prompted && state.prompt === undefined)) endReadWait();
             if (result.awaitingRead && !readWait) readWait = setTimeout(expireRead, STEER_READ_WAIT_MS);
             for (const event of result.events) emit(event);
             if (result.stage) input.stage?.(result.stage);
@@ -441,17 +462,20 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             endReadWait();
             // Set by the frame that ended the turn, before anything awaits: the service may ask to end this process as soon
             // as it has the terminal event.
-            if (!after) doneTurn = !state.steered?.length && result.events.some(event => event.type === "turn.done");
+            if (!after) doneTurn = !state.steered?.length && state.prompt === undefined && result.events.some(event => event.type === "turn.done");
+            // Reported with the turn's end, after its terminal event, so the service knows the turn as done.
+            if (!after && doneTurn && background.length && !backgroundShown) { backgroundShown = true; input.backgroundChanged?.(true); }
             // The CLI exits once its input closes, so a done turn's usage is read on this Query first (ARCHITECTURE §7 'Agent usage').
-            if (input.usageAtTurnEnd && !state.steered?.length && result.events.some(event => event.type === "turn.done")) {
+            if (input.usageAtTurnEnd && doneTurn && !after) {
               await input.usageAtTurnEnd(() => timeout(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }), TURN_USAGE_MS)).catch(() => {});
             }
             closeInput();
-            // The next send asked during the usage read: the input is closed now, so the process ends without its suggestion.
-            if (suggestionEnded) void group?.stop();
-            // A failed or aborted result can end the turn with a steered message already written and unread; the item
-            // goes back to the draft, so the CLI must not run it in a turn nobody sees. The terminal event is out already.
-            if (state.steered?.length) { void group?.stop(); break; }
+            // The next send asked during the usage read: the input is closed now, so the decision is made.
+            if (cleanupLater) { cleanupLater = false; cleanup(); }
+            // A failed or aborted result can end the turn with a steered message or its own prompt written and unread; the
+            // item goes back to the draft or the turn shows its failure, so the CLI must not run it in a turn nobody
+            // sees. The terminal event is out already.
+            if (state.steered?.length || state.prompt !== undefined) { void group?.stop(); break; }
           }
           if (!state.terminal) emit({ type: "turn.failed", code: "process_exited" });
         } catch (error) {
@@ -464,7 +488,10 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       // The SDK starts consuming input as part of its initialization handshake.
       if (!pulled) { controller.abort(); closeInput(); void group?.stop(); throw new Error("session_unavailable"); }
       turn = turnId;
-      void enqueue({ type: "user", message: { role: "user", content: prompt }, parent_tool_use_id: null, session_id: sessionId }).catch(() => {});
+      // The prompt carries a uuid the CLI echoes once it read it; registered before it is written (promptTransport).
+      const promptId = randomUUID();
+      state = promptTransport(state, promptId);
+      void enqueue({ type: "user", message: { role: "user", content: prompt }, parent_tool_use_id: null, session_id: sessionId, uuid: promptId as NonNullable<SDKUserMessage["uuid"]> }).catch(() => {});
       await consume;
     },
     // Registered with the transport before it is written, so a result the CLI sends before reading it does not end the
@@ -492,12 +519,14 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     // nothing left but its suggestion is ended with the group stop: interrupt is refused once the input closed,
     // and the CLI may take up to 30 s to settle a suggestion. Asked during the usage read, it ends once the input closes.
     // True when it ends this process; false for any other process, which the send waits for as before.
-    endAfterTurn() { return "none" as const; },
-    endSuggestion() {
-      if (!doneTurn || suggestionSeen || suggestionEnded || finished) return false;
+    // The conversation's next send (or a queue at the turn's end) asks to end this finished turn's process; asked during
+    // the usage read, the decision waits for the input to close. A suggestion that comes after this belongs to no one.
+    endAfterTurn() {
+      const decision = afterTurnCleanup({ finished, inputClosed, background: background.length, doneTurn, promptRead: state.prompt === undefined });
+      if (decision === "none") return decision;
       suggestionEnded = true;
-      if (inputClosed) void group?.stop();
-      return true;
+      if (decision === "later") { cleanupLater = true; return decision; }
+      return cleanup();
     },
     async stop() { state = { ...state, stop: "user" }; endReadWait(); expire(); controller.abort(); closeInput(); await group?.stop(); },
     async close() { state = { ...state, stop: "appQuit" }; endReadWait(); expire(); controller.abort(); closeInput(); await group?.stop(); },

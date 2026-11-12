@@ -1191,12 +1191,12 @@ function askClaude(root: string): string {
 const fs = require('node:fs'); const readline = require('node:readline');
 const seen = ${JSON.stringify(join(root, "seen"))}; const log = v => fs.appendFileSync(seen, JSON.stringify(v) + '\\n');
 const send = v => process.stdout.write(JSON.stringify(v) + '\\n');
-const mode = process.env.FAKE_ASK; const open = new Set(), steered = []; let n = 0, session = 's', finished = false;
+const mode = process.env.FAKE_ASK; const open = new Set(), steered = []; let n = 0, session = 's', finished = false, prompt;
 const color = { questions: [{ question: 'Which color do you prefer?', header: 'Color', multiSelect: false, options: [{ label: 'Red', description: 'Warm' }, { label: 'Blue', description: 'Cool' }] }] };
 const size = { questions: [{ question: 'Which size?', header: 'Size', multiSelect: true, options: [{ label: 'S', description: '' }, { label: 'M', description: '' }] }] };
 const ask = (tool, input) => { const id = 'req-' + (++n); open.add(id); send({ type: 'control_request', request_id: id, request: { subtype: 'can_use_tool', tool_name: tool, input, tool_use_id: 'tu-' + n } }); };
 // A message steered while the question waited is read after the answer, echoed as the CLI does after a tool result.
-const finish = () => { if (finished) return; finished = true; if (steered.length) send({ type: 'system', subtype: 'status', session_id: session, user_message_uuids: steered }); send({ type: 'assistant', parent_tool_use_id: null, session_id: session, message: { id: 'm', role: 'assistant', content: [{ type: 'text', text: 'went on' }] } }); send({ type: 'result', subtype: 'success', is_error: false, result: 'went on', session_id: session }); if (mode === 'afterend') ask('AskUserQuestion', size); };
+const finish = () => { if (finished) return; finished = true; if (steered.length) send({ type: 'system', subtype: 'status', session_id: session, user_message_uuids: steered }); send({ type: 'assistant', parent_tool_use_id: null, session_id: session, message: { id: 'm', role: 'assistant', content: [{ type: 'text', text: 'went on' }] } }); send({ type: 'result', subtype: 'success', is_error: false, result: 'went on', user_message_uuids: [prompt, ...steered], session_id: session }); if (mode === 'afterend') ask('AskUserQuestion', size); };
 const input = readline.createInterface({ input: process.stdin });
 input.on('line', line => {
   const r = JSON.parse(line);
@@ -1210,7 +1210,7 @@ input.on('line', line => {
   if (r.type !== 'user') return;
   log({ user: r.message.content });
   if (n) { if (r.uuid) steered.push(r.uuid); return; }
-  session = r.session_id;
+  session = r.session_id; prompt = r.uuid;
   send({ type: 'system', subtype: 'init', session_id: session, capabilities: mode === 'nocap' ? ['interrupt_receipt_v1'] : ['ask_user_question_unanswered_v1'], tools: ['AskUserQuestion'] });
   if (mode === 'bad') ask('AskUserQuestion', { questions: [] });
   else if (mode === 'both') { ask('AskUserQuestion', color); ask('AskUserQuestion', size); ask('Write', { file_path: '/repo/a.html' }); }

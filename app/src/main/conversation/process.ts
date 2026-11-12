@@ -13,6 +13,7 @@ export function afterTurnCleanup(input: { finished: boolean; inputClosed: boolea
 export class OwnedGroup {
   private exited = false;
   private stopping: Promise<void> | undefined;
+  private killing: Promise<void> | undefined;
   private poll: ReturnType<typeof setInterval> | undefined;
   private escalation: ReturnType<typeof setTimeout> | undefined;
   constructor(readonly pid: number, private signal = (pid: number, signal: NodeJS.Signals) => { process.kill(-pid, signal); },
@@ -27,7 +28,14 @@ export class OwnedGroup {
     this.stopping = new Promise(resolve => { const timer = setTimeout(resolve, 2000); timer.unref(); });
     return this.stopping;
   }
-  kill(): Promise<void> { return this.stop(); }
+  // At once, also while a stop is still before its own SIGKILL: a finished turn's process with nothing left to save. The
+  // group is released only once it is observed gone, as after a stop.
+  kill(): Promise<void> {
+    if (this.exited) return Promise.resolve();
+    this.send("SIGKILL"); this.monitor();
+    this.killing ??= new Promise(resolve => { const timer = setTimeout(resolve, 2000); timer.unref(); });
+    return this.stopping ?? this.killing;
+  }
   private send(signal: NodeJS.Signals): void { try { this.signal(this.pid, signal); } catch { /* Only an independent liveness observation releases ownership. */ } this.observe(); }
   private monitor(): void { if (!this.poll && !this.exited) { this.poll = setInterval(() => this.observe(), 100); this.poll.unref(); } }
   private observe(): void {

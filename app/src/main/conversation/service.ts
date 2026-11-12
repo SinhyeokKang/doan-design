@@ -95,9 +95,9 @@ export interface SendExtras extends Omit<TurnChoice, "fast"> { fast?: boolean; a
 function askingKey(event: { type: string; requestId: string }): string { return `${event.type.startsWith("question.") ? "question" : "permission"}:${event.requestId}`; }
 // steer: Claude and Codex only (steerSupport.ts); adds a message to the running turn turnId and resolves once the
 // provider accepted it, which is not yet the agent reading it (Prepared.steerConsumed).
-// endSuggestion: Claude only; ends a done turn's process that only waits for its prompt suggestion, true when it did.
+// endAfterTurn: Claude only; ends a finished turn's process for the conversation's next send (process.ts afterTurnCleanup).
 // mechanism: a fenced Codex server's, which holds only the modes of that mechanism (agentAuth/fence.ts codexRestart).
-export interface Runner { mechanism?: FenceMechanism; sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; skills?(): Promise<SkillSummary[]>; steer?(prompt: string, turnId: string, messageId: string): Promise<void>; endSuggestion?(): boolean; endAfterTurn?(): AfterTurnCleanup }
+export interface Runner { mechanism?: FenceMechanism; sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; skills?(): Promise<SkillSummary[]>; steer?(prompt: string, turnId: string, messageId: string): Promise<void>; endAfterTurn?(): AfterTurnCleanup }
 // What a queued send needs from main's attachment store: the queued ids checked again as the send's attachments
 // (reclaim throws attachment_missing), consumed once that send was accepted, discarded with a removed message (a paste
 // goes with it) and released once a returned draft no longer holds them (its take had no attachment for them, or its
@@ -456,7 +456,7 @@ export class ConversationService {
     // wait (EXIT_WAIT_MS). Its suggestion is dropped and the process ended, so the send is no later than before.
     // Any other process (a failed or stopped turn, a suggestion already here) ends by
     // itself as before; the reservation is still released only once the group is gone (POSTMORTEM 2026-10-28).
-    if (live?.done && !this.suggestions.has(id)) live.runner?.endSuggestion?.();
+    if (live?.done && !this.suggestions.has(id)) live.runner?.endAfterTurn?.();
     return this.exitOf(id, live);
   }
   private async exitOf(id: string, live: Live | undefined): Promise<void> {

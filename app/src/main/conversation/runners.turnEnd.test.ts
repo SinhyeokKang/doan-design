@@ -8,6 +8,7 @@ import type { EventPayload } from "./types";
 // A fake Claude CLI for the turn-end rules (PoC, Claude Code 2.1.322 and 2.1.284):
 //  meta     a turn the CLI opened itself (a background task's notice) closes with a success result before the prompt is
 //           read; the prompt's own turn follows and echoes its uuid.
+//  slow     the meta result, then the prompt read, then the prompt's own result only once the test writes "go".
 //  unread   only the meta result; the prompt is never read and the input's end is ignored.
 //  failed   a failed result before the prompt was read; the input's end is ignored.
 //  bg       the done turn leaves a background task: the set is announced, and once the task ends (FAKE_TASK_MS) the set
@@ -29,7 +30,9 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
  if(r.type==='control_request') { send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:r.request.subtype==='get_usage'?{rate_limits_available:true,rate_limits:{}}:{commands:[],models:[],account:{}}}}); return; }
  if(r.type!=='user') return;
  if(mode==='meta') { meta(); setTimeout(() => { send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:'s'}); say('own', '4'); send({type:'result',subtype:'success',is_error:false,num_turns:1,result:'4',user_message_uuids:[r.uuid],session_id:'s'}); }, 50); }
- if(mode==='unread') meta();
+ if(mode==='unread') setTimeout(meta, 300);
+ if(mode==='slow') { setTimeout(meta, 300); setTimeout(() => send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:'s'}), 400);
+  const poll = setInterval(() => { if(!fs.existsSync(${JSON.stringify(join(root, "go"))})) return; clearInterval(poll); say('own', '4'); send({type:'result',subtype:'success',is_error:false,result:'4',user_message_uuids:[r.uuid],session_id:'s'}); }, 20); }
  if(mode==='failed') send({type:'result',subtype:'error_during_execution',is_error:true,errors:['boom'],session_id:'s'});
  if(mode==='bg') {
   task = true;
@@ -73,21 +76,43 @@ describe("a Claude turn's prompt read", () => {
   }, 15000);
   // The bound is STEER_READ_WAIT_MS (30 s); only setTimeout is faked, from just after the send.
   it("fails the turn with prompt_unread when the prompt is never read, and stops the group", async () => {
-    await run({ FAKE_MODE: "unread" }, async ({ runner, events, exited }) => {
+    // Polls on setInterval, which stays real while setTimeout is faked.
+    const until = (check: () => boolean) => new Promise<void>(resolve => { const t = setInterval(() => { if (check()) { clearInterval(t); resolve(); } }, 20); });
+    await run({ FAKE_MODE: "unread" }, async ({ runner, events, exited, root }) => {
+      const sending = runner.send("hello", "turn-1").then(() => "resolved", (e: unknown) => e);
+      await vi.waitFor(() => expect(seen(root).some(line => line.type === "user")).toBe(true));
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       try {
-        const sending = runner.send("hello", "turn-1").then(() => "resolved", (e: unknown) => e);
-        await vi.waitFor(() => expect(events).toContainEqual({ type: "message.done", messageId: "meta-m", text: "The task finished." }));
-        await new Promise<void>(resolve => { const t = setInterval(() => { clearInterval(t); resolve(); }, 100); });
+        await until(() => events.some(e => e.type === "message.done" && e.messageId === "meta-m"));
+        await until(() => true);
         await vi.advanceTimersByTimeAsync(29_000);
         expect(terminals(events)).toEqual([]);
         await vi.advanceTimersByTimeAsync(1_500);
-        await vi.waitFor(() => expect(terminals(events)).toEqual([{ type: "turn.failed", code: "prompt_unread" }]));
-        expect(await sending).toBe("resolved");
+        await until(() => terminals(events).length > 0);
+        expect(terminals(events)).toEqual([{ type: "turn.failed", code: "prompt_unread" }]);
         // The fake ignores its input's end, so only the group's stop ends it.
         await vi.advanceTimersByTimeAsync(1_000);
-        await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+        await until(() => exited.mock.calls.length > 0);
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(await sending).toBe("resolved");
       } finally { vi.useRealTimers(); }
+    });
+  }, 15000);
+  it("stops the wait the meta result armed once the prompt is read, so a long turn is not cut at 30 s", async () => {
+    const until = (check: () => boolean) => new Promise<void>(resolve => { const t = setInterval(() => { if (check()) { clearInterval(t); resolve(); } }, 20); });
+    await run({ FAKE_MODE: "slow" }, async ({ runner, events, root }) => {
+      const sending = runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(seen(root).some(line => line.type === "user")).toBe(true));
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        await until(() => events.some(e => e.type === "message.done" && e.messageId === "meta-m"));
+        await new Promise<void>(resolve => { const t = setInterval(() => { clearInterval(t); resolve(); }, 300); });
+        await vi.advanceTimersByTimeAsync(31_000);
+        expect(terminals(events)).toEqual([]);
+      } finally { vi.useRealTimers(); }
+      writeFileSync(join(root, "go"), "");
+      await sending;
+      expect(terminals(events)).toEqual([{ type: "turn.done" }]);
     });
   }, 15000);
   it("ends at once on a failed result before the prompt was read and stops the group so the CLI cannot run it unseen", async () => {
@@ -103,10 +128,12 @@ describe("a Claude turn's prompt read", () => {
 
 describe("background work after a done turn", () => {
   it("reports the background set at the done turn and kills the group where it empties, before the CLI calls the model", async () => {
-    await run({ FAKE_MODE: "bg", FAKE_TASK_MS: "400" }, async ({ runner, events, exited, background, root }) => {
-      await runner.send("start a build", "turn-1");
-      expect(terminals(events)).toEqual([{ type: "turn.done" }]);
-      expect(background.mock.calls).toEqual([[true]]);
+    await run({ FAKE_MODE: "bg", FAKE_TASK_MS: "800" }, async ({ runner, events, exited, background, root }) => {
+      // send settles only once the process is gone.
+      const sending = runner.send("start a build", "turn-1");
+      await vi.waitFor(() => expect(terminals(events)).toEqual([{ type: "turn.done" }]));
+      await vi.waitFor(() => expect(background.mock.calls).toEqual([[true]]));
+      await sending;
       await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
       expect(background.mock.calls).toEqual([[true], [false]]);
       const log = seen(root);
@@ -119,18 +146,20 @@ describe("background work after a done turn", () => {
   }, 15000);
   it("ends a group with live background work through SIGTERM, never an immediate kill", async () => {
     await run({ FAKE_MODE: "bg", FAKE_TASK_MS: "10000" }, async ({ runner, exited, root }) => {
-      await runner.send("start a dev server", "turn-1");
+      const sending = runner.send("start a dev server", "turn-1").catch(() => {});
       await vi.waitFor(() => expect(seen(root)).toContainEqual({ closed: true }));
       expect(runner.endAfterTurn!()).toBe("term");
       await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
       expect(seen(root)).toContainEqual({ signal: "SIGTERM", task: true });
+      await sending;
     });
   }, 15000);
   it("a stop of the run while background work runs takes the SIGTERM path", async () => {
     await run({ FAKE_MODE: "bg", FAKE_TASK_MS: "10000" }, async ({ runner, exited, root }) => {
-      await runner.send("start a dev server", "turn-1");
+      // A stop aborts the Query, so send rejects; its handler is attached before that can happen (POSTMORTEM 2026-11-11).
+      const sending = runner.send("start a dev server", "turn-1").catch(() => {});
       await vi.waitFor(() => expect(seen(root)).toContainEqual({ closed: true }));
-      await runner.stop();
+      await runner.stop(); await sending;
       await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
       expect(seen(root)).toContainEqual({ signal: "SIGTERM", task: true });
     });
@@ -140,13 +169,14 @@ describe("background work after a done turn", () => {
 describe("ending a finished turn's process for the next send", () => {
   it("kills at once a done turn's process that has only its suggestion left", async () => {
     await run({ FAKE_MODE: "done", FAKE_EXIT_MS: "4000" }, async ({ runner, exited, root }) => {
-      await runner.send("hello", "turn-1");
+      const sending = runner.send("hello", "turn-1").catch(() => {});
       await vi.waitFor(() => expect(seen(root)).toContainEqual({ closed: true }));
       const began = Date.now();
       expect(runner.endAfterTurn!()).toBe("kill");
       await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
       expect(Date.now() - began).toBeLessThan(400);
       expect(seen(root).some(line => line.signal)).toBe(false);
+      await sending;
     });
   }, 15000);
   it("asked during the usage read, decides once the read ends and the input closes", async () => {
