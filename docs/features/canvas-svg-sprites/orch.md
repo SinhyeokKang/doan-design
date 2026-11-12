@@ -23,8 +23,8 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | BP | 작업 1, 2 (PoC) + 작업 6 마지막 재비교(후속 Task) | `.scratch/canvas-svg-sprites/`, `tasks.md` 'PoC 기록' | 없음 | Opus high — 측정 설계와 판정이 결과를 좌우하고, 틀리면 설계 전체가 흔들린다 | 경우별 스크린숏·bbox·요청 로그, export 파일 경로(Safari용) | 완료 `bac40bf5` → 통합. Safari는 사용자 확인 대기 |
-| BC | 작업 3, 4 (`/tdd`, `/implement`) | `cli/internal/canvas/`, `cli/internal/check/`, `cli/internal/export/`(`exporttest` 포함), `cli/internal/cli/check.go` | BP | Opus high — check·export 일치, reach 포함 관계, tokenizer `<template>` 함정이 있다 | `go test ./...`, `go vet ./...`, `verify.mjs`, repo 복사본 `doan check` 새 finding 0 | 대기 |
-| BG | 작업 5 (가이드·preset) | `cli/internal/cli/skill.md`, `cli/internal/designskill/presets/document.md` | BP | Sonnet medium — 정해진 문장을 예산 안에 넣는 작업이다 | `go test ./...`(`TestSkillGuideFitsToolOutputCap`), `doan skill --json` 출력 | 대기 |
+| BC | 작업 3, 4 (`/tdd`, `/implement`) | `cli/internal/canvas/`, `cli/internal/check/`, `cli/internal/export/`(`exporttest` 포함), `cli/internal/cli/check.go` | BP | Opus high — check·export 일치, reach 포함 관계, tokenizer `<template>` 함정이 있다 | `go test ./...`, `go vet ./...`, `verify.mjs`, repo 복사본 `doan check` 새 finding 0 | 진행(dispatch `ctx_6d20608a4cc7`, worktree `css-bc`) |
+| BG | 작업 5 (가이드·preset) | `cli/internal/cli/skill.md`, `cli/internal/designskill/presets/document.md` | BP | Sonnet medium — 정해진 문장을 예산 안에 넣는 작업이다 | `go test ./...`(`TestSkillGuideFitsToolOutputCap`), `doan skill --json` 출력 | 완료 `9abde758`·`284a45d5` → 통합(dispatch `ctx_3b9cb8cc657f`) |
 | R | 작업 6 `/code-review` (BC+BG 통합 diff) | 보고만 | BC, BG 통합 | Opus high — check·export 판정 일치와 고아 제거를 독립적으로 판단해야 한다 | 🔴 0 | 대기 |
 | BE1 | 작업 6 시나리오 | `eval/scenarios/<새 id>/`, `eval/` 테스트(`checks.test.ts` 등) | BC 통합 | Opus medium — fixture와 실패 조건 설계에 판단이 들지만 범위가 좁다 | `node eval/run.ts --self-test` PASS·exit 0, `node --test 'eval/**/*.test.ts'`, `verify.mjs --eval` | 대기 |
 | BE2 | 작업 6 실제 `/agent-eval` 라운드 + `docs/USABILITY-EVAL.md` | `docs/USABILITY-EVAL.md` | R 수정 통합, BE1 통합 | BE1 워커 재사용 | `npm --prefix app run package`, `node eval/run.ts --round <name>` 전체 시나리오 | 대기 |
@@ -40,3 +40,4 @@
 ## 검토 기록
 
 - BP: handoff와 커밋(`tasks.md` 한 파일)을 대조했다. 근거 사본은 conductor checkout `.scratch/canvas-svg-sprites/`, `.scratch/handoff-BP.md`에 있다.
+- BG: handoff와 diff를 대조했다. 가이드 테스트가 "comment" 단어를 막아 `<!-- source: path -->` note로 썼다. `design-skill document --json`이 예산 21,600 B 중 12 B만 남는다(PR 본문에 남긴다).
