@@ -150,13 +150,13 @@ const TRANSCRIPTS: TranscriptReader = { size: transcriptSize, read: readTranscri
 // exitedAt: when its process group was seen gone. cleaned: the next send already asked its runner to end the finished
 // turn's process (endAfterTurn). background: the done turn turnId left background work running (memory only).
 // stopping: the person's Stop of the running turn was taken. quiet: the run's lease stops counting as a running
-// conversation. transcript: where a Claude turn's session transcript stood at acceptance (Steer lookup).
+// conversation. transcript: a Claude turn's session transcript, and its size at the turn's first Send now (Steer lookup).
 // held: a Claude turn's end kept back until the group is gone, to look for its unreported steers in the transcript.
 // lookup: an archive or quit ended the turn with steers unreported; found ones leave the queue once the group is gone.
 // unheld: the held end is being written, so it is not held again.
 interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean; handoffKey?: string; lastSeq?: number; stage?: StageSignal; stageRev?: number; pastedStore?: string;
   exitedAt?: number; cleaned?: boolean; background?: { turnId: string; stopping?: true }; stopping?: true; quiet?: (on: boolean) => void;
-  transcript?: { configDir: string; sessionId: string; size: number }; held?: { event: EventPayload; timer: ReturnType<typeof setTimeout> };
+  transcript?: { configDir: string; sessionId: string; size?: number }; held?: { event: EventPayload; timer: ReturnType<typeof setTimeout> };
   lookup?: { steers: { messageId: string; itemId: string }[]; timer: ReturnType<typeof setTimeout>; giveBack: boolean }; unheld?: true }
 // A project turn's grounds for promotion: the canvas list when the turn was accepted, the paths of its own
 // edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
@@ -875,6 +875,7 @@ export class ConversationService {
       prompt = turnPrompt(item.anchors, item.text, m, { home: m.fromHome === true && !m.canvas, attachments, handoff }); if (prompt === null) throw new Error("bad_request");
     } catch (error) { this.drafts.unmarkSending(id, itemId); throw error; }
     const turnId = live.turnId, messageId = randomUUID();
+    this.markTranscript(live);
     const message: EventPayload = { type: "user.message", text: item.text, anchors: item.anchors, ...(attachments.length ? { attachments } : {}) };
     return new Promise<void>((resolve, reject) => {
       // Registered before the request: Codex may report the read before its answer to the request.
@@ -1328,12 +1329,16 @@ export class ConversationService {
     live.background = { turnId }; live.quiet?.(true);
     this.changedOf(id);
   }
-  // Where the Claude session transcript stands as the turn is accepted, so the lookup reads only what follows.
+  // The Claude session transcript a lookup reads. Its size is taken at the turn's first Send now, not here: finding the
+  // file walks the profile's project directories, and a steer's line is written only after the CLI received it.
   private noteTranscript(live: Live, input: Prepared, sessionId: string): void {
     delete live.transcript;
-    if (input.runtime !== "claude") return;
-    let size = 0; try { size = (this.queueOptions.transcripts ?? TRANSCRIPTS).size(input.configDir, sessionId); } catch { /* Read from the start. */ }
-    live.transcript = { configDir: input.configDir, sessionId, size };
+    if (input.runtime === "claude") live.transcript = { configDir: input.configDir, sessionId };
+  }
+  private markTranscript(live: Live): void {
+    const transcript = live.transcript; if (!transcript || transcript.size !== undefined) return;
+    try { transcript.size = (this.queueOptions.transcripts ?? TRANSCRIPTS).size(transcript.configDir, transcript.sessionId); }
+    catch (error) { console.error("doan: Claude transcript size could not be read", error); transcript.size = 0; }
   }
   private holdsEnd(id: string, live: Live): boolean {
     return !this.quitting && !!live.transcript && !live.exited && !live.held && !live.unheld && this.steering(id).length > 0;
@@ -1342,7 +1347,7 @@ export class ConversationService {
   private foundSteers(live: Live, messageIds: readonly string[]): string[] {
     if (!live.transcript || !messageIds.length) return [];
     try {
-      const appended = (this.queueOptions.transcripts ?? TRANSCRIPTS).read(live.transcript.configDir, live.transcript.sessionId, live.transcript.size);
+      const appended = (this.queueOptions.transcripts ?? TRANSCRIPTS).read(live.transcript.configDir, live.transcript.sessionId, live.transcript.size ?? 0);
       return appended === null ? [] : readInTranscript(appended, messageIds);
     } catch (error) { console.error("doan: Claude transcript could not be read", error); return []; }
   }

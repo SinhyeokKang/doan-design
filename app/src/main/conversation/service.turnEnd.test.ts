@@ -10,7 +10,7 @@ import type { Provider } from "../agentAuth/types";
 import type { Canvas, EventPayload } from "./types";
 
 // When a finished turn is judged, how its process is ended, what a Send now the agent never reported does, and the
-// background work a done turn leaves (claude-turn-end).
+// background work a done turn leaves.
 const paths: string[] = [];
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 type Hooks = Parameters<OpenRunner>[0];
