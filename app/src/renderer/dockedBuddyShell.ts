@@ -33,9 +33,11 @@ const PERSON_SCROLL_MS = 1000;
 const FRAME_MS = 1000 / 60 - 4;
 // After a ready rig loses its context the rebuild waits for the GPU process to come back: a context made while it
 // restarts can fail or be lost again. webglcontextrestored says it is back; when none comes, a rebuild is allowed
-// after RETRY_MS, and again after each failed rebuild, at most RETRIES times.
+// after RETRY_MS, and again after each failed rebuild, each wait twice the one before, at most RETRIES times. Two GPU
+// resets in a row make Chromium refuse WebGL to the page for about two minutes with no restore event (measured in
+// Electron 45), so the last try comes about four minutes after the loss.
 const RETRY_MS = 1000;
-const RETRIES = 3;
+const RETRIES = 8;
 
 // What only App knows. overview: the Overview covers the canvas page, whose toolbar stays laid out under it, so the
 // toolbar is no surface. covered: the problem overlay or first run is over the workspace. hint: a picking or capture
@@ -259,8 +261,9 @@ export class DockedBuddyShell {
   // A failed rig waits for one more rebuild only while a lost ready rig left retries.
   private retryLater(live: Live) {
     if (live.retry || live.retries <= 0) return;
+    const wait = RETRY_MS * 2 ** (RETRIES - live.retries);
     live.retries -= 1;
-    live.retry = setTimeout(() => { live.retry = 0; this.allowRebuild(live); }, RETRY_MS);
+    live.retry = setTimeout(() => { live.retry = 0; this.allowRebuild(live); }, wait);
   }
   private cancelRetry(live: Live) {
     if (live.retry) clearTimeout(live.retry);
