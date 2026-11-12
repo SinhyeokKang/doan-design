@@ -1610,16 +1610,31 @@ test("home path is available only to the application main frame", async () => {
 });
 
 // Saved roots are real paths, so the home folder they are shortened against and compared with (no repository at HOME
-// or above it) is read through a symlink, here macOS's /var → /private/var.
-test("the home path and the shell's home are HOME's real path", async () => {
+// or above it) is read through a symlink, here macOS's /var → /private/var. HOME is the link before this launch reads
+// it, so a site that kept the spelled HOME would see the link.
+test("the home path, the shell's home and the project flow's home are HOME's real path", async () => {
   const real = realpathSync(mkdtempSync(join(tmpdir(), "doan-index-home-"))), link = `${real}-link`;
   symlinkSync(real, link);
   const saved = process.env.HOME;
   process.env.HOME = link;
   onTestFinished(() => { process.env.HOME = saved; rmSync(link); rmSync(real, { recursive: true }); });
+  vi.resetModules();
+  mocks.app.removeAllListeners();
+  mocks.Window.instances.length = 0;
+  mocks.ipc.clear();
+  mocks.startShell.mockClear();
+  await import("./index");
+  await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
   expect(await invoke("app:home", window().webContents, null)).toBe(real);
   const options = mocks.startShell.mock.calls[0]?.[3] as { home?: string } | undefined;
-  expect(options?.home).toBe(realpathSync(saved ?? "/tmp/doan-index-test"));
+  expect(options?.home).toBe(real);
+  // The project deps' home plans the `.git/` line and words the HOME refusal (onboarding/projects.ts).
+  mocks.projects.canonicalFolder.mockResolvedValue("/picked");
+  mocks.projects.inspectPath.mockResolvedValue({ ok: true, candidates: [{ path: "/picked", changes: [] }] });
+  const read = await invoke("add-projects:read", window().webContents, null, {}) as { result: { sessionId: string } };
+  await invoke("add-projects:inspect", window().webContents, null, { sessionId: read.result.sessionId, requestId: "home", path: "/picked" });
+  const deps = mocks.projects.inspectPath.mock.calls[0]?.[1] as { home(): string } | undefined;
+  expect(deps?.home()).toBe(real);
 });
 
 // Move to Trash and Export from the sidebar's canvas row menu.
