@@ -37,7 +37,7 @@ lead는 링크 시작 전에 아래를 사용자에게 한 번에 묻고, 승인
 
 ## 로그인
 
-시작 점검 4에서 실제 HOME 방식으로 정하면 적용한다.
+시작 점검 4에서 실제 HOME 방식으로 정했다(2026-11-12).
 - probe는 실제 HOME의 Claude 로그인을 쓴다. 로그인은 사용자가 자기 브라우저에서 승인한다.
 - 로그인한 userData는 main checkout의 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`에 둔다. 링크마다 worktree가 따로라서 절대 경로를 쓴다.
 - 링크 2는 이 userData를 다시 쓴다. 망가뜨릴 수 있는 probe에는 복사본을 쓰고, 새 로그인을 묻기 전에 연결이 살아 있는지 먼저 본다.
@@ -58,9 +58,10 @@ lead는 링크 시작 전에 아래를 사용자에게 한 번에 묻고, 승인
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1. `canvas-svg-sprites` | | | | 대기 |
-| 2. `claude-turn-end` | | | | 대기 |
+| 1. `canvas-svg-sprites` | `canvas-svg-sprites-orch` (Claude conductor), `/Users/sinhyeok/orca/workspaces/doan-design/canvas-svg-sprites-orch` | 2026-11-12, `8e9c33e9` | | 진행 중 |
+| 2. `claude-turn-end` | `claude-turn-end-orch` (Claude conductor), `/Users/sinhyeok/orca/workspaces/doan-design/claude-turn-end-orch` | 2026-11-12, `8e9c33e9` | | 진행 중 |
 
 ## 인계 기록
 
 - 2026-11-12 lead(develop checkout): 사용자 요청으로 체인 파일을 작성했다. PR #177 병합과 시작 점검 승인 뒤 두 링크를 함께 시작한다.
+- 2026-11-12 lead: PR #177을 `36aee960`으로 병합했다. 시작 점검을 사용자가 승인했다. 1: 사용자가 Safari에서 export 파일을 열고 스크린숏을 남긴다. 2·3·6: 모두 승인. 4: 실제 HOME과 임시 `DOAN_RUNTIME`·repo, 계속 쓰는 userData로 바꾼다('로그인' 절 적용). 링크 2 conductor가 자기 브랜치에서 design.md와 tasks 9를 이 규칙으로 고친다. 5: 미리 정하지 않았다. 두 링크를 `8e9c33e9`에서 함께 시작했다.
