@@ -96,8 +96,9 @@ func TestCheckAndExportAgreeOnSpritesAndCustomURLs(t *testing.T) {
 			body: `<svg><use href="../assets/sprite.svg#icon"/><use xlink:href=" ../assets/sprite.svg#x "></use><use href="https://cdn.example.com/i.svg#a"/><use href="data:image/svg+xml,%3Csvg/%3E#d"/><use href="#local"/><use href="#missing"/><use href=""/></svg>` +
 				`<svg><use href="#local" xlink:href="../assets/loser.svg#b"/></svg><use href="../assets/html.svg#a"></use>` +
 				`<template><svg><use href="inert.svg#a"/></svg></template><template/><svg><use href="inert-top.svg#a"/></svg></template>` +
-				`<template><template/></template><svg><use href="inert-nested.svg#a"/></svg></template>`,
-			uses: []string{"../assets/sprite.svg#icon", "../assets/sprite.svg#x", "data:image/svg+xml,%3Csvg/%3E#d", "https://cdn.example.com/i.svg#a"},
+				`<template><template/></template><svg><use href="inert-nested.svg#a"/></svg></template>` +
+				`<svg><title>t</svg><svg><use href="../assets/rcdata.svg#a"/></svg></title>`,
+			uses: []string{"../assets/rcdata.svg#a", "../assets/sprite.svg#icon", "../assets/sprite.svg#x", "data:image/svg+xml,%3Csvg/%3E#d", "https://cdn.example.com/i.svg#a"},
 		},
 		{
 			name:   "a canvas declaration used from the canvas style and a linked stylesheet in another folder",
@@ -113,6 +114,20 @@ func TestCheckAndExportAgreeOnSpritesAndCustomURLs(t *testing.T) {
 			head:   `<style>@import "../ds/user.css";.y{mask:var(--i)}</style>`,
 			check:  []string{".doan/ds/user.css i.svg"},
 			export: []string{".doan/ds/user.css i.svg"},
+		},
+		{
+			name:  "a property registered with url syntax resolves where it is declared",
+			files: map[string]string{".doan/ds/user.css": `.x{mask:var(--i)}`, ".doan/canvases/i.svg": "<svg/>"},
+			head:  `<link rel="stylesheet" href="../ds/user.css"><style>@property --i{syntax:"<url>";inherits:true;initial-value:url(i.svg)}.y{mask:var(--i)}</style>`,
+			body:  `<div class="x y" style="--i:url(i.svg)"></div>`,
+		},
+		{
+			name:   "an @property without initial-value registers nothing",
+			files:  map[string]string{".doan/ds/user.css": `.x{mask:var(--i)}`, ".doan/canvases/i.svg": "<svg/>"},
+			head:   `<link rel="stylesheet" href="../ds/user.css"><style>@property --i{syntax:"<url>";inherits:true}.y{mask:var(--i)}</style>`,
+			body:   `<div class="x y" style="--i:url(i.svg)"></div>`,
+			check:  []string{agreeCanvas + " i.svg"},
+			export: []string{agreeCanvas + " i.svg"},
 		},
 		{
 			name:  "the design-system pattern: one shared stylesheet uses the canvas declaration",

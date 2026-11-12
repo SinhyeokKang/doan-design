@@ -132,6 +132,12 @@ func customURLCases() []customURLCase {
 			assets: []string{"styles/i.svg"},
 		},
 		{
+			name:   "an @property without initial-value registers nothing, so the url resolves from the consumer",
+			files:  map[string]string{"styles/a.css": `.x{mask-image:var(--i)}`, "styles/i.svg": svg("css"), ".doan/canvases/i.svg": svg("page")},
+			canvas: linkA + `<style>@property --i{syntax:"<url>";inherits:true}</style><div class="x" style="--i:url(i.svg)"></div>`,
+			assets: []string{"styles/i.svg"},
+		},
+		{
 			name:   "a property registered without url syntax still resolves from the consumer",
 			files:  map[string]string{"styles/a.css": `.x{mask-image:var(--i)}`, "styles/i.svg": svg("css")},
 			canvas: linkA + `<style>@property --i{syntax:"*";inherits:true}</style><div class="x" style="--i:url(i.svg)"></div>`,

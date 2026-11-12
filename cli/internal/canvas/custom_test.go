@@ -66,7 +66,7 @@ func TestCustomUsersConsumers(t *testing.T) {
 	u := users(map[string]string{
 		".doan/canvases": `.x{mask:var(--i)}`,
 		".doan/ds":       `.y{background:var(--j)} .z{--j:var(--i)}`,
-		"styles":         `.c{--a:var(--b)} .d{--b:var(--a)} .e{mask:var(--a)} @property --reg{syntax:"<url> | none"} @property --any{syntax:"*"}`,
+		"styles":         `.c{--a:var(--b)} .d{--b:var(--a)} .e{mask:var(--a)} @property --reg{syntax:"<url> | none";inherits:false;initial-value:none} @property --any{syntax:"*";inherits:false}`,
 	})
 	if got, want := u.Consumers("--i"), []string{".doan/canvases", ".doan/ds"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("--i consumers = %q, want %q", got, want)
@@ -124,7 +124,9 @@ func TestCustomUsersAmbiguous(t *testing.T) {
 		{"no user", map[string]string{".doan/canvases": `.x{mask:var(--j)}`}, "--i", "icons/x.svg", false},
 		{"through a chain", map[string]string{"a": `.x{--j:var(--i)} .y{mask:var(--j)}`, "b": `.z{mask:var(--i)}`}, "--i", "x.svg", true},
 		{"through a cycle", map[string]string{"a": `.x{--j:var(--i)} .y{--i:var(--j)} .w{mask:var(--j)}`, "b": `.z{mask:var(--i)}`}, "--i", "x.svg", true},
-		{"registered with url syntax", map[string]string{"a": `@property --i{syntax:"<url>"} .x{mask:var(--i)}`, "b": `.y{mask:var(--i)}`}, "--i", "x.svg", false},
+		{"registered with url syntax", map[string]string{"a": `@property --i{syntax:"<url>";inherits:true;initial-value:url(x.svg)} .x{mask:var(--i)}`, "b": `.y{mask:var(--i)}`}, "--i", "x.svg", false},
+		{"an invalid registration without inherits", map[string]string{"a": `@property --i{syntax:"<url>";initial-value:url(x.svg)} .x{mask:var(--i)}`, "b": `.y{mask:var(--i)}`}, "--i", "x.svg", true},
+		{"an invalid registration without initial-value", map[string]string{"a": `@property --i{syntax:"<url>";inherits:true} .x{mask:var(--i)}`, "b": `.y{mask:var(--i)}`}, "--i", "x.svg", true},
 		{"registered with universal syntax", map[string]string{"a": `@property --i{syntax:"*"} .x{mask:var(--i)}`, "b": `.y{mask:var(--i)}`}, "--i", "x.svg", true},
 		{"absolute path", map[string]string{"a": `.x{mask:var(--i)}`, "b": `.y{mask:var(--i)}`}, "--i", "/x.svg", false},
 		{"data url", map[string]string{"a": `.x{mask:var(--i)}`, "b": `.y{mask:var(--i)}`}, "--i", "data:image/svg+xml,%3Csvg/%3E", false},
@@ -133,6 +135,32 @@ func TestCustomUsersAmbiguous(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := users(tt.users).Ambiguous(tt.prop, tt.href); got != tt.want {
 				t.Fatalf("Ambiguous = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// The browser drops an @property rule without inherits, or, for any syntax
+// but the universal one, without initial-value; the property then stays
+// unregistered and its url() resolves from its users.
+func TestCustomUsesRegistersOnlyValidURLProperties(t *testing.T) {
+	for _, tt := range []struct {
+		name, css string
+		want      bool
+	}{
+		{"syntax, inherits and initial-value", `@property --i{syntax:"<url>";inherits:true;initial-value:url(i.svg)}`, true},
+		{"a url alternative", `@property --i{syntax:'<url> | none';inherits:false;initial-value:none}`, true},
+		{"descriptor names in any case", `@property --i{SYNTAX:"<url>";Inherits:true;Initial-Value:none}`, true},
+		{"missing inherits", `@property --i{syntax:"<url>";initial-value:url(i.svg)}`, false},
+		{"missing initial-value", `@property --i{syntax:"<url>";inherits:true}`, false},
+		{"missing syntax", `@property --i{inherits:true;initial-value:url(i.svg)}`, false},
+		{"syntax without url", `@property --i{syntax:"<number>";inherits:true;initial-value:0}`, false},
+		{"universal syntax", `@property --i{syntax:"*";inherits:true;initial-value:url(i.svg)}`, false},
+		{"descriptors outside the rule", `@property --i{syntax:"<url>"} :root{inherits:true;initial-value:none}`, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := CustomUses(tt.css, Stylesheet).URLSyntax["--i"]; got != tt.want {
+				t.Fatalf("registered = %v, want %v", got, tt.want)
 			}
 		})
 	}

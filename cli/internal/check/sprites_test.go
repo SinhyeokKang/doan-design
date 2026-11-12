@@ -92,8 +92,20 @@ func TestAmbiguousCustomURL(t *testing.T) {
 		},
 		{
 			name:   "a property registered with url syntax resolves where it is declared",
+			body:   `<style>@property --i{syntax:"<url>";inherits:true;initial-value:url(i.svg)}:root{--i:url(i.svg)}.c{mask:var(--i)}</style>`,
+			sheets: []customSheet{{".doan/ds/d.css", `.d{mask:var(--i)}`}},
+		},
+		{
+			name:   "an @property without initial-value is invalid and registers nothing",
 			body:   `<style>@property --i{syntax:"<url>";inherits:true}:root{--i:url(i.svg)}.c{mask:var(--i)}</style>`,
 			sheets: []customSheet{{".doan/ds/d.css", `.d{mask:var(--i)}`}},
+			want:   []found{{canvasA, "one", "--i", "i.svg"}},
+		},
+		{
+			name:   "an @property without inherits is invalid and registers nothing",
+			body:   `<style>@property --i{syntax:"<url>";initial-value:url(i.svg)}:root{--i:url(i.svg)}.c{mask:var(--i)}</style>`,
+			sheets: []customSheet{{".doan/ds/d.css", `.d{mask:var(--i)}`}},
+			want:   []found{{canvasA, "one", "--i", "i.svg"}},
 		},
 		{
 			name:   "a property registered with universal syntax still resolves from its users",

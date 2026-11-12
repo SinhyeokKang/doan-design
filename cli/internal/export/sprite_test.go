@@ -61,6 +61,19 @@ func TestInlineRefusesUseOfAnotherFile(t *testing.T) {
 	}
 }
 
+// The tokenizer reads <title>…</title> as text where the parser closes the
+// title at the foreign </svg>, so a <use> only the parser sees is refused too:
+// export refuses what canvas.Parse lists, not what the tokenizer meets.
+func TestInlineRefusesAUseTheTokenizerTakesForText(t *testing.T) {
+	root := exporttest.Seed(t)
+	const from = ".doan/canvases/rcdata.html"
+	exporttest.Put(t, root, from, `<svg><title>t</svg><svg><use href="../assets/sprite.svg#icon"/></svg></title>`)
+	res := inlineSeed(t, root, from)
+	if want := []Refusal{{from, "../assets/sprite.svg#icon", ReasonUseExternal}}; !reflect.DeepEqual(res.Refused, want) {
+		t.Fatalf("refused %+v, want %+v", res.Refused, want)
+	}
+}
+
 // An inline sprite, its <style> included, stays as written: the export copies
 // nothing and adds no container.
 func TestInlineKeepsAnInlineSprite(t *testing.T) {
