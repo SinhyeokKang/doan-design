@@ -21,6 +21,7 @@
 11. `PROMOTION_SETTLE_MS`는 60회 전체 최댓값 기준 5572ms로 둔다. 3초 간격 실행만 쓰면 4227ms지만, 1.5초 간격의 연속 쓰기도 실제로 일어난다(conductor 판단 — design의 '최댓값 × 1.5' 규칙).
 12. 백그라운드 프로세스는 CLI 그룹 밖의 자기 그룹에서 돈다(PoC d). 그래서 백그라운드 집합이 비어 있지 않은 그룹은 모든 경로에서 SIGTERM을 먼저 받는다. 즉시 SIGKILL은 집합이 빈 경우(제안만 남음, 자발적 모델 호출 막기)에만 쓴다. design 2절의 결정 규칙 그대로이고, 테스트로 고정한다(conductor 판단).
 13. 두 버전 모두 작업이 끝난 뒤 스스로 모델을 부르므로(2.1.322 셸·에이전트, 2.1.284 에이전트), design 5절의 막기가 범위에 들어간다(design 조건 그대로).
+14. D는 C 리뷰를 기다리지 않고 C의 브랜치(`d8252b5a`)에서 시작한다. C의 수정 회차는 main 쪽만 바꾸므로 D와 파일이 겹치지 않는다. 수정이 IPC나 목록 필드 모양을 바꾸면 D에 알린다(conductor 판단 — renderer가 C의 필드를 써야 해서 feat 통합까지 기다리면 리뷰 시간만큼 늦어진다).
 
 ## batch
 
@@ -28,8 +29,8 @@
 |---|---|---|---|---|---|---|
 | A | tasks 1 PoC | `.scratch/claude-turn-end/`(커밋 안 함), tasks.md 'PoC 결과', design.md `PROMOTION_SETTLE_MS` 값과 기록 필드 | 없음 | Opus high — 실제 CLI 프레임을 해석해 멈춤 조건을 판정해야 하고, 틀리면 이후 설계 전체가 틀린다 | tasks 1 '확인': 스크립트 로그와 'PoC 결과' 수치 일치, 실제 상태 비교 통과 | 끝. 통합 `50c034f6`, `ff3c3f0b`. 멈춤 조건 없음. 실제 상태 비교는 글자 그대로는 통과하지 못했다(결정 9) |
 | B | tasks 8 노티스 버튼 세로 가운데 | `app/src/renderer/ds/surfaces.css`, `app/src/renderer/ds/controls.test.ts`, `.doan/canvases/claude-turn-end.html`(override 줄 삭제만), `.doan/ds/notice.html`, `docs/DESIGN.md` 'Notices'·'Conversation strip' | 없음 | Sonnet high — 규칙 한 줄과 문서의 기계적 변경이지만 실제 앱 probe 단계가 많다 | tasks 8 '확인': app test 녹색, 두 줄 Home strip의 버튼 세로 가운데·아이콘 첫 줄, 한 줄 노티스 높이 44 px | 구현 끝(`447b5a38..d5560ae3`, verify PASS, probe: 두 줄 strip 버튼 중심 차이 0 px·아이콘 첫 줄·한 줄 44 px). probe는 실제 마크업을 주입했고 대화를 만들지 않았다. 통합 `083ea685..35b88318`, 수정 1회. worktree 정리 끝(브랜치 `SinhyeokKang/cte-b` `b0296ce9` 유지) |
-| C | tasks 3–6 (+ tasks 10의 `TURN_USAGE_MS` 주석) | `app/src/main/conversation/**`(fixtures 포함), preload, 로그아웃·Restart to Update·프로젝트 Remove의 `stop_required` 계산. renderer는 `prompt_unread` 최소 항목만(결정 10) | A | Opus high — 프로세스 그룹 정리, 예약 해제 순서, 보류한 종료의 동시성. 틀리면 POSTMORTEM 2026-10-27·10-28 회귀가 다시 난다 | 각 tasks의 '확인', `node .agents/skills/verify/scripts/verify.mjs` PASS | 진행 중(A와 같은 워커, `cte-a`) |
-| D | tasks 7 스레드 UI + `/design-sync`, tasks 3의 renderer 테스트(결정 10) | renderer 스레드 UI(`backgroundLine`, `turnStatus.ts`, `homeRun.ts`, `threadItems.ts`, `ConversationThread.tsx`, `conversationStrip.ts`, 관련 CSS), `docs/DESIGN.md` 백그라운드 줄 측정값 | B, C 통합 | Opus high — 포커스 이동, Stop 경합, `sending` 항목 정리(POSTMORTEM 2026-11-05)와 초안 측정 | app test 녹색, `/design-sync` 측정 통과 | 대기 |
+| C | tasks 3–6 (+ tasks 10의 `TURN_USAGE_MS` 주석) | `app/src/main/conversation/**`(fixtures 포함), preload, 로그아웃·Restart to Update·프로젝트 Remove의 `stop_required` 계산. renderer는 `prompt_unread` 최소 항목만(결정 10) | A | Opus high — 프로세스 그룹 정리, 예약 해제 순서, 보류한 종료의 동시성. 틀리면 POSTMORTEM 2026-10-27·10-28 회귀가 다시 난다 | 각 tasks의 '확인', `node .agents/skills/verify/scripts/verify.mjs` PASS | 구현 끝(`229939ff..d8252b5a`, verify PASS). R-C 진행 중 |
+| D | tasks 7 스레드 UI + `/design-sync`, tasks 3의 renderer 테스트(결정 10) | renderer 스레드 UI(`backgroundLine`, `turnStatus.ts`, `homeRun.ts`, `threadItems.ts`, `ConversationThread.tsx`, `conversationStrip.ts`, 관련 CSS), `docs/DESIGN.md` 백그라운드 줄 측정값 | B 통합, C 구현 끝(결정 14) | Opus high — 포커스 이동, Stop 경합, `sending` 항목 정리(POSTMORTEM 2026-11-05)와 초안 측정 | app test 녹색, `/design-sync` 측정 통과 | 대기 |
 | E | tasks 9 `/runtime-test` | `.scratch/`의 probe만 | C, D 통합 | Opus medium — 정해진 probe를 실제 앱에서 재고 수치를 완료 조건과 대조한다 | probe 수치가 spec 완료 조건 1–5를 만족, 실제 상태 비교 통과 | 대기 |
 | R-B · R-C · R-D | 각 batch `/code-review` | 없음(보고만) | 각 batch | R-B Sonnet medium, R-C Opus high, R-D Opus high — diff 난이도에 맞춘다 | `/code-review` 보고 | 대기 |
 | Z | tasks 10 문서 승격과 삭제 | PRODUCT, ARCHITECTURE, BACKLOG, DESIGN, `docs/features/claude-turn-end/` | E | conductor | 문서 diff 검토, verify PASS | 대기 |
