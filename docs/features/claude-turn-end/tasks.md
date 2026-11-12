@@ -44,7 +44,7 @@
 6. [x] **서비스와 IPC.** `promotionDeadline` 타이머와 handoff 판정, `previousExit`·`ended()`의 정리, `pendingTerminal`과 기록 찾기, `interrupt()` not-busy 분기, 조용한 정지 경로와 `stop_required`, `background`·`stopping` 목록 필드.
    - 확인: `npm --prefix app test` 녹색, `node .agents/skills/verify/scripts/verify.mjs` PASS.
    - 커밋 경계.
-7. [ ] **스레드 UI.** 백그라운드 줄과 Stop, 실패 문구, `stopping`의 표시줄 숨김, `homeRun.ts` 창을 Overview와 캔버스 패널에 반영한다. 첫 구현이므로 `/design-sync`로 2번 초안과 맞춘다.
+7. [x] **스레드 UI.** 백그라운드 줄과 Stop, 실패 문구, `stopping`의 표시줄 숨김, `homeRun.ts` 창을 Overview와 캔버스 패널에 반영한다. 첫 구현이므로 `/design-sync`로 2번 초안과 맞춘다.
    - 확인: `npm --prefix app test` 녹색, `node .scratch/design-sync/<screen>/measure.mjs` 측정 통과.
    - 커밋 경계.
 8. [ ] **노티스 버튼 세로 가운데 (공통 규칙).** 초안 선택 6. 이 기능만이 아니라 모든 노티스에 적용한다.
