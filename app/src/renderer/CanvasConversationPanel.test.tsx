@@ -402,3 +402,18 @@ test("the panel's composer tells the docked buddy about a waiting request and a 
   expect(choice).toContain('aria-label="How to continue"');
   expect(slot(choice)).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-notice="">');
 });
+
+// The canvas panel follows the Overview's rules (ProjectOverview.context test of the same name).
+test("a taken Stop hides the indicator at once; a done turn's background work shows its line until the next message", async () => {
+  const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
+  const at = (seq: number, payload: Record<string, unknown>, turnId = "t1") => ({ v: 1, conversationId: "now", seq, turnId, at: "2026-11-01T00:00:00Z", ...payload }) as ConversationEvent;
+  doan.readConversation!.mockResolvedValue({ events: [at(1, { type: "user.message", text: "hi", anchors: [] }), at(2, { type: "turn.started" })], lastSeq: 2, turn: "running" });
+  const shown = (list: ListView, setup: (run: CanvasRun) => void = () => {}) => panel(list, run => { run.store.track("now"); setup(run); });
+  expect(await shown([summary("now", { phase: "running", working: true, stopping: true })])).not.toContain("ti-reply");
+  const ended = (run: CanvasRun) => void flush().then(() => run.store.event(at(3, { type: "turn.done" })));
+  const out = await shown([summary("now", { background: { turnId: "t1" } })], ended);
+  expect(out).toContain("Background work is still running. It stops when you send your next message or press Stop.");
+  expect(out).toContain('aria-label="Stop background work"');
+  const next = (run: CanvasRun) => void flush().then(() => { run.store.event(at(3, { type: "turn.done" })); run.store.event(at(4, { type: "user.message", text: "Next", anchors: [] }, "t2")); });
+  expect(await shown([summary("now", { background: { turnId: "t1" } })], next)).not.toContain("Background work is still running");
+});

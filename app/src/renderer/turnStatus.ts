@@ -53,7 +53,7 @@ function ownEnd(items: readonly ThreadItem[]): number {
 // A stage counts only for this turn and only while no event of it came after (seq). Without one, the last item says it:
 // an activity, or a permission answered with Allow right after one (the tool now runs). Codex's MCP startup lines are
 // activities but no tool. The thread's last activity row runs only while this names a tool (activityRun).
-export function turnStatus(all: readonly ThreadItem[], turn: TurnInfo | null, stage: StageSignal | null, root: string): TurnStatus {
+export function turnStatus(all: readonly ThreadItem[], turn: TurnInfo | null, stage: StageSignal | null, root: string, _stopping = false): TurnStatus {
   if (!turn || !turn.live || turn.ended) return { kind: "none" };
   const items = all.slice(0, ownEnd(all));
   if (items.some(waitsForPerson)) return { kind: "waiting" };
@@ -97,7 +97,7 @@ export function activityRun(items: readonly ThreadItem[], status: TurnStatus, ac
 // What both hosts pass the thread: the last turn's status, its id and its start, which the elapsed time
 // counts from. The id lets the thread drop the settle state of an earlier turn.
 export interface ThreadTurn { turnId: string; status: TurnStatus; at: string }
-export function threadTurn(events: readonly ConversationEvent[], items: readonly ThreadItem[], live: boolean, stage: StageSignal | null, root: string): ThreadTurn | null {
+export function threadTurn(events: readonly ConversationEvent[], items: readonly ThreadItem[], live: boolean, stage: StageSignal | null, root: string, _stopping = false): ThreadTurn | null {
   const turn = turnOf(events, live);
   return turn ? { turnId: turn.turnId, status: turnStatus(items, turn, stage, root), at: turn.at } : null;
 }
@@ -155,4 +155,13 @@ const TOOL_ANNOUNCEMENT = { read: "is reading files", edit: "is editing files", 
 export function turnAnnouncement(status: TurnStatus, provider: string): string {
   if (hidden(status)) return "";
   return status.kind === "tool" ? `${provider} ${TOOL_ANNOUNCEMENT[status.activity]}` : turnText(status, provider);
+}
+
+// Stub for the tests first; implemented with the thread UI.
+export const BACKGROUND_STOP_FAILED = "";
+export function backgroundLine(_input: { background: { turnId: string; stopping?: true } | null | undefined; sending: boolean; stopping: boolean }): { turnId: string; stopping: boolean } | null {
+  return null;
+}
+export async function stopBackground(_request: { conversationId: string; turnId: string }, _interrupt: (request: { conversationId: string; turnId: string }) => Promise<void | { error: string }>): Promise<string | null> {
+  return null;
 }

@@ -78,6 +78,8 @@ export interface ConversationThreadProps {
   canvasRows?: readonly CanvasRow[];
   // The last turn's indicator state (turnStatus) and start; without it no turn indicator shows.
   turn?: ThreadTurn | null;
+  background?: { turnId: string; stopping?: true } | null;
+  onStopBackground?(turnId: string): Promise<boolean>;
 }
 // focusItem: an entry's focus on a waiting request: a question's first option or answer input, a
 // permission request's first choice; after a handoff's move, the handoff card itself. False

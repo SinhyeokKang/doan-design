@@ -208,6 +208,38 @@ test("a new canvas whose folder update lands after turn.done still opens within 
   now.mockRestore();
 });
 
+// Main judges a project turn's promotion once its process group is gone and the folder settled, which the list shows as
+// the conversation no longer working; the window for the new canvas closes then. BIND_GRACE_MS stays its upper bound,
+// and a list read that started before the turn ended cannot close it (it may predate the end).
+test("the new-canvas window closes at main's judgement, read from a list read started after the turn ended", async () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+  const opened = async (judged: "working" | "judged" | "stale") => {
+    start = deferred();
+    const h = harness();
+    lists({ [ROOT]: [summary({ conversationId: "c2", phase: "running", working: true })] });
+    const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c2" }); await sending;
+    h.arrive();
+    h.run.event(event("c2", { type: "turn.started" }, "t2"));
+    const before = deferred<ConversationSummary[]>();
+    if (judged === "stale") { doan.listConversations!.mockImplementationOnce(() => before.promise); h.run.listChanged(ROOT); }
+    h.run.event(event("c2", { type: "turn.done" }, "t2"));
+    now.mockReturnValue(1_000_000 + 2_000);
+    const read = [summary({ conversationId: "c2", phase: "ended", working: judged === "working" })];
+    if (judged === "stale") before.resolve(read);
+    else { lists({ [ROOT]: read }); h.run.listChanged(ROOT); }
+    await flush();
+    h.view.entries = [list(ROOT, ["a", "late"])];
+    h.run.entriesChanged();
+    const drawing = h.run.drawing(ROOT, { path: ".doan/canvases/late.html", id: "late" });
+    now.mockReturnValue(1_000_000);
+    return { opens: vi.mocked(h.host.openCanvas).mock.calls.length, drawing };
+  };
+  expect(await opened("working")).toEqual({ opens: 1, drawing: "c2" });
+  expect(await opened("judged")).toEqual({ opens: 0, drawing: null });
+  expect(await opened("stale")).toEqual({ opens: 1, drawing: "c2" });
+  now.mockRestore();
+});
+
 test("the renderer's binding window is main's", () => {
   expect(BIND_GRACE_MS).toBe(MAIN_BIND_GRACE_MS);
 });

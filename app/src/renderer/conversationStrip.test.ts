@@ -58,6 +58,8 @@ test("every turn.failed row has its draft wording and offers Edit on Home", () =
     ["rate_limited", "Claude Code reached a usage limit", "Send again from Home after it resets."],
     ["session_unavailable", "Claude Code couldn’t continue", "Edit your request on Home and send it again."],
     ["session_in_use", "Claude Code couldn’t continue", "Edit your request on Home and send it again."],
+    // Draft frame prompt-unread (choice 4): the thread's title with the strip's own recovery body.
+    ["prompt_unread", "Claude Code didn’t pick up your message", "Edit your request on Home and send it again."],
   ];
   for (const [code, title, body] of rows) expect(failure(code)).toEqual({ title, body, live: "status", alertKey: null, actions: recover });
 });
