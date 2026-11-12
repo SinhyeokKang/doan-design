@@ -9,7 +9,7 @@
 
 Set Up 폼, 설정 패널, Project Settings 확인 창은 새 UI다. 그래서 `/design-draft`로 초안을 그리고 사용자 확인을 받은 다음 `/tdd`로 간다.
 
-1. [ ] **PoC: git init.** design.md 'PoC 의존'을 확인한다.
+1. [x] **PoC: git init.** design.md 'PoC 의존'을 확인한다.
    - 스크립트는 `.scratch/keep-out-git-init/`에 두고 커밋하지 않는다.
    - 모든 실행은 `mktemp -d` 폴더에서 한다. HOME을 임시 폴더로 둔 경우와 실제 전역 설정을 읽는 경우를 각각 돌린다.
    - 무엇을 확인하나:
@@ -137,4 +137,12 @@ Set Up 폼, 설정 패널, Project Settings 확인 창은 새 UI다. 그래서 `
 
 ## PoC 결과
 
-(1번에서 채운다.)
+2026-11-12, `.scratch/keep-out-git-init/poc.sh`, 로그 `poc-apple.log`. 멈춤 조건 두 개에 해당하지 않는다. 설계를 바꾸지 않는다.
+
+- 대상 git: `/usr/bin/git` 2.50.1 (Apple Git-155), 활성 개발자 디렉터리 `/Applications/Xcode.app/Contents/Developer`. Homebrew git은 이 머신에 없어 확인하지 못했다.
+- 미리 `mkdir`한 빈 `.git`에 `git init --quiet --template=`이 exit 0으로 된다. 네 조건(실제 전역 설정, 빈 임시 HOME, templateDir·defaultBranch를 둔 임시 HOME, sha256 임시 HOME) 모두 같다. 임시 형제 폴더 rename 방식은 필요 없다.
+- `--template=`이면 `.git/hooks/`와 `.git/info/`가 아예 생기지 않는다. 전역 `init.templateDir`(hook 견본과 `info/exclude`를 둔 폴더)을 둬도 아무것도 복사되지 않는다. 기존 `init --storage local`이 `info/`와 `info/exclude`를 만들어 쌍을 쓴다(`created`에 `.git/info/exclude`).
+- `init.defaultBranch=trunk`는 따른다(HEAD `refs/heads/trunk`, `ls`의 `git.branch`도 `trunk`). 사용자 설정이 없으면 Xcode의 시스템 설정(`…/Developer/usr/share/git-core/gitconfig`)이 `main`을 준다.
+- `init.defaultObjectFormat=sha256` 저장소: `rev-parse --show-object-format`이 `sha256`이다. `go run ./cli/cmd/doan`으로 빌드한 CLI의 `ls --json`은 init 전에는 `repo_not_found`, `init --storage local` 뒤에는 `storage: "local"`과 `git` 블록을 정상으로 낸다. `git status --porcelain --untracked-files=all`은 비어 있다(`.doan/`이 보이지 않는다).
+- 네 조건 모두 `init --storage local` 뒤 `git status`가 비어 있다.
+- `git init` 시간(실제 전역 설정, 20회): 중앙값 20.5ms, 최댓값 28.3ms, 최솟값 19.7ms. 10초 타임아웃에 비해 충분히 작다.
