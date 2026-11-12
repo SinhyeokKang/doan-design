@@ -63,7 +63,9 @@ class FakeImage { static all: FakeImage[] = []; crossOrigin = ""; src = ""; onlo
 let frames: Map<number, (now: number) => void>, nextFrame = 0, clock = 0;
 let resizeObservers: { callback: () => void; nodes: Set<unknown> }[], mutationObservers: { callback: () => void; nodes: unknown[] }[], intersection: (entries: { isIntersecting: boolean }[]) => void;
 let page: FakeNode & { body: FakeNode; hidden: boolean; focused: boolean; floating: Rect[] };
-let win: Events, media: Events & { matches: boolean };
+let win: Events & { doan: { onWindowVisible(listener: (visible: boolean) => void): () => void } }, media: Events & { matches: boolean };
+// The native window visibility listeners (closed with the app running, or the app hidden).
+let nativeVisible: Set<(visible: boolean) => void>;
 const created: FakeNode[] = [];
 
 beforeEach(() => {
@@ -76,7 +78,9 @@ beforeEach(() => {
     hasFocus: () => page.focused,
     querySelectorAll: (selector: string) => { expect(selector).toBe(FLOATING); return page.floating.map(box => ({ isConnected: true, getBoundingClientRect: () => box })); },
   });
-  win = new Events(); media = Object.assign(new Events(), { matches: false });
+  nativeVisible = new Set();
+  win = Object.assign(new Events(), { doan: { onWindowVisible: (listener: (visible: boolean) => void) => { nativeVisible.add(listener); return () => { nativeVisible.delete(listener); }; } } });
+  media = Object.assign(new Events(), { matches: false });
   vi.stubGlobal("document", page);
   vi.stubGlobal("window", win);
   vi.stubGlobal("Image", FakeImage);
@@ -126,7 +130,9 @@ test("the ground is one node with the floor shadow and the 88px clip window arou
   expect(ground.attributes.get("aria-hidden")).toBe("true");
   expect(ground.children.map(node => node.className)).toEqual(["docked-buddy-shadow", "docked-buddy-window"]);
   expect(ground.children[1]!.children).toEqual([env.host()]);
-  expect(env.host().children.map(node => node.tag)).toEqual(["img", "canvas", "span"]);
+  // The hit target comes first: it paints under the canvas (both take no pointer above it), so it needs no
+  // compositing layer of its own and no clip-path mask layer.
+  expect(env.host().children.map(node => node.tag)).toEqual(["span", "img", "canvas"]);
   expect(env.hit().className).toBe("docked-buddy-hit");
   // The first step stands it at rest on the dock, at x 16.
   expect(ground.parentElement).toBe(env.dock);
@@ -196,7 +202,7 @@ test("stop releases the context, cancels the frame and takes every listener and 
   expect(gl.live()).toBe(0);
   expect(frames.size).toBe(0);
   expect(env.ground().isConnected).toBe(false);
-  expect(page.count() + win.count() + media.count()).toBe(0);
+  expect(page.count() + win.count() + media.count() + nativeVisible.size).toBe(0);
   for (const observer of resizeObservers) expect(observer.nodes.size).toBe(0);
 });
 
@@ -280,6 +286,84 @@ test("a hidden document, the problem overlay and a container out of view stop ti
   intersection([{ isIntersecting: false }]);
   env.run(1);
   expect(frames.size).toBe(0);
+});
+
+test("a window that is not natively visible (closed with the app running, or the app hidden) stops time like a hidden document; showing it again replays nothing", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load(); env.run(5);
+  const draws = gl.made[0]!.draws;
+  expect(nativeVisible.size).toBe(1);
+  // document.hidden stays false: Chromium does not report a closed window as a hidden document.
+  for (const listener of nativeVisible) listener(false);
+  env.run(1);
+  expect(frames.size).toBe(0);
+  // Parked, a surface change still applies at once and draws nothing.
+  env.dock.setAttribute("data-queue", "");
+  for (const observer of mutationObservers) observer.callback();
+  env.frame();
+  expect(env.ground().parentElement).toBe(env.tools);
+  expect(gl.made[0]!.draws).toBe(draws);
+  expect(frames.size).toBe(0);
+  // Shown again: the loop wakes, and the first step is at most 35 ms whatever time passed.
+  const before = env.host().style.transform;
+  for (const listener of nativeVisible) listener(true);
+  expect(frames.size).toBe(1);
+  env.frame(clock + 60000);
+  expect(env.host().style.transform).toBe(before);
+  expect(gl.made[0]!.draws).toBe(draws + 1);
+});
+
+// The time model is the core's and gets every real timestamp it is given; the shell only skips frames.
+test("on a display faster than 60 Hz the running loop advances and draws at most about 60 frames a second; at 60 Hz it drops none", async () => {
+  const at = (hz: number, jitter: (i: number) => number = () => 0) => {
+    const env = setup();
+    env.start(); env.frame(); return env.load().then(() => {
+      env.frame();
+      const draws = gl.made.at(-1)!.draws;
+      let ticks = 0;
+      for (let i = 0; i < hz; i++) { clock += 1000 / hz + jitter(i); if (env.frame(clock)) ticks++; }
+      const drawn = gl.made.at(-1)!.draws - draws;
+      env.shell.stop();
+      return { ticks, drawn };
+    });
+  };
+  // One second at 120 Hz: every callback runs (and asks for the next), but only every other one advances and draws.
+  const fast = await at(120);
+  expect(fast.ticks).toBe(120);
+  expect(fast.drawn).toBeGreaterThanOrEqual(59);
+  expect(fast.drawn).toBeLessThanOrEqual(61);
+  // 60 Hz with vsync jitter of up to ±1.5 ms: every frame draws.
+  const sixty = await at(60, i => (i % 2 ? 1.5 : -1.5));
+  expect(sixty.drawn).toBe(60);
+  // An input change between two capped frames applies on the very next callback.
+  const env = setup();
+  env.start(); env.frame(); await env.load(); env.frame();
+  clock += 1000 / 120; env.frame(clock);
+  env.dock.setAttribute("data-queue", "");
+  for (const observer of mutationObservers) observer.callback();
+  clock += 1000 / 120; env.frame(clock);
+  expect(env.host().dataset.presence).toBe("hiding");
+});
+
+test("a frame writes no style, attribute or draw that did not change", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load(); env.run(2);
+  const writes: string[] = [];
+  const count = (node: FakeNode, name: string) => {
+    const target = node.style;
+    node.style = new Proxy(target, { set: (object, key, value) => { writes.push(`${name}.${String(key)}`); (object as Record<string, unknown>)[key as string] = value; return true; } });
+    const data = node.dataset;
+    node.dataset = new Proxy(data, { set: (object, key, value) => { writes.push(`${name}.data-${String(key)}`); object[key as string] = value; return true; } });
+  };
+  count(env.host(), "host"); count(env.ground().children[0]!, "shadow");
+  // Reduced motion: one still frame, then frames with nothing new (here woken by a resize) write nothing.
+  media.matches = true; for (const listener of [...media.listeners.get("change") ?? []]) listener({});
+  env.frame();
+  writes.length = 0;
+  const draws = gl.made[0]!.draws;
+  for (let i = 0; i < 3; i++) { for (const observer of resizeObservers) observer.callback(); env.frame(); }
+  expect(writes).toEqual([]);
+  expect(gl.made[0]!.draws).toBe(draws);
 });
 
 test("a buddy change rebuilds only the rig: surface, each surface's x and the hide state carry on", async () => {

@@ -6,7 +6,8 @@
 // ref callbacks; App starts and stops the shell with the workspace screen and pushes what only it knows.
 // The buddy runs on its own requestAnimationFrame and never asks React to render. The frame loop parks whenever
 // another step could change nothing (time stopped, or dockedNeedsTime false) and wakes on an input change: a slot
-// attribute, a portalled popper, a resize, visibility, focus, reduced motion, a push from App or an event.
+// attribute, a portalled popper, a resize, visibility, focus, reduced motion, a push from App or an event. While it
+// runs on its own it advances at most about 60 frames a second, so a 120 Hz display does not double the cost.
 import { EYE_TEXTURE, buddy as registry, type BuddyId } from "./buddies";
 import { canvasSize } from "./doanyMotion";
 import {
@@ -26,6 +27,10 @@ export const SLOT_ATTRIBUTES = ["data-accepts", "data-queue", "data-prompts", "d
 // A thread scroll ends the rest only this soon after the person's own wheel, press or key, so following new agent
 // output (the thread sets its own scrollTop) does not.
 const PERSON_SCROLL_MS = 1000;
+// A self-continued frame this soon after the last advanced one is skipped: one 60 Hz interval less a margin that no
+// 60 Hz vsync jitter reaches, so 60 Hz drops nothing and 120 Hz advances every other callback. The core still gets
+// each real timestamp, so its time model does not change; an input change applies on the very next callback.
+const FRAME_MS = 1000 / 60 - 4;
 
 // What only App knows. overview: the Overview covers the canvas page, whose toolbar stays laid out under it, so the
 // toolbar is no surface. covered: the problem overlay or first run is over the workspace. hint: a picking or capture
@@ -115,6 +120,10 @@ interface Live {
   state: DockedState; ground: HTMLElement; shadow: HTMLElement; host: HTMLElement; rig: Rig;
   container: HTMLElement; personMovedAt: () => number;
   raf: number; out: DockedFrame | null; intersecting: boolean; events: DockedEvent[]; activityAt: number; personAt: number;
+  // nativeVisible: the window is shown (document.hidden stays false while it is closed with the app running or the
+  // app is hidden; POSTMORTEM 2026-10-25). urgent: an input changed since the last advanced frame. advancedAt: that
+  // frame's timestamp. written: the last style strings, so an unchanged frame writes nothing.
+  nativeVisible: boolean; urgent: boolean; advancedAt: number; written: { host: string; shadow: string; opacity: string };
   // The floating elements in the page, found again only when one can have come or gone (null: find them again).
   floating: Element[] | null;
   slotSizes: ResizeObserver; slotAttributes: MutationObserver; portals: MutationObserver; hostSize: ResizeObserver; view: IntersectionObserver;
@@ -184,6 +193,7 @@ export class DockedBuddyShell {
     const live: Live = {
       state: createDockedState(this.id, Math.random), ground, shadow, host, rig: null as unknown as Rig, container, personMovedAt,
       raf: 0, out: null, intersecting: true, events: [], activityAt: 0, personAt: 0, floating: null,
+      nativeVisible: true, urgent: true, advancedAt: -Infinity, written: { host: "", shadow: "", opacity: "" },
       slotSizes: new ResizeObserver(wake), slotAttributes: new MutationObserver(refloat), portals: new MutationObserver(refloat),
       hostSize: new ResizeObserver(() => { this.resize(); this.wake(); }),
       view: new IntersectionObserver(entries => { live.intersecting = entries.at(-1)!.isIntersecting; this.wake(); }),
@@ -211,10 +221,14 @@ export class DockedBuddyShell {
     live.ground.remove();
   }
 
+  // An input changed: the next callback advances whatever the frame cap says.
   private wake() {
     const live = this.live;
-    if (live && !live.raf) live.raf = requestAnimationFrame(this.tick);
+    if (!live) return;
+    live.urgent = true;
+    this.next(live);
   }
+  private next(live: Live) { if (!live.raf) live.raf = requestAnimationFrame(this.tick); }
 
   private listen(live: Live) {
     const wake = () => this.wake();
@@ -236,7 +250,9 @@ export class DockedBuddyShell {
     document.addEventListener("visibilitychange", wake);
     window.addEventListener("focus", wake); window.addEventListener("blur", wake);
     live.reduced.addEventListener("change", wake);
+    const native = window.doan.onWindowVisible(visible => { live.nativeVisible = visible; this.wake(); });
     return () => {
+      native();
       document.removeEventListener("pointermove", move);
       document.removeEventListener("input", typed, true); document.removeEventListener("keydown", typed, true);
       document.removeEventListener("wheel", person, true); document.removeEventListener("pointerdown", person, true); document.removeEventListener("keydown", person, true);
@@ -254,7 +270,10 @@ export class DockedBuddyShell {
     host.style.transformOrigin = `50% ${g.originY * 100}%`;
     const still = document.createElement("img"), canvas = document.createElement("canvas"), hit = element("span", "docked-buddy-hit");
     still.alt = ""; still.src = b.assets.still; canvas.hidden = true; hit.hidden = true;
-    host.append(still, canvas, hit);
+    // The hit target paints first, under the still image and canvas, which take no pointer: the browser's hit test
+    // still reaches it, and painted before the WebGL canvas's layer it needs no compositing layer (and no clip-path
+    // mask layer) of its own. It draws nothing, so the order changes no pixel.
+    host.append(hit, still, canvas);
     const rig: Rig = { id, still, canvas, hit, shaped: false, target: null, ready: false, drawn: "", dispose: () => {} };
     let disposed = false;
     // The host itself takes no pointer; the hit target over it, clipped to the painted body, does. It is the browser's
@@ -310,11 +329,13 @@ export class DockedBuddyShell {
     const live = this.live;
     if (!live) return;
     live.raf = 0;
+    if (!live.urgent && now - live.advancedAt < FRAME_MS) { this.next(live); return; }
+    live.urgent = false; live.advancedAt = now;
     const inputs = this.inputs(live);
     const out = advanceDocked(live.state, inputs, now, Math.random);
     live.out = out;
     this.apply(live, out, inputs.visible);
-    if (inputs.visible && !inputs.reduced && dockedNeedsTime(live.state)) this.wake();
+    if (inputs.visible && !inputs.reduced && dockedNeedsTime(live.state)) this.next(live);
   };
 
   private inputs(live: Live): DockedInputs {
@@ -336,7 +357,7 @@ export class DockedBuddyShell {
     const dockSlot = this.slots.dock;
     const dock = surface("dock");
     const has = (name: string) => !!dockSlot?.hasAttribute(name);
-    const shown = !document.hidden && !ws.covered && live.intersecting && live.container.checkVisibility({ visibilityProperty: true, opacityProperty: true });
+    const shown = !document.hidden && live.nativeVisible && !ws.covered && live.intersecting && live.container.checkVisibility({ visibilityProperty: true, opacityProperty: true });
     return {
       surfaces: { dock: dock && { ...dock, accepts: dockSlot!.getAttribute("data-accepts") !== "false" }, tools: ws.overview ? null : surface("tools") },
       // A new conversation's notice or choice stands where the suggested prompts do, and is stepped aside for alike.
@@ -351,16 +372,19 @@ export class DockedBuddyShell {
   }
 
   private apply(live: Live, out: DockedFrame, visible: boolean) {
-    const { ground, host, shadow, rig } = live;
+    const { ground, host, shadow, rig, written } = live;
     const target = out.surface ? this.slots[out.surface] : undefined;
     if (target && ground.parentElement !== target) target.append(ground);
-    host.style.transform = `translate(${out.host.x}px,${out.host.y}px)`;
-    shadow.style.transform = `translateX(${out.shadow.x}px) scale(${out.shadow.scaleX},${out.shadow.scaleY})`;
-    shadow.style.opacity = String(out.shadow.opacity);
-    host.dataset.surface = out.surface ?? "";
-    host.dataset.presence = out.presence;
-    host.dataset.state = rig.ready ? out.mode : "static";
-    rig.hit.hidden = out.presence !== "shown" || !rig.shaped;
+    // Only what changed is written: a still pose or a resting shadow costs no style invalidation.
+    const hostTransform = `translate(${out.host.x}px,${out.host.y}px)`;
+    const shadowTransform = `translateX(${out.shadow.x}px) scale(${out.shadow.scaleX},${out.shadow.scaleY})`, opacity = String(out.shadow.opacity);
+    if (written.host !== hostTransform) host.style.transform = written.host = hostTransform;
+    if (written.shadow !== shadowTransform) shadow.style.transform = written.shadow = shadowTransform;
+    if (written.opacity !== opacity) shadow.style.opacity = written.opacity = opacity;
+    const data = { surface: out.surface ?? "", presence: out.presence, state: rig.ready ? out.mode : "static" };
+    for (const key of ["surface", "presence", "state"] as const) if (host.dataset[key] !== data[key]) host.dataset[key] = data[key];
+    const hide = out.presence !== "shown" || !rig.shaped;
+    if (rig.hit.hidden !== hide) rig.hit.hidden = hide;
     // Nothing is drawn while not seen; a still pose (reduced motion) draws once per change.
     const key = `${out.mode}|${out.pose.time}|${out.surface}|${out.conceal}`;
     if (visible && rig.ready && rig.target && !rig.target.lost() && out.conceal < 1 && key !== rig.drawn) { rig.drawn = key; rig.target.draw(out); }
