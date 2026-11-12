@@ -23,7 +23,7 @@ export const FLOATING = "[data-radix-popper-content-wrapper], .slash-popover, .d
 // The dock slot's attributes, written by DockedComposer: the card takes no input, and the step-aside reasons. popover
 // only wakes the parked loop and refreshes the floating list, since the slash popover opens inside the card where no
 // other observer sees it.
-export const SLOT_ATTRIBUTES = ["data-accepts", "data-queue", "data-prompts", "data-waiting", "data-notice", "data-popover"];
+export const SLOT_ATTRIBUTES = ["data-accepts", "data-queue", "data-waiting", "data-notice", "data-popover"];
 // A thread scroll ends the rest only this soon after the person's own wheel, press or key, so following new agent
 // output (the thread sets its own scrollTop) does not.
 const PERSON_SCROLL_MS = 1000;
@@ -378,8 +378,8 @@ export class DockedBuddyShell {
     const has = (name: string) => !!dockSlot?.hasAttribute(name);
     return {
       surfaces: { dock: dock && { ...dock, accepts: dockSlot!.getAttribute("data-accepts") !== "false" }, tools: ws.overview ? null : surface("tools") },
-      // A new conversation's notice or choice stands where the suggested prompts do, and is stepped aside for alike.
-      reasons: { queue: has("data-queue"), prompts: has("data-prompts") || has("data-notice"), waiting: has("data-waiting") },
+      // The core's prompts reason is a new conversation's notice or choice; the suggested prompts themselves are none.
+      reasons: { queue: has("data-queue"), prompts: has("data-notice"), waiting: has("data-waiting") },
       panel: { folded: ws.folded, folding: ws.folding },
       resting: Date.now() - Math.max(live.personMovedAt(), live.activityAt) >= REST_SECONDS * 1000 && document.hasFocus(),
       // Time runs only while the workspace is seen and WebGL is ready; the still image never animates.
