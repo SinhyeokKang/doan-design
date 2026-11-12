@@ -1525,6 +1525,13 @@ body:has(.shell-top){background:var(--surface-inset)}
 
 /* ── github-star-prompt: new, not in code: the floating shadow on the card and, changed by this feature, on the toast ── */
 .star-prompt.doan-floating,.toast.doan-floating{box-shadow:var(--shadow-floating)}
+/* Motion (decided 2026-11-13), the same for the card and toasts, the dialog pattern (@starting-style, allow-discrete):
+   enter: fade in and rise 8px over --time-settle with --ease-enter; exit: fade out and drop 4px over --time-fast.
+   A toast that replaces another only changes its content and does not move again. Under prefers-reduced-motion
+   only the fades stay. A static canvas cannot show it; /design-sync compares the transition values. */
+.star-prompt.doan-floating,.toast.doan-floating{transition:opacity var(--time-settle) var(--ease-enter),translate var(--time-settle) var(--ease-enter)}
+@starting-style{.star-prompt.doan-floating,.toast.doan-floating{opacity:0;translate:0 var(--space-2)}}
+@media (prefers-reduced-motion:reduce){.star-prompt.doan-floating,.toast.doan-floating{transition:opacity var(--time-settle) var(--ease-enter)}@starting-style{.star-prompt.doan-floating,.toast.doan-floating{translate:none}}}
 
 /* ── github-star-prompt: new, not in code ──
    A fixed element at the end of the app document, beside the toast. Floating material (ds/surfaces.css .doan-floating)
