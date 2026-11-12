@@ -293,7 +293,10 @@ test("a rebuild that fails while the GPU process restarts is tried again later w
   gl.none = false;
   env.run(3);
   expect(gl.made.length).toBe(1);
-  vi.advanceTimersByTime(1000); env.frame();
+  // Each later try waits twice as long as the one before.
+  vi.advanceTimersByTime(1999); env.run(1);
+  expect(gl.made.length).toBe(1);
+  vi.advanceTimersByTime(1); env.frame();
   expect(gl.made.length).toBe(2);
   await env.load(); env.frame();
   expect([env.still().hidden, env.canvas().hidden]).toEqual([true, false]);
@@ -310,20 +313,27 @@ test("a rebuilt rig lost again while its textures load is tried again later", as
   gl.made[1]!.lost = true; env.canvas().dispatch("webglcontextlost");
   await env.load(); env.frame();
   expect(env.host().dataset.state).toBe("static");
-  vi.advanceTimersByTime(1000); env.frame();
+  vi.advanceTimersByTime(2000); env.frame();
   expect(gl.made.length).toBe(3);
   await env.load(); env.frame();
   expect(env.host().dataset.state).not.toBe("static");
 });
 
-test("when the GPU never comes back the retries stop after a few attempts and leave no timer", async () => {
+// Two GPU resets in a row make Chromium block WebGL for the page for about two minutes, with no restore event; the
+// tries must outlast that block.
+test("when the GPU stays away the tries back off past two minutes, then stop and leave no timer", async () => {
   const env = setup();
   env.start(); env.frame(); await env.load(); env.run(3);
   env.canvas().dispatch("webglcontextlost");
   gl.none = true;
-  let attempts = 0;
-  for (let i = 0; i < 10; i++) { if (vi.getTimerCount()) attempts += 1; vi.advanceTimersByTime(1000); env.run(2); }
-  expect(attempts).toBe(3);
+  const canvases = () => created.filter(node => node.tag === "canvas").length;
+  const tries: number[] = [];
+  for (let second = 1; second <= 600; second++) {
+    const before = canvases();
+    vi.advanceTimersByTime(1000); env.run(1);
+    if (canvases() > before) tries.push(second);
+  }
+  expect(tries).toEqual([1, 3, 7, 15, 31, 63, 127, 255]);
   expect(vi.getTimerCount()).toBe(0);
   expect(env.host().dataset.state).toBe("static");
   // The next seen stretch still gets its one rebuild.
