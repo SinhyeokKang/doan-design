@@ -20,7 +20,7 @@
      - 작업 종료 뒤 CLI가 스스로 모델을 부르는데, 집합이 비는 프레임과 첫 모델 요청 사이가 너무 짧아 막을 수 없음.
    - 확인: `node .scratch/claude-turn-end/<scenario>.mjs`가 로그를 남기고, 'PoC 결과'의 각 수치가 로그와 맞는다. 실제 상태 비교가 위 기준을 통과한다.
    - 커밋 경계: 문서만(이 파일의 'PoC 결과', design.md의 `PROMOTION_SETTLE_MS` 값과 기록 필드). fixture는 3번 커밋에 넣는다.
-2. [ ] **초안 (`/design-draft`).** 백그라운드 작업 줄(문구, Stop의 평소·누름·실패 상태, 실패 토스트, 라이트·다크, Overview와 캔버스 패널)과 결함 2의 실패 문구를 `.doan/canvases/`에 그린다.
+2. [x] **초안 (`/design-draft`).** 백그라운드 작업 줄(문구, Stop의 평소·누름·실패 상태, 실패 토스트, 라이트·다크, Overview와 캔버스 패널)과 결함 2의 실패 문구를 `.doan/canvases/`에 그린다.
    - 확인: `doan check`·`doan ls`가 통과하고, 사용자가 앱에서 초안을 확인했다.
 3. [ ] **테스트 먼저 (`/tdd`).** red를 확인한다.
    - 순수 함수: `promotionDeadline`, `promptTransport`와 `normalizeClaude`의 프롬프트 읽힘 규칙, `readInTranscript`(두 버전의 fixture), `backgroundTasks`(`local_agent` 포함, `ambient` 제외), `afterTurnCleanup`, `backgroundLine`(design.md '순수 함수').
