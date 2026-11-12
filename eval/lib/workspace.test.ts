@@ -103,6 +103,42 @@ test("without worktree the agent works in the instruction's root", async () => {
   }
 });
 
+test("git false leaves the folder outside any repository and keeps the baseline in a separate Git directory", async () => {
+  const ws = await prepareWorkspace({ scenario: { ...seeded(), git: false }, agent: "codex", cli, stub: "stub\n" });
+  try {
+    assert.ok(ws.gitDir?.startsWith(`${ws.base}/`));
+    assert.ok(!ws.gitDir.startsWith(`${ws.repo}/`));
+    assert.equal(existsSync(join(ws.repo, ".git")), false);
+    assert.notEqual(sh("git", ["rev-parse", "--git-dir"], ws.repo, ws.env).code, 0);
+    // The agent still gets what a Git workspace commits, in the same place.
+    assert.equal(readFileSync(join(ws.repo, CODEX_RULE), "utf8"), codexRuleText());
+    assert.deepEqual(JSON.parse(readFileSync(join(ws.repo, ".claude/settings.json"), "utf8")).permissions.allow, CLAUDE_ALLOW_RULES);
+    assert.equal(readFileSync(join(ws.repo, ".agents/skills/doan/SKILL.md"), "utf8"), "stub\n");
+    const ctx = createContext({ repo: ws.repo, agent: "fixture", transcript: "", cli, env: ws.env, seedCommit: ws.seedCommit, gitDir: ws.gitDir });
+    assert.deepEqual(ctx.changedFiles(), []);
+    assert.equal(ctx.seed(CODEX_RULE), codexRuleText());
+    // A repository the agent creates does not take over the baseline.
+    assert.equal(sh("git", ["init", "-q"], ws.repo, ws.env).code, 0);
+    writeFileSync(join(ws.repo, "notes.md"), "agent\n");
+    assert.deepEqual(ctx.changedFiles(), ["notes.md"]);
+    const { changed, diff } = judgeMaterial(ws, ctx);
+    assert.deepEqual(changed, ["notes.md"]);
+    assert.match(diff, /notes\.md/);
+  } finally {
+    await ws.dispose();
+  }
+});
+
+test("Git workspaces have no separate Git directory", async () => {
+  const ws = await prepareWorkspace({ scenario: seeded(), agent: "fixture", cli, stub: "stub\n" });
+  try {
+    assert.equal(ws.gitDir, null);
+    assert.equal(existsSync(join(ws.repo, ".git")), true);
+  } finally {
+    await ws.dispose();
+  }
+});
+
 // Codex reaches the app socket through this rule; a Claude run gets the same baseline,
 // so neither agent's diff or judge sees it as the agent's work.
 test("every agent's baseline commits the project Codex rule Doan's agent setup writes", async () => {
