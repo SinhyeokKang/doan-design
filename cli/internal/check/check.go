@@ -31,6 +31,9 @@ type Input struct {
 	Unparsable map[string]string
 	Reach      map[string][]CSSRef
 	CSS        map[string]canvas.Scan
+	// CustomCSS holds, by real path, what each reached stylesheet does with
+	// custom properties. It is apart from CSS so canvas.Scan stays as it is.
+	CustomCSS  map[string]canvas.CustomText
 	TokenCSS   TokenCSS
 	Served     func(string) bool
 	Implements map[string]State

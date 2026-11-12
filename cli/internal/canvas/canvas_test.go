@@ -93,7 +93,7 @@ func TestURL(t *testing.T) {
 	}
 }
 func TestExternalURLs(t *testing.T) {
-	tags := []string{`script src`, `link href`, `img src`, `iframe src`, `video src`, `audio src`, `source src`, `embed src`, `track src`, `video poster`, `object data`, `svg><use href`, `svg><image xlink:href`}
+	tags := []string{`script src`, `link href`, `img src`, `iframe src`, `video src`, `audio src`, `source src`, `embed src`, `track src`, `video poster`, `object data`, `svg><image xlink:href`}
 	for _, tag := range tags {
 		i := 0
 		for tag[i] != ' ' {

@@ -112,7 +112,7 @@ func TestInlineRefusesReferencesUnderAMovingBase(t *testing.T) {
 		{movedCanvas, "images/hero.png", ReasonBase},
 		{movedCanvas, "u.png", ReasonBase},
 		{movedCanvas, "scripts/app.js", ReasonBase},
-		{movedCanvas, "sprite.svg#icon", ReasonBase},
+		{movedCanvas, "sprite.svg#icon", ReasonUseExternal},
 		{movedCanvas, "images/none.png", ReasonBase},
 		{movedCanvas, "inner.html", ReasonFrame},
 	}

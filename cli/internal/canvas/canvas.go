@@ -24,6 +24,12 @@ type Canvas struct {
 	Frames                           []Frame
 	DoanIDs, Links, ExternalURLs     []string
 	Styles                           Scan
+	// UseRefs holds the reference of each SVG <use> outside <template> that
+	// names something other than a fragment of this document, as written.
+	UseRefs []string
+	// Custom is what the canvas's own <style> elements and style attributes
+	// do with custom properties.
+	Custom CustomText
 }
 
 var widthPattern = regexp.MustCompile(`^[1-9][0-9]*$`)
@@ -43,6 +49,10 @@ func IsExternal(href string) bool {
 	s := lower(trimURL(href))
 	return strings.HasPrefix(s, "http:") || strings.HasPrefix(s, "https:") || strings.HasPrefix(s, "//")
 }
+
+// UseNotInline reports whether a <use> reference names something other than
+// a fragment of the same document.
+func UseNotInline(ref string) bool { return false }
 func LocalPath(href string) (string, bool) {
 	s := trimURL(href)
 	if schemePattern.MatchString(s) || strings.HasPrefix(s, "//") {

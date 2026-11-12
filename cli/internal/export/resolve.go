@@ -19,6 +19,8 @@ const (
 	ReasonNotServed = "not in the serving scope"
 	ReasonMissing   = "not found"
 	ReasonFrame     = "local document in a frame"
+	// The app draws a <use> only when it names a fragment of the canvas.
+	ReasonUseExternal = "the app does not draw an external use; inline the sprite"
 	// SVG <use> targets are copied into the document, so they need an id
 	// that exists in an SVG file and is not already taken.
 	ReasonUseFragment  = "use without a fragment"
