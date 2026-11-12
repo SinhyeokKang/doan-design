@@ -22,7 +22,7 @@
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | A | tasks 1 PoC | `.scratch/claude-turn-end/`(커밋 안 함), tasks.md 'PoC 결과', design.md `PROMOTION_SETTLE_MS` 값과 기록 필드 | 없음 | Opus high — 실제 CLI 프레임을 해석해 멈춤 조건을 판정해야 하고, 틀리면 이후 설계 전체가 틀린다 | tasks 1 '확인': 스크립트 로그와 'PoC 결과' 수치 일치, 실제 상태 비교 통과 | 대기 |
-| B | tasks 8 노티스 버튼 세로 가운데 | `app/src/renderer/ds/surfaces.css`, `app/src/renderer/ds/controls.test.ts`, `.doan/canvases/claude-turn-end.html`(override 줄 삭제만), `.doan/ds/notice.html`, `docs/DESIGN.md` 'Notices'·'Conversation strip' | 없음 | Sonnet high — 규칙 한 줄과 문서의 기계적 변경이지만 실제 앱 probe 단계가 많다 | tasks 8 '확인': app test 녹색, 두 줄 Home strip의 버튼 세로 가운데·아이콘 첫 줄, 한 줄 노티스 높이 44 px | 대기 |
+| B | tasks 8 노티스 버튼 세로 가운데 | `app/src/renderer/ds/surfaces.css`, `app/src/renderer/ds/controls.test.ts`, `.doan/canvases/claude-turn-end.html`(override 줄 삭제만), `.doan/ds/notice.html`, `docs/DESIGN.md` 'Notices'·'Conversation strip' | 없음 | Sonnet high — 규칙 한 줄과 문서의 기계적 변경이지만 실제 앱 probe 단계가 많다 | tasks 8 '확인': app test 녹색, 두 줄 Home strip의 버튼 세로 가운데·아이콘 첫 줄, 한 줄 노티스 높이 44 px | 구현 끝(`447b5a38..d5560ae3`, verify PASS, probe: 두 줄 strip 버튼 중심 차이 0 px·아이콘 첫 줄·한 줄 44 px). probe는 strip 마크업을 주입했고 대화를 만들지 않았다. R-B 진행 중 |
 | C | tasks 3–6 (+ tasks 10의 `TURN_USAGE_MS` 주석) | `app/src/main/conversation/**`(fixtures 포함), preload, 로그아웃·Restart to Update·프로젝트 Remove의 `stop_required` 계산, tasks 3의 renderer 테스트와 renderer stub | A | Opus high — 프로세스 그룹 정리, 예약 해제 순서, 보류한 종료의 동시성. 틀리면 POSTMORTEM 2026-10-27·10-28 회귀가 다시 난다 | 각 tasks의 '확인', `node .agents/skills/verify/scripts/verify.mjs` PASS | 대기 |
 | D | tasks 7 스레드 UI + `/design-sync` | renderer 스레드 UI(`turnStatus.ts`, `homeRun.ts`, `threadItems.ts`, `ConversationThread.tsx`, `conversationStrip.ts`, 관련 CSS), `docs/DESIGN.md` 백그라운드 줄 측정값 | B, C 통합 | Opus high — 포커스 이동, Stop 경합, `sending` 항목 정리(POSTMORTEM 2026-11-05)와 초안 측정 | app test 녹색, `/design-sync` 측정 통과 | 대기 |
 | E | tasks 9 `/runtime-test` | `.scratch/`의 probe만 | C, D 통합 | Opus medium — 정해진 probe를 실제 앱에서 재고 수치를 완료 조건과 대조한다 | probe 수치가 spec 완료 조건 1–5를 만족, 실제 상태 비교 통과 | 대기 |
@@ -41,4 +41,8 @@ tasks 2(`/design-draft`)는 lead 단계에서 끝났다(`8de3b646`, `6b7faccf`).
 
 ## 리뷰와 수정 기록
 
-(진행하며 채운다.)
+- R-B(Sonnet medium): 🔴 0 / 🟡 3 / ⚪ 2. 🟡: DESIGN.md 'Moved line alignment'(606)과 592행의 "top-aligned"가 옛 규칙, `controls.test.ts:27` 주석이 옛 규칙, 공통 규칙이 ProjectSettings 노티스와 composer·BuddyPicker Retry의 줄바꿈 경우에도 닿는다.
+  - 마지막 🟡는 conductor 판단으로 의도대로다(tasks 8 '모든 노티스에 적용', 스레드 노티스만 제외). DESIGN 'Notices'에 적고, 줄바꿈 경우를 probe에 더하게 했다.
+  - ⚪(`.doan/ds/notice.html` 한 줄 샘플)은 고치지 않는다.
+  - 수정 1회차(`688477aa`, `b0296ce9`)로 🟡 셋을 고쳤다. 줄바꿈 probe: Project Settings reason 노티스 64 px·중심 차이 0(이전 −10), composer Retry 300 px 폭 104 px·0(이전 −30), buddy Retry 84 px·0(이전 −20). 수정이 문서와 주석뿐이라 conductor가 diff를 직접 보고 재리뷰는 하지 않았다.
+  - B의 첫 verify가 건드리지 않은 `src/main/watch.test.ts` 타이밍 테스트에서 한 번 실패했고, 다시 돌려 PASS했다(POSTMORTEM의 watch.test.ts 후속 항목과 같은 영역).
