@@ -1523,6 +1523,9 @@ body:has(.shell-top){background:var(--surface-inset)}
 /* Drawn states: :focus-visible → .is-focus (ds/controls.css ring). */
 :is(.doan-button,.doan-icon-button).is-focus{outline:2px solid var(--border-focus);outline-offset:2px}
 
+/* ── github-star-prompt: new, not in code: the floating shadow on the card and, changed by this feature, on the toast ── */
+.star-prompt.doan-floating,.toast.doan-floating{box-shadow:var(--shadow-floating)}
+
 /* ── github-star-prompt: new, not in code ──
    A fixed element at the end of the app document, beside the toast. Floating material (ds/surfaces.css .doan-floating)
    with the toast's 12px inset; over the sidebar column a backdrop-filter cannot blur the native vibrancy, so it takes the

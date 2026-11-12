@@ -340,6 +340,9 @@
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-sm: 0 0 2px rgba(0, 0, 0, 0.1), 0 4px 8px -2px rgba(0, 0, 0, 0.06);
   --shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+  /* Surfaces that float on their own over the content, not opened by a press: toasts and the GitHub star card.
+     The panel's hairline ring plus a wider drop shadow, so they read above whatever is under them. */
+  --shadow-floating: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 8px 24px -4px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.06);
   --blur-sm: 8px;
   --blur-md: 16px;
   --blur-lg: 32px;
