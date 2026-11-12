@@ -216,6 +216,8 @@ test("the still image shows until the textures load, and again when they fail or
   env.canvas().dispatch("webglcontextlost");
   env.frame();
   expect([env.still().hidden, env.canvas().hidden, env.host().dataset.state]).toEqual([false, true, "static"]);
+  // Its rebuilt rig would take the next setups' frames and textures.
+  env.shell.stop();
 
   // A context lost while the textures still load: their late success must not uncover the dead canvas.
   const early = setup();
@@ -223,12 +225,78 @@ test("the still image shows until the textures load, and again when they fail or
   gl.made.at(-1)!.lost = true; early.canvas().dispatch("webglcontextlost");
   await early.load(); early.frame();
   expect([early.still().hidden, early.canvas().hidden, early.host().dataset.state]).toEqual([false, true, "static"]);
+  early.shell.stop();
 
   const failed = setup();
   failed.start(); failed.frame();
   for (const image of FakeImage.all.slice(-3)) if (image.src.endsWith("eye.png")) image.onerror(); else image.onload();
   await flush(); failed.frame();
   expect([failed.still().hidden, failed.canvas().hidden, failed.host().dataset.state]).toEqual([false, true, "static"]);
+});
+
+// A GPU process reset (seen after a minimize and after an update's relaunch) loses the context; the buddy must not
+// stay on the still image for good.
+test("a context lost after it was ready rebuilds the rig on the next frame it is seen, and the buddy moves again", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load(); env.run(3);
+  expect(gl.made.length).toBe(1);
+  env.canvas().dispatch("webglcontextlost");
+  env.frame();
+  expect(gl.made.length).toBe(2);
+  expect(gl.made[0]!.lost).toBe(true);
+  await env.load(); env.frame();
+  expect([env.still().hidden, env.canvas().hidden]).toEqual([true, false]);
+  expect(env.host().dataset.state).not.toBe("static");
+  const draws = gl.made[1]!.draws;
+  env.run(3);
+  expect(gl.made[1]!.draws).toBeGreaterThan(draws);
+  expect(frames.size).toBe(1);
+});
+
+test("a context lost while unseen is rebuilt only once the buddy is seen again", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load(); env.run(2);
+  page.hidden = true; page.dispatch("visibilitychange"); env.run(1);
+  env.canvas().dispatch("webglcontextlost");
+  env.run(1);
+  expect(gl.made.length).toBe(1);
+  page.hidden = false; page.dispatch("visibilitychange");
+  env.frame();
+  expect(gl.made.length).toBe(2);
+  await env.load(); env.frame();
+  expect(env.host().dataset.state).not.toBe("static");
+});
+
+test("a rig that fails to build is tried again once per time the buddy is seen again, not every frame", async () => {
+  const env = setup();
+  env.start(); env.frame();
+  for (const image of FakeImage.all) if (image.src.endsWith("eye.png")) image.onerror(); else image.onload();
+  await flush(); env.run(3);
+  expect(gl.made.length).toBe(1);
+  expect(env.host().dataset.state).toBe("static");
+  for (const listener of nativeVisible) listener(false);
+  env.run(1);
+  for (const listener of nativeVisible) listener(true);
+  env.run(3);
+  expect(gl.made.length).toBe(2);
+  await env.load(); env.frame();
+  expect(env.host().dataset.state).not.toBe("static");
+});
+
+test("a frame requested but never delivered does not park the loop for good: the next wake requests a fresh one", async () => {
+  for (const wake of [() => page.dispatch("visibilitychange"), () => win.dispatch("focus"), () => { for (const listener of nativeVisible) listener(true); }]) {
+    const env = setup();
+    env.start(); env.frame(); await env.load(); env.run(2);
+    expect(frames.size).toBe(1);
+    // Chromium drops the callback (requested while the window was minimized) but the shell still holds its id.
+    frames.clear();
+    wake();
+    expect(frames.size).toBe(1);
+    const draws = gl.made.at(-1)!.draws;
+    env.run(3);
+    expect(gl.made.at(-1)!.draws).toBeGreaterThan(draws);
+    env.shell.stop();
+  }
 });
 
 test("without WebGL or with a shader that does not compile the still image stands on the floor and no context is left", () => {
