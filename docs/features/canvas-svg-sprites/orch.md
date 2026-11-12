@@ -27,9 +27,9 @@
 | BP | 작업 1, 2 (PoC) + 작업 6 마지막 재비교(후속 Task) | `.scratch/canvas-svg-sprites/`, `tasks.md` 'PoC 기록' | 없음 | Opus high — 측정 설계와 판정이 결과를 좌우하고, 틀리면 설계 전체가 흔들린다 | 경우별 스크린숏·bbox·요청 로그, export 파일 경로(Safari용) | 완료 `bac40bf5` → 통합. Safari 12개 모두 Chromium과 같음(사용자 스크린숏, 2026-11-13) |
 | BC | 작업 3, 4 (`/tdd`, `/implement`) | `cli/internal/canvas/`, `cli/internal/check/`, `cli/internal/export/`(`exporttest` 포함), `cli/internal/cli/check.go` | BP | Opus high — check·export 일치, reach 포함 관계, tokenizer `<template>` 함정이 있다 | `go test ./...`, `go vet ./...`, `verify.mjs`, repo 복사본 `doan check` 새 finding 0 | 완료 `36d23a42`·`8fb90bb2`·`ed2474f4` → 통합 `4ae87270`·`6cf1176f`·`ef77fc3d` |
 | BG | 작업 5 (가이드·preset) | `cli/internal/cli/skill.md`, `cli/internal/designskill/presets/document.md` | BP | Sonnet medium — 정해진 문장을 예산 안에 넣는 작업이다 | `go test ./...`(`TestSkillGuideFitsToolOutputCap`), `doan skill --json` 출력 | 완료 `9abde758`·`284a45d5` → 통합(dispatch `ctx_3b9cb8cc657f`) |
-| R | 작업 6 `/code-review` (BC+BG 통합 diff) | 보고만 | BC, BG 통합 | Opus high — check·export 판정 일치와 고아 제거를 독립적으로 판단해야 한다 | 🔴 0 | 1라운드 완료: 🔴0 🟡1 ⚪6(`.scratch/review-R.md`) → 수정 라운드 1 진행 |
+| R | 작업 6 `/code-review` (BC+BG 통합 diff) | 보고만 | BC, BG 통합 | Opus high — check·export 판정 일치와 고아 제거를 독립적으로 판단해야 한다 | 🔴 0 | 완료: 1라운드 🔴0 🟡1 ⚪6, 수정 뒤 2라운드 🔴0 🟡0 ⚪2(`.scratch/review-R.md`) |
 | BE1 | 작업 6 시나리오 | `eval/scenarios/<새 id>/`, `eval/` 테스트(`checks.test.ts` 등) | BC 통합 | Opus medium — fixture와 실패 조건 설계에 판단이 들지만 범위가 좁다 | `node eval/run.ts --self-test` PASS·exit 0, `node --test 'eval/**/*.test.ts'`, `verify.mjs --eval` | 완료 `2173dbe6`(W6) → 통합 |
-| BE2 | 작업 6 실제 `/agent-eval` 라운드 + `docs/USABILITY-EVAL.md` | `docs/USABILITY-EVAL.md` | R 수정 통합, BE1 통합 | BE1 워커 재사용 | `npm --prefix app run package`, `node eval/run.ts --round <name>` 전체 시나리오 | 대기 |
+| BE2 | 작업 6 실제 `/agent-eval` 라운드 + `docs/USABILITY-EVAL.md` | `docs/USABILITY-EVAL.md` | R 수정 통합, BE1 통합 | BE1 워커 재사용 | `npm --prefix app run package`, `node eval/run.ts --round <name>` 전체 시나리오 | 진행(BE1 워커 후속 Task) |
 | 승격 | 작업 7 | PRODUCT, ARCHITECTURE, BACKLOG, `docs/features/canvas-svg-sprites/` 삭제 | 전부 | conductor | 완료 조건 1~7 대조, `git diff --stat origin/develop -- app/` 빈 결과, `rg` 잔여 없음 | 대기 |
 
 ## 파일 겹침과 순서
@@ -46,3 +46,7 @@
 - BC: handoff와 커밋을 대조했다. `/ship`의 자체 리뷰는 🔴·🟡 0이다. 계획과 다른 점 4개(export `<use>` 판정의 `canvas.Parse` 대조, 캔버스 사용처를 `Canvas.Custom`에 둠, finding `value`가 `url()` 안 값, customurl 기대값이 거부로 바뀜)는 리뷰 R이 판정한다. POSTMORTEM 2026-11-03의 원래 캔버스는 캔버스 `<style>`도 같은 property를 써서 이제 거부된다. spec '기존 동작 변경' 2와 '남는 결함'에 해당하므로 PR 본문에 남긴다.
 - 통합 `ef77fc3d`의 `/verify`: app-test에서 `doanyRender.test.ts`의 두 테스트가 20초 시간 초과로 실패했다(로그 `.scratch/verify/2026-11-12T15-22-49-332Z-61123/`). 다른 워커와 다른 링크가 동시에 테스트를 돌리던 때다. 이 브랜치는 `app/`을 바꾸지 않았고, 그 파일만 다시 돌리면 8개 모두 통과했다. 마지막 통합에서 워커가 쉬는 동안 전체 `/verify --eval`를 다시 돈다.
 - BE1: handoff와 커밋(`eval/scenarios/W6/`만)을 대조했다. `checks.test.ts`는 W5처럼 `doan`을 mock하지 않고 H5처럼 실제 CLI를 돌린다. 새 check 규칙이 실제로 나오는지 고정하므로 받아들인다. self-test PASS(37 scenarios), eval 테스트 292/292.
+- 수정 라운드 1: BG `59ba91c7`(→ `4f966202`), BC `da5dc369`·`e6caf4ba`(→ `4028e6b4`·`70a5a32f`). 리뷰 2라운드가 🟡1·⚪1·⚪2를 닫았다. 새 ⚪: ARCHITECTURE의 `export_refused` "document order" 문장은 승격 때 고친다. `@property` descriptor 값은 검증하지 않는다는 한계는 ARCHITECTURE에 적는다(conductor 판단: 가이드대로 쓰면 생기지 않는다).
+- lead 요청(PR #178)으로 `origin/develop` `02e6e505`를 merge했다(`37bb5bea`). `output_test.go` digest 충돌은 develop 값을 쓰고 full만 다시 계산했다.
+- 통합 `37bb5bea`의 `/verify --eval`: PASS(로그 `.scratch/verify/2026-11-12T15-50-40-291Z-68285/`). 앞선 app-test 시간 초과는 재현되지 않았다.
+- R 워커는 release했고 worktree `css-r`는 지웠다(브랜치 `SinhyeokKang/css-r` 유지, 자기 커밋 없음).
