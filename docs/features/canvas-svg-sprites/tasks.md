@@ -11,7 +11,7 @@
   - 검증: `go build -o <tmp>/doan ./cli/cmd/doan` 후 `DOAN_CLI=<tmp>/doan npm --prefix app run dev -- -- --user-data-dir=<tmp>`(AGENTS.md의 HOME·SHELL·`CLAUDE_CONFIG_DIR`·`CODEX_HOME` 격리 적용), `go run ./cli/cmd/doan export <canvas> -o <tmp>/out.html --repo <tmp repo> --json`.
   - 관찰은 아래 'PoC 기록'에 날짜와 함께 남긴다. 결과가 design.md 가정과 다르면 작업 3 전에 설계를 고친다.
 - [x] 2. **PoC: custom property `url()`** (design.md 'PoC 의존' 4). 레이아웃마다 페이지 하나로, 두 폴더의 사용처가 서로 다른 경로로 푸는 경우, 같은 경로로 푸는 경우, `@property` `<url>` 등록 경우를 격리 앱에서 확인한다. 같은 경로로 푸는 경우는 export 결과도 기록한다. 검증: 작업 1과 같은 격리 앱 명령과 export 명령. 같은 경로로 풀리는 경우가 순서에 따라 달라지면 warning 조건을 "사용 폴더 둘 이상"으로 바꿀지 사용자에게 묻는다.
-- [ ] 3. **`/tdd`: 판정 함수, check 규칙, export 기대값.**
+- [x] 3. **`/tdd`: 판정 함수, check 규칙, export 기대값.**
   - 순수 함수: `<use>` 비조각 판별, custom property 사용 경로 계산과 모호성 판정(`cli/internal/canvas`).
   - `check_test.go`: 두 규칙의 code·수준·attribution·메시지(design.md 'finding'), CDN `<use>`에 `external_url`이 없음.
   - `<use>` 경우: `xlink:href`(xlink 네임스페이스), `data:`, `http(s):`, `//cdn`, 앞뒤 공백, 빈 값, `<svg>` 밖 HTML 네임스페이스 `<use>`(무시), `href="#missing"`(보고 안 함), 두 속성이 다 있으면 `href` 우선, 빈 캔버스, `<svg>` 없는 캔버스, `<template>` 안 `<use>`, `<template/>` 최상위·중첩.
@@ -20,7 +20,7 @@
   - check·export 일치 테스트: seed repo에서 실제 `checkInput`→`check.Run`과 `export`를 돌린다. 경우: 서빙 범위 밖 시트, `<template>` 안 `<link>`, 같은 폴더 `<base>`(check reach ⊇ export reach를 고정).
   - 컴파일: 새 함수·필드·사유가 없으면 `canvas`, `check`, `export` 패키지 테스트가 컴파일되지 않는다. 빈 stub(항상 "없음"을 돌려주는 함수, 빈 `check.Input` 필드, 사유 상수)을 함께 넣어 컴파일되게 한다.
   - 검증: `go test ./...`에서 새 테스트만 red이고, 나머지 테스트는 green. **테스트 커밋 경계**.
-- [ ] 4. **`/implement`: check와 export.**
+- [x] 4. **`/implement`: check와 export.**
   - 판정 함수와 두 check 규칙. `check.Input`에 시트별 `CustomUses`·`CSSRefs` 필드를 더하고(`canvas.Scan`은 그대로, `css_golden_test.go` 유지), `cli/internal/cli/check.go` `checkInput`의 `visit`와 `canvas.Parse`(캔버스 `<style>`·`style` 속성)에서 채운다.
   - export: 조각이 아닌 `<use>`를 `resolveAsset` 전에 새 사유로 거부, 스프라이트 복사 제거, `replaceCustom` 조건을 판정 함수로 바꾸고 `ReasonAmbiguous` 문구를 "resolves to different paths…"로 바꾼다.
   - 고아 정리: `sprite`·`spriteContent`·`spriteContainer`·`spriteIDs`·`spriteStyled`, `ReasonUseFragment`·`ReasonUseID`·`ReasonUseCollision`·`ReasonUseType`·`ReasonUseStyle`, 스프라이트에만 쓰이면 `documentIDs`, `datauri.go:59` `fragment`, `replaceCustom`·`uses`의 "one candidate that exists" 주석.
