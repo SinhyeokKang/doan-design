@@ -22,6 +22,8 @@
 12. 백그라운드 프로세스는 CLI 그룹 밖의 자기 그룹에서 돈다(PoC d). 그래서 백그라운드 집합이 비어 있지 않은 그룹은 모든 경로에서 SIGTERM을 먼저 받는다. 즉시 SIGKILL은 집합이 빈 경우(제안만 남음, 자발적 모델 호출 막기)에만 쓴다. design 2절의 결정 규칙 그대로이고, 테스트로 고정한다(conductor 판단).
 13. 두 버전 모두 작업이 끝난 뒤 스스로 모델을 부르므로(2.1.322 셸·에이전트, 2.1.284 에이전트), design 5절의 막기가 범위에 들어간다(design 조건 그대로).
 14. D는 C 리뷰를 기다리지 않고 C의 브랜치(`d8252b5a`)에서 시작한다. C의 수정 회차는 main 쪽만 바꾸므로 D와 파일이 겹치지 않는다. 수정이 IPC나 목록 필드 모양을 바꾸면 D에 알린다(conductor 판단 — renderer가 C의 필드를 써야 해서 feat 통합까지 기다리면 리뷰 시간만큼 늦어진다).
+15. archive와 앱 종료에서 기록에서 찾은 Send now 메시지는 큐로 돌아가지 않기만 하고, 스레드에는 남지 않을 수 있다. spec 완료 조건 4와 design §4를 이렇게 좁혔다(사용자, R-C 판정 1).
+16. 백그라운드 그룹이 쥔 세션을 terminal continue로 고르면 기존 `session_in_use` 거부로 둔다. "elsewhere" 문구 문제는 BACKLOG에 남긴다. design §5를 이렇게 좁혔다(사용자, R-C 판정 3).
 
 ## batch
 
@@ -52,3 +54,7 @@ tasks 2(`/design-draft`)는 lead 단계에서 끝났다(`8de3b646`, `6b7faccf`).
   - ⚪(`.doan/ds/notice.html` 한 줄 샘플)은 고치지 않는다.
   - 수정 1회차(`688477aa`, `b0296ce9`)로 🟡 셋을 고쳤다. 줄바꿈 probe: Project Settings reason 노티스 64 px·중심 차이 0(이전 −10), composer Retry 300 px 폭 104 px·0(이전 −30), buddy Retry 84 px·0(이전 −20). 수정이 문서와 주석뿐이라 conductor가 diff를 직접 보고 재리뷰는 하지 않았다.
   - B의 첫 verify가 건드리지 않은 `src/main/watch.test.ts` 타이밍 테스트에서 한 번 실패했고, 다시 돌려 PASS했다(POSTMORTEM의 watch.test.ts 후속 항목과 같은 영역).
+- R-C(Opus high): 🔴 0 / 🟡 4 / ⚪ 8, 사용자 결정 2(결정 15, 16).
+  - 🟡: failed 턴 뒤 자발적 모델 호출을 막지 않음, Doan이 보낸 SIGTERM 정지 중에도 빈 집합 kill이 나가 CLI의 SIGTERM 처리를 끊음, 종료 이벤트보다 그룹 소멸이 먼저 오면 기록을 찾지 않음, ambient 작업이 정리 결정에서 빠짐.
+  - 수정 1회차로 🟡 넷과 ⚪ 1·2·5를 C에 보냈다. ⚪ 3(단수 `user_message_uuid`), 6(거부된 send도 그룹을 끝냄), 8(Remove는 기다리지 않음)은 Z가 승격 문서에 반영한다.
+  - E probe에 SIGTERM을 잡는 백그라운드 작업(`trap '' TERM; sleep 30` 같은) 경우를 더한다(R-C 🟡2·4 확인).
