@@ -29,10 +29,12 @@ const STORAGE_REASONS = {
   not_git: <>Keep out of Git needs a Git repository, and this folder isn’t one.</>,
   git_unreadable: <>Doan couldn’t read this repository’s Git metadata, so it can’t tell whether these files are kept out of Git.</>,
   exclude_unwritable: <>Doan can’t write <code>.git/info/exclude</code> in this repository, so this setting can’t change here.</>,
+  home: <>Doan doesn’t create a Git repository in your home folder.</>,
 };
 const SWITCH_NOTES: Record<SwitchNote, ReactNode> = {
   attributesStay: <>Doan’s lines stay in <code>.gitattributes</code>.</>,
   nowTracked: <><code>.doan/</code> now shows in <code>git status</code>. When you commit it, your team gets it.</>,
+  createdRepository: <>Created a Git repository here. Doan’s lines stay in <code>.gitattributes</code>.</>,
 };
 const STORED_NOTES = { commit: <> · Stored in <code>.doan/config.json</code> in this worktree. Commit it so your team gets these settings.</>,
   thisMac: <> · Stored in <code>.doan/config.json</code> in this worktree, on this Mac only.</>, plain: <> · Stored in <code>.doan/config.json</code> in this worktree.</> };

@@ -932,3 +932,59 @@ test("a clone planned for one mode is planned again for the one chosen, and the 
   await cloning;
   expect(phase(h)).toEqual({ kind: "ready", root: "/Users/ada/studio" });
 });
+
+// Design keep-out-git-init '화면': outside Git the plan for Keep out of Git names .git/, which the panel shows as a line
+// under the card. The line follows the radio at once, so the choice plans again; the consent never covers a .git/ the
+// screen did not show; and a failed creation reads the folder again, since a .git it left makes it a repository.
+const CREATE = [".doan/canvases/", ".doan/config.json", ".git/", ".git/info/exclude"];
+const planOf = (id: string, changes: string[], storage?: "local") => ({ inspectionId: id, candidates: [{ path: "/code/new", changes: changes as never, ...(storage ? { storage } : {}) }] });
+async function onSetup(h: ReturnType<typeof harness>, changes: string[], storage?: "local") {
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/new");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: planOf("i-0", changes, storage) })));
+  await h.session.chooseFolder();
+}
+
+test("choosing another mode on the setup screen plans again for it, so the git init line follows the radio", async () => {
+  const h = harness();
+  await onSetup(h, REPO);
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: planOf("i-local", CREATE, "local") })));
+  h.session.setStorage("local");
+  await flush(); await flush();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/new", storage: "local" });
+  expect(phase(h)).toMatchObject({ kind: "setup", inspectionId: "i-local", changes: CREATE, storage: "local" });
+  // Choosing the mode already planned plans nothing.
+  h.session.setStorage("local");
+  await flush(); await flush();
+  expect(h.api.inspectOnboardingProject).toHaveBeenCalledTimes(2);
+  expect(h.api.selectOnboardingProject).not.toHaveBeenCalled();
+});
+
+test("a plan made again at Set up that now creates a repository stops on the setup screen until it is pressed again", async () => {
+  const h = harness();
+  await onSetup(h, REPO);
+  h.session.state = { ...h.session.state, storage: "local" };
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: planOf("i-local", CREATE, "local") })));
+  await setUp(h);
+  expect(h.api.selectOnboardingProject).not.toHaveBeenCalled();
+  expect(phase(h)).toMatchObject({ kind: "setup", inspectionId: "i-local", changes: CREATE });
+  h.queue.select!.push(ok(op("project_select", { project: { root: "/code/new" } })));
+  await setUp(h);
+  expect(h.api.selectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ inspectionId: "i-local", initialize: true, storage: "local" });
+});
+
+test("a failed setup that was to create a repository reads the folder again and keeps its notice; Retry sets up the new plan", async () => {
+  const h = harness();
+  h.session.setStorage("local");
+  await onSetup(h, CREATE, "local");
+  const left = "Setup failed, and Doan couldn’t remove the Git repository it created at /code/new/.git. Remove it or keep it, then try again.";
+  h.queue.select!.push(ok(op("project_select", { state: "failed", error: { code: "cleanup_failed", message: left } })));
+  const after = [".doan/canvases/", ".doan/config.json", ".git/info/exclude"];
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: planOf("i-after", after, "local") })));
+  await setUp(h);
+  expect(h.api.inspectOnboardingProject).toHaveBeenCalledTimes(2);
+  expect(h.session.state).toMatchObject({ phase: { kind: "setup", inspectionId: "i-after", changes: after }, error: { code: "cleanup_failed", message: left } });
+  h.queue.select!.push(ok(op("project_select", { project: { root: "/code/new" } })));
+  await h.session.retry();
+  expect(h.api.selectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ inspectionId: "i-after", initialize: true, storage: "local" });
+  expect(phase(h)).toEqual({ kind: "ready", root: "/code/new" });
+});

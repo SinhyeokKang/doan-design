@@ -36,7 +36,11 @@ export function useProjectSetup(root: string, kept = false) {
     return result;
   }
   const form: ProjectForm = { running, token: token?.path ?? null, error, rerooted: null };
-  return { form, choose, setUp, storage: { value: storage, kept, change: setStorage } };
+  return { form, choose, setUp, storage: { value: storage, kept, notGit: false, change: setStorage } };
+}
+
+export function setupRequest(root: string, choiceId: string | null, storage: StorageChoice, kept: boolean, _notGit: boolean): { root: string; choiceId: string | null; storage: "local" | null; gitInit?: true } {
+  return { root, choiceId, storage: !kept && storage === "local" ? "local" : null };
 }
 
 // The command and the fixed path a refused local setup names read as code, as everywhere else in the dialog.
@@ -46,8 +50,8 @@ function withCommand(text: string) {
   return parts.length === 1 ? text : <>{parts.map((part, i) => i % 2 === 1 ? <code key={i}>{part}</code> : part)}</>;
 }
 
-export interface StorageInput { value: StorageChoice; kept: boolean; change: (value: StorageChoice) => void }
-export function ProjectFields({ form, choose, chooseRef, storage }: { form: ProjectForm; choose: () => void; chooseRef?: (node: HTMLButtonElement | null) => void; storage: StorageInput }) {
+export interface StorageInput { value: StorageChoice; kept: boolean; notGit: boolean; change: (value: StorageChoice) => void }
+export function ProjectFields({ form, choose, chooseRef, storage }: { root: string; form: ProjectForm; choose: () => void; chooseRef?: (node: HTMLButtonElement | null) => void; storage: StorageInput }) {
   const view = formView(form);
   // Kept out of Git, the exclude entry takes the place of the .gitattributes line; the label is fixed, not the path.
   const local = storage.kept || storage.value === "local";
@@ -68,7 +72,7 @@ export function ProjectFields({ form, choose, chooseRef, storage }: { form: Proj
   </>;
 }
 
-export function ProjectSetupDialog({ root, name, kept = false, onClose, onRerooted }: { root: string; name: string; kept?: boolean; onClose: () => void; onRerooted: (root: string, message: string) => void }) {
+export function ProjectSetupDialog({ root, name, kept = false, onClose, onRerooted }: { root: string; name: string; kept?: boolean; notGit?: boolean; onClose: () => void; onRerooted: (root: string, message: string) => void }) {
   const { form, choose, setUp, storage } = useProjectSetup(root, kept);
   const chooseButton = useRef<HTMLButtonElement | null>(null);
   const dialog = useRef<HTMLDialogElement | null>(null);
@@ -89,7 +93,7 @@ export function ProjectSetupDialog({ root, name, kept = false, onClose, onReroot
     }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">Set up {name}</h3><p className="doan-dialog-description ob-project-path selectable" title={root}>{root}</p></div></div>
     <div className="ob-card">
-      <ProjectFields form={form} choose={() => void choose()} chooseRef={node => { chooseButton.current = node; }} storage={storage} />
+      <ProjectFields root={root} form={form} choose={() => void choose()} chooseRef={node => { chooseButton.current = node; }} storage={storage} />
     </div>
     <div className="ob-buttons doan-dialog-actions">
       <button type="button" className="btn doan-button" data-ui-variant="subtle" disabled={form.running} onClick={close}>Cancel</button>

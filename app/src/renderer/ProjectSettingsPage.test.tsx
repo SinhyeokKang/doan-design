@@ -872,12 +872,7 @@ test("a failed write puts its alert under the options and goes back to the mode 
 });
 
 test("an option that cannot be chosen is disabled, with one reason each", async () => {
-  doan.readConfig!.mockImplementation(withStorage({ storage: "repo", storageReason: "not_git" }));
-  await open();
-  expect(chosen()).toEqual([true, false]);
-  expect(closed()).toEqual([false, true]);
-  expect(text()).toContain("Keep out of Git needs a Git repository, and this folder isn’t one.");
-  resetHooks();
+  // Outside Git, Keep out of Git is open now (it asks first; see the tests below).
   doan.readConfig!.mockImplementation(withStorage({ storage: "unknown", storageReason: "git_unreadable" }));
   await open();
   expect(chosen()).toEqual([false, false]);
@@ -1064,4 +1059,130 @@ test("selectable: the untrack command and the copy-failed alert, not the Copy bu
   expect(selectable(button("Copy command"))).toBe(false);
   copied.ok = true;
   unmount();
+});
+
+// Draft keep-out-git-init, frame project-settings: outside Git, Keep out of Git creates the repository, so that one
+// press asks first with the Share confirmation's dialog; Create Repository writes `--git-init`.
+const OUTSIDE = { storage: "repo", storageReason: "not_git" };
+const createDialog = () => all(tree).find(element => element.type === SettingsDialog && element.props.verb === "Create Repository");
+const answer = (allow: boolean) => (createDialog()!.props.answer as (allow: boolean) => void)(allow);
+test("outside Git, Keep out of Git is open and says it creates the repository, as information", async () => {
+  doan.readConfig!.mockImplementation(withStorage(OUTSIDE));
+  await open();
+  expect(closed()).toEqual([false, false]);
+  expect(text()).toContain("This folder isn’t a Git repository. Choosing Keep out of Git creates one here.");
+  const reason = byClass("storage-reason")[0]!;
+  expect(reason.props.className).toBe("storage-reason");
+  expect(all(reason.props.children as ReactNode).some(element => typeof element.type !== "string")).toBe(false);
+});
+
+test("pressing Keep out of Git outside Git asks first: nothing is written, Include in Git stays chosen and the page is locked", async () => {
+  doan.readConfig!.mockImplementation(withStorage(OUTSIDE));
+  await open();
+  press(1); render();
+  expect(doan.writeConfig).not.toHaveBeenCalled();
+  expect(chosen()).toEqual([true, false]);
+  expect(onState()).toEqual([true]);
+  const dialog = createDialog()!;
+  expect(dialog.props.label).toBe("Create a Git repository in ~/code/acme-web?");
+  expect(words(dialog.props.title)).toBe("Create a Git repository in ~/code/acme-web?");
+  expect(words(dialog.props.description)).toBe("Keep out of Git needs a Git repository. Doan will run git init here, then keep .doan/ out of it. Doan makes no commit, branch or remote, and the repository stays if you switch back to Include in Git.");
+  expect(all(dialog.props.description as ReactNode).filter(element => element.type === "code").map(element => words(element.props.children))).toEqual(["git init", ".doan/"]);
+});
+
+test("Cancel (or Escape) writes nothing, releases the lock and returns focus to Include in Git", async () => {
+  doan.readConfig!.mockImplementation(withStorage(OUTSIDE));
+  await open();
+  const repo = { focus: vi.fn() };
+  (radios()[0]!.props.ref as (node: unknown) => void)(repo);
+  press(1); render();
+  answer(false); render(); render();
+  expect(createDialog()).toBeUndefined();
+  expect(doan.writeConfig).not.toHaveBeenCalled();
+  expect(onState()).toEqual([true, false]);
+  expect(repo.focus).toHaveBeenCalled();
+});
+
+test("Create Repository writes with --git-init, and Saved says the repository was created", async () => {
+  doan.readConfig!.mockImplementation(withStorage(OUTSIDE));
+  await open();
+  const local = { focus: vi.fn() };
+  press(1); render();
+  let finish!: (reply: unknown) => void;
+  doan.writeConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  answer(true); render();
+  expect(doan.writeConfig).toHaveBeenCalledWith({ root: ROOT, op: "setStorage", storage: "local", gitInit: true });
+  expect(chosen()).toEqual([false, true]);
+  expect(closed()).toEqual([true, true]);
+  expect(text()).toContain("Saving");
+  expect(onState()).toEqual([true]);
+  (radios()[1]!.props.ref as (node: unknown) => void)(local);
+  doan.readConfig!.mockImplementation(withStorage({ storage: "local" }));
+  finish({ ...CONFIG, changed: true, storage: "local", repositoryCreated: true });
+  await flush(); render(); await flush(); render(); render();
+  expect(text()).toContain("Created a Git repository here. Doan’s lines stay in .gitattributes.");
+  expect(text()).not.toContain("Choosing Keep out of Git creates one here.");
+  expect(onState()).toEqual([true, false]);
+  expect(local.focus).toHaveBeenCalled();
+});
+
+test("a failed creation shows the page's sentence with its command as code, and reads the folder again", async () => {
+  doan.readConfig!.mockImplementation(withStorage(OUTSIDE));
+  await open();
+  press(1); render();
+  const sentence = "Git isn’t installed, so Doan can’t create a repository here. Install the Command Line Tools with xcode-select --install, then choose Keep out of Git again.";
+  doan.writeConfig!.mockResolvedValueOnce({ kind: "error", message: sentence });
+  answer(true); render(); await flush(); render(); await flush(); render();
+  expect(chosen()).toEqual([true, false]);
+  const alert = all(tree).find(element => element.props.role === "alert")!;
+  expect(words(alert.props.children)).toContain(sentence);
+  expect(all(alert.props.children as ReactNode).filter(element => element.type === "code").map(element => words(element.props.children))).toEqual(["xcode-select --install"]);
+  expect(doan.readConfig).toHaveBeenCalledTimes(2);
+  // A .git it left makes the folder a repository: the reason goes and the next press switches at once.
+  const left = `Couldn’t switch to Keep out of Git, and Doan couldn’t remove the Git repository it created at ${ROOT}/.git. Remove it or keep it, then try again.`;
+  press(1); render();
+  doan.writeConfig!.mockResolvedValueOnce({ kind: "error", message: left });
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  answer(true); render(); await flush(); render(); await flush(); render();
+  expect(text()).not.toContain("Choosing Keep out of Git creates one here.");
+  expect(words(all(tree).find(element => element.props.role === "alert")!.props.children)).toContain(left);
+  press(1); render();
+  expect(createDialog()).toBeUndefined();
+  expect(doan.writeConfig).toHaveBeenLastCalledWith({ root: ROOT, op: "setStorage", storage: "local" });
+});
+
+test("the confirmation closes when the worktree goes Missing, is rerooted, or a re-read finds a repository", async () => {
+  doan.readConfig!.mockImplementation(withStorage(OUTSIDE));
+  await open();
+  press(1); render();
+  render({ entries: [missing()] }); render();
+  expect(createDialog()).toBeUndefined();
+  expect(onState().at(-1)).toBe(false);
+  resetHooks();
+  const git = { common: `${ROOT}/.git`, main: ROOT, worktrees: [ROOT] };
+  const at = (facts: object): FolderEntry => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [], git, ...facts });
+  doan.readConfig!.mockImplementation(withStorage(OUTSIDE));
+  await open({ entries: [at(OUTSIDE)] });
+  press(1); render();
+  expect(createDialog()).toBeDefined();
+  doan.readConfig!.mockImplementation(withStorage({ storage: "repo" }));
+  render({ entries: [at({ storage: "repo" })] }); await flush(); render(); render();
+  expect(createDialog()).toBeUndefined();
+  expect(doan.writeConfig).not.toHaveBeenCalled();
+  expect(onState().at(-1)).toBe(false);
+  resetHooks();
+  const moved = `${ROOT}-moved`;
+  doan.readConfig!.mockImplementation(withStorage(OUTSIDE));
+  await open();
+  press(1); render();
+  render({ entries: [listed(moved)], reroot: { from: ROOT, root: moved, seq: 1 } }); render();
+  expect(createDialog()).toBeUndefined();
+});
+
+test("in the home folder, Keep out of Git stays closed with its own reason", async () => {
+  doan.readConfig!.mockImplementation(withStorage(OUTSIDE));
+  await open({ root: "/Users/alex", entries: [listed("/Users/alex")] });
+  expect(closed()).toEqual([false, true]);
+  expect(text()).toContain("Doan doesn’t create a Git repository in your home folder.");
+  expect(text()).not.toContain("Choosing Keep out of Git creates one here.");
 });

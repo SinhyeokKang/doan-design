@@ -657,3 +657,42 @@ test("selectable: the chosen project's path and the clone destination's path", (
   expect(plan).toContain('<strong>studio</strong><p class="ob-path selectable">~/code/studio</p>');
   noSelectableButton(plan);
 });
+
+// Draft keep-out-git-init, frame setup-panel: outside Git, Keep out of Git also runs git init. The panel has no change
+// list, so a line under the Doan files card says so, and the Set up button is described by it.
+const NEW_REPO: ProjectStepState["phase"] = { kind: "setup", inspectionId: "i", url: null, path: "/Users/ada/moodboard", changes: [".doan/canvases/", ".doan/config.json", ".git/", ".git/info/exclude"], storage: "local" };
+test("outside Git, Keep out of Git shows the git init line under the card and the button names it", () => {
+  const html = screen({ storage: "local", phase: NEW_REPO });
+  expect(html).toContain('</div><p class="ob-provider-help storage-git-init" id="ob-setup-git-init">Doan will run <code>git init</code> here to create a Git repository.</p><div class="ob-state-actions submit-only"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="" aria-describedby="ob-setup-git-init">Set up and continue</button>');
+  // Include in Git chosen (the plan on screen is still the local one until it is made again): no line, no description.
+  const repo = screen({ storage: "repo", phase: NEW_REPO });
+  expect(repo).not.toContain("git init");
+  expect(repo).not.toContain("aria-describedby");
+  // A plan without .git/ (a folder inside a repository) has no line either.
+  expect(screen({ storage: "local", phase: { ...NEW_REPO, changes: [".doan/canvases/", ".doan/config.json", ".git/info/exclude"] } })).not.toContain("git init");
+});
+
+test("the line stays above a refusal, since the choice stays", () => {
+  const html = screen({ storage: "local", phase: NEW_REPO, error: { code: "git_missing", message: "Git is not installed." } }, { use: "addPage" });
+  expect(html).toContain("Doan will run");
+  expect(html.indexOf("Doan will run")).toBeLessThan(html.indexOf('role="alert"'));
+});
+
+// Each setup failure of a repository creation in the panel's notice slot, with the setup refusals' actions.
+test("a failed repository creation is told in the panel's words, with its command and path as code", () => {
+  const missing = projectNotice("git_missing", "Git is not installed.", null);
+  expect(missing.body).toBe("Git isn’t installed, so Doan can’t create a repository here. Install the Command Line Tools with xcode-select --install, then check again, or choose Include in Git.");
+  expect(missing.actions.map(a => [a.command, a.label])).toEqual([["chooseFolder", "Choose another folder"], ["retry", "Check again"]]);
+  // The clone screen keeps its own git_missing notice.
+  expect(projectNotice("git_missing", "Git is not installed.", "/Users/ada/studio", true).body).toBe("Install Git to clone a repository, or choose a local folder.");
+  const left = "Setup failed, and Doan couldn’t remove the Git repository it created at /Users/ada/moodboard/.git. Remove it or keep it, then try again.";
+  const cleanup = projectNotice("cleanup_failed", left, null);
+  expect(cleanup.body).toBe(left);
+  expect(cleanup.actions.map(a => [a.command, a.label])).toEqual([["chooseFolder", "Choose another folder"], ["retry", "Retry"]]);
+  const home = "Doan doesn’t create a Git repository in your home folder. Choose Include in Git, or choose a folder inside it.";
+  expect(projectNotice("local_not_git", home, null).body).toBe(home);
+  expect(projectNotice("local_not_git", "That folder is not a Git repository, so Doan cannot keep its files out of Git. Set it up with storage repo, or run git init there first.", null).body).toBe("This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.");
+  const html = screen({ storage: "local", phase: { ...NEW_REPO, changes: [".doan/canvases/", ".doan/config.json", ".git/info/exclude"] }, error: { code: "cleanup_failed", message: left } }, { use: "addPage" });
+  expect(html).toContain('<span class="selectable">Setup failed, and Doan couldn’t remove the Git repository it created at <code>/Users/ada/moodboard/.git</code>. Remove it or keep it, then try again.</span>');
+  expect(screen({ storage: "local", phase: NEW_REPO, error: { code: "git_missing", message: "Git is not installed." } })).toContain("with <code>xcode-select --install</code>, then check again");
+});

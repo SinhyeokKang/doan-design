@@ -23,7 +23,7 @@ export interface StorageSectionView {
   checked: StorageChoice | null;
   disabled: Record<StorageChoice, boolean>;
   // Why an option cannot be chosen; warning ink when the mode itself is unknown.
-  reason: { text: StorageReason; tone: "subtle" | "warning" } | null;
+  reason: { text: StorageReason | "home"; tone: "subtle" | "warning" | "info" } | null;
   // The conditional `git rm -r --cached` guidance: always with Keep out of Git on disk, since Doan cannot know whether
   // .doan/ was ever committed.
   guidance: boolean;
@@ -31,7 +31,7 @@ export interface StorageSectionView {
 
 // null: the CLI reported no mode (an older doan), so the section is not drawn. `writing`: the mode being written; both
 // options are disabled meanwhile and the pressed one stays chosen.
-export function storageSectionView(facts: { storage?: StorageMode; storageReason?: StorageReason }, writing: StorageChoice | null): StorageSectionView | null {
+export function storageSectionView(facts: { storage?: StorageMode; storageReason?: StorageReason }, writing: StorageChoice | null, _home = false): StorageSectionView | null {
   const { storage, storageReason } = facts;
   if (storage === undefined) return null;
   const known = storage === "unknown" ? null : storage;
@@ -53,8 +53,8 @@ export function storedNote(storage: StorageMode | undefined): StoredNote {
 }
 
 // The line beside Saved after a switch: what changed outside Doan. null when the mode did not change.
-export type SwitchNote = "attributesStay" | "nowTracked";
-export function switchNote(from: StorageMode | undefined, to: StorageMode | undefined): SwitchNote | null {
+export type SwitchNote = "attributesStay" | "nowTracked" | "createdRepository";
+export function switchNote(from: StorageMode | undefined, to: StorageMode | undefined, _created = false): SwitchNote | null {
   if (from === to) return null;
   return to === "local" ? "attributesStay" : to === "repo" && from === "local" ? "nowTracked" : null;
 }
