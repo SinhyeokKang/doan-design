@@ -62,5 +62,5 @@
      - `rg -n "MAX_COPY_TEXT" docs/ARCHITECTURE.md`가 'Caps' 문장을 출력한다.
      - `rg -n "a text drag ending" docs/PRODUCT.md`가 §5 item 4 문장을 출력한다.
      - `test ! -e docs/features/canvas-text-copy`가 성공한다.
-     - `rg -n "canvas-text-copy" app cli docs --glob '!docs/features/**'`가 아무것도 출력하지 않는다.
+     - `rg -n "features/canvas-text-copy" app cli docs --glob '!docs/features/**'`가 아무것도 출력하지 않는다(초안 파일 `.doan/canvases/canvas-text-copy.html` 경로와 POSTMORTEM 이력은 남는다).
    - **커밋 경계**: 문서마다 따로 (`docs(product): …`, `docs(architecture): …`, `docs(design): …`, `docs(backlog): …`, `docs(feature): remove canvas-text-copy`).

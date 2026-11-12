@@ -12,6 +12,9 @@
 - 제품 결정은 design.md '사용자 결정'과 '초안 요청'에 있다. 새로 물을 것은 없다.
 - conductor 재량 — `MAX_COPY_TEXT` 값과 사각형 상한 값: design.md가 `/tdd`에서 정한다고 했으므로 구현 워커가 정하고 handoff에 근거를 적는다.
 - conductor 재량 — PoC와 구현을 같은 워커에 순서대로 맡긴다: 모든 작업이 같은 파일(`canvasScript.ts`, `CanvasController.ts`)을 바꿔 병렬로 나눌 수 없고, PoC 관찰을 구현이 바로 쓴다.
+- 사용자 결정(2026-11-13, R 🟡-1): 위조 `text-range`는 OS 커서가 캔버스 영역 안일 때만(`focusOnClick`과 같은 `pointer:get` 기준) 앱 선택 접기와 캔버스 텍스트 채택을 한다. 클립보드에 캔버스가 고른 문자열을 넣는 길을 포커스 없이 열지 않는다.
+- conductor 재량 — R ⚪-7(프레임 밖 경계가 클릭한 요소라 노트 안 인라인 단어를 넘지 못함): 그대로 둔다. 사용자 결정 8과 PRODUCT §5 item 4의 "A click outside every frame selects that element at once as a note"와 같은 규칙이다.
+- conductor 재량 — R ⚪-8: tasks 8의 마지막 `rg` 확인이 남는 초안 경로와 POSTMORTEM 이력까지 잡는다. `docs/features/` 인용만 찾도록 좁힌다.
 - conductor 재량 — 작업 7(`/verify`)과 8(문서 승격)은 conductor가 통합 뒤 직접 한다. DESIGN.md 측정값은 작업 5(`/design-sync`) 워커가 쓴다.
 
 ## 배치
@@ -37,4 +40,7 @@ tasks 2(초안)는 develop에서 끝났다(`6a9a8e82`).
 - I: 같은 워커에 새 Task로 보냈다(dispatch `ctx_8db6e460b990`). 워커가 `/ship`을 시작한 것을 터미널에서 확인했다.
 - I 완료: 커밋 5개를 `431a22d3..bc21eebe`로 통합했다. 워커 브랜치의 HEAD `f570c3b1`에서 `verify.mjs`가 PASS였다. `/design-sync`에서 초안과 다른 값은 0개였다. `/runtime-test`는 22/22 통과했다. 워커는 하위 에이전트가 금지된 것으로 읽어 독립 리뷰를 하지 않았다. 브리프의 뜻은 "Claude만"이었다. 독립 리뷰는 R이 맡는다.
 - conductor 재량 — tasks 6이 적은 확인 중 워커가 하지 않은 것(드래그 중 live reload, 드래그 중 `doan open` 전환, 실제 말풍선 선택, spec 완료 조건 6)을 같은 워커에 probe만 하는 후속 Task로 보냈다(dispatch `ctx_2b99bc711a01`). 근거: 검증을 확실히 하는 쪽을 고른다. 다크 모드, forced colors, 다른 버디, OS I-beam 커서, 실제 핀치·⌘Tab은 tasks에 없는 확인이라 BACKLOG로 넘긴다.
+- I 후속 완료: 세 확인 모두 통과했다(`add-probe.mjs` 4/4). 드래그 중 다시 불러오기와 `doan open` 전환에서 하이라이트가 지워지고 돌아오지 않았다. 실제 말풍선 선택과 캔버스 텍스트는 마지막에 만든 쪽이 복사됐다. 대화는 격리 userData에 심었고 provider 로그인이나 실제 상태는 쓰지 않았다. 앱 창은 16:47:21–16:47:47 UTC에 떠 있었다. 앱 코드는 바뀌지 않았다.
 - R: `ctc-review`(Opus high, dispatch `ctx_e31229020fdf`)가 `43d7587f..bc21eebe`를 검토한다. 읽기만 하므로 I의 후속 probe와 동시에 돈다.
+- R 완료: 🔴 0, 🟡 2, ⚪ 8(보고서는 conductor `.scratch/review-R.md`에 복사). 계획 이탈 8개는 모두 타당하다고 판단했다. 테스트는 돌리지 않았다(worktree에 node_modules 없음).
+- 수정 1차: 🟡-2와 ⚪-1–5를 I 워커에 보냈다(dispatch `ctx_7698cd6817c7`). 🟡-1은 사용자 결정 뒤 2차로 보낸다. ⚪-6은 BACKLOG로 넘긴다.
