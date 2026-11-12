@@ -1327,9 +1327,10 @@ export class ConversationService {
     if (!live?.runner || live.busy || live.closed || live.cleaned || !live.runner.endAfterTurn) return;
     live.cleaned = true; live.runner.endAfterTurn();
   }
-  // The runner's report on the background work a done turn left. The line shows until the group is gone.
+  // The runner's report on the background work a done turn left. The line shows until the group is gone. A queue going
+  // out at the turn's end (holding) is the next send, which already asked the group to end (cleaned): no line.
   private backgroundChanged(id: string, live: Live, turnId: string, running: boolean): void {
-    if (!running || this.quitting || this.live.get(id) !== live || live.turnId !== turnId || !live.done || live.busy || live.closed || live.background) return;
+    if (!running || this.quitting || this.live.get(id) !== live || live.turnId !== turnId || !live.done || live.busy || live.closed || live.background || live.holding || live.cleaned) return;
     live.background = { turnId }; live.quiet?.(true);
     this.changedOf(id);
   }

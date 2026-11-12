@@ -299,6 +299,29 @@ describe("background work after a done turn", () => {
     expect(h.quiet).toHaveBeenLastCalledWith(true);
     expect(h.service.restartHolds()).toEqual({ liveTurns: 0, pendingAnswers: 0 });
   });
+  // The queue that goes out at the turn's end is the next send: it ends the group, so no line stands over it.
+  it("a project turn ending with a queue lists no background", async () => {
+    const h = fixture(); const id = await h.startProject();
+    h.service.queue(id, { text: "queued", anchors: [] });
+    h.runs[0]!.emit({ type: "turn.done" });
+    h.runs[0]!.input.backgroundChanged!(true);
+    expect(h.summary(id).background).toBeUndefined();
+    expect(h.quiet).not.toHaveBeenCalled();
+    expect(h.runs[0]!.runner.endAfterTurn).toHaveBeenCalledOnce();
+  });
+  // A canvas conversation's queue waits for the previous process before its send is busy; it is the next send all the same.
+  it("a canvas turn ending with a queue lists no background", async () => {
+    const h = fixture(); const id = await h.startCanvas();
+    h.service.queue(id, { text: "queued", anchors: [] });
+    h.runs[0]!.emit({ type: "turn.done" });
+    h.runs[0]!.input.backgroundChanged!(true);
+    expect(h.summary(id).background).toBeUndefined();
+    await tick();
+    expect(h.summary(id).background).toBeUndefined();
+    expect(h.quiet).not.toHaveBeenCalled();
+    h.runs[0]!.exited();
+    await vi.waitFor(() => expect(h.texts(id)).toEqual(["hello", "queued"]));
+  });
   it("drops the line when the group is gone", async () => {
     const h = fixture(); const { id } = await background(h);
     h.runs[0]!.input.backgroundChanged!(false);
