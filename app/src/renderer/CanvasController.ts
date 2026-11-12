@@ -1461,7 +1461,9 @@ export class CanvasController {
     // iframe's own cursor value changes, and only reliably once a frame without the layer has been drawn (measured with
     // a real pointer: a lowered layer alone left the hand, and a change in the same task did only sometimes).
     if (show !== this.layerShown) {
-      this.sendHoverCommand({ type: "hover-hand", hand: show });
+      // Not to an iframe still loading: its script would never hear it, and the hover seq would run ahead of the new
+      // document, dropping its hovers. It starts without the hand, and its first layout sends it if the layer is up.
+      if (!this.loading) this.sendHoverCommand({ type: "hover-hand", hand: show });
       const frame = this.frame;
       if (!show && frame !== null) {
         requestAnimationFrame(() => requestAnimationFrame(() => {

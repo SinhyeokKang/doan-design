@@ -3617,6 +3617,20 @@ describe("hand tool", () => {
       } finally { h.controller.dispose(); }
     });
 
+    // The hover channel's seq: a command a loading iframe never hears would put the app ahead of the new document,
+    // and every hover it then sends would be dropped as old.
+    it("a held Space that ends with a canvas switch sends nothing the loading iframe cannot hear, so its hover still shows", () => {
+      const h = harness();
+      try {
+        press(h, "Space");
+        h.controller.openCanvas("/repo", h.other);
+        expect(posted(h)).toEqual([]);
+        h.layout({ href: h.other.url, document: "doc2" });
+        h.receive({ href: h.other.url, type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
+        expect(h.markOf("hover")?.hidden).toBe(false);
+      } finally { h.controller.dispose(); }
+    });
+
     it("is not sent in Select without Space", () => {
       const h = harness();
       try {
