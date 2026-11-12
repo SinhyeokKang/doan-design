@@ -35,3 +35,6 @@ tasks 2(초안)는 develop에서 끝났다(`6a9a8e82`).
 
 - P: 워커 `ctc-worker`(Opus high, dispatch `ctx_3211516b9815`). PoC 1–4 통과, 3은 대체 경로 없이 `role: "copy"` 유지, 5는 `text-point`가 필요하다. `d908bb78`을 `8a54288d`로 통합했다. 미검증: 실제 ⌘Tab 키, 실제 트랙패드 핀치(Ctrl 휠로 대체). 사고: 첫 실행의 ⌥ CGEvent가 실제 HID 상태에 Option을 약 5분 남겼다. 워커가 풀었고 오염된 결과는 다시 돌렸다.
 - I: 같은 워커에 새 Task로 보냈다(dispatch `ctx_8db6e460b990`). 워커가 `/ship`을 시작한 것을 터미널에서 확인했다.
+- I 완료: 커밋 5개를 `431a22d3..bc21eebe`로 통합했다. 워커 브랜치의 HEAD `f570c3b1`에서 `verify.mjs`가 PASS였다. `/design-sync`에서 초안과 다른 값은 0개였다. `/runtime-test`는 22/22 통과했다. 워커는 하위 에이전트가 금지된 것으로 읽어 독립 리뷰를 하지 않았다. 브리프의 뜻은 "Claude만"이었다. 독립 리뷰는 R이 맡는다.
+- conductor 재량 — tasks 6이 적은 확인 중 워커가 하지 않은 것(드래그 중 live reload, 드래그 중 `doan open` 전환, 실제 말풍선 선택, spec 완료 조건 6)을 같은 워커에 probe만 하는 후속 Task로 보냈다(dispatch `ctx_2b99bc711a01`). 근거: 검증을 확실히 하는 쪽을 고른다. 다크 모드, forced colors, 다른 버디, OS I-beam 커서, 실제 핀치·⌘Tab은 tasks에 없는 확인이라 BACKLOG로 넘긴다.
+- R: `ctc-review`(Opus high, dispatch `ctx_e31229020fdf`)가 `43d7587f..bc21eebe`를 검토한다. 읽기만 하므로 I의 후속 probe와 동시에 돈다.
