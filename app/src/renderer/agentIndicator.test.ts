@@ -3,12 +3,11 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { AgentPresence } from "./agentPresence";
-import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, canvasWorkTarget, pickWork, workFrameTitle, settleStopping, siblingWork, stopFailedText, stopTurn, workFrameRect, workingCanvas } from "./agentIndicator";
+import { agentNoticeView, canvasAgent, listForPresence, canvasWorkTarget, pickWork, workFrameTitle, settleStopping, siblingWork, stopFailedText, stopTurn, workFrameRect, workingCanvas } from "./agentIndicator";
 import type { ConversationWork } from "../main/conversationWork";
-import { dotGrid, dotScale, partitionDots } from "./dotField";
 
-// which canvas the indicator reads, the notice's button, Stop's
-// lifecycle and the dot field's loop.
+// which canvas the indicator reads, the notice's button and Stop's
+// lifecycle.
 const row: CanvasRow = { path: ".doan/canvases/billing.html", id: "billing", url: "u" };
 const opened = { folder: "/w/a", canvas: row.path, row };
 const listed: FolderEntry = { path: "/w/a", kind: "list", servedRev: 0, canvases: [row] };
@@ -252,137 +251,6 @@ describe("stopTurn", () => {
   });
   test("the text names the provider", () => {
     expect(stopFailedText("GitHub Copilot")).toBe("Couldn’t stop GitHub Copilot. Try again.");
-  });
-});
-
-// A recorder for the 2D calls the field makes.
-function recorder() {
-  const calls: string[] = [];
-  let alpha = 1;
-  const ctx = {
-    get globalAlpha() { return alpha; }, set globalAlpha(value: number) { alpha = value; },
-    fillStyle: "",
-    clearRect: () => calls.push("clear"), beginPath: () => calls.push("begin"), moveTo: () => {}, arc: () => calls.push("arc"),
-    fill: () => calls.push(`fill@${alpha.toFixed(2)}`),
-  };
-  return { ctx, calls };
-}
-
-describe("drawDotField", () => {
-  // Dogfooding #4: at 0.08→0.3 the white dots barely showed on the light board.
-  test("uses the doan values: 12px grid, radius 1.5→2, alpha 0.16→0.5, a 320px cursor sweeping 5 rows at 320px/s", () => {
-    expect(DOT_FIELD).toEqual({ gap: 12, baseRadius: 1.5, maxRadius: 2, baseAlpha: 0.16, maxAlpha: 0.5, radius: 320, speed: 320, rows: 5 });
-  });
-  test("paints every dot outside the cursor's radius as one path, in one fill", () => {
-    const { ctx, calls } = recorder();
-    const dots = [{ x: 0, y: 0 }, { x: 12, y: 0 }, { x: 1000, y: 0 }, { x: 1012, y: 0 }];
-    drawDotField(ctx, 1100, 20, dots, [{ x: 0, y: 0 }], "white");
-    const fills = calls.filter(call => call.startsWith("fill"));
-    // Two near dots, each with its own alpha, and one fill for both far dots at the base alpha.
-    expect(fills).toHaveLength(3);
-    expect(fills).toContain("fill@0.16");
-    expect(calls.filter(call => call === "arc")).toHaveLength(4);
-    expect(calls[0]).toBe("clear");
-    expect(ctx.fillStyle).toBe("white");
-  });
-  test("without spots (reduced motion) every dot is far: one fill, once", () => {
-    const { ctx, calls } = recorder();
-    drawDotField(ctx, 100, 100, [{ x: 0, y: 0 }, { x: 12, y: 0 }], [], "white");
-    expect(calls.filter(call => call.startsWith("fill"))).toEqual(["fill@0.16"]);
-    expect(calls.filter(call => call === "arc")).toHaveLength(2);
-  });
-  // Records the radius and alpha of each arc (the alpha at the time of the call) to see how near dots are drawn.
-  function arcs() {
-    const drawn: { x: number; y: number; r: number; alpha: number }[] = [];
-    let alpha = 1;
-    const ctx = {
-      get globalAlpha() { return alpha; }, set globalAlpha(value: number) { alpha = value; },
-      fillStyle: "", clearRect: () => {}, beginPath: () => {}, moveTo: () => {}, fill: () => {},
-      arc: (x: number, y: number, r: number) => { drawn.push({ x, y, r, alpha }); },
-    };
-    return { ctx, drawn };
-  }
-  test("a dot near two overlapping spots is drawn once, at most 2px and 0.5 alpha (its 8-bit step)", () => {
-    const { ctx, drawn } = arcs();
-    const spot = { x: 100, y: 100 };
-    drawDotField(ctx, 200, 200, [{ x: 100, y: 100 }], [spot, { ...spot }], "white");
-    expect(drawn).toEqual([{ x: 100, y: 100, r: 2, alpha: Math.round(0.5 * 255) / 255 }]);
-  });
-  test("a near dot's size and alpha follow its nearest spot", () => {
-    const { ctx, drawn } = arcs();
-    // 100px from the first spot, 20px from the second.
-    drawDotField(ctx, 1000, 100, [{ x: 100, y: 0 }], [{ x: 0, y: 0 }, { x: 120, y: 0 }], "white");
-    const { baseRadius, maxRadius, baseAlpha, maxAlpha, radius } = DOT_FIELD;
-    const t = 1 - 20 / radius;
-    expect(drawn).toHaveLength(1);
-    expect(drawn[0]!.r).toBeCloseTo(baseRadius + (maxRadius - baseRadius) * t);
-    expect(drawn[0]!.alpha).toBeCloseTo(baseAlpha + (maxAlpha - baseAlpha) * t);
-  });
-  test("draws near dots one path and one fill per 8-bit alpha step, each dot at its own radius", () => {
-    const { ctx, calls } = recorder();
-    const spot = { x: 600, y: 400 };
-    const dots = dotGrid(1200, 800, DOT_FIELD.gap);
-    const { near } = partitionDots(dots, [spot], DOT_FIELD.radius);
-    drawDotField(ctx, 1200, 800, dots, [spot], "white");
-    const steps = new Set(near.map(({ distance }) => Math.round(dotScale(distance, DOT_FIELD.radius, DOT_FIELD.baseAlpha, DOT_FIELD.maxAlpha) * 255)));
-    // One fill for the far dots, one per step for the near ones: hundreds of near dots, under a hundred fills.
-    expect(near.length).toBeGreaterThan(500);
-    expect(calls.filter(call => call.startsWith("fill"))).toHaveLength(steps.size + 1);
-    expect(calls.filter(call => call === "arc")).toHaveLength(dots.length);
-  });
-  test("dots near the second spot only are drawn near, the rest far", () => {
-    const { ctx, calls } = recorder();
-    drawDotField(ctx, 2000, 20, [{ x: 0, y: 0 }, { x: 1000, y: 0 }, { x: 1990, y: 0 }], [{ x: 0, y: 0 }, { x: 2000, y: 0 }], "white");
-    // Two near dots with their own alpha, one far dot at the base alpha.
-    expect(calls.filter(call => call.startsWith("fill")).sort()).toEqual(["fill@0.16", "fill@0.49", "fill@0.50"]);
-  });
-});
-
-describe("DotFieldLoop", () => {
-  function loop(reduced = false) {
-    const frames: ((now: number) => void)[] = [];
-    const cancel = vi.fn();
-    const draw = vi.fn();
-    const field = new DotFieldLoop({ draw, reducedMotion: () => reduced, request: run => { frames.push(run); return frames.length; }, cancel });
-    return { field, frames, cancel, draw };
-  }
-  test("runs one frame after another while running", () => {
-    const { field, frames, draw } = loop();
-    field.set({ running: true });
-    expect(frames).toHaveLength(1);
-    frames[0]!(100); frames[1]!(116);
-    expect(draw).toHaveBeenCalledTimes(2);
-    expect(frames).toHaveLength(3);
-  });
-  test("draws a cursor that moves with time", () => {
-    const { field, frames, draw } = loop();
-    field.set({ running: true });
-    frames[0]!(1000); frames[1]!(2000);
-    const [first, second] = draw.mock.calls.map(call => call[0]);
-    expect(first).not.toEqual(second);
-  });
-  test("stops its frames when paused (hidden workspace, Overview cover, hidden window) and resumes", () => {
-    const { field, frames, cancel } = loop();
-    field.set({ running: true });
-    field.set({ running: false });
-    expect(cancel).toHaveBeenCalledWith(1);
-    field.set({ running: true });
-    expect(frames).toHaveLength(2);
-  });
-  test("reduced motion draws once without a cursor and asks for no frame", () => {
-    const { field, frames, draw } = loop(true);
-    field.set({ running: true });
-    expect(frames).toHaveLength(0);
-    expect(draw).toHaveBeenCalledWith(null);
-  });
-  test("a resize redraws the still frame while paused, and dispose cancels the frame", () => {
-    const { field, frames, cancel, draw } = loop();
-    field.set({ running: false });
-    field.resized();
-    expect(draw).toHaveBeenCalledTimes(1);
-    field.set({ running: true });
-    field.dispose();
-    expect(cancel).toHaveBeenCalledWith(frames.length);
   });
 });
 
