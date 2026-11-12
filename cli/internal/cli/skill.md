@@ -26,7 +26,7 @@ For `.doan/canvases/home.html`, use `../assets/logo.svg` for `.doan/assets/logo.
 10. When token CSS is configured, direct hex and rgb colors warn, including in custom property declarations and `var()` fallbacks. Use the linked tokens.
 11. Do not use viewport height units (vh, dvh, svh, lvh, vb, dvb, svb, lvb) in a canvas: in the app they resolve against the whole board. Write pixel values, also when copying app CSS that uses them; `doan check` warns with `viewport_height_unit`. When a linked stylesheet uses them on something the canvas shows (an open dialog's `max-height`, say), override that property in the canvas with a pixel value.
 12. When an icon exists only in a sprite file, copy the needed `<symbol>` elements into the canvas and draw them with `<use href="#id">`. Leave a `<!-- source: path -->` note naming the source file. A sprite's `<style>` applies to the whole canvas. An icon kept as its own SVG file also draws through `<img src>` or CSS `mask: url(icon.svg)`; `sprite.svg#id` does not draw that way.
-13. Use a custom property holding a `url()` only from stylesheets in one folder, or register it with `@property` and `syntax: "<url>"`. If `ambiguous_custom_url` remains, export refuses the canvas.
+13. Use a custom property holding a `url()` only from stylesheets in one folder, or register it with `@property` giving `syntax: "<url>"`, `inherits` and an `initial-value` (a rule missing any of them is ignored). If `ambiguous_custom_url` remains, export refuses the canvas.
 
 ## Agent rules
 
