@@ -23,6 +23,11 @@
 - R-B1 결과(`review-B1.md`): B 1단계(app main)에 🔴 0, 🟡 4. 리뷰어가 사용자 결정으로 올린 한 항목은 conductor가 정했다.
   - conductor 판단 — 로그인 셸 probe가 실패하면 `--git-init` 실행의 PATH를 비워 Go가 `git_missing`으로 거절하게 한다. 근거: spec 완료 조건 8은 clone과 같은 규칙을 요구하고, clone은 probe 실패 때 `git_missing`이다. PRODUCT §3 'Launch environment'도 실행한 터미널의 PATH가 git에 닿지 않게 한다.
   - B가 2단계를 진행 중이므로 수정은 B의 `worker_done` 뒤 새 Task로 보낸다(2단계 리뷰 R-B2와 함께).
+- B 통합: `3eb05511`·`39397490`(1단계), `74953ef4`·`7b554bec`(2단계), `68f379c9`(DESIGN.md). design-sync 1,012행 중 1,007 일치, 5행은 문서화된 차이.
+  - conductor 판단 — 확인 창이 열린 사이 다시 읽은 결과에서 `storageReason`이 사라지면, 창을 닫고 쓰지 않는다. 사람이 확인하지 않았기 때문이다. 다음 선택은 즉시 쓰는 일반 전환이다.
+  - conductor 판단 — `app/src/preload/index.ts`의 타입 변경은 B 소유로 받아들인다(다른 배치가 쓰지 않는다).
+  - 측정하지 못한 상태: 첫 실행 `sp-1`은 에이전트 로그인이 필요해 사용자 조건상 측정하지 않는다(PR에 적는다). `ps-5` Saving, 긴 경로 `ps-3`·`sf-5`, 새 컨트롤의 키보드 포커스는 B 수정 라운드 1에서 잰다.
+- 질문 응답 지연: B(11:18)와 E(11:29)의 질문에 20분 넘게 답하지 못했다. 커밋·멈춤 감시만 돌렸기 때문이다. 이후 peek 인박스 감시 루프(`inbox-watch.sh`)를 계속 돌린다.
 - 리드 알림: 사용자가 바뀐 초안(`16a7420d`)을 확인했다(`d2d54fb9`). conductor가 병합했고, B에 'UI go'를 보냈다.
 
 ## 배치
@@ -33,7 +38,7 @@
 | (사용자) | 2(초안) | `.doan/canvases/keep-out-git-init.html` | — | — | 사용자 확인 | 완료(시작 전) |
 | A | 3 전부, 4의 Go 항목, 5 | `schema/**`, `cli/**`(`skill.md`, `onboarding.go` 포함), `app/src/formats/types.ts`, 형식 fixture | 없음 | Opus high — 배타적 `.git` 확보, dev/ino 되돌리기, 환경 허용 목록, git 위치 판정처럼 틀리면 사용자 폴더를 망가뜨리는 경쟁·보안 판단이 많다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`의 schema·fixture 테스트, `npm --prefix app run typecheck` | 구현 완료, 통합(tasks 3 `c93bde4b`, tasks 4 Go `14ba8dda`, tasks 5 `5b8c88ce`), 리뷰 대기. 워커 `kogi-a` `ctx_d24068c0c6ce`는 수정 라운드용으로 retain |
 | B | 4의 TS 항목, 6, 7(`/design-sync` 포함) | `app/src/main/**`(`formats/types.ts` 제외), `app/src/renderer/**`, `.scratch/design-sync/keep-out-git-init-*/` | A의 tasks 3 커밋 통합 | Opus high — 동의 근거별 `--git-init` 전달, Project Settings 확인 창의 잠금·deep link·포커스·외부 변화 처리, 첫 구현 design-sync | typecheck·lint·test, design-sync 측정 통과, `verify.mjs --eval` PASS | 진행(1단계 main, 2단계 'UI go' 보냄), 워커 `kogi-b` `ctx_48f44956b076`. 2단계는 리드 알림 뒤 'UI go' |
-| R-A·R-B | 각 배치 `/code-review` | 보고만 | 해당 배치 | Opus high — 두 배치 모두 경쟁·동의 경계가 핵심이다 | 🔴 0 | R-A 🔴0 🟡3 → 수정 통합 `bb4dde50`. R-B1(1단계) 🔴0 🟡4 → B 2단계 뒤 수정. R-B2 대기 |
+| R-A·R-B | 각 배치 `/code-review` | 보고만 | 해당 배치 | Opus high — 두 배치 모두 경쟁·동의 경계가 핵심이다 | 🔴 0 | R-A 🔴0 🟡3 → 수정 통합 `bb4dde50`. R-B1(1단계) 🔴0 🟡4 → B 수정 라운드 1(`ctx_4c8c2e0a1f2a`). R-B2(2단계) 진행(`ctx_8b6c1bab906a`) |
 | T | 8(`/runtime-test`) | `.scratch/keep-out-git-init/runtime/`, 보고만 | A·B 통합 | Sonnet high — 정해진 probe 목록을 격리 조건으로 실행하는 단계가 많고 판단은 적다 | spec 완료 조건 1–9 probe 로그 | 대기 |
 | E | 9의 새 시나리오(필요하면 runner의 비 Git 작업 폴더 옵션) | `eval/**` | A 통합 | Opus high — runner 격리(에이전트 설정, HOME 위치)를 건드릴 수 있고 rubric 판단이 필요하다 | eval 단위 테스트, `--self-test --scenarios O4,<새 id>` PASS, `verify.mjs --eval` PASS | 진행, 워커 `kogi-e` `ctx_823ff8fff1f7` |
 | (conductor) | 9(package 뒤 실제 라운드, 기록) | `docs/USABILITY-EVAL.md` | A·B·E 통합 | — | 라운드 결과 기록 | 대기 |
