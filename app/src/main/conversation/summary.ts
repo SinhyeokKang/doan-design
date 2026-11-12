@@ -22,6 +22,10 @@ export interface ConversationSummary {
   // Claude Code's suggestion for the next message, kept in main memory only. Present only while the composer would show
   // it: a current conversation whose turn ended, not working, with nothing queued and no returned draft.
   suggestion?: string;
+  // Background work the done turn turnId started still runs (memory only); stopping: its Stop was pressed.
+  background?: { turnId: string; stopping?: true };
+  // A Stop of the running turn was taken; its end may still be on its way.
+  stopping?: true;
 }
 // Long enough for one line of a canvas row or conversation menu; the renderer still truncates to its width.
 export const PREVIEW_CHARS = 140;

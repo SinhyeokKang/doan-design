@@ -85,6 +85,10 @@ export function steerTransport(state: TransportState, id: string): TransportStat
 }
 // The wait after awaitingRead ran out: the turn ends as that success result would have.
 export function endSteerWait(state: TransportState): TransportResult { return finish(state, { type: "turn.done" }); }
+// Stubs until the prompt read and the background set land.
+export function promptTransport(state: TransportState, _uuid: string): TransportState { return state; }
+export function endPromptWait(state: TransportState): TransportResult { return endSteerWait(state); }
+export function backgroundTasks(_current: readonly string[], _raw: unknown): string[] | null { return null; }
 function consume(state: TransportState, seen: readonly unknown[]): { state: TransportState; consumed: string[] } {
   const consumed = (state.steered ?? []).filter(id => seen.includes(id));
   return consumed.length ? { state: { ...state, steered: state.steered!.filter(id => !consumed.includes(id)) }, consumed } : { state, consumed };

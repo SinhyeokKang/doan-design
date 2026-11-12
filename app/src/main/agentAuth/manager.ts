@@ -23,7 +23,7 @@ export interface AuthPrompt { provider: Provider; attemptId: string; owner: numb
 // A provider process using the dedicated profile; sign-in and sign-out wait until every lease is released.
 // promptSuggestion: the login shell's CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION, which a Claude run's preparation applies
 // (conversation/prepare.ts); it is not in env, so no other process of the provider gets it.
-export interface Lease { command: string; env: Record<string, string>; profileDir: string; promptSuggestion?: string; release(): Promise<void> }
+export interface Lease { command: string; env: Record<string, string>; profileDir: string; promptSuggestion?: string; release(): Promise<void>; quiet?(on: boolean): void }
 export type Started = { ok: true; attemptId: string; done: Promise<AuthState> } | { ok: false; reason: AuthRejection; state: AuthState };
 // A check's own result once its write-back is done; "replaced": a sign-in or sign-out took its place before the result.
 export type CheckOutcome = "ok" | "replaced" | "network" | "check_failed" | "cli_install_failed" | "account_mismatch" | "storage_failed";
@@ -349,7 +349,7 @@ export class AuthManager {
     counts(1);
     try { await this.hold(provider); } catch (error) { counts(-1); throw error; }
     let released = false;
-    return { command, env, profileDir, ...(promptSuggestion === undefined ? {} : { promptSuggestion }), release: async () => {
+    return { command, env, profileDir, ...(promptSuggestion === undefined ? {} : { promptSuggestion }), quiet: () => {}, release: async () => {
       if (released) return;
       released = true;
       // The run counts until its write-back lands, so a sign-out cannot delete a vault the write-back recreates.

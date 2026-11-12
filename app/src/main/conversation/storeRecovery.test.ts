@@ -314,3 +314,19 @@ describe("model unavailable history", () => {
     expect(() => new ConversationStore(f.root).read("c")).toThrow();
   });
 });
+
+// A Claude turn whose prompt the CLI never read ends with prompt_unread; any code outside the closed list still makes the
+// history unreadable.
+describe("prompt unread history", () => {
+  const end = (fields: object) => ({ type: "turn.failed", ...fields, v: 1, conversationId: "c", turnId: "t", seq: 1, at: "2026-11-12T00:00:00Z" });
+  it("reads a turn that ended with prompt_unread after reopening", () => {
+    const f = setup();
+    writeFileSync(f.path("c"), JSON.stringify(end({ code: "prompt_unread" })) + "\n");
+    expect(new ConversationStore(f.root).read("c")).toEqual([end({ code: "prompt_unread" })]);
+  });
+  it.each(["prompt_missing", "PROMPT_UNREAD", ""])("still rejects an unknown code: %s", code => {
+    const f = setup();
+    writeFileSync(f.path("c"), JSON.stringify(end({ code })) + "\n");
+    expect(() => new ConversationStore(f.root).read("c")).toThrow();
+  });
+});

@@ -492,6 +492,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     // nothing left but its suggestion is ended with the group stop: interrupt is refused once the input closed,
     // and the CLI may take up to 30 s to settle a suggestion. Asked during the usage read, it ends once the input closes.
     // True when it ends this process; false for any other process, which the send waits for as before.
+    endAfterTurn() { return "none" as const; },
     endSuggestion() {
       if (!doneTurn || suggestionSeen || suggestionEnded || finished) return false;
       suggestionEnded = true;

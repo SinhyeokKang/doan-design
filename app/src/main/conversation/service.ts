@@ -20,6 +20,7 @@ import type { PermissionModeId } from "./permissionMode";
 import type { QuestionAnswerInput } from "./question";
 import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, HandoffOrigin, HandoffResolution, Reservation, SkillSummary, StageSignal, TurnStage } from "./types";
 import type { LiveTurn } from "../conversationWork";
+import type { AfterTurnCleanup } from "./process";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
 // model and effort: a choice from the list this run delivered (ipc checks it). attachments: files main rechecked just now.
 // permissionMode: one of the common ids (ipc checks it); Default is never stored.
@@ -58,6 +59,10 @@ export interface Prepared {
   usageAtTurnEnd?: (read: () => Promise<unknown>) => Promise<void>;
   // Claude runs only: the cleaned text of the first prompt suggestion after a done turn (runners.ts openClaude).
   suggested?: (text: string) => void;
+  // Claude runs only: whether background work the done turn started still runs (runners.ts backgroundTasks).
+  backgroundChanged?: (running: boolean) => void;
+  // Doan-account runs only: the run's lease stops (true) or starts again (false) counting as a running conversation.
+  quiet?: (on: boolean) => void;
   // The turn's stage after a frame, called right after that frame's events. It names no turn:
   // a reused Codex server keeps the callback it opened with, and the service takes the live turn of that moment.
   stage?: (stage: TurnStage) => void;
@@ -92,7 +97,7 @@ function askingKey(event: { type: string; requestId: string }): string { return 
 // provider accepted it, which is not yet the agent reading it (Prepared.steerConsumed).
 // endSuggestion: Claude only; ends a done turn's process that only waits for its prompt suggestion, true when it did.
 // mechanism: a fenced Codex server's, which holds only the modes of that mechanism (agentAuth/fence.ts codexRestart).
-export interface Runner { mechanism?: FenceMechanism; sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; skills?(): Promise<SkillSummary[]>; steer?(prompt: string, turnId: string, messageId: string): Promise<void>; endSuggestion?(): boolean }
+export interface Runner { mechanism?: FenceMechanism; sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; answerQuestion?(requestId: string, answer: QuestionAnswerInput): "ok" | "stale" | "bad_request"; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; skills?(): Promise<SkillSummary[]>; steer?(prompt: string, turnId: string, messageId: string): Promise<void>; endSuggestion?(): boolean; endAfterTurn?(): AfterTurnCleanup }
 // What a queued send needs from main's attachment store: the queued ids checked again as the send's attachments
 // (reclaim throws attachment_missing), consumed once that send was accepted, discarded with a removed message (a paste
 // goes with it) and released once a returned draft no longer holds them (its take had no attachment for them, or its
@@ -105,7 +110,9 @@ export interface QueueFiles { reclaim(ids: string[]): StartAttachments; consume(
 // turn names when the conversation's model has no stored effort (models.ts ModelCatalog.defaultEffort); fast: whether
 // this run's list says the model (its default row when none) takes Fast now, for the turns ipc does not judge: a start,
 // a handoff's start and a queue flush (models.ts ModelCatalog.fast). Without it no such turn runs with Fast.
-export interface QueueOptions { drafts?: DraftStore; files?: QueueFiles; defaultEffort?: (root: string, provider: Provider, model: string) => string | undefined; fast?: (root: string, provider: Provider, model: string | undefined) => boolean }
+// The Claude session transcript a turn's unreported steers are looked for in (io.ts claudeTranscript).
+export interface TranscriptReader { size(configDir: string, sessionId: string): number; read(configDir: string, sessionId: string, from: number): string | null }
+export interface QueueOptions { transcripts?: TranscriptReader; drafts?: DraftStore; files?: QueueFiles; defaultEffort?: (root: string, provider: Provider, model: string) => string | undefined; fast?: (root: string, provider: Provider, model: string | undefined) => boolean }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;
 // use "listing": a list read (models, project skills), which a sign-out stops without asking (agentAuth/manager.ts acquire).
 // reusing: a send to this conversation's live Codex server, which keeps its thread open between turns.
@@ -664,7 +671,7 @@ export class ConversationService {
     this.metadata(id); const result = this.live.get(id)?.runner?.answerQuestion?.(requestId, answer) ?? "stale";
     if (result !== "ok") throw new Error(result);
   }
-  async interrupt(id: string): Promise<void> {
+  async interrupt(id: string, _turnId?: string): Promise<void> {
     this.metadata(id); this.cancelWait(id); const live = this.live.get(id);
     // Stop while the queue waits to go out (for the judgement or the previous process) hands it back instead.
     if (live?.holding && !live.busy) { this.release(id, live, live.holding); this.giveBack(id, "interrupted"); return; }
@@ -726,6 +733,8 @@ export class ConversationService {
     }
     await Promise.all(closing);
   }
+  // Stub until the background stop lands.
+  stopBackground(_roots: readonly string[]): void {}
   quit(): Promise<void> {
     const closing: Promise<void>[] = [];
     this.quitting = true;

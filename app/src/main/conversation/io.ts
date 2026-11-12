@@ -185,3 +185,9 @@ export function codexSessionExists(config: string, id: string, cwd: string): boo
     } finally { closeSync(fd); }
   } catch { return false; }
 }
+
+// Stubs until the transcript read lands.
+export function readInTranscript(_appended: string, _uuids: readonly string[]): string[] { return []; }
+export function claudeTranscript(_config: string, _id: string): string | null { return null; }
+export function transcriptSize(_config: string, _id: string): number { return 0; }
+export function readTranscriptFrom(_config: string, _id: string, _from: number): string | null { return null; }

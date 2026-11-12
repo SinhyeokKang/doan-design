@@ -82,6 +82,8 @@ export interface ConversationBinding {
 export interface SessionKey { runtime: import("../agentAuth/types").Provider; configDir: string; sessionId: string }
 export interface Reservation { owner: string; key: SessionKey | null }
 export interface TransportState {
+  // Claude only: the uuid of the turn's own prompt until the CLI reads it (runners.ts send).
+  prompt?: string;
   terminal: boolean;
   stop: "user" | "appQuit" | null;
   messageId: string;

@@ -4,6 +4,9 @@ import type { Canvas } from "./types";
 // A canvas the agent wrote shows up in the folder list after the watcher's debounce and an ls; a project turn that just
 // ended may still be judged for promotion this long, and keeps its root busy until then.
 export const BIND_GRACE_MS = 10_000;
+// Stub until the judgement timing lands.
+export const PROMOTION_SETTLE_MS = 0;
+export function promotionDeadline(input: { endedAt: number; exitedAt?: number; settle: number; grace: number }): number { return input.endedAt + input.grace; }
 // project: the root of a turn accepted (or being prepared) for a conversation without a canvas. It stays set for that
 // turn even when the conversation is bound to a canvas mid-turn.
 // failedPersistence: its history stopped taking writes, so its turn never ends; it must not hold the root until a restart.

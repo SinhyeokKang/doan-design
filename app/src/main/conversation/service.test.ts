@@ -2329,14 +2329,14 @@ describe("agent questions", () => {
 // A done turn's suggestion is kept in memory per conversation, fenced by the run and
 // turn it belongs to, cleared when it no longer applies, and the next send ends a process that only waits for one.
 describe("prompt suggestions", () => {
-  type SuggestingRunner = Runner & { endSuggestion: ReturnType<typeof vi.fn<() => boolean>> };
+  type SuggestingRunner = Runner & { endAfterTurn: ReturnType<typeof vi.fn> };
   function suggesting() {
     const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
     const store = new ConversationStore(dir);
     const runs: { input: Parameters<OpenRunner>[0]; exited: () => void; runner: SuggestingRunner }[] = [];
     let connection = "conn-1";
     const open = vi.fn<OpenRunner>(async (input, _emit, exited) => {
-      const runner: SuggestingRunner = { sessionId: input.sessionId ?? `s${runs.length + 1}`, send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}), endSuggestion: vi.fn(() => true) };
+      const runner: SuggestingRunner = { sessionId: input.sessionId ?? `s${runs.length + 1}`, send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}), endAfterTurn: vi.fn(() => "kill" as const) };
       runs.push({ input, exited, runner }); return runner;
     });
     const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude" as const, configDir: "/profile", cwd: "/repo", command: "/fake", env: {},
@@ -2379,7 +2379,7 @@ describe("prompt suggestions", () => {
     h.service.receive(id, { type: "turn.done" });
     let sent = false; const pending = h.service.send(id, "next", []).then(() => { sent = true; });
     await h.tick();
-    expect(h.runs[0]!.runner.endSuggestion).toHaveBeenCalledOnce();
+    expect(h.runs[0]!.runner.endAfterTurn).toHaveBeenCalledOnce();
     expect(sent).toBe(false); expect(h.open).toHaveBeenCalledOnce();
     // A suggestion that still comes while the send waits belongs to a turn being replaced.
     h.suggest(0, "Too late");
@@ -2392,21 +2392,22 @@ describe("prompt suggestions", () => {
     const h = suggesting(); const id = await h.start();
     h.service.queue(id, { text: "queued", anchors: [] });
     h.service.receive(id, { type: "turn.done" });
-    await vi.waitFor(() => expect(h.runs[0]!.runner.endSuggestion).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(h.runs[0]!.runner.endAfterTurn).toHaveBeenCalledOnce());
     h.runs[0]!.exited();
     await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
     expect(h.store.read(id).filter(e => e.type === "user.message").at(-1)).toMatchObject({ text: "queued" });
   });
+  // The runner decides how (afterTurnCleanup); the send asks for every finished turn's process and waits for its group.
   it.each([
     ["a failed turn", (h: ReturnType<typeof suggesting>, id: string) => { h.service.receive(id, { type: "turn.failed", code: "unknown" }); }],
     ["an interrupted turn", (h: ReturnType<typeof suggesting>, id: string) => { h.service.receive(id, { type: "interrupted", reason: "user" }); }],
     ["a turn whose suggestion came", (h: ReturnType<typeof suggesting>, id: string) => { h.service.receive(id, { type: "turn.done" }); h.suggest(0, "Run the tests"); }],
-  ])("waits for the process of %s to end by itself, as before", async (_name, end) => {
+  ])("asks the process of %s to end too, and waits for its group", async (_name, end) => {
     const h = suggesting(); const id = await h.start();
     end(h, id);
     let sent = false; const pending = h.service.send(id, "next", []).then(() => { sent = true; });
     await new Promise(resolve => setTimeout(resolve, 20));
-    expect(h.runs[0]!.runner.endSuggestion).not.toHaveBeenCalled();
+    expect(h.runs[0]!.runner.endAfterTurn).toHaveBeenCalledOnce();
     expect(sent).toBe(false);
     h.runs[0]!.exited(); await pending;
     expect(h.open).toHaveBeenCalledTimes(2);

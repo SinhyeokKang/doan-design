@@ -1,4 +1,7 @@
 import { object } from "./sessions";
+// Stub until the cleanup rule lands.
+export type AfterTurnCleanup = "kill" | "term" | "none" | "later";
+export function afterTurnCleanup(_input: { finished: boolean; inputClosed: boolean; background: number; doneTurn: boolean; promptRead: boolean }): AfterTurnCleanup { return "none"; }
 export class OwnedGroup {
   private exited = false;
   private stopping: Promise<void> | undefined;
@@ -16,6 +19,7 @@ export class OwnedGroup {
     this.stopping = new Promise(resolve => { const timer = setTimeout(resolve, 2000); timer.unref(); });
     return this.stopping;
   }
+  kill(): Promise<void> { return this.stop(); }
   private send(signal: NodeJS.Signals): void { try { this.signal(this.pid, signal); } catch { /* Only an independent liveness observation releases ownership. */ } this.observe(); }
   private monitor(): void { if (!this.poll && !this.exited) { this.poll = setInterval(() => this.observe(), 100); this.poll.unref(); } }
   private observe(): void {

@@ -36,7 +36,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models:[],account:{}}}});
  if(r.type==='user') {
   send({type:'assistant',parent_tool_use_id:null,message:{id:'m',role:'assistant',content:[{type:'text',text:'hello'}]}});
-  send({type:'result',subtype:'success',is_error:false,result:'hello',session_id:r.session_id});
+  send({type:'result',subtype:'success',is_error:false,result:'hello',user_message_uuids:[r.uuid],session_id:r.session_id});
   process.stdin.pause(); setTimeout(()=>process.exit(0),20);
  }
 });
@@ -312,7 +312,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, line + '\\n');
  const r = JSON.parse(line);
  if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands,models,account:{}}}});
- if(r.type==='user') { send({type:'result',subtype:'success',is_error:false,result:'ok',session_id:r.session_id}); process.stdin.pause(); setTimeout(()=>process.exit(0),20); }
+ if(r.type==='user') { send({type:'result',subtype:'success',is_error:false,result:'ok',user_message_uuids:[r.uuid],session_id:r.session_id}); process.stdin.pause(); setTimeout(()=>process.exit(0),20); }
 });
 `, { mode: 0o700 });
   return command;
@@ -474,7 +474,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models:[],account:{}}}});
  if(r.type==='user') {
   send({type:'system',subtype:'status',status:null,permissionMode:process.env.FAKE_STATUS,uuid:'00000000-0000-4000-8000-000000000001',session_id:r.session_id});
-  send({type:'result',subtype:'success',is_error:false,result:'ok',session_id:r.session_id});
+  send({type:'result',subtype:'success',is_error:false,result:'ok',user_message_uuids:[r.uuid],session_id:r.session_id});
   process.stdin.pause(); setTimeout(()=>process.exit(0),20);
  }
 });
@@ -1406,7 +1406,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
  if(r.type==='control_request' && !(r.request.subtype==='get_usage' && process.env.FAKE_NO_USAGE)) send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:r.request.subtype==='get_usage'?${JSON.stringify(usageReply)}:{commands:[],models:[],account:{}}}});
  if(r.type==='user') setTimeout(() => {
   send({type:'assistant',parent_tool_use_id:null,message:{id:'m',role:'assistant',content:[{type:'text',text:process.env.FAKE_FAIL?'':'hello'}]}});
-  send(process.env.FAKE_FAIL ? {type:'result',subtype:'error_during_execution',is_error:true,errors:['failed'],session_id:r.session_id} : {type:'result',subtype:'success',is_error:false,result:'hello',session_id:r.session_id});
+  send(process.env.FAKE_FAIL ? {type:'result',subtype:'error_during_execution',is_error:true,errors:['failed'],session_id:r.session_id} : {type:'result',subtype:'success',is_error:false,result:'hello',user_message_uuids:[r.uuid],session_id:r.session_id});
  }, Number(process.env.FAKE_RESULT_MS || 0));
 }).on('close', () => setTimeout(() => process.exit(0), Number(process.env.FAKE_EXIT_MS || 0)));
 `, { mode: 0o700 });
@@ -1528,7 +1528,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
  if(r.type!=='user' || mode==='hold') return;
  if(mode==='early') suggest('Too early');
  send({type:'assistant',parent_tool_use_id:null,message:{id:'m',role:'assistant',content:[{type:'text',text:'hello'}]}});
- send(mode==='failed' ? {type:'result',subtype:'error_during_execution',is_error:true,errors:['failed'],session_id:r.session_id} : {type:'result',subtype:'success',is_error:false,result:'hello',session_id:r.session_id});
+ send(mode==='failed' ? {type:'result',subtype:'error_during_execution',is_error:true,errors:['failed'],session_id:r.session_id} : {type:'result',subtype:'success',is_error:false,result:'hello',user_message_uuids:[r.uuid],session_id:r.session_id});
 }).on('close', () => {
  fs.appendFileSync(log, JSON.stringify({ closed: true }) + '\\n');
  setTimeout(() => {
@@ -1583,63 +1583,21 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
       expect(order).toEqual(["usage", "suggested"]);
     }, { usageAtTurnEnd, suggested: () => { order.push("suggested"); } });
   }, 15000);
-  // A done turn's process that only waits for its suggestion is ended by the conversation's next send.
-  describe("ending a process that waits for its suggestion", () => {
-    it("stops the group of a done turn whose input closed and whose suggestion has not come, and drops it", async () => {
-      await run({ FAKE_MODE: "done", FAKE_SUGGEST_MS: "4000" }, async ({ runner, events, suggested, exited, root }) => {
-        const sending = runner.send("hello", "turn-1");
-        await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
-        const began = Date.now();
-        expect(runner.endSuggestion!()).toBe(true);
-        await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
-        expect(Date.now() - began).toBeLessThan(2000);
-        expect(seen(root)).toContainEqual({ signal: "SIGTERM" });
-        expect(suggested).not.toHaveBeenCalled();
-        expect(runner.endSuggestion!()).toBe(false);
-        await sending;
-      });
-    }, 15000);
-    it("leaves a process alone once its suggestion came", async () => {
-      await run({ FAKE_MODE: "done" }, async ({ runner, events, suggested }) => {
-        const sending = runner.send("hello", "turn-1");
-        await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
-        await vi.waitFor(() => expect(suggested).toHaveBeenCalledOnce());
-        expect(runner.endSuggestion!()).toBe(false);
-        // The CLI exits on its own after the suggestion; closing first would abort the SDK's wait for that exit, and
-        // send would reject with "Operation aborted" after the test ended.
-        await sending;
-      });
-    }, 15000);
-    it.each([["failed", "failed"], ["running", "hold"]])("leaves a %s turn's process alone", async (_name, mode) => {
-      await run({ FAKE_MODE: mode, FAKE_SUGGEST_MS: "4000" }, async ({ runner, events, root }) => {
-        void runner.send("hello", "turn-1").catch(() => {});
-        if (mode === "failed") await vi.waitFor(() => expect(events.some(e => e.type === "turn.failed")).toBe(true));
-        else await new Promise(resolve => setTimeout(resolve, 300));
-        expect(runner.endSuggestion!()).toBe(false);
-        await new Promise(resolve => setTimeout(resolve, 300));
-        expect(seen(root)).not.toContainEqual({ signal: "SIGTERM" });
-      });
-    }, 15000);
-    it("asked during the usage read, stops the group as soon as the read ends and the input closes", async () => {
-      let finish = () => {};
-      const usageAtTurnEnd = vi.fn(async () => { await new Promise<void>(resolve => { finish = resolve; }); });
-      await run({ FAKE_MODE: "done", FAKE_SUGGEST_MS: "4000" }, async ({ runner, events, suggested, exited, root }) => {
-        const sending = runner.send("hello", "turn-1");
-        await vi.waitFor(() => expect(usageAtTurnEnd).toHaveBeenCalledOnce());
-        expect(events).toContainEqual({ type: "turn.done" });
-        expect(runner.endSuggestion!()).toBe(true);
-        await new Promise(resolve => setTimeout(resolve, 200));
-        // The read keeps the input open, and the group runs until it ends.
-        expect(seen(root)).not.toContainEqual({ closed: true });
-        expect(exited).not.toHaveBeenCalled();
-        const began = Date.now(); finish();
-        await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
-        expect(Date.now() - began).toBeLessThan(2000);
-        expect(suggested).not.toHaveBeenCalled();
-        await sending;
-      }, { usageAtTurnEnd });
-    }, 15000);
-  });
+  // A done turn's process that only waits for its suggestion is ended by the conversation's next send at once
+  // (runners.turnEnd.test.ts covers the decision); a suggestion that comes after that belongs to no one.
+  it("drops a suggestion that comes after the next send asked to end the process", async () => {
+    let finish = () => {};
+    const usageAtTurnEnd = vi.fn(async () => { await new Promise<void>(resolve => { finish = resolve; }); });
+    await run({ FAKE_MODE: "done" }, async ({ runner, suggested, exited }) => {
+      const sending = runner.send("hello", "turn-1");
+      await vi.waitFor(() => expect(usageAtTurnEnd).toHaveBeenCalledOnce());
+      expect(runner.endAfterTurn!()).toBe("later");
+      finish();
+      await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+      expect(suggested).not.toHaveBeenCalled();
+      await sending;
+    }, { usageAtTurnEnd });
+  }, 15000);
 });
 
 // The run's Fast as each provider takes it. Claude opens a process per turn, so its flag-tier setting goes
@@ -1671,7 +1629,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, line + '\\n');
  const r = JSON.parse(line);
  if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models,account:{},fast_mode_state:'off',...(reason?{fast_mode_disabled_reason:reason}:{})}}});
- if(r.type==='user') { send({type:'result',subtype:'success',is_error:false,result:'ok',session_id:r.session_id,fast_mode_state:'off',fast_mode_disabled_reason:'free'}); process.stdin.pause(); setTimeout(()=>process.exit(0),20); }
+ if(r.type==='user') { send({type:'result',subtype:'success',is_error:false,result:'ok',user_message_uuids:[r.uuid],session_id:r.session_id,fast_mode_state:'off',fast_mode_disabled_reason:'free'}); process.stdin.pause(); setTimeout(()=>process.exit(0),20); }
 });
 `, { mode: 0o700 });
   return command;
