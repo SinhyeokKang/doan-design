@@ -14,7 +14,7 @@
 - conductor 판단 — chain.md 링크 1 인계: 마커와 그라디언트 레이어는 부모 overlay에 둔다(iframe 안은 16384 device px 경계). 2W×2H 그라디언트는 2W×DPR 96000 device px까지 크기 탈락이 없었으나, 큰 면적에서 1–4프레임 덜 그려진 변형이 있었으므로 B 배치는 큰 확대에서 이것을 drift로 보고 design의 대안(보이는 영역으로 자르기)을 먼저 검토한다.
 - 사용자 결정(lead 경유): probe는 되도록 백그라운드로 돌린다. 격리 앱 창은 포커스를 가져가지 않고(`showInactive`, `app.focus` 없음) 사용자 창 뒤나 작업 영역 밖에 두며, 실행 중 앞으로 올리지 않는다. 가려진 창도 렌더하도록 `--disable-backgrounding-occluded-windows`, `--disable-renderer-backgrounding`, `--disable-background-timer-throttling`으로 띄운다. 백그라운드 수치를 믿기 전에 잠깐 보이는 창과 그린 프레임/s·측정값이 같은지 한 번 확인하고 PR 본문에 남긴다. 스크린샷과 녹화는 `webContents.capturePage`·CDP로 한다. 창이 앞에 있어야 하는 측정은 사용자에게 먼저 묻고 짧게 한다. 모든 브리프에 `briefs/background-probe.md`로 넣는다.
 - 사용자 결정: P의 visible-check를 바로 돌린다. 격리 앱 창이 약 2분 동안 작업 영역 왼쪽 위에 보이고, 포커스는 가져가지 않는다.
-- conductor 판단 — 실제 사용자 상태 점검의 예외(P 질문): 아래 예외 밖의 키는 모두 엄격하게 본다.
+- 사용자 결정 — 실제 사용자 상태 점검의 예외(P 질문에서 conductor가 정하고 사용자가 모두 승인했다. Antigravity 로그 예외는 lead를 거쳐 chain.md에도 기록됐다): 아래 예외 밖의 키는 모두 엄격하게 본다.
   - `~/.gemini/antigravity-cli`: 같은 실행에 probe 임시 경로가 없는 새 `log/cli-*.log`가 생겼을 때만, 그 디렉터리 메타데이터와 `cache/`·`crashes/`의 변경을 허용한다. 근거는 PR #167이 본 같은 외부 쓰기다.
   - 실제 userData의 `ui-state.json`·`conversations`·`agent-auth`: probe의 자식이 아닌 Doan 프로세스가 도는 동안에만 변경을 허용한다. 그 프로세스의 pid와 시작 시각을 기록한다.
   - 키체인: 바뀐 항목의 서비스가 모두 `doan*`이 아니고 `gemini`나 `Antigravity*`일 때만 허용한다. `Claude Code-credentials*`·`Codex*` 항목의 변경은, probe의 제한 PATH에서 `claude`·`codex`를 찾을 수 없음을 같은 실행에 기록했을 때만 허용한다(이 머신의 다른 세션이 토큰을 갱신한다). `doan*` 항목이 바뀌면 실패다. 서비스와 수정 시각만 기록하고, 계정이나 비밀값은 기록하지 않는다.
