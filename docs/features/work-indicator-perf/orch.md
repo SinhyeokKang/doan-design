@@ -18,6 +18,7 @@
   - `~/.gemini/antigravity-cli`: 같은 실행에 probe 임시 경로가 없는 새 `log/cli-*.log`가 생겼을 때만, 그 디렉터리 메타데이터와 `cache/`·`crashes/`의 변경을 허용한다. 근거는 PR #167이 본 같은 외부 쓰기다.
   - 실제 userData의 `ui-state.json`·`conversations`·`agent-auth`: probe의 자식이 아닌 Doan 프로세스가 도는 동안에만 변경을 허용한다. 그 프로세스의 pid와 시작 시각을 기록한다.
   - 실제 userData의 `runtime.json`: 같은 실행 안에서 probe의 자식이 아닌 Doan 프로세스가 새로 시작됐다는 기록(pid, 시작 시각)이 있을 때만 변경을 허용한다. 근거는 16:20:25 사용자의 Doan이 재시작하며 runtime.json을 다시 쓴 일이다(B의 marker-cost 실행 중).
+  - 실제 userData의 `sessions.jsonl`: 파일이 뒤에 추가만 됐고(실행 전 길이까지의 해시가 같다), 같은 실행에 probe의 제한 PATH에서 `doan`을 찾을 수 없음을 기록했을 때만 허용한다. 줄 내용은 기록하지 않는다. 근거는 이 머신의 다른 에이전트 세션이 셸에서 `doan check`를 돌리면 이 파일에 줄을 붙이는 일이다(A의 perf 실행 중 17:16:20).
   - 키체인: 바뀐 항목의 서비스가 모두 `doan*`이 아니고 `gemini`나 `Antigravity*`일 때만 허용한다. `Claude Code-credentials*`·`Codex*` 항목의 변경은, probe의 제한 PATH에서 `claude`·`codex`를 찾을 수 없음을 같은 실행에 기록했을 때만 허용한다(이 머신의 다른 세션이 토큰을 갱신한다). `doan*` 항목이 바뀌면 실패다. 서비스와 수정 시각만 기록하고, 계정이나 비밀값은 기록하지 않는다.
   - probe는 매 실행마다 userData·HOME·DOAN_RUNTIME이 임시 디렉터리 아래인지, PATH가 제한됐는지 기록한다. 사용자에게 Doan 종료를 요청하지 않는다.
 - 기록: Electron 45에는 `webContents.incrementCapturerCount`가 없다(TypeError). 그래서 P는 픽셀 모드를 앱의 `--doan-launch=background`(숨긴 창, 포커스 없음)로 띄우고, probe 안에서 `window:visible` 응답을 대체했다. 이때 rAF는 60/s로 돈다. 규칙이 시행되기 전(10:45 전)의 짧은 실행 약 10회는 창을 보이고 포커스를 가져갔다.
