@@ -717,7 +717,9 @@ test("project setup IPC rejects untrusted frames, arbitrary paths and forged cho
   }
   mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "uninitialized" }]);
   for (const request of [{ root: ROOT, choiceId: "forged", storage: null }, { root: ROOT, choiceId: null, storage: null, tokenCss: "/arbitrary" }, null, { root: ROOT },
-    { root: ROOT, choiceId: null }, { root: ROOT, choiceId: null, storage: "repo" }, { root: ROOT, choiceId: null, storage: "unknown" }]) {
+    { root: ROOT, choiceId: null }, { root: ROOT, choiceId: null, storage: "repo" }, { root: ROOT, choiceId: null, storage: "unknown" },
+    // The consent to create a repository goes only with Keep out of Git, and only as true.
+    { root: ROOT, choiceId: null, storage: null, gitInit: true }, { root: ROOT, choiceId: null, storage: "local", gitInit: "yes" }, { root: ROOT, choiceId: null, storage: "local", gitInit: false }]) {
     expect(await invoke("project:init", window().webContents, null, request)).toMatchObject({ kind: "unavailable" });
   }
   expect(mocks.shell.initialize).not.toHaveBeenCalled();
@@ -733,7 +735,7 @@ test("CSS picker cancellation and choice IDs stay bound to the folder epoch", as
   expect(picked).toMatchObject({ kind: "selected", path: ROOT + "/tokens.css", choiceId: expect.any(String) });
   if (typeof picked !== "object" || picked === null || !("choiceId" in picked)) throw new Error("no choice");
   expect(await invoke("project:init", window().webContents, null, { root: ROOT, choiceId: picked.choiceId, storage: null })).toEqual({ kind: "success" });
-  expect(mocks.shell.initialize).toHaveBeenCalledWith(ROOT, ROOT + "/tokens.css", null);
+  expect(mocks.shell.initialize).toHaveBeenCalledWith(ROOT, ROOT + "/tokens.css", null, false);
   mocks.shell.initialize.mockClear(); mocks.shell.epoch.mockReturnValue(2);
   expect(await invoke("project:init", window().webContents, null, { root: ROOT, choiceId: picked.choiceId, storage: null })).toMatchObject({ kind: "unavailable" });
   expect(mocks.shell.initialize).not.toHaveBeenCalled();
@@ -748,13 +750,21 @@ test("a local setup reads every worktree of its project again; a setup in Git or
   mocks.shell.entries.mockReturnValue([{ path: A, kind: "list", canvases: [], servedRev: 0, git, storage: "repo" } as { path: string; kind?: string }, { path: B, kind: "uninitialized" }]);
   mocks.shell.initialize.mockResolvedValue({ kind: "success" });
   expect(await invoke("project:init", window().webContents, null, { root: B, choiceId: null, storage: "local" })).toEqual({ kind: "success" });
-  expect(mocks.shell.initialize).toHaveBeenCalledWith(B, null, "local");
+  expect(mocks.shell.initialize).toHaveBeenCalledWith(B, null, "local", false);
   expect(mocks.shell.reread).toHaveBeenCalledExactlyOnceWith([A, B]);
   mocks.shell.reread.mockClear();
   await invoke("project:init", window().webContents, null, { root: B, choiceId: null, storage: null });
   mocks.shell.initialize.mockResolvedValueOnce({ kind: "error", code: "local_not_git", message: "m", guidance: "g" });
   await invoke("project:init", window().webContents, null, { root: B, choiceId: null, storage: "local" });
   expect(mocks.shell.reread).not.toHaveBeenCalled();
+});
+
+// The Set Up form showed the .git/ its setup creates: that consent reaches the shell as gitInit.
+test("a setup that showed the new repository asks the shell to create it", async () => {
+  mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "uninitialized", notGit: true } as { path: string; kind?: string }]);
+  mocks.shell.initialize.mockResolvedValue({ kind: "success" });
+  expect(await invoke("project:init", window().webContents, null, { root: ROOT, choiceId: null, storage: "local", gitInit: true })).toEqual({ kind: "success" });
+  expect(mocks.shell.initialize).toHaveBeenCalledWith(ROOT, null, "local", true);
 });
 
 test("a picker finishing after its project closes cannot retain a choice", async () => {

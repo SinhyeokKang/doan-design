@@ -20,12 +20,13 @@ export interface ProjectDeps {
   // Registers through Add Project's flow and answers the stored root, or null when it did not store one.
   add(path: string): Promise<string | null>;
   // storage "local": `init --storage local`; null runs plain init, which follows the root's current mode.
-  initialize(root: string, storage: "local" | null): Promise<ProjectInitResult>;
+  initialize(root: string, storage: "local" | null, gitInit: boolean): Promise<ProjectInitResult>;
   remotes(root: string): RemoteRead;
   // Another listed worktree of this folder's Doan root keeps its files out of Git (storage.ts projectKeepsLocal).
   keepsLocal(path: string): boolean;
   // `doan config --storage local` for a set-up root: success, or the CLI's error code.
   keepLocal(root: string): Promise<{ ok: true } | { ok: false; code: string }>;
+  home(): string;
 }
 // storage: "local" when the folder is set up that way or its setup is planned that way (app-socket v2 inspection);
 // absent means repo. The adder decides whether a reply may show it.
@@ -78,7 +79,7 @@ export type SetupPlan = "repo" | "local" | "kept";
 
 // What `doan init` would create here, read the way init reads it; a folder with any config gets nothing. The exclude
 // file sits in the repository's common Git directory, which TS never looks for (§13), so "local" names it by its label.
-export async function plannedChanges(root: string, state: FolderState, plan: SetupPlan = "repo"): Promise<OnboardingChange[]> {
+export async function plannedChanges(root: string, state: FolderState, plan: SetupPlan = "repo", _home = ""): Promise<OnboardingChange[]> {
   if (state.kind !== "uninitialized") return [];
   const changes: OnboardingChange[] = [];
   try { await lstat(join(root, ".doan/canvases")); } catch { changes.push(".doan/canvases/"); }
@@ -154,7 +155,7 @@ export async function inspectUrl(repo: GitHubRepository, deps: ProjectDeps, stor
 
 // Registers at selection, then sets up only what the user asked for; a broken config is never written over.
 // storage "local": the plan named the exclude entry, so init keeps the files out of Git; null runs plain init.
-export async function selectProject(path: string, initialize: boolean, repo: GitHubRepository | null, deps: ProjectDeps, storage: "local" | null = null): Promise<ProjectOutcome> {
+export async function selectProject(path: string, initialize: boolean, repo: GitHubRepository | null, deps: ProjectDeps, storage: "local" | null = null, _gitInit = false): Promise<ProjectOutcome> {
   if (await canonicalFolder(path) !== path) return failed("project_unavailable");
   if (repo && folderMatch(repo, deps.remotes(path)) === "mismatch") return failed("remote_mismatch");
   return register(path, initialize, deps, storage);
@@ -185,7 +186,7 @@ async function register(path: string, initialize: boolean, deps: ProjectDeps, st
     return confirmProject(state.root, deps);
   }
   if (!initialize) return failed("project_unavailable");
-  const outcome = await deps.initialize(stored, storage);
+  const outcome = await deps.initialize(stored, storage, false);
   switch (outcome.kind) {
     case "success": return confirmProject(stored, deps);
     case "rerooted": return confirmProject(outcome.root, deps);

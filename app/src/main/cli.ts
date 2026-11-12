@@ -22,13 +22,18 @@ export function runLs(cli: string, target: LsTarget, timeoutMs = CLI_TIMEOUT_MS)
   return runCli(cli, args, "cwd" in target ? target.cwd : undefined, timeoutMs);
 }
 
-export function runInit(cli: string, folder: string, tokenCss: string | null, storage: "local" | null = null, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
-  return runCli(cli, initArgs(folder, tokenCss, storage), undefined, timeoutMs);
+export interface CliEnv { PATH?: string; DEVELOPER_DIR?: string }
+export function cliEnv(_loginPath: string | null, _inherited: NodeJS.ProcessEnv): CliEnv {
+  return {};
+}
+
+export function runInit(cli: string, folder: string, tokenCss: string | null, storage: "local" | null = null, options: { gitInit?: boolean; env?: CliEnv; timeoutMs?: number } = {}): Promise<CliRun> {
+  return runCli(cli, initArgs(folder, tokenCss, storage), undefined, options.timeoutMs ?? CLI_TIMEOUT_MS);
 }
 
 // `args` holds only absolute paths, so the CLI's root-relative rule never
 // meets a path the app spelled relative to something else.
-export function runConfig(cli: string, root: string, args: readonly string[], timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
+export function runConfig(cli: string, root: string, args: readonly string[], _env: CliEnv = {}, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
   return runCli(cli, ["config", "--json", "--repo", root, ...args], undefined, timeoutMs);
 }
 

@@ -121,6 +121,38 @@ test("writes the storage mode through doan config and has the group read again o
   expect(storageWritten).toHaveBeenCalledTimes(1);
 });
 
+// Project Settings' confirmation to create a repository (draft keep-out-git-init, frame project-settings): only Keep
+// out of Git carries it, as `doan config --storage local --git-init`. A created repository is told by `written`.
+test("a confirmed switch creates the repository through doan config and says so", async () => {
+  run.mockResolvedValueOnce(ok({ repo: ROOT, serve: [], changed: true, storage: "local", written: [".git/", ".git/info/exclude", ".doan/config.json"] }));
+  expect(await bridge.write({ root: ROOT, op: "setStorage", storage: "local", gitInit: true })).toEqual({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: true, storage: "local", repositoryCreated: true });
+  expect(run).toHaveBeenLastCalledWith(ROOT, ["--storage", "local", "--git-init"]);
+  expect(storageWritten).toHaveBeenCalledExactlyOnceWith(ROOT);
+  // A repository found meanwhile is used as it is: --git-init then creates nothing, and nothing says it did.
+  run.mockResolvedValueOnce(ok({ repo: ROOT, serve: [], changed: true, storage: "local", written: [".git/info/exclude"] }));
+  expect(await bridge.write({ root: ROOT, op: "setStorage", storage: "local", gitInit: true })).not.toHaveProperty("repositoryCreated");
+  for (const request of [{ root: ROOT, op: "setStorage", storage: "repo", gitInit: true }, { root: ROOT, op: "setStorage", storage: "local", gitInit: "yes" }, { root: ROOT, op: "setStorage", storage: "local", gitInit: false }]) {
+    expect(await bridge.write(request), JSON.stringify(request)).toEqual({ kind: "unavailable" });
+  }
+  expect(run).toHaveBeenCalledTimes(2);
+});
+
+// The page's own sentences for a failed creation (design: one sentence for git init, the .git left behind named), and
+// the project read again: a .git left behind makes the folder a repository, so its reason goes.
+test("a failed creation says why in Project Settings' words and has the project read again", async () => {
+  const cases: [string, string][] = [
+    ["git_missing", "Git isn’t installed, so Doan can’t create a repository here. Install the Command Line Tools with xcode-select --install, then choose Keep out of Git again."],
+    ["git_init_failed", "Couldn’t create a Git repository here, so nothing changed."],
+    ["cleanup_failed", `Couldn’t switch to Keep out of Git, and Doan couldn’t remove the Git repository it created at ${ROOT}/.git. Remove it or keep it, then try again.`],
+  ];
+  for (const [code, message] of cases) {
+    storageWritten.mockClear();
+    run.mockResolvedValueOnce(failed(code, "cli words"));
+    expect(await bridge.write({ root: ROOT, op: "setStorage", storage: "local", gitInit: true }), code).toEqual({ kind: "error", message });
+    expect(storageWritten, code).toHaveBeenCalledExactlyOnceWith(ROOT);
+  }
+});
+
 test("refuses a malformed storage write without running the CLI", async () => {
   for (const request of [{ root: ROOT, op: "setStorage", storage: "unknown" }, { root: ROOT, op: "setStorage" }, { root: ROOT, op: "setStorage", storage: "local", more: 1 }, { root: "/other", op: "setStorage", storage: "local" }]) {
     expect(await bridge.write(request), JSON.stringify(request)).toEqual({ kind: "unavailable" });

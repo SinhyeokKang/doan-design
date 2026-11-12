@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
-import { CLI_TIMEOUT_MS, folderState, initOutcome, reconcileFolders, type CliRun } from "./folderState";
+import { CLI_TIMEOUT_MS, folderState, homeOrAbove, initOutcome, reconcileFolders, type CliRun } from "./folderState";
 
 // The fixtures Go and TS both validate (schema/fixtures/cli-envelope).
 const fixture = (name: string): string => readFileSync(new URL(`../../../schema/fixtures/cli-envelope/${name}`, import.meta.url), "utf8");
@@ -38,6 +38,17 @@ describe("folderState", () => {
   test("repo_not_found means the folder is not initialized", () => {
     const state = folderState(run({ exitCode: 2, stdout: failure("repo_not_found", "No .doan/config.json") }));
     expect(state).toEqual({ kind: "uninitialized" });
+  });
+
+  // ls says why Keep out of Git would need a new repository (error.storageReason, only on its repo_not_found), so the
+  // setup screens can show the .git/ the setup would create before anything is written.
+  test("repo_not_found carrying storageReason not_git is a folder outside Git", () => {
+    expect(folderState(run({ exitCode: 2, stdout: fixture("valid/repo-not-found-not-git.json") }))).toEqual({ kind: "uninitialized", notGit: true });
+    const reason = (code: string) => envelope({ v: 1, ok: false, error: { code, message: "m", nextSteps: [], storageReason: "not_git" } });
+    // Only ls's repo_not_found means it; the field on another failure says nothing about setup.
+    expect(folderState(run({ exitCode: 1, stdout: reason("internal_error") }))).toEqual({ kind: "cliError", reason: "m", code: "internal_error" });
+    // A reason this Doan does not know fails the envelope's schema, as every unknown value does.
+    expect(folderState(run({ exitCode: 2, stdout: fixture("invalid/unknown-storage-reason.json") })).kind).toBe("cliError");
   });
 
   // Only a failure that names a config file is a Config error; the code does not decide it.
@@ -259,6 +270,30 @@ describe("initOutcome", () => {
       expect(initOutcome(refusal(error, 5))).toEqual({ kind: "error", code: "local_exclude_failed", message: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.", guidance: "Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." });
     }
   });
+  // A Keep out of Git setup that had to create the repository (draft keep-out-git-init, frame setup-form): the Set Up
+  // form's own sentences. git_init_failed says only that nothing was set up; cleanup_failed names the .git Doan left.
+  test("a refused repository creation says what failed in the Set Up form's words", () => {
+    const failed = (code: string, message: string) => run({ exitCode: code === "git_missing" ? 5 : 2, stdout: failure(code, message) });
+    expect(initOutcome(failed("git_missing", "Git is not installed"), { folder: "/w/new" })).toEqual({ kind: "error", code: "git_missing",
+      message: "Git isn’t installed, so Doan can’t create a repository here.", guidance: "Install the Command Line Tools with xcode-select --install, then try again, or choose Include in Git." });
+    expect(initOutcome(failed("git_init_failed", "git init failed"), { folder: "/w/new" })).toEqual({ kind: "error", code: "git_init_failed",
+      message: "Couldn’t create a Git repository here, so nothing was set up.", guidance: "" });
+    expect(initOutcome(failed("cleanup_failed", "Cannot remove /w/new/.git"), { folder: "/w/a b/new" })).toEqual({ kind: "error", code: "cleanup_failed",
+      message: "Setup failed, and Doan couldn’t remove the Git repository it created at /w/a b/new/.git.", guidance: "Remove it or keep it, then try again." });
+  });
+
+  // Doan never creates a repository in the home folder or above it, so the app plans none there and the CLI refuses a
+  // local setup with local_not_git; the form says why in its home-folder sentence instead of suggesting git init.
+  test("a local setup refused in the home folder or above it says Doan creates no repository there", () => {
+    const home = { message: "Doan doesn’t create a Git repository in your home folder.", guidance: "Choose Include in Git, or choose a folder inside it." };
+    for (const folder of ["/Users/ada", "/Users", "/"]) {
+      expect(initOutcome(refusal(G.notGit, 5), { folder, home: "/Users/ada" }), folder).toEqual({ kind: "error", code: "local_not_git", ...home });
+    }
+    for (const folder of ["/Users/ada/studio", "/Users/adam", "/w"]) {
+      expect(initOutcome(refusal(G.notGit, 5), { folder, home: "/Users/ada" }), folder).toMatchObject({ guidance: "Choose Include in Git, or run git init here first." });
+    }
+  });
+
   test("CSS guidance follows only a chosen token CSS", () => {
     expect(initOutcome(refusal(G.setUp, 2))).toEqual({ kind: "error", code: "usage_error", message: "Project is already set up; use doan config --storage local", guidance: "Check the project, then try again." });
     expect(initOutcome(run({ exitCode: 2, stdout: failure("usage_error", "Token CSS must be inside the repository") }), { tokenCss: true })).toMatchObject({ guidance: "Check the project and choose a CSS file inside it, then try again." });
@@ -307,5 +342,14 @@ describe("folderState partial failure and an older doan's comment fields", () =>
       const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans } }) }));
       expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases });
     }
+  });
+});
+
+describe("homeOrAbove", () => {
+  test("the home folder and every folder above it, never a sibling that shares its prefix", () => {
+    for (const path of ["/Users/ada", "/Users/ada/", "/Users", "/"]) expect(homeOrAbove(path, "/Users/ada"), path).toBe(true);
+    for (const path of ["/Users/ada/studio", "/Users/adam", "/Users/ad", "/w"]) expect(homeOrAbove(path, "/Users/ada"), path).toBe(false);
+    // A home folder that cannot be known protects nothing rather than everything.
+    expect(homeOrAbove("/Users/ada", "")).toBe(false);
   });
 });

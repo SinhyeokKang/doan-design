@@ -63,7 +63,7 @@ export type FolderEntry = { path: string; lastCommon?: string; autoRegistered?: 
   // `changedAt` is the newest canvas mtime; absent with no canvases.
   // `storage`/`storageReason` are `doan ls`'s, absent from an older doan.
   | ({ kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number } & StorageFacts)
-  | { kind: "uninitialized" }
+  | { kind: "uninitialized"; notGit?: true }
   // `config`: the file the CLI named (folderState); main's Show in Finder selects it, the renderer does not use it.
   | { kind: "error"; message: string; config: string; newer?: true }
   | { kind: "cliError"; reason: string }

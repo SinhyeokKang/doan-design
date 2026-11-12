@@ -8,7 +8,7 @@ vi.mock("node:child_process", async importOriginal => {
   const real = await importOriginal<typeof import("node:child_process")>();
   return { ...real, spawn: vi.fn(real.spawn) };
 });
-import { cliCommand, EXPORT_TIMEOUT_MS, readFolder, runConfig, runDesignSkill, runExport, runLs, runInit } from "./cli";
+import { cliCommand, cliEnv, EXPORT_TIMEOUT_MS, readFolder, runConfig, runDesignSkill, runExport, runLs, runInit } from "./cli";
 // The Set Up dialog's line, so the real CLI's refusal is checked as the person reads it.
 import { initMessage } from "../renderer/onboardingView";
 import { designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
@@ -59,8 +59,9 @@ describe("readFolder with the real CLI", () => {
     expect(view.kind === "list" && view.canvases).toEqual([expect.objectContaining({ path: ".doan/canvases/a.html", title: "A" })]);
   });
 
-  test("reports a folder without config as uninitialized", async () => {
-    expect(await readFolder(cli, dir())).toEqual({ kind: "uninitialized" });
+  // The temp folder belongs to no Git repository: ls says Keep out of Git there needs a new one (batch A's ls).
+  test("reports a folder without config as uninitialized, outside Git", async () => {
+    expect(await readFolder(cli, dir())).toEqual({ kind: "uninitialized", notGit: true });
   });
 
   test("passes a config error message through", async () => {
@@ -150,6 +151,30 @@ describe("CLI environment", () => {
   });
 });
 
+// The CLI's git (git init for Keep out of Git) is found as clone finds it: the login shell's PATH and the inherited
+// DEVELOPER_DIR, under their own names (ARCHITECTURE §7 'First-run onboarding' Clone).
+describe("the CLI's git environment", () => {
+  test("names the login shell's PATH and the inherited DEVELOPER_DIR, and only what is known", () => {
+    expect(cliEnv("/login/bin:/usr/bin", { PATH: "/app/bin", DEVELOPER_DIR: "/Dev" })).toEqual({ PATH: "/login/bin:/usr/bin", DEVELOPER_DIR: "/Dev" });
+    expect(cliEnv("/login/bin", { PATH: "/app/bin" })).toEqual({ PATH: "/login/bin" });
+    expect(cliEnv(null, { PATH: "/app/bin", DEVELOPER_DIR: "" })).toEqual({});
+  });
+
+  test("init and config run with it, and a bare doan is still found on the app's own PATH", async () => {
+    const out = join(dir(), "env");
+    const fake = fakeCli(`printf '%s\\n%s\\n%s\\n' "$PATH" "$DEVELOPER_DIR" "$*" > '${out}'; echo '{"v":1,"ok":true,"result":{"initialized":true,"repo":"/r","created":[]}}'`);
+    const env = { PATH: "/login/bin", DEVELOPER_DIR: "/Dev" };
+    expect(initOutcome(await runInit(fake, "/r", null, "local", { gitInit: true, env }))).toEqual({ kind: "success" });
+    expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["/login/bin", "/Dev", "init --json --repo /r --storage local --git-init"]);
+    await runConfig(fake, "/r", ["--storage", "local", "--git-init"], env);
+    expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["/login/bin", "/Dev", "config --json --repo /r --storage local --git-init"]);
+    const saved = process.env.PATH;
+    process.env.PATH = `${join(fake, "..")}:${saved ?? ""}`;
+    try { await runInit("doan", "/r", null, "local", { gitInit: true, env }); } finally { process.env.PATH = saved; }
+    expect(readFileSync(out, "utf8").trim().split("\n")[0]).toBe("/login/bin");
+  });
+});
+
 describe("readFolder before running the CLI", () => {
   // The errno code tells a vanished folder (ENOENT, ENOTDIR) from one that could not be checked.
   test.each([
@@ -197,7 +222,7 @@ test("packaged cliCommand never falls back to PATH and DOAN_CLI wins", () => {
   expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["init", "--json", "--repo", "/some repo", "--token-css", "/some repo/a.css"]);
 });
 test("runInit settles timeout and spawn errors", async () => {
-  expect(initOutcome(await runInit(fakeCli("sleep 30"), dir(), null, null, 50))).toMatchObject({ kind: "cliError", reason: "timed out after 10 s" });
+  expect(initOutcome(await runInit(fakeCli("sleep 30"), dir(), null, null, { timeoutMs: 50 }))).toMatchObject({ kind: "cliError", reason: "timed out after 10 s" });
   expect(initOutcome(await runInit(join(tmp, "missing"), dir(), null))).toMatchObject({ kind: "cliError", reason: expect.stringContaining("ENOENT") });
 });
 
@@ -206,6 +231,25 @@ test("a local setup outside Git is refused by the real CLI with the draft's word
   const outcome = initOutcome(await runInit(cli, dir(), null, "local"));
   expect(outcome).toEqual({ kind: "error", code: "local_not_git", message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." });
   expect(initMessage(outcome)).toBe("This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.");
+});
+
+// With the real CLI (batch A's --git-init): switching a project outside Git to Keep out of Git creates its repository,
+// and switching back keeps both that repository and Doan's .gitattributes line, as every switch keeps the line.
+test("Include in Git, then Keep out of Git, then Include in Git keeps .gitattributes and the new .git", async () => {
+  const root = dir();
+  expect(initOutcome(await runInit(cli, root, null))).toEqual({ kind: "success" });
+  const attributes = readFileSync(join(root, ".gitattributes"), "utf8");
+  expect(configReply(root, await runConfig(cli, root, []))).toMatchObject({ storage: "repo", storageReason: "not_git" });
+  const kept = configReply(root, await runConfig(cli, root, ["--storage", "local", "--git-init"]));
+  expect(kept).toMatchObject({ kind: "config", storage: "local", repositoryCreated: true });
+  expect(kept).not.toHaveProperty("storageReason");
+  expect(existsSync(join(root, ".git", "HEAD"))).toBe(true);
+  const back = configReply(root, await runConfig(cli, root, ["--storage", "repo"]));
+  expect(back).toMatchObject({ kind: "config", storage: "repo" });
+  expect(back).not.toHaveProperty("repositoryCreated");
+  expect(back).not.toHaveProperty("storageReason");
+  expect(existsSync(join(root, ".git", "HEAD"))).toBe(true);
+  expect(readFileSync(join(root, ".gitattributes"), "utf8")).toBe(attributes);
 });
 
 test("runConfig reads and writes through the real CLI with absolute paths", async () => {

@@ -24,7 +24,7 @@ export interface AdderProjects {
   inspectPath(real: string, repo: GitHubUrl | null, storage: OnboardingStorage): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }>;
   inspectUrl(repo: GitHubUrl, storage: OnboardingStorage): Promise<Candidate[]>;
   // storage "local": set up with `init --storage local`; null runs plain init.
-  select(path: string, initialize: boolean, repo: GitHubUrl | null, storage: "local" | null): Promise<ProjectOutcome>;
+  select(path: string, initialize: boolean, repo: GitHubUrl | null, storage: "local" | null, gitInit: boolean): Promise<ProjectOutcome>;
   // Resolves only after the clone's processes are gone and its own temporary directory is removed. commit() is asked
   // once the clone sits at its destination; after it says true no cancel applies.
   clone(url: string, destination: string, signal: AbortSignal, commit: () => boolean, storage: "local" | null): Promise<ProjectOutcome | { ok: false; cancelled: true }>;
@@ -172,7 +172,7 @@ export class ProjectAdder {
     const initialize = request.initialize === true;
     if (candidate.changes.length > 0 && !initialize) return refuse("initialize_required");
     const storage = initStorage(candidate.changes);
-    return this.launch("project_select", request.requestId, async () => this.selected(await this.projects.select(candidate.path, initialize, current.repo, storage)));
+    return this.launch("project_select", request.requestId, async () => this.selected(await this.projects.select(candidate.path, initialize, current.repo, storage, false)));
   }
 
   async clone(request: OnboardingProjectCloneRequest): Promise<OnboardingResponse> {

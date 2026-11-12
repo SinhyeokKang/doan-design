@@ -44,6 +44,6 @@ export function isTranslocated(path: string): boolean {
 
 // storage "local" keeps Doan files out of Git. Without it init follows the root's current mode, so a new worktree of a
 // project already kept out of Git gets no .gitattributes either (PRODUCT §5 item 8).
-export function initArgs(folder: string, tokenCss: string | null, storage: "local" | null = null): string[] {
+export function initArgs(folder: string, tokenCss: string | null, storage: "local" | null = null, _gitInit = false): string[] {
   return ["init", "--json", "--repo", folder, ...(tokenCss === null ? [] : ["--token-css", tokenCss]), ...(storage === null ? [] : ["--storage", storage])];
 }

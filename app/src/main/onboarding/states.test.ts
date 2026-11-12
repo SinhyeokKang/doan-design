@@ -49,3 +49,11 @@ test("builds init argv without shell interpolation", () => {
   expect(initArgs("/tmp/project", "/tmp/project/t.css", "local")).toEqual(["init", "--json", "--repo", "/tmp/project", "--token-css", "/tmp/project/t.css", "--storage", "local"]);
   expect(initArgs("/tmp/project", null, null)).toEqual(["init", "--json", "--repo", "/tmp/project"]);
 });
+
+// --git-init is the consent to create a repository the screen showed (.git/ in the plan), and only with Keep out of Git.
+test("asks init to create a repository only for a shown local plan", () => {
+  expect(initArgs("/tmp/project", null, "local", true)).toEqual(["init", "--json", "--repo", "/tmp/project", "--storage", "local", "--git-init"]);
+  expect(initArgs("/tmp/project", "/tmp/project/t.css", "local", true)).toEqual(["init", "--json", "--repo", "/tmp/project", "--token-css", "/tmp/project/t.css", "--storage", "local", "--git-init"]);
+  expect(initArgs("/tmp/project", null, "local", false)).toEqual(["init", "--json", "--repo", "/tmp/project", "--storage", "local"]);
+  expect(initArgs("/tmp/project", null, null, true)).toEqual(["init", "--json", "--repo", "/tmp/project"]);
+});

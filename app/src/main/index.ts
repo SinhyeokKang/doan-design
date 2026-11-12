@@ -914,6 +914,7 @@ async function start(): Promise<void> {
       return confirmed.kind === "added" && ready.entries().some(entry => entry.path === confirm.path) ? confirm.path : null;
     },
     initialize: (root, storage) => initializeProject(root, null, storage),
+    home: homeDirectory,
     remotes: root => readGitRemotes(root, homeDirectory()),
     keepsLocal: path => projectKeepsLocal(ready.entries(), path),
     async keepLocal(root) {
@@ -930,7 +931,7 @@ async function start(): Promise<void> {
   const projectWork: AdderProjects = {
     folder: canonicalFolder, destination: path => cloneDestination(path, projectDeps),
     inspectPath: (real, repo, storage) => inspectPath(real, projectDeps, repo, storage), inspectUrl: (repo, storage) => inspectUrl(repo, projectDeps, storage),
-    select: (path, initialize, repo, storage) => selectProject(path, initialize, repo, projectDeps, storage),
+    select: (path, initialize, repo, storage, gitInit) => selectProject(path, initialize, repo, projectDeps, storage, gitInit),
     present: leftoverPresent,
     clone: (url, destination, signal, commit, storage) => cloneProject(url, destination, signal, {
       ...projectDeps,

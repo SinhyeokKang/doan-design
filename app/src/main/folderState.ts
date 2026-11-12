@@ -17,7 +17,7 @@ export interface CliRun {
 
 export type FolderState =
   | ({ kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo } & StorageFacts)
-  | { kind: "uninitialized" }
+  | { kind: "uninitialized"; notGit?: true }
   // A Config error: the CLI named the config file it failed on (`error.config`, an absolute path that may be a parent
   // folder's). Only this is a Config error; the code alone does not decide it. `newer`: the file is in a format newer
   // than this Doan reads (`unsupported_version`), so it is not at fault.
@@ -110,7 +110,7 @@ const STORAGE_REFUSALS: Record<string, { message: string; guidance: string }> = 
 };
 
 // tokenCss: a token CSS was chosen, so a usage_error may be about it; otherwise CSS guidance would point elsewhere.
-export function initOutcome(run: CliRun, request: { tokenCss?: boolean } = {}): InitOutcome {
+export function initOutcome(run: CliRun, request: { tokenCss?: boolean; folder?: string; home?: string } = {}): InitOutcome {
   const reason = run.spawnError ?? (run.timedOut ? "timed out after 10 s" : run.stderr.split(/\r?\n/, 1)[0] || "Invalid response from doan CLI.");
   const cliError: InitOutcome = { kind: "cliError", reason };
   if (run.spawnError !== undefined || run.timedOut || run.exitCode === null) return cliError;
@@ -138,6 +138,10 @@ export function initOutcome(run: CliRun, request: { tokenCss?: boolean } = {}): 
     !("created" in result) || !Array.isArray(result.created) || !result.created.every((entry) => typeof entry === "string")) return cliError;
   // init's repo spelling is not canonical; the caller must re-read with ls.
   return { kind: "success" };
+}
+
+export function homeOrAbove(_path: string, _home: string): boolean {
+  return false;
 }
 
 export function reconcileFolders(stored: readonly string[], path: string, upwardResult: FolderState): { folders: string[]; focus: string | null } {

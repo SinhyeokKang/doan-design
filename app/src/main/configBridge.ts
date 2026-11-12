@@ -10,7 +10,7 @@ import { storageFacts, type StorageFacts } from "./storage";
 export type ConfigKind = "tokenCss" | "serve";
 // storage/storageReason: where the worktree's Doan files are kept, absent from an older doan.
 export type ConfigReply =
-  | ({ kind: "config"; root: string; tokenCss: string | null; serve: string[]; changed: boolean } & StorageFacts)
+  | ({ kind: "config"; root: string; tokenCss: string | null; serve: string[]; changed: boolean; repositoryCreated?: true } & StorageFacts)
   | { kind: "error"; message: string }
   | { kind: "unavailable" };
 export type ConfigChoice = { kind: "selected"; choiceId: string; path: string } | { kind: "cancelled" } | { kind: "unavailable" };

@@ -2,7 +2,7 @@ import type { ResponseRecord } from "./document/bindings";
 import { realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { pruneAuto } from "./autoFolders";
-import { readFolder, runLs, runInit } from "./cli";
+import { readFolder, runLs, runInit, type CliEnv } from "./cli";
 import { replaceAt } from "./folders";
 import { openFolderStore, type RootMigration } from "./folderStore";
 import { classifyDesignChange } from "./designChange";
@@ -26,7 +26,7 @@ export interface Shell {
   // the human when the folder is not opened.
   open(picked: string): Promise<{ root: string } | { refused: string }>;
   // storage "local": keep the Doan files out of Git (`init --storage local`); null follows the root's current mode.
-  initialize(path: string, tokenCss: string | null, storage?: "local" | null): Promise<ProjectInitResult>;
+  initialize(path: string, tokenCss: string | null, storage?: "local" | null, gitInit?: boolean): Promise<ProjectInitResult>;
   reopen(path: string): Promise<void>;
   // Stores roots main already judged, after the stored ones; resolves to the
   // paths that were not stored yet. A given root already stored becomes hand-added.
@@ -107,6 +107,8 @@ export interface ShellHooks {
   seen?(root: string): void;
   autoRemoved?(paths: string[], before: FolderEntry[]): void;
   migrate?: RootMigration;
+  home?: string;
+  cliEnv?(): Promise<CliEnv>;
 }
 
 export async function startShell(foldersFile: string, cli: string, onChange: (entries: FolderEntry[], focus?: FolderFocus) => void, hooks?: ShellHooks): Promise<Shell> {
