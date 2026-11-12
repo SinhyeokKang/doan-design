@@ -1408,15 +1408,37 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    frames only with .moving, which the controller sets for the 220 ms after the working frame changes: it is placed in
    screen px on every pan and zoom, which must not lag. 4.8 s is two periods of the notice dot's 2.4 s. .still: the
    conversation waits for an answer. */
-.mark.jump-highlight.working { z-index: -1; animation: doan-work-glow 2.4s var(--ease-state) infinite; }
-.mark.jump-highlight.working::before { background: linear-gradient(135deg, var(--affordance-accent) 0%, var(--indigo-600) 25%, var(--affordance-accent) 50%, var(--indigo-600) 75%, var(--affordance-accent) 100%); background-size: 200% 200%; animation: doan-work-travel 4.8s linear infinite; }
+/* Every animation here is opacity or transform on a layer of its own, so a marker at rest paints once. The panel ring
+   moves to the outline, which this stacking context paints over its negative-z layers: the glow (a fixed 45% shadow
+   whose opacity 1 ↔ 25/45 is the old 45% ↔ 25%) and the line. The line is the old masked 3px border, filled by four
+   5px bands (1px past each edge, so the mask alone antialiases it) that carry the old 135° gradient as a repeat of its
+   period, (W + H) / √2, and slide T = W + H along their length per 4.8 s: one period, as background-position 0% → 100%
+   moved the old 2W × 2H image. A band is a thin layer where a 2W × 2H one re-rasterised the whole image on every zoom
+   (10240 × 6720 device px at 400%). The container query units keep T on the box's live size through the slide. */
+.mark.jump-highlight.working { z-index: -1; animation: none; box-shadow: none; outline: 1px solid var(--surface-panel); }
+.mark.jump-highlight.working::before { display: none; }
+.mark.jump-highlight.working > :is(.work-glow, .work-line) { position: absolute; inset: -3px; z-index: -1; border-radius: inherit; }
+.work-glow { box-shadow: 0 0 16px 2px color-mix(in srgb, var(--affordance-accent) 45%, transparent); animation: doan-work-glow 2.4s var(--ease-state) infinite; }
+.work-line { padding: 3px; mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; container-type: size; }
+.work-band { --work-t: calc(100cqw + 100cqh + 12px); --work-period: calc(var(--work-t) / sqrt(2)); position: absolute; background: repeating-linear-gradient(135deg, var(--affordance-accent) var(--work-at), var(--indigo-600) calc(var(--work-at) + var(--work-period) / 2), var(--affordance-accent) calc(var(--work-at) + var(--work-period))); }
+/* --work-at puts the gradient's start where the old one had it, the line box's top-left corner: minus the band's
+   (x + y) / √2 from that corner. */
+.work-band-top, .work-band-bottom { left: -1px; width: calc(2 * var(--work-t)); height: 5px; animation: doan-work-travel-x 4.8s linear infinite; }
+.work-band-left, .work-band-right { top: -1px; width: 5px; height: calc(2 * var(--work-t)); animation: doan-work-travel-y 4.8s linear infinite; }
+.work-band-top { top: -1px; --work-at: calc(2px / sqrt(2)); }
+.work-band-left { left: -1px; --work-at: calc(2px / sqrt(2)); }
+.work-band-bottom { top: calc(100% - 4px); --work-at: calc(-1 * (100cqh + 1px) / sqrt(2)); }
+.work-band-right { left: calc(100% - 4px); --work-at: calc(-1 * (100cqw + 1px) / sqrt(2)); }
 /* Only where motion is allowed: a reduced-motion rule would need the slide's own specificity to win. */
 @media (prefers-reduced-motion: no-preference) { .mark.jump-highlight.working.moving { transition: left var(--time-settle) var(--ease-settle), top var(--time-settle) var(--ease-settle), width var(--time-settle) var(--ease-settle), height var(--time-settle) var(--ease-settle); } }
-.mark.jump-highlight.working.still, .mark.jump-highlight.working.still::before { animation: none; }
-@keyframes doan-work-travel { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
-@keyframes doan-work-glow { 0%, 100% { box-shadow: 0 0 0 1px var(--surface-panel), 0 0 16px 2px color-mix(in srgb, var(--affordance-accent) 45%, transparent); } 50% { box-shadow: 0 0 0 1px var(--surface-panel), 0 0 16px 2px color-mix(in srgb, var(--affordance-accent) 25%, transparent); } }
-@media (prefers-reduced-motion: reduce) { .mark.jump-highlight.working, .mark.jump-highlight.working::before { animation: none; } }
-@media (prefers-reduced-transparency: reduce) { .mark.jump-highlight.working { animation: none; box-shadow: 0 0 0 1px var(--surface-panel); } }
+@keyframes doan-work-glow { 0%, 100% { opacity: 1; } 50% { opacity: calc(25 / 45); } }
+@keyframes doan-work-travel-x { to { transform: translateX(-50%); } }
+@keyframes doan-work-travel-y { to { transform: translateY(-50%); } }
+.mark.jump-highlight.working.still :is(.work-glow, .work-band) { animation: none; }
+@media (prefers-reduced-motion: reduce) { .mark.jump-highlight.working :is(.work-glow, .work-band) { animation: none; } }
+@media (prefers-reduced-transparency: reduce) { .mark.jump-highlight.working > .work-glow { display: none; } }
+/* Forced colours keep the base rule's Highlight border; the outline would take a forced system colour. */
+@media (forced-colors: active) { .mark.jump-highlight.working { outline: none; } .mark.jump-highlight.working > :is(.work-glow, .work-line) { display: none; } }
 /* The composer's note sits under its chip, over the card, without entering the field's DOM. */
 .chip-note { position: absolute; z-index: 2; margin-top: var(--space-1); padding: var(--space-half) var(--space-1h); border-radius: var(--radius-chip); background: var(--surface-panel); box-shadow: var(--shadow-sm); white-space: nowrap; pointer-events: none; }
 /* Attach, then Pick from canvas, at the left end of the model row; the pickers sit at the right

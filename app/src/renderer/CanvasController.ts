@@ -1846,7 +1846,13 @@ export class CanvasController {
       return;
     }
     if (this.workMark === null) {
+      // The glow and the line's bands animate on their own layers (styles.css); made once, they are never replaced, so
+      // no redraw restarts their animations.
+      const layer = (className: string) => { const element = document.createElement("div"); element.className = className; return element; };
+      const line = layer("work-line");
+      line.append(...["top", "right", "bottom", "left"].map(side => layer(`work-band work-band-${side}`)));
       this.workMark = document.createElement("div");
+      this.workMark.append(layer("work-glow"), line);
       this.overlay.append(this.workMark);
     }
     const mark = this.workMark;

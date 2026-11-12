@@ -4525,16 +4525,51 @@ describe("working-frame marker", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("the marker's CSS: no fade, a travelling gradient and a breathing glow, the slide only with .moving, still under reduced motion", async () => {
+  // The glow and the travelling line animate only opacity and transform in their own layers, so a marker at rest
+  // paints once; the layers are made once with the marker and never replaced, so a redraw restarts nothing.
+  it("holds a glow layer and a masked line of four bands, made once with the marker", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      const mark = marker(h)!;
+      expect(mark.children.map(child => child.className)).toEqual(["work-glow", "work-line"]);
+      expect(mark.children[1].children.map(child => child.className)).toEqual(["work-band work-band-top", "work-band work-band-right", "work-band work-band-bottom", "work-band work-band-left"]);
+      setWork(h, "intro");
+      h.controller.setWork(null);
+      setWork(h, "hero", { waiting: true });
+      expect(marker(h)).toBe(mark);
+      expect(mark.children).toHaveLength(2);
+      expect(mark.children[1].children).toHaveLength(4);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the marker's CSS: a panel ring as outline, a glow layer breathing in opacity, bands travelling by transform, the slide only with .moving", async () => {
     const { readFileSync } = await import("node:fs");
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-    expect(css).toMatch(/\.mark\.jump-highlight\.working \{[^}]*z-index: -1; animation: doan-work-glow 2\.4s var\(--ease-state\) infinite;/);
-    expect(css).toMatch(/\.mark\.jump-highlight\.working::before \{[^}]*animation: doan-work-travel 4\.8s linear infinite;/);
+    expect(css).toContain(".mark.jump-highlight.working { z-index: -1; animation: none; box-shadow: none; outline: 1px solid var(--surface-panel); }");
+    expect(css).toContain(".mark.jump-highlight.working::before { display: none; }");
+    // Under the outline in the marker's own stacking context, on its border box.
+    expect(css).toContain(".mark.jump-highlight.working > :is(.work-glow, .work-line) { position: absolute; inset: -3px; z-index: -1; border-radius: inherit; }");
+    // A fixed 45% glow whose opacity goes 1 ↔ 25/45 on the old curve and period: the old 45% ↔ 25% shadow.
+    expect(css).toMatch(/\.work-glow \{ box-shadow: 0 0 16px 2px color-mix\(in srgb, var\(--affordance-accent\) 45%, transparent\); animation: doan-work-glow 2\.4s var\(--ease-state\) infinite; \}/);
+    expect(css).toContain("@keyframes doan-work-glow { 0%, 100% { opacity: 1; } 50% { opacity: calc(25 / 45); } }");
+    expect(css).toMatch(/\.work-line \{[^}]*mask: linear-gradient\(#000 0 0\) content-box, linear-gradient\(#000 0 0\); mask-composite: exclude;[^}]*container-type: size;/);
+    // One period of the old 135° gradient per 4.8 s: the bands move T = W + H along their length.
+    expect(css).toMatch(/\.work-band \{[^}]*--work-t: calc\(100cqw \+ 100cqh \+ 12px\);[^}]*repeating-linear-gradient\(135deg,/);
+    expect(css).toMatch(/\.work-band-top, \.work-band-bottom \{[^}]*width: calc\(2 \* var\(--work-t\)\);[^}]*animation: doan-work-travel-x 4\.8s linear infinite;/);
+    expect(css).toMatch(/\.work-band-left, \.work-band-right \{[^}]*height: calc\(2 \* var\(--work-t\)\);[^}]*animation: doan-work-travel-y 4\.8s linear infinite;/);
+    expect(css).toContain("@keyframes doan-work-travel-x { to { transform: translateX(-50%); } }");
+    expect(css).toContain("@keyframes doan-work-travel-y { to { transform: translateY(-50%); } }");
+    // Nothing left that repaints on the main thread every frame.
+    expect(css).not.toMatch(/@keyframes doan-work-glow \{[^}]*box-shadow/);
+    expect(css).not.toMatch(/@keyframes doan-work-travel \{/);
     expect(css).toMatch(/\.mark\.jump-highlight\.working\.moving \{ transition: left var\(--time-settle\) var\(--ease-settle\), top var\(--time-settle\) var\(--ease-settle\), width var\(--time-settle\) var\(--ease-settle\), height var\(--time-settle\) var\(--ease-settle\); \}/);
     expect(css).not.toMatch(/\.mark\.jump-highlight\.working \{[^}]*transition/);
-    expect(css).toContain(".mark.jump-highlight.working.still, .mark.jump-highlight.working.still::before { animation: none; }");
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.mark\.jump-highlight\.working, \.mark\.jump-highlight\.working::before \{ animation: none; \} \}/);
-    expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{ \.mark\.jump-highlight\.working \{ animation: none; box-shadow: 0 0 0 1px var\(--surface-panel\); \} \}/);
+    // Still and reduced motion: the 45% glow and the line at its start, as with no animation before.
+    expect(css).toContain(".mark.jump-highlight.working.still :is(.work-glow, .work-band) { animation: none; }");
+    expect(css).toContain("@media (prefers-reduced-motion: reduce) { .mark.jump-highlight.working :is(.work-glow, .work-band) { animation: none; } }");
+    expect(css).toContain("@media (prefers-reduced-transparency: reduce) { .mark.jump-highlight.working > .work-glow { display: none; } }");
+    expect(css).toContain("@media (forced-colors: active) { .mark.jump-highlight.working { outline: none; } .mark.jump-highlight.working > :is(.work-glow, .work-line) { display: none; } }");
   });
 });
 
