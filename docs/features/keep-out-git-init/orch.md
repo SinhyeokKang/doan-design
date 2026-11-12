@@ -2,7 +2,7 @@
 
 - 원본: [spec](./spec.md) · [design](./design.md) · [tasks](./tasks.md)
 - conductor는 Claude Code이고, 워커도 Claude 모델만 쓴다. 리드는 develop checkout 세션이다.
-- 시작 hash: `2657b22a`(origin/develop). 통합 브랜치: `feat/keep-out-git-init`.
+- 시작 hash: `2657b22a`(origin/develop). 통합 브랜치: `feat/keep-out-git-init`. Orca run: `run_7f2f69807208`.
 - 공유 증거 위치: conductor checkout의 `.scratch/keep-out-git-init/`(절대 경로 `/Users/sinhyeokkang/orca/workspaces/doan-design/keep-out-git-init-orch/.scratch/keep-out-git-init/`). PoC 스크립트와 로그, 워커 handoff 사본을 여기 둔다.
 
 ## 결정 기록
@@ -19,8 +19,8 @@
 |---|---|---|---|---|---|---|
 | (conductor) | 1(PoC) | `.scratch/keep-out-git-init/`, tasks.md 'PoC 결과' | 없음 | — | 로그와 결과 기록 | 완료 |
 | (사용자) | 2(초안) | `.doan/canvases/keep-out-git-init.html` | — | — | 사용자 확인 | 완료(시작 전) |
-| A | 3 전부, 4의 Go 항목, 5 | `schema/**`, `cli/**`(`skill.md`, `onboarding.go` 포함), `app/src/formats/types.ts`, 형식 fixture | 없음 | Opus high — 배타적 `.git` 확보, dev/ino 되돌리기, 환경 허용 목록, git 위치 판정처럼 틀리면 사용자 폴더를 망가뜨리는 경쟁·보안 판단이 많다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`의 schema·fixture 테스트, `npm --prefix app run typecheck` | 대기 |
-| B | 4의 TS 항목, 6, 7(`/design-sync` 포함) | `app/src/main/**`(`formats/types.ts` 제외), `app/src/renderer/**`, `.scratch/design-sync/keep-out-git-init-*/` | A의 tasks 3 커밋 통합 | Opus high — 동의 근거별 `--git-init` 전달, Project Settings 확인 창의 잠금·deep link·포커스·외부 변화 처리, 첫 구현 design-sync | typecheck·lint·test, design-sync 측정 통과, `verify.mjs --eval` PASS | 대기 |
+| A | 3 전부, 4의 Go 항목, 5 | `schema/**`, `cli/**`(`skill.md`, `onboarding.go` 포함), `app/src/formats/types.ts`, 형식 fixture | 없음 | Opus high — 배타적 `.git` 확보, dev/ino 되돌리기, 환경 허용 목록, git 위치 판정처럼 틀리면 사용자 폴더를 망가뜨리는 경쟁·보안 판단이 많다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`의 schema·fixture 테스트, `npm --prefix app run typecheck` | 진행(tasks 3 `46e66071` → 통합 `c93bde4b`), 워커 `kogi-a` `ctx_d24068c0c6ce` |
+| B | 4의 TS 항목, 6, 7(`/design-sync` 포함) | `app/src/main/**`(`formats/types.ts` 제외), `app/src/renderer/**`, `.scratch/design-sync/keep-out-git-init-*/` | A의 tasks 3 커밋 통합 | Opus high — 동의 근거별 `--git-init` 전달, Project Settings 확인 창의 잠금·deep link·포커스·외부 변화 처리, 첫 구현 design-sync | typecheck·lint·test, design-sync 측정 통과, `verify.mjs --eval` PASS | 진행(1단계 main), 워커 `kogi-b` `ctx_48f44956b076`. 2단계는 리드 알림 뒤 'UI go' |
 | R-A·R-B | 각 배치 `/code-review` | 보고만 | 해당 배치 | Opus high — 두 배치 모두 경쟁·동의 경계가 핵심이다 | 🔴 0 | 대기 |
 | T | 8(`/runtime-test`) | `.scratch/keep-out-git-init/runtime/`, 보고만 | A·B 통합 | Sonnet high — 정해진 probe 목록을 격리 조건으로 실행하는 단계가 많고 판단은 적다 | spec 완료 조건 1–9 probe 로그 | 대기 |
 | (conductor) | 9(self-test, 실제 라운드는 리드 확인) | `docs/USABILITY-EVAL.md` | A 통합 | — | `self-test PASS`, exit 0 | 대기 |
