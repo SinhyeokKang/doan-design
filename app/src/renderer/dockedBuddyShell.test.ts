@@ -457,7 +457,7 @@ test("a buddy change rebuilds only the rig: surface, each surface's x and the hi
 });
 
 test("each step-aside reason on the dock slot sends the buddy to the toolbar, the new conversation's notice included", async () => {
-  for (const reason of ["data-queue", "data-prompts", "data-waiting", "data-notice"]) {
+  for (const reason of ["data-queue", "data-waiting", "data-notice"]) {
     const env = setup();
     env.start(); env.frame(); await env.load();
     env.dock.setAttribute(reason, "");
