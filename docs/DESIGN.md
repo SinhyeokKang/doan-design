@@ -637,6 +637,7 @@ Reference: `.doan/canvases/buddy-docked-motion.html` (canvas `buddy-docked-poc`;
 | Pointer | The ground, window, host and shadow take no pointer; a transparent corner of the host hands the pointer to the thread under it (`.ov-scroll` measured). One `.docked-buddy-hit` span over the host (`pointer-events: auto`, `cursor: pointer`, no tabindex, under the ground's `aria-hidden`) is clipped by a `clip-path: path()` of the still image's opaque pixels and shown only while the buddy is fully shown; a press on it keeps the composer's focus | Only the painted body takes a click, over the board's iframe too, since the browser hit-tests the clip-path. Measured: an opaque point hits `.docked-buddy-hit` on the Overview card and on the toolbar over the board (pointer cursor; a real click under Select moves the buddy), while the host's transparent corner hits `.ov-scroll` and the board. |
 | Layers | Queue pills `position: relative; z-index: 3` the thread's Jump to latest and the canvas panel's notice rows (`.cp-scroll > .doan-notice`) (`z-index: 3`, the slot's stacking context) over the slot's 2; the slot stays under portalled menus and tooltips (50), toasts (6) and the problem overlay (5). `[data-capture-snapshot]` makes `.docked-buddy` transparent like the other app marks | A queued row's text is never drawn over; a capture has no buddy. |
 | Thread end | 32 under the last item, Overview and canvas panel (`.thread-scroll` bottom padding) | Room above the buddy's 56 px box; the docked backdrop does not grow. |
+| Frame cost | While shown and moving it draws at most about 60 frames a second: on a 120 Hz display the frame loop keeps 120 callbacks a second and advances and draws every other one; at 60 Hz it draws all 60. It parks (0 callbacks) while the window is closed with the app running or the app is hidden, though `document.hidden` stays false there. A frame writes only the styles and attributes that changed. Compositing layers the buddy adds (CDP LayerTree): the WebGL canvas (`112×112 [Canvas]`) and, on the Overview only, a `1432×1436` mask layer for `.ov-main`'s rounded clip (`border-radius: 24px 0 0 24px`) over that canvas; the hit span is the host's first child, painted before the canvas, so it needs no layer | Measured at 1238 × 780 on the built-in 120 Hz display, 3 × 10 s: Overview idle 120 → 60 drawn frames/s, GPU process CPU 4.8 → 3.1 %; window closed 120 → 0. The Overview mask goes only with a uniform radius or no radius on `.ov-main`, which would change its right corners. |
 | Focus ring | With the field focused the card keeps its 1 px rgb(204,204,204) ring; the floor shadow lies on 16 of the card's 666 px top edge, translucent and blurred, and the ring reads through it | Checked on a zoomed screenshot only; there is no computed value for "visible". |
 
 ### Documented deviations from the draft
@@ -645,13 +646,14 @@ Reference: `.doan/canvases/buddy-docked-motion.html` (canvas `buddy-docked-poc`;
 
 ### Not verified
 
-- Motion values in the real app (hop heights, hide and reveal timings, blinks): they are pinned by the golden replay, not measured here; frame rate and GPU or memory cost.
+- Motion values in the real app (hop heights, hide and reveal timings, blinks): they are pinned by the golden replay, not measured here.
+- Frame rate on a display other than 60 or 120 Hz, and a minimized window (Playwright keeps `document.hidden` false there).
 - Real Radix tooltip and popover positions over the buddy's box, the picking and capture hints, and the slash popover in the app.
 - Keyboard focus rings other than the composer card's, reduced transparency, forced colours and dark mode.
 
 ### Regression pointers
 
-`dockedBuddyShell.test.ts` pins the ground structure, one WebGL context across slots, StrictMode and buddy swaps, the parked frame loop, floating-element reads and each buddy's measured offset, pivot and shadow centre. `DockedComposer.test.tsx` pins the slot's attributes and the layer rules; `ProjectOverview.test.tsx` the 32 px thread end; `ds/controls.test.ts` the capture snapshot list. Geometry above is a `.scratch/` probe only.
+`dockedBuddyShell.test.ts` pins the ground structure (the hit span first), one WebGL context across slots, StrictMode and buddy swaps, the parked frame loop (native window visibility included), the 60 fps cap at 120 and 60 Hz, unchanged frames writing nothing, floating-element reads and each buddy's measured offset, pivot and shadow centre. `DockedComposer.test.tsx` pins the slot's attributes and the layer rules; `ProjectOverview.test.tsx` the 32 px thread end; `ds/controls.test.ts` the capture snapshot list. Geometry above is a `.scratch/` probe only.
 
 ## Design navigation
 
