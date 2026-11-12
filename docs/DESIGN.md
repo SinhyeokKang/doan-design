@@ -1422,6 +1422,38 @@ Reference: `.doan/canvases/local-doan-files.html`, frames `setup-dialog`, `setup
 
 `ProjectSetupDialog.test.tsx` pins the field, the Will add line and the `git init` and `.git/info/exclude` chips. `AddProjectsPage.test.tsx` pins the card, the fact and the clone screen's disabled options. `ProjectSettingsPage.test.tsx` pins the section, the result line, the guidance and the reasons. `storageRules.test.ts` pins the rules behind them. `.scratch/runtime-test/local-doan-files/probe.mjs` checks focus return in the real app.
 
+## Keep out of Git outside a Git repository
+
+Reference: `.doan/canvases/keep-out-git-init.html`, frames `setup-form`, `setup-panel` and `project-settings`. Measured by `/design-sync` in the built app (`.scratch/design-sync/keep-out-git-init-screens/measure.mjs`, table `table.txt`): the draft in a hidden second window of the same Electron, both sides read with `getComputedStyle`, the app window hidden throughout. States were reached for real with temporary folders outside Git, the isolated home folder and the built CLI; a wrapper around the CLI answered a `--git-init` run with `git_missing`, `git_init_failed` or `cleanup_failed` (the last after a real `git init`, so the re-read finds a repository). 1,012 rows in 25 states (17 computed properties of each element and of its first code chip, text, code chips, alert icon and `aria-describedby`): 1,007 match and 5 are the documented differences below. The confirmation's role, name and description were read through CDP (`Accessibility.getFullAXTree`).
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Will add, outside Git | With Keep out of Git chosen and the folder outside Git (`notGit`, never the home folder or above it), the first line is `.git/` (code chip) “— a new Git repository”, with no “, if missing”; Set Up Project has `aria-describedby` on the list in every state | The line is the consent `--git-init` stands for. |
+| Setup panel line | `.ob-provider-help.storage-git-init` under the Doan files card: body-sm 14/20, `--text-subtle`, `--space-3` above; `git init` a nowrap chip on `--surface-inset`. Present only while Keep out of Git is chosen and the plan names `.git/`; the Set up button is described by it | The panel has no change list. |
+| Panel notices | Code chips in `.ob-project-notice` take `--surface-panel` on the notice's inset fill; `git_missing` and `cleanup_failed` of a setup keep Choose another folder, then Check again or Retry | |
+| Reason line outside Git | `.storage-reason` without the alert icon, “This folder isn’t a Git repository. Choosing Keep out of Git creates one here.”; Keep out of Git enabled. In the home folder the option stays disabled with the alert icon and “Doan doesn’t create a Git repository in your home folder.” | Informational, not a disabled reason. |
+| Confirmation | The shared `SettingsDialog`: compact `alertdialog`, title “Create a Git repository in `<~ path>`?” with the path as a chip, description with `git init` and `.doan/` chips and wired by `aria-describedby`, subtle Cancel and prominent Create Repository; Escape and Cancel return focus to the chosen radio | The Share confirmation gains the same description link. |
+| Result and errors | Saved’s caption line reads “Created a Git repository here. Doan’s lines stay in `.gitattributes`.” when the write’s `written` has `.git/`; the page’s error line chips `xcode-select --install` and the left `.git` path | |
+| After a failed creation | The folder is read again: a `.git` left behind removes the `.git/` line, the panel line and the reason line while the error stays | |
+
+### Documented differences from the draft
+
+- **First run’s button label.** The panel was measured on the Add Projects page, whose button reads “Set up and add”; the draft’s first-run tile reads “Set up and continue”. The label follows the use (`setUpLabel`); everything else on the button matches.
+- **The dialog’s position and inherited type.** The draft draws the confirmation in place; the app centres it as a fixed modal (297px auto margins at this window size), and the container reads the app body’s `normal` letter-spacing. Nothing paints with it.
+- **Whitespace in the dialog’s text.** The draft’s markup puts a line break between the description and the buttons, so its `textContent` has one more space.
+- **Sample paths.** Text that names a folder was compared with the draft’s sample path put in place of the temporary one.
+
+### Not verified
+
+- First run’s panel (it needs a signed-in agent) and the Saving state of the confirmed switch (`ps-5`); the long-path tiles (`ps-3`, the wrapping of `sf-5`) were read only with short temporary paths.
+- Dark mode, reduced transparency, hover and keyboard focus on the new elements (they add no interactive control beyond the shared dialog’s buttons).
+
+### Regression pointers
+
+`ProjectSetupDialog.test.tsx` pins the `.git/` line, the request’s `gitInit` and the chips; `Onboarding.test.tsx` and `projectStep.test.ts` the panel line, its re-plan on a radio change, the consent guard and the re-read after a failure; `ProjectSettingsPage.test.tsx`, `storageRules.test.ts` and `SettingsDialog.test.tsx` the confirmation flow, the reasons and the description link; `codeChips.test.tsx` the chip rule.
+
 ## Canvas row menu and export viewer
 
 Reference: `.doan/canvases/canvas-row-menu.html`, the frames `row-button`, `row-menu`, `trash-dialog`, `export-toast` and `viewer-shell`. Measured by `/design-sync` in the built app at 1280 × 800 (`.scratch/design-sync/canvas-row-menu/measure.mjs`): 13,380 property rows across every drawn state that could be reached, read with `getComputedStyle` in one Electron, the draft in a second window and the sidebar at its 220px default. The viewer was a file written by the built CLI's `doan export`, opened in a 960 × 600 window of the same Chromium. States were reached for real: a canvas that appeared while the app ran (unseen dot), `doan work start` in a terminal (spinner, Move to Trash unavailable), a held `init` (the locked sidebar), a held `export` (progress toast, Export unavailable), an unreadable file (error row), a temp canvas moved to the real Trash (success and comments-stay toasts). Probe-only seams: a wrapper script around the CLI that delays or fails one command, and `dialog.showSaveDialog` / `shell.trashItem` replaced in main for the save path and the refused-Trash toast.
