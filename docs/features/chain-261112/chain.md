@@ -75,3 +75,4 @@ lead는 링크 시작 전에 아래를 사용자에게 한 번에 묻고, 승인
 - 2026-11-12 lead(develop checkout): 사용자 요청으로 체인 파일을 작성했다. PR #177 병합과 시작 점검 승인 뒤 두 링크를 함께 시작한다.
 - 2026-11-12 lead: PR #177을 `36aee960`으로 병합했다. 시작 점검을 사용자가 승인했다. 1: 사용자가 Safari에서 export 파일을 열고 스크린숏을 남긴다. 2·3·6: 모두 승인. 4: 실제 HOME과 임시 `DOAN_RUNTIME`·repo, 계속 쓰는 userData로 바꾼다('로그인' 절 적용). 링크 2 conductor가 자기 브랜치에서 design.md와 tasks 9를 이 규칙으로 고친다. 5: 미리 정하지 않았다. 두 링크를 `8e9c33e9`에서 함께 시작했다.
 - 2026-11-13 lead: 사용자 요청으로 링크 3 `canvas-text-copy`를 더했다. 링크 1·2와 병렬이고, `fix/space-cursor-over-frame` PR 병합 뒤 시작한다. 링크 3 시작 전 점검은 시작할 때 묻는다.
+- 2026-11-13 lead: 링크 3 시작 전 점검 1–4를 사용자가 모두 승인했다. `fix/space-cursor-over-frame` PR이 병합되면 lead가 바로 링크 3을 시작한다.
