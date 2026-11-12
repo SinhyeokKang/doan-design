@@ -107,9 +107,11 @@ func GitEnv(base []string) []string {
 func GitInitArgs() []string { return []string{"init", "--quiet", "--template="} }
 
 // AtOrAboveHome mirrors ReadStorage ignoring a .git at or above HOME: Doan never makes a repository there either.
+// An unknown HOME (unset or empty) counts every folder as HOME, so a repository is never made at a HOME Doan
+// could not see.
 func AtOrAboveHome(root, home string) bool {
 	if home == "" {
-		return false
+		return true
 	}
 	if canonical, ok := gitDirectory(home); ok {
 		home = canonical

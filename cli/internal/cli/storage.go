@@ -149,20 +149,19 @@ func writeAttributes(root string) (bool, error) {
 
 // gitInitDecision says whether --storage local first creates a repository: only with --git-init, the user's
 // agreement, and only in a folder in no repository below HOME (ReadStorage already ignores a .git at or above it).
+// At or above HOME the refusal holds with or without the flag, so the agent never asks for an agreement the flag
+// would then refuse.
 func gitInitDecision(s repo.StorageInfo, root, home string, f Flags) (bool, *Error) {
-	if !f.GitInit {
-		return false, nil
-	}
-	if f.Storage != "local" {
+	if f.GitInit && f.Storage != "local" {
 		return false, usageError("--git-init needs --storage local")
 	}
-	if s.Reason != "not_git" {
+	if f.Storage != "local" || s.Reason != "not_git" {
 		return false, nil
 	}
 	if repo.AtOrAboveHome(root, home) {
 		return false, &Error{Code: "local_not_git", Message: "Doan doesn’t create a Git repository in your home folder or above it", NextSteps: []string{"Choose Include in Git (--storage repo), or set up a folder inside your home folder"}}
 	}
-	return true, nil
+	return f.GitInit, nil
 }
 
 // notFoundStorageReason is ls's error.storageReason: the app plans the repository Keep out of Git would create
@@ -185,10 +184,12 @@ func initGit(ctx Context, root string) (repo.ClaimedGit, *Error) {
 	if !errors.As(err, &failure) {
 		return repo.ClaimedGit{}, internal(err)
 	}
-	switch failure.Code {
-	case "git_missing":
+	switch {
+	case errors.Is(err, repo.ErrGitExists):
+		return repo.ClaimedGit{}, &Error{Code: "git_init_failed", Message: "Could not create a Git repository here, so nothing was set up", NextSteps: []string{"A .git appeared in this folder meanwhile; run `doan ls` again and retry"}}
+	case failure.Code == "git_missing":
 		return repo.ClaimedGit{}, &Error{Code: "git_missing", Message: "Git is not installed, so Doan cannot create a repository here", NextSteps: []string{"Ask the user to install the Command Line Tools (`xcode-select --install`), then retry; or choose Include in Git (--storage repo)"}}
-	case "cleanup_failed":
+	case failure.Code == "cleanup_failed":
 		return repo.ClaimedGit{}, gitCleanupFailure(failure.Path)
 	}
 	return repo.ClaimedGit{}, &Error{Code: "git_init_failed", Message: "Could not create a Git repository here, so nothing was set up", NextSteps: []string{"Ask the user to check that the folder is writable and that git works, then retry; or choose Include in Git (--storage repo)"}}

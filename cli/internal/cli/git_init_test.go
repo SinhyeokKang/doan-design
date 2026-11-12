@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -252,22 +253,40 @@ func TestGitInitSkipsAFolderAlreadyInARepository(t *testing.T) {
 	})
 }
 
+func assertHomeRefusal(t *testing.T, name string, failure *Error) {
+	t.Helper()
+	if failure == nil || failure.Code != "local_not_git" || ExitCode(failure.Code) != 5 || !strings.Contains(failure.Message, "doesn’t create a Git repository in your home folder") {
+		t.Fatalf("%s: %+v", name, failure)
+	}
+	// The agent must not be pointed back at the flag HOME refuses.
+	if steps := strings.Join(failure.NextSteps, "\n"); len(failure.NextSteps) == 0 || strings.Contains(steps, "--git-init") || !strings.Contains(steps, "Include in Git") {
+		t.Fatalf("%s: nextSteps %v", name, failure.NextSteps)
+	}
+}
+
 func TestGitInitHome(t *testing.T) {
 	g := newGitInitFolder(t)
 	for _, root := range []string{g.home, g.base} {
-		_, failure := Init(g.context(t), gitInitFlags(root, "local", true), nil)
-		if failure == nil || failure.Code != "local_not_git" || !strings.Contains(failure.Message, "doesn’t create a Git repository in your home folder") {
-			t.Fatalf("%s: %+v", root, failure)
+		for _, flag := range []bool{true, false} {
+			_, failure := Init(g.context(t), gitInitFlags(root, "local", flag), nil)
+			assertHomeRefusal(t, fmt.Sprintf("init %s --git-init=%v", root, flag), failure)
+			assertAbsent(t, root, ".git", ".doan")
 		}
-		// The agent must not be pointed back at the flag HOME refuses.
-		if steps := strings.Join(failure.NextSteps, "\n"); len(failure.NextSteps) == 0 || strings.Contains(steps, "--git-init") || !strings.Contains(steps, "Include in Git") {
-			t.Fatalf("%s: nextSteps %v", root, failure.NextSteps)
-		}
-		assertAbsent(t, root, ".git", ".doan")
+	}
+	// config at HOME: set up with repo storage first, which HOME allows.
+	if _, failure := Init(g.context(t), gitInitFlags(g.home, "repo", false), nil); failure != nil {
+		t.Fatalf("%+v", failure)
+	}
+	for _, flag := range []bool{true, false} {
+		_, failure := Config(g.context(t), gitInitFlags(g.home, "local", flag), nil)
+		assertHomeRefusal(t, fmt.Sprintf("config --git-init=%v", flag), failure)
+		assertAbsent(t, g.home, ".git")
 	}
 	if len(g.calls) != 0 {
 		t.Fatal(g.calls)
 	}
+	os.RemoveAll(filepath.Join(g.home, ".doan"))
+	os.Remove(filepath.Join(g.home, ".gitattributes"))
 	// A dotfiles repository at HOME does not count, so a folder under it gets its own repository.
 	putFile(t, g.home, ".git/HEAD", "ref: refs/heads/main\n")
 	project := filepath.Join(g.home, "designs")
@@ -280,6 +299,29 @@ func TestGitInitHome(t *testing.T) {
 	}
 	if data, _ := os.ReadFile(filepath.Join(g.home, ".git/info/exclude")); len(data) != 0 {
 		t.Fatalf("dotfiles exclude written: %q", data)
+	}
+}
+
+// HOME unset or empty (os.UserHomeDir fails): no folder is provably below HOME, so none gets a repository.
+func TestGitInitUnknownHomeRefuses(t *testing.T) {
+	g := newGitInitFolder(t)
+	ctx := g.context(t)
+	ctx.Home = ""
+	for _, flag := range []bool{true, false} {
+		_, failure := Init(ctx, gitInitFlags(g.root, "local", flag), nil)
+		assertHomeRefusal(t, fmt.Sprintf("init --git-init=%v", flag), failure)
+		assertAbsent(t, g.root, ".git", ".doan")
+	}
+	if _, failure := Init(ctx, gitInitFlags(g.root, "repo", false), nil); failure != nil {
+		t.Fatalf("%+v", failure)
+	}
+	for _, flag := range []bool{true, false} {
+		_, failure := Config(ctx, gitInitFlags(g.root, "local", flag), nil)
+		assertHomeRefusal(t, fmt.Sprintf("config --git-init=%v", flag), failure)
+		assertAbsent(t, g.root, ".git")
+	}
+	if len(g.calls) != 0 {
+		t.Fatal(g.calls)
 	}
 }
 
@@ -326,6 +368,20 @@ func TestGitInitFailuresWriteNothing(t *testing.T) {
 		}
 		if readFile(t, g.root, ".git/HEAD") != "ref: refs/heads/theirs\n" {
 			t.Fatal("another process's .git changed")
+		}
+	})
+	t.Run("a .git that appears before the claim", func(t *testing.T) {
+		g := newGitInitFolder(t)
+		os.Mkdir(filepath.Join(g.root, ".git"), 0755)
+		_, failure := initGit(g.context(t), g.root)
+		if failure == nil || failure.Code != "git_init_failed" || ExitCode(failure.Code) != 2 || len(g.calls) != 0 {
+			t.Fatalf("%+v %v", failure, g.calls)
+		}
+		if steps := strings.Join(failure.NextSteps, "\n"); !strings.Contains(steps, "appeared") || !strings.Contains(steps, "doan ls") || strings.Contains(steps, "writable") {
+			t.Fatalf("nextSteps: %v", failure.NextSteps)
+		}
+		if entries, _ := os.ReadDir(filepath.Join(g.root, ".git")); len(entries) != 0 {
+			t.Fatal("the existing .git changed")
 		}
 	})
 	t.Run("a .git that cannot be removed", func(t *testing.T) {
@@ -383,6 +439,29 @@ func TestGitInitRollsBackWhenALaterStepFails(t *testing.T) {
 	assertAbsent(t, g.root, ".git")
 }
 
+func TestGitInitLaterFailureAndUnremovableGitIsCleanupFailed(t *testing.T) {
+	g := newGitInitFolder(t)
+	locked := filepath.Join(g.root, ".git/locked")
+	t.Cleanup(func() { os.Chmod(locked, 0755) })
+	g.run = func(dir string) error {
+		putFile(t, dir, ".git/HEAD", "ref: refs/heads/main\n")
+		os.MkdirAll(filepath.Join(dir, ".git/objects"), 0755)
+		os.MkdirAll(filepath.Join(dir, ".git/refs/heads"), 0755)
+		putFile(t, dir, ".git/locked/file", "x")
+		return os.Chmod(locked, 0555)
+	}
+	_, failure := initWithRename(g.context(t), gitInitFlags(g.root, "local", true), nil, func(string, string) error {
+		return &os.LinkError{Op: "rename", Err: syscall.EIO}
+	})
+	gitdir := filepath.Join(g.root, ".git")
+	if failure == nil || failure.Code != "cleanup_failed" || ExitCode(failure.Code) != 5 || !strings.Contains(failure.Message, gitdir) {
+		t.Fatalf("%+v", failure)
+	}
+	if !slices.ContainsFunc(failure.NextSteps, func(s string) bool { return strings.Contains(s, gitdir) }) {
+		t.Fatalf("nextSteps: %v", failure.NextSteps)
+	}
+}
+
 func TestGitInitPathWithSpacesAndDecomposedUnicode(t *testing.T) {
 	g := newGitInitFolder(t)
 	root := filepath.Join(g.base, "my designs", "café")
@@ -408,7 +487,8 @@ func TestGitInitWithRealGitIgnoresGitDir(t *testing.T) {
 	os.Mkdir(elsewhere, 0755)
 	t.Setenv("GIT_DIR", elsewhere)
 	t.Setenv("GIT_WORK_TREE", g.base)
-	t.Setenv("GIT_CONFIG_PARAMETERS", "'init.templateDir'='"+g.base+"'")
+	// --template= would mask init.templateDir, so the leak check uses the branch name, which only the allow-list stops.
+	t.Setenv("GIT_CONFIG_PARAMETERS", "'init.defaultBranch'='leaked'")
 	t.Setenv("HOME", g.home)
 	ctx := Context{Start: g.base, Home: g.home, Git: repo.SystemGitHost(os.Environ())}
 	out, failure := Init(ctx, gitInitFlags(g.root, "local", true), nil)
@@ -422,6 +502,9 @@ func TestGitInitWithRealGitIgnoresGitDir(t *testing.T) {
 		t.Fatalf("GIT_DIR was used: %v", entries)
 	}
 	assertAbsent(t, g.root, ".git/hooks")
+	if head := readFile(t, g.root, ".git/HEAD"); strings.Contains(head, "leaked") {
+		t.Fatalf("GIT_CONFIG_PARAMETERS was used: %q", head)
+	}
 	cmd := exec.Command("git", "-C", g.root, "status", "--porcelain", "--untracked-files=all")
 	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + g.home}
 	if status, err := cmd.Output(); err != nil || len(status) != 0 {
@@ -452,6 +535,14 @@ func TestListRepoNotFoundCarriesStorageReason(t *testing.T) {
 			t.Errorf("%s: %+v", name, failure)
 		}
 	}
+	// Without --repo, the search starts at the working directory (the shell's re-read and the onboarding inspection).
+	_, failure = List(Context{Start: g.root, Home: g.home}, Flags{}, nil)
+	if failure == nil || failure.Code != "repo_not_found" || failure.StorageReason != "not_git" {
+		t.Fatalf("cwd: %+v", failure)
+	}
+	if _, failure := List(Context{Start: inRepo, Home: g.home}, Flags{}, nil); failure == nil || failure.Code != "repo_not_found" || failure.StorageReason != "" {
+		t.Fatalf("cwd in a repository: %+v", failure)
+	}
 	// Other commands' repo_not_found never carries it.
 	if _, failure := Config(Context{Start: g.base, Home: g.home}, Flags{Repo: g.root, Given: map[string]bool{}}, nil); failure == nil || failure.Code != "repo_not_found" || failure.StorageReason != "" {
 		t.Fatalf("%+v", failure)
@@ -481,6 +572,9 @@ func TestGitInitDecision(t *testing.T) {
 		{"already a repository", repo.StorageInfo{Storage: "repo"}, "/Users/sam/code/app", local, false, ""},
 		{"git unreadable", repo.StorageInfo{Storage: "unknown", Reason: "git_unreadable"}, "/Users/sam/code/app", local, false, ""},
 		{"home", notGit, "/Users/sam", local, false, "local_not_git"},
+		{"home without the flag", notGit, "/Users/sam", gitInitFlags("", "local", false), false, "local_not_git"},
+		{"repo storage at home", notGit, "/Users/sam", gitInitFlags("", "repo", false), false, ""},
+		{"repository at home", repo.StorageInfo{Storage: "repo"}, "/Users/sam", gitInitFlags("", "local", false), false, ""},
 		{"above home", notGit, "/Users", local, false, "local_not_git"},
 		{"repo storage", notGit, "/Users/sam/code/app", gitInitFlags("", "repo", true), false, "usage_error"},
 		{"flag alone", notGit, "/Users/sam/code/app", gitInitFlags("", "", true), false, "usage_error"},
@@ -496,6 +590,15 @@ func TestGitInitDecision(t *testing.T) {
 				t.Fatalf("got %v %q; want %v %q", create, code, c.create, c.code)
 			}
 		})
+	}
+}
+
+func TestGitInitDecisionUnknownHome(t *testing.T) {
+	notGit := repo.StorageInfo{Storage: "repo", Reason: "not_git"}
+	for _, flag := range []bool{true, false} {
+		if create, failure := gitInitDecision(notGit, "/Volumes/work/app", "", gitInitFlags("", "local", flag)); create || failure == nil || failure.Code != "local_not_git" {
+			t.Fatalf("--git-init=%v: %v %+v", flag, create, failure)
+		}
 	}
 }
 
@@ -518,6 +621,11 @@ func TestNotFoundStorageReason(t *testing.T) {
 }
 
 func TestOnboardingStepsForGitInitFailures(t *testing.T) {
+	// The table knows only the code, and clone needs Git whatever the storage, so --storage repo is advice for
+	// selecting a folder only.
+	if steps := strings.Join(onboardingFailure("git_missing", "m").NextSteps, "\n"); strings.Contains(steps, "or use --storage repo") || !strings.Contains(steps, "when selecting a folder") {
+		t.Errorf("git_missing: %s", steps)
+	}
 	for code, want := range map[string]string{"git_missing": "xcode-select --install", "cleanup_failed": "remove it or keep it"} {
 		if steps := onboardingFailure(code, "m").NextSteps; !strings.Contains(strings.Join(steps, "\n"), want) {
 			t.Errorf("%s: %v", code, steps)

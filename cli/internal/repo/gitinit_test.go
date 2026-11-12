@@ -111,8 +111,11 @@ func TestAtOrAboveHome(t *testing.T) {
 	if !AtOrAboveHome(home, link) {
 		t.Fatal("home through a link")
 	}
-	if AtOrAboveHome(home, "") {
-		t.Fatal("an unknown home refuses nothing")
+	// Without a known HOME no folder is provably below it, so every folder counts as HOME.
+	for _, root := range []string{filepath.Join(home, "code"), filepath.Join(base, "other")} {
+		if !AtOrAboveHome(root, "") {
+			t.Fatalf("an unknown home must refuse %s", root)
+		}
 	}
 }
 

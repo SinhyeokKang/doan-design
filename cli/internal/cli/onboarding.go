@@ -82,7 +82,7 @@ func onboardingFailure(code, message string) *Error {
 		"no_ready_agent":        {"Sign in to an agent first (`doan onboarding sign-in`)"},
 		"local_not_git":         {"Choose Include in Git (--storage repo), or select a Git repository and inspect again"},
 		"local_exclude_failed":  {"Ask the user to make the repository Git metadata and exclude file readable and writable, then inspect and retry"},
-		"git_missing":           {"Ask the user to install the Command Line Tools (`xcode-select --install`), then inspect again; or use --storage repo"},
+		"git_missing":           {"Ask the user to install the Command Line Tools (`xcode-select --install`), then retry; when selecting a folder, Include in Git (--storage repo) needs no Git"},
 		"cleanup_failed":        {"Tell the user the path in the message; ask them to remove it or keep it, then inspect again"},
 		"no_project":            {"Select or clone a project first (`doan onboarding project select` or `clone`)"},
 	}[code]
