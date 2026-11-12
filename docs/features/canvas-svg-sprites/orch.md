@@ -24,7 +24,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| BP | 작업 1, 2 (PoC) + 작업 6 마지막 재비교(후속 Task) | `.scratch/canvas-svg-sprites/`, `tasks.md` 'PoC 기록' | 없음 | Opus high — 측정 설계와 판정이 결과를 좌우하고, 틀리면 설계 전체가 흔들린다 | 경우별 스크린숏·bbox·요청 로그, export 파일 경로(Safari용) | 완료 `bac40bf5` → 통합. Safari는 사용자 확인 대기 |
+| BP | 작업 1, 2 (PoC) + 작업 6 마지막 재비교(후속 Task) | `.scratch/canvas-svg-sprites/`, `tasks.md` 'PoC 기록' | 없음 | Opus high — 측정 설계와 판정이 결과를 좌우하고, 틀리면 설계 전체가 흔들린다 | 경우별 스크린숏·bbox·요청 로그, export 파일 경로(Safari용) | 완료 `bac40bf5` → 통합. Safari 12개 모두 Chromium과 같음(사용자 스크린숏, 2026-11-13) |
 | BC | 작업 3, 4 (`/tdd`, `/implement`) | `cli/internal/canvas/`, `cli/internal/check/`, `cli/internal/export/`(`exporttest` 포함), `cli/internal/cli/check.go` | BP | Opus high — check·export 일치, reach 포함 관계, tokenizer `<template>` 함정이 있다 | `go test ./...`, `go vet ./...`, `verify.mjs`, repo 복사본 `doan check` 새 finding 0 | 완료 `36d23a42`·`8fb90bb2`·`ed2474f4` → 통합 `4ae87270`·`6cf1176f`·`ef77fc3d` |
 | BG | 작업 5 (가이드·preset) | `cli/internal/cli/skill.md`, `cli/internal/designskill/presets/document.md` | BP | Sonnet medium — 정해진 문장을 예산 안에 넣는 작업이다 | `go test ./...`(`TestSkillGuideFitsToolOutputCap`), `doan skill --json` 출력 | 완료 `9abde758`·`284a45d5` → 통합(dispatch `ctx_3b9cb8cc657f`) |
 | R | 작업 6 `/code-review` (BC+BG 통합 diff) | 보고만 | BC, BG 통합 | Opus high — check·export 판정 일치와 고아 제거를 독립적으로 판단해야 한다 | 🔴 0 | 1라운드 완료: 🔴0 🟡1 ⚪6(`.scratch/review-R.md`) → 수정 라운드 1 진행 |
