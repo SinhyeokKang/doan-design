@@ -8,7 +8,8 @@ import { BUNDLED_CLAUDE_SDK, createAccountPrepare, createPrepare, judgmentCode, 
 import { openFolderStore } from "../folderStore";
 import { initialAuthState } from "../agentAuth/state";
 import type { Lease } from "../agentAuth/manager";
-import type { AccountConnection, AuthState } from "../agentAuth/types";
+import type { AccountConnection, AuthState, ConnectionJudgment, ConversationOwner } from "../agentAuth/types";
+import { judgeConnection } from "../agentAuth/connection";
 import { CLAUDE_REGISTRY_FLOOR, CODEX_ROLLOUT_FLOOR, MINIMUM_VERSIONS, storedVersionAtLeast } from "./sessions";
 import { conversationHandler } from "./ipc";
 import { processStart } from "./io";
@@ -211,15 +212,59 @@ it.each([
 
 // Another account's conversation (account_changed) can continue after signing in to that account again; an earlier
 // sign-in's (sign_in_changed) never can. A retry or another agent brings back neither.
-it("reads another account or workspace as account_changed, an unprovable or replaced sign-in as sign_in_changed, and keeps the other refusals", () => {
-  for (const cause of ["account_mismatch", "workspace_mismatch"] as const) expect(judgmentCode({ decision: "reject", cause }), cause).toBe("account_changed");
-  for (const cause of ["account_unverifiable", "profile_mismatch"] as const) expect(judgmentCode({ decision: "reject", cause }), cause).toBe("sign_in_changed");
-  expect(judgmentCode({ decision: "reject", cause: "session_unavailable" })).toBe("session_unavailable");
-  expect(judgmentCode({ decision: "reject", cause: "provider_mismatch" })).toBe("session_unavailable");
-  expect(judgmentCode({ decision: "reject", cause: "busy" })).toBe("busy");
-  expect(judgmentCode({ decision: "reject", cause: "session_in_use" })).toBe("session_in_use");
-  expect(judgmentCode({ decision: "reject", cause: "sign_out_failed" })).toBe("not_logged_in");
-  expect(judgmentCode({ decision: "reject", cause: "unverified" })).toBe("not_logged_in");
-  expect(judgmentCode({ decision: "reauth", cause: "not_connected" })).toBe("not_logged_in");
-  expect(judgmentCode({ decision: "legacy" })).toBe("session_unavailable");
+it("reads another account as account_changed, an unprovable or replaced sign-in as sign_in_changed, and keeps the other refusals", () => {
+  expect(judgmentCode({ decision: "reject", cause: "account_mismatch" }, "claude")).toBe("account_changed");
+  expect(judgmentCode({ decision: "reject", cause: "account_mismatch" }, "copilot")).toBe("account_changed");
+  expect(judgmentCode({ decision: "reject", cause: "workspace_mismatch" }, "claude")).toBe("account_changed");
+  for (const cause of ["account_unverifiable", "profile_mismatch"] as const) expect(judgmentCode({ decision: "reject", cause }, "claude"), cause).toBe("sign_in_changed");
+  expect(judgmentCode({ decision: "reject", cause: "session_unavailable" }, "claude")).toBe("session_unavailable");
+  expect(judgmentCode({ decision: "reject", cause: "provider_mismatch" }, "claude")).toBe("session_unavailable");
+  expect(judgmentCode({ decision: "reject", cause: "busy" }, "claude")).toBe("busy");
+  expect(judgmentCode({ decision: "reject", cause: "session_in_use" }, "claude")).toBe("session_in_use");
+  expect(judgmentCode({ decision: "reject", cause: "sign_out_failed" }, "claude")).toBe("not_logged_in");
+  expect(judgmentCode({ decision: "reject", cause: "unverified" }, "claude")).toBe("not_logged_in");
+  expect(judgmentCode({ decision: "reauth", cause: "not_connected" }, "claude")).toBe("not_logged_in");
+  expect(judgmentCode({ decision: "legacy" }, "claude")).toBe("session_unavailable");
+});
+// Only a Claude Code conversation whose two organization values are both known says "another organization"; a missing
+// value or Copilot's host keeps the account wording, which is the safe reading.
+it("reads another organization of a Claude Code account as workspace_changed and every other workspace_mismatch as account_changed", () => {
+  const owner: ConversationOwner = { kind: "doan", provider: "claude", connectionId: "conn-1", accountId: "acct-1", workspaceId: "org-1", profile: "claude" };
+  const connection = (over: Partial<AccountConnection["account"]> & { connectionId?: string } = {}): AccountConnection => {
+    const { connectionId = "conn-1", ...account } = over;
+    return { provider: "claude", connectionId, profile: "claude", account: { id: "acct-1", workspace: "org-2", ...account } };
+  };
+  const judged = (who: ConversationOwner, current: AccountConnection) => judgeConnection(who, { ...initialAuthState(current.provider, current), verified: true, generation: 1 }, { exists: true, occupancy: "free" });
+  const code = (who: ConversationOwner, current: AccountConnection, provider: "claude" | "copilot" = "claude") => judgmentCode(judged(who, current) as Exclude<ConnectionJudgment, { decision: "resume" }>, provider);
+  expect(code(owner, connection())).toBe("workspace_changed");
+  // No stable account ID: the same connection's organization still compares.
+  expect(code({ ...owner, accountId: null }, connection({ id: null }))).toBe("workspace_changed");
+  expect(code({ ...owner, workspaceId: null }, connection())).toBe("account_changed");
+  expect(code(owner, connection({ workspace: null }))).toBe("account_changed");
+  expect(code({ ...owner, provider: "copilot" }, { ...connection(), provider: "copilot" }, "copilot")).toBe("account_changed");
+  expect(code(owner, connection({ id: "acct-2" }))).toBe("account_changed");
+  // Another account that also differs in organization is still another account.
+  expect(code(owner, connection({ id: "acct-2", workspace: "org-3" }))).toBe("account_changed");
+});
+// A sign-in whose check found another account or organization carries account_mismatch; both the lease and the recheck
+// read it as not_logged_in before the conversation is judged, so it never reaches workspace_changed.
+it("keeps a send on a login state with an account_mismatch error as not_logged_in", async () => {
+  const profile = temp(), root = temp();
+  mkdirSync(join(profile, "projects", "repo"), { recursive: true }); mkdirSync(join(profile, "sessions"), { recursive: true });
+  const sessionId = "4f0c8c1e-6a43-4c8e-9a39-6c1f5b7a2d10";
+  writeFileSync(join(profile, "projects", "repo", `${sessionId}.jsonl`), "{}\n");
+  const connection: AccountConnection = { provider: "claude", connectionId: "conn-1", profile: "claude", account: { id: "acct-1", workspace: "org-2" } };
+  const state: AuthState = { ...initialAuthState("claude", connection), verified: true, generation: 1, error: { code: "account_mismatch" } };
+  mocks.run.mockResolvedValue({ exitCode: 0, timedOut: false, stdout: "2.1.312 (Claude Code)" });
+  const stored = {
+    conversationId: "c1", root, canvas: { path: ".doan/canvases/a.html" }, title: "t", state: "current" as const,
+    owner: { kind: "doan" as const, provider: "claude" as const, connectionId: "conn-1", accountId: "acct-1", workspaceId: "org-1", profile: "claude" },
+    session: { runtime: "claude" as const, origin: "new" as const, sessionId, configDir: profile, cwd: root },
+  };
+  const lease = async (): Promise<Lease> => ({ command: "/bin/claude", env: { PATH: "/shell/bin" }, profileDir: profile, release: async () => {} });
+  const prepare = (acquire: AccountRuntime["acquire"]) => createAccountPrepare({ state: () => state, check: vi.fn(), checked: vi.fn(async () => {}), confirm: vi.fn(), acquire }, "/Applications/doan.app/Contents/Resources/bin/doan");
+  // The manager's own lease refuses first, with the cause its readiness reports.
+  await expect(prepare(vi.fn(async () => { throw new Error("account_mismatch"); }))({ root, mode: "resume", text: "x", anchors: [] }, stored)).rejects.toThrow("not_logged_in");
+  // A lease that was already held still fails the recheck.
+  await expect(prepare(vi.fn(lease))({ root, mode: "resume", text: "x", anchors: [] }, stored)).rejects.toThrow("not_logged_in");
 });

@@ -92,12 +92,16 @@ function accountCode(cause: string): string {
   return ["busy", "cli_missing", "cli_install_failed", "session_in_use"].includes(cause) ? cause : "session_unavailable";
 }
 // A conversation another sign-in owns never runs on the current one, so neither a retry nor another agent helps.
-// account_changed: another account or workspace, which signing in to that account again brings back (the resume rebinds).
+// account_changed: another account, or a workspace change other than a known Claude organization, which signing in to
+// that account again brings back (the resume rebinds).
+// workspace_changed: a Claude Code conversation whose organization differs while both organizations are known, so
+// the notice can name the organization instead of the account.
 // sign_in_changed: a sign-in that cannot be proven the same (no stable account ID, and every sign-in mints a new
 // connection) or another Doan profile, which no sign-in brings back.
-export function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "resume" }>): string {
+export function judgmentCode(judgment: Exclude<ConnectionJudgment, { decision: "resume" }>, provider: Provider): string {
   if (judgment.decision === "reauth") return "not_logged_in";
   if (judgment.decision === "legacy") return "session_unavailable";
+  if (judgment.cause === "workspace_mismatch" && provider === "claude" && judgment.organizationsKnown) return "workspace_changed";
   if (judgment.cause === "account_mismatch" || judgment.cause === "workspace_mismatch") return "account_changed";
   if (judgment.cause === "account_unverifiable" || judgment.cause === "profile_mismatch") return "sign_in_changed";
   return ["busy", "session_in_use"].includes(judgment.cause) ? judgment.cause : ["sign_out_failed", "unverified"].includes(judgment.cause) ? "not_logged_in" : "session_unavailable";
@@ -254,7 +258,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         const current = auth.state(provider);
         // An unchecked Copilot connection runs as verified; recheck() already refused any check or write-back failure.
         const judgment = judgeConnection(stored.owner, adapter.verifyByRun && !current.error ? { ...current, verified: true } : current, { exists, occupancy });
-        if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment));
+        if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment, provider));
       }
       // Every conversation run, Claude's per turn: its sandbox setting and this turn's pasted images may differ. A list
       // read runs no model tool, so it gets none.

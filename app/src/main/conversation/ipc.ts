@@ -233,7 +233,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
       }
       throw new Error("bad_request");
     } catch (error) {
-      const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "cli_install_failed", "credential_override", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale", "project_busy", "not_running", "queue_limit", "account_changed", "sign_in_changed"];
+      const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "cli_install_failed", "credential_override", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale", "project_busy", "not_running", "queue_limit", "account_changed", "workspace_changed", "sign_in_changed"];
       const code = error instanceof Error ? error.message : "unknown";
       if (code === "attachment_missing" && error instanceof Error && "missing" in error && Array.isArray(error.missing)) {
         return { error: code, missing: error.missing, ...("replaced" in error && Array.isArray(error.replaced) ? { replaced: error.replaced } : {}) };

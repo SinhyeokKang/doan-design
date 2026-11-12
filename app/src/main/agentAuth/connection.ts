@@ -15,7 +15,9 @@ export function judgeConnection(owner: ConversationOwner, state: AuthState, sess
   if (owner.accountId === null || current.account.id === null) {
     if (owner.connectionId !== current.connectionId) return { decision: "reject", cause: "account_unverifiable" };
   } else if (owner.accountId !== current.account.id) return { decision: "reject", cause: "account_mismatch" };
-  if (owner.workspaceId !== current.account.workspace) return { decision: "reject", cause: "workspace_mismatch" };
+  if (owner.workspaceId !== current.account.workspace) {
+    return { decision: "reject", cause: "workspace_mismatch", ...(owner.workspaceId !== null && current.account.workspace !== null ? { organizationsKnown: true as const } : {}) };
+  }
   if (owner.profile !== current.profile) return { decision: "reject", cause: "profile_mismatch" };
   if (!session.exists) return { decision: "reject", cause: "session_unavailable" };
   if (session.occupancy !== "free") return { decision: "reject", cause: session.occupancy === "occupied" ? "session_in_use" : "session_unavailable" };
