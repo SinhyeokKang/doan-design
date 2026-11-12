@@ -67,6 +67,20 @@
   - 열려 있는 데스크톱 세션이 살아 있는 것으로 판정되지 않는다(H3에서 호스트 `ps`가 못 찾는 경우 포함).
   - 호스트 PID 영역을 기록에서 가려낼 방법을 찾지 못한다.
 
+#### PoC 결과 (2026-11-12)
+
+- 환경: Claude 데스크톱 앱 5.1231.2, 번들 claude-code 2.1.321. 같은 기기의 터미널 CLI는 2.1.322다. 사람이 데스크톱 앱에서 Code 세션 하나를 열었고, 지휘자가 probe를 읽기 전용으로 실행했다.
+- 디렉터리: 데스크톱 세션의 기록은 기본 프로필 `~/.claude/sessions/`에 생긴다. 세션을 열기 전에는 비어 있었다. 이 기기의 터미널 CLI는 설정된 프로필(`CLAUDE_CONFIG_DIR`)을 쓰므로 두 기록은 다른 디렉터리에 있다.
+- 파일: `<pid>.json` 하나와 `<pid>.<sha256>.key` 하나다. 다른 이름의 파일은 없었다(H4 아님).
+- 기록 필드: `pid`, `sessionId`, `cwd`, `startedAt`, `procStart`, `version`, `peerProtocol`, `peerFeatures`, `kind`, `entrypoint`, `hostSessionId`, `pidDomain`, `asksForConvertedSkills`(`null`), `messagingSocketPath`, `name`, `nameSource`, `nameSince`, `status`, `updatedAt`, `statusUpdatedAt`. 터미널 CLI 기록과 비교하면 `hostSessionId`가 더 있다. `version`과 `cwd`가 있다(H2 아님).
+- 값: `kind`는 `interactive`, `version`은 `2.1.321`, `entrypoint`는 `claude-desktop`이다. 실행 파일은 데스크톱 앱 번들 안에 있다. 호스트 `ps`가 그 `pid`를 찾고 시작 시각이 `procStart`와 같다(살아 있음, H1·H3 아님).
+- 세션 ID: 사람이 알려 준 데스크톱 세션 ID(`local_` 접두사가 붙은 형태)는 `sessionId`와 같지 않고 `hostSessionId`와 같다. `sessionId`는 데스크톱 앱이 띄운 claude-code 프로세스의 세션 UUID다.
+- 반복: idle 상태에서 1초 간격으로 130번 이상, 사람이 보낸 프롬프트가 도는 동안(백그라운드 Bash 작업과 서브에이전트 포함, `status` `busy` 표본 98번) 다시 실행했다. 기록은 매번 하나였고 모든 단계를 통과했다. 사라지는 기록(H5)이나 비대화형 기록은 없었다.
+- 세션을 닫은 뒤: 기록이 지워져 디렉터리가 비었다. 낡은 기록은 남지 않았다.
+- PID 영역: 데스크톱 기록과 터미널 CLI 기록 모두 `pidDomain`이 `"darwin"`이다. Claude Code 2.1.322 실행 파일을 보면 macOS에서는 이 고정 문자열을 쓰고, Linux와 WSL에서는 machine-id와 PID 네임스페이스를 붙인 값을 쓴다.
+- 결론: 기록이 모든 단계를 통과하므로 '멈추고 묻는 경우'였다. BACKLOG의 결함은 2.1.321에서 재현되지 않는다(2.1.309에서는 달랐을 수 있다). 사람은 새 판정 규칙을 그대로 구현하기로 했다. 이 규칙은 데스크톱과 관계없이 프로필 전체를 막는 경우(Claude Code 자체의 `bg`·`daemon` 기록, 크래시로 남은 형식이 어긋난 낡은 기록, `ENOENT` 경합)를 푼다.
+- 호스트 PID 영역 판별(지휘자 판단, 위 관찰 근거): `pidDomain`이 없거나 `"darwin"`이면 호스트 영역이다. 다른 문자열이면 호스트가 아닌 영역이다. 문자열이 아니면 식별자를 읽을 수 없는 것으로 보고 `unknown`이다.
+
 ### 새 판정 규칙
 
 원칙: **재개 대상 세션을 쥐고 있을 수 있는 기록만 재개를 막는다.** spec.md '왜 fail closed인가'의 안전 이유는 그대로 지킨다.
