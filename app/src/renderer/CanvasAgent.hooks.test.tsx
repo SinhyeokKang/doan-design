@@ -291,6 +291,42 @@ describe("DotField lifecycle", () => {
     expect(posted).toEqual([]);
   });
 
+  // The ResizeObserver calls back once right after observe(): the same size again would clear the field drawn at start.
+  test("a resize to the size last sent sends nothing", () => {
+    render(field(true), attach);
+    posted = [];
+    resize!();
+    expect(posted).toEqual([]);
+    rect = { width: 300, height: 100 };
+    resize!(); resize!();
+    expect(posted).toEqual([{ kind: "size", size: { width: 300, height: 100, ratio: 2 } }]);
+  });
+
+  // The real start: the canvas is transferred before the Worker's script has loaded, so a load failure would leave the
+  // field empty with nothing in the log.
+  test("the real Worker gets the transferred canvas, and a load failure is logged", () => {
+    const made: { url: string; options: unknown; listeners: Map<string, (event: unknown) => void>; messages: unknown[][] }[] = [];
+    vi.stubGlobal("Worker", class {
+      record = { url: "", options: undefined as unknown, listeners: new Map<string, (event: unknown) => void>(), messages: [] as unknown[][] };
+      constructor(url: URL, options: unknown) { this.record.url = String(url); this.record.options = options; made.push(this.record); }
+      addEventListener(name: string, listener: (event: unknown) => void) { this.record.listeners.set(name, listener); }
+      postMessage(...args: unknown[]) { this.record.messages.push(args); }
+      terminate() {}
+    });
+    const offscreen = { width: 0, height: 0 };
+    const real = { ...node, transferControlToOffscreen: () => offscreen };
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      render(() => DotField({ running: true }), () => { if (!hooks.refs[0]!.current) hooks.refs[0]!.current = real; });
+      expect(made).toHaveLength(1);
+      expect(made[0]!.url).toMatch(/dotFieldWorker\.ts$/);
+      expect(made[0]!.options).toEqual({ type: "module" });
+      expect(made[0]!.messages[0]).toEqual([{ kind: "start", canvas: offscreen, size: { width: 120, height: 60, ratio: 2 }, color: "rgb(255, 255, 255)", reducedMotion: false }, [offscreen]]);
+      made[0]!.listeners.get("error")!({ message: "blocked" });
+      expect(error).toHaveBeenCalled();
+    } finally { error.mockRestore(); }
+  });
+
   // Records each arc's radius to tell near dots (bigger than the base 1.5px) from far ones.
   function nearArcs(width: number, height: number) {
     const near: { x: number; y: number }[] = [];
