@@ -76,5 +76,6 @@
 - 프레임 `placement`: 사이드바가 보일 때 Home·캔버스 페이지에서 사이드바 아래쪽 위의 카드, 사이드바를 숨겼을 때의 왼쪽 아래 카드, 오른쪽 아래 토스트가 함께 떠 있는 경우, 좁은 창(960×600).
 - 프레임 `motion`(사용자 요청, 2026-11-13): 카드와 토스트의 들어오고 나가는 모션을 반복 재생하는 데모 타일(실제 속도, 5배 느리게, 토스트, reduced motion). 반복 주기(3000ms, 15000ms)는 보드 데모 상수다.
 - 기존 셸·사이드바·토스트는 출시된 코드와 DESIGN.md에서 그대로 옮긴다.
+- 사용자가 앱에서 초안(`card`, `placement`, `motion`, 커밋 `e7377b83`까지)을 확정했다(2026-11-13). 모달에는 `--shadow-floating`과 이 모션을 적용하지 않는다(모달은 이미 12px 모션과 스크림이 있다).
 - 사용자 결정(2026-11-13): 좁은 창에서 사이드바를 숨긴 캔버스 페이지는 카드가 캔버스 도구줄 시작을 덮는다. 드문 경우이고 카드를 닫으면 풀리므로 그대로 둔다.
 - 초안(`022b292b`)이 정한 것: 카드 폭은 240px 고정(사이드바 폭과 무관, 사용자 결정 2026-11-13), 창 왼쪽·아래 16, 버튼은 위아래로 쌓아 꽉 채움(`Star on GitHub ↗` prominent, 닫기 subtle), 실패 줄은 문구와 버튼 사이, 면은 불투명 `--surface-popover`(blur 없음), z-index는 토스트와 같은 6, region 이름 `Doan on GitHub`, 문구 `Find Doan useful? It’s open source on GitHub.`(두 카드 같음), 실패 줄 `Couldn’t open GitHub in your browser. Try again, or find Doan at https://github.com/SinhyeokKang/doan-design`.

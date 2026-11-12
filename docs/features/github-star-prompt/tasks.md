@@ -2,7 +2,7 @@
 
 각 커밋 경계 앞에서 `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app test`를 돌린다.
 
-1. [ ] **초안 (`/design-draft`).** design.md '초안 요청'의 `card`, `placement`.
+1. [x] **초안 (`/design-draft`).** design.md '초안 요청'의 `card`, `placement`.
    - 확인: `doan check --json --repo .`와 `doan ls --json --repo .`가 통과하고, 사용자가 앱에서 초안을 확인했다.
 2. [ ] **테스트 (`/tdd`).** design.md '순수 함수' 1–5와 main·renderer 연결.
    - `starPromptDue`: 19턴 false, 20턴 true, `deferredUntil` 전 false, `done`이면 false.
