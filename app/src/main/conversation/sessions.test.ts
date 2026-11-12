@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { CLAUDE_REGISTRY_FLOOR, CODEX_ROLLOUT_FLOOR, MINIMUM_VERSIONS, parseCliVersion, parseSessionRecords, pickSession, sessionAvailability, SESSION_TAIL_BYTES, storedVersionAtLeast, versionStatus } from "./sessions";
+import { CLAUDE_REGISTRY_FLOOR, CODEX_ROLLOUT_FLOOR, MINIMUM_VERSIONS, mergeOccupancy, parseCliVersion, parseSessionRecords, pickSession, registryIdentity, registryRecordVerdict, sessionAvailability, SESSION_TAIL_BYTES, storedVersionAtLeast, versionStatus } from "./sessions";
 import { agentEnv } from "./environment";
 import type { SessionRecord, AvailabilityFacts, UnavailableReason } from "./types";
 
@@ -103,6 +103,61 @@ describe("agent CLI versions", () => {
     ["0.157.0", false], ["0.99.0", false], ["v0.164.0", false], ["0.164.0 x", false], [" 0.164.0", false], ["0.164", false], ["0.164.0+build", false], ["", false], [164, false], [null, false], [undefined, false],
   ] as const)("accepts a stored version %j against the floor only as a whole x.y.z[-suffix]: %s", (value, accepted) => {
     expect(storedVersionAtLeast(value, "0.158.0")).toBe(accepted);
+  });
+});
+
+describe("Claude registry records", () => {
+  const start = "Thu Nov 12 09:00:00 2026";
+  // The shape Claude desktop's bundled claude-code 2.1.321 wrote (PoC); every value here is fake.
+  const desktop = { pid: 4242, sessionId: "desktop-uuid", cwd: "/work", startedAt: 1, procStart: start, version: "2.1.321", peerProtocol: 1, peerFeatures: [],
+    kind: "interactive", entrypoint: "claude-desktop", hostSessionId: "local_fake", pidDomain: "darwin", asksForConvertedSkills: null, messagingSocketPath: "/tmp/fake.sock",
+    name: "n", nameSource: "auto", nameSince: 1, status: "idle", updatedAt: 1, statusUpdatedAt: 1 };
+  it("reads the identity liveness needs from the file name and the record", () => {
+    expect(registryIdentity("4242.json", desktop)).toEqual({ pid: 4242, procStart: start, host: true });
+    const { pidDomain: _, ...noDomain } = desktop;
+    expect(registryIdentity("4242.json", noDomain)).toEqual({ pid: 4242, procStart: start, host: true });
+    expect(registryIdentity("4242.json", { ...desktop, pidDomain: "linux:machine-id:4026531836" })).toEqual({ pid: 4242, procStart: start, host: false });
+  });
+  it("cannot tell whether a record lives when its identity is unreadable", () => {
+    for (const raw of [null, [], "x", { ...desktop, pid: 4243 }, { ...desktop, pid: "4242" }, { ...desktop, pid: undefined }, { ...desktop, procStart: undefined },
+      { ...desktop, procStart: 1 }, { ...desktop, procStart: "not a date" }, { ...desktop, pidDomain: null }, { ...desktop, pidDomain: 1 }, { ...desktop, pidDomain: { os: "darwin" } }]) {
+      expect(registryIdentity("4242.json", raw)).toBeNull();
+    }
+  });
+  it("skips a dead record whatever its other fields", () => {
+    for (const raw of [desktop, { ...desktop, version: "2.1.200" }, { ...desktop, version: null, cwd: "relative", kind: 3, sessionId: "" }, { pid: 4242, procStart: start }]) {
+      expect(registryRecordVerdict(raw, "desktop-uuid", "dead")).toBe("skip");
+    }
+  });
+  it("judges a live intact record by its sessionId alone, whatever its kind", () => {
+    expect(registryRecordVerdict(desktop, "other", "live")).toBe("skip");
+    expect(registryRecordVerdict(desktop, "desktop-uuid", "live")).toBe("occupied");
+    for (const kind of ["bg", "daemon", "daemon-worker", "future-kind"]) {
+      expect(registryRecordVerdict({ ...desktop, kind }, "other", "live")).toBe("skip");
+      expect(registryRecordVerdict({ ...desktop, kind }, "desktop-uuid", "live")).toBe("occupied");
+    }
+  });
+  it("cannot trust the sessionId of a live record below the floor or in another shape", () => {
+    expect(CLAUDE_REGISTRY_FLOOR).toBe("2.1.284");
+    for (const patch of [{ version: "2.1.283" }, { version: "v2.1.400" }, { version: undefined }, { version: 2 }, { cwd: undefined }, { cwd: "relative" },
+      { sessionId: "" }, { sessionId: 1 }, { kind: undefined }, { kind: 1 }]) {
+      for (const target of ["desktop-uuid", "other"]) expect(registryRecordVerdict({ ...desktop, ...patch }, target, "live")).toBe("unknown");
+    }
+    expect(registryRecordVerdict({ ...desktop, version: "2.1.284" }, "other", "live")).toBe("skip");
+  });
+  it("skips a record from another PID domain only when it is intact and not the target", () => {
+    const foreign = { ...desktop, pidDomain: "linux:machine-id:4026531836" };
+    expect(registryRecordVerdict(foreign, "other", "foreign")).toBe("skip");
+    expect(registryRecordVerdict(foreign, "desktop-uuid", "foreign")).toBe("unknown");
+    expect(registryRecordVerdict({ ...foreign, version: "2.1.283" }, "other", "foreign")).toBe("unknown");
+    expect(registryRecordVerdict({ ...foreign, cwd: undefined }, "other", "foreign")).toBe("unknown");
+  });
+  it("merges every record with occupied over unknown over free", () => {
+    expect(mergeOccupancy([])).toBe("free");
+    expect(mergeOccupancy(["skip", "skip"])).toBe("free");
+    expect(mergeOccupancy(["skip", "unknown", "skip"])).toBe("unknown");
+    expect(mergeOccupancy(["unknown", "occupied"])).toBe("occupied");
+    expect(mergeOccupancy(["occupied", "unknown", "skip"])).toBe("occupied");
   });
 });
 

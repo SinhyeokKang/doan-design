@@ -134,14 +134,72 @@ describe("conversation disk boundaries", () => {
     rmSync(join(config, "sessions", "12.key"));
     writeFileSync(join(config, "sessions", "bad.json"), "broken"); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
   });
-  it("accepts registry records at or above the floor and fails the whole profile closed on any other version", async () => {
+  it("accepts live registry records at or above the floor and cannot verify a live one below it or in another shape", async () => {
     const config = temp(); const start = "Wed Oct 28 10:40:00 2026"; mkdirSync(join(config, "sessions"));
     const inspect = async (pid: number) => pid === 12 || pid === 13 ? start : null;
     const write = (pid: number, sessionId: string, version: unknown) => writeFileSync(join(config, "sessions", `${pid}.json`), JSON.stringify({ pid, sessionId, cwd: "/other", kind: "interactive", version, procStart: start }));
     for (const version of ["2.1.284", "2.1.400", "3.0.0", "2.1.400-beta.1"]) { write(12, "s", version); expect(await claudeOccupancy(config, "s", inspect)).toBe("occupied"); }
-    write(12, "s", "2.1.400");
-    // Another terminal's record below the floor or in another shape makes every resume in that profile unverifiable.
+    write(12, "x", "2.1.400");
+    // A live record below the floor or in another shape may hold the target session under a sessionId it does not report.
     for (const version of ["2.1.283", "v2.1.400", "2.1.400 (Claude Code)", 2, null]) { write(13, "other", version); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown"); }
+    // Every record is read: one holding the target is reported as in use even beside one that cannot be verified.
+    write(12, "s", "2.1.400"); expect(await claudeOccupancy(config, "s", inspect)).toBe("occupied");
+    // The same records with no live process behind them block nothing.
+    write(12, "x", "2.1.400"); expect(await claudeOccupancy(config, "s", async () => null)).toBe("free");
+  });
+  it("judges the Claude desktop record shape and other live kinds by the session being resumed", async () => {
+    // The fields Claude desktop's bundled claude-code 2.1.321 wrote (PoC); every value is fake.
+    const config = temp(); const start = "Thu Nov 12 09:00:00 2026"; mkdirSync(join(config, "sessions"));
+    const desktop = { pid: 4242, sessionId: "desktop-uuid", cwd: "/work", startedAt: 1, procStart: start, version: "2.1.321", peerProtocol: 1, peerFeatures: [],
+      kind: "interactive", entrypoint: "claude-desktop", hostSessionId: "local_fake", pidDomain: "darwin", asksForConvertedSkills: null, messagingSocketPath: "/tmp/fake.sock",
+      name: "n", nameSource: "auto", nameSince: 1, status: "busy", updatedAt: 1, statusUpdatedAt: 1 };
+    const write = (value: object) => writeFileSync(join(config, "sessions", "4242.json"), JSON.stringify(value));
+    writeFileSync(join(config, "sessions", `4242.${"c".repeat(64)}.key`), "x", { mode: 0o600 });
+    const inspect = async (pid: number) => pid === 4242 ? start : null;
+    write(desktop);
+    expect(await claudeOccupancy(config, "terminal-uuid", inspect)).toBe("free");
+    expect(await claudeOccupancy(config, "desktop-uuid", inspect)).toBe("occupied");
+    write({ ...desktop, kind: "bg", entrypoint: "cli" });
+    expect(await claudeOccupancy(config, "terminal-uuid", inspect)).toBe("free");
+    expect(await claudeOccupancy(config, "desktop-uuid", inspect)).toBe("occupied");
+    // Another PID domain: the host cannot tell whether it lives, so only an intact record of another session is skipped.
+    const foreign = { ...desktop, pidDomain: "linux:machine-id:4026531836" };
+    const never = async () => { throw new Error("ps must not run for another PID domain"); };
+    write(foreign);
+    expect(await claudeOccupancy(config, "terminal-uuid", never)).toBe("free");
+    expect(await claudeOccupancy(config, "desktop-uuid", never)).toBe("unknown");
+    write({ ...foreign, version: "2.1.200" }); expect(await claudeOccupancy(config, "terminal-uuid", never)).toBe("unknown");
+    for (const pidDomain of [null, 1, ["darwin"]]) { write({ ...desktop, pidDomain }); expect(await claudeOccupancy(config, "terminal-uuid", inspect)).toBe("unknown"); }
+  });
+  it("skips stale Claude registry records and still finds the live one holding the target", async () => {
+    const config = temp(); const start = "Thu Nov 12 09:00:00 2026"; mkdirSync(join(config, "sessions"));
+    const inspect = async (pid: number) => pid === 20 ? start : pid === 21 ? "Wed Nov 11 09:00:00 2026" : null;
+    // A crashed process left malformed records: one whose pid is gone, one whose pid was reused by another process.
+    writeFileSync(join(config, "sessions", "21.json"), JSON.stringify({ pid: 21, sessionId: "s", procStart: start, version: "2.1.100" }));
+    writeFileSync(join(config, "sessions", "22.json"), JSON.stringify({ pid: 22, procStart: start, kind: 7 }));
+    expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
+    writeFileSync(join(config, "sessions", "20.json"), JSON.stringify({ pid: 20, sessionId: "s", cwd: "/w", kind: "interactive", entrypoint: "claude-desktop", version: "2.1.321", pidDomain: "darwin", procStart: start }));
+    expect(await claudeOccupancy(config, "s", inspect)).toBe("occupied");
+    expect(await claudeOccupancy(config, "t", inspect)).toBe("free");
+  });
+  it("fails a Claude registry record closed when its identity, file or process cannot be read", async () => {
+    const config = temp(); const start = "Thu Nov 12 09:00:00 2026"; mkdirSync(join(config, "sessions"));
+    const inspect = async (pid: number) => pid === 30 ? start : null;
+    const live = { pid: 30, sessionId: "x", cwd: "/w", kind: "interactive", version: "2.1.321", procStart: start };
+    const path = join(config, "sessions", "30.json");
+    for (const value of [{ ...live, pid: 31 }, { ...live, procStart: undefined }, { ...live, pid: undefined }]) { writeFileSync(path, JSON.stringify(value)); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown"); }
+    writeFileSync(path, "{broken"); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
+    writeFileSync(path, JSON.stringify(live)); expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
+    expect(await claudeOccupancy(config, "s", async () => { throw new Error("ps failed"); })).toBe("unknown");
+    chmodSync(path, 0o000);
+    try { expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown"); } finally { chmodSync(path, 0o600); }
+  });
+  it("skips a Claude registry record that ended between listing and reading", async () => {
+    const config = realpathSync(temp()); const start = "Thu Nov 12 09:00:00 2026"; mkdirSync(join(config, "sessions"));
+    const path = join(config, "sessions", "40.json");
+    writeFileSync(path, JSON.stringify({ pid: 40, sessionId: "s", cwd: "/w", kind: "interactive", version: "2.1.321", procStart: start }));
+    hooks.open = opened => { if (opened === path) rmSync(path); };
+    expect(await claudeOccupancy(config, "s", async () => start)).toBe("free");
   });
   it("lets one doan Claude conversation resume while another runs in the same dedicated profile", async () => {
     // The record shape a running doan SDK turn left in the dedicated profile (live, CLI 2.1.312): interactive, sdk-ts.
