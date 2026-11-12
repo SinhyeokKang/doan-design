@@ -1,0 +1,9 @@
+{
+  "id": "O5",
+  "title": "Ask before creating a Git repository to keep Doan files out of Git",
+  "focus": "onboarding",
+  "init": null,
+  "selection": null,
+  "git": false,
+  "timeoutSec": 900
+}

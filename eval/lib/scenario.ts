@@ -10,6 +10,8 @@ export interface Scenario {
   selection: "selection.json" | null;
   timeoutSec: number;
   shellCli: boolean;
+  // false: the agent's folder is in no Git repository (workspace.ts keeps the baseline elsewhere).
+  git: boolean;
   // Runs the agent in a second worktree on this branch while the instruction's
   // root and the fake app stay on the first.
   worktree: { branch: string } | null;
@@ -30,7 +32,7 @@ export interface LoadedScenario extends Scenario {
 }
 
 const FOCUS = ["write", "active", "implement", "understand", "onboarding", "preset"];
-const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "shellCli", "worktree", "onboarding", "handoff"];
+const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "shellCli", "git", "worktree", "onboarding", "handoff"];
 // The v5 schema's path pattern.
 const HANDOFF_CANVAS = /^\.doan\/canvases\/[^/]+\.html$/;
 // The first worktree is on main (init.defaultBranch in workspace.ts).
@@ -61,11 +63,14 @@ export function parseScenarioJson(value: unknown, dirName: string): Scenario {
   if (selection !== null && selection !== "selection.json") fail(dirName, 'selection must be null or "selection.json"');
   if (v.shellCli !== undefined && typeof v.shellCli !== "boolean") fail(dirName, "shellCli must be boolean");
   const shellCli = v.shellCli !== false;
+  if (v.git !== undefined && typeof v.git !== "boolean") fail(dirName, "git must be boolean");
+  const git = v.git !== false;
   const worktree = v.worktree ?? null;
   if (worktree !== null) {
     const keys = typeof worktree === "object" && !Array.isArray(worktree) ? Object.keys(worktree) : [];
     const branch = (worktree as { branch?: unknown }).branch;
     if (keys.length !== 1 || keys[0] !== "branch" || typeof branch !== "string" || !BRANCH.test(branch) || branch === "main") fail(dirName, "worktree must be null or { branch: <lowercase-hyphenated name other than main> }");
+    if (!git) fail(dirName, "worktree needs git");
   }
   const onboarding = v.onboarding ?? null;
   if (onboarding !== null && onboarding !== "onboarding.json") fail(dirName, 'onboarding must be null or "onboarding.json"');
@@ -77,7 +82,7 @@ export function parseScenarioJson(value: unknown, dirName: string): Scenario {
   }
   const timeoutSec = v.timeoutSec ?? 900;
   if (!Number.isInteger(timeoutSec) || (timeoutSec as number) < 1) fail(dirName, "timeoutSec must be a positive whole number");
-  return { shellCli, worktree: worktree as Scenario["worktree"], onboarding: onboarding as Scenario["onboarding"], handoff: handoff as Scenario["handoff"], id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
+  return { shellCli, git, worktree: worktree as Scenario["worktree"], onboarding: onboarding as Scenario["onboarding"], handoff: handoff as Scenario["handoff"], id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
 }
 
 export function renderPrompt(template: string, repo: string): string {
