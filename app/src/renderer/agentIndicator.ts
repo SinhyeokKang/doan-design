@@ -8,7 +8,6 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { agentPresence, type AgentPresence } from "./agentPresence";
 import type { CanvasState, CanvasWorkTarget } from "./CanvasController";
 import type { CanvasFrameRect, LayoutMessage } from "./canvasMessage";
-import { alphaSteps, partitionDots, type Dot } from "./dotField";
 import { groupProjects } from "./homeCards";
 import { followTurnKey } from "./workFollow";
 
@@ -177,76 +176,4 @@ export async function stopTurn(conversationId: string, provider: string, interru
   } catch {
     return stopFailedText(provider);
   }
-}
-
-// The dot field: malmoi's DotField (components/signin/dot-field.tsx, lib/signin/dot-field.ts at 6dcdd575)
-// with doan's values. The alphas are twice malmoi's base (dogfooding #4): white dots at 0.08 barely showed on the
-// light board.
-export const DOT_FIELD = { gap: 12, baseRadius: 1.5, maxRadius: 2, baseAlpha: 0.16, maxAlpha: 0.5, radius: 320, speed: 320, rows: 5 } as const;
-
-type DotContext = Pick<CanvasRenderingContext2D, "globalAlpha" | "fillStyle" | "clearRect" | "beginPath" | "moveTo" | "arc" | "fill">;
-
-// Dots outside every spot's radius all share the base size and alpha, so they go into one path and one fill (malmoi R8):
-// a full board is thousands of dots each frame. Near dots go one path per alpha step (`alphaSteps`).
-export function drawDotField(ctx: DotContext, width: number, height: number, dots: Dot[], spots: readonly Dot[], color: string): void {
-  const { baseRadius, maxRadius, baseAlpha, maxAlpha, radius } = DOT_FIELD;
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = color;
-  const { near, far } = partitionDots(dots, spots, radius);
-  if (far.length) {
-    ctx.globalAlpha = baseAlpha;
-    ctx.beginPath();
-    for (const dot of far) { ctx.moveTo(dot.x + baseRadius, dot.y); ctx.arc(dot.x, dot.y, baseRadius, 0, Math.PI * 2); }
-    ctx.fill();
-  }
-  for (const step of alphaSteps(near, radius, { base: baseRadius, max: maxRadius }, { base: baseAlpha, max: maxAlpha })) {
-    ctx.globalAlpha = step.alpha;
-    ctx.beginPath();
-    for (const dot of step.dots) { ctx.moveTo(dot.x + dot.r, dot.y); ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2); }
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-
-// The field's animation frames. `draw` gets the time the cursor has travelled, or null for the still field of reduced
-// motion. Paused, it asks for no frame: a hidden workspace or window still runs requestAnimationFrame, so the field
-// must stop itself there. Resuming continues the sweep where it paused.
-export class DotFieldLoop {
-  private frame: number | null = null;
-  private running = false;
-  private elapsed = 0;
-  private start: number | null = null;
-  constructor(private readonly host: { draw(elapsed: number | null): void; reducedMotion(): boolean; request(run: (now: number) => void): number; cancel(frame: number): void }) {}
-
-  set({ running }: { running: boolean }): void {
-    if (running === this.running) return;
-    this.running = running;
-    this.stop();
-    if (!running) return;
-    if (this.host.reducedMotion()) { this.host.draw(null); return; }
-    this.frame = this.host.request(this.tick);
-  }
-
-  // The canvas was resized and cleared: a running loop paints on its next frame, a paused or still one now.
-  resized(): void {
-    if (this.frame !== null) return;
-    this.host.draw(this.host.reducedMotion() ? null : this.elapsed);
-  }
-
-  dispose(): void { this.running = false; this.stop(); }
-
-  private stop(): void {
-    if (this.frame !== null) this.host.cancel(this.frame);
-    this.frame = null;
-    this.start = null;
-  }
-
-  private tick = (now: number): void => {
-    this.frame = null;
-    if (!this.running) return;
-    if (this.start === null) this.start = now - this.elapsed;
-    this.elapsed = now - this.start;
-    this.host.draw(this.elapsed);
-    this.frame = this.host.request(this.tick);
-  };
 }
