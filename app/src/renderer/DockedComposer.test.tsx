@@ -364,6 +364,9 @@ test("the buddy's layers: an absolute 0-high slot under the queue and Jump to la
   // Jump to latest shares the slot's stacking context (the thread makes none), so it needs its own z-index.
   expect(z(".conversation-thread .jump-latest")).toBeGreaterThan(z(".docked-buddy-slot"));
   expect(rule(".conversation-thread .jump-latest")).toContain("position: absolute;");
+  // The canvas panel's notice rows sit right above the card, inside the slot's stacking context.
+  expect(z(".cp-scroll > .doan-notice")).toBeGreaterThan(z(".docked-buddy-slot"));
+  expect(rule(".cp-scroll > .doan-notice")).toContain("position: relative;");
   for (const selector of [".docked-buddy", ".docked-buddy-shadow", ".docked-buddy-window", ".docked-buddy-host"]) expect(rule(selector)).toContain("pointer-events: none;");
   expect(rule(".docked-buddy-window")).toBe("position: absolute; left: 0; right: 0; top: -88px; height: 88px; overflow: hidden; pointer-events: none;");
   expect(rule(".docked-buddy-host")).toContain("width: 56px; height: 56px;");

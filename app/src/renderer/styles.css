@@ -1360,6 +1360,8 @@ body:has(.shell-top) { background: transparent; }
    thread's side insets and sits in the middle of the panel body instead of touching the panel edges at the top. */
 .cp-scroll > .conversation-thread:has(> :is(.thread-loading, .thread-notice)) { justify-content: center; padding: var(--space-2) var(--space-4) 0; }
 .cp-scroll:has(> .conversation-thread) > .doan-notice { margin: var(--space-2) var(--space-4) 0; }
+/* The rows right above the card share the buddy slot's stacking context: above it, their buttons keep the click. */
+.cp-scroll > .doan-notice { position: relative; z-index: 3; }
 .doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-8); }
 .doan-conv-panel .conversation-thread .thread { gap: var(--space-5); }
 .doan-conv-panel .msg-user { max-width: 92%; }

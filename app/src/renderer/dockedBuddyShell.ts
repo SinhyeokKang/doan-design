@@ -323,7 +323,8 @@ export class DockedBuddyShell {
     let rects: Box[] | null = null;
     // The page is searched only after a floating element can have come or gone; their rects are read at most once per
     // frame, and not at all when there are none or no surface is there.
-    const floating = () => rects ??= (live.floating ??= Array.from(document.querySelectorAll(FLOATING))).map(node => node.getBoundingClientRect());
+    // A cached node that left the page means the set changed without an observer firing (a pick notice replaced by a capture one).
+    const floating = () => rects ??= (live.floating = live.floating?.every(node => node.isConnected) ? live.floating : Array.from(document.querySelectorAll(FLOATING))).map(node => node.getBoundingClientRect());
     const surface = (name: SurfaceName) => {
       const el = this.slots[name];
       if (!el || !el.isConnected) return null;
@@ -376,7 +377,7 @@ function silhouette(still: HTMLImageElement): SilhouetteMask | null {
   const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) return null;
-  try { context.drawImage(still, 0, 0); return { data: context.getImageData(0, 0, width, height).data, width, height }; } catch { return null; }
+  try { context.drawImage(still, 0, 0); return { data: context.getImageData(0, 0, width, height).data, width, height }; } catch (error) { console.error("docked buddy: cannot read the still's pixels", error); return null; }
 }
 
 // The workspace's one buddy. App starts and stops it; DockedComposer and CanvasTools hand it their slots.

@@ -74,7 +74,7 @@ beforeEach(() => {
   Object.assign(page, {
     createElement: (tag: string) => { const node = new FakeNode(tag); if (tag === "img") Object.assign(node, { complete: true, naturalWidth: 4, naturalHeight: 4 }); created.push(node); return node; },
     hasFocus: () => page.focused,
-    querySelectorAll: (selector: string) => { expect(selector).toBe(FLOATING); return page.floating.map(box => ({ getBoundingClientRect: () => box })); },
+    querySelectorAll: (selector: string) => { expect(selector).toBe(FLOATING); return page.floating.map(box => ({ isConnected: true, getBoundingClientRect: () => box })); },
   });
   win = new Events(); media = Object.assign(new Events(), { matches: false });
   vi.stubGlobal("document", page);
@@ -388,6 +388,22 @@ test("floating elements are searched for only when one can have come or gone, th
   env.shell.update({ overview: false, folded: false, folding: false, covered: false, hint: true });
   env.run(1);
   expect(find).toHaveBeenCalledTimes(5);
+});
+
+test("a pick to capture switch, where the hint stays true, finds the floating hint again because the cached node left the page", async () => {
+  const env = setup();
+  const find = vi.spyOn(page as unknown as { querySelectorAll(s: string): unknown[] }, "querySelectorAll");
+  env.start(); env.frame(); await env.load();
+  env.shell.update({ overview: false, folded: false, folding: false, covered: false, hint: true });
+  const pickHint = new FakeNode("div"); pickHint.root = true;
+  find.mockImplementation(() => [pickHint]);
+  env.run(2);
+  const searched = find.mock.calls.length;
+  // Same hint value, but the picking notice was replaced by the capture notice.
+  pickHint.root = false;
+  env.shell.update({ overview: false, folded: false, folding: false, covered: true, hint: true });
+  env.run(2);
+  expect(find.mock.calls.length).toBeGreaterThan(searched);
 });
 
 test("only the painted body takes the pointer, through a hit target clipped to the still's silhouette, and a click on it is a poke", async () => {

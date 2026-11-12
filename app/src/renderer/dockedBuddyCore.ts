@@ -24,7 +24,7 @@ export const HIDES: readonly HideStyle[] = [{ name: "quick", delay: 0, duration:
 
 export type SurfaceName = "dock" | "tools";
 export type Presence = "shown" | "hiding" | "waiting" | "revealing" | "hidden";
-// 'input': composer input or focus. 'thread': the pointer moved over the thread. 'poke': a click on the painted body.
+// 'input': a key or input inside the composer. 'thread': the pointer moved over the thread. 'poke': a click on the painted body.
 export type DockedEvent = "input" | "thread" | "poke";
 
 export interface Surface { present: boolean; width: number; floating: boolean }
