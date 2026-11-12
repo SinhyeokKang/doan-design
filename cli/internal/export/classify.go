@@ -14,7 +14,7 @@ const (
 	kindStylesheet                // loaded as CSS: <link rel=stylesheet>, @import
 	kindLink                      // navigation: <a href>, <form action>, other <link> rels
 	kindFrame                     // a nested document: iframe, frame, object, embed
-	kindUse                       // SVG <use href>: a document fragment, which cannot be a data: URL
+	kindUse                       // SVG <use href>: the app draws only a fragment of the canvas
 )
 
 type refClass int

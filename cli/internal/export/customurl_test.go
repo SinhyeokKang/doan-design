@@ -9,10 +9,11 @@ import (
 	"github.com/SinhyeokKang/doan-design/cli/internal/export/exporttest"
 )
 
-// The refusal detail for a custom property url() that names a different
-// existing file from each stylesheet that uses it. The app parses refusal
-// lines as `- <item>: <detail>`, so the detail must not contain ": ".
-const wantAmbiguous = "names different files from the stylesheets that use it"
+// The refusal detail for a custom property url() that resolves to different
+// paths from the stylesheets that use it, whether or not those files exist.
+// The app parses refusal lines as `- <item>: <detail>`, so the detail must
+// not contain ": ".
+const wantAmbiguous = "resolves to different paths from the stylesheets that use it"
 
 // customURLCase is one layout of the Electron probe in
 // .scratch/export-var-url (Chromium 156, Electron 45): a relative url() in an
@@ -131,6 +132,12 @@ func customURLCases() []customURLCase {
 			assets: []string{"styles/i.svg"},
 		},
 		{
+			name:   "an @property without initial-value registers nothing, so the url resolves from the consumer",
+			files:  map[string]string{"styles/a.css": `.x{mask-image:var(--i)}`, "styles/i.svg": svg("css"), ".doan/canvases/i.svg": svg("page")},
+			canvas: linkA + `<style>@property --i{syntax:"<url>";inherits:true}</style><div class="x" style="--i:url(i.svg)"></div>`,
+			assets: []string{"styles/i.svg"},
+		},
+		{
 			name:   "a property registered without url syntax still resolves from the consumer",
 			files:  map[string]string{"styles/a.css": `.x{mask-image:var(--i)}`, "styles/i.svg": svg("css")},
 			canvas: linkA + `<style>@property --i{syntax:"*";inherits:true}</style><div class="x" style="--i:url(i.svg)"></div>`,
@@ -149,10 +156,16 @@ func customURLCases() []customURLCase {
 			assets: []string{"styles/i.svg"},
 		},
 		{
-			name:   "two consumers in different folders naming one existing file use it",
+			name:   "two consumers in different folders refuse even when only one candidate exists",
 			files:  map[string]string{"styles/a.css": `.x{mask-image:var(--i)}`, "styles/i.svg": svg("css")},
 			canvas: linkA + `<style>.y{mask-image:var(--i)}</style><div class="x y" style="--i:url(i.svg)"></div>`,
-			assets: []string{"styles/i.svg"},
+			refuse: []Refusal{{".doan/canvases/c.html", "i.svg", wantAmbiguous}},
+		},
+		{
+			name:   "consumers in .doan/canvases and .doan/ds resolving to the same path use it",
+			files:  map[string]string{".doan/ds/d.css": `.x{mask-image:var(--i)}`, ".doan/assets/x.svg": svg("shared")},
+			canvas: `<link rel="stylesheet" href="../ds/d.css"><style>.y{mask-image:var(--i)}</style><div class="x y" style="--i:url(../assets/x.svg)"></div>`,
+			assets: []string{".doan/assets/x.svg"},
 		},
 		{
 			name:   "two consumers in one folder name the same file",
@@ -178,9 +191,15 @@ func customURLCases() []customURLCase {
 			left:   []string{"none.svg"},
 		},
 		{
-			name:   "a canvas definition whose file is missing from every consumer is refused",
+			name:   "a canvas definition whose candidates name different paths is refused even when none exists",
 			files:  map[string]string{"styles/a.css": `.x{mask-image:var(--i)}`},
 			canvas: linkA + `<style>.y{mask-image:var(--i)}</style><div class="x y" style="--i:url(none.svg)"></div>`,
+			refuse: []Refusal{{".doan/canvases/c.html", "none.svg", wantAmbiguous}},
+		},
+		{
+			name:   "a canvas definition whose file is missing from its one consumer folder is refused",
+			files:  map[string]string{"styles/a.css": `.x{mask-image:var(--i)}`},
+			canvas: linkA + `<div class="x" style="--i:url(none.svg)"></div>`,
 			refuse: []Refusal{{".doan/canvases/c.html", "none.svg", ReasonMissing}},
 		},
 		{
@@ -202,10 +221,10 @@ func customURLCases() []customURLCase {
 			refuse: []Refusal{{".doan/canvases/c.html", "../../i.svg", ReasonOutside}},
 		},
 		{
-			name:   "a served candidate wins over one outside the serving scope",
+			name:   "candidates from two folders refuse even when only one is served",
 			files:  map[string]string{"src/i.svg": svg("src"), "styles/i.svg": svg("css"), "styles/a.css": `.x{mask-image:var(--i)}`, "styles/sub/c.css": `.y{mask-image:var(--i)}`},
 			canvas: linkA + `<link rel="stylesheet" href="../../styles/sub/c.css"><div class="x y" style="--i:url(../i.svg)"></div>`,
-			assets: []string{"styles/i.svg"},
+			refuse: []Refusal{{".doan/canvases/c.html", "../i.svg", wantAmbiguous}},
 		},
 		{
 			name:   "absolute paths, data and external urls keep their existing handling",
@@ -214,7 +233,20 @@ func customURLCases() []customURLCase {
 			refuse: []Refusal{{".doan/canvases/c.html", "/abs.svg", ReasonOutside}},
 		},
 		{
-			name: "the reported case: a design-system canvas icon drawn by the shared components.css",
+			name: "the design-system pattern: the canvas declares and the shared components.css alone uses it",
+			files: map[string]string{
+				".doan/assets/sf-ds/components.css":                 `.sf-iconbtn__icon{-webkit-mask:var(--sf-icon,url(assets/icons-mono/emphasis.svg)) center/contain no-repeat;mask:var(--sf-icon,url(assets/icons-mono/emphasis.svg)) center/contain no-repeat}`,
+				".doan/assets/sf-ds/assets/icons-mono/emphasis.svg": svg("emphasis"),
+				".doan/assets/sf-ds/assets/icons-mono/bookmark.svg": svg("bookmark"),
+			},
+			canvas: `<link rel="stylesheet" href="../assets/sf-ds/components.css">` +
+				`<span class="sf-iconbtn__icon" style="--sf-icon:url(assets/icons-mono/bookmark.svg)"></span>`,
+			assets: []string{".doan/assets/sf-ds/assets/icons-mono/bookmark.svg", ".doan/assets/sf-ds/assets/icons-mono/emphasis.svg"},
+		},
+		{
+			// Users are counted by property name only, so the canvas's own
+			// rule makes its folder a user of every --sf-icon declaration.
+			name: "the reported canvas also uses the property from its own style, so its declarations are refused",
 			files: map[string]string{
 				".doan/assets/sf-ds/components.css":                     `.sf-iconbtn__icon{-webkit-mask:var(--sf-icon,url(assets/icons-mono/emphasis.svg)) center/contain no-repeat;mask:var(--sf-icon,url(assets/icons-mono/emphasis.svg)) center/contain no-repeat}`,
 				".doan/assets/sf-ds/assets/icons-mono/emphasis.svg":     svg("emphasis"),
@@ -225,7 +257,10 @@ func customURLCases() []customURLCase {
 				`<style>.sa__status .ic{mask:var(--sf-icon,url("../assets/sf-ds/assets/icons-mono/emphasis.svg")) center/contain no-repeat}</style>` +
 				`<span class="sf-iconbtn__icon" style="--sf-icon:url(assets/icons-mono/bookmark.svg)"></span>` +
 				`<div class="sa__status" style="--sf-icon:url(../assets/sf-ds/assets/icons-mono/clock-filled.svg)"><span class="ic"></span></div>`,
-			assets: []string{".doan/assets/sf-ds/assets/icons-mono/bookmark.svg", ".doan/assets/sf-ds/assets/icons-mono/clock-filled.svg", ".doan/assets/sf-ds/assets/icons-mono/emphasis.svg"},
+			refuse: []Refusal{
+				{".doan/canvases/c.html", "assets/icons-mono/bookmark.svg", wantAmbiguous},
+				{".doan/canvases/c.html", "../assets/sf-ds/assets/icons-mono/clock-filled.svg", wantAmbiguous},
+			},
 		},
 	}
 }

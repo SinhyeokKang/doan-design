@@ -25,7 +25,7 @@ func CheckInput(r repo.Repository) (check.Input, error) {
 
 // resolver is shared by every canvas, stylesheet and implements path of one check.
 func checkInput(r repo.Repository, resolver *repo.Resolver, inspected func([]canvasFile)) (check.Input, error) {
-	in := check.Input{Canvases: []canvas.Canvas{}, Unparsable: map[string]string{}, Reach: map[string][]check.CSSRef{}, CSS: map[string]canvas.Scan{}, Implements: map[string]check.State{}}
+	in := check.Input{Canvases: []canvas.Canvas{}, Unparsable: map[string]string{}, Reach: map[string][]check.CSSRef{}, CSS: map[string]canvas.Scan{}, CustomCSS: map[string]canvas.CustomText{}, Implements: map[string]check.State{}}
 	files, e := scanCanvases(r.Root)
 	if e != nil {
 		return in, e
@@ -128,8 +128,10 @@ func checkInput(r repo.Repository, resolver *repo.Resolver, inspected func([]can
 				if e != nil {
 					return e
 				}
-				scan = canvas.ScanCSS(string(b), canvas.Stylesheet)
+				text := string(b)
+				scan = canvas.ScanCSS(text, canvas.Stylesheet)
 				in.CSS[real] = scan
+				in.CustomCSS[real] = canvas.ScanCustom(text, canvas.Stylesheet)
 			}
 			for _, href := range scan.Imports {
 				if e := visit(real, href, false); e != nil {

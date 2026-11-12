@@ -293,26 +293,33 @@ export function canvasScript(lib: CanvasLib): void {
   // selecting.
   let pickSeq = 0;
   let picking: number | null = null;
-  // The crosshair while picking: the cursor over the canvas is this document's, so a constructed sheet is adopted. It
-  // changes no DOM node, so neither the MutationObserver nor the layout runs for it, and sheets the canvas adopted
-  // itself stay as they are.
-  let crosshair: CSSStyleSheet | null = null;
-  const setPicking = (next: number | null) => {
-    picking = next;
+  // The crosshair while picking and the hand while the app's drag layer is up: the cursor over the canvas is this
+  // document's, so a constructed sheet is adopted. It changes no DOM node, so neither the MutationObserver nor the
+  // layout runs for it, and sheets the canvas adopted itself stay as they are. Returns the sheet now adopted, if any.
+  const cursorSheet = (sheet: CSSStyleSheet | null, on: boolean, cursor: string): CSSStyleSheet | null => {
     try {
-      if (next !== null && crosshair === null && typeof CSSStyleSheet === "function") {
-        const sheet = new CSSStyleSheet();
-        sheet.replaceSync("*{cursor:crosshair!important}");
-        document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
-        crosshair = sheet;
-      } else if (next === null && crosshair !== null) {
-        const sheet = crosshair;
-        crosshair = null;
+      if (on && sheet === null && typeof CSSStyleSheet === "function") {
+        const added = new CSSStyleSheet();
+        added.replaceSync(`*{cursor:${cursor}!important}`);
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, added];
+        return added;
+      }
+      if (!on && sheet !== null) {
         document.adoptedStyleSheets = document.adoptedStyleSheets.filter(adopted => adopted !== sheet);
+        return null;
       }
     } catch {
-      // The cursor is only a hint: a canvas that broke adoptedStyleSheets still picks, without the crosshair.
+      // The cursor is only a hint: a canvas that broke adoptedStyleSheets still picks and pans, without it.
     }
+    return sheet;
+  };
+  let crosshair: CSSStyleSheet | null = null;
+  // A pointer resting over the canvas keeps the cursor this out-of-process document last set until it moves, so the
+  // drag layer's own grab cursor shows only after a move; this sheet shows the hand at once.
+  let hand: CSSStyleSheet | null = null;
+  const setPicking = (next: number | null) => {
+    picking = next;
+    crosshair = cursorSheet(crosshair, next !== null, "crosshair");
     // A pick hovers what is under the pointer, Select its next step: the resting pointer's hover changes with it.
     postHover();
   };
@@ -630,8 +637,10 @@ export function canvasScript(lib: CanvasLib): void {
       if (typeof data.alt !== "boolean") return;
     } else if (type === "hover-meta") {
       if (typeof data.meta !== "boolean") return;
+    } else if (type === "hover-hand") {
+      if (typeof data.hand !== "boolean") return;
     } else if (type !== "clear" && type !== "hover-leave" && type !== "select-parent") return;
-    if (type === "hover-alt" || type === "hover-meta" || type === "hover-leave") {
+    if (type === "hover-alt" || type === "hover-meta" || type === "hover-hand" || type === "hover-leave") {
       if (next <= hoverSeq) return;
       hoverSeq = next;
     } else {
@@ -645,6 +654,8 @@ export function canvasScript(lib: CanvasLib): void {
     } else if (type === "hover-meta") {
       meta = data.meta === true;
       postHover();
+    } else if (type === "hover-hand") {
+      hand = cursorSheet(hand, data.hand === true, "grab");
     } else if (type === "hover-leave") {
       hoverEl = null;
       lastHover = "";

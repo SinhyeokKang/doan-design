@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .icon-line { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+  <symbol id="icon-home" viewBox="0 0 24 24"><path class="icon-line" d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24"><circle class="icon-line" cx="11" cy="11" r="7"/><path class="icon-line" d="M20 20l-4-4"/></symbol>
+  <symbol id="icon-bell" viewBox="0 0 24 24"><path class="icon-line" d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path class="icon-line" d="M10 21h4"/></symbol>
+  <symbol id="icon-settings" viewBox="0 0 24 24"><circle class="icon-line" cx="12" cy="12" r="3"/><path class="icon-line" d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></symbol>
+  <symbol id="icon-user" viewBox="0 0 24 24"><circle class="icon-line" cx="12" cy="8" r="4"/><path class="icon-line" d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="icon-check" viewBox="0 0 24 24"><path class="icon-line" d="M5 12l5 5 9-10"/></symbol>
+  <symbol id="icon-trash" viewBox="0 0 24 24"><path class="icon-line" d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="icon-plus" viewBox="0 0 24 24"><path class="icon-line" d="M12 5v14M5 12h14"/></symbol>
+</svg>
