@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "ok": false,
+  "error": {
+    "code": "repo_not_found",
+    "message": "No .doan/config.json found",
+    "nextSteps": [],
+    "storageReason": "git_unreadable"
+  }
+}

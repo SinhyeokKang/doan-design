@@ -1,0 +1,28 @@
+{
+  "v": 2,
+  "ok": true,
+  "op": "project_inspect",
+  "result": {
+    "operation": {
+      "operationId": "op_11",
+      "requestId": "req-1",
+      "kind": "project_inspect",
+      "state": "succeeded",
+      "inspection": {
+        "inspectionId": "insp_5",
+        "candidates": [
+          {
+            "path": "/Users/sam/code/new-folder",
+            "changes": [
+              ".git/",
+              ".git/info/exclude",
+              ".doan/config.json",
+              ".doan/canvases/"
+            ],
+            "storage": "local"
+          }
+        ]
+      }
+    }
+  }
+}

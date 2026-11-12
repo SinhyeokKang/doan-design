@@ -49,6 +49,10 @@
               "$comment": "Absolute path of the config file that caused the failure; absent when the failure is not about a config file.",
               "type": "string",
               "pattern": "^/"
+            },
+            "storageReason": {
+              "$comment": "Only on ls's repo_not_found for an existing directory that belongs to no Git repository (a .git at or above HOME does not count): Keep out of Git there needs a new repository, created only with --git-init. Absent on every other failure.",
+              "const": "not_git"
             }
           },
           "required": [
