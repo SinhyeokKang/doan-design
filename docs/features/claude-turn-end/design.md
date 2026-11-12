@@ -32,7 +32,7 @@
 - `promotionDeadline({ endedAt, exitedAt?, settle, grace })`: 그룹이 사라지지 않았으면 `endedAt + grace`. 사라졌으면 `min(endedAt + grace, max(endedAt, exitedAt) + settle)`. 프로세스가 이미 죽은 경우(`exitedAt ≤ endedAt`)는 `endedAt + settle`이다.
 - 같은 규칙을 handoff 판정(`judgeHandoff(id, true)`의 타이머, `service.ts` `ended()`)에도 쓴다. `handoffWait`로 기다리는 send도 그만큼 빨리 풀린다.
 - `exited()`가 `ended()`보다 먼저 오면 증거와 handoff 턴에 `exitedAt`을 기록한다. `ended()`는 `promotionDeadline`으로 타이머를 건다. `exited()`가 나중에 오면 타이머를 다시 건다. `judgement()`와 `checkProject()`의 늦은 판정 보정(바쁜 main loop)도 `BIND_GRACE_MS` 대신 `promotionDeadline`을 쓴다.
-- `PROMOTION_SETTLE_MS`(`project.ts`) = PoC 1e에서 잰 최댓값 × 1.5, 최소 500ms.
+- `PROMOTION_SETTLE_MS`(`project.ts`) = 5572ms. PoC 1e에서 잰 최댓값 3714.6ms × 1.5다(최소 500ms 규칙에 걸리지 않는다).
 - 판정을 기다리는 send는 기다리기 전에 그 대화의 끝난 턴 프로세스를 정리한다(아래 2절). 그러지 않으면 제안 생성(1–3초, 최대 30초)이나 백그라운드 작업이 그룹을 붙잡아 판정이 상한까지 늦어진다.
 - 범위: 턴마다 그룹이 끝나는 모든 제공자(Claude, ACP). 규칙이 그룹 소멸에만 걸리므로 제공자로 나누지 않는다. Codex는 서버가 턴 사이에 살아 있어 그룹이 사라지지 않으므로 10초 그대로다. ACP는 측정하지 않고 단위 테스트로만 확인한다.
 - 백그라운드 작업이 살아 있어 그룹이 남으면 판정은 10초 상한까지 기다린다. 그 작업이 캔버스를 쓸 수 있으므로 앞당기지 않는다. 다음 send가 그룹을 끝내면 그때부터 정착 시간이 흐른다.
@@ -79,7 +79,11 @@
 - "no read can follow a terminal"을 지킨다. 찾기는 종료 이벤트를 쓰기 전에 끝난다.
 - **상한**: 서비스가 보류 시작부터 2초를 잰다. 그 안에 그룹이 사라지지 않으면 찾지 않고 보류한 종료를 쓰고 steer를 큐로 돌린다. 앱이 종료 중이면 이벤트를 쓰지 않는다.
 - **Stop 순간의 턴 표시줄**: 종료 이벤트가 늦어도 PRODUCT 'Turn indicator'의 "at once on Stop"을 지키도록, 서비스가 Stop을 받은 순간 대화 목록에 `stopping`을 내보내고, renderer의 `turnStatus`가 이를 보면 표시줄을 바로 숨긴다.
-- **기록 경로와 읽기**: 경로는 이미 있다. `prepare.ts` `claudeSessionExists`의 `<configDir>/projects/*/<id>.jsonl`. 파싱은 `io.ts`(`openRegular`/`readDescriptor`)에서 한다(`sessions.ts`가 아니다). 턴을 받아들일 때 파일 크기를 기록하고, 그 뒤 붙은 바이트만 읽는다(1MB tail이 아니다). 순수 함수 `readInTranscript(appended, uuids)`가 찾은 uuid를 돌려준다. 잘린 첫 줄, 깨진 줄은 무시한다. 필드는 PoC 1c로 정한다.
+- **기록 경로와 읽기**: 경로는 이미 있다. `prepare.ts` `claudeSessionExists`의 `<configDir>/projects/*/<id>.jsonl`. 파싱은 `io.ts`(`openRegular`/`readDescriptor`)에서 한다(`sessions.ts`가 아니다). 턴을 받아들일 때 파일 크기를 기록하고, 그 뒤 붙은 바이트만 읽는다(1MB tail이 아니다). 순수 함수 `readInTranscript(appended, uuids)`가 찾은 uuid를 돌려준다. 잘린 첫 줄, 깨진 줄은 무시한다. 필드는 PoC 1c로 정했다(2.1.284와 2.1.322가 같다).
+  - `type: "user"` 줄의 `uuid`: 일반 턴의 프롬프트와 후속 턴 steer.
+  - `type: "attachment"`이고 `attachment.type: "queued_command"`인 줄의 `attachment.source_uuid`: 접힌 steer.
+  - CLI는 메시지를 받을 때 uuid 없는 `queue-operation`(`operation: "enqueue"`) 줄만 쓰고, uuid가 든 줄은 큐에서 꺼낼 때 쓴다. 읽히기 전에 그룹이 멈추면 uuid는 기록에 없고, 다음 resume도 그 메시지를 실행하지 않는다.
+  - 2.1.322만 쓰는 같은 값(`user`의 `turnAttributionKey`, `queue-operation` remove의 `commandUuid`)은 찾지 않는다.
 - **legacy-external Claude 대화**: 같은 방식으로 기록을 읽기만 한다(프로필은 사용자의 것이고 쓰지 않는다).
 - PoC 1c에서 확인할 것: steer로 보낸 메시지(접힘, 후속 턴)가 기록에 어떤 필드로 들어가는지, 언제 쓰이는지, 읽히기 전에 그룹을 멈추면 어떻게 되는지. 클라이언트 uuid가 기록에 남지 않으면 이 설계는 쓸 수 없고 사용자에게 돌아온다.
 
