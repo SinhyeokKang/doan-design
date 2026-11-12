@@ -93,8 +93,10 @@ beforeEach(() => {
   vi.stubGlobal("IntersectionObserver", class { constructor(callback: typeof intersection) { intersection = callback; } observe() {} disconnect() {} });
   vi.spyOn(Date, "now").mockImplementation(() => clock);
   vi.spyOn(console, "error").mockImplementation(() => {});
+  // Only the retry timers; Date.now is the clock above and setImmediate flushes the texture promises.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 // A surface slot attached to the page: 400 wide with its top edge at y 500 (the dock) or a 200-wide toolbar at y 700.
 function slot(name: "dock" | "tools", width = name === "dock" ? 400 : 200) {
@@ -235,12 +237,19 @@ test("the still image shows until the textures load, and again when they fail or
 });
 
 // A GPU process reset (seen after a minimize and after an update's relaunch) loses the context; the buddy must not
-// stay on the still image for good.
-test("a context lost after it was ready rebuilds the rig on the next frame it is seen, and the buddy moves again", async () => {
+// stay on the still image for good. Right after the reset the GPU process is still coming back, so the rebuild waits
+// for it: the context restored, or a short delay when no restore comes.
+test("a context lost after it was ready rebuilds the rig once the context is restored, and the buddy moves again", async () => {
   const env = setup();
   env.start(); env.frame(); await env.load(); env.run(3);
   expect(gl.made.length).toBe(1);
-  env.canvas().dispatch("webglcontextlost");
+  const lost = env.canvas();
+  lost.dispatch("webglcontextlost");
+  env.run(3);
+  // Not at once: a context made while the GPU process restarts can fail or be lost again.
+  expect(gl.made.length).toBe(1);
+  expect(env.host().dataset.state).toBe("static");
+  lost.dispatch("webglcontextrestored");
   env.frame();
   expect(gl.made.length).toBe(2);
   expect(gl.made[0]!.lost).toBe(true);
@@ -251,6 +260,99 @@ test("a context lost after it was ready rebuilds the rig on the next frame it is
   env.run(3);
   expect(gl.made[1]!.draws).toBeGreaterThan(draws);
   expect(frames.size).toBe(1);
+  // The pending fallback went with the restore.
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+test("a context lost after it was ready with no restore event is rebuilt after a short delay", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load(); env.run(3);
+  env.canvas().dispatch("webglcontextlost");
+  env.run(3);
+  vi.advanceTimersByTime(999); env.run(1);
+  expect(gl.made.length).toBe(1);
+  vi.advanceTimersByTime(1); env.frame();
+  expect(gl.made.length).toBe(2);
+  await env.load(); env.frame();
+  expect(env.host().dataset.state).not.toBe("static");
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+test("a rebuild that fails while the GPU process restarts is tried again later while the buddy stays seen", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load(); env.run(3);
+  const lost = env.canvas();
+  lost.dispatch("webglcontextlost");
+  // The restore comes, but the new context cannot be made yet.
+  gl.none = true;
+  lost.dispatch("webglcontextrestored");
+  env.frame();
+  expect(env.host().dataset.state).toBe("static");
+  // No retry every frame.
+  env.run(30);
+  gl.none = false;
+  env.run(3);
+  expect(gl.made.length).toBe(1);
+  vi.advanceTimersByTime(1000); env.frame();
+  expect(gl.made.length).toBe(2);
+  await env.load(); env.frame();
+  expect([env.still().hidden, env.canvas().hidden]).toEqual([true, false]);
+  expect(env.host().dataset.state).not.toBe("static");
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+test("a rebuilt rig lost again while its textures load is tried again later", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load(); env.run(3);
+  env.canvas().dispatch("webglcontextlost");
+  vi.advanceTimersByTime(1000); env.frame();
+  expect(gl.made.length).toBe(2);
+  gl.made[1]!.lost = true; env.canvas().dispatch("webglcontextlost");
+  await env.load(); env.frame();
+  expect(env.host().dataset.state).toBe("static");
+  vi.advanceTimersByTime(1000); env.frame();
+  expect(gl.made.length).toBe(3);
+  await env.load(); env.frame();
+  expect(env.host().dataset.state).not.toBe("static");
+});
+
+test("when the GPU never comes back the retries stop after a few attempts and leave no timer", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load(); env.run(3);
+  env.canvas().dispatch("webglcontextlost");
+  gl.none = true;
+  let attempts = 0;
+  for (let i = 0; i < 10; i++) { if (vi.getTimerCount()) attempts += 1; vi.advanceTimersByTime(1000); env.run(2); }
+  expect(attempts).toBe(3);
+  expect(vi.getTimerCount()).toBe(0);
+  expect(env.host().dataset.state).toBe("static");
+  // The next seen stretch still gets its one rebuild.
+  gl.none = false;
+  page.hidden = true; page.dispatch("visibilitychange"); env.run(1);
+  page.hidden = false; page.dispatch("visibilitychange"); env.frame();
+  await env.load(); env.frame();
+  expect(env.host().dataset.state).not.toBe("static");
+});
+
+test("stop and a buddy change clear a pending retry, and a late restore event does nothing", async () => {
+  const env = setup();
+  env.start(); env.frame(); await env.load(); env.run(3);
+  const lost = env.canvas();
+  lost.dispatch("webglcontextlost");
+  expect(vi.getTimerCount()).toBe(1);
+  env.shell.stop();
+  expect(vi.getTimerCount()).toBe(0);
+  lost.dispatch("webglcontextrestored");
+  expect(frames.size).toBe(0);
+  expect(lost.count()).toBe(0);
+
+  const changed = setup();
+  changed.start(); changed.frame(); await changed.load(); changed.run(3);
+  changed.canvas().dispatch("webglcontextlost");
+  expect(vi.getTimerCount()).toBe(1);
+  changed.shell.setBuddy("puri");
+  expect(vi.getTimerCount()).toBe(0);
+  changed.shell.stop();
 });
 
 test("a context lost while unseen is rebuilt only once the buddy is seen again", async () => {
