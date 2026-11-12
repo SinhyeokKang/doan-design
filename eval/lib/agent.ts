@@ -16,7 +16,8 @@ export function agentEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 // `codexServers` are the MCP servers the machine's Codex config registers (registeredCodexMcpServers).
-export function agentCommand(agent: Agent, prompt: string, codexServers: readonly string[] = []): { cmd: string; args: string[] } {
+// `git` is the scenario's: false when the agent's folder is in no Git repository.
+export function agentCommand(agent: Agent, prompt: string, codexServers: readonly string[] = [], git = true): { cmd: string; args: string[] } {
   // Claude: --strict-mcp-config ignores every MCP server in the machine's config.
   // Codex: no equivalent, and `-c mcp_servers={}` merges instead of clearing, so only a doan
   // server left registered there is switched off by name; other configured servers still load.
@@ -27,11 +28,12 @@ export function agentCommand(agent: Agent, prompt: string, codexServers: readonl
   // allow_login_shell=false: a login shell re-reads the user's profile, which puts an installed
   // ~/.local/bin ahead of the run's bin directory and drops the run's PATH entries (Codex 0.166,
   // snapshots already off), so the agent would run the installed doan, not the measured package.
+  // --skip-git-repo-check: Codex exec refuses an untrusted folder outside Git (0.167), and a run's folder is never trusted.
   if (agent === "claude") {
     return { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", prompt] };
   }
   const doan = codexServers.includes("doan") ? ["-c", "mcp_servers.doan.enabled=false"] : [];
-  return { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "allow_login_shell=false", ...doan, prompt] };
+  return { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", ...(git ? [] : ["--skip-git-repo-check"]), "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "allow_login_shell=false", ...doan, prompt] };
 }
 
 // Asks Codex itself, so project-level config and profiles count as well as $CODEX_HOME/config.toml.
