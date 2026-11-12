@@ -1,12 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, test, vi } from "vitest";
 import { TooltipProvider } from "./components/ui/tooltip";
-import { projectSlotEntry, recoveryKey, ShellSidebar, staleMenu } from "./ShellSidebar";
+import { projectSlot, recoveryKey, ShellSidebar, staleMenu } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 import type { SidebarSlot as Slot } from "./canvasNotice";
 import type { CanvasMenu } from "./ShellSidebar";
 const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {} };
-const projectSlot = (slots: ReadonlyMap<string, Slot>, roots: readonly string[], shown: readonly string[]) => projectSlotEntry(slots, roots, shown)?.slot;
 const row = { path: ".doan/canvases/folder/canvas.html", url: "u", frames: [{ id: "hidden-frame" }] };
 const entry: Extract<FolderEntry, { kind: "list" }> = { path: "/repo", kind: "list", servedRev: 0, canvases: [row], git: { common: "/repo/.git", branch: "main", worktrees: [] } };
 function render(loaded: string | null, selected = "/repo", expanded = false, problem = false, unlisted = false) {
@@ -290,11 +289,11 @@ test("a canvas notice is the unseen dot on its row, and on the project row while
   expect(closed).toMatch(/<span class="shell-project-name">demo<\/span><span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i><\/i><\/span>/);
 });
 
-test("on the project row a conversation slot beats a canvas notice; among notices the first listed wins, with its key", () => {
+test("on the project row a conversation slot beats a canvas notice; among notices the first listed wins", () => {
   const first = { kind: "canvas" as const, label: "first" }, second = { kind: "canvas" as const, label: "second" };
   const notices = new Map<string, Slot>([["/a\n.doan/canvases/x.html", first], ["/a\n.doan/canvases/y.html", second]]);
-  expect(projectSlotEntry(notices, ["/a"], [])).toEqual({ key: "/a\n.doan/canvases/x.html", slot: first });
-  expect(projectSlotEntry(notices, ["/a"], ["/a\n.doan/canvases/x.html"])).toEqual({ key: "/a\n.doan/canvases/y.html", slot: second });
+  expect(projectSlot(notices, ["/a"], [])).toBe(first);
+  expect(projectSlot(notices, ["/a"], ["/a\n.doan/canvases/x.html"])).toBe(second);
   const unseen = { kind: "unseen" as const, label: "u" };
   expect(projectSlot(new Map<string, Slot>([...notices, ["/a\n.doan/canvases/z.html", unseen]]), ["/a"], [])).toBe(unseen);
 });

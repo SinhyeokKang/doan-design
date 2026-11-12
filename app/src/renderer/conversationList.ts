@@ -59,8 +59,8 @@ export function terminalSlotLabel(provider: WorkItem["provider"]): string {
 // The conversation slots plus terminal sessions' working spinners. A row is
 // root + path: worktrees share canvas paths (POSTMORTEM 2026-11-01). Only listed canvas rows show one, so a path not
 // listed yet shows once it appears. On its row an app conversation working or waiting wins, and a terminal session
-// beats an unseen ending. Terminal rows go in newest-changed first, so a project row standing for several opens the
-// most recently changed canvas (`projectSlotEntry`); app slots that win come before them.
+// beats an unseen ending. Terminal rows go in newest-changed first, so a project row standing for several names the
+// most recently changed canvas (`projectSlot`); app slots that win come before them.
 export function withTerminalSlots(conversations: ReadonlyMap<string, Slot>, work: readonly WorkItem[], entries: readonly FolderEntry[]): Map<string, Slot> {
   const terminal = new Map<string, { slot: Slot; mtimeMs: number }>();
   for (const item of work) {

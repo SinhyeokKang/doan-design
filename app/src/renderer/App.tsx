@@ -822,14 +822,14 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (visit.canvas && row) openShellCanvas(visit.root, row, cursor);
     else showShellOverview(visit.root, cursor);
   };
-  // A project row's canvas notice opens its canvas wherever a conversation slot would open the Overview.
-  const openNotice = (notice: { root: string; path: string }, opened?: () => void) => {
+  // Opens a canvas named by an explicit entry (the board's other worktree notice), or says why it cannot.
+  const openNotice = (notice: { root: string; path: string }) => {
     const listed = entriesRef.current.find(entry => entry.path === notice.root);
     const row = listed?.kind === "list" ? listed.canvases.find(row => row.path === notice.path) : undefined;
-    if (row) openShellCanvas(notice.root, row, undefined, opened);
+    if (row) openShellCanvas(notice.root, row);
     else toast.show(unavailableCanvasMessage(listed, notice.path));
   };
-  const toggleProject = async (key: string, notice?: { root: string; path: string }) => {
+  const toggleProject = async (key: string) => {
     const group = cards.find(card => card.key === key); if (!group) return;
     // A locked page ignores only the move to a workspace: the row still unfolds another project, and
     // never folds one, as unlocked; the chevron folds. The loaded project is already unfolded or folded by hand.
@@ -839,20 +839,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       return;
     }
     const loaded = loadedRoot !== null && group.rows.some(row => row.path === loadedRoot);
-    // A terminal slot stands for the canvas its session works on: the row opens it before its own move, which would
-    // re-enter the loaded project's last canvas or fold an expanded project.
-    if (notice && shownSlots().get(canvasSlotKey(notice.root, notice.path))?.source === "terminal") {
-      if (!loaded) { cancelRestore(); controller.current?.cancelWorkspaceOpen(); }
-      openNotice(notice, loaded ? undefined : () => setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true } })));
-      return;
-    }
     // Home and the Add Projects page show the sidebar without a current project: from Home its row opens the Overview,
     // from the page it goes back to the loaded workspace.
     if (loaded) {
       if (shellRef.current[key]?.collapsed) setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true, collapsed: false } }));
       const move = loadedProjectRow({ screen: currentScreen.current, overviewShown: shownOverviewRef.current === loadedRoot });
       if (move === "enter") enter(loadedRoot);
-      else if (notice) openNotice(notice);
       // Over the covered Overview a changed conversation would not show: the row takes focus to the scene (PRODUCT §5 item 1).
       else if (move === "slot" && sceneRef.current) focusHeading();
       else if (move === "slot") askSlot(loadedRoot);
@@ -861,7 +853,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     }
     cancelRestore(); controller.current?.cancelWorkspaceOpen();
     const memory = { ...(shellRef.current[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
-    if (notice) { openNotice(notice, () => setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? memory), expanded: true } }))); return; }
     const intent = navigationIntent.current, signature = groupSignature;
     const activity = await window.doan.readShellActivity({ roots: memory.roots }).catch(() => null);
     const groups = groupProjects(entriesRef.current, new Map(entriesRef.current.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
@@ -1995,7 +1986,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (!rightPanelRef.current.open) foldPanel(true, "content");
     setArrival({ focus, seq: ++panelArrivals.current, ...(handoff ? { handoff } : {}) });
   }
-  // The other worktree notice's Open (DESIGN 'Terminal work in another worktree'): the terminal slot's path to W's same canvas,
+  // The other worktree notice's Open (DESIGN 'Terminal work in another worktree'): opens W's same canvas,
   // which makes W the selected worktree and leaves one canvas visit. A pick on this canvas ends first.
   const onOpenSibling = (root: string) => {
     if (!state.open) return;
@@ -2129,7 +2120,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const shellSlots = sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas);
   const sidebarId = (home: boolean) => home ? "doan-page-sidebar" : "doan-workspace-sidebar";
-  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
+  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={root => openProjectSettings(root)}
     canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash }}
     home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection, mcp: mcpShown !== false } } : {})}

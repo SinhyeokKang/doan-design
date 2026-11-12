@@ -124,7 +124,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (!isValidElement<Record<string, unknown>>(node)) return [];
   return [node, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
 }
-type Sidebar = { slots?: ReadonlyMap<string, { kind: string; label: string; source?: string }>; cards: { key: string; rows: { path: string }[] }[]; toggle(key: string, notice?: { root: string; path: string }): void; disclose(key: string): void; goHome(): void; projects: Record<string, ShellProject> };
+type Sidebar = { slots?: ReadonlyMap<string, { kind: string; label: string; source?: string }>; cards: { key: string; rows: { path: string }[] }[]; toggle(key: string): void; disclose(key: string): void; goHome(): void; projects: Record<string, ShellProject> };
 const sidebar = () => (all(tree).find(element => element.type === ShellSidebar)!.props as unknown as Sidebar);
 const agent = () => (all(tree).find(element => "agent" in (element.props as object))!.props as unknown as { agent: { work: readonly WorkItem[]; conversationWork: readonly ConversationWork[]; frames: unknown; onWork(target: unknown): void } }).agent;
 const rows = (): CanvasRow[] => [{ path: A, url: "u-a", mtimeMs: 10 }, { path: B, url: "u-b", mtimeMs: 5 }];
@@ -161,48 +161,32 @@ test("the read list shows on the sidebar and the canvas page; a change replaces 
   expect(agent().work).toEqual([]);
 });
 
-// a project row's terminal slot stands for the canvas its session works on, so the click opens that canvas before
-// the row's own move, which would re-enter the loaded project's last canvas from Home or fold an expanded project.
-test("from Home, the loaded project's terminal slot opens its canvas, not the last one", async () => {
+// A project row's terminal spinner only marks: the row keeps the move it has without one (PRODUCT §5 item 1).
+test("from Home, the loaded project's terminal spinner leaves its move back to the workspace's canvas", async () => {
   await start();
   show(rows()[0]!);
   sidebar().goHome(); render();
   listeners.work!([item(B)] as never); render();
   const key = sidebar().cards.find(card => card.rows.some(row => row.path === "/w/a"))!.key;
   const before = harness.controller!.openCanvas!.mock.calls.length;
-  sidebar().toggle(key, { root: "/w/a", path: B }); render();
-  expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before + 1);
-  expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/a", expect.objectContaining({ path: B }), undefined, expect.anything());
-  // Without a terminal slot the row keeps its move: it goes back to the loaded workspace.
-  sidebar().goHome(); render();
-  listeners.work!([] as never); render();
   sidebar().toggle(key); render();
-  expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before + 1);
+  expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
+  expect(harness.controller!.openCanvas).not.toHaveBeenLastCalledWith("/w/a", expect.objectContaining({ path: B }), undefined, expect.anything());
 });
 
-test("an expanded project that is not loaded opens its terminal slot's canvas and stays expanded", async () => {
+test("an expanded project that is not loaded keeps opening its Overview under a terminal spinner, and stays expanded", async () => {
   const other: FolderEntry = { path: "/w/b", kind: "list", servedRev: 0, canvases: [{ path: B, url: "u-b2", mtimeMs: 3 }] };
   render();
   folders([other]);
   readUiState({ ...workspace, shellProjects: { "/w/b": { roots: ["/w/b"], expanded: true } } }); await flush(); render();
   const key = sidebar().cards.find(card => card.rows.some(row => row.path === "/w/b"))!.key;
-  expect(sidebar().projects[key]?.expanded).toBe(true);
   listeners.work!([item(B, "/w/b")] as never); render();
-  sidebar().toggle(key, { root: "/w/b", path: B }); await flush(); render();
-  expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/b", expect.objectContaining({ path: B }), undefined, expect.anything());
-  expect(sidebar().projects[key]?.expanded).toBe(true);
-  const slotOpen = harness.controller!.openCanvas!.mock.calls.at(-1)![3] as { opened(): void };
-  // Without a terminal slot an expanded project's row opens its Overview and stays expanded: only its chevron folds it
-  // (project-row-disclosure draft).
-  listeners.work!([] as never); render();
+  expect(sidebar().slots?.get(`/w/b\n${B}`)?.source).toBe("terminal");
   const before = harness.controller!.openCanvas!.mock.calls.length;
   sidebar().toggle(key); await flush(); render();
   expect(sidebar().projects[key]?.expanded).toBe(true);
   expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
-  // Once the slot's canvas shows, its worktree is the project's selected one (DESIGN 'Terminal work in another worktree').
-  slotOpen.opened(); await flush(); render();
-  expect(sidebar().projects[key]?.selectedRoot).toBe("/w/b");
 });
 
 // W is another worktree of the loaded project, not selected, so its canvas rows are not on
@@ -214,7 +198,7 @@ const tree2 = (wCanvases: CanvasRow[]): FolderEntry[] => [
 ];
 const opensAtOnce = () => harness.controller!.openCanvas!.mockImplementation((_root: string, _row: CanvasRow, _at: unknown, done: { opened(): void }) => done.opened());
 
-test("another worktree's spinner waits until it lists the path; the project row's slot then selects it and opens its canvas", async () => {
+test("another worktree's spinner waits until it lists the path; the project row then shows it", async () => {
   render();
   listeners.folders!(tree2([{ path: A, url: "w-a", mtimeMs: 1 }]) as never); render();
   readUiState(workspace); await flush(); render();
@@ -224,13 +208,9 @@ test("another worktree's spinner waits until it lists the path; the project row'
   expect(sidebar().slots?.get(`/w/w\n${B}`)).toBeUndefined();
   listeners.folders!(tree2([{ path: A, url: "w-a", mtimeMs: 1 }, { path: B, url: "w-b", mtimeMs: 2 }]) as never); render();
   expect(sidebar().slots?.get(`/w/w\n${B}`)?.source).toBe("terminal");
-  opensAtOnce();
-  sidebar().toggle(key, { root: "/w/w", path: B }); await flush(); render();
-  expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/w", expect.objectContaining({ path: B }), undefined, expect.anything());
-  expect(sidebar().projects[key]?.selectedRoot).toBe("/w/w");
 });
 
-// DESIGN 'Terminal work in another worktree': the board notice's Open on (R, P) opens (W, P) the way the terminal slot does,
+// DESIGN 'Terminal work in another worktree': the board notice's Open on (R, P) opens (W, P), selects W,
 // cancels a pick, and leaves one canvas visit, so Back returns to R's canvas.
 test("the other worktree notice's Open cancels a pick, opens W's same canvas and selects W; Back returns to R's canvas", async () => {
   render();
