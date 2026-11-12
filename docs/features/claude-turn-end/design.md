@@ -119,7 +119,7 @@
 
 - 경로: `.doan/canvases/claude-turn-end.html`, 캔버스 id `claude-turn-end`.
 - 프레임: `background-line`(캔버스 패널 347의 줄 상태와 실패 토스트), `background-widths`(Overview 720과 패널 280), `prompt-unread`(결함 2의 실패 문구: 스레드와 Home strip), `copy`(문구와 스크린리더). `/design-sync`는 앞의 셋을 비교한다.
-- 초안 헤더의 선택 0–5(캔버스와 프레임 구성, 줄 형태와 아이콘, Stopping 표시와 접근 가능한 이름, 실패 문구 나누기, Home strip 문구, light only)는 사용자 확인을 기다린다. 답은 아직 없다.
+- 사용자가 초안을 확정했다. 초안 헤더의 선택 0–6을 그린 대로 따른다: 캔버스와 프레임 구성, 줄 형태와 아이콘, Stopping 표시와 접근 가능한 이름, 실패 문구 나누기, Home strip 문구, light only, 노티스 버튼 세로 가운데(공통 규칙, tasks 8).
 
 ## 영향 받는 구성요소
 
