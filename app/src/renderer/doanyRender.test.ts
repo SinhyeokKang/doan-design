@@ -182,8 +182,8 @@ function outline(image: ReturnType<typeof png>): number[][] {
 // therefore also checked with the accessory at both ends of its bound, which covers any press sequence,
 // and the sequences below (re-hops while settling, presses every 80 or 33 ms) check the spring itself.
 // The motion model is the same for every buddy, so the poses are made once. Over half the frames repeat
-// a pose exactly in every field the mapping and drawnPose read (the settled tails, the same start under
-// both rates), and those are kept once: bounding a pose twice finds nothing new.
+// an earlier pose exactly in every field the mapping and drawnPose read, and those are kept once:
+// bounding a pose twice finds nothing new.
 let made: { frames: number; poses: Pose[] } | null = null;
 function motionPoses(): { frames: number; poses: Pose[] } {
   if (made) return made;
