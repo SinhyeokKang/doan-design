@@ -100,6 +100,7 @@
 - 문구는 Claude 로그인이 조직 선택 화면을 보여 주는지에 따라 정한다. 조직이 여러 개인 계정으로 확인한 결과(날짜, Claude Code 버전, 보인 화면)를 이 절에 적는다.
   - 선택 화면이 있으면: "This conversation’s session belongs to another organization of your Claude Code account, so it can’t continue here. To continue it, sign out in Settings > Agents, then sign in and choose the organization this conversation started in."
   - 확인할 수 없으면 방법을 단정하지 않는다: "This conversation’s session belongs to another organization of your Claude Code account, so it can’t continue here. To continue it, sign in to the organization this conversation started in."
+- **확인 결과(2026-11-12)**: 확인하지 못했다. 조직이 여러 개인 Claude 계정으로 로그인 화면을 볼 수 없었다(터미널 CLI 2.1.322). 그래서 방법을 단정하지 않는 두 번째 문구를 쓴다.
 - 용어: Claude 관련 문구와 PRODUCT에서는 어디서나 "organization"을 쓴다. Copilot은 "account"를 유지한다.
 - 레거시 외부 경로(터미널 세션)는 계정 판정을 하지 않으므로 이 코드를 내지 않는다.
 - 로그인 상태가 `account_mismatch` 오류를 가진 채 보내면 이 코드가 나오지 않는다. lease를 얻는 단계(`accountCode`)와 다시 확인하는 단계(`recheck`)가 먼저 `not_logged_in`으로 거절하는 것으로 읽힌다. 테스트로 오늘 동작을 확인해 고정한다.
