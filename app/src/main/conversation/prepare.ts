@@ -92,7 +92,8 @@ function accountCode(cause: string): string {
   return ["busy", "cli_missing", "cli_install_failed", "session_in_use"].includes(cause) ? cause : "session_unavailable";
 }
 // A conversation another sign-in owns never runs on the current one, so neither a retry nor another agent helps.
-// account_changed: another account or workspace, which signing in to that account again brings back (the resume rebinds).
+// account_changed: another account, or a workspace change other than a known Claude organization, which signing in to
+// that account again brings back (the resume rebinds).
 // workspace_changed: a Claude Code conversation whose organization differs while both organizations are known, so
 // the notice can name the organization instead of the account.
 // sign_in_changed: a sign-in that cannot be proven the same (no stable account ID, and every sign-in mints a new
