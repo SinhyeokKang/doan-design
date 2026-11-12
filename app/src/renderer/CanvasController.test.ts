@@ -155,6 +155,10 @@ interface FakeMark {
 function selectionHarness() {
   const host = new EventTarget();
   vi.stubGlobal("window", host);
+  // Node has no animation frames; the queue runs only when a test asks for the next frame.
+  const animationFrames: FrameRequestCallback[] = [];
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => animationFrames.push(callback));
+  const nextFrame = () => { for (const callback of animationFrames.splice(0)) callback(0); };
   const frames: (EventTarget & { contentWindow: { postMessage: ReturnType<typeof vi.fn> }; style: Record<string, string> })[] = [];
   const marks: FakeMark[] = [];
   // What the hand tool reads: which element has focus, and whether the app window has it.
@@ -209,7 +213,7 @@ function selectionHarness() {
   const markOf = (kind: string) => marks.find((mark) => mark.className.split(" ").includes(kind));
   const state = () => changed.mock.lastCall?.[0];
   layout();
-  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections, board, layer, doc, cursor, pointer, marks };
+  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections, board, layer, doc, cursor, pointer, marks, nextFrame };
 }
 
 // The canvas's answer to Esc's step past the outermost frame: a clear at the step's seq.
@@ -3528,6 +3532,112 @@ describe("hand tool", () => {
       expect(h.state().tool).toBe("hand");
       expect(shown(h)).toBe(true);
     } finally { h.controller.dispose(); }
+  });
+
+  // A pointer resting over the canvas keeps the cursor the canvas last set until it moves (measured with a real
+  // pointer), so the canvas shows the hand itself while the layer is up.
+  describe("the canvas's hand cursor", () => {
+    const hands = (h: H) => posted(h).filter(m => m.type === "hover-hand").map(m => m.hand);
+
+    it("follows a held Space, ahead of the hover-leave the layer sends", () => {
+      const h = harness();
+      try {
+        press(h, "Space");
+        const sent = posted(h);
+        expect(sent.slice(-2)).toEqual([{ type: "hover-hand", hand: true, seq: 1 }, { type: "hover-leave", seq: 2 }]);
+        // Repeats and a drag under the held Space change nothing.
+        press(h, "Space", { repeat: true });
+        pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+        pointer(h, "pointerup");
+        expect(hands(h)).toEqual([true]);
+        release(h, "Space");
+        expect(hands(h)).toEqual([true, false]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("follows Hand chosen by key and by the toolbar, and Esc back to Select", () => {
+      const h = harness();
+      try {
+        press(h, "KeyH");
+        expect(hands(h)).toEqual([true]);
+        // Space in Hand keeps the layer up.
+        press(h, "Space");
+        release(h, "Space");
+        expect(hands(h)).toEqual([true]);
+        press(h, "KeyV");
+        expect(hands(h)).toEqual([true, false]);
+        h.controller.setTool("hand");
+        press(h, "Escape");
+        expect(hands(h)).toEqual([true, false, true, false]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("tells a document the canvas replaced itself with, while Hand keeps the layer up", () => {
+      const h = harness();
+      try {
+        press(h, "KeyH");
+        h.layout({ document: "doc2" });
+        expect(hands(h)).toEqual([true, true]);
+        // A later layout from the same document sends nothing more.
+        h.layout({ document: "doc2" });
+        expect(hands(h)).toEqual([true, true]);
+      } finally { h.controller.dispose(); }
+    });
+
+    // The other way round: after the pointer moved over the layer, the app document holds the cursor, and once the
+    // layer is down Chromium recomputes it over the iframe only when the iframe's own cursor value changes.
+    it("each lowering of the layer changes the iframe's cursor value, which raising it leaves alone", () => {
+      const h = harness();
+      try {
+        const cursor = () => h.current().style.cursor;
+        const frames = () => { h.nextFrame(); h.nextFrame(); };
+        const start = cursor();
+        press(h, "Space");
+        frames();
+        expect(cursor()).toBe(start);
+        release(h, "Space");
+        // Not before a frame without the layer has been drawn.
+        h.nextFrame();
+        expect(cursor()).toBe(start);
+        h.nextFrame();
+        // The iframe's computed cursor starts as auto, so the first change must be to another value.
+        const first = cursor();
+        expect(first).toBe("default");
+        press(h, "KeyH");
+        frames();
+        expect(cursor()).toBe(first);
+        press(h, "KeyV");
+        frames();
+        const second = cursor();
+        expect(second).toBe("auto");
+        // A Space released without a layer changes nothing.
+        release(h, "Space");
+        frames();
+        expect(cursor()).toBe(second);
+      } finally { h.controller.dispose(); }
+    });
+
+    // The hover channel's seq: a command a loading iframe never hears would put the app ahead of the new document,
+    // and every hover it then sends would be dropped as old.
+    it("a held Space that ends with a canvas switch sends nothing the loading iframe cannot hear, so its hover still shows", () => {
+      const h = harness();
+      try {
+        press(h, "Space");
+        h.controller.openCanvas("/repo", h.other);
+        expect(posted(h)).toEqual([]);
+        h.layout({ href: h.other.url, document: "doc2" });
+        h.receive({ href: h.other.url, type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
+        expect(h.markOf("hover")?.hidden).toBe(false);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("is not sent in Select without Space", () => {
+      const h = harness();
+      try {
+        h.layout({ document: "doc2" });
+        expect(hands(h)).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
   });
 
   // Review of the fix above: the iframe's load event forgets the anchor document, so only a new token counts.

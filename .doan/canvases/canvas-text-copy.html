@@ -1,0 +1,103 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="canvas-text-copy"><meta name="doan:width" content="1600"><title>canvas-text-copy — Select and copy canvas text by dragging</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../assets/mock.css"><style>
+/* ── Board layout for this canvas only ── */
+body{padding:var(--space-8);background:var(--surface-inset);font-family:var(--type-family);color:var(--text-standard)}
+.intro{max-width:1120px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle);font-size:var(--type-body-size);line-height:var(--type-body-line-height);letter-spacing:var(--type-body-letter-spacing)}
+.intro ul{margin-top:var(--space-2);color:var(--text-subtle);list-style:disc;padding-left:var(--space-5);font-size:var(--type-body-size);line-height:var(--type-body-line-height);letter-spacing:var(--type-body-letter-spacing)}
+.intro code,.caption code,.tile-label code{font-size:var(--type-caption-size)}
+.specimen+.specimen{margin-top:var(--space-12)}
+.caption{display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);margin-bottom:var(--space-4);max-width:1120px}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1);font-size:var(--type-body-size);line-height:var(--type-body-line-height)}
+.caption h2{font-size:var(--type-body-size);line-height:var(--type-body-line-height);letter-spacing:var(--type-body-letter-spacing);font-weight:var(--type-weight-medium)}
+.caption p{grid-column:2;color:var(--text-subtle);font-size:var(--type-body-size);line-height:var(--type-body-line-height);letter-spacing:var(--type-body-letter-spacing)}
+.tiles{display:flex;flex-wrap:wrap;gap:var(--space-8);align-items:flex-start}
+.tile{display:grid;gap:var(--space-2);justify-items:start}
+.tile-label{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);max-width:360px}
+.new{display:inline-block;margin-left:var(--space-2);padding:0 var(--space-1h);border-radius:var(--radius-control);background:var(--surface-accent-subtle);color:var(--text-accent-subtle);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);font-weight:var(--type-weight-medium);vertical-align:middle}
+/* A slice of the canvas area at zoom 100%: the board (the person's canvas) with the app overlay on top. */
+.stage{position:relative;width:360px;height:220px;border-radius:var(--radius-container);background:var(--surface-inset);box-shadow:var(--shadow-panel);overflow:clip;padding:var(--space-6)}
+.stage.wide{width:560px}
+
+/* ── Restated from app/src/renderer/styles.css as shipped, which canvases cannot link ── */
+.mark{position:absolute;border:1px solid var(--border-focus);box-shadow:0 0 0 1px var(--surface-panel)}
+.mark.hover{border-style:dashed}
+
+/* ── New: the text range highlight. The app draws it on the overlay above the canvas, so it lies over the glyphs:
+   one rect per line box of each Text node in the range (Range.getClientRects() keeps only Text node rects), the
+   accent at 30 % alpha (the jump highlight's color-mix pattern, 45 % there), with no ring: on a canvas or button
+   close to the accent it nearly vanishes, which the person accepted (2026-11-13). Drawn in flow here only so the rects follow
+   the mock's glyphs whatever the font; the stacking matches the app (under the marks). ── */
+.tr{position:relative;background:none;color:inherit}
+.tr::after{content:"";position:absolute;inset:0;background:color-mix(in srgb,var(--affordance-accent) 30%,transparent)}
+
+/* ── Mock canvas content (the person's draft, not app UI): colours from mock.css ── */
+.mock{position:relative;width:300px;padding:var(--space-5);border-radius:var(--radius-control);background:var(--mock-bg);color:var(--mock-ink);box-shadow:0 0 0 1px var(--mock-line)}
+.mock.dark{background:var(--mock-dark-bg);color:var(--mock-dark-ink);box-shadow:none}
+.mock.violet{background:var(--mock-violet-bg);color:var(--mock-violet-ink);box-shadow:none}
+.mock h3,.mock p{margin:0}
+.mock h3{position:relative;font-size:var(--type-body-size);line-height:var(--type-body-line-height);font-weight:var(--type-weight-semibold)}
+.mock p{position:relative;margin-top:var(--space-2);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height)}
+.mock .ln{display:block}
+.mock .cta{display:inline-flex;align-items:center;margin-top:var(--space-4);padding:var(--space-2) var(--space-4);border-radius:var(--radius-control);background:var(--mock-brand);color:var(--mock-brand-ink);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
+.mock.dark .cta{background:var(--mock-dark-fill);color:var(--mock-dark-ink)}
+.mock.violet .cta{background:var(--mock-violet-fill);color:var(--mock-violet-ink)}
+.pair{display:flex;gap:var(--space-6)}
+.pair .mock{width:236px}
+
+/* The pointer (the text cursor), placed in the text flow at its caret so it lines up with the range end whatever
+   the font; drawn on a panel halo like canvas-hand-tool.html's cursor illustrations. Not part of the overlay. */
+.ip{position:relative;display:inline-block;width:0;height:1em;vertical-align:baseline}
+.ip svg{position:absolute;left:calc(-1 * var(--space-1h));top:calc(-1 * var(--space-1));width:var(--space-3);height:var(--space-5);overflow:visible}
+.ip .halo{stroke:var(--surface-panel);stroke-width:4}
+.ip .ink{stroke:var(--text-standard);stroke-width:2}
+.note{position:absolute;left:var(--space-6);bottom:var(--space-4);color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height)}
+</style></head><body>
+
+<section class="intro">
+  <h1>Select and copy canvas text by dragging</h1>
+  <p>In Select, a drag that starts on canvas text (4 px on screen, no modifier keys) highlights the range; ⌘C or Edit &gt; Copy copies it as plain text. A still click still selects the element. The press never reaches the canvas: the canvas script holds a Range and the app paints the line rects of its Text nodes on the overlay, over the glyphs, in the person's accent at 30 % alpha. Feature documents: <code>docs/features/canvas-text-copy/</code>.</p>
+  <ul>
+    <li>All three frames are new. The selection and hover marks (<code>.mark</code>, <code>.mark.hover</code>) are restated from <code>app/src/renderer/styles.css</code> as shipped; the mock canvases use <code>.doan/assets/mock.css</code>. Only one range is visible at a time, so each tile shows one.</li>
+    <li><code>/design-sync</code> compares the highlight (<code>.tr</code>) and the marks in <code>surfaces</code> and <code>drag</code>: fill colour and alpha, one rect per line box, and stacking (highlight under the selection and hover marks).</li>
+    <li>There is no new UI copy, toast or menu. Success gives no feedback (macOS ⌘C convention).</li>
+    <li>References: the jump highlight's <code>color-mix(in srgb, var(--affordance-accent) 45%, transparent)</code> glow, checked in <code>app/src/renderer/styles.css</code>; the I-beam on a panel halo follows <code>.doan/canvases/canvas-hand-tool.html</code>; macOS text selection drawn behind text in the accent, recalled from memory (here the overlay lies over the text because the canvas is another document).</li>
+  </ul>
+</section>
+
+<section class="specimen" data-doan-frame="surfaces" data-doan-title="Highlight on light, dark and violet canvases">
+  <div class="caption"><span>1</span><h2>Highlight on light, dark and violet canvases<span class="new">New</span></h2>
+    <p>Several lines (one rect per line box) on three canvas colours, one line, a button label (selectable even when the canvas sets <code>user-select: none</code>), and a range inside the selected element: the highlight sits under the selection mark. On a canvas or button close to the accent (violet tile, button label) the range nearly vanishes; accepted.</p></div>
+  <div class="tiles">
+    <div class="tile"><div class="stage"><div class="mock" data-doan-id="surface-light"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark> and leave comments.</span></p><span class="cta">Send invites</span></div></div><span class="tile-label">Light canvas, two lines.</span></div>
+    <div class="tile"><div class="stage"><div class="mock dark" data-doan-id="surface-dark"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark> and leave comments.</span></p><span class="cta">Send invites</span></div></div><span class="tile-label">Dark canvas, two lines.</span></div>
+    <div class="tile"><div class="stage"><div class="mock violet" data-doan-id="surface-violet"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark> and leave comments.</span></p><span class="cta">Send invites</span></div></div><span class="tile-label">Violet canvas, close to Doany's own accent: the range nearly vanishes here (accepted).</span></div>
+    <div class="tile"><div class="stage"><div class="mock" data-doan-id="surface-one-line"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln">in this project and leave comments.</span></p><span class="cta">Send invites</span></div></div><span class="tile-label">One line.</span></div>
+    <div class="tile"><div class="stage"><div class="mock" data-doan-id="surface-button"><h3>Invite your team</h3><p><span class="ln">Members you invite can view every canvas</span><span class="ln">in this project and leave comments.</span></p><span class="cta"><mark class="tr">Send invites</mark></span></div></div><span class="tile-label">A button label on the indigo button.</span></div>
+    <div class="tile"><div class="stage"><div class="mock" data-doan-id="surface-with-selection"><h3><mark class="tr">Invite your</mark> team<span class="mark" style="inset:0"></span></h3><p><span class="ln">Members you invite can view every canvas</span><span class="ln">in this project and leave comments.</span></p><span class="cta">Send invites</span></div></div><span class="tile-label">The heading is the selected element (solid mark) and part of it is highlighted: the mark draws over the highlight. A text drag leaves the element selection as it was.</span></div>
+  </div>
+</section>
+
+<section class="specimen" data-doan-frame="drag" data-doan-title="Press, drag, release and the frame boundary">
+  <div class="caption"><span>2</span><h2>Press, drag, release and the frame boundary<span class="new">New</span></h2>
+    <p>The frame stays selected throughout (solid mark). The hover mark hides while dragging and comes back on release, even with the pointer still. During the drag the cursor is the text cursor everywhere on the canvas; V, H and Space are ignored and Esc ends the drag and clears it.</p></div>
+  <div class="tiles">
+    <div class="tile"><div class="stage"><div class="mock" data-doan-id="drag-press"><h3>Invite your team</h3><p><span class="ln">Members you invite <i class="ip" aria-hidden="true"><svg viewBox="0 0 12 20"><path class="halo" d="M3 1h6M3 19h6M6 1v18" fill="none"/><path class="ink" d="M3 1h6M3 19h6M6 1v18" fill="none"/></svg></i>can view every canvas</span><span class="ln">in this project and leave comments.</span><span class="mark hover" style="inset:0"></span></p><span class="cta">Send invites</span><span class="mark" style="inset:0"></span></div></div><span class="tile-label">Pressed before "can", not moved yet: nothing is highlighted and the hover mark still shows what a click would select. Released here, it is a click.</span></div>
+    <div class="tile"><div class="stage"><div class="mock" data-doan-id="drag-moving"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this proj</mark><i class="ip" aria-hidden="true"><svg viewBox="0 0 12 20"><path class="halo" d="M3 1h6M3 19h6M6 1v18" fill="none"/><path class="ink" d="M3 1h6M3 19h6M6 1v18" fill="none"/></svg></i>ect and leave comments.</span></p><span class="cta">Send invites</span><span class="mark" style="inset:0"></span></div></div><span class="tile-label">Dragging past 4 px: the range follows the pointer, no hover mark, text cursor.</span></div>
+    <div class="tile"><div class="stage"><div class="mock" data-doan-id="drag-released"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark><i class="ip" aria-hidden="true"><svg viewBox="0 0 12 20"><path class="halo" d="M3 1h6M3 19h6M6 1v18" fill="none"/><path class="ink" d="M3 1h6M3 19h6M6 1v18" fill="none"/></svg></i> and leave comments.</span><span class="mark hover" style="inset:0"></span></p><span class="cta">Send invites</span><span class="mark" style="inset:0"></span></div></div><span class="tile-label">Released: the highlight stays until the next press, Esc, Hand and the other cases in the spec. The hover mark is back at once. Keyboard focus moves to the canvas area, so ⌘C copies "can view every canvas in this project".</span></div>
+    <div class="tile"><div class="stage wide"><div class="pair"><div class="mock" data-doan-id="drag-boundary-start"><h3>Invite your team</h3><p><span class="ln">Members you <mark class="tr">invite can view</mark></span><span class="ln"><mark class="tr">every canvas in this project</mark></span><span class="ln"><mark class="tr">and leave comments.</mark></span></p><span class="cta"><mark class="tr">Send invites</mark></span></div><div class="mock" data-doan-id="drag-boundary-next"><h3>Pending invites</h3><p><span class="ln">Invites expire after <i class="ip" aria-hidden="true"><svg viewBox="0 0 12 20"><path class="halo" d="M3 1h6M3 19h6M6 1v18" fill="none"/><path class="ink" d="M3 1h6M3 19h6M6 1v18" fill="none"/></svg></i>seven</span><span class="ln">days. Resend one to renew it.</span></p><span class="cta">Resend</span></div></div><span class="note">Two frames side by side on the board.</span></div><span class="tile-label">The pointer moved into the next frame: the range runs to the end of the frame where the drag started (its last text, the button label) and no further.</span></div>
+  </div>
+</section>
+
+<section class="specimen" data-doan-frame="buddies" data-doan-title="The highlight follows the chosen buddy's accent">
+  <div class="caption"><span>3</span><h2>The highlight follows the chosen buddy's accent<span class="new">New</span></h2>
+    <p>The fill reads <code>--affordance-accent</code>, which the buddy switch re-points. Each tile sets the accent the app would have for that buddy.</p></div>
+  <div class="tiles">
+    <div class="tile"><div class="stage" style="--affordance-accent:var(--violet-9)"><div class="mock"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark> and leave comments.</span></p></div></div><span class="tile-label">Doany (violet)</span></div>
+    <div class="tile"><div class="stage" style="--affordance-accent:var(--puri-9)"><div class="mock"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark> and leave comments.</span></p></div></div><span class="tile-label">Puri</span></div>
+    <div class="tile"><div class="stage" style="--affordance-accent:var(--dori-9)"><div class="mock"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark> and leave comments.</span></p></div></div><span class="tile-label">Dori</span></div>
+    <div class="tile"><div class="stage" style="--affordance-accent:var(--dungdung-9)"><div class="mock"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark> and leave comments.</span></p></div></div><span class="tile-label">Dungdung</span></div>
+    <div class="tile"><div class="stage" style="--affordance-accent:var(--popo-9)"><div class="mock"><h3>Invite your team</h3><p><span class="ln">Members you invite <mark class="tr">can view every canvas</mark></span><span class="ln"><mark class="tr">in this project</mark> and leave comments.</span></p></div></div><span class="tile-label">Popo</span></div>
+  </div>
+</section>
+</body></html>

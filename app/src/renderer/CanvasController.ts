@@ -1455,6 +1455,23 @@ export class CanvasController {
     // A drag and a held Space end with the board they were on; the tool stays.
     if (!board) { this.stopDrag(); this.spaceHeld = false; }
     const show = board && (this.tool === "hand" || this.spaceHeld || this.drag !== null);
+    // A pointer resting over the canvas keeps the cursor the canvas last set until it moves, so the canvas shows the
+    // hand itself while the layer is up. The other way round, once the pointer has moved over the layer the app
+    // document holds the cursor, and after the layer goes down Chromium recomputes it over the iframe only when the
+    // iframe's own cursor value changes, and only reliably once a frame without the layer has been drawn (measured with
+    // a real pointer: a lowered layer alone left the hand, and a change in the same task did only sometimes).
+    if (show !== this.layerShown) {
+      // Not to an iframe still loading: its script would never hear it, and the hover seq would run ahead of the new
+      // document, dropping its hovers. It starts without the hand, and its first layout sends it if the layer is up.
+      if (!this.loading) this.sendHoverCommand({ type: "hover-hand", hand: show });
+      const frame = this.frame;
+      if (!show && frame !== null) {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          // The iframe's computed cursor starts as auto, so the first change is to default.
+          frame.style.cursor = frame.style.cursor === "default" ? "auto" : "default";
+        }));
+      }
+    }
     if ((show && !this.layerShown) || (capture && !this.captureShown)) {
       // The iframe gets no pointermove under the layer, and an OOPIF's pointerout cannot be trusted (POSTMORTEM 2026-10-23).
       this.hoverRect = null;
@@ -1527,6 +1544,8 @@ export class CanvasController {
       // (its location.reload()), which keeps the iframe; the tool stays. Not on the anchor document's change: the
       // iframe's load event forgets that one while the document stays.
       if (this.spaceHeld || this.drag !== null) { this.spaceHeld = false; this.finishDrag(); }
+      // Hand keeps the layer up through the canvas's own reload, and the new document has no hand of its own.
+      if (this.layerShown) this.sendHoverCommand({ type: "hover-hand", hand: true });
     }
     const before = this.layoutDisplayKey();
     const previousCurrent = this.state.currentFrame;
