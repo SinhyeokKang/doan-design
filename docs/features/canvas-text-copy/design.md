@@ -131,6 +131,8 @@ ARCHITECTURE §3이 말하듯 내부 메시지라 JSON Schema, socket, CLI 계�
   - `buddies`: 다섯 버디 accent(violet, puri, dori, dungdung, popo)마다 같은 범위.
 - `/design-sync`는 `surfaces`와 `drag`의 하이라이트 사각형과 표시(색, 투명도, 표시와의 겹침 순서)를 비교한다.
 - 제약: overlay는 캔버스 위에 있으므로 하이라이트가 글자 위를 덮는다. 색은 `--affordance-accent`의 반투명이다(기존 jump highlight의 `color-mix(in srgb, var(--affordance-accent) 45%, transparent)`와 같은 방식). 새 문구는 없다.
+- 사용자 결정(2026-11-13): 칠은 `color-mix(in srgb, var(--affordance-accent) 30%, transparent)`이고 링은 두지 않는다. 보라 캔버스나 인디고 버튼처럼 accent에 가까운 바탕에서는 칠과 바탕의 대비가 1.02~1.04로 범위가 거의 보이지 않는다. 이것을 받아들였다. 1px 패널 링 안은 검토했지만 넣지 않았다.
+- `Range.getClientRects()`는 범위가 통째로 담은 요소의 border box도 돌려준다. 사각형은 범위 안 `Text` 노드의 것만 쓴다. 그래야 겹친 곳의 알파가 쌓이지 않는다.
 
 ## 디자인 프리셋
 
