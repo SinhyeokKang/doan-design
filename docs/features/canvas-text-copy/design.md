@@ -122,6 +122,16 @@ ARCHITECTURE §3이 말하듯 내부 메시지라 JSON Schema, socket, CLI 계�
 - **2026-10-27 — Runtime clipboard capture constructed an item with no MIME types** (와 2026-11-12 재발): probe는 `app/runtime/clipboard.ts`의 `saveClipboard`·`restoreClipboard`로 사람의 클립보드를 저장하고 되돌린다.
 - **2026-11-07 — A reply one byte over the cap passed because its length was checked only on a read failure**: 상한 경계값과 +1, astral 문자로 넘는 경우를 테스트한다.
 
+## 초안 요청
+
+- 경로 `.doan/canvases/canvas-text-copy.html`, 캔버스 id `canvas-text-copy`, 폭 1600.
+- 프레임:
+  - `surfaces`: 하이라이트를 밝은 캔버스, 진한 캔버스, 보라 캔버스(`.doan/assets/mock.css`의 `--mock-bg`, `--mock-dark-bg`, `--mock-violet-bg`) 위에 그린다. 한 줄 범위, 여러 줄 범위, 버튼 라벨, 같은 요소에 요소 선택 표시가 있는 경우.
+  - `drag`: 누름(아직 4px 전, hover 표시), 드래그 중(하이라이트, 텍스트 커서, hover 없음, 요소 선택 표시 유지), 놓음(하이라이트 유지, hover 복귀), 프레임 경계에서 묶임(포인터는 옆 프레임, 하이라이트는 시작 프레임 끝까지).
+  - `buddies`: 다섯 버디 accent(violet, puri, dori, dungdung, popo)마다 같은 범위.
+- `/design-sync`는 `surfaces`와 `drag`의 하이라이트 사각형과 표시(색, 투명도, 표시와의 겹침 순서)를 비교한다.
+- 제약: overlay는 캔버스 위에 있으므로 하이라이트가 글자 위를 덮는다. 색은 `--affordance-accent`의 반투명이다(기존 jump highlight의 `color-mix(in srgb, var(--affordance-accent) 45%, transparent)`와 같은 방식). 새 문구는 없다.
+
 ## 디자인 프리셋
 
 overlay 하이라이트의 색, 투명도, 진한 캔버스 위 대비는 `/design-draft`에서 정한다. 새 문구는 없다.
