@@ -1,7 +1,15 @@
 import { object } from "./sessions";
-// Stub until the cleanup rule lands.
+// How a finished turn's process is ended for the next send. A done turn with its prompt read and no background work has
+// only its suggestion left: it is killed at once (a SIGTERM takes the CLI 0.5-1 s, and SIGKILL left every session
+// transcript whole and resumable, PoC). Background work runs in process groups of its own that only the CLI's SIGTERM
+// handling stops, so a group with any is never killed first. later: the usage read keeps the input open; decide once
+// it closes. none: the process is over.
 export type AfterTurnCleanup = "kill" | "term" | "none" | "later";
-export function afterTurnCleanup(_input: { finished: boolean; inputClosed: boolean; background: number; doneTurn: boolean; promptRead: boolean }): AfterTurnCleanup { return "none"; }
+export function afterTurnCleanup(input: { finished: boolean; inputClosed: boolean; background: number; doneTurn: boolean; promptRead: boolean }): AfterTurnCleanup {
+  if (input.finished) return "none";
+  if (!input.inputClosed) return "later";
+  return input.background === 0 && input.doneTurn && input.promptRead ? "kill" : "term";
+}
 export class OwnedGroup {
   private exited = false;
   private stopping: Promise<void> | undefined;

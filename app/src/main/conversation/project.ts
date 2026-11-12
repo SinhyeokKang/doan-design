@@ -4,9 +4,15 @@ import type { Canvas } from "./types";
 // A canvas the agent wrote shows up in the folder list after the watcher's debounce and an ls; a project turn that just
 // ended may still be judged for promotion this long, and keeps its root busy until then.
 export const BIND_GRACE_MS = 10_000;
-// Stub until the judgement timing lands.
-export const PROMOTION_SETTLE_MS = 0;
-export function promotionDeadline(input: { endedAt: number; exitedAt?: number; settle: number; grace: number }): number { return input.endedAt + input.grace; }
+// Once a turn's process group is gone the turn cannot write any more, and only the watcher's delay is left: 1.5 times the
+// longest a written canvas took to reach the folder refresh (3.7 s in the dev app, mostly the `doan ls` it runs).
+export const PROMOTION_SETTLE_MS = 5572;
+// When a turn that ended at endedAt is judged at the latest. exitedAt: when its process group was seen gone, absent
+// while it is still there (a Codex server lives between turns, background work can hold a Claude group); grace bounds it.
+export function promotionDeadline(input: { endedAt: number; exitedAt?: number; settle: number; grace: number }): number {
+  const bound = input.endedAt + input.grace;
+  return input.exitedAt === undefined ? bound : Math.min(bound, Math.max(input.endedAt, input.exitedAt) + input.settle);
+}
 // project: the root of a turn accepted (or being prepared) for a conversation without a canvas. It stays set for that
 // turn even when the conversation is bound to a canvas mid-turn.
 // failedPersistence: its history stopped taking writes, so its turn never ends; it must not hold the root until a restart.

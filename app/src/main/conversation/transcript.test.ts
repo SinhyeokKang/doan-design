@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { claudeTranscript, readInTranscript, readTranscriptFrom, transcriptSize } from "./io";
@@ -44,7 +44,7 @@ describe("readInTranscript", () => {
 });
 describe("reading a Claude session transcript after a size", () => {
   const dirs: string[] = []; afterEach(() => { dirs.splice(0).forEach(dir => rmSync(dir, { recursive: true, force: true })); });
-  function profile() { const dir = mkdtempSync(join(tmpdir(), "doan-transcript-")); dirs.push(dir); mkdirSync(join(dir, "projects", "-repo"), { recursive: true }); return dir; }
+  function profile() { const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-transcript-"))); dirs.push(dir); mkdirSync(join(dir, "projects", "-repo"), { recursive: true }); return dir; }
   it("finds the session's file under any project directory and reads only the bytes after the size taken at acceptance", () => {
     const config = profile(), id = "11111111-1111-4111-8111-111111111111", path = join(config, "projects", "-repo", `${id}.jsonl`);
     expect(claudeTranscript(config, id)).toBeNull();
