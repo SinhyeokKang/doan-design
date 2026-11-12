@@ -2424,8 +2424,8 @@ describe("textDragState", () => {
     expect(textDragState("press", start, { x: 104, y: 100 }, 4)).toBe("drag");
     expect(textDragState("press", start, { x: 100, y: 96 }, 4)).toBe("drag");
     // Diagonal distance, not either axis alone.
-    expect(textDragState("press", start, { x: 102.8, y: 102.8 }, 4)).toBe("drag");
-    expect(textDragState("press", start, { x: 102.8, y: 102.7 }, 4)).toBe("press");
+    expect(textDragState("press", start, { x: 102.9, y: 102.9 }, 4)).toBe("drag");
+    expect(textDragState("press", start, { x: 102.8, y: 102.8 }, 4)).toBe("press");
   });
 
   test("a drag stays a drag back at its start", () => {

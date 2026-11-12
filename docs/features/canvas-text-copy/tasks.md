@@ -32,7 +32,7 @@
      - 드래그가 끝나면 hover 중복 제거 값이 비워진다.
    - 확인: `npm --prefix app test`에서 새 사례가 빨간색이다.
    - **커밋 경계**: `test: pin canvas text drag, copy and clearing`.
-4. [ ] **구현 (`/implement`).** `canvasScript.ts`, `canvasMessage.ts`, `CanvasController.ts`, `canvasTool.ts`, `canvasTextCopy.ts`, overlay 스타일. 'Input direction' 주석을 고친다. PoC 3의 대체 경로가 필요하면 main의 Edit 메뉴도 바꾼다.
+4. [x] **구현 (`/implement`).** `canvasScript.ts`, `canvasMessage.ts`, `CanvasController.ts`, `canvasTool.ts`, `canvasTextCopy.ts`, overlay 스타일. 'Input direction' 주석을 고친다. PoC 3의 대체 경로가 필요하면 main의 Edit 메뉴도 바꾼다.
    - 확인: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`가 통과한다.
    - **커밋 경계**: `feat: select and copy canvas text by dragging in Select`.
 5. [ ] **초안과 맞추기 (`/design-sync`).** 작업 2 초안의 overlay 하이라이트와 실제 앱을 computed style로 비교하고 DESIGN.md에 측정값을 적는다.

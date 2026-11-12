@@ -79,6 +79,12 @@ code, kbd { font-family: var(--type-family); }
 /* Agents draw canvases in any colour, so the dark line carries a white outer line to stay visible. */
 .mark { position: absolute; border: 1px solid var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); }
 .mark.hover { border-style: dashed; }
+/* Select's canvas text range: the line rects of its Text nodes in board px, inside a layer that takes the board's own
+   transform. The overlay lies over the canvas, so the fill lies over the glyphs: the person's accent at 30 % alpha and
+   no ring (the jump highlight's color-mix pattern). z-index -1 in the overlay's stacking context keeps it under the
+   selection and hover marks. */
+.text-range { position: absolute; left: 0; top: 0; transform-origin: 0 0; z-index: -1; }
+.text-range > .text-rect { position: absolute; background: color-mix(in srgb, var(--affordance-accent) 30%, transparent); }
 /* The same prominent capsule as the tooltip. */
 .dims { position: absolute; top: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: var(--affordance-prominent); color: var(--text-on-prominent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); padding: var(--space-1) var(--space-2); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
 .canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); pointer-events: none; }

@@ -1,4 +1,4 @@
-import type { AnchorsMessage, PinGeometry, TargetCandidates, CanvasFrameRect, PickedMessage, PickStartedMessage } from "./canvasMessage";
+import type { AnchorsMessage, PinGeometry, TargetCandidates, CanvasFrameRect, PickedMessage, PickStartedMessage, TextRangeMessage } from "./canvasMessage";
 import type { Anchor } from "../main/conversation/types";
 import type { Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
@@ -9,11 +9,12 @@ import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGH
 import { switchTarget } from "./switchTarget";
 import { activityKey, activityKind, pushActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
-import { boardRectToScreen, boardToScreen, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
+import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
 import { currentFrame } from "./currentFrame";
 import { pointAnchor, resolveChipTarget, targetAnchor } from "./canvasPicker";
 import { escapeStep, toolShortcut, type CanvasTool, type ToolShortcut } from "./canvasTool";
+import { textCopy } from "./canvasTextCopy";
 import { captureRect } from "./canvasCapture";
 import type { Rect } from "./canvasPicker";
 import { workFrameRect } from "./agentIndicator";
@@ -264,6 +265,15 @@ export class CanvasController {
   private clickTag = 0;
   // The composer's preset lists, which close on a press in the canvas (the app's document never sees one).
   private pressListeners = new Set<() => void>();
+  // The canvas's Select text range: its line rects (iframe viewport px) painted on the overlay, the text ⌘C copies once
+  // the drag is released, and whether a drag is in progress. `textEpoch` is the last clear-text sent to the current
+  // document; a range it posted before that clear carries a smaller one. Its own channel: the selection and hover seqs
+  // are left alone.
+  private textRects: CanvasRect[] = [];
+  private canvasText: string | null = null;
+  private textDragging = false;
+  private textEpoch = 0;
+  private textLayer: { layer: HTMLElement; rects: HTMLElement[] } | null = null;
 
   // Raised by every move or selection change; a workspace open that waits for its folder's read goes ahead only
   // while it is still the latest. `valid` checks the destination against the current list right before applying.
@@ -385,6 +395,10 @@ export class CanvasController {
     window.addEventListener("pointermove", this.pointerOnApp, { capture: true });
     window.addEventListener("blur", this.appBlur);
     window.addEventListener("input", this.typed, { capture: true });
+    // Bubbling, so the composer's field and copyText, which copy on their own element or in the capture phase, go first.
+    window.addEventListener("copy", this.copy);
+    // selectionchange does not bubble from the document; the capture phase still passes the window.
+    window.addEventListener("selectionchange", this.appSelection, { capture: true });
     viewport.addEventListener("click", this.clickOnMargin);
     viewport.addEventListener("wheel", this.wheelOnMargin, { passive: false });
     layer.hidden = true;
@@ -415,6 +429,8 @@ export class CanvasController {
     window.removeEventListener("pointermove", this.pointerOnApp, { capture: true });
     window.removeEventListener("blur", this.appBlur);
     window.removeEventListener("input", this.typed, { capture: true });
+    window.removeEventListener("copy", this.copy);
+    window.removeEventListener("selectionchange", this.appSelection, { capture: true });
     this.viewport.removeEventListener("click", this.clickOnMargin);
     this.viewport.removeEventListener("wheel", this.wheelOnMargin);
     this.layer.removeEventListener("pointerdown", this.layerDown);
@@ -579,7 +595,7 @@ export class CanvasController {
     this.workspaceActive = active;
     if (!shown && this.onCanvasPage()) this.enteredPage();
     if (!active) this.cancelWorkspaceOpen();
-    if (!active) this.releaseInput();
+    if (!active) { this.releaseInput(); this.clearText(true); }
     // Leaving the canvas page for another screen cancels the pick and capture mode.
     if (!active && this.state.picking) { this.endPick({ kind: "cancelled" }); this.publish(); }
     if (!active) this.cancelCapture();
@@ -591,7 +607,7 @@ export class CanvasController {
     const before = this.onCanvasPage();
     this.canvasPage = shown;
     if (!before && this.onCanvasPage()) this.enteredPage();
-    if (!shown) { this.releaseInput(); this.cancelCapture(); }
+    if (!shown) { this.releaseInput(); this.cancelCapture(); this.clearText(true); }
   }
 
   private onCanvasPage(): boolean { return this.workspaceActive && this.canvasPage; }
@@ -628,7 +644,7 @@ export class CanvasController {
   private enterTool(tool: CanvasTool): void {
     const toHand = this.tool === "select" && tool === "hand";
     this.tool = tool;
-    if (toHand) this.dropSelection();
+    if (toHand) { this.dropSelection(); this.clearText(true); }
   }
 
   // Esc's clear without its publish. The clear command raises the selection seq, so a select the canvas sent before
@@ -773,6 +789,8 @@ export class CanvasController {
     this.pickDocument = null;
     this.resetPickChannel();
     this.resetAnchors();
+    this.textEpoch = 0;
+    this.resetText();
     // A plain reload that replaces a changed one before its layout keeps Changed.
     this.loadKind = !fresh && this.loading && this.loadKind === "changed" && kind === "reloaded" ? "changed" : kind;
     this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
@@ -845,6 +863,8 @@ export class CanvasController {
     this.endPick({ kind: "cancelled" });
     this.endCaptureWithBoard();
     this.pickDocument = null;
+    this.textEpoch = 0;
+    this.resetText();
     this.clearJump();
     this.pendingFrame = null;
     this.pendingLocate = null;
@@ -894,6 +914,7 @@ export class CanvasController {
     if (message.type === "pick-started") { this.receivePickStarted(message); return; }
     if (message.type === "press") { this.pressed(); return; }
     if (message.type === "activity") { this.personActive(false); return; }
+    if (message.type === "text-range") { this.onTextRange(message); return; }
     this.onSelectionMessage(message);
   };
 
@@ -1049,6 +1070,8 @@ export class CanvasController {
     if (this.state.picking) return true;
     // A pick that starts drops the selection, ahead of pick-start so the script lets go of it before picking.
     this.dropSelection();
+    // Capture mode already cleared it, and its layer kept every press from the canvas since.
+    if (!this.state.capturing) this.clearText(true);
     this.endCapture();
     this.state.picking = true;
     this.armPick();
@@ -1068,6 +1091,8 @@ export class CanvasController {
   startCapture(): boolean {
     if (this.state.open === null || !this.boardShown()) return false;
     if (this.state.capturing) return true;
+    // The capture image shows no highlight. A pick in progress already cleared it, and the canvas holds no range then.
+    if (!this.state.picking) this.clearText(true);
     this.endPick({ kind: "cancelled" });
     this.makeCaptureLayer();
     this.state.capturing = true;
@@ -1303,7 +1328,7 @@ export class CanvasController {
     // Esc while picking cancels only the pick, wherever focus is: the composer, the canvas or the panel. Menus and
     // the `/` list handle their Esc first and prevent it.
     const step = this.escape(editableTarget(event.target), event.repeat);
-    if (step === "cancelPick" || step === "cancelCapture" || step === "selectTool") event.preventDefault();
+    if (step === "cancelPick" || step === "cancelCapture" || step === "selectTool" || step === "clearText") event.preventDefault();
   };
 
   // An open toolbar tooltip takes the Escape at the document's capture phase and Radix prevents it right after this
@@ -1330,10 +1355,11 @@ export class CanvasController {
   // Esc's next step; `editable`: it came from a text field. Returns the step. A held Esc's auto-repeat (`repeat`) takes
   // no Select step, so one press steps back one level (PRODUCT §5 item 4) instead of walking the selection all the way out.
   private escape(editable: boolean, repeat = false): ReturnType<typeof escapeStep> {
-    const step = escapeStep({ picking: this.state.picking, capturing: this.state.capturing, hand: this.canvasPage && (this.pendingTool ?? this.tool) === "hand", editable });
+    const step = escapeStep({ picking: this.state.picking, capturing: this.state.capturing, hand: this.canvasPage && (this.pendingTool ?? this.tool) === "hand", editable, canvasText: this.hasText() });
     if (step === "cancelPick") this.cancelPick();
     else if (step === "cancelCapture") this.cancelCapture();
     else if (step === "selectTool") { this.toolChosen = true; this.applyTool("select"); }
+    else if (step === "clearText") this.clearText();
     else if (step === "stepSelection" && !repeat) this.stepOnEscape();
     return step;
   }
@@ -1348,6 +1374,9 @@ export class CanvasController {
       return held;
     }
     if (ignored || this.state.picking || this.state.capturing) return false;
+    // A text drag in progress keeps its tool and gets no layer under it; the key is still the canvas's, so nothing else
+    // acts on it.
+    if (this.textDragging) return true;
     if (shortcut.kind === "tool") { this.toolChosen = true; this.applyTool(shortcut.tool); return true; }
     // Without a drawn board Space does nothing, and a Space held from then does not pan the board that comes later.
     if (!this.boardDrawn()) return false;
@@ -1403,6 +1432,7 @@ export class CanvasController {
     // The board margin is outside every frame: picking goes on and the selection stays.
     if (this.state.picking) return;
     this.viewport.focus(CLICK_FOCUS);
+    this.clearText(true);
     this.clearOnEscape();
   };
 
@@ -1448,8 +1478,8 @@ export class CanvasController {
   private captureHeld(): boolean { return this.state.capturing || this.captureDrag !== null; }
 
   private syncLayer(): void {
-    // Capture mode ends with the board it was on.
-    if (!this.boardShown()) this.endCaptureWithBoard();
+    // Capture mode and a text range end with the board they were on.
+    if (!this.boardShown()) { this.endCaptureWithBoard(); this.resetText(); }
     const capture = this.captureHeld();
     const board = this.boardDrawn();
     // A drag and a held Space end with the board they were on; the tool stays.
@@ -1540,6 +1570,9 @@ export class CanvasController {
     if (message.document !== undefined && message.document !== this.pickDocument) {
       this.pickDocument = message.document;
       this.resetPickChannel();
+      // The range was the replaced document's, and the new one counts its clears from 0.
+      this.textEpoch = 0;
+      this.resetText();
       // A held Space and a drag end with the board they were on, also when the canvas replaces its own document
       // (its location.reload()), which keeps the iframe; the tool stays. Not on the anchor document's change: the
       // iframe's load event forgets that one while the document stays.
@@ -1743,12 +1776,16 @@ export class CanvasController {
     const action = wheelAction(input);
     this.view = "zoom" in action ? zoomAt(this.view, action.zoom, point, ZOOM_LIMITS) : panBy(this.view, action.pan.dx, action.pan.dy);
     this.applyView();
+    // The board moved under a resting pointer, which the canvas never hears as a pointermove: the drag's end follows
+    // the board point now under it.
+    if (this.textDragging) { const at = screenToBoard(this.view, point); this.post({ type: "text-point", epoch: this.textEpoch, x: at.x, y: at.y }); }
   }
 
   private applyView(origin: ViewOrigin = "person"): void {
     if (origin === "person") this.personActive(true);
     this.board.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${this.view.scale})`;
     this.drawMarks();
+    this.placeText();
     this.drawJump();
     this.drawWork();
     const current = this.state.unlisted ? null : currentFrame(this.state.layout?.frames ?? [], this.view, this.viewportSize());
@@ -1809,7 +1846,7 @@ export class CanvasController {
   }
 
   private followBusy(): boolean {
-    return this.state.picking || this.state.capturing || this.drag !== null || this.captureDrag !== null || this.spaceHeld || !this.onCanvasPage() || this.overlayOpen();
+    return this.state.picking || this.state.capturing || this.drag !== null || this.captureDrag !== null || this.spaceHeld || this.textDragging || !this.onCanvasPage() || this.overlayOpen();
   }
 
   // The person acted on the canvas page: the rest starts again. A view change or a selection change also stops every
@@ -1878,12 +1915,109 @@ export class CanvasController {
     this.workMarkFrame = rect.id;
   }
 
+  private hasText(): boolean { return this.textRects.length > 0 || this.textDragging; }
+
+  // Ranges come only from the current document after the last clear-text, and only in Select: Hand, a pick and capture
+  // mode cleared it and leave the canvas no clicks of its own.
+  private onTextRange(message: TextRangeMessage): void {
+    if (message.document !== this.pickDocument || message.epoch < this.textEpoch) return;
+    if (this.tool === "hand" || this.state.picking || this.state.capturing) return;
+    this.personActive(false);
+    const started = message.dragging && !this.textDragging;
+    const ended = !message.dragging && this.textDragging;
+    this.textRects = message.rects;
+    this.textDragging = message.dragging;
+    this.canvasText = message.dragging || message.rects.length === 0 ? null : message.text ?? this.canvasText;
+    // The selection made last is the one copied: a canvas text drag folds the app's own text selection.
+    if (started) {
+      const selection = window.getSelection?.();
+      if (selection && selection.rangeCount > 0 && !selection.isCollapsed) selection.collapseToEnd();
+    }
+    // Keys after the release go to the canvas area, as after a click.
+    if (ended) this.focusOnClick();
+    this.drawText();
+    this.drawMarks();
+  }
+
+  // Clears the range here and tells the canvas, which ends a drag in progress. `always`: also when nothing is shown
+  // yet, since a range the canvas posted may still be on its way (switching to Hand, a pick, capture mode, leaving).
+  private clearText(always = false): void {
+    if (!always && !this.hasText()) return;
+    if (this.frame !== null && !this.loading && this.pickDocument !== null) {
+      this.textEpoch += 1;
+      this.post({ type: "clear-text", epoch: this.textEpoch });
+    }
+    this.resetText();
+  }
+
+  // The document the range was in went away (or the canvas cleared it itself): nothing to tell it.
+  private resetText(): void {
+    if (!this.hasText() && this.canvasText === null) return;
+    this.textRects = [];
+    this.canvasText = null;
+    this.textDragging = false;
+    this.drawText();
+    this.drawMarks();
+  }
+
+  private copy = (event: ClipboardEvent): void => {
+    const text = textCopy({ canvasText: this.canvasText, defaultPrevented: event.defaultPrevented, onCanvasPage: this.onCanvasPage(), overlayOpen: this.covered || this.overlayOpen() });
+    if (text === null || !event.clipboardData) return;
+    // Plain text only: it is the canvas's data, never drawn as HTML.
+    event.clipboardData.setData("text/plain", text);
+    event.preventDefault();
+  };
+
+  // A new text selection in the app (a message bubble, a field) clears the canvas range, so only one selection shows. A
+  // caret moving, as typing does, is no selection.
+  private appSelection = (event: Event): void => {
+    if (!this.hasText()) return;
+    const target: unknown = event.target;
+    const inField = typeof target === "object" && target !== null && "selectionStart" in target && "selectionEnd" in target &&
+      typeof target.selectionStart === "number" && target.selectionStart !== target.selectionEnd;
+    const selection = window.getSelection?.();
+    if (inField || (selection && selection.rangeCount > 0 && !selection.isCollapsed)) this.clearText();
+  };
+
+  // One rect per line in board px, inside a layer that takes the board's own transform: a pan moves one element, not
+  // every rect. Under the marks (styles.css), so the selection and hover outlines stay on top.
+  private drawText(): void {
+    if (this.textLayer === null) {
+      if (this.textRects.length === 0) return;
+      const layer = document.createElement("div");
+      layer.className = "text-range";
+      layer.setAttribute("aria-hidden", "true");
+      this.overlay.append(layer);
+      this.textLayer = { layer, rects: [] };
+    }
+    const { layer, rects } = this.textLayer;
+    layer.hidden = this.textRects.length === 0;
+    this.textRects.forEach((rect, index) => {
+      let element = rects[index];
+      if (element === undefined) {
+        element = document.createElement("div");
+        element.className = "text-rect";
+        layer.append(element);
+        rects.push(element);
+      }
+      element.hidden = false;
+      Object.assign(element.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px` });
+    });
+    for (const element of rects.slice(this.textRects.length)) element.hidden = true;
+    this.placeText();
+  }
+
+  private placeText(): void {
+    if (this.textLayer === null) return;
+    this.textLayer.layer.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${this.view.scale})`;
+  }
+
   // Marks live outside the iframe so the canvas DOM, its MutationObserver and
   // the anchors stay untouched; drawn in screen px so lines stay 1px at any
   // scale, while the size label (a child of the selection mark, centered
   // under it by CSS) reads canvas px.
   private drawMarks(): void {
-    const hover = this.markHidden || this.altHeld || this.layerShown || this.captureShown ? null : this.hoverRect;
+    const hover = this.markHidden || this.altHeld || this.layerShown || this.captureShown || this.textDragging ? null : this.hoverRect;
     const selected = this.markHidden ? null : this.selectedRect;
     if (this.marks === null) {
       if (hover === null && selected === null) return;
