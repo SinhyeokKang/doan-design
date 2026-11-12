@@ -56,8 +56,8 @@ func textual(mime string) bool {
 	return strings.HasPrefix(base, "text/") || base == "image/svg+xml" || base == "application/json"
 }
 
-// fragment keeps a reference's "#…" on its data URI (SVG <use>, sprite
-// masks), escaping only what would break the contexts dataURI is safe in.
+// fragment keeps a reference's "#…" on its data URI, escaping only what
+// would break the contexts dataURI is safe in.
 func fragment(href string) string {
 	i := strings.IndexByte(href, '#')
 	if i < 0 {

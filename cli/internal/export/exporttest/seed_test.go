@@ -16,7 +16,7 @@ func TestSeedListsEveryCanvasAndServesTheConfiguredScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{BadWidth, Empty, Nested, Full, NoWidth, RefuseBase, RefuseCSSScope, RefuseFrame, RefuseLink, RefuseMeta, RefuseMissing, RefuseParent, RefuseRoot, RefuseScope}
+	want := []string{BadWidth, Empty, Nested, Full, NoWidth, RefuseBase, RefuseCSSScope, RefuseFrame, RefuseLink, RefuseMeta, RefuseMissing, RefuseParent, RefuseRoot, RefuseScope, RefuseUse}
 	if !reflect.DeepEqual(got, sorted(want)) {
 		t.Fatalf("canvases = %q", got)
 	}

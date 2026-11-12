@@ -45,11 +45,22 @@ PoC 종료 조건에는 실제 창 콘텐츠 크기가 `innerWidth/innerHeight`�
 - `prototype-controls`: 지원 프레임 자체 선택 시 도구 바·크기 버블 재생 버튼, 요소/미지원 프레임/미선택의 비활성 상태·이유·키보드 포커스.
 - `prototype-drawer`: 기존 이동+선택 행에 지원 메타만 추가한다. 재생 액션은 서랍에 추가하지 않는다.
 - `prototype-window`: 단일 프레임 창의 입력·버튼·모달·스크롤과 창 크기 변경에 따른 반응형 예시. 같은 대상 재생과 다른 대상 교체의 차이를 주석으로 설명한다.
-- `prototype-states`: 대상 이름이 있는 로딩, 초기화/읽기 실패의 이유·Retry·Close, 대상 소실의 이유·Close, 자동 복구를 타일로 그린다. 소실 화면 본문에도 원본 프레임 또는 지원 표시가 복구되면 자동으로 다시 표시한다고 안내한다.
-- 창 제목은 창 제어 버튼 영역을 확보하고 한 줄 말줄임한다. 전체 제목은 툴팁으로 제공하며 360px 창의 긴 프레임 이름을 초안에 포함한다.
+  - 창 셸(사용자 결정, 2026-11-13): AppShell처럼 유리창 패널 위 둥근 흰 콘텐츠 패널, 헤더 높이 `--size-chrome`. 헤더 왼쪽은 신호등, Back/Forward(메인 창 헤더와 같은 자리·모양), 새로고침 버튼, 가운데는 사이드바 검색 버튼 스타일의 프레임 이름 버튼(가운데 정렬, 대칭 여백, 말줄임과 툴팁). 이름 버튼 아래로 프레임 드로어(같은 캔버스의 지원 프레임, 문서 순서, 재생 중 표시)가 열린 상태를 그린다. Back만 켜진 상태와 둘 다 꺼진 상태, 640px 창과 360px 창의 긴 이름을 그린다.
+- `prototype-states`: 새 창 셸과 헤더 안에서 그린다. 상태 화면은 문제 프로젝트 오버레이를 재사용한다(`.problem-overlay`·`.problem-scene`, DESIGN 'Problem overlay', `.doan/canvases/problem-project.html`): 콘텐츠 패널 위 블러 오버레이, 그 아래에 이전 실행 화면(처음 로딩은 빈 패널). 대상 이름이 있는 로딩, 초기화/읽기 실패의 이유·Retry·Close, 대상 소실의 이유·Close, 자동 복구를 타일로 그린다. 소실 화면 본문에도 원본 프레임 또는 지원 표시가 복구되면 자동으로 다시 표시한다고 안내한다. 소실 화면에서도 헤더의 프레임 드로어와 Back/Forward는 쓸 수 있다.
+- 헤더 가운데 프레임 이름 버튼은 신호등과 Back/Forward 영역을 피하고, 창 가운데 정렬을 위해 오른쪽도 같은 폭을 비운다. 한 줄 말줄임하고 전체 이름은 툴팁으로 제공하며 360px 창의 긴 프레임 이름을 초안에 포함한다. OS 창 제목(창 목록·Mission Control)은 프레임 이름과 `Prototype`이다.
 - 기존 캔버스 도구·서랍·버블·네이티브 창 표현을 현행 코드와 DESIGN.md에서 복사하고 추가 요소만 그린다.
 - 이 초안은 확정된 사용자 흐름을 그린다. PoC 전 지원 속성·실행 계약·지원 가능한 HTML 범위는 확정하거나 검증됐다고 표현하지 않는다. PoC는 구현의 선행 조건으로 유지한다.
 - 서브에이전트 작성 후 주 에이전트가 렌더링을 검토·수정하고 원격에 푸시한다. 사용자 시각 확인은 이후 별도로 받으며, 푸시를 승인으로 기록하지 않는다.
+
+### 프리셋 검수 반영 (2026-11-13)
+
+critique·clarify·audit·harden 프리셋 검수 뒤 사용자가 spec 19·20을 정했고, 다음을 초안에 반영한다.
+- Reload에 `Reload prototype` 툴팁. 이름 버튼 툴팁은 공유 Tooltip 하나로, 이름이 말줄임될 때만.
+- 드로어는 이름 버튼에 앵커(8px collision padding)하고, 행은 출시된 서랍처럼 `aria-current="location"`과 roving tabindex.
+- 상태 장면에 늘 마운트한 polite 라이브 영역. `h2`는 heading 그대로. 포커스가 콘텐츠 안에 있었을 때만 `tabindex=-1` 제목으로 옮긴다.
+- 실패 문구: 읽기 실패 본문 `Doan couldn’t read the canvas file for this frame.`, 초기화 실패 본문 `The frame was read, but Doan couldn’t set it up in this window.` 두 상태 모두 Retry · Close 뒤에 Details(ghost)와 `.problem-detail`.
+- 소실 문구: `This frame is no longer available. It reappears here when the frame is restored; to play another, choose one from the frame menu above.`, `This frame is no longer marked for prototyping. It reappears here when the mark is restored; to play another, choose one from the frame menu above.` 고를 프레임이 없으면(캔버스 자체가 사라졌거나 지원 프레임이 하나도 남지 않음) 세미콜론 뒤 절을 뺀다. 드로어 0행 문구는 `No frames in this canvas are marked for prototyping. Ask an agent to mark one.`이다(clarify 프리셋으로 작성).
+- 추가 타일: 드로어 1행, 0행(지원 프레임 없음, 문구는 clarify로), 소실 중에 연 드로어, 짧은 창에서 연 드로어(목록 스크롤), 360px·낮은 높이의 소실 상태, 360px보다 좁은 프레임(가운데 배치), 헤더 컨트롤과 드로어 행의 포커스 표본.
 
 ### 초안 검토 상태
 
@@ -63,7 +74,7 @@ PoC 종료 조건에는 실제 창 콘텐츠 크기가 `innerWidth/innerHeight`�
 - 서랍의 지원 메타는 캡션 텍스트 `Prototype`이고 Viewing 표시를 유지한다. 재생 아이콘은 버튼처럼 보이지만 행 메타는 버튼이 아니기 때문이다.
 - 로딩·실패·소실 문구는 원인마다 제목이 다르다. 로딩은 `Loading prototype`, 읽기 실패는 `Couldn’t open this prototype`, 초기화 실패는 `Couldn’t start this prototype`, 프레임 소실은 `Frame unavailable`, 지원 표시 제거는 `Prototype unavailable`이다.
 
-사용자 시각 확인은 대기 중이다. 창 장식은 현행 메인 창을 참고한 시안이며 네이티브 창·반응형 실행·키보드 전달·격리 PoC를 검증했다는 뜻이 아니다.
+사용자가 앱에서 초안(`b0f4befb`까지)을 확정했다(2026-11-13). 로딩 줄은 출시된 `.problem-reading`과 달리 `role="status"` 없이 창의 polite 라이브 영역이 읽는 것으로 확정했다. 2026-11-13 사용자가 창 셸·헤더(Back/Forward, 가운데 프레임 이름 버튼, 창 안 프레임 드로어)를 바꾸기로 해서 `prototype-window`·`prototype-states`를 다시 그린다. 창 장식은 현행 메인 창을 참고한 시안이며 네이티브 창·반응형 실행·키보드 전달·격리 PoC를 검증했다는 뜻이 아니다.
 
 기존 1px 선·2px 포커스·5px 버블 간격·320px 서랍·네이티브 버튼의 21px 상단 위치는 컴포넌트 상수로 유지했다. 예시 콘텐츠와 상태 영역·crop 크기는 초안 배치 상수이며 새 앱 토큰은 추가하지 않았다.
 

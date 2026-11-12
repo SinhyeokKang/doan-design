@@ -509,15 +509,30 @@ func CustomUses(text string, mode Mode) CustomUse {
 	}
 	paren := 0
 	var decl []token
-	// registering is the @property block being read, or "".
+	// registering is the @property block being read, or "", and seen the
+	// descriptors it has: "url" for a syntax that accepts <url>, "inherits"
+	// and "initial-value". The browser drops a rule without inherits, or
+	// without initial-value for any syntax but "*", and the property then
+	// stays unregistered.
 	registering := ""
+	seen := map[string]bool{}
+	register := func() {
+		if registering != "" && seen["url"] && seen["inherits"] && seen["initial-value"] {
+			u.URLSyntax[registering] = true
+		}
+	}
 	declaration := func(d []token) {
 		if len(d) < 2 || d[0].kind != 'i' || d[1].kind != ':' {
 			return
 		}
 		name := d[0].text
-		if registering != "" && lower(name) == "syntax" && len(d) > 2 && d[2].kind == 's' && strings.Contains(lower(d[2].text), "<url>") {
-			u.URLSyntax[registering] = true
+		if registering != "" {
+			switch n := lower(name); {
+			case n == "syntax":
+				seen["url"] = len(d) > 2 && d[2].kind == 's' && strings.Contains(lower(d[2].text), "<url>")
+			case n == "inherits" || n == "initial-value":
+				seen[n] = true
+			}
 		}
 		for i := 2; i+2 < len(d); i++ {
 			if d[i].kind == 'i' && lower(d[i].text) == "var" && d[i+1].kind == '(' && d[i+1].start == d[i].end && d[i+2].kind == 'i' && custom(d[i+2].text) {
@@ -546,6 +561,7 @@ func CustomUses(text string, mode Mode) CustomUse {
 			p := decl
 			if len(p) == 3 && p[0].kind == '@' && p[1].start == p[0].end && lower(p[1].text) == "property" && p[2].kind == 'i' && custom(p[2].text) {
 				registering = p[2].text
+				seen = map[string]bool{}
 			}
 			depth++
 			decl, paren = decl[:0], 0
@@ -558,6 +574,7 @@ func CustomUses(text string, mode Mode) CustomUse {
 				if depth > 0 {
 					depth--
 				}
+				register()
 				registering = ""
 			}
 			decl, paren = decl[:0], 0
@@ -568,6 +585,8 @@ func CustomUses(text string, mode Mode) CustomUse {
 	if depth > 0 && len(decl) > 0 {
 		declaration(decl)
 	}
+	// The end of the text closes an unclosed block.
+	register()
 	return u
 }
 

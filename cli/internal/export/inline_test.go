@@ -124,7 +124,7 @@ func TestInlineFullCanvas(t *testing.T) {
 	}
 	wantPaths := []string{
 		".doan/assets/fonts/brand.woff2", ".doan/assets/images/dot.svg", ".doan/assets/images/hero.png",
-		".doan/assets/images/로고 파일.png", ".doan/assets/scripts/app.js", ".doan/assets/sprite.svg",
+		".doan/assets/images/로고 파일.png", ".doan/assets/scripts/app.js",
 		".doan/ds/index.css",
 		"styles/a.css", "styles/b.css", "styles/c.css", "styles/cycle-a.css", "styles/cycle-b.css", "styles/tokens.css",
 	}
@@ -163,8 +163,8 @@ func TestInlineFullCanvas(t *testing.T) {
 	if !strings.Contains(html, dataURI("image/png", exporttest.LogoPNG)+` 2x"`) {
 		t.Error("percent-escaped Hangul srcset candidate is not inlined")
 	}
-	if !strings.Contains(html, `<use href="#icon"/>`) || !strings.Contains(html, "</section>\n"+spriteContainer+exporttest.SpriteSVG+"</svg></body>") {
-		t.Error("SVG <use> sprite is not inlined before </body>")
+	if !strings.Contains(html, exporttest.InlineSprite) || !strings.Contains(html, "</section>\n</body>") {
+		t.Error("the inline SVG sprite is not kept as written")
 	}
 	if !strings.Contains(html, `<script src="`+dataURI("text/javascript; charset=utf-8", []byte(exporttest.AppJS))+`" defer="">`) {
 		t.Error("local script is not inlined")

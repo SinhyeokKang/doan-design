@@ -106,13 +106,13 @@ func TestInlineRefusesReferencesUnderAMovingBase(t *testing.T) {
 </body></html>`)
 	res := inlineSeed(t, root, movedCanvas)
 	want := []Refusal{
+		{movedCanvas, "sprite.svg#icon", ReasonUseExternal},
 		{movedCanvas, "../../styles/tokens.css", ReasonBase},
 		{movedCanvas, "images/dot.svg", ReasonBase},
 		{movedCanvas, "x.css", ReasonBase},
 		{movedCanvas, "images/hero.png", ReasonBase},
 		{movedCanvas, "u.png", ReasonBase},
 		{movedCanvas, "scripts/app.js", ReasonBase},
-		{movedCanvas, "sprite.svg#icon", ReasonBase},
 		{movedCanvas, "images/none.png", ReasonBase},
 		{movedCanvas, "inner.html", ReasonFrame},
 	}

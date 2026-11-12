@@ -66,9 +66,9 @@ lead는 링크 시작 전에 아래를 사용자에게 한 번에 묻고, 승인
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1. `canvas-svg-sprites` | `canvas-svg-sprites-orch` (Claude conductor), `/Users/sinhyeok/orca/workspaces/doan-design/canvas-svg-sprites-orch` | 2026-11-12, `8e9c33e9` | | 진행 중 |
+| 1. `canvas-svg-sprites` | `canvas-svg-sprites-orch` (Claude conductor). worktree 삭제됨 | 2026-11-12, `8e9c33e9` | [#179](https://github.com/SinhyeokKang/doan-design/pull/179), 병합 `c0d99ed4` | 병합 |
 | 2. `claude-turn-end` | `claude-turn-end-orch` (Claude conductor), `/Users/sinhyeok/orca/workspaces/doan-design/claude-turn-end-orch` | 2026-11-12, `8e9c33e9` | | 진행 중 |
-| 3. `canvas-text-copy` | | | | 대기(`fix/space-cursor-over-frame` 병합 대기) |
+| 3. `canvas-text-copy` | `canvas-text-copy-orch` (Claude conductor), `/Users/sinhyeok/orca/workspaces/doan-design/canvas-text-copy-orch` | 2026-11-13, `02e6e505` | | 진행 중 |
 
 ## 인계 기록
 
@@ -76,3 +76,5 @@ lead는 링크 시작 전에 아래를 사용자에게 한 번에 묻고, 승인
 - 2026-11-12 lead: PR #177을 `36aee960`으로 병합했다. 시작 점검을 사용자가 승인했다. 1: 사용자가 Safari에서 export 파일을 열고 스크린숏을 남긴다. 2·3·6: 모두 승인. 4: 실제 HOME과 임시 `DOAN_RUNTIME`·repo, 계속 쓰는 userData로 바꾼다('로그인' 절 적용). 링크 2 conductor가 자기 브랜치에서 design.md와 tasks 9를 이 규칙으로 고친다. 5: 미리 정하지 않았다. 두 링크를 `8e9c33e9`에서 함께 시작했다.
 - 2026-11-13 lead: 사용자 요청으로 링크 3 `canvas-text-copy`를 더했다. 링크 1·2와 병렬이고, `fix/space-cursor-over-frame` PR 병합 뒤 시작한다. 링크 3 시작 전 점검은 시작할 때 묻는다.
 - 2026-11-13 lead: 링크 3 시작 전 점검 1–4를 사용자가 모두 승인했다. `fix/space-cursor-over-frame` PR이 병합되면 lead가 바로 링크 3을 시작한다.
+- 2026-11-13 lead: `fix/space-cursor-over-frame`(PR #178)을 `02e6e505`로 병합했다. `/agent-eval`은 사용자 결정으로 생략했다(viewer 커서만 바뀌고 가이드·CLI 응답·check는 그대로). 그 PR이 `cli/internal/export/output_test.go`의 export digest를 바꿨다고 링크 1 conductor에게 알렸다. 링크 3을 `02e6e505`에서 시작했다.
+- 2026-11-13 lead: 링크 1 PR #179를 `c0d99ed4`로 병합했다(CI 샤드가 러너를 받지 못해 취소된 것을 다시 돌려 통과). 다음 링크가 알 것: 다른 파일의 SVG `<use>`는 이제 `doan check` error·export 거부이고, 여러 폴더가 다르게 푸는 custom property `url()`은 export 거부(check는 warning)다. 릴리스 노트 문구는 PR 본문에 있다. `doan design-skill document --json`이 출력 상한 21,600바이트 중 21,588바이트라 그 프리셋에 더하면 `TestDesignSkillFitsToolOutputCap`이 깨진다. `app/`은 바뀌지 않았다.

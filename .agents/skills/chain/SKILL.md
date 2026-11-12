@@ -5,7 +5,7 @@ description: Use to link several features into a chain of /orchestrate runs, ser
 
 A **chain** runs several `/orchestrate` runs, one feature per link. Links run one after another, each starting after the one before has merged, except links whose code does not overlap, which run in parallel (§1 step 2). The **lead** (the develop-checkout session, AGENTS.md 'Workflow' Lead and conductors) sets the chain up, starts every link's conductor, and reviews and merges every link's PR; it writes no feature code and conducts no link. §1–§2 and §3 'Lead' are for the lead, §3 'Conductor' for each link's conductor.
 
-The chain file `docs/features/chain-<YYMMDD>/chain.md` is the single source for the chain: order, the user's standing permissions, the start check, the status of each link and the handoff log. It is written in Korean (AGENTS.md 'Korean writing rules'), and only the lead writes it, committed and pushed on develop; a conductor never edits it on its branch. A conductor reads it at intake; it overrides `/orchestrate`'s defaults only where it says so.
+The chain file `docs/features/chain-<YYMMDD>-<n>/chain.md` is the single source for the chain: order, the user's standing permissions, the start check, the status of each link and the handoff log. It is written in Korean (AGENTS.md 'Korean writing rules'), and only the lead writes it, committed and pushed on develop; a conductor never edits it on its branch. A conductor reads it at intake; it overrides `/orchestrate`'s defaults only where it says so.
 
 ## Usage
 
@@ -19,7 +19,7 @@ The chain file `docs/features/chain-<YYMMDD>/chain.md` is the single source for 
    - **Parallel when nothing overlaps.** Compare the files each design says it changes: code and tests (`app/`, `cli/`, `eval/`), schemas and fixtures, skills, and drafts (`.doan/canvases/`). The shared documents every link promotes into (PRODUCT, ARCHITECTURE, DESIGN, BACKLOG, POSTMORTEM, USABILITY-EVAL, DIRECTORY, README) do not count. Adjacent links with no overlapping file form a parallel group: the lead starts them together, each from the latest `origin/develop`, and merges their PRs in link order. A link that overlaps any link of a group waits until that group has fully merged. When unsure whether two links overlap, run them in series.
 3. **Standing permissions.** The lead merges each link's PR into develop, in link order, once its review and gate pass, then starts the next link. This is the chain default: write it into `상시 권한` without asking. Other grants come only from the user; anything not granted is asked as usual.
    - **Model boundary**: the same rule as `/orchestrate` and AGENTS.md 'Runtime differences'. Nothing crosses it until the user explicitly allows it. Do not ask or offer; record a crossing only when the user states it, with the scope they give (every link, or named links) and any limit they mention. "Same as before" does not carry a previous chain's crossing over unless the user says so.
-4. **Facts from the machine, not memory.** The date comes from `date '+%Y-%m-%d'` (it names the directory and the log entries). Absolute paths, such as the shared login profile, come from `git rev-parse --show-toplevel` of the main checkout. A chain directory name may repeat one deleted earlier; refer to that earlier chain by commit.
+4. **Facts from the machine, not memory.** The date comes from `date '+%Y-%m-%d'` (it names the directory and the log entries). `<n>` is the chain's place among that day's chains, from 1: one more than the number of `chain-<YYMMDD>-*` directories that date has ever had, deleted ones included (`git log --all --format= --name-only --diff-filter=A -- 'docs/features/chain-<YYMMDD>-*'`), so a name never repeats. Absolute paths, such as the shared login profile, come from `git rev-parse --show-toplevel` of the main checkout.
 5. **Write the file** with these sections:
    - `규칙`: a link to this skill and AGENTS.md 'Workflow' Chains.
    - `순서`: each link with links to its spec·design·tasks, its review/draft state and the ordering reason, and which links form a parallel group with the overlap check behind it (or that the chain is serial and why).
@@ -43,7 +43,7 @@ Only when the user asks to start. Run the start check with the user in one batch
 - **Start a link.** Follow `/ship` 'Lead' step 1 with `feat/<slug>` from the freshly fetched `origin/develop`: worktree name `<slug>-orch`, branch `feat/<slug>`, `<runtime>` being the conductor runtime the chain file names. The brief points to the chain file, the link's feature directory and anything not yet written down (decisions or unverified items from earlier links the link must know), and says to run `/orchestrate docs/features/<slug>/`. One session per link; a session never conducts two links. Record the session and worktree in `링크 상태` and push it.
 - **Parallel groups.** Start every link of a group together, each in its own worktree. Merge their PRs in link order; contention between them follows `/ship` 'Lead' step 4.
 - **Merge a link.** Review and merge as in `/ship` 'Lead' steps 3–5. Then record the result in the chain file (merge commit, PR, unverified items and decisions the next link must know, from the PR body and the conductor), push it, and start the next link once every link it waits on has merged.
-- **After the last merge,** delete the chain directory (`docs(chain): remove chain-<YYMMDD>`), with the login cleanup done before that merge if the chain had one.
+- **After the last merge,** delete the chain directory (`docs(chain): remove chain-<YYMMDD>-<n>`), with the login cleanup done before that merge if the chain had one.
 
 ### Conductor
 
@@ -55,7 +55,7 @@ Only when the user asks to start. Run the start check with the user in one batch
 The report is delivered to the user in Korean.
 
 ```
-⛓ chain: docs/features/chain-<YYMMDD>/chain.md
+⛓ chain: docs/features/chain-<YYMMDD>-<n>/chain.md
 Open (first): <start-check items still open · anything not verified>
 Order: <link — one-line reason>
 Standing permissions: <merge · model crossing · source (asked / copied from <commit>)>

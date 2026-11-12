@@ -1,0 +1,9 @@
+{
+  "id": "W6",
+  "title": "Draw a screen with icons from a sprite file and a shared logo stylesheet",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": null
+}

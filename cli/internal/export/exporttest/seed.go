@@ -13,7 +13,8 @@ import (
 const (
 	// Full reaches every inlined kind: token CSS with a diamond, a cycle and
 	// a missing @import, shared .doan/ds CSS, @font-face, images, srcset,
-	// SVG <use>, a local script, external URLs, `//` URLs and local links.
+	// an inline SVG sprite, a local script, external URLs, `//` URLs and local
+	// links.
 	Full = ".doan/canvases/full.html"
 	// Empty has no frames.
 	Empty = ".doan/canvases/empty.html"
@@ -29,6 +30,7 @@ const (
 	RefuseFrame    = ".doan/canvases/refuse-frame.html"     // a local iframe
 	RefuseLink     = ".doan/canvases/refuse-link.html"      // a served path that links outside the repository
 	RefuseBase     = ".doan/canvases/refuse-base.html"      // a reference relative to a <base href> that moves the folder
+	RefuseUse      = ".doan/canvases/refuse-use.html"       // an SVG <use> of a symbol in another file
 	NoWidth        = ".doan/canvases/no-width.html"
 	BadWidth       = ".doan/canvases/bad-width.html"
 
@@ -44,6 +46,8 @@ var (
 	SpriteSVG = `<svg xmlns="http://www.w3.org/2000/svg"><symbol id="icon"><path d="M0 0h10v10z" style="fill:#000"/></symbol></svg>`
 	DotSVG    = `<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><circle cx="2" cy="2" r="2" fill="#3366ff"/></svg>`
 	AppJS     = "document.body.dataset.ready = \"100% #1\";\n"
+	// InlineSprite is the sprite Full draws its icon from, in the canvas itself.
+	InlineSprite = `<svg style="display:none"><symbol id="icon"><path d="M0 0h10v10z" style="fill:#000"/></symbol></svg>`
 )
 
 const head = `<meta charset="utf-8">
@@ -92,7 +96,8 @@ var seedFiles = map[string]string{
 `, `<section data-doan-frame="hero" data-doan-title="Hero">
 <img src="../assets/images/hero.png" srcset="../assets/images/hero.png 1x, ../assets/images/%EB%A1%9C%EA%B3%A0%20%ED%8C%8C%EC%9D%BC.png 2x" alt="">
 <img src="../assets/images/로고 파일.png" alt="logo">
-<svg><use href="../assets/sprite.svg#icon"/><rect fill="url(#g)"/></svg>
+`+InlineSprite+`
+<svg><use href="#icon"/><rect fill="url(#g)"/></svg>
 <div style="background-image: url(../assets/images/hero.png)">Hero</div>
 <img src="data:image/png;base64,AAAA" alt="">
 <a href="other.html#top">Other</a>
@@ -114,6 +119,7 @@ var seedFiles = map[string]string{
 	RefuseFrame:   page("refuse-frame", "", `<section data-doan-frame="a"><iframe src="full.html"></iframe></section>`),
 	RefuseLink:    page("refuse-link", "", `<section data-doan-frame="a"><img src="../assets/escape.png"></section>`),
 	RefuseBase:    page("refuse-base", "<base href=\"../assets/\">\n", `<section data-doan-frame="a"><img src="images/hero.png"></section>`),
+	RefuseUse:     page("refuse-use", "", `<section data-doan-frame="a"><svg><use href="../assets/sprite.svg#icon"/></svg></section>`),
 	NoWidth:       "<!doctype html>\n<html><head><meta name=\"doan:canvas\" content=\"no-width\"></head><body><section data-doan-frame=\"a\"></section></body></html>\n",
 	BadWidth:      "<!doctype html>\n<html><head><meta name=\"doan:canvas\" content=\"bad-width\"><meta name=\"doan:width\" content=\"wide\"></head><body><section data-doan-frame=\"a\"></section></body></html>\n",
 }

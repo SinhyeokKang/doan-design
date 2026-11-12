@@ -50,27 +50,3 @@ func TestRewriteKeepsSelfClosingTemplateContent(t *testing.T) {
 		}
 	}
 }
-
-func TestDocumentIDsSkipSelfClosingTemplates(t *testing.T) {
-	for _, src := range []string{
-		`<template/><p id="tpl"></p></template><p id="real">`,
-		`<template><template/></template><p id="tpl"></p></template><p id="real">`,
-		`</template><template/><p id="tpl"></p></template><p id="real">`,
-	} {
-		if got := documentIDs([]byte(src)); !reflect.DeepEqual(got, map[string]bool{"real": true}) {
-			t.Errorf("documentIDs(%s) = %v", src, got)
-		}
-	}
-}
-
-// An id only inside a <template/> is not in the document, so a sprite
-// that has it does not collide.
-func TestInlineSpriteIgnoresIDsInSelfClosingTemplate(t *testing.T) {
-	root := exporttest.Seed(t)
-	exporttest.Put(t, root, ".doan/assets/t.svg", `<svg><symbol id="tpl"/></svg>`)
-	exporttest.Put(t, root, ".doan/canvases/frag.html", `<template/><p id="tpl"></p></template><svg><use href="../assets/t.svg#tpl"/></svg>`)
-	res := inlineSeed(t, root, ".doan/canvases/frag.html")
-	if len(res.Refused) != 0 {
-		t.Fatalf("refused %+v", res.Refused)
-	}
-}
