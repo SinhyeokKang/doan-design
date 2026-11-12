@@ -24,6 +24,12 @@ type Canvas struct {
 	Frames                           []Frame
 	DoanIDs, Links, ExternalURLs     []string
 	Styles                           Scan
+	// UseRefs holds the reference of each SVG <use> outside <template> that
+	// names something other than a fragment of this document, as written.
+	UseRefs []string
+	// Custom is what the canvas's own <style> elements and style attributes
+	// do with custom properties.
+	Custom CustomText
 }
 
 var widthPattern = regexp.MustCompile(`^[1-9][0-9]*$`)
@@ -42,6 +48,13 @@ func trimURL(s string) string {
 func IsExternal(href string) bool {
 	s := lower(trimURL(href))
 	return strings.HasPrefix(s, "http:") || strings.HasPrefix(s, "https:") || strings.HasPrefix(s, "//")
+}
+
+// UseNotInline reports whether a <use> reference names something other than
+// a fragment of the same document.
+func UseNotInline(ref string) bool {
+	s := trimURL(ref)
+	return s != "" && s[0] != '#'
 }
 func LocalPath(href string) (string, bool) {
 	s := trimURL(href)
@@ -78,7 +91,8 @@ func words(s string) []string {
 	return strings.FieldsFunc(s, func(r rune) bool { return r < 128 && asciiSpace(byte(r)) })
 }
 func Parse(path string, data []byte) (Canvas, error) {
-	c := Canvas{Path: path, BodyMeta: map[string]bool{}, Frames: []Frame{}, DoanIDs: []string{}, Links: []string{}, ExternalURLs: []string{}, Styles: Scan{Defs: map[string]bool{}}}
+	c := Canvas{Path: path, BodyMeta: map[string]bool{}, Frames: []Frame{}, DoanIDs: []string{}, Links: []string{}, ExternalURLs: []string{}, Styles: Scan{Defs: map[string]bool{}},
+		Custom: CustomText{Uses: CustomUse{Used: map[string]bool{}, Hops: map[string]map[string]bool{}, URLSyntax: map[string]bool{}}}}
 	// Parser resource limits can fail even when the reader cannot.
 	root, err := html.Parse(bytes.NewReader(data))
 	if err != nil {
@@ -156,10 +170,13 @@ func Parse(path string, data []byte) (Canvas, error) {
 				c.DoanIDs = append(c.DoanIDs, id)
 			}
 			if n.Data == "style" {
-				c.Styles.merge(ScanCSS(textContent(n), Stylesheet))
+				text := textContent(n)
+				c.Styles.merge(ScanCSS(text, Stylesheet))
+				c.Custom.merge(ScanCustom(text, Stylesheet))
 			}
 			if v, ok := attrs["style"]; ok {
 				c.Styles.merge(ScanCSS(v, Declarations))
+				c.Custom.merge(ScanCustom(v, Declarations))
 			}
 			if n.Data == "link" {
 				if href, ok := attrs["href"]; ok {
@@ -182,9 +199,21 @@ func Parse(path string, data []byte) (Canvas, error) {
 			if n.Data == "object" {
 				addURL(attrs["data"])
 			}
-			if n.Namespace == "svg" && (n.Data == "use" || n.Data == "image") {
+			if n.Namespace == "svg" && n.Data == "image" {
 				addURL(attrs["href"])
 				addURL(attrs["xlink:href"])
+			}
+			// A <use> that leaves the canvas is svg_use_not_inline, not an
+			// external resource: the app never loads it. href wins over
+			// xlink:href whenever it is present, as in the browser.
+			if n.Namespace == "svg" && n.Data == "use" {
+				ref, ok := attrs["href"]
+				if !ok {
+					ref = attrs["xlink:href"]
+				}
+				if UseNotInline(ref) {
+					c.UseRefs = append(c.UseRefs, ref)
+				}
 			}
 			if n.Data == "img" || n.Data == "source" {
 				for _, u := range srcsetURLs(attrs["srcset"]) {

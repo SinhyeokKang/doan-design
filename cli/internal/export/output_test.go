@@ -67,7 +67,7 @@ func TestExportOutputIsPinned(t *testing.T) {
 		config             repo.Config
 		want               string
 	}{
-		{"full", seed, exporttest.Full, seedConfig(t, seed), "fa3185224d183caaf784788a567a2aa635e79c2840d72509fbc3c2ab7e75c2d7"},
+		{"full", seed, exporttest.Full, seedConfig(t, seed), "36961b13f384251940a428767bdac1dfc1670c27a5672672312e920a86400e06"},
 		{"empty", seed, exporttest.Empty, seedConfig(t, seed), "1263d81734c83f85683410612296b5986711380da5ddeb2ed5de0411146e3034"},
 		{"nested", seed, exporttest.Nested, seedConfig(t, seed), "db5feda2d7b1576bf42924e922304bac7f2b06bba423dcecae5ec741d2164899"},
 		{"linked", linked, exporttest.Linked, repo.Config{V: 1, Serve: []string{".doan/assets"}}, "7cf45ce8638f1a856cb5c5ed4772171b78522f7992a35d61f125650ec6aa6612"},

@@ -3,24 +3,16 @@ package export
 import (
 	"bytes"
 	"fmt"
-	"net/url"
 	"path"
 	"sort"
 	"strings"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
-	"golang.org/x/net/html"
 )
 
 // MaxBytes is the export size cap (design: 50 MiB, the app's pasted-image cap).
 const MaxBytes int64 = 50 << 20
-
-// spriteContainer holds the SVG files <use> elements point at. It is not
-// display:none, because gradients, masks and filters inside a display:none
-// subtree do not render where a <use> clone references them; a zero-size
-// clipped box keeps them live without taking space.
-const spriteContainer = `<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">`
 
 // Result is a canvas with every reached local asset inlined.
 type Result struct {
@@ -36,7 +28,8 @@ type Result struct {
 	// Assets holds each inlined file once, by real repo-relative path, with
 	// its size on disk, sorted by path.
 	Assets []Asset
-	// Refused holds each reference that blocks the export, in document order.
+	// Refused holds each reference that blocks the export: every SVG <use>
+	// that leaves the canvas first, then the others in document order.
 	// It is partial when TooLarge is true.
 	Refused []Refusal
 	// TooLarge reports that the output would exceed the limit; Inline stopped
@@ -70,8 +63,8 @@ func Inline(root string, config repo.Config, canvasPath string, src []byte) (Res
 // are read: references outside the repository or the serving scope, local
 // frames, and missing files the canvas names directly are refused. Missing
 // files named inside CSS files stay as written, as the app also fails to load
-// them. Files referenced by SVG <use> are copied once into a hidden <svg>
-// before </body>, because <use> cannot load a data: URL.
+// them. An SVG <use> that names anything but a fragment of the canvas is
+// refused, because the app does not draw it.
 //
 // It stops with TooLarge as soon as the output is known to exceed limit
 // bytes: a file is sized before it is read, and every stylesheet and the
@@ -87,9 +80,12 @@ func inline(resolver *repo.Resolver, root string, config repo.Config, canvasPath
 	if err != nil {
 		return Result{}, nil, err
 	}
-	in := &inliner{resolver: resolver, root: root, scope: scope, limit: limit, files: map[string]string{}, sizes: map[string]int64{}, sheets: map[string][]sheet{}, external: map[string]bool{}, links: map[string]bool{}, refusedSeen: map[Refusal]bool{}, ids: documentIDs(src), spriteIDs: map[string]map[string]bool{}, spriteStyled: map[string]bool{}}
+	in := &inliner{resolver: resolver, root: root, scope: scope, limit: limit, files: map[string]string{}, sizes: map[string]int64{}, sheets: map[string][]sheet{}, external: map[string]bool{}, links: map[string]bool{}, refusedSeen: map[Refusal]bool{}}
 	if href, ok := firstBaseHref(src); ok && baseMoves(href) {
 		in.based = canvasPath
+	}
+	if err := in.refuseUses(canvasPath, src); err != nil {
+		return Result{}, nil, err
 	}
 	in.collectUses(canvasPath, src)
 	if in.err != nil {
@@ -98,18 +94,11 @@ func inline(resolver *repo.Resolver, root string, config repo.Config, canvasPath
 	// grown sums only what replacements add, so it never exceeds the real output.
 	var grown int64
 	ref := in.ref(canvasPath, true, nil, nil, &grown)
-	out, bodyEnd := rewriteHTMLBody(src, func(kind refKind, href string) (string, bool) { return ref(kind, href, "") }, func(text string, mode canvas.Mode) string {
+	out := rewriteHTML(src, func(kind refKind, href string) (string, bool) { return ref(kind, href, "") }, func(text string, mode canvas.Mode) string {
 		return rewriteCSSRefs(text, mode, ref)
 	})
 	if in.err != nil {
 		return Result{}, nil, in.err
-	}
-	if len(in.sprites) > 0 && !in.tooLarge {
-		container := spriteContainer + strings.Join(in.sprites, "") + "</svg>"
-		if bodyEnd < 0 {
-			bodyEnd = len(out)
-		}
-		out = append(out[:bodyEnd:bodyEnd], append([]byte(container), out[bodyEnd:]...)...)
 	}
 	if int64(len(out)) > limit {
 		in.tooLarge = true
@@ -140,27 +129,24 @@ func inline(resolver *repo.Resolver, root string, config repo.Config, canvasPath
 }
 
 type inliner struct {
-	resolver     *repo.Resolver // shared by every reference of one export
-	root         string
-	scope        []string
-	limit        int64
-	files        map[string]string  // read once, as text: every use but a sprite wants a string
-	sizes        map[string]int64   // every file sized, read or not
-	total        int64              // sum of distinct file sizes
-	sheets       map[string][]sheet // inlined CSS by real path
-	external     map[string]bool
-	links        map[string]bool
-	refused      []Refusal
-	refusedSeen  map[Refusal]bool
-	ids          map[string]bool            // ids in the canvas and in sprites already copied
-	spriteIDs    map[string]map[string]bool // by real path; nil when the file was refused
-	spriteStyled map[string]bool
-	sprites      []string
-	tooLarge     bool
-	err          error
-	built        int64 // bytes of data URIs built, so tests can see the stop is early
-	uses         uses
-	based        string // the canvas, when its <base href> moves the folder; "" otherwise
+	resolver    *repo.Resolver // shared by every reference of one export
+	root        string
+	scope       []string
+	limit       int64
+	files       map[string]string  // read once, as text
+	sizes       map[string]int64   // every file sized, read or not
+	total       int64              // sum of distinct file sizes
+	sheets      map[string][]sheet // inlined CSS by real path
+	external    map[string]bool
+	links       map[string]bool
+	refused     []Refusal
+	refusedSeen map[Refusal]bool
+	tooLarge    bool
+	err         error
+	built       int64 // bytes of data URIs built, so tests can see the stop is early
+	uses        canvas.CustomUsers
+	collected   map[string]bool // stylesheets read into uses
+	based       string          // the canvas, when its <base href> moves the folder; "" otherwise
 }
 
 // sheet is one inlined stylesheet. Its text depends on the @import chain
@@ -186,7 +172,7 @@ func (in *inliner) ref(from string, direct bool, ancestors []string, reached map
 		if in.stopped() {
 			return "", false
 		}
-		v, ok := in.replace(from, direct, ancestors, reached, grown, kind, href, custom)
+		v, ok := in.replace(from, direct, ancestors, reached, kind, href, custom)
 		if ok {
 			*grown += int64(len(v))
 			if *grown > in.limit {
@@ -198,8 +184,14 @@ func (in *inliner) ref(from string, direct bool, ancestors []string, reached map
 }
 
 // custom is the custom property whose value holds href, or "".
-func (in *inliner) replace(from string, direct bool, ancestors []string, reached map[string]bool, grown *int64, kind refKind, href, custom string) (string, bool) {
+func (in *inliner) replace(from string, direct bool, ancestors []string, reached map[string]bool, kind refKind, href, custom string) (string, bool) {
 	h := trimURL(href)
+	if kind == kindUse {
+		// refuseUses already refused every <use> that leaves the canvas;
+		// none is resolved, so a missing, unserved or CDN target gets that
+		// one reason, and a fragment stays as written.
+		return "", false
+	}
 	switch classifyRef(kind, href) {
 	case classExternal:
 		in.external[h] = true
@@ -213,9 +205,9 @@ func (in *inliner) replace(from string, direct bool, ancestors []string, reached
 	case classRefuse:
 		in.refuse(from, h, ReasonFrame)
 	case classInline:
-		if custom != "" && kind == kindAsset && !in.uses.urlSyntax[custom] {
-			if dirs := in.uses.consumers(custom); len(dirs) > 0 {
-				return in.replaceCustom(from, direct, h, href, dirs)
+		if custom != "" && kind == kindAsset && !in.uses.Registered(custom) {
+			if dirs := in.uses.Consumers(custom); len(dirs) > 0 {
+				return in.replaceCustom(from, direct, h, href, custom, dirs)
 			}
 			if from == in.based {
 				// Nothing uses it and the base would move it: it stays as written.
@@ -242,9 +234,6 @@ func (in *inliner) replace(from string, direct bool, ancestors []string, reached
 				in.refuse(from, h, ReasonMissing)
 			}
 		case assetInside:
-			if kind == kindUse {
-				return in.sprite(from, h, r.Real, grown)
-			}
 			uri, below, err := in.inlineFile(r.Real, kind, ancestors)
 			if err != nil {
 				in.err = err
@@ -261,144 +250,38 @@ func (in *inliner) replace(from string, direct bool, ancestors []string, reached
 	return "", false
 }
 
-// sprite copies the SVG file once into the document and points the <use> at
-// the fragment there. Its own references stay as written.
-func (in *inliner) sprite(from, h, real string, grown *int64) (string, bool) {
-	i := strings.IndexByte(h, '#')
-	if i < 0 || i == len(h)-1 {
-		in.refuse(from, h, ReasonUseFragment)
-		return "", false
+// refuseUses refuses every SVG <use> that leaves the canvas, as doan check
+// lists them (canvas.Canvas.UseRefs). The tokenizer the rewrite walks cannot
+// tell an SVG <use> from an HTML one, see that href wins over xlink:href, or
+// see a <use> it reads as <title> text where the parser does not. The
+// canvas is parsed only when its source names a <use> element.
+func (in *inliner) refuseUses(canvasPath string, src []byte) error {
+	if !namesUse(src) {
+		return nil
 	}
-	if !strings.HasPrefix(mimeType(real), "image/svg+xml") {
-		in.refuse(from, h, ReasonUseType)
-		return "", false
+	c, err := canvas.Parse(canvasPath, src)
+	if err != nil {
+		return err
 	}
-	ids, seen := in.spriteIDs[real]
-	if !seen {
-		b, err := in.read(real)
-		if err != nil || in.stopped() {
-			in.err = err
-			return "", false
-		}
-		content, fileIDs, styled := spriteContent([]byte(b))
-		if styled {
-			in.spriteIDs[real] = nil
-			in.spriteStyled[real] = true
-			in.refuse(from, h, ReasonUseStyle)
-			return "", false
-		}
-		for id := range fileIDs {
-			if in.ids[id] {
-				in.spriteIDs[real] = nil
-				in.refuse(from, h, ReasonUseCollision)
-				return "", false
-			}
-		}
-		for id := range fileIDs {
-			in.ids[id] = true
-		}
-		// Registered before its own references are rewritten, so a <use>
-		// of the same file from inside it does not copy it again.
-		in.spriteIDs[real] = fileIDs
-		// The copy must not keep a repo-relative reference either: its
-		// references resolve from the SVG file's directory, as they did when
-		// the browser loaded it as a document.
-		var local int64
-		ref := in.ref(real, true, nil, nil, &local)
-		// The sprite was not part of collectUses, so its custom property
-		// url()s keep the SVG file as their base.
-		url := func(kind refKind, href string) (string, bool) { return ref(kind, href, "") }
-		out, _ := rewriteMarkup([]byte(content), url, func(text string, mode canvas.Mode) string {
-			return rewriteCSS(text, mode, func(href string, kind refKind) (string, bool) { return url(kind, href) })
-		}, true)
-		if in.stopped() {
-			return "", false
-		}
-		in.sprites = append(in.sprites, string(out))
-		*grown += int64(len(out))
-		ids = fileIDs
+	for _, r := range c.UseRefs {
+		in.refuse(canvasPath, trimURL(r), ReasonUseExternal)
 	}
-	if ids == nil {
-		reason := ReasonUseCollision
-		if in.spriteStyled[real] {
-			reason = ReasonUseStyle
-		}
-		in.refuse(from, h, reason)
-		return "", false
-	}
-	id := h[i+1:]
-	if decoded, err := url.PathUnescape(id); err == nil {
-		id = decoded
-	}
-	if !ids[id] {
-		in.refuse(from, h, ReasonUseID)
-		return "", false
-	}
-	return fragment(h), true
+	return nil
 }
 
-// spriteContent drops what precedes the root element (XML declaration,
-// doctype, comments), which has no place inside an HTML document, lists the
-// ids the HTML parser will see in foreign content, and reports a <style>.
-func spriteContent(b []byte) (string, map[string]bool, bool) {
-	ids := map[string]bool{}
-	styled := false
-	z := newTokenizer(b, true)
-	start, offset := -1, 0
-	for {
-		tt := nextToken(z, true)
-		raw := z.Raw()
-		if tt == html.ErrorToken {
-			break
+// namesUse reports whether src holds "<use" in any letter case.
+func namesUse(src []byte) bool {
+	for i := bytes.IndexByte(src, '<'); i >= 0 && i+4 <= len(src); {
+		if bytes.EqualFold(src[i+1:i+4], []byte("use")) {
+			return true
 		}
-		if start < 0 && (tt == html.StartTagToken || tt == html.SelfClosingTagToken) {
-			start = offset
+		j := bytes.IndexByte(src[i+1:], '<')
+		if j < 0 {
+			return false
 		}
-		offset += len(raw)
-		if tt == html.StartTagToken || tt == html.SelfClosingTagToken {
-			tok := z.Token()
-			styled = styled || tok.Data == "style"
-			for _, a := range tok.Attr {
-				if a.Key == "id" {
-					ids[a.Val] = true
-				}
-			}
-		}
+		i += 1 + j
 	}
-	if start < 0 {
-		return "", ids, styled
-	}
-	return string(b[start:]), ids, styled
-}
-
-// documentIDs lists the ids in the canvas outside <template>, whose content
-// is not in the document <use> searches.
-func documentIDs(src []byte) map[string]bool {
-	ids := map[string]bool{}
-	z := html.NewTokenizer(bytes.NewReader(src))
-	template := 0
-	for {
-		tt := z.Next()
-		if tt == html.ErrorToken {
-			return ids
-		}
-		if tt != html.StartTagToken && tt != html.SelfClosingTagToken && tt != html.EndTagToken {
-			continue
-		}
-		tok := z.Token()
-		if templateTag(&template, tt, tok.Data) {
-			continue
-		}
-		if template > 0 || tt == html.EndTagToken {
-			continue
-		}
-		for _, a := range tok.Attr {
-			if a.Key == "id" {
-				ids[a.Val] = true
-				break
-			}
-		}
-	}
+	return false
 }
 
 func (in *inliner) refuse(from, href, reason string) {
