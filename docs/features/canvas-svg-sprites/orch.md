@@ -17,6 +17,8 @@
 - conductor 판단 — 작업 7(승격과 정리)은 conductor의 문서 커밋으로 한다(`/orchestrate` §4·§5).
 - conductor 판단 — PoC 의존 4의 "서로 다른 경로면 앱 결과가 순서에 따라 달라진다"가 Electron 45(Chromium 156)의 18쪽에서 재현되지 않았다. 앱은 사용처마다 자기 폴더 파일을 그렸다. 그래도 `ambiguous_custom_url` warning과 export 거부 조건(서로 다른 경로 둘 이상, 파일 존재와 무관)은 설계대로 둔다. 근거: export는 선언 하나에 data URL 하나를 넣으므로 사용처마다 다른 파일을 그리는 앱 결과를 재현할 수 없고, 후보 하나만 있을 때 export하면 다른 사용처에 앱이 그리지 않는 파일이 보인다. 사용자가 고른 조건(design.md '결정' 4·5)과 같고 tasks.md가 사용자 질문으로 정한 분기(같은 경로 경우의 순서 의존)에는 해당하지 않는다. 승격 때 BACKLOG 결함 3과 ARCHITECTURE의 "Chromium reuses the first resolution" 문장은 이 측정을 반영해 고친다(POSTMORTEM 기록은 보존).
 - conductor 판단 — 가이드의 대체 형태는 PoC에서 앱과 Chromium export 모두 보인 아이콘별 SVG의 `<img src>`와 `mask: url(icon.svg)`만 쓴다. `sprite.svg#icon`을 `mask`·`<img>`로 쓰는 형태는 두 곳 모두 빈칸이었다.
+- 사용자 결정(2026-11-13): POSTMORTEM 2026-11-03에서 보고된 캔버스(자기 `<style>`에서도 `--sf-icon`을 씀)가 다시 export 거부되고 `ambiguous_custom_url`을 받는 결과를 그대로 둔다. 결정 5와 spec '남는 결함'에 해당한다.
+- conductor 판단 — 리뷰 R 1라운드: 🟡1(`@property` 등록 판정)은 BG 가이드 문장과 BC 판정을 모두 고친다(`inherits`·`initial-value`가 있을 때만 등록). ⚪1(`<title>` RCDATA 마크업에서 export `<use>` 거부 누락)과 ⚪2(일치 테스트에 `@property` 경우)도 BC가 고친다. 완료 조건 2를 비정상 마크업까지 지키고, 확인을 더 확실히 하기 위해서다. ⚪3(가이드가 로컬 `<use>` error를 직접 말하지 않음)은 `/agent-eval` 결과를 보고 정한다. ⚪4~6은 PR 본문과 승격에서 처리한다.
 
 ## 배치
 
@@ -25,7 +27,7 @@
 | BP | 작업 1, 2 (PoC) + 작업 6 마지막 재비교(후속 Task) | `.scratch/canvas-svg-sprites/`, `tasks.md` 'PoC 기록' | 없음 | Opus high — 측정 설계와 판정이 결과를 좌우하고, 틀리면 설계 전체가 흔들린다 | 경우별 스크린숏·bbox·요청 로그, export 파일 경로(Safari용) | 완료 `bac40bf5` → 통합. Safari는 사용자 확인 대기 |
 | BC | 작업 3, 4 (`/tdd`, `/implement`) | `cli/internal/canvas/`, `cli/internal/check/`, `cli/internal/export/`(`exporttest` 포함), `cli/internal/cli/check.go` | BP | Opus high — check·export 일치, reach 포함 관계, tokenizer `<template>` 함정이 있다 | `go test ./...`, `go vet ./...`, `verify.mjs`, repo 복사본 `doan check` 새 finding 0 | 완료 `36d23a42`·`8fb90bb2`·`ed2474f4` → 통합 `4ae87270`·`6cf1176f`·`ef77fc3d` |
 | BG | 작업 5 (가이드·preset) | `cli/internal/cli/skill.md`, `cli/internal/designskill/presets/document.md` | BP | Sonnet medium — 정해진 문장을 예산 안에 넣는 작업이다 | `go test ./...`(`TestSkillGuideFitsToolOutputCap`), `doan skill --json` 출력 | 완료 `9abde758`·`284a45d5` → 통합(dispatch `ctx_3b9cb8cc657f`) |
-| R | 작업 6 `/code-review` (BC+BG 통합 diff) | 보고만 | BC, BG 통합 | Opus high — check·export 판정 일치와 고아 제거를 독립적으로 판단해야 한다 | 🔴 0 | 진행(dispatch `ctx_92db7a0458cf`, worktree `css-r`) |
+| R | 작업 6 `/code-review` (BC+BG 통합 diff) | 보고만 | BC, BG 통합 | Opus high — check·export 판정 일치와 고아 제거를 독립적으로 판단해야 한다 | 🔴 0 | 1라운드 완료: 🔴0 🟡1 ⚪6(`.scratch/review-R.md`) → 수정 라운드 1 진행 |
 | BE1 | 작업 6 시나리오 | `eval/scenarios/<새 id>/`, `eval/` 테스트(`checks.test.ts` 등) | BC 통합 | Opus medium — fixture와 실패 조건 설계에 판단이 들지만 범위가 좁다 | `node eval/run.ts --self-test` PASS·exit 0, `node --test 'eval/**/*.test.ts'`, `verify.mjs --eval` | 완료 `2173dbe6`(W6) → 통합 |
 | BE2 | 작업 6 실제 `/agent-eval` 라운드 + `docs/USABILITY-EVAL.md` | `docs/USABILITY-EVAL.md` | R 수정 통합, BE1 통합 | BE1 워커 재사용 | `npm --prefix app run package`, `node eval/run.ts --round <name>` 전체 시나리오 | 대기 |
 | 승격 | 작업 7 | PRODUCT, ARCHITECTURE, BACKLOG, `docs/features/canvas-svg-sprites/` 삭제 | 전부 | conductor | 완료 조건 1~7 대조, `git diff --stat origin/develop -- app/` 빈 결과, `rg` 잔여 없음 | 대기 |
