@@ -18,7 +18,7 @@ import { handoffCardHead, handoffLineText } from "./handoffView";
 import { providerLogo, sentFileView } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
-import { pendingAsks, questionLines, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
+import { pendingAsks, questionLines, sameItem, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
 import { activityRun, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
 // The conversation thread (draft frames thread-*). The host reads the history, merges
@@ -532,8 +532,17 @@ export const ConversationThread = forwardRef<ConversationThreadHandle, Conversat
   return <ThreadBody key={props.conversationId} {...props} handle={ref} />;
 });
 
+// One thread item. Its host re-renders the thread on every streamed delta, so an item draws again only when its own data
+// or what it reads from outside that data (deps, compared by value) changed. `draw` is left out of the comparison: a
+// kept item's handlers come from an earlier render, so they reach the host through ThreadBody's `latest`.
+export const ThreadEntry = memo(function ThreadEntry({ entry, draw }: { entry: ThreadItem; deps: readonly unknown[]; draw: (entry: ThreadItem) => ReactNode }) {
+  return <div className="thread-item" data-item={entry.key}>{draw(entry)}</div>;
+}, (a, b) => sameItem(a.deps, b.deps) && sameItem(a.entry, b.entry));
+
 const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationThreadProps & { handle: Ref<ConversationThreadHandle> }) {
   const { items, provider } = props;
+  const latest = useRef(props);
+  latest.current = props;
   const base = useId();
   const scroller = useRef<HTMLDivElement | null>(null);
   const distance = useRef(0), opened = useRef(false), shownHeight = useRef(0);
@@ -550,23 +559,23 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // since the store drops a question's draft with the resolution that folds it.
   const focusedKey = focusedItem(scroller.current);
   const shown = useRef<readonly { requestId: string; key: string; unsent: boolean }[]>([]);
-  const stop = (requestId: string) => { folding.current = { requestId, action: { kind: "stopped" } }; props.onStop(); };
+  const stop = (requestId: string) => { folding.current = { requestId, action: { kind: "stopped" } }; latest.current.onStop(); };
   // Requests whose last answer did not reach main: the person chooses again.
   const [unanswered, setUnanswered] = useState<ReadonlySet<string>>(new Set());
   const answer = (requestId: string, optionId: string) => {
     folding.current = { requestId, action: { kind: "answered", requestId } };
     setUnanswered(current => { if (!current.has(requestId)) return current; const next = new Set(current); next.delete(requestId); return next; });
-    void answerReached(() => props.onAnswer(requestId, optionId)).then(reached => { if (!reached) setUnanswered(current => new Set(current).add(requestId)); });
+    void answerReached(() => latest.current.onAnswer(requestId, optionId)).then(reached => { if (!reached) setUnanswered(current => new Set(current).add(requestId)); });
   };
-  const draftOf = (requestId: string) => props.questionDraft?.(requestId) ?? EMPTY_QUESTION_DRAFT;
-  const editQuestion = (requestId: string, action: QuestionDraftAction) => props.onQuestionDraft?.(requestId, action);
+  const draftOf = (requestId: string) => latest.current.questionDraft?.(requestId) ?? EMPTY_QUESTION_DRAFT;
+  const editQuestion = (requestId: string, action: QuestionDraftAction) => latest.current.onQuestionDraft?.(requestId, action);
   const sendQuestion = (entry: Extract<ThreadItem, { kind: "question" }>, how: "answer" | "skip") => {
     const draft = draftOf(entry.requestId);
     if (draft.sending) return;
     const answer: QuestionAnswerInput = how === "skip" ? { outcome: "skipped" } : questionInput(entry.questions, draft);
     editQuestion(entry.requestId, { type: "sending", how });
     folding.current = { requestId: entry.requestId, action: { kind: "answered", requestId: entry.requestId } };
-    void settleQuestionSend(() => props.onAnswerQuestion ? props.onAnswerQuestion(entry.requestId, answer) : Promise.resolve({ error: "unknown" }), action => editQuestion(entry.requestId, action));
+    void settleQuestionSend(() => latest.current.onAnswerQuestion ? latest.current.onAnswerQuestion(entry.requestId, answer) : Promise.resolve({ error: "unknown" }), action => editQuestion(entry.requestId, action));
   };
   const focusIn = (key: string): boolean => {
     const control = scroller.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(key)}"] ${ENTRY_FOCUS}`);
@@ -677,10 +686,27 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // The last activity row reads the indicator's settled status, so the two say the same in every render. Only Claude
   // Code and Codex write an activity as its tool starts; the ACP agents write it once the tool completed.
   const drawn = activityRun(items, settled.shown, provider !== "claude" && provider !== "codex" ? props.turn?.status ?? NO_TURN : null);
+  // A kept item's handlers read the host's latest callbacks (ThreadEntry); its deps name what it draws from outside its data.
+  const locate: ConversationThreadProps["onLocate"] = anchor => latest.current.onLocate!(anchor);
+  const listed = (canvas: Canvas) => latest.current.canvasListed(canvas);
+  const openHandoff = (canvas: Canvas, conversationId: string) => latest.current.onOpenHandoff?.(canvas, conversationId);
+  const depsOf = (entry: ThreadItem): readonly unknown[] => {
+    switch (entry.kind) {
+      case "user": return [props.frames, !!props.locateDisabled, !!props.onLocate, props.homeDirectory ?? null];
+      case "activity": return [expanded.has(entry.key)];
+      case "permission": return [provider, entry.seq > props.liveAfter, unanswered.has(entry.requestId)];
+      case "question": return entry.status === "pending" ? [provider, entry.seq > props.liveAfter, draftOf(entry.requestId)] : [];
+      case "end": return [provider, entry.key === last?.key, entry.key === last?.key && last.resend];
+      case "handoff": return [provider, props.project, entry.target ? props.canvasListed(entry.target.canvas) : null, !!props.onOpenHandoff];
+      case "handoffCard": return [props.project, props.canvasListed(entry.origin.canvas), !!props.onOpenHandoff];
+      case "marker": return [props.project, entry.canvas ? props.canvasListed(entry.canvas) : null];
+      default: return [];
+    }
+  };
   const toggle = (key: string) => setExpanded(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const item = (entry: ThreadItem): ReactNode => {
     switch (entry.kind) {
-      case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate} home={props.homeDirectory ?? null} />;
+      case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate && locate} home={props.homeDirectory ?? null} />;
       case "agent": return <AgentMessage text={entry.text} streaming={entry.streaming} />;
       case "noReply": return <div className="msg-agent"><p className="muted">No reply.</p></div>;
       case "fast": return <div className="activity"><div className="activity-head fast-note"><Zap aria-hidden="true" /><span>{entry.text}</span></div></div>;
@@ -719,26 +745,26 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
           {view.tone ? <AlertIcon /> : <CircleStop className="doan-alert-icon" aria-hidden="true" />}
           <span className="strip-text selectable"><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
           {entry.key === last?.key && (view.signIn || (last.resend && view.resend !== false)) && <span className="strip-actions">
-            {view.signIn && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onSignIn}>Sign in again…</button>}
-            {last.resend && view.resend !== false && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onEditAndResend}>Edit and resend</button>}
+            {view.signIn && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => latest.current.onSignIn()}>Sign in again…</button>}
+            {last.resend && view.resend !== false && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => latest.current.onEditAndResend()}>Edit and resend</button>}
           </span>}
         </div>;
       }
-      case "handoff": return <HandoffLine entry={entry} project={props.project} provider={provider} canvasListed={props.canvasListed} onOpen={props.onOpenHandoff} />;
-      case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={props.canvasListed} onOpen={props.onOpenHandoff} />;
+      case "handoff": return <HandoffLine entry={entry} project={props.project} provider={provider} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
+      case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
       case "marker": {
         if (entry.marker === "archived") return <div className="marker"><span><Archive aria-hidden="true" />Archived when another conversation became current on this canvas. Send a message to make it current again.</span></div>;
         if (entry.marker === "restored") return <div className="marker"><span><RotateCcw aria-hidden="true" />Made current again</span></div>;
         const canvas = entry.canvas!, listed = props.canvasListed(canvas), name = canvas.path.split("/").at(-1) ?? canvas.path;
         return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{listed ? `Moved to ${name}` : `Moved to ${name} · No longer in ${props.project}`}</span>
-          <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled={!listed} onClick={() => props.onOpenCanvas(canvas)}>Open</button></div>;
+          <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled={!listed} onClick={() => latest.current.onOpenCanvas(canvas)}>Open</button></div>;
       }
     }
   };
 
   return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><div className="conversation-thread">
     <div className="thread-scroll" ref={scroller} onScroll={onScroll}>
-      <div className="thread">{drawn.map(entry => <div key={entry.key} className="thread-item" data-item={entry.key}>{item(entry)}</div>)}
+      <div className="thread">{drawn.map(entry => <ThreadEntry key={entry.key} entry={entry} deps={depsOf(entry)} draw={item} />)}
         {props.turn && settled.shown.kind !== "none" && settled.shown.kind !== "waiting" &&
           <div className="thread-item"><TurnIndicator text={turnText(settled.shown, p)} at={props.turn.at} provider={provider} /></div>}</div>
     </div>

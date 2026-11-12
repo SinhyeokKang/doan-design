@@ -2,6 +2,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
+import type { DotCanvas, DotFieldMessage, DotFieldSize } from "./dotField";
 
 // The indicator's wiring, run with hooks as plain state (the App tests' no-DOM style): the Stop callback's
 // failure recovery, and the dot field's pauses and cleanup.
@@ -34,6 +35,7 @@ vi.mock("react", async original => {
 });
 
 const { CanvasAgent, DotField } = await import("./CanvasAgent");
+const { dotFieldWorker } = await import("./dotField");
 const { TooltipContent } = await import("./components/ui/tooltip");
 
 function reset() { hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = []; }
@@ -191,27 +193,45 @@ describe("CanvasAgent another worktree", () => {
 
 describe("DotField lifecycle", () => {
   let frames: Map<number, unknown>, next: number;
-  let visibility: (() => void) | null, windowVisible: ((visible: boolean) => void) | null;
+  let visibility: (() => void) | null, windowVisible: ((visible: boolean) => void) | null, resize: (() => void) | null;
   const stopWindow = vi.fn();
   const doc = { hidden: false, addEventListener: vi.fn(), removeEventListener: vi.fn() };
-  const media = { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() };
+  const media = { motion: { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }, scheme: { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() } };
   const observer = { observe: vi.fn(), disconnect: vi.fn() };
   const ctx = { setTransform: vi.fn(), clearRect: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), arc: vi.fn(), fill: vi.fn(), globalAlpha: 1, fillStyle: "" };
-  const node = { width: 0, height: 0, getContext: () => ctx, getBoundingClientRect: () => ({ width: 120, height: 60 }) };
-  const field = (running: boolean) => () => DotField({ running });
+  let rect = { width: 120, height: 60 }, color = "rgb(255, 255, 255)";
+  const node = { width: 0, height: 0, getContext: () => ctx, getBoundingClientRect: () => rect };
+  // The Worker's side runs in-process on the stubbed frames: vitest has no Worker or transferControlToOffscreen.
+  let posted: DotFieldMessage[], close = vi.fn<() => void>();
+  const start = vi.fn((canvas: HTMLCanvasElement, init: { size: DotFieldSize; color: string; reducedMotion: boolean }) => {
+    const receive = dotFieldWorker({ request: run => requestAnimationFrame(run), cancel: frame => cancelAnimationFrame(frame) });
+    receive({ kind: "start", canvas: canvas as unknown as DotCanvas, ...init });
+    return { post: (message: DotFieldMessage) => { posted.push(message); receive(message); }, close };
+  });
+  const field = (running: boolean) => () => DotField({ running, start });
   // The canvas element's ref is DotField's first ref.
   const attach = () => { if (!hooks.refs[0]!.current) hooks.refs[0]!.current = node; };
 
   beforeEach(() => {
-    reset(); frames = new Map(); next = 1; visibility = null; windowVisible = null; doc.hidden = false;
-    for (const mock of [stopWindow, doc.addEventListener, doc.removeEventListener, media.addEventListener, media.removeEventListener, observer.observe, observer.disconnect]) mock.mockClear();
+    reset(); frames = new Map(); next = 1; visibility = null; windowVisible = null; resize = null; doc.hidden = false; posted = []; close = vi.fn<() => void>();
+    rect = { width: 120, height: 60 }; color = "rgb(255, 255, 255)";
+    for (const mock of [stopWindow, doc.addEventListener, doc.removeEventListener, media.motion.addEventListener, media.motion.removeEventListener, media.scheme.addEventListener, media.scheme.removeEventListener, observer.observe, observer.disconnect, start]) mock.mockClear();
     doc.addEventListener.mockImplementation((name: string, listener: () => void) => { if (name === "visibilitychange") visibility = listener; });
-    vi.stubGlobal("window", { devicePixelRatio: 1, matchMedia: () => media, doan: { onWindowVisible: (listener: (visible: boolean) => void) => { windowVisible = listener; return stopWindow; } } });
+    vi.stubGlobal("window", { devicePixelRatio: 2, matchMedia: (query: string) => query.includes("reduced-motion") ? media.motion : media.scheme, doan: { onWindowVisible: (listener: (visible: boolean) => void) => { windowVisible = listener; return stopWindow; } } });
     vi.stubGlobal("document", doc);
-    vi.stubGlobal("getComputedStyle", () => ({ color: "rgb(255, 255, 255)" }));
+    vi.stubGlobal("getComputedStyle", () => ({ color }));
     vi.stubGlobal("requestAnimationFrame", (run: unknown) => { const id = next++; frames.set(id, run); return id; });
     vi.stubGlobal("cancelAnimationFrame", (id: number) => { frames.delete(id); });
-    vi.stubGlobal("ResizeObserver", class { observe = observer.observe; disconnect = observer.disconnect; });
+    vi.stubGlobal("ResizeObserver", class { constructor(run: () => void) { resize = run; } observe = observer.observe; disconnect = observer.disconnect; });
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  test("hands the canvas to the Worker once, with its CSS size, the device pixel ratio, the colour and the motion setting", () => {
+    render(field(true), attach);
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(start).toHaveBeenCalledWith(node, { size: { width: 120, height: 60, ratio: 2 }, color: "rgb(255, 255, 255)", reducedMotion: false });
+    expect(posted).toContainEqual({ kind: "running", running: true });
+    expect([node.width, node.height]).toEqual([240, 120]);
   });
 
   test("runs while shown; a hidden document leaves no frame pending, and it resumes when shown", () => {
@@ -238,12 +258,73 @@ describe("DotField lifecycle", () => {
   });
 
   test("reduced motion paints once and asks for no frame", () => {
-    media.matches = true;
+    media.motion.matches = true;
     try {
       render(field(true), attach);
       expect(frames.size).toBe(0);
       expect(ctx.fill).toHaveBeenCalled();
-    } finally { media.matches = false; }
+    } finally { media.motion.matches = false; }
+  });
+
+  test("a change of the motion setting goes to the Worker", () => {
+    render(field(true), attach);
+    const change = media.motion.addEventListener.mock.calls.find(call => call[0] === "change")![1] as () => void;
+    media.motion.matches = true;
+    try { change(); } finally { media.motion.matches = false; }
+    expect(posted).toContainEqual({ kind: "motion", reduced: true });
+    expect(frames.size).toBe(0);
+  });
+
+  test("a resize sends the new size; the colour goes only when it changed, also on a colour scheme change", () => {
+    render(field(true), attach);
+    posted = [];
+    rect = { width: 300, height: 100 };
+    resize!();
+    expect(posted).toEqual([{ kind: "size", size: { width: 300, height: 100, ratio: 2 } }]);
+    posted = [];
+    color = "rgb(0, 0, 0)";
+    const scheme = media.scheme.addEventListener.mock.calls.find(call => call[0] === "change")![1] as () => void;
+    scheme();
+    expect(posted).toEqual([{ kind: "color", color: "rgb(0, 0, 0)" }]);
+    posted = [];
+    scheme();
+    expect(posted).toEqual([]);
+  });
+
+  // The ResizeObserver calls back once right after observe(): the same size again would clear the field drawn at start.
+  test("a resize to the size last sent sends nothing", () => {
+    render(field(true), attach);
+    posted = [];
+    resize!();
+    expect(posted).toEqual([]);
+    rect = { width: 300, height: 100 };
+    resize!(); resize!();
+    expect(posted).toEqual([{ kind: "size", size: { width: 300, height: 100, ratio: 2 } }]);
+  });
+
+  // The real start: the canvas is transferred before the Worker's script has loaded, so a load failure would leave the
+  // field empty with nothing in the log.
+  test("the real Worker gets the transferred canvas, and a load failure is logged", () => {
+    const made: { url: string; options: unknown; listeners: Map<string, (event: unknown) => void>; messages: unknown[][] }[] = [];
+    vi.stubGlobal("Worker", class {
+      record = { url: "", options: undefined as unknown, listeners: new Map<string, (event: unknown) => void>(), messages: [] as unknown[][] };
+      constructor(url: URL, options: unknown) { this.record.url = String(url); this.record.options = options; made.push(this.record); }
+      addEventListener(name: string, listener: (event: unknown) => void) { this.record.listeners.set(name, listener); }
+      postMessage(...args: unknown[]) { this.record.messages.push(args); }
+      terminate() {}
+    });
+    const offscreen = { width: 0, height: 0 };
+    const real = { ...node, transferControlToOffscreen: () => offscreen };
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      render(() => DotField({ running: true }), () => { if (!hooks.refs[0]!.current) hooks.refs[0]!.current = real; });
+      expect(made).toHaveLength(1);
+      expect(made[0]!.url).toMatch(/dotFieldWorker\.ts$/);
+      expect(made[0]!.options).toEqual({ type: "module" });
+      expect(made[0]!.messages[0]).toEqual([{ kind: "start", canvas: offscreen, size: { width: 120, height: 60, ratio: 2 }, color: "rgb(255, 255, 255)", reducedMotion: false }, [offscreen]]);
+      made[0]!.listeners.get("error")!({ message: "blocked" });
+      expect(error).toHaveBeenCalled();
+    } finally { error.mockRestore(); }
   });
 
   // Records each arc's radius to tell near dots (bigger than the base 1.5px) from far ones.
@@ -251,15 +332,14 @@ describe("DotField lifecycle", () => {
     const near: { x: number; y: number }[] = [];
     let far = 0;
     ctx.arc.mockImplementation((x: number, y: number, r: number) => { if (r > 1.5) near.push({ x, y }); else far++; });
-    const wide = { ...node, getBoundingClientRect: () => ({ width, height }) };
-    const attachWide = () => { if (!hooks.refs[0]!.current) hooks.refs[0]!.current = wide; };
-    return { near, farCount: () => far, attachWide, reset: () => { near.length = 0; far = 0; } };
+    rect = { width, height };
+    return { near, farCount: () => far, reset: () => { near.length = 0; far = 0; } };
   }
 
   test("a running frame draws near dots around the sweeping spot and its opposing spot", () => {
     const probe = nearArcs(1000, 60);
     try {
-      render(field(true), probe.attachWide);
+      render(field(true), attach);
       probe.reset();
       // The first frame starts the clock; the second is 1000ms in: the spot is at x 0 and its opposite at x 1000.
       (frames.get(1) as (now: number) => void)(1000);
@@ -271,26 +351,41 @@ describe("DotField lifecycle", () => {
   });
 
   test("reduced motion draws no spot at all: every dot is far", () => {
-    media.matches = true;
+    media.motion.matches = true;
     try {
       const probe = nearArcs(1000, 60);
-      render(field(true), probe.attachWide);
+      render(field(true), attach);
       expect(probe.near).toEqual([]);
       expect(probe.farCount()).toBeGreaterThan(0);
-    } finally { media.matches = false; ctx.arc.mockReset(); }
+    } finally { media.motion.matches = false; ctx.arc.mockReset(); }
   });
 
-  test("unmount leaves no frame, observer, media listener or visibility subscription", () => {
+  test("unmount ends the Worker and leaves no observer, media listener or visibility subscription", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     render(field(true), attach);
     expect(observer.observe).toHaveBeenCalledWith(node);
-    const change = media.addEventListener.mock.calls[0];
-    expect(change?.[0]).toBe("change");
+    const motion = media.motion.addEventListener.mock.calls[0], scheme = media.scheme.addEventListener.mock.calls[0];
+    expect(motion?.[0]).toBe("change");
     unmount();
-    expect(frames.size).toBe(0);
+    vi.runAllTimers();
+    expect(close).toHaveBeenCalledTimes(1);
     expect(observer.disconnect).toHaveBeenCalled();
-    expect(media.removeEventListener).toHaveBeenCalledWith("change", change![1]);
+    expect(media.motion.removeEventListener).toHaveBeenCalledWith("change", motion![1]);
+    expect(media.scheme.removeEventListener).toHaveBeenCalledWith("change", scheme![1]);
     expect(doc.removeEventListener).toHaveBeenCalledWith("visibilitychange", visibility);
     expect(stopWindow).toHaveBeenCalled();
+  });
+
+  // StrictMode runs a mounted effect's cleanup and the effect again on the same canvas, which can be transferred only once.
+  test("a cleanup followed at once by a run on the same canvas keeps its Worker", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    render(field(true), attach);
+    unmount();
+    render(field(true), attach);
+    vi.runAllTimers();
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(close).not.toHaveBeenCalled();
+    expect(frames.size).toBe(1);
   });
 });
 
