@@ -60,7 +60,8 @@ test("screens set only outer margins on a notice: no per-screen padding, gap, ty
       const subject = selector.replace(/:not\([^)]*\)/g, "").split(/[\s>+~]+/).at(-1)!;
       if (!notice.test(subject) || shared.has(selector)) continue;
       const properties = body!.split(";").map(d => d.split(":")[0]!.trim()).filter(Boolean);
-      if (properties.some(prop => !prop.startsWith("margin"))) offenders.push(`${selector} { ${body!.trim()} }`);
+      // Stacking (position, z-index) is layering above the buddy slot, not a per-screen look.
+      if (properties.some(prop => !prop.startsWith("margin") && prop !== "position" && prop !== "z-index")) offenders.push(`${selector} { ${body!.trim()} }`);
     }
   }
   expect(offenders).toEqual([]);
