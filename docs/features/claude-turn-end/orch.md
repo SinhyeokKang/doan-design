@@ -35,7 +35,7 @@
 | D | tasks 7 스레드 UI + `/design-sync`, tasks 3의 renderer 테스트(결정 10) | renderer 스레드 UI(`backgroundLine`, `turnStatus.ts`, `homeRun.ts`, `threadItems.ts`, `ConversationThread.tsx`, `conversationStrip.ts`, 관련 CSS), `docs/DESIGN.md` 백그라운드 줄 측정값 | B 통합, C 구현 끝(결정 14) | Opus high — 포커스 이동, Stop 경합, `sending` 항목 정리(POSTMORTEM 2026-11-05)와 초안 측정 | app test 녹색, `/design-sync` 측정 통과 | 구현 끝(`fa8262a6..3a369258`, verify PASS, `/design-sync` 56/56 행 일치와 실제 앱 동작 확인 9건 통과). Home strip의 `prompt_unread`는 실제 앱에서 띄우지 못했다(단위 테스트로 고정). 통합 `70f84fd3..e3e795a8`, 수정 0회. 워커 해제. `cte-d`는 C 수정 2회차가 그 probe를 쓰므로 그 뒤 지운다 |
 | E | tasks 9 `/runtime-test` | `.scratch/`의 probe만 | C, D 통합, lead의 '[lead] screen back' | Opus medium — 정해진 probe를 실제 앱에서 재고 수치를 완료 조건과 대조한다 | probe 수치가 spec 완료 조건 1–5를 만족, 실제 상태 비교 통과 | 대기 |
 | R-B · R-C · R-D | 각 batch `/code-review` | 없음(보고만) | 각 batch | R-B Sonnet medium, R-C Opus high, R-D Opus high — diff 난이도에 맞춘다 | `/code-review` 보고 | 대기 |
-| Z | tasks 10 문서 승격과 삭제 | PRODUCT, ARCHITECTURE, BACKLOG, DESIGN, DIRECTORY, `docs/features/claude-turn-end/` | 구현 통합. E에 기대는 BACKLOG 'Not verified'와 디렉터리 삭제는 E 뒤 conductor | Opus high 워커가 초안을 쓰고 conductor가 검토한다 — 승격할 규칙이 많고 코드와 대조해야 해서 conductor 맥락을 아낀다 | 문서 diff 검토, verify PASS | 진행 중(`cte-z`) |
+| Z | tasks 10 문서 승격과 삭제 | PRODUCT, ARCHITECTURE, BACKLOG, DESIGN, DIRECTORY, `docs/features/claude-turn-end/` | 구현 통합. E에 기대는 BACKLOG 'Not verified'와 디렉터리 삭제는 E 뒤 conductor | Opus high 워커가 초안을 쓰고 conductor가 검토한다 — 승격할 규칙이 많고 코드와 대조해야 해서 conductor 맥락을 아낀다 | 문서 diff 검토, verify PASS | 승격 통합 `c9dfd8e9..56f65b47`(conductor가 diff 검토, 워커 verify PASS). 워커·`cte-z` 정리 끝. 남은 것: E에 기대는 BACKLOG 'Not verified', 디렉터리 삭제 |
 
 tasks 2(`/design-draft`)는 lead 단계에서 끝났다(`8de3b646`, `6b7faccf`).
 
