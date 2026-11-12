@@ -18,7 +18,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| P | tasks 1 (PoC) | `design.md` 'PoC 의존' 결과, `.scratch/runtime-test/canvas-text-copy/` | 없음 | Opus high — 실제 앱에서 OOPIF 입력·클립보드·메뉴 동작을 판단하고, 실패 시 대체 경로를 설계에 반영해야 한다 | 다섯 항목 관찰이 design.md에 있음, `assertRealState` 통과, 클립보드 복원 | 대기 |
+| P | tasks 1 (PoC) | `design.md` 'PoC 의존' 결과, `.scratch/runtime-test/canvas-text-copy/` | 없음 | Opus high — 실제 앱에서 OOPIF 입력·클립보드·메뉴 동작을 판단하고, 실패 시 대체 경로를 설계에 반영해야 한다 | 다섯 항목 관찰이 design.md에 있음, `assertRealState` 통과, 클립보드 복원 | 통합 `8a54288d` |
 | I | tasks 3, 4, 5, 6 (`/ship bypass`: tdd → implement → design-sync → runtime-test → code-review → refactor, push 전 멈춤) | `app/src/main/canvasScript.ts`(+test), `app/src/renderer/CanvasController.ts`(+test), `canvasTool.ts`(+test), `canvasMessage.ts`(+test), 새 `canvasTextCopy.ts`(+test), `styles.css` overlay, 필요 시 `app/src/main/index.ts` Edit 메뉴, `docs/DESIGN.md` 측정값, `docs/POSTMORTEM.md`(해당 시) | P 통합 | Opus high — 입력 경로, 늦은 메시지 순서, 신뢰하지 않는 메시지 상한, hover·포커스 회귀 이력이 있는 영역이다 | `npm --prefix app test`·`typecheck`·`lint`·`build`, `/design-sync` 보고서, `/runtime-test` 보고서와 스크린숏 | 대기 |
 | R | I의 diff 독립 검토 (`/code-review`, 보고만) | 없음(읽기만) | I 완료 | Opus high — 같은 이유. 구현 워커와 다른 세션이어야 한다 | 🔴 0 | 대기 |
 | C | tasks 7 (`/verify`), 8 (승격과 정리) | PRODUCT, ARCHITECTURE, BACKLOG, `docs/features/canvas-text-copy/` 삭제 | R 🔴 0 | conductor | `verify.mjs` PASS, tasks 8의 `rg` 확인 | 대기 |
@@ -32,3 +32,6 @@ tasks 2(초안)는 develop에서 끝났다(`6a9a8e82`).
 - GUI probe는 짧게 돌린다. 다른 링크와 같은 순간에 앱 창을 띄운 일이 있으면 PR 본문에 적는다.
 
 ## 진행 기록
+
+- P: 워커 `ctc-worker`(Opus high, dispatch `ctx_3211516b9815`). PoC 1–4 통과, 3은 대체 경로 없이 `role: "copy"` 유지, 5는 `text-point`가 필요하다. `d908bb78`을 `8a54288d`로 통합했다. 미검증: 실제 ⌘Tab 키, 실제 트랙패드 핀치(Ctrl 휠로 대체). 사고: 첫 실행의 ⌥ CGEvent가 실제 HID 상태에 Option을 약 5분 남겼다. 워커가 풀었고 오염된 결과는 다시 돌렸다.
+- I: 같은 워커에 새 Task로 보냈다(dispatch `ctx_8db6e460b990`). 워커가 `/ship`을 시작한 것을 터미널에서 확인했다.
