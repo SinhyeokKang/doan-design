@@ -25,6 +25,7 @@
 - 사용자 결정 — tasks 7: C의 프레임 묶기(`9b05e7a4`, 검증 PASS·픽셀 동일)는 40ms 스트림 비용을 줄이지 못했다. 기존 `useFrameText`가 이미 프레임당 한 번만 반영하기 때문이다. 그래서 통합하지 않는다. tasks 7을 '스레드 항목 메모화'로 다시 계획한다. App 전체 재렌더를 막는 대화별 구독은 위험과 범위가 커서 넣지 않는다. C의 파일 소유에 `ConversationThread.tsx` 전체와 `threadItems.ts`를 더한다.
 - conductor 판단 — R-C D2: 원래 tasks 7에서는 "프레임당 반영 1회 이하"와 "턴 종료 즉시 반영"이 같은 프레임에서 충돌했다. design의 "지연 없이"를 따라 즉시 반영을 예외로 봤다. 묶기를 빼서 지금은 해당하지 않는다.
 - 사용자 결정 — 디스플레이: 15:57쯤 LG 4K(60 Hz) 모니터가 빠져 내장 디스플레이(120 Hz)만 남았다. 바꾸지 않은 빌드도 기존 baseline과 채널 차가 약 14 났다. 사용자는 내장 디스플레이로 계속하기로 했다. conductor가 바꾸지 않은 빌드(`d5467032`, `1955bc28`과 앱 코드 동일)로 내장 디스플레이에서 `baseline/`과 `noise-1..3`을 다시 찍었다. 기존 것은 `baseline-lg60/`에 남겼다. 이후 픽셀 비교와 성능 측정은 모두 내장 디스플레이에서 한다. 성능의 before/after는 같은 세션에서 나란히 잰다(P의 perf3는 60 Hz라 직접 비교하지 않는다).
+- conductor 판단 — 디스플레이(이어서): 16:33쯤 LG가 다시 연결돼 메인이 됐다. 그래서 디스플레이를 고정하지 않고, compare는 지금 메인 디스플레이에 맞는 baseline을 쓴다(LG 60 Hz → `baseline-lg60/`, 내장 120 Hz → `baseline/`). 실행마다 `session-*.json`에 디스플레이를 기록한다. 실행 중 배치가 바뀌면 그 실행은 버리고 다시 돈다. 성능 before/after는 같은 세션·같은 배치에서 잰다.
 - conductor 판단 — tasks 3: 링크 1(`frame-first-selection`)의 재로드 회귀 테스트는 `CanvasController.test.ts` 'working-frame marker' › "stays on its frame through repeated reloads without hiding or restarting, and lands on the new layout without the slide"이다(`8286c893`).
 - conductor 판단 — 측정 간섭: 성능 수치(P, M)는 다른 워커의 빌드·테스트가 돌지 않을 때만 잰다. 구현 배치 A·B·C는 병렬로 돌리되, GUI probe는 conductor가 한 번에 하나씩 허락한다. 픽셀 비교는 애니메이션 시점을 고정하므로 부하에 영향받지 않는다.
 
