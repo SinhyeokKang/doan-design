@@ -1,6 +1,7 @@
 package export
 
 import (
+	"bytes"
 	"fmt"
 	"path"
 	"sort"
@@ -27,7 +28,8 @@ type Result struct {
 	// Assets holds each inlined file once, by real repo-relative path, with
 	// its size on disk, sorted by path.
 	Assets []Asset
-	// Refused holds each reference that blocks the export, in document order.
+	// Refused holds each reference that blocks the export: every SVG <use>
+	// that leaves the canvas first, then the others in document order.
 	// It is partial when TooLarge is true.
 	Refused []Refusal
 	// TooLarge reports that the output would exceed the limit; Inline stopped
@@ -78,9 +80,12 @@ func inline(resolver *repo.Resolver, root string, config repo.Config, canvasPath
 	if err != nil {
 		return Result{}, nil, err
 	}
-	in := &inliner{resolver: resolver, root: root, scope: scope, limit: limit, files: map[string]string{}, sizes: map[string]int64{}, sheets: map[string][]sheet{}, external: map[string]bool{}, links: map[string]bool{}, refusedSeen: map[Refusal]bool{}, canvasPath: canvasPath, src: src}
+	in := &inliner{resolver: resolver, root: root, scope: scope, limit: limit, files: map[string]string{}, sizes: map[string]int64{}, sheets: map[string][]sheet{}, external: map[string]bool{}, links: map[string]bool{}, refusedSeen: map[Refusal]bool{}}
 	if href, ok := firstBaseHref(src); ok && baseMoves(href) {
 		in.based = canvasPath
+	}
+	if err := in.refuseUses(canvasPath, src); err != nil {
+		return Result{}, nil, err
 	}
 	in.collectUses(canvasPath, src)
 	if in.err != nil {
@@ -142,9 +147,6 @@ type inliner struct {
 	uses        canvas.CustomUsers
 	collected   map[string]bool // stylesheets read into uses
 	based       string          // the canvas, when its <base href> moves the folder; "" otherwise
-	canvasPath  string
-	src         []byte
-	useRefs     map[string]bool // trimmed canvas.Canvas.UseRefs, read on the first <use> that needs them
 }
 
 // sheet is one inlined stylesheet. Its text depends on the @import chain
@@ -185,11 +187,9 @@ func (in *inliner) ref(from string, direct bool, ancestors []string, reached map
 func (in *inliner) replace(from string, direct bool, ancestors []string, reached map[string]bool, kind refKind, href, custom string) (string, bool) {
 	h := trimURL(href)
 	if kind == kindUse {
-		// Judged before the path is resolved, so a missing, unserved or CDN
-		// target is refused for the same reason.
-		if canvas.UseNotInline(h) && in.canvasUse(h) {
-			in.refuse(from, h, ReasonUseExternal)
-		}
+		// refuseUses already refused every <use> that leaves the canvas;
+		// none is resolved, so a missing, unserved or CDN target gets that
+		// one reason, and a fragment stays as written.
 		return "", false
 	}
 	switch classifyRef(kind, href) {
@@ -250,23 +250,38 @@ func (in *inliner) replace(from string, direct bool, ancestors []string, reached
 	return "", false
 }
 
-// canvasUse reports whether h is the reference of an SVG <use> the canvas
-// draws, as doan check lists them (canvas.Canvas.UseRefs): the tokenizer
-// cannot tell an SVG <use> from an HTML one, or see that href wins over
-// xlink:href. The canvas is parsed only once a <use> needs it.
-func (in *inliner) canvasUse(h string) bool {
-	if in.useRefs == nil {
-		c, err := canvas.Parse(in.canvasPath, in.src)
-		if err != nil {
-			in.err = err
+// refuseUses refuses every SVG <use> that leaves the canvas, as doan check
+// lists them (canvas.Canvas.UseRefs). The tokenizer the rewrite walks cannot
+// tell an SVG <use> from an HTML one, see that href wins over xlink:href, or
+// see a <use> it reads as <title> text where the parser does not. The
+// canvas is parsed only when its source names a <use> element.
+func (in *inliner) refuseUses(canvasPath string, src []byte) error {
+	if !namesUse(src) {
+		return nil
+	}
+	c, err := canvas.Parse(canvasPath, src)
+	if err != nil {
+		return err
+	}
+	for _, r := range c.UseRefs {
+		in.refuse(canvasPath, trimURL(r), ReasonUseExternal)
+	}
+	return nil
+}
+
+// namesUse reports whether src holds "<use" in any letter case.
+func namesUse(src []byte) bool {
+	for i := bytes.IndexByte(src, '<'); i >= 0 && i+4 <= len(src); {
+		if bytes.EqualFold(src[i+1:i+4], []byte("use")) {
+			return true
+		}
+		j := bytes.IndexByte(src[i+1:], '<')
+		if j < 0 {
 			return false
 		}
-		in.useRefs = map[string]bool{}
-		for _, r := range c.UseRefs {
-			in.useRefs[trimURL(r)] = true
-		}
+		i += 1 + j
 	}
-	return in.useRefs[h]
+	return false
 }
 
 func (in *inliner) refuse(from, href, reason string) {
