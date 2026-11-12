@@ -63,7 +63,7 @@
      - `npm --prefix app test`가 녹색이다.
      - 실제 앱 짧은 probe로 두 가지를 잰다. 하나는 두 줄 Home strip(권한 요청 또는 실패)이다. 버튼이 노티스 세로 가운데에 있고, 아이콘은 첫 줄에 있어야 한다. 다른 하나는 버튼이 있는 한 줄 노티스다. 높이가 44 px 그대로여야 한다.
    - 커밋 경계.
-9. [ ] **실제 앱 확인 (`/runtime-test`).** 패키지 앱(`npm --prefix app run package`)을 격리 조건(임시 userData·HOME·SHELL·`CLAUDE_CONFIG_DIR`)으로 띄우고, 사용자가 그 앱에서 Doan Claude 연결에 한 번 로그인한 뒤(사용자 참여 필요), 각 결함을 `turn.done` 순간에 보내는 짧은 probe로 확인한다.
+9. [ ] **실제 앱 확인 (`/runtime-test`).** 패키지 앱(`npm --prefix app run package`)을 design.md '실제 앱 확인의 로그인'대로 실제 HOME, 임시 `DOAN_RUNTIME`·repo, 계속 쓰는 userData로 띄우고, 그 userData의 Doan Claude 연결이 살아 있는지 본 뒤(끊겼으면 사용자가 자기 브라우저에서 한 번 승인한다), 각 결함을 `turn.done` 순간에 보내는 짧은 probe로 확인한다.
    - 프로젝트 대화: 파일 변경 없는 턴과 새 캔버스를 만든 턴 각각, send에서 다음 턴 시작까지 시간. 새 캔버스 턴은 승격된다.
    - 캔버스 대화: send에서 다음 턴 시작까지의 중앙값이 PoC 1b의 "SIGKILL 뒤 그룹이 사라지기까지" + 100ms 이하. 그 뒤 resume 정상. 앱의 `settingSources`와 MCP 아래에서도 SIGTERM을 무시하는 원인이 PoC와 같은지 본다.
    - 백그라운드 작업 세션: 2턴이 프롬프트의 답에서 끝나고 그 답이 보인다. meta 턴의 답이 사람의 답보다 먼저 보여 헷갈리는지 관찰해 적는다.
