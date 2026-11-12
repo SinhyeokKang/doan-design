@@ -610,6 +610,14 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   // The turn whose background work this thread's Stop asked main to stop, until main answers.
   const [stoppingTurn, setStoppingTurn] = useState<string | null>(null);
+  // Main answers a Stop at once while another host's Stop of the same work is under way; should that one fail, main
+  // shows the line without `stopping` again, and this press must not hold Stopping while the work runs on.
+  const mainStopping = props.background?.stopping === true;
+  const [mainWasStopping, setMainWasStopping] = useState(mainStopping);
+  if (mainWasStopping !== mainStopping) {
+    setMainWasStopping(mainStopping);
+    if (!mainStopping && stoppingTurn !== null && stoppingTurn === props.background?.turnId) setStoppingTurn(null);
+  }
   // The line belongs to its done turn while that is the thread's last: the person's next message (a Send now in flight
   // too) or a turn still running takes the place in the render it enters.
   const line = Array.isArray(items) ? backgroundLine({

@@ -195,3 +195,27 @@ test("when the line goes while Stop holds focus, focus moves to the composer fie
   draw({ background: { turnId: "t1", stopping: true } });
   expect(composer).not.toHaveBeenCalled();
 });
+
+// Main answers a Stop at once when another host's Stop is already under way. Should that earlier Stop fail, main shows
+// the line without `stopping` again; this host's own press must not keep it stuck on Stopping.
+test("a Stop main answered for the other host's press comes back when main's stopping ends without the work ending", async () => {
+  draw({ background: { turnId: "t1", stopping: true } });
+  draw({ background: { turnId: "t1" } });
+  (stop()!.props.onClick as () => void)();
+  draw({ background: { turnId: "t1", stopping: true } });
+  answer.resolve(true);
+  await settle();
+  draw({ background: { turnId: "t1", stopping: true } });
+  expect(text(stop())).toBe("Stopping");
+  // The other press failed: main's line is back without stopping while the work runs on.
+  draw({ background: { turnId: "t1" } });
+  draw({ background: { turnId: "t1" } });
+  expect(text(stop())).toBe("Stop");
+  expect(stop()!.props["aria-disabled"]).toBeUndefined();
+});
+
+test("the line goes in the first render whose turn is a later one, before that turn's status arrives", () => {
+  draw();
+  draw({ items: [...ITEMS, user("u9", "Now make the total row sticky")], turn: { turnId: "t2", status: { kind: "none" }, at: "2026-11-13T10:01:00.000Z" } });
+  expect(line()).toBeUndefined();
+});

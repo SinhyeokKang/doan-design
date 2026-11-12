@@ -233,12 +233,17 @@ test("the new-canvas window closes at main's judgement, read from a list read st
     h.view.entries = [list(ROOT, ["a", "late"])];
     h.run.entriesChanged();
     const drawing = h.run.drawing(ROOT, { path: ".doan/canvases/late.html", id: "late" });
+    // Main judges the turn after the canvas opened: the canvas no longer names the conversation as drawing it.
+    lists({ [ROOT]: [summary({ conversationId: "c2", phase: "ended", working: false })] });
+    h.run.listChanged(ROOT);
+    await flush();
+    const afterJudged = h.run.drawing(ROOT, { path: ".doan/canvases/late.html", id: "late" });
     now.mockReturnValue(1_000_000);
-    return { opens: vi.mocked(h.host.openCanvas).mock.calls.length, drawing };
+    return { opens: vi.mocked(h.host.openCanvas).mock.calls.length, drawing, afterJudged };
   };
-  expect(await opened("working")).toEqual({ opens: 1, drawing: "c2" });
-  expect(await opened("judged")).toEqual({ opens: 0, drawing: null });
-  expect(await opened("stale")).toEqual({ opens: 1, drawing: "c2" });
+  expect(await opened("working")).toEqual({ opens: 1, drawing: "c2", afterJudged: null });
+  expect(await opened("judged")).toEqual({ opens: 0, drawing: null, afterJudged: null });
+  expect(await opened("stale")).toEqual({ opens: 1, drawing: "c2", afterJudged: null });
   now.mockRestore();
 });
 
