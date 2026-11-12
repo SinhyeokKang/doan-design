@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { readFileSync } from "node:fs";
-import { CLI_TIMEOUT_MS, folderState, homeOrAbove, initOutcome, reconcileFolders, type CliRun } from "./folderState";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { CLI_TIMEOUT_MS, folderState, homeOrAbove, initOutcome, realHome, reconcileFolders, type CliRun } from "./folderState";
 
 // The fixtures Go and TS both validate (schema/fixtures/cli-envelope).
 const fixture = (name: string): string => readFileSync(new URL(`../../../schema/fixtures/cli-envelope/${name}`, import.meta.url), "utf8");
@@ -351,5 +353,21 @@ describe("homeOrAbove", () => {
     for (const path of ["/Users/ada/studio", "/Users/adam", "/Users/ad", "/w"]) expect(homeOrAbove(path, "/Users/ada"), path).toBe(false);
     // A home folder that cannot be known protects nothing rather than everything.
     expect(homeOrAbove("/Users/ada", "")).toBe(false);
+  });
+
+  // Saved roots are real paths, so HOME is compared as its real path: a HOME reached through a symlink (macOS's temp
+  // folders under /var, which is /private/var) still refuses a repository in itself and above it.
+  test("realHome reads HOME through symlinks, and keeps the spelled value when it cannot be read", () => {
+    const spelled = mkdtempSync(join(tmpdir(), "doan-home-"));
+    const real = realpathSync(spelled), link = join(real, "..", `${real.split("/").pop() ?? ""}-link`);
+    symlinkSync(spelled, link);
+    try {
+      for (const home of [spelled, link]) {
+        expect(realHome(home), home).toBe(real);
+        expect(homeOrAbove(real, realHome(home)), home).toBe(true);
+      }
+      expect(realHome(join(real, "gone"))).toBe(join(real, "gone"));
+      expect(realHome("")).toBe("");
+    } finally { rmSync(link); rmSync(spelled, { recursive: true }); }
   });
 });

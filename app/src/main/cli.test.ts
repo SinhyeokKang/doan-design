@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, inject, test, vi } from "vitest";
+import { afterAll, describe, expect, inject, onTestFinished, test, vi } from "vitest";
 import { spawn } from "node:child_process";
 
 vi.mock("node:child_process", async importOriginal => {
@@ -59,7 +59,7 @@ describe("readFolder with the real CLI", () => {
     expect(view.kind === "list" && view.canvases).toEqual([expect.objectContaining({ path: ".doan/canvases/a.html", title: "A" })]);
   });
 
-  // The temp folder belongs to no Git repository: ls says Keep out of Git there needs a new one (batch A's ls).
+  // The temp folder belongs to no Git repository: ls says Keep out of Git there needs a new one (storageReason not_git).
   test("reports a folder without config as uninitialized, outside Git", async () => {
     expect(await readFolder(cli, dir())).toEqual({ kind: "uninitialized", notGit: true });
   });
@@ -157,17 +157,26 @@ describe("the CLI's git environment", () => {
   test("names the login shell's PATH and the inherited DEVELOPER_DIR, and only what is known", () => {
     expect(cliEnv("/login/bin:/usr/bin", { PATH: "/app/bin", DEVELOPER_DIR: "/Dev" })).toEqual({ PATH: "/login/bin:/usr/bin", DEVELOPER_DIR: "/Dev" });
     expect(cliEnv("/login/bin", { PATH: "/app/bin" })).toEqual({ PATH: "/login/bin" });
-    expect(cliEnv(null, { PATH: "/app/bin", DEVELOPER_DIR: "" })).toEqual({});
+    // A login shell that could not be read names no git, as clone finds none then: the CLI answers git_missing rather
+    // than run a git from the app's own PATH (PRODUCT §3 'Launch environment').
+    expect(cliEnv(null, { PATH: "/app/bin", DEVELOPER_DIR: "" })).toEqual({ PATH: "" });
+    expect(cliEnv(null, { PATH: "/app/bin", DEVELOPER_DIR: "/Dev" })).toEqual({ PATH: "", DEVELOPER_DIR: "/Dev" });
+  });
+
+  test("the real CLI finds no git when the login shell could not be read", async () => {
+    const root = dir();
+    expect(initOutcome(await runInit(cli, root, null, "local", { gitInit: true, env: cliEnv(null, {}) }))).toMatchObject({ kind: "error", code: "git_missing" });
+    expect(existsSync(join(root, ".git"))).toBe(false);
   });
 
   test("init and config run with it, and a bare doan is still found on the app's own PATH", async () => {
     const out = join(dir(), "env");
-    const fake = fakeCli(`printf '%s\\n%s\\n%s\\n' "$PATH" "$DEVELOPER_DIR" "$*" > '${out}'; echo '{"v":1,"ok":true,"result":{"initialized":true,"repo":"/r","created":[]}}'`);
+    const fake = fakeCli(`printf '%s\\n%s\\n' "$PATH" "$DEVELOPER_DIR" > '${out}'; printf '%s\\n' "$@" >> '${out}'; echo '{"v":1,"ok":true,"result":{"initialized":true,"repo":"/r","created":[]}}'`);
     const env = { PATH: "/login/bin", DEVELOPER_DIR: "/Dev" };
     expect(initOutcome(await runInit(fake, "/r", null, "local", { gitInit: true, env }))).toEqual({ kind: "success" });
-    expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["/login/bin", "/Dev", "init --json --repo /r --storage local --git-init"]);
+    expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["/login/bin", "/Dev", "init", "--json", "--repo", "/r", "--storage", "local", "--git-init"]);
     await runConfig(fake, "/r", ["--storage", "local", "--git-init"], env);
-    expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["/login/bin", "/Dev", "config --json --repo /r --storage local --git-init"]);
+    expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["/login/bin", "/Dev", "config", "--json", "--repo", "/r", "--storage", "local", "--git-init"]);
     const saved = process.env.PATH;
     process.env.PATH = `${join(fake, "..")}:${saved ?? ""}`;
     try { await runInit("doan", "/r", null, "local", { gitInit: true, env }); } finally { process.env.PATH = saved; }
@@ -233,10 +242,14 @@ test("a local setup outside Git is refused by the real CLI with the draft's word
   expect(initMessage(outcome)).toBe("This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.");
 });
 
-// With the real CLI (batch A's --git-init): switching a project outside Git to Keep out of Git creates its repository,
+// The real CLI creates the repository with --git-init: switching a project outside Git to Keep out of Git creates it,
 // and switching back keeps both that repository and Doan's .gitattributes line, as every switch keeps the line.
+// git runs under a temporary HOME so the developer's own Git configuration plays no part.
 test("Include in Git, then Keep out of Git, then Include in Git keeps .gitattributes and the new .git", async () => {
   const root = dir();
+  const home = process.env.HOME;
+  process.env.HOME = dir();
+  onTestFinished(() => { process.env.HOME = home; });
   expect(initOutcome(await runInit(cli, root, null))).toEqual({ kind: "success" });
   const attributes = readFileSync(join(root, ".gitattributes"), "utf8");
   expect(configReply(root, await runConfig(cli, root, []))).toMatchObject({ storage: "repo", storageReason: "not_git" });

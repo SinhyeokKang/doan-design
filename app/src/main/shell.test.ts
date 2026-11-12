@@ -14,7 +14,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, afterEach, describe, expect, inject, test, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, inject, onTestFinished, test, vi } from "vitest";
 import { canvasMtimes, startShell, type FolderFocus, type Shell, type ShellHooks } from "./shell";
 import type { FolderState } from "./folderState";
 import type { FolderEntry } from "./view";
@@ -786,10 +786,14 @@ exit 9
       message: "Doan doesn’t create a Git repository in your home folder.", guidance: "Choose Include in Git, or choose a folder inside it." });
   });
 
-  // With the real CLI (batch A's --git-init): Set Up kept out of Git creates the repository once; a later Set Up of the
-  // same folder finds it a repository, plans no .git/ and leaves it as it is.
+  // The real CLI creates the repository with --git-init: Set Up kept out of Git creates it once; a later Set Up of the
+  // same folder finds it a repository, plans no .git/ and leaves it as it is. git runs under a temporary HOME so the
+  // developer's own Git configuration plays no part.
   test("setting up the same folder again keeps the repository the first setup created", async () => {
     const root = dir();
+    const home = process.env.HOME;
+    process.env.HOME = dir();
+    onTestFinished(() => { process.env.HOME = home; });
     const { shell } = await uninitialized(root);
     await vi.waitFor(() => expect(shell.entries()[0]).toEqual({ path: root, kind: "uninitialized", notGit: true }), until);
     expect(await shell.initialize(root, null, "local", true)).toEqual({ kind: "success" });

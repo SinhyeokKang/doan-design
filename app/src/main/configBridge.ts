@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isAbsolute, join } from "node:path";
 import { validateEnvelope } from "../formats/validate";
+import type { CliEnv } from "./cli";
 import type { CliRun } from "./folderState";
 import { storageFacts, type StorageFacts } from "./storage";
 
@@ -17,8 +18,10 @@ export type ConfigReply =
 export type ConfigChoice = { kind: "selected"; choiceId: string; path: string } | { kind: "cancelled" } | { kind: "unavailable" };
 
 export interface ConfigBridgeDeps {
-  // `doan config --json --repo <root> ...args`.
-  run(root: string, args: string[]): Promise<CliRun>;
+  // `doan config --json --repo <root> ...args`; env only for a run that may create the repository (`--git-init`).
+  run(root: string, args: string[], env?: CliEnv): Promise<CliRun>;
+  // The environment the CLI's git is found with (cli.ts CliEnv); it reads the login shell, which can take seconds.
+  gitEnv?(): Promise<CliEnv>;
   // The epoch of a stored, set-up root; null for anything else.
   epoch(root: string): number | null;
   // A sheet on the main window; null when cancelled.
@@ -101,10 +104,13 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
     const generation = session;
     const current = () => generation === session && deps.epoch(target) === epoch;
     const next = (queues.get(target) ?? Promise.resolve()).then(async (): Promise<ConfigReply> => {
+      // Read before the check below: the project may be removed or re-rooted while the login shell is read, and such a
+      // project must get no repository.
+      const env = args.includes("--git-init") ? await deps.gitEnv?.() : undefined;
       // The project may have been removed and re-added, or the dialog closed,
       // while this call waited behind a slower one.
       if (!current()) return { kind: "unavailable" };
-      const reply = configReply(target, await deps.run(target, args));
+      const reply = configReply(target, await (env === undefined ? deps.run(target, args) : deps.run(target, args, env)));
       if (generation !== session) return { kind: "unavailable" };
       if (reply.kind === "config" && current()) lastServe.set(target, reply.serve);
       return reply;

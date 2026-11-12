@@ -43,7 +43,7 @@ export function groupRoots(entries: readonly FolderEntry[], root: string): strin
 }
 
 // The home folder or a folder above it, where Doan creates no Git repository (the CLI reads a .git there as none, §13,
-// and refuses --git-init there). Paths are compared as spelled; the CLI makes the same judgement before writing.
+// and refuses --git-init there). Both paths must be real paths (main's realHome), as the CLI compares them.
 export function homeOrAbove(path: string, home: string): boolean {
   if (!home) return false;
   const folder = path.replace(/\/+$/, "") || "/";

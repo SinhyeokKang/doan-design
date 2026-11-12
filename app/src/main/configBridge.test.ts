@@ -13,7 +13,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-const run = vi.fn<(root: string, args: string[]) => Promise<CliRun>>();
+const run = vi.fn<(root: string, args: string[], env?: { PATH?: string }) => Promise<CliRun>>();
 const pick = vi.fn<(root: string, kind: "tokenCss" | "serve") => Promise<string | null>>();
 const storageWritten = vi.fn<(root: string) => void>();
 let epochs: Map<string, number>;
@@ -137,7 +137,30 @@ test("a confirmed switch creates the repository through doan config and says so"
   expect(run).toHaveBeenCalledTimes(2);
 });
 
-// The page's own sentences for a failed creation (design: one sentence for git init, the .git left behind named), and
+// The login shell is read before the project is checked: a project removed or re-rooted, or a page closed, while it is
+// read gets no repository. A project still there runs with that environment.
+test("a project removed while the git environment is read gets no repository", async () => {
+  const env = deferred<{ PATH?: string }>();
+  const gitEnv = vi.fn(() => env.promise);
+  bridge = createConfigBridge({ run, pick, epoch: root => epochs.get(root) ?? null, storageWritten, gitEnv });
+  const reply = bridge.write({ root: ROOT, op: "setStorage", storage: "local", gitInit: true });
+  await vi.waitFor(() => expect(gitEnv).toHaveBeenCalledTimes(1));
+  epochs.delete(ROOT);
+  env.resolve({ PATH: "/login/bin" });
+  expect(await reply).toEqual({ kind: "unavailable" });
+  expect(run).not.toHaveBeenCalled();
+  expect(storageWritten).not.toHaveBeenCalled();
+  epochs.set(ROOT, 2);
+  run.mockResolvedValueOnce(ok({ repo: ROOT, serve: [], changed: true, storage: "local", written: [".git/"] }));
+  expect(await bridge.write({ root: ROOT, op: "setStorage", storage: "local", gitInit: true })).toMatchObject({ kind: "config", repositoryCreated: true });
+  expect(run).toHaveBeenCalledExactlyOnceWith(ROOT, ["--storage", "local", "--git-init"], { PATH: "/login/bin" });
+  // Other writes read no login shell.
+  await bridge.write({ root: ROOT, op: "setStorage", storage: "repo" });
+  expect(gitEnv).toHaveBeenCalledTimes(2);
+  expect(run).toHaveBeenLastCalledWith(ROOT, ["--storage", "repo"]);
+});
+
+// The page's own sentences for a failed creation (one sentence for git init, naming any .git left behind), and
 // the project read again: a .git left behind makes the folder a repository, so its reason goes.
 test("a failed creation says why in Project Settings' words and has the project read again", async () => {
   const cases: [string, string][] = [

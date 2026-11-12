@@ -66,7 +66,7 @@ import { createFingerprints } from "./seenFingerprint";
 import { shownDocument } from "./seenProof";
 import { readSeen, writeSeen } from "./seenRecords";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
-import { folderState } from "./folderState";
+import { folderState, realHome } from "./folderState";
 import { revealTarget, type FolderEntry } from "./view";
 import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
@@ -437,6 +437,9 @@ function updateMenuClick(action: UpdateMenuView["action"]): void {
 
 // What Home shortens project paths against; Settings rows get the result.
 const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
+// The home folder read through any symlink: saved roots are real paths, so where Doan creates no repository (at HOME or
+// above it) and how project paths shorten are judged against this spelling.
+const realHomeDirectory = (): string => realHome(homeDirectory());
 
 function setMenuInputs(next: MenuInputs): void {
   if (next.screen === menuInputs.screen && next.modal === menuInputs.modal &&
@@ -731,7 +734,7 @@ async function start(): Promise<void> {
     // A root saved through a symlink is read as its real path once its seen canvases and UI memory have moved to it,
     // in this order and before the renderer reads ui-state.json (folderStore RootMigration).
     migrate: async aliases => seenStore.copyRoots(aliases) && await moveUiStateRoots(join(userData, "ui-state.json"), aliases),
-    home: homeDirectory(),
+    home: realHomeDirectory(),
     cliEnv: gitEnv,
   });
   shell = ready;
@@ -920,7 +923,7 @@ async function start(): Promise<void> {
       return confirmed.kind === "added" && ready.entries().some(entry => entry.path === confirm.path) ? confirm.path : null;
     },
     initialize: (root, storage, gitInit) => initializeProject(root, null, storage, gitInit),
-    home: homeDirectory,
+    home: realHomeDirectory,
     remotes: root => readGitRemotes(root, homeDirectory()),
     keepsLocal: path => projectKeepsLocal(ready.entries(), path),
     async keepLocal(root) {
@@ -1077,13 +1080,16 @@ async function start(): Promise<void> {
     choices.set(root, choice);
     return { kind: "selected", choiceId: choice.id, path: choice.path };
   });
-  // gitInit: the form showed the .git/ this setup creates; only ever true, and only with Keep out of Git.
+  // gitInit: the form showed the .git/ this setup creates; only ever true, only with Keep out of Git, and only for a
+  // folder main itself published as outside Git (notGit), which is when the form shows that line.
   handle("project:init", unavailable, async (event, value: unknown): Promise<ProjectInitResult> => {
     const gitInit = typeof value === "object" && value !== null && "gitInit" in value;
     if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== (gitInit ? 4 : 3) ||
       !("root" in value) || typeof value.root !== "string" || !("choiceId" in value) ||
       (value.choiceId !== null && typeof value.choiceId !== "string") || !("storage" in value) ||
       (value.storage !== null && value.storage !== "local") || (gitInit && (value.storage !== "local" || value.gitInit !== true)) || !canSetUp(value.root)) return unavailable;
+    const root = value.root;
+    if (gitInit && !ready.entries().some(entry => entry.path === root && entry.kind === "uninitialized" && entry.notGit === true)) return unavailable;
     let tokenCss: string | null = null;
     if (value.choiceId !== null) {
       const choice = choices.get(value.root);
@@ -1092,7 +1098,7 @@ async function start(): Promise<void> {
     }
     return initializeProject(value.root, tokenCss, value.storage, gitInit);
   });
-  handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
+  handle("app:home", null, event => fromWindow(event) ? realHomeDirectory() : null);
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
   handle("window:fullscreen", null, event => fromWindow(event) ? { fullScreen: win!.isFullScreen() } : null);
   handle("folders:get", [], (event) => (fromWindow(event) ? seen.decorate(ready.entries()) : []));
@@ -1284,7 +1290,8 @@ async function start(): Promise<void> {
   handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);
 
   const bridge = createConfigBridge({
-    run: async (root, args) => args.includes("--git-init") ? runConfig(command, root, args, await gitEnv()) : runConfig(command, root, args),
+    run: (root, args, env) => env === undefined ? runConfig(command, root, args) : runConfig(command, root, args, env),
+    gitEnv,
     // Every worktree of the project shows the mode, and an unset-up one's Not set up notice depends on it.
     storageWritten: root => ready.reread(groupRoots(ready.entries(), root)),
     epoch: root => ready.entries().some(entry => entry.path === root && entry.kind === "list") ? ready.epoch(root) : null,

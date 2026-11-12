@@ -24,10 +24,12 @@ export function runLs(cli: string, target: LsTarget, timeoutMs = CLI_TIMEOUT_MS)
 }
 
 // What the CLI's git (git init for Keep out of Git) is found with, under the names Go reads: the login shell's PATH and
-// the inherited DEVELOPER_DIR, as clone finds its git (onboarding/clone.ts locateGit, cloneEnv). Only what is known.
+// the inherited DEVELOPER_DIR, as clone finds its git (onboarding/clone.ts locateGit, cloneEnv). A login shell that could
+// not be read gives an empty PATH, so the CLI finds no git and answers git_missing as clone does, rather than run one
+// from the app's own PATH (PRODUCT §3 'Launch environment').
 export interface CliEnv { PATH?: string; DEVELOPER_DIR?: string }
 export function cliEnv(loginPath: string | null, inherited: NodeJS.ProcessEnv): CliEnv {
-  return { ...(loginPath ? { PATH: loginPath } : {}), ...(inherited.DEVELOPER_DIR ? { DEVELOPER_DIR: inherited.DEVELOPER_DIR } : {}) };
+  return { PATH: loginPath ?? "", ...(inherited.DEVELOPER_DIR ? { DEVELOPER_DIR: inherited.DEVELOPER_DIR } : {}) };
 }
 
 // gitInit: the screen showed the repository this setup creates (initArgs). env: CliEnv, for a run that may create it.

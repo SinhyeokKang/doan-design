@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
@@ -154,7 +154,7 @@ vi.mock("./onboarding/machine", () => ({ runProcess: vi.fn(async () => ({ code: 
 vi.mock("./agentSetup/runner", () => ({ runAgentSetup: mocks.runAgentSetup, osascriptAdmin: mocks.osascriptAdmin, setupEligibility: mocks.setupEligibility }));
 vi.mock("electron-updater", () => ({ MacUpdater: mocks.Updater }));
 vi.mock("./update/service", async (importOriginal) => ({ ...await importOriginal<typeof import("./update/service")>(), hasFeedConfig: mocks.hasFeedConfig }));
-vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder, runDesignSkill: mocks.runDesignSkill, runExport: mocks.runExport }));
+vi.mock("./cli", async (importOriginal) => ({ cliEnv: (await importOriginal<typeof import("./cli")>()).cliEnv, cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder, runDesignSkill: mocks.runDesignSkill, runExport: mocks.runExport }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
@@ -719,7 +719,9 @@ test("project setup IPC rejects untrusted frames, arbitrary paths and forged cho
   for (const request of [{ root: ROOT, choiceId: "forged", storage: null }, { root: ROOT, choiceId: null, storage: null, tokenCss: "/arbitrary" }, null, { root: ROOT },
     { root: ROOT, choiceId: null }, { root: ROOT, choiceId: null, storage: "repo" }, { root: ROOT, choiceId: null, storage: "unknown" },
     // The consent to create a repository goes only with Keep out of Git, and only as true.
-    { root: ROOT, choiceId: null, storage: null, gitInit: true }, { root: ROOT, choiceId: null, storage: "local", gitInit: "yes" }, { root: ROOT, choiceId: null, storage: "local", gitInit: false }]) {
+    { root: ROOT, choiceId: null, storage: null, gitInit: true }, { root: ROOT, choiceId: null, storage: "local", gitInit: "yes" }, { root: ROOT, choiceId: null, storage: "local", gitInit: false },
+    // ...and only for a folder main itself published as outside Git, which is when the form shows the .git/ line.
+    { root: ROOT, choiceId: null, storage: "local", gitInit: true }]) {
     expect(await invoke("project:init", window().webContents, null, request)).toMatchObject({ kind: "unavailable" });
   }
   expect(mocks.shell.initialize).not.toHaveBeenCalled();
@@ -1602,9 +1604,22 @@ test("window focus re-reads every root at most once a minute", () => {
 });
 
 test("home path is available only to the application main frame", async () => {
-  expect(await invoke("app:home", window().webContents, null)).toBe(process.env.HOME ?? "/tmp/doan-index-test");
+  expect(await invoke("app:home", window().webContents, null)).toBe(realpathSync(process.env.HOME ?? "/tmp/doan-index-test"));
   expect(await invoke("app:home", {}, null)).toBeNull();
   expect(await invoke("app:home", window().webContents, {})).toBeNull();
+});
+
+// Saved roots are real paths, so the home folder they are shortened against and compared with (no repository at HOME
+// or above it) is read through a symlink, here macOS's /var → /private/var.
+test("the home path and the shell's home are HOME's real path", async () => {
+  const real = realpathSync(mkdtempSync(join(tmpdir(), "doan-index-home-"))), link = `${real}-link`;
+  symlinkSync(real, link);
+  const saved = process.env.HOME;
+  process.env.HOME = link;
+  onTestFinished(() => { process.env.HOME = saved; rmSync(link); rmSync(real, { recursive: true }); });
+  expect(await invoke("app:home", window().webContents, null)).toBe(real);
+  const options = mocks.startShell.mock.calls[0]?.[3] as { home?: string } | undefined;
+  expect(options?.home).toBe(realpathSync(saved ?? "/tmp/doan-index-test"));
 });
 
 // Move to Trash and Export from the sidebar's canvas row menu.
@@ -2262,6 +2277,16 @@ describe("settings page", () => {
     mocks.dialog.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: [`${ROOT}/tokens.css`] });
     expect(await invoke("config:choose", contents, null, { root: ROOT, kind: "tokenCss" })).toMatchObject({ kind: "selected", path: `${ROOT}/tokens.css` });
     expect(mocks.dialog.showOpenDialog).toHaveBeenCalledWith(window(), expect.objectContaining({ defaultPath: ROOT }));
+  });
+
+  // Project Settings' confirmed repository: the CLI's git is found with the login shell's PATH, an empty one when the
+  // login shell could not be read, so the CLI answers git_missing as clone does. Other writes read no login shell.
+  test("a switch that creates a repository runs doan config with the login shell's git environment", async () => {
+    mocks.shell.entries.mockReturnValue([LIST]);
+    const contents = window().webContents;
+    mocks.runConfig.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { repo: ROOT, serve: [], changed: true, storage: "local", written: [".git/"] } }) });
+    expect(await invoke("config:write", contents, null, { root: ROOT, op: "setStorage", storage: "local", gitInit: true })).toMatchObject({ kind: "config", repositoryCreated: true });
+    expect(mocks.runConfig).toHaveBeenLastCalledWith(expect.any(String), ROOT, ["--storage", "local", "--git-init"], expect.objectContaining({ PATH: "" }));
   });
 
   // ARCHITECTURE §7 'Settings IPC' 'Storage writes': the mode belongs to every worktree of the project, so writing it

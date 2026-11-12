@@ -1,8 +1,9 @@
+import { realpathSync } from "node:fs";
 import { validateEnvelope } from "../formats/validate";
 import { homeOrAbove, storageFacts, type StorageFacts } from "./storage";
+import type { GitInfo } from "./view";
 
 export { homeOrAbove };
-import type { GitInfo } from "./view";
 
 // How long the runner (cli.ts) lets a CLI call run before killing it. Here so a timeout's reason says the same number.
 export const CLI_TIMEOUT_MS = 10_000;
@@ -152,7 +153,6 @@ export function initOutcome(run: CliRun, request: { tokenCss?: boolean; folder?:
   return { kind: "success" };
 }
 
-
 export function reconcileFolders(stored: readonly string[], path: string, upwardResult: FolderState): { folders: string[]; focus: string | null } {
   if (!stored.includes(path)) return { folders: [...stored], focus: null };
   if (upwardResult.kind !== "list") return { folders: [...stored], focus: path };
@@ -160,4 +160,11 @@ export function reconcileFolders(stored: readonly string[], path: string, upward
   // CLI roots already have disk spelling. Preserve the first resulting row;
   // do not guess identity by lowercasing unrelated paths on case-sensitive disks.
   return { folders: [...new Set(stored.map((entry) => entry === path ? root : entry))], focus: root };
+}
+
+// Saved roots are real paths (the CLI reports disk spelling), so the home folder they are compared with is read through
+// any symlink as well, as the CLI judges it before writing; a HOME that cannot be read is kept as spelled.
+export function realHome(home: string): string {
+  if (!home) return home;
+  try { return realpathSync(home); } catch { return home; }
 }
