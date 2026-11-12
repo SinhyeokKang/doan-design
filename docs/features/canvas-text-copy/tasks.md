@@ -35,9 +35,9 @@
 4. [x] **구현 (`/implement`).** `canvasScript.ts`, `canvasMessage.ts`, `CanvasController.ts`, `canvasTool.ts`, `canvasTextCopy.ts`, overlay 스타일. 'Input direction' 주석을 고친다. PoC 3의 대체 경로가 필요하면 main의 Edit 메뉴도 바꾼다.
    - 확인: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`가 통과한다.
    - **커밋 경계**: `feat: select and copy canvas text by dragging in Select`.
-5. [ ] **초안과 맞추기 (`/design-sync`).** 작업 2 초안의 overlay 하이라이트와 실제 앱을 computed style로 비교하고 DESIGN.md에 측정값을 적는다.
+5. [x] **초안과 맞추기 (`/design-sync`).** 작업 2 초안의 overlay 하이라이트와 실제 앱을 computed style로 비교하고 DESIGN.md에 측정값을 적는다.
    - 확인: `/design-sync` 보고서. 초안과 다른 값은 DESIGN.md 'Documented deviations'에 있거나 고쳐졌다.
-6. [ ] **실제 앱 확인 (`/runtime-test`).** 위 경로로 짧은 probe를 돌린다. probe 캔버스는 레이아웃마다 한 페이지로 둔다.
+6. [x] **실제 앱 확인 (`/runtime-test`).** 위 경로로 짧은 probe를 돌린다. probe 캔버스는 레이아웃마다 한 페이지로 둔다.
    - 드래그: 하이라이트가 보이고, 드래그 동안 초안의 `pointerdown`·`mousedown`·`mouseup`·`click`·`focus` 카운터가 늘지 않는다. 대상은 링크 텍스트, `<button>` 라벨, `<label for>`(체크박스가 바뀌지 않음), `<summary>`, `draggable` 요소와 이미지를 지나는 드래그다. 줌 25%와 400%에서 짧은 누름은 클릭으로 남는다.
    - 드래그 전후 `doan active --json`(격리한 `DOAN_RUNTIME`)이 같다.
    - 범위는 시작 프레임을 넘지 않는다. `user-select: none` 텍스트도 선택된다. input·textarea·중첩 iframe에서는 시작하지 않는다.
