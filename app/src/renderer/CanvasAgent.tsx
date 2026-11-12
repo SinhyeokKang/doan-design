@@ -183,6 +183,8 @@ export type StartDotField = (canvas: HTMLCanvasElement, init: { size: DotFieldSi
 
 function startDotWorker(canvas: HTMLCanvasElement, init: { size: DotFieldSize; color: string; reducedMotion: boolean }): DotFieldPort {
   const worker = new Worker(new URL("./dotFieldWorker.ts", import.meta.url), { type: "module" });
+  // The canvas is already transferred, so a script that fails to load leaves the field empty; say so in the log.
+  worker.addEventListener("error", event => console.error("dot field worker failed", event.message));
   const offscreen = canvas.transferControlToOffscreen();
   const message: DotFieldMessage = { kind: "start", canvas: offscreen, ...init };
   worker.postMessage(message, [offscreen]);
@@ -191,7 +193,7 @@ function startDotWorker(canvas: HTMLCanvasElement, init: { size: DotFieldSize; c
 
 // A canvas can be transferred only once, and StrictMode (dev) runs an effect's cleanup and the effect again on the same
 // canvas: a cleanup ends the Worker after the current task, and a run on the same canvas before then takes it back.
-const kept = new WeakMap<HTMLCanvasElement, { port: DotFieldPort; closing: ReturnType<typeof setTimeout> }>();
+const kept = new WeakMap<HTMLCanvasElement, { port: DotFieldPort; size: DotFieldSize; closing: ReturnType<typeof setTimeout> }>();
 
 export function DotField({ running, start = startDotWorker }: { running: boolean; start?: StartDotField }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -209,7 +211,8 @@ export function DotField({ running, start = startDotWorker }: { running: boolean
     let color = getComputedStyle(node).color;
     const previous = kept.get(node);
     if (previous) { clearTimeout(previous.closing); kept.delete(node); }
-    const field = previous?.port ?? starter.current(node, { size: measure(), color, reducedMotion: motion.matches });
+    let size = previous?.size ?? measure();
+    const field = previous?.port ?? starter.current(node, { size, color, reducedMotion: motion.matches });
     port.current = field;
     const recolor = () => {
       const next = getComputedStyle(node).color;
@@ -217,7 +220,14 @@ export function DotField({ running, start = startDotWorker }: { running: boolean
       color = next;
       field.post({ kind: "color", color });
     };
-    const resize = () => { recolor(); field.post({ kind: "size", size: measure() }); };
+    // ResizeObserver calls back once right after observe(); the size the Worker already has would only clear its field.
+    const resize = () => {
+      recolor();
+      const next = measure();
+      if (next.width === size.width && next.height === size.height && next.ratio === size.ratio) return;
+      size = next;
+      field.post({ kind: "size", size });
+    };
     const observer = new ResizeObserver(resize);
     observer.observe(node);
     const restart = () => field.post({ kind: "motion", reduced: motion.matches });
@@ -226,7 +236,7 @@ export function DotField({ running, start = startDotWorker }: { running: boolean
     return () => {
       observer.disconnect(); motion.removeEventListener("change", restart); scheme.removeEventListener("change", recolor);
       port.current = null;
-      kept.set(node, { port: field, closing: setTimeout(() => { kept.delete(node); field.close(); }, 0) });
+      kept.set(node, { port: field, size, closing: setTimeout(() => { kept.delete(node); field.close(); }, 0) });
     };
   }, []);
   useEffect(() => {
