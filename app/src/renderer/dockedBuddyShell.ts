@@ -114,7 +114,8 @@ function glTarget(canvas: HTMLCanvasElement, id: BuddyId): Target | null {
 
 // One buddy's drawing in the host: still image, canvas and WebGL, and the hit target shaped by the still image's
 // silhouette (shown only once that shape is read). A buddy change replaces only this.
-interface Rig { id: BuddyId; still: HTMLImageElement; canvas: HTMLCanvasElement; hit: HTMLElement; shaped: boolean; target: Target | null; ready: boolean; drawn: string; dispose(): void }
+// failed: WebGL is gone for this rig (none, a shader, a texture, or the context lost); it shows the still image until rebuilt.
+interface Rig { id: BuddyId; still: HTMLImageElement; canvas: HTMLCanvasElement; hit: HTMLElement; shaped: boolean; target: Target | null; ready: boolean; failed: boolean; drawn: string; dispose(): void }
 
 interface Live {
   state: DockedState; ground: HTMLElement; shadow: HTMLElement; host: HTMLElement; rig: Rig;
@@ -124,6 +125,10 @@ interface Live {
   // app is hidden; POSTMORTEM 2026-10-25). urgent: an input changed since the last advanced frame. advancedAt: that
   // frame's timestamp. written: the last style strings, so an unchanged frame writes nothing.
   nativeVisible: boolean; urgent: boolean; advancedAt: number; written: { host: string; shadow: string; opacity: string };
+  // rebuilt: a failed rig is rebuilt at most once per stretch the workspace is seen, so the buddy does not stay on the
+  // still image until the app restarts (a GPU process reset loses every context). A context lost after the rig was
+  // ready allows one more rebuild at once. Nothing retries every frame.
+  rebuilt: boolean;
   // The floating elements in the page, found again only when one can have come or gone (null: find them again).
   floating: Element[] | null;
   slotSizes: ResizeObserver; slotAttributes: MutationObserver; portals: MutationObserver; hostSize: ResizeObserver; view: IntersectionObserver;
@@ -173,10 +178,13 @@ export class DockedBuddyShell {
     this.id = id;
     const live = this.live;
     if (!live) return;
-    live.rig.dispose();
     setDockedBuddy(live.state, id);
-    live.rig = this.rig(live, id);
+    this.rebuild(live);
     this.wake();
+  }
+  private rebuild(live: Live) {
+    live.rig.dispose();
+    live.rig = this.rig(live, this.id);
   }
 
   // container: a stable element whose visibility gates time (not a slot, which folds and leaves). personMovedAt: the
@@ -193,7 +201,7 @@ export class DockedBuddyShell {
     const live: Live = {
       state: createDockedState(this.id, Math.random), ground, shadow, host, rig: null as unknown as Rig, container, personMovedAt,
       raf: 0, out: null, intersecting: true, events: [], activityAt: 0, personAt: 0, floating: null,
-      nativeVisible: true, urgent: true, advancedAt: -Infinity, written: { host: "", shadow: "", opacity: "" },
+      nativeVisible: true, urgent: true, advancedAt: -Infinity, written: { host: "", shadow: "", opacity: "" }, rebuilt: true,
       slotSizes: new ResizeObserver(wake), slotAttributes: new MutationObserver(refloat), portals: new MutationObserver(refloat),
       hostSize: new ResizeObserver(() => { this.resize(); this.wake(); }),
       view: new IntersectionObserver(entries => { live.intersecting = entries.at(-1)!.isIntersecting; this.wake(); }),
@@ -222,10 +230,13 @@ export class DockedBuddyShell {
   }
 
   // An input changed: the next callback advances whatever the frame cap says.
+  // A pending frame is requested again, so a callback that never arrives (one requested while the window could not
+  // paint) cannot hold the id and park the loop for good.
   private wake() {
     const live = this.live;
     if (!live) return;
     live.urgent = true;
+    if (live.raf) { cancelAnimationFrame(live.raf); live.raf = 0; }
     this.next(live);
   }
   private next(live: Live) { if (!live.raf) live.raf = requestAnimationFrame(this.tick); }
@@ -274,7 +285,7 @@ export class DockedBuddyShell {
     // still reaches it, and painted before the WebGL canvas's layer it needs no compositing layer (and no clip-path
     // mask layer) of its own. It draws nothing, so the order changes no pixel.
     host.append(hit, still, canvas);
-    const rig: Rig = { id, still, canvas, hit, shaped: false, target: null, ready: false, drawn: "", dispose: () => {} };
+    const rig: Rig = { id, still, canvas, hit, shaped: false, target: null, ready: false, failed: false, drawn: "", dispose: () => {} };
     let disposed = false;
     // The host itself takes no pointer; the hit target over it, clipped to the painted body, does. It is the browser's
     // hit test, not one on the app's pointermove, so it works over the board, whose OOPIF keeps its pointer events
@@ -290,11 +301,12 @@ export class DockedBuddyShell {
     const press = (event: Event) => event.preventDefault();
     hit.addEventListener("click", poke); hit.addEventListener("mousedown", press);
     if (still.complete && still.naturalWidth > 0) readMask(); else still.addEventListener("load", readMask, { once: true });
-    const goStill = () => { rig.ready = false; still.hidden = false; canvas.hidden = true; this.wake(); };
-    const lost = (event: Event) => { event.preventDefault(); goStill(); };
+    const goStill = () => { rig.ready = false; rig.failed = true; still.hidden = false; canvas.hidden = true; this.wake(); };
+    const lost = (event: Event) => { event.preventDefault(); if (rig.ready) live.rebuilt = false; goStill(); };
     try {
       rig.target = glTarget(canvas, id);
     } catch (error) { console.error(error); }
+    if (!rig.target) rig.failed = true;
     if (rig.target) {
       canvas.addEventListener("webglcontextlost", lost);
       rig.target.textures.then(() => {
@@ -331,14 +343,21 @@ export class DockedBuddyShell {
     live.raf = 0;
     if (!live.urgent && now - live.advancedAt < FRAME_MS) { this.next(live); return; }
     live.urgent = false; live.advancedAt = now;
-    const inputs = this.inputs(live);
+    const seen = this.seen(live);
+    if (!seen) live.rebuilt = false;
+    else if (live.rig.failed && !live.rebuilt) { live.rebuilt = true; this.rebuild(live); }
+    const inputs = this.inputs(live, seen);
     const out = advanceDocked(live.state, inputs, now, Math.random);
     live.out = out;
     this.apply(live, out, inputs.visible);
     if (inputs.visible && !inputs.reduced && dockedNeedsTime(live.state)) this.next(live);
   };
 
-  private inputs(live: Live): DockedInputs {
+  private seen(live: Live) {
+    return !document.hidden && live.nativeVisible && !this.workspace.covered && live.intersecting && live.container.checkVisibility({ visibilityProperty: true, opacityProperty: true });
+  }
+
+  private inputs(live: Live, shown: boolean): DockedInputs {
     const ws = this.workspace, events = live.events;
     live.events = [];
     let rects: Box[] | null = null;
@@ -357,7 +376,6 @@ export class DockedBuddyShell {
     const dockSlot = this.slots.dock;
     const dock = surface("dock");
     const has = (name: string) => !!dockSlot?.hasAttribute(name);
-    const shown = !document.hidden && live.nativeVisible && !ws.covered && live.intersecting && live.container.checkVisibility({ visibilityProperty: true, opacityProperty: true });
     return {
       surfaces: { dock: dock && { ...dock, accepts: dockSlot!.getAttribute("data-accepts") !== "false" }, tools: ws.overview ? null : surface("tools") },
       // A new conversation's notice or choice stands where the suggested prompts do, and is stepped aside for alike.
