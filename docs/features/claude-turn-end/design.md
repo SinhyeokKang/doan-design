@@ -174,5 +174,8 @@ PoC는 설치된 CLI의 기존 로그인으로 돌린다. 임시 cwd와 `setting
 
 ## 실제 앱 확인의 로그인
 
-PoC와 달리 실제 앱 확인(tasks 9)은 Doan Claude 연결이 필요하다. 격리 userData·HOME의 패키지 앱에서 사용자가 Doan Claude 연결에 한 번 로그인한다(사용자 결정).
+PoC와 달리 실제 앱 확인(tasks 9)은 Doan Claude 연결이 필요하다. 격리 HOME에서는 Claude 로그인이 `storage_failed`(로그인 Keychain 없음)로 실패하므로, 패키지 앱을 실제 HOME과 임시 `DOAN_RUNTIME`·repo, 계속 쓰는 userData `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`로 띄운다(사용자 결정).
+- 로그인은 사용자가 자기 브라우저에서 승인한다.
+- 모든 probe가 이 userData를 다시 쓴다. 망가뜨릴 수 있는 probe에는 복사본을 쓴다. 새 로그인을 묻기 전에 연결이 살아 있는지 먼저 본다.
+- probe마다 로그아웃하지 않는다. PR 병합 전에 lead가 앱에서 로그아웃하고 Keychain 항목이 사라졌는지 확인한 뒤 userData를 지운다.
 
