@@ -1,0 +1,524 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="keep-out-git-init"><meta name="doan:width" content="1760"><title>keep-out-git-init — Keep out of Git outside a Git repository</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/ds-canvas.css"><style>
+/* ── Board layout for this canvas only ── */
+:where(svg){width:var(--size-icon);height:var(--size-icon);flex:none}
+body{padding:var(--space-8);width:1760px;background:var(--surface-inset)}
+.intro{max-width:1240px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{margin-top:var(--space-4);font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle)}
+.intro code,.caption code,.tile>h3 code,.note code{color:var(--text-standard);background:var(--surface-panel);border-radius:var(--space-1);padding:0 var(--space-1)}
+.board{margin-bottom:var(--space-16)}
+.caption{display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);margin-bottom:var(--space-4);max-width:1240px}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1)}
+.caption h2{display:flex;align-items:center;gap:var(--space-2);font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing);font-weight:var(--type-weight-medium)}
+.caption p{grid-column:2;color:var(--text-subtle)}
+.caption p+p{margin-top:var(--space-2)}
+.tiles{display:grid;grid-template-columns:832px 832px;gap:var(--space-8);align-items:start}
+.tile{display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
+.tile>h3{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.note{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+/* A white body panel (Add Projects page, Project Settings), the body column alone. */
+.stage{position:relative;border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);overflow:hidden}
+/* Project Settings draws the panel's 768px column at its full height; the tile's 832px panel gives it 32px margins. */
+.stage .settings-page{width:768px}
+/* First run's Project step shows the window's native sidebar material through the transparent overlay; this glass over
+   a wallpaper fixture approximates it, as in doan-onboarding.html and doan-add-projects.html. Not a measurement. */
+.material-stage{position:relative;border-radius:var(--radius-chip);overflow:hidden;background:radial-gradient(ellipse at 10% 0%,var(--affordance-warning),transparent 65%),radial-gradient(ellipse at 90% 90%,var(--affordance-success),transparent 65%),linear-gradient(135deg,var(--text-metadata),var(--surface-inset) 40%,var(--text-subtle))}
+.material-stage>.ob-overlay{background:color-mix(in srgb,var(--surface-panel) 55%,transparent);backdrop-filter:blur(var(--blur-lg)) saturate(.8);-webkit-backdrop-filter:blur(var(--blur-lg)) saturate(.8)}
+@media(prefers-reduced-transparency:reduce){.material-stage>.ob-overlay{background:var(--bg-app);backdrop-filter:none;-webkit-backdrop-filter:none}}
+/* The shipped .ob-overlay is a fixed full-window dialog; on the board it is a box holding the scene. */
+.ob-overlay.tile-window{position:relative;inset:auto;width:auto;height:auto;display:flex;flex-direction:column;overflow:visible}
+/* The modal scrim behind a dialog drawn in place (the app opens it with showModal()). */
+.scrim{display:flex;justify-content:center;padding:var(--space-8) var(--space-6);border-radius:var(--radius-container);background:var(--bg-scrim)}
+.scrim .doan-dialog[open]{position:static;inset:auto;margin:0;max-height:none;width:640px}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+
+/* ── Restated from app/src/renderer/styles.css as shipped, which canvases cannot link ──
+   Literals below are the shipped component constants of styles.css, kept as they are. */
+.shell-thumbnail{display:flex;align-items:center;justify-content:center;flex:none;width:var(--size-icon);height:var(--size-icon);border-radius:var(--space-1);font-size:10px;font-weight:var(--type-weight-semibold);line-height:var(--size-icon)}
+.shell-thumbnail.onboarding-thumbnail{width:28px;height:28px;margin-inline:var(--space-half);border-radius:7px;font-size:17px;line-height:28px}
+.hue-sky{background:color-mix(in srgb,var(--identity-project-sky) 14%,var(--surface-panel));color:color-mix(in srgb,var(--identity-project-sky) 65%,var(--text-standard))}
+.hue-indigo{background:color-mix(in srgb,var(--identity-project-indigo) 14%,var(--surface-panel));color:color-mix(in srgb,var(--identity-project-indigo) 65%,var(--text-standard))}
+.shell-branch{display:inline-flex;align-items:center;gap:var(--space-1);max-width:84px;flex-shrink:1}
+.shell-branch svg{width:12px;height:12px;flex:none}
+.shell-branch span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Project setup dialog (ProjectSetupDialog.tsx) */
+.ob-dialog p{color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height)}
+.ob-project-path{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ob-card{width:640px;padding:0 var(--space-4);border:1px solid var(--border-standard);border-radius:var(--radius-container);background:var(--surface-panel)}
+.ob-card>:first-child{border-top:0}
+.ob-dialog .ob-card{width:auto}
+.ob-label{font-size:var(--type-label-sm-size);font-weight:var(--type-weight-medium);line-height:var(--type-label-sm-line-height);color:var(--text-standard)}
+.ob-msg code,.ob-dialog code,.ob-field code,.ob-card code,.doan-dialog code{color:var(--text-standard);background:var(--surface-inset);border-radius:var(--space-1);padding:0 var(--space-1)}
+.ob-msg{grid-column:2/-1;font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);color:var(--text-subtle);overflow-wrap:anywhere}
+.ob-msg:is(.warn,.error){display:flex;align-items:flex-start;gap:var(--space-1h);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height)}
+.ob-msg.error{color:var(--text-danger)}
+.ob-msg.ob-wide{grid-column:1/-1}
+.ob-field{display:grid;grid-template-columns:112px minmax(0,1fr) auto;gap:var(--space-1) var(--space-3);align-items:center;padding:var(--space-4) 0;border-top:1px solid var(--border-standard)}
+.ob-field .value{display:block;min-width:0;color:var(--text-standard);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);overflow-wrap:anywhere}
+.ob-field .value.token-path{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ob-field .value.none{color:var(--text-metadata)}
+.ob-field .ob-helper{grid-column:2/-1}
+.ob-helper{font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);color:var(--text-metadata);overflow-wrap:anywhere}
+.ob-changes{display:grid;gap:var(--space-1);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);color:var(--text-subtle)}
+/* Onboarding Project step and the Add Projects page (Onboarding.tsx, AddProjectsPage.tsx) */
+.ob-scene{position:relative;flex:1 0 auto;width:100%;max-width:560px;margin:0 auto;padding:var(--space-10) var(--space-6) var(--space-12);display:flex;flex-direction:column}
+.ob-scene>*{flex-shrink:0}
+.ob-scene svg{width:var(--size-icon);height:var(--size-icon)}
+.ob-heading{margin-bottom:var(--space-8);text-align:center}
+.ob-heading h2,.ob-heading h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium);outline:none}
+.ob-heading p{margin-top:var(--space-3);color:var(--text-subtle)}
+.ob-state-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3);margin-top:var(--space-4)}
+.ob-state-actions.submit-only{justify-content:flex-end}
+.ob-fine{margin-top:var(--space-5);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);color:var(--text-metadata);overflow-wrap:anywhere}
+.ob-footer{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:var(--space-8)}
+.ob-overlay:not(.ob-welcome) .ob-scene .doan-button[data-ui-variant="subtle"]:not(:hover,:active,:disabled,.doan-panel *,.doan-dialog *){background:var(--affordance-backdrop-hover)}
+.ob-field-label{display:block;margin-bottom:var(--space-2);font-weight:var(--type-weight-medium)}
+.ob-spaced{margin-top:var(--space-6)}
+.ob-chosen{display:flex;align-items:center;gap:var(--space-3);min-height:var(--size-row);padding:var(--space-4)}
+.ob-chosen{margin-top:var(--space-6)}
+.ob-chosen>div,.ob-destination-name{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-half)}
+.ob-chosen strong,.ob-destination-name strong{font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
+.ob-path{font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);color:var(--text-metadata);overflow-wrap:anywhere}
+.ob-small-action{display:flex;flex-wrap:wrap;gap:var(--space-3);margin-top:var(--space-4)}
+.ob-destination{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);min-height:var(--size-row);padding:var(--space-4)}
+.ob-radio{display:grid;place-content:center;flex:none;width:var(--size-icon);height:var(--size-icon);margin-top:calc((var(--type-label-sm-line-height) - var(--size-icon)) / 2);border:1px solid var(--border-prominent);border-radius:50%;background:var(--surface-panel)}
+.ob-setup{margin-top:var(--space-4);padding:var(--space-6)}
+.ob-setup>p{margin:var(--space-3) 0;color:var(--text-subtle)}
+.ob-setup>strong{font-weight:var(--type-weight-medium)}
+.ob-chosen>svg{width:var(--size-icon);height:var(--size-icon)}
+/* Settings column and Project Settings page (ProjectSettingsPage.tsx) */
+.settings-panel{font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing);font-variant-numeric:normal}
+.settings-page{max-width:48rem;margin:0 auto;padding:var(--space-8) var(--space-6) var(--space-6)}
+.settings-header,.settings-section-header{display:flex;align-items:start;gap:var(--space-3);padding-inline:calc(var(--space-4) + 1px)}
+.settings-header{margin-bottom:var(--space-8)}
+.settings-section-header{margin-bottom:var(--space-3)}
+.settings-header-copy{flex:1;min-width:0}
+.settings-title{font-size:var(--type-heading-size);line-height:var(--type-heading-line-height);letter-spacing:var(--type-heading-letter-spacing);font-weight:var(--type-weight-medium);outline:none}
+.settings-lead,.settings-section-description{margin-top:var(--space-2);color:var(--text-subtle);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.settings-section-description{margin-top:var(--space-half)}
+.settings-section-title{font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);letter-spacing:var(--type-label-sm-letter-spacing);font-weight:var(--type-weight-medium)}
+.settings-sections{display:grid;gap:var(--space-section-gap)}
+.settings-page code{color:var(--text-standard);background:var(--surface-inset);border-radius:var(--space-1);padding:0 var(--space-1)}
+.settings-header-actions{display:flex;flex:none;flex-wrap:wrap;gap:var(--space-2)}
+.settings-msg{display:flex;align-items:flex-start;gap:var(--space-1h);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing);overflow-wrap:anywhere}
+.settings-msg.error{color:var(--text-danger)}
+.settings-msg-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-2) var(--space-3)}
+.doan-settings-group>.doan-preference-row-extra{margin-top:0;padding:var(--space-3) 0}
+.doan-preference-row-extra{grid-column:1/-1;margin-top:var(--space-3)}
+.doan-preference-row[data-has-icon]{grid-template-columns:auto minmax(0,1fr) auto}
+.doan-preference-row-icon{display:flex;align-items:center;justify-content:center;width:var(--size-icon-lg);height:var(--size-icon-lg);color:var(--text-subtle)}
+.settings-saved{display:inline-flex;align-items:center;gap:var(--space-1);color:var(--text-success);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.settings-saved.pending{color:var(--text-metadata)}
+.settings-saved svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.project-settings-title{display:flex;align-items:center;gap:var(--space-3)}
+.project-settings-title .doan-chip{font-weight:var(--type-weight-regular)}
+.settings-title .project-settings-thumbnail.shell-thumbnail{width:var(--size-control-sm);height:var(--size-control-sm);border-radius:var(--space-2);font-size:var(--type-body-sm-size);line-height:var(--size-control-sm)}
+.project-settings-grow{flex:1;min-width:0}
+.project-settings-token{display:flex;align-items:center;gap:var(--space-2);min-height:var(--size-control-lg);padding-block:var(--space-2)}
+.project-settings-token>svg,.project-settings-path svg{flex:none;width:var(--size-icon);height:var(--size-icon);color:var(--text-subtle)}
+.project-settings-token-name{flex:none;min-width:0;max-width:60%;overflow-wrap:anywhere}
+.project-settings-path{display:flex;align-items:center;gap:var(--space-2)}
+.project-settings-notice-actions{flex:none;display:flex;gap:var(--space-2)}
+.settings-page>.doan-notice{margin-bottom:var(--space-section-gap)}
+.project-settings-msg{padding:var(--space-2) 0 var(--space-1)}
+/* The thread's settings-style radio row (.conversation-thread .q-pref), restated here without the thread scope. */
+.storage-pref{position:relative;align-items:start;cursor:pointer}
+.storage-pref .ob-radio{margin-top:0}
+.storage-pref:has(>input:checked) .ob-radio{border-color:var(--affordance-prominent);background:var(--affordance-prominent)}
+.storage-pref:has(>input:checked) .ob-radio::before{content:"";width:var(--space-1h);height:var(--space-1h);border-radius:50%;background:var(--text-on-prominent)}
+.storage-pref>input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.storage-pref:has(>input:focus-visible){outline:2px solid var(--border-focus);outline-offset:-2px;border-radius:var(--radius-row)}
+/* About's setup notice: its code chips go white on the notice's inset fill (.doan-notice.setup-notice code). */
+.doan-notice.storage-guidance code{background:var(--surface-panel)}
+
+/* ── Restated from styles.css as shipped: the "Doan files" choice ('Where the Doan files are kept', DESIGN.md) ──
+   1. Setup dialog: a "Doan files" field between Token CSS and Will add. Its two options are the settings-style radio
+      row's parts (radio, label, caption description) without a row box, since the dialog's card is already the
+      hairline group. The field's label sits on the first option's line, so the field aligns to the top. */
+.ob-field.storage-field{align-items:start}
+.storage-options{grid-column:2/-1;display:grid;gap:var(--space-3);min-width:0}
+.storage-option{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-half) var(--space-2);cursor:pointer}
+.storage-option .ob-radio{grid-row:1/3}
+.storage-option strong{font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium);color:var(--text-standard)}
+.storage-option small{grid-column:2;color:var(--text-subtle);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.storage-option>input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.storage-option:has(>input:checked) .ob-radio{border-color:var(--affordance-prominent);background:var(--affordance-prominent)}
+.storage-option:has(>input:checked) .ob-radio::before{content:"";width:var(--space-1h);height:var(--space-1h);border-radius:50%;background:var(--text-on-prominent)}
+.storage-option:has(>input:focus-visible){outline:2px solid var(--border-focus);outline-offset:2px;border-radius:var(--space-1)}
+/* A code chip inside a caption description keeps the caption size. */
+/* A command or path chip never breaks inside itself. */
+:is(.storage-option small,.doan-preference-row-description) code{white-space:nowrap;color:var(--text-standard);background:var(--surface-inset);border-radius:var(--space-1);padding:0 var(--space-1)}
+/* The project already keeps its files out of Git: the field shows that fact instead of the options. */
+.storage-fact{grid-column:2/-1;display:grid;gap:var(--space-half)}
+/* 2. Setup panel and clone screen: the options in one card, as the Agent step's provider list
+   (.ob-provider-list and .ob-provider, restated from styles.css): rows split by a 1px divider, the radio in the
+   provider mark's 32px slot on the title line. The whole row is the hit area; focus is the inset row ring. */
+.ob-setup .storage-label{margin-top:var(--space-6)}
+.ob-provider-list{padding:0 var(--space-4)}
+.ob-provider{display:flex;flex-direction:column;justify-content:center;min-height:var(--size-row);padding:var(--space-4) 0}
+.ob-provider+.ob-provider{border-top:1px solid var(--border-standard)}
+.ob-provider-row{display:flex;align-items:center;gap:var(--space-3)}
+.ob-provider-mark{flex:none;width:32px;display:grid;place-items:center}
+.ob-provider-label{flex:1;min-width:0;display:flex;flex-direction:column;gap:var(--space-half)}
+.ob-provider-label strong{font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
+.ob-provider-label span{font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);color:var(--text-metadata);overflow-wrap:anywhere}
+.ob-provider-label span code{white-space:nowrap;color:var(--text-standard);background:var(--surface-inset);border-radius:var(--space-1);padding:0 var(--space-1)}
+.storage-row{position:relative;cursor:pointer}
+.storage-row .ob-provider-row{align-items:flex-start}
+.storage-row .ob-provider-mark{height:var(--type-label-sm-line-height)}
+.storage-row .ob-radio{margin-top:0}
+.storage-row>input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.storage-row:has(>input:checked) .ob-radio{border-color:var(--affordance-prominent);background:var(--affordance-prominent)}
+.storage-row:has(>input:checked) .ob-radio::before{content:"";width:var(--space-1h);height:var(--space-1h);border-radius:50%;background:var(--text-on-prominent)}
+.storage-row:has(>input:focus-visible){outline:2px solid var(--border-focus);outline-offset:-2px;border-radius:var(--radius-row)}
+/* While a clone runs the choice keeps its value and is disabled, like Save to's Change. */
+.storage-row:has(>input:disabled),.storage-row>input:disabled{cursor:default}
+.storage-row:has(>input:disabled) .ob-provider-label :is(strong,span){color:var(--text-disabled)}
+.storage-row:has(>input:disabled) .ob-radio{border-color:var(--border-standard);background:var(--surface-inset)}
+.storage-row:has(>input:disabled:checked) .ob-radio{border-color:var(--affordance-disabled);background:var(--affordance-disabled)}
+.storage-row:has(>input:disabled:checked) .ob-radio::before{background:var(--text-disabled)}
+/* Restated from styles.css for the cloning tile: the Progress notice and the clone's fine line. */
+.ob-notice-title,.ob-notice-body{display:block}
+.ob-notice-title{font-weight:var(--type-weight-medium)}
+.ob-notice-title+.ob-notice-body{margin-top:var(--space-1)}
+.ob-project-notice{margin-top:var(--space-4)}
+/* 3. Project Settings: radio rows in a settings group, then the always-shown guidance and the write's own line. */
+.doan-preference-row[data-disabled] .ob-radio{border-color:var(--border-standard);background:var(--surface-inset)}
+.doan-preference-row[data-disabled].storage-pref:has(>input:checked) .ob-radio{border-color:var(--affordance-disabled);background:var(--affordance-disabled)}
+.doan-preference-row[data-disabled].storage-pref:has(>input:checked) .ob-radio::before{background:var(--text-disabled)}
+.doan-preference-row[data-disabled].storage-pref,.doan-preference-row[data-disabled].storage-pref>input{cursor:default}
+.storage-pref .doan-preference-row-trailing{align-self:start;min-height:var(--type-body-sm-line-height)}
+.storage-guidance-body{display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
+.storage-command{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
+.storage-command code{display:block;width:fit-content}
+.storage-result{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-2)}
+.storage-result-text{color:var(--text-subtle);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.storage-reason{display:flex;align-items:flex-start;gap:var(--space-1h);color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height)}
+.storage-reason>svg{margin-block:calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2)}
+.storage-reason.warn{color:var(--text-warning)}
+
+/* Restated from styles.css as shipped: the Add Projects page panel and the panel help line. */
+.add-panel{display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);font-variant-numeric:normal}
+.ob-provider-help{margin-top:var(--space-3);color:var(--text-subtle)}
+/* Board only: a modal confirmation drawn over the page it belongs to (the app opens SettingsDialog with showModal()). */
+.stage>.over{position:absolute;inset:0;display:grid;place-items:center;padding:var(--space-4);background:var(--bg-scrim)}
+.over .doan-dialog[open]{position:static;inset:auto;margin:0;max-height:none}
+/* Board only: static stand-in for :focus-visible on a storage row (the shipped inset row ring, held still). */
+.storage-pref.is-focus{outline:2px solid var(--border-focus);outline-offset:-2px;border-radius:var(--radius-row)}
+.doan-button.is-focus{outline:2px solid var(--border-focus);outline-offset:2px}
+/* Board only: the copy frame's table. */
+.copy-card{padding:var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.copy-table{border-collapse:collapse;width:100%}
+.copy-table :is(th,td){padding:var(--space-2) var(--space-4) var(--space-2) 0;border-bottom:1px solid var(--border-standard);text-align:left;vertical-align:top}
+.copy-table th{color:var(--text-metadata);font-weight:var(--type-weight-regular);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height)}
+.copy-table td:first-child{width:280px;color:var(--text-subtle)}
+.copy-table code{color:var(--text-standard);background:var(--surface-inset);border-radius:var(--space-1);padding:0 var(--space-1)}
+.open-q{color:var(--text-warning)}
+
+/* ── New, not in code ──
+   1. Set Up form: a ".git/ — a new Git repository" line at the top of Will add, an ordinary .ob-changes line (the
+      shipped code chip, then the shipped body-sm --text-subtle words). No new rule needed.
+   2. Setup panel: one line under the Doan files card, in the panel's shipped help-line style (.ob-provider-help:
+      --space-3 above, body-sm --text-subtle), with `git init` as the panel's shipped code chip (white card, so the
+      chip takes --surface-inset). It shows only while Keep out of Git is chosen in a folder that isn't a Git
+      repository, and follows the radio at once. */
+.storage-git-init code{white-space:nowrap;color:var(--text-standard);background:var(--surface-inset);border-radius:var(--space-1);padding:0 var(--space-1)}
+/* 3. Project Settings: Keep out of Git enabled under the not_git reason (no new rule: the row simply drops
+      data-disabled); the confirmation is the shipped SettingsDialog (compact alertdialog, the Share confirmation's
+      parts); the success line is the shipped .storage-result-text. */
+
+</style></head><body>
+<svg class="sprite" aria-hidden="true">
+<!-- lucide paths, as in local-doan-files.html (read from app/node_modules/lucide-react/dist/esm/icons/*.mjs) -->
+<symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></symbol>
+<symbol id="i-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+</svg>
+<header class="intro"><span class="doan-chip">keep-out-git-init · draft · 4 frames · awaiting the person’s review</span>
+<h1>Keep out of Git in a folder that isn’t a Git repository: Doan creates the repository, after the person agrees.</h1>
+<p>Scope: <code>docs/features/keep-out-git-init/</code> (spec ‘완료 조건’ 1–9, design ‘화면’ and ‘초안 요청’). The screens are shipped; what is new on each is named in its caption and tile titles: the <code>.git/</code> line in the Set Up form, the line under the Doan files card in the setup panel, Project Settings’ enabled Keep out of Git with its new reason, its confirmation and its result line, and the copy of three errors. <code>/design-sync</code> compares <code>setup-form</code>, <code>setup-panel</code> and <code>project-settings</code>; <code>copy</code> is the wording and accessibility reference.</p>
+<p>Copied from shipped screens, checked in code on develop: <code>ProjectSetupDialog.tsx</code> and <code>StorageChoice.tsx</code> (Set Up form, Will add, <code>CHIPS</code>), <code>Onboarding.tsx</code> and <code>projectStep.ts</code> (setup panel, <code>StorageCard</code>, the notice slot and its actions), <code>ProjectSettingsPage.tsx</code>, <code>storageRules.ts</code> and <code>SettingsDialog.tsx</code> (Doan files section, Saving and Saved, write error, the Share confirmation), with the CSS restated from <code>styles.css</code> as <code>local-doan-files.html</code> restates it and <code>docs/DESIGN.md</code> ‘Where Doan files are kept’, ‘Notices’ and ‘Shared dialog sizes’. References: none taken from other tools. Sample paths are illustrative. Lines marked <span class="open-q">Open</span> are not decided by the feature documents and are left for the person.</p>
+</header>
+<section class="board" data-doan-frame="setup-form" data-doan-title="01 Set Up form · .git/ in Will add" data-doan-implements="app/src/renderer/ProjectSetupDialog.tsx">
+<div class="caption"><span>01</span><h2>Set Up form<span class="doan-chip">Shipped · one new line, new error copy</span></h2><p>The sidebar’s Set Up dialog for a folder that isn’t in any Git repository (<code>doan ls</code> <code>repo_not_found</code> with <code>storageReason: "not_git"</code>). Everything is the shipped dialog except the <code>.git/</code> line in Will add and the three error sentences.</p></div>
+<div class="tiles"><div class="tile">
+<h3>Not a Git repository · Include in Git, the default</h3>
+<div class="scrim">
+<dialog open class="ob-dialog setup-dialog doan-dialog" aria-label="Set Up Project" data-doan-id="sf-1-dialog">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up moodboard</h3><p class="doan-dialog-description ob-project-path" title="/Users/you/Documents/moodboard">/Users/you/Documents/moodboard</p></div></div>
+<div class="ob-card">
+<div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none">None</span><button type="button" class="btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose…</button><span class="ob-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
+<div class="ob-field storage-field" data-doan-id="sf-1-storage"><span class="ob-label" id="sf-1-storage-label">Doan files</span><div class="storage-options" role="radiogroup" aria-labelledby="sf-1-storage-label"><label class="storage-option" data-doan-id="sf-1-storage-repo"><input type="radio" name="sf-1-storage" checked><span class="ob-radio" aria-hidden="true"></span><strong>Include in Git</strong><small>Git tracks these files. Commit them so your team gets your canvases and settings.</small></label><label class="storage-option" data-doan-id="sf-1-storage-local"><input type="radio" name="sf-1-storage"><span class="ob-radio" aria-hidden="true"></span><strong>Keep out of Git (this Mac only)</strong><small>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</small></label></div></div>
+<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes" data-doan-id="sf-1-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line, if missing</span></span><span></span></div>
+
+</div>
+<div class="ob-buttons doan-dialog-actions"><button type="button" class="btn doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="btn primary doan-button" data-ui-variant="prominent" data-doan-id="sf-1-submit">Set Up Project</button></div>
+</dialog>
+</div>
+<p class="note">Include in Git never creates a repository (spec 5), so the list is the shipped one: no <code>.git/</code> line.</p>
+</div><div class="tile">
+<h3>Not a Git repository · Keep out of Git chosen · <b>new: the <code>.git/</code> line</b></h3>
+<div class="scrim">
+<dialog open class="ob-dialog setup-dialog doan-dialog" aria-label="Set Up Project" data-doan-id="sf-2-dialog">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up moodboard</h3><p class="doan-dialog-description ob-project-path" title="/Users/you/Documents/moodboard">/Users/you/Documents/moodboard</p></div></div>
+<div class="ob-card">
+<div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none">None</span><button type="button" class="btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose…</button><span class="ob-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
+<div class="ob-field storage-field" data-doan-id="sf-2-storage"><span class="ob-label" id="sf-2-storage-label">Doan files</span><div class="storage-options" role="radiogroup" aria-labelledby="sf-2-storage-label"><label class="storage-option" data-doan-id="sf-2-storage-repo"><input type="radio" name="sf-2-storage"><span class="ob-radio" aria-hidden="true"></span><strong>Include in Git</strong><small>Git tracks these files. Commit them so your team gets your canvases and settings.</small></label><label class="storage-option" data-doan-id="sf-2-storage-local"><input type="radio" name="sf-2-storage" checked><span class="ob-radio" aria-hidden="true"></span><strong>Keep out of Git (this Mac only)</strong><small>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</small></label></div></div>
+<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes" data-doan-id="sf-2-changes"><span data-doan-id="sf-2-git-line"><code>.git/</code> — a new Git repository</span><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.git/info/exclude</code> — two lines, if missing</span></span><span></span></div>
+
+</div>
+<div class="ob-buttons doan-dialog-actions"><button type="button" class="btn doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="btn primary doan-button" data-ui-variant="prominent" data-doan-id="sf-2-submit">Set Up Project</button></div>
+</dialog>
+</div>
+<p class="note">New: <code>.git/</code> — a new Git repository, at the top of Will add, with no “, if missing”. It shows only when <code>doan ls</code> said <code>storageReason: "not_git"</code> (<code>notGit</code>) and Keep out of Git is chosen; Set Up passes <code>--git-init</code> only when this line was shown. In a folder already inside a repository (or its parent’s) the list is the shipped one.</p>
+</div><div class="tile">
+<h3>git_missing · Git can’t be found</h3>
+<div class="scrim">
+<dialog open class="ob-dialog setup-dialog doan-dialog" aria-label="Set Up Project" data-doan-id="sf-3-dialog">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up moodboard</h3><p class="doan-dialog-description ob-project-path" title="/Users/you/Documents/moodboard">/Users/you/Documents/moodboard</p></div></div>
+<div class="ob-card">
+<div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none">None</span><button type="button" class="btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose…</button><span class="ob-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
+<div class="ob-field storage-field" data-doan-id="sf-3-storage"><span class="ob-label" id="sf-3-storage-label">Doan files</span><div class="storage-options" role="radiogroup" aria-labelledby="sf-3-storage-label"><label class="storage-option" data-doan-id="sf-3-storage-repo"><input type="radio" name="sf-3-storage"><span class="ob-radio" aria-hidden="true"></span><strong>Include in Git</strong><small>Git tracks these files. Commit them so your team gets your canvases and settings.</small></label><label class="storage-option" data-doan-id="sf-3-storage-local"><input type="radio" name="sf-3-storage" checked><span class="ob-radio" aria-hidden="true"></span><strong>Keep out of Git (this Mac only)</strong><small>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</small></label></div></div>
+<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes" data-doan-id="sf-3-changes"><span data-doan-id="sf-3-git-line"><code>.git/</code> — a new Git repository</span><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.git/info/exclude</code> — two lines, if missing</span></span><span></span></div>
+<div class="ob-field"><span class="ob-msg error ob-wide" role="alert" data-doan-id="sf-3-error"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Git isn’t installed, so Doan can’t create a repository here. Install the Command Line Tools with <code>xcode-select --install</code>, then check again, or choose Include in Git.</span></span></div>
+</div>
+<div class="ob-buttons doan-dialog-actions"><button type="button" class="btn doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="btn primary doan-button" data-ui-variant="prominent" data-doan-id="sf-3-submit">Set Up Project</button></div>
+</dialog>
+</div>
+<p class="note">New copy. <code>xcode-select --install</code> reads as a code chip: it is added to the dialog’s <code>CHIPS</code>. Nothing was written and the choice stays. “Then check again” means pressing Set Up Project again (the dialog has no Check again button).</p>
+</div><div class="tile">
+<h3>git_init_failed · <code>git init</code> failed</h3>
+<div class="scrim">
+<dialog open class="ob-dialog setup-dialog doan-dialog" aria-label="Set Up Project" data-doan-id="sf-4-dialog">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up moodboard</h3><p class="doan-dialog-description ob-project-path" title="/Users/you/Documents/moodboard">/Users/you/Documents/moodboard</p></div></div>
+<div class="ob-card">
+<div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none">None</span><button type="button" class="btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose…</button><span class="ob-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
+<div class="ob-field storage-field" data-doan-id="sf-4-storage"><span class="ob-label" id="sf-4-storage-label">Doan files</span><div class="storage-options" role="radiogroup" aria-labelledby="sf-4-storage-label"><label class="storage-option" data-doan-id="sf-4-storage-repo"><input type="radio" name="sf-4-storage"><span class="ob-radio" aria-hidden="true"></span><strong>Include in Git</strong><small>Git tracks these files. Commit them so your team gets your canvases and settings.</small></label><label class="storage-option" data-doan-id="sf-4-storage-local"><input type="radio" name="sf-4-storage" checked><span class="ob-radio" aria-hidden="true"></span><strong>Keep out of Git (this Mac only)</strong><small>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</small></label></div></div>
+<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes" data-doan-id="sf-4-changes"><span data-doan-id="sf-4-git-line"><code>.git/</code> — a new Git repository</span><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.git/info/exclude</code> — two lines, if missing</span></span><span></span></div>
+<div class="ob-field"><span class="ob-msg error ob-wide" role="alert" data-doan-id="sf-4-error"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Couldn’t create a Git repository here, so nothing was set up.</span></span></div>
+</div>
+<div class="ob-buttons doan-dialog-actions"><button type="button" class="btn doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="btn primary doan-button" data-ui-variant="prominent" data-doan-id="sf-4-submit">Set Up Project</button></div>
+</dialog>
+</div>
+<p class="note">New copy, first sentence only. <span class="open-q">Open: the recovery sentence (design.md gives only its subject, the folder’s write permission) is not drawn.</span> <code>.git/</code> was removed (or never made), so nothing was set up.</p>
+</div><div class="tile">
+<h3>cleanup_failed · the new <code>.git/</code> couldn’t be removed · a long path</h3>
+<div class="scrim">
+<dialog open class="ob-dialog setup-dialog doan-dialog" aria-label="Set Up Project" data-doan-id="sf-5-dialog">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up moodboard-and-reference-collection</h3><p class="doan-dialog-description ob-project-path" title="/Users/you/Documents/clients/northwind/2026/spring-campaign/moodboard-and-reference-collection">/Users/you/Documents/clients/northwind/2026/spring-campaign/moodboard-and-reference-collection</p></div></div>
+<div class="ob-card">
+<div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none">None</span><button type="button" class="btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose…</button><span class="ob-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div>
+<div class="ob-field storage-field" data-doan-id="sf-5-storage"><span class="ob-label" id="sf-5-storage-label">Doan files</span><div class="storage-options" role="radiogroup" aria-labelledby="sf-5-storage-label"><label class="storage-option" data-doan-id="sf-5-storage-repo"><input type="radio" name="sf-5-storage"><span class="ob-radio" aria-hidden="true"></span><strong>Include in Git</strong><small>Git tracks these files. Commit them so your team gets your canvases and settings.</small></label><label class="storage-option" data-doan-id="sf-5-storage-local"><input type="radio" name="sf-5-storage" checked><span class="ob-radio" aria-hidden="true"></span><strong>Keep out of Git (this Mac only)</strong><small>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</small></label></div></div>
+<div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes" data-doan-id="sf-5-changes"><span data-doan-id="sf-5-git-line"><code>.git/</code> — a new Git repository</span><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.git/info/exclude</code> — two lines, if missing</span></span><span></span></div>
+<div class="ob-field"><span class="ob-msg error ob-wide" role="alert" data-doan-id="sf-5-error"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Setup failed, and Doan couldn’t remove the Git repository it created at /Users/you/Documents/clients/northwind/2026/spring-campaign/moodboard-and-reference-collection/.git. Remove it or keep it, then try again.</span></span></div>
+</div>
+<div class="ob-buttons doan-dialog-actions"><button type="button" class="btn doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="btn primary doan-button" data-ui-variant="prominent" data-doan-id="sf-5-submit">Set Up Project</button></div>
+</dialog>
+</div>
+<p class="note">New copy. The path is the CLI’s absolute path, plain text as <code>CHIPS</code> has it (design.md writes it in backticks but adds only <code>xcode-select --install</code> to <code>CHIPS</code>). It wraps anywhere; the description path ends in an ellipsis as shipped.</p>
+</div></div>
+</section>
+<section class="board" data-doan-frame="setup-panel" data-doan-title="02 Set up this folder · git init line" data-doan-implements="app/src/renderer/Onboarding.tsx">
+<div class="caption"><span>02</span><h2>“Set up this folder for Doan” panel<span class="doan-chip">Shipped · one new line, new error copy</span></h2><p>First run’s Project step and the Add Projects page share the panel; only the button label differs (<code>setUpLabel</code>). The panel has no change list, so the person sees the new repository as one line under the Doan files card (person’s decision, design.md ‘결정 질문’ 7). Errors use the panel’s shipped notice slot, which replaces the button; the choice stays.</p></div>
+<div class="tiles"><div class="tile">
+<h3>First run · Keep out of Git in a folder outside Git · <b>new: the line under the card</b></h3>
+<div class="material-stage"><div class="ob-overlay tile-window" role="dialog" aria-label="Set up Doan"><div class="ob-scene">
+<div class="ob-heading"><h2 tabindex="-1">Choose your project</h2><p>Start with a folder on your Mac, or a GitHub repository.</p></div>
+<section class="doan-panel ob-setup" data-doan-id="sp-1-panel">
+<strong>Set up this folder for Doan</strong>
+<p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
+<div class="doan-panel ob-chosen"><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">M</span><div><strong>moodboard</strong><p class="ob-path">~/Documents/moodboard</p></div><svg aria-hidden="true"><use href="#i-check"/></svg></div>
+<div class="ob-field-label storage-label" id="sp-1-storage-label">Doan files</div><div role="radiogroup" aria-labelledby="sp-1-storage-label" class="doan-panel ob-provider-list storage-list" data-doan-id="sp-1-storage-options"><label class="ob-provider storage-row" data-doan-id="sp-1-storage-repo"><input type="radio" name="sp-1-storage"><span class="ob-provider-row"><span class="ob-provider-mark"><span class="ob-radio" aria-hidden="true"></span></span><span class="ob-provider-label"><strong>Include in Git</strong><span>Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></span></label><label class="ob-provider storage-row" data-doan-id="sp-1-storage-local"><input type="radio" name="sp-1-storage" checked><span class="ob-provider-row"><span class="ob-provider-mark"><span class="ob-radio" aria-hidden="true"></span></span><span class="ob-provider-label"><strong>Keep out of Git (this Mac only)</strong><span>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></span></label></div>
+<p class="ob-provider-help storage-git-init" data-doan-id="sp-1-git-init">Doan will run <code>git init</code> here to create a Git repository.</p>
+<div class="ob-state-actions submit-only"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="" data-doan-id="sp-1-submit">Set up and continue</button></div>
+</section>
+<div class="ob-footer"><button type="button" class="doan-button" data-ui-variant="subtle"><svg aria-hidden="true"><use href="#i-left"/></svg>Back</button><button type="button" class="doan-button" data-ui-variant="prominent" disabled data-consent="">Open Doan<svg aria-hidden="true"><use href="#i-right"/></svg></button></div>
+</div></div></div>
+<p class="note">New: “Doan will run <code>git init</code> here to create a Git repository.” under the card, in the panel’s help-line style. It is there only while Keep out of Git is chosen and the inspection candidate is <code>notGit</code>; it follows the radio at once. The inspection’s change list carries <code>.git/</code>, so the existing setup consent covers it.</p>
+</div><div class="tile">
+<h3>Add Projects page · Include in Git chosen · no line</h3>
+<div class="stage add-panel"><div class="ob-scene">
+<div class="ob-heading"><h2 tabindex="-1">Add a project</h2><p>Start with a folder on your Mac, or a GitHub repository.</p></div>
+<section class="doan-panel ob-setup" data-doan-id="sp-2-panel">
+<strong>Set up this folder for Doan</strong>
+<p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
+<div class="doan-panel ob-chosen"><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">M</span><div><strong>moodboard</strong><p class="ob-path">~/Documents/moodboard</p></div><svg aria-hidden="true"><use href="#i-check"/></svg></div>
+<div class="ob-field-label storage-label" id="sp-2-storage-label">Doan files</div><div role="radiogroup" aria-labelledby="sp-2-storage-label" class="doan-panel ob-provider-list storage-list" data-doan-id="sp-2-storage-options"><label class="ob-provider storage-row" data-doan-id="sp-2-storage-repo"><input type="radio" name="sp-2-storage" checked><span class="ob-provider-row"><span class="ob-provider-mark"><span class="ob-radio" aria-hidden="true"></span></span><span class="ob-provider-label"><strong>Include in Git</strong><span>Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></span></label><label class="ob-provider storage-row" data-doan-id="sp-2-storage-local"><input type="radio" name="sp-2-storage"><span class="ob-provider-row"><span class="ob-provider-mark"><span class="ob-radio" aria-hidden="true"></span></span><span class="ob-provider-label"><strong>Keep out of Git (this Mac only)</strong><span>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></span></label></div>
+
+<div class="ob-state-actions submit-only"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="" data-doan-id="sp-2-submit">Set up and add</button></div>
+</section>
+<div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button></div>
+<div class="ob-footer add-footer"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button></div>
+</div></div>
+<p class="note">Switching back to Include in Git removes the line at once; nothing else on the panel moves except the button, which rises by the line’s height.</p>
+</div><div class="tile">
+<h3>Add Projects page · git_missing</h3>
+<div class="stage add-panel"><div class="ob-scene">
+<div class="ob-heading"><h2 tabindex="-1">Add a project</h2><p>Start with a folder on your Mac, or a GitHub repository.</p></div>
+<section class="doan-panel ob-setup" data-doan-id="sp-3-panel">
+<strong>Set up this folder for Doan</strong>
+<p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
+<div class="doan-panel ob-chosen"><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">M</span><div><strong>moodboard</strong><p class="ob-path">~/Documents/moodboard</p></div><svg aria-hidden="true"><use href="#i-check"/></svg></div>
+<div class="ob-field-label storage-label" id="sp-3-storage-label">Doan files</div><div role="radiogroup" aria-labelledby="sp-3-storage-label" class="doan-panel ob-provider-list storage-list" data-doan-id="sp-3-storage-options"><label class="ob-provider storage-row" data-doan-id="sp-3-storage-repo"><input type="radio" name="sp-3-storage"><span class="ob-provider-row"><span class="ob-provider-mark"><span class="ob-radio" aria-hidden="true"></span></span><span class="ob-provider-label"><strong>Include in Git</strong><span>Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></span></label><label class="ob-provider storage-row" data-doan-id="sp-3-storage-local"><input type="radio" name="sp-3-storage" checked><span class="ob-provider-row"><span class="ob-provider-mark"><span class="ob-radio" aria-hidden="true"></span></span><span class="ob-provider-label"><strong>Keep out of Git (this Mac only)</strong><span>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></span></label></div>
+<p class="ob-provider-help storage-git-init" data-doan-id="sp-3-git-init">Doan will run <code>git init</code> here to create a Git repository.</p>
+<div class="doan-notice error ob-project-notice" role="alert" tabindex="-1" data-doan-id="sp-3-notice"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Git isn’t installed, so Doan can’t create a repository here. Install the Command Line Tools with xcode-select --install, then check again, or choose Include in Git.</span></div><div class="ob-state-actions" data-doan-id="sp-3-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="">Check again</button></div>
+</section>
+<div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button></div>
+<div class="ob-footer add-footer"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button></div>
+</div></div>
+<p class="note">New copy in the panel’s shipped notice slot, which replaces the button. The panel shows plain text (no chips), as its other notices. <span class="open-q">Open: the actions.</span> Drawn as the shipped setup refusals’ pair (Choose another folder, then Retry), except that git_missing keeps the shipped clone notice’s “Check again”, which its sentence names. The line above stays, since the choice stays.</p>
+</div><div class="tile">
+<h3>Add Projects page · git_init_failed (socket <code>init_failed</code>)</h3>
+<div class="stage add-panel"><div class="ob-scene">
+<div class="ob-heading"><h2 tabindex="-1">Add a project</h2><p>Start with a folder on your Mac, or a GitHub repository.</p></div>
+<section class="doan-panel ob-setup" data-doan-id="sp-4-panel">
+<strong>Set up this folder for Doan</strong>
+<p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
+<div class="doan-panel ob-chosen"><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">M</span><div><strong>moodboard</strong><p class="ob-path">~/Documents/moodboard</p></div><svg aria-hidden="true"><use href="#i-check"/></svg></div>
+<div class="ob-field-label storage-label" id="sp-4-storage-label">Doan files</div><div role="radiogroup" aria-labelledby="sp-4-storage-label" class="doan-panel ob-provider-list storage-list" data-doan-id="sp-4-storage-options"><label class="ob-provider storage-row" data-doan-id="sp-4-storage-repo"><input type="radio" name="sp-4-storage"><span class="ob-provider-row"><span class="ob-provider-mark"><span class="ob-radio" aria-hidden="true"></span></span><span class="ob-provider-label"><strong>Include in Git</strong><span>Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></span></label><label class="ob-provider storage-row" data-doan-id="sp-4-storage-local"><input type="radio" name="sp-4-storage" checked><span class="ob-provider-row"><span class="ob-provider-mark"><span class="ob-radio" aria-hidden="true"></span></span><span class="ob-provider-label"><strong>Keep out of Git (this Mac only)</strong><span>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></span></label></div>
+<p class="ob-provider-help storage-git-init" data-doan-id="sp-4-git-init">Doan will run <code>git init</code> here to create a Git repository.</p>
+<div class="doan-notice error ob-project-notice" role="alert" tabindex="-1" data-doan-id="sp-4-notice"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Couldn’t create a Git repository here, so nothing was set up.</span></div><div class="ob-state-actions" data-doan-id="sp-4-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="">Retry</button></div>
+</section>
+<div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button></div>
+<div class="ob-footer add-footer"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button></div>
+</div></div>
+<p class="note"><span class="open-q">Open: the wording.</span> design.md moves <code>git_init_failed</code> to the socket’s existing <code>init_failed</code>, whose shipped notice reads “Couldn’t set up this folder. Check folder access and try again.”; drawn here with the new sentence, without its undecided recovery sentence. The actions are <code>init_failed</code>’s shipped pair.</p>
+</div><div class="tile">
+<h3>Add Projects page · cleanup_failed · a long path</h3>
+<div class="stage add-panel"><div class="ob-scene">
+<div class="ob-heading"><h2 tabindex="-1">Add a project</h2><p>Start with a folder on your Mac, or a GitHub repository.</p></div>
+<section class="doan-panel ob-setup" data-doan-id="sp-5-panel">
+<strong>Set up this folder for Doan</strong>
+<p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
+<div class="doan-panel ob-chosen"><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">M</span><div><strong>moodboard</strong><p class="ob-path">~/Documents/moodboard</p></div><svg aria-hidden="true"><use href="#i-check"/></svg></div>
+<div class="ob-field-label storage-label" id="sp-5-storage-label">Doan files</div><div role="radiogroup" aria-labelledby="sp-5-storage-label" class="doan-panel ob-provider-list storage-list" data-doan-id="sp-5-storage-options"><label class="ob-provider storage-row" data-doan-id="sp-5-storage-repo"><input type="radio" name="sp-5-storage"><span class="ob-provider-row"><span class="ob-provider-mark"><span class="ob-radio" aria-hidden="true"></span></span><span class="ob-provider-label"><strong>Include in Git</strong><span>Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></span></label><label class="ob-provider storage-row" data-doan-id="sp-5-storage-local"><input type="radio" name="sp-5-storage" checked><span class="ob-provider-row"><span class="ob-provider-mark"><span class="ob-radio" aria-hidden="true"></span></span><span class="ob-provider-label"><strong>Keep out of Git (this Mac only)</strong><span>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></span></label></div>
+<p class="ob-provider-help storage-git-init" data-doan-id="sp-5-git-init">Doan will run <code>git init</code> here to create a Git repository.</p>
+<div class="doan-notice error ob-project-notice" role="alert" tabindex="-1" data-doan-id="sp-5-notice"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Setup failed, and Doan couldn’t remove the Git repository it created at /Users/you/Documents/clients/northwind/2026/spring-campaign/moodboard-and-reference-collection/.git. Remove it or keep it, then try again.</span></div><div class="ob-state-actions" data-doan-id="sp-5-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="">Retry</button></div>
+</section>
+<div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button></div>
+<div class="ob-footer add-footer"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button></div>
+</div></div>
+<p class="note">New copy, as main’s own message (the socket <code>cleanup_failed</code> notice shows main’s text, which today is the clone’s). <span class="open-q">Open: the actions.</span> Drawn as the shipped setup refusals’ pair (Choose another folder, then Retry).</p>
+</div></div>
+</section>
+<section class="board" data-doan-frame="project-settings" data-doan-title="03 Project Settings · Doan files outside Git" data-doan-implements="app/src/renderer/ProjectSettingsPage.tsx">
+<div class="caption"><span>03</span><h2>Project Settings · Doan files outside Git<span class="doan-chip">Shipped · new reason, dialog, result</span></h2><p>A project set up with Include in Git in a folder outside Git can now choose Keep out of Git. Unlike every other switch, that press asks first, because it creates a repository: the shipped Share confirmation’s dialog, then <code>doan config --storage local --git-init</code>. Only the Doan files section is drawn; the column is the page’s 768px.</p></div>
+<div class="tiles"><div class="tile">
+<h3>not_git · Keep out of Git enabled · <b>new reason sentence</b></h3>
+<div class="stage settings-panel"><div class="settings-page">
+<header class="settings-header"><div class="settings-header-copy">
+<h1 class="settings-title project-settings-title" tabindex="-1"><span class="shell-thumbnail project-settings-thumbnail hue-indigo" aria-hidden="true">M</span>moodboard</h1>
+<p class="settings-lead" data-doan-id="ps-1-lead">~/Documents/moodboard · Stored in <code>.doan/config.json</code> in this worktree. Commit it so your team gets these settings.</p>
+</div><div class="settings-header-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Show in Finder</button></div></header>
+<div class="settings-sections"><section data-doan-id="ps-1-storage-section">
+<div class="settings-section-header"><div><h2 class="settings-section-title" id="ps-1-storage-title">Doan files</h2><p class="settings-section-description">Applies to every worktree of this project.</p></div></div>
+<div class="doan-settings-group" data-layout="rows" role="radiogroup" aria-labelledby="ps-1-storage-title" data-doan-id="ps-1-storage-group"><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-1-storage-repo"><input type="radio" name="ps-1-storage" checked><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Include in Git</span><span class="doan-preference-row-description">Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></label><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-1-storage-local"><input type="radio" name="ps-1-storage"><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Keep out of Git (this Mac only)</span><span class="doan-preference-row-description">These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></label><div class="doan-preference-row-extra"><p class="storage-reason" data-doan-id="ps-1-reason"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>This folder isn’t a Git repository. Choosing Keep out of Git creates one here.</span></p></div></div>
+</section></div>
+</div></div>
+<p class="note">New: Keep out of Git is no longer disabled (no <code>data-disabled</code>), and the reason line, in the shipped subtle tone, says what choosing it does. A folder outside Git has no branch chip, as shipped. Token CSS, Shared with canvases and Remove from Doan are unchanged and left out.</p>
+</div><div class="tile">
+<h3>Keep out of Git pressed · the confirmation · <b>new</b></h3>
+<div class="stage settings-panel"><div class="settings-page">
+<header class="settings-header"><div class="settings-header-copy">
+<h1 class="settings-title project-settings-title" tabindex="-1"><span class="shell-thumbnail project-settings-thumbnail hue-indigo" aria-hidden="true">M</span>moodboard</h1>
+<p class="settings-lead" data-doan-id="ps-2-lead">~/Documents/moodboard · Stored in <code>.doan/config.json</code> in this worktree. Commit it so your team gets these settings.</p>
+</div><div class="settings-header-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Show in Finder</button></div></header>
+<div class="settings-sections"><section data-doan-id="ps-2-storage-section">
+<div class="settings-section-header"><div><h2 class="settings-section-title" id="ps-2-storage-title">Doan files</h2><p class="settings-section-description">Applies to every worktree of this project.</p></div></div>
+<div class="doan-settings-group" data-layout="rows" role="radiogroup" aria-labelledby="ps-2-storage-title" data-doan-id="ps-2-storage-group"><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-2-storage-repo"><input type="radio" name="ps-2-storage" checked><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Include in Git</span><span class="doan-preference-row-description">Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></label><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-2-storage-local"><input type="radio" name="ps-2-storage"><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Keep out of Git (this Mac only)</span><span class="doan-preference-row-description">These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></label><div class="doan-preference-row-extra"><p class="storage-reason" data-doan-id="ps-2-reason"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>This folder isn’t a Git repository. Choosing Keep out of Git creates one here.</span></p></div></div>
+</section></div>
+</div><div class="over"><dialog open class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-label="Create a Git repository in ~/Documents/moodboard?" data-doan-id="ps-2-confirm">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" data-doan-id="ps-2-confirm-title">Create a Git repository in <code>~/Documents/moodboard</code>?</h3><p class="doan-dialog-description" data-doan-id="ps-2-confirm-description">Keep out of Git needs a Git repository. Doan will run git init here, then keep .doan/ out of it. It makes no commit, branch or remote, and the repository stays if you switch back.</p></div></div>
+<div class="doan-dialog-actions"><button class="doan-button is-focus" data-ui-variant="subtle" data-doan-id="ps-2-confirm-cancel">Cancel</button><button class="doan-button" data-ui-variant="prominent" data-doan-id="ps-2-confirm-create">Create Repository</button></div>
+</dialog></div></div>
+<p class="note">The shipped <code>SettingsDialog</code> (the Share confirmation: compact <code>alertdialog</code>, focus on Cancel, Escape answers Cancel), with prominent Create Repository and no danger colour. Nothing is written yet, so Include in Git stays chosen behind it. While it is open the page is locked (<code>projectSettingsLocked</code>), a deep link is dropped, and the dialog closes if the worktree goes Missing, is rerooted, or a re-read loses <code>storageReason</code> (then the press is an ordinary switch). <span class="open-q">Open: the form of <code>&lt;folder&gt;</code> (drawn as the page’s <code>~</code> path; the Share title uses a repo-relative path, which a folder outside Git does not have).</span></p>
+</div><div class="tile">
+<h3>The confirmation · a long folder path</h3>
+<div class="stage settings-panel"><div class="settings-page">
+<header class="settings-header"><div class="settings-header-copy">
+<h1 class="settings-title project-settings-title" tabindex="-1"><span class="shell-thumbnail project-settings-thumbnail hue-indigo" aria-hidden="true">M</span>moodboard-and-reference-collection</h1>
+<p class="settings-lead" data-doan-id="ps-3-lead">~/Documents/clients/northwind/2026/spring-campaign/moodboard-and-reference-collection · Stored in <code>.doan/config.json</code> in this worktree. Commit it so your team gets these settings.</p>
+</div><div class="settings-header-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Show in Finder</button></div></header>
+<div class="settings-sections"><section data-doan-id="ps-3-storage-section">
+<div class="settings-section-header"><div><h2 class="settings-section-title" id="ps-3-storage-title">Doan files</h2><p class="settings-section-description">Applies to every worktree of this project.</p></div></div>
+<div class="doan-settings-group" data-layout="rows" role="radiogroup" aria-labelledby="ps-3-storage-title" data-doan-id="ps-3-storage-group"><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-3-storage-repo"><input type="radio" name="ps-3-storage" checked><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Include in Git</span><span class="doan-preference-row-description">Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></label><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-3-storage-local"><input type="radio" name="ps-3-storage"><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Keep out of Git (this Mac only)</span><span class="doan-preference-row-description">These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></label><div class="doan-preference-row-extra"><p class="storage-reason" data-doan-id="ps-3-reason"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>This folder isn’t a Git repository. Choosing Keep out of Git creates one here.</span></p></div></div>
+</section></div>
+</div><div class="over"><dialog open class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-label="Create a Git repository in ~/Documents/clients/northwind/2026/spring-campaign/moodboard-and-reference-collection?" data-doan-id="ps-3-confirm">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" data-doan-id="ps-3-confirm-title">Create a Git repository in <code>~/Documents/clients/northwind/2026/spring-campaign/moodboard-and-reference-collection</code>?</h3><p class="doan-dialog-description" data-doan-id="ps-3-confirm-description">Keep out of Git needs a Git repository. Doan will run git init here, then keep .doan/ out of it. It makes no commit, branch or remote, and the repository stays if you switch back.</p></div></div>
+<div class="doan-dialog-actions"><button class="doan-button is-focus" data-ui-variant="subtle" data-doan-id="ps-3-confirm-cancel">Cancel</button><button class="doan-button" data-ui-variant="prominent" data-doan-id="ps-3-confirm-create">Create Repository</button></div>
+</dialog></div></div>
+<p class="note">The title wraps anywhere inside the 400px dialog (<code>.doan-dialog-heading</code>, shipped), so the question mark is never cut.</p>
+</div><div class="tile">
+<h3>Cancel · nothing written · focus on Include in Git</h3>
+<div class="stage settings-panel"><div class="settings-page">
+<header class="settings-header"><div class="settings-header-copy">
+<h1 class="settings-title project-settings-title" tabindex="-1"><span class="shell-thumbnail project-settings-thumbnail hue-indigo" aria-hidden="true">M</span>moodboard</h1>
+<p class="settings-lead" data-doan-id="ps-4-lead">~/Documents/moodboard · Stored in <code>.doan/config.json</code> in this worktree. Commit it so your team gets these settings.</p>
+</div><div class="settings-header-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Show in Finder</button></div></header>
+<div class="settings-sections"><section data-doan-id="ps-4-storage-section">
+<div class="settings-section-header"><div><h2 class="settings-section-title" id="ps-4-storage-title">Doan files</h2><p class="settings-section-description">Applies to every worktree of this project.</p></div></div>
+<div class="doan-settings-group" data-layout="rows" role="radiogroup" aria-labelledby="ps-4-storage-title" data-doan-id="ps-4-storage-group"><label class="doan-preference-row storage-pref is-focus" data-has-icon="" data-doan-id="ps-4-storage-repo"><input type="radio" name="ps-4-storage" checked><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Include in Git</span><span class="doan-preference-row-description">Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></label><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-4-storage-local"><input type="radio" name="ps-4-storage"><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Keep out of Git (this Mac only)</span><span class="doan-preference-row-description">These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></label><div class="doan-preference-row-extra"><p class="storage-reason" data-doan-id="ps-4-reason"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>This folder isn’t a Git repository. Choosing Keep out of Git creates one here.</span></p></div></div>
+</section></div>
+</div></div>
+<p class="note">The ring is the shipped inset row ring held still. Focus goes to the chosen row after Cancel and after a success, as after any switch.</p>
+</div><div class="tile">
+<h3>Create Repository pressed · Saving, locked</h3>
+<div class="stage settings-panel"><div class="settings-page">
+<header class="settings-header"><div class="settings-header-copy">
+<h1 class="settings-title project-settings-title" tabindex="-1"><span class="shell-thumbnail project-settings-thumbnail hue-indigo" aria-hidden="true">M</span>moodboard</h1>
+<p class="settings-lead" data-doan-id="ps-5-lead">~/Documents/moodboard · Stored in <code>.doan/config.json</code> in this worktree. Commit it so your team gets these settings.</p>
+</div><div class="settings-header-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Show in Finder</button></div></header>
+<div class="settings-sections"><section data-doan-id="ps-5-storage-section">
+<div class="settings-section-header"><div><h2 class="settings-section-title" id="ps-5-storage-title">Doan files</h2><p class="settings-section-description">Applies to every worktree of this project.</p></div></div>
+<div class="doan-settings-group" data-layout="rows" role="radiogroup" aria-labelledby="ps-5-storage-title" data-doan-id="ps-5-storage-group"><label class="doan-preference-row storage-pref" data-has-icon="" data-disabled="" data-doan-id="ps-5-storage-repo"><input type="radio" name="ps-5-storage" disabled><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Include in Git</span><span class="doan-preference-row-description">Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></label><label class="doan-preference-row storage-pref" data-has-icon="" data-disabled="" data-doan-id="ps-5-storage-local"><input type="radio" name="ps-5-storage" checked disabled><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Keep out of Git (this Mac only)</span><span class="doan-preference-row-description">These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></label><div class="doan-preference-row-extra"><p class="storage-reason" data-doan-id="ps-5-reason"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>This folder isn’t a Git repository. Choosing Keep out of Git creates one here.</span></p></div><div class="doan-preference-row-extra storage-result" role="status" data-doan-id="ps-5-result"><span class="settings-saved pending">Saving</span></div></div>
+</section></div>
+</div></div>
+<p class="note">As the shipped switch: both options disabled, the pressed one chosen, Saving in pending ink, and the page lock held until the write ends. The reason line stays until the re-read, since the folder is still outside Git while <code>doan config --storage local --git-init</code> runs.</p>
+</div><div class="tile">
+<h3>Saved · the repository created · <b>new result line</b></h3>
+<div class="stage settings-panel"><div class="settings-page">
+<header class="settings-header"><div class="settings-header-copy">
+<h1 class="settings-title project-settings-title" tabindex="-1"><span class="shell-thumbnail project-settings-thumbnail hue-indigo" aria-hidden="true">M</span>moodboard</h1>
+<p class="settings-lead" data-doan-id="ps-6-lead">~/Documents/moodboard · Stored in <code>.doan/config.json</code> in this worktree, on this Mac only.</p>
+</div><div class="settings-header-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Show in Finder</button></div></header>
+<div class="settings-sections"><section data-doan-id="ps-6-storage-section">
+<div class="settings-section-header"><div><h2 class="settings-section-title" id="ps-6-storage-title">Doan files</h2><p class="settings-section-description">Applies to every worktree of this project.</p></div></div>
+<div class="doan-settings-group" data-layout="rows" role="radiogroup" aria-labelledby="ps-6-storage-title" data-doan-id="ps-6-storage-group"><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-6-storage-repo"><input type="radio" name="ps-6-storage"><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Include in Git</span><span class="doan-preference-row-description">Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></label><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-6-storage-local"><input type="radio" name="ps-6-storage" checked><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Keep out of Git (this Mac only)</span><span class="doan-preference-row-description">These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></label><div class="doan-preference-row-extra storage-result" role="status" data-doan-id="ps-6-result"><span class="settings-saved"><svg aria-hidden="true"><use href="#i-check"/></svg>Saved</span><span class="storage-result-text" data-doan-id="ps-6-created">Created a Git repository here. Doan’s lines stay in <code>.gitattributes</code>.</span></div><div class="doan-preference-row-extra"><div class="doan-notice storage-guidance" role="status"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><div class="storage-guidance-body"><span>If <code>.doan/</code> was committed before, Git keeps tracking those files. To stop, run this in this project folder, then commit:</span><div class="storage-command"><code>git rm -r --cached .doan</code><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" aria-label="Copy command" aria-live="polite"><svg aria-hidden="true"><use href="#i-copy"/></svg>Copy</button></div><span>When teammates pull that commit, Git deletes <code>.doan/</code> from their checkouts too.</span></div></div></div></div>
+</section></div>
+</div></div>
+<p class="note">New: “Created a Git repository here.” before the shipped “Doan’s lines stay in <code>.gitattributes</code>.”, shown when the result’s <code>written</code> has <code>.git/</code>. The reason line goes (the folder is now a repository), and the shipped guidance and the “on this Mac only” path line follow the new mode. A new repository has no commit yet; whether a branch chip shows follows the shipped list row and is not drawn here. Token CSS, Shared with canvases and Remove from Doan are unchanged and left out.</p>
+</div><div class="tile">
+<h3>Failed · git_init_failed · back to Include in Git</h3>
+<div class="stage settings-panel"><div class="settings-page">
+<header class="settings-header"><div class="settings-header-copy">
+<h1 class="settings-title project-settings-title" tabindex="-1"><span class="shell-thumbnail project-settings-thumbnail hue-indigo" aria-hidden="true">M</span>moodboard</h1>
+<p class="settings-lead" data-doan-id="ps-7-lead">~/Documents/moodboard · Stored in <code>.doan/config.json</code> in this worktree. Commit it so your team gets these settings.</p>
+</div><div class="settings-header-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Show in Finder</button></div></header>
+<div class="settings-sections"><section data-doan-id="ps-7-storage-section">
+<div class="settings-section-header"><div><h2 class="settings-section-title" id="ps-7-storage-title">Doan files</h2><p class="settings-section-description">Applies to every worktree of this project.</p></div></div>
+<div class="doan-settings-group" data-layout="rows" role="radiogroup" aria-labelledby="ps-7-storage-title" data-doan-id="ps-7-storage-group"><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-7-storage-repo"><input type="radio" name="ps-7-storage" checked><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Include in Git</span><span class="doan-preference-row-description">Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></label><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-7-storage-local"><input type="radio" name="ps-7-storage"><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Keep out of Git (this Mac only)</span><span class="doan-preference-row-description">These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></label><div class="doan-preference-row-extra"><p class="storage-reason" data-doan-id="ps-7-reason"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>This folder isn’t a Git repository. Choosing Keep out of Git creates one here.</span></p></div><div class="doan-preference-row-extra settings-msg-row project-settings-msg"><p class="settings-msg error" role="alert" data-doan-id="ps-7-error"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Couldn’t create a Git repository here, so nothing was set up.</span></p></div></div>
+</section></div>
+</div></div>
+<p class="note">Nothing was written, Include in Git is chosen again and the reason stays. <span class="open-q">Open: the recovery sentence about the folder’s write permission (not drawn).</span> git_missing shows here the same way, with its plain-text sentence (see copy).</p>
+</div><div class="tile">
+<h3>Failed · cleanup_failed · a long path</h3>
+<div class="stage settings-panel"><div class="settings-page">
+<header class="settings-header"><div class="settings-header-copy">
+<h1 class="settings-title project-settings-title" tabindex="-1"><span class="shell-thumbnail project-settings-thumbnail hue-indigo" aria-hidden="true">M</span>moodboard</h1>
+<p class="settings-lead" data-doan-id="ps-8-lead">~/Documents/moodboard · Stored in <code>.doan/config.json</code> in this worktree. Commit it so your team gets these settings.</p>
+</div><div class="settings-header-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Show in Finder</button></div></header>
+<div class="settings-sections"><section data-doan-id="ps-8-storage-section">
+<div class="settings-section-header"><div><h2 class="settings-section-title" id="ps-8-storage-title">Doan files</h2><p class="settings-section-description">Applies to every worktree of this project.</p></div></div>
+<div class="doan-settings-group" data-layout="rows" role="radiogroup" aria-labelledby="ps-8-storage-title" data-doan-id="ps-8-storage-group"><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-8-storage-repo"><input type="radio" name="ps-8-storage" checked><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Include in Git</span><span class="doan-preference-row-description">Git tracks these files. Commit them so your team gets your canvases and settings.</span></span></label><label class="doan-preference-row storage-pref" data-has-icon="" data-doan-id="ps-8-storage-local"><input type="radio" name="ps-8-storage"><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Keep out of Git (this Mac only)</span><span class="doan-preference-row-description">These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span></span></label><div class="doan-preference-row-extra"><p class="storage-reason" data-doan-id="ps-8-reason"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>This folder isn’t a Git repository. Choosing Keep out of Git creates one here.</span></p></div><div class="doan-preference-row-extra settings-msg-row project-settings-msg"><p class="settings-msg error" role="alert" data-doan-id="ps-8-error"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Setup failed, and Doan couldn’t remove the Git repository it created at /Users/you/Documents/clients/northwind/2026/spring-campaign/moodboard-and-reference-collection/.git. Remove it or keep it, then try again.</span></p></div></div>
+</section></div>
+</div></div>
+<p class="note">The <code>.git/</code> Doan made could not be removed, so the folder may now read as a repository on the next read; the mode stays Include in Git. The path wraps anywhere.</p>
+</div></div>
+</section>
+<section class="board" data-doan-frame="copy" data-doan-title="04 Copy and accessible names">
+<div class="caption"><span>04</span><h2>Copy and accessible names<span class="doan-chip">Reference</span></h2><p>Every new or changed string and how assistive technology meets it. Not compared by <code>/design-sync</code>.</p></div>
+<div class="copy-card"><table class="copy-table"><thead><tr><th>Where</th><th>Text (English, as the app shows it)</th><th>Role, name and notes</th></tr></thead><tbody><tr><td>Set Up form · Will add (Keep out of Git, notGit)</td><td><code>.git/</code> — a new Git repository</td><td>First line of the list; no “, if missing”.</td></tr><tr><td>Setup panel · under the Doan files card</td><td>Doan will run <code>git init</code> here to create a Git repository.</td><td>Plain paragraph after the radiogroup, not a live region; it appears with the choice the person just made.</td></tr><tr><td>Project Settings · reason (not_git)</td><td>This folder isn’t a Git repository. Choosing Keep out of Git creates one here.</td><td>Replaces “Keep out of Git needs a Git repository, and this folder isn’t one.” Keep out of Git is enabled.</td></tr><tr><td>Confirmation · title</td><td>Create a Git repository in <code>&lt;folder&gt;</code>?</td><td><code>role="alertdialog"</code>, named by <code>label</code>: “Create a Git repository in &lt;folder&gt;?” as plain text (the title has markup).</td></tr><tr><td>Confirmation · description</td><td>Keep out of Git needs a Git repository. Doan will run git init here, then keep .doan/ out of it. It makes no commit, branch or remote, and the repository stays if you switch back.</td><td></td></tr><tr><td>Confirmation · buttons</td><td>Cancel · Create Repository</td><td>Focus starts on Cancel; Escape answers Cancel; Create Repository is <code>prominent</code>, never danger. Cancel and success return focus to the chosen radio.</td></tr><tr><td>Project Settings · result after a created repository</td><td>Created a Git repository here. Doan’s lines stay in <code>.gitattributes</code>.</td><td>In the shipped <code>role="status"</code> result line, after Saved.</td></tr><tr><td>Error · git_missing</td><td>Git isn’t installed, so Doan can’t create a repository here. Install the Command Line Tools with <code>xcode-select --install</code>, then check again, or choose Include in Git.</td><td>Set Up form chips <code>xcode-select --install</code> (added to <code>CHIPS</code>); the panel notice and Project Settings show it as plain text. <code>role="alert"</code> as shipped.</td></tr><tr><td>Error · git_init_failed</td><td>Couldn’t create a Git repository here, so nothing was set up. <span class="open-q">+ a recovery sentence about the folder’s write permission (wording open)</span></td><td>Set Up form and Project Settings; the panel reaches it as socket <code>init_failed</code> (see open questions).</td></tr><tr><td>Error · cleanup_failed</td><td>Setup failed, and Doan couldn’t remove the Git repository it created at <code>&lt;path&gt;/.git</code>. Remove it or keep it, then try again.</td><td><code>&lt;path&gt;</code> is the folder’s absolute path; shown as plain text (not in <code>CHIPS</code>).</td></tr><tr><td>Unchanged · local_not_git (three places)</td><td>This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.</td><td>Kept as shipped: still right with an older CLI, or when the folder changed between <code>ls</code> and <code>init</code>.</td></tr></tbody></table></div>
+</section>
+</body></html>
