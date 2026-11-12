@@ -43,6 +43,8 @@ export interface ContextOptions {
   cli: string;
   env: NodeJS.ProcessEnv;
   seedCommit: string;
+  // Workspace.gitDir: the baseline lives outside `repo`.
+  gitDir?: string | null;
   onboardingLog?: string;
   workLog?: string;
   openLog?: string;
@@ -58,15 +60,17 @@ export function sh(cmd: string, args: string[], cwd: string, env: NodeJS.Process
 
 // Post-agent Git reads must not launch repository-configured helpers. Filters
 // also run during diff conversion and intent-to-add, independently of textconv.
-function checkedGit(repo: string, args: string[], env: NodeJS.ProcessEnv) {
-  const config = sh("git", ["-C", repo, "config", "--null", "--get-regexp", "^filter\\..*\\.(clean|process|required)$"], repo, env);
+function checkedGit(repo: string, args: string[], env: NodeJS.ProcessEnv, gitDir?: string | null) {
+  // An explicit Git directory also keeps a repository the agent created in `repo` out of the reads.
+  const location = ["-C", repo, ...(gitDir ? ["--git-dir", gitDir, "--work-tree", repo] : [])];
+  const config = sh("git", [...location, "config", "--null", "--get-regexp", "^filter\\..*\\.(clean|process|required)$"], repo, env);
   if (config.code !== 0 && config.code !== 1) throw new Error(`git config failed: ${config.stderr}`);
   const overrides = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"];
   for (const entry of config.stdout.split("\0").filter(Boolean)) {
     const key = entry.split("\n")[0];
     overrides.push("-c", `${key}=${key.endsWith(".required") ? "false" : ""}`);
   }
-  return sh("git", ["-C", repo, ...overrides, ...args], repo, env);
+  return sh("git", [...location, ...overrides, ...args], repo, env);
 }
 
 // The files the fake app wrote that still hold exactly what it wrote: the app's
@@ -79,18 +83,18 @@ export function appWritten(repo: string, manifest: string | undefined): string[]
   });
 }
 
-function diffSinceSeed(dir: string, env: NodeJS.ProcessEnv, seedCommit: string, exclude: string[] = []): string {
-  const added = checkedGit(dir, ["add", "-A", "-N", "-f"], env);
+function diffSinceSeed(dir: string, env: NodeJS.ProcessEnv, seedCommit: string, exclude: string[] = [], gitDir?: string | null): string {
+  const added = checkedGit(dir, ["add", "-A", "-N", "-f"], env, gitDir);
   if (added.code !== 0) throw new Error(`git add failed: ${added.stderr}`);
   const pathspec = exclude.length ? ["--", ".", ...exclude.map(path => `:(exclude,literal)${path}`)] : [];
-  const diff = checkedGit(dir, ["diff", "--no-color", "--no-ext-diff", "--no-textconv", seedCommit, ...pathspec], env);
+  const diff = checkedGit(dir, ["diff", "--no-color", "--no-ext-diff", "--no-textconv", seedCommit, ...pathspec], env, gitDir);
   if (diff.code !== 0) throw new Error(`git diff failed: ${diff.stderr}`);
   return diff.stdout;
 }
 
 // The agent's own worktree is labelled so the judge can tell it from the root.
-export function judgeMaterial(ws: { repo: string; cwd?: string; env: NodeJS.ProcessEnv; seedCommit: string; appWrites?: string }, ctx: CheckContext) {
-  const diff = diffSinceSeed(ws.repo, ws.env, ws.seedCommit, appWritten(ws.repo, ws.appWrites));
+export function judgeMaterial(ws: { repo: string; cwd?: string; env: NodeJS.ProcessEnv; seedCommit: string; gitDir?: string | null; appWrites?: string }, ctx: CheckContext) {
+  const diff = diffSinceSeed(ws.repo, ws.env, ws.seedCommit, appWritten(ws.repo, ws.appWrites), ws.gitDir);
   if (!ws.cwd || ws.cwd === ws.repo) return { changed: ctx.changedFiles(), diff };
   const cwdDiff = diffSinceSeed(ws.cwd, ws.env, ws.seedCommit);
   return {
@@ -101,7 +105,8 @@ export function judgeMaterial(ws: { repo: string; cwd?: string; env: NodeJS.Proc
 
 export function createContext(o: ContextOptions): CheckContext {
   const cwd = o.cwd ?? o.repo;
-  const git = (args: string[], dir = o.repo) => checkedGit(dir, args, o.env);
+  // Only `repo` can have a separate Git directory; a worktree `cwd` never does (scenario.ts).
+  const git = (args: string[], dir = o.repo) => checkedGit(dir, args, o.env, dir === o.repo ? o.gitDir : null);
   const changedFiles = (dir: string): string[] => {
     // Against the seed commit, not HEAD, so an agent that commits its work is still seen.
     const tracked = git(["diff", "--name-only", "-z", "--no-renames", "--no-ext-diff", "--no-textconv", o.seedCommit], dir);

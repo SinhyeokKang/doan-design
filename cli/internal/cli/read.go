@@ -49,8 +49,11 @@ func List(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if len(args) != 0 {
 		return Outcome{}, usageError("ls takes no positional arguments")
 	}
-	r, failure := repository(ctx, f)
+	r, failure, searched := findRepository(ctx, f)
 	if failure != nil {
+		if failure.Code == "repo_not_found" && searched != "" {
+			failure.StorageReason = notFoundStorageReason(searched, repo.ReadStorage(searched, ctx.Home))
+		}
 		return Outcome{}, failure
 	}
 	canvases, e := scanCanvases(r.Root)

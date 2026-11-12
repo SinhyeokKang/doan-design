@@ -63,7 +63,9 @@ export type FolderEntry = { path: string; lastCommon?: string; autoRegistered?: 
   // `changedAt` is the newest canvas mtime; absent with no canvases.
   // `storage`/`storageReason` are `doan ls`'s, absent from an older doan.
   | ({ kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number } & StorageFacts)
-  | { kind: "uninitialized" }
+  // `notGit`: no Git repository holds the folder, so the Set Up form shows the .git/ Keep out of Git creates; never
+  // for the home folder or above it (shell.ts).
+  | { kind: "uninitialized"; notGit?: true }
   // `config`: the file the CLI named (folderState); main's Show in Finder selects it, the renderer does not use it.
   | { kind: "error"; message: string; config: string; newer?: true }
   | { kind: "cliError"; reason: string }
@@ -139,6 +141,8 @@ export function folderEntry(path: string, view: FolderView, baseUrl: string, ser
       return { path, kind: "error", message: view.message, config: view.config, ...(view.newer ? { newer: true as const } : {}) };
     case "cliError":
       return { path, kind: "cliError", reason: view.reason };
+    case "uninitialized":
+      return { path, kind: "uninitialized", ...(view.notGit ? { notGit: true as const } : {}) };
     default:
       return { path, kind: view.kind };
   }

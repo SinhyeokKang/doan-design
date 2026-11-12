@@ -19,6 +19,9 @@ export interface Workspace {
   cwd: string;
   env: NodeJS.ProcessEnv;
   seedCommit: string;
+  // The baseline's Git directory when the scenario sets `git: false`, outside `repo` so the
+  // CLI and the agent find no repository there; null when the baseline is `repo/.git`.
+  gitDir: string | null;
   app: FakeApp | null;
   // The fake app's app-socket v2 exchanges (eval/lib/socket.ts); absent until the first one.
   onboardingLog: string;
@@ -68,8 +71,10 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     // The key the app puts in a canvas conversation's environment; the fake app knows the same one.
     const handoff = o.scenario.handoff ? { key: randomBytes(32).toString("hex"), canvas: o.scenario.handoff.canvas } : null;
     const env = { ...agentEnvironment(process.env), PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json"), ...(handoff ? { DOAN_HANDOFF: handoff.key } : {}) };
-    const git = (args: string[]) => must(sh("git", [...GIT, "-C", repo, ...args], repo, env), `git ${args[0]}`);
-    git(["init", "-q"]);
+    const gitDir = o.scenario.git ? null : join(base, "seed.git");
+    const git = (args: string[]) => must(sh("git", [...GIT, "-C", repo, ...(gitDir ? ["--git-dir", gitDir, "--work-tree", repo] : []), ...args], repo, env), `git ${args[0]}`);
+    if (gitDir) must(sh("git", [...GIT, "init", "-q", "--bare", gitDir], base, env), "git init");
+    else git(["init", "-q"]);
     if (o.scenario.init && !existsSync(join(repo, ".doan/config.json")))
       must(sh(o.cli, ["init", "--json", "--repo", repo, "--token-css", join(repo, o.scenario.init.tokenCss)], repo, env), "doan init");
     for (const dir of [".claude", ".agents"]) {
@@ -98,7 +103,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue, handoff })
       : null;
     return {
-      base, repo, cwd, env, seedCommit, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), appWrites: join(base, "rt", APP_WRITES),
+      base, repo, cwd, env, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), appWrites: join(base, "rt", APP_WRITES),
       async dispose() {
         await app?.close();
         rmSync(base, { recursive: true, force: true });

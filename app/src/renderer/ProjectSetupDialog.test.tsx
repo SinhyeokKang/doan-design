@@ -1,13 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import type { ProjectForm } from "./onboardingView";
-import { ProjectFields, ProjectSetupDialog, type StorageInput } from "./ProjectSetupDialog";
+import { ProjectFields, ProjectSetupDialog, setupRequest, type StorageInput } from "./ProjectSetupDialog";
 
 // Draft canvas local-doan-files frame setup-dialog: a "Doan files" field between Token CSS and Will add; the list
 // follows it.
 const form: ProjectForm = { running: false, token: null, error: null, rerooted: null };
-const fields = (storage: Partial<StorageInput>, over: Partial<typeof form> = {}) =>
-  renderToStaticMarkup(<ProjectFields form={{ ...form, ...over }} choose={() => {}} storage={{ value: "repo", kept: false, change: () => {}, ...storage }} />);
+const fields = (storage: Partial<StorageInput>, over: Partial<typeof form> = {}, root = "/Users/ada/code/plain") =>
+  renderToStaticMarkup(<ProjectFields root={root} form={{ ...form, ...over }} choose={() => {}} storage={{ value: "repo", kept: false, notGit: false, change: () => {}, ...storage }} />);
 
 test("Include in Git is the default and Will add lists .gitattributes", () => {
   const html = fields({});
@@ -66,4 +66,37 @@ test("selectable: the dialog's project path, but not its title or buttons", () =
   expect(html).toMatch(/<p class="doan-dialog-description ob-project-path selectable"[^>]*>\/Users\/ada\/code\/studio<\/p>/);
   expect(html).not.toMatch(/<h3[^>]*selectable/);
   expect(html).not.toMatch(/<button[^>]*selectable/);
+});
+
+// Draft keep-out-git-init, frame setup-form: outside Git, Keep out of Git also creates the repository, so Will add says
+// so first, and Set Up names the list for a screen reader.
+test("outside Git, Keep out of Git adds the new repository at the top of Will add", () => {
+  const html = fields({ value: "local", notGit: true });
+  expect(html).toContain('<span class="ob-changes" id="setup-changes"><span><code>.git/</code> — a new Git repository</span><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.git/info/exclude</code> — two lines, if missing</span></span>');
+  // Include in Git never creates one, and a project already kept out of Git sets up as it is.
+  for (const storage of [{ value: "repo" as const, notGit: true }, { value: "local" as const, notGit: false }, { kept: true, notGit: true }]) {
+    expect(fields(storage), JSON.stringify(storage)).not.toContain("a new Git repository");
+  }
+});
+
+test("Set Up Project is described by Will add", () => {
+  const html = renderToStaticMarkup(<ProjectSetupDialog root="/Users/ada/code/studio" name="studio" notGit onClose={() => {}} onRerooted={() => {}} />);
+  expect(html).toMatch(/<button type="button" class="btn primary doan-button" data-ui-variant="prominent" aria-describedby="setup-changes">Set Up Project<\/button>/);
+});
+
+// --git-init is the consent to the .git/ line on screen: only with Keep out of Git, outside Git, and not for a project
+// already kept out of Git (which runs plain init).
+test("the setup request asks for the repository only when the form showed it", () => {
+  expect(setupRequest("/w/a", null, "local", false, true)).toEqual({ root: "/w/a", choiceId: null, storage: "local", gitInit: true });
+  expect(setupRequest("/w/a", "c1", "local", false, false)).toEqual({ root: "/w/a", choiceId: "c1", storage: "local" });
+  expect(setupRequest("/w/a", null, "repo", false, true)).toEqual({ root: "/w/a", choiceId: null, storage: null });
+  expect(setupRequest("/w/a", null, "local", true, true)).toEqual({ root: "/w/a", choiceId: null, storage: null });
+});
+
+// The form's own words for a failed creation (main's initOutcome): the command and the .git it left read as code.
+test("a failed creation shows its command and the .git it left as code chips", () => {
+  const missing = fields({ value: "local", notGit: true }, { error: "Git isn’t installed, so Doan can’t create a repository here. Install the Command Line Tools with xcode-select --install, then try again, or choose Include in Git." });
+  expect(missing).toContain("Install the Command Line Tools with <code>xcode-select --install</code>, then try again, or choose Include in Git.");
+  const left = fields({ value: "local" }, { error: "Setup failed, and Doan couldn’t remove the Git repository it created at /Users/ada/a b/new/.git. Remove it or keep it, then try again." }, "/Users/ada/a b/new");
+  expect(left).toContain("it created at <code>/Users/ada/a b/new/.git</code>. Remove it or keep it, then try again.");
 });

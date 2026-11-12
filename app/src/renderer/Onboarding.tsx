@@ -12,6 +12,7 @@ import { canAdvance, initialScene, nextScene, setupSteps, type Scene, type Scene
 import { projectHue, projectInitial } from "./shellNavigation";
 import { tilde } from "./onboardingView";
 import { AlertIcon } from "./AlertIcon";
+import { withChips } from "./codeChips";
 import { StorageCard } from "./StorageChoice";
 import { OPERATION_MESSAGES } from "../main/onboarding/operations";
 import { keptLocal, type StorageChoice } from "./storageRules";
@@ -265,6 +266,7 @@ export function ProjectChoice({ paths, choice, home, pick, name }: {
   </label>)}</div>;
 }
 
+const GIT_INIT_ID = "ob-setup-git-init";
 type ProjectAction = "chooseFolder" | "chooseExisting" | "edit" | "retry" | "changeLocation" | "useExisting" | "backToAgents";
 interface ProjectNotice { title?: string; body: string; detail?: string; note?: string; actions: Button<ProjectAction>[] }
 const action = (command: ProjectAction, label: string, variant: Button["variant"] = "prominent"): Button<ProjectAction> => ({ command, label, variant, disabled: false });
@@ -292,13 +294,20 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
     case "destination_exists": return { body: "A folder already exists at this destination. Choose another location or use the existing folder.", actions: [action("changeLocation", "Change location", "subtle"), action("useExisting", "Use existing folder")] };
     case "init_failed": return { body: "Couldn’t set up this folder. Check folder access and try again.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     // The setup was refused and nothing was written; the choice stays, so Include in Git is one press away.
-    case "local_not_git": return { body: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
+    // Main's own words when it has them: in the home folder Doan creates no repository, so git init is no way out.
+    case "local_not_git": return { body: message !== undefined && message !== OPERATION_MESSAGES.local_not_git ? message : "This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "local_exclude_failed": return { body: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then retry.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "config_invalid": return { body: "This folder’s Doan configuration couldn’t be read. Fix it and retry, or choose another folder.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     // The CLI read the folder but failed for a reason other than its configuration; its message says why.
     case "project_unreadable": return { body: "Doan couldn’t read this folder. Fix the problem shown below and retry, or choose another folder.", ...(detail ? { detail } : {}), actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "clone_failed": return { body: "Couldn’t clone this repository. Check your connection and folder access, then retry.", ...(destination ? { detail: destination } : {}), actions: [action("changeLocation", "Change location", "subtle"), action("retry", "Retry")] };
-    case "git_missing": return { body: "Install Git to clone a repository, or choose a local folder.", actions: [action(choose, "Choose local folder", "subtle"), action("retry", "Check again")] };
+    // A setup (no destination) needed Git to create the folder's repository; the clone screen keeps its own notice.
+    case "git_missing": return destination === null
+      ? { body: "Git isn’t installed, so Doan can’t create a repository here. Install the Command Line Tools with xcode-select --install, then check again, or choose Include in Git.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Check again")] }
+      : { body: "Install Git to clone a repository, or choose a local folder.", actions: [action(choose, "Choose local folder", "subtle"), action("retry", "Check again")] };
+    // A setup that could not remove the .git it created names it in main's words; a clone's leftovers keep the default.
+    case "cleanup_failed": if (destination === null && message !== undefined) return { body: message, actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
+      return { body: message ?? "Something changed while Doan was checking. Try again.", actions: [action("retry", "Retry")] };
     case "completion_save_failed": return { body: "Your project is ready, but setup completion couldn’t be saved. Retry to finish.", actions: [] };
     case "completion_unsupported_version": return { title: "Setup was saved by a newer version of Doan", body: "Open this project with that version, or update Doan.", actions: [] };
     case "no_ready_agent": { const notice = noAgentReadyNotice(null)!; return { body: notice.body!, ...(notice.note ? { note: notice.note } : {}), actions: [action("backToAgents", "Back to agents")] }; }
@@ -307,10 +316,12 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
   }
 }
 
-function ProjectNoticeView({ notice, run, id, panel = false }: { notice: ProjectNotice; run: (command: ProjectAction) => void; id?: string; panel?: boolean }) {
+// paths: absolute paths the notice may name as code (a .git a failed setup left behind).
+function ProjectNoticeView({ notice, run, id, panel = false, paths = [] }: { notice: ProjectNotice; run: (command: ProjectAction) => void; id?: string; panel?: boolean; paths?: readonly string[] }) {
+  const body = withChips(notice.body, paths);
   return <>
     <div className={panel ? "doan-notice error doan-panel ob-project-notice" : "doan-notice error ob-project-notice"} role="alert" tabIndex={-1} id={id}><AlertIcon />
-      <span className="selectable">{notice.title ? <><strong className="ob-notice-title">{notice.title}</strong><span className="ob-notice-body">{notice.body}</span></> : notice.body}</span></div>
+      <span className="selectable">{notice.title ? <><strong className="ob-notice-title">{notice.title}</strong><span className="ob-notice-body">{body}</span></> : body}</span></div>
     {notice.detail && <p className="ob-path ob-notice-detail selectable">{notice.detail}</p>}
     {notice.note && <p className="ob-provider-help">{notice.note}</p>}
     {notice.actions.length > 0 && <div className={notice.actions.length === 1 ? "ob-state-actions submit-only" : "ob-state-actions"}>
@@ -437,6 +448,13 @@ export function useProjectFocus(session: ProjectStepSession, scope: RefObject<Sc
       picker.current = node instanceof HTMLElement ? { node, phase: session.state.phase.kind } : null;
       open();
     },
+    // A radio whose change plans the folder again gets focus back once the plan is made: the plan disables the radios
+    // meanwhile, which drops focus, and an arrow key would otherwise leave the person on the heading. A change made with
+    // nothing focused (a screen reader's virtual cursor) leaves <body> active, which is not a place to restore.
+    keepFocus: (change: () => boolean) => {
+      const node = document.activeElement;
+      if (change() && node instanceof HTMLElement && node !== document.body) picker.current = { node, phase: session.state.phase.kind };
+    },
   };
 }
 
@@ -557,6 +575,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
   } else if (p.kind === "checking") {
     body = <Progress panel={panel} title="Checking this folder" body={shown(p.path, home)} />;
   } else if (p.kind === "setup" || p.kind === "selecting") {
+    const gitInitShown = p.kind === "setup" && state.storage === "local" && p.changes.includes(".git/");
     body = <>
       {/* From a URL the screen keeps that repository: its URL, another folder of it, or a different URL. */}
       {p.kind === "setup" && p.url !== null && urlField(true)}
@@ -565,8 +584,11 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
         <ChosenProject path={p.path} home={home} />
         <StorageCard id="ob-setup-storage" value={state.storage ?? "repo"} kept={keptLocal(p)} disabled={busy} change={on.setStorage} />
-        {notice ? <ProjectNoticeView notice={notice} run={run} />
-          : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} data-consent="" onClick={() => on.setUp(p.inspectionId)}>{setUpLabel(use)}</button></div>}
+        {/* The panel has no change list, so the new repository a plan outside Git creates is told here; it follows the
+            radio, and the Set up button is described by it. */}
+        {gitInitShown && <p className="ob-provider-help storage-git-init" id={GIT_INIT_ID}>Doan will run <code>git init</code> here to create a Git repository.</p>}
+        {notice ? <ProjectNoticeView notice={notice} run={run} paths={[`${p.path}/.git`]} />
+          : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} data-consent="" aria-describedby={gitInitShown ? GIT_INIT_ID : undefined} onClick={() => on.setUp(p.inspectionId)}>{setUpLabel(use)}</button></div>}
       </section>}
       {p.kind === "setup" && p.url !== null && smallActions(["Choose another folder", "chooseExisting"], ["Edit repository URL", "edit"])}
       {/* The page's footer only leaves it, so the page offers another folder here; first run keeps its shipped panel. */}
@@ -731,7 +753,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
   // A scene change moves focus to its heading; Tab then enters the controls.
   useEffect(() => { requestAnimationFrame(() => heading.current?.focus()); }, [scene.generation]);
   const overlay = useRef<HTMLDialogElement | null>(null);
-  const { toUrl, openPicker } = useProjectFocus(project, overlay, heading, () => canAdvance(agents.state.auth ?? null), scene.scene === "project");
+  const { toUrl, openPicker, keepFocus } = useProjectFocus(project, overlay, heading, () => canAdvance(agents.state.auth ?? null), scene.scene === "project");
   // Guarded with the session's auth at the time of the move, not of the click: a cancel wait can outlive a ready provider.
   const move = (event: SceneEvent) => setScene(current => nextScene(current, event, { auth: agents.state.auth ?? null, busy: project.busy() }));
   const generation = useRef(0);
@@ -772,7 +794,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
         drop={{ notice: p.dropNotice, allowed: () => p.canDrop(), started: () => p.dragStarted(), dropped: items => void p.drop(items) }} on={{
         back: () => { if (p.backToUrl()) toUrl(); else move({ type: "back" }); }, backToAgents: () => move({ type: "step", to: "agent" }),
         chooseFolder: () => openPicker(() => void p.chooseFolder()), chooseExisting: () => openPicker(() => void p.chooseExisting()), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: toUrl,
-        pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), setStorage: storage => p.setStorage(storage), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),
+        pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), setStorage: storage => keepFocus(() => p.setStorage(storage)), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),
         changeDestination: () => openPicker(() => void p.changeDestination()), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
         complete: () => void p.complete(), retry: () => void p.retry(),
       }} />}

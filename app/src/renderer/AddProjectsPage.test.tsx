@@ -63,7 +63,8 @@ test("the inline Cancel of a repository check is named apart from the footer Can
 
 test("every error code shows first run's copy; the page never shows the no-agent notice", () => {
   for (const code of ["project_unavailable", "remote_mismatch", "init_failed", "config_invalid", "git_missing", "destination_exists", "clone_failed"] as const) {
-    const html = page({ phase: { kind: "choose" }, error: { code } });
+    // Commands in a notice read as code chips; the words are first run's.
+    const html = page({ phase: { kind: "choose" }, error: { code } }).replace(/<\/?code>/g, "");
     expect(html).toContain(projectNotice(code, undefined, null).body);
   }
   expect(page({ phase: { kind: "choose" }, error: { code: "no_ready_agent" } })).not.toContain("Back to agents");
@@ -166,10 +167,10 @@ test("the setup panel offers where the Doan files go, or says the project alread
 
 test("a refused local setup says why in the panel's notice, with the choice still there", () => {
   const html = page({ storage: "local", phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [".doan/canvases/", ".doan/config.json", ".git/info/exclude"], storage: "local" }, error: { code: "local_not_git" } });
-  expect(html).toContain("This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.");
+  expect(html).toContain("This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run <code>git init</code> here first.");
   expect(html).toContain('<input type="radio" name="ob-setup-storage" checked=""/>');
   expect(page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] }, error: { code: "local_exclude_failed" } }))
-    .toContain("Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then retry.");
+    .toContain("Couldn’t add Doan’s lines to <code>.git/info/exclude</code>, so nothing was set up. Make sure the repository’s Git metadata and its exclude file can be read and written, then retry.");
 });
 
 test("the clone screen asks under Save to, and keeps the choice disabled while the clone runs", () => {

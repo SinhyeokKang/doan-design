@@ -27,7 +27,7 @@ func addStorageResult(result map[string]any, s repo.StorageInfo) {
 func storageFailure(s repo.StorageInfo) *Error {
 	switch s.Reason {
 	case "not_git":
-		return &Error{Code: "local_not_git", Message: "Local storage requires a Git repository", NextSteps: []string{"Choose Include in Git (--storage repo), or use a Git repository"}}
+		return &Error{Code: "local_not_git", Message: "Local storage requires a Git repository", NextSteps: []string{"Choose Include in Git (--storage repo), or use a Git repository", "Ask the user first; pass --git-init only when they agree to create a Git repository here"}}
 	case "git_unreadable":
 		return &Error{Code: "local_exclude_failed", Message: "Cannot read Git metadata for Doan storage", NextSteps: []string{"Make the repository Git metadata readable, then retry"}}
 	case "exclude_unwritable":
@@ -38,14 +38,28 @@ func storageFailure(s repo.StorageInfo) *Error {
 func excludeFailure() *Error {
 	return &Error{Code: "local_exclude_failed", Message: "Cannot update the Git exclude file for Doan storage", NextSteps: []string{"Check Git metadata and exclude permissions, then retry"}}
 }
-func configStorage(ctx Context, root, storage string) (Outcome, *Error) {
+func configStorage(ctx Context, root string, f Flags) (out Outcome, failure *Error) {
+	storage := f.Storage
 	before := repo.ReadStorage(root, ctx.Home)
+	written := []string{}
+	create, failure := gitInitDecision(before, root, ctx.Home, f)
+	if failure != nil {
+		return Outcome{}, failure
+	}
+	if create {
+		var claimed repo.ClaimedGit
+		if claimed, failure = initGit(ctx, root); failure != nil {
+			return Outcome{}, failure
+		}
+		defer func() { failure = rollbackGit(claimed, failure) }()
+		written = append(written, ".git/")
+		before = repo.ReadStorage(root, ctx.Home)
+	}
 	if before.Storage != storage && !(storage == "repo" && before.Reason == "not_git") {
 		if failure := storageFailure(before); failure != nil {
 			return Outcome{}, failure
 		}
 	}
-	written := []string{}
 	if storage == "repo" && before.Storage != storage {
 		changed, err := writeAttributes(root)
 		if err != nil {
@@ -131,4 +145,68 @@ func writeAttributes(root string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// gitInitDecision says whether --storage local first creates a repository: only with --git-init, the user's
+// agreement, and only in a folder in no repository below HOME (ReadStorage already ignores a .git at or above it).
+// At or above HOME the refusal holds with or without the flag, so the agent never asks for an agreement the flag
+// would then refuse.
+func gitInitDecision(s repo.StorageInfo, root, home string, f Flags) (bool, *Error) {
+	if f.GitInit && f.Storage != "local" {
+		return false, usageError("--git-init needs --storage local")
+	}
+	if f.Storage != "local" || s.Reason != "not_git" {
+		return false, nil
+	}
+	if repo.AtOrAboveHome(root, home) {
+		return false, &Error{Code: "local_not_git", Message: "Doan doesn’t create a Git repository in your home folder or above it", NextSteps: []string{"Choose Include in Git (--storage repo), or set up a folder inside your home folder"}}
+	}
+	return f.GitInit, nil
+}
+
+// notFoundStorageReason is ls's error.storageReason: the app plans the repository Keep out of Git would create
+// from it, so it is set only for an existing folder in no repository.
+func notFoundStorageReason(searched string, s repo.StorageInfo) string {
+	if searched != "" && s.Reason == "not_git" {
+		return "not_git"
+	}
+	return ""
+}
+
+// initGit runs the repository creation gitInitDecision allowed. Nothing is written on failure, except a .git
+// that could not be removed, which cleanup_failed names.
+func initGit(ctx Context, root string) (repo.ClaimedGit, *Error) {
+	claimed, err := repo.InitGit(root, ctx.Home, ctx.Git)
+	if err == nil {
+		return claimed, nil
+	}
+	var failure *repo.GitInitError
+	if !errors.As(err, &failure) {
+		return repo.ClaimedGit{}, internal(err)
+	}
+	switch {
+	case errors.Is(err, repo.ErrGitExists):
+		return repo.ClaimedGit{}, &Error{Code: "git_init_failed", Message: "Could not create a Git repository here, so nothing was set up", NextSteps: []string{"A .git appeared in this folder meanwhile; run `doan ls` again and retry"}}
+	case failure.Code == "git_missing":
+		return repo.ClaimedGit{}, &Error{Code: "git_missing", Message: "Git is not installed, so Doan cannot create a repository here", NextSteps: []string{"Ask the user to install the Command Line Tools (`xcode-select --install`), then retry; or choose Include in Git (--storage repo)"}}
+	case failure.Code == "cleanup_failed":
+		return repo.ClaimedGit{}, gitCleanupFailure(failure.Path)
+	}
+	return repo.ClaimedGit{}, &Error{Code: "git_init_failed", Message: "Could not create a Git repository here, so nothing was set up", NextSteps: []string{"Ask the user to check that the folder is writable and that git works, then retry; or choose Include in Git (--storage repo)"}}
+}
+
+func gitCleanupFailure(path string) *Error {
+	return &Error{Code: "cleanup_failed", Message: "Setup failed, and Doan could not remove the Git repository it created at " + path, NextSteps: []string{"Ask the user to remove " + path + " or keep it, then retry"}}
+}
+
+// rollbackGit undoes this run's repository when a later step failed; only .git is undone, as other writes'
+// failures leave what they wrote.
+func rollbackGit(claimed repo.ClaimedGit, failure *Error) *Error {
+	if failure == nil || claimed.Path == "" {
+		return failure
+	}
+	if _, err := repo.RollbackGit(claimed); err != nil {
+		return gitCleanupFailure(claimed.Path)
+	}
+	return failure
 }

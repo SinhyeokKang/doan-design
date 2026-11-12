@@ -17,9 +17,12 @@ func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 }
 
 // A per-call publisher lets tests fail after attributes are written without timing races.
-func initWithRename(ctx Context, f Flags, args []string, rename func(string, string) error) (Outcome, *Error) {
+func initWithRename(ctx Context, f Flags, args []string, rename func(string, string) error) (out Outcome, failure *Error) {
 	if failure := validateStorage(f); failure != nil {
 		return Outcome{}, failure
+	}
+	if f.GitInit && f.Storage != "local" {
+		return Outcome{}, usageError("--git-init needs --storage local")
 	}
 	if len(args) != 0 {
 		return Outcome{}, usageError("init takes no positional arguments")
@@ -88,7 +91,11 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 		return Outcome{}, internal(e)
 	}
 	local := f.Storage == "local" || storage.Storage == "local"
-	if (f.Storage != "repo" && storage.Storage == "unknown") || (local && storage.Storage != "local") {
+	createGit, failure := gitInitDecision(storage, root, ctx.Home, f)
+	if failure != nil {
+		return Outcome{}, failure
+	}
+	if !createGit && ((f.Storage != "repo" && storage.Storage == "unknown") || (local && storage.Storage != "local")) {
 		if failure := storageFailure(storage); failure != nil {
 			return Outcome{}, failure
 		}
@@ -170,6 +177,20 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 		}
 	}
 	created := []string{}
+	// The repository is the first write, after every check that can refuse; a later failure removes it again.
+	if createGit {
+		var claimed repo.ClaimedGit
+		if claimed, failure = initGit(ctx, root); failure != nil {
+			return Outcome{}, failure
+		}
+		defer func() { failure = rollbackGit(claimed, failure) }()
+		created = append(created, ".git/")
+		if storage = repo.ReadStorage(root, ctx.Home); storage.Storage != "local" {
+			if failure := storageFailure(storage); failure != nil {
+				return Outcome{}, failure
+			}
+		}
+	}
 	if local {
 		changed, err := repo.WriteStorage(root, ctx.Home, "local")
 		if err != nil {

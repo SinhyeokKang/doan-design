@@ -55,7 +55,9 @@ export type ConfigWrite =
   | { root: string; op: "setTokenCss" | "addServe"; choiceId: string }
   | { root: string; op: "clearTokenCss" }
   | { root: string; op: "removeServe"; path: string }
-  | { root: string; op: "setStorage"; storage: "repo" | "local" };
+  | { root: string; op: "setStorage"; storage: "repo" | "local" }
+  // gitInit: the person confirmed creating the Git repository Keep out of Git needs outside Git.
+  | { root: string; op: "setStorage"; storage: "local"; gitInit: true };
 
 // Events with a current value: the value is asked for too, because the first
 // event can come before the listener. An event that arrives first wins.

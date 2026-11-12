@@ -17,6 +17,9 @@ func Config(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if (f.Given["storage"] || f.Storage != "") && (f.TokenCSSSet || f.ClearTokenCSS || len(f.AddServe) > 0 || len(f.RemoveServe) > 0) {
 		return Outcome{}, usageError("--storage cannot be combined with other config write flags")
 	}
+	if f.GitInit && f.Storage != "local" {
+		return Outcome{}, usageError("--git-init needs --storage local")
+	}
 	if len(args) != 0 {
 		return Outcome{}, usageError("config takes no positional arguments")
 	}
@@ -77,7 +80,7 @@ func Config(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	var storageResult map[string]any
 	if f.Given["storage"] || f.Storage != "" {
-		out, failure := configStorage(ctx, r.Root, f.Storage)
+		out, failure := configStorage(ctx, r.Root, f)
 		if failure != nil {
 			return Outcome{}, failure
 		}

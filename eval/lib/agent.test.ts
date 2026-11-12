@@ -13,6 +13,14 @@ test("agent commands match the documented invocations", () => {
   assert.deepEqual(agentCommand("codex", "P", ["figma", "doan"]), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "allow_login_shell=false", "-c", "mcp_servers.doan.enabled=false", "P"] });
 });
 
+// Codex 0.167 `exec` refuses to start outside a Git repository unless the directory is trusted,
+// and a run's fresh folder never is; Git workspaces keep the check.
+test("Codex skips its Git repository check only in a scenario folder outside Git", () => {
+  assert.deepEqual(agentCommand("codex", "P", [], false), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "--skip-git-repo-check", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "allow_login_shell=false", "P"] });
+  assert.ok(!agentCommand("codex", "P", [], true).args.includes("--skip-git-repo-check"));
+  assert.deepEqual(agentCommand("claude", "P", [], false), agentCommand("claude", "P"));
+});
+
 // Claude has --strict-mcp-config; Codex has no equivalent and merges `-c mcp_servers={}` into the
 // machine's servers, so a doan server left registered there is switched off by name. Codex 0.166
 // refuses to start when that override names a server the config does not define (the override

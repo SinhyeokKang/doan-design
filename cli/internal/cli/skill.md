@@ -60,7 +60,7 @@ All commands except `onboarding` accept `--repo <directory>`; all accept `--json
 
 JSON is one versioned envelope, stdout only: `{v:1,ok:true,result}` or `{v:1,ok:false,error:{code,message,nextSteps}}`. Absent keys are omitted; empty lists: `[]`.
 
-Exit codes: 0 success (including warnings); 1 internal failure; 2 usage/repository/configuration/version/canvas errors, `destination_exists` (export and onboarding), export `export_refused`, `export_too_large`, plus onboarding `invalid_url`, `path_unavailable`, `not_candidate`, `initialize_required`, `request_conflict`, `operation_not_found`, `inspection_stale`; 3 `app_not_running`, `app_protocol_mismatch`, `project_not_open`, `app_launch_failed`, `session_stale`; 4 check errors (`ok:true`); 5 refusals/failed operations (`busy`, `stop_required`, `no_ready_agent`, `cancelled`, `sign_in_failed`, `clone_failed`, `local_not_git`, `local_exclude_failed`). Read `error.nextSteps`. Doan does not commit or push.
+Exit codes: 0 success (including warnings); 1 internal failure; 2 usage/repository/configuration/version/canvas errors, `destination_exists` (export and onboarding), export `export_refused`, `export_too_large`, init/config `git_init_failed`, plus onboarding `invalid_url`, `path_unavailable`, `not_candidate`, `initialize_required`, `request_conflict`, `operation_not_found`, `inspection_stale`; 3 `app_not_running`, `app_protocol_mismatch`, `project_not_open`, `app_launch_failed`, `session_stale`; 4 check errors (`ok:true`); 5 refusals/failed operations (`busy`, `stop_required`, `no_ready_agent`, `cancelled`, `sign_in_failed`, `clone_failed`, `local_not_git`, `local_exclude_failed`, `git_missing`, init/config `cleanup_failed`). Read `error.nextSteps`. Doan does not commit or push.
 
 ## Design presets
 
@@ -76,7 +76,7 @@ Exit codes: 0 success (including warnings); 1 internal failure; 2 usage/reposito
 
 Doan app conversation instructions override these rules.
 
-Storage: `--storage repo` = "Include in Git"; `--storage local` = "Keep out of Git (this Mac only)". Use `init --storage local|repo`; plain init inherits local, else repo; repo on local refuses. Onboarding `project inspect`/`select`/`clone` accept it; reuse inspection mode (absent=repo). Change: `config --storage` alone. Local needs Git; it marks `.git/info/exclude` (label), not `.gitattributes`. Files stay per checkout; worktree removal/`git clean -x` can delete them. Share by Export. Tracked files stay tracked; see config's untracking guidance (deletes teammates' copies on pull).
+Storage: `--storage repo` = "Include in Git"; `--storage local` = "Keep out of Git (this Mac only)". Use `init --storage local|repo`; plain init inherits local, else repo; repo on local refuses. Onboarding `project inspect`/`select`/`clone` accept it; reuse inspection mode (absent=repo). Change: `config --storage` alone. Local needs Git: outside any repository, init/config refuse with `local_not_git`; ask the user, and only if they agree to a new repository there add `--git-init` (runs `git init` first; never at or above HOME). Local marks `.git/info/exclude` (label), not `.gitattributes`. Files stay per checkout; worktree removal/`git clean -x` can delete them. Share by Export. Tracked files stay tracked; see config's untracking guidance (deletes teammates' copies on pull).
 
 ## Onboarding
 

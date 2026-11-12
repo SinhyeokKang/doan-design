@@ -61,12 +61,12 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
     const prompt = `Evaluation setup: before doing the task, run\ncommand -v doan > ${quote(resolutionPath)}${scenario.shellCli ? "" : " || true"}\nfrom your shell without changing PATH. This records ${scenario.shellCli ? "the executable used for this run" : "that doan is absent from PATH (an empty file is expected)"}.\n\n` + renderPrompt(scenario.promptTemplate, ws.repo);
     writeFileSync(join(dir, "prompt.txt"), prompt);
-    const { cmd, args } = agentCommand(agent, prompt, agent === "codex" ? registeredCodexMcpServers(ws.env, ws.cwd) : []);
+    const { cmd, args } = agentCommand(agent, prompt, agent === "codex" ? registeredCodexMcpServers(ws.env, ws.cwd) : [], scenario.git);
     console.log(`start ${name} (${ws.cwd})`);
     const startedAt = new Date().toISOString();
     const proc = await runProcess({ cmd, args, cwd: ws.cwd, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });
     const evidence = readAgentTranscript(agent, dir, ws.env);
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, appWrites: ws.appWrites });
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, appWrites: ws.appWrites });
     const checks = await runChecks(scenario, ctx);
     checks.push(cliProvenance(resolutionPath, scenario.shellCli ? setup.cli : null));
     if (existsSync(resolutionPath)) cpSync(resolutionPath, join(dir, "resolved-doan.txt"));
@@ -133,7 +133,7 @@ export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, ki
     // `{{repo}}` as in the commands, so the transcript shows the paths that ran.
     const transcript = existsSync(transcriptFile) ? readFileSync(transcriptFile, "utf8").replace(/\{\{\s*repo\s*\}\}/g, ws.repo) : "";
     runCommands(join(scenario.dir, "fixtures", `${kind}.commands.json`));
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, cli: setup.cli, env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, appWrites: ws.appWrites });
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, cli: setup.cli, env, seedCommit: ws.seedCommit, gitDir: ws.gitDir, onboardingLog: ws.onboardingLog, workLog: ws.workLog, openLog: ws.openLog, handoffLog: ws.handoffLog, appWrites: ws.appWrites });
     const checks = await runChecks(scenario, ctx);
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     // A fixed fake judge still goes through prompt building and parsing.

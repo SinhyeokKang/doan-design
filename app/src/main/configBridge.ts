@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isAbsolute, join } from "node:path";
 import { validateEnvelope } from "../formats/validate";
+import type { CliEnv } from "./cli";
 import type { CliRun } from "./folderState";
 import { storageFacts, type StorageFacts } from "./storage";
 
@@ -8,21 +9,25 @@ import { storageFacts, type StorageFacts } from "./storage";
 // (ARCHITECTURE §7, Config bridge; POSTMORTEM 2026-10-22).
 
 export type ConfigKind = "tokenCss" | "serve";
-// storage/storageReason: where the worktree's Doan files are kept, absent from an older doan.
+// storage/storageReason: where the worktree's Doan files are kept, absent from an older doan. repositoryCreated: this
+// write created the project's Git repository (`written` names .git/).
 export type ConfigReply =
-  | ({ kind: "config"; root: string; tokenCss: string | null; serve: string[]; changed: boolean } & StorageFacts)
+  | ({ kind: "config"; root: string; tokenCss: string | null; serve: string[]; changed: boolean; repositoryCreated?: true } & StorageFacts)
   | { kind: "error"; message: string }
   | { kind: "unavailable" };
 export type ConfigChoice = { kind: "selected"; choiceId: string; path: string } | { kind: "cancelled" } | { kind: "unavailable" };
 
 export interface ConfigBridgeDeps {
-  // `doan config --json --repo <root> ...args`.
-  run(root: string, args: string[]): Promise<CliRun>;
+  // `doan config --json --repo <root> ...args`; env only for a run that may create the repository (`--git-init`).
+  run(root: string, args: string[], env?: CliEnv): Promise<CliRun>;
+  // The environment the CLI's git is found with (cli.ts CliEnv); it reads the login shell, which can take seconds.
+  gitEnv?(): Promise<CliEnv>;
   // The epoch of a stored, set-up root; null for anything else.
   epoch(root: string): number | null;
   // A sheet on the main window; null when cancelled.
   pick(root: string, kind: ConfigKind): Promise<string | null>;
-  // A mode write succeeded for root: it applies to every worktree of the project, so main reads them all again.
+  // A mode write succeeded for root: it applies to every worktree of the project, so main reads them all again. Also
+  // after a failed repository creation, which may have left a .git/ that makes the folder read as inside Git.
   storageWritten?(root: string): void;
 }
 
@@ -42,6 +47,13 @@ function isConfigResult(value: unknown): value is { serve: string[]; changed: bo
 }
 
 const UNEXPECTED = "doan config returned an unexpected result.";
+// Project Settings' sentences for a failed repository creation (`--git-init` only): the CLI's are written for agents,
+// and the page says what changed and names a .git it left behind (draft keep-out-git-init, frame project-settings).
+const REPOSITORY_FAILURES: Record<string, (root: string) => string> = {
+  git_missing: () => "Git isn’t installed, so Doan can’t create a repository here. Install the Command Line Tools with xcode-select --install, then choose Keep out of Git again.",
+  git_init_failed: () => "Couldn’t create a Git repository here, so nothing changed.",
+  cleanup_failed: root => `Couldn’t switch to Keep out of Git, and Doan couldn’t remove the Git repository it created at ${root}/.git. Remove it or keep it, then try again.`,
+};
 
 // The CLI's own message is what the human reads (nextSteps are for agents,
 // as with init, 2026-10-24).
@@ -52,11 +64,13 @@ export function configReply(root: string, run: CliRun): ConfigReply {
   let value: unknown;
   try { value = JSON.parse(run.stdout); } catch { return error(run.stderr.split(/\r?\n/, 1)[0] || UNEXPECTED); }
   if (!validateEnvelope(value)) return error(UNEXPECTED);
-  const envelope = value as { ok: true; result: unknown } | { ok: false; error: { message: string } };
-  if (!envelope.ok) return error(envelope.error.message);
+  const envelope = value as { ok: true; result: unknown } | { ok: false; error: { code: string; message: string } };
+  if (!envelope.ok) return error(REPOSITORY_FAILURES[envelope.error.code]?.(root) ?? envelope.error.message);
   if (run.exitCode !== 0 || !isConfigResult(envelope.result)) return error(UNEXPECTED);
   const { serve, changed, tokenCss } = envelope.result;
-  return { kind: "config", root, tokenCss: tokenCss ?? null, serve, changed, ...storageFacts(envelope.result) };
+  const written: unknown = Reflect.get(envelope.result, "written");
+  const created = Array.isArray(written) && written.includes(".git/");
+  return { kind: "config", root, tokenCss: tokenCss ?? null, serve, changed, ...(created ? { repositoryCreated: true as const } : {}), ...storageFacts(envelope.result) };
 }
 
 // A storage write made outside Project Settings (a clone's Keep out of Git), told apart by the CLI's code: a run that
@@ -90,10 +104,13 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
     const generation = session;
     const current = () => generation === session && deps.epoch(target) === epoch;
     const next = (queues.get(target) ?? Promise.resolve()).then(async (): Promise<ConfigReply> => {
+      // Read before the check below: the project may be removed or re-rooted while the login shell is read, and such a
+      // project must get no repository.
+      const env = args.includes("--git-init") ? await deps.gitEnv?.() : undefined;
       // The project may have been removed and re-added, or the dialog closed,
       // while this call waited behind a slower one.
       if (!current()) return { kind: "unavailable" };
-      const reply = configReply(target, await deps.run(target, args));
+      const reply = configReply(target, await (env === undefined ? deps.run(target, args) : deps.run(target, args, env)));
       if (generation !== session) return { kind: "unavailable" };
       if (reply.kind === "config" && current()) lastServe.set(target, reply.serve);
       return reply;
@@ -143,11 +160,14 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
         return call(target, [op === "setTokenCss" ? "--token-css" : "--add-serve", choice.path]);
       }
       if (op === "setStorage") {
-        const target = exact(value, ["root", "op", "storage"]) ? root(value) : null;
+        // gitInit: Project Settings' confirmation to create the repository, only ever true and only with local.
+        const gitInit = exact(value, ["root", "op", "storage", "gitInit"]);
+        const target = exact(value, ["root", "op", "storage"]) || gitInit ? root(value) : null;
         const storage = (value as Record<string, unknown>).storage;
         if (target === null || (storage !== "repo" && storage !== "local")) return unavailable;
-        return call(target, ["--storage", storage]).then(reply => {
-          if (reply.kind === "config") deps.storageWritten?.(target);
+        if (gitInit && (storage !== "local" || (value as Record<string, unknown>).gitInit !== true)) return unavailable;
+        return call(target, ["--storage", storage, ...(gitInit ? ["--git-init"] : [])]).then(reply => {
+          if (reply.kind === "config" || (gitInit && reply.kind === "error")) deps.storageWritten?.(target);
           return reply;
         });
       }

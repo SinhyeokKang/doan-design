@@ -135,8 +135,22 @@ export class ProjectStepSession {
 
   // A completion refused because no agent was ready no longer applies once one is (POSTMORTEM 2026-10-25).
   agentsReady(ready: boolean): void { if (ready && this.state.error?.code === "no_ready_agent") this.set({ error: null }); }
-  // The plan on screen may be for the other mode; Set up and Clone plan again for this one before they write.
-  setStorage(storage: OnboardingStorage): void { if (!this.busy()) this.set({ storage }); }
+  // The plan on screen may be for the other mode; Set up and Clone plan again for this one before they write. On the
+  // setup screen the plan is made again at once, so the git init line a plan outside Git brings follows the radio. It
+  // starts after the current task, so a Set up pressed in the same task plans again first; a plan that now adds .git/
+  // waits for another press. A plan that cannot be made keeps the setup screen, with the failure and Retry on it.
+  // true: the folder is planned again, which holds the radios meanwhile.
+  setStorage(storage: OnboardingStorage): boolean {
+    if (this.busy()) return false;
+    this.set({ storage });
+    const p = this.state.phase;
+    if (p.kind !== "setup" || keptLocal(p) || (p.storage ?? "repo") === storage) return false;
+    void Promise.resolve().then(() => this.act(async () => {
+      const now = this.state.phase;
+      if (now.kind === "setup" && now.inspectionId === p.inspectionId && (now.storage ?? "repo") !== this.storage()) await this.reinspect({ path: now.path }, now);
+    }));
+    return true;
+  }
   private storage(): OnboardingStorage { return this.state.storage ?? "repo"; }
   setUrl(url: string): void { this.set({ url, error: this.state.error?.code === "invalid_url" ? null : this.state.error }); }
   pickListed(path: string): void { this.set({ listChoice: path }); }
@@ -289,15 +303,16 @@ export class ProjectStepSession {
     if (candidates.length === 1 && first.changes.length > 0) this.set({ phase: { kind: "setup", inspectionId, url, path: first.path, changes: first.changes, ...(first.storage ? { storage: first.storage } : {}) }, error: null });
     else this.set({ phase: { kind: "candidates", inspectionId, url, candidates, choice: first.path }, error: null });
   }
-  private async reinspect(keep: { path?: string }): Promise<void> {
+  // failure: the screen a failed plan is shown on.
+  private async reinspect(keep: { path?: string }, failure: ProjectPhase = { kind: "choose" }): Promise<void> {
     const source = this.source;
     if (!source) return;
     const at = this.fence();
     const reply = await this.inspect(source);
     if (!this.current(at)) return;
-    if (!reply.ok) { this.failed(reply, { kind: "choose" }, () => this.reinspect(keep)); return; }
+    if (!reply.ok) { this.failed(reply, failure, () => this.reinspect(keep, failure)); return; }
     const inspection = reply.operation.inspection!;
-    if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, { kind: "choose" }, () => this.reinspect(keep)); return; }
+    if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, failure, () => this.reinspect(keep, failure)); return; }
     this.offer(inspection.inspectionId, "url" in source ? source.url : null, inspection.candidates, source);
     const p = this.state.phase;
     if (p.kind === "candidates" && keep.path && p.candidates.some(c => c.path === keep.path)) this.set({ phase: { ...p, choice: keep.path } });
@@ -326,6 +341,10 @@ export class ProjectStepSession {
       await this.reinspect({ path });
       const next = this.state.phase;
       const same = next.kind === "setup" ? next.path === path : next.kind === "candidates" && next.choice === path;
+      // The consent never covers a repository the screen did not show: the new plan stays on screen, with its git init
+      // line, for another press.
+      const planned = next.kind === "setup" ? next.changes : next.kind === "candidates" ? next.candidates.find(c => c.path === path)?.changes ?? [] : [];
+      if (planned.includes(".git/") && !changes.includes(".git/")) return;
       if ((next.kind === "setup" || next.kind === "candidates") && same) { this.consent = { inspectionId: next.inspectionId, path }; await this.runSelect(true); }
       return;
     }
@@ -339,7 +358,18 @@ export class ProjectStepSession {
     const done = await this.settled(reply.operation);
     if (!this.current(at)) return;
     if (done.state === "succeeded" && done.project) { this.consent = null; this.registered(done.project.root); }
+    else if (changes.includes(".git/")) await this.rereadAfter(this.error(done, "project_unavailable"), back, path, changes);
     else this.failed(this.error(done, "project_unavailable"), back, () => { this.set({ phase: back }); return this.runSelect(); });
+  }
+  // A setup that was to create a repository failed: a .git it left behind makes the folder a repository, so the folder
+  // is planned again and the git init line goes, while the failure stays on screen. Retry sets up the new plan; the
+  // consent carries over only when that plan adds nothing the screen did not show.
+  private async rereadAfter(failure: Reply & { ok: false }, back: ProjectPhase, path: string, shown: readonly OnboardingChange[]): Promise<void> {
+    await this.reinspect({ path });
+    const next = this.state.phase;
+    if (next.kind !== "setup" || next.path !== path) { this.failed(failure, back, () => { this.set({ phase: back }); return this.runSelect(); }); return; }
+    if (next.changes.every(change => shown.includes(change))) this.consent = { inspectionId: next.inspectionId, path };
+    this.failed(failure, next, () => { this.set({ phase: next }); return this.runSelect(); });
   }
 
   private async planClone(url: string, destination: string, at: number): Promise<void> {

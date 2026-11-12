@@ -145,7 +145,7 @@ describe("the page's session", () => {
     const newer = inspectionId(await p.ask("inspect", { path: "/work/studio" }));
     expect(refusal(await p.ask("select", { inspectionId: older, path: "/work/studio", initialize: true }))).toBe("inspection_stale");
     expect(operation(await p.ask("select", { inspectionId: newer, path: "/work/studio", initialize: true }))).toMatchObject({ state: "succeeded", project: { root: "/work/studio" } });
-    expect(projects.select).toHaveBeenCalledExactlyOnceWith("/work/studio", true, null, null);
+    expect(projects.select).toHaveBeenCalledExactlyOnceWith("/work/studio", true, null, null, false);
     expect(p.session.state().project).toEqual({ root: "/work/studio" });
   });
 
@@ -398,6 +398,7 @@ function real(registered: string[] = [], init: (root: string) => ProjectInitResu
     remotes: vi.fn((r: string) => readGitRemotes(r, temp())),
     keepsLocal: vi.fn((_path: string) => false),
     keepLocal: vi.fn(async (_root: string): Promise<{ ok: true } | { ok: false; code: string }> => ({ ok: true })),
+    home: () => "/Users/nobody-here",
   } satisfies ProjectDeps;
   const projects: AdderProjects = {
     folder: canonicalFolder, destination: path => cloneDestination(path, deps), present: leftoverPresent,
