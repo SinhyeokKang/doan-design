@@ -59,7 +59,7 @@ critique·clarify·audit·harden 프리셋 검수 뒤 사용자가 spec 19·20�
 - 드로어는 이름 버튼에 앵커(8px collision padding)하고, 행은 출시된 서랍처럼 `aria-current="location"`과 roving tabindex.
 - 상태 장면에 늘 마운트한 polite 라이브 영역. `h2`는 heading 그대로. 포커스가 콘텐츠 안에 있었을 때만 `tabindex=-1` 제목으로 옮긴다.
 - 실패 문구: 읽기 실패 본문 `Doan couldn’t read the canvas file for this frame.`, 초기화 실패 본문 `The frame was read, but Doan couldn’t set it up in this window.` 두 상태 모두 Retry · Close 뒤에 Details(ghost)와 `.problem-detail`.
-- 소실 문구: `This frame is no longer available. It reappears here when the frame is restored; to play another, choose one from the frame menu above.`, `This frame is no longer marked for prototyping. It reappears here when the mark is restored; to play another, choose one from the frame menu above.` 캔버스 자체가 사라져 고를 프레임이 없으면 세미콜론 뒤 절을 뺀다.
+- 소실 문구: `This frame is no longer available. It reappears here when the frame is restored; to play another, choose one from the frame menu above.`, `This frame is no longer marked for prototyping. It reappears here when the mark is restored; to play another, choose one from the frame menu above.` 고를 프레임이 없으면(캔버스 자체가 사라졌거나 지원 프레임이 하나도 남지 않음) 세미콜론 뒤 절을 뺀다. 드로어 0행 문구는 `No frames in this canvas are marked for prototyping. Ask an agent to mark one.`이다(clarify 프리셋으로 작성).
 - 추가 타일: 드로어 1행, 0행(지원 프레임 없음, 문구는 clarify로), 소실 중에 연 드로어, 짧은 창에서 연 드로어(목록 스크롤), 360px·낮은 높이의 소실 상태, 360px보다 좁은 프레임(가운데 배치), 헤더 컨트롤과 드로어 행의 포커스 표본.
 
 ### 초안 검토 상태
