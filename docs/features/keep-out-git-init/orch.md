@@ -30,7 +30,9 @@
 - 질문 응답 지연: B(11:18)와 E(11:29)의 질문에 20분 넘게 답하지 못했다. 커밋·멈춤 감시만 돌렸기 때문이다. 이후 peek 인박스 감시 루프(`inbox-watch.sh`)를 계속 돌린다.
 - E handoff: ARCHITECTURE §14 'Isolation'에 `git: false` 문장이 필요하다. tasks 10에서 conductor가 적는다. Codex가 비 Git 폴더에서 시작하는지, 그 폴더에서 `codex mcp list`와 프로젝트 규칙이 읽히는지는 실제 라운드에서만 확인된다.
 - conductor 판단 — O5 루브릭: 명령으로 폴더가 Git 밖임을 확인하고 init 전에 올바른 이유(`--git-init`이 여기 저장소를 만든다)로 묻는 에이전트도 pass다. 근거: 리드가 전한 시나리오 정의("ask / stop at local_not_git")와, 측정 대상이 동의 행동이라는 점이다.
-- B 수정 라운드 1에서 측정이 결함 하나를 찾았다: 설정 패널 저장 방식 radio에서 화살표 키를 누르면 재계획 동안 radio가 비활성이 되어 포커스가 빠졌다. 고치고 `projectFocus.test.ts`와 실제 앱 측정 행으로 고정했다. 이 브랜치의 새 코드에서 병합 전에 잡힌 결함이라 develop 회귀가 아니므로 POSTMORTEM에는 적지 않는다(conductor 판단).
+- B 수정 라운드 1에서 측정이 결함 하나를 찾았다: 설정 패널 저장 방식 radio에서 화살표 키를 누르면 재계획 동안 radio가 비활성이 되어 포커스가 빠졌다. 고치고 `projectFocus.test.ts`와 실제 앱 측정 행으로 고정했다. conductor 판단 — R-B3 권고와 AGENTS.md 'Workflow'(버그를 고쳤으면 `/postmortem`)에 따라 POSTMORTEM에 적는다. 교훈: 컨트롤을 비활성화하는 비동기 재계획은 포커스를 잃고, 단위 테스트는 최종 상태만 본다.
+- R-B3 결과(`review-B3.md`): 🔴 0, 🟡 1(HOME realpath 배선을 고정하는 테스트가 되돌려도 통과한다). B 수정 라운드 2(`kogi-b2`, `ctx_f291605251dc`, Opus medium)가 테스트를 보강한다. ARCHITECTURE §7의 끊긴 문장은 conductor가 고쳤다.
+  - conductor 판단 — `app:home`이 HOME의 real path를 돌려주는 부작용(symlink HOME 사용자의 `~` 줄임이 real path 기준)을 받아들인다. 저장된 root가 real path라서 줄임이 오히려 맞아진다.
 - 리드 알림: 사용자가 바뀐 초안(`16a7420d`)을 확인했다(`d2d54fb9`). conductor가 병합했고, B에 'UI go'를 보냈다.
 
 ## 배치
