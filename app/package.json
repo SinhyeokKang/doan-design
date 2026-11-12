@@ -44,7 +44,7 @@
     "vite": "8.3.4",
     "vitest": "5.0.5"
   },
-  "version": "0.1.6",
+  "version": "0.1.7",
   "productName": "Doan",
   "build": {
     "protocols": [{ "name": "Doan canvas", "schemes": ["doan"] }],
