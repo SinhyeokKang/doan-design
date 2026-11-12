@@ -55,3 +55,36 @@ test("a storage radio that plans the folder again gets focus back once the plan 
   busy = true; render(); busy = false; render();
   expect(doc.activeElement).toBe(other);
 });
+
+// A failed re-plan keeps the setup screen with its error; focus goes back to the radio, which the person was on, while
+// the alert is announced by its role.
+test("a storage radio whose re-plan fails gets focus back, not the error", () => {
+  const radio = new Element(), heading = new Element(), alert = new Element();
+  let busy = false;
+  const session = { state: { phase: { kind: "setup" }, error: null as { code: string } | null }, busy: () => busy, picking: () => false };
+  const scope = { current: { querySelector: (selector: string) => selector.includes('role="alert"') ? alert : null } };
+  const render = () => { hooks.cursor = 0; return useProjectFocus(session as never, scope as never, { current: heading } as never, () => true, true); };
+  doc.activeElement = radio;
+  render().keepFocus(() => true);
+  busy = true; radio.disabled = true; doc.activeElement = doc.body;
+  render();
+  busy = false; radio.disabled = false; session.state = { ...session.state, error: { code: "project_unavailable" } };
+  render();
+  expect(doc.activeElement).toBe(radio);
+  expect(alert.focused).toBe(0);
+});
+
+// A radio changed with nothing focused leaves <body> active; the hook never hands focus back to <body>.
+test("a re-plan started with nothing focused does not restore focus to <body>", () => {
+  const heading = new Element();
+  let busy = false;
+  const session = { state: { phase: { kind: "setup" }, error: null }, busy: () => busy, picking: () => false };
+  const scope = { current: { querySelector: () => null } };
+  const render = () => { hooks.cursor = 0; return useProjectFocus(session as never, scope as never, { current: heading } as never, () => true, true); };
+  const { keepFocus } = render();
+  doc.activeElement = doc.body;
+  keepFocus(() => true);
+  busy = true; render(); busy = false; render();
+  expect(doc.body.focused).toBe(0);
+  expect(doc.activeElement).toBe(heading);
+});

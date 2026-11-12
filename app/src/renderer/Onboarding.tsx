@@ -449,10 +449,11 @@ export function useProjectFocus(session: ProjectStepSession, scope: RefObject<Sc
       open();
     },
     // A radio whose change plans the folder again gets focus back once the plan is made: the plan disables the radios
-    // meanwhile, which drops focus, and an arrow key would otherwise leave the person on the heading.
+    // meanwhile, which drops focus, and an arrow key would otherwise leave the person on the heading. A change made with
+    // nothing focused (a screen reader's virtual cursor) leaves <body> active, which is not a place to restore.
     keepFocus: (change: () => boolean) => {
       const node = document.activeElement;
-      if (change() && node instanceof HTMLElement) picker.current = { node, phase: session.state.phase.kind };
+      if (change() && node instanceof HTMLElement && node !== document.body) picker.current = { node, phase: session.state.phase.kind };
     },
   };
 }
