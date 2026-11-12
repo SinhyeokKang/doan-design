@@ -13,6 +13,12 @@
 - conductor 판단 — PR #167 인계: 대화 패널에 거는 `contain`·`content-visibility`는 입력창 위 88px 버디 창과 툴바 위 버디를 자르지 않아야 한다. B 배치의 픽셀 비교 항목에 넣는다.
 - conductor 판단 — chain.md 링크 1 인계: 마커와 그라디언트 레이어는 부모 overlay에 둔다(iframe 안은 16384 device px 경계). 2W×2H 그라디언트는 2W×DPR 96000 device px까지 크기 탈락이 없었으나, 큰 면적에서 1–4프레임 덜 그려진 변형이 있었으므로 B 배치는 큰 확대에서 이것을 drift로 보고 design의 대안(보이는 영역으로 자르기)을 먼저 검토한다.
 - 사용자 결정(lead 경유): probe는 되도록 백그라운드로 돌린다. 격리 앱 창은 포커스를 가져가지 않고(`showInactive`, `app.focus` 없음) 사용자 창 뒤나 작업 영역 밖에 두며, 실행 중 앞으로 올리지 않는다. 가려진 창도 렌더하도록 `--disable-backgrounding-occluded-windows`, `--disable-renderer-backgrounding`, `--disable-background-timer-throttling`으로 띄운다. 백그라운드 수치를 믿기 전에 잠깐 보이는 창과 그린 프레임/s·측정값이 같은지 한 번 확인하고 PR 본문에 남긴다. 스크린샷과 녹화는 `webContents.capturePage`·CDP로 한다. 창이 앞에 있어야 하는 측정은 사용자에게 먼저 묻고 짧게 한다. 모든 브리프에 `briefs/background-probe.md`로 넣는다.
+- 사용자 결정: P의 visible-check를 바로 돌린다. 격리 앱 창이 약 2분 동안 작업 영역 왼쪽 위에 보이고, 포커스는 가져가지 않는다.
+- conductor 판단 — 실제 사용자 상태 점검의 예외(P 질문): 아래 예외 밖의 키는 모두 엄격하게 본다.
+  - `~/.gemini/antigravity-cli`: 같은 실행에 probe 임시 경로가 없는 새 `log/cli-*.log`가 생겼을 때만, 그 디렉터리 메타데이터와 `cache/`·`crashes/`의 변경을 허용한다. 근거는 PR #167이 본 같은 외부 쓰기다.
+  - 실제 userData의 `ui-state.json`·`conversations`·`agent-auth`: probe의 자식이 아닌 Doan 프로세스가 도는 동안에만 변경을 허용한다. 그 프로세스의 pid와 시작 시각을 기록한다.
+  - probe는 매 실행마다 userData·HOME·DOAN_RUNTIME이 임시 디렉터리 아래인지, PATH가 제한됐는지 기록한다. 사용자에게 Doan 종료를 요청하지 않는다.
+- 기록: Electron 45에는 `webContents.incrementCapturerCount`가 없다(TypeError). 그래서 P는 픽셀 모드를 앱의 `--doan-launch=background`(숨긴 창, 포커스 없음)로 띄우고, probe 안에서 `window:visible` 응답을 대체했다. 이때 rAF는 60/s로 돈다. 규칙이 시행되기 전(10:45 전)의 짧은 실행 약 10회는 창을 보이고 포커스를 가져갔다.
 - conductor 판단 — tasks 3: 링크 1(`frame-first-selection`)의 재로드 회귀 테스트는 `CanvasController.test.ts` 'working-frame marker' › "stays on its frame through repeated reloads without hiding or restarting, and lands on the new layout without the slide"이다(`8286c893`).
 - conductor 판단 — 측정 간섭: 성능 수치(P, M)는 다른 워커의 빌드·테스트가 돌지 않을 때만 잰다. 구현 배치 A·B·C는 병렬로 돌리되, GUI probe는 conductor가 한 번에 하나씩 허락한다. 픽셀 비교는 애니메이션 시점을 고정하므로 부하에 영향받지 않는다.
 
