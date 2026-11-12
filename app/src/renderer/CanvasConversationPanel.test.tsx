@@ -385,12 +385,14 @@ test("in a handoff's judging window the composer offers a disabled Send, not Sto
   expect(slot(queued)).not.toContain("disabled");
 });
 
-// The docked buddy steps aside for the suggestions and a waiting request, and leaves a card that takes no input.
-test("the panel's composer tells the docked buddy about suggestions, a waiting request and a card that takes no input", async () => {
+// The docked buddy steps aside for a waiting request and leaves a card that takes no input; suggestions leave room for it.
+test("the panel's composer tells the docked buddy about a waiting request and a card that takes no input, not about suggestions", async () => {
   const slot = (html: string) => /<div class="docked-buddy-slot"[^>]*>/.exec(html)![0];
   const presets = (["critique", "polish"] as const).map(id => ({ id, title: id, description: `About ${id}.`, scope: `${id} scope`, group: "review" }));
   const support = Object.assign(new DockedSupport(() => {}), { auth: { revision: 1, providers: [connected("claude")] }, presets: { v: 1 as const, ok: true as const, result: { version: "1", presets } } });
-  expect(slot(await panel([], () => {}, { support }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-prompts="">');
+  const fresh = await panel([], () => {}, { support });
+  expect(fresh).toContain('aria-label="Suggested prompts"');
+  expect(slot(fresh)).toBe('<div class="docked-buddy-slot" aria-hidden="true">');
   expect(slot(await panel([summary("now")], () => {}))).toBe('<div class="docked-buddy-slot" aria-hidden="true">');
   expect(slot(await panel([summary("now", { phase: "waiting" })], () => {}))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-waiting="">');
   expect(slot(await panel([summary("now")], () => {}, { blocked: "This canvas isn’t listed in acme-web, so its conversation can’t continue." }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-accepts="false">');

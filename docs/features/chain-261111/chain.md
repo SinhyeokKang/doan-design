@@ -135,3 +135,4 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
     - 대화 패널에 `contain`·`content-visibility`를 걸면 입력창 위 88px 클립 창과 툴바 위 버디가 잘리면 안 된다.
 - 2026-11-12 lead: 링크 3을 `4dbc7cc7`에서 시작했다. worktree는 `work-indicator-perf-orch`, 브랜치는 `feat/work-indicator-perf`, conductor는 Claude다. 브리프에 두 인계, 최적화 목표와 LOD 결정, `.scratch/flicker/probe3.mts` 재작성, 측정 전 `caffeinate`, 반복 측정과 load average 기록을 넣었다. 사용자는 링크 3에 Energy Impact 비교를 더하지 않기로 했다.
 - 2026-11-12 lead: 사용자 결정. 링크 3 probe는 가능한 한 백그라운드에서 돈다. 격리 앱 창은 사용자가 쓰는 앱을 덮거나 포커스를 가져가면 안 된다. 창을 포커스 없이 뒤쪽에 띄우고, occlusion 때문에 렌더가 멈추지 않게 Chromium 플래그를 쓰며, 앞에 띄운 창과 지표가 같은지 한 번 확인한다. 스크린숏은 `capturePage`나 CDP로 찍는다. 앞에 띄워야 하는 측정은 사용자에게 먼저 묻는다. conductor에게 전달했다.
+- 2026-11-12 lead: 사용자 승인. 링크 3 실제 사용자 상태 점검에서 `~/.gemini/antigravity-cli`의 변경을 예외로 본다. 조건: probe의 `PATH`에서 `agy`를 찾을 수 없고, 바뀐 것이 probe 경로가 없는 새 `log/cli-*.log`일 때만이다. Antigravity가 probe와 상관없이 몇 분마다 로그를 쓴다.

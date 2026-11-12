@@ -132,15 +132,20 @@ describe("save", () => {
   test("a write already started does not rename over a later flushSync", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const path = file();
+    // The temp file appears at open, before the write finishes, so the test waits on a flag
+    // set after the write; and the gate exists up front, so release() never hits a no-op.
     let release = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let written = false;
     const fs: UiStateFs = {
-      async writeFile(temp, text) { await writeFile(temp, text, { flag: "wx" }); await new Promise<void>((resolve) => { release = resolve; }); },
+      async writeFile(temp, text) { await writeFile(temp, text, { flag: "wx" }); written = true; await gate; },
       renameSync,
     };
     const store = createUiStateStore(path, saved, UI_STATE_DELAY_MS, fs);
     store.save(workspace(".doan/canvases/a.html"));
     vi.advanceTimersByTime(UI_STATE_DELAY_MS);
-    await vi.waitFor(() => expect(readdirSync(join(path, ".."))).toHaveLength(1));
+    await vi.waitFor(() => expect(written).toBe(true));
+    expect(readdirSync(join(path, ".."))).toHaveLength(1);
     store.save(workspace(".doan/canvases/b.html"));
     store.flushSync();
     release();

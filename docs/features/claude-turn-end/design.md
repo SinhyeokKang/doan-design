@@ -53,7 +53,7 @@
 - `ended()`가 큐 때문에 `holding`을 세울 때도 같은 정리를 부른다. 턴 끝에 나가는 큐는 다음 send다.
 - `OwnedGroup`에 즉시 SIGKILL 경로(`kill()`)를 더한다. 이미 `stop()`이 진행 중이라 `stopping`이 캐시되어 있어도 SIGKILL을 보낸다. Stop, 앱 종료, 실패 경로의 SIGTERM → 500ms → SIGKILL은 그대로다.
 - 그룹 소멸 관찰은 child `exit` 직후 바로 확인하는 지금 경로를 유지한다. 예약 해제는 그룹 소멸 관찰에만 묶는다(POSTMORTEM 2026-10-27).
-- PoC 1b에서 확인할 것: SIGTERM을 무시하는 이유(제안 API 호출을 끝까지 기다리는지), 즉시 SIGKILL 뒤 세션 JSONL 마지막 줄이 온전하고 다음 resume이 정상인지(10회 반복). 참고로 SIGINT의 종료 시간도 함께 잰다. 앱의 `settingSources`와 MCP 아래에서도 원인이 같은지는 tasks 8에서 다시 본다.
+- PoC 1b에서 확인할 것: SIGTERM을 무시하는 이유(제안 API 호출을 끝까지 기다리는지), 즉시 SIGKILL 뒤 세션 JSONL 마지막 줄이 온전하고 다음 resume이 정상인지(10회 반복). 참고로 SIGINT의 종료 시간도 함께 잰다. 앱의 `settingSources`와 MCP 아래에서도 원인이 같은지는 tasks 9에서 다시 본다.
 
 ## 3. 턴의 프롬프트 읽힘 (결함 2)
 
@@ -61,7 +61,7 @@
 
 - 근거: SDK 0.3.312 `sdk.d.ts`의 `user_message_uuid(s)` 설명. meta 턴의 프레임은 클라이언트 uuid를 싣지 않고, 사람 메시지가 접혀 들어가면 그 uuid가 echo된다. 이전 Send now PoC(`.scratch/queue-send-now/claude.mjs`, 2.1.317)에서 첫 프롬프트에 uuid를 주면 result의 `user_message_uuids`에 그 uuid가 있었다.
 - 동작: 턴의 프롬프트에도 uuid를 붙여 보낸다. transport state가 그 uuid를 "이 턴의 프롬프트"로 기억한다(`promptTransport`). steer와 같은 읽힘 규칙을 쓴다. success result는 프롬프트가 읽힌 뒤에만 종료가 된다. 읽히기 전의 success result는 steer의 `awaitingRead`처럼 다루어 같은 `STEER_READ_WAIT_MS` 상한 안에서 기다린다.
-- 프롬프트가 읽히기 전에 온 프레임(meta 턴의 답, 도구 activity)은 이 턴의 이벤트로 나간다. 숨기면 프로세스가 보이지 않게 일하게 된다. 사람의 답보다 meta 턴의 답이 먼저 보여 헷갈리는지는 tasks 8에서 관찰한다.
+- 프롬프트가 읽히기 전에 온 프레임(meta 턴의 답, 도구 activity)은 이 턴의 이벤트로 나간다. 숨기면 프로세스가 보이지 않게 일하게 된다. 사람의 답보다 meta 턴의 답이 먼저 보여 헷갈리는지는 tasks 9에서 관찰한다.
 - 상한이 지나도 프롬프트가 읽히지 않으면, 그룹을 멈추고 턴을 실패로 끝낸다. 스레드는 "Claude Code didn’t pick up your message. Send it again."을 보인다. 그 메시지는 이미 `user.message`로 스레드에 있고, 큐로 돌아가지 않는다. 실패는 새 `turn.failed` 코드 `prompt_unread`로 기록한다(사용자 결정, '형식 변경').
 - 프롬프트가 읽히지 않은 채 failed나 aborted result가 오면 지금처럼 즉시 종료하고, 그룹을 멈춘다(CLI가 그 프롬프트를 뒤에 몰래 처리하지 않게).
 - `doneTurn`과 usage 읽기 조건(`runners.ts`)에 "프롬프트 읽힘"을 더한다. 프롬프트를 읽지 않은 턴의 done은 없다.
@@ -119,7 +119,7 @@
 
 - 경로: `.doan/canvases/claude-turn-end.html`, 캔버스 id `claude-turn-end`.
 - 프레임: `background-line`(캔버스 패널 347의 줄 상태와 실패 토스트), `background-widths`(Overview 720과 패널 280), `prompt-unread`(결함 2의 실패 문구: 스레드와 Home strip), `copy`(문구와 스크린리더). `/design-sync`는 앞의 셋을 비교한다.
-- 초안 헤더의 선택 0–5(캔버스와 프레임 구성, 줄 형태와 아이콘, Stopping 표시와 접근 가능한 이름, 실패 문구 나누기, Home strip 문구, light only)는 사용자 확인을 기다린다. 답은 아직 없다.
+- 사용자가 초안을 확정했다. 초안 헤더의 선택 0–6을 그린 대로 따른다: 캔버스와 프레임 구성, 줄 형태와 아이콘, Stopping 표시와 접근 가능한 이름, 실패 문구 나누기, Home strip 문구, light only, 노티스 버튼 세로 가운데(공통 규칙, tasks 8).
 
 ## 영향 받는 구성요소
 
@@ -174,5 +174,5 @@ PoC는 설치된 CLI의 기존 로그인으로 돌린다. 임시 cwd와 `setting
 
 ## 실제 앱 확인의 로그인
 
-PoC와 달리 실제 앱 확인(tasks 8)은 Doan Claude 연결이 필요하다. 격리 userData·HOME의 패키지 앱에서 사용자가 Doan Claude 연결에 한 번 로그인한다(사용자 결정).
+PoC와 달리 실제 앱 확인(tasks 9)은 Doan Claude 연결이 필요하다. 격리 userData·HOME의 패키지 앱에서 사용자가 Doan Claude 연결에 한 번 로그인한다(사용자 결정).
 

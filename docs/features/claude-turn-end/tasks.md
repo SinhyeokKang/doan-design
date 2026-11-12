@@ -20,7 +20,7 @@
      - 작업 종료 뒤 CLI가 스스로 모델을 부르는데, 집합이 비는 프레임과 첫 모델 요청 사이가 너무 짧아 막을 수 없음.
    - 확인: `node .scratch/claude-turn-end/<scenario>.mjs`가 로그를 남기고, 'PoC 결과'의 각 수치가 로그와 맞는다. 실제 상태 비교가 위 기준을 통과한다.
    - 커밋 경계: 문서만(이 파일의 'PoC 결과', design.md의 `PROMOTION_SETTLE_MS` 값과 기록 필드). fixture는 3번 커밋에 넣는다.
-2. [ ] **초안 (`/design-draft`).** 백그라운드 작업 줄(문구, Stop의 평소·누름·실패 상태, 실패 토스트, 라이트·다크, Overview와 캔버스 패널)과 결함 2의 실패 문구를 `.doan/canvases/`에 그린다.
+2. [x] **초안 (`/design-draft`).** 백그라운드 작업 줄(문구, Stop의 평소·누름·실패 상태, 실패 토스트, 라이트·다크, Overview와 캔버스 패널)과 결함 2의 실패 문구를 `.doan/canvases/`에 그린다.
    - 확인: `doan check`·`doan ls`가 통과하고, 사용자가 앱에서 초안을 확인했다.
 3. [ ] **테스트 먼저 (`/tdd`).** red를 확인한다.
    - 순수 함수: `promotionDeadline`, `promptTransport`와 `normalizeClaude`의 프롬프트 읽힘 규칙, `readInTranscript`(두 버전의 fixture), `backgroundTasks`(`local_agent` 포함, `ambient` 제외), `afterTurnCleanup`, `backgroundLine`(design.md '순수 함수').
@@ -47,7 +47,23 @@
 7. [ ] **스레드 UI.** 백그라운드 줄과 Stop, 실패 문구, `stopping`의 표시줄 숨김, `homeRun.ts` 창을 Overview와 캔버스 패널에 반영한다. 첫 구현이므로 `/design-sync`로 2번 초안과 맞춘다.
    - 확인: `npm --prefix app test` 녹색, `node .scratch/design-sync/<screen>/measure.mjs` 측정 통과.
    - 커밋 경계.
-8. [ ] **실제 앱 확인 (`/runtime-test`).** 패키지 앱(`npm --prefix app run package`)을 격리 조건(임시 userData·HOME·SHELL·`CLAUDE_CONFIG_DIR`)으로 띄우고, 사용자가 그 앱에서 Doan Claude 연결에 한 번 로그인한 뒤(사용자 참여 필요), 각 결함을 `turn.done` 순간에 보내는 짧은 probe로 확인한다.
+8. [ ] **노티스 버튼 세로 가운데 (공통 규칙).** 초안 선택 6. 이 기능만이 아니라 모든 노티스에 적용한다.
+   - 대상: `app/src/renderer/ds/surfaces.css`의 `.doan-notice > :is(.doan-button, :has(> .doan-button))` 규칙.
+     - `align-self: flex-start`를 `center`로 바꾼다. 음수 `margin-block`은 그대로 둔다. 그래야 한 줄 노티스의 높이가 그대로다.
+     - 아이콘 자리(`.doan-alert-icon`, 스피너, strip의 상태 표시)는 첫 줄에 그대로 둔다.
+     - 스레드 노티스는 바꾸지 않는다. 버튼이 텍스트 아래 자기 줄에 있기 때문이다(`.thread-notice > .strip-actions`).
+     - 위 규칙 바로 앞의 주석을 새 규칙에 맞게 고친다.
+   - 테스트: `ds/controls.test.ts`의 규칙 문자열을 바꾼다.
+   - 캔버스 정리: `.doan/canvases/claude-turn-end.html`의 임시 override 줄을 지운다.
+   - 문서: 다음 세 곳의 "첫 줄" 설명을 바꾼다.
+     - `.doan/ds/notice.html`의 설명과 'sm action on the first line' 라벨.
+     - DESIGN.md 'Notices'.
+     - DESIGN.md 'Conversation strip'의 "sm actions on the first line".
+   - 확인:
+     - `npm --prefix app test`가 녹색이다.
+     - 실제 앱 짧은 probe로 두 가지를 잰다. 하나는 두 줄 Home strip(권한 요청 또는 실패)이다. 버튼이 노티스 세로 가운데에 있고, 아이콘은 첫 줄에 있어야 한다. 다른 하나는 버튼이 있는 한 줄 노티스다. 높이가 44 px 그대로여야 한다.
+   - 커밋 경계.
+9. [ ] **실제 앱 확인 (`/runtime-test`).** 패키지 앱(`npm --prefix app run package`)을 격리 조건(임시 userData·HOME·SHELL·`CLAUDE_CONFIG_DIR`)으로 띄우고, 사용자가 그 앱에서 Doan Claude 연결에 한 번 로그인한 뒤(사용자 참여 필요), 각 결함을 `turn.done` 순간에 보내는 짧은 probe로 확인한다.
    - 프로젝트 대화: 파일 변경 없는 턴과 새 캔버스를 만든 턴 각각, send에서 다음 턴 시작까지 시간. 새 캔버스 턴은 승격된다.
    - 캔버스 대화: send에서 다음 턴 시작까지의 중앙값이 PoC 1b의 "SIGKILL 뒤 그룹이 사라지기까지" + 100ms 이하. 그 뒤 resume 정상. 앱의 `settingSources`와 MCP 아래에서도 SIGTERM을 무시하는 원인이 PoC와 같은지 본다.
    - 백그라운드 작업 세션: 2턴이 프롬프트의 답에서 끝나고 그 답이 보인다. meta 턴의 답이 사람의 답보다 먼저 보여 헷갈리는지 관찰해 적는다.
@@ -56,7 +72,7 @@
    - 결함 3의 늦은 읽힘은 실제 CLI로 만들 수 없으므로 가짜 CLI 테스트로만 확인했다고 남긴다. ACP의 판정 시점은 측정하지 않았다고 남긴다.
    - 실제 상태 비교 위치: `~/Library/Application Support/doan/`, `~/.claude/`, `~/.local/bin/doan`.
    - 확인: probe 로그의 수치가 spec.md 완료 조건 1–5를 만족하고, 실제 상태 비교를 통과한다.
-9. [ ] **승격과 삭제.**
+10. [ ] **승격과 삭제.**
    - PRODUCT §5 item 1 'Project conversations': 판정 시점(그룹 소멸 뒤 정착 시간, 10초 상한, Claude·ACP, handoff 포함), 새 캔버스를 여는 창이 판정에서 닫힘. 두 턴이 겹칠 때의 규칙은 그대로.
    - PRODUCT §5 'Send now': 기록에 있는 steer는 그 턴에 남음.
    - PRODUCT §5 'Turn indicator': "No … "still working" line"을 실행 중인 턴으로 좁히고, 백그라운드 줄을 별도 항목으로 둔다(문구, Stop과 그 상태, 사라지는 때, 턴 끝의 큐도 다음 send, 다른 곳에서는 실행 중이 아님, 로그아웃·Restart to Update·프로젝트 Remove·archive·삭제·앱 종료에서 묻지 않고 멈춤, 사람의 메시지 없는 모델 요청 막기, 재시작 뒤 없음).

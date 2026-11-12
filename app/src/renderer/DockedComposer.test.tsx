@@ -342,9 +342,8 @@ test("the card carries the docked buddy's slot, decorative and out of the tab or
   // The slot is the card's first child, ahead of the chips and the field.
   expect(render()).toContain('<div class="composer-card"><div class="docked-buddy-slot"');
   expect(slotTag(render({ queued: [{ id: "q1", text: "Next" }] }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-queue=""></div>');
-  expect(slotTag(render({ stepAside: { prompts: true, waiting: false, notice: false } }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-prompts=""></div>');
-  expect(slotTag(render({ stepAside: { prompts: false, waiting: true, notice: false } }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-waiting=""></div>');
-  expect(slotTag(render({ stepAside: { prompts: false, waiting: false, notice: true } }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-notice=""></div>');
+  expect(slotTag(render({ stepAside: { waiting: true, notice: false } }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-waiting=""></div>');
+  expect(slotTag(render({ stepAside: { waiting: false, notice: true } }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-notice=""></div>');
   // A card that takes no input (a canvas outside the list or sharing its ID); a reason alone does not lock it.
   expect(slotTag(render({ unavailable: "This page is not a listed canvas.", locked: true }))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-accepts="false"></div>');
   expect(slotTag(render({ unavailable: "Waiting for the project" }))).toBe('<div class="docked-buddy-slot" aria-hidden="true"></div>');
