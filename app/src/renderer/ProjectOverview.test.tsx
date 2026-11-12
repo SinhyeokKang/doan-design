@@ -229,7 +229,8 @@ test("thread spacing, and the suggestion rows right above the composer on the Ov
   expect(css).toContain(".ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-8); }");
   expect(css).toContain(".doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-8); }");
   expect(css).toContain(".doan-conv-panel .conversation-thread .thread { gap: var(--space-5); }");
-  expect(css).toContain(".ov-suggestions { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-3); }");
+  // 32 under the suggestions as well: the docked buddy stays on the card while they show, and the last row must clear it.
+  expect(css).toContain(".ov-suggestions { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-8); }");
   expect(css).not.toMatch(/\.ov-new \{/);
 });
 
@@ -241,10 +242,12 @@ test("the shown conversation's suggestion stands in for the reply placeholder, w
   expect(render([summary()])).not.toContain("to use the suggestion");
 });
 
-// The docked buddy steps aside for the suggested prompts and for a request waiting at the thread's end.
-test("the composer tells the docked buddy when suggestions show or the conversation waits for an answer", () => {
+// The docked buddy steps aside for a request waiting at the thread's end; the suggested prompts leave room for it instead.
+test("the composer tells the docked buddy when the conversation waits for an answer, not when suggestions show", () => {
   const slot = (html: string) => /<div class="docked-buddy-slot"[^>]*>/.exec(html)![0];
-  expect(slot(render([]))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-prompts="">');
+  const fresh = render([]);
+  expect(fresh).toContain('aria-label="Suggested prompts"');
+  expect(slot(fresh)).toBe('<div class="docked-buddy-slot" aria-hidden="true">');
   expect(slot(render([summary()]))).toBe('<div class="docked-buddy-slot" aria-hidden="true">');
   expect(slot(render([summary({ phase: "waiting" })]))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-waiting="">');
   // The moved line with its Open button sits where the suggestions do: a reason of its own.

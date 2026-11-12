@@ -70,6 +70,9 @@ code{font-size:var(--type-caption-size)}
 .conversation-thread .thread-notice>.strip-actions{grid-column:2;flex-wrap:wrap;margin-block:0;align-self:start}
 .conversation-thread .thread-notice>svg{width:var(--size-icon);height:var(--size-icon)}
 .conversation-thread .thread-notice .strip-text span{white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
+/* Proposed shared notice change (choice 6): an inline action centres vertically in the notice instead of on the first
+   text line; the icon stays on the first line. Overrides ds/surfaces.css until the change ships. */
+.doan-notice > :is(.doan-button, :has(> .doan-button)){align-self:center}
 .conversation-thread .ti-reply{display:flex;align-items:center;gap:var(--space-2);min-width:0;color:var(--text-subtle);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing)}
 .conversation-thread .ti-reply .ti-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .conversation-thread .ti-reply .ti-time{flex:none;color:var(--text-metadata);font-variant-numeric:tabular-nums}
@@ -132,6 +135,7 @@ code{font-size:var(--type-caption-size)}
 <li><b>Failure copy split.</b> The thread notice uses the title “Claude Code didn’t pick up your message” and the body “Send it again.”, with the existing “Edit and resend” action, which every failed turn that began with the person’s message offers (<code>ConversationThread.tsx</code> <code>lastEnd</code>).</li>
 <li><b>Home strip copy.</b> The strip keeps its own recovery body, as for every other failure (<code>conversationStrip.ts</code> <code>FAILURES</code>): “Edit your request on Home and send it again.” with Edit on Home and Dismiss.</li>
 <li><b>Light only.</b> tasks 2 lists light and dark, but the app is light only (DESIGN.md ‘Light only’: main pins <code>nativeTheme</code> light). No dark frame is drawn.</li>
+<li><b>Notice actions centred.</b> A change to every notice, not only this feature’s: an inline action (or group of them) centres vertically in the notice, so on a two-line strip such as the Home strip’s failure it sits between the title and the body instead of beside the title. The icon stays on the first text line. A one-line notice keeps its height (the negative margins stay). Thread notices, whose actions sit on their own row under the text, do not change.</li>
 </ol>
 <h2>Copied from shipped screens</h2>
 <ul>
