@@ -15,7 +15,9 @@ type Error struct {
 	// Config is the absolute path of the config file the failure is about,
 	// empty when it is not about one; the app decides Config error from it.
 	Config string
-	Cause  error
+	// Searched is the existing directory a "No config" search started from, for ls's storageReason.
+	Searched string
+	Cause    error
 }
 
 func (e *Error) Error() string { return e.Message }
@@ -63,6 +65,7 @@ func Find(start, repoFlag string) (Repository, error) {
 	if !info.IsDir() {
 		return Repository{}, &Error{Code: "repo_not_found", Message: "Repository path is not a directory"}
 	}
+	searched := dir
 	for {
 		path := filepath.Join(dir, ".doan", "config.json")
 		info, err := os.Stat(path)
@@ -89,5 +92,5 @@ func Find(start, repoFlag string) (Repository, error) {
 		}
 		dir = parent
 	}
-	return Repository{}, &Error{Code: "repo_not_found", Message: "No .doan/config.json found"}
+	return Repository{}, &Error{Code: "repo_not_found", Message: "No .doan/config.json found", Searched: searched}
 }

@@ -76,8 +76,8 @@ var Version = "dev"
 var kebabID = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 const usage = `Usage: doan <command> [--repo <path>] [--json]
-  init [--token-css <path>] [--storage local|repo]
-  config [--storage local|repo] [--token-css <path> | --clear-token-css] [--add-serve <path>]... [--remove-serve <path>]...
+  init [--token-css <path>] [--storage local|repo] [--git-init]
+  config [--storage local|repo] [--git-init] [--token-css <path> | --clear-token-css] [--add-serve <path>]... [--remove-serve <path>]...
   ls
   check
   active
@@ -102,6 +102,7 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   design-skill [<id>]
   help
 Storage: repo = Include in Git; local = Keep out of Git (this Mac only).
+--git-init: with --storage local, create a Git repository in a folder outside one; only after the user agrees.
 `
 
 func internal(err error) *Error { return &Error{Code: "internal_error", Message: err.Error()} }
@@ -109,15 +110,21 @@ func usageError(message string) *Error {
 	return &Error{Code: "usage_error", Message: message, NextSteps: []string{"Run `doan help`"}}
 }
 func repository(ctx Context, f Flags) (repo.Repository, *Error) {
+	r, failure, _ := findRepository(ctx, f)
+	return r, failure
+}
+
+// findRepository also returns the existing directory the search started from when no config was found.
+func findRepository(ctx Context, f Flags) (repo.Repository, *Error, string) {
 	r, e := repo.Find(ctx.Start, f.Repo)
 	if e != nil {
 		var re *repo.Error
 		if errors.As(e, &re) {
-			return r, &Error{Code: re.Code, Message: re.Message, Config: re.Config, NextSteps: []string{"Check --repo and .doan/config.json; run `doan init` to initialize a directory"}}
+			return r, &Error{Code: re.Code, Message: re.Message, Config: re.Config, NextSteps: []string{"Check --repo and .doan/config.json; run `doan init` to initialize a directory"}}, re.Searched
 		}
-		return r, internal(e)
+		return r, internal(e), ""
 	}
-	return r, nil
+	return r, nil, ""
 }
 
 // runtimePath is resolved only for active, work, open, handoff and onboarding, so a bad DOAN_RUNTIME cannot break file-only commands.
@@ -161,6 +168,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	fs.BoolVar(&f.SpendCopilotRequest, "spend-copilot-request", false, "")
 	fs.BoolVar(&f.Initialize, "initialize", false, "")
+	fs.BoolVar(&f.GitInit, "git-init", false, "")
 	fs.StringVar(&f.Output, "o", "", "")
 	fs.BoolVar(&f.Force, "force", false, "")
 	f.Given = map[string]bool{}
@@ -181,12 +189,14 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		switch cmd {
 		case "config":
 			allowed["storage"] = true
+			allowed["git-init"] = true
 			allowed["token-css"] = true
 			allowed["clear-token-css"] = true
 			allowed["add-serve"] = true
 			allowed["remove-serve"] = true
 		case "init":
 			allowed["storage"] = true
+			allowed["git-init"] = true
 			allowed["token-css"] = true
 		case "open":
 			allowed["frame"] = true
@@ -246,8 +256,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 					}
 					switch cmd {
 					case "init":
+						ctx.Git = repo.SystemGitHost(os.Environ())
 						o, failure = Init(ctx, f, pos[1:])
 					case "config":
+						ctx.Git = repo.SystemGitHost(os.Environ())
 						o, failure = Config(ctx, f, pos[1:])
 					case "ls":
 						o, failure = List(ctx, f, pos[1:])

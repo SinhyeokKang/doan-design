@@ -256,8 +256,12 @@ func TestGitInitHome(t *testing.T) {
 	g := newGitInitFolder(t)
 	for _, root := range []string{g.home, g.base} {
 		_, failure := Init(g.context(t), gitInitFlags(root, "local", true), nil)
-		if failure == nil || failure.Code != "local_not_git" || !strings.Contains(failure.Message, "home folder") {
+		if failure == nil || failure.Code != "local_not_git" || !strings.Contains(failure.Message, "doesn’t create a Git repository in your home folder") {
 			t.Fatalf("%s: %+v", root, failure)
+		}
+		// The agent must not be pointed back at the flag HOME refuses.
+		if steps := strings.Join(failure.NextSteps, "\n"); len(failure.NextSteps) == 0 || strings.Contains(steps, "--git-init") || !strings.Contains(steps, "Include in Git") {
+			t.Fatalf("%s: nextSteps %v", root, failure.NextSteps)
 		}
 		assertAbsent(t, root, ".git", ".doan")
 	}
@@ -509,6 +513,14 @@ func TestNotFoundStorageReason(t *testing.T) {
 	} {
 		if got := notFoundStorageReason(c.searched, c.storage); got != c.want {
 			t.Errorf("%q %+v: %q; want %q", c.searched, c.storage, got, c.want)
+		}
+	}
+}
+
+func TestOnboardingStepsForGitInitFailures(t *testing.T) {
+	for code, want := range map[string]string{"git_missing": "xcode-select --install", "cleanup_failed": "remove it or keep it"} {
+		if steps := onboardingFailure(code, "m").NextSteps; !strings.Contains(strings.Join(steps, "\n"), want) {
+			t.Errorf("%s: %v", code, steps)
 		}
 	}
 }

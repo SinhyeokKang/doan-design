@@ -37,6 +37,7 @@ func TestLocateGitFollowsCloneRules(t *testing.T) {
 		{"shim without developer git", "/usr/bin", executable("/usr/bin/git"), identity, ""},
 		{"a link to the shim is the shim", "/links", executable("/links/git"), shimAt("/links/git"), ""},
 		{"a link to the shim with developer git", "/links", executable("/links/git", developer+"/usr/bin/git"), shimAt("/links/git"), "/links/git"},
+		{"skips a relative entry", "bin:/opt/homebrew/bin", executable("bin/git", "/opt/homebrew/bin/git"), identity, "/opt/homebrew/bin/git"},
 		{"empty PATH", "", executable("/usr/bin/git", developer+"/usr/bin/git"), identity, ""},
 		{"no git", "/bin:/usr/sbin", executable(), identity, ""},
 	} {
