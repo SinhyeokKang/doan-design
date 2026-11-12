@@ -8,7 +8,7 @@ import type { SteerPhase } from "../main/conversation/steerSupport";
 import { asksPerson, mergeConversationEvents, stripState } from "./conversationStrip";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
-import { splitRequest, type AttachmentDraft } from "./homeComposer";
+import { attachRefusal, issuedAttachment, readyAttachment, recordedAttachment, splitRequest, type AttachmentDraft } from "./homeComposer";
 import type { SendingMessage, SentFile } from "./threadItems";
 import { newerStage } from "./turnStatus";
 
@@ -36,16 +36,6 @@ export interface ConversationStoreHost {
   notice(text: string): void;
   changed(): void;
 }
-
-const ATTACH_ERRORS: Record<string, (name: string) => string> = {
-  not_found: name => `${name} wasn’t found, so it wasn’t attached.`,
-  not_file: name => `${name} isn’t a file, so it wasn’t attached.`,
-  not_image: name => `${name} isn’t a readable image, so it wasn’t attached.`,
-  unreadable: name => `${name} couldn’t be read, so it wasn’t attached.`,
-  too_large: () => "This image is over 50 MB, so it wasn’t attached.",
-  // An empty canvas capture or one main could not save: the file name means nothing.
-  capture_failed: () => "Couldn’t capture the canvas. Try again.",
-};
 
 export class ConversationStore {
   // Drafts by draftKey: a conversation's under its id, a new conversation's under its root or canvas.
@@ -195,8 +185,9 @@ export class ConversationStore {
     this.unclaimed = this.unclaimed.filter(event => event.conversationId !== conversationId);
     this.host.changed();
   }
-  // Drafts whose key matches go (a removed project's).
+  // Drafts whose key matches go (a removed project's), with the returned queue's ids they held.
   dropDrafts(drop: (key: string) => boolean): void {
+    for (const [key, draft] of this.drafts) if (drop(key)) dropHeld(draft);
     this.drafts = new Map([...this.drafts].filter(([key]) => !drop(key)));
   }
   // The typed text, composition included, follows into another draft; the field element stays the same, so focus and
@@ -229,12 +220,12 @@ export class ConversationStore {
       const chip = draft.attachments.find(a => a.key === key)!;
       if (!result || !result.ok) {
         drafts.set(at, { ...draft, attachments: draft.attachments.filter(a => a.key !== key) });
-        notices.push(result && !result.ok && result.error === "limit" ? "Only 10 files can be attached." : (ATTACH_ERRORS[result ? result.error : "unreadable"] ?? ATTACH_ERRORS.unreadable!)(result ? result.name : chip.name));
+        notices.push(attachRefusal(result ? result.error : "unreadable", result ? result.name : chip.name));
         return;
       }
       const { attachment } = result;
       if (attachment.kind === "image" && attachment.thumbnail) images.push({ key, thumbnail: attachment.thumbnail });
-      const ready: AttachmentDraft = { key, id: attachment.id, name: attachment.name, kind: attachment.kind, pasted: attachment.pasted, status: "ready", size: attachment.size, path: attachment.path };
+      const ready = readyAttachment(key, attachment);
       drafts.set(at, { ...draft, attachments: draft.attachments.map(a => a.key === key ? ready : a) });
     });
     this.drafts = drafts;
@@ -253,6 +244,7 @@ export class ConversationStore {
       for (const attachment of restored.attachments) if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(() => false);
       return false;
     }
+    dropHeld(before);
     this.setDrafts(drafts => new Map(drafts).set(key, restored));
     return true;
   }
@@ -328,10 +320,10 @@ export class ConversationStore {
     void window.doan.takeConversationDraft({ conversationId }).catch(() => null).then(async reply => {
       this.taken.set(conversationId, this.host.readsStarted(root));
       if (!reply || "error" in reply) { this.taking.delete(conversationId); return; }
-      const returned = await draftFrom(reply.text, reply.anchors, reply.attachments);
+      const returned = await draftFrom(reply.text, reply.anchors, reply.attachments, reply.ids);
       this.taking.delete(conversationId);
       if (this.deletedIds.has(conversationId)) {
-        for (const attachment of returned.attachments) if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(() => false);
+        for (const attachment of returned.attachments) dropAttachment(attachment);
         return;
       }
       const key = `conversation:${conversationId}`;
@@ -361,18 +353,40 @@ export function steerPhaseOf(events: readonly ConversationEvent[] | null, summar
   if (!ended && summary?.phase === "running") return "running";
   return summary?.working ? "holding" : "ended";
 }
+// A chip leaving a conversation draft gives its file back to main. A held id is released after the remove, which put it
+// back aside as sent; a pasted file stays on disk under its sent marker.
+export function dropAttachment(attachment: AttachmentDraft): void {
+  const id = attachment.id; if (!id) return;
+  const removed = window.doan.removeAttachment(id);
+  void (attachment.held ? removed.then(() => window.doan.releaseAttachments([id])) : removed).catch(console.error);
+}
+// A draft dropped whole releases the ids a returned queue handed it.
+function dropHeld(draft: DockedDraft | undefined): void {
+  for (const attachment of draft?.attachments ?? []) if (attachment.held) dropAttachment(attachment);
+}
 const emptyDraft = (draft: DockedDraft) => draft.segments.length === 0 && !draft.preset && draft.attachments.length === 0;
 
 // A request read back into a draft: the preset line becomes the chip, and recorded files are issued again from their
-// paths (a moved file comes back as a missing chip). Shared by a returned queue and Edit and resend.
-export async function draftFrom(text: string, anchors: readonly Anchor[], records: readonly AttachmentRecord[]): Promise<DockedDraft> {
+// paths (a moved file comes back as a missing chip). Shared by a returned queue and Edit and resend. held: per record,
+// the id a queue returned in this run held it as (takeDraft's ids); that one is checked again as the same file or
+// folder, so one replaced since comes back Replaced.
+export async function draftFrom(text: string, anchors: readonly Anchor[], records: readonly AttachmentRecord[], held: readonly (string | null)[] = []): Promise<DockedDraft> {
   const { preset, body } = splitRequest(text, records.length);
-  const issued = records.length ? await window.doan.attachmentsFromPaths(records.map(record => record.path)).catch(() => null) : [];
+  const heldIds = records.flatMap((_, i) => { const id = held[i]; return id ? [id] : []; }), fresh = records.filter((_, i) => !held[i]);
+  const [rechecked, issued] = await Promise.all([
+    heldIds.length ? window.doan.recheckAttachments(heldIds).catch(() => null) : [],
+    fresh.length ? window.doan.attachmentsFromPaths(fresh.map(record => record.path)).catch(() => null) : [],
+  ]);
+  let next = 0;
   const attachments = records.map((record, i): AttachmentDraft => {
-    const result = issued?.[i];
-    const key = crypto.randomUUID();
-    if (result?.ok) return { key, id: result.attachment.id, name: result.attachment.name, kind: result.attachment.kind, pasted: result.attachment.pasted, status: "ready", size: result.attachment.size, path: result.attachment.path };
-    return { key, name: record.name, kind: record.kind, pasted: false, status: "missing", size: record.size, path: record.path };
+    const key = crypto.randomUUID(), id = held[i];
+    if (id) {
+      const result = rechecked?.find(item => item.id === id);
+      return { ...result?.ok ? readyAttachment(key, result.attachment) : { ...recordedAttachment(key, record), id, ...(result?.error === "replaced" ? { status: "replaced" as const } : {}) }, held: true };
+    }
+    const { chip, release } = issuedAttachment(key, record, issued?.[next++]);
+    if (release) void window.doan.removeAttachment(release).catch(() => false);
+    return chip;
   });
   return { segments: fromMessage(body, anchors), preset: preset ? { ...preset, description: "", scope: "" } : null, attachments, shape: body.includes("\n") || attachments.length ? "box" : "capsule" };
 }

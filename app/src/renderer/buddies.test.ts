@@ -41,13 +41,17 @@ test("the rig numbers keep the draft's notation, so the shader source matches th
   expect(buddy("dori").rig).toEqual({ ...shared, eyes: [".424,.364", ".563,.365"], radius: [".027", ".045"], accessoryPivot: ".51,.535", accessoryTilt: [-.02, .02], liftScale: .65, contact: [.504, .888] });
 });
 
-test("Doany paints, types or reads in the working notice; a friend only paints", () => {
+test("every buddy paints, types or reads in the working notice", () => {
   expect(buddy("doany").artists).toEqual([
     { gif: "doany/artist-painting.gif", rest: "doany/artist-rest.png" },
     { gif: "doany/artist-typing.gif", rest: "doany/artist-typing-rest.png" },
     { gif: "doany/artist-reading.gif", rest: "doany/artist-reading-rest.png" },
   ]);
-  for (const id of ["puri", "dungdung", "popo", "dori"] as const) expect(buddy(id).artists).toEqual([{ gif: `buddies/${id}/artist.gif`, rest: `buddies/${id}/artist-rest.png` }]);
+  for (const id of ["puri", "dungdung", "popo", "dori"] as const) expect(buddy(id).artists).toEqual([
+    { gif: `buddies/${id}/artist.gif`, rest: `buddies/${id}/artist-rest.png` },
+    { gif: `buddies/${id}/artist-typing.gif`, rest: `buddies/${id}/artist-typing-rest.png` },
+    { gif: `buddies/${id}/artist-reading.gif`, rest: `buddies/${id}/artist-reading-rest.png` },
+  ]);
 });
 
 test("pickArtist keeps the variant while the buddy stays and picks again when it changes", () => {
@@ -61,7 +65,7 @@ test("pickArtist keeps the variant while the buddy stays and picks again when it
   // Same buddy: the shown variant is held, whatever the random source says.
   expect(pickArtist("doany", first, () => 0)).toBe(first);
   const puri = pickArtist("puri", first, () => .7);
-  expect(puri).toEqual({ buddy: "puri", variant: buddy("puri").artists[0] });
+  expect(puri).toEqual({ buddy: "puri", variant: buddy("puri").artists[2] });
   // Back to Doany: a new random pick.
   expect(pickArtist("doany", puri, () => .1)).toEqual({ buddy: "doany", variant: doany[0] });
 });

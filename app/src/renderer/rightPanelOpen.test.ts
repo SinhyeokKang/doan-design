@@ -37,7 +37,7 @@ describe("panelOpenFor", () => {
 describe("openButtonBadge", () => {
   test("a waiting request and an unseen ending put a dot on a folded panel's button", () => {
     expect(openButtonBadge(summary({ phase: "waiting" }), false)).toEqual({ kind: "permission", label: "Show conversation, needs your answer" });
-    expect(openButtonBadge(summary({ unseen: true }), false)).toEqual({ kind: "unseen", label: "Show conversation, new activity" });
+    expect(openButtonBadge(summary({ unseen: true }), false)).toEqual({ kind: "unseen", label: "Show conversation, conversation finished unread" });
   });
 
   test("no dot while working, once seen, with the panel open, or for an archived conversation alone", () => {

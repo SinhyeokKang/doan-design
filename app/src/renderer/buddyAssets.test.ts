@@ -61,10 +61,14 @@ test("the friends' still, layers and shadow and Doany's shadow are 512² RGBA; e
   expect(buddy("doany").assets.shadow.startsWith("buddies/")).toBe(true);
 });
 
+// Each friend's app GIF and the source it is cut from.
+const FRIEND_SOURCES: Record<string, string> = { "artist.gif": "artist.gif", "artist-typing.gif": "typing.gif", "artist-reading.gif": "reading.gif" };
+
 test("the friends' working-notice GIFs are 128² with the source's frames and timing, and their rest frames are 128² RGBA", () => {
   for (const id of BUDDY_IDS.filter(id => id !== "doany")) {
+    expect(buddy(id).artists.map(({ gif }) => gif.split("/").pop())).toEqual(Object.keys(FRIEND_SOURCES));
     for (const { gif: path, rest } of buddy(id).artists) {
-      const shipped = gif(file(path)), source = gif(readFileSync(join(SOURCES, id, "artist.gif")));
+      const shipped = gif(file(path)), source = gif(readFileSync(join(SOURCES, id, FRIEND_SOURCES[path.split("/").pop()!]!)));
       expect([shipped.width, shipped.height], path).toEqual([128, 128]);
       expect(shipped.delays, path).toEqual(source.delays);
       expect(shipped.delays.length, path).toBeGreaterThan(1);
@@ -78,9 +82,10 @@ test("eye.png is the shared eye, unchanged from its source", () => {
   expect(pngHeader(file(EYE_TEXTURE))).toMatchObject({ width: 118, height: 193, colour: RGBA });
 });
 
-test("public/buddies/ stays within 5 MB, Welcome's group photo aside", () => {
+test("public/buddies/ stays within 6 MB, Welcome's group photo aside", () => {
   // Lossless copies by the maintainer's choice: palette compression would bring it near 2 MB but alter the artwork.
+  // Every friend's three working-notice variants took it past 5 MB, so the cap rose to 6 MB rather than lose that.
   // The cap was set for the buddies' own layers; the group photo in group/ is one lossless picture outside it.
   const size = (dir: string): number => readdirSync(dir).reduce((sum, name) => { const path = join(dir, name); return sum + (path === join(PUBLIC, "buddies", "group") ? 0 : statSync(path).isDirectory() ? size(path) : statSync(path).size); }, 0);
-  expect(size(join(PUBLIC, "buddies"))).toBeLessThanOrEqual(5_000_000);
+  expect(size(join(PUBLIC, "buddies"))).toBeLessThanOrEqual(6_000_000);
 });

@@ -16,8 +16,8 @@ function isoTime(value: unknown): number {
 }
 const clamp = (percent: number) => Math.min(100, Math.max(0, percent));
 
-function window(id: string, label: string, usedPercent: number, resetsAt: number | undefined, limited = false): UsageWindow {
-  return { id, label, usedPercent: clamp(usedPercent), ...(resetsAt === undefined ? {} : { resetsAt }), ...(limited ? { limited: true as const } : {}) };
+function window(id: string, label: string, periodMins: number | undefined, usedPercent: number, resetsAt: number | undefined, limited = false): UsageWindow {
+  return { id, label, ...(periodMins === undefined ? {} : { periodMins }), usedPercent: clamp(usedPercent), ...(resetsAt === undefined ? {} : { resetsAt }), ...(limited ? { limited: true as const } : {}) };
 }
 
 function reading(readAt: number, parse: () => UsageReading): UsageReading {
@@ -33,8 +33,9 @@ function ok(readAt: number, windows: UsageWindow[]): UsageReading {
 }
 function unlimited(readAt: number): UsageReading { return { status: "ok", windows: [], unlimited: true, readAt }; }
 
-const CLAUDE_WINDOWS: [key: string, label: string][] = [
-  ["five_hour", "5-hour"], ["seven_day", "Weekly"], ["seven_day_opus", "Weekly · Opus"], ["seven_day_sonnet", "Weekly · Sonnet"],
+const WEEK_MINS = 10080;
+const CLAUDE_WINDOWS: [key: string, label: string, periodMins: number][] = [
+  ["five_hour", "5-hour", 300], ["seven_day", "Weekly", WEEK_MINS], ["seven_day_opus", "Weekly · Opus", WEEK_MINS], ["seven_day_sonnet", "Weekly · Sonnet", WEEK_MINS],
 ];
 
 // Claude SDK usage (control request get_usage). A window with null utilization has nothing to show and is skipped.
@@ -45,12 +46,12 @@ export function claudeUsage(response: unknown, readAt: number): UsageReading {
     if (typeof root.rate_limits_available !== "boolean") throw new Shape();
     if (!root.rate_limits_available) return { status: "unavailable", reason: "no_plan_limits", readAt };
     const limits = obj(root.rate_limits), windows: UsageWindow[] = [];
-    for (const [key, label] of CLAUDE_WINDOWS) {
+    for (const [key, label, periodMins] of CLAUDE_WINDOWS) {
       const entry = optional(limits[key], obj);
       if (!entry) continue;
       const used = optional(entry.utilization, num), resetsAt = optional(entry.resets_at, isoTime);
       if (entry.locked_reason !== undefined && entry.locked_reason !== null && typeof entry.locked_reason !== "string") throw new Shape();
-      if (used !== undefined) windows.push(window(key, label, used, resetsAt, typeof entry.locked_reason === "string"));
+      if (used !== undefined) windows.push(window(key, label, periodMins, used, resetsAt, typeof entry.locked_reason === "string"));
     }
     const scoped = limits.model_scoped;
     if (scoped !== undefined && scoped !== null) {
@@ -61,7 +62,7 @@ export function claudeUsage(response: unknown, readAt: number): UsageReading {
         const used = optional(entry.utilization, num), resetsAt = optional(entry.resets_at, isoTime);
         const label = `Weekly · ${entry.display_name}`;
         // seven_day_opus/sonnet may also arrive as a model_scoped entry; the first one wins.
-        if (used !== undefined && !windows.some(w => w.label === label)) windows.push(window(`model_scoped:${entry.display_name}`, label, used, resetsAt));
+        if (used !== undefined && !windows.some(w => w.label === label)) windows.push(window(`model_scoped:${entry.display_name}`, label, WEEK_MINS, used, resetsAt));
       }
     }
     return ok(readAt, windows);
@@ -70,7 +71,7 @@ export function claudeUsage(response: unknown, readAt: number): UsageReading {
 
 function durationLabel(mins: number | undefined, fallback: string): string {
   if (mins === undefined) return fallback;
-  if (mins === 10080) return "Weekly";
+  if (mins === WEEK_MINS) return "Weekly";
   if (mins >= 1440 && mins % 1440 === 0) return `${mins / 1440}-day`;
   if (mins % 60 === 0) return `${mins / 60}-hour`;
   return `${mins}-minute`;
@@ -84,8 +85,8 @@ export function codexUsage(response: unknown, readAt: number): UsageReading {
     for (const [key, fallback] of [["primary", "Primary"], ["secondary", "Secondary"]] as const) {
       const entry = optional(limits[key], obj);
       if (!entry) continue;
-      const resetsAt = optional(entry.resetsAt, num);
-      windows.push(window(key, durationLabel(optional(entry.windowDurationMins, num), fallback), num(entry.usedPercent), resetsAt === undefined ? undefined : resetsAt * 1000));
+      const resetsAt = optional(entry.resetsAt, num), mins = optional(entry.windowDurationMins, num);
+      windows.push(window(key, durationLabel(mins, fallback), mins, num(entry.usedPercent), resetsAt === undefined ? undefined : resetsAt * 1000));
     }
     const reached = limits.rateLimitReachedType;
     if (reached !== undefined && reached !== null) {
@@ -112,7 +113,7 @@ export function copilotUsage(response: unknown, readAt: number): UsageReading {
       if (kind.hasQuota === false || num(kind.entitlementRequests) <= 0) continue;
       const remaining = num(kind.remainingPercentage);
       const limited = remaining <= 0 && kind.usageAllowedWithExhaustedQuota === false;
-      windows.push(window(key, kindLabel(key), 100 - remaining, optional(kind.resetDate, isoTime), limited));
+      windows.push(window(key, kindLabel(key), undefined, 100 - remaining, optional(kind.resetDate, isoTime), limited));
     }
     if (windows.length > 0) return ok(readAt, windows);
     return anyUnlimited ? unlimited(readAt) : { status: "unavailable", reason: "no_plan_limits", readAt };
@@ -127,7 +128,7 @@ export function cursorUsage(response: unknown, readAt: number): UsageReading {
     if (root.isUnlimited === true) return unlimited(readAt);
     if (root.isUnlimited !== false) throw new Shape();
     const plan = obj(obj(root.individualUsage).plan), resetsAt = optional(root.billingCycleEnd, isoTime);
-    return ok(readAt, [window("auto", "Auto", num(plan.autoPercentUsed), resetsAt), window("api", "API", num(plan.apiPercentUsed), resetsAt)]);
+    return ok(readAt, [window("auto", "Auto", undefined, num(plan.autoPercentUsed), resetsAt), window("api", "API", undefined, num(plan.apiPercentUsed), resetsAt)]);
   });
 }
 

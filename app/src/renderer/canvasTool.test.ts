@@ -67,10 +67,10 @@ describe("toolShortcut", () => {
 });
 
 describe("escapeStep", () => {
-  test("cancels a pick first, then turns Hand back to Select, then clears the selection", () => {
+  test("cancels a pick first, then turns Hand back to Select, then steps the selection back", () => {
     expect(escapeStep({ picking: true, capturing: false, hand: true, editable: false })).toBe("cancelPick");
     expect(escapeStep({ picking: false, capturing: false, hand: true, editable: false })).toBe("selectTool");
-    expect(escapeStep({ picking: false, capturing: false, hand: false, editable: false })).toBe("clearSelection");
+    expect(escapeStep({ picking: false, capturing: false, hand: false, editable: false })).toBe("stepSelection");
   });
 
   test("in an editable target only cancels a pick", () => {

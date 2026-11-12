@@ -209,10 +209,10 @@ test("focus on Stop moves to the field when Stop becomes a disabled Send; focus 
 // a queued message's files are drawn in the thread once Send now moves it there.
 test("a queued message carries its files' names, sizes and kinds for the thread, apart from the ids main takes", async () => {
   const { queue, render, store, props } = setup({ turn: "running" });
-  store.current = new Map([["conversation:a", { ...draft("With the notes"), attachments: [{ key: "k", id: "f", name: "notes.md", kind: "file", pasted: false, status: "ready", size: 4096 }] }]]); props.drafts = store.current;
+  store.current = new Map([["conversation:a", { ...draft("With the notes"), attachments: [{ key: "k", id: "f", name: "notes.md", kind: "file", pasted: false, status: "ready", size: 4096, path: "/Users/ada/notes.md" }, { key: "d", id: "d", name: "references", kind: "directory", pasted: false, status: "ready", path: "/Users/ada/references" }] }]]); props.drafts = store.current;
   (button(render(), "Queue").onClick as () => void)();
   await flush();
-  expect(queue).toHaveBeenCalledWith({ text: "With the notes", anchors: [], attachments: [{ id: "f" }], files: [{ name: "notes.md", size: 4096, kind: "file" }] });
+  expect(queue).toHaveBeenCalledWith({ text: "With the notes", anchors: [], attachments: [{ id: "f" }, { id: "d" }], files: [{ name: "notes.md", size: 4096, kind: "file", path: "/Users/ada/notes.md" }, { name: "references", kind: "directory", path: "/Users/ada/references" }] });
 });
 
 test("a late project_busy keeps the draft and shows Home's busy sentence until the person edits", async () => {
@@ -402,7 +402,7 @@ test("locked, the field keeps the draft but takes no input, and the reason line 
   expect(shownText(render())).toBe("Tighten the totals");
   expect(has(render(), reason)).toBe(true);
   expect(button(render(), "Send").disabled).toBe(true);
-  expect(button(render(), "Attach files").disabled).toBe(true);
+  expect(button(render(), "Attach files or folders").disabled).toBe(true);
 });
 
 // A dropped or pasted file, shaped as the composer reads it.
@@ -452,11 +452,11 @@ test("a terminal session keeps the trigger places, chosen by the terminal, and t
   const agent = button(render(), "Model: set by the terminal session (Codex)");
   expect(agent["aria-disabled"]).toBe("true");
   expect(button(render(), "Effort: set by the terminal session")["aria-disabled"]).toBe("true");
-  expect(button(render(), "Attach files")["aria-disabled"]).toBe("true");
+  expect(button(render(), "Attach files or folders")["aria-disabled"]).toBe("true");
   expect(has(render(), "Terminal session")).toBe(true);
   const tips = render().map(item => item.label);
   expect(tips).toContain("Set in your terminal");
-  expect(tips).toContain("Files can’t be attached to a terminal session");
+  expect(tips).toContain("Attachments can’t be added to a terminal session");
 });
 
 test("a refused terminal session offers a new conversation, which keeps the draft and drops the notice", async () => {

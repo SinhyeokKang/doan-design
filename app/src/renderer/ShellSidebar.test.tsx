@@ -1,12 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, test, vi } from "vitest";
 import { TooltipProvider } from "./components/ui/tooltip";
-import { projectSlotEntry, recoveryKey, ShellSidebar, staleMenu } from "./ShellSidebar";
+import { projectSlot, recoveryKey, ShellSidebar, staleMenu } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 import type { SidebarSlot as Slot } from "./canvasNotice";
 import type { CanvasMenu } from "./ShellSidebar";
 const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {} };
-const projectSlot = (slots: ReadonlyMap<string, Slot>, roots: readonly string[], shown: readonly string[]) => projectSlotEntry(slots, roots, shown)?.slot;
 const row = { path: ".doan/canvases/folder/canvas.html", url: "u", frames: [{ id: "hidden-frame" }] };
 const entry: Extract<FolderEntry, { kind: "list" }> = { path: "/repo", kind: "list", servedRev: 0, canvases: [row], git: { common: "/repo/.git", branch: "main", worktrees: [] } };
 function render(loaded: string | null, selected = "/repo", expanded = false, problem = false, unlisted = false) {
@@ -112,8 +111,12 @@ test("on Home no row is current; the slot shows a permission hand, a spinner or 
   expect(home).toMatch(/class="shell-project-row row flash"[^>]*aria-label="beta"/);
   expect(home).toMatch(/<span class="shell-project-name">beta<\/span><span class="row-slot permission" role="img" aria-label="Codex needs your answer"><svg[^>]*lucide-hand/);
   expect(renderToStaticMarkup(<Sidebar {...props} />)).toContain('aria-current="location"');
-  const unseen = renderToStaticMarkup(<Sidebar {...props} slots={new Map([["/b", { kind: "unseen" as const, label: "New changes from Codex" }]])} />);
-  expect(unseen).toContain('<span class="row-slot unseen" role="img" aria-label="New changes from Codex"><i></i></span>');
+  const unseen = renderToStaticMarkup(<Sidebar {...props} slots={new Map([["/b", { kind: "unseen" as const, label: "Conversation finished — unread" }]])} />);
+  // A finished conversation is a speech bubble; only a canvas change stays the accent dot.
+  expect(unseen).toMatch(/<span class="row-slot ended" role="img" aria-label="Conversation finished — unread"><svg[^>]*lucide-message-circle/);
+  expect(unseen).not.toContain("<i></i>");
+  const changed = renderToStaticMarkup(<Sidebar {...props} slots={new Map([["/b", { kind: "canvas" as const, label: "x changed since you last opened it" }]])} />);
+  expect(changed).toContain('<span class="row-slot unseen" role="img" aria-label="x changed since you last opened it"><i></i></span>');
 });
 
 test("a project row carries a bound canvas's slot only while that canvas row is not shown, the highest state first", () => {
@@ -239,7 +242,7 @@ describe("what wins the slot of a project in a problem state", () => {
     for (const slot of [{ kind: "working", label: "Codex is working" }, { kind: "unseen", label: "Codex finished" }, { kind: "canvas", label: "x is new" }] as Slot[]) {
       const row = drawn(slot);
       expect(row).toContain("row-slot problem");
-      expect(row).not.toContain(`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind}`);
+      expect(row).not.toContain(`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind === "unseen" ? "ended" : slot.kind}`);
     }
   });
 });
@@ -286,11 +289,11 @@ test("a canvas notice is the unseen dot on its row, and on the project row while
   expect(closed).toMatch(/<span class="shell-project-name">demo<\/span><span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i><\/i><\/span>/);
 });
 
-test("on the project row a conversation slot beats a canvas notice; among notices the first listed wins, with its key", () => {
+test("on the project row a conversation slot beats a canvas notice; among notices the first listed wins", () => {
   const first = { kind: "canvas" as const, label: "first" }, second = { kind: "canvas" as const, label: "second" };
   const notices = new Map<string, Slot>([["/a\n.doan/canvases/x.html", first], ["/a\n.doan/canvases/y.html", second]]);
-  expect(projectSlotEntry(notices, ["/a"], [])).toEqual({ key: "/a\n.doan/canvases/x.html", slot: first });
-  expect(projectSlotEntry(notices, ["/a"], ["/a\n.doan/canvases/x.html"])).toEqual({ key: "/a\n.doan/canvases/y.html", slot: second });
+  expect(projectSlot(notices, ["/a"], [])).toBe(first);
+  expect(projectSlot(notices, ["/a"], ["/a\n.doan/canvases/x.html"])).toBe(second);
   const unseen = { kind: "unseen" as const, label: "u" };
   expect(projectSlot(new Map<string, Slot>([...notices, ["/a\n.doan/canvases/z.html", unseen]]), ["/a"], [])).toBe(unseen);
 });

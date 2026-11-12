@@ -1,7 +1,7 @@
 import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Archive, ArrowDown, ArrowUpRight, Ban, ChevronDown, CircleStop, Copy, Eye, FileText, Forward, Frame, MapPin, Pencil, PencilSparkles, RotateCcw, SquareMousePointer, Terminal, Zap } from "lucide-react";
+import { Archive, ArrowDown, ArrowUpRight, Ban, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, MapPin, Pencil, PencilSparkles, RotateCcw, SquareMousePointer, Terminal, Zap } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor, Canvas } from "../main/conversation/types";
 import { QUESTION_LIMITS, type Question, type QuestionAnswerInput } from "../main/conversation/question";
@@ -15,7 +15,7 @@ import { canvasLabel } from "./canvasTree";
 import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { handoffCardHead, handoffLineText } from "./handoffView";
-import { formatSize, providerLogo } from "./homeComposer";
+import { providerLogo, sentFileView } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import { pendingAsks, questionLines, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
@@ -57,6 +57,8 @@ export interface ConversationThreadProps {
   // Only https links reach this; main checks again.
   onOpenLink(url: string): void;
   onCopy(text: string): Promise<boolean>;
+  // Shortens a sent folder's path in its tooltip to ~; null or absent shows it whole.
+  homeDirectory?: string | null;
   // The canvas panel's: a sent message's chips are buttons that show their target on the canvas;
   // without it they are drawn as plain chips. `locateDisabled` while the canvas cannot be shown. Settles
   // with how the locate ended; only "missing" shows "No longer in the canvas".
@@ -410,7 +412,7 @@ export function SentChip({ marker, anchor, frames, disabled, onLocate, missing }
 
 // A sent message: its bubble, attachments and the chip locate note under the bubble (draft frame `chip-locate`). One
 // Send now has in flight ends with a Sending line and has no actions (canvas-composer-polish draft frame `sending`).
-function UserMessage({ entry, frames, disabled, onLocate }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean; onLocate: ConversationThreadProps["onLocate"] }) {
+function UserMessage({ entry, frames, disabled, onLocate, home }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean; onLocate: ConversationThreadProps["onLocate"]; home: string | null }) {
   const base = useId();
   const [shown, show] = useLocateNote();
   const [chip, setChip] = useState<string | null>(null);
@@ -427,8 +429,12 @@ function UserMessage({ entry, frames, disabled, onLocate }: { entry: Extract<Thr
         return <Fragment key={i}>{skillTextParts(part.text, prefix.length, runs).map((piece, index) =>
           piece.skill ? <span key={index} className="skill-word">{piece.text}</span> : <Fragment key={index}>{piece.text}</Fragment>)}</Fragment>;
       })}</div>
-    {entry.attachments.length > 0 && <div className="msg-files">{entry.attachments.map((file, i) => <span key={i} className="attach-chip">
-      <span className="file-icon" aria-hidden="true"><FileText /></span><span className="attach-text"><b>{file.name}</b><small>{formatSize(file.size)}</small></span></span>)}</div>}
+    {entry.attachments.length > 0 && <div className="msg-files">{entry.attachments.map((file, i) => {
+      const view = sentFileView(file, home);
+      const chip = <span className="attach-chip">
+        <span className="file-icon" aria-hidden="true">{view.folder ? <Folder /> : <FileText />}</span><span className="attach-text"><b>{view.label}</b><small>{view.meta}</small></span></span>;
+      return <Fragment key={i}>{view.tooltip ? <Tooltip><TooltipTrigger asChild>{chip}</TooltipTrigger><TooltipContent>{view.tooltip}</TooltipContent></Tooltip> : chip}</Fragment>;
+    })}</div>}
     {entry.sending && <span className="msg-sending"><span className="doan-spinner" aria-hidden="true" />Sending</span>}
     {shownFor && <span className="chip-missing" id={`${shownFor}-missing`} role="status">{LOCATE_MISSING_TEXT}</span>}
   </div>;
@@ -674,7 +680,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const toggle = (key: string) => setExpanded(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const item = (entry: ThreadItem): ReactNode => {
     switch (entry.kind) {
-      case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate} />;
+      case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate} home={props.homeDirectory ?? null} />;
       case "agent": return <AgentMessage text={entry.text} streaming={entry.streaming} />;
       case "noReply": return <div className="msg-agent"><p className="muted">No reply.</p></div>;
       case "fast": return <div className="activity"><div className="activity-head fast-note"><Zap aria-hidden="true" /><span>{entry.text}</span></div></div>;

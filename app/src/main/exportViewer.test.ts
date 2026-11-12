@@ -776,13 +776,15 @@ describe("tokens are the app's", () => {
 });
 
 describe("the content panel", () => {
-  test("the window is the app's grey and the panel sits 8 from every edge, white, 24 on all four corners, clipped", () => {
+  test("the window is the app's grey and the panel sits 8 from every edge, white, clipped, with 24 on all four corners drawn over it", () => {
     expect(declarations(shellCss, "body")).toContain("background: var(--bg-app)");
     const panel = declarations(shellCss, ".doan-canvas-panel");
-    for (const declaration of ["position: relative", "margin: var(--space-2)", "background: var(--surface-panel)", "border-radius: var(--radius-container)", "overflow: clip", "isolation: isolate"]) {
+    for (const declaration of ["position: relative", "margin: var(--space-2)", "background: var(--surface-panel)", "overflow: clip", "isolation: isolate"]) {
       expect(panel, declaration).toContain(declaration);
     }
-    // The app's panel and its board box: the same white, the same clip and isolation (styles.css).
+    // The corners: the window's grey outside a 24 curve, over the header (5) and everything else, never taking the pointer.
+    expect(declarations(shellCss, ".doan-canvas-panel::after")).toEqual(["content: \"\"", "position: absolute", "inset: 0", "z-index: 6", "border-radius: var(--radius-container)", "box-shadow: 0 0 0 var(--radius-container) var(--bg-app)", "pointer-events: none"]);
+    // The app's panel and its board box: the same white and isolation, the area's clip (styles.css).
     expect(stylesCss).toMatch(/\.workspace > \.doan-canvas-panel \{[^}]*isolation: isolate/);
     expect(declarations(stylesCss, ".doan-canvas-panel > .area")).toContain("overflow: clip");
     expect(stylesCss).toMatch(/\.workspace > \.doan-canvas-panel \{[^}]*background: var\(--surface-panel\)/);
@@ -802,6 +804,90 @@ describe("the content panel", () => {
     expect(declarations(shellCss, ".ov-head")).toContain("min-height: var(--size-chrome)");
     expect(declarations(shellCss, ".doan-canvas-panel > .doan-canvas-head")).toEqual(["position: relative", "z-index: 5"]);
     expect(declarations(shellCss, ".doan-canvas-bottom")).toContain("z-index: 3");
+  });
+});
+
+// Chromium draws a cross-origin (out-of-process) iframe only within 16384 device px of its
+// compositing origin when an ancestor clips with the same radius on all four corners: at DPR 2 a
+// board wider or taller than 8192 CSS px was cut off for good. Measured in Electron 45 and Chrome
+// 157; a rectangular clip, a clip with unequal radii and an unclipped radius drew it whole.
+describe("the board iframe's ancestors never clip with four equal radii", () => {
+  const split = (text: string, at: RegExp): string[] => {
+    const parts: string[] = [];
+    let depth = 0, start = 0;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i]!;
+      if (c === "(" || c === "[") depth++;
+      else if (c === ")" || c === "]") depth--;
+      else if (depth === 0 && at.test(c)) { parts.push(text.slice(start, i)); start = i + 1; }
+    }
+    return [...parts, text.slice(start)].map(part => part.trim()).filter(Boolean);
+  };
+  // Each rule's subjects (the compound a selector styles, `:is()` lists expanded) with its
+  // declarations; rules nested in at-rules count too. Pseudo-elements are not ancestors.
+  const subjects = (css: string): { subject: string; declarations: string[] }[] =>
+    [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)].flatMap(([, selectors, body]) => {
+      const declarations = body!.split(";").map(part => part.replace(/\s+/g, " ").trim()).filter(Boolean);
+      return split(selectors!, /,/).flatMap(selector => {
+        const subject = split(selector, /[\s>+~]/).at(-1) ?? "";
+        const list = /^:(?:is|where)\((.*)\)$/.exec(subject)?.[1];
+        return (list === undefined ? [subject] : split(list, /,/).map(inner => split(inner, /[\s>+~]/).at(-1) ?? ""))
+          .filter(s => !s.includes("::")).map(s => ({ subject: s, declarations }));
+      });
+    });
+  // An element on the way up from the iframe: its tag, id, every class it can carry and, when
+  // known, every attribute. A subject matches it unless its tag, an id, a class or an attribute
+  // name says otherwise; pseudo-classes are ignored, so a rule that only might apply still counts.
+  type Element = { tag: string; id?: string | undefined; classes: string[]; attributes?: string[] };
+  const matches = (subject: string, element: Element): boolean => {
+    const attributes = [...subject.matchAll(/\[\s*([\w-]+)/g)].map(([, name]) => name!);
+    if (element.attributes && !attributes.every(name => element.attributes!.includes(name))) return false;
+    const bare = subject.replace(/\[[^\]]*\]/g, "").replace(/:root(?![\w-])/g, "html").replace(/:[\w-]+(\((?:[^()]|\([^()]*\))*\))?/g, "");
+    const tag = /^(?:[a-z][\w-]*|\*)/i.exec(bare)?.[0];
+    return (tag === undefined || tag === "*" || tag.toLowerCase() === element.tag)
+      && [...bare.matchAll(/#([\w-]+)/g)].every(([, id]) => id === element.id)
+      && [...bare.matchAll(/\.([\w-]+)/g)].every(([, name]) => element.classes.includes(name!));
+  };
+  const declared = (css: string, element: Element, property: RegExp): string[] =>
+    subjects(css).filter(({ subject }) => matches(subject, element)).flatMap(({ subject, declarations }) =>
+      declarations.filter(d => property.test(d.split(":")[0]!.trim())).map(d => `${subject} { ${d} }`));
+  const clipping = /^(overflow(-x|-y)?|contain|clip-path)$/;
+  const radius = /^border(-(top|bottom)-(left|right)|-(start|end)-(start|end))?-radius$/;
+  // The corners a top-to-bottom, left-to-right box draws at its top, physical or logical.
+  const topRadius = /^border(-top-(left|right)|-start-(start|end))?-radius$/;
+  const page: Element[] = [{ tag: "body", classes: [] }, { tag: "html", classes: [] }];
+
+  // The app's chain is React's (CanvasPane and the workspace shell in App.tsx, #root in index.html).
+  test("app: the panel paints its corners without clipping, the area rounds only its bottom corners, nothing else from the iframe up is rounded", () => {
+    expect(declared(stylesCss, { tag: "div", classes: ["doan-canvas-panel"], attributes: ["class", "inert"] }, clipping)).toEqual([]);
+    expect(declared(stylesCss, { tag: "section", classes: ["area"], attributes: ["class", "role", "aria-label", "tabindex", "data-picking"] }, topRadius)).toEqual([]);
+    for (const element of [{ tag: "iframe", classes: [], attributes: ["sandbox", "tabindex", "title", "src", "style"] }, { tag: "div", classes: ["board"], attributes: ["class", "hidden", "style"] },
+      { tag: "main", classes: ["app-shell", "workspace", "overlaid", "with-strip"] }, { tag: "div", id: "root", classes: [] }, ...page]) {
+      expect(declared(stylesCss, element, radius), JSON.stringify(element)).toEqual([]);
+    }
+  });
+
+  // The export's chain is read from shell.html, so a wrapper added around the iframe is checked too.
+  const exportChain = (): Element[] => {
+    const html = shellHtml.replace(/<!--[\s\S]*?-->/g, "");
+    const open: Element[] = [];
+    for (const [tagText, close, name, attributes] of html.matchAll(/<(\/?)([a-z][\w-]*)([^>]*)>/gi)) {
+      const tag = name!.toLowerCase();
+      if (close) { open.splice(open.map(e => e.tag).lastIndexOf(tag)); continue; }
+      const element = { tag, id: /\sid="([^"]*)"/.exec(attributes!)?.[1], classes: /\sclass="([^"]*)"/.exec(attributes!)?.[1]?.split(/\s+/) ?? [] };
+      if (tag === "iframe") return [element, ...open.reverse()];
+      if (!tagText.endsWith("/>") && !/^(meta|link|br|img|input|hr|source|wbr)$/.test(tag)) open.push(element);
+    }
+    return [];
+  };
+
+  test("export: nothing from the iframe up to the page is rounded; the panel's corners are a cover over it", () => {
+    const chain = exportChain();
+    expect(chain.map(e => e.tag + (e.id ? `#${e.id}` : "") + e.classes.map(c => `.${c}`).join(""))).toEqual(
+      ["iframe#canvas.canvas", "div#stage.stage", "div#spacer.spacer", "main#board.board", "div.doan-canvas-panel", "body", "html"]);
+    for (const element of chain) {
+      expect(declared(shellCss, element, radius), JSON.stringify(element)).toEqual([]);
+    }
   });
 });
 

@@ -18,7 +18,7 @@ export function conversationWork(c: ConversationSummary, seen: ReadonlySet<strin
   if (c.phase === "waiting") return { kind: "permission", label: `${p} needs your answer` };
   if (c.phase === "running") return { kind: "working", label: `${p} is working` };
   // Failed and stopped turns may have changed files too, so every ending waits to be seen (2026-10-29 user).
-  return c.unseen && !seen.has(c.conversationId) ? { kind: "unseen", label: `New changes from ${p}` } : null;
+  return c.unseen && !seen.has(c.conversationId) ? { kind: "unseen", label: "Conversation finished — unread" } : null;
 }
 
 // A canvas row by ID first, so a moved canvas keeps its slot; a canvas without an ID matches by path.
@@ -59,8 +59,8 @@ export function terminalSlotLabel(provider: WorkItem["provider"]): string {
 // The conversation slots plus terminal sessions' working spinners. A row is
 // root + path: worktrees share canvas paths (POSTMORTEM 2026-11-01). Only listed canvas rows show one, so a path not
 // listed yet shows once it appears. On its row an app conversation working or waiting wins, and a terminal session
-// beats an unseen ending. Terminal rows go in newest-changed first, so a project row standing for several opens the
-// most recently changed canvas (`projectSlotEntry`); app slots that win come before them.
+// beats an unseen ending. Terminal rows go in newest-changed first, so a project row standing for several names the
+// most recently changed canvas (`projectSlot`); app slots that win come before them.
 export function withTerminalSlots(conversations: ReadonlyMap<string, Slot>, work: readonly WorkItem[], entries: readonly FolderEntry[]): Map<string, Slot> {
   const terminal = new Map<string, { slot: Slot; mtimeMs: number }>();
   for (const item of work) {

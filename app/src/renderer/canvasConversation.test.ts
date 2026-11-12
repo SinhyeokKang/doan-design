@@ -104,7 +104,7 @@ describe("canvasConversationMenu", () => {
       summary({ conversationId: "r", state: "archived", phase: "running", lastActivityAt: at(1) }),
       summary({ conversationId: "u", state: "archived", unseen: true, lastActivityAt: at(2) }),
     ], billing, null, NOW);
-    expect(rows.map(r => r.status?.label ?? null)).toEqual(["Needs your answer", "Working", "Finished, not seen"]);
+    expect(rows.map(r => r.status?.label ?? null)).toEqual(["Needs your answer", "Working", "Conversation finished — unread"]);
     expect(canvasConversationMenu([summary({ unseen: true })], billing, null, NOW, new Set(["c1"]))[0]!.status).toBeNull();
   });
 
@@ -231,7 +231,7 @@ describe("canvasConversationError", () => {
       expect(canvasConversationError("attachment_missing", mode, "claude", "acme-web", ["a1", "a2"])).toEqual({ kind: "attachments", missing: ["a1", "a2"] });
       expect(canvasConversationError("not_running", mode, "claude", "acme-web")).toEqual({ kind: "resend" });
       expect(canvasConversationError("attachment_limit", mode, "claude", "acme-web")).toEqual({
-        kind: "notice", text: "Only 10 files can be attached to a message. Remove some, then send again.", retry: false, startNew: false,
+        kind: "notice", text: "Only 10 attachments can be added to a message. Remove some, then send again.", retry: false, startNew: false,
       });
     }
     expect(canvasConversationError("attachment_missing", EXISTING, "claude", "acme-web")).toEqual({ kind: "attachments", missing: [] });

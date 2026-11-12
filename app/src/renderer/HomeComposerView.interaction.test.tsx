@@ -48,6 +48,8 @@ beforeEach(() => {
     addAttachmentFiles: vi.fn(async (files: File[]) => files.map(file => ({ ok: true, attachment: { id: `id-${file.name}`, name: file.name, size: file.size, kind: "file", path: `/Users/ada/${file.name}`, pasted: false } }))),
     addPastedImage: vi.fn(async () => ({ ok: true, attachment: { id: "pasted", name: "pasted.png", size: 10, kind: "image", path: "/u/pasted.png", pasted: true } })),
     removeAttachment: vi.fn(async () => true), chooseAttachments: vi.fn(async () => []), addDroppedFiles: vi.fn(async () => {}), addProjects: vi.fn(),
+    // Pasted test files are page-made (no disk path) unless a test says otherwise.
+    droppedPath: vi.fn(() => null),
   };
   vi.stubGlobal("window", { doan });
   vi.stubGlobal("queueMicrotask", (run: () => void) => run());
@@ -194,18 +196,74 @@ test("Cmd+V: text pastes as text, Finder files attach by path, an image alone at
   await vi.waitFor(() => expect(box.current.attachments.at(-1)).toMatchObject({ id: "pasted", pasted: true, status: "ready" }));
 });
 
-test("a folder dropped on the composer is refused there and never reaches the window's project drop", () => {
+// A copied folder named like an image comes with File.type image/png and can't be read as bytes; when main no longer
+// finds it, the paste must settle as not found instead of leaving every chip of the batch checking.
+test("Cmd+V of a Finder folder named x.png that main no longer finds settles as not found, and its batch still settles", async () => {
+  const { box, render } = setup();
+  const folder = new File([""], "x.png", { type: "image/png" }), file = new File(["x"], "brief.pdf", { type: "application/pdf" });
+  Object.defineProperty(folder, "arrayBuffer", { value: () => Promise.reject(new DOMException("A requested file or directory could not be found", "NotFoundError")) });
+  doan.addAttachmentFiles!.mockResolvedValueOnce([
+    { ok: false, name: "x.png", error: "not_found" },
+    { ok: true, attachment: { id: "f", name: "brief.pdf", kind: "file", size: 1, path: "/Users/ada/brief.pdf", pasted: false } },
+  ]);
+  (doan.addPastedImage as ReturnType<typeof vi.fn>).mockClear();
+  call(field(render()), "onPaste", { preventDefault: vi.fn(), clipboardData: { files: [folder, file], getData: () => "" } });
+  await vi.waitFor(() => expect(box.current.attachments).toEqual([expect.objectContaining({ id: "f", kind: "file", status: "ready" })]));
+  expect(box.current.notice?.text).toBe("x.png wasn’t found, so it wasn’t attached.");
+  expect(doan.addPastedImage).not.toHaveBeenCalled();
+});
+
+// Only a page-made image (a copied screenshot, no disk path) falls back to a pasted image. A Finder item main no longer
+// finds keeps main's answer, without its bytes being read, so a vanished large photo is not "Pasted image is too large".
+test("Cmd+V of a Finder image that main no longer finds settles as not found without being read as a pasted image", async () => {
+  const { box, render } = setup();
+  const photo = new File(["png"], "photo.png", { type: "image/png" }), file = new File(["x"], "brief.pdf", { type: "application/pdf" });
+  Object.defineProperty(photo, "size", { value: 60 * 1024 * 1024 });
+  const read = vi.fn(async () => new ArrayBuffer(8)); Object.defineProperty(photo, "arrayBuffer", { value: read });
+  doan.droppedPath!.mockImplementation((f: File) => `/Users/ada/${f.name}`);
+  doan.addAttachmentFiles!.mockResolvedValueOnce([
+    { ok: false, name: "photo.png", error: "not_found" },
+    { ok: true, attachment: { id: "f", name: "brief.pdf", kind: "file", size: 1, path: "/Users/ada/brief.pdf", pasted: false } },
+  ]);
+  call(field(render()), "onPaste", { preventDefault: vi.fn(), clipboardData: { files: [photo, file], getData: () => "" } });
+  await vi.waitFor(() => expect(box.current.attachments).toEqual([expect.objectContaining({ id: "f", kind: "file", status: "ready" })]));
+  expect(box.current.notice?.text).toBe("photo.png wasn’t found, so it wasn’t attached.");
+  expect(read).not.toHaveBeenCalled();
+  expect(doan.addPastedImage).not.toHaveBeenCalled();
+});
+
+test("a folder dropped on the composer attaches as a folder chip beside a file and never reaches the window's project drop", async () => {
   const { box, render } = setup();
   const composer = find(render(), props => props.className === "composer");
-  const folder = new File([""], "designs");
-  const event = { preventDefault: vi.fn(), stopPropagation: vi.fn(), dataTransfer: { types: ["Files"], files: [folder], items: [{ kind: "file", webkitGetAsEntry: () => ({ isDirectory: true }) }] } };
+  const folder = new File([""], "designs"), file = new File(["x"], "brief.pdf");
+  doan.addAttachmentFiles!.mockResolvedValueOnce([
+    { ok: true, attachment: { id: "d", name: "designs", kind: "directory", path: "/Users/ada/designs", pasted: false } },
+    { ok: true, attachment: { id: "f", name: "brief.pdf", kind: "file", size: 1, path: "/Users/ada/brief.pdf", pasted: false } },
+  ]);
+  const event = { preventDefault: vi.fn(), stopPropagation: vi.fn(), dataTransfer: { types: ["Files"], files: [folder, file], items: [{ kind: "file", webkitGetAsEntry: () => ({ isDirectory: true }) }, { kind: "file", webkitGetAsEntry: () => ({ isDirectory: false }) }] } };
   call(composer, "onDrop", event);
   expect(event.stopPropagation).toHaveBeenCalled();
   expect(event.preventDefault).toHaveBeenCalled();
   expect(doan.addDroppedFiles).not.toHaveBeenCalled();
-  expect(doan.addAttachmentFiles).not.toHaveBeenCalled();
-  expect(box.current.attachments).toEqual([]);
-  expect(box.current.notice?.text).toBe("Folders can’t be attached. Add a project from Add Projects.");
+  expect(doan.addAttachmentFiles).toHaveBeenCalledWith([folder, file]);
+  await vi.waitFor(() => expect(box.current.attachments).toEqual([
+    expect.objectContaining({ id: "d", name: "designs", kind: "directory", status: "ready", path: "/Users/ada/designs" }),
+    expect.objectContaining({ id: "f", name: "brief.pdf", kind: "file", status: "ready", size: 1 }),
+  ]));
+  expect(box.current.attachments[0]).not.toHaveProperty("size");
+  expect(box.current.notice ?? null).toBeNull();
+});
+
+test("a dropped item main refuses as neither file nor folder is named, and the folder beside it stays", async () => {
+  const { box, render } = setup();
+  const composer = find(render(), props => props.className === "composer");
+  doan.addAttachmentFiles!.mockResolvedValueOnce([
+    { ok: false, name: "pipe", error: "not_file" },
+    { ok: true, attachment: { id: "d", name: "designs", kind: "directory", path: "/Users/ada/designs", pasted: false } },
+  ]);
+  call(composer, "onDrop", { preventDefault: vi.fn(), stopPropagation: vi.fn(), dataTransfer: { types: ["Files"], files: [new File([""], "pipe"), new File([""], "designs")], items: [] } });
+  await vi.waitFor(() => expect(box.current.attachments.map(a => a.name)).toEqual(["designs"]));
+  expect(box.current.notice?.text).toBe("pipe isn’t a file or folder, so it wasn’t attached.");
 });
 
 test("dragging files over the composer shows the drop target and stops the window overlay", () => {
@@ -250,13 +308,13 @@ test("Edit on Home asks before replacing a different draft, and fills an empty o
   expect(empty.box.current.text).toBe("");
 });
 
-test("a dropped folder is recognised by its own item even when string items come first", () => {
+test("string items among a drop change nothing: every dropped file and folder goes to main in order", () => {
   const { render } = setup();
   const composer = find(render(), props => props.className === "composer");
   const folder = new File([""], "designs"), file = new File(["x"], "brief.pdf");
   const items = [{ kind: "string", webkitGetAsEntry: () => null }, { kind: "file", webkitGetAsEntry: () => ({ isDirectory: true }) }, { kind: "file", webkitGetAsEntry: () => ({ isDirectory: false }) }];
   call(composer, "onDrop", { preventDefault: vi.fn(), stopPropagation: vi.fn(), dataTransfer: { types: ["Files"], files: [folder, file], items } });
-  expect(doan.addAttachmentFiles).toHaveBeenCalledWith([file]);
+  expect(doan.addAttachmentFiles).toHaveBeenCalledWith([folder, file]);
 });
 
 const B: FolderEntry = { kind: "list", path: "/code/acme", servedRev: 0, canvases: [], git: { common: "/code/acme/.git", main: "/code/acme", branch: "main", worktrees: [] } };

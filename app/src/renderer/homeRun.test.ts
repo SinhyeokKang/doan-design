@@ -408,7 +408,7 @@ test("after a reload the slots come back from the list: running, waiting for an 
   h.run.entriesChanged();
   await flush();
   // Straight from the list, before the strip's history reads return.
-  expect(h.run.slots()).toEqual(new Map([[ROOT, { kind: "working", label: "Claude Code is working" }], [`${OTHER}\n.doan/canvases/x.html`, { kind: "unseen", label: "New changes from Claude Code" }]]));
+  expect(h.run.slots()).toEqual(new Map([[ROOT, { kind: "working", label: "Claude Code is working" }], [`${OTHER}\n.doan/canvases/x.html`, { kind: "unseen", label: "Conversation finished — unread" }]]));
   lists({ [ROOT]: [summary({ conversationId: "w", phase: "waiting" })], [OTHER]: [] });
   h.run.listChanged(ROOT);
   await flush();
@@ -678,6 +678,26 @@ test("a late project_busy shows Home's reason line without Open until a list rea
   now.mockRestore();
 });
 
+test("Edit on Home after a restart refuses a recorded folder whose path now names a file, releasing the new id", async () => {
+  lists({ [ROOT]: [summary({ unseen: true, provider: "codex", model: "gpt-5.5", effort: "high" })] });
+  doan.readConversation!.mockResolvedValue({ events: [
+    event("c1", { type: "user.message", text: "Look.", anchors: [], attachments: [{ name: "refs", kind: "directory", path: "/Users/ada/refs" }, { name: "a.md", size: 4, kind: "file", path: "/Users/ada/a.md" }] }),
+    event("c1", { type: "turn.started" }), event("c1", { type: "turn.failed", code: "process_exited" }),
+  ], lastSeq: 3, turn: "failed" });
+  doan.removeAttachment = vi.fn(async () => true);
+  doan.attachmentsFromPaths!.mockResolvedValue([
+    { ok: true, attachment: { id: "new-refs", name: "refs", size: 3, kind: "file", path: "/Users/ada/refs", pasted: false } },
+    { ok: true, attachment: { id: "new-a", name: "a.md", size: 4, kind: "file", path: "/Users/ada/a.md", pasted: false } },
+  ]);
+  const h = harness();
+  h.run.entriesChanged();
+  await flush(); await flush();
+  await h.run.editOnHome("c1");
+  expect(h.run.restore?.request.attachments).toMatchObject([{ name: "refs", kind: "directory", status: "missing" }, { id: "new-a", name: "a.md", status: "ready" }]);
+  expect(h.run.restore?.request.attachments[0]!.id).toBeUndefined();
+  expect(doan.removeAttachment).toHaveBeenCalledWith("new-refs");
+  expect(doan.removeAttachment).not.toHaveBeenCalledWith("new-a");
+});
 test("Edit on Home after a reload rebuilds the request from the record and the index; a moved file comes back missing", async () => {
   lists({ [ROOT]: [summary({ unseen: true, provider: "codex", model: "gpt-5.5", effort: "high" })] });
   doan.readConversation!.mockResolvedValue({ events: [

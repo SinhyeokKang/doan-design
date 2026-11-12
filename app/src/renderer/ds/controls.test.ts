@@ -60,7 +60,8 @@ test("screens set only outer margins on a notice: no per-screen padding, gap, ty
       const subject = selector.replace(/:not\([^)]*\)/g, "").split(/[\s>+~]+/).at(-1)!;
       if (!notice.test(subject) || shared.has(selector)) continue;
       const properties = body!.split(";").map(d => d.split(":")[0]!.trim()).filter(Boolean);
-      if (properties.some(prop => !prop.startsWith("margin"))) offenders.push(`${selector} { ${body!.trim()} }`);
+      // Stacking (position, z-index) is layering above the buddy slot, not a per-screen look.
+      if (properties.some(prop => !prop.startsWith("margin") && prop !== "position" && prop !== "z-index")) offenders.push(`${selector} { ${body!.trim()} }`);
     }
   }
   expect(offenders).toEqual([]);
@@ -263,7 +264,7 @@ test("the capture snapshot hides app marks with opacity alone", () => {
   const hide = /\[data-capture-snapshot\] :is\(([^)]*(?:\([^)]*\)[^)]*)*)\) \{([^}]*)\}/.exec(styles);
   expect(hide).not.toBeNull();
   const targets = hide![1]!.split(",").map(target => target.trim());
-  expect(targets.sort()).toEqual([".capture-marquee", ".doan-agent-artist", ".doan-agent-glow", ".doan-canvas-bottom", ".doan-canvas-top", ".overlay", ".toast", "[data-radix-popper-content-wrapper]"].sort());
+  expect(targets.sort()).toEqual([".capture-marquee", ".doan-agent-artist", ".doan-agent-glow", ".doan-canvas-bottom", ".doan-canvas-top", ".overlay", ".toast", "[data-radix-popper-content-wrapper]", ".docked-buddy"].sort());
   expect(hide![2]!.trim()).toBe("opacity: 0 !important;");
   expect(styles).not.toMatch(/\[data-capture-snapshot\][^{]*\{[^}]*(visibility|display)/);
 });

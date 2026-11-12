@@ -21,8 +21,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { cardRow, chipClass, groupProjects } from "./homeCards";
 import { generationOf, modelsKey } from "./dockedSupport";
 import {
-  followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
-  fixedPreference, greetingText, groupIcon, lengthCounter, modelOption, modelPickerView, presetListView, presetPlaceholder,
+  followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, attachRefusal, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
+  fixedPreference, greetingText, groupIcon, lengthCounter, markRefused, modelOption, modelPickerView, presetListView, presetPlaceholder, readyAttachment,
   rootForProject, selectableProvider, sendAvailability, slashKey, slashQuery, startErrorView, suggestedPresets, suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type NewConversationDefault, type PresetListReply, type PresetSummary,
 } from "./homeComposer";
@@ -85,7 +85,7 @@ function viewers(memory: { current: ComposerMemory }): Set<() => void> {
 
 export interface StartInput { root: string; mode: "newDesign"; runtime: Provider; text: string; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }
 // conversationId: the started conversation, for a host that shows it in place (the project Overview).
-export type StartOutcome = { ok: true; conversationId?: string } | { error: string; missing?: string[] };
+export type StartOutcome = { ok: true; conversationId?: string } | { error: string; missing?: string[]; replaced?: string[] };
 
 export interface HeroComposerProps {
   entries: readonly FolderEntry[]; homeDirectory: string | null;
@@ -161,14 +161,6 @@ export function pasteAction(text: string, files: readonly { name: string; type: 
   if (text.trim() && !files.some(file => text.includes(file.name))) return "text";
   return "files";
 }
-
-const ATTACH_ERRORS: Record<string, (name: string) => string> = {
-  not_found: name => `${name} wasn’t found, so it wasn’t attached.`,
-  not_file: name => `${name} isn’t a file, so it wasn’t attached.`,
-  not_image: name => `${name} isn’t a readable image, so it wasn’t attached.`,
-  unreadable: name => `${name} couldn’t be read, so it wasn’t attached.`,
-  too_large: () => "This image is over 50 MB, so it wasn’t attached.",
-};
 
 // Home's composer: the shared primitives with Home's own project picker,
 // worktree tray, suggestions and stage. Always a box.
@@ -339,14 +331,13 @@ export function HeroComposer(props: HeroComposerProps) {
         if (!result || !result.ok) {
           const name = result && !result.ok ? result.name : next[at]!.name;
           next = next.filter(a => a.key !== key);
-          if (result && !result.ok && result.error === "limit") notices.push("Only 10 files can be attached.");
-          else notices.push((ATTACH_ERRORS[result?.ok === false ? result.error : "unreadable"] ?? ATTACH_ERRORS.unreadable!)(name));
+          notices.push(attachRefusal(result?.ok === false ? result.error : "unreadable", name));
           return;
         }
         const { attachment } = result;
         const url = attachment.kind === "image" ? thumbnailUrl(attachment.thumbnail) : null;
         if (url) thumbnails[key] = url;
-        next[at] = { key, id: attachment.id, name: attachment.name, kind: attachment.kind, pasted: attachment.pasted, status: "ready", size: attachment.size, path: attachment.path };
+        next[at] = readyAttachment(key, attachment);
       });
       return { attachments: next, thumbnails };
     });
@@ -362,12 +353,16 @@ export function HeroComposer(props: HeroComposerProps) {
     update(current => ({ attachments: [...current.attachments, ...accepted.map((file, i): AttachmentDraft => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size }))] }));
     void window.doan.addAttachmentFiles(accepted).catch(() => null).then(async results => {
       if (!results) { settle(keys, keys.map(() => null)); return; }
-      // A copied screenshot has no path on disk; it attaches as a pasted image instead.
+      // A copied screenshot has no path on disk; it attaches as a pasted image instead. A Finder item main no longer
+      // finds keeps main's answer: a folder named x.png has File.type image/png too.
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
-        if (!pastedImages || result.ok || result.error !== "not_found" || !file.type.startsWith("image/")) return result;
+        if (!pastedImages || result.ok || result.error !== "not_found" || !file.type.startsWith("image/") || window.doan.droppedPath(file) !== null) return result;
         if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
-        return window.doan.addPastedImage(await file.arrayBuffer()).catch(() => null);
+        // A page-made image whose bytes can't be read settles with the rest of its batch.
+        const bytes = await file.arrayBuffer().catch(() => null);
+        if (!bytes) return result;
+        return window.doan.addPastedImage(bytes).catch(() => null);
       }));
       settle(keys, final);
     });
@@ -375,15 +370,12 @@ export function HeroComposer(props: HeroComposerProps) {
   const choose = () => {
     if (memory.current.sending) return;
     void window.doan.chooseAttachments().catch(() => [] as AttachmentResult[]).then(results => {
-      const ok = results.filter((result): result is Extract<AttachmentResult, { ok: true }> => result.ok);
-      const limit = attachmentLimit(memory.current.attachments.length, ok.map(() => ({ pasted: false, size: 0 })));
-      const keep = new Set<AttachmentResult>(limit.accept.map(i => ok[i]!));
-      for (const result of ok) if (!keep.has(result)) void window.doan.removeAttachment(result.attachment.id);
-      const chosen = results.filter(result => !result.ok || keep.has(result));
+      const { chosen, release, notices } = chosenAttachments(memory.current.attachments.length, results);
+      for (const id of release) void window.doan.removeAttachment(id);
       const keys = chosen.map(() => crypto.randomUUID());
       update(current => ({ attachments: [...current.attachments, ...chosen.map((result, i): AttachmentDraft => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" }))] }));
       settle(keys, chosen);
-      if (limit.notices.length) setNotice({ text: limit.notices.join(" "), retry: false });
+      if (notices.length) setNotice({ text: notices.join(" "), retry: false });
     });
   };
   const removeChip = (index: number, trigger: "button" | "backspace") => {
@@ -458,8 +450,8 @@ export function HeroComposer(props: HeroComposerProps) {
       return;
     }
     if (outcome.error === "attachment_missing") {
-      const missing = new Set(outcome.missing ?? []);
-      update(current => ({ sending: null, attachments: current.attachments.map(a => a.id && missing.has(a.id) ? { ...a, status: "missing" } : a) }));
+      const { missing = [], replaced } = outcome;
+      update(current => ({ sending: null, attachments: markRefused(current.attachments, missing, replaced) }));
     // A late project_busy is shown by the reason line, which the run's list now carries.
     } else if (outcome.error === "project_busy") update({ sending: null });
     else update({ sending: null, notice: startErrorView(outcome.error, provider, project) });
@@ -483,7 +475,8 @@ export function HeroComposer(props: HeroComposerProps) {
       attachments: current.attachments.map(a => {
         if (!a.id || !ids.includes(a.id) || a.status !== "checking") return a;
         const result = results?.find(item => item.id === a.id);
-        return result?.ok ? { ...a, status: "ready", size: result.attachment.size, path: result.attachment.path } : { ...a, status: "missing" };
+        if (result?.ok) return readyAttachment(a.key, result.attachment);
+        return { ...a, status: result?.error === "replaced" ? "replaced" : "missing" };
       }),
     })));
     // A request rebuilt from history names its preset by id only; the read list fills in its group and description.

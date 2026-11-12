@@ -18,12 +18,14 @@ import { classifyDesignChange } from "./designChange";
 import { createRefresher, watchFolder, type Change, type FolderWatch } from "./watch";
 
 // Pass-through spy, so a test can see which paths got a watcher of their own;
-// it also counts raw events, so a test can wait until they stop.
-const raw = vi.hoisted(() => ({ events: 0 }));
+// it also counts raw events, so a test can wait until they stop, and can drop
+// events, so a test can stand in for one that FSEvents never delivered.
+const raw = vi.hoisted(() => ({ events: 0, drop: undefined as ((path: string, filename: string | null) => boolean) | undefined }));
 vi.mock("node:fs", async (importOriginal) => {
   const fs = await importOriginal<typeof import("node:fs")>();
   const watch = (path: string, options: { recursive: boolean }, listener: (event: string, filename: string | null) => void) =>
     fs.watch(path, options, (event, filename) => {
+      if (raw.drop?.(path, filename)) return;
       raw.events++;
       listener(event, filename);
     });
@@ -35,6 +37,7 @@ let count = 0;
 let open: FolderWatch | undefined;
 
 afterEach(() => {
+  raw.drop = undefined;
   open?.close();
   open = undefined;
 });
@@ -375,6 +378,31 @@ describe("watchFolder classifies changes", () => {
     await expectChange(w, () => writeFileSync(join(root, ".doan", "config.json"), '{"v":1,"serve":[]}'), REREAD);
   });
 
+  // The read-state records: the app's own writes land here, so they must cost one records read and nothing else.
+  test("a .doan/seen/ change only reads the records again: no re-read, nothing served", async () => {
+    const root = repo();
+    mkdirSync(join(root, ".doan", "seen"));
+    vi.mocked(fsWatch).mockClear();
+    const w = await watchScope(root, [".doan/canvases"]);
+    expect(watchedPaths()).toContain(join(root, ".doan", "seen"));
+    expect(recursivePaths()).not.toContain(join(root, ".doan", "seen"));
+    writeFileSync(join(root, ".doan", "seen", ".a.json.0123456789ab.tmp"), '{"v":1}\n');
+    renameSync(join(root, ".doan", "seen", ".a.json.0123456789ab.tmp"), join(root, ".doan", "seen", "a.json"));
+    expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
+    await settle(() => w.calls().length);
+    expect(w.calls().length).toBeGreaterThan(0);
+    for (const call of w.calls()) expect(call).toEqual({ reread: false, served: false, seen: true });
+  });
+
+  test("the .doan/seen/ folder appearing is one .doan re-read, and it is watched from then on", async () => {
+    const root = repo();
+    const w = await watchScope(root, [".doan/canvases"]);
+    await expectChange(w, () => mkdirSync(join(root, ".doan", "seen")), REREAD);
+    w.reset();
+    writeFileSync(join(root, ".doan", "seen", "_project.json"), '{"v":1}\n');
+    expect(await within(1_000, () => w.calls().some(call => call.seen))).toBe(true);
+  });
+
   // A `.doan/` change must not reload the canvas, even when `serve` points into `.doan`.
   test("a .doan/ change is never served, even with .doan in scope", async () => {
     const root = repo();
@@ -695,6 +723,23 @@ test("canvas assets reload after creation, editing and directory replacement", a
     writeFileSync(join(assets, "style.css"), "b{}");
   }, BOTH);
   await expectChange(w, () => writeFileSync(join(assets, "style.css"), "c{}"), SERVED);
+});
+
+// libuv recreates its shared FSEvents stream from "now" whenever a watcher opens or
+// closes, so `.doan`'s own event for the replaced directory can be lost while the
+// re-arm runs. The replacement alone has to count as the directory coming and going.
+test("a replaced canvas assets directory reloads even when .doan's event for it is lost", async () => {
+  const root = repo();
+  const assets = join(root, ".doan/assets");
+  mkdirSync(assets);
+  writeFileSync(join(assets, "style.css"), "a{}");
+  const w = await watchScope(root, [".doan/canvases"]);
+  raw.drop = (path, filename) => path === join(root, ".doan") && filename === "assets";
+  await expectChange(w, () => {
+    rmSync(assets, { recursive: true });
+    mkdirSync(assets);
+    writeFileSync(join(assets, "style.css"), "b{}");
+  }, BOTH);
 });
 
 // `doan ls` does not list a symlinked `.doan/ds`, and its scope names the real path.

@@ -1,0 +1,103 @@
+{
+  "generator": "built-in image_gen",
+  "referenceImages": [
+    "puri/still.png",
+    "doany/artist/typing-rest.png"
+  ],
+  "prompt": "Generate animation sprite sheet 4 columns x 2 rows, exactly 8 equal square cells, wide 2:1 canvas. CLEAN TRANSPARENT EMPTY BACKGROUND: no haze, glow, cast shadow, white, floor, checkerboard. Reference 1 Puri mint plush wide three-lobed body, black oval eyes and green sprout; preserve identity, no hat. Reference 2 laptop pose and precise silver laptop with dark Doany silhouette product logo. Puri typing behind same laptop. Same scale, fixed camera and baseline in each cell, ample padding. Eight sequential subtle typing poses: tiny hands alternately tap at sides, blink briefly in frame 6; body and sprout consistent, laptop perfectly stationary and logo identical in every frame. No text, no border, no grid lines. Full character and laptop fit within each cell. Rich yarn texture matching reference. Seamless loop.",
+  "frames": 24,
+  "durationMs": 2400,
+  "processing": "4 by 2 sheet; alpha threshold and isolated-component cleanup; 512px cells, 460px art; GIF with background disposal and infinite loop; omit closed-eye pose 5, sequence open-eye poses across 24 frames, cosine brightness pulse confined to laptop logo",
+  "status": "Canvas draft; not integrated into the app",
+  "frameDurationsMs": [
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100
+  ],
+  "review": {
+    "translationPx": [
+      {
+        "dx": 0,
+        "dy": 0
+      },
+      {
+        "dx": 0,
+        "dy": -1
+      },
+      {
+        "dx": 0,
+        "dy": 0
+      },
+      {
+        "dx": 0,
+        "dy": 0
+      },
+      {
+        "dx": 0,
+        "dy": -1
+      },
+      {
+        "dx": 0,
+        "dy": -1
+      },
+      {
+        "dx": 0,
+        "dy": -1
+      },
+      {
+        "dx": 0,
+        "dy": -1
+      }
+    ],
+    "remaining": "Logo was generated from the Doany reference, not copied pixel-for-pixel; exact logo fidelity remains unresolved.",
+    "eyes": "No blink: source pose 5 omitted",
+    "logoPulse": "Dark to white to dark, one cycle per 2.4 seconds",
+    "sourcePoseIndices": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      2,
+      2,
+      2,
+      3,
+      3,
+      3,
+      4,
+      4,
+      4,
+      4,
+      6,
+      6,
+      6,
+      7,
+      7,
+      7,
+      7
+    ]
+  }
+}

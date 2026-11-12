@@ -28,8 +28,8 @@ import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type 
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import { cardRow, chipClass, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
-  attachmentLimit, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
-  selectableProvider, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
+  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
+  selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
 } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
 import type { StartInput, StartOutcome } from "./HomeComposerView";
@@ -42,6 +42,7 @@ import { threadItems, withSending } from "./threadItems";
 import { threadTurn } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
+import { dropAttachment } from "./conversationStore";
 
 // The project Overview as the project conversation screen: the header with the
 // project, its worktree chip and the conversation dropdown, the thread and the docked composer. OverviewRun decides
@@ -78,7 +79,7 @@ export interface ProjectOverviewProps {
   onRetryList(): void;
   onStart(request: StartInput, last: LastRequest): Promise<StartOutcome>;
   // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens.
-  onSendConversation(provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[] }>;
+  onSendConversation(provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[]; replaced?: string[] }>;
   // A problem worktree's repair actions in the branch chip's menu, as the sidebar's project menu runs them.
   onAction(name: RowAction, root: string): void;
   onProjectSettings(root: string): void;
@@ -213,12 +214,16 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     addChips(at, accepted.map((file, i) => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size })));
     void window.doan.addAttachmentFiles(accepted).catch(() => null).then(async results => {
       if (!results) { settle(keys, keys.map(() => null)); return; }
-      // A copied screenshot has no path on disk; it attaches as a pasted image instead.
+      // A copied screenshot has no path on disk; it attaches as a pasted image instead. A Finder item main no longer
+      // finds keeps main's answer: a folder named x.png has File.type image/png too.
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
-        if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/")) return result;
+        if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/") || window.doan.droppedPath(file) !== null) return result;
         if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
-        return window.doan.addPastedImage(await file.arrayBuffer()).catch(() => null);
+        // A page-made image whose bytes can't be read settles with the rest of its batch.
+        const bytes = await file.arrayBuffer().catch(() => null);
+        if (!bytes) return result;
+        return window.doan.addPastedImage(bytes).catch(() => null);
       }));
       settle(keys, final);
     });
@@ -226,15 +231,12 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const chooseFiles = () => {
     const at = key;
     void window.doan.chooseAttachments().catch(() => []).then(results => {
-      const ok = results.filter(result => result.ok);
-      const limit = attachmentLimit((run.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, ok.map(() => ({ pasted: false, size: 0 })));
-      const keep = new Set(limit.accept.map(i => ok[i]!));
-      for (const result of ok) if (!keep.has(result) && result.ok) void window.doan.removeAttachment(result.attachment.id);
-      const chosen = results.filter(result => !result.ok || keep.has(result));
+      const { chosen, release, notices } = chosenAttachments((run.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, results);
+      for (const id of release) void window.doan.removeAttachment(id);
       const keys = chosen.map(() => crypto.randomUUID());
       addChips(at, chosen.map((result, i) => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" })));
       settle(keys, chosen);
-      if (limit.notices.length) props.onNotice?.(limit.notices.join(" "));
+      if (notices.length) props.onNotice?.(notices.join(" "));
     });
   };
 
@@ -270,7 +272,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const queue = async (request: DockedRequest): Promise<DockedOutcome> => {
     if (mode.kind === "new") return { error: "not_running" };
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
-    if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
+    if ("error" in reply) return sendRefusal(reply);
     // The row keeps the request's text; the request itself is kept for the thread, where Send now moves it.
     run.queued(root, mode.conversationId, { id: reply.itemId, text: stripRequestLines(request.text), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
     return { ok: true, itemId: reply.itemId };
@@ -384,7 +386,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     </header>
     {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text selectable">{props.notice}</span></div>}
     <div className="ov-scroll">
-      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
+      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project} homeDirectory={props.homeDirectory}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, run.store.stageOf(conversationId), root) : null} canvasListed={canvasListed}
         onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
         onAnswerQuestion={(requestId, answer) => window.doan.answerConversationQuestion({ conversationId, requestId, ...answer })}
@@ -422,8 +424,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
-        onAttachmentRemoved={attachment => { if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(console.error); }}
+        onAttachmentRemoved={dropAttachment}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events) : null}
+        stepAside={{ prompts: !conversationId && !waiting && prompts.length > 0 && !started, waiting: asking, notice: !conversationId && !waiting && !!moved }}
         queued={conversationId ? run.queue(conversationId) : []}
         sendNow={!!conversationId && !!provider && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? run.store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}

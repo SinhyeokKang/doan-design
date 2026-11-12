@@ -4,7 +4,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import { slotsFromList, stripFromList, withTerminalSlots } from "./conversationList";
 import { slotKey, type Slot } from "./homeConversations";
-import { projectSlotEntry } from "./ShellSidebar";
+import { projectSlot } from "./ShellSidebar";
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
@@ -25,7 +25,7 @@ describe("slotsFromList", () => {
     expect(slotsFromList(lists, none, canvases)).toEqual(new Map([
       ["/r/doan", { kind: "working", label: "Claude Code is working" }],
       ["/r/b", { kind: "permission", label: "Codex needs your answer" }],
-      ["/r/c", { kind: "unseen", label: "New changes from Claude Code" }],
+      ["/r/c", { kind: "unseen", label: "Conversation finished — unread" }],
     ]));
   });
 
@@ -47,7 +47,7 @@ describe("slotsFromList", () => {
     ]]]);
     expect(slotsFromList(lists, none, canvases)).toEqual(new Map([
       [slotKey("/r/doan", ".doan/canvases/a.html"), { kind: "working", label: "Claude Code is working" }],
-      [slotKey("/r/doan", ".doan/canvases/plain.html"), { kind: "unseen", label: "New changes from Claude Code" }],
+      [slotKey("/r/doan", ".doan/canvases/plain.html"), { kind: "unseen", label: "Conversation finished — unread" }],
       ["/r/doan", { kind: "permission", label: "Claude Code needs your answer" }],
     ]));
   });
@@ -103,7 +103,7 @@ describe("withTerminalSlots", () => {
   test("a permission request and an app conversation working on the same row win; an unseen ending loses", () => {
     const permission: Slot = { kind: "permission", label: "Codex needs your answer" };
     const app: Slot = { kind: "working", label: "Codex is working" };
-    const unseen: Slot = { kind: "unseen", label: "New changes from Codex" };
+    const unseen: Slot = { kind: "unseen", label: "Conversation finished — unread" };
     const conversations = new Map([[slotKey("/r", A), permission], [slotKey("/r", B), app], [slotKey("/r", C), unseen]]);
     const slots = withTerminalSlots(conversations, [work("/r", A), work("/r", B), work("/r", C)], entries);
     expect(slots.get(slotKey("/r", A))).toBe(permission);
@@ -112,23 +112,23 @@ describe("withTerminalSlots", () => {
   });
 
   test("project slots and other rows' slots stay as they were", () => {
-    const project: Slot = { kind: "unseen", label: "New changes from Codex" };
+    const project: Slot = { kind: "unseen", label: "Conversation finished — unread" };
     const slots = withTerminalSlots(new Map([["/r", project]]), [work("/r", A)], entries);
     expect(slots.get("/r")).toBe(project);
     expect(slots.size).toBe(2);
   });
 
-  test("several terminal rows come newest-changed first, so a project row opens the most recently changed canvas", () => {
+  test("several terminal rows come newest-changed first, so a project row names the most recently changed canvas", () => {
     const slots = withTerminalSlots(new Map(), [work("/r", A), work("/r", C), work("/r", B)], entries);
     expect([...slots.keys()]).toEqual([slotKey("/r", B), slotKey("/r", C), slotKey("/r", A)]);
-    expect(projectSlotEntry(slots, ["/r"], [])?.key).toBe(slotKey("/r", B));
-    expect(projectSlotEntry(slots, ["/r"], [slotKey("/r", B)])?.key).toBe(slotKey("/r", C));
+    expect(projectSlot(slots, ["/r"], [])).toBe(slots.get(slotKey("/r", B)));
+    expect(projectSlot(slots, ["/r"], [slotKey("/r", B)])).toBe(slots.get(slotKey("/r", C)));
   });
 
   test("on a project row an app conversation working elsewhere comes before a terminal session", () => {
     const app: Slot = { kind: "working", label: "Codex is working" };
     const slots = withTerminalSlots(new Map([[slotKey("/r", A), app]]), [work("/r", B)], entries);
-    expect(projectSlotEntry(slots, ["/r"], [])?.slot).toBe(app);
+    expect(projectSlot(slots, ["/r"], [])).toBe(app);
   });
 
   test("two sessions on one row show one slot", () => {

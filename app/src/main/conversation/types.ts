@@ -33,8 +33,9 @@ export interface PermissionRequest {
 export interface QuestionRequest { type: "question.request"; requestId: string; questions: Question[] }
 // answers: only when answered, per question id; a secret question's answer is never kept.
 export interface QuestionResolved { type: "question.resolved"; requestId: string; outcome: QuestionOutcome; answers?: Record<string, StoredAnswer> }
-// A file the person attached by local path; doan sends the path, not the bytes.
-export interface AttachmentRecord { name: string; size: number; kind: "image" | "file"; path: string }
+// A file or folder the person attached by local path; doan sends the path, not the bytes. A folder has no size: main
+// never walks it to count one.
+export type AttachmentRecord = { name: string; size: number; kind: "image" | "file"; path: string } | { name: string; kind: "directory"; path: string };
 // The first message of a conversation a handoff started: the earlier conversation and its canvas. Its text is that
 // agent's handoff, kept as written and never read for {{n}} markers (anchors stay empty).
 export interface HandoffOrigin { kind: "handoff"; conversationId: string; canvas: Canvas }

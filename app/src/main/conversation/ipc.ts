@@ -11,8 +11,9 @@ import { QUESTION_LIMITS, type QuestionAnswerInput } from "./question";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
 export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "skills", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode", "delete"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
-// attachment_missing names the attachments that were moved, deleted or forgotten since they were added.
-export interface ConversationError { error: string; missing?: string[] }
+// attachment_missing names the attachments that were moved, deleted or forgotten since they were added; replaced, the
+// ones among them that are folders now leading to another folder.
+export interface ConversationError { error: string; missing?: string[]; replaced?: string[] }
 interface Project { path: string; kind: string; canvases?: Canvas[] }
 function message(raw: Record<string, unknown>): { text: string; anchors: Anchor[] } | null {
   if (typeof raw.text !== "string" || !raw.text.trim() || raw.text.length > LIMITS.text) return null;
@@ -71,7 +72,7 @@ export function validateSendExtras(request: Record<string, unknown>, root: strin
     if (!home.attachments || !Array.isArray(request.attachments)) throw new Error("bad_request");
     extras.ids = [...request.attachments];
     const resolved = home.attachments.resolve(extras.ids);
-    if (!resolved.ok) throw resolved.error === "attachment_missing" ? Object.assign(new Error(resolved.error), { missing: resolved.missing }) : new Error("bad_request");
+    if (!resolved.ok) throw resolved.error === "attachment_missing" ? missingError(resolved.missing, resolved.replaced) : new Error("bad_request");
     if (resolved.records.length) extras.attachments = resolved.records;
   }
   return extras;
@@ -82,10 +83,13 @@ function attachedHooks(store: AttachmentStore, ids: unknown[]): StartAttachments
     recheck: () => {
       const fresh = store.resolve(ids);
       if (fresh.ok) return fresh.records;
-      throw Object.assign(new Error(fresh.error), fresh.error === "attachment_missing" ? { missing: fresh.missing } : {});
+      throw fresh.error === "attachment_missing" ? missingError(fresh.missing, fresh.replaced) : new Error(fresh.error);
     },
     sent: () => store.markSent(ids),
   };
+}
+function missingError(missing: string[], replaced: string[] | undefined): Error {
+  return Object.assign(new Error("attachment_missing"), { missing, ...(replaced?.length ? { replaced } : {}) });
 }
 // The queue's hold on its attachments: at queue time main marks them sent (a paste survives a restart in drafts.json)
 // and consumes them, so the renderer's chip removal no longer touches them; the queued send checks them again.
@@ -94,7 +98,8 @@ export function queueFiles(store: AttachmentStore): QueueFiles {
     reclaim: ids => {
       const back = store.recheck({ ids });
       const missing = back === null ? ids : back.filter(result => !result.ok).map(result => result.id);
-      if (missing.length) throw Object.assign(new Error("attachment_missing"), { missing });
+      const replaced = (back ?? []).filter(result => !result.ok && result.error === "replaced").map(result => result.id);
+      if (missing.length) throw missingError(missing, replaced);
       return attachedHooks(store, ids.map(id => ({ id })));
     },
     consume: ids => store.consume(ids.map(id => ({ id }))),
@@ -230,7 +235,9 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
     } catch (error) {
       const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "cli_install_failed", "credential_override", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale", "project_busy", "not_running", "queue_limit", "account_changed", "sign_in_changed"];
       const code = error instanceof Error ? error.message : "unknown";
-      if (code === "attachment_missing" && error instanceof Error && "missing" in error && Array.isArray(error.missing)) return { error: code, missing: error.missing };
+      if (code === "attachment_missing" && error instanceof Error && "missing" in error && Array.isArray(error.missing)) {
+        return { error: code, missing: error.missing, ...("replaced" in error && Array.isArray(error.replaced) ? { replaced: error.replaced } : {}) };
+      }
       return { error: code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown" };
     }
   };

@@ -16,8 +16,12 @@ export interface Change {
   // when no canvas directory event is in the change. Relative to the repo, not to each
   // directory, so a merged set keeps `.doan/canvases/a.html` and `.doan/ds/a.html` apart.
   names?: readonly string[] | null;
+  // `.doan/seen/` changed: only the read-state records are read again. No `doan ls`, no served bump, no canvas reload,
+  // so the app's own record writes cost one read and nothing more.
+  seen?: boolean;
 }
 
+const SEEN: Change = { reread: false, served: false, seen: true };
 const REREAD: Change = { reread: true, served: false };
 const SERVED: Change = { reread: false, served: true };
 const BOTH: Change = { reread: true, served: true };
@@ -70,7 +74,7 @@ export function createRefresher(run: (change: Change) => Promise<void>, delayMs 
   };
   const trigger = (change: Change) => {
     if (closed) return;
-    pending = { reread: pending.reread || change.reread, served: pending.served || change.served };
+    pending = { reread: pending.reread || change.reread, served: pending.served || change.served, ...(pending.seen || change.seen ? { seen: true } : {}) };
     if (change.names === null) names = null;
     else if (change.names !== undefined && names !== null) names = new Set([...(names ?? []), ...change.names]);
     if (running) {
@@ -116,10 +120,13 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
   const canvasDirs: Target[] = Object.values(CANVAS_DIRS).map((dir) => ({ path: join(root, dir), recursive: true, change: REREAD, canvasDir: dir }));
   // `.doan` events under these names mean a canvas or asset directory itself came or went.
   const doanDirs = new Set(["assets", ...Object.values(CANVAS_DIRS).map((dir) => basename(dir))]);
+  const assetsDir: Target = { path: join(root, ".doan/assets"), recursive: true, change: SERVED };
   const fixed: Target[] = [
     ...canvasDirs,
-    { path: join(root, ".doan/assets"), recursive: true, change: SERVED },
+    assetsDir,
     { path: join(root, ".doan"), recursive: false, change: REREAD },
+    // Non-recursive: the records sit directly in it. Its coming and going is a `.doan` entry, a re-read as before.
+    { path: join(root, ".doan/seen"), recursive: false, change: SEEN },
   ];
   let served: Target[] = [];
   // Served files directly in the root go through the root watcher.
@@ -190,6 +197,10 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
       // A served path replaced or removed changed what is served, even when the
       // event that got here was a root event classified as a re-read only.
       if (current && current.ino !== ino && served.includes(target)) refresher.trigger(SERVED);
+      // A canvas or asset directory replaced or removed came and went, which `.doan`'s own event
+      // for it says too. That event can be lost: libuv recreates its shared FSEvents stream from
+      // "now" whenever this re-arm opens or closes a watcher.
+      if (current && current.ino !== ino && (target === assetsDir || canvasDirs.includes(target))) refresher.trigger(BOTH);
       current?.watcher.close();
       armed.delete(path);
       if (ino === undefined) continue;

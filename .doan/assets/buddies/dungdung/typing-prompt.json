@@ -1,0 +1,103 @@
+{
+  "generator": "built-in image_gen",
+  "referenceImages": [
+    "dungdung/still.png",
+    "doany/artist/typing-rest.png"
+  ],
+  "prompt": "Production animation sprite sheet, 4 columns x 2 rows, eight equal square cells on wide 2:1 image. Clean actual transparent background, NO haze, glow, floor, cast shadow or checkerboard. Ref 1 identity: Dungdung yellow rounded pear plush with large charcoal headphones, two black oval eyes, no hat. Preserve silhouette and yarn texture. Ref 2 exact prop and action: typing behind same silver laptop bearing SAME Doany silhouette product logo. Eight sequential subtle typing poses, small yellow hands alternating taps beside laptop, brief blink in frame 6, otherwise identical body and headphones, fixed laptop, logo, camera, scale and baseline. Leave 8 percent clear margin within EVERY cell, full character and laptop never clipped. Seamless loop, no text or lines or other props.",
+  "frames": 24,
+  "durationMs": 2400,
+  "processing": "4 by 2 sheet; alpha threshold and isolated-component cleanup; 512px cells, 460px art; GIF with background disposal and infinite loop; omit closed-eye pose 5, sequence open-eye poses across 24 frames, cosine brightness pulse confined to laptop logo",
+  "status": "Canvas draft; not integrated into the app",
+  "frameDurationsMs": [
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100
+  ],
+  "review": {
+    "translationPx": [
+      {
+        "dx": 0,
+        "dy": 0
+      },
+      {
+        "dx": 10,
+        "dy": 0
+      },
+      {
+        "dx": 19,
+        "dy": 0
+      },
+      {
+        "dx": 28,
+        "dy": 0
+      },
+      {
+        "dx": 0,
+        "dy": 5
+      },
+      {
+        "dx": 10,
+        "dy": 5
+      },
+      {
+        "dx": 19,
+        "dy": 5
+      },
+      {
+        "dx": 28,
+        "dy": 5
+      }
+    ],
+    "remaining": "Logo was generated from the Doany reference, not copied pixel-for-pixel; exact logo fidelity remains unresolved.",
+    "eyes": "No blink: source pose 5 omitted",
+    "logoPulse": "Dark to white to dark, one cycle per 2.4 seconds",
+    "sourcePoseIndices": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      2,
+      2,
+      2,
+      3,
+      3,
+      3,
+      4,
+      4,
+      4,
+      4,
+      6,
+      6,
+      6,
+      7,
+      7,
+      7,
+      7
+    ]
+  }
+}

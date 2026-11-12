@@ -1,0 +1,115 @@
+
+body{width:1440px;padding:var(--space-8);background:var(--surface-inset);overflow:visible;user-select:text;font-variant-numeric:normal}
+.poc-intro{max-width:1000px;margin-bottom:var(--space-10)}
+.poc-intro h1{font:var(--type-weight-medium) var(--type-title-size)/var(--type-title-line-height) var(--type-family);letter-spacing:var(--type-title-letter-spacing)}
+.poc-intro p,.poc-note{font:var(--type-weight-regular) var(--type-body-sm-size)/var(--type-body-sm-line-height) var(--type-family);letter-spacing:var(--type-body-sm-letter-spacing);color:var(--text-subtle);margin-top:var(--space-3)}
+.poc-section{margin-bottom:var(--space-12)}
+.poc-section>h2{font:var(--type-weight-medium) var(--type-body-lg-size)/var(--type-body-lg-line-height) var(--type-family);letter-spacing:var(--type-body-lg-letter-spacing);margin-bottom:var(--space-3)}
+.poc-controls{display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-4);flex-wrap:wrap}
+.poc-controls button[aria-pressed=true]{background:var(--affordance-backdrop-pressed)}
+.poc-stage{position:relative;background:var(--surface-panel);border-radius:var(--radius-container);padding:var(--space-8);width:100%;height:auto;min-height:300px;display:flex;align-items:end;gap:var(--space-10)}
+.poc-wide{width:720px}.poc-narrow{width:336px}
+.poc-stage .poc-note{margin-bottom:var(--space-16)}
+.win{position:relative;width:1376px;height:780px;overflow:hidden;border-radius:var(--radius-chip);background:var(--bg-app);box-shadow:var(--shadow-panel)}
+.win .workspace{--doan-sidebar-width:220px}
+.lights{position:absolute;left:var(--space-4);top:21px;display:flex;gap:var(--space-2);z-index:3}
+.lights i{width:var(--space-3);height:var(--space-3);border-radius:var(--radius-pill)}
+.lights i:nth-child(1){background:var(--mock-light-close)}.lights i:nth-child(2){background:var(--mock-light-minimize)}.lights i:nth-child(3){background:var(--mock-light-zoom)}
+.poc-ground{position:absolute;left:0;right:0;top:-1px;height:0;pointer-events:none;z-index:2}
+/* Top offset and transform-origin come from each rig's foot contact in docked-poc.js, not from per-buddy rules. */
+.poc-walker{position:absolute;width:56px;height:56px;left:0;pointer-events:none}
+.poc-walker canvas,.poc-walker>img{position:absolute;width:100%;height:100%;inset:0}
+.poc-walker>img{padding:16.5%;object-fit:contain}
+.poc-walker [hidden]{display:none}
+.poc-label{font:var(--type-weight-medium) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family);color:var(--text-metadata);letter-spacing:var(--type-caption-letter-spacing)}
+.poc-board{margin:var(--space-10);padding:var(--space-8);width:560px;background:var(--surface-panel);border-radius:var(--radius-container);box-shadow:var(--shadow-sm)}
+.poc-board h3{font:var(--type-weight-medium) var(--type-heading-size)/var(--type-heading-line-height) var(--type-family)}
+.poc-board p{margin-block:var(--space-4);font:var(--type-weight-regular) var(--type-label-size)/var(--type-label-line-height) var(--type-family)}
+.poc-board .poc-cards{display:flex;gap:var(--space-4)}.poc-board article{width:200px;padding:var(--space-4);border:1px solid var(--border-standard);border-radius:var(--radius-row)}
+.poc-thread-test .thread-scroll{display:block;padding-bottom:calc(var(--space-6) + var(--space-2))}
+.poc-risk .win{height:600px}
+/* Thread spacing is scrollable content, not a taller docked backdrop. */
+
+
+/* Scope the shipped Puri palette and its dependent roles to comparison frames. */
+.poc-section[data-buddy="puri"]{
+  --buddy-3: var(--puri-3);
+  --buddy-4: var(--puri-4);
+  --buddy-9: var(--puri-9);
+  --buddy-10: var(--puri-10);
+  --buddy-11: var(--puri-11);
+  --buddy-12: var(--puri-12);
+  --buddy-pressed: var(--puri-pressed);
+  --buddy-contrast: var(--neutral-standard-text);
+  --buddy-icon: var(--puri-icon);
+  /* The accent roles follow the buddy switch above, resolved here where the palette is selected. */
+  --surface-comment: var(--buddy-4);
+  --text-comment: var(--buddy-12);
+  --affordance-accent: var(--buddy-9);
+  --affordance-accent-hover: var(--buddy-10);
+  --affordance-accent-pressed: var(--buddy-pressed);
+  --text-on-accent: var(--buddy-contrast);
+  --text-accent: var(--buddy-icon);
+  --surface-accent-subtle: var(--buddy-3);
+  --text-accent-subtle: var(--buddy-11);
+}
+
+/* A 2px blur is a contact-shadow constant; the smallest shared blur (8px) erases this 16px shadow. */
+/* Occlusion belongs only to the buddy, so the composer and its controls never clip. */
+.poc-contact-shadow{position:absolute;left:calc(-1 * var(--space-2));top:-1px;width:var(--space-4);height:var(--space-half);border-radius:var(--radius-pill);background:var(--text-subtle);filter:blur(2px);opacity:.34;pointer-events:none}
+
+.poc-buddy-window{position:absolute;left:0;right:0;top:-88px;height:88px;overflow:hidden;pointer-events:none}
+
+/* The same contact edge works on the existing canvas toolbar without changing its controls. */
+.poc-section .doan-canvas-tools{position:relative}
+/* Queue pills draw above the buddy layer (.poc-ground, z-index 2); the gaps between pills stay transparent. */
+.poc-section .docked>.queue{position:relative;z-index:3}
+
+.poc-section[data-buddy="dungdung"] {
+  --buddy-3: var(--dungdung-3);
+  --buddy-4: var(--dungdung-4);
+  --buddy-9: var(--dungdung-9);
+  --buddy-10: var(--dungdung-10);
+  --buddy-11: var(--dungdung-11);
+  --buddy-12: var(--dungdung-12);
+  --buddy-pressed: var(--dungdung-pressed);
+  --buddy-contrast: var(--neutral-standard-text);
+  --buddy-icon: var(--dungdung-icon);
+}
+
+.poc-section[data-buddy="popo"] {
+  --buddy-3: var(--popo-3);
+  --buddy-4: var(--popo-4);
+  --buddy-9: var(--popo-9);
+  --buddy-10: var(--popo-10);
+  --buddy-11: var(--popo-11);
+  --buddy-12: var(--popo-12);
+  --buddy-pressed: var(--popo-pressed);
+  --buddy-contrast: var(--neutral-1);
+  --buddy-icon: var(--popo-icon);
+}
+
+.poc-section[data-buddy="dori"] {
+  --buddy-3: var(--dori-3);
+  --buddy-4: var(--dori-4);
+  --buddy-9: var(--dori-9);
+  --buddy-10: var(--dori-10);
+  --buddy-11: var(--dori-11);
+  --buddy-12: var(--dori-12);
+  --buddy-pressed: var(--dori-pressed);
+  --buddy-contrast: var(--neutral-1);
+  --buddy-icon: var(--dori-icon);
+}
+
+/* Resolve accent roles on each specimen, where its buddy palette is selected. */
+.poc-section:is([data-buddy="dungdung"],[data-buddy="popo"],[data-buddy="dori"]){
+  --surface-comment: var(--buddy-4);
+  --text-comment: var(--buddy-12);
+  --affordance-accent: var(--buddy-9);
+  --affordance-accent-hover: var(--buddy-10);
+  --affordance-accent-pressed: var(--buddy-pressed);
+  --text-on-accent: var(--buddy-contrast);
+  --text-accent: var(--buddy-icon);
+  --surface-accent-subtle: var(--buddy-3);
+  --text-accent-subtle: var(--buddy-11);
+}

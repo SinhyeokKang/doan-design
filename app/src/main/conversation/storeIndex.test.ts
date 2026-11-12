@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpath
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore, parseIndex, restoreEntries, type ConversationMetadata } from "./store";
+import { FOLDER_ATTACHMENT, IMAGE_NAMED_FOLDER, LEGACY_ATTACHMENTS } from "./attachmentRecords.fixture";
 const hooks = vi.hoisted(() => ({ failRename: false, journals: [] as string[] }));
 vi.mock("node:fs", async original => {
   const fs = await original<typeof import("node:fs")>();
@@ -233,6 +234,20 @@ describe("user.message attachments in event v1", () => {
     expect(saved.v).toBe(1);
     expect(new ConversationStore(f.root).read("c")).toEqual([saved]);
     expect(saved).toMatchObject({ attachments });
+  });
+  it("reads earlier records and folder records side by side", () => {
+    const records = [...LEGACY_ATTACHMENTS, FOLDER_ATTACHMENT, IMAGE_NAMED_FOLDER];
+    const f = seed({ "c.jsonl": message({ attachments: records }) });
+    expect(new ConversationStore(f.root).read("c")).toMatchObject([{ attachments: records }]);
+    const store = new ConversationStore(f.root);
+    const saved = store.append("c", "t", { type: "user.message", text: "hi", anchors: [], attachments: [FOLDER_ATTACHMENT] });
+    expect(new ConversationStore(f.root).read("c")[1]).toEqual(saved);
+  });
+  it("rejects a folder record that carries a size or lacks a path", () => {
+    for (const value of [[{ ...FOLDER_ATTACHMENT, size: 0 }], [{ name: "references", kind: "directory" }], [{ ...FOLDER_ATTACHMENT, path: "references" }]]) {
+      const f = seed({ "c.jsonl": message({ attachments: value }) });
+      expect(() => new ConversationStore(f.root).read("c")).toThrow("Invalid conversation event");
+    }
   });
   it("reads a message without attachments and ignores unknown fields", () => {
     const f = seed({ "c.jsonl": message({ future: { x: 1 } }) });

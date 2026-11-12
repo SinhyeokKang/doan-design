@@ -19,12 +19,26 @@ export interface CanvasRow {
   // Bumped by the shell when this file changed without a served bump, so the
   // open canvas and its thumbnail reload for their own file only.
   rev?: number;
-  // Set by `canvasSeen.ts` when the canvas appeared or changed since the person last had it on the canvas page.
+  // Set by the read state (`readState.ts`) when the canvas appeared or its HTML changed since it was last shown on the
+  // canvas page.
   unseen?: "new" | "changed";
+  // An unseen canvas the canvas page showed whose read state could not be saved: `save` for a write that failed (the
+  // dot says so instead of "changed"), `id` for a canvas with a missing or duplicated ID (nothing can be saved).
+  saveFailed?: "save" | "id";
   // `doan ls` could not read the canvas file.
   error?: RowError;
   url: string;
 }
+
+// What the read-state toast tells, with Retry: a canvas whose read state could not be saved (`path`), or a project
+// whose initial records could not be written or whose records cannot be read. `readOnly`: the write was refused for
+// permissions.
+export type ReadStateProblem =
+  | { kind: "save"; path: string; readOnly: boolean }
+  | { kind: "id"; path: string }
+  | { kind: "baseline"; readOnly: boolean }
+  | { kind: "records" }
+  | { kind: "unsupported" };
 
 // The message holds a repo-relative path and the cause, never an absolute path.
 export interface RowError { code: string; message: string }
@@ -51,7 +65,7 @@ export type FolderEntry = { path: string; lastCommon?: string; autoRegistered?: 
   | ({ kind: "list"; canvases: CanvasRow[]; servedRev: number; git?: GitInfo; changedAt?: number } & StorageFacts)
   | { kind: "uninitialized" }
   // `config`: the file the CLI named (folderState); main's Show in Finder selects it, the renderer does not use it.
-  | { kind: "error"; message: string; config: string }
+  | { kind: "error"; message: string; config: string; newer?: true }
   | { kind: "cliError"; reason: string }
   | { kind: "notFound" }
 );
@@ -122,7 +136,7 @@ export function folderEntry(path: string, view: FolderView, baseUrl: string, ser
         ...(view.storage ? { storage: view.storage } : {}), ...(view.storageReason ? { storageReason: view.storageReason } : {}) };
     }
     case "error":
-      return { path, kind: "error", message: view.message, config: view.config };
+      return { path, kind: "error", message: view.message, config: view.config, ...(view.newer ? { newer: true as const } : {}) };
     case "cliError":
       return { path, kind: "cliError", reason: view.reason };
     default:

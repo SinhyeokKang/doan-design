@@ -114,3 +114,42 @@ test("leaving the dialog drops the hover and focus pauses of the element that un
   state = toastState(state, { type: "tick", elapsedMs: 9000 });
   expect(state.ended).toEqual({ id: "one", reason: "expired" });
 });
+
+// A Retry runs in place: the same toast (and element, so focus on its button stays) shows the busy text with an
+// unavailable button, never ends on its own while running, and either goes or shows the failure with Retry again.
+test("a running action holds the toast in place, ignores presses, and settles by update or dismiss", () => {
+  let state = toastState(initialToastState, { type: "show", toast: { id: "one", message: "Couldn’t save a’s read state.", action: "Retry" } });
+  state = toastState(state, { type: "update", id: "one", message: "Saving a’s read state.", action: "Retrying", busy: true });
+  expect(state.toast).toEqual({ id: "one", message: "Saving a’s read state.", action: "Retrying", busy: true });
+  state = toastState(state, { type: "action" });
+  expect(state.toast?.id).toBe("one");
+  state = toastState(state, { type: "tick", elapsedMs: TOAST_MS * 2 });
+  expect(state.toast?.id).toBe("one");
+  state = toastState(state, { type: "update", id: "one", message: "Couldn’t save a’s read state.", action: "Retry", busy: false });
+  expect(state.toast).toEqual({ id: "one", message: "Couldn’t save a’s read state.", action: "Retry" });
+  expect(state.remainingMs).toBe(TOAST_MS);
+  state = toastState(state, { type: "dismiss", id: "one" });
+  expect(state).toMatchObject({ toast: null, ended: { id: "one", reason: "action" } });
+});
+
+test("a settling action never touches a toast that replaced it", () => {
+  let state = toastState(initialToastState, { type: "show", toast: { id: "one", message: "a", action: "Retry" } });
+  state = toastState(state, { type: "show", toast: { id: "two", message: "b" } });
+  state = toastState(state, { type: "update", id: "one", message: "c", action: "Retry", busy: false });
+  state = toastState(state, { type: "dismiss", id: "one" });
+  expect(state.toast).toEqual({ id: "two", message: "b" });
+});
+
+// useToast ticks every 100 ms for the life of App; a new state object on each idle tick re-rendered all of App ten
+// times a second while no toast was shown.
+test("an idle tick keeps the same state, so nothing re-renders; a tick still clears a finished toast's ending", () => {
+  expect(toastState(initialToastState, { type: "tick", elapsedMs: 100 })).toBe(initialToastState);
+  const hidden = run([{ type: "hidden", on: true }]);
+  expect(toastState(hidden, { type: "tick", elapsedMs: 100 })).toBe(hidden);
+  const expired = run([{ type: "show", toast: two }, { type: "tick", elapsedMs: TOAST_MS }]);
+  expect(expired.ended).toEqual({ id: "2", reason: "expired" });
+  const after = toastState(expired, { type: "tick", elapsedMs: 100 });
+  expect(after).not.toBe(expired);
+  expect(after.ended).toBeUndefined();
+  expect(toastState(after, { type: "tick", elapsedMs: 100 })).toBe(after);
+});

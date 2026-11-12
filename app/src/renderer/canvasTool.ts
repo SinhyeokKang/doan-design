@@ -34,7 +34,7 @@ export function toolShortcut(event: ShortcutEvent, context: { canvasPage: boolea
   return interactiveTarget(event.target) ? null : { kind: "space", down: true };
 }
 
-export type EscapeStep = "cancelPick" | "cancelCapture" | "selectTool" | "clearSelection";
+export type EscapeStep = "cancelPick" | "cancelCapture" | "selectTool" | "stepSelection";
 
 // Esc's next action once menus, popovers and the `/` list have had theirs (they prevent it). A pick and capture mode
 // (never both at once) end wherever focus is; a text field keeps its own Esc otherwise.
@@ -42,5 +42,5 @@ export function escapeStep(state: { picking: boolean; capturing: boolean; hand: 
   if (state.picking) return "cancelPick";
   if (state.capturing) return "cancelCapture";
   if (state.editable) return null;
-  return state.hand ? "selectTool" : "clearSelection";
+  return state.hand ? "selectTool" : "stepSelection";
 }

@@ -36,6 +36,15 @@ describe("CanvasTools", () => {
     expect(html).not.toContain("Add to conversation");
   });
 
+  it("carries the docked buddy's second floor first: decorative, no tab stop, and outside the tools ←/→ walks", async () => {
+    const { dockedBuddy } = await import("./dockedBuddyShell");
+    const html = markup();
+    expect(html).toMatch(/^<div class="doan-floating doan-canvas-tools"[^>]*><div class="docked-buddy-slot" aria-hidden="true"><\/div><button/);
+    const slot = all(CanvasTools(props())).find(element => element.props.className === "docked-buddy-slot")!;
+    expect(slot.props.ref).toBe(dockedBuddy.toolsSlot);
+    expect(slot.props.tabIndex).toBeUndefined();
+  });
+
   it.each<[CanvasTool, string, string]>([["select", "Select", "Hand"], ["hand", "Hand", "Select"]])("presses only %s", (tool, pressed, other) => {
     const html = markup({ tool });
     expect(html).toMatch(new RegExp(`<button[^>]*aria-pressed="true"[^>]*aria-label="${pressed}"`));
@@ -121,7 +130,7 @@ describe("CanvasTools", () => {
     (capture({ capture: { enabled: true, reason: null, onToggle: () => toggled++ } }).props.onClick as () => void)();
     (capture({ capturing: true, capture: { enabled: true, reason: null, onToggle: () => toggled++ } }).props.onClick as () => void)();
     expect(toggled).toBe(2);
-    const reason = "Files can’t be attached to a terminal session";
+    const reason = "Attachments can’t be added to a terminal session";
     const off = capture({ capture: { enabled: false, reason, onToggle: () => toggled++ } });
     (off.props.onClick as () => void)();
     expect(toggled).toBe(2);
@@ -142,7 +151,7 @@ describe("CanvasTools", () => {
   // Availability can change during capture mode (a paste fills the draft); the pressed button still ends it.
   it("during capture mode Capture area always ends it, even once it could not start again", () => {
     let toggled = 0;
-    const capture = buttons(CanvasTools(props({ capturing: true, capture: { enabled: false, reason: "Only 10 files can be attached. Remove one to add another.", onToggle: () => toggled++ } })))[3]!;
+    const capture = buttons(CanvasTools(props({ capturing: true, capture: { enabled: false, reason: "Only 10 attachments can be added. Remove one to add another.", onToggle: () => toggled++ } })))[3]!;
     expect(capture.props["aria-disabled"]).toBeUndefined();
     (capture.props.onClick as () => void)();
     expect(toggled).toBe(1);

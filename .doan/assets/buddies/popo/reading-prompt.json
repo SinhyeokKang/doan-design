@@ -1,0 +1,36 @@
+{
+  "generator": "built-in image_gen",
+  "referenceImages": [
+    "popo/still.png",
+    "doany/artist/reading-rest.png"
+  ],
+  "generationPromptRecord": "Animation sprite sheet exactly 4 columns x 2 rows, 8 square cells, wide 2:1. Clean real transparent background with NO haze glow floor shadows or checkerboard. Ref 1 Popo peach pink rounded-square plush with subtle central notch in top, large dark brown round glasses and black oval eyes; preserve identity, silhouette and yarn. Ref 2 same dark teal hardcover open book and reading pose. Popo holds book in little peach hands. Eight successive seamless loop frames: eyes glance down through glasses, blink once, one cream page lifts turns right to left and settles. Fixed body, glasses, camera, scale, baseline and book cover. 8% transparent margins in every cell, full subjects no clipping. No hat, labels, grid or extra objects.",
+  "frames": 8,
+  "durationMs": 1760,
+  "frameDurationsMs": [
+    220,
+    220,
+    220,
+    220,
+    220,
+    220,
+    220,
+    220
+  ],
+  "processing": "Original eight-frame reading sequence restored; closed and partially closed eye poses replaced with preceding open-eye poses. Transparent 512px GIF, background disposal, infinite loop.",
+  "sourcePoseIndices": [
+    0,
+    1,
+    1,
+    1,
+    4,
+    5,
+    6,
+    7
+  ],
+  "status": "Canvas draft; not integrated into the app",
+  "review": {
+    "eyes": "No blinking",
+    "motion": "Original page-turn poses and 1.76-second duration restored"
+  }
+}

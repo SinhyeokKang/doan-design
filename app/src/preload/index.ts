@@ -7,13 +7,12 @@ import type { UsageEntry } from "../main/agentAuth/usageTypes";
 import type { McpAddReply, McpReply, McpSnapshot } from "../main/mcpConnectors/ipc";
 import type { McpProvider } from "../main/mcpConnectors/presets";
 import type { ShellActivity } from "../main/shellActivity";
-import type { ConversationService, StartRequest } from "../main/conversation/service";
+import type { ConversationService, StartRequest, TakenDraft } from "../main/conversation/service";
 import type { ConversationError } from "../main/conversation/ipc";
 import type { ModelsReply } from "../main/conversation/models";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { QuestionAnswerInput } from "../main/conversation/question";
 import type { ConversationSummary } from "../main/conversation/summary";
-import type { ReturnedDraft } from "../main/conversation/drafts";
 import type { HandoffNotice } from "../main/conversation/handoff";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
@@ -35,7 +34,7 @@ import type { TestNotificationReply } from "../main/notifyService";
 import type { AboutRead } from "../main/about";
 import type { InstallGate, UpdateSnapshot } from "../main/update/types";
 import type { InspectResult } from "../main/inspect";
-import type { FolderEntry } from "../main/view";
+import type { FolderEntry, ReadStateProblem } from "../main/view";
 import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
 import type { ExportReply } from "../main/canvasExport";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
@@ -140,7 +139,7 @@ const api = {
   // provider refused it, or the turn ended first (the message stays queued and follows the queue's rules); stale: the
   // item is gone or already on its way out; attachment_missing: one of its files went away (it stays queued).
   sendQueuedNow: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:sendQueuedNow", request),
-  takeConversationDraft: (request: { conversationId: string }): Promise<ReturnedDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
+  takeConversationDraft: (request: { conversationId: string }): Promise<TakenDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
   // Deletes Doan's record of the conversation on this device (index entry, history, queue and returned draft); the
   // agent's own session files stay. busy while it works or the app quits; not_found when it is already gone; unknown
   // when the index cannot be read, and then nothing is deleted. A success is announced with onConversationListChanged.
@@ -179,8 +178,9 @@ const api = {
   // The project skills the provider loads in this folder (Claude and Codex; an empty list for the others), read the
   // same prompt-free way and kept by main for 30 seconds. An error carries a conversation start code.
   listConversationSkills: (request: { root: string; provider: Provider }): Promise<{ skills: SkillSummary[] } | ConversationError> => ipcRenderer.invoke("conversation:skills", request),
-  // Home attachments. Main checks each file (real path, regular file, image signature) and answers per item in order;
-  // nothing is copied except a pasted image, which main re-encodes to PNG under userData. A thumbnail is PNG bytes.
+  // Home attachments. Main checks each item (real path, a regular file or a folder, image signature) and answers per item
+  // in order; nothing is copied except a pasted image, which main re-encodes to PNG under userData, and a folder is never
+  // read. A thumbnail is PNG bytes.
   chooseAttachments: (): Promise<AttachmentResult[]> => ipcRenderer.invoke("attachments:choose"),
   // Dropped or pasted Finder files. A file the page made itself has no path and is refused here as not_found.
   async addAttachmentFiles(files: readonly File[]): Promise<AttachmentResult[] | null> {
@@ -341,7 +341,7 @@ const api = {
     ipcRenderer.on("add-projects:open", receive);
     return () => ipcRenderer.removeListener("add-projects:open", receive);
   },
-  // A dropped item's disk path, for the page's inspect; null for a file the page made itself.
+  // A dropped or pasted item's disk path; null for a file the page made itself.
   droppedPath(file: File): string | null {
     const path = webUtils.getPathForFile(file);
     return path === "" ? null : path;
@@ -407,8 +407,17 @@ const api = {
   },
   // `ui-state.json` as main validated it against the saved roots; null starts at home.
   readShellActivity: (request: { roots: string[] }): Promise<ShellActivity[] | null> => ipcRenderer.invoke("shell:activity", request),
-  // The canvas page shows an unseen canvas; main records its mtime and sends the list again.
-  markCanvasSeen: (request: { root: string; path: string; mtimeMs: number }): Promise<boolean> => ipcRenderer.invoke("canvas:seen", request),
+  // The canvas the canvas page is meant to show, null when it shows none. Main records the read state once its own
+  // document bindings prove the canvas shown, and sends the list again.
+  showCanvas: (request: { root: string; path: string } | null): Promise<boolean> => ipcRenderer.invoke("read-state:showing", request),
+  // Retry, or re-entering a project: what still fails after the read state was saved and read again, or null.
+  retryReadState: (request: { root: string; path?: string }): Promise<ReadStateProblem | null | false> => ipcRenderer.invoke("read-state:retry", request),
+  // A read-state failure found while the person did not ask, for a toast on that project.
+  onReadStateProblem(listener: (notice: { root: string; problem: ReadStateProblem }) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, notice: { root: string; problem: ReadStateProblem }) => listener(notice);
+    ipcRenderer.on("read-state:problem", receive);
+    return () => ipcRenderer.removeListener("read-state:problem", receive);
+  },
   readUiState: (): Promise<UiState | null> => ipcRenderer.invoke("ui-state:get"),
   // Main validates again and writes the last value after 500 ms; false when refused.
   saveUiState: (state: UiState): Promise<boolean> => ipcRenderer.invoke("ui-state:save", state),

@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
-import { CanvasController, initialCanvasState, MEASURE_ANSWER_MS } from "./CanvasController";
+import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, MEASURE_ANSWER_MS, routeCanvasPublish, viewOnlyChange } from "./CanvasController";
 import { elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, screenToBoard } from "./viewport";
 import { unavailableCanvasMessage } from "./quickOpen";
 import { SELECTION_LOST } from "./selection";
@@ -165,6 +165,8 @@ function selectionHarness() {
     hasFocus: () => true,
     // No menu or dialog over the canvas page (the follow check reads it).
     querySelector: () => null,
+    // The app's document: an event dispatched on it bubbles to the window, as in the browser.
+    dispatchEvent: (event: Event) => { if (event.bubbles) host.dispatchEvent(event); return !event.defaultPrevented; },
     documentElement: { setAttribute: (name: string, value: string) => { rootAttributes.set(name, value); }, removeAttribute: (name: string) => { rootAttributes.delete(name); }, hasAttribute: (name: string) => rootAttributes.has(name) },
     createElement: (tag: string) => {
       if (tag !== "iframe") {
@@ -180,6 +182,7 @@ function selectionHarness() {
     },
   };
   vi.stubGlobal("document", doc);
+  vi.stubGlobal("KeyboardEvent", class extends Event { key: string; constructor(type: string, init: KeyboardEventInit = {}) { super(type, init); this.key = init.key ?? ""; } });
   const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => ({ left: 0, top: 0, right: 800, bottom: 600, x: 0, y: 0, width: 800, height: 600 }) as DOMRect });
   const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
   const overlay = { append: vi.fn() };
@@ -207,6 +210,12 @@ function selectionHarness() {
   const state = () => changed.mock.lastCall?.[0];
   layout();
   return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections, board, layer, doc, cursor, pointer, marks };
+}
+
+// The canvas's answer to Esc's step past the outermost frame: a clear at the step's seq.
+function stepAnswer(h: { current: () => { contentWindow: { postMessage: ReturnType<typeof vi.fn> } }; receive: (data: Record<string, unknown>) => void }, over: Record<string, unknown> = {}) {
+  const step = h.current().contentWindow.postMessage.mock.calls.map(c => c[0] as Record<string, unknown>).filter(m => m.type === "select-parent").at(-1);
+  h.receive({ type: "clear", seq: step?.seq, answer: "select-parent", ...over });
 }
 
 describe("selection", () => {
@@ -249,13 +258,14 @@ describe("selection", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("Esc clears, tells the canvas with a new seq, and a select sent before it is dropped", () => {
+  it("Esc steps back with a new seq, the outermost step clears, and a select sent before it is dropped", () => {
     const h = selectionHarness();
     try {
       h.select(1);
       h.key("Escape");
+      expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "select-parent", seq: 2 }, "*");
+      stepAnswer(h);
       expect(h.state().selection).toBeNull();
-      expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "clear", seq: 2 }, "*");
       expect(h.send).toHaveBeenLastCalledWith(null);
       h.select(1);
       h.layout({ seq: 1, selected: h.target.rect });
@@ -264,11 +274,12 @@ describe("selection", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("a key message from the canvas clears like the app's own Esc", () => {
+  it("a key message from the canvas steps like the app's own Esc", () => {
     const h = selectionHarness();
     try {
       h.select(1);
       h.receive({ type: "key", seq: 0, key: "Escape" });
+      stepAnswer(h);
       expect(h.state().selection).toBeNull();
     } finally { h.controller.dispose(); }
   });
@@ -683,6 +694,7 @@ describe("inspector rows from main", () => {
       await settle();
       expect(h.state().inspector).toEqual({ status: "ready", rows: [width] });
       h.key("Escape");
+      stepAnswer(h);
       expect(h.state().inspector).toBeNull();
     } finally { h.controller.dispose(); }
   });
@@ -697,6 +709,7 @@ describe("inspector rows from main", () => {
       expect(h.state().selection).not.toBeNull();
       h.controller.setCovered(false);
       h.key("Escape");
+      stepAnswer(h);
       expect(h.state().selection).toBeNull();
     } finally { h.controller.dispose(); }
   });
@@ -706,6 +719,7 @@ describe("inspector rows from main", () => {
     try {
       h.select(1);
       h.key("Escape");
+      stepAnswer(h);
       h.inspections[0]?.resolve({ ok: true, rows: [width] });
       await settle();
       expect(h.state()).toMatchObject({ selection: null, inspector: null });
@@ -770,7 +784,7 @@ describe("independent pending selection and hover commands", () => {
     try {
       h.select(1);
       h.controller.selectPath(h.target.path[0]!);
-      if (action === "Escape") h.key("Escape");
+      if (action === "Escape") { h.key("Escape"); stepAnswer(h); }
       else h.controller.selectFrame(0, "intro");
       h.key("Alt");
       h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" }));
@@ -919,8 +933,9 @@ describe("canvas open, select, reload and move without a draft guard", () => {
       expect(h.send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ canvas: { path: h.other.path, id: "b" } }));
       h.current().contentWindow.postMessage.mockClear();
       h.key("Escape");
+      expect(h.current().contentWindow.postMessage).toHaveBeenCalledWith({ type: "select-parent", seq: 2 }, "*");
+      stepAnswer(h, { href: h.other.url });
       expect(h.state().selection).toBeNull();
-      expect(h.current().contentWindow.postMessage).toHaveBeenCalledWith({ type: "clear", seq: 2 }, "*");
       expect(h.send).toHaveBeenLastCalledWith(null);
     } finally { h.controller.dispose(); }
   });
@@ -2156,6 +2171,24 @@ describe("picking", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // Not picking, the same Escs leave the selection's step alone: it is a select-parent the canvas answers later, so the
+  // commands sent show it, not the selection.
+  it("an Esc another control already handled, one during IME composition, or one from a text field takes no Select step", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      const handled = Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
+      handled.preventDefault();
+      h.host.dispatchEvent(handled);
+      escape(h, { isComposing: true });
+      escape(h, { keyCode: 229 });
+      escape(h, { target: { tagName: "TEXTAREA", isContentEditable: false } });
+      expect(posted(h).filter(m => m.type === "select-parent")).toHaveLength(0);
+      escape(h);
+      expect(posted(h).filter(m => m.type === "select-parent")).toHaveLength(1);
+    } finally { h.controller.dispose(); }
+  });
+
   it("Esc in the canvas cancels the pick, whether the canvas answered cancelled or, before its pick-start arrived, sent an Escape key", () => {
     const h = harness();
     try {
@@ -2732,7 +2765,7 @@ describe("reply chip open", () => {
         h.controller.openCanvas("/repo", h.other);
         h.layout({ href: h.other.url, document: "doc-b" });
         expect(asked(h)).toEqual([]);
-      } finally { h.controller.dispose(); vi.unstubAllGlobals(); }
+      } finally { h.controller.dispose(); }
     }
   });
 
@@ -2901,6 +2934,7 @@ describe("hand tool", () => {
       press(h, "Escape");
       expect(h.state()).toMatchObject({ tool: "select", selection: expect.objectContaining({ tag: "section" }) });
       press(h, "Escape");
+      stepAnswer(h);
       expect(h.state().selection).toBeNull();
     } finally { h.controller.dispose(); }
   });
@@ -3802,6 +3836,7 @@ describe("capture", () => {
     if (targetCloses) event.preventDefault();
     h.host.dispatchEvent(event);
   };
+  const steps = (h: H) => posted(h).filter(m => m.type === "select-parent").length;
 
   // toolbarEscape's preventDefault wrapper takes the first call after the tooltip's onEscapeKeyDown as Radix's own. Pinned
   // against the installed Radix: the tooltip content hands onEscapeKeyDown to its DismissableLayer with onDismiss as
@@ -3822,7 +3857,11 @@ describe("capture", () => {
         // Capture ends; the selection is the next Escape's step, not this one's.
         expect(h.state(), `tooltip ${tooltip}`).toMatchObject({ capturing: false, tool: "select" });
         expect(h.state().selection, `tooltip ${tooltip}`).not.toBeNull();
+        // A step is a select-parent the canvas answers later, so only the commands sent show which steps were taken.
+        expect(steps(h), `tooltip ${tooltip}`).toBe(0);
         escapeOnce(h, { tooltip });
+        expect(steps(h), `tooltip ${tooltip}`).toBe(1);
+        stepAnswer(h);
         expect(h.state().selection, `tooltip ${tooltip}`).toBeNull();
         // Started from Hand: capture ends and Hand stays.
         press(h, "KeyH");
@@ -3847,57 +3886,88 @@ describe("capture", () => {
         expect(h.state().capturing, `tooltip ${tooltip}`).toBe(true);
         escapeOnce(h, { tooltip, target: FIELD });
         expect(h.state().capturing, `tooltip ${tooltip}`).toBe(false);
-        // Without capture, a field keeps its own Escape: the selection and Hand stay.
+        // Without capture, a field keeps its own Escape, and so does the `/` list or a menu that closed on it: the
+        // selection takes no step and Hand stays.
         escapeOnce(h, { tooltip, target: FIELD });
+        escapeOnce(h, { tooltip, target: FIELD, targetCloses: true });
+        escapeOnce(h, { tooltip, target: BUTTON, targetCloses: true });
         expect(h.state().selection, `tooltip ${tooltip}`).not.toBeNull();
+        expect(steps(h), `tooltip ${tooltip}`).toBe(0);
         press(h, "KeyH");
         escapeOnce(h, { tooltip, target: FIELD });
         expect(h.state().tool, `tooltip ${tooltip}`).toBe("hand");
+        expect(steps(h), `tooltip ${tooltip}`).toBe(0);
       } finally { h.controller.dispose(); }
     }
   });
 
   // With focus in the canvas (after an ⌥-click) the app's document never sees the Escape: the canvas forwards it. Radix
-  // listens on the app's document only, so the controller hands an open toolbar tooltip an Escape of its own there.
-  // It does not bubble, so the window's keydown (the canvas's step) never sees it: the step is taken once, from the message.
-  it("an Escape forwarded from the canvas closes an open toolbar tooltip and takes the canvas's step once", () => {
-    class FakeKeyboardEvent extends Event { key: string; constructor(type: string, init: KeyboardEventInit = {}) { super(type, init); this.key = init.key ?? ""; } }
-    vi.stubGlobal("KeyboardEvent", FakeKeyboardEvent);
-    const h = harness();
-    try {
+  // listens on the app's document, so the controller hands the app's document the Escape as the key itself would: any
+  // open layer (the toolbar's tooltip, a popover opened without focus) takes it at the capture phase, and it bubbles to
+  // the window's keydown, which takes the canvas's step unless a layer other than the toolbar's tooltip handled it.
+  describe("an Escape forwarded from the canvas", () => {
+    // `layer`: what an open Radix layer does at the document's capture phase; the event then bubbles to the window.
+    const forwarding = (h: H, layer: { value: "none" | "tooltip" | "popover" }) => {
       const sent: Event[] = [];
-      const tooltipOpen = { value: true };
       Object.assign(h.doc, {
-        querySelector: (selector: string) => tooltipOpen.value && selector.includes(".doan-canvas-tools") ? {} : null,
+        querySelector: (selector: string) => layer.value === "tooltip" && selector.includes(".doan-canvas-tools") ? {} : null,
         dispatchEvent: (event: Event) => {
           sent.push(event);
-          // Radix's layer at the document's capture phase: the tooltip's onEscapeKeyDown, then its own prevention.
-          h.controller.toolbarEscape(event as KeyboardEvent);
-          event.preventDefault();
-          return false;
+          if (layer.value === "tooltip") h.controller.toolbarEscape(event as KeyboardEvent);
+          // Radix's DismissableLayer dismisses the top layer and prevents the Escape.
+          if (layer.value !== "none") { event.preventDefault(); layer.value = "none"; }
+          if (event.bubbles) h.host.dispatchEvent(event);
+          return !event.defaultPrevented;
         },
       });
-      h.controller.startCapture();
-      canvasKey(h, "Escape");
-      expect(sent).toHaveLength(1);
-      expect(sent[0]).toMatchObject({ type: "keydown", key: "Escape", bubbles: false });
-      // Capture ends; the selection is the next Escape's step, not this one's.
-      expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
-      h.select(10);
-      canvasKey(h, "Escape");
-      expect(h.state().selection).toBeNull();
-      expect(sent).toHaveLength(2);
-      // With no toolbar tooltip open, nothing is sent to the app's document.
-      tooltipOpen.value = false;
-      h.select(20);
-      canvasKey(h, "Escape");
-      expect(h.state().selection).toBeNull();
-      expect(sent).toHaveLength(2);
-      // The next Escape on the app's document is not taken for the tooltip's.
-      h.select(30);
-      press(h, "Escape");
-      expect(h.state().selection).toBeNull();
-    } finally { h.controller.dispose(); }
+      return sent;
+    };
+
+    it("closes an open toolbar tooltip and takes the canvas's step once", () => {
+      const h = harness();
+      try {
+        const layer = { value: "tooltip" as "none" | "tooltip" | "popover" };
+        const sent = forwarding(h, layer);
+        h.controller.startCapture();
+        canvasKey(h, "Escape");
+        expect(sent).toHaveLength(1);
+        expect(sent[0]).toMatchObject({ type: "keydown", key: "Escape", bubbles: true, cancelable: true });
+        expect(layer.value).toBe("none");
+        // Capture ends; the selection is the next Escape's step, not this one's.
+        expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
+        h.select(10);
+        layer.value = "tooltip";
+        canvasKey(h, "Escape");
+        stepAnswer(h);
+        expect(h.state().selection).toBeNull();
+        expect(steps(h)).toBe(1);
+        // The next Escape on the app's document is not taken for the tooltip's.
+        h.select(30);
+        press(h, "Escape");
+        stepAnswer(h);
+        expect(h.state().selection).toBeNull();
+      } finally { h.controller.dispose(); }
+    });
+
+    it("closes another open Radix layer and goes no further, as the same Escape in the app does", () => {
+      const h = harness();
+      try {
+        const layer = { value: "popover" as "none" | "tooltip" | "popover" };
+        forwarding(h, layer);
+        h.controller.startCapture();
+        canvasKey(h, "Escape");
+        expect(layer.value).toBe("none");
+        expect(h.state().capturing).toBe(true);
+        // With nothing open, the next one takes the step.
+        canvasKey(h, "Escape");
+        expect(h.state()).toMatchObject({ capturing: false, tool: "select" });
+        h.select(10);
+        canvasKey(h, "Escape");
+        stepAnswer(h);
+        expect(h.state().selection).toBeNull();
+        expect(steps(h)).toBe(1);
+      } finally { h.controller.dispose(); }
+    });
   });
 
   it("the toolbar's Select or Hand ends capture mode and switches to that tool", () => {
@@ -4277,7 +4347,7 @@ describe("capture", () => {
 });
 
 // The working-frame marker, a jump highlight that stays for the work
-// turn, slides 220 ms only when the working frame changes, and comes back by id after a reload.
+// turn, slides 220 ms only when the working frame changes, and stays on its frame by id through a reload.
 describe("working-frame marker", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   type H = ReturnType<typeof selectionHarness>;
@@ -4337,15 +4407,83 @@ describe("working-frame marker", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("goes while the canvas reloads and comes back on the same id without the slide", () => {
+  // Every agent write reloads the canvas; hiding the marker until the next layout restarted its glow each time, so a
+  // run of writes blinked it.
+  it("stays on its frame through repeated reloads without hiding or restarting, and lands on the new layout without the slide", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      const mark = marker(h)!;
+      const hiddenSets: boolean[] = [], classSets: string[] = [];
+      let hidden = mark.hidden, className = mark.className;
+      Object.defineProperty(mark, "hidden", { get: () => hidden, set: (value: boolean) => { hiddenSets.push(value); hidden = value; } });
+      Object.defineProperty(mark, "className", { get: () => className, set: (value: string) => { classSets.push(value); className = value; } });
+      for (let rev = 1; rev <= 3; rev++) {
+        // An agent write: main serves the canvas again.
+        h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: rev, canvases: [h.row, h.other] }]);
+        expect(h.state().reloading).toBe(true);
+        expect(marker(h)).toBe(mark);
+        expect(mark).toMatchObject({ hidden: false, style: { left: "100px", top: "100px" } });
+        h.layout();
+        expect(mark).toMatchObject({ hidden: false, style: { left: "100px", top: "100px" } });
+      }
+      h.controller.command("reload");
+      expect(mark.hidden).toBe(false);
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 40, width: 20, height: 10 }] });
+      expect(mark).toMatchObject({ hidden: false, style: { top: "120px", width: "20px" } });
+      expect(hiddenSets).not.toContain(true);
+      expect(new Set(classSets)).toEqual(new Set(["mark jump-highlight working"]));
+      expect(h.marks.filter(m => m.className.split(" ").includes("working"))).toHaveLength(1);
+    } finally { h.controller.dispose(); }
+  });
+
+  // A reload's first layout can report every frame as 0 × 0 before the document is measured; the frame is still there.
+  it("stays where it was through a reload's unmeasured first layout", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      const mark = marker(h)!;
+      const hiddenSets: boolean[] = [];
+      let hidden = mark.hidden;
+      Object.defineProperty(mark, "hidden", { get: () => hidden, set: (value: boolean) => { hiddenSets.push(value); hidden = value; } });
+      h.controller.command("reload");
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 0, height: 0 }, { id: "hero", x: 0, y: 0, width: 0, height: 0 }] });
+      expect(mark).toMatchObject({ hidden: false, style: { left: "100px", top: "100px", width: "10px", height: "10px" } });
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 40, width: 20, height: 10 }] });
+      expect(mark).toMatchObject({ hidden: false, style: { top: "120px", width: "20px" } });
+      expect(hiddenSets).not.toContain(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("goes for a measured layout whose working frame has no size", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "hero");
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 0, height: 0 }] });
+      expect(marker(h)?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("goes when the reloaded layout no longer has the frame", () => {
     const h = selectionHarness();
     try {
       setWork(h, "hero");
       h.controller.command("reload");
+      expect(marker(h)?.hidden).toBe(false);
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }] });
       expect(marker(h)?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("does not appear during a reload when it was not shown before it", () => {
+    const h = selectionHarness();
+    try {
+      setWork(h, "missing");
+      h.controller.command("reload");
+      setWork(h, "hero");
+      expect(marker(h)?.hidden ?? true).toBe(true);
       h.layout();
       expect(marker(h)).toMatchObject({ hidden: false, style: { left: "100px", top: "100px" } });
-      expect(classes(h)).not.toContain("moving");
     } finally { h.controller.dispose(); }
   });
 
@@ -4701,6 +4839,7 @@ describe("following the working frame", () => {
       h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
       setWork(h, "intro");
       h.host.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code: "Escape", key: "Escape" }));
+      stepAnswer(h);
       expect(h.state().selection).toBeNull();
       expect(followsNext(h, "far")).toBe(false);
     } finally { h.controller.dispose(); }
@@ -4794,5 +4933,248 @@ describe("following the working frame", () => {
         expect(h.controller.currentView()).toEqual(after);
       } finally { h.controller.dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); }
     }
+  });
+});
+
+// Frame-first Select: Esc steps back one level through the canvas, which alone knows the frames around the selection.
+describe("Esc steps the selection back through the canvas", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const posted = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(c => c[0] as Record<string, unknown>);
+  const frameB = { rect: { x: 0, y: 20, width: 10, height: 10 }, tag: "section", frame: { id: "hero" }, frameIndex: 1, path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }] };
+  const flush = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
+
+  it("asks the canvas for the step on the selection channel, keeps the selection until it answers, and drops what came before", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.key("Escape");
+      expect(posted(h).at(-1)).toEqual({ type: "select-parent", seq: 2 });
+      expect(posted(h).filter(m => m.type === "clear")).toEqual([]);
+      expect(h.state().selection).toMatchObject({ tag: "span" });
+      // A click the canvas sent before the step is the past.
+      h.select(1, { target: { ...h.target, tag: "stale" } });
+      expect(h.state().selection?.tag).toBe("span");
+      h.select(2, { target: frameB, answer: "select-parent" });
+      expect(h.state().selection).toMatchObject({ tag: "section", frame: { id: "hero" } });
+      expect(h.state().selection).not.toHaveProperty("element");
+      expect(h.send).toHaveBeenLastCalledWith({ root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, frame: { id: "hero" } });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("an outermost frame's step is the canvas's clear, which clears state and main", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1, { target: frameB });
+      h.key("Escape");
+      h.receive({ type: "clear", seq: 2, answer: "select-parent" });
+      expect(h.state()).toMatchObject({ selection: null, notice: "" });
+      expect(h.send).toHaveBeenLastCalledWith(null);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("two Escs before the canvas answers take two steps, and only the newer answer counts", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.key("Escape");
+      h.key("Escape");
+      expect(posted(h).filter(m => m.type === "select-parent")).toEqual([{ type: "select-parent", seq: 2 }, { type: "select-parent", seq: 3 }]);
+      h.select(2, { target: frameB, answer: "select-parent" });
+      expect(h.state().selection?.tag).toBe("span");
+      h.receive({ type: "clear", seq: 3, answer: "select-parent" });
+      expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
+  // A held Esc's auto-repeat would walk the selection all the way out; one press is one step.
+  it("a held Esc's auto-repeats take no step; the next press takes the next", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      const held = () => h.host.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape", repeat: true }));
+      h.key("Escape");
+      held();
+      held();
+      expect(posted(h).filter(m => m.type === "select-parent")).toEqual([{ type: "select-parent", seq: 2 }]);
+      h.select(2, { target: frameB, answer: "select-parent" });
+      held();
+      expect(h.state().selection).toMatchObject({ frame: { id: "hero" } });
+      h.key("Escape");
+      expect(posted(h).filter(m => m.type === "select-parent")).toEqual([{ type: "select-parent", seq: 2 }, { type: "select-parent", seq: 3 }]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a held Esc whose press ends capture mode or turns Hand off takes no Select step on its repeats", () => {
+    const held = (h: ReturnType<typeof selectionHarness>) => h.host.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape", repeat: true }));
+    const capture = selectionHarness();
+    try {
+      capture.select(1);
+      expect(capture.controller.startCapture()).toBe(true);
+      capture.key("Escape");
+      expect(capture.state().capturing).toBe(false);
+      held(capture);
+      held(capture);
+      expect(posted(capture).filter(m => m.type === "select-parent")).toEqual([]);
+      expect(capture.state().selection).toMatchObject({ tag: "span" });
+    } finally { capture.controller.dispose(); }
+    const hand = selectionHarness();
+    try {
+      hand.controller.setTool("hand");
+      hand.controller.selectFrame(1, "hero");
+      hand.select(1, { target: frameB });
+      hand.key("Escape");
+      expect(hand.state()).toMatchObject({ tool: "select", selection: expect.objectContaining({ tag: "section" }) });
+      held(hand);
+      held(hand);
+      expect(posted(hand).filter(m => m.type === "select-parent")).toEqual([]);
+    } finally { hand.controller.dispose(); }
+  });
+
+  it("an Esc forwarded from a focused canvas steps the same way", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.receive({ type: "key", seq: 0, key: "Escape" });
+      expect(posted(h).at(-1)).toEqual({ type: "select-parent", seq: 2 });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a step's answer is not a click: main is not asked for the cursor and focus stays", async () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      await flush();
+      h.pointer.mockClear();
+      h.key("Escape");
+      h.select(2, { target: frameB, answer: "select-parent" });
+      h.key("Escape");
+      h.receive({ type: "clear", seq: 3, answer: "select-parent" });
+      await flush();
+      expect(h.pointer).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("while a reload looks for the selection again, Esc clears it outright", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.command("reload");
+      h.layout();
+      h.key("Escape");
+      expect(posted(h).at(-1)).toEqual({ type: "clear", seq: 2 });
+      expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a click on the board's margin still clears everything at once", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
+      expect(posted(h).at(-1)).toEqual({ type: "clear", seq: 2 });
+      expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+});
+
+// ⌘ shows the direct target in the hover even with the pointer resting: the app tells the canvas on the hover channel.
+describe("⌘ for the canvas's direct-selection hover", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const posted = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(c => c[0] as Record<string, unknown>);
+  const keyEvent = (type: string, key: string, over: Record<string, unknown> = {}) => Object.assign(new Event(type, { cancelable: true }), { key, ...over });
+
+  it("press and release go on the hover channel and leave a pending selection's seq alone", () => {
+    const h = selectionHarness();
+    try {
+      h.controller.selectFrame(1, "hero");
+      h.host.dispatchEvent(keyEvent("keydown", "Meta", { metaKey: true }));
+      expect(posted(h).at(-1)).toEqual({ type: "hover-meta", meta: true, seq: 1 });
+      h.host.dispatchEvent(keyEvent("keydown", "Meta", { metaKey: true, repeat: true }));
+      h.host.dispatchEvent(keyEvent("keyup", "Meta"));
+      expect(posted(h).filter(m => m.type === "hover-meta")).toEqual([{ type: "hover-meta", meta: true, seq: 1 }, { type: "hover-meta", meta: false, seq: 2 }]);
+      // The drawer's selection still lands.
+      h.select(1, { target: { rect: { x: 0, y: 20, width: 10, height: 10 }, tag: "section", frame: { id: "hero" }, frameIndex: 1, path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }] } });
+      expect(h.state().selection?.frame?.id).toBe("hero");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the app losing focus with ⌘ held releases it, so ⌘Tab does not leave it stuck", () => {
+    const h = selectionHarness();
+    try {
+      h.host.dispatchEvent(keyEvent("keydown", "Meta", { metaKey: true }));
+      h.doc.hasFocus = () => true;
+      h.host.dispatchEvent(new Event("blur"));
+      expect(posted(h).filter(m => m.type === "hover-meta")).toHaveLength(1);
+      h.doc.hasFocus = () => false;
+      h.host.dispatchEvent(new Event("blur"));
+      expect(posted(h).at(-1)).toEqual({ type: "hover-meta", meta: false, seq: 2 });
+      h.host.dispatchEvent(new Event("blur"));
+      expect(posted(h).filter(m => m.type === "hover-meta")).toHaveLength(2);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("⌘ is not a tool key: V and H with ⌘ change no tool, and Esc with ⌘ still steps", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.host.dispatchEvent(keyEvent("keydown", "Meta", { metaKey: true }));
+      h.host.dispatchEvent(keyEvent("keydown", "h", { code: "KeyH", metaKey: true }));
+      expect(h.state().tool).toBe("select");
+      h.host.dispatchEvent(keyEvent("keydown", "Escape", { metaKey: true }));
+      expect(posted(h).at(-1)).toMatchObject({ type: "select-parent" });
+    } finally { h.controller.dispose(); }
+  });
+});
+
+// A pan or zoom publishes a new zoom percent or current frame many times a second; only the header shows those, so App
+// must not re-render the whole page for them.
+describe("view-only publishes", () => {
+  const base = { ...initialCanvasState(), zoom: 64, scale: 0.64, currentFrame: 1 };
+  it("is view-only when just the zoom, scale or current frame changed", () => {
+    expect(viewOnlyChange(base, { ...base, zoom: 80, scale: 0.8 })).toBe(true);
+    expect(viewOnlyChange(base, { ...base, currentFrame: 2 })).toBe(true);
+    expect(viewOnlyChange(base, { ...base, scale: 0.6401 })).toBe(true);
+  });
+  it("is not view-only when anything else changed, or nothing did", () => {
+    expect(viewOnlyChange(base, { ...base, zoom: 80, picking: true })).toBe(false);
+    expect(viewOnlyChange(base, { ...base, currentFrame: 2, layout: null, status: "loading" })).toBe(false);
+    expect(viewOnlyChange(base, { ...base, activity: [...base.activity] })).toBe(false);
+    expect(viewOnlyChange(base, { ...base })).toBe(false);
+  });
+  it("the view store tells its subscribers only of a real change", () => {
+    const store = new CanvasViewStore(canvasViewFields(base));
+    const heard = vi.fn();
+    const stop = store.subscribe(heard);
+    store.set(canvasViewFields({ ...base }));
+    expect(heard).not.toHaveBeenCalled();
+    store.set(canvasViewFields({ ...base, currentFrame: 0 }));
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(store.get()).toEqual({ zoom: 64, scale: 0.64, currentFrame: 0 });
+    stop();
+    store.set(canvasViewFields({ ...base, zoom: 90, scale: 0.9 }));
+    expect(heard).toHaveBeenCalledTimes(1);
+  });
+});
+
+// A publish that changes the layout and the current frame together must reach the header in one App render: telling the
+// store's subscribers first could draw the header once with the new frame index over the old layout.
+describe("routing a publish", () => {
+  const base = { ...initialCanvasState(), zoom: 64, scale: 0.64, currentFrame: 1 };
+  it("a publish that changed more than the view updates the store silently and is handed to App", () => {
+    const store = new CanvasViewStore(canvasViewFields(base));
+    const heard = vi.fn();
+    store.subscribe(heard);
+    const next = { ...base, currentFrame: 2, status: "loading" as const };
+    expect(routeCanvasPublish(base, next, store)).toBe(next);
+    expect(heard).not.toHaveBeenCalled();
+    expect(store.get()).toEqual({ zoom: 64, scale: 0.64, currentFrame: 2 });
+  });
+  it("a view-only publish tells the store's subscribers and is not handed to App", () => {
+    const store = new CanvasViewStore(canvasViewFields(base));
+    const heard = vi.fn();
+    store.subscribe(heard);
+    expect(routeCanvasPublish(base, { ...base, zoom: 80, scale: 0.8 }, store)).toBeNull();
+    expect(heard).toHaveBeenCalledOnce();
+    expect(store.get()).toEqual({ zoom: 80, scale: 0.8, currentFrame: 1 });
   });
 });
