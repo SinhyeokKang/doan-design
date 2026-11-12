@@ -36,17 +36,17 @@
   - window `copy`(capture): 캔버스 프레임에 포커스가 있을 때(⌥-클릭 뒤) ⌘C와 Edit > Copy는 이 문서로 온다. 스크립트가 범위를 들고 있으면 `clipboardData.setData("text/plain", text)`, `preventDefault`, `stopImmediatePropagation`을 한다. 범위가 없으면 지금처럼 둔다.
 - **앱(renderer)**:
   - `app/src/renderer/canvasMessage.ts`: 새 메시지 파싱(아래 '메시지').
-  - `app/src/renderer/CanvasController.ts`: 캔버스 텍스트 상태(사각형, 텍스트, 드래그 중 여부), overlay 표시, `clear-text` 전이, 드래그 중 V·H·Space 무시, Following에 드래그로 알림, 놓을 때 `focusOnClick`과 같은 조건으로 캔버스 영역에 포커스, 드래그 시작에서 앱 문서 선택 접기(`getSelection().removeAllRanges()`), 앱 문서 `selectionchange`가 비어 있지 않은 선택을 만들면 `clear-text`. 휠 팬·핀치로 보드가 움직이면 포인터의 새 캔버스 좌표를 스크립트에 보낸다(PoC 5).
+  - `app/src/renderer/CanvasController.ts`: 캔버스 텍스트 상태(사각형, 텍스트, 드래그 중 여부), overlay 표시, `clear-text` 전이, 드래그 중 V·H·Space 무시, Following에 드래그로 알림, 놓을 때 `focusOnClick`과 같은 조건으로 캔버스 영역에 포커스, 드래그 시작에서 앱 문서 선택 접기(`getSelection().removeAllRanges()`), 앱 문서 `selectionchange`가 비어 있지 않은 선택을 만들면 `clear-text`. 휠 팬·핀치로 보드가 움직이면 포인터의 새 캔버스 좌표를 `text-point`로 스크립트에 보낸다(PoC 5: 포인터가 멈춘 채 보드가 움직이면 iframe은 `pointermove`를 받지 않는다).
   - `app/src/renderer/canvasTool.ts` `escapeStep`: 입력에 `canvasText: boolean`, 결과에 `"clearText"`를 더한다. 순서는 `cancelPick`, `cancelCapture`, `editable`(null), `selectTool`(Hand) 다음, `stepSelection` 앞이다.
   - 복사: 새 순수 함수 `textCopy`(`app/src/renderer/canvasTextCopy.ts`)와, `CanvasController`가 keydown과 함께 등록·해제하는 앱 문서 `copy` 리스너(bubble). `chipField.onCopy`와 `copyText.ts`(capture, `execCommand`)가 먼저 처리한 이벤트는 `defaultPrevented`로 건너뛴다.
   - overlay: 지금 hover·선택 표시를 그리는 overlay에 텍스트 범위 사각형 층을 더한다. 색과 투명도는 `/design-draft`에서 정한다.
-- **앱(main)**: Edit > Copy는 지금 `role: "copy"`다. PoC 3에서 앱 문서에 선택이 없을 때 메뉴가 비활성이거나 `copy` 이벤트가 오지 않으면 대체 경로(아래 'PoC 의존' 3)를 쓴다.
+- **앱(main)**: 바뀌지 않는다. Edit > Copy는 `role: "copy"` 그대로다(PoC 3: 앱 문서에 선택이 없어도 메뉴가 켜져 있고 포커스된 문서에 `copy`가 온다).
 - **CLI(Go)**, **스킬**, **가이드**, `doan active`, app-socket, export viewer: 바뀌지 않는다.
 
 ## 시작 조건
 
 - 주 버튼(`button === 0`), ⌘·⌥·Ctrl·Shift 없음, `picking === null`, Select 도구, 드래그 레이어가 없음(Hand·Space·capture 아님).
-- 누른 점의 캐럿(`document.caretPositionFromPoint`)이 `Text` 노드이고, 다음 중 하나다: 그 글자 사각형이 누른 점을 담는다, 또는 누른 요소(`event.target`)가 그 텍스트 노드를 직접 자식으로 담는다(padding에서 누름). 바깥 프레임의 배경을 누르면 시작하지 않는다.
+- 누른 점의 캐럿(`document.caretPositionFromPoint`)이 `Text` 노드이고, 다음 중 하나다: 캐럿 앞이나 뒤 글자(`offset - 1` 또는 `offset`)의 사각형이 누른 점을 담는다(PoC 1), 또는 누른 요소(`event.target`)가 그 텍스트 노드를 직접 자식으로 담는다(padding에서 누름). 바깥 프레임의 배경을 누르면 시작하지 않는다.
 - 캔버스의 `user-select`는 보지 않는다(사용자 결정).
 - 제외: `input`, `textarea`, `select`, contenteditable 안, 중첩 iframe 안(스크립트 없음), Shadow DOM 안(`caretPositionFromPoint`에 shadow root를 넘기지 않으므로 host가 나온다. BACKLOG에 남긴다).
 
@@ -67,7 +67,7 @@ ARCHITECTURE §3이 말하듯 내부 메시지라 JSON Schema, socket, CLI 계�
 
 - 캔버스 → renderer `text-range`: `{ document, epoch, dragging, rects, text? }`. `rects`는 문서 좌표 사각형 목록(상한 있음), `text`는 놓을 때만 실린다. 빈 `rects`는 범위 없음이다.
 - renderer → 캔버스 `clear-text`: `{ epoch }`. 스크립트는 범위와 드래그를 끝내고, 이후 메시지에 이 `epoch`를 싣는다.
-- renderer → 캔버스 `text-point`: `{ x, y }`(PoC 5에 따라). 휠 팬·핀치 뒤 포인터의 새 캔버스 좌표.
+- renderer → 캔버스 `text-point`: `{ x, y }`. 휠 팬·핀치 뒤 포인터의 새 캔버스 좌표(PoC 5에서 필요함을 확인했다).
 - 순서: renderer는 `document`가 현재 문서 토큰이 아니거나 `epoch`가 마지막 `clear-text`의 것보다 작은 `text-range`를 버린다. 문서 토큰이 바뀌면(다시 불러오기, 같은 ID 이동, 전환) renderer가 직접 지운다. 스크립트의 unload 메시지에 기대지 않는다. Hand·Picker·Capture area 중에 온 `text-range`도 버린다.
 - 상한: `text`가 `MAX_COPY_TEXT`를 넘거나 `rects`가 사각형 상한을 넘는 메시지는 위조만 만들 수 있으므로 버린다(기존 'Caps'와 같은 원칙). 스크립트는 보내기 전에 자른다.
 
@@ -113,6 +113,41 @@ ARCHITECTURE §3이 말하듯 내부 메시지라 JSON Schema, socket, CLI 계�
 5. 드래그 중 휠 팬과 핀치: 포인터가 멈춘 채 보드가 움직일 때 iframe이 새 `pointermove`를 받는지. 받지 않으면 renderer가 `text-point`로 새 좌표를 보낸다.
 
 측정 방법은 POSTMORTEM 2026-11-03의 권고대로 레이아웃마다 페이지를 하나씩 쓴다.
+
+### PoC 결과 (2026-11-13)
+
+- 환경: 빌드한 앱(Electron 45.0.0, Chromium 156.0.8078.48)을 격리해 띄웠다(임시 userData·HOME·SHELL·DOAN_RUNTIME·CLI, `realState`·`assertRealState` 통과, `saveClipboard`·`restoreClipboard` 뒤 클립보드 해시가 같음). 실험 스크립트는 probe가 캔버스 iframe에 `frame.evaluate`로 넣었고 `app/src`는 바꾸지 않았다. 캔버스 페이지는 레이아웃마다 하나다(`ctc-caret`, `ctc-read`, `ctc-copy`, `ctc-drag`). 보드 배율은 61.4%였다.
+- 입력: 포인터와 휠은 CGEvent를 HID tap에 보냈다(실제 포인터가 움직인다). ⌘C는 두 경로로 눌렀다: Playwright `keyboard.press("Meta+c")`(CDP 키 입력)와 CGEvent 키를 앱 pid에 보낸 네이티브 입력. Edit > Copy는 세 경로로 눌렀다: `app/runtime/windows.ts`의 `menu(app, page, "Copy")`, `Menu.sendActionToFirstResponder("copy:")`(메뉴 항목이 보내는 동작), System Events로 실제 메뉴 항목을 누름(AX press).
+- 증거: `.scratch/runtime-test/canvas-text-copy/`의 `probe.mjs`, `results-main.json`(1–5 전체), `results.json`(1·5 재실행), `run-main.log`·`run-followup.log`, 스크린숏 `p1-caret.png`, `p2-positive-control.png`, `p2-focus-input-after-read.png`, `p3-copy.png`, `p4-after-drag.png`, `p5-ctrlWheelPinch.png`, `p5-wheelPan.png`. `invalid-run/`은 아래 '무효로 버린 실행'의 기록이다.
+
+1. **통과.** `document.caretPositionFromPoint`는 있고 다음을 돌려준다.
+   - 글자 위: 그 `Text`와 가장 가까운 글자 경계다. 누른 점을 담는 글자는 `offset` 쪽일 수도 `offset - 1` 쪽일 수도 있다(본문 중간과 버튼 라벨은 `offset - 1`, 링크는 `offset`). '시작 조건'의 글자 사각형 검사는 두 글자를 다 본다.
+   - 버튼·링크 라벨: 라벨의 `Text`다.
+   - padding과 줄 끝 오른쪽: 그 요소의 `Text`(처음 또는 끝)이고 글자 사각형은 점을 담지 않는다. 누른 요소가 그 `Text`를 직접 담으므로 시작 조건이 맞는다.
+   - `user-select: none`: 그 `Text`를 그대로 돌려준다.
+   - `pointer-events: none` 겹친 글자: 그 아래 요소의 `Text`를 돌려준다(`elementFromPoint`도 아래 요소). 겹친 글자에서는 드래그를 시작할 수 없고, 아래 글자에서 시작한다.
+   - `input`: `Text`가 아니라 `input` 요소다. 빈 `div`와 프레임 배경도 요소(`offset 0`)라 시작하지 않는다.
+   - 프레임 위 여백(`html`을 누름): 가장 가까운 문단의 `Text`를 돌려준다. 글자 사각형이 점을 담지 않고 `html`이 그 `Text`를 직접 담지 않으므로 시작 조건이 막는다.
+   - iframe 문서 밖 좌표(왼쪽·오른쪽·위·아래): `null`이다. '범위 경계'의 "캐럿이 없으면 마지막 끝점 유지"가 이 경우다.
+2. **통과.** '텍스트 읽기'의 한 task 방식으로 제목부터 마지막 문단까지 읽었다.
+   - 결과: `"Heading one\nFirst unselectable words end.\n\nSecond\nline\n\nItem A\nItem B\na1\tb1\na2\tb2\nButton label\nLast para."`. `user-select: none` 글자는 sheet가 있을 때만 들어간다(없으면 빠짐). `display: none` 글자는 빠진다. 블록 경계는 줄바꿈, `<br>`도 줄바꿈, 표는 칸 사이 탭과 행 사이 줄바꿈이다. `Range.toString()`은 숨은 글자를 넣고 줄바꿈을 잃어 쓰지 않는다.
+   - 칠함: 2 ms마다, 그리고 animation frame마다 읽기를 반복하는 동안(421회) 프레임 영역을 25번 찍었고 기준 화면과 모두 같았다. 선택을 남겨 둔 대조 화면은 달랐다(`p2-positive-control.png`, 포커스 없는 iframe의 회색 선택).
+   - 포커스: 앱 `.area`에 포커스가 있을 때 읽어도 앱 포커스와 캔버스 `document.hasFocus()`가 그대로다. ⌥-드래그 같은 기존 문서 선택(방향 포함)은 되돌아온다. 캔버스 안 `input`에 포커스와 선택(3–5)이 있는 채로 읽으면 포커스는 남지만 input의 선택이 0–0으로 접힌다. 다만 평범한 누름은 지금처럼 캔버스 스크립트가 포커스된 요소를 blur하므로, 드래그를 놓을 때 input은 이미 포커스가 없고, 포커스 없는 input은 읽은 뒤에도 선택(3–5)을 지켰다. 실패로 보지 않는다.
+   - 캔버스 문서에는 읽을 때마다 `selectionchange`가 한 번씩 일어난다(받아들인 차이).
+   - 읽은 뒤 앱 `.area`에서 Tab은 캔버스 도구 버튼으로 가고 초안 안으로 들어가지 않았다. 보드도 움직이지 않았다(읽기 없음·읽기 있음·실험 스크립트 없음이 같음).
+3. **통과, 대체 경로 필요 없음.** Edit 메뉴는 `role: "copy"` 그대로 둔다.
+   - 앱 `.area`에 포커스가 있고 앱 문서에 선택이 없을 때: Playwright ⌘C, 네이티브 ⌘C, `copy:` 동작, 실제 메뉴 항목 누름이 모두 앱 문서에 `beforecopy`와 `copy`를 보냈다. 리스너의 `setData`가 시스템 클립보드에 들어갔다. 메뉴 항목은 켜져 있었다(AX `enabled` true). `beforecopy` `preventDefault`를 더해도 결과가 같다.
+   - 평범한 네이티브 클릭 뒤 상태(`focusOnClick`이 `.area`로 포커스를 옮김)도 위와 같다.
+   - ⌥-클릭으로 캔버스 프레임에 포커스가 있을 때: 같은 네 경로가 캔버스 문서에만 `beforecopy`·`copy`를 보냈고 앱 문서는 받지 못했다. 캔버스에 선택이 없어도 `copy`가 왔고, 캔버스 리스너의 `setData`가 클립보드에 들어갔다. 캔버스 안 `beforecopy` `preventDefault`는 필요 없었다.
+   - `app/runtime/windows.ts`의 `menu(app, page, "Copy")`는 role 항목에서 아무것도 하지 않았다(두 문서 모두 이벤트 없음, 클립보드 그대로). macOS에서 role 항목의 JS `click`은 동작하지 않기 때문으로 보인다(원인은 Electron 소스로 확인하지 않음). 작업 6의 `/runtime-test`는 Edit > Copy를 System Events의 메뉴 누름이나 `Menu.sendActionToFirstResponder("copy:")`로 누른다.
+4. **통과(⌘Tab은 대체 입력).** 네이티브 드래그에서 캔버스 스크립트가 `pointerdown`을 `preventDefault`한 뒤 실험 스크립트가 `document.documentElement.setPointerCapture`를 걸었다.
+   - 옆 프레임 위, 앱 사이드바 위(iframe 밖), 창 밖(창 왼쪽 120px)에서도 `pointermove`가 계속 왔고 모두 `hasPointerCapture` true였다(40개 중 16개가 iframe 밖 좌표). 창 안으로 돌아와 놓으면 `pointerup`과 `lostpointercapture`가 왔다.
+   - 링크 글자에서 시작한 드래그, 이미지와 `draggable` 블록을 지나는 드래그, `draggable` 블록 글자에서 시작한 드래그 모두에서 `dragstart`·`selectstart`가 0이었다. 캔버스 문서와 앱 문서의 선택은 비어 있었고, 초안의 요소 리스너(`pointerdown`·`mousedown`·`mouseup`·`click`·`dblclick`·`focusin`)는 아무것도 받지 않았다. 이미지 위 누름은 캐럿이 `p` 요소라 시작하지 않았다.
+   - 드래그 뒤의 `click`은 window capture 리스너에 온다. 캔버스 스크립트는 지금 이 `click`으로 `choose`를 부르므로, 설계대로 드래그로 끝난 누름의 `click`을 막아야 한다.
+   - ⌘Tab 대신 드래그 중 Finder를 활성화했다. 캔버스 window의 `blur`, `pointercancel`, `lostpointercapture`가 오지 않았고, 버튼을 누른 채 돌아오자 `pointermove`가 이어졌으며 놓을 때 `pointerup`으로 끝났다. 캔버스 window에는 처음부터 포커스가 없으므로(포커스는 앱 `.area`) 그 `blur`로는 앱 전환을 알 수 없다. 버튼을 누른 채 돌아오면 드래그가 이어지는 것을 받아들인다. 실제 ⌘Tab 키는 누르지 않았다(미검증).
+5. **iframe은 새 `pointermove`를 받지 않는다. `text-point`가 필요하다.** 드래그 중 포인터를 멈추고 네이티브 휠 6번으로 보드를 240px 팬하거나 Ctrl 휠(핀치와 같은 경로)로 61.4%→88%로 줌해도 iframe의 `pointermove` 수와 마지막 좌표, 범위가 그대로였다. 휠 이벤트 자체는 iframe에 왔다(6번, 캔버스 스크립트가 앱에 보내 팬·줌함). 그 자리에서 1px 네이티브 이동을 하자 새 캔버스 좌표가 담긴 `pointermove`가 왔다. 따라서 renderer는 휠 팬·핀치로 보드가 움직이면 `text-point`로 포인터의 새 캔버스 좌표를 보낸다.
+
+무효로 버린 실행: 처음 실행에서 ⌥ 플래그를 실은 CGEvent가 시스템 HID 상태에 Option을 눌린 채로 남겼다. 그 뒤의 "평범한" 클릭이 모두 ⌥-클릭이 되어 2의 Tab, 3의 일부, 4, 5 결과가 오염됐다(`invalid-run/`). Option을 풀고 네이티브 도구가 매 이벤트의 플래그를 정하고 ⌥ 뒤에 `flagsChanged`로 지우게 고친 뒤 1–5를 다시 돌렸다. 위 결과는 그 실행이고, 실행 전후 HID 플래그에 수식 키가 없었다.
 
 ## POSTMORTEM에서 가져온 함정
 
