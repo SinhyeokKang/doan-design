@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="notifications">
+  <meta name="doan:width" content="1280">
+  <title>Notifications</title>
+  <link rel="stylesheet" href="../assets/tokens.css">
+  <link rel="stylesheet" href="../assets/components/app-shell.css">
+  <style>
+    body { margin: 0; background: var(--color-surface-muted); font-family: var(--font-body); }
+    .page { display: flex; min-height: 640px; }
+    .icon { width: 20px; height: 20px; }
+    .list { flex: 1; margin: 0; padding: var(--space-4); list-style: none; background: var(--color-surface); }
+    .list li { padding: var(--space-4); border-bottom: 1px solid var(--color-border); color: var(--color-text); }
+    .list li.unread { background: var(--color-unread); }
+  </style>
+</head>
+<body>
+  <!-- source: .doan/assets/icons.svg -->
+  <svg aria-hidden="true" width="0" height="0" style="position: absolute">
+    <style>
+      .icon-line { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+    <symbol id="icon-home" viewBox="0 0 24 24"><path class="icon-line" d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle class="icon-line" cx="11" cy="11" r="7"/><path class="icon-line" d="M20 20l-4-4"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24"><path class="icon-line" d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path class="icon-line" d="M10 21h4"/></symbol>
+    <symbol id="icon-settings" viewBox="0 0 24 24"><circle class="icon-line" cx="12" cy="12" r="3"/><path class="icon-line" d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></symbol>
+  </svg>
+  <section data-doan-frame="notifications" aria-label="Notifications">
+    <header class="app-header"><span class="app-header__logo" role="img" aria-label="Relay"></span></header>
+    <div class="page">
+      <nav class="app-nav">
+        <a class="app-nav__item" href="#"><svg class="icon"><use href="#icon-home"/></svg>Home</a>
+        <a class="app-nav__item" href="#"><svg class="icon"><use href="#icon-search"/></svg>Search</a>
+        <a class="app-nav__item" href="#" aria-current="page"><svg class="icon"><use href="#icon-bell"/></svg>Notifications</a>
+        <a class="app-nav__item" href="#"><svg class="icon"><use href="#icon-settings"/></svg>Settings</a>
+      </nav>
+      <ul class="list">
+        <li class="unread">Maya Chen mentioned you in “Q4 launch plan”.</li>
+        <li class="unread">Your export of “Invoices” is ready.</li>
+        <li>Jonas Weber joined the Design team.</li>
+      </ul>
+    </div>
+  </section>
+</body>
+</html>

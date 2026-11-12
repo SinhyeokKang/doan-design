@@ -1,0 +1,20 @@
+:root {
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4f6fa;
+  --color-border: #dde3ec;
+  --color-text: #18212f;
+  --color-text-muted: #5b6678;
+  --color-primary: #3559d7;
+  --color-unread: #e8eefc;
+  --space-2: 8px;
+  --space-4: 16px;
+  --radius: 8px;
+  --font-body: system-ui, sans-serif;
+  --brand-logo: url(brand/logo.svg);
+}
+
+.brand-mark {
+  width: 24px;
+  height: 24px;
+  background: var(--brand-logo) center / contain no-repeat;
+}
