@@ -1921,7 +1921,8 @@ export class CanvasController {
     this.workMarkFrame = rect.id;
   }
 
-  private hasText(): boolean { return this.textRects.length > 0 || this.textDragging; }
+  // A range waiting for its cursor reading counts: Esc and the other clears must drop it before the reply paints it.
+  private hasText(): boolean { return this.textRects.length > 0 || this.textDragging || this.textCheck !== null; }
 
   // Ranges come only from the current document after the last clear-text, and only in Select: Hand, a pick and capture
   // mode cleared it and leave the canvas no clicks of its own.
