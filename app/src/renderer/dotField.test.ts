@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { alphaSteps, autoCursor, DOT_FIELD, dotFieldWorker, DotFieldLoop, dotGrid, dotScale, drawDotField, opposingCursor, partitionDots, type DotCanvas } from "./dotField";
+import { autoCursor, DOT_FIELD, dotFieldWorker, DotFieldLoop, dotGrid, dotScale, drawDotField, opposingCursor, partitionDots, type DotCanvas } from "./dotField";
 
 describe("dotGrid", () => {
   test("lays out a 12px grid in row order, including the right and bottom edges", () => {
@@ -122,54 +122,6 @@ describe("partitionDots", () => {
 
   test("two coincident spots give the same result as one", () => {
     expect(partitionDots(dots, [spot, { ...spot }], 320)).toEqual(partitionDots(dots, [spot], 320));
-  });
-});
-
-describe("alphaSteps", () => {
-  const size = { base: 1.5, max: 2 }, alpha = { base: 0.16, max: 0.5 };
-  const near = (spots: { x: number; y: number }[]) => partitionDots(dotGrid(1400, 880, 12), spots, 320).near;
-
-  test("keeps every near dot once, at its own dotScale radius, in input order within a step", () => {
-    const dots = near([{ x: 300, y: 200 }, { x: 1100, y: 680 }]);
-    const steps = alphaSteps(dots, 320, size, alpha);
-    const drawn = steps.flatMap(step => step.dots);
-    expect(drawn).toHaveLength(dots.length);
-    const expected = new Map(dots.map(({ dot, distance }) => [`${dot.x},${dot.y}`, dotScale(distance, 320, size.base, size.max)]));
-    for (const dot of drawn) expect(dot.r).toBe(expected.get(`${dot.x},${dot.y}`));
-    const order = dots.map(({ dot }) => `${dot.x},${dot.y}`);
-    for (const step of steps) {
-      const at = step.dots.map(dot => order.indexOf(`${dot.x},${dot.y}`));
-      expect(at).toEqual([...at].sort((a, b) => a - b));
-    }
-  });
-
-  test("a step's alpha is an 8-bit value within half a step of each member's dotScale alpha", () => {
-    const dots = near([{ x: 300, y: 200 }]);
-    const steps = alphaSteps(dots, 320, size, alpha);
-    const distances = new Map(dots.map(({ dot, distance }) => [`${dot.x},${dot.y}`, distance]));
-    for (const step of steps) {
-      expect(step.alpha * 255).toBeCloseTo(Math.round(step.alpha * 255), 9);
-      for (const dot of step.dots) {
-        expect(Math.abs(step.alpha - dotScale(distances.get(`${dot.x},${dot.y}`)!, 320, alpha.base, alpha.max))).toBeLessThanOrEqual(0.5 / 255 + 1e-9);
-      }
-    }
-  });
-
-  test("gives one group per distinct step, never more than the steps between the base and the maximum alpha", () => {
-    const steps = alphaSteps(near([{ x: 300, y: 200 }, { x: 1100, y: 680 }]), 320, size, alpha);
-    const alphas = steps.map(step => step.alpha);
-    expect(new Set(alphas).size).toBe(alphas.length);
-    expect(steps.length).toBeGreaterThan(1);
-    expect(steps.length).toBeLessThanOrEqual(Math.round(alpha.max * 255) - Math.round(alpha.base * 255) + 1);
-  });
-
-  test("puts dots of the same distance in one step", () => {
-    const steps = alphaSteps([{ dot: { x: 10, y: 0 }, distance: 10 }, { dot: { x: -10, y: 0 }, distance: 10 }, { dot: { x: 0, y: 200 }, distance: 200 }], 320, size, alpha);
-    expect(steps.map(step => step.dots.map(dot => dot.x))).toEqual([[10, -10], [0]]);
-  });
-
-  test("gives no group without near dots (reduced motion)", () => {
-    expect(alphaSteps([], 320, size, alpha)).toEqual([]);
   });
 });
 
@@ -381,11 +333,11 @@ describe("drawDotField", () => {
     };
     return { ctx, drawn };
   }
-  test("a dot near two overlapping spots is drawn once, at most 2px and 0.5 alpha (its 8-bit step)", () => {
+  test("a dot near two overlapping spots is drawn once, at most 2px and 0.5 alpha", () => {
     const { ctx, drawn } = arcs();
     const spot = { x: 100, y: 100 };
     drawDotField(ctx, 200, 200, [{ x: 100, y: 100 }], [spot, { ...spot }], "white");
-    expect(drawn).toEqual([{ x: 100, y: 100, r: 2, alpha: Math.round(0.5 * 255) / 255 }]);
+    expect(drawn).toEqual([{ x: 100, y: 100, r: 2, alpha: 0.5 }]);
   });
   test("a near dot's size and alpha follow its nearest spot", () => {
     const { ctx, drawn } = arcs();
@@ -396,18 +348,6 @@ describe("drawDotField", () => {
     expect(drawn).toHaveLength(1);
     expect(drawn[0]!.r).toBeCloseTo(baseRadius + (maxRadius - baseRadius) * t);
     expect(drawn[0]!.alpha).toBeCloseTo(baseAlpha + (maxAlpha - baseAlpha) * t);
-  });
-  test("draws near dots one path and one fill per 8-bit alpha step, each dot at its own radius", () => {
-    const { ctx, calls } = recorder();
-    const spot = { x: 600, y: 400 };
-    const dots = dotGrid(1200, 800, DOT_FIELD.gap);
-    const { near } = partitionDots(dots, [spot], DOT_FIELD.radius);
-    drawDotField(ctx, 1200, 800, dots, [spot], "white");
-    const steps = new Set(near.map(({ distance }) => Math.round(dotScale(distance, DOT_FIELD.radius, DOT_FIELD.baseAlpha, DOT_FIELD.maxAlpha) * 255)));
-    // One fill for the far dots, one per step for the near ones: hundreds of near dots, under a hundred fills.
-    expect(near.length).toBeGreaterThan(500);
-    expect(calls.filter(call => call.startsWith("fill"))).toHaveLength(steps.size + 1);
-    expect(calls.filter(call => call === "arc")).toHaveLength(dots.length);
   });
   test("dots near the second spot only are drawn near, the rest far", () => {
     const { ctx, calls } = recorder();
