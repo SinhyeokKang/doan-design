@@ -51,3 +51,9 @@
 - 쉼 판정은 PRODUCT §5 item 2 'Following'의 쉼(보드 위 포인터·타이핑 포함)을 그대로 쓴다. design의 "보드 위 포인터는 렌더러가 보지 못한다"는 사실과 달라 task 10에서 버린다(RB ⚪6, conductor 판단).
 - B2 시작(`ctx_8197f6d0132b`): 🟡 1–4, 결정 B, ⚪ 1–5.
 - B2 완료(`7eea201d`, `c5940643`): clip-path 실루엣 히트 요소, Jump to latest z 3, 손실 뒤 텍스처, 떠 있는 요소 목록 캐시, ⚪1·3·4·5, 결정 B(`data-notice`). 테스트 10319개, design-sync 재측정 305행 불일치 0. ⚪4는 사람 입력 뒤 1초 안의 스크롤만 쉼을 끝낸다(conductor 판단 — PRODUCT의 쉼은 사람의 움직임만 센다).
+- **B 통합**: `9a70c9b0`..`e670f9ff`(cherry-pick 6개, develop `a4ad8a99` 병합 위). 통합 HEAD에서 `verify: PASS`. bdm-b worktree 삭제, 브랜치 `SinhyeokKang/bdm-b`(`c5940643`) 로컬·원격 유지. design-sync 증거는 `.scratch/design-sync/`로 복사.
+- M 시작(`ctx_ecc4091570e4`, worktree `bdm-m`, Opus high — 전후 측정 설계에 판단이 필요해 medium에서 올림).
+- RF(Opus high) 완료: 🔴 0, 🟡 2(pick↔capture 전환 때 떠 있는 요소 캐시 누락, 패널 안내 줄 위에 버디가 그려짐), ⚪ 5. 이전 🟡 모두 해소 확인. 근거 `.scratch/review-F.md`.
+- D7(conductor 판단): 🟡2는 비켜줄 이유가 아니라 z-index 3으로 고친다. drawing 안내는 오래 남을 수 있어, 비켜줄 이유로 넣으면 그동안 버디가 입력창을 떠나 있기 때문이다.
+- F1 시작(`ctx_3e2702d342fb`, worktree `bdm-f1`, Sonnet medium — 작은 기계적 수정): 🟡 1·2, ⚪1·5.
+- F1 완료(`e7d05057`, `ef16b75f`): 🟡1 isConnected 재조회(red→green), 🟡2 패널 안내 줄 z 3, ⚪1·5.
