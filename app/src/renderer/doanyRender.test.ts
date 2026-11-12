@@ -32,21 +32,25 @@ function anchors(id: BuddyId): Anchors & { vertex: string; fragment: string } {
 }
 
 // The vertex shader's mapping from a texture coordinate to clip space, for one layer (0 body, 1 accessory), with the
-// pose's rotations worked out once for every point.
-function mapping(p: Pose, layer: number, { hatPivot, bodyPivot, rise, scale }: Anchors): (u: number, v: number) => [number, number] {
+// pose's rotations worked out once for every point. It returns the same pair each call, so the canvas bound's
+// hundreds of millions of points allocate nothing.
+function mapping(p: Pose, layer: number, { hatPivot, bodyPivot, rise, scale }: Anchors): (u: number, v: number) => readonly [number, number] {
   const hc = Math.cos(p.hatTilt), hs = Math.sin(p.hatTilt), c = Math.cos(p.tilt), s = Math.sin(p.tilt);
+  const [hu, hv] = hatPivot as [number, number], [bu, bv] = bodyPivot as [number, number];
+  const look = p.look[0], squash = p.squash, risen = rise - p.lift, out: [number, number] = [0, 0];
   return (u, v) => {
     let x = u, y = v;
     if (layer === 1) {
-      const hx = x - hatPivot[0]!, hy = y - hatPivot[1]!;
-      x = hc * hx - hs * hy + hatPivot[0]!; y = hs * hx + hc * hy + hatPivot[1]!;
+      const hx = x - hu, hy = y - hv;
+      x = hc * hx - hs * hy + hu; y = hs * hx + hc * hy + hv;
     }
-    let qx = x - bodyPivot[0]!, qy = y - bodyPivot[1]!;
-    if (layer === 0) qx += p.look[0] * .018 * (1 - Math.abs(qy));
-    qx *= 1 + p.squash; qy *= 1 - p.squash; qy += p.squash * .36;
-    [qx, qy] = [c * qx - s * qy, s * qx + c * qy];
-    qy += rise - p.lift;
-    return [qx * scale, -qy * scale];
+    let qx = x - bu, qy = y - bv;
+    if (layer === 0) qx += look * .018 * (1 - Math.abs(qy));
+    qx *= 1 + squash; qy *= 1 - squash; qy += squash * .36;
+    const rx = c * qx - s * qy;
+    qy = s * qx + c * qy + risen;
+    out[0] = rx * scale; out[1] = -qy * scale;
+    return out;
   };
 }
 const place = ([u, v]: number[], p: Pose, layer: number, shader: Anchors) => mapping(p, layer, shader)(u!, v!);
@@ -177,13 +181,16 @@ function outline(image: ReturnType<typeof png>): number[][] {
 // phase of the breath and the gaze; what presses pile up is the accessory spring. Each drawn pose is
 // therefore also checked with the accessory at both ends of its bound, which covers any press sequence,
 // and the sequences below (re-hops while settling, presses every 80 or 33 ms) check the spring itself.
-// The motion model is the same for every buddy, so the poses are made once.
-let made: Pose[] | null = null;
-function motionPoses(): Pose[] {
+// The motion model is the same for every buddy, so the poses are made once. Over half the frames repeat
+// a pose exactly in every field the mapping and drawnPose read (the settled tails, the same start under
+// both rates), and those are kept once: bounding a pose twice finds nothing new.
+let made: { frames: number; poses: Pose[] } | null = null;
+function motionPoses(): { frames: number; poses: Pose[] } {
   if (made) return made;
   const sequences = [[0], [0, .1], [0, .2], [0, .3], [0, .45], [0, .8], Array.from({ length: 10 }, (_, i) => i * .08), Array.from({ length: 30 }, (_, i) => i * .033)];
   const rect = { x: 0, y: 0, width: 114, height: 114 };
-  const poses: Pose[] = [];
+  const poses: Pose[] = [], seen = new Set<string>();
+  let frames = 0;
   for (const [n, presses] of sequences.entries()) for (const hz of [60, 120]) for (const side of [-1, -.5, 0, .5, 1]) for (const typed of [false, true]) {
     // Every start at .1 s steps for the single hop (several accessory spring periods and a whole breath);
     // the slower press sequences sample every .3 s.
@@ -198,17 +205,19 @@ function motionPoses(): Pose[] {
       while (state.time < first + presses.at(-1)! + 1.6) {
         while (next < presses.length && state.time - first >= presses[next]!) { hop(state, false); next++; }
         frame();
-        poses.push(pose(state, false));
+        const p = pose(state, false), key = `${p.squash},${p.lift},${p.tilt},${p.hatTilt},${p.look[0]}`;
+        frames++;
+        if (!seen.has(key)) { seen.add(key); poses.push(p); }
       }
     }
   }
-  made = poses;
-  return poses;
+  made = { frames, poses };
+  return made;
 }
 
 test.each(BUDDY_IDS)("whatever the presses, %s's drawn body and accessory keep at least 1.4 device px inside the canvas", id => {
-  const poses = motionPoses();
-  expect(poses.length).toBeGreaterThan(100000);
+  const { frames, poses } = motionPoses();
+  expect(frames).toBeGreaterThan(100000);
   const { rig } = buddy(id), shader = anchors(id);
   const [body, hat] = [outline(layer(id, "body")), outline(layer(id, "accessory"))];
   // The rest frame is the draft's: nothing to bound without lift or tilt.
@@ -222,7 +231,10 @@ test.each(BUDDY_IDS)("whatever the presses, %s's drawn body and accessory keep a
   for (const motion of poses) {
     const p = drawnPose(motion, rig);
     check(p, 0, body);
-    for (const hatTilt of new Set([p.hatTilt, ...rig.accessoryTilt])) check({ ...p, hatTilt }, 1, hat);
+    const [low, high] = rig.accessoryTilt;
+    check(p, 1, hat);
+    if (low !== p.hatTilt) check({ ...p, hatTilt: low }, 1, hat);
+    if (high !== p.hatTilt && high !== low) check({ ...p, hatTilt: high }, 1, hat);
   }
   // Clip space is ±1 over Home's 228 device px canvas (114 per half).
   expect((1 - worst) * 114, id).toBeGreaterThanOrEqual(1.4);
