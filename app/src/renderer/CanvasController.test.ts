@@ -3530,6 +3530,72 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // A pointer resting over the canvas keeps the cursor the canvas last set until it moves (measured with a real
+  // pointer), so the canvas shows the hand itself while the layer is up.
+  describe("the canvas's hand cursor", () => {
+    const hands = (h: H) => posted(h).filter(m => m.type === "hover-hand").map(m => m.hand);
+
+    it("follows a held Space, ahead of the hover-leave the layer sends", () => {
+      const h = harness();
+      try {
+        press(h, "Space");
+        const sent = posted(h);
+        expect(sent.slice(-2)).toEqual([{ type: "hover-hand", hand: true, seq: 1 }, { type: "hover-leave", seq: 2 }]);
+        // Repeats and a drag under the held Space change nothing.
+        press(h, "Space", { repeat: true });
+        pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+        pointer(h, "pointerup");
+        expect(hands(h)).toEqual([true]);
+        release(h, "Space");
+        expect(hands(h)).toEqual([true, false]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("follows Hand chosen by key and by the toolbar, and Esc back to Select", () => {
+      const h = harness();
+      try {
+        press(h, "KeyH");
+        expect(hands(h)).toEqual([true]);
+        // Space in Hand keeps the layer up.
+        press(h, "Space");
+        release(h, "Space");
+        expect(hands(h)).toEqual([true]);
+        press(h, "KeyV");
+        expect(hands(h)).toEqual([true, false]);
+        h.controller.setTool("hand");
+        press(h, "Escape");
+        expect(hands(h)).toEqual([true, false, true, false]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("tells a document the canvas replaced itself with, while Hand keeps the layer up", () => {
+      const h = harness();
+      try {
+        press(h, "KeyH");
+        h.layout({ document: "doc2" });
+        expect(hands(h)).toEqual([true, true]);
+        // A later layout from the same document sends nothing more.
+        h.layout({ document: "doc2" });
+        expect(hands(h)).toEqual([true, true]);
+      } finally { h.controller.dispose(); }
+    });
+
+    // The other way round: after the pointer moved over the layer, the app document holds the cursor, and once the
+    // layer is down the iframe element's own cursor is what shows until the pointer moves into the canvas again.
+    it("the board iframe has a plain cursor of its own, so a lowered layer does not leave the hand", () => {
+      const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+      expect(css).toMatch(/\.board iframe \{[^}]*\bcursor: default;/);
+    });
+
+    it("is not sent in Select without Space", () => {
+      const h = harness();
+      try {
+        h.layout({ document: "doc2" });
+        expect(hands(h)).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
+  });
+
   // Review of the fix above: the iframe's load event forgets the anchor document, so only a new token counts.
   it("a held Space and a drag survive the iframe's load event and a later layout from the same document", () => {
     const h = harness();

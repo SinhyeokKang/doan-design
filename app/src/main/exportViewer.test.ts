@@ -1014,6 +1014,57 @@ describe("tool wiring", () => {
     expect(shellJs.match(/window\.addEventListener\("blur"/g)).toHaveLength(2);
   });
 
+  // A pointer resting over the canvas keeps the cursor the canvas document last set until it moves (measured in
+  // Chromium with a real pointer), so while the board pans the canvas shows the hand itself.
+  test("the page tells the canvas when the board pans, once per change and again for a newly loaded document", () => {
+    const sync = /function syncSurface\(\) \{[\s\S]*?\n\}/.exec(code(shellJs))?.[0] ?? "";
+    expect(sync).toMatch(/const pan = board\.toggleAttribute\("data-pan", layerShown\(tool, spaceHeld, drag !== null, boardDrawn\(\)\)\);/);
+    expect(sync).toMatch(/if \(pan !== panTold && canvas\.contentWindow\) \{\s*panTold = pan;\s*canvas\.contentWindow\.postMessage\(\{ type: "pan", pan \}, "\*"\);\s*\}/);
+    // The reset runs before releaseInput's own load listener redraws the surface.
+    const reset = code(shellJs).indexOf('canvas.addEventListener("load", () => {\n  panTold = false;\n});');
+    expect(reset).toBeGreaterThan(-1);
+    expect(reset).toBeLessThan(code(shellJs).indexOf('canvas.addEventListener("load", releaseInput);'));
+  });
+
+  test("the canvas adopts a grab sheet while the board pans and removes only its own", () => {
+    class FakeSheet { text = ""; replaceSync(text: string) { this.text = text; } }
+    const listeners = new Map<string, (event: unknown) => void>();
+    const parent = {};
+    const own = new FakeSheet();
+    const document = {
+      readyState: "loading", adoptedStyleSheets: [own] as FakeSheet[],
+      addEventListener() {}, fonts: { addEventListener() {} },
+    };
+    const context = {
+      document, parent, CSSStyleSheet: FakeSheet,
+      addEventListener: (type: string, listener: (event: unknown) => void) => { if (!listeners.has(type)) listeners.set(type, listener); },
+    };
+    runInNewContext(`(function () {\n${lib}\n${measure}\n})();`, context);
+    const message = (data: unknown, source: unknown = parent) => listeners.get("message")!({ source, data });
+    const ours = () => document.adoptedStyleSheets.filter(sheet => sheet !== own).map(sheet => sheet.text);
+    message({ type: "pan", pan: true });
+    expect(document.adoptedStyleSheets[0]).toBe(own);
+    expect(ours()).toEqual(["*{cursor:grab!important}"]);
+    message({ type: "pan", pan: true });
+    expect(ours()).toHaveLength(1);
+    message({ type: "pan", pan: false });
+    expect(document.adoptedStyleSheets).toEqual([own]);
+    // Only the page's own boolean message counts.
+    message({ type: "pan", pan: true }, {});
+    message({ type: "pan", pan: "true" });
+    expect(ours()).toEqual([]);
+    // The canvas replacing its own list meanwhile keeps whatever it set.
+    message({ type: "pan", pan: true });
+    const later = new FakeSheet();
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, later];
+    message({ type: "pan", pan: false });
+    expect(document.adoptedStyleSheets).toEqual([own, later]);
+  });
+
+  test("the canvas iframe has a plain cursor of its own, so a pan that ends under a resting pointer does not leave the hand", () => {
+    expect(shellCss).toMatch(/\n\.canvas \{[^}]*\bcursor: default;/);
+  });
+
   test("a Space down from the canvas counts only while the canvas has focus; its release always counts", () => {
     expect(shellJs).toMatch(/if \(!message\.down \|\| document\.activeElement === canvas\) spaceKey\(message\.down\);/);
   });
