@@ -23,10 +23,10 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | BP | 작업 1, 2 (PoC) + 작업 6 마지막 재비교(후속 Task) | `.scratch/canvas-svg-sprites/`, `tasks.md` 'PoC 기록' | 없음 | Opus high — 측정 설계와 판정이 결과를 좌우하고, 틀리면 설계 전체가 흔들린다 | 경우별 스크린숏·bbox·요청 로그, export 파일 경로(Safari용) | 완료 `bac40bf5` → 통합. Safari는 사용자 확인 대기 |
-| BC | 작업 3, 4 (`/tdd`, `/implement`) | `cli/internal/canvas/`, `cli/internal/check/`, `cli/internal/export/`(`exporttest` 포함), `cli/internal/cli/check.go` | BP | Opus high — check·export 일치, reach 포함 관계, tokenizer `<template>` 함정이 있다 | `go test ./...`, `go vet ./...`, `verify.mjs`, repo 복사본 `doan check` 새 finding 0 | 진행(dispatch `ctx_6d20608a4cc7`, worktree `css-bc`) |
+| BC | 작업 3, 4 (`/tdd`, `/implement`) | `cli/internal/canvas/`, `cli/internal/check/`, `cli/internal/export/`(`exporttest` 포함), `cli/internal/cli/check.go` | BP | Opus high — check·export 일치, reach 포함 관계, tokenizer `<template>` 함정이 있다 | `go test ./...`, `go vet ./...`, `verify.mjs`, repo 복사본 `doan check` 새 finding 0 | 완료 `36d23a42`·`8fb90bb2`·`ed2474f4` → 통합 `4ae87270`·`6cf1176f`·`ef77fc3d` |
 | BG | 작업 5 (가이드·preset) | `cli/internal/cli/skill.md`, `cli/internal/designskill/presets/document.md` | BP | Sonnet medium — 정해진 문장을 예산 안에 넣는 작업이다 | `go test ./...`(`TestSkillGuideFitsToolOutputCap`), `doan skill --json` 출력 | 완료 `9abde758`·`284a45d5` → 통합(dispatch `ctx_3b9cb8cc657f`) |
-| R | 작업 6 `/code-review` (BC+BG 통합 diff) | 보고만 | BC, BG 통합 | Opus high — check·export 판정 일치와 고아 제거를 독립적으로 판단해야 한다 | 🔴 0 | 대기 |
-| BE1 | 작업 6 시나리오 | `eval/scenarios/<새 id>/`, `eval/` 테스트(`checks.test.ts` 등) | BC 통합 | Opus medium — fixture와 실패 조건 설계에 판단이 들지만 범위가 좁다 | `node eval/run.ts --self-test` PASS·exit 0, `node --test 'eval/**/*.test.ts'`, `verify.mjs --eval` | 대기 |
+| R | 작업 6 `/code-review` (BC+BG 통합 diff) | 보고만 | BC, BG 통합 | Opus high — check·export 판정 일치와 고아 제거를 독립적으로 판단해야 한다 | 🔴 0 | 진행(dispatch `ctx_92db7a0458cf`, worktree `css-r`) |
+| BE1 | 작업 6 시나리오 | `eval/scenarios/<새 id>/`, `eval/` 테스트(`checks.test.ts` 등) | BC 통합 | Opus medium — fixture와 실패 조건 설계에 판단이 들지만 범위가 좁다 | `node eval/run.ts --self-test` PASS·exit 0, `node --test 'eval/**/*.test.ts'`, `verify.mjs --eval` | 완료 `2173dbe6`(W6) → 통합 |
 | BE2 | 작업 6 실제 `/agent-eval` 라운드 + `docs/USABILITY-EVAL.md` | `docs/USABILITY-EVAL.md` | R 수정 통합, BE1 통합 | BE1 워커 재사용 | `npm --prefix app run package`, `node eval/run.ts --round <name>` 전체 시나리오 | 대기 |
 | 승격 | 작업 7 | PRODUCT, ARCHITECTURE, BACKLOG, `docs/features/canvas-svg-sprites/` 삭제 | 전부 | conductor | 완료 조건 1~7 대조, `git diff --stat origin/develop -- app/` 빈 결과, `rg` 잔여 없음 | 대기 |
 
@@ -41,3 +41,6 @@
 
 - BP: handoff와 커밋(`tasks.md` 한 파일)을 대조했다. 근거 사본은 conductor checkout `.scratch/canvas-svg-sprites/`, `.scratch/handoff-BP.md`에 있다.
 - BG: handoff와 diff를 대조했다. 가이드 테스트가 "comment" 단어를 막아 `<!-- source: path -->` note로 썼다. `design-skill document --json`이 예산 21,600 B 중 12 B만 남는다(PR 본문에 남긴다).
+- BC: handoff와 커밋을 대조했다. `/ship`의 자체 리뷰는 🔴·🟡 0이다. 계획과 다른 점 4개(export `<use>` 판정의 `canvas.Parse` 대조, 캔버스 사용처를 `Canvas.Custom`에 둠, finding `value`가 `url()` 안 값, customurl 기대값이 거부로 바뀜)는 리뷰 R이 판정한다. POSTMORTEM 2026-11-03의 원래 캔버스는 캔버스 `<style>`도 같은 property를 써서 이제 거부된다. spec '기존 동작 변경' 2와 '남는 결함'에 해당하므로 PR 본문에 남긴다.
+- 통합 `ef77fc3d`의 `/verify`: app-test에서 `doanyRender.test.ts`의 두 테스트가 20초 시간 초과로 실패했다(로그 `.scratch/verify/2026-11-12T15-22-49-332Z-61123/`). 다른 워커와 다른 링크가 동시에 테스트를 돌리던 때다. 이 브랜치는 `app/`을 바꾸지 않았고, 그 파일만 다시 돌리면 8개 모두 통과했다. 마지막 통합에서 워커가 쉬는 동안 전체 `/verify --eval`를 다시 돈다.
+- BE1: handoff와 커밋(`eval/scenarios/W6/`만)을 대조했다. `checks.test.ts`는 W5처럼 `doan`을 mock하지 않고 H5처럼 실제 CLI를 돌린다. 새 check 규칙이 실제로 나오는지 고정하므로 받아들인다. self-test PASS(37 scenarios), eval 테스트 292/292.
