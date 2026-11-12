@@ -12,6 +12,7 @@
 - conductor 판단 — tasks 9: self-test(`node eval/run.ts --self-test --scenarios O4`)만 돌리고, 실제 라운드는 리드에게 먼저 묻는다. 새 시나리오 추가 여부도 리드를 거쳐 사용자에게 묻는다.
 - conductor 판단 — CLI 환경 계약: Go CLI는 표준 환경 변수 `PATH`와 `DEVELOPER_DIR`를 `Context`로 받는다(design '실행' git 위치). 앱은 CLI를 띄울 때 로그인 셸 PATH와 clone이 쓰는 `DEVELOPER_DIR`를 이 이름으로 넘긴다. 별도 변수 이름을 만들지 않는다. 이 계약 덕분에 A·B 배치가 서로를 기다리지 않는다.
 - 리드 지시: 사용자가 리드 세션에서 초안 `.doan/canvases/keep-out-git-init.html`의 design preset 검토(critique, audit, clarify, 보고만)를 돌린다. 초안이 바뀌면 리드가 develop에 push하고 알린다. 그 전에는 conductor와 워커가 캔버스를 고치지 않고, B의 renderer·design-sync 부분은 리드의 알림을 받은 뒤 시작한다. B가 그 전에 시작하면 main 부분(tasks 4 TS의 main 항목, 6)만 한다.
+- 리드 알림: 검토 결과가 develop에 들어왔다(초안 `16a7420d`, design.md 결정 `e676bb46`). conductor가 `origin/develop`을 통합 브랜치에 병합했다(`f091ee8c`). A·B는 자기 브랜치를 통합 브랜치 위로 rebase한다. Go는 HOME 전용 message·NextSteps(`--git-init` 없음)를 더한다. B의 main은 HOME과 그 위에서 `notGit`을 계획에 쓰지 않는다. 바뀐 초안은 사용자가 아직 다시 확인하지 않았으므로, B의 2단계는 리드가 확인을 알릴 때까지 계속 보류한다.
 
 ## 배치
 
