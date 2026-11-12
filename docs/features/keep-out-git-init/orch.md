@@ -15,6 +15,10 @@
 - 리드 알림: 검토 결과가 develop에 들어왔다(초안 `16a7420d`, design.md 결정 `e676bb46`). conductor가 `origin/develop`을 통합 브랜치에 병합했다(`f091ee8c`). A·B는 자기 브랜치를 통합 브랜치 위로 rebase한다. Go는 HOME 전용 message·NextSteps(`--git-init` 없음)를 더한다. B의 main은 HOME과 그 위에서 `notGit`을 계획에 쓰지 않는다. 바뀐 초안은 사용자가 아직 다시 확인하지 않았으므로, B의 2단계는 리드가 확인을 알릴 때까지 계속 보류한다.
 - conductor 판단 — 통합 순서: B의 실제 CLI 테스트가 A의 Go를 기다리므로, A를 리뷰 전에 통합 브랜치에 먼저 cherry-pick했다. 리뷰에서 나온 수정은 A 워커가 추가 커밋으로 내고 conductor가 다시 cherry-pick한다. PR은 리뷰의 🔴가 0이 된 뒤에만 연다.
 - A handoff의 계획과 다른 점: `types.ts`에는 CLI 오류 코드 union이 없어 `git_init_failed`는 `envelope.go`에만 있다. `Context` 주입은 표준 환경을 담은 `Context.Git`(`repo.GitHost`) 하나다. `.git` 확보 때 EEXIST는 `git_init_failed`다. `cleanup_failed` message에 절대 경로가 들어가므로 tasks 10에서 ARCHITECTURE §12 'Storage'의 "message에 경로 없음" 문장에 예외를 적는다.
+- R-A 결과(`review-A.md`, conductor `.scratch/keep-out-git-init/`에 사본): 🔴 0, 🟡 3. 리뷰어가 사용자 결정으로 올린 두 항목은 conductor가 정했다.
+  - conductor 판단 — HOME을 알 수 없을 때(`HOME`이 비거나 없음) `--git-init`은 거절한다(fail-closed). 근거: spec 완료 조건 7은 환경과 관계없이 HOME에서 만들지 않는다.
+  - conductor 판단 — HOME과 그 위에서 `--git-init` 없이 `--storage local`을 실행해도 HOME 전용 `local_not_git`(NextSteps에 `--git-init` 없음)을 낸다. 근거: design.md '3. 실행'은 HOME에서 `--git-init`을 권하지 않는다. 권하면 사람에게 의미 없는 동의를 묻게 된다.
+  - 수정 라운드 1은 새 워커 `ctx_b3bec9d29f8e`(`kogi-a`, Opus high)가 한다. 원래 A 터미널은 재사용할 수 없어(`agent_unconfigured`) release했다.
 - 리드 알림: 사용자가 바뀐 초안(`16a7420d`)을 확인했다(`d2d54fb9`). conductor가 병합했고, B에 'UI go'를 보냈다.
 
 ## 배치
