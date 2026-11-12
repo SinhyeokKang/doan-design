@@ -115,6 +115,12 @@
 
 **다음 send.** 위 2절의 `"term"` 정리로 그룹을 끝내고 소멸을 기다린 뒤 시작한다. 프로젝트 판정은 1절대로 그때부터 정착 시간이 흐른다. handoff나 terminal의 continue가 백그라운드 그룹이 살아 있는 같은 세션을 resume하려 할 때도 같은 정리를 먼저 한다.
 
+## 초안 요청
+
+- 경로: `.doan/canvases/claude-turn-end.html`, 캔버스 id `claude-turn-end`.
+- 프레임: `background-line`(캔버스 패널 347의 줄 상태와 실패 토스트), `background-widths`(Overview 720과 패널 280), `prompt-unread`(결함 2의 실패 문구: 스레드와 Home strip), `copy`(문구와 스크린리더). `/design-sync`는 앞의 셋을 비교한다.
+- 초안 헤더의 선택 0–5(캔버스와 프레임 구성, 줄 형태와 아이콘, Stopping 표시와 접근 가능한 이름, 실패 문구 나누기, Home strip 문구, light only)는 사용자 확인을 기다린다. 답은 아직 없다.
+
 ## 영향 받는 구성요소
 
 - **앱(main)**: `conversation/runners.ts`(프롬프트 uuid, `afterTurnCleanup` 호출 지점, 백그라운드 집합, 프롬프트 조건이 붙은 `doneTurn`·usage 읽기), `conversation/transport.ts`(프롬프트 읽힘, 백그라운드 집합 갱신), `conversation/process.ts`(`OwnedGroup.kill()`), `conversation/service.ts`(`promotionDeadline` 타이머, handoff 판정, `previousExit`와 `ended()`의 정리, `pendingTerminal`과 기록 찾기, `interrupt()` not-busy 분기, 조용한 정지 경로, `stopping`·`background` 목록 필드), `conversation/summary.ts`, `conversation/project.ts`(`PROMOTION_SETTLE_MS`), `conversation/io.ts`(기록 읽기), `conversation/types.ts`·`conversation/store.ts`(`prompt_unread`). 로그아웃·Restart to Update·프로젝트 Remove의 `stop_required` 계산.
