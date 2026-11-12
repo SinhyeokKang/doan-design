@@ -4,13 +4,13 @@
 
 실제 앱 probe(작업 1, 6)는 `app/runtime/README.md`의 경로를 따른다: `npm --prefix app run build`, `go build -o <tmp>/doan ./cli/cmd/doan`, Playwright `_electron.launch`, `isolatedEnv`(`app/runtime/environment.ts`), 전후 `realState`·`assertRealState`(`app/runtime/real-state.ts`), `suiteGuard`(`app/runtime/harness.ts`)의 `finally`에서 `restoreClipboard`(`app/runtime/clipboard.ts`, 시작 때 `saveClipboard`). Edit > Copy는 `app/runtime/windows.ts`의 메뉴 helper로 누르고, ⌘C를 어떤 입력 경로로 눌렀는지(Playwright 키 입력인지, 네이티브 입력인지) 보고서에 적는다. probe 파일은 `.scratch/runtime-test/canvas-text-copy/`에 두고 커밋하지 않는다.
 
-1. [ ] **PoC (design.md 'PoC 의존' 1–5).**
+1. [x] **PoC (design.md 'PoC 의존' 1–5).**
    - 결과(날짜, Electron 버전, 스크린숏 경로, 관찰)를 design.md 'PoC 의존' 아래에 적는다. 1·2·3이 실패하면 멈추고 사용자에게 묻는다. 3의 대체 경로나 5의 `text-point`가 필요하면 design.md를 고친다.
    - 확인: 다섯 항목 각각의 관찰이 design.md에 있다.
    - **커밋 경계**: `docs(feature): record canvas-text-copy PoC result` (design.md만).
 2. [x] **초안 (`/design-draft`).** overlay 하이라이트(accent 반투명)를 밝은 캔버스, 진한 캔버스(#050507), 보라 캔버스(#5b21b6) 위에 그린다. 요소 선택 표시와 hover 표시가 함께 있는 경우, 여러 줄 범위, 드래그 중 텍스트 커서도 그린다. 경로 `.doan/canvases/canvas-text-copy.html`.
    - 확인: `doan check`·`doan ls`가 통과하고, 사용자가 앱에서 초안을 확인했다.
-3. [ ] **테스트 (`/tdd`).** design.md '순수 함수' 1–8.
+3. [x] **테스트 (`/tdd`).** design.md '순수 함수' 1–8.
    - `textDragState`: 화면 3.99px는 `press`, 4px는 `drag`. 한 번 `drag`면 원점 복귀도 `drag`.
    - `textBoundary`: 가장 안쪽 프레임, 프레임 밖 노트, 프레임을 담은 행(빈 공간)은 경계 없음.
    - 상한 자르기: 정확히 상한, 상한+1, astral 문자로 넘는 경우에 서로게이트를 자르지 않는다.
