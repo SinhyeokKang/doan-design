@@ -1291,7 +1291,11 @@ export class ConversationService {
     if (live.background) { delete live.background; this.changedOf(id); }
     if (!live.accepted) this.live.delete(id);
     if (live.held) this.writeHeld(id, live, true);
-    else if (live.accepted && live.busy) this.receive(id, { type: "turn.failed", code: "process_exited" });
+    else if (live.accepted && live.busy) {
+      // The group went before its turn's end (a crash): steers the transcript shows join the turn first, as for a held end.
+      if (!this.quitting) for (const messageId of this.foundSteers(live, this.steering(id).map(([key]) => key))) this.steerConsumed(id, messageId);
+      this.receive(id, { type: "turn.failed", code: "process_exited" });
+    }
     if (live.lookup) this.endLookup(id, live, true);
     this.groupGone(id, live);
     this.releaseFailed(id, live);

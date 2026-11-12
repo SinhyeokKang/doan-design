@@ -13,6 +13,9 @@ import type { EventPayload } from "./types";
 //  failed   a failed result before the prompt was read; the input's end is ignored.
 //  bg       the done turn leaves a background task: the set is announced, and once the task ends (FAKE_TASK_MS) the set
 //           empties and the CLI calls the model on its own 100 ms later unless it was killed.
+//  failread a failed result after the prompt was read; the input's end is ignored.
+//  hold     nothing after the prompt: the turn keeps running.
+//  bg env   FAKE_RESULT=failed ends the turn failed instead; FAKE_AMBIENT=1 marks the task ambient.
 //  done     a plain done turn; the CLI ends a while after its input closes (FAKE_EXIT_MS), or at once on SIGTERM.
 // SIGTERM is logged and ends the task with the CLI, as the real CLI's own handling does.
 function fakeClaude(root: string): string {
@@ -22,7 +25,12 @@ const fs = require('node:fs'); const log = ${JSON.stringify(log)};
 const note = value => fs.appendFileSync(log, JSON.stringify(value) + '\\n');
 const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
 const mode = process.env.FAKE_MODE; let task = false;
-process.on('SIGTERM', () => { note({ signal: 'SIGTERM', task }); process.exit(143); });
+process.on('SIGTERM', () => {
+ note({ signal: 'SIGTERM', task });
+ // FAKE_SLOW_TERM: the CLI's own SIGTERM handling stops the task, reports the empty set, then takes 300 ms to finish.
+ if (process.env.FAKE_SLOW_TERM && task) { task = false; send({type:'system',subtype:'background_tasks_changed',tasks:[],session_id:'s'}); setTimeout(() => { note({ cleaned: true }); process.exit(143); }, 300); return; }
+ process.exit(143);
+});
 const say = (id, text) => send({type:'assistant',parent_tool_use_id:null,message:{id,role:'assistant',content:[{type:'text',text}]}});
 const meta = () => { say('meta-m', 'The task finished.'); send({type:'result',subtype:'success',is_error:false,num_turns:0,result:'',session_id:'s'}); };
 require('node:readline').createInterface({input:process.stdin}).on('line', line => {
@@ -34,10 +42,13 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
  if(mode==='slow') { setTimeout(meta, 300); setTimeout(() => send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:'s'}), 400);
   const poll = setInterval(() => { if(!fs.existsSync(${JSON.stringify(join(root, "go"))})) return; clearInterval(poll); say('own', '4'); send({type:'result',subtype:'success',is_error:false,result:'4',user_message_uuids:[r.uuid],session_id:'s'}); }, 20); }
  if(mode==='failed') send({type:'result',subtype:'error_during_execution',is_error:true,errors:['boom'],session_id:'s'});
+ if(mode==='failread') { setInterval(() => {}, 1000); send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:'s'}); send({type:'result',subtype:'error_during_execution',is_error:true,errors:['boom'],user_message_uuids:[r.uuid],session_id:'s'}); }
  if(mode==='bg') {
   task = true;
-  send({type:'system',subtype:'background_tasks_changed',tasks:[{task_id:'b1',task_type:'local_bash',description:'Sleep'}],session_id:'s'});
-  say('own', 'started'); send({type:'result',subtype:'success',is_error:false,result:'started',user_message_uuids:[r.uuid],session_id:'s'});
+  send({type:'system',subtype:'background_tasks_changed',tasks:[{task_id:'b1',task_type:'local_bash',description:'Sleep',...(process.env.FAKE_AMBIENT ? {ambient:true} : {})}],session_id:'s'});
+  say('own', 'started');
+  if(process.env.FAKE_RESULT==='failed') { send({type:'system',subtype:'init',user_message_uuids:[r.uuid],session_id:'s'}); send({type:'result',subtype:'error_during_execution',is_error:true,errors:['boom'],user_message_uuids:[r.uuid],session_id:'s'}); }
+  else send({type:'result',subtype:'success',is_error:false,result:'started',user_message_uuids:[r.uuid],session_id:'s'});
   setTimeout(() => {
    task = false; note({ taskEnded: true });
    send({type:'system',subtype:'background_tasks_changed',tasks:[],session_id:'s'});
@@ -101,7 +112,8 @@ describe("a Claude turn's prompt read", () => {
   it("stops the wait the meta result armed once the prompt is read, so a long turn is not cut at 30 s", async () => {
     const until = (check: () => boolean) => new Promise<void>(resolve => { const t = setInterval(() => { if (check()) { clearInterval(t); resolve(); } }, 20); });
     await run({ FAKE_MODE: "slow" }, async ({ runner, events, root }) => {
-      const sending = runner.send("hello", "turn-1");
+      // Caught at once: a failed expect below closes the runner, which would reject it unseen (POSTMORTEM 2026-11-11).
+      const sending = runner.send("hello", "turn-1").then(() => "resolved", (e: unknown) => e);
       await vi.waitFor(() => expect(seen(root).some(line => line.type === "user")).toBe(true));
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       try {
@@ -111,7 +123,7 @@ describe("a Claude turn's prompt read", () => {
         expect(terminals(events)).toEqual([]);
       } finally { vi.useRealTimers(); }
       writeFileSync(join(root, "go"), "");
-      await sending;
+      expect(await sending).toBe("resolved");
       expect(terminals(events)).toEqual([{ type: "turn.done" }]);
     });
   }, 15000);
@@ -130,10 +142,10 @@ describe("background work after a done turn", () => {
   it("reports the background set at the done turn and kills the group where it empties, before the CLI calls the model", async () => {
     await run({ FAKE_MODE: "bg", FAKE_TASK_MS: "800" }, async ({ runner, events, exited, background, root }) => {
       // send settles only once the process is gone.
-      const sending = runner.send("start a build", "turn-1");
+      const sending = runner.send("start a build", "turn-1").then(() => "resolved", (e: unknown) => e);
       await vi.waitFor(() => expect(terminals(events)).toEqual([{ type: "turn.done" }]));
       await vi.waitFor(() => expect(background.mock.calls).toEqual([[true]]));
-      await sending;
+      expect(await sending).toBe("resolved");
       await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
       expect(background.mock.calls).toEqual([[true], [false]]);
       const log = seen(root);
@@ -142,6 +154,42 @@ describe("background work after a done turn", () => {
       expect(log.some(line => line.signal)).toBe(false);
       expect(log.some(line => line.model)).toBe(false);
       expect(terminals(events)).toEqual([{ type: "turn.done" }]);
+    });
+  }, 15000);
+  // The CLI calls the model for a finished task's notice after any turn, not only a done one; a failed turn shows no line.
+  it("kills the group where the set empties after a failed turn too, without a line", async () => {
+    await run({ FAKE_MODE: "bg", FAKE_RESULT: "failed", FAKE_TASK_MS: "800" }, async ({ runner, events, exited, background, root }) => {
+      const sending = runner.send("start a build", "turn-1").then(() => "resolved", (e: unknown) => e);
+      await vi.waitFor(() => expect(terminals(events)).toEqual([{ type: "turn.failed", code: "unknown", detail: "boom" }]));
+      await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+      expect(await sending).toBe("resolved");
+      const log = seen(root);
+      expect(log).toContainEqual({ taskEnded: true });
+      expect(log.some(line => line.signal)).toBe(false);
+      expect(log.some(line => line.model)).toBe(false);
+      expect(background).not.toHaveBeenCalled();
+    });
+  }, 15000);
+  it("lets the CLI's SIGTERM handling finish: no kill on the set it empties while stopping", async () => {
+    await run({ FAKE_MODE: "bg", FAKE_TASK_MS: "10000", FAKE_SLOW_TERM: "1" }, async ({ runner, exited, root }) => {
+      const sending = runner.send("start a dev server", "turn-1").catch(() => {});
+      await vi.waitFor(() => expect(seen(root)).toContainEqual({ closed: true }));
+      expect(runner.endAfterTurn!()).toBe("term");
+      await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+      expect(seen(root)).toContainEqual({ cleaned: true });
+      await sending;
+    });
+  }, 15000);
+  // An ambient task is left off the line but may run in a process group of its own, so it still keeps SIGKILL away.
+  it("ends a group whose only task is ambient through SIGTERM, without a line", async () => {
+    await run({ FAKE_MODE: "bg", FAKE_TASK_MS: "10000", FAKE_AMBIENT: "1" }, async ({ runner, exited, background, root }) => {
+      const sending = runner.send("watch the files", "turn-1").catch(() => {});
+      await vi.waitFor(() => expect(seen(root)).toContainEqual({ closed: true }));
+      expect(background).not.toHaveBeenCalled();
+      expect(runner.endAfterTurn!()).toBe("term");
+      await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+      expect(seen(root)).toContainEqual({ signal: "SIGTERM", task: true });
+      await sending;
     });
   }, 15000);
   it("ends a group with live background work through SIGTERM, never an immediate kill", async () => {
@@ -183,7 +231,7 @@ describe("ending a finished turn's process for the next send", () => {
     let finish = () => {};
     const usageAtTurnEnd = vi.fn(async () => { await new Promise<void>(resolve => { finish = resolve; }); });
     await run({ FAKE_MODE: "done", FAKE_EXIT_MS: "4000" }, async ({ runner, exited, root }) => {
-      const sending = runner.send("hello", "turn-1");
+      const sending = runner.send("hello", "turn-1").then(() => "resolved", (e: unknown) => e);
       await vi.waitFor(() => expect(usageAtTurnEnd).toHaveBeenCalledOnce());
       expect(runner.endAfterTurn!()).toBe("later");
       await new Promise(resolve => setTimeout(resolve, 200));
@@ -197,9 +245,24 @@ describe("ending a finished turn's process for the next send", () => {
     }, { usageAtTurnEnd });
   }, 15000);
   it("takes the SIGTERM path for a failed turn's process", async () => {
-    await run({ FAKE_MODE: "failed" }, async ({ runner }) => {
-      await runner.send("hello", "turn-1");
-      expect(["term", "none"]).toContain(runner.endAfterTurn!());
+    await run({ FAKE_MODE: "failread" }, async ({ runner, events, exited, root }) => {
+      const sending = runner.send("hello", "turn-1").catch(() => {});
+      await vi.waitFor(() => expect(terminals(events)).toEqual([{ type: "turn.failed", code: "unknown", detail: "boom" }]));
+      await vi.waitFor(() => expect(seen(root)).toContainEqual({ closed: true }));
+      expect(runner.endAfterTurn!()).toBe("term");
+      await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+      expect(seen(root)).toContainEqual({ signal: "SIGTERM", task: false });
+      await sending;
+    });
+  }, 15000);
+  it("leaves a running turn's process alone", async () => {
+    await run({ FAKE_MODE: "hold" }, async ({ runner, root }) => {
+      const sending = runner.send("hello", "turn-1").catch(() => {});
+      await vi.waitFor(() => expect(seen(root).some(line => line.type === "user")).toBe(true));
+      expect(runner.endAfterTurn!()).toBe("none");
+      await new Promise(resolve => setTimeout(resolve, 300));
+      expect(seen(root).some(line => line.signal)).toBe(false);
+      await runner.stop(); await sending;
     });
   }, 15000);
   it("does nothing for a process that already ended", async () => {

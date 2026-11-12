@@ -93,11 +93,12 @@ export function promptTransport(state: TransportState, uuid: string): TransportS
 // The wait ran out with the prompt still unread: the CLI never took the message, so the turn fails.
 export function endPromptWait(state: TransportState): TransportResult { return finish(state, { type: "turn.failed", code: "prompt_unread" }); }
 // The live background tasks after a background_tasks_changed frame, null for any other frame. The frame is a level
-// signal that carries the whole set each time (SDK 0.3.312); an ambient entry is one the host leaves out of activity.
-export function backgroundTasks(_current: readonly string[], raw: unknown): string[] | null {
+// signal that carries the whole set each time (SDK 0.3.312). An ambient entry is one the host leaves out of activity, so
+// it is left out of what is shown; withAmbient keeps it, since it may still run in a process group of its own.
+export function backgroundTasks(_current: readonly string[], raw: unknown, withAmbient = false): string[] | null {
   if (!object(raw) || raw.type !== "system" || raw.subtype !== "background_tasks_changed") return null;
   const tasks = Array.isArray(raw.tasks) ? raw.tasks : [];
-  return tasks.filter(object).filter(task => typeof task.task_id === "string" && task.task_id && task.ambient !== true).map(task => task.task_id as string);
+  return tasks.filter(object).filter(task => typeof task.task_id === "string" && task.task_id && (withAmbient || task.ambient !== true)).map(task => task.task_id as string);
 }
 function consume(state: TransportState, seen: readonly unknown[]): { state: TransportState; consumed: string[] } {
   const consumed = (state.steered ?? []).filter(id => seen.includes(id));

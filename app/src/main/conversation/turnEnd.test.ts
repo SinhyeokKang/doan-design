@@ -97,6 +97,9 @@ describe("backgroundTasks", () => {
   it("leaves out ambient entries", () => {
     expect(backgroundTasks([], changed([{ task_id: "m1", task_type: "local_bash", ambient: true }, { task_id: "b2", task_type: "local_bash" }]))).toEqual(["b2"]);
   });
+  it("keeps ambient entries when asked, for how the process may be ended", () => {
+    expect(backgroundTasks([], changed([{ task_id: "m1", task_type: "local_bash", ambient: true }, { task_id: "b2", task_type: "local_bash" }]), true)).toEqual(["m1", "b2"]);
+  });
   it("answers null for any other frame and ignores malformed entries", () => {
     expect(backgroundTasks(["b1"], { type: "system", subtype: "task_started", task_id: "b3" })).toBeNull();
     expect(backgroundTasks(["b1"], null)).toBeNull();

@@ -242,6 +242,22 @@ describe("a steered message the agent never reported (Claude)", () => {
     expect(h.types(id)).toEqual(before);
     expect(h.drafts.queued(id)).toEqual([]);
   });
+  it("looks in the transcript when the group goes before the turn's end (a crash), and the message joins the turn before its failure", async () => {
+    const h = fixture(); const { id, now, messageId } = await steered(h);
+    h.setTranscript(h.userLine(messageId));
+    h.runs[0]!.exited();
+    expect(h.types(id)).toEqual(["user.message", "turn.started", "user.message", "turn.failed"]);
+    expect(h.store.read(id).at(-1)).toMatchObject({ type: "turn.failed", code: "process_exited" });
+    await now;
+    expect(h.drafts.queued(id)).toEqual([]);
+    expect(h.drafts.returned(id)).toBeUndefined();
+  });
+  it("hands a message the transcript does not have back as before when the group goes first", async () => {
+    const h = fixture(); const { id } = await steered(h);
+    h.runs[0]!.exited();
+    expect(h.types(id)).toEqual(["user.message", "turn.started", "turn.failed"]);
+    expect(h.drafts.returned(id)?.text).toBe("also this");
+  });
   it("writes the held end after 2 s without the group gone, and the message goes back to the queue", async () => {
     const h = fixture(); const { id } = await steered(h);
     fake();
