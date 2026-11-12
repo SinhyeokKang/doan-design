@@ -5745,5 +5745,22 @@ describe("canvas text", () => {
         expect(copied(h)).toBeNull();
       } finally { h.controller.dispose(); }
     });
+
+    // The range waiting for its cursor reading is the person's drag as far as Esc goes: Esc clears it, not the element
+    // selection, and the reply that comes after paints nothing.
+    it("Esc while the cursor reply is on its way clears the waiting range and keeps the element selection", async () => {
+      const h = harness();
+      try {
+        h.select(1);
+        post(h);
+        expect(press(h, "Escape").defaultPrevented).toBe(true);
+        expect(clears(h)).toHaveLength(1);
+        expect(posted(h).some(m => m.type === "select-parent")).toBe(false);
+        await flush();
+        expect(painted(h)).toEqual([]);
+        expect(copied(h)).toBeNull();
+        expect(h.state().selection).not.toBeNull();
+      } finally { h.controller.dispose(); }
+    });
   });
 });
