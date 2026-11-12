@@ -74,7 +74,7 @@
 
 서비스가 맡는다.
 
-- **보류**: 읽히지 않은 steer uuid를 가진 Claude live에 종료 이벤트(상한 만료의 done, failed, aborted, interrupted)가 오면, `receive()`가 그 종료를 바로 쓰지 않고 `pendingTerminal`로 들고 있는다. 이 경로는 Stop(`interrupt()`), 로그아웃(`stopRuns`), archive, 앱 종료에도 적용된다.
+- **보류**: 읽히지 않은 steer uuid를 가진 Claude live에 종료 이벤트(상한 만료의 done, failed, aborted, interrupted)가 오면, `receive()`가 그 종료를 바로 쓰지 않고 `pendingTerminal`로 들고 있는다. 이 경로는 Stop(`interrupt()`)과 로그아웃(`stopRuns`)에도 적용된다. archive와 앱 종료는 턴을 바로 끝내고, 기록에서 찾은 steer를 큐와 draft에서만 뺀다. `user.message`로 쓰지 않으므로 스레드에는 그 메시지가 없을 수 있다(사용자 결정).
 - **`exited()`에서 순서대로**: (1) 예약을 먼저 푼다(POSTMORTEM 2026-10-27). (2) 세션 기록을 찾는다. (3) 찾은 steer를 `steerConsumed`로 보고한다(`user.message`가 그 턴에 붙는다). (4) 보류한 종료를 쓴다. 이때 `process_exited`로 바꾸지 않는다. (5) 찾지 못한 steer는 지금처럼 큐로 돌아간다.
 - "no read can follow a terminal"을 지킨다. 찾기는 종료 이벤트를 쓰기 전에 끝난다.
 - **상한**: 서비스가 보류 시작부터 2초를 잰다. 그 안에 그룹이 사라지지 않으면 찾지 않고 보류한 종료를 쓰고 steer를 큐로 돌린다. 앱이 종료 중이면 이벤트를 쓰지 않는다.
@@ -117,7 +117,7 @@
 
 **Stop의 대상.** 새 IPC를 만들지 않고 `conversation:interrupt`의 not-busy 분기(`service.ts` `interrupt()`의 `if (!live || !live.busy)`)를 넓힌다. Stop은 줄이 가리킨 done 턴의 프로세스(그 turnId 또는 runner 세대)만 멈춘다. 새 send가 이미 시작된 뒤 늦게 온 Stop은 아무것도 하지 않는다. Overview와 캔버스 패널에서 두 번 눌려도 한 번만 처리한다. 턴 이벤트는 쓰지 않는다(이미 done으로 끝난 턴이다).
 
-**다음 send.** 위 2절의 `"term"` 정리로 그룹을 끝내고 소멸을 기다린 뒤 시작한다. 프로젝트 판정은 1절대로 그때부터 정착 시간이 흐른다. handoff나 terminal의 continue가 백그라운드 그룹이 살아 있는 같은 세션을 resume하려 할 때도 같은 정리를 먼저 한다.
+**다음 send.** 위 2절의 `"term"` 정리로 그룹을 끝내고 소멸을 기다린 뒤 시작한다. 프로젝트 판정은 1절대로 그때부터 정착 시간이 흐른다. handoff는 새 세션을 시작하므로 해당하지 않는다. terminal의 continue가 백그라운드 그룹이 살아 있는 같은 세션을 고르면 기존 `session_in_use` 거부로 둔다. 그 문구가 Doan 자신의 그룹인데도 "elsewhere"를 가리키는 문제는 BACKLOG에 남긴다(사용자 결정).
 
 ## 초안 요청
 
