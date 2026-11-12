@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { autoCursor, dotGrid, dotScale, opposingCursor, partitionDots } from "./dotField";
+import { alphaSteps, autoCursor, dotGrid, dotScale, opposingCursor, partitionDots } from "./dotField";
 import { DOT_FIELD } from "./agentIndicator";
 
 describe("dotGrid", () => {
@@ -123,6 +123,54 @@ describe("partitionDots", () => {
 
   test("two coincident spots give the same result as one", () => {
     expect(partitionDots(dots, [spot, { ...spot }], 320)).toEqual(partitionDots(dots, [spot], 320));
+  });
+});
+
+describe("alphaSteps", () => {
+  const size = { base: 1.5, max: 2 }, alpha = { base: 0.16, max: 0.5 };
+  const near = (spots: { x: number; y: number }[]) => partitionDots(dotGrid(1400, 880, 12), spots, 320).near;
+
+  test("keeps every near dot once, at its own dotScale radius, in input order within a step", () => {
+    const dots = near([{ x: 300, y: 200 }, { x: 1100, y: 680 }]);
+    const steps = alphaSteps(dots, 320, size, alpha);
+    const drawn = steps.flatMap(step => step.dots);
+    expect(drawn).toHaveLength(dots.length);
+    const expected = new Map(dots.map(({ dot, distance }) => [`${dot.x},${dot.y}`, dotScale(distance, 320, size.base, size.max)]));
+    for (const dot of drawn) expect(dot.r).toBe(expected.get(`${dot.x},${dot.y}`));
+    const order = dots.map(({ dot }) => `${dot.x},${dot.y}`);
+    for (const step of steps) {
+      const at = step.dots.map(dot => order.indexOf(`${dot.x},${dot.y}`));
+      expect(at).toEqual([...at].sort((a, b) => a - b));
+    }
+  });
+
+  test("a step's alpha is an 8-bit value within half a step of each member's dotScale alpha", () => {
+    const dots = near([{ x: 300, y: 200 }]);
+    const steps = alphaSteps(dots, 320, size, alpha);
+    const distances = new Map(dots.map(({ dot, distance }) => [`${dot.x},${dot.y}`, distance]));
+    for (const step of steps) {
+      expect(step.alpha * 255).toBeCloseTo(Math.round(step.alpha * 255), 9);
+      for (const dot of step.dots) {
+        expect(Math.abs(step.alpha - dotScale(distances.get(`${dot.x},${dot.y}`)!, 320, alpha.base, alpha.max))).toBeLessThanOrEqual(0.5 / 255 + 1e-9);
+      }
+    }
+  });
+
+  test("gives one group per distinct step, never more than the steps between the base and the maximum alpha", () => {
+    const steps = alphaSteps(near([{ x: 300, y: 200 }, { x: 1100, y: 680 }]), 320, size, alpha);
+    const alphas = steps.map(step => step.alpha);
+    expect(new Set(alphas).size).toBe(alphas.length);
+    expect(steps.length).toBeGreaterThan(1);
+    expect(steps.length).toBeLessThanOrEqual(Math.round(alpha.max * 255) - Math.round(alpha.base * 255) + 1);
+  });
+
+  test("puts dots of the same distance in one step", () => {
+    const steps = alphaSteps([{ dot: { x: 10, y: 0 }, distance: 10 }, { dot: { x: -10, y: 0 }, distance: 10 }, { dot: { x: 0, y: 200 }, distance: 200 }], 320, size, alpha);
+    expect(steps.map(step => step.dots.map(dot => dot.x))).toEqual([[10, -10], [0]]);
+  });
+
+  test("gives no group without near dots (reduced motion)", () => {
+    expect(alphaSteps([], 320, size, alpha)).toEqual([]);
   });
 });
 

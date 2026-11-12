@@ -5,6 +5,7 @@ import type { WorkItem } from "../main/workState";
 import type { AgentPresence } from "./agentPresence";
 import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, canvasWorkTarget, pickWork, workFrameTitle, settleStopping, siblingWork, stopFailedText, stopTurn, workFrameRect, workingCanvas } from "./agentIndicator";
 import type { ConversationWork } from "../main/conversationWork";
+import { dotGrid, dotScale, partitionDots } from "./dotField";
 
 // which canvas the indicator reads, the notice's button, Stop's
 // lifecycle and the dot field's loop.
@@ -301,11 +302,11 @@ describe("drawDotField", () => {
     };
     return { ctx, drawn };
   }
-  test("a dot near two overlapping spots is drawn once, at most 2px and 0.5 alpha", () => {
+  test("a dot near two overlapping spots is drawn once, at most 2px and 0.5 alpha (its 8-bit step)", () => {
     const { ctx, drawn } = arcs();
     const spot = { x: 100, y: 100 };
     drawDotField(ctx, 200, 200, [{ x: 100, y: 100 }], [spot, { ...spot }], "white");
-    expect(drawn).toEqual([{ x: 100, y: 100, r: 2, alpha: 0.5 }]);
+    expect(drawn).toEqual([{ x: 100, y: 100, r: 2, alpha: Math.round(0.5 * 255) / 255 }]);
   });
   test("a near dot's size and alpha follow its nearest spot", () => {
     const { ctx, drawn } = arcs();
@@ -316,6 +317,18 @@ describe("drawDotField", () => {
     expect(drawn).toHaveLength(1);
     expect(drawn[0]!.r).toBeCloseTo(baseRadius + (maxRadius - baseRadius) * t);
     expect(drawn[0]!.alpha).toBeCloseTo(baseAlpha + (maxAlpha - baseAlpha) * t);
+  });
+  test("draws near dots one path and one fill per 8-bit alpha step, each dot at its own radius", () => {
+    const { ctx, calls } = recorder();
+    const spot = { x: 600, y: 400 };
+    const dots = dotGrid(1200, 800, DOT_FIELD.gap);
+    const { near } = partitionDots(dots, [spot], DOT_FIELD.radius);
+    drawDotField(ctx, 1200, 800, dots, [spot], "white");
+    const steps = new Set(near.map(({ distance }) => Math.round(dotScale(distance, DOT_FIELD.radius, DOT_FIELD.baseAlpha, DOT_FIELD.maxAlpha) * 255)));
+    // One fill for the far dots, one per step for the near ones: hundreds of near dots, under a hundred fills.
+    expect(near.length).toBeGreaterThan(500);
+    expect(calls.filter(call => call.startsWith("fill"))).toHaveLength(steps.size + 1);
+    expect(calls.filter(call => call === "arc")).toHaveLength(dots.length);
   });
   test("dots near the second spot only are drawn near, the rest far", () => {
     const { ctx, calls } = recorder();
