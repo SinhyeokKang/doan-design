@@ -39,7 +39,7 @@ vi.mock("react", async original => {
     useId: () => "k",
   };
 });
-const { ConversationThread, QuestionCard } = await import("./ConversationThread");
+const { ConversationThread, QuestionCard, ThreadEntry } = await import("./ConversationThread");
 
 const question: Question = { id: "0", header: "Layout", question: "Which layout?", options: [{ label: "Compact" }], multiSelect: false, other: true };
 const permission = (requestId: string, status: "pending" | "answered" | "expired" = "pending"): ThreadItem => ({ kind: "permission", key: `p${requestId}`, seq: 1, requestId, summary: `Run ${requestId}`,
@@ -69,7 +69,9 @@ afterEach(() => vi.unstubAllGlobals());
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);
   if (!isValidElement<Record<string, unknown>>(node)) return [];
-  return [node, ...[node.props.children].flat().flatMap(child => all(child as ReactNode))];
+  // A thread item draws its content when React renders it; draw it here as that render would.
+  const drawn = node.type === ThreadEntry ? [(node.props.draw as (entry: unknown) => ReactNode)(node.props.entry)] : [];
+  return [node, ...[node.props.children, ...drawn].flat().flatMap(child => all(child as ReactNode))];
 }
 // One render of the thread with these items, then its layout effects, as React commits.
 // commit: what happens to focus as React commits this render, before its layout effects (a folded card's control leaving

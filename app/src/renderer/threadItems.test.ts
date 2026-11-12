@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
-import { anchorParts, fastUnusedText, pendingAsks, questionLines, rootRelative, scrollFollow, threadItems, threadScroll, withSending, type ThreadItem } from "./threadItems";
+import { anchorParts, fastUnusedText, pendingAsks, questionLines, rootRelative, sameItem, scrollFollow, threadItems, threadScroll, withSending, type ThreadItem } from "./threadItems";
 import { splitRequest } from "./homeComposer";
 import { FOLDER_ATTACHMENT, LEGACY_ATTACHMENTS } from "../main/conversation/attachmentRecords.fixture";
 import { notReadyLine, waitingLine } from "../main/conversation/mcpStartup";
@@ -529,4 +529,17 @@ test("history and optimistic messages pass sent skills to their bubble", () => {
   const text = "Use the project skill `deploy`.\n\n/deploy now\n\nUse the project skill `review`.";
   expect(threadItems(turn("skills", text), ROOT, false)[0]).toMatchObject({ skills: ["deploy", "review"], parts: [{ text: "/deploy now" }] });
   expect(withSending([], [{ id: "s", text, anchors: [], attachments: [] }])[0]).toMatchObject({ skills: ["deploy", "review"], parts: [{ text: "/deploy now" }] });
+});
+
+describe("sameItem", () => {
+  test("compares items by value, as threadItems rebuilds them on every call", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "read", path: `${ROOT}/a.md`, summary: "a.md" }), ev("t1", { type: "message.delta", messageId: "m1", text: "Hi" })];
+    const [first, second] = [threadItems(events, ROOT, true), threadItems(events, ROOT, true)];
+    expect(first.every((item, i) => item !== second[i] && sameItem(item, second[i]))).toBe(true);
+    expect(sameItem({ steps: [{ key: "s1" }] }, { steps: [{ key: "s2" }] })).toBe(false);
+    expect(sameItem({ a: 1 }, { a: 1, b: undefined })).toBe(false);
+    expect(sameItem([1], { 0: 1 })).toBe(false);
+    expect(sameItem(null, {})).toBe(false);
+  });
 });

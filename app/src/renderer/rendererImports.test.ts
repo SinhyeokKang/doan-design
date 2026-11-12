@@ -66,14 +66,22 @@ function valueImports(source: string, lang: "ts" | "tsx" = "ts"): string[] {
   return [...new Set(found)];
 }
 
-function closure(): { files: Map<string, string | null>; node: { spec: string; from: string }[]; ajv: { spec: string; from: string }[] } {
-  const files = new Map<string, string | null>(), node: { spec: string; from: string }[] = [], ajv: { spec: string; from: string }[] = [];
-  const queue = [...entries(), ...EXTRA_ROOTS];
+// A module Worker the renderer starts (`new Worker(new URL(spec, import.meta.url))`) is bundled as its own chunk and
+// runs under the same CSP, so the walk follows it like an import and records it as a Worker entry.
+function workerImports(source: string): string[] {
+  return [...source.matchAll(/new\s+Worker\(\s*new\s+URL\(\s*(["'])([^"'`$]+)\1\s*,\s*import\.meta\.url\s*\)/g)].map(match => match[2]!);
+}
+
+function closure(roots: string[] = [...entries(), ...EXTRA_ROOTS]): { files: Map<string, string | null>; node: { spec: string; from: string }[]; ajv: { spec: string; from: string }[]; workers: string[] } {
+  const files = new Map<string, string | null>(), node: { spec: string; from: string }[] = [], ajv: { spec: string; from: string }[] = [], workers: string[] = [];
+  const queue = [...roots];
   for (const entry of queue) files.set(entry, null);
   while (queue.length > 0) {
     const file = queue.shift()!;
     if (!/\.tsx?$/.test(file)) continue;
-    for (const spec of valueImports(readFileSync(file, "utf8"), file.endsWith(".tsx") ? "tsx" : "ts")) {
+    const source = readFileSync(file, "utf8");
+    for (const spec of workerImports(source)) { const entry = resolveImport(file, spec)!; if (!workers.includes(entry)) workers.push(entry); }
+    for (const spec of [...valueImports(source, file.endsWith(".tsx") ? "tsx" : "ts"), ...workerImports(source)]) {
       if (NODE.has(spec)) { node.push({ spec, from: relative(APP, file) }); continue; }
       if (spec === "ajv" || spec.startsWith("ajv/")) { ajv.push({ spec, from: relative(APP, file) }); continue; }
       const next = resolveImport(file, spec);
@@ -82,7 +90,7 @@ function closure(): { files: Map<string, string | null>; node: { spec: string; f
       queue.push(next);
     }
   }
-  return { files, node, ajv };
+  return { files, node, ajv, workers };
 }
 
 function chain(files: Map<string, string | null>, file: string): string {
@@ -125,5 +133,15 @@ describe("renderer import closure", () => {
     expect(FORBIDDEN_FILES.filter(file => files.has(file)).map(file => chain(files, file))).toEqual([]);
     expect(ajv).toEqual([]);
     expect(node).toEqual([]);
+  });
+
+  // The Worker gets only the dot field's module: agentIndicator.ts and the rest import other modules by value, and a
+  // Worker has no document, so anything more in its chunk can fail where the page would not.
+  it("follows the dot field Worker, whose bundle holds only dotField.ts", () => {
+    const worker = join(SRC, "renderer/dotFieldWorker.ts");
+    expect(closure().workers).toEqual([worker]);
+    const own = closure([worker]);
+    expect([...own.files.keys()].map(file => relative(APP, file))).toEqual(["src/renderer/dotFieldWorker.ts", "src/renderer/dotField.ts"]);
+    expect(own.workers).toEqual([]);
   });
 });

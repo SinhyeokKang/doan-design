@@ -139,6 +139,16 @@ export function runningHead(last: ActivityStep): string {
 }
 export const stepCount = (n: number) => n === 1 ? "1 step" : `${n} steps`;
 
+// Whether two items hold the same data. threadItems builds new objects on every call, so the thread compares items by
+// value to skip drawing unchanged ones; items hold plain data only (no functions, dates or class instances).
+export function sameItem(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || Array.isArray(a) !== Array.isArray(b)) return false;
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every(key => Object.hasOwn(b, key) && sameItem((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
+}
+
 // `live`: main holds a turn of this conversation (the list summary's phase is not "ended", or live events arrive). A
 // last turn without an end event while nothing is live was cut by a quit or crash: main never writes that end, its
 // fold folds the turn (state.ts), and the thread shows it as stopped before it finished, as it does for a turn folded

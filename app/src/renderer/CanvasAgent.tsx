@@ -3,12 +3,12 @@ import { Square } from "lucide-react";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
-import { agentNoticeView, canvasAgent, canvasWorkTarget, workFrameTitle, type TitleCache, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, pickWork, settleStopping, siblingWork, stopTurn, type AgentNoticeView, type CanvasAgentState, type WorkingCanvas } from "./agentIndicator";
+import { agentNoticeView, canvasAgent, canvasWorkTarget, workFrameTitle, type TitleCache, listForPresence, pickWork, settleStopping, siblingWork, stopTurn, type AgentNoticeView, type CanvasAgentState, type WorkingCanvas } from "./agentIndicator";
 import type { ConversationWork } from "../main/conversationWork";
 import type { CanvasWorkTarget } from "./CanvasController";
 import type { CanvasFrameRect } from "./canvasMessage";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
-import { autoCursor, dotGrid, opposingCursor, type Dot } from "./dotField";
+import type { DotFieldMessage, DotFieldSize } from "./dotField";
 import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedText } from "./noticeTyping";
 import { pickArtist, type BuddyId } from "./buddies";
 
@@ -175,46 +175,69 @@ export function BuddyArtist({ buddy, still }: { buddy: BuddyId; still: boolean }
 
 // The board-wide dot field: canvas 2D, two virtual spots sweeping the board (the second walks the first's
 // path backwards, `opposingCursor`), the colour read from the element's computed `color` so the theme's role decides it.
-export function DotField({ running }: { running: boolean }) {
+// A module Worker runs the loop and draws on the transferred canvas (dotFieldWorker.ts); this side only reads the page
+// (size, device pixel ratio, colour, motion setting, shown) and sends it. `start` is injected in tests, which have no
+// Worker or transferControlToOffscreen.
+export interface DotFieldPort { post(message: Exclude<DotFieldMessage, { kind: "start" }>): void; close(): void }
+export type StartDotField = (canvas: HTMLCanvasElement, init: { size: DotFieldSize; color: string; reducedMotion: boolean }) => DotFieldPort;
+
+function startDotWorker(canvas: HTMLCanvasElement, init: { size: DotFieldSize; color: string; reducedMotion: boolean }): DotFieldPort {
+  const worker = new Worker(new URL("./dotFieldWorker.ts", import.meta.url), { type: "module" });
+  // The canvas is already transferred, so a script that fails to load leaves the field empty; say so in the log.
+  worker.addEventListener("error", event => console.error("dot field worker failed", event.message));
+  const offscreen = canvas.transferControlToOffscreen();
+  const message: DotFieldMessage = { kind: "start", canvas: offscreen, ...init };
+  worker.postMessage(message, [offscreen]);
+  return { post: next => worker.postMessage(next), close: () => worker.terminate() };
+}
+
+// A canvas can be transferred only once, and StrictMode (dev) runs an effect's cleanup and the effect again on the same
+// canvas: a cleanup ends the Worker after the current task, and a run on the same canvas before then takes it back.
+const kept = new WeakMap<HTMLCanvasElement, { port: DotFieldPort; size: DotFieldSize; closing: ReturnType<typeof setTimeout> }>();
+
+export function DotField({ running, start = startDotWorker }: { running: boolean; start?: StartDotField }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const loop = useRef<DotFieldLoop | null>(null);
+  const port = useRef<DotFieldPort | null>(null);
+  const starter = useRef(start); starter.current = start;
   const [windowShown, setWindowShown] = useState(true);
   const [pageShown, setPageShown] = useState(true);
   const on = running && windowShown && pageShown;
-  const shown = useRef(on); shown.current = on;
   useEffect(() => {
-    const node = canvas.current, ctx = node?.getContext("2d");
-    if (!node || !ctx) return;
+    const node = canvas.current;
+    if (!node) return;
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let size = { width: 0, height: 0 }, dots: Dot[] = [], color = "";
-    const field = new DotFieldLoop({
-      reducedMotion: () => motion.matches,
-      request: run => requestAnimationFrame(run),
-      cancel: frame => cancelAnimationFrame(frame),
-      draw: elapsed => {
-        const { width, height } = size;
-        // No spots in reduced motion: the still field has no bright place, not even a centred one.
-        const spot = elapsed === null ? null : autoCursor(elapsed, width, height, DOT_FIELD.speed, DOT_FIELD.rows, DOT_FIELD.radius);
-        drawDotField(ctx, width, height, dots, spot ? [spot, opposingCursor(spot, width, height)] : [], color);
-      },
-    });
-    loop.current = field;
-    const resize = () => {
-      const rect = node.getBoundingClientRect(), ratio = window.devicePixelRatio || 1;
-      size = { width: rect.width, height: rect.height };
-      node.width = Math.round(rect.width * ratio); node.height = Math.round(rect.height * ratio);
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      dots = dotGrid(rect.width, rect.height, DOT_FIELD.gap);
-      color = getComputedStyle(node).color;
-      field.resized();
+    const scheme = window.matchMedia("(prefers-color-scheme: dark)");
+    const measure = (): DotFieldSize => { const rect = node.getBoundingClientRect(); return { width: rect.width, height: rect.height, ratio: window.devicePixelRatio || 1 }; };
+    let color = getComputedStyle(node).color;
+    const previous = kept.get(node);
+    if (previous) { clearTimeout(previous.closing); kept.delete(node); }
+    let size = previous?.size ?? measure();
+    const field = previous?.port ?? starter.current(node, { size, color, reducedMotion: motion.matches });
+    port.current = field;
+    const recolor = () => {
+      const next = getComputedStyle(node).color;
+      if (next === color) return;
+      color = next;
+      field.post({ kind: "color", color });
     };
-    resize();
+    // ResizeObserver calls back once right after observe(); the size the Worker already has would only clear its field.
+    const resize = () => {
+      recolor();
+      const next = measure();
+      if (next.width === size.width && next.height === size.height && next.ratio === size.ratio) return;
+      size = next;
+      field.post({ kind: "size", size });
+    };
     const observer = new ResizeObserver(resize);
     observer.observe(node);
-    // A change of the setting restarts the loop in the new mode.
-    const restart = () => { const on = shown.current; field.set({ running: false }); field.set({ running: on }); };
+    const restart = () => field.post({ kind: "motion", reduced: motion.matches });
     motion.addEventListener("change", restart);
-    return () => { observer.disconnect(); motion.removeEventListener("change", restart); field.dispose(); loop.current = null; };
+    scheme.addEventListener("change", recolor);
+    return () => {
+      observer.disconnect(); motion.removeEventListener("change", restart); scheme.removeEventListener("change", recolor);
+      port.current = null;
+      kept.set(node, { port: field, size, closing: setTimeout(() => { kept.delete(node); field.close(); }, 0) });
+    };
   }, []);
   useEffect(() => {
     const visibility = () => setPageShown(!document.hidden);
@@ -223,6 +246,6 @@ export function DotField({ running }: { running: boolean }) {
     const stop = window.doan.onWindowVisible(setWindowShown);
     return () => { document.removeEventListener("visibilitychange", visibility); stop(); };
   }, []);
-  useEffect(() => { loop.current?.set({ running: on }); }, [on]);
+  useEffect(() => { port.current?.post({ kind: "running", running: on }); }, [on]);
   return <canvas className="doan-agent-dots" ref={canvas} />;
 }

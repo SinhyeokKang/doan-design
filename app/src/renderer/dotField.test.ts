@@ -1,6 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { autoCursor, dotGrid, dotScale, opposingCursor, partitionDots } from "./dotField";
-import { DOT_FIELD } from "./agentIndicator";
+import { describe, expect, test, vi } from "vitest";
+import { autoCursor, DOT_FIELD, dotFieldWorker, DotFieldLoop, dotGrid, dotScale, drawDotField, opposingCursor, partitionDots, type DotCanvas } from "./dotField";
 
 describe("dotGrid", () => {
   test("lays out a 12px grid in row order, including the right and bottom edges", () => {
@@ -284,5 +283,233 @@ describe("autoCursor", () => {
       expect(Math.hypot(current.x - previous.x, current.y - previous.y)).toBeLessThanOrEqual(5.120001);
       previous = current;
     }
+  });
+});
+
+// A recorder for the 2D calls the field makes.
+function recorder() {
+  const calls: string[] = [];
+  let alpha = 1;
+  const ctx = {
+    get globalAlpha() { return alpha; }, set globalAlpha(value: number) { alpha = value; },
+    fillStyle: "",
+    clearRect: () => calls.push("clear"), beginPath: () => calls.push("begin"), moveTo: () => {}, arc: () => calls.push("arc"),
+    fill: () => calls.push(`fill@${alpha.toFixed(2)}`),
+  };
+  return { ctx, calls };
+}
+
+describe("drawDotField", () => {
+  // Dogfooding #4: at 0.08→0.3 the white dots barely showed on the light board.
+  test("uses the doan values: 12px grid, radius 1.5→2, alpha 0.16→0.5, a 320px cursor sweeping 5 rows at 320px/s", () => {
+    expect(DOT_FIELD).toEqual({ gap: 12, baseRadius: 1.5, maxRadius: 2, baseAlpha: 0.16, maxAlpha: 0.5, radius: 320, speed: 320, rows: 5 });
+  });
+  test("paints every dot outside the cursor's radius as one path, in one fill", () => {
+    const { ctx, calls } = recorder();
+    const dots = [{ x: 0, y: 0 }, { x: 12, y: 0 }, { x: 1000, y: 0 }, { x: 1012, y: 0 }];
+    drawDotField(ctx, 1100, 20, dots, [{ x: 0, y: 0 }], "white");
+    const fills = calls.filter(call => call.startsWith("fill"));
+    // Two near dots, each with its own alpha, and one fill for both far dots at the base alpha.
+    expect(fills).toHaveLength(3);
+    expect(fills).toContain("fill@0.16");
+    expect(calls.filter(call => call === "arc")).toHaveLength(4);
+    expect(calls[0]).toBe("clear");
+    expect(ctx.fillStyle).toBe("white");
+  });
+  test("without spots (reduced motion) every dot is far: one fill, once", () => {
+    const { ctx, calls } = recorder();
+    drawDotField(ctx, 100, 100, [{ x: 0, y: 0 }, { x: 12, y: 0 }], [], "white");
+    expect(calls.filter(call => call.startsWith("fill"))).toEqual(["fill@0.16"]);
+    expect(calls.filter(call => call === "arc")).toHaveLength(2);
+  });
+  // Records the radius and alpha of each arc (the alpha at the time of the call) to see how near dots are drawn.
+  function arcs() {
+    const drawn: { x: number; y: number; r: number; alpha: number }[] = [];
+    let alpha = 1;
+    const ctx = {
+      get globalAlpha() { return alpha; }, set globalAlpha(value: number) { alpha = value; },
+      fillStyle: "", clearRect: () => {}, beginPath: () => {}, moveTo: () => {}, fill: () => {},
+      arc: (x: number, y: number, r: number) => { drawn.push({ x, y, r, alpha }); },
+    };
+    return { ctx, drawn };
+  }
+  test("a dot near two overlapping spots is drawn once, at most 2px and 0.5 alpha", () => {
+    const { ctx, drawn } = arcs();
+    const spot = { x: 100, y: 100 };
+    drawDotField(ctx, 200, 200, [{ x: 100, y: 100 }], [spot, { ...spot }], "white");
+    expect(drawn).toEqual([{ x: 100, y: 100, r: 2, alpha: 0.5 }]);
+  });
+  test("a near dot's size and alpha follow its nearest spot", () => {
+    const { ctx, drawn } = arcs();
+    // 100px from the first spot, 20px from the second.
+    drawDotField(ctx, 1000, 100, [{ x: 100, y: 0 }], [{ x: 0, y: 0 }, { x: 120, y: 0 }], "white");
+    const { baseRadius, maxRadius, baseAlpha, maxAlpha, radius } = DOT_FIELD;
+    const t = 1 - 20 / radius;
+    expect(drawn).toHaveLength(1);
+    expect(drawn[0]!.r).toBeCloseTo(baseRadius + (maxRadius - baseRadius) * t);
+    expect(drawn[0]!.alpha).toBeCloseTo(baseAlpha + (maxAlpha - baseAlpha) * t);
+  });
+  test("dots near the second spot only are drawn near, the rest far", () => {
+    const { ctx, calls } = recorder();
+    drawDotField(ctx, 2000, 20, [{ x: 0, y: 0 }, { x: 1000, y: 0 }, { x: 1990, y: 0 }], [{ x: 0, y: 0 }, { x: 2000, y: 0 }], "white");
+    // Two near dots with their own alpha, one far dot at the base alpha.
+    expect(calls.filter(call => call.startsWith("fill")).sort()).toEqual(["fill@0.16", "fill@0.49", "fill@0.50"]);
+  });
+});
+
+describe("DotFieldLoop", () => {
+  function loop(reduced = false) {
+    const frames: ((now: number) => void)[] = [];
+    const cancel = vi.fn();
+    const draw = vi.fn();
+    const field = new DotFieldLoop({ draw, reducedMotion: () => reduced, request: run => { frames.push(run); return frames.length; }, cancel });
+    return { field, frames, cancel, draw };
+  }
+  test("runs one frame after another while running", () => {
+    const { field, frames, draw } = loop();
+    field.set({ running: true });
+    expect(frames).toHaveLength(1);
+    frames[0]!(100); frames[1]!(116);
+    expect(draw).toHaveBeenCalledTimes(2);
+    expect(frames).toHaveLength(3);
+  });
+  test("draws a cursor that moves with time", () => {
+    const { field, frames, draw } = loop();
+    field.set({ running: true });
+    frames[0]!(1000); frames[1]!(2000);
+    const [first, second] = draw.mock.calls.map(call => call[0]);
+    expect(first).not.toEqual(second);
+  });
+  test("stops its frames when paused (hidden workspace, Overview cover, hidden window) and resumes", () => {
+    const { field, frames, cancel } = loop();
+    field.set({ running: true });
+    field.set({ running: false });
+    expect(cancel).toHaveBeenCalledWith(1);
+    field.set({ running: true });
+    expect(frames).toHaveLength(2);
+  });
+  test("reduced motion draws once without a cursor and asks for no frame", () => {
+    const { field, frames, draw } = loop(true);
+    field.set({ running: true });
+    expect(frames).toHaveLength(0);
+    expect(draw).toHaveBeenCalledWith(null);
+  });
+  test("a resize redraws the still frame while paused, and dispose cancels the frame", () => {
+    const { field, frames, cancel, draw } = loop();
+    field.set({ running: false });
+    field.resized();
+    expect(draw).toHaveBeenCalledTimes(1);
+    field.set({ running: true });
+    field.dispose();
+    expect(cancel).toHaveBeenCalledWith(frames.length);
+  });
+});
+
+// The Worker's side of the field: the page sends the canvas once, then sizes, colours, motion and running; the Worker
+// owns the loop and every draw. Frames are injected, as the Worker's own requestAnimationFrame.
+describe("dotFieldWorker", () => {
+  function worker() {
+    const frames = new Map<number, (now: number) => void>();
+    let next = 1;
+    const calls: string[] = [];
+    let alpha = 1;
+    const ctx = {
+      get globalAlpha() { return alpha; }, set globalAlpha(value: number) { alpha = value; },
+      fillStyle: "", transform: [] as number[],
+      setTransform(...values: number[]) { ctx.transform = values; },
+      clearRect: () => calls.push("clear"), beginPath: () => {}, moveTo: () => {}, arc: (_x: number, _y: number, r: number) => calls.push(r > DOT_FIELD.baseRadius ? "near" : "far"),
+      fill: () => calls.push(`fill:${ctx.fillStyle}`),
+    };
+    const canvas: DotCanvas = { width: 0, height: 0, getContext: () => ctx };
+    const receive = dotFieldWorker({ request: run => { const id = next++; frames.set(id, run); return id; }, cancel: id => { frames.delete(id); } });
+    const tick = (now: number) => { const [id, run] = [...frames][0]!; frames.delete(id); run(now); };
+    return { receive, frames, calls, ctx, canvas, tick };
+  }
+  const size = { width: 600, height: 300, ratio: 2 };
+
+  test("start sizes the canvas in device pixels, scales the context and draws the field at once, with no frame yet", () => {
+    const { receive, frames, calls, ctx, canvas } = worker();
+    receive({ kind: "start", canvas, size, color: "rgb(255, 255, 255)", reducedMotion: false });
+    expect([canvas.width, canvas.height]).toEqual([1200, 600]);
+    expect(ctx.transform).toEqual([2, 0, 0, 2, 0, 0]);
+    expect(calls[0]).toBe("clear");
+    expect(calls).toContain("fill:rgb(255, 255, 255)");
+    expect(frames.size).toBe(0);
+  });
+
+  test("runs frame after frame while running, near dots around the spot, and asks for none when paused", () => {
+    const { receive, frames, calls, canvas, tick } = worker();
+    receive({ kind: "start", canvas, size, color: "white", reducedMotion: false });
+    receive({ kind: "running", running: true });
+    expect(frames.size).toBe(1);
+    calls.length = 0;
+    tick(1000); tick(1500);
+    expect(calls.filter(call => call === "clear")).toHaveLength(2);
+    expect(calls).toContain("near");
+    expect(frames.size).toBe(1);
+    receive({ kind: "running", running: false });
+    expect(frames.size).toBe(0);
+  });
+
+  test("a new size while paused resizes the canvas and redraws at once, at the elapsed it carried", () => {
+    const { receive, frames, calls, canvas, tick } = worker();
+    receive({ kind: "start", canvas, size, color: "white", reducedMotion: false });
+    receive({ kind: "running", running: true });
+    tick(1000); tick(1500);
+    receive({ kind: "running", running: false });
+    calls.length = 0;
+    receive({ kind: "size", size: { width: 400, height: 200, ratio: 1 } });
+    expect([canvas.width, canvas.height]).toEqual([400, 200]);
+    // Paused at 500ms in: the spot is still on the board, so some dots are near.
+    expect(calls[0]).toBe("clear");
+    expect(calls).toContain("near");
+    expect(frames.size).toBe(0);
+  });
+
+  test("a new size while running waits for the next frame", () => {
+    const { receive, frames, calls, canvas } = worker();
+    receive({ kind: "start", canvas, size, color: "white", reducedMotion: false });
+    receive({ kind: "running", running: true });
+    calls.length = 0;
+    receive({ kind: "size", size: { width: 400, height: 200, ratio: 1 } });
+    expect(calls).toEqual([]);
+    expect(frames.size).toBe(1);
+  });
+
+  test("reduced motion restarts the loop as the still field: no spot, no frame; motion again asks for a frame", () => {
+    const { receive, frames, calls, canvas } = worker();
+    receive({ kind: "start", canvas, size, color: "white", reducedMotion: false });
+    receive({ kind: "running", running: true });
+    calls.length = 0;
+    receive({ kind: "motion", reduced: true });
+    expect(frames.size).toBe(0);
+    expect(calls[0]).toBe("clear");
+    expect(calls).not.toContain("near");
+    receive({ kind: "motion", reduced: false });
+    expect(frames.size).toBe(1);
+  });
+
+  test("a change of setting while paused stays paused", () => {
+    const { receive, frames, canvas } = worker();
+    receive({ kind: "start", canvas, size, color: "white", reducedMotion: false });
+    receive({ kind: "motion", reduced: true });
+    receive({ kind: "motion", reduced: false });
+    expect(frames.size).toBe(0);
+  });
+
+  test("a new colour repaints a paused or still field in it; a running one takes it on its next frame", () => {
+    const { receive, frames, calls, canvas, tick } = worker();
+    receive({ kind: "start", canvas, size, color: "white", reducedMotion: true });
+    calls.length = 0;
+    receive({ kind: "color", color: "black" });
+    expect(calls).toContain("fill:black");
+    receive({ kind: "motion", reduced: false });
+    receive({ kind: "running", running: true });
+    calls.length = 0;
+    receive({ kind: "color", color: "red" });
+    expect(calls).toEqual([]);
+    tick(100);
+    expect(calls).toContain("fill:red");
+    expect(frames.size).toBe(1);
   });
 });
