@@ -15,12 +15,14 @@
 - conductor 판단 — 작업 6은 시나리오 작성(BE1)과 실제 라운드(BE2)로 나눈다. BE1은 `/code-review`와 병렬로, BE2는 리뷰 수정이 통합된 뒤 새 Task로 보낸다. 시나리오의 fixture 판정이 새 check 규칙에 기대므로 BE1은 BC 통합 뒤 시작한다.
 - conductor 판단 — 작업 6의 마지막 항목(격리 앱으로 인라인 스프라이트 캔버스와 export 파일 재비교)은 BP 워커에게 후속 Task로 보낸다.
 - conductor 판단 — 작업 7(승격과 정리)은 conductor의 문서 커밋으로 한다(`/orchestrate` §4·§5).
+- conductor 판단 — PoC 의존 4의 "서로 다른 경로면 앱 결과가 순서에 따라 달라진다"가 Electron 45(Chromium 156)의 18쪽에서 재현되지 않았다. 앱은 사용처마다 자기 폴더 파일을 그렸다. 그래도 `ambiguous_custom_url` warning과 export 거부 조건(서로 다른 경로 둘 이상, 파일 존재와 무관)은 설계대로 둔다. 근거: export는 선언 하나에 data URL 하나를 넣으므로 사용처마다 다른 파일을 그리는 앱 결과를 재현할 수 없고, 후보 하나만 있을 때 export하면 다른 사용처에 앱이 그리지 않는 파일이 보인다. 사용자가 고른 조건(design.md '결정' 4·5)과 같고 tasks.md가 사용자 질문으로 정한 분기(같은 경로 경우의 순서 의존)에는 해당하지 않는다. 승격 때 BACKLOG 결함 3과 ARCHITECTURE의 "Chromium reuses the first resolution" 문장은 이 측정을 반영해 고친다(POSTMORTEM 기록은 보존).
+- conductor 판단 — 가이드의 대체 형태는 PoC에서 앱과 Chromium export 모두 보인 아이콘별 SVG의 `<img src>`와 `mask: url(icon.svg)`만 쓴다. `sprite.svg#icon`을 `mask`·`<img>`로 쓰는 형태는 두 곳 모두 빈칸이었다.
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| BP | 작업 1, 2 (PoC) + 작업 6 마지막 재비교(후속 Task) | `.scratch/canvas-svg-sprites/`, `tasks.md` 'PoC 기록' | 없음 | Opus high — 측정 설계와 판정이 결과를 좌우하고, 틀리면 설계 전체가 흔들린다 | 경우별 스크린숏·bbox·요청 로그, export 파일 경로(Safari용) | 대기 |
+| BP | 작업 1, 2 (PoC) + 작업 6 마지막 재비교(후속 Task) | `.scratch/canvas-svg-sprites/`, `tasks.md` 'PoC 기록' | 없음 | Opus high — 측정 설계와 판정이 결과를 좌우하고, 틀리면 설계 전체가 흔들린다 | 경우별 스크린숏·bbox·요청 로그, export 파일 경로(Safari용) | 완료 `bac40bf5` → 통합. Safari는 사용자 확인 대기 |
 | BC | 작업 3, 4 (`/tdd`, `/implement`) | `cli/internal/canvas/`, `cli/internal/check/`, `cli/internal/export/`(`exporttest` 포함), `cli/internal/cli/check.go` | BP | Opus high — check·export 일치, reach 포함 관계, tokenizer `<template>` 함정이 있다 | `go test ./...`, `go vet ./...`, `verify.mjs`, repo 복사본 `doan check` 새 finding 0 | 대기 |
 | BG | 작업 5 (가이드·preset) | `cli/internal/cli/skill.md`, `cli/internal/designskill/presets/document.md` | BP | Sonnet medium — 정해진 문장을 예산 안에 넣는 작업이다 | `go test ./...`(`TestSkillGuideFitsToolOutputCap`), `doan skill --json` 출력 | 대기 |
 | R | 작업 6 `/code-review` (BC+BG 통합 diff) | 보고만 | BC, BG 통합 | Opus high — check·export 판정 일치와 고아 제거를 독립적으로 판단해야 한다 | 🔴 0 | 대기 |
@@ -37,4 +39,4 @@
 
 ## 검토 기록
 
-(리뷰 라운드에서 채운다.)
+- BP: handoff와 커밋(`tasks.md` 한 파일)을 대조했다. 근거 사본은 conductor checkout `.scratch/canvas-svg-sprites/`, `.scratch/handoff-BP.md`에 있다.
