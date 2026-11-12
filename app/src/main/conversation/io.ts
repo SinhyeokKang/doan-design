@@ -1,4 +1,4 @@
-import { accessSync, constants, closeSync, fstatSync, lstatSync, openSync, readSync, realpathSync, readdirSync, statSync } from "node:fs";
+import { accessSync, constants, closeSync, fstatSync, lstatSync, openSync, readSync, realpathSync, readdirSync, statSync, type Stats } from "node:fs";
 import { join, dirname } from "node:path";
 import { execFile } from "node:child_process";
 import { absolutePath, CODEX_ROLLOUT_FLOOR, mergeOccupancy, object, parseSessionRecords, registryIdentity, registryRecordVerdict, type RegistryVerdict, SESSION_TAIL_BYTES, storedVersionAtLeast } from "./sessions";
@@ -61,17 +61,18 @@ export function processStart(pid: number): Promise<string | null> {
   });
 }
 export async function claudeOccupancy(config: string, sessionId: string, inspect = processStart): Promise<"free" | "occupied" | "unknown"> {
-  let directory: string, names: string[];
+  let directory: string, listed: Stats, names: string[];
   try {
     directory = join(canonicalDirectory(config), "sessions");
     if (canonicalDirectory(directory) !== directory) return "unknown";
+    listed = lstatSync(directory);
     names = readdirSync(directory); if (names.length > 4096) return "unknown";
   } catch { return "unknown"; }
   const verdicts: RegistryVerdict[] = [];
-  for (const name of names) verdicts.push(await claudeRecordVerdict(directory, name, sessionId, inspect));
+  for (const name of names) verdicts.push(await claudeRecordVerdict(directory, listed, name, sessionId, inspect));
   return mergeOccupancy(verdicts);
 }
-async function claudeRecordVerdict(directory: string, name: string, sessionId: string, inspect: typeof processStart): Promise<RegistryVerdict> {
+async function claudeRecordVerdict(directory: string, listed: Stats, name: string, sessionId: string, inspect: typeof processStart): Promise<RegistryVerdict> {
   // Claude Code 2.1.312 keeps a per-process <pid>.<sha256>.key beside each record; it is not a registry record and is never read.
   if (/^[1-9][0-9]*\.[0-9a-f]{64}\.key$/.test(name)) return "skip";
   // An unknown name may be a new record format that holds the target, so it is not skipped.
@@ -80,9 +81,15 @@ async function claudeRecordVerdict(directory: string, name: string, sessionId: s
   try {
     let text: string;
     // Claude Code deletes its record when the process ends, so a record gone since the listing is an ended process.
-    // Only the record's own ENOENT counts; failing to resolve the sessions directory itself stays unreadable.
+    // A record ENOENT is skipped only while the listed sessions directory is still there (same dev/ino); a directory
+    // that is missing, no longer a directory or replaced since the listing leaves the record unreadable.
     try { text = readRegular(path, 65536); }
-    catch (error) { if (object(error) && error.code === "ENOENT" && error.path === path) return "skip"; throw error; }
+    catch (error) {
+      if (!object(error) || error.code !== "ENOENT" || error.path !== path) throw error;
+      const now = lstatSync(directory);
+      if (!now.isDirectory() || now.dev !== listed.dev || now.ino !== listed.ino) return "unknown";
+      return "skip";
+    }
     const raw: unknown = JSON.parse(text);
     const identity = registryIdentity(name, raw); if (!identity) return "unknown";
     if (!identity.host) return registryRecordVerdict(raw, sessionId, "foreign");

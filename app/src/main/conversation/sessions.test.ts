@@ -108,7 +108,7 @@ describe("agent CLI versions", () => {
 
 describe("Claude registry records", () => {
   const start = "Thu Nov 12 09:00:00 2026";
-  // The shape Claude desktop's bundled claude-code 2.1.321 wrote (PoC); every value here is fake.
+  // The record shape Claude desktop's bundled claude-code 2.1.321 writes; every value here is fake.
   const desktop = { pid: 4242, sessionId: "desktop-uuid", cwd: "/work", startedAt: 1, procStart: start, version: "2.1.321", peerProtocol: 1, peerFeatures: [],
     kind: "interactive", entrypoint: "claude-desktop", hostSessionId: "local_fake", pidDomain: "darwin", asksForConvertedSkills: null, messagingSocketPath: "/tmp/fake.sock",
     name: "n", nameSource: "auto", nameSince: 1, status: "idle", updatedAt: 1, statusUpdatedAt: 1 };

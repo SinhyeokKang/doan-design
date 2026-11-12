@@ -148,7 +148,7 @@ describe("conversation disk boundaries", () => {
     write(12, "x", "2.1.400"); expect(await claudeOccupancy(config, "s", async () => null)).toBe("free");
   });
   it("judges the Claude desktop record shape and other live kinds by the session being resumed", async () => {
-    // The fields Claude desktop's bundled claude-code 2.1.321 wrote (PoC); every value is fake.
+    // The fields Claude desktop's bundled claude-code 2.1.321 writes; every value is fake.
     const config = temp(); const start = "Thu Nov 12 09:00:00 2026"; mkdirSync(join(config, "sessions"));
     const desktop = { pid: 4242, sessionId: "desktop-uuid", cwd: "/work", startedAt: 1, procStart: start, version: "2.1.321", peerProtocol: 1, peerFeatures: [],
       kind: "interactive", entrypoint: "claude-desktop", hostSessionId: "local_fake", pidDomain: "darwin", asksForConvertedSkills: null, messagingSocketPath: "/tmp/fake.sock",
@@ -200,6 +200,13 @@ describe("conversation disk boundaries", () => {
     writeFileSync(path, JSON.stringify({ pid: 40, sessionId: "s", cwd: "/w", kind: "interactive", version: "2.1.321", procStart: start }));
     hooks.open = opened => { if (opened === path) rmSync(path); };
     expect(await claudeOccupancy(config, "s", async () => start)).toBe("free");
+  });
+  it("cannot verify a Claude registry whose sessions directory vanished between listing and reading", async () => {
+    const config = realpathSync(temp()); const start = "Thu Nov 12 09:00:00 2026"; const directory = join(config, "sessions"); mkdirSync(directory);
+    const path = join(directory, "40.json");
+    writeFileSync(path, JSON.stringify({ pid: 40, sessionId: "s", cwd: "/w", kind: "interactive", version: "2.1.321", procStart: start }));
+    hooks.open = opened => { if (opened === path) rmSync(directory, { recursive: true }); };
+    expect(await claudeOccupancy(config, "s", async () => start)).toBe("unknown");
   });
   it("lets one doan Claude conversation resume while another runs in the same dedicated profile", async () => {
     // The record shape a running doan SDK turn left in the dedicated profile (live, CLI 2.1.312): interactive, sdk-ts.
