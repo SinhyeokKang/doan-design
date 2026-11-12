@@ -8,7 +8,7 @@
    - 결과(날짜, Electron 버전, 스크린숏 경로, 관찰)를 design.md 'PoC 의존' 아래에 적는다. 1·2·3이 실패하면 멈추고 사용자에게 묻는다. 3의 대체 경로나 5의 `text-point`가 필요하면 design.md를 고친다.
    - 확인: 다섯 항목 각각의 관찰이 design.md에 있다.
    - **커밋 경계**: `docs(feature): record canvas-text-copy PoC result` (design.md만).
-2. [ ] **초안 (`/design-draft`).** overlay 하이라이트(accent 반투명)를 밝은 캔버스, 진한 캔버스(#050507), 보라 캔버스(#5b21b6) 위에 그린다. 요소 선택 표시와 hover 표시가 함께 있는 경우, 여러 줄 범위, 드래그 중 텍스트 커서도 그린다. 경로 `.doan/canvases/canvas-text-copy.html`.
+2. [x] **초안 (`/design-draft`).** overlay 하이라이트(accent 반투명)를 밝은 캔버스, 진한 캔버스(#050507), 보라 캔버스(#5b21b6) 위에 그린다. 요소 선택 표시와 hover 표시가 함께 있는 경우, 여러 줄 범위, 드래그 중 텍스트 커서도 그린다. 경로 `.doan/canvases/canvas-text-copy.html`.
    - 확인: `doan check`·`doan ls`가 통과하고, 사용자가 앱에서 초안을 확인했다.
 3. [ ] **테스트 (`/tdd`).** design.md '순수 함수' 1–8.
    - `textDragState`: 화면 3.99px는 `press`, 4px는 `drag`. 한 번 `drag`면 원점 복귀도 `drag`.
