@@ -352,6 +352,10 @@ const boardDrawn = () => viewer.phase === "ready";
 // told nothing.
 let panTold = false;
 
+const flipCursor = () => {
+  canvas.style.cursor = canvas.style.cursor === "default" ? "auto" : "default";
+};
+
 function syncSurface() {
   // A Space held before the canvas was drawn does not pan the canvas that comes later.
   if (!boardDrawn()) spaceHeld = false;
@@ -360,6 +364,10 @@ function syncSurface() {
   if (pan !== panTold && canvas.contentWindow) {
     panTold = pan;
     canvas.contentWindow.postMessage({ type: "pan", pan }, "*");
+    // Once the pointer has moved over the panning board the page holds the cursor, and after the pan
+    // Chromium recomputes it over the iframe only when the iframe's own cursor value changes, and only
+    // reliably once a frame without the pan has been drawn. Its computed cursor starts as auto.
+    if (!pan) requestAnimationFrame(() => requestAnimationFrame(flipCursor));
   }
 }
 

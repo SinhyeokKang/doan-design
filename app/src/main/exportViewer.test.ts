@@ -1019,7 +1019,7 @@ describe("tool wiring", () => {
   test("the page tells the canvas when the board pans, once per change and again for a newly loaded document", () => {
     const sync = /function syncSurface\(\) \{[\s\S]*?\n\}/.exec(code(shellJs))?.[0] ?? "";
     expect(sync).toMatch(/const pan = board\.toggleAttribute\("data-pan", layerShown\(tool, spaceHeld, drag !== null, boardDrawn\(\)\)\);/);
-    expect(sync).toMatch(/if \(pan !== panTold && canvas\.contentWindow\) \{\s*panTold = pan;\s*canvas\.contentWindow\.postMessage\(\{ type: "pan", pan \}, "\*"\);\s*\}/);
+    expect(sync).toMatch(/if \(pan !== panTold && canvas\.contentWindow\) \{\s*panTold = pan;\s*canvas\.contentWindow\.postMessage\(\{ type: "pan", pan \}, "\*"\);/);
     // The reset runs before releaseInput's own load listener redraws the surface.
     const reset = code(shellJs).indexOf('canvas.addEventListener("load", () => {\n  panTold = false;\n});');
     expect(reset).toBeGreaterThan(-1);
@@ -1061,8 +1061,13 @@ describe("tool wiring", () => {
     expect(document.adoptedStyleSheets).toEqual([own, later]);
   });
 
-  test("the canvas iframe has a plain cursor of its own, so a pan that ends under a resting pointer does not leave the hand", () => {
-    expect(shellCss).toMatch(/\n\.board iframe \{[^}]*\bcursor: default;/);
+  // After the pointer moved over the panning board the page holds the cursor; once the pan ends Chromium recomputes
+  // it over the iframe only when the iframe's own cursor value changes.
+  test("each end of a pan changes the canvas iframe's cursor value, so the hand does not stay", () => {
+    const sync = /function syncSurface\(\) \{[\s\S]*?\n\}/.exec(code(shellJs))?.[0] ?? "";
+    expect(sync).toMatch(/if \(!pan\) requestAnimationFrame\(\(\) => requestAnimationFrame\(flipCursor\)\);/);
+    expect(code(shellJs)).toMatch(/const flipCursor = \(\) => \{\s*canvas\.style\.cursor = canvas\.style\.cursor === "default" \? "auto" : "default";\s*\};/);
+    expect(shellCss).not.toMatch(/\.canvas[^{]*\{[^}]*\bcursor:/);
   });
 
   test("a Space down from the canvas counts only while the canvas has focus; its release always counts", () => {

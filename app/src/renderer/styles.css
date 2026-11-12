@@ -57,9 +57,7 @@ code, kbd { font-family: var(--type-family); }
 /* The board is the light grey inset surface, so a white canvas stays distinguishable when zoomed out and the agent's white dot field shows. */
 .area { position: relative; overflow: hidden; background: var(--surface-inset); }
 .board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-/* The cursor the app shows over the iframe only after a pan that ended under a resting pointer: the app document
-   holds the cursor until the pointer moves into the canvas again, and without its own cursor the hand would stay. */
-.board iframe { display: block; border: 0; cursor: default; }
+.board iframe { display: block; border: 0; }
 /* Keep the overlay's marks below canvas chrome. */
 .overlay { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 /* Hand and a held Space: over the board, the iframe and the marks, under the agent glow
