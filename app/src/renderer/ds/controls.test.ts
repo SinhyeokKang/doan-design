@@ -24,7 +24,7 @@ test("every notice shares one style on the base class; tones colour the text onl
   expect(rule(css, ".doan-notice.error")).toBe("color: var(--text-danger);");
   expect(rule(css, ".doan-notice.ok")).toBe("color: var(--text-success);");
   expect(rule(css, ".doan-notice.doan-panel")).toBe("background: var(--surface-panel);");
-  // Inline actions centre on the first text line, as the icon does.
+  // Inline actions centre vertically in the notice; the icon stays on the first text line.
   expect(css).toContain(".doan-notice > :is(.doan-button, :has(> .doan-button)) { flex: none; align-self: center; margin-block: calc((var(--type-body-sm-line-height) - var(--size-control-sm)) / 2); }");
   expect(css).toContain(".doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }");
   // The icon follows the text: no rule colours it on its own.
