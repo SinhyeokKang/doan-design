@@ -44,6 +44,12 @@ describe("conversation account judgment", () => {
     expect(judgeConnection(owner, connected(connection({ profile: "claude-2" })), session)).toEqual({ decision: "reject", cause: "profile_mismatch" });
     expect(judgeConnection({ ...owner, provider: "codex" }, connected(), session)).toEqual({ decision: "reject", cause: "provider_mismatch" });
   });
+  it("says on a workspace mismatch whether both organization values are known", () => {
+    expect(judgeConnection(owner, connected(connection({ account: { id: "acct-1", workspace: "team-2" } })), session)).toEqual({ decision: "reject", cause: "workspace_mismatch", organizationsKnown: true });
+    expect(judgeConnection({ ...owner, workspaceId: null }, connected(), session)).toEqual({ decision: "reject", cause: "workspace_mismatch" });
+    const anonymous = connection({ account: { id: null, workspace: "team-2", email: "ada@example.com" } });
+    expect(judgeConnection({ ...owner, accountId: null }, connected(anonymous), session)).toEqual({ decision: "reject", cause: "workspace_mismatch", organizationsKnown: true });
+  });
   it("routes legacy external conversations to their existing profile checks", () => {
     expect(judgeConnection({ kind: "legacy-external" }, connected(), session)).toEqual({ decision: "legacy" });
     expect(judgeConnection({ kind: "legacy-external" }, initialAuthState("claude", null), session)).toEqual({ decision: "legacy" });

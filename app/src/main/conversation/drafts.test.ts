@@ -52,6 +52,11 @@ describe("DraftStore", () => {
     expect(store.take(A)).toBeNull();
     expect(store.returned(A)).toBeUndefined();
   });
+  it("reads a draft returned with workspace_changed back as it was saved", () => {
+    const dir = directory();
+    new DraftStore(dir).giveBack(A, { text: "one {{1}}", anchors: [anchor], attachments: [] }, "workspace_changed");
+    expect(new DraftStore(dir).take(A)).toEqual({ text: "one {{1}}", anchors: [anchor], attachments: [], reason: "workspace_changed" });
+  });
   it("keeps a damaged file for diagnosis, refuses to queue and still returns drafts in memory", () => {
     const dir = directory(); writeFileSync(join(dir, "drafts.json"), "{broken");
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
