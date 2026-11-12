@@ -1,6 +1,7 @@
 package check
 
 import (
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -259,6 +260,14 @@ func Run(in Input) []Finding {
 			f.URL = u
 			add(f)
 		}
+		for _, ref := range c.UseRefs {
+			f := base
+			f.Code = "svg_use_not_inline"
+			f.Target = ref
+			f.Message = "SVG <use> references \"" + ref + "\" outside the canvas, which the app cannot draw; copy the symbol into the canvas and use href=\"#id\"."
+			add(f)
+		}
+		ambiguousURLs(c, in, add, cssSeen)
 		for _, ref := range in.Reach[c.Path] {
 			f := base
 			f.Target = ref.Href
@@ -296,5 +305,42 @@ func Run(in Input) []Finding {
 		return false
 	})
 	return findings
+}
+
+// ambiguousURLs reports each url() in a custom property that the folders
+// using the property, among the canvas and every stylesheet it reaches,
+// resolve to different paths. export refuses the same url()s with the same
+// canvas functions; check reaches every stylesheet export reads.
+func ambiguousURLs(c canvas.Canvas, in Input, add func(Finding), cssSeen map[[3]string]bool) {
+	users := canvas.CustomUsers{}
+	users.Add(path.Dir(c.Path), c.Custom.Uses)
+	var sheets []string
+	seen := map[string]bool{}
+	for _, ref := range in.Reach[c.Path] {
+		if ref.State == In && !seen[ref.RealPath] {
+			seen[ref.RealPath] = true
+			sheets = append(sheets, ref.RealPath)
+			users.Add(path.Dir(ref.RealPath), in.CustomCSS[ref.RealPath].Uses)
+		}
+	}
+	report := func(file string, shared bool, urls []canvas.CSSRef) {
+		for _, r := range urls {
+			key := [3]string{file, "ambiguous_custom_url", r.Value}
+			if cssSeen[key] || !users.Ambiguous(r.Custom, r.Value) {
+				continue
+			}
+			cssSeen[key] = true
+			f := Finding{Severity: "warning", Code: "ambiguous_custom_url", Path: file, Token: r.Custom, Value: r.Value,
+				Message: "Custom property " + r.Custom + " holds url(" + r.Value + "), which the stylesheets that use it resolve to different paths, so the app shows different files and export refuses it; use the property from stylesheets in one folder only."}
+			if !shared {
+				f.Canvas = c.ID
+			}
+			add(f)
+		}
+	}
+	report(c.Path, false, c.Custom.URLs)
+	for _, p := range sheets {
+		report(p, true, in.CustomCSS[p].URLs)
+	}
 }
 func trimURL(s string) string { return strings.TrimFunc(s, func(r rune) bool { return r <= 32 }) }

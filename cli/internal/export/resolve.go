@@ -21,18 +21,11 @@ const (
 	ReasonFrame     = "local document in a frame"
 	// The app draws a <use> only when it names a fragment of the canvas.
 	ReasonUseExternal = "the app does not draw an external use; inline the sprite"
-	// SVG <use> targets are copied into the document, so they need an id
-	// that exists in an SVG file and is not already taken.
-	ReasonUseFragment  = "use without a fragment"
-	ReasonUseID        = "fragment not in the SVG file"
-	ReasonUseCollision = "SVG file id already in the canvas"
-	ReasonUseType      = "use target is not an SVG file"
-	// A <style> in a copied SVG file would apply to the whole canvas.
-	ReasonUseStyle = "SVG file has a style element"
 	// A url() in a custom property resolves from each stylesheet that uses
-	// it, and these name different existing files: which one shows depends
-	// on the element, so the export cannot pick one.
-	ReasonAmbiguous = "names different files from the stylesheets that use it"
+	// it, and these name different paths: which file shows depends on the
+	// element, and one data URL cannot follow it, whether or not the files
+	// exist.
+	ReasonAmbiguous = "resolves to different paths from the stylesheets that use it"
 	// A <base href> moves the folder relative references resolve from, and
 	// export does not follow it.
 	ReasonBase = "relative to a base element"

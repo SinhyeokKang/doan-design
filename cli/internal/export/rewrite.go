@@ -228,29 +228,14 @@ func attrRef(tag, key string, get func(string) string) (refKind, attrForm) {
 // used because it can rebuild misnested markup into a different tree.
 // <template> content is inert, as in `doan check`, and stays as written.
 func rewriteHTML(src []byte, url func(kind refKind, href string) (string, bool), css func(text string, mode canvas.Mode) string) []byte {
-	out, _ := rewriteHTMLBody(src, url, css)
-	return out
-}
-
-// rewriteHTMLBody is rewriteHTML that also returns the output offset of the
-// first </body> outside <template>, or -1 when there is none.
-func rewriteHTMLBody(src []byte, url func(kind refKind, href string) (string, bool), css func(text string, mode canvas.Mode) string) ([]byte, int) {
-	return rewriteMarkup(src, url, css, false)
-}
-
-// rewriteMarkup is rewriteHTMLBody for an HTML document, or with foreign set
-// for SVG markup placed inside an <svg> element, where the parser starts no
-// raw text (<title>, <script>, <style> hold elements) and reads CDATA.
-func rewriteMarkup(src []byte, url func(kind refKind, href string) (string, bool), css func(text string, mode canvas.Mode) string, foreign bool) ([]byte, int) {
-	z := newTokenizer(src, foreign)
-	bodyEnd := -1
+	z := html.NewTokenizer(bytes.NewReader(src))
 	var out bytes.Buffer
 	out.Grow(len(src))
 	template := 0
 	style := false
 	consumed := 0 // source bytes read so far
 	for {
-		tt := nextToken(z, foreign)
+		tt := z.Next()
 		// Token() lowercases and unescapes inside the buffer Raw() shares.
 		raw := append([]byte(nil), z.Raw()...)
 		consumed += len(raw)
@@ -259,7 +244,7 @@ func rewriteMarkup(src []byte, url func(kind refKind, href string) (string, bool
 		switch {
 		case tt == html.ErrorToken:
 			out.Write(raw)
-			return out.Bytes(), bodyEnd
+			return out.Bytes()
 		case template > 0:
 			if tt == html.StartTagToken || tt == html.SelfClosingTagToken || tt == html.EndTagToken {
 				templateTag(&template, tt, z.Token().Data)
@@ -267,9 +252,6 @@ func rewriteMarkup(src []byte, url func(kind refKind, href string) (string, bool
 			out.Write(raw)
 		case tt == html.TextToken && inStyle:
 			out.WriteString(css(string(raw), canvas.Stylesheet))
-		case tt == html.EndTagToken && bodyEnd < 0 && bytes.EqualFold(bytes.TrimSpace(raw[2:len(raw)-1]), []byte("body")):
-			bodyEnd = out.Len()
-			out.Write(raw)
 		case tt == html.StartTagToken || tt == html.SelfClosingTagToken:
 			tok := z.Token()
 			if templateTag(&template, tt, tok.Data) {
@@ -277,8 +259,8 @@ func rewriteMarkup(src []byte, url func(kind refKind, href string) (string, bool
 				continue
 			}
 			// The parser ignores the self-closing flag: <style/> starts raw text too.
-			style = tok.Data == "style" && !foreign
-			if tok.Data == "base" && !foreign {
+			style = tok.Data == "style"
+			if tok.Data == "base" {
 				if kept, ok := dropBaseHref(tok); ok {
 					if len(kept.Attr) == 0 {
 						continue
@@ -373,18 +355,4 @@ func writeTag(out *bytes.Buffer, tok html.Token, attrs []html.Attribute, rest in
 		out.WriteByte('/')
 	}
 	out.WriteByte('>')
-}
-
-func newTokenizer(src []byte, foreign bool) *html.Tokenizer {
-	z := html.NewTokenizer(bytes.NewReader(src))
-	z.AllowCDATA(foreign)
-	return z
-}
-
-func nextToken(z *html.Tokenizer, foreign bool) html.TokenType {
-	tt := z.Next()
-	if foreign && (tt == html.StartTagToken || tt == html.SelfClosingTagToken) {
-		z.NextIsNotRawText()
-	}
-	return tt
 }
