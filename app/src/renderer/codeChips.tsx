@@ -1,5 +1,14 @@
 import type { ReactNode } from "react";
 
-export function withChips(text: string, _paths: readonly string[] = []): ReactNode {
-  return text;
+// Commands and Doan's fixed paths read as code wherever setup and Project Settings say them (design keep-out-git-init
+// '코드 칩'). paths: absolute paths the text may name, a .git Doan left behind above all; they contain spaces, so they
+// are matched as given rather than guessed from the text.
+const COMMANDS = ["xcode-select --install", ".git/info/exclude", "git init", ".doan/"];
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export function withChips(text: string, paths: readonly string[] = []): ReactNode {
+  const tokens = [...paths.filter(Boolean), ...COMMANDS].sort((a, b) => b.length - a.length).map(escape);
+  // A token followed by more of a path (".doan/config.json", ".git/info") is part of something longer, not a chip.
+  const parts = text.split(new RegExp(`(${tokens.join("|")})(?![\\w/-])`));
+  return parts.length === 1 ? text : parts.map((part, i) => i % 2 === 1 ? <code key={i}>{part}</code> : part);
 }

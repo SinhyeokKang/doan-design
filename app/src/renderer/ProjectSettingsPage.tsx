@@ -2,11 +2,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Copy, File as FileIcon, Folder as FolderIcon, GitBranch } from "lucide-react";
 import type { ConfigKind, ConfigReply } from "../main/configBridge";
 import type { FolderFocus } from "../main/shell";
-import { projectKeepsLocal } from "../main/storage";
+import { homeOrAbove, projectKeepsLocal } from "../main/storage";
 import type { FolderEntry } from "../main/view";
 import type { ConfigWrite } from "../preload";
 import type { AddPageOrigin } from "./addProjectsNav";
 import { AlertIcon } from "./AlertIcon";
+import { withChips } from "./codeChips";
 import { copyText } from "./copyText";
 import { cardRow, groupProjects, ROW_ACTION_LABELS as LABELS, type RowAction } from "./homeCards";
 import { displayPath } from "./projectDisplay";
@@ -26,7 +27,7 @@ const listedStorage = (entry: FolderEntry | undefined): string | null => entry?.
 type Section = ConfigKind | "storage";
 const STORAGE_CHOICES: StorageChoice[] = ["repo", "local"];
 const STORAGE_REASONS = {
-  not_git: <>Keep out of Git needs a Git repository, and this folder isn’t one.</>,
+  not_git: <>This folder isn’t a Git repository. Choosing Keep out of Git creates one here.</>,
   git_unreadable: <>Doan couldn’t read this repository’s Git metadata, so it can’t tell whether these files are kept out of Git.</>,
   exclude_unwritable: <>Doan can’t write <code>.git/info/exclude</code> in this repository, so this setting can’t change here.</>,
   home: <>Doan doesn’t create a Git repository in your home folder.</>,
@@ -77,6 +78,8 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const [switched, setSwitched] = useState<SwitchNote | null>(null);
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
   const [choice, setChoice] = useState<{ choiceId: string; path: string } | null>(null);
+  // Keep out of Git pressed outside Git: the confirmation to create the repository is open (draft keep-out-git-init).
+  const [creating, setCreating] = useState(false);
   // Details expands the config error in place, and a recovery's feedback shows under the notice.
   const [details, setDetails] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -94,7 +97,8 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const found = entries.find(item => item.path === root);
   if (found) lastEntry.current = found;
   const entry = found ?? lastEntry.current;
-  const locked = projectSettingsLocked({ picking, confirming: !!choice, writing: !!busy });
+  const locked = projectSettingsLocked({ picking, confirming: !!choice || creating, writing: !!busy });
+  const home = homeDirectory !== null && homeOrAbove(root, homeDirectory);
 
   function focusTitle() { requestAnimationFrame(() => heading.current?.focus()); }
   // quiet: a refresh for a change made elsewhere (a listed mode change). It keeps the controls as they are, so a focus
@@ -157,7 +161,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     if (next.kind === "leave") {
       // An open confirmation is cancelled by the page going; a picker or read answering before App unmounts the page is
       // for a worktree that is gone, so it opens nothing.
-      if (!gone.current) { gone.current = true; epoch.current++; generation.current++; setChoice(null); onGone(); }
+      if (!gone.current) { gone.current = true; epoch.current++; generation.current++; setChoice(null); setCreating(false); onGone(); }
       return;
     }
     // The read in flight is dropped (its epoch is stale), so it can no longer end the reading state itself.
@@ -169,8 +173,8 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     // A problem shows no settings; ones kept from before would show again while the healthy worktree is read anew.
     else if (next.view === "problem") setConfig(null);
     if (next.cancelConfirm) {
-      if (choice || picking) focusTitle();
-      setChoice(null);
+      if (choice || picking || creating) focusTitle();
+      setChoice(null); setCreating(false);
     }
     if (rerooted) onRerooted(next.root, next.origin);
     if (next.reread) void read(next.root);
@@ -192,8 +196,13 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     try {
       const reply = await window.doan.writeConfig(request);
       if (!live.current || stale !== generation.current) return;
-      if (reply.kind === "config") { setConfig(reply); setSaved(section); if (section === "storage") setSwitched(switchNote(before, reply.storage)); changedDuringWrite.current = false; await read(request.root); }
-      else setError({ section, message: writeErrorMessage(section, reply, title) });
+      if (reply.kind === "config") { setConfig(reply); setSaved(section); if (section === "storage") setSwitched(switchNote(before, reply.storage, reply.repositoryCreated === true)); changedDuringWrite.current = false; await read(request.root); }
+      else {
+        setError({ section, message: writeErrorMessage(section, reply, title) });
+        // A failed creation may have left its .git: the folder is read again, and a repository found takes the reason
+        // and the confirmation away while the error stays.
+        if ("gitInit" in request) await read(request.root, true);
+      }
     } catch (failure) { if (live.current && stale === generation.current) setError({ section, message: failure instanceof Error ? failure.message : String(failure) }); }
     finally {
       if (live.current) { setBusy(null); setWritingStorage(null); }
@@ -201,13 +210,25 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     }
   }
   // A press writes at once, with no confirmation: nothing is moved or deleted and it can be switched back (PRODUCT §5
-  // item 0 'Project Settings'). Focus returns to the chosen radio once the write ends, whatever it chose.
+  // item 0 'Project Settings'). Focus returns to the chosen radio once the write ends, whatever it chose. The exception
+  // is Keep out of Git outside Git, which creates a repository: it asks first, and Cancel returns focus the same way.
   function writeStorage(storage: StorageChoice, input: HTMLInputElement) {
-    if (busy || picking || reading || choice) return;
+    if (busy || picking || reading || choice || creating) return;
     returnFocus.current = { button: input, section: "storage" };
+    if (storage === "local" && config && storageSectionView(config, null, home)?.createsRepository) { setCreating(true); return; }
     setWritingStorage(storage);
     void send({ root, op: "setStorage", storage }, "storage");
   }
+  function createRepository(allow: boolean) {
+    setCreating(false);
+    if (!allow) return;
+    setWritingStorage("local");
+    void send({ root, op: "setStorage", storage: "local", gitInit: true }, "storage");
+  }
+  // A repository made outside Doan meanwhile (a re-read without the reason): the press no longer creates one, so the
+  // confirmation goes and the next press switches at once.
+  const asks = !!config && !!storageSectionView(config, null, home)?.createsRepository;
+  useEffect(() => { if (creating && !asks) setCreating(false); }, [creating, asks]);
   function copyCommand() { setCopied(copyText(UNTRACK_COMMAND) ? "copied" : "failed"); }
   useEffect(() => {
     if (copied !== "copied") return;
@@ -234,7 +255,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   // The controls behind an open confirmation stay drawn enabled (the draft's confirmation tile): the modal dialog already
   // makes the page inert, and the lock is `locked`, not this.
   const disabled = !!busy || picking || reading;
-  const waiting = disabled || !!choice;
+  const waiting = disabled || !!choice || creating;
   // Once nothing is pending, focus returns (projectSettingsFocusAfter) unless a confirmation owns the modal layer or
   // the user moved it on purpose. The confirmation counts as pending, so focus returns when it closes, not before.
   useEffect(() => {
@@ -287,9 +308,9 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const branch = entry ? cardRow(entry, null, null).summary?.branch : undefined;
   const status = (section: Section) => busy === section ? <span className="settings-saved pending" role="status">Saving</span>
     : saved === section ? <span className="settings-saved" role="status"><Check aria-hidden="true" />Saved</span> : null;
-  const message = (section: Section) => error?.section === section && <div className="doan-preference-row-extra settings-msg-row project-settings-msg"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>{error.message}</span></p></div>;
+  const message = (section: Section) => error?.section === section && <div className="doan-preference-row-extra settings-msg-row project-settings-msg"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>{withChips(error.message, [`${root}/.git`])}</span></p></div>;
   const shared = choice && sharedPathLabel(root, choice.path);
-  const storage = config && storageSectionView(config, writingStorage);
+  const storage = config && storageSectionView(config, writingStorage, home);
   // The thread's settings radio rows outside the thread (draft frames settings-modes, settings-changes, settings-disabled).
   const storageSection = storage && <section>
     <div className="settings-section-header"><div>
@@ -308,7 +329,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
             <span className="doan-preference-row-description"><StorageDescription choice={value} /></span></span>
         </label>;
       })}
-      {storage.reason && <div className="doan-preference-row-extra"><p className={storage.reason.tone === "warning" ? "storage-reason warn" : "storage-reason"}><AlertIcon /><span>{STORAGE_REASONS[storage.reason.text]}</span></p></div>}
+      {storage.reason && <div className="doan-preference-row-extra"><p className={storage.reason.tone === "warning" ? "storage-reason warn" : "storage-reason"}>{storage.reason.tone !== "info" && <AlertIcon />}<span>{STORAGE_REASONS[storage.reason.text]}</span></p></div>}
       {(busy === "storage" || saved === "storage") && <div className="doan-preference-row-extra storage-result" role="status">
         {busy === "storage" ? <span className="settings-saved pending">Saving</span> : <><span className="settings-saved"><Check aria-hidden="true" />Saved</span>
           {switched && <span className="storage-result-text">{SWITCH_NOTES[switched]}</span>}</>}
@@ -411,6 +432,9 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
         </div>}
         {choice && <SettingsDialog title={<>Share <code>{shared}</code> with canvases?</>} label={`Share ${shared} with canvases?`} verb="Share" description={<>Canvases in this worktree will be able to read <code className="selectable">{shared}</code>.</>}
           answer={allow => { const selected = choice; setChoice(null); if (allow) void write({ root, op: "addServe", choiceId: selected.choiceId }, "serve"); }} />}
+        {creating && entry && <SettingsDialog title={<>Create a Git repository in <code>{displayPath(entry.path, homeDirectory)}</code>?</>} label={`Create a Git repository in ${displayPath(entry.path, homeDirectory)}?`} verb="Create Repository"
+          description={withChips("Keep out of Git needs a Git repository. Doan will run git init here, then keep .doan/ out of it. Doan makes no commit, branch or remote, and the repository stays if you switch back to Include in Git.")}
+          answer={createRepository} />}
       </div>
     </main>
   </div>;

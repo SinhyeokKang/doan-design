@@ -1,5 +1,7 @@
 import { validateEnvelope } from "../formats/validate";
-import { storageFacts, type StorageFacts } from "./storage";
+import { homeOrAbove, storageFacts, type StorageFacts } from "./storage";
+
+export { homeOrAbove };
 import type { GitInfo } from "./view";
 
 // How long the runner (cli.ts) lets a CLI call run before killing it. Here so a timeout's reason says the same number.
@@ -150,13 +152,6 @@ export function initOutcome(run: CliRun, request: { tokenCss?: boolean; folder?:
   return { kind: "success" };
 }
 
-// The home folder or a folder above it, where Doan creates no Git repository (the CLI reads a .git there as none, §13,
-// and refuses --git-init there). Paths are compared as spelled; the CLI makes the same judgement before writing.
-export function homeOrAbove(path: string, home: string): boolean {
-  if (!home) return false;
-  const folder = path.replace(/\/+$/, "") || "/";
-  return folder === "/" || home.replace(/\/+$/, "") === folder || home.startsWith(`${folder}/`);
-}
 
 export function reconcileFolders(stored: readonly string[], path: string, upwardResult: FolderState): { folders: string[]; focus: string | null } {
   if (!stored.includes(path)) return { folders: [...stored], focus: null };

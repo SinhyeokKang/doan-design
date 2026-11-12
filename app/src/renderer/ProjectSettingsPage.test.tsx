@@ -57,6 +57,7 @@ function resetHooks() { hooks.states = []; hooks.refs = []; hooks.effects = []; 
 // The Project Settings page, not yet wired into App.
 const { ProjectSettingsPage } = await import("./ProjectSettingsPage");
 const { SettingsDialog } = await import("./SettingsDialog");
+const { AlertIcon } = await import("./AlertIcon");
 import type { FolderEntry } from "../main/view";
 
 const ROOT = "/Users/alex/code/acme-web";
@@ -1073,7 +1074,7 @@ test("outside Git, Keep out of Git is open and says it creates the repository, a
   expect(text()).toContain("This folder isn’t a Git repository. Choosing Keep out of Git creates one here.");
   const reason = byClass("storage-reason")[0]!;
   expect(reason.props.className).toBe("storage-reason");
-  expect(all(reason.props.children as ReactNode).some(element => typeof element.type !== "string")).toBe(false);
+  expect(all(reason.props.children as ReactNode).some(element => element.type === AlertIcon)).toBe(false);
 });
 
 test("pressing Keep out of Git outside Git asks first: nothing is written, Include in Git stays chosen and the page is locked", async () => {
@@ -1185,4 +1186,5 @@ test("in the home folder, Keep out of Git stays closed with its own reason", asy
   expect(closed()).toEqual([false, true]);
   expect(text()).toContain("Doan doesn’t create a Git repository in your home folder.");
   expect(text()).not.toContain("Choosing Keep out of Git creates one here.");
+  expect(all(byClass("storage-reason")[0]!.props.children as ReactNode).some(element => element.type === AlertIcon)).toBe(true);
 });

@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from "react";
+import type { ProjectInitRequest } from "../main/index";
 import type { ProjectInitResult } from "../main/shell";
 import { formView, initMessage, type ProjectForm } from "./onboardingView";
 import { AlertIcon } from "./AlertIcon";
+import { withChips } from "./codeChips";
 import { StorageField } from "./StorageChoice";
 import type { StorageChoice } from "./storageRules";
 
 // One project setup form, used by the wizard's Project step and the sidebar's
 // Set Up dialog. Main keeps the picked CSS file; the renderer holds only its ID.
 // kept: another worktree of the project keeps its Doan files out of Git, so setup follows it with plain init and the
-// form offers no choice (PRODUCT §5 item 0 'Doan files'). A refused setup keeps the chosen mode.
-export function useProjectSetup(root: string, kept = false) {
+// form offers no choice (PRODUCT §5 item 0 'Doan files'). A refused setup keeps the chosen mode. notGit: no Git
+// repository holds the folder (main never says so for the home folder or above it), so Keep out of Git creates one.
+export function useProjectSetup(root: string, kept = false, notGit = false) {
   const [token, setToken] = useState<{ id: string; path: string } | null>(null);
   const [storage, setStorage] = useState<StorageChoice>("repo");
   const [running, setRunning] = useState(false);
@@ -28,7 +31,7 @@ export function useProjectSetup(root: string, kept = false) {
     if (running) return null;
     setRunning(true); setError(null);
     let result: ProjectInitResult;
-    try { result = await window.doan.initializeProject({ root, choiceId: token?.id ?? null, storage: !kept && storage === "local" ? "local" : null }); }
+    try { result = await window.doan.initializeProject(setupRequest(root, token?.id ?? null, storage, kept, notGit)); }
     catch (failure) { result = { kind: "cliError", reason: failure instanceof Error ? failure.message : String(failure) }; }
     if (!live.current) return result;
     setRunning(false);
@@ -36,25 +39,24 @@ export function useProjectSetup(root: string, kept = false) {
     return result;
   }
   const form: ProjectForm = { running, token: token?.path ?? null, error, rerooted: null };
-  return { form, choose, setUp, storage: { value: storage, kept, notGit: false, change: setStorage } };
+  return { form, choose, setUp, storage: { value: storage, kept, notGit, change: setStorage } };
 }
 
-export function setupRequest(root: string, choiceId: string | null, storage: StorageChoice, kept: boolean, _notGit: boolean): { root: string; choiceId: string | null; storage: "local" | null; gitInit?: true } {
-  return { root, choiceId, storage: !kept && storage === "local" ? "local" : null };
-}
-
-// The command and the fixed path a refused local setup names read as code, as everywhere else in the dialog.
-const CHIPS = /(git init|\.git\/info\/exclude)/;
-function withCommand(text: string) {
-  const parts = text.split(CHIPS);
-  return parts.length === 1 ? text : <>{parts.map((part, i) => i % 2 === 1 ? <code key={i}>{part}</code> : part)}</>;
+// What Set Up asks main for. gitInit is the consent to the .git/ line Will add showed: only with Keep out of Git, for a
+// folder outside Git, and never for a project already kept out of Git (plain init follows it).
+export function setupRequest(root: string, choiceId: string | null, storage: StorageChoice, kept: boolean, notGit: boolean): ProjectInitRequest {
+  const local = !kept && storage === "local";
+  return { root, choiceId, storage: local ? "local" : null, ...(local && notGit ? { gitInit: true as const } : {}) };
 }
 
 export interface StorageInput { value: StorageChoice; kept: boolean; notGit: boolean; change: (value: StorageChoice) => void }
-export function ProjectFields({ form, choose, chooseRef, storage }: { root: string; form: ProjectForm; choose: () => void; chooseRef?: (node: HTMLButtonElement | null) => void; storage: StorageInput }) {
+// Set Up Project is described by Will add (CHANGES_ID), so a screen reader hears what it writes, the new repository first.
+export const CHANGES_ID = "setup-changes";
+export function ProjectFields({ root, form, choose, chooseRef, storage }: { root: string; form: ProjectForm; choose: () => void; chooseRef?: (node: HTMLButtonElement | null) => void; storage: StorageInput }) {
   const view = formView(form);
   // Kept out of Git, the exclude entry takes the place of the .gitattributes line; the label is fixed, not the path.
   const local = storage.kept || storage.value === "local";
+  const creates = !storage.kept && storage.value === "local" && storage.notGit;
   return <>
     <div className="ob-field">
       <span className="ob-label">Token CSS</span>
@@ -65,15 +67,17 @@ export function ProjectFields({ form, choose, chooseRef, storage }: { root: stri
     <StorageField id="setup-storage" value={storage.value} kept={storage.kept} disabled={form.running} change={storage.change} />
     <div className="ob-field">
       <span className="ob-label">Will add</span>
-      <span className="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>{local ? ".git/info/exclude" : ".gitattributes"}</code> — {local ? "two lines" : "one line"}, if missing</span></span>
+      <span className="ob-changes" id={CHANGES_ID}>{creates && <span><code>.git/</code> — a new Git repository</span>}<span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>{local ? ".git/info/exclude" : ".gitattributes"}</code> — {local ? "two lines" : "one line"}, if missing</span></span>
       <span />
     </div>
-    {view.error && <div className="ob-field"><span className="ob-msg error ob-wide selectable" role="alert"><AlertIcon /><span>{withCommand(view.error)}</span></span></div>}
+    {view.error && <div className="ob-field"><span className="ob-msg error ob-wide selectable" role="alert"><AlertIcon /><span>{withChips(view.error, [`${root}/.git`])}</span></span></div>}
   </>;
 }
 
-export function ProjectSetupDialog({ root, name, kept = false, onClose, onRerooted }: { root: string; name: string; kept?: boolean; notGit?: boolean; onClose: () => void; onRerooted: (root: string, message: string) => void }) {
-  const { form, choose, setUp, storage } = useProjectSetup(root, kept);
+// notGit follows the folder's latest read: after a failed creation the folder is read again, and a .git left behind
+// takes the .git/ line (and --git-init) away while the error stays.
+export function ProjectSetupDialog({ root, name, kept = false, notGit = false, onClose, onRerooted }: { root: string; name: string; kept?: boolean; notGit?: boolean; onClose: () => void; onRerooted: (root: string, message: string) => void }) {
+  const { form, choose, setUp, storage } = useProjectSetup(root, kept, notGit);
   const chooseButton = useRef<HTMLButtonElement | null>(null);
   const dialog = useRef<HTMLDialogElement | null>(null);
   const close = () => { if (form.running) return; dialog.current?.close(); onClose(); };
@@ -97,7 +101,7 @@ export function ProjectSetupDialog({ root, name, kept = false, onClose, onReroot
     </div>
     <div className="ob-buttons doan-dialog-actions">
       <button type="button" className="btn doan-button" data-ui-variant="subtle" disabled={form.running} onClick={close}>Cancel</button>
-      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" disabled={form.running} onClick={() => void submit()}>{form.running ? "Setting Up" : "Set Up Project"}</button>
+      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" aria-describedby={CHANGES_ID} disabled={form.running} onClick={() => void submit()}>{form.running ? "Setting Up" : "Set Up Project"}</button>
     </div>
   </dialog>;
 }
