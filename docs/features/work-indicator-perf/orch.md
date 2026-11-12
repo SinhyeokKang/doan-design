@@ -21,6 +21,8 @@
   - probe는 매 실행마다 userData·HOME·DOAN_RUNTIME이 임시 디렉터리 아래인지, PATH가 제한됐는지 기록한다. 사용자에게 Doan 종료를 요청하지 않는다.
 - 기록: Electron 45에는 `webContents.incrementCapturerCount`가 없다(TypeError). 그래서 P는 픽셀 모드를 앱의 `--doan-launch=background`(숨긴 창, 포커스 없음)로 띄우고, probe 안에서 `window:visible` 응답을 대체했다. 이때 rAF는 60/s로 돈다. 규칙이 시행되기 전(10:45 전)의 짧은 실행 약 10회는 창을 보이고 포커스를 가져갔다.
 - 기록: 2026-11-12 lead가 링크 3 중단을 지시했다가 곧 취소했다(릴리스만 링크 2에서 끊고 링크 3은 계속한다). 그 사이 A·B·C 워커를 멈췄다. A·B는 커밋하지 않은 작업을 WIP 커밋으로 보존했다(`b8bd059d`, `8f8b1f23`, 검증 전). 세 batch 브랜치와 `SinhyeokKang/wip-p`를 push했다. 증거 사본을 develop checkout의 `.scratch/work-indicator-perf/`에 두었다. 같은 worktree에서 새 dispatch로 다시 시작했다.
+- 사용자 결정 — tasks 7: C의 프레임 묶기(`9b05e7a4`, 검증 PASS·픽셀 동일)는 40ms 스트림 비용을 줄이지 못했다. 기존 `useFrameText`가 이미 프레임당 한 번만 반영하기 때문이다. 그래서 통합하지 않는다. tasks 7을 '스레드 항목 메모화'로 다시 계획한다. App 전체 재렌더를 막는 대화별 구독은 위험과 범위가 커서 넣지 않는다. C의 파일 소유에 `ConversationThread.tsx` 전체와 `threadItems.ts`를 더한다.
+- conductor 판단 — R-C D2: 원래 tasks 7에서는 "프레임당 반영 1회 이하"와 "턴 종료 즉시 반영"이 같은 프레임에서 충돌했다. design의 "지연 없이"를 따라 즉시 반영을 예외로 봤다. 묶기를 빼서 지금은 해당하지 않는다.
 - conductor 판단 — tasks 3: 링크 1(`frame-first-selection`)의 재로드 회귀 테스트는 `CanvasController.test.ts` 'working-frame marker' › "stays on its frame through repeated reloads without hiding or restarting, and lands on the new layout without the slide"이다(`8286c893`).
 - conductor 판단 — 측정 간섭: 성능 수치(P, M)는 다른 워커의 빌드·테스트가 돌지 않을 때만 잰다. 구현 배치 A·B·C는 병렬로 돌리되, GUI probe는 conductor가 한 번에 하나씩 허락한다. 픽셀 비교는 애니메이션 시점을 고정하므로 부하에 영향받지 않는다.
 
@@ -32,7 +34,7 @@
 | (conductor) | 2(사용자 공유) | tasks.md 2 | P | — | 공유 요약을 tasks.md에 기록 | 완료 |
 | A | 3의 점 필드 테스트, 4, 5 | `agentIndicator.ts`·`.test.ts`, `dotField.ts`·`.test.ts`, 새 Worker 진입점, `CanvasAgent.tsx`, `rendererImports.test.ts`, 필요하면 `electron.vite.config.*` | P | Opus high — Worker·OffscreenCanvas·CSP·빌드 산출물 확인, 상태 전환 메시지 설계 | typecheck·lint·test, 빌드 산출물에서 Worker·CSP 확인, 픽셀 채널 차 ≤2, fill 호출 수 | 진행 중(worktree `wip-a`, 재시작 dispatch `ctx_2e16905bcecc`) |
 | B | 3의 마커 테스트, 6, 8 | `styles.css`, `CanvasController.ts`(`drawWork`), `CanvasController.test.ts` 'working-frame marker', 보드 글로우·알림 열·대화 패널 컨테이너의 CSS | P | Opus high — drift 0 가드레일, 상태 규칙 옮기기, 큰 확대 레이어 위험 | typecheck·lint·test, tasks 6·8 픽셀 비교 전부 채널 차 ≤2, 멈춘 상태 Paint 0, 버디 창 잘림 없음 | 진행 중(worktree `wip-b`, 재시작 dispatch `ctx_ce79e627029f`) |
-| C | 3의 스트리밍 테스트, 7 | `conversationStore.ts`·테스트, `ConversationThread.tsx`(스트리밍 반영만) | P | Opus medium — 범위가 좁지만 캐럿 위치 회귀(POSTMORTEM 2026-11-07)가 있다 | typecheck·lint·test, 40ms delta probe에서 프레임당 반영 ≤1, 최종 텍스트·캐럿 위치 동일 | 진행 중(worktree `wip-c`, 재시작 dispatch `ctx_31a25c340a6d`) |
+| C | 7(스레드 항목 메모화, 테스트 포함) | `ConversationThread.tsx`, `threadItems.ts`와 그 테스트 | P | Opus medium — 범위가 좁지만 캐럿 위치 회귀(POSTMORTEM 2026-11-07)가 있다 | typecheck·lint·test, 40ms delta probe에서 프레임당 반영 ≤1, 최종 텍스트·캐럿 위치 동일 | 진행 중(worktree `wip-c`, 재시작 dispatch `ctx_31a25c340a6d`) |
 | R-A·R-B·R-C | 각 배치 `/code-review` | 보고만 | 해당 배치 | Opus high(A·B), Opus medium(C) — diff 난이도에 맞춘다 | 🔴 0 | 대기 |
 | M | 9(재측정) | `.scratch/work-indicator-perf/`, tasks.md 'PoC 결과' 아래 재측정 | A·B·C 통합 | Opus high — 남은 원인 판단과 추가 수단 탐색 | 같은 조건 결과 표, 녹화 빠진 프레임 수, verify PASS | 대기 |
 | (conductor) | 10(승격과 삭제) | DESIGN.md, ARCHITECTURE.md(Worker를 쓰면), feature 디렉터리 삭제 | M | — | 문서 diff 검토, verify PASS | 대기 |
