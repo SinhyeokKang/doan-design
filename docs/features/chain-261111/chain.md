@@ -68,8 +68,8 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1. `canvas-rendering-stability` | `canvas-rendering-stability-orch` (Claude conductor). 이전 머신에서 시작, 새 머신에서 재개. worktree 삭제됨 | 2026-11-11, `5676decd`. 재개 `12ddcfa8` | [#164](https://github.com/SinhyeokKang/doan-design/pull/164), 병합 `ea637516` | 병합 |
-| 2. `buddy-docked-motion` | `buddy-docked-motion-orch` (Claude conductor), 이 머신 `/Users/sinhyeokkang/orca/workspaces/doan-design/buddy-docked-motion-orch` | 2026-11-12, `e37a35fb` | | 진행 중 |
-| 3. `work-indicator-perf` | | | | 대기 |
+| 2. `buddy-docked-motion` | `buddy-docked-motion-orch` (Claude conductor). worktree 삭제됨 | 2026-11-12, `e37a35fb` | [#167](https://github.com/SinhyeokKang/doan-design/pull/167), 병합 `4dbc7cc7` | 병합 |
+| 3. `work-indicator-perf` | `work-indicator-perf-orch` (Claude conductor), 이 머신 `/Users/sinhyeokkang/orca/workspaces/doan-design/work-indicator-perf-orch` | 2026-11-12, `4dbc7cc7` | | 진행 중 |
 
 ## 인계 기록
 
@@ -125,3 +125,13 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
     - 버디 초안 검수 증거: `.scratch/buddy-docked-review/`, `.scratch/buddy-docked-draft/`
     - `work-indicator-perf` design이 참조하는 `.scratch/flicker/probe3.mts`는 이 머신에도 없다. 링크 3 conductor가 design의 기록으로 다시 만든다.
 - 2026-11-12 lead(다음 머신, develop checkout `/Users/sinhyeokkang/code/doan-design`): **링크 2부터 인수했다.** PR #164 병합을 polling으로 확인했다. 링크 2를 `e37a35fb`에서 시작했다: worktree `buddy-docked-motion-orch`, 브랜치 `feat/buddy-docked-motion`, Claude conductor. 브리프에 tasks 2부터 진행, 최적화 목표와 LOD 결정, 링크 1이 바꾼 host 렌더 빈도(쉬는 동안 최대 1Hz, 숨으면 렌더 안 함)에 버디 애니메이션이 의존하지 않을 것, 앱 준비 명령, 링크 2 → 링크 3 인계 항목을 넣었다.
+- 2026-11-12 lead: **링크 2 병합.** PR #167을 `4dbc7cc7`로 병합했다. 브랜치 tip은 `a71feb66`이다. `gate` pass, `/verify` PASS, 리뷰 세 번 모두 🔴0을 확인했다. conductor worktree를 지웠다. `feat/buddy-docked-motion`과 배치 브랜치(`SinhyeokKang/bdm-a`, `bdm-b`, `bdm-f1`, `bdm-o`)는 남겼다.
+  - 링크 2에서 사용자가 정한 것: 터미널 세션 카드도 입력을 받으므로 버디가 선다. 대화 패널의 resume 선택과 Overview의 이동 안내는 비켜설 이유다. 입력창 버디는 60fps로 제한한다.
+  - 링크 2에서 확인하지 못한 것: 에이전트가 필요한 화면(실제 큐, 제안 프롬프트, 권한·질문 카드 등), 실제 최소화, 60·120Hz가 아닌 디스플레이. BACKLOG 'Not verified in the real app'에 있다. probe의 `PATH` 누출과 Overview mask 레이어도 BACKLOG에 있다.
+  - **링크 2 → 링크 3 인계** (PR #167 본문에서 옮김):
+    - 구조: `.docked-buddy-slot`(입력창 카드와 `.doan-canvas-tools` 안, z-index 2) 안에 imperative 노드 `.docked-buddy` 하나가 있고, 그 안에 88px 클립 창과 112×112 WebGL 캔버스가 있다. 앱 전체에 WebGL context는 하나다. workspace 화면에 들어오면 시작하고 나가면 dispose한다. 큐 pill, Jump to latest, 패널 안내 줄은 z 3으로 버디 위다.
+    - probe에서 멈추기: reduced motion이면 정지 프레임 하나만 그린다(rAF 0). 문서 루트에 `[data-capture-snapshot]`이 있으면 투명해진다. 창이 숨겨지거나 `document.hidden`이면 rAF 0이다. Overview에 큐가 있으면 숨고 멈춘다. 작업 표시의 픽셀 비교에서는 reduced motion을 쓰거나 슬롯 영역을 가린다.
+    - 프레임 비용(최종 빌드, 120Hz, 버디가 보일 때): 60 drawn frames/s, 렌더러 Task 약 53–57 ms/s(버디 없을 때 6–7), GPU 프로세스 CPU 약 2.1–3.1%, 합성 레이어는 Overview 10개, 캔버스 11개다.
+    - 대화 패널에 `contain`·`content-visibility`를 걸면 입력창 위 88px 클립 창과 툴바 위 버디가 잘리면 안 된다.
+- 2026-11-12 lead: 링크 3을 `4dbc7cc7`에서 시작했다. worktree는 `work-indicator-perf-orch`, 브랜치는 `feat/work-indicator-perf`, conductor는 Claude다. 브리프에 두 인계, 최적화 목표와 LOD 결정, `.scratch/flicker/probe3.mts` 재작성, 측정 전 `caffeinate`, 반복 측정과 load average 기록을 넣었다. 사용자는 링크 3에 Energy Impact 비교를 더하지 않기로 했다.
+- 2026-11-12 lead: 사용자 결정. 링크 3 probe는 가능한 한 백그라운드에서 돈다. 격리 앱 창은 사용자가 쓰는 앱을 덮거나 포커스를 가져가면 안 된다. 창을 포커스 없이 뒤쪽에 띄우고, occlusion 때문에 렌더가 멈추지 않게 Chromium 플래그를 쓰며, 앞에 띄운 창과 지표가 같은지 한 번 확인한다. 스크린숏은 `capturePage`나 CDP로 찍는다. 앞에 띄워야 하는 측정은 사용자에게 먼저 묻는다. conductor에게 전달했다.
