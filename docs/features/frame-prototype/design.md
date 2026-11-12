@@ -74,7 +74,7 @@ critique·clarify·audit·harden 프리셋 검수 뒤 사용자가 spec 19·20�
 - 서랍의 지원 메타는 캡션 텍스트 `Prototype`이고 Viewing 표시를 유지한다. 재생 아이콘은 버튼처럼 보이지만 행 메타는 버튼이 아니기 때문이다.
 - 로딩·실패·소실 문구는 원인마다 제목이 다르다. 로딩은 `Loading prototype`, 읽기 실패는 `Couldn’t open this prototype`, 초기화 실패는 `Couldn’t start this prototype`, 프레임 소실은 `Frame unavailable`, 지원 표시 제거는 `Prototype unavailable`이다.
 
-사용자 시각 확인은 대기 중이다. 2026-11-13 사용자가 창 셸·헤더(Back/Forward, 가운데 프레임 이름 버튼, 창 안 프레임 드로어)를 바꾸기로 해서 `prototype-window`·`prototype-states`를 다시 그린다. 창 장식은 현행 메인 창을 참고한 시안이며 네이티브 창·반응형 실행·키보드 전달·격리 PoC를 검증했다는 뜻이 아니다.
+사용자가 앱에서 초안(`b0f4befb`까지)을 확정했다(2026-11-13). 로딩 줄은 출시된 `.problem-reading`과 달리 `role="status"` 없이 창의 polite 라이브 영역이 읽는 것으로 확정했다. 2026-11-13 사용자가 창 셸·헤더(Back/Forward, 가운데 프레임 이름 버튼, 창 안 프레임 드로어)를 바꾸기로 해서 `prototype-window`·`prototype-states`를 다시 그린다. 창 장식은 현행 메인 창을 참고한 시안이며 네이티브 창·반응형 실행·키보드 전달·격리 PoC를 검증했다는 뜻이 아니다.
 
 기존 1px 선·2px 포커스·5px 버블 간격·320px 서랍·네이티브 버튼의 21px 상단 위치는 컴포넌트 상수로 유지했다. 예시 콘텐츠와 상태 영역·crop 크기는 초안 배치 상수이며 새 앱 토큰은 추가하지 않았다.
 
