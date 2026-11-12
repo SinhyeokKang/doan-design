@@ -52,6 +52,16 @@ PoC 종료 조건에는 실제 창 콘텐츠 크기가 `innerWidth/innerHeight`�
 - 이 초안은 확정된 사용자 흐름을 그린다. PoC 전 지원 속성·실행 계약·지원 가능한 HTML 범위는 확정하거나 검증됐다고 표현하지 않는다. PoC는 구현의 선행 조건으로 유지한다.
 - 서브에이전트 작성 후 주 에이전트가 렌더링을 검토·수정하고 원격에 푸시한다. 사용자 시각 확인은 이후 별도로 받으며, 푸시를 승인으로 기록하지 않는다.
 
+### 프리셋 검수 반영 (2026-11-13)
+
+critique·clarify·audit·harden 프리셋 검수 뒤 사용자가 spec 19·20을 정했고, 다음을 초안에 반영한다.
+- Reload에 `Reload prototype` 툴팁. 이름 버튼 툴팁은 공유 Tooltip 하나로, 이름이 말줄임될 때만.
+- 드로어는 이름 버튼에 앵커(8px collision padding)하고, 행은 출시된 서랍처럼 `aria-current="location"`과 roving tabindex.
+- 상태 장면에 늘 마운트한 polite 라이브 영역. `h2`는 heading 그대로. 포커스가 콘텐츠 안에 있었을 때만 `tabindex=-1` 제목으로 옮긴다.
+- 실패 문구: 읽기 실패 본문 `Doan couldn’t read the canvas file for this frame.`, 초기화 실패 본문 `The frame was read, but Doan couldn’t set it up in this window.` 두 상태 모두 Retry · Close 뒤에 Details(ghost)와 `.problem-detail`.
+- 소실 문구: `This frame is no longer available. It reappears here when the frame is restored; to play another, choose one from the frame menu above.`, `This frame is no longer marked for prototyping. It reappears here when the mark is restored; to play another, choose one from the frame menu above.` 캔버스 자체가 사라져 고를 프레임이 없으면 세미콜론 뒤 절을 뺀다.
+- 추가 타일: 드로어 1행, 0행(지원 프레임 없음, 문구는 clarify로), 소실 중에 연 드로어, 짧은 창에서 연 드로어(목록 스크롤), 360px·낮은 높이의 소실 상태, 360px보다 좁은 프레임(가운데 배치), 헤더 컨트롤과 드로어 행의 포커스 표본.
+
 ### 초안 검토 상태
 
 네 프레임을 작성하고 주 에이전트가 컨트롤·서랍·640/360px 창·모달·로딩·읽기/초기화 실패·대상/지원 소실·복구를 브라우저 렌더링에서 검토했다. 진행 문구의 말줄임표를 제거하고 창 헤더에 기존 `--size-chrome`을 적용했다. 360px 창의 긴 제목은 창 버튼과 겹치지 않고 한 줄 말줄임하며 전체 제목을 툴팁으로 제공한다. 대상·지원 소실 본문에 복구 조건과 자동 재표시 안내를 넣고 가로 넘침이 없음을 렌더링에서 확인했다.
