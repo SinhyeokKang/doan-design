@@ -43,7 +43,7 @@
 | R-A·R-B | 각 배치 `/code-review` | 보고만 | 해당 배치 | Opus high — 두 배치 모두 경쟁·동의 경계가 핵심이다 | 🔴 0 | R-A 🔴0 🟡3 → 수정 통합 `bb4dde50`. R-B1(1단계) 🔴0 🟡4 → B 수정 라운드 1(`ctx_4c8c2e0a1f2a`). R-B2(2단계) 🔴0 🟡3 → 진행 중인 B 수정 라운드 1에 합쳐 보냄 |
 | T | 8(`/runtime-test`) | `.scratch/keep-out-git-init/runtime/`, 보고만 | A·B 통합 | Sonnet high — 정해진 probe 목록을 격리 조건으로 실행하는 단계가 많고 판단은 적다 | spec 완료 조건 1–9 probe 로그 | 대기 |
 | E | 9의 새 시나리오(필요하면 runner의 비 Git 작업 폴더 옵션) | `eval/**` | A 통합 | Opus high — runner 격리(에이전트 설정, HOME 위치)를 건드릴 수 있고 rubric 판단이 필요하다 | eval 단위 테스트, `--self-test --scenarios O4,<새 id>` PASS, `verify.mjs --eval` PASS | 구현 완료, 통합(`81d7a6fd`, `51b0bd75`, `b8bf6caf`). 새 시나리오 id O5, runner 옵션 `git: false`(bare `seed.git`, Codex `--skip-git-repo-check`). R-E 🔴0 🟡3 → E 수정 라운드 1(`ctx_12574afc222e`, Opus medium). 🟡3(§14 문장)은 tasks 10 |
-| (conductor) | 9(package 뒤 실제 라운드, 기록) | `docs/USABILITY-EVAL.md` | A·B·E 통합 | — | 라운드 결과 기록 | 대기 |
+| (conductor) | 9(package 뒤 실제 라운드, 기록) | `docs/USABILITY-EVAL.md` | A·E 통합(라운드는 CLI만 쓴다) | — | 라운드 결과 기록 | 완료: `keep-out-git-init-261112`, package `0c24baca`, O4·O5 × Claude·Codex 4/4 pass, runner exit 0 |
 | (conductor) | 10(승격과 삭제) | PRODUCT·ARCHITECTURE·DESIGN·USABILITY-EVAL, feature 디렉터리 삭제 | 8·9 | — | 문서 diff 검토, verify PASS | 대기 |
 
 ## 파일 겹침과 순서
