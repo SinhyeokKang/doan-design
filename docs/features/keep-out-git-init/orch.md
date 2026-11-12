@@ -28,6 +28,7 @@
   - conductor 판단 — `app/src/preload/index.ts`의 타입 변경은 B 소유로 받아들인다(다른 배치가 쓰지 않는다).
   - 측정하지 못한 상태: 첫 실행 `sp-1`은 에이전트 로그인이 필요해 사용자 조건상 측정하지 않는다(PR에 적는다). `ps-5` Saving, 긴 경로 `ps-3`·`sf-5`, 새 컨트롤의 키보드 포커스는 B 수정 라운드 1에서 잰다.
 - 질문 응답 지연: B(11:18)와 E(11:29)의 질문에 20분 넘게 답하지 못했다. 커밋·멈춤 감시만 돌렸기 때문이다. 이후 peek 인박스 감시 루프(`inbox-watch.sh`)를 계속 돌린다.
+- E handoff: ARCHITECTURE §14 'Isolation'에 `git: false` 문장이 필요하다. tasks 10에서 conductor가 적는다. Codex가 비 Git 폴더에서 시작하는지, 그 폴더에서 `codex mcp list`와 프로젝트 규칙이 읽히는지는 실제 라운드에서만 확인된다.
 - 리드 알림: 사용자가 바뀐 초안(`16a7420d`)을 확인했다(`d2d54fb9`). conductor가 병합했고, B에 'UI go'를 보냈다.
 
 ## 배치
@@ -40,7 +41,7 @@
 | B | 4의 TS 항목, 6, 7(`/design-sync` 포함) | `app/src/main/**`(`formats/types.ts` 제외), `app/src/renderer/**`, `.scratch/design-sync/keep-out-git-init-*/` | A의 tasks 3 커밋 통합 | Opus high — 동의 근거별 `--git-init` 전달, Project Settings 확인 창의 잠금·deep link·포커스·외부 변화 처리, 첫 구현 design-sync | typecheck·lint·test, design-sync 측정 통과, `verify.mjs --eval` PASS | 진행(1단계 main, 2단계 'UI go' 보냄), 워커 `kogi-b` `ctx_48f44956b076`. 2단계는 리드 알림 뒤 'UI go' |
 | R-A·R-B | 각 배치 `/code-review` | 보고만 | 해당 배치 | Opus high — 두 배치 모두 경쟁·동의 경계가 핵심이다 | 🔴 0 | R-A 🔴0 🟡3 → 수정 통합 `bb4dde50`. R-B1(1단계) 🔴0 🟡4 → B 수정 라운드 1(`ctx_4c8c2e0a1f2a`). R-B2(2단계) 진행(`ctx_8b6c1bab906a`) |
 | T | 8(`/runtime-test`) | `.scratch/keep-out-git-init/runtime/`, 보고만 | A·B 통합 | Sonnet high — 정해진 probe 목록을 격리 조건으로 실행하는 단계가 많고 판단은 적다 | spec 완료 조건 1–9 probe 로그 | 대기 |
-| E | 9의 새 시나리오(필요하면 runner의 비 Git 작업 폴더 옵션) | `eval/**` | A 통합 | Opus high — runner 격리(에이전트 설정, HOME 위치)를 건드릴 수 있고 rubric 판단이 필요하다 | eval 단위 테스트, `--self-test --scenarios O4,<새 id>` PASS, `verify.mjs --eval` PASS | 진행, 워커 `kogi-e` `ctx_823ff8fff1f7` |
+| E | 9의 새 시나리오(필요하면 runner의 비 Git 작업 폴더 옵션) | `eval/**` | A 통합 | Opus high — runner 격리(에이전트 설정, HOME 위치)를 건드릴 수 있고 rubric 판단이 필요하다 | eval 단위 테스트, `--self-test --scenarios O4,<새 id>` PASS, `verify.mjs --eval` PASS | 구현 완료, 통합(`81d7a6fd`, `51b0bd75`, `b8bf6caf`). 새 시나리오 id O5, runner 옵션 `git: false`(bare `seed.git`, Codex `--skip-git-repo-check`). R-E 리뷰 진행(`ctx_fbd4d8482825`, Opus medium — eval 범위로 좁다) |
 | (conductor) | 9(package 뒤 실제 라운드, 기록) | `docs/USABILITY-EVAL.md` | A·B·E 통합 | — | 라운드 결과 기록 | 대기 |
 | (conductor) | 10(승격과 삭제) | PRODUCT·ARCHITECTURE·DESIGN·USABILITY-EVAL, feature 디렉터리 삭제 | 8·9 | — | 문서 diff 검토, verify PASS | 대기 |
 
