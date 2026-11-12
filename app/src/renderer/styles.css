@@ -74,7 +74,7 @@ code, kbd { font-family: var(--type-family); }
    and portalled surfaces turn transparent. Opacity only, so nothing moves and the focused tool keeps focus (POSTMORTEM
    2026-11-03, never visibility or display); !important beats the agent glow's opacity animation. Here, not inline:
    the renderer CSP blocks inline styles (PoC C1). */
-[data-capture-snapshot] :is(.overlay, .capture-marquee, .doan-canvas-top, .doan-canvas-bottom, .doan-agent-glow, .doan-agent-artist, .toast, [data-radix-popper-content-wrapper]) { opacity: 0 !important; }
+[data-capture-snapshot] :is(.overlay, .capture-marquee, .doan-canvas-top, .doan-canvas-bottom, .doan-agent-glow, .doan-agent-artist, .toast, [data-radix-popper-content-wrapper], .docked-buddy) { opacity: 0 !important; }
 /* Overlay marks (select-inspect draft): screen px, so lines stay 1px at any scale. */
 /* Agents draw canvases in any colour, so the dark line carries a white outer line to stay visible. */
 .mark { position: absolute; border: 1px solid var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); }
@@ -775,6 +775,27 @@ body:has(.shell-top) { background: transparent; }
 /* The docked composer (draft frame docked-composer): Home's card without its inset tray, a capsule that becomes a box.
    One grid holds both shapes so the field never moves in the DOM; only the areas change. */
 .docked { position: relative; }
+/* The docked buddy (docked-poc.js draft): a 0-high slot on the card's or the toolbar's top edge, out of the grid and the
+   toolbar's flex row, so neither control moves. The ground sits 1px above the edge; the 88px window clips only the
+   buddy as it hides down behind the floor. Nothing in it takes the pointer except the hit target over its painted body.
+   z-index 2 stays under the queue and Jump to latest (3) and every portalled menu, toast and overlay. */
+.docked-buddy-slot { position: absolute; inset: 0 0 auto; height: 0; z-index: 2; pointer-events: none; }
+.docked-buddy { position: absolute; left: 0; right: 0; top: -1px; height: 0; pointer-events: none; }
+/* A 2px blur is a contact-shadow constant; the smallest shared blur (8px) erases this 16px shadow. */
+.docked-buddy-shadow { position: absolute; left: calc(-1 * var(--space-2)); top: -1px; width: var(--space-4); height: var(--space-half); border-radius: var(--radius-pill); background: var(--text-subtle); filter: blur(2px); opacity: .34; pointer-events: none; }
+.docked-buddy-window { position: absolute; left: 0; right: 0; top: -88px; height: 88px; overflow: hidden; pointer-events: none; }
+/* top and transform-origin come from each buddy's foot contact (dockedGeometry), not from per-buddy rules. */
+.docked-buddy-host { position: absolute; left: 0; width: 56px; height: 56px; pointer-events: none; }
+.docked-buddy-host > :is(img, canvas) { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; }
+.docked-buddy-host > img { padding: 16.5%; object-fit: contain; }
+.docked-buddy-host > [hidden] { display: none; }
+/* The shell clips it to the still image's opaque pixels; clip-path is hit-tested, so only the painted body takes the
+   pointer, over the board's iframe too, and the shell hides it unless the buddy is fully shown. */
+.docked-buddy-hit { position: absolute; inset: 0; pointer-events: auto; cursor: pointer; }
+/* Queue pills draw above the buddy; the gaps between them stay transparent, so the buddy hides only behind a pill. */
+.docked > .queue { position: relative; z-index: 3; }
+/* The toolbar holds the buddy's second slot. Its own rule stays as the export viewer copies it, without a buddy. */
+.doan-canvas-bottom > .doan-canvas-tools { position: relative; }
 .docked .composer-card { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-1); }
 .docked .composer-tools { display: contents; }
 .docked .composer-tools .grow { display: none; }
@@ -1107,7 +1128,8 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .handoff-head .doan-button { flex: none; color: var(--text-standard); }
 .conversation-thread .handoff-card .md code { background: var(--surface-panel); }
 .conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.conversation-thread .jump-latest { position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%); box-shadow: var(--shadow-sm); }
+/* Above the docked buddy's slot (2), which shares its stacking context, like the queue pills. */
+.conversation-thread .jump-latest { position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%); box-shadow: var(--shadow-sm); z-index: 3; }
 /* turn-activity: the turn indicator in the reply's place (.doan/canvases/turn-activity.html, frame states). One line of
    fixed height, so a stage change never moves the thread: a long path ends in an ellipsis and the time keeps its place.
    The words are --text-metadata under a narrow white sweep (the panel colour mixed 55 %, 30 % of the words' width);
@@ -1151,7 +1173,7 @@ body:has(.shell-top) { background: transparent; }
 .ov-notice { margin: 0 var(--space-4) var(--space-2); }
 .ov-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; }
 .ov-scroll > .conversation-thread { flex: 1; }
-.ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-6); }
+.ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-8); }
 .ov-main .conversation-thread .thread { max-width: 720px; margin-inline: auto; }
 .ov-col { width: calc(100% - 2 * var(--space-6)); max-width: 720px; margin-inline: auto; }
 .ov-foot { flex: none; padding: var(--space-3) 0 var(--space-4); }
@@ -1338,7 +1360,9 @@ body:has(.shell-top) { background: transparent; }
    thread's side insets and sits in the middle of the panel body instead of touching the panel edges at the top. */
 .cp-scroll > .conversation-thread:has(> :is(.thread-loading, .thread-notice)) { justify-content: center; padding: var(--space-2) var(--space-4) 0; }
 .cp-scroll:has(> .conversation-thread) > .doan-notice { margin: var(--space-2) var(--space-4) 0; }
-.doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-6); }
+/* The rows right above the card share the buddy slot's stacking context: above it, their buttons keep the click. */
+.cp-scroll > .doan-notice { position: relative; z-index: 3; }
+.doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-8); }
 .doan-conv-panel .conversation-thread .thread { gap: var(--space-5); }
 .doan-conv-panel .msg-user { max-width: 92%; }
 .doan-conv-panel :is(.md, .msg-agent p, .bubble) { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }

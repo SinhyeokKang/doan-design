@@ -32,6 +32,7 @@ import { useVisibleClock } from "./visibleClock";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool } from "./CanvasTools";
+import { dockedBuddy } from "./dockedBuddyShell";
 import { AlertIcon } from "./AlertIcon";
 import { noticeToast } from "./selection";
 import { CanvasAgent } from "./CanvasAgent";
@@ -1892,6 +1893,21 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const shownPanel = panelWidth(rightPanel.width, panelLimits, canvasPanelDefault(panelBox.window));
   const shownOverviewPanel = panelWidth(overviewSaved, panelLimits, OVERVIEW_PANEL_DEFAULT);
   const rightColumn = canvasPage ? (rightPanel.open ? `${shownPanel}px` : "0px") : `${shownOverviewPanel}px`;
+  // The docked buddy lives while the workspace is the screen: canvas switches and the Overview keep it, and Home,
+  // Settings and Add Projects give its WebGL context back. It animates on its own frames; App only tells it what
+  // changed. The <main> is its stable container: slots fold and leave, the shell stays.
+  const inWorkspace = screen === "workspace";
+  useEffect(() => {
+    const root = shellRoot.current;
+    if (!inWorkspace || !root) return;
+    dockedBuddy.start(root, () => controller.current?.personMovedAt() ?? 0);
+    return () => dockedBuddy.stop();
+  }, [inWorkspace]);
+  useLayoutEffect(() => { dockedBuddy.setBuddy(buddySelection.shown); }, [buddySelection.shown]);
+  const panelFolded = canvasPage && !rightPanel.open, coveredWorkspace = overlaid || wizard !== null || buddyIntro.open;
+  useLayoutEffect(() => {
+    dockedBuddy.update({ overview: !canvasPage, folded: panelFolded && !panelMotion, folding: panelFolded && panelMotion, covered: coveredWorkspace, hint: picking || state.capturing });
+  }, [canvasPage, panelFolded, panelMotion, coveredWorkspace, picking, state.capturing]);
   useLayoutEffect(() => {
     // Optional: App's DOM-less tests stub a document without a root element.
     const root = document.documentElement;

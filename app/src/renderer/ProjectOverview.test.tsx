@@ -225,8 +225,9 @@ test("thread spacing, and the suggestion rows right above the composer on the Ov
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-6); }");
-  expect(css).toContain(".ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-6); }");
-  expect(css).toContain(".doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-6); }");
+  // 32 under the last item: the docked buddy stands 56px over the card's top edge.
+  expect(css).toContain(".ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-8); }");
+  expect(css).toContain(".doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-8); }");
   expect(css).toContain(".doan-conv-panel .conversation-thread .thread { gap: var(--space-5); }");
   expect(css).toContain(".ov-suggestions { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-3); }");
   expect(css).not.toMatch(/\.ov-new \{/);
@@ -238,4 +239,21 @@ test("the shown conversation's suggestion stands in for the reply placeholder, w
   expect(html).toContain('aria-placeholder="Add an expired-cart illustration"');
   expect(html).toContain("Press Tab or Right Arrow to use the suggestion.");
   expect(render([summary()])).not.toContain("to use the suggestion");
+});
+
+// The docked buddy steps aside for the suggested prompts and for a request waiting at the thread's end.
+test("the composer tells the docked buddy when suggestions show or the conversation waits for an answer", () => {
+  const slot = (html: string) => /<div class="docked-buddy-slot"[^>]*>/.exec(html)![0];
+  expect(slot(render([]))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-prompts="">');
+  expect(slot(render([summary()]))).toBe('<div class="docked-buddy-slot" aria-hidden="true">');
+  expect(slot(render([summary({ phase: "waiting" })]))).toBe('<div class="docked-buddy-slot" aria-hidden="true" data-waiting="">');
+  // The moved line with its Open button sits where the suggestions do: a reason of its own.
+  const moved = render([summary()], {}, run => {
+    run.sync();
+    (run as unknown as { roots: Map<string, { current: unknown; moved: unknown }> }).roots.get(ROOT)!.current = { conversationId: null, listed: false };
+    (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
+  });
+  expect(moved).toContain('class="doan-notice moved"');
+  expect(slot(moved)).toContain(' data-notice=""');
+  expect(slot(render([]))).not.toContain("data-notice");
 });
