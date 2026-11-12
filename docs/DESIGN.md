@@ -1784,3 +1784,36 @@ Copy, from the selected design: "Couldn’t save <canvas>’s read state. This f
 **Context, not component.** The toast element's own `font-size` and `line-height` (draft 14 / 20, app 13 / normal) are inherited from the canvas body and the app body; the message and the button set their own type and are equal.
 
 **Not verified.** Focus return after a successful Retry was checked only as "focus stays in the workspace, not on the body" (`.scratch/runtime-test/read-state/probe.mjs`); which control receives it was not measured. The recovery tiles' toasts share the measured toast and differ only in text, which the probe read in the real app.
+
+## Background work line and unread prompt
+
+Reference: `.doan/canvases/claude-turn-end.html` (frames `background-line`, `background-widths`, `prompt-unread`; `copy` is the wording reference). Measured by `/design-sync` in the built app (`.scratch/design-sync/claude-turn-end/measure.mjs`): the draft read in the app's canvas iframe, the implementation in an isolated app at 1238 × 780 (panel 347, and 280 from a saved panel width) and at 1600 × 900 for the Overview's 720 column. No agent ran: main's `conversation:list` answer was wrapped to add the list's `background`, and `conversation:interrupt` was replaced by a handler the probe answered (held for Stopping, `{ error: "busy" }` for the failure). 56 pairs over 11 states, 40 computed properties each plus box, position and text; every row matches apart from the documented differences below.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Place | The thread's last item, in the turn indicator's place under the done turn's reply, at the thread's item gap (20 in the panel, 24 in the Overview) | A done turn has no indicator; the line takes its place and goes in the render the person's next message enters. |
+| Line | `.bg-line`: grid `14px 1fr`, column and row gap 8, `--text-metadata` (rgb(95,95,95)), the reply's type: body-sm 14/20 (−0.035 px) in the panel, 16/24 in the Overview. 92 high at 347 and 280 (three lines + Stop), 56 at 720 (one line + Stop). No fill, no edge, no animation | A status line, not a notice; the turn is done and nothing needs an answer. |
+| Icon | lucide `terminal`, 14 × 14, `--text-metadata`, centred on the first line (3 px down in the panel, 5 in the Overview) | Not the provider logo, which reads as a running turn. |
+| Stop | The shared xs `subtle` capsule in grid column 2 under the sentence: 24 high, 4 / 8 padding, radius 34, gap 4, ink rgb(15,15,15) on rgb(245,245,246), hover rgb(241,241,242); 61.17 wide with the 14 px circle-stop icon. Keyboard focus draws the shared ring (2 px solid black, offset 2) | On its own row, so Stopping never rewraps the sentence or changes the item's height. |
+| Stopping | The same box, 86.25 wide, a 14 px `.doan-spinner` before "Stopping", the disabled fill rgb(232,232,232) and ink rgb(149,149,149), `cursor: not-allowed`; `aria-disabled` and `data-disabled` rather than `:disabled`, so a keyboard press keeps focus on it | The running Retry's pattern ('Read-state failure dot and Retry toast'). |
+| Failure | Stop comes back with focus and the shared toast says "Couldn’t stop the background work. Try again." 16 px from the window's bottom right (384 × 46; message 14/20) | |
+| Accessibility | Names "Stop background work" and "Stopping background work" (disabled) from the renderer's accessibility tree. The line is no live region; the thread's `sr-only` status says "Background work is still running" as it appears and keeps the same words while Stopping. Shift+Tab from the empty composer field reaches Stop; when the line goes while Stop holds focus, focus goes to the composer field | Tab in an empty composer takes the suggestion, so Stop is reached backwards. |
+| Unread prompt | The shared failed-turn notice (`doan-notice error thread-notice`): rgb(100,23,35) on rgb(245,245,246), 12 / 16 padding, radius 16, grid `16px 1fr` with a 6 px column and 12 px row gap; title "Claude Code didn’t pick up your message", body "Send it again.", sm `panel` Edit and resend (133.95 × 32). 132 high at 347 and 280 (the title wraps), 112 at 720 | Draft choice 3. |
+
+### Documented differences from the draft
+
+- **Panel width.** Every thread element is 1 px narrower in the panel (thread 314 where the tiles draw 315; 247 at the 280 minimum): the panel's 1 px start border ('Canvas handoff').
+
+Context, not deviations: the spinner's bounding box grows with its rotation (its computed 14 × 14 matches; the draft's board holds it still); a Stopping reached by a keyboard press keeps the focus ring, which the draft's Stopping tile does not draw; the toast element's own font-size and line-height (draft 14 / 20, app 13 / normal) reach no text, as in 'Read-state failure dot and Retry toast'.
+
+### Not verified
+
+- The Home conversation strip with `prompt_unread` (title "Claude Code didn’t pick up your message", body "Edit your request on Home and send it again."): it draws only over a project's problem overlay, which the probe did not reach; the copy is pinned by `conversationStrip.test.ts` and the strip component is unchanged.
+- Any real Claude turn with background work, the real interrupt, and a real `prompt_unread` end (every state is injected).
+- Dark mode and forced colours.
+
+### Regression pointers
+
+`ConversationThread.background.test.tsx` (line, Stop states, focus, status), `turnStatus.test.ts` (`backgroundLine`, `stopBackground`, the stopping indicator), `ProjectOverview.context.test.tsx` and `CanvasConversationPanel.test.tsx` (host wiring), `ConversationThread.test.tsx` and `conversationStrip.test.ts` (unread copy). Sizes and colours are `.scratch/` probes only.
