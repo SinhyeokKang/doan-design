@@ -90,3 +90,19 @@
 #### Safari (2026-11-13)
 
 - 사용자가 `safari/` 12개 export 파일을 Safari에서 열고 스크린숏을 남겼다. conductor가 스크린숏을 README 기대값과 대조했고 12개 모두 Chromium export와 같았다. 외부 `<use>`의 CDN·`data:`(04·05)도 Safari에서 그려지지 않았다. 스크린숏은 확인 뒤 사용자 요청으로 지웠다.
+
+#### 구현 뒤 재비교 (2026-11-13)
+
+- **기준**: `origin/feat/canvas-svg-sprites` `5b80c027`(detached)에서 빌드한 CLI와 앱이다. 앱은 Electron 45.0.0, export 확인은 Chrome for Testing 148.0.7778.96이다. fixture는 위와 같은 `make-repo.mjs`이고, `@property`에 `syntax`만 있는 캔버스 `cp-prop-syntaxonly`를 더했다. export는 `go run ./cli/cmd/doan export`, check는 빌드한 CLI의 `check --repo <임시 repo> --json`으로 돌렸다.
+- **근거**: `.scratch/canvas-svg-sprites/recheck/`에 있다. `check.json`, `export/export-results.json`, `chromium/results.json`·스크린숏, `app/results-cp-prop-syntaxonly+inline-style.json`·스크린숏이다. 앱 probe의 실제 상태 비교는 38개 키가 같았다. 실행 중이던 사용자 Doan.app이 쓴 `sessions.jsonl` 한 키는 비교에서 뺐다.
+
+| 경우 | `doan check` | `doan export` | 앱 / Chromium export |
+|---|---|---|---|
+| 인라인 스프라이트 + `<style>`(`inline-style`) | finding 없음 | 성공 | 앱: 빨간 원 + 스프라이트 밖 초록 사각형. Chromium export도 같다 |
+| 외부 `<use>` 로컬 `href`·`xlink:href`·CDN·`data:` | 네 캔버스 모두 `svg_use_not_inline` error, `target`은 href 원문. CDN 캔버스에 `external_url` 없음(repo 전체에서 `external_url` 0건) | 네 캔버스 모두 `export_refused`(exit 2), 사유 "the app does not draw an external use; inline the sprite" | — |
+| 서로 다른 경로(`cp-diff-ab`·`-ba`, `cpx-*` 16쪽) | 선언 파일마다 `ambiguous_custom_url` warning(18건) | 모두 거부, 사유 "resolves to different paths from the stylesheets that use it" | — |
+| 같은 경로(`cp-same-cd`·`-dc`) | finding 없음 | 성공 | Chromium export: 두 요소 초록 |
+| 유효한 `@property`(`syntax: "<url>"`, `inherits`, `initial-value`; `cp-prop-ab`·`-ba`) | finding 없음 | 성공 | Chromium export: 두 요소 초록(선언 위치) |
+| `syntax`만 있는 `@property`(`cp-prop-syntaxonly`) | `ambiguous_custom_url` warning | 거부(같은 사유) | 앱: a 빨강, b 파랑. 등록되지 않아 사용처마다 풀린다 |
+
+- 위 표의 모든 결과가 기대와 같았다. repo 전체 check 요약은 canvases 37, errors 4(`svg_use_not_inline`), warnings 19(`ambiguous_custom_url`)였다.
