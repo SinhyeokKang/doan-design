@@ -202,7 +202,7 @@ describe("DotField lifecycle", () => {
   let rect = { width: 120, height: 60 }, color = "rgb(255, 255, 255)";
   const node = { width: 0, height: 0, getContext: () => ctx, getBoundingClientRect: () => rect };
   // The Worker's side runs in-process on the stubbed frames: vitest has no Worker or transferControlToOffscreen.
-  let posted: DotFieldMessage[], close: ReturnType<typeof vi.fn>;
+  let posted: DotFieldMessage[], close = vi.fn<() => void>();
   const start = vi.fn((canvas: HTMLCanvasElement, init: { size: DotFieldSize; color: string; reducedMotion: boolean }) => {
     const receive = dotFieldWorker({ request: run => requestAnimationFrame(run), cancel: frame => cancelAnimationFrame(frame) });
     receive({ kind: "start", canvas: canvas as unknown as DotCanvas, ...init });
@@ -213,7 +213,7 @@ describe("DotField lifecycle", () => {
   const attach = () => { if (!hooks.refs[0]!.current) hooks.refs[0]!.current = node; };
 
   beforeEach(() => {
-    reset(); frames = new Map(); next = 1; visibility = null; windowVisible = null; resize = null; doc.hidden = false; posted = []; close = vi.fn();
+    reset(); frames = new Map(); next = 1; visibility = null; windowVisible = null; resize = null; doc.hidden = false; posted = []; close = vi.fn<() => void>();
     rect = { width: 120, height: 60 }; color = "rgb(255, 255, 255)";
     for (const mock of [stopWindow, doc.addEventListener, doc.removeEventListener, media.motion.addEventListener, media.motion.removeEventListener, media.scheme.addEventListener, media.scheme.removeEventListener, observer.observe, observer.disconnect, start]) mock.mockClear();
     doc.addEventListener.mockImplementation((name: string, listener: () => void) => { if (name === "visibilitychange") visibility = listener; });
@@ -325,7 +325,7 @@ describe("DotField lifecycle", () => {
   });
 
   test("unmount ends the Worker and leaves no observer, media listener or visibility subscription", () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     render(field(true), attach);
     expect(observer.observe).toHaveBeenCalledWith(node);
     const motion = media.motion.addEventListener.mock.calls[0], scheme = media.scheme.addEventListener.mock.calls[0];
@@ -342,7 +342,7 @@ describe("DotField lifecycle", () => {
 
   // StrictMode runs a mounted effect's cleanup and the effect again on the same canvas, which can be transferred only once.
   test("a cleanup followed at once by a run on the same canvas keeps its Worker", () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     render(field(true), attach);
     unmount();
     render(field(true), attach);
