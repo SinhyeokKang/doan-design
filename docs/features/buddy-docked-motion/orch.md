@@ -57,3 +57,12 @@
 - D7(conductor 판단): 🟡2는 비켜줄 이유가 아니라 z-index 3으로 고친다. drawing 안내는 오래 남을 수 있어, 비켜줄 이유로 넣으면 그동안 버디가 입력창을 떠나 있기 때문이다.
 - F1 시작(`ctx_3e2702d342fb`, worktree `bdm-f1`, Sonnet medium — 작은 기계적 수정): 🟡 1·2, ⚪1·5.
 - F1 완료(`e7d05057`, `ef16b75f`): 🟡1 isConnected 재조회(red→green), 🟡2 패널 안내 줄 z 3, ⚪1·5.
+- M(Opus high) 완료(HEAD `e670f9ff`, 근거 `.scratch/handoff-M.md`, `.scratch/runtime-test/bdm-m/`). task 8 항목 대부분 통과. 실패·미확인:
+  - Playwright에서 최소화·Close Window 뒤에도 `document.hidden=false`라 rAF 120회/s가 이어졌다. 셸이 native visibility(`onWindowVisible`)를 보지 않는다 → O에서 고친다.
+  - 패널 안내 줄 위에 버디가 그려짐(M은 F1 이전 HEAD에서 쟀다. F1이 z 3으로 고쳤다).
+  - 실제 큐·추천 프롬프트·권한 카드, 다른 대화에만 큐가 있을 때의 전환, 사라진 캔버스 상태 줄, 버디 화면·첫 실행 덮개, 실제 창 blur는 확인하지 못했다(에이전트 없음, Playwright 포커스 에뮬레이션). 슬롯 속성과 `hasFocus` 주입으로 대신 확인했다.
+  - `isolatedEnv`가 PATH를 물려줘 HOME을 무시하는 에이전트 CLI(`agy`)가 실제 `~/.gemini`에 쓸 수 있다(미확정, runtime-support 공백. 이후 probe는 PATH를 제한했다).
+  - 비용(develop → 버디 보임, 중앙값): 렌더러 Task 6–7 → 75–85 ms/s, rAF 0 → 120/s, GPU CPU 0 → 4–5.5%, GPU 메모리 +16–21 MB, 렌더러 메모리 +40–59 MB, 셸 tick 0.2 ms(p95 0.3–0.4). 숨어 쉬는 상태(Overview 큐)는 rAF 0. 레이어 3개 추가(그중 `1432×1436 []` 원인 미상).
+- 사용자 결정: docked 버디는 60fps 상한(Home 버디는 그대로).
+- O 시작(`ctx_4f57fe2fab47`, worktree `bdm-o`, Opus high): native hidden 정지, 60fps 상한, 레이어 정리, 프레임당 작업 정리, 재측정.
+- 문서: PRODUCT(`5ab2a1f8`)와 ARCHITECTURE(`c4b7c3a8`)를 먼저 반영했다. O 결과에 따라 ARCHITECTURE의 Time 줄을 보탠다.
