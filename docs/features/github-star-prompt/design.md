@@ -73,3 +73,5 @@
 - 프레임 `card`: 첫 카드(`Star on GitHub ↗` · `Not now`), 두 번째 카드(`Star on GitHub ↗` · `Don’t ask again`), 열기 실패 줄(선택 가능한 저장소 주소), 카드 안 키보드 포커스.
 - 프레임 `placement`: 사이드바가 보일 때 Home·캔버스 페이지에서 사이드바 아래쪽 위의 카드, 사이드바를 숨겼을 때의 왼쪽 아래 카드, 오른쪽 아래 토스트가 함께 떠 있는 경우, 좁은 창(960×600).
 - 기존 셸·사이드바·토스트는 출시된 코드와 DESIGN.md에서 그대로 옮긴다.
+- 사용자 결정(2026-11-13): 좁은 창에서 사이드바를 숨긴 캔버스 페이지는 카드가 캔버스 도구줄 시작을 덮는다. 드문 경우이고 카드를 닫으면 풀리므로 그대로 둔다.
+- 초안(`022b292b`)이 정한 것: 카드 폭은 사이드바 행 폭(`calc(var(--doan-sidebar-width) - var(--space-4))`, 사이드바를 숨겨도 같은 폭), 창 왼쪽·아래 16, 버튼은 위아래로 쌓아 꽉 채움(`Star on GitHub ↗` prominent, 닫기 subtle), 실패 줄은 문구와 버튼 사이, 면은 불투명 `--surface-popover`(blur 없음), z-index는 토스트와 같은 6, region 이름 `Doan on GitHub`, 문구 `Find Doan useful? It’s open source on GitHub.`(두 카드 같음), 실패 줄 `Couldn’t open GitHub in your browser. Try again, or find Doan at https://github.com/SinhyeokKang/doan-design`.
