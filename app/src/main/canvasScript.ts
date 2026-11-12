@@ -792,11 +792,11 @@ export function canvasScript(lib: CanvasLib): void {
           // Focus left inside by an ⌥-click would make Esc look like typing.
           const active = document.activeElement;
           if (active !== null && !isRoot(active) && "blur" in active && typeof active.blur === "function") active.blur();
+        } else if (type === "click" && dragClick) {
+          // The click that ends a text drag selects nothing, and picks nothing when a pick started during the drag.
+          dragClick = false;
         } else if (type === "click" && picking !== null) {
           pickAt(event.target, event.shiftKey ? { x: event.clientX, y: event.clientY } : null);
-        } else if (type === "click" && dragClick) {
-          // The click that ends a text drag selects nothing.
-          dragClick = false;
         } else if (type === "click") {
           const target = event.target;
           if (!isElement(target) || target.isConnected) choose(target, event.metaKey);
@@ -829,6 +829,11 @@ export function canvasScript(lib: CanvasLib): void {
       // that shows here, so it is the press the app hears. A second press in the same nested frame moves no focus
       // and goes unheard.
       post({ type: "press" });
+      // It is the canvas's next press, so a text range goes as with any other.
+      if (textRange !== null || textDrag !== null) {
+        dropText();
+        postText(false);
+      }
       if (picking !== null) {
         if (active.isConnected) pickAt(active, null);
         return;
@@ -1018,18 +1023,21 @@ export function canvasScript(lib: CanvasLib): void {
     }
     const kept = selection.rangeCount > 0 && selection.anchorNode !== null && selection.focusNode !== null
       ? { anchor: selection.anchorNode, anchorOffset: selection.anchorOffset, focus: selection.focusNode, focusOffset: selection.focusOffset } : null;
-    selection.removeAllRanges();
-    selection.addRange(range);
-    const text = selection.toString();
-    selection.removeAllRanges();
-    if (kept !== null) {
-      try { selection.setBaseAndExtent(kept.anchor, kept.anchorOffset, kept.focus, kept.focusOffset); } catch { /* its nodes left the document */ }
+    // Whatever the read throws, the canvas gets its own styles and selection back.
+    try {
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return lib.clipHtml(selection.toString(), MAX_COPY_TEXT).html;
+    } finally {
+      selection.removeAllRanges();
+      if (kept !== null) {
+        try { selection.setBaseAndExtent(kept.anchor, kept.anchorOffset, kept.focus, kept.focusOffset); } catch { /* its nodes left the document */ }
+      }
+      if (sheet !== null) {
+        const added = sheet;
+        document.adoptedStyleSheets = document.adoptedStyleSheets.filter(adopted => adopted !== added);
+      }
     }
-    if (sheet !== null) {
-      const added = sheet;
-      document.adoptedStyleSheets = document.adoptedStyleSheets.filter(adopted => adopted !== added);
-    }
-    return lib.clipHtml(text, MAX_COPY_TEXT).html;
   };
 
   const postText = (dragging: boolean, text?: string) => {
@@ -1145,6 +1153,12 @@ export function canvasScript(lib: CanvasLib): void {
     (event: PointerEvent) => {
       const drag = textDrag;
       if (!event.isTrusted || drag === null || event.pointerId !== drag.pointerId) return;
+      // A release outside the frame before the capture was taken never comes back as a pointerup: a move with the
+      // button up ends the press there instead of starting a drag.
+      if (drag.state === "press" && (event.buttons & 1) === 0) {
+        textDrag = null;
+        return;
+      }
       const was = drag.state;
       drag.state = lib.textDragState(was, drag.screen, { x: event.screenX, y: event.screenY }, TEXT_DRAG_PX);
       if (drag.state !== "drag") return;
