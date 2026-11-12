@@ -88,7 +88,7 @@
   - `not_git`에서 Keep out of Git을 활성으로 바꾼다. 이유 문장은 "This folder isn't a Git repository. Choosing Keep out of Git creates one here."이다.
   - 고르면 Share 확인과 같은 `SettingsDialog`를 연다(사용자 결정).
     - 모달이고, 포커스는 Cancel에 있다. Escape는 Cancel이다. 주 버튼은 prominent "Create Repository"이고, 경고색은 쓰지 않는다.
-    - 제목: "Create a Git repository in `<folder>`?"
+    - 제목: "Create a Git repository in `<folder>`?" `<folder>`는 페이지 경로 줄과 같은 `~/…` 경로다(사용자 결정).
     - 설명: "Keep out of Git needs a Git repository. Doan will run git init here, then keep .doan/ out of it. It makes no commit, branch or remote, and the repository stays if you switch back."
   - 창이 열려 있는 동안 페이지를 잠근다(`projectSettingsLocked`). deep link를 버리는 것과 포커스 반환을 미루는 것도 Share 확인과 같다.
   - 다음 경우에는 창을 닫는다.
@@ -99,8 +99,9 @@
     - Cancel이든 성공이든 포커스는 선택된 쪽으로 간다. Cancel이면 Include in Git이다.
 - **오류 문구**
   - `git_missing`: "Git isn't installed, so Doan can't create a repository here. Install the Command Line Tools with `xcode-select --install`, then check again, or choose Include in Git." `ProjectSetupDialog`의 `CHIPS`에 `xcode-select --install`을 더한다.
-  - `git_init_failed`: "Couldn't create a Git repository here, so nothing was set up." 복구 안내는 폴더의 쓰기 권한이다.
-  - `cleanup_failed`: "Setup failed, and Doan couldn't remove the Git repository it created at `<path>/.git`. Remove it or keep it, then try again."
+  - `git_init_failed`: Set Up 폼과 Project Settings는 "Couldn't create a Git repository here, so nothing was set up." 한 문장만 보여 준다. 복구 문장은 없다(사용자 결정). 설정 패널은 소켓의 기존 `init_failed`로 받으므로 출시 문구 "Couldn't set up this folder. Check folder access and try again."를 그대로 쓴다(사용자 결정).
+  - 설정 패널의 오류 버튼: `git_init_failed`와 `cleanup_failed`는 기존 Set Up 거절처럼 Choose another folder와 Retry다. `git_missing`은 Choose another folder와 Check again이다(사용자 결정).
+  - `cleanup_failed`: "Setup failed, and Doan couldn't remove the Git repository it created at `<path>/.git`. Remove it or keep it, then try again." `<path>/.git`은 모든 화면에서 코드 칩으로 보여 준다(사용자 결정). Set Up 폼은 `CHIPS`에 이 경로를 더한다.
 - 기존 `local_not_git` 문구 세 곳은 그대로 둔다. 이전 CLI를 쓸 때와, ls와 init 사이에 상황이 바뀐 경우에 여전히 맞는 문장이기 때문이다.
 
 ## 받아들인 위험
@@ -212,3 +213,4 @@
 5. git 위치는 clone과 같은 규칙이다.
 6. 경쟁 상황에서는 `.git`을 먼저 배타적으로 확보한다.
 7. 첫 실행과 Add Projects 설정 패널은 저장 방식 카드 아래에 한 줄을 보여 준다.
+8. 초안 질문 라운드(5개): 위 '화면'의 오류 문구, 패널 버튼, 확인 창 제목의 경로, `.git` 경로 칩.
