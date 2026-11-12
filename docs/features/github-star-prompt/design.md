@@ -15,6 +15,7 @@
   - 띄우기: `star:moment`를 받으면 1.2초 타이머를 돌리고, 그 사이 키·포인터 입력이 있으면 다시 센다. 시간이 차면 `starPromptMoment`로 판단해 띄우거나 이번을 건너뛴다(다음 `star:moment`를 기다린다). 카드가 떠 있거나 타이머가 도는 동안의 새 신호는 무시한다.
   - 미룸 입력: 창 보임·앞(`onWindowVisible`과 `document.hidden`, Toast의 `nativeVisible`과 같은 출처), 첫 실행(`wizard !== null || buddyIntro.open`), 모달(`topDialog()`), Radix 팝오버(`[role="dialog"]`의 열린 Radix 층)·메뉴(`[role="menu"]`), 실행 중이거나 답을 기다리는 대화(대화 목록 상태), pick·Capture area.
   - 그림자: 카드와 토스트(`.toast`, 지금 `.doan-floating`의 `--shadow-panel`)가 새 토큰 `--shadow-floating`을 쓴다. 토큰은 초안과 함께 `tokens.css`에 더했고 DESIGN.md 'Added tokens'·'Depth'에 적었다. 토스트 변경은 이 기능의 구현에 들어간다.
+  - 모션: 카드와 토스트에 대화상자와 같은 `@starting-style` + `transition-behavior: allow-discrete` 방식으로 들어오고 나가는 transition을 둔다(spec '모션'). 토스트의 replaced는 같은 요소에서 내용만 바꿔 다시 움직이지 않게 한다. 나가는 동안 요소를 남기려면 렌더러가 닫힘을 120ms 미루거나 `display` allow-discrete를 쓴다(`/tdd`에서 정함).
   - Esc: 카드 안에서만 받는다(카드 요소의 keydown). 페이지 Esc 순서(App.tsx)와 겹치지 않는다.
   - 실패 줄: Release Notes ↗ 실패 줄 형식, 저장소 주소를 선택할 수 있는 텍스트로.
 - **CLI(Go)**, **스킬**, **가이드**, 공유 형식: 바뀌지 않는다.
