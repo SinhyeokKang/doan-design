@@ -273,6 +273,12 @@ export class CanvasController {
   private canvasText: string | null = null;
   private textDragging = false;
   private textEpoch = 0;
+  // Whether the range shown came from a drag the app believed (`held` once released), and the OS cursor reading a new
+  // range waits for: `message` is the newest text-range of that drag, applied if the reading passes; `tag` makes a
+  // later check or a clear win over an older reply.
+  private textTrust: "none" | "dragging" | "held" = "none";
+  private textCheck: { tag: number; asked: number; message: TextRangeMessage } | null = null;
+  private textTag = 0;
   private textLayer: { layer: HTMLElement; rects: HTMLElement[] } | null = null;
 
   // Raised by every move or selection change; a workspace open that waits for its folder's read goes ahead only
@@ -1923,16 +1929,51 @@ export class CanvasController {
     if (message.document !== this.pickDocument || message.epoch < this.textEpoch) return;
     if (this.tool === "hand" || this.state.picking || this.state.capturing) return;
     this.personActive(false);
-    const started = message.dragging && !this.textDragging;
-    const ended = !message.dragging && this.textDragging;
+    if (this.textTrust === "dragging") { this.applyText(message); return; }
+    // The canvas cleared it (its next press, or a drag back to its start).
+    if (!message.dragging && message.rects.length === 0) { this.resetText(); return; }
+    // A layout moving the lines of a range already believed.
+    if (this.textTrust === "held" && !message.dragging && message.text === undefined) { this.applyText(message); return; }
+    this.checkText(message);
+  }
+
+  // A canvas can post a range without the person touching it, and a believed one folds the app's text selection, sets
+  // what ⌘C copies and, while dragging, holds V, H, Space and following. So a new range (a drag's start, or text with no
+  // start the app saw) counts only when main reads the OS cursor over the canvas area within 500 ms, as a click's focus
+  // does; the rest of that drag is then believed through its release. Messages arriving meanwhile wait; the newest is
+  // applied when the reading passes.
+  private checkText(message: TextRangeMessage): void {
+    const waiting = this.textCheck;
+    if (waiting !== null && Date.now() - waiting.asked <= CLICK_CURSOR_MS) { waiting.message = message; return; }
+    const check = { tag: ++this.textTag, asked: Date.now(), message };
+    this.textCheck = check;
+    this.pointer().then(point => this.textChecked(check, point), (error: unknown) => {
+      console.error("pointer:get failed", error);
+      this.textChecked(check, null);
+    });
+  }
+
+  private textChecked(check: NonNullable<CanvasController["textCheck"]>, point: { x: number; y: number } | null): void {
+    if (check.tag !== this.textTag || this.textCheck !== check) return;
+    this.textCheck = null;
+    const area = this.viewport.getBoundingClientRect();
+    const inside = point !== null && Date.now() - check.asked <= CLICK_CURSOR_MS && point.x >= area.left && point.x < area.right && point.y >= area.top && point.y < area.bottom;
+    // Not the person's drag: the canvas drops its range too, so a later layout does not bring it back.
+    if (!inside) { this.clearText(true); return; }
+    // The selection made last is the one copied: a canvas text drag folds the app's own text selection.
+    const selection = window.getSelection?.();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed) selection.collapseToEnd();
+    this.textTrust = "dragging";
+    this.applyText(check.message);
+  }
+
+  // A message of a believed drag: its rects, whether it still drags, and its text once released.
+  private applyText(message: TextRangeMessage): void {
+    const ended = !message.dragging && this.textTrust === "dragging";
     this.textRects = message.rects;
     this.textDragging = message.dragging;
+    this.textTrust = message.dragging ? "dragging" : message.rects.length > 0 ? "held" : "none";
     this.canvasText = message.dragging || message.rects.length === 0 ? null : message.text ?? this.canvasText;
-    // The selection made last is the one copied: a canvas text drag folds the app's own text selection.
-    if (started) {
-      const selection = window.getSelection?.();
-      if (selection && selection.rangeCount > 0 && !selection.isCollapsed) selection.collapseToEnd();
-    }
     // Keys after the release go to the canvas area, as after a click.
     if (ended) this.focusOnClick();
     this.drawText();
@@ -1952,6 +1993,10 @@ export class CanvasController {
 
   // The document the range was in went away (or the canvas cleared it itself): nothing to tell it.
   private resetText(): void {
+    // A range still waiting for its cursor reading goes too.
+    this.textCheck = null;
+    this.textTag += 1;
+    this.textTrust = "none";
     if (!this.hasText() && this.canvasText === null) return;
     this.textRects = [];
     this.canvasText = null;
