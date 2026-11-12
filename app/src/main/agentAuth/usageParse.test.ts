@@ -9,9 +9,9 @@ const failed = { status: "unavailable", reason: "read_failed", readAt: AT };
 describe("claudeUsage", () => {
   it("reads the PoC response's windows and ignores keys it does not know", () => {
     expect(claudeUsage(fixture("claude"), AT)).toEqual({ status: "ok", readAt: AT, windows: [
-      { id: "five_hour", label: "5-hour", usedPercent: 3, resetsAt: Date.parse("2026-11-05T07:50:00.453Z") },
-      { id: "seven_day", label: "Weekly", usedPercent: 99, resetsAt: Date.parse("2026-11-07T04:00:00.453Z") },
-      { id: "model_scoped:Fable", label: "Weekly · Fable", usedPercent: 0, resetsAt: Date.parse("2026-11-07T04:00:00Z") },
+      { id: "five_hour", label: "5-hour", periodMins: 300, usedPercent: 3, resetsAt: Date.parse("2026-11-05T07:50:00.453Z") },
+      { id: "seven_day", label: "Weekly", periodMins: 10080, usedPercent: 99, resetsAt: Date.parse("2026-11-07T04:00:00.453Z") },
+      { id: "model_scoped:Fable", label: "Weekly · Fable", periodMins: 10080, usedPercent: 0, resetsAt: Date.parse("2026-11-07T04:00:00Z") },
     ] });
   });
   it("names the Opus and Sonnet windows and skips null windows and null utilization", () => {
@@ -20,8 +20,8 @@ describe("claudeUsage", () => {
       seven_day_opus: { utilization: 10, resets_at: null }, seven_day_sonnet: { utilization: 20 },
     } };
     expect(claudeUsage(response, AT)).toEqual({ status: "ok", readAt: AT, windows: [
-      { id: "seven_day_opus", label: "Weekly · Opus", usedPercent: 10 },
-      { id: "seven_day_sonnet", label: "Weekly · Sonnet", usedPercent: 20 },
+      { id: "seven_day_opus", label: "Weekly · Opus", periodMins: 10080, usedPercent: 10 },
+      { id: "seven_day_sonnet", label: "Weekly · Sonnet", periodMins: 10080, usedPercent: 20 },
     ] });
   });
   it("reads no plan limits when the account has none", () => {
@@ -65,17 +65,21 @@ describe("claudeUsage", () => {
 describe("codexUsage", () => {
   it("reads the PoC response's one 30-day window, reset seconds into ms", () => {
     expect(codexUsage(fixture("codex"), AT)).toEqual({ status: "ok", readAt: AT, windows: [
-      { id: "primary", label: "30-day", usedPercent: 38, resetsAt: 1795411967000 },
+      { id: "primary", label: "30-day", periodMins: 43200, usedPercent: 38, resetsAt: 1795411967000 },
     ] });
   });
   it.each([[300, "5-hour"], [10080, "Weekly"], [120, "2-hour"], [2880, "2-day"], [90, "90-minute"], [null, "Primary"]])("names a %s-minute window %s", (mins, label) => {
     const reading = codexUsage({ rateLimits: { primary: { usedPercent: 1, windowDurationMins: mins } } }, AT);
     expect(reading.status === "ok" && reading.windows[0]!.label).toBe(label);
   });
+  it("keeps no period when the window has no duration", () => {
+    const reading = codexUsage({ rateLimits: { primary: { usedPercent: 1, windowDurationMins: null } } }, AT);
+    expect(reading.status === "ok" && reading.windows[0]!.periodMins).toBeUndefined();
+  });
   it("reads primary and secondary and clamps", () => {
     const reading = codexUsage({ rateLimits: { primary: { usedPercent: 140, windowDurationMins: 300, resetsAt: null }, secondary: { usedPercent: 5, windowDurationMins: 10080 } } }, AT);
     expect(reading).toEqual({ status: "ok", readAt: AT, windows: [
-      { id: "primary", label: "5-hour", usedPercent: 100 }, { id: "secondary", label: "Weekly", usedPercent: 5 },
+      { id: "primary", label: "5-hour", periodMins: 300, usedPercent: 100 }, { id: "secondary", label: "Weekly", periodMins: 10080, usedPercent: 5 },
     ] });
   });
   it("marks the fullest window limited when the provider reports a reached limit", () => {

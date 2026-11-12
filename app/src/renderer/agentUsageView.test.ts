@@ -22,14 +22,14 @@ describe("shownUsage", () => {
 });
 
 describe("ringViews", () => {
-  it("shows the fullest window that has not reset, and an empty track otherwise", () => {
+  it("shows the weekly window, and an empty track otherwise", () => {
     const rings = ringViews([
-      ok("claude", [win({ usedPercent: 42 }), win({ id: "seven_day", usedPercent: 18 }), win({ id: "old", usedPercent: 95, resetsAt: NOW - MIN })]),
+      ok("claude", [win({ usedPercent: 42, periodMins: 300 }), win({ id: "seven_day", label: "Weekly", periodMins: 10080, usedPercent: 18 }), win({ id: "old", usedPercent: 95, resetsAt: NOW - MIN })]),
       { provider: "codex", inFlight: true },
       { provider: "cursor", reading: { status: "unavailable", reason: "read_failed", readAt: NOW }, inFlight: false },
       { provider: "copilot", reading: { status: "ok", windows: [], unlimited: true, readAt: NOW }, inFlight: false },
     ], NOW);
-    expect(rings.map(ring => [ring.provider, ring.value, ring.full])).toEqual([["claude", 42, false], ["codex", null, false], ["cursor", null, false], ["copilot", null, false]]);
+    expect(rings.map(ring => [ring.provider, ring.value, ring.full])).toEqual([["claude", 18, false], ["codex", null, false], ["cursor", null, false], ["copilot", null, false]]);
   });
 
   it("leaves a connection that can't be used empty", () => {
@@ -39,6 +39,11 @@ describe("ringViews", () => {
   it("turns danger at 70% or at a reported limit, with no warning step", () => {
     const [low, edge, limited] = ringViews([ok("claude", [win({ usedPercent: 69.9 })]), ok("codex", [win({ usedPercent: 70 })]), ok("cursor", [win({ usedPercent: 20, limited: true })])], NOW);
     expect([low!.full, edge!.full, limited!.full]).toEqual([false, true, true]);
+  });
+
+  it("turns danger only from the weekly window", () => {
+    const [claude] = ringViews([ok("claude", [win({ usedPercent: 100, periodMins: 300, limited: true }), win({ id: "seven_day", label: "Weekly", periodMins: 10080, usedPercent: 30 })])], NOW);
+    expect(claude).toMatchObject({ value: 30, limited: false, full: false });
   });
 
   it("puts the provider's logo in every ring, a lone ring included", () => {
@@ -63,6 +68,9 @@ describe("folding", () => {
     expect(foldedRing(rings)).toEqual({ ring: rings[1], more: 3 });
     const plain = ringViews([ok("claude", [win({ usedPercent: 42 })]), ok("cursor", [win({ usedPercent: 81 })])], NOW);
     expect(foldedRing(plain)).toEqual({ ring: plain[1], more: 1 });
+    // The folded ring compares weekly values: Claude's full 5-hour window does not make it the highest.
+    const weekly = ringViews([ok("claude", [win({ usedPercent: 99, periodMins: 300, limited: true }), win({ id: "seven_day", label: "Weekly", periodMins: 10080, usedPercent: 10 })]), ok("codex", [win({ id: "secondary", label: "Weekly", periodMins: 10080, usedPercent: 40 })])], NOW);
+    expect(foldedRing(weekly)).toEqual({ ring: weekly[1], more: 1 });
     const empty = ringViews([{ provider: "claude", inFlight: true }, { provider: "codex", inFlight: true }], NOW);
     expect(foldedRing(empty)).toEqual({ ring: empty[0], more: 1 });
   });
