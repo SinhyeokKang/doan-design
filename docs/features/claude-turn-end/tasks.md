@@ -22,7 +22,7 @@
    - 커밋 경계: 문서만(이 파일의 'PoC 결과', design.md의 `PROMOTION_SETTLE_MS` 값과 기록 필드). fixture는 3번 커밋에 넣는다.
 2. [x] **초안 (`/design-draft`).** 백그라운드 작업 줄(문구, Stop의 평소·누름·실패 상태, 실패 토스트, 라이트·다크, Overview와 캔버스 패널)과 결함 2의 실패 문구를 `.doan/canvases/`에 그린다.
    - 확인: `doan check`·`doan ls`가 통과하고, 사용자가 앱에서 초안을 확인했다.
-3. [ ] **테스트 먼저 (`/tdd`).** red를 확인한다.
+3. [x] **테스트 먼저 (`/tdd`).** red를 확인한다.
    - 순수 함수: `promotionDeadline`, `promptTransport`와 `normalizeClaude`의 프롬프트 읽힘 규칙, `readInTranscript`(두 버전의 fixture), `backgroundTasks`(`local_agent` 포함, `ambient` 제외), `afterTurnCleanup`, `backgroundLine`(design.md '순수 함수').
    - 서비스(판정): 턴(done, failed, interrupted)이 끝나고 그룹이 사라진 뒤 `promotionDeadline`에 판정되고, `turn.done` 순간에 보낸 send가 그때 시작된다(POSTMORTEM 2026-10-28: 이전 프로세스의 종료 콜백 전에 보낸다). 폴더 다시 읽기가 먼저 오면 그때 판정한다. 그룹이 남으면 10초 상한. handoff 판정도 같다. ACP 러너도 같고 Codex는 10초다.
    - 서비스(정리): `previousExit`이 제안 상태와 상관없이 정리 메서드를 부르고, 백그라운드 프로세스가 있어도 busy로 거부되지 않는다. `ended()`가 큐로 `holding`을 세울 때도 정리한다.
@@ -35,13 +35,13 @@
    - 기록: `storeRecovery.test.ts`에서 `prompt_unread`가 든 기록을 읽고, 모르는 코드는 여전히 거부한다.
    - 확인: 새 테스트만 red, 기존 `runners.test.ts`·`service.test.ts`·`project.test.ts`·`process.test.ts`는 녹색.
    - 커밋 경계: 새 함수와 메서드는 stub으로 export해 `npm --prefix app run typecheck`가 통과하고 새 테스트만 red인 상태로 커밋한다.
-4. [ ] **순수 함수와 기록 형식.** `project.ts`·`transport.ts`·`io.ts` 기록 파싱·백그라운드 집합·정리 결정·줄. `types.ts` `FailureCode`와 `store.ts` 검증 목록에 `prompt_unread`를 더한다.
+4. [x] **순수 함수와 기록 형식.** `project.ts`·`transport.ts`·`io.ts` 기록 파싱·백그라운드 집합·정리 결정·줄. `types.ts` `FailureCode`와 `store.ts` 검증 목록에 `prompt_unread`를 더한다.
    - 확인: `npm --prefix app test`에서 3번의 순수 함수 테스트 녹색.
    - 커밋 경계.
-5. [ ] **프로세스 정리와 runner.** `OwnedGroup.kill()`, Claude runner의 프롬프트 uuid, 정리 메서드와 두 호출 지점, done 뒤 백그라운드 집합 읽기와 자발적 모델 호출 막기.
+5. [x] **프로세스 정리와 runner.** `OwnedGroup.kill()`, Claude runner의 프롬프트 uuid, 정리 메서드와 두 호출 지점, done 뒤 백그라운드 집합 읽기와 자발적 모델 호출 막기.
    - 확인: `npm --prefix app test`에서 runner·process 테스트 녹색.
    - 커밋 경계.
-6. [ ] **서비스와 IPC.** `promotionDeadline` 타이머와 handoff 판정, `previousExit`·`ended()`의 정리, `pendingTerminal`과 기록 찾기, `interrupt()` not-busy 분기, 조용한 정지 경로와 `stop_required`, `background`·`stopping` 목록 필드.
+6. [x] **서비스와 IPC.** `promotionDeadline` 타이머와 handoff 판정, `previousExit`·`ended()`의 정리, `pendingTerminal`과 기록 찾기, `interrupt()` not-busy 분기, 조용한 정지 경로와 `stop_required`, `background`·`stopping` 목록 필드.
    - 확인: `npm --prefix app test` 녹색, `node .agents/skills/verify/scripts/verify.mjs` PASS.
    - 커밋 경계.
 7. [ ] **스레드 UI.** 백그라운드 줄과 Stop, 실패 문구, `stopping`의 표시줄 숨김, `homeRun.ts` 창을 Overview와 캔버스 패널에 반영한다. 첫 구현이므로 `/design-sync`로 2번 초안과 맞춘다.
