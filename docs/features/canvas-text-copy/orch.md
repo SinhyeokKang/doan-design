@@ -47,3 +47,5 @@ tasks 2(초안)는 develop에서 끝났다(`6a9a8e82`).
 - lead 요청: 이 링크의 마지막 GUI probe(앱 창, 네이티브 입력)가 끝나고 더 띄울 일이 없으면 lead에게 `[conductor canvas-text-copy] GUI done`을 보낸다. 그 뒤 수정 차례가 다시 화면을 쓰면 시작 전에 `[conductor canvas-text-copy] GUI again`을 보낸다. 수정 2차(🟡-1 커서 확인)에 짧은 실제 앱 확인이 남아 있어 아직 보내지 않는다.
 - 수정 1차 완료: `b5af594e`·`e66cc505`를 `8f2d229e`·`50a00e89`로 통합했다. red 4건이 green이 됐다. 테스트 공백을 메웠고, `epoch` 검사를 지웠을 때 테스트가 실패하는 것을 확인했다. 앱 test 10534개, typecheck, lint, build가 통과했다. 실제 앱 확인은 22/22 통과했다. 중간 실행 두 번은 링크 2(`cte-d`)의 probe 창이 네이티브 입력을 가로채 실패했다. 겹친 창 시각은 UTC 17:02–17:05이다. PR 본문에 적는다.
 - 수정 2차: 🟡-1을 사용자 결정대로 보냈다(dispatch `ctx_6e6daff647fc`). GUI 실행 전에 다른 링크의 probe 창이 떠 있는지 확인하게 했다.
+- 수정 2차 완료: `36ce425c`·`0342e1bc`를 `6167c209`·`5471de8a`로 통합했다. 새 범위가 시작될 때 `pointer:get`으로 한 번 확인한다. 통과한 드래그는 놓을 때까지 믿고, 실패하면 `clear-text`를 보낸다. 앱 test 10540개가 통과했고, 워커 HEAD에서 `verify.mjs`가 PASS였다. 실제 앱 확인은 24/24 통과했다(위조 확인 2건 포함). 앱 창은 UTC 17:59–18:01에 떠 있었다. lead에게 `GUI done`을 보냈다.
+- R 재검토: 수정 1·2차를 같은 리뷰 워커에 보냈다(dispatch `ctx_1b2d9c2f6f2a`). 이번에는 테스트도 돌린다.
