@@ -27,8 +27,8 @@
 
 | 배치 | 항목(tasks) | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| P | 1(PoC 기준선·요소별 비용·baseline·그라디언트 위험) | `.scratch/work-indicator-perf/`(conductor checkout), tasks.md 'PoC 결과' | 없음 | Opus high — tracing 해석, 격리, `yes` PID 관리, 시제품 판단이 필요하다 | probe가 두 조건 수치 출력, 실제 사용자 상태 비교 통과, `yes` PID 잔존 0 | 진행 중(worktree `wip-p`, dispatch `ctx_d7c11a1267d5`) |
-| (conductor) | 2(사용자 공유) | tasks.md 2 | P | — | 공유 요약을 tasks.md에 기록 | 대기 |
+| P | 1(PoC 기준선·요소별 비용·baseline·그라디언트 위험) | `.scratch/work-indicator-perf/`(conductor checkout), tasks.md 'PoC 결과' | 없음 | Opus high — tracing 해석, 격리, `yes` PID 관리, 시제품 판단이 필요하다 | probe가 두 조건 수치 출력, 실제 사용자 상태 비교 통과, `yes` PID 잔존 0 | 완료, 통합 `0671195a`(워커 `ecdbc0b4`). 워커 해제, worktree 삭제, 브랜치 `SinhyeokKang/wip-p` 보존 |
+| (conductor) | 2(사용자 공유) | tasks.md 2 | P | — | 공유 요약을 tasks.md에 기록 | 완료 |
 | A | 3의 점 필드 테스트, 4, 5 | `agentIndicator.ts`·`.test.ts`, `dotField.ts`·`.test.ts`, 새 Worker 진입점, `CanvasAgent.tsx`, `rendererImports.test.ts`, 필요하면 `electron.vite.config.*` | P | Opus high — Worker·OffscreenCanvas·CSP·빌드 산출물 확인, 상태 전환 메시지 설계 | typecheck·lint·test, 빌드 산출물에서 Worker·CSP 확인, 픽셀 채널 차 ≤2, fill 호출 수 | 대기 |
 | B | 3의 마커 테스트, 6, 8 | `styles.css`, `CanvasController.ts`(`drawWork`), `CanvasController.test.ts` 'working-frame marker', 보드 글로우·알림 열·대화 패널 컨테이너의 CSS | P | Opus high — drift 0 가드레일, 상태 규칙 옮기기, 큰 확대 레이어 위험 | typecheck·lint·test, tasks 6·8 픽셀 비교 전부 채널 차 ≤2, 멈춘 상태 Paint 0, 버디 창 잘림 없음 | 대기 |
 | C | 3의 스트리밍 테스트, 7 | `conversationStore.ts`·테스트, `ConversationThread.tsx`(스트리밍 반영만) | P | Opus medium — 범위가 좁지만 캐럿 위치 회귀(POSTMORTEM 2026-11-07)가 있다 | typecheck·lint·test, 40ms delta probe에서 프레임당 반영 ≤1, 최종 텍스트·캐럿 위치 동일 | 대기 |
@@ -39,6 +39,8 @@
 ## 파일 겹침과 순서
 
 - P → (2) → A·B·C 병렬 → 리뷰 → 통합 → M → 10.
+- 브리프: `.scratch/work-indicator-perf/briefs/`(`common.md`, `A.md`, `B.md`, `C.md`, `background-probe.md`). GUI probe는 워커가 `ask`로 슬롯을 받아 한 번에 하나만 돌리고, perf 모드는 다른 GUI probe 없이 혼자 돈다.
+- M은 바꾸기 전 빌드(`1955bc28`)와 바꾼 빌드를 같은 세션·같은 창 위치·같은 디스플레이(60 Hz 메인)에서 나란히 다시 잰다. 기준선 perf3는 창 일부가 보이는 위치에서 쟀고(P handoff), 그 위치에 따라 수치가 달라질 수 있기 때문이다.
 - A·B·C의 파일은 겹치지 않는다. B의 대화 패널 `contain`은 `styles.css`에만 쓰고, C는 `ConversationThread.tsx`의 스트리밍 반영만 바꾼다. C가 스레드 컨테이너 클래스를 바꿔야 하면 conductor에게 먼저 묻는다.
 - tasks.md는 P와 M만 쓴다(‘PoC 결과’). 구현 배치는 결과를 handoff 파일에 쓰고, conductor가 통합 때 옮긴다.
 - 9번에서 빠진 프레임이 0이 아니거나 줄지 않은 요소가 있어 수단을 더하면, 그 코드 변경은 소유 배치(A·B·C)에 새 Task로 보낸다.
