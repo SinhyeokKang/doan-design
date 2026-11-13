@@ -680,6 +680,13 @@ describe("quick open conversation matching", () => {
     expect(conversationIds(shown).at(-1)).toBe("c49");
   });
 
+  it("breaks equal activity times by conversation id, as the Conversation menu does", () => {
+    const at = ago(5 * MIN);
+    const entries = [folder("/repo", [])];
+    const lists = listsOf({ "/repo": [talk("m", { lastActivityAt: at }), talk("b", { lastActivityAt: at }), talk("z", { lastActivityAt: at }), talk("x", { lastActivityAt: "" }), talk("a", { lastActivityAt: "" })] });
+    expect(conversationIds(searchMatch(fullIndex(entries, lists), "", "/repo", commonOf, "conversation"))).toEqual(["b", "m", "z", "a", "x"]);
+  });
+
   it("groups an empty Conversations query by each root's most recent conversation", () => {
     const entries = [folder("/repo", []), folder("/sibling", []), folder("/other", [])];
     const lists = listsOf({

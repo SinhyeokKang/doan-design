@@ -1139,3 +1139,36 @@ test("a Quick Open pick that can no longer be opened goes nowhere and says why",
   expect(h.host.openCanvas).not.toHaveBeenCalled();
   expect(h.host.openOverview).not.toHaveBeenCalled();
 });
+
+// The notification and strip Open keep the shipped lookup: a shared id opens the first matching row, and a conversation
+// bound without an id matches by path (Quick Open alone refuses those through conversationCanvasMatch).
+test("a notification Open of a canvas conversation whose id is shared opens the first matching row, and an id-less one opens by path", async () => {
+  const twin: CanvasRow = { path: ".doan/canvases/copy.html", id: "a", url: "u" };
+  lists({ [ROOT]: [summary({ conversationId: "dup", canvas: { path: ".doan/canvases/a.html", id: "a" } }), summary({ conversationId: "legacy", canvas: { path: ".doan/canvases/b.html" } })] });
+  const h = harness([{ kind: "list", path: ROOT, servedRev: 0, canvases: [row("a"), twin, row("b")] }]);
+  h.run.entriesChanged();
+  await flush();
+  h.run.openConversation("dup");
+  expect(h.host.openCanvas).toHaveBeenLastCalledWith(ROOT, row("a"), { conversationId: "dup", waiting: false });
+  h.run.openConversation("legacy");
+  expect(h.host.openCanvas).toHaveBeenLastCalledWith(ROOT, row("b"), { conversationId: "legacy", waiting: false });
+  expect(h.host.openOverview).not.toHaveBeenCalled();
+});
+
+// App's askConversation scrolls the Overview to the request only when the listed phase waits; arrived must follow the
+// same rule, or a strip that already asks while the list lags would get neither the card nor the composer.
+test("a Quick Open pick of a project conversation says it waits by the listed phase, the rule the Overview's scroll uses", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
+  h.arrive();
+  h.run.event(event("c1", { type: "turn.started" }));
+  h.run.event(event("c1", { type: "permission.request", requestId: "r1", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] }));
+  expect(h.run.strip(ROOT)?.state.kind).toBe("permission");
+  lists({ [ROOT]: [summary({ conversationId: "c1", phase: "ended" })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  const arrived = vi.fn();
+  expect(h.run.openFound(ROOT, "c1", [], arrived)).toBe("opened");
+  h.accept();
+  expect(arrived).toHaveBeenLastCalledWith(false);
+});
