@@ -133,9 +133,14 @@ describe("forwarded reports", () => {
     expect(api.reportFrames).toHaveBeenCalledExactlyOnceWith({ gen: 1, frames: [] });
   });
 
-  test("a run that is ready stops listening", () => {
-    show(view());
+  test("a ready run still sends its late drawer list; a run that left the screen is not heard", () => {
+    const own = {};
+    const s = show(view());
+    s.frames!.set(1, { contentWindow: own } as never);
     show(view({ phase: "ready" }));
+    for (const listener of messages) listener({ source: own, origin: "null", data: { gen: 1, frames: [] } });
+    expect(api.reportFrames).toHaveBeenCalledOnce();
+    show(view({ gen: 2, phase: "read-failed" }));
     expect(messages).toHaveLength(0);
   });
 });

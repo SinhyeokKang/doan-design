@@ -55,15 +55,16 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
 
   const gen = view?.gen ?? null;
   const phase = view?.phase ?? null;
-  const run = phase === "loading" ? currentRun(layers, gen) : null;
+  // The run whose reports count: its result while it loads, and its drawer list, which can come after it is ready.
+  const runGen = currentRun(layers, gen)?.gen ?? null;
+  const loadingRun = phase === "loading" ? runGen : null;
 
   // The host's own limit, from the moment the iframe's src is set to the run's result (PROTOTYPE_LOAD_TIMEOUT_MS).
-  const runGen = run?.gen ?? null;
   useEffect(() => {
-    if (runGen === null) return;
-    const timer = setTimeout(() => { void api.reportResult({ gen: runGen, state: "timeout" }); }, PROTOTYPE_LOAD_TIMEOUT_MS);
+    if (loadingRun === null) return;
+    const timer = setTimeout(() => { void api.reportResult({ gen: loadingRun, state: "timeout" }); }, PROTOTYPE_LOAD_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [api, runGen]);
+  }, [api, loadingRun]);
 
   useEffect(() => {
     if (runGen === null) return;
