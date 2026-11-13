@@ -1,20 +1,16 @@
 # usage-limit-resume — tasks
 
-`/feature-review`는 끝났다. PoC → 초안 → 순수 함수와 IPC 모양 → main(I/O) → renderer → 문서 순서로 간다. 포맷 변경은 없다. PoC가 늦어지면 PoC에 기대지 않는 순수 함수(3의 `limitState`, `sendDecision`, `autoSchedule`, `resetTimeText`, `queueStatusLine`, `endView`, 슬롯)는 먼저 시작할 수 있다.
+`/feature-review`는 끝났다. PoC → 초안 → 순수 함수와 IPC 모양 → main(I/O) → renderer → 문서 순서로 간다. 포맷 변경은 없다. PoC는 로그 기반으로 끝났다(design.md 'PoC 결과').
 
-- [ ] 1. PoC(`.scratch/`): 한도에 걸린 실제 Doan 연결 계정으로 Claude Code와 Codex 각각 다음을 기록한다. 결과로 `limitResetFromUsage`·`turnHadActivity` fixture와 `sendAt` 여유를 정한다. 검증: 명령 미정 — 사용자 확인 필요(한도에 걸린 실제 계정이 있어야 한다).
-  - 한도 실패 직후 Agent usage 읽기의 창과 `limited`, `resetsAt`.
-  - 거절된 턴의 이벤트.
-  - 리셋 정각 전송의 수락 여부.
-  - 커밋 경계: PoC 관찰은 이 문서나 커밋 메시지에 적는다.
+- [x] 1. PoC(로그 기반, 사용자 결정): 이 Mac의 과거 Claude Code transcript와 Codex 세션 기록에서 한도 거절과 한도 스냅샷의 형태를 확인했다. 결과는 design.md 'PoC 결과'에 있다. 실제 한도에서의 확인은 미룬다.
 - [x] 2. `/design-draft`로 새 초안 `.doan/canvases/usage-limit-resume.html`을 그리고 사용자 확인을 받는다. 프레임: Queue 버튼과 tooltip, 예약 행과 상태 줄(시각 형식 네 가지, Sending…), 실패 줄의 새 둘째 줄, 자동 예약된 실패 턴, 재예약, 사이드바 슬롯의 예약 상태, 삭제 확인창의 새 줄, Home 거절 문구. 기존 화면의 초안은 고치지 않는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
   - 커밋 경계: 초안.
 - [ ] 3. `/tdd`: 순수 함수와 IPC 모양을 고정하고 red를 확인한다. 검증: `npm --prefix app test`가 새 테스트에서만 실패한다.
   - `limitResetFromUsage`: 리셋 시각 없음, 이미 지난 시각, 정각, 두 provider fixture.
   - `limitState`: 만료, 연결 교체.
   - `sendDecision`: ACP provider·legacy external·새 대화 시작은 `refuse`, 일하는 중이면 `queue`, 한도 상태면 `schedule`.
-  - `turnHadActivity`: PoC fixture.
-  - `autoSchedule`: 활동 있음, 시각 모름, 더 늦지 않은 재예약.
+  - `turnHadActivity`, `claudeResetFromDetail`: 과거 로그에서 고른 익명화 fixture(5-hour, weekly 문구, 날짜 있음·없음, 시간대).
+  - `autoSchedule`: 활동 있음, 시각 모름, 더 이른 재예약, 같은 시각 첫 번째(retry)와 두 번째(none).
   - `sendAt`.
   - `resetTimeText`: 오늘·내일·6일 안·그보다 먼 날, 자정 경계, 시간대 변경, 일광 절약 시간 전환, 12/24시간.
   - `queueStatusLine`, `endView`의 새 둘째 줄(마지막 턴일 때만, detail과 한도 상태가 둘 다 있을 때), 슬롯 우선순위.
@@ -55,4 +51,5 @@
     - §5 item 3 한도 문단과 삭제 확인창.
   - ARCHITECTURE §7: 리셋 시각 출처(Agent usage 재사용), 연결별 한도 상태, 예약 상태와 IPC, 타이머와 `powerMonitor`.
   - DESIGN.md: Queue 버튼, 예약 상태 줄, 슬롯.
+  - BACKLOG 'Not verified in the real app': 실제 한도에서 Agent usage가 `limited`를 돌려주는지, 리셋 직후 전송의 수락 여부, 60초 여유와 한 번 재시도가 충분한지.
   - 커밋 경계: 문서 승격(문서마다 커밋).

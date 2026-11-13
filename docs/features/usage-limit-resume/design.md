@@ -22,7 +22,7 @@
 - Agent usage(`agentAuth/usageService.ts`, `usageRead.ts`, `usageParse.ts`)가 이미 Doan 연결마다 창별 `usedPercent`, `resetsAt`(ms), `limited`를 읽는다. PRODUCT §5 item 0 'Agent usage'의 "Limit reached · resets in"이 이것이다. 새로 파싱하지 않는다.
 - 한도 상태의 리셋 시각은 그 연결에서 `limited`인 창들의 `resetsAt` 중 가장 늦은 값이다. Codex는 `usageParse.ts`의 `limited` 규칙(`rateLimitReachedType`)을, Claude는 그 파서의 창 규칙을 그대로 쓴다.
 - Claude transport의 `rate_limit_event`(`SDKRateLimitInfo`)는 지금 쓰지 않고 지나친다. 이 기능에서도 그대로 둔다. 참고로 `resetsAt`은 초 단위다(`app/src/main/conversation/fixtures/claude-frames-2.1.322-next-turn-after-stop.jsonl`의 `"resetsAt":1794978000`).
-- 실패 detail의 사람용 문구("resets 3pm")는 해석하지 않는다. 지금처럼 화면 문구에만 쓴다.
+- 보조 출처(Claude Code만): 사용량에서 리셋 시각을 얻지 못하면 실패 detail의 “You've hit your <window> limit · resets <when> (<IANA 시간대>)”에서 시각과 시간대를 읽는다. 과거 로그의 형태는 “resets 10:10pm (Asia/Seoul)”, “resets Oct 17 at 1pm (Asia/Seoul)”이다. 읽을 수 없으면 리셋 시각이 없는 것으로 본다. Codex 실패 문구는 해석하지 않는다.
 
 ## 상태 모델
 
@@ -51,8 +51,9 @@
 2. `limitState(prev, connectionId, reset, now)` — 연결별 상태 갱신과 만료.
 3. `sendDecision({ provider, owner, limit, working, scheduled, now })` — `"send" | "queue" | "schedule" | "refuse"`. ACP provider, legacy external, 새 대화 시작은 `schedule`이 되지 않는다. 일하는 중이면 지금처럼 `queue`다.
 4. `turnHadActivity(events)` — 한 턴의 이벤트에 에이전트의 답 글이나 도구 단계가 있었는지. 정확한 기준은 PoC가 정한다.
-5. `autoSchedule({ code, hadActivity, reset, previousReset, now })` — `"schedule" | "none"`. `rate_limited`이고 활동이 없고, 리셋 시각을 알며, 재예약이면 이전보다 늦을 때만 schedule.
-6. `sendAt(resetsAt, margin)` — 실제 전송 시각.
+5. `autoSchedule({ code, hadActivity, reset, previousReset, retriedSame, now })` — `"schedule" | "retry" | "none"`. `rate_limited`이고 활동이 없고 리셋 시각을 알 때: 처음이면 schedule, 재예약이면 이전보다 늦을 때 schedule, 같으면 아직 같은 시각으로 다시 시도하지 않았을 때만 retry(60초 뒤), 그 밖에는 none.
+5a. `claudeResetFromDetail(detail, now)` — 보조 출처의 시각과 시간대를 ms로. 날짜가 없으면 now 이후 가장 가까운 그 시각이다. 읽을 수 없으면 null.
+6. `sendAt(resetsAt)` — 리셋 시각 + 60초.
 7. `resetTimeText(at, now, { timeZone, hour12 })` — 오늘·tomorrow·요일·날짜 형식. 자정 경계, 시간대 변경, 일광 절약 시간 전환을 다룬다.
 8. `queueStatusLine(scheduledAt, now)` — “Sends when the limit resets at …” 또는 “Sending…”.
 9. `endView` 확장 — 마지막 턴이고 한도 상태가 살아 있을 때의 둘째 줄. detail의 "resets <when>"과 한도 상태가 둘 다 있으면 한도 상태의 시각을 쓴다.
@@ -81,13 +82,15 @@
 - **PRODUCT §5 item 1**의 대기열 규칙("after a failed … turn, the queue comes back as the draft")에 한도 실패의 예외를 더한다.
 - 서버 없음(§3 5), GitHub 토큰, git 명령과 무관하다. 사용량 읽기는 Agent usage가 이미 쓰는 Doan 연결의 읽기다.
 
-## PoC 의존
+## PoC 결과 (로그 기반, 2026-11-13)
 
-1. 한도 실패 직후 Agent usage 읽기가 두 provider 모두에서 `limited` 창과 리셋 시각을 돌려주는지.
-2. 한도로 거절된 턴이 어떤 이벤트를 남기는지(Claude: `rate_limit_event` `rejected` 앞뒤의 이벤트, 답 글이나 도구 단계의 유무. Codex: 실패 전 이벤트). 이것으로 `turnHadActivity`의 기준을 정한다.
-3. 리셋 시각 정각에 보낸 요청이 받아들여지는지, 여유가 얼마나 필요한지.
+한도에 걸린 계정이 없어서, 이 Mac의 과거 로그를 읽기만 해서 확인했다(사용자 결정).
 
-세 항목 모두 한도에 걸린 실제 Doan 연결 계정이 있어야 한다. 시점은 사용자와 맞춘다(확인 필요). PoC는 `limitResetFromUsage`와 `turnHadActivity`의 fixture, `sendAt`의 여유만 막는다. 나머지 순수 함수는 PoC 없이 시작할 수 있다.
+1. **Claude Code 거절 형태**: `~/.claude/projects/` transcript에 실제 한도 거절 2건이 있다(Claude Code 2.1.319). 사람 메시지 바로 뒤에 합성 assistant 메시지(`isApiErrorMessage: true`, model `<synthetic>`)로 “You've hit your 5-hour limit · resets 10:10pm (Asia/Seoul)”이 오고, 그 사이 에이전트 활동은 0회다. 다른 transcript의 문구로는 “You've hit your weekly limit · resets Oct 17 at 1pm (Asia/Seoul)”도 있다. 그래서 '활동 없는 한도 실패'가 흔한 경우이고, `turnHadActivity`는 그 턴에 답 글이나 도구 단계 이벤트가 있었는지로 판정한다.
+2. **Codex 한도 형태**: `~/.codex/sessions` 기록에 `rate_limits.primary.used_percent: 100.0`, `resets_at`(초), `window_minutes: 43200`인 스냅샷이 있다. Agent usage의 Codex 파서가 읽는 필드와 같다.
+3. **확인하지 못한 것**: 한도 직후 Agent usage 읽기가 `limited`를 돌려주는지, 리셋 정각에 보낸 요청이 받아들여지는지. 그래서 보조 출처(Claude 실패 문구), 60초 여유, 같은 시각으로 막히면 한 번 다시 시도하는 규칙으로 버틴다. 실제 한도에서의 확인은 승격 때 BACKLOG 'Not verified in the real app'에 남긴다.
+
+fixture는 이 로그에서 필요한 줄만 골라 대화 내용을 지우고 `app/src/main/conversation/fixtures/`에 둔다(`/tdd`에서).
 
 ## POSTMORTEM에서 가져온 함정
 
