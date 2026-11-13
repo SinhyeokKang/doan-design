@@ -30,6 +30,8 @@ export interface PrototypeWindowDeps {
   closed(): void;
   // The same permission, device and download denials as the default session.
   denyPermissions(target: Session): void;
+  // The prototype window gained or lost focus: menu items of the main window go off while it has it.
+  focusChanged?(focused: boolean): void;
 }
 
 export interface PrototypeWindow {
@@ -149,6 +151,8 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     contents.on("render-process-gone", () => {
       if (window === created && !created.isDestroyed()) created.destroy();
     });
+    created.on("focus", () => { if (window === created) deps.focusChanged?.(true); });
+    created.on("blur", () => { if (window === created) deps.focusChanged?.(false); });
     created.on("close", () => {
       if (window !== created) return;
       closing = true;
@@ -163,6 +167,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       closing = false;
       armed = null;
       runs.clear();
+      deps.focusChanged?.(false);
       deps.closed();
     });
     const devUrl = process.env.ELECTRON_RENDERER_URL;

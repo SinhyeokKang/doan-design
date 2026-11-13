@@ -248,6 +248,8 @@ let thumbnails: Thumbnails | undefined;
 // The app always starts on Home.
 const HOME: MenuInputs = { screen: "home", modal: false };
 let menuInputs: MenuInputs = HOME;
+// The prototype window has focus: the main window's own menu items go off (menuState `prototypeFocused`).
+let prototypeFocused = false;
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
 
 // Thumbnails are for the window's overview, so nothing is captured while it
@@ -306,6 +308,11 @@ const prototype = createPrototypeWindow({
   mainWindow: () => win,
   closed: () => send(PROTOTYPE_CHANNELS.closed),
   denyPermissions,
+  focusChanged(focused) {
+    if (focused === prototypeFocused) return;
+    prototypeFocused = focused;
+    setMenu();
+  },
 });
 
 // A registered window's main frame, or nothing: iframes, the capture window
@@ -364,7 +371,7 @@ function editHistory(kind: "undo" | "redo"): NonNullable<MenuItemConstructorOpti
 // go to the renderer, which zooms the board and reloads only the canvas.
 // The menu is rebuilt whenever its enablement changes.
 function menuEnabledNow() {
-  return menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen || buddyIntroOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true });
+  return menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen || buddyIntroOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true, prototypeFocused });
 }
 
 function setMenu(): void {
