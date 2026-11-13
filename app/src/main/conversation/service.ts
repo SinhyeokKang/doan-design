@@ -29,8 +29,9 @@ import type { UsageWindow } from "../agentAuth/usageTypes";
 // permissionMode: one of the common ids (ipc checks it); Default is never stored.
 // A start a handoff makes, never one ipc makes: the earlier conversation, the handoff text
 // for the prompt (never read for markers) and the rule that the target has no current conversation at acceptance.
-// path: the request it starts, which a cancel meanwhile resolves (checkHandoffSource).
-export interface HandoffStart { origin: HandoffOrigin; requireNoCurrent: true; handoffText: string; path: string }
+// turnId and path: the asking turn and its request, which a cancel meanwhile resolves and a later turn of the same
+// conversation may ask again (checkHandoffSource).
+export interface HandoffStart { origin: HandoffOrigin; requireNoCurrent: true; handoffText: string; turnId: string; path: string }
 // defaultEffort: as SendExtras's, the level the first turn names when its model has no effort; it is never stored.
 export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Provider; canvas?: Canvas; text: string; anchors: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: AttachmentRecord[]; defaultEffort?: string }
 export interface Prepared {
@@ -325,7 +326,7 @@ export class ConversationService {
       if (input.quiet) live.quiet = input.quiet;
       if (this.quitting) throw new Error("busy");
       // A handoff cancelled while this was prepared opens no runner and holds no lease (POSTMORTEM 2026-10-27).
-      if (handoff) this.checkHandoffSource(handoff.origin.conversationId, handoff.path);
+      if (handoff) this.checkHandoffSource(handoff.origin.conversationId, handoff.turnId, handoff.path);
       if (input.sessionId) this.promote(id, input, input.sessionId);
       opening = true;
       live.mcpGeneration = input.mcp?.generation();
@@ -354,7 +355,7 @@ export class ConversationService {
       const replaced = entries.filter(m => m.state === "current" && m.root === request.root && m.canvas && request.canvas && sameCanvas(m.canvas, request.canvas));
       // A handoff archives nothing: a current conversation that appeared since the judgement refuses it, and so does an
       // earlier conversation archived meanwhile (POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn').
-      if (handoff) { if (replaced.length) throw new Error("has_conversation"); this.checkHandoffSource(handoff.origin.conversationId, handoff.path); }
+      if (handoff) { if (replaced.length) throw new Error("has_conversation"); this.checkHandoffSource(handoff.origin.conversationId, handoff.turnId, handoff.path); }
       // The files may have moved while the runner was prepared and opened; the prompt and history use this check.
       const attachments = attached ? attached.recheck() : request.attachments ?? [];
       const guided = !handoff && handoffGuidanceFor(metadata, mode(request.permissionMode));
@@ -1333,7 +1334,7 @@ export class ConversationService {
       // The model's default level when it has no stored effort, as a queued turn's.
       const defaultEffort = m.model && !m.effort ? this.queueOptions.defaultEffort?.(m.root, m.session.runtime, m.model) : undefined;
       const { conversationId } = await this.start({ root: m.root, mode: "new", runtime: m.session.runtime, canvas: target, text: request.text, anchors: [], ...choice(m), ...fastOf(m), ...mode(m.permissionMode), ...(defaultEffort ? { defaultEffort } : {}) },
-        undefined, { origin, requireNoCurrent: true, handoffText: request.text, path: request.path });
+        undefined, { origin, requireNoCurrent: true, handoffText: request.text, turnId: turn.turnId, path: request.path });
       resolution = { outcome: "started", target: { conversationId, canvas: this.store.list().find(e => e.conversationId === conversationId)?.canvas ?? target } };
     } catch (error) {
       const code = reason(error);
@@ -1344,8 +1345,11 @@ export class ConversationService {
     if (request.state !== "starting" || this.handoffTurns.get(id) !== turn) return;
     this.resolveHandoff(id, turn, request, resolution);
   }
-  private checkHandoffSource(id: string, path: string): void {
-    const request = this.handoffTurns.get(id)?.requests.find(r => r.path === path), m = this.store.list().find(e => e.conversationId === id);
+  // The asking turn must still be the conversation's handoff turn: after a cancel, a restore and a later turn may ask
+  // for the same path, whose request must not lend this start its state (POSTMORTEM 2026-10-27).
+  private checkHandoffSource(id: string, turnId: string, path: string): void {
+    const turn = this.handoffTurns.get(id), m = this.store.list().find(e => e.conversationId === id);
+    const request = turn?.turnId === turnId ? turn.requests.find(r => r.path === path) : undefined;
     if (request?.state !== "starting" || m?.state !== "current") throw new Error("handoff_cancelled");
   }
   // Every request not resolved yet is cancelled: a turn that did not end done, a stop or sign-out of its provider, an
@@ -1385,10 +1389,14 @@ export class ConversationService {
   }
   // A queue moved to a conversation whose turn already ended (its first turn's end came before the start was accepted):
   // handled as that end handles a queue (ended), so nothing is left waiting. A usage-limit read that end started takes
-  // the queue when it is over (limitEnded), and a send scheduled for the reset sends it then (sendDue).
+  // the queue when it is over (limitEnded), and a send scheduled for the reset sends it then (sendDue). A conversation no
+  // longer current, closed or whose history stopped taking writes gets it back as a draft, as an archive hands a queue
+  // back: a send would restore an archived one over the canvas's current conversation.
   private queueAfterEnd(id: string): void {
     const live = this.live.get(id);
     if (!live?.terminal || live.busy || live.holding || live.limitLookup || this.schedules.has(id) || !this.drafts.queued(id).length) return;
+    const m = this.store.list().find(e => e.conversationId === id);
+    if (m?.state !== "current" || live.closed || live.failedPersistence) { this.giveBack(id, "interrupted"); return; }
     if (live.done) { live.holding = {}; this.endAfterTurn(id); this.flush(id, live); return; }
     let interrupted = false;
     try { interrupted = [...this.store.read(id)].reverse().find(e => e.turnId === live.turnId && (e.type === "turn.failed" || e.type === "interrupted"))?.type === "interrupted"; }

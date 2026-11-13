@@ -15,7 +15,7 @@ const paths: string[] = [];
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" }, c = { path: ".doan/canvases/c.html", id: "c" };
 type Steering = Runner & { steer: NonNullable<Runner["steer"]> };
-function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; legacy?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"]; defaultEffort?: QueueOptions["defaultEffort"]; draftsDir?: string } = {}) {
+function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; legacy?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"]; defaultEffort?: QueueOptions["defaultEffort"]; draftsDir?: string; limitWindows?: QueueOptions["limitWindows"] } = {}) {
   const provider = options.provider ?? "codex";
   const dir = mkdtempSync(join(tmpdir(), "doan-handoff-")); paths.push(dir);
   const store = new ConversationStore(dir); const runners: Steering[] = []; let session = 0;
@@ -31,7 +31,7 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
   const notices: ConversationHandoffNotice[] = [];
   const published: ConversationEvent[] = [];
   const admit = (_root: string, canvas?: Canvas) => canvas ? resolveListedCanvas(canvas, listed) : undefined;
-  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, () => listed, () => {}, { drafts, ...(options.files ? { files: options.files } : {}), ...(options.fast ? { fast: options.fast } : {}), ...(options.defaultEffort ? { defaultEffort: options.defaultEffort } : {}) }, undefined, undefined, notice => notices.push(notice));
+  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, () => listed, () => {}, { drafts, ...(options.files ? { files: options.files } : {}), ...(options.fast ? { fast: options.fast } : {}), ...(options.defaultEffort ? { defaultEffort: options.defaultEffort } : {}), ...(options.limitWindows ? { limitWindows: options.limitWindows } : {}) }, undefined, undefined, notice => notices.push(notice));
   const sourceRequest: StartRequest = { root: "/repo", mode: "new", runtime: provider, canvas: a, text: "Make a checkout page", anchors: [], model: "gpt-x", effort: "high", permissionMode: "acceptEdits" };
   const key = (runner: number) => open.mock.calls[runner]![0].env.DOAN_HANDOFF;
   const ask = (handoff: string | undefined, path: string, root = "/repo", text = "The person wants a checkout flow; the cart is next.") =>
@@ -256,8 +256,8 @@ describe("the end of a turn that asked", () => {
   });
   // The queue follows a single started handoff even when that conversation's first turn ended before its start was
   // accepted: it is then handled as that turn's end handles a queue (sent after done, a draft after a failure).
-  const endedEarly = async (end: EventPayload) => {
-    const h = fixture(); const id = await h.start();
+  const endedEarly = async (end: EventPayload, options: Parameters<typeof fixture>[0] = {}) => {
+    const h = fixture(options); const id = await h.start();
     h.ask(h.key(0), b.path); h.listed.push(b);
     h.service.queue(id, { text: "and the cart", anchors: [] });
     const open = h.open.getMockImplementation()!;
@@ -280,6 +280,66 @@ describe("the end of a turn that asked", () => {
     expect(h.service.list("/repo").find(s => s.conversationId === target)?.working).toBe(false);
     expect(h.texts(id)).toEqual(["Make a checkout page"]);
     expect(h.drafts.queued(id)).toEqual([]); expect(h.drafts.returned(id)).toBeUndefined();
+  });
+  it("moves the queue to a next conversation whose first turn was stopped before acceptance, which returns it as its draft", async () => {
+    const { h, id, target } = await endedEarly({ type: "interrupted", reason: "user" });
+    expect(h.drafts.returned(target)).toMatchObject({ text: "and the cart", reason: "interrupted" });
+    expect(h.drafts.queued(target)).toEqual([]);
+    expect(h.texts(id)).toEqual(["Make a checkout page"]); expect(h.drafts.returned(id)).toBeUndefined();
+  });
+  it("leaves a moved queue to the usage read a rate-limited first turn started, which returns it once the read is over", async () => {
+    let answer = (_windows: readonly never[]) => {};
+    const limitWindows = vi.fn(() => new Promise<readonly never[]>(resolve => { answer = resolve; }));
+    const { h, id, target } = await endedEarly({ type: "turn.failed", code: "rate_limited" }, { limitWindows });
+    await vi.waitFor(() => expect(limitWindows).toHaveBeenCalledOnce());
+    expect(h.drafts.queued(target).map(item => item.text)).toEqual(["and the cart"]);
+    expect(h.drafts.returned(target)).toBeUndefined();
+    answer([]);
+    await vi.waitFor(() => expect(h.drafts.returned(target)).toMatchObject({ text: "and the cart" }));
+    expect(h.drafts.queued(target)).toEqual([]);
+    expect(h.texts(id)).toEqual(["Make a checkout page"]); expect(h.drafts.returned(id)).toBeUndefined();
+  });
+  it("returns a moved queue as the draft of a next conversation archived before the queue reached it, and restores nothing", async () => {
+    const h = fixture({ provider: "claude" }); const id = await h.start();
+    h.ask(h.key(0), b.path); h.listed.push(b);
+    h.service.queue(id, { text: "and the cart", anchors: [] });
+    const open = h.open.getMockImplementation()!;
+    h.open.mockImplementationOnce(async (input, event, ...rest) => { const runner = await open(input, event, ...rest); event({ type: "turn.done" }); return runner; });
+    // Another start on b is accepted after the handoff's start and before its resolution, and ends; the first runner is gone.
+    const real = h.service.start.bind(h.service);
+    let replacement = "";
+    const spy = vi.spyOn(h.service, "start").mockImplementation(async (request, attached, handoff) => {
+      const result = await real(request, attached, handoff);
+      if (handoff) {
+        spy.mockRestore();
+        replacement = (await real({ root: "/repo", mode: "new", runtime: "claude", canvas: b, text: "mine", anchors: [] })).conversationId;
+        h.service.receive(replacement, { type: "turn.done" });
+        h.open.mock.calls[1]![2]();
+      }
+      return result;
+    });
+    h.service.receive(id, { type: "turn.done" });
+    await h.settled();
+    const first = h.resolutions(id)[0]!;
+    const target = first.type === "handoff.resolved" && first.outcome === "started" ? first.target.conversationId : "";
+    await vi.waitFor(() => expect(h.drafts.returned(target)).toMatchObject({ text: "and the cart" }));
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(h.entry(target).state).toBe("archived");
+    expect(h.entry(replacement).state).toBe("current");
+    expect(h.texts(target)).toHaveLength(1);
+    expect(h.texts(id)).toEqual(["Make a checkout page"]);
+  });
+  it("returns a moved queue as the draft of a next conversation archived while the queue waits for its first runner to end", async () => {
+    const { h, id, target } = await endedEarly({ type: "turn.done" }, { provider: "claude" });
+    // The queue went out and its send waits for the first runner's process, which never ends here.
+    await vi.waitFor(() => expect(h.service.list("/repo").find(s => s.conversationId === target)?.working).toBe(true));
+    expect(h.texts(target)).toHaveLength(1); expect(h.drafts.returned(target)).toBeUndefined();
+    const mine = await h.start({ canvas: b, text: "mine" });
+    await vi.waitFor(() => expect(h.drafts.returned(target)).toMatchObject({ text: "and the cart" }));
+    expect(h.entry(target).state).toBe("archived");
+    expect(h.entry(mine).state).toBe("current");
+    expect(h.texts(target)).toHaveLength(1);
+    expect(h.texts(id)).toEqual(["Make a checkout page"]);
   });
   it("moves the person's queue to the next conversation, which sends it after its first turn", async () => {
     const h = fixture(); const id = await h.start();
@@ -432,6 +492,35 @@ describe("a handoff a stop, an archive, a quit or a broken history meets", () =>
     expect(h.on(b)).toBeUndefined();
     expect(resolutions(h, id)).toHaveLength(1);
     expect(h.notices).toEqual([]);
+  });
+  it("never starts a cancelled turn's handoff from a later turn's request for the same path", async () => {
+    const h = fixture(); const id = await h.start();
+    const gates: (() => void)[] = [];
+    const base = h.prepare.getMockImplementation()!;
+    h.prepare.mockImplementation(async (request, stored) => { if (request.canvas?.id === "b") await new Promise<void>(resolve => gates.push(resolve)); return base(request, stored); });
+    h.ask(h.key(0), b.path, "/repo", "From the first turn."); h.listed.push(b);
+    h.service.receive(id, { type: "turn.done" });
+    await vi.waitFor(() => expect(gates).toHaveLength(1));
+    // The source is replaced (its handoff cancelled), then restored by a send whose turn starts without b listed.
+    const replacement = await h.start({ text: "replace a's conversation" });
+    expect(resolutions(h, id)).toMatchObject([{ outcome: "cancelled" }]);
+    h.service.receive(replacement, { type: "turn.done" });
+    h.open.mock.calls[0]![2]();
+    h.listed.splice(h.listed.indexOf(b), 1);
+    await h.service.send(id, "again", []);
+    expect(h.entry(id).state).toBe("current");
+    const key = h.open.mock.calls.filter(call => call[0].env.DOAN_CONVERSATION_ID === id).at(-1)![0].env.DOAN_HANDOFF;
+    h.listed.push(b);
+    expect(h.ask(key, b.path, "/repo", "From the second turn.")).toBeNull();
+    h.service.receive(id, { type: "turn.done" });
+    await vi.waitFor(() => expect(gates).toHaveLength(2));
+    gates[0]!();
+    await h.drained(h.prepare.mock.calls.findIndex(call => call[0].canvas?.id === "b"));
+    expect(h.on(b)).toBeUndefined();
+    gates[1]!();
+    await vi.waitFor(() => expect(resolutions(h, id)).toHaveLength(2));
+    expect(resolutions(h, id).at(-1)).toMatchObject({ canvas: { path: b.path }, outcome: "started" });
+    expect(h.store.read(h.on(b)!.conversationId)[0]).toMatchObject({ type: "user.message", text: "From the second turn." });
   });
   it("holds a message queued while the handoff waits, then moves it with a start", async () => {
     const h = fixture(); const id = await h.start();
