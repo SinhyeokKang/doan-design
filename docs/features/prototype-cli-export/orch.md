@@ -61,3 +61,5 @@ task 2(`/design-draft`)는 이미 끝났다. task 12(승격·삭제)는 conducto
 - A-fix2 완료 → 통합. 주석이 페이지에 들어가므로 `TestAssemblePrototypeOutputIsPinned` digest 셋이 바뀌었다. A 배치는 리뷰 🔴·🟡 0으로 닫는다. task 9·10에서 viewer 결함이 나오면 A로 돌려보낸다.
 - D 리뷰 1회차(Opus): 🔴 0, 🟡 3(X2가 프로토타입 페이지와 캔버스 viewer를 구별하지 못한다 / X2 명령 검사가 `-o` 경로까지 요구해 export 뒤 복사하는 정당한 경로를 실패시킨다 / W8 rubric에 partial 줄이 없다), ⚪ 4. 첫 실제 라운드 전에 고쳐야 새 id 없이 넣을 수 있다. B3 통합 뒤 D-fix1로 보낸다.
 - B3 완료 → `835d5dd6`로 통합. CLI가 쓴 프로토타입 파일이 probe 57 통과(B 보고). 공백뿐인 `data-doan-title`을 그대로 쓰는 점은 B 리뷰 2회차(`ctx_83b3d8eceea2`)에서 앱의 이름 규칙과 대조한다. D-fix1(`ctx_6c937723e7e6`)을 보냈다.
+- C-fix2 완료 → `99a68b7d`로 통합. Export 배경 규칙이 (0,6,0)이 되어 공유 hover (0,4,0)·pressed (0,5,0)를 이긴다. 테스트가 specificity를 계산해 비교한다. C 리뷰는 3회차 대신 task 9의 실제 앱 computed 측정(기본·hover·active)으로 닫는다(conductor 판단: CSS 한 규칙이고, 리뷰어가 요청한 확인이 바로 그 측정이다).
+- lead에 `GUI again`을 보내고 C에 task 9·10(`ctx_34f8e7525844`)을 보냈다.
