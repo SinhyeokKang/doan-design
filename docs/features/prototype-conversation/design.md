@@ -19,6 +19,7 @@
   - 헤더 오른쪽 무리에서 토글 다음의 Export prototype(32 chrome 아이콘 버튼, `Download`). 대화 버튼은 그 뒤에 온다.
   - 프로토타입 창의 토스트 호스트(`Toast.tsx` 재사용)와, `Toast.tsx`가 쓰는 `onWindowVisible`의 프로토타입 preload 판. 이 feature는 그 호스트를 쓰고 새로 만들지 않는다.
   - `doan open --prototype`으로 시작하는 Play. 새 Play 목록에 들어간다.
+  - `PrototypeView`의 `root`·`path`. Export, Show in Finder, 창 visibility는 `index.ts`의 창 host가 다루고, `PROTOTYPE_WINDOW_REQUESTS`가 prototype role의 허용 목록이다. 이 feature의 세 채널도 그 목록에 넣는다.
 - 앞의 두 feature가 계획과 다르게 병합되면 이 문서의 해당 문장을 `/tdd` 전에 고친다.
 
 ## 영향 범위
@@ -40,7 +41,7 @@
 | `app/src/main/senderAllowed.ts` | `prototype` 집합에 composer 보조 채널(아래 '프로토타입 role이 부르는 채널'의 대화 밖 채널)만 더한다. 대화 채널은 위 직접 핸들러에서 막는다. `mainOnly`는 넓히지 않는다 |
 | `app/src/main/conversation/ipc.ts` | `conversationHandler`가 sender를 boolean이 아닌 role + 범위로 받는다. 검증 자체(shape, limits)는 그대로다. 프로토타입 role의 `list` 답은 target 캔버스의 행만 남긴다 |
 | `app/src/main/prototype/conversationScope.ts` (새 파일, Electron 없음) | 순수 함수 1, 2, 3 |
-| `app/src/main/prototype/ipc.ts` | `PrototypeView`에 `target: {root, canvas: {path, id?}}`와 패널 상태(열림, 폭)를 더한다. 지금의 `canvas` 필드는 라벨 문자열이므로 그대로 둔다. `prototype:panel`, `prototype:showing`, `prototype:reveal` 채널을 더하고 `PROTOTYPE_WINDOW_REQUESTS`에 넣는다. `PrototypeWindowApi`에 대화 호출을 더한다 |
+| `app/src/main/prototype/ipc.ts` | `PrototypeView`에는 `prototype-cli-export`가 넣은 `root`와 `path`(target 캔버스 행의 path, 행이 사라지면 마지막 path)가 이미 있다. 여기에 target 캔버스의 id(`canvasId?`, id 없는 캔버스면 없음)와 패널 상태(열림, 폭)를 더하고, renderer는 셋으로 `{root, canvas: {path, id?}}`를 만든다. 지금의 `canvas` 필드는 라벨 문자열이므로 그대로 둔다. `prototype:panel`, `prototype:showing`, `prototype:reveal` 채널을 더하고 `PROTOTYPE_WINDOW_REQUESTS`에 넣는다. `PrototypeWindowApi`에 대화 호출을 더한다 |
 | `app/src/main/prototype/requests.ts` (+ test) | 세 채널의 parser: `prototype:panel`의 열림과 폭 범위, `prototype:showing`의 `conversationId \| null`, `prototype:reveal`의 종류별 모양 |
 | `app/src/main/prototype/fit.ts` | 순수 함수 6, 7, 8 |
 | `app/src/main/prototype/windowState.ts`, `controller.ts` | 패널 열림·폭을 state에 둔다. `CLOSED`에도 있어서 창을 닫아도 남고 앱 종료로만 사라진다(모드와 같은 자리). Play의 맞춤과 최소폭에 반영한다. `host.capture`에 대화 열 폭을 넘긴다 |
