@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
-  PROTOTYPE_CHROME, PROTOTYPE_HEADER_RIGHT, PROTOTYPE_NAME_MIN_WIDTH, PROTOTYPE_NAME_ROW_HEIGHT, PROTOTYPE_NARROW_BELOW, PROTOTYPE_WINDOW_MIN_WIDTH,
-  fitPrototypeWindow, prototypeCaptureRect, prototypeHeaderRows, prototypeIframeBox, prototypeViewportBox,
+  PROTOTYPE_CHROME, PROTOTYPE_HEADER_RIGHT, PROTOTYPE_NAME_MIN_WIDTH, PROTOTYPE_NAME_ROW_HEIGHT, PROTOTYPE_WINDOW_MIN_WIDTH,
+  fitPrototypeWindow, prototypeCaptureRect, prototypeHeaderRows, prototypeViewportBox,
 } from "./fit";
 
 const laptop = { x: 0, y: 25, width: 1512, height: 945 };
@@ -10,7 +10,6 @@ describe("chrome constants", () => {
   test("the header is --size-chrome and the panel sits 8px in from the sides and bottom", () => {
     expect(PROTOTYPE_CHROME).toEqual({ header: 56, side: 8, bottom: 8 });
     expect(PROTOTYPE_WINDOW_MIN_WIDTH).toBe(360);
-    expect(PROTOTYPE_NARROW_BELOW).toBe(PROTOTYPE_WINDOW_MIN_WIDTH - 2 * PROTOTYPE_CHROME.side);
   });
 
   test("the header's right group is the mode toggle alone; the name needs 80 or takes a 44 second row", () => {
@@ -200,22 +199,5 @@ describe("prototypeCaptureRect", () => {
     expect(prototypeCaptureRect({ width: 0, height: 0 }, { width: 390, height: 844 }, "fit")).toBeNull();
     expect(prototypeCaptureRect({ width: 360, height: 100 }, { width: 390, height: 844 }, "responsive")).toBeNull();
     expect(prototypeCaptureRect({ width: 16, height: 908 }, { width: 0, height: 0 }, "fit")).toBeNull();
-  });
-});
-
-describe("prototypeIframeBox", () => {
-  test("a frame narrower than the minimum panel keeps its own width, centred", () => {
-    expect(prototypeIframeBox(344, 320)).toEqual({ x: 12, width: 320 });
-    expect(prototypeIframeBox(345, 320)).toEqual({ x: 12, width: 320 });
-  });
-
-  test("a narrow frame stays at its own width after the window is widened", () => {
-    expect(prototypeIframeBox(800, 320)).toEqual({ x: 240, width: 320 });
-  });
-
-  test("any other frame fills the panel, wider or narrower than its mark", () => {
-    expect(prototypeIframeBox(344, PROTOTYPE_NARROW_BELOW)).toEqual({ x: 0, width: 344 });
-    expect(prototypeIframeBox(800, 390)).toEqual({ x: 0, width: 800 });
-    expect(prototypeIframeBox(344, 390)).toEqual({ x: 0, width: 344 });
   });
 });

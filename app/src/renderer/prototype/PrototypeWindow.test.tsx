@@ -43,6 +43,8 @@ const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
 let changed: (view: PrototypeView | null) => void;
 let snapshot: (value: { gen: number; png: Uint8Array; box: typeof BOX }) => void;
 let messages: ((event: unknown) => void)[];
+let resizes: (() => void)[];
+let win: { innerWidth: number };
 let api: Record<string, ReturnType<typeof vi.fn>>;
 let doc: { title: string; activeElement: unknown; body: object };
 let shell: Shell;
@@ -63,7 +65,7 @@ const show = (next: PrototypeView | null) => { changed(next); return render(); }
 beforeEach(() => {
   vi.useFakeTimers();
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
-  messages = [];
+  messages = []; resizes = [];
   api = {
     read: vi.fn(async () => null),
     onChanged: vi.fn((listener: typeof changed) => { changed = listener; return () => {}; }),
@@ -73,8 +75,10 @@ beforeEach(() => {
   };
   doc = { title: "", activeElement: null, body: {} };
   vi.stubGlobal("document", doc);
-  vi.stubGlobal("window", { addEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "message") messages.push(listener); },
-    removeEventListener: (type: string, listener: (event: unknown) => void) => { messages = messages.filter(item => item !== listener); } });
+  win = { innerWidth: 640,
+    addEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "message") messages.push(listener); if (type === "resize") resizes.push(listener as () => void); },
+    removeEventListener: (type: string, listener: (event: unknown) => void) => { messages = messages.filter(item => item !== listener); resizes = resizes.filter(item => item !== listener); } } as never;
+  vi.stubGlobal("window", win);
   let blobs = 0;
   vi.stubGlobal("URL", Object.assign(class extends URL {}, { createObjectURL: vi.fn(() => `blob:${++blobs}`), revokeObjectURL: vi.fn() }));
   render();
@@ -225,5 +229,107 @@ describe("header and scene actions", () => {
     expect(render().details).toBe(true);
     show(view({ gen: 2, phase: "read-failed", detail: "EACCES" }));
     expect(shell.details).toBe(false);
+  });
+});
+
+describe("the header's width and mode", () => {
+  test("the shell gets the window's content width, before any view and after a resize", () => {
+    expect(shell.width).toBe(640);
+    win.innerWidth = 371;
+    for (const listener of resizes) listener();
+    expect(render().width).toBe(371);
+  });
+
+  test("Fit and Responsive go to main; the view's mode comes back from it", () => {
+    show(view({ phase: "ready" }));
+    shell.onMode("responsive");
+    expect(api.setMode).toHaveBeenCalledExactlyOnceWith("responsive");
+  });
+
+  test("the frame menu's open state is held here and handed to the shell", () => {
+    show(view({ phase: "ready" }));
+    expect(shell.menuOpen).toBe(false);
+    shell.onMenuOpen(true);
+    expect(render().menuOpen).toBe(true);
+    shell.onMenuOpen(false);
+    expect(render().menuOpen).toBe(false);
+  });
+});
+
+// A pointer Reload leaves focus where it was; the new run's iframe takes it when it was in the frame or on the page
+// before the press and is still on the page when the new run is ready.
+describe("focus after a pointer Reload", () => {
+  const iframe = () => ({ focus: vi.fn(), contentWindow: {} });
+  function reloadFrom(active: (old: ReturnType<typeof iframe>) => unknown) {
+    const s = show(view({ phase: "ready" }));
+    const old = iframe(), next = iframe();
+    s.frames!.set(1, old as never);
+    doc.activeElement = active(old);
+    shell.onReloadPress();
+    shell.onReload();
+    expect(api.reload).toHaveBeenCalledWith(1);
+    show(view({ gen: 2 }));
+    s.frames!.set(2, next as never);
+    return { s, old, next };
+  }
+
+  test("focus in the frame moves to the new iframe once it is ready, if it fell to the page meanwhile", () => {
+    const { next } = reloadFrom(old => old);
+    doc.activeElement = doc.body;
+    show(view({ gen: 2, phase: "ready" }));
+    expect(next.focus).toHaveBeenCalledOnce();
+    // Only once: a later run is not pulled along.
+    show(view({ gen: 3 }));
+    shell.frames!.set(3, iframe() as never);
+    show(view({ gen: 3, phase: "ready" }));
+    expect(next.focus).toHaveBeenCalledOnce();
+  });
+
+  test("focus on the page before the press also moves to the new iframe", () => {
+    const { next } = reloadFrom(() => doc.body);
+    doc.activeElement = doc.body;
+    show(view({ gen: 2, phase: "ready" }));
+    expect(next.focus).toHaveBeenCalledOnce();
+  });
+
+  test("focus that moved elsewhere before the run was ready stays there", () => {
+    const { next } = reloadFrom(old => old);
+    doc.activeElement = { name: "composer" };
+    show(view({ gen: 2, phase: "ready" }));
+    expect(next.focus).not.toHaveBeenCalled();
+  });
+
+  test("focus elsewhere at the press stays there", () => {
+    const { next } = reloadFrom(() => ({ name: "Back" }));
+    doc.activeElement = doc.body;
+    show(view({ gen: 2, phase: "ready" }));
+    expect(next.focus).not.toHaveBeenCalled();
+  });
+
+  test("a keyboard Reload leaves focus on Reload", () => {
+    const s = show(view({ phase: "ready" }));
+    const next = iframe();
+    doc.activeElement = doc.body;
+    shell.onReload();
+    show(view({ gen: 2 }));
+    s.frames!.set(2, next as never);
+    show(view({ gen: 2, phase: "ready" }));
+    expect(next.focus).not.toHaveBeenCalled();
+  });
+
+  test("a new run that fails takes focus to the scene's title instead, and a later ready does not take it", () => {
+    const { s, next } = reloadFrom(old => old);
+    const heading = { focus: vi.fn() };
+    s.heading!.current = heading as never;
+    s.content!.current = { contains: () => false } as never;
+    doc.activeElement = doc.body;
+    show(view({ gen: 2, phase: "init-failed" }));
+    expect(heading.focus).toHaveBeenCalledOnce();
+    show(view({ gen: 3 }));
+    const third = iframe();
+    shell.frames!.set(3, third as never);
+    show(view({ gen: 3, phase: "ready" }));
+    expect(next.focus).not.toHaveBeenCalled();
+    expect(third.focus).not.toHaveBeenCalled();
   });
 });
