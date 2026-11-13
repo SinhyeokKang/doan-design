@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
-import { covered, drawerLabel, drawerRows, liveText, LOADING_LABEL, modeTooltip, stateScene, TIMEOUT_DETAIL, windowTitle } from "./view";
+import { covered, drawerLabel, exportAvailability, drawerRows, liveText, LOADING_LABEL, modeTooltip, stateScene, TIMEOUT_DETAIL, windowTitle } from "./view";
 
 const frames = [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }, { id: "account", size: "390x844", number: 3 }];
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
@@ -87,5 +87,29 @@ describe("modeTooltip", () => {
   test("Responsive is its name alone", () => {
     expect(modeTooltip("responsive", { markWidth: 390, markHeight: 844 })).toBe("Responsive");
     expect(modeTooltip("responsive", null)).toBe("Responsive");
+  });
+});
+
+// The header's Export: available while the frame plays, loads or failed to start; otherwise the canvas toolbar's rule.
+describe("exportAvailability", () => {
+  test("is available while ready, loading or after a start failure", () => {
+    for (const phase of ["ready", "loading", "init-failed"] as const) expect(exportAvailability(view({ phase }), false), phase).toEqual({ available: true });
+  });
+
+  test("before the first view it is off with no reason", () => {
+    expect(exportAvailability(null, false)).toEqual({ available: false, reason: null });
+  });
+
+  test("names the reason it is unavailable", () => {
+    expect(exportAvailability(view({ phase: "read-failed" }), false)).toEqual({ available: false, reason: "Can’t read this canvas." });
+    for (const phase of ["frame-unavailable", "prototype-unavailable"] as const) {
+      expect(exportAvailability(view({ phase }), false), phase).toEqual({ available: false, reason: "Export isn’t available while this prototype can’t play." });
+    }
+  });
+
+  test("an export under way wins over every phase", () => {
+    for (const phase of ["ready", "loading", "init-failed", "read-failed", "frame-unavailable", "prototype-unavailable"] as const) {
+      expect(exportAvailability(view({ phase }), true), phase).toEqual({ available: false, reason: "Exporting" });
+    }
   });
 });

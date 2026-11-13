@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { createCanvasExport, exportName, interpretExport } from "./canvasExport";
+import { createCanvasExport, exportName, interpretExport, prototypeExportName } from "./canvasExport";
 import type { CliRun } from "./folderState";
 import type { CanvasRow, FolderEntry } from "./view";
 
@@ -13,6 +13,21 @@ describe("exportName", () => {
     expect(exportName(".doan/canvases/a.html")).toBe("a.html");
     expect(exportName(".doan/canvases/sub/Pricing Page.HTML")).toBe("Pricing Page.html");
     expect(exportName(".doan/ds/tokens.html")).toBe("tokens.html");
+  });
+});
+
+describe("prototypeExportName", () => {
+  test("suggests the canvas stem and the frame id", () => {
+    expect(prototypeExportName(".doan/canvases/flows.html", "checkout")).toBe("flows-checkout.html");
+    expect(prototypeExportName(".doan/canvases/sub/Pricing Page.HTML", "Hero 1")).toBe("Pricing Page-Hero 1.html");
+  });
+
+  test("a slash, a colon or a control character in the frame id becomes a hyphen", () => {
+    expect(prototypeExportName(".doan/canvases/a.html", "step/1:a\u0000b\u001fc\u007fd")).toBe("a-step-1-a-b-c-d.html");
+  });
+
+  test("a file named only .html gives the frame id alone", () => {
+    expect(prototypeExportName(".doan/canvases/.html", "checkout")).toBe("checkout.html");
   });
 });
 
@@ -49,6 +64,20 @@ describe("interpretExport", () => {
     // Any case, as the CLI compares it: on a case-insensitive disk `.DOAN` is the same directory.
     for (const output of ["/repo/.DOAN/a.html", "/repo/.Doan/out/a.html"]) expect(interpretExport(fail("usage_error", "-o must not be inside .doan"), output)).toEqual({ kind: "failed", reason: "insideDoan" });
     expect(interpretExport(fail("usage_error", "no such directory"), "/repo/.DOAN.d/a.html")).toEqual({ kind: "failed", reason: "failed" });
+  });
+
+  // `doan export --frame <id> --prototype`'s static frame judgement.
+  test("a frame the file does not hold, or holds unmarked, has its own reason", () => {
+    expect(interpretExport(fail("frame_not_found", "No frame checkout"), OUT, true)).toEqual({ kind: "failed", reason: "notFound" });
+    expect(interpretExport(fail("not_prototype", "Not marked"), OUT, true)).toEqual({ kind: "failed", reason: "notMarked" });
+  });
+
+  test("a prototype export counts only with the CLI's prototype result", () => {
+    expect(interpretExport(ok(result({ prototype: true, external: ["https://cdn.example/x.css"] })), OUT, true)).toEqual({ kind: "exported", external: 1 });
+    expect(interpretExport(ok(result()), OUT, true)).toEqual({ kind: "failed", reason: "failed" });
+    expect(interpretExport(ok(result({ prototype: "yes" })), OUT, true)).toEqual({ kind: "failed", reason: "failed" });
+    // The canvas export does not look at it.
+    expect(interpretExport(ok(result({ prototype: true })), OUT)).toEqual({ kind: "exported", external: 0 });
   });
 
   test("anything else is a plain failure: other codes, no CLI, a crash, a timeout, output that is not an envelope", () => {
