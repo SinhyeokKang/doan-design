@@ -184,6 +184,24 @@ export function escapeTarget<T>(entered: readonly T[], selectedIsFrame: boolean)
   return entered[entered.length - (selectedIsFrame ? 2 : 1)] ?? null;
 }
 
+// A Select press on canvas text becomes a text drag once the pointer has moved `threshold` screen px from where it was
+// pressed (screen px, so the zoom does not change it), and stays one even back at its start.
+export type TextDragState = "press" | "drag";
+export function textDragState(prev: TextDragState, start: { x: number; y: number }, point: { x: number; y: number }, threshold: number): TextDragState {
+  if (prev === "drag") return "drag";
+  return Math.hypot(point.x - start.x, point.y - start.y) >= threshold ? "drag" : "press";
+}
+
+// What a text drag's range stays inside: the innermost frame around the start, or outside every frame the element a
+// click there selects (the start element itself). `frames` flags the start element and its ancestors, nearest first,
+// up to body; `holdsFrames` whether the start element holds frames, as a row laying them out does, which a click
+// clears. Returns the index of the boundary in that chain, or null for no text drag.
+export function textBoundary(frames: readonly boolean[], holdsFrames: boolean): number | null {
+  const frame = frames.indexOf(true);
+  if (frame !== -1) return frame;
+  return frames.length === 0 || holdsFrames ? null : 0;
+}
+
 interface CanvasLib {
   nextHeight: typeof nextHeight;
   documentHeight: typeof documentHeight;
@@ -197,6 +215,8 @@ interface CanvasLib {
   chipAnchors: typeof chipAnchors;
   frameStep: typeof frameStep;
   escapeTarget: typeof escapeTarget;
+  textDragState: typeof textDragState;
+  textBoundary: typeof textBoundary;
 }
 
 export function canvasScript(lib: CanvasLib): void {
@@ -206,6 +226,10 @@ export function canvasScript(lib: CanvasLib): void {
   const MAX_HTML = 2000;
   const MAX_TEXT = 500;
   const MAX_VALUE = 500;
+  // canvasMessage.ts drops a text range over these, so they are clipped here first.
+  const MAX_COPY_TEXT = 100_000;
+  const MAX_TEXT_RECTS = 2000;
+  const TEXT_DRAG_PX = 4;
   const ANCHOR_RETRY_MS = 1000;
   // Each navigation is injected once, but a canvas re-running us must not
   // double every listener.
@@ -293,32 +317,42 @@ export function canvasScript(lib: CanvasLib): void {
   // selecting.
   let pickSeq = 0;
   let picking: number | null = null;
-  // The crosshair while picking: the cursor over the canvas is this document's, so a constructed sheet is adopted. It
-  // changes no DOM node, so neither the MutationObserver nor the layout runs for it, and sheets the canvas adopted
-  // itself stay as they are.
-  let crosshair: CSSStyleSheet | null = null;
-  const setPicking = (next: number | null) => {
-    picking = next;
+  // The crosshair while picking and the hand while the app's drag layer is up: the cursor over the canvas is this
+  // document's, so a constructed sheet is adopted. It changes no DOM node, so neither the MutationObserver nor the
+  // layout runs for it, and sheets the canvas adopted itself stay as they are. Returns the sheet now adopted, if any.
+  const cursorSheet = (sheet: CSSStyleSheet | null, on: boolean, cursor: string): CSSStyleSheet | null => {
     try {
-      if (next !== null && crosshair === null && typeof CSSStyleSheet === "function") {
-        const sheet = new CSSStyleSheet();
-        sheet.replaceSync("*{cursor:crosshair!important}");
-        document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
-        crosshair = sheet;
-      } else if (next === null && crosshair !== null) {
-        const sheet = crosshair;
-        crosshair = null;
+      if (on && sheet === null && typeof CSSStyleSheet === "function") {
+        const added = new CSSStyleSheet();
+        added.replaceSync(`*{cursor:${cursor}!important}`);
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, added];
+        return added;
+      }
+      if (!on && sheet !== null) {
         document.adoptedStyleSheets = document.adoptedStyleSheets.filter(adopted => adopted !== sheet);
+        return null;
       }
     } catch {
-      // The cursor is only a hint: a canvas that broke adoptedStyleSheets still picks, without the crosshair.
+      // The cursor is only a hint: a canvas that broke adoptedStyleSheets still picks and pans, without it.
     }
+    return sheet;
+  };
+  let crosshair: CSSStyleSheet | null = null;
+  // A pointer resting over the canvas keeps the cursor this out-of-process document last set until it moves, so the
+  // drag layer's own grab cursor shows only after a move; this sheet shows the hand at once.
+  let hand: CSSStyleSheet | null = null;
+  const setPicking = (next: number | null) => {
+    picking = next;
+    // A pick takes the canvas's clicks: a text range or drag in progress ends without a read.
+    if (next !== null) dropText();
+    crosshair = cursorSheet(crosshair, next !== null, "crosshair");
     // A pick hovers what is under the pointer, Select its next step: the resting pointer's hover changes with it.
     postHover();
   };
 
   const isRoot = (el: unknown) => el === document.documentElement || el === document.body;
   const isElement = (target: unknown): target is Element => typeof target === "object" && target !== null && "nodeType" in target && target.nodeType === 1;
+  const isText = (node: unknown): node is Text => typeof node === "object" && node !== null && "nodeType" in node && node.nodeType === 3;
   const isEditable = (el: Element) => "isContentEditable" in el && el.isContentEditable === true;
   const rectOf = (el: Element): Rect => {
     const r = el.getBoundingClientRect();
@@ -453,7 +487,7 @@ export function canvasScript(lib: CanvasLib): void {
   // nothing where that click would select the selection again.
   const postHover = () => {
     const over = hoverEl;
-    const el = !isElement(over) || isRoot(over) || alt ? null : picking !== null ? over : selectTarget(over, meta);
+    const el = !isElement(over) || isRoot(over) || alt || textDrag?.state === "drag" ? null : picking !== null ? over : selectTarget(over, meta);
     const rect = el !== null && el !== selected ? rectOf(el) : null;
     const key = JSON.stringify([hoverSeq, rect]);
     if (key === lastHover) return;
@@ -564,6 +598,7 @@ export function canvasScript(lib: CanvasLib): void {
       message.selected = selected === null ? null : rectOf(selected);
     }
     post(message);
+    refreshText();
   };
 
   let queued = false;
@@ -630,8 +665,10 @@ export function canvasScript(lib: CanvasLib): void {
       if (typeof data.alt !== "boolean") return;
     } else if (type === "hover-meta") {
       if (typeof data.meta !== "boolean") return;
+    } else if (type === "hover-hand") {
+      if (typeof data.hand !== "boolean") return;
     } else if (type !== "clear" && type !== "hover-leave" && type !== "select-parent") return;
-    if (type === "hover-alt" || type === "hover-meta" || type === "hover-leave") {
+    if (type === "hover-alt" || type === "hover-meta" || type === "hover-hand" || type === "hover-leave") {
       if (next <= hoverSeq) return;
       hoverSeq = next;
     } else {
@@ -645,6 +682,8 @@ export function canvasScript(lib: CanvasLib): void {
     } else if (type === "hover-meta") {
       meta = data.meta === true;
       postHover();
+    } else if (type === "hover-hand") {
+      hand = cursorSheet(hand, data.hand === true, "grab");
     } else if (type === "hover-leave") {
       hoverEl = null;
       lastHover = "";
@@ -679,7 +718,9 @@ export function canvasScript(lib: CanvasLib): void {
     if (event.source !== parent) return;
     const data: unknown = event.data;
     if (typeof data !== "object" || data === null) return;
-    if ((data as { type?: unknown }).type === "measure") send();
+    const type = (data as { type?: unknown }).type;
+    if (type === "measure") send();
+    else if (type === "clear-text" || type === "text-point") textCommand(data as Record<string, unknown>);
     else command(data as Record<string, unknown>);
   });
 
@@ -712,8 +753,9 @@ export function canvasScript(lib: CanvasLib): void {
   );
 
   // Input direction (design flow 1): a plain primary press is selection and
-  // never reaches the canvas, so links, buttons, inputs, text selection and
-  // :focus stay inert. ⌥ passes through. Only trusted input counts: a canvas's
+  // never reaches the canvas, so links, buttons, inputs, the browser's own text
+  // selection and :focus stay inert; text is selected only by the script's own
+  // drag range below. ⌥ passes through. Only trusted input counts: a canvas's
   // own `el.click()` keeps working as before. Right and Ctrl presses must
   // prevent focus too, but their clicks never select.
   const linkOf = (target: EventTarget | null) => {
@@ -750,6 +792,9 @@ export function canvasScript(lib: CanvasLib): void {
           // Focus left inside by an ⌥-click would make Esc look like typing.
           const active = document.activeElement;
           if (active !== null && !isRoot(active) && "blur" in active && typeof active.blur === "function") active.blur();
+        } else if (type === "click" && dragClick) {
+          // The click that ends a text drag selects nothing, and picks nothing when a pick started during the drag.
+          dragClick = false;
         } else if (type === "click" && picking !== null) {
           pickAt(event.target, event.shiftKey ? { x: event.clientX, y: event.clientY } : null);
         } else if (type === "click") {
@@ -784,6 +829,11 @@ export function canvasScript(lib: CanvasLib): void {
       // that shows here, so it is the press the app hears. A second press in the same nested frame moves no focus
       // and goes unheard.
       post({ type: "press" });
+      // It is the canvas's next press, so a text range goes as with any other.
+      if (textRange !== null || textDrag !== null) {
+        dropText();
+        postText(false);
+      }
       if (picking !== null) {
         if (active.isConnected) pickAt(active, null);
         return;
@@ -890,13 +940,262 @@ export function canvasScript(lib: CanvasLib): void {
     { capture: true },
   );
 
+  // Select's text drag (PRODUCT §5 item 4). The press still never reaches the canvas: the script keeps its own Range from
+  // the pressed caret to the pointer and posts the line rects of its Text nodes, which the app paints on its overlay, and
+  // the text once at the end, which the app's copy event uses. The canvas's own Selection is touched only inside one
+  // task to read the text, so nothing is painted and the canvas's styles stay as they are.
+  type TextDrag = { pointerId: number; node: Text; offset: number; screen: { x: number; y: number }; boundary: Element; state: TextDragState };
+  let textDrag: TextDrag | null = null;
+  let textRange: Range | null = null;
+  let textCopy: string | null = null;
+  // The last clear-text epoch taken from the app; every text-range carries it.
+  let textEpoch = 0;
+  let textQueued = false;
+  let ibeam: CSSStyleSheet | null = null;
+  // The click that follows a released text drag; any next press forgets it.
+  let dragClick = false;
+
+  const insideField = (el: Element) => {
+    if (isEditable(el)) return true;
+    for (let node: Element | null = el; node !== null; node = node.parentElement) if (["input", "textarea", "select"].includes(node.localName)) return true;
+    return false;
+  };
+  const glyphHolds = (node: Text, index: number, x: number, y: number) => {
+    if (index < 0 || index >= node.data.length) return false;
+    const glyph = document.createRange();
+    glyph.setStart(node, index);
+    glyph.setEnd(node, index + 1);
+    for (const r of Array.from(glyph.getClientRects())) if (x >= r.left && x <= r.left + r.width && y >= r.top && y <= r.top + r.height) return true;
+    return false;
+  };
+  // Where a text drag may start: a caret in a Text node whose glyph on either side of the caret is under the press, or
+  // whose own element was pressed (its padding). A field, editable text, a nested iframe or a Shadow DOM host has no
+  // Text caret here; a frame's background or the root, no boundary.
+  const textStart = (event: PointerEvent): Omit<TextDrag, "state"> | null => {
+    if (typeof document.caretPositionFromPoint !== "function") return null;
+    const caret = document.caretPositionFromPoint(event.clientX, event.clientY);
+    const text = caret?.offsetNode;
+    if (!caret || !isText(text)) return null;
+    const parent = text.parentElement;
+    if (parent === null || insideField(parent)) return null;
+    if (!glyphHolds(text, caret.offset - 1, event.clientX, event.clientY) && !glyphHolds(text, caret.offset, event.clientX, event.clientY) && event.target !== parent) return null;
+    const chain: Element[] = [];
+    for (let el: Element | null = parent; el !== null && !isRoot(el); el = el.parentElement) chain.push(el);
+    const at = lib.textBoundary(chain.map(isFrame), parent.querySelector("[data-doan-frame]") !== null);
+    const boundary = at === null ? undefined : chain[at];
+    if (boundary === undefined) return null;
+    return { pointerId: event.pointerId, node: text, offset: caret.offset, screen: { x: event.screenX, y: event.screenY }, boundary };
+  };
+
+  // Only the Text nodes' own boxes: a range also returns the border box of each element it holds whole, and those
+  // would stack the overlay's alpha over the lines.
+  const textRects = (range: Range): Rect[] => {
+    const rects: Rect[] = [];
+    const root = range.commonAncestorContainer;
+    const walker = document.createTreeWalker(root, 4 /* NodeFilter.SHOW_TEXT */);
+    for (let node = root.nodeType === 3 ? root : walker.nextNode(); node !== null && rects.length < MAX_TEXT_RECTS; node = walker.nextNode()) {
+      if (!range.intersectsNode(node)) continue;
+      const part = document.createRange();
+      part.selectNodeContents(node);
+      if (node === range.startContainer) part.setStart(node, range.startOffset);
+      if (node === range.endContainer) part.setEnd(node, range.endOffset);
+      for (const r of Array.from(part.getClientRects())) {
+        if (r.width <= 0 || r.height <= 0) continue;
+        rects.push({ x: r.left, y: r.top, width: r.width, height: r.height });
+        if (rects.length === MAX_TEXT_RECTS) break;
+      }
+    }
+    return rects;
+  };
+
+  // The browser's own serialization (line breaks, table cells, hidden text left out), read in one task so it is never
+  // painted. The canvas's `user-select: none` is overridden for the read only, and its own selection (an ⌥-drag) put back.
+  const readText = (range: Range): string => {
+    const selection = getSelection();
+    if (selection === null) return lib.clipHtml(range.toString(), MAX_COPY_TEXT).html;
+    let sheet: CSSStyleSheet | null = null;
+    try {
+      sheet = new CSSStyleSheet();
+      sheet.replaceSync("*{user-select:text!important}");
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    } catch {
+      sheet = null;
+    }
+    const kept = selection.rangeCount > 0 && selection.anchorNode !== null && selection.focusNode !== null
+      ? { anchor: selection.anchorNode, anchorOffset: selection.anchorOffset, focus: selection.focusNode, focusOffset: selection.focusOffset } : null;
+    // Whatever the read throws, the canvas gets its own styles and selection back.
+    try {
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return lib.clipHtml(selection.toString(), MAX_COPY_TEXT).html;
+    } finally {
+      selection.removeAllRanges();
+      if (kept !== null) {
+        try { selection.setBaseAndExtent(kept.anchor, kept.anchorOffset, kept.focus, kept.focusOffset); } catch { /* its nodes left the document */ }
+      }
+      if (sheet !== null) {
+        const added = sheet;
+        document.adoptedStyleSheets = document.adoptedStyleSheets.filter(adopted => adopted !== added);
+      }
+    }
+  };
+
+  const postText = (dragging: boolean, text?: string) => {
+    const message: Record<string, unknown> = { type: "text-range", document: documentToken, epoch: textEpoch, dragging, rects: textRange === null || textRange.collapsed ? [] : textRects(textRange) };
+    if (text !== undefined) message.text = text;
+    post(message);
+  };
+
+  // The range from the pressed caret to the caret at (x, y), inside the boundary. No caret there (empty space, outside
+  // the document) keeps the last end.
+  const extendText = (x: number, y: number) => {
+    const drag = textDrag;
+    if (drag === null) return;
+    const caret = document.caretPositionFromPoint(x, y);
+    if (!caret) return;
+    let node: Node = caret.offsetNode, offset = caret.offset;
+    const bounds = document.createRange();
+    bounds.selectNodeContents(drag.boundary);
+    let side = 0;
+    try { side = bounds.comparePoint(node, offset); } catch { return; }
+    if (side < 0) { node = bounds.startContainer; offset = bounds.startOffset; }
+    else if (side > 0) { node = bounds.endContainer; offset = bounds.endOffset; }
+    const range = document.createRange();
+    range.setStart(drag.node, drag.offset);
+    if (range.comparePoint(node, offset) < 0) { range.setStart(node, offset); range.setEnd(drag.node, drag.offset); }
+    else range.setEnd(node, offset);
+    textRange = range;
+    if (textQueued) return;
+    textQueued = true;
+    requestAnimationFrame(() => {
+      textQueued = false;
+      if (textDrag?.state === "drag") postText(true);
+    });
+  };
+
+  // `read`: the drag ends as the person left it (release, cancel, lost capture, blur) and its text goes to the app.
+  // Otherwise (clear-text, a pick, the next press) the range goes with it.
+  const endTextDrag = (read: boolean, point: { x: number; y: number } | null) => {
+    const drag = textDrag;
+    if (drag === null) return;
+    textDrag = null;
+    try {
+      if (document.documentElement.hasPointerCapture(drag.pointerId)) document.documentElement.releasePointerCapture(drag.pointerId);
+    } catch {
+      // The pointer is already gone.
+    }
+    if (drag.state !== "drag") return;
+    ibeam = cursorSheet(ibeam, false, "text");
+    dragClick = true;
+    if (read) {
+      if (textRange !== null && textRange.collapsed) textRange = null;
+      textCopy = textRange === null ? null : readText(textRange);
+      postText(false, textCopy ?? undefined);
+    }
+    // The hover hid through the drag and the pointer may now rest where it was before it; without emptying the
+    // dedupe value the same rect would never be sent again (POSTMORTEM 2026-10-23).
+    lastHover = "";
+    hoverEl = point === null ? null : document.elementFromPoint(point.x, point.y);
+    postHover();
+  };
+
+  const dropText = () => {
+    endTextDrag(false, null);
+    textRange = null;
+    textCopy = null;
+  };
+
+  // A layout change moves the lines under the range; a range whose ends left the document is gone.
+  const refreshText = () => {
+    if (textRange === null) return;
+    if (!textRange.startContainer.isConnected || !textRange.endContainer.isConnected) {
+      dropText();
+      postText(false);
+      return;
+    }
+    postText(textDrag?.state === "drag");
+  };
+
+  const textCommand = (data: Record<string, unknown>) => {
+    const { type, epoch } = data;
+    if (typeof epoch !== "number" || !Number.isSafeInteger(epoch)) return;
+    if (type === "clear-text") {
+      if (epoch <= textEpoch) return;
+      textEpoch = epoch;
+      dropText();
+      return;
+    }
+    // The board moved under a resting pointer (a wheel pan or pinch): the app sends where the pointer is now, in the
+    // canvas's document coordinates, as the wheel message gives them.
+    const { x, y } = data;
+    if (epoch !== textEpoch || textDrag?.state !== "drag" || typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) return;
+    extendText(x - scrollX, y - scrollY);
+  };
+
+  addEventListener(
+    "pointerdown",
+    (event: PointerEvent) => {
+      // Every primary press ends the last range, ⌥ and ⌘ included; right and Ctrl presses keep it.
+      if (!event.isTrusted || event.button !== 0 || event.ctrlKey) return;
+      dragClick = false;
+      if (textRange !== null || textDrag !== null) {
+        dropText();
+        postText(false);
+      }
+      if (event.metaKey || event.altKey || event.shiftKey || picking !== null || spaceHeld) return;
+      const start = textStart(event);
+      if (start !== null) textDrag = { ...start, state: "press" };
+    },
+    { capture: true },
+  );
+  addEventListener(
+    "pointermove",
+    (event: PointerEvent) => {
+      const drag = textDrag;
+      if (!event.isTrusted || drag === null || event.pointerId !== drag.pointerId) return;
+      // A release outside the frame before the capture was taken never comes back as a pointerup: a move with the
+      // button up ends the press there instead of starting a drag.
+      if (drag.state === "press" && (event.buttons & 1) === 0) {
+        textDrag = null;
+        return;
+      }
+      const was = drag.state;
+      drag.state = lib.textDragState(was, drag.screen, { x: event.screenX, y: event.screenY }, TEXT_DRAG_PX);
+      if (drag.state !== "drag") return;
+      if (was !== "drag") {
+        // Taken only now: a capture taken at the press would make a still click land on html, which clears.
+        try { document.documentElement.setPointerCapture(drag.pointerId); } catch { /* the pointer is already up */ }
+        ibeam = cursorSheet(ibeam, true, "text");
+        postHover();
+      }
+      extendText(event.clientX, event.clientY);
+    },
+    { capture: true, passive: true },
+  );
+  addEventListener("pointerup", (event: PointerEvent) => { if (event.pointerId === textDrag?.pointerId) endTextDrag(true, { x: event.clientX, y: event.clientY }); }, { capture: true });
+  for (const type of ["pointercancel", "lostpointercapture"] as const) {
+    addEventListener(type, (event: PointerEvent) => { if (event.pointerId === textDrag?.pointerId) endTextDrag(true, null); }, { capture: true });
+  }
+  addEventListener("blur", () => { endTextDrag(true, null); });
+  // Focus is in this canvas after an ⌥-click into it, and then ⌘C and Edit > Copy fire here, not in the app.
+  addEventListener(
+    "copy",
+    (event: ClipboardEvent) => {
+      if (textRange === null || !textCopy || !event.clipboardData) return;
+      event.clipboardData.setData("text/plain", textCopy);
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    },
+    { capture: true },
+  );
+
   // Injection happens at did-frame-navigate, while the document is still loading.
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
   else start();
 }
 
 export function canvasScriptSource(): string {
-  const lib = { nextHeight, documentHeight, frameBottom, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, chipAnchors, frameStep, escapeTarget };
+  const lib = { nextHeight, documentHeight, frameBottom, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, chipAnchors, frameStep, escapeTarget, textDragState, textBoundary };
   return `(${canvasScript.toString()})({${Object.entries(lib).map(([name, fn]) => `${name}: ${fn.toString()}`).join(", ")}}); void 0;`;
 }
 

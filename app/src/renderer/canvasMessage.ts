@@ -27,6 +27,11 @@ export const MAX_VALUE = 500;
 export const MAX_HTML = 2000;
 export const MAX_TEXT = 500;
 export const MAX_PATH = 32;
+// A canvas text range: the text ⌘C copies, in code points, and the line rects the overlay paints. The text cap keeps
+// a forged message from handing the clipboard megabytes; the rect cap bounds the overlay's nodes (a dense frame has a
+// few hundred lines, and a range past the cap still copies whole).
+export const MAX_COPY_TEXT = 100_000;
+export const MAX_TEXT_RECTS = 2000;
 
 export interface CanvasFrameRect {
   id: string;
@@ -151,6 +156,11 @@ export type PickedMessage = { type: "picked"; href: string; document: string; pi
 // The canvas took the pick-start `pick` for its document `document`; until then the app keeps clicks off the canvas.
 export interface PickStartedMessage { type: "pick-started"; href: string; document: string; pick: number }
 
+// The canvas's Select text drag. `document` is the posting document's token and `epoch` the last clear-text it took,
+// so a range from a replaced document or sent before a clear is dropped. `rects` are the line boxes of the range's Text
+// nodes in the iframe's viewport, as hover and selected rects are; empty is no range. `text` comes once the drag ends.
+export interface TextRangeMessage { type: "text-range"; document: string; epoch: number; dragging: boolean; rects: CanvasRect[]; text?: string }
+
 // A trusted press anywhere in the canvas, sent on pointerdown (or on focus moving into a nested frame) before any
 // selection or pick. It carries nothing: the app closes its open lists on it and, when a list took the focused element
 // with it, moves focus to the canvas area, so a forged one can do no more than that.
@@ -158,7 +168,7 @@ export interface PressMessage { type: "press" }
 // The person moved the pointer in the canvas frame (at most once a second).
 export interface ActivityMessage { type: "activity" }
 
-export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage | PressMessage | ActivityMessage;
+export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage | PressMessage | ActivityMessage | TextRangeMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -216,6 +226,7 @@ export function parseCanvasMessage(data: unknown): CanvasMessage | null {
   if (data.type === "wheel") return parseWheel(data);
   if (data.type === "press") return { type: "press" };
   if (data.type === "activity") return { type: "activity" };
+  if (data.type === "text-range") return parseTextRange(data);
   if (data.type === "hover" || data.type === "select" || data.type === "clear" || data.type === "key") return parseSelectionMessage(data);
   return null;
 }
@@ -246,6 +257,23 @@ function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage 
     }
     default: return null;
   }
+}
+
+function parseTextRange(data: Record<string, unknown>): TextRangeMessage | null {
+  const { document, epoch, dragging, rects, text } = data;
+  if (!within(document, MAX_STRING) || !document || !seqValue(epoch) || typeof dragging !== "boolean" || !Array.isArray(rects) || rects.length > MAX_TEXT_RECTS) return null;
+  const kept: CanvasRect[] = [];
+  for (const raw of rects) {
+    const rect = parseRect(raw);
+    if (rect === null) return null;
+    kept.push(rect);
+  }
+  const message: TextRangeMessage = { type: "text-range", document, epoch, dragging, rects: kept };
+  if (text !== undefined) {
+    if (!codePointsWithin(text, MAX_COPY_TEXT)) return null;
+    message.text = text;
+  }
+  return message;
 }
 
 function parsePickStarted(data: Record<string, unknown>): PickStartedMessage | null {

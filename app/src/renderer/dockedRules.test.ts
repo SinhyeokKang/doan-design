@@ -150,7 +150,7 @@ describe("dockedRefusal", () => {
     expect(dockedRefusal("busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is finishing a previous run. Try again in a moment." });
     expect(dockedRefusal("rate_limited", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code reached a usage limit. Send again after it resets." });
     expect(dockedRefusal("bad_request", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t send your message. Try again." });
-    expect(dockedRefusal("session_in_use", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is using this session in another terminal. Try again when it finishes there." });
+    expect(dockedRefusal("session_in_use", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is using this session elsewhere. Try again when it finishes there." });
     // the code alone does not tell an expired sign-in from none.
     expect(dockedRefusal("not_logged_in", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Sign in to Claude Code in Settings > Agents, then send again." });
   });
@@ -162,9 +162,15 @@ describe("dockedRefusal", () => {
       expect(dockedRefusal("sign_in_changed", mode, "codex", "doan-design")).toEqual({ kind: "notice", text: earlier, startNew: true });
     }
   });
+  test("a conversation of another organization of a Claude Code account says so and offers a new conversation, not Retry", () => {
+    const text = "This conversation’s session belongs to another organization of your Claude Code account, so it can’t continue here. To continue it, sign in to the organization this conversation started in.";
+    for (const mode of [EXISTING, { kind: "archived", conversationId: "c1", provider: "claude" } as const]) {
+      expect(dockedRefusal("workspace_changed", mode, "claude", "doan-design")).toEqual({ kind: "notice", text, startNew: true });
+    }
+  });
   test("a terminal session's refusal names the session, not another agent", () => {
     const resume = { kind: "resume", root: "/r", canvas: { path: ".doan/canvases/billing.html" }, provider: "codex" } as const;
-    expect(dockedRefusal("session_in_use", resume, "codex", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t continue the terminal session: it’s in use in another terminal." });
+    expect(dockedRefusal("session_in_use", resume, "codex", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t continue the terminal session: it’s open elsewhere." });
   });
 });
 

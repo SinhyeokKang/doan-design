@@ -78,7 +78,7 @@ When the run includes `/design-draft`, the conductor owns and performs the draft
 
 ## 6. Linked runs (chains)
 
-When this run is a link in a chain (a `docs/features/chain-<YYMMDD>/chain.md` lists it), read that chain file at intake and follow [/chain](../chain/SKILL.md) §3 'Conductor' for permissions and finishing.
+When this run is a link in a chain (a `docs/features/chain-<YYMMDD>-<n>/chain.md` lists it), read that chain file at intake and follow [/chain](../chain/SKILL.md) §3 'Conductor' for permissions and finishing.
 
 ## Report
 

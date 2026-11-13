@@ -68,21 +68,31 @@ describe("toolShortcut", () => {
 
 describe("escapeStep", () => {
   test("cancels a pick first, then turns Hand back to Select, then steps the selection back", () => {
-    expect(escapeStep({ picking: true, capturing: false, hand: true, editable: false })).toBe("cancelPick");
-    expect(escapeStep({ picking: false, capturing: false, hand: true, editable: false })).toBe("selectTool");
-    expect(escapeStep({ picking: false, capturing: false, hand: false, editable: false })).toBe("stepSelection");
+    expect(escapeStep({ picking: true, capturing: false, hand: true, editable: false, canvasText: false })).toBe("cancelPick");
+    expect(escapeStep({ picking: false, capturing: false, hand: true, editable: false, canvasText: false })).toBe("selectTool");
+    expect(escapeStep({ picking: false, capturing: false, hand: false, editable: false, canvasText: false })).toBe("stepSelection");
   });
 
   test("in an editable target only cancels a pick", () => {
-    expect(escapeStep({ picking: true, capturing: false, hand: true, editable: true })).toBe("cancelPick");
-    expect(escapeStep({ picking: false, capturing: false, hand: true, editable: true })).toBeNull();
-    expect(escapeStep({ picking: false, capturing: false, hand: false, editable: true })).toBeNull();
+    expect(escapeStep({ picking: true, capturing: false, hand: true, editable: true, canvasText: false })).toBe("cancelPick");
+    expect(escapeStep({ picking: false, capturing: false, hand: true, editable: true, canvasText: false })).toBeNull();
+    expect(escapeStep({ picking: false, capturing: false, hand: false, editable: true, canvasText: false })).toBeNull();
+  });
+
+  // A canvas text range is cleared after Hand turns back to Select and before the selection steps back; a text field
+  // keeps its own Esc.
+  test("clears the canvas text before stepping the selection back, after a pick, capture mode and Hand", () => {
+    expect(escapeStep({ picking: false, capturing: false, hand: false, editable: false, canvasText: true })).toBe("clearText");
+    expect(escapeStep({ picking: false, capturing: false, hand: true, editable: false, canvasText: true })).toBe("selectTool");
+    expect(escapeStep({ picking: true, capturing: false, hand: false, editable: false, canvasText: true })).toBe("cancelPick");
+    expect(escapeStep({ picking: false, capturing: true, hand: false, editable: false, canvasText: true })).toBe("cancelCapture");
+    expect(escapeStep({ picking: false, capturing: false, hand: false, editable: true, canvasText: true })).toBeNull();
   });
 
   // Capture mode ends at the pick's step, ahead of Hand and the selection.
   test("ends capture mode before Hand and the selection, wherever focus is", () => {
     for (const hand of [true, false]) {
-      for (const editable of [true, false]) expect(escapeStep({ picking: false, capturing: true, hand, editable })).toBe("cancelCapture");
+      for (const editable of [true, false]) expect(escapeStep({ picking: false, capturing: true, hand, editable, canvasText: false })).toBe("cancelCapture");
     }
   });
 });

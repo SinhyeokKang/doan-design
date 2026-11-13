@@ -55,7 +55,9 @@ export type ConfigWrite =
   | { root: string; op: "setTokenCss" | "addServe"; choiceId: string }
   | { root: string; op: "clearTokenCss" }
   | { root: string; op: "removeServe"; path: string }
-  | { root: string; op: "setStorage"; storage: "repo" | "local" };
+  | { root: string; op: "setStorage"; storage: "repo" | "local" }
+  // gitInit: the person confirmed creating the Git repository Keep out of Git needs outside Git.
+  | { root: string; op: "setStorage"; storage: "local"; gitInit: true };
 
 // Events with a current value: the value is asked for too, because the first
 // event can come before the listener. An event that arrives first wins.
@@ -167,7 +169,7 @@ const api = {
   openLink: (url: string): Promise<boolean> => ipcRenderer.invoke("shell:openLink", { url }),
   // The OS cursor in the window's content coordinates (CSS px), null when main cannot tell.
   pointer: (): Promise<{ x: number; y: number } | null> => ipcRenderer.invoke("pointer:get"),
-  interruptConversation: (request: { conversationId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:interrupt", request),
+  interruptConversation: (request: { conversationId: string; turnId?: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:interrupt", request),
   answerConversationPermission: (request: { conversationId: string; requestId: string; optionId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerPermission", request),
   answerConversationQuestion: (request: { conversationId: string; requestId: string } & QuestionAnswerInput): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerQuestion", request),
   readConversation: (request: { conversationId: string }): Promise<ReturnType<ConversationService["read"]> | ConversationError> => ipcRenderer.invoke("conversation:read", request),

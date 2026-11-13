@@ -4,7 +4,7 @@ import { parseScenarioJson, renderPrompt, selectIds } from "./scenario.ts";
 
 test("scenario.json is read with its defaults", () => {
   assert.deepEqual(parseScenarioJson({ id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null }, "W1"),
-    { id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null, timeoutSec: 900, shellCli: true, worktree: null, onboarding: null, handoff: null });
+    { id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null, timeoutSec: 900, shellCli: true, git: true, worktree: null, onboarding: null, handoff: null });
   assert.equal(parseScenarioJson({ id: "R2", title: "t", focus: "active", init: null, selection: "selection.json", timeoutSec: 60 }, "R2").timeoutSec, 60);
 });
 
@@ -68,4 +68,13 @@ test("handoff is null or the canvas the conversation works on", () => {
   assert.deepEqual(parseScenarioJson({ ...value, handoff: { canvas: ".doan/canvases/account.html" } }, "R10").handoff, { canvas: ".doan/canvases/account.html" });
   for (const handoff of ["account", {}, { canvas: "" }, { canvas: "account.html" }, { canvas: ".doan/ds/button.html" }, { canvas: ".doan/canvases/a/b.html" }, { canvas: ".doan/canvases/a.html", key: "x" }, [{ canvas: ".doan/canvases/a.html" }]])
     assert.throws(() => parseScenarioJson({ ...value, handoff }, "R10"), Error, JSON.stringify(handoff));
+});
+
+test("git defaults to true, accepts only a boolean, and cannot be false with a worktree", () => {
+  const value = { id: "O5", title: "Outside Git", focus: "onboarding" };
+  assert.equal(parseScenarioJson(value, "O5").git, true);
+  assert.equal(parseScenarioJson({ ...value, git: false }, "O5").git, false);
+  assert.equal(parseScenarioJson({ ...value, git: true }, "O5").git, true);
+  for (const git of [null, "false", 0, {}]) assert.throws(() => parseScenarioJson({ ...value, git }, "O5"), Error, JSON.stringify(git));
+  assert.throws(() => parseScenarioJson({ ...value, git: false, worktree: { branch: "second" } }, "O5"), /worktree/);
 });

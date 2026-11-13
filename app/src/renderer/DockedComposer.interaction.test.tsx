@@ -461,15 +461,15 @@ test("a terminal session keeps the trigger places, chosen by the terminal, and t
 
 test("a refused terminal session offers a new conversation, which keeps the draft and drops the notice", async () => {
   const onStartNew = vi.fn();
-  const refuse = vi.fn(() => ({ kind: "notice" as const, text: "Couldn’t continue the terminal session: it’s in use in another terminal.", startNew: true }));
+  const refuse = vi.fn(() => ({ kind: "notice" as const, text: "Couldn’t continue the terminal session: it’s open elsewhere.", startNew: true }));
   const { store, render } = setup({ mode: RESUME, provider: "codex", fixed: true, refuse, onStartNew, onSend: async () => ({ error: "session_in_use" }) }, [[draftKey(RESUME), draft("Fix the totals")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();
   expect(refuse).toHaveBeenCalledWith("session_in_use", "codex");
-  expect(has(render(), "Couldn’t continue the terminal session: it’s in use in another terminal.")).toBe(true);
+  expect(has(render(), "Couldn’t continue the terminal session: it’s open elsewhere.")).toBe(true);
   (find(render(), item => item.children === "Start a new conversation").onClick as () => void)();
   expect(onStartNew).toHaveBeenCalledTimes(1);
-  expect(has(render(), "Couldn’t continue the terminal session: it’s in use in another terminal.")).toBe(false);
+  expect(has(render(), "Couldn’t continue the terminal session: it’s open elsewhere.")).toBe(false);
   expect(draftText(store.current.get(draftKey(RESUME)))).toBe("Fix the totals");
 });
 

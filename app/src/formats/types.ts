@@ -97,7 +97,8 @@ export interface OnboardingAgentStatus {
 
 export interface OnboardingProject { root: string }
 // ".git/info/exclude" is a fixed label, not a path: in a linked worktree or submodule .git is a file.
-export type OnboardingChange = ".doan/config.json" | ".doan/canvases/" | ".gitattributes" | ".git/info/exclude";
+// ".git/" is the new Git repository a local plan creates in a folder that belongs to none.
+export type OnboardingChange = ".doan/config.json" | ".doan/canvases/" | ".gitattributes" | ".git/info/exclude" | ".git/";
 export interface OnboardingInspection {
   inspectionId: string;
   // storage is only ever "local", and only in a reply to a request that carried storage: present when the changes are

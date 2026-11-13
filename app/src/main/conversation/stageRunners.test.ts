@@ -52,7 +52,7 @@ input.on('line', line => {
  if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models:[],account:{}}}});
  if(r.type!=='user') return;
  for (const frame of frames) {
-  send({...frame, session_id: r.session_id});
+  send({...frame, session_id: r.session_id, ...(frame.type==='result' ? {user_message_uuids:[r.uuid]} : {})});
   if(process.env.FAKE_STAGE==='hold' && frame.type==='stream_event' && frame.event.type==='content_block_start' && frame.event.content_block.type==='thinking') return;
  }
 });

@@ -1,7 +1,7 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { ConversationEvent, StageSignal, TurnStage } from "../main/conversation/types";
 import { threadItems, withSending, type ThreadItem } from "./threadItems";
-import { activityRun, elapsedText, newerStage, settle, SETTLE_MS, turnAnnouncement, turnOf, turnStatus, turnText, type Settled, type TurnStatus } from "./turnStatus";
+import { activityRun, BACKGROUND_STOP_FAILED, backgroundLine, elapsedText, newerStage, settle, SETTLE_MS, stopBackground, threadTurn, turnAnnouncement, turnOf, turnStatus, turnText, type Settled, type TurnStatus } from "./turnStatus";
 
 const ROOT = "/Users/ada/code/doan";
 let seq = 0;
@@ -117,6 +117,18 @@ describe("turnStatus", () => {
     // A first turn's message alone, as a thread tracked before its read could merge it.
     seq = 0;
     expect(turnOf([ev("t1", { type: "user.message", text: "Draw it", anchors: [] })], true)).toMatchObject({ turnId: "t1", ended: false });
+  });
+
+  // PRODUCT 'Turn indicator': it goes at once on Stop. Main marks the summary `stopping` the moment it takes the Stop,
+  // while the turn's own end may still be held for the transcript lookup.
+  test("a Stop main has taken hides the indicator at once, whatever the turn is doing", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })];
+    const items = threadItems(events, ROOT, true);
+    expect(turnStatus(items, turnOf(events, true), signal("t1", { kind: "thinking" }, seq), ROOT, true)).toEqual({ kind: "none" });
+    expect(turnStatus(items, turnOf(events, true), null, ROOT, false)).toEqual({ kind: "tool", activity: "command", text: "Running a command", step: "s3" });
+    expect(threadTurn(events, items, true, null, ROOT, true)).toMatchObject({ turnId: "t1", status: { kind: "none" } });
+    expect(threadTurn(events, items, true, null, ROOT)).toMatchObject({ turnId: "t1", status: { kind: "tool", activity: "command" } });
   });
 
   test("a queue starting the next turn at once: the earlier turn's stage is ignored", () => {
@@ -336,4 +348,33 @@ test("the words and the screen reader's status: the provider only without a tool
   expect(turnAnnouncement({ kind: "general" }, p)).toBe("Claude Code is working");
   expect(turnAnnouncement({ kind: "none" }, p)).toBe("");
   expect(turnAnnouncement({ kind: "waiting" }, p)).toBe("");
+});
+
+// The background work line under a done turn (draft frame background-line). One sentence for any number of tasks; Stop
+// turns into Stopping while this window waits for main or main says another window pressed it.
+describe("backgroundLine", () => {
+  test("none without background work, and none once the person's message entered the thread", () => {
+    expect(backgroundLine({ background: undefined, sending: false, stopping: false })).toBeNull();
+    expect(backgroundLine({ background: null, sending: false, stopping: true })).toBeNull();
+    expect(backgroundLine({ background: { turnId: "t1" }, sending: true, stopping: false })).toBeNull();
+    expect(backgroundLine({ background: { turnId: "t1", stopping: true }, sending: true, stopping: true })).toBeNull();
+  });
+
+  test("Stop at rest, and Stopping when this window pressed it or main says the stop is under way", () => {
+    expect(backgroundLine({ background: { turnId: "t1" }, sending: false, stopping: false })).toEqual({ turnId: "t1", stopping: false });
+    expect(backgroundLine({ background: { turnId: "t1" }, sending: false, stopping: true })).toEqual({ turnId: "t1", stopping: true });
+    expect(backgroundLine({ background: { turnId: "t1", stopping: true }, sending: false, stopping: false })).toEqual({ turnId: "t1", stopping: true });
+  });
+});
+
+// The line's Stop names the done turn, so a press that arrives after a newer send stops nothing (main's interrupt).
+// Main answers a refusal as a ConversationError; a failure either way is the toast's text.
+test("stopBackground asks main to stop that turn's work and answers the toast's text only on failure", async () => {
+  const interrupt = vi.fn(async (_request: { conversationId: string; turnId: string }): Promise<void | { error: string }> => undefined);
+  expect(await stopBackground({ conversationId: "c1", turnId: "t1" }, interrupt)).toBeNull();
+  expect(interrupt).toHaveBeenCalledWith({ conversationId: "c1", turnId: "t1" });
+  interrupt.mockResolvedValueOnce({ error: "busy" });
+  expect(await stopBackground({ conversationId: "c1", turnId: "t1" }, interrupt)).toBe("Couldn’t stop the background work. Try again.");
+  interrupt.mockRejectedValueOnce(new Error("gone"));
+  expect(await stopBackground({ conversationId: "c1", turnId: "t1" }, interrupt)).toBe(BACKGROUND_STOP_FAILED);
 });

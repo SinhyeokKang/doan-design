@@ -1177,14 +1177,15 @@
       "additionalProperties": false
     },
     "changes": {
-      "$comment": ".git/info/exclude is a fixed label, not a path: in a linked worktree or submodule .git is a file and the real exclude file lives in the repository's common Git directory.",
+      "$comment": ".git/info/exclude is a fixed label, not a path: in a linked worktree or submodule .git is a file and the real exclude file lives in the repository's common Git directory. .git/ is a new Git repository setup creates in a folder that belongs to none; only a local plan, so only in a reply to a request that carried storage.",
       "type": "array",
       "items": {
         "enum": [
           ".doan/config.json",
           ".doan/canvases/",
           ".gitattributes",
-          ".git/info/exclude"
+          ".git/info/exclude",
+          ".git/"
         ]
       },
       "uniqueItems": true

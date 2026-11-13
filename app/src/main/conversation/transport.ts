@@ -85,6 +85,21 @@ export function steerTransport(state: TransportState, id: string): TransportStat
 }
 // The wait after awaitingRead ran out: the turn ends as that success result would have.
 export function endSteerWait(state: TransportState): TransportResult { return finish(state, { type: "turn.done" }); }
+// The turn's own prompt, registered before it is written: a success result before the CLI read it closes a turn the
+// CLI opened by itself (a background task's notice, PoC Claude Code 2.1.322 and 2.1.284), not this one.
+export function promptTransport(state: TransportState, uuid: string): TransportState {
+  return state.terminal ? state : { ...state, prompt: uuid };
+}
+// The wait ran out with the prompt still unread: the CLI never took the message, so the turn fails.
+export function endPromptWait(state: TransportState): TransportResult { return finish(state, { type: "turn.failed", code: "prompt_unread" }); }
+// The live background tasks after a background_tasks_changed frame, null for any other frame. The frame is a level
+// signal that carries the whole set each time (SDK 0.3.312). An ambient entry is one the host leaves out of activity, so
+// it is left out of what is shown; withAmbient keeps it, since it may still run in a process group of its own.
+export function backgroundTasks(_current: readonly string[], raw: unknown, withAmbient = false): string[] | null {
+  if (!object(raw) || raw.type !== "system" || raw.subtype !== "background_tasks_changed") return null;
+  const tasks = Array.isArray(raw.tasks) ? raw.tasks : [];
+  return tasks.filter(object).filter(task => typeof task.task_id === "string" && task.task_id && (withAmbient || task.ambient !== true)).map(task => task.task_id as string);
+}
 function consume(state: TransportState, seen: readonly unknown[]): { state: TransportState; consumed: string[] } {
   const consumed = (state.steered ?? []).filter(id => seen.includes(id));
   return consumed.length ? { state: { ...state, steered: state.steered!.filter(id => !consumed.includes(id)) }, consumed } : { state, consumed };
@@ -203,8 +218,12 @@ export function normalizeClaude(state: TransportState, raw: unknown, root: strin
   if (state.terminal || !object(raw) || raw.parent_tool_use_id) return unchanged(state);
   // A steered message is read when its uuid first appears in a frame's user_message_uuids: the system/status after a
   // tool result when it folds into the running turn, or the system/init of the turn the CLI runs for it (PoC, Claude Code 2.1.317 and 2.1.312).
-  const read = consume(state, Array.isArray(raw.user_message_uuids) ? raw.user_message_uuids : []);
-  return withConsumed(claudeFrame(read.state, raw, root, labels), read.consumed);
+  // An older producer's frame names only user_message_uuid (SDK 0.3.312); 2.1.284 first names the prompt on message_start.
+  const seen: unknown[] = [...Array.isArray(raw.user_message_uuids) ? raw.user_message_uuids : [], raw.user_message_uuid];
+  const read = consume(state, seen);
+  const { prompt: _prompt, ...rest } = read.state;
+  const prompted = read.state.prompt !== undefined && seen.includes(read.state.prompt) ? rest : read.state;
+  return withConsumed(claudeFrame(prompted, raw, root, labels), read.consumed);
 }
 function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: string, labels?: Readonly<Record<string, string>>): SteerResult {
   if (raw.type === "stream_event" && object(raw.event)) {
@@ -263,7 +282,8 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     if (raw.terminal_reason === "aborted_tools" || raw.terminal_reason === "interrupted") return aborted(state);
     // queued_turn_count stays 0 while a steered message is unread (same PoC), so only the uuids tell that the CLI goes on
     // to another turn for it; that turn's result ends this one. A stop still ends here.
-    if (raw.subtype === "success" && raw.is_error === false) return state.steered?.length && !state.stop ? { ...unchanged(state), awaitingRead: true } : finish(state, { type: "turn.done" });
+    // The same holds for the turn's own prompt: a success result before it was read is another turn's.
+    if (raw.subtype === "success" && raw.is_error === false) return (state.steered?.length || state.prompt !== undefined) && !state.stop ? { ...unchanged(state), awaitingRead: true } : finish(state, { type: "turn.done" });
     const detail = Array.isArray(raw.errors) ? raw.errors.filter((e): e is string => typeof e === "string").join("\n") : text(raw.result);
     return failed(state, detail, state.claudeFailure);
   }

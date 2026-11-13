@@ -63,6 +63,38 @@ export function parseSessionRecords(tail: string, startsMidLine = false): Sessio
   }
   return records;
 }
+// A Claude registry record (<config>/sessions/<pid>.json) names the session one Claude process is using. Liveness is
+// read first: a record whose process ended blocks nothing, whatever its other fields, so a crashed process's leftovers
+// never hide a resume. Only a record that may hold the target session still blocks.
+export type RegistryVerdict = "skip" | "occupied" | "unknown";
+// procStart: the process's start as ps prints it, which tells a reused pid apart. Claude Code 2.1.323 writes none; the
+// pid alone then says whether the process is there (io.ts claudeRecordVerdict).
+export interface RegistryIdentity { pid: number; procStart?: string; host: boolean }
+// null when liveness cannot even be asked. Claude Code writes pidDomain "darwin" on macOS and a machine-id/PID-namespace
+// value on Linux and WSL, so any other string is a process the host's ps cannot see. A procStart that is there but
+// unreadable is not dropped: the record is then in a shape this reader does not know.
+export function registryIdentity(name: string, raw: unknown): RegistryIdentity | null {
+  if (!object(raw) || typeof raw.pid !== "number" || !Number.isSafeInteger(raw.pid) || raw.pid !== Number(name.slice(0, -5))) return null;
+  if (raw.procStart !== undefined && (typeof raw.procStart !== "string" || !Number.isFinite(Date.parse(raw.procStart)))) return null;
+  if (raw.pidDomain !== undefined && typeof raw.pidDomain !== "string") return null;
+  return { pid: raw.pid, ...(typeof raw.procStart === "string" ? { procStart: raw.procStart } : {}), host: raw.pidDomain === undefined || raw.pidDomain === "darwin" };
+}
+// A live record is judged by its sessionId alone, whatever its kind; one below the floor or in another shape gives no
+// reason to trust that sessionId, so it may hold the target. A record from another PID domain may be alive.
+export function registryRecordVerdict(raw: unknown, target: string, liveness: "live" | "dead" | "foreign"): RegistryVerdict {
+  if (liveness === "dead") return "skip";
+  const intact = object(raw) && typeof raw.sessionId === "string" && !!raw.sessionId && typeof raw.cwd === "string" && absolutePath(raw.cwd) &&
+    storedVersionAtLeast(raw.version, CLAUDE_REGISTRY_FLOOR) && typeof raw.kind === "string";
+  if (!intact) return "unknown";
+  if (raw.sessionId !== target) return "skip";
+  return liveness === "live" ? "occupied" : "unknown";
+}
+// Every record is read: "in use" is the more accurate refusal when one holds the target, and both refuse the resume.
+export function mergeOccupancy(verdicts: Iterable<RegistryVerdict>): "free" | "occupied" | "unknown" {
+  let unknown = false;
+  for (const verdict of verdicts) { if (verdict === "occupied") return "occupied"; if (verdict === "unknown") unknown = true; }
+  return unknown ? "unknown" : "free";
+}
 export function sameCanvas(a: Canvas, b: Canvas): boolean {
   return a.id !== undefined || b.id !== undefined ? a.id !== undefined && a.id === b.id : a.path === b.path;
 }

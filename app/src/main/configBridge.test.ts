@@ -13,7 +13,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-const run = vi.fn<(root: string, args: string[]) => Promise<CliRun>>();
+const run = vi.fn<(root: string, args: string[], env?: { PATH?: string }) => Promise<CliRun>>();
 const pick = vi.fn<(root: string, kind: "tokenCss" | "serve") => Promise<string | null>>();
 const storageWritten = vi.fn<(root: string) => void>();
 let epochs: Map<string, number>;
@@ -119,6 +119,61 @@ test("writes the storage mode through doan config and has the group read again o
   expect(await bridge.write({ root: ROOT, op: "setStorage", storage: "repo" })).toEqual({ kind: "error", message: "Couldn’t update .git/info/exclude: permission denied." });
   expect(run).toHaveBeenLastCalledWith(ROOT, ["--storage", "repo"]);
   expect(storageWritten).toHaveBeenCalledTimes(1);
+});
+
+// Project Settings' confirmation to create a repository (draft keep-out-git-init, frame project-settings): only Keep
+// out of Git carries it, as `doan config --storage local --git-init`. A created repository is told by `written`.
+test("a confirmed switch creates the repository through doan config and says so", async () => {
+  run.mockResolvedValueOnce(ok({ repo: ROOT, serve: [], changed: true, storage: "local", written: [".git/", ".git/info/exclude", ".doan/config.json"] }));
+  expect(await bridge.write({ root: ROOT, op: "setStorage", storage: "local", gitInit: true })).toEqual({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: true, storage: "local", repositoryCreated: true });
+  expect(run).toHaveBeenLastCalledWith(ROOT, ["--storage", "local", "--git-init"]);
+  expect(storageWritten).toHaveBeenCalledExactlyOnceWith(ROOT);
+  // A repository found meanwhile is used as it is: --git-init then creates nothing, and nothing says it did.
+  run.mockResolvedValueOnce(ok({ repo: ROOT, serve: [], changed: true, storage: "local", written: [".git/info/exclude"] }));
+  expect(await bridge.write({ root: ROOT, op: "setStorage", storage: "local", gitInit: true })).not.toHaveProperty("repositoryCreated");
+  for (const request of [{ root: ROOT, op: "setStorage", storage: "repo", gitInit: true }, { root: ROOT, op: "setStorage", storage: "local", gitInit: "yes" }, { root: ROOT, op: "setStorage", storage: "local", gitInit: false }]) {
+    expect(await bridge.write(request), JSON.stringify(request)).toEqual({ kind: "unavailable" });
+  }
+  expect(run).toHaveBeenCalledTimes(2);
+});
+
+// The login shell is read before the project is checked: a project removed or re-rooted, or a page closed, while it is
+// read gets no repository. A project still there runs with that environment.
+test("a project removed while the git environment is read gets no repository", async () => {
+  const env = deferred<{ PATH?: string }>();
+  const gitEnv = vi.fn(() => env.promise);
+  bridge = createConfigBridge({ run, pick, epoch: root => epochs.get(root) ?? null, storageWritten, gitEnv });
+  const reply = bridge.write({ root: ROOT, op: "setStorage", storage: "local", gitInit: true });
+  await vi.waitFor(() => expect(gitEnv).toHaveBeenCalledTimes(1));
+  epochs.delete(ROOT);
+  env.resolve({ PATH: "/login/bin" });
+  expect(await reply).toEqual({ kind: "unavailable" });
+  expect(run).not.toHaveBeenCalled();
+  expect(storageWritten).not.toHaveBeenCalled();
+  epochs.set(ROOT, 2);
+  run.mockResolvedValueOnce(ok({ repo: ROOT, serve: [], changed: true, storage: "local", written: [".git/"] }));
+  expect(await bridge.write({ root: ROOT, op: "setStorage", storage: "local", gitInit: true })).toMatchObject({ kind: "config", repositoryCreated: true });
+  expect(run).toHaveBeenCalledExactlyOnceWith(ROOT, ["--storage", "local", "--git-init"], { PATH: "/login/bin" });
+  // Other writes read no login shell.
+  await bridge.write({ root: ROOT, op: "setStorage", storage: "repo" });
+  expect(gitEnv).toHaveBeenCalledTimes(2);
+  expect(run).toHaveBeenLastCalledWith(ROOT, ["--storage", "repo"]);
+});
+
+// The page's own sentences for a failed creation (one sentence for git init, naming any .git left behind), and
+// the project read again: a .git left behind makes the folder a repository, so its reason goes.
+test("a failed creation says why in Project Settings' words and has the project read again", async () => {
+  const cases: [string, string][] = [
+    ["git_missing", "Git isn’t installed, so Doan can’t create a repository here. Install the Command Line Tools with xcode-select --install, then choose Keep out of Git again."],
+    ["git_init_failed", "Couldn’t create a Git repository here, so nothing changed."],
+    ["cleanup_failed", `Couldn’t switch to Keep out of Git, and Doan couldn’t remove the Git repository it created at ${ROOT}/.git. Remove it or keep it, then try again.`],
+  ];
+  for (const [code, message] of cases) {
+    storageWritten.mockClear();
+    run.mockResolvedValueOnce(failed(code, "cli words"));
+    expect(await bridge.write({ root: ROOT, op: "setStorage", storage: "local", gitInit: true }), code).toEqual({ kind: "error", message });
+    expect(storageWritten, code).toHaveBeenCalledExactlyOnceWith(ROOT);
+  }
 });
 
 test("refuses a malformed storage write without running the CLI", async () => {

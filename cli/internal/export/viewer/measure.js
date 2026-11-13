@@ -4,8 +4,9 @@
 //
 // The size-reporting half of app/src/main/canvasScript.ts: it tells the viewer page how tall the
 // document is and where its frames are, and hands wheel input the canvas itself cannot scroll to
-// the page. Of the app's key channel only the tool keys are here (Space, V, H, Escape); its
-// selection, hover, picking and anchor channels do not exist.
+// the page. Of the app's key channel only the tool keys are here (Space, V, H, Escape), and of its
+// hover channel only the hand while the board pans; its selection, picking and anchor channels do
+// not exist.
 // POSTMORTEM 2026-11-01 (absolutely positioned frames resizing the iframe between 0 and 405 px
 // forever) is why the height comes from lib.js `documentHeight`/`frameBottom`/`nextHeight`
 // unchanged.
@@ -91,10 +92,33 @@ document.fonts.addEventListener("loadingdone", () => {
   if (started) send();
 });
 
+// The hand while the page's board pans: a pointer resting over the canvas keeps the cursor this
+// document last set until it moves, so the board's own grab cursor shows only after a move. A
+// constructed sheet changes no DOM node, and sheets the canvas adopted itself stay as they are.
+let hand = null;
+const showHand = (on) => {
+  try {
+    if (on && hand === null && typeof CSSStyleSheet === "function") {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync("*{cursor:grab!important}");
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+      hand = sheet;
+    } else if (!on && hand !== null) {
+      const sheet = hand;
+      hand = null;
+      document.adoptedStyleSheets = document.adoptedStyleSheets.filter((adopted) => adopted !== sheet);
+    }
+  } catch {
+    // The cursor is only a hint: a canvas that broke adoptedStyleSheets still pans, without it.
+  }
+};
+
 addEventListener("message", (event) => {
   if (event.source !== parent) return;
   const data = event.data;
-  if (typeof data === "object" && data !== null && data.type === "measure") send();
+  if (typeof data !== "object" || data === null) return;
+  if (data.type === "measure") send();
+  else if (data.type === "pan" && typeof data.pan === "boolean") showHand(data.pan);
 });
 
 // The document's own scroll (before the height fits) is not an inner scroller: a wheel there pans

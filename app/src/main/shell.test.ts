@@ -7,14 +7,15 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  statSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, afterEach, describe, expect, inject, test, vi } from "vitest";
-import { canvasMtimes, startShell, type FolderFocus, type Shell } from "./shell";
+import { afterAll, afterEach, describe, expect, inject, onTestFinished, test, vi } from "vitest";
+import { canvasMtimes, startShell, type FolderFocus, type Shell, type ShellHooks } from "./shell";
 import type { FolderState } from "./folderState";
 import type { FolderEntry } from "./view";
 
@@ -48,13 +49,13 @@ interface Started {
   foldersFile: string;
 }
 
-async function start(cliPath = cli, onEntries?: (entries: FolderEntry[]) => void): Promise<Started> {
+async function start(cliPath = cli, onEntries?: (entries: FolderEntry[]) => void, hooks?: ShellHooks): Promise<Started> {
   const foldersFile = join(dir(), "folders.json");
   const changes: FolderEntry[][] = [];
   const shell = await startShell(foldersFile, cliPath, (entries) => {
     changes.push(entries);
     onEntries?.(entries);
-  });
+  }, hooks);
   shells.push(shell);
   return { shell, changes, foldersFile };
 }
@@ -568,8 +569,8 @@ describe("reopening stored folders", () => {
   });
 });
 
-async function uninitialized(root: string, cliPath = cli) {
-  const started = await start(cliPath);
+async function uninitialized(root: string, cliPath = cli, hooks?: ShellHooks) {
+  const started = await start(cliPath, undefined, hooks);
   await started.shell.open(root);
   await vi.waitFor(() => expect(started.shell.entries()[0]?.kind).toBe("uninitialized"), until);
   return started;
@@ -727,6 +728,87 @@ describe("project setup and upward refresh", () => {
     expect(shell.entries()[0]).toMatchObject({ path: root, kind: "list" });
   });
 
+  // A CLI that answers ls from a marker: outside Git until the marker exists (a .git/ the setup left behind), and
+  // records each init's arguments and the PATH and DEVELOPER_DIR it ran with.
+  function gitInitCli(init: string): { path: string; args: string; env: string } {
+    const base = dir(), path = join(base, "doan"), args = join(base, "args"), env = join(base, "env");
+    writeFileSync(path, `#!/bin/sh
+if [ "$1" = ls ]; then
+  for last; do :; done
+  [ "$last" = --json ] && last="$PWD"
+  if [ -e "$last/.git" ]; then echo '{"v":1,"ok":false,"error":{"code":"repo_not_found","message":"No config","nextSteps":[]}}'; exit 2; fi
+  echo '{"v":1,"ok":false,"error":{"code":"repo_not_found","message":"No config","nextSteps":[],"storageReason":"not_git"}}'; exit 2
+fi
+if [ "$1" = init ]; then printf '%s\\n' "$@" > '${args}'; printf '%s\\n%s\\n' "$PATH" "$DEVELOPER_DIR" > '${env}'; ${init}; fi
+exit 9
+`);
+    chmodSync(path, 0o755);
+    return { path, args, env };
+  }
+
+  test("a folder outside Git reads as not set up with notGit, except the home folder and above it", async () => {
+    const root = dir(); const fake = gitInitCli("exit 9");
+    const { shell } = await uninitialized(root, fake.path);
+    await vi.waitFor(() => expect(shell.entries()).toEqual([{ path: root, kind: "uninitialized", notGit: true }]), until);
+    // Doan never creates a repository in the home folder or above it, so nothing plans one there.
+    for (const home of [root, join(root, "ada")]) {
+      const other = await uninitialized(root, fake.path, { home });
+      await vi.waitFor(() => expect(other.shell.entries()).toEqual([{ path: root, kind: "uninitialized" }]), until);
+    }
+  });
+
+  // The consent to create the repository the form showed reaches init as --git-init; the CLI runs git with the login
+  // shell's PATH and clone's DEVELOPER_DIR (the same git clone would find).
+  test("a setup that creates a repository passes --git-init and the git environment", async () => {
+    const root = dir();
+    const fake = gitInitCli(`mkdir '${root}/.git'; echo '{"v":1,"ok":true,"result":{"initialized":true,"repo":"${root}","created":[".git/"]}}'; exit 0`);
+    const { shell } = await uninitialized(root, fake.path, { cliEnv: async () => ({ PATH: "/login/bin:/usr/bin", DEVELOPER_DIR: "/Dev" }) });
+    await shell.initialize(root, null, "local", true);
+    expect(readFileSync(fake.args, "utf8").trim().split("\n")).toEqual(["init", "--json", "--repo", root, "--storage", "local", "--git-init"]);
+    expect(readFileSync(fake.env, "utf8").trim().split("\n")).toEqual(["/login/bin:/usr/bin", "/Dev"]);
+  });
+
+  // A failed setup that left a .git/ makes the folder read as inside Git: the form's .git/ line goes with notGit.
+  test("a failed repository creation reads the folder again and names the .git it left", async () => {
+    const root = dir();
+    const fake = gitInitCli(`mkdir '${root}/.git'; echo '{"v":1,"ok":false,"error":{"code":"cleanup_failed","message":"Cannot remove ${root}/.git","nextSteps":[]}}'; exit 2`);
+    const { shell } = await uninitialized(root, fake.path);
+    expect(await shell.initialize(root, null, "local", true)).toEqual({ kind: "error", code: "cleanup_failed",
+      message: `Setup failed, and Doan couldn’t remove the Git repository it created at ${root}/.git.`, guidance: "Remove it or keep it, then try again." });
+    expect(shell.entries()).toEqual([{ path: root, kind: "uninitialized" }]);
+  });
+
+  test("a local setup refused in the home folder says Doan creates no repository there", async () => {
+    const root = dir();
+    const fake = gitInitCli(`echo '{"v":1,"ok":false,"error":{"code":"local_not_git","message":"Doan does not create a Git repository in your home folder","nextSteps":[]}}'; exit 5`);
+    const { shell } = await uninitialized(root, fake.path, { home: root });
+    expect(await shell.initialize(root, null, "local")).toEqual({ kind: "error", code: "local_not_git",
+      message: "Doan doesn’t create a Git repository in your home folder.", guidance: "Choose Include in Git, or choose a folder inside it." });
+  });
+
+  // The real CLI creates the repository with --git-init: Set Up kept out of Git creates it once; a later Set Up of the
+  // same folder finds it a repository, plans no .git/ and leaves it as it is. git runs under a temporary HOME so the
+  // developer's own Git configuration plays no part.
+  test("setting up the same folder again keeps the repository the first setup created", async () => {
+    const root = dir();
+    const home = process.env.HOME;
+    process.env.HOME = dir();
+    onTestFinished(() => { process.env.HOME = home; });
+    const { shell } = await uninitialized(root);
+    await vi.waitFor(() => expect(shell.entries()[0]).toEqual({ path: root, kind: "uninitialized", notGit: true }), until);
+    expect(await shell.initialize(root, null, "local", true)).toEqual({ kind: "success" });
+    expect(shell.entries()[0]).toMatchObject({ path: root, kind: "list", storage: "local" });
+    const head = statSync(join(root, ".git", "HEAD")).ino;
+    expect(readFileSync(join(root, ".git", "info", "exclude"), "utf8")).toContain(".doan/");
+    rmSync(join(root, ".doan", "config.json"));
+    await shell.reopen(root);
+    // Now inside its own repository (the row keeps the last Git common directory it saw), so nothing plans a new one.
+    await vi.waitFor(() => expect(shell.entries()[0]).toMatchObject({ path: root, kind: "uninitialized" }), until);
+    expect(shell.entries()[0]).not.toHaveProperty("notGit");
+    expect(await shell.initialize(root, null, "local", true)).toEqual({ kind: "success" });
+    expect(statSync(join(root, ".git", "HEAD")).ino).toBe(head);
+  });
+
   test("init result.repo cannot replace the stored identity", async () => {
     const root = dir(); const wrapper = join(dir(), "doan");
     writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = init ]; then '${cli}' "$@" >/dev/null; echo '{"v":1,"ok":true,"result":{"initialized":false,"repo":"/forged","created":[]}}'; exit 0; fi\nexec '${cli}' "$@"\n`); chmodSync(wrapper, 0o755);
@@ -797,7 +879,8 @@ describe("storing, removing and restoring", () => {
     const plain = dir();
     const { shell } = await start();
     expect(await shell.store([plain])).toEqual([plain]);
-    await vi.waitFor(() => expect(shell.entries()).toEqual([{ path: plain, kind: "uninitialized" }]), until);
+    // The temp folder belongs to no Git repository, so ls says Keep out of Git would need a new one.
+    await vi.waitFor(() => expect(shell.entries()).toEqual([{ path: plain, kind: "uninitialized", notGit: true }]), until);
   });
 
   test("remove reports the stored paths it removed and saves the rest", async () => {

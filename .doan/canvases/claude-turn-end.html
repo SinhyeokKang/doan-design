@@ -70,9 +70,6 @@ code{font-size:var(--type-caption-size)}
 .conversation-thread .thread-notice>.strip-actions{grid-column:2;flex-wrap:wrap;margin-block:0;align-self:start}
 .conversation-thread .thread-notice>svg{width:var(--size-icon);height:var(--size-icon)}
 .conversation-thread .thread-notice .strip-text span{white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
-/* Proposed shared notice change (choice 6): an inline action centres vertically in the notice instead of on the first
-   text line; the icon stays on the first line. Overrides ds/surfaces.css until the change ships. */
-.doan-notice > :is(.doan-button, :has(> .doan-button)){align-self:center}
 .conversation-thread .ti-reply{display:flex;align-items:center;gap:var(--space-2);min-width:0;color:var(--text-subtle);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing)}
 .conversation-thread .ti-reply .ti-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .conversation-thread .ti-reply .ti-time{flex:none;color:var(--text-metadata);font-variant-numeric:tabular-nums}

@@ -22,9 +22,11 @@ For `.doan/canvases/home.html`, use `../assets/logo.svg` for `.doan/assets/logo.
 6. Connect a frame to its implementation with `data-doan-implements="repo/relative/path"` (recommended).
 7. Tokens are defined by local CSS the canvas links, including relative imports inside the repo, and its own style blocks and attributes. Link token CSS relative to the canvas. Unlinked config `tokenCss` and external CDN definitions do not supply tokens to `doan check`. Reached CSS must be within `.doan/canvases/`, `.doan/ds/` or `.doan/assets/`, the configured `tokenCss`, or a configured `serve` path. If CSS the user names or the canvas needs is outside that scope, do not change configuration. In your final answer, say the original file could not be linked as-is and serving its path needs the user's approval: they can add it in Doan under the project menu › Project Settings › Shared with canvases, or you run `doan config --add-serve <path>` once they approve. If you use a workaround such as copying CSS into `.doan/assets/`, disclose it in the final answer.
 8. Keep ids stable and unique: canvas ids across the repo, frame and element ids within a canvas. Frame and element ids are separate namespaces and must be non-empty.
-9. External resources are allowed; `doan check` reports them as warnings. The CLI makes no network requests.
+9. External resources are allowed; `doan check` reports them as warnings, except an external URL in an SVG `<use>`: the app cannot draw it, so it is an error (`svg_use_not_inline`). The CLI makes no network requests.
 10. When token CSS is configured, direct hex and rgb colors warn, including in custom property declarations and `var()` fallbacks. Use the linked tokens.
 11. Do not use viewport height units (vh, dvh, svh, lvh, vb, dvb, svb, lvb) in a canvas: in the app they resolve against the whole board. Write pixel values, also when copying app CSS that uses them; `doan check` warns with `viewport_height_unit`. When a linked stylesheet uses them on something the canvas shows (an open dialog's `max-height`, say), override that property in the canvas with a pixel value.
+12. When an icon exists only in a sprite file, copy the needed `<symbol>` elements into the canvas and draw them with `<use href="#id">`. Leave a `<!-- source: path -->` note naming the source file. A sprite's `<style>` applies to the whole canvas. An icon kept as its own SVG file also draws through `<img src>` or CSS `mask: url(icon.svg)`; `sprite.svg#id` does not draw that way.
+13. Use a custom property holding a `url()` only from stylesheets in one folder, or register it with `@property` giving `syntax: "<url>"`, `inherits` and an `initial-value` (a rule missing any of them is ignored). If `ambiguous_custom_url` remains, export refuses the canvas.
 
 ## Agent rules
 
@@ -60,7 +62,7 @@ All commands except `onboarding` accept `--repo <directory>`; all accept `--json
 
 JSON is one versioned envelope, stdout only: `{v:1,ok:true,result}` or `{v:1,ok:false,error:{code,message,nextSteps}}`. Absent keys are omitted; empty lists: `[]`.
 
-Exit codes: 0 success (including warnings); 1 internal failure; 2 usage/repository/configuration/version/canvas errors, `destination_exists` (export and onboarding), export `export_refused`, `export_too_large`, plus onboarding `invalid_url`, `path_unavailable`, `not_candidate`, `initialize_required`, `request_conflict`, `operation_not_found`, `inspection_stale`; 3 `app_not_running`, `app_protocol_mismatch`, `project_not_open`, `app_launch_failed`, `session_stale`; 4 check errors (`ok:true`); 5 refusals/failed operations (`busy`, `stop_required`, `no_ready_agent`, `cancelled`, `sign_in_failed`, `clone_failed`, `local_not_git`, `local_exclude_failed`). Read `error.nextSteps`. Doan does not commit or push.
+Exit codes: 0 success (including warnings); 1 internal failure; 2 usage/repository/configuration/version/canvas errors, `destination_exists` (export and onboarding), export `export_refused`, `export_too_large`, init/config `git_init_failed`, plus onboarding `invalid_url`, `path_unavailable`, `not_candidate`, `initialize_required`, `request_conflict`, `operation_not_found`, `inspection_stale`; 3 `app_not_running`, `app_protocol_mismatch`, `project_not_open`, `app_launch_failed`, `session_stale`; 4 check errors (`ok:true`); 5 refusals/failed operations (`busy`, `stop_required`, `no_ready_agent`, `cancelled`, `sign_in_failed`, `clone_failed`, `local_not_git`, `local_exclude_failed`, `git_missing`, init/config `cleanup_failed`). Read `error.nextSteps`. Doan does not commit or push.
 
 ## Design presets
 
@@ -76,7 +78,7 @@ Exit codes: 0 success (including warnings); 1 internal failure; 2 usage/reposito
 
 Doan app conversation instructions override these rules.
 
-Storage: `--storage repo` = "Include in Git"; `--storage local` = "Keep out of Git (this Mac only)". Use `init --storage local|repo`; plain init inherits local, else repo; repo on local refuses. Onboarding `project inspect`/`select`/`clone` accept it; reuse inspection mode (absent=repo). Change: `config --storage` alone. Local needs Git; it marks `.git/info/exclude` (label), not `.gitattributes`. Files stay per checkout; worktree removal/`git clean -x` can delete them. Share by Export. Tracked files stay tracked; see config's untracking guidance (deletes teammates' copies on pull).
+Storage: `--storage repo` = "Include in Git"; `--storage local` = "Keep out of Git (this Mac only)". Use `init --storage local|repo`; plain init inherits local, else repo; repo on local refuses. Onboarding `project inspect`/`select`/`clone` accept it; reuse inspection mode (absent=repo). Change: `config --storage` alone. Local needs Git: outside any repository, init/config refuse with `local_not_git`; ask the user, and only if they agree to a new repository there add `--git-init` (runs `git init` first; never at or above HOME). Local marks `.git/info/exclude` (label), not `.gitattributes`. Files stay per checkout; worktree removal/`git clean -x` can delete them. Share by Export. Tracked files stay tracked; see config's untracking guidance (deletes teammates' copies on pull).
 
 ## Onboarding
 

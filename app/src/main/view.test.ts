@@ -193,6 +193,8 @@ describe("folderEntry", () => {
   // Only a list is served, so only a list has a revision to reload on.
   test("passes the other states through without a served revision", () => {
     expect(folderEntry("/r", { kind: "uninitialized" }, base, 3)).toEqual({ path: "/r", kind: "uninitialized" });
+    // Outside Git the setup screens show the .git/ Keep out of Git would create.
+    expect(folderEntry("/r", { kind: "uninitialized", notGit: true }, base, 3)).toEqual({ path: "/r", kind: "uninitialized", notGit: true });
     expect(folderEntry("/r", { kind: "error", message: "bad config", config: "/r/.doan/config.json" }, base, 3))
       .toEqual({ path: "/r", kind: "error", message: "bad config", config: "/r/.doan/config.json" });
     // A parent's config named through the upward re-read is carried as the CLI named it.

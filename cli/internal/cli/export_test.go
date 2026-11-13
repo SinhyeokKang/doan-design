@@ -313,6 +313,7 @@ func TestExportRefusalsListEveryReferenceAndNameNoAbsolutePath(t *testing.T) {
 		{exporttest.RefuseFrame, nil, "local document in a frame"},
 		{exporttest.RefuseLink, []string{"../assets/escape.png"}, ""},
 		{exporttest.RefuseBase, []string{"images/hero.png"}, "relative to a base element"},
+		{exporttest.RefuseUse, []string{"../assets/sprite.svg#icon"}, "the app does not draw an external use; inline the sprite"},
 	} {
 		t.Run(c.canvas, func(t *testing.T) {
 			root := exporttest.Seed(t)

@@ -41,3 +41,11 @@ export function groupRoots(entries: readonly FolderEntry[], root: string): strin
   if (own?.kind === "list") for (const path of own.git?.worktrees ?? []) named.add(path);
   return entries.filter(entry => entry.path === root || (key !== undefined && common(entry) === key) || named.has(entry.path)).map(entry => entry.path);
 }
+
+// The home folder or a folder above it, where Doan creates no Git repository (the CLI reads a .git there as none, §13,
+// and refuses --git-init there). Both paths must be real paths (main's realHome), as the CLI compares them.
+export function homeOrAbove(path: string, home: string): boolean {
+  if (!home) return false;
+  const folder = path.replace(/\/+$/, "") || "/";
+  return folder === "/" || home.replace(/\/+$/, "") === folder || home.startsWith(`${folder}/`);
+}

@@ -1,0 +1,7 @@
+{
+ "cli": "2.1.322",
+ "case": "folded",
+ "promptUuid": "76c28e96-5d04-4f68-bf25-c80bf926c513",
+ "steerUuid": "9059e825-5f92-4ab0-9a35-1adfc3197803",
+ "note": "Session transcript lines of the PoC session, filtered to queue-operation, user, attachment(queued_command), assistant, last-prompt; paths, ids of the account and environment removed. A later resume turn (stop cases) is included."
+}

@@ -1,6 +1,9 @@
+import { realpathSync } from "node:fs";
 import { validateEnvelope } from "../formats/validate";
-import { storageFacts, type StorageFacts } from "./storage";
+import { homeOrAbove, storageFacts, type StorageFacts } from "./storage";
 import type { GitInfo } from "./view";
+
+export { homeOrAbove };
 
 // How long the runner (cli.ts) lets a CLI call run before killing it. Here so a timeout's reason says the same number.
 export const CLI_TIMEOUT_MS = 10_000;
@@ -17,7 +20,9 @@ export interface CliRun {
 
 export type FolderState =
   | ({ kind: "list"; root: string; scope: string[]; canvases: unknown[]; git?: GitInfo } & StorageFacts)
-  | { kind: "uninitialized" }
+  // `notGit`: ls's repo_not_found carried storageReason "not_git", so no Git repository holds the folder and Keep out of
+  // Git there needs a new one (`--git-init`).
+  | { kind: "uninitialized"; notGit?: true }
   // A Config error: the CLI named the config file it failed on (`error.config`, an absolute path that may be a parent
   // folder's). Only this is a Config error; the code alone does not decide it. `newer`: the file is in a format newer
   // than this Doan reads (`unsupported_version`), so it is not at fault.
@@ -29,7 +34,7 @@ export type FolderState =
 
 type Envelope =
   | { v: 1; ok: true; result: unknown }
-  | { v: 1; ok: false; error: { code: string; message: string; nextSteps: string[]; config?: string } };
+  | { v: 1; ok: false; error: { code: string; message: string; nextSteps: string[]; config?: string; storageReason?: "not_git" } };
 
 interface ListResult {
   root: string;
@@ -62,7 +67,7 @@ export function folderState(run: CliRun): FolderState {
   if (!isEnvelope(value)) return cliError();
   if (!value.ok) {
     if (run.exitCode === 0) return cliError(value.error.message);
-    if (value.error.code === "repo_not_found") return { kind: "uninitialized" };
+    if (value.error.code === "repo_not_found") return { kind: "uninitialized", ...(value.error.storageReason === "not_git" ? { notGit: true as const } : {}) };
     const { code, message, config } = value.error;
     if (config !== undefined) return { kind: "error", message, config, ...(code === "unsupported_version" ? { newer: true as const } : {}) };
     return { kind: "cliError", reason: cliReason(run, message), code };
@@ -101,16 +106,23 @@ export type InitOutcome =
   | { kind: "error"; code: string; message: string; guidance: string }
   | { kind: "cliError"; reason: string };
 
-// The Set Up dialog's sentences for a refused local setup (draft frame setup-dialog). The CLI's messages for these codes
-// are short and path-free and do not say that nothing was set up, so the dialog says it; an exclude failure may be a
-// link, a permission or an unreadable Git directory, so its recovery covers all of them.
-const STORAGE_REFUSALS: Record<string, { message: string; guidance: string }> = {
-  local_not_git: { message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." },
-  local_exclude_failed: { message: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.", guidance: "Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." },
+// The Set Up dialog's sentences for a refused local setup (draft frames setup-dialog and keep-out-git-init setup-form).
+// The CLI's messages for these codes are short and do not say that nothing was set up, so the dialog says it; an
+// exclude failure may be a link, a permission or an unreadable Git directory, so its recovery covers all of them. The
+// repository codes come only from `--git-init`; a failed git init gets one sentence, with no recovery to offer.
+const STORAGE_REFUSALS: Record<string, (folder: string) => { message: string; guidance: string }> = {
+  local_not_git: () => ({ message: "This folder isn’t a Git repository, so Doan can’t keep its files out of Git.", guidance: "Choose Include in Git, or run git init here first." }),
+  local_exclude_failed: () => ({ message: "Couldn’t add Doan’s lines to .git/info/exclude, so nothing was set up.", guidance: "Make sure the repository’s Git metadata and its exclude file can be read and written, then try again." }),
+  git_missing: () => ({ message: "Git isn’t installed, so Doan can’t create a repository here.", guidance: "Install the Command Line Tools with xcode-select --install, then try again, or choose Include in Git." }),
+  git_init_failed: () => ({ message: "Couldn’t create a Git repository here, so nothing was set up.", guidance: "" }),
+  cleanup_failed: (folder) => ({ message: `Setup failed, and Doan couldn’t remove the Git repository it created at ${folder}/.git.`, guidance: "Remove it or keep it, then try again." }),
 };
+// Doan never creates a repository there, so the app plans none and the CLI refuses Keep out of Git with local_not_git.
+const HOME_REFUSAL = { message: "Doan doesn’t create a Git repository in your home folder.", guidance: "Choose Include in Git, or choose a folder inside it." };
 
 // tokenCss: a token CSS was chosen, so a usage_error may be about it; otherwise CSS guidance would point elsewhere.
-export function initOutcome(run: CliRun, request: { tokenCss?: boolean } = {}): InitOutcome {
+// folder: the folder set up, which a .git left behind is named under. home: the person's home folder.
+export function initOutcome(run: CliRun, request: { tokenCss?: boolean; folder?: string; home?: string } = {}): InitOutcome {
   const reason = run.spawnError ?? (run.timedOut ? "timed out after 10 s" : run.stderr.split(/\r?\n/, 1)[0] || "Invalid response from doan CLI.");
   const cliError: InitOutcome = { kind: "cliError", reason };
   if (run.spawnError !== undefined || run.timedOut || run.exitCode === null) return cliError;
@@ -124,8 +136,9 @@ export function initOutcome(run: CliRun, request: { tokenCss?: boolean } = {}): 
   if (!value.ok) {
     if (run.exitCode === 0) return cliError;
     const code = value.error.code;
+    if (code === "local_not_git" && request.folder !== undefined && homeOrAbove(request.folder, request.home ?? "")) return { kind: "error", code, ...HOME_REFUSAL };
     const refusal = STORAGE_REFUSALS[code];
-    if (refusal) return { kind: "error", code, ...refusal };
+    if (refusal) return { kind: "error", code, ...refusal(request.folder ?? "") };
     const guidance = code === "invalid_config" ? "Fix the project configuration, then try again."
       : code === "usage_error" && request.tokenCss ? "Check the project and choose a CSS file inside it, then try again."
         : "Check the project, then try again.";
@@ -147,4 +160,11 @@ export function reconcileFolders(stored: readonly string[], path: string, upward
   // CLI roots already have disk spelling. Preserve the first resulting row;
   // do not guess identity by lowercasing unrelated paths on case-sensitive disks.
   return { folders: [...new Set(stored.map((entry) => entry === path ? root : entry))], focus: root };
+}
+
+// Saved roots are real paths (the CLI reports disk spelling), so the home folder they are compared with is read through
+// any symlink as well, as the CLI judges it before writing; a HOME that cannot be read is kept as spelled.
+export function realHome(home: string): string {
+  if (!home) return home;
+  try { return realpathSync(home); } catch { return home; }
 }

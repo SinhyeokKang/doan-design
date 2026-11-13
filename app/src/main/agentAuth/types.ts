@@ -69,4 +69,4 @@ export type ConnectionJudgment =
   | { decision: "resume"; rebind: boolean }
   | { decision: "legacy" }
   | { decision: "reauth"; cause: "not_connected" | "reauth_required" }
-  | { decision: "reject"; cause: "provider_mismatch" | "busy" | "sign_out_failed" | "unverified" | "account_unverifiable" | "account_mismatch" | "workspace_mismatch" | "profile_mismatch" | "session_unavailable" | "session_in_use" };
+  | { decision: "reject"; cause: "provider_mismatch" | "busy" | "sign_out_failed" | "unverified" | "account_unverifiable" | "account_mismatch" | "workspace_mismatch" | "profile_mismatch" | "session_unavailable" | "session_in_use"; organizationsKnown?: true };

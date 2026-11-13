@@ -150,6 +150,8 @@ export function dockedRefusal(code: string, mode: DockedMode, provider: Provider
 }
 const OTHER_SIGN_IN: Record<string, (p: string) => string> = {
   account_changed: p => `This conversation’s session belongs to another ${p} account, so it can’t continue here. To continue it, sign out, then sign in to that account in Settings > Agents.`,
+  // Only the organization differs; signing in to that organization brings the conversation back.
+  workspace_changed: p => `This conversation’s session belongs to another organization of your ${p} account, so it can’t continue here. To continue it, sign in to the organization this conversation started in.`,
   // It may be the same account, so never "another account".
   sign_in_changed: p => `This conversation’s session belongs to an earlier ${p} sign-in, so it can’t continue here.`,
 };
@@ -158,7 +160,7 @@ const SEND_ERRORS: Record<string, (p: string) => string> = {
   // The code alone does not tell an expired sign-in from none.
   not_logged_in: p => `Sign in to ${p} in Settings > Agents, then send again.`,
   rate_limited: p => `${p} reached a usage limit. Send again after it resets.`,
-  session_in_use: p => `${p} is using this session in another terminal. Try again when it finishes there.`,
+  session_in_use: p => `${p} is using this session elsewhere. Try again when it finishes there.`,
 };
 
 // Every refusal of a terminal session reads the same way and never says "Choose another agent": its provider is the
@@ -170,7 +172,7 @@ export function resumeRefusalText(code: string, provider: Provider): string {
 const RESUME_REASONS: Record<string, (p: string) => string> = {
   no_session: () => "it’s no longer available",
   session_unavailable: () => "it isn’t available right now",
-  session_in_use: () => "it’s in use in another terminal",
+  session_in_use: () => "it’s open elsewhere",
   // The code alone does not tell an expired sign-in from none.
   not_logged_in: p => `sign in to ${p} in Settings > Agents, then send again`,
   cli_missing: p => `${p} isn’t installed on this Mac`,

@@ -69,6 +69,12 @@ func TestRules(t *testing.T) {
 		{"viewport_height_unit", func(i *Input) {
 			i.Canvases[0].Styles = canvas.ScanCSS(`a{height:calc(100dvh - 8px)}`, canvas.Stylesheet)
 		}},
+		{"svg_use_not_inline", func(i *Input) { i.Canvases[0].UseRefs = []string{"../assets/sprite.svg#icon"} }},
+		{"ambiguous_custom_url", func(i *Input) {
+			i.Canvases[0].Custom = canvas.CustomText{Uses: canvas.CustomUses(`.x{mask:var(--i)}`, canvas.Stylesheet), URLs: []canvas.CSSRef{{Value: "icons/i.svg", Custom: "--i"}}}
+			i.Reach[".doan/canvases/a.html"] = []CSSRef{{From: ".doan/canvases/a.html", Href: "../ds/x.css", RealPath: ".doan/ds/x.css", State: In, Direct: true}}
+			i.CustomCSS = map[string]canvas.CustomText{".doan/ds/x.css": {Uses: canvas.CustomUses(`.y{mask:var(--i)}`, canvas.Stylesheet)}}
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.code, func(t *testing.T) {
@@ -86,7 +92,7 @@ func TestRules(t *testing.T) {
 				t.Fatalf("got %+v", Run(in))
 			}
 			severity := "error"
-			if tt.code == "external_url" || tt.code == "hardcoded_color" || tt.code == "viewport_height_unit" {
+			if tt.code == "external_url" || tt.code == "hardcoded_color" || tt.code == "viewport_height_unit" || tt.code == "ambiguous_custom_url" {
 				severity = "warning"
 			}
 			for _, f := range fs {

@@ -1,0 +1,7 @@
+{
+ "cli": "2.1.322",
+ "case": "stop-kill",
+ "promptUuid": "53a69681-9786-4f5f-97ac-12319c612466",
+ "steerUuid": "b3e65bb5-e5c7-4bfc-a282-10694271d888",
+ "note": "Session transcript lines of the PoC session, filtered to queue-operation, user, attachment(queued_command), assistant, last-prompt; paths, ids of the account and environment removed. A later resume turn (stop cases) is included."
+}

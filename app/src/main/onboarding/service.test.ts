@@ -471,7 +471,7 @@ describe("project inspection", () => {
     const op = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "r4", path: "/Users/ada/studio", url: "https://github.com/acme/studio" }));
     expect(op.inspection).toEqual({ inspectionId: expect.any(String), candidates: [{ path: "/Users/ada/studio", changes: [] }] });
     await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId: op.inspection!.inspectionId, path: "/Users/ada/studio" });
-    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", false, repo, null);
+    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", false, repo, null, false);
   });
 
   it("checks a picked folder without a URL for no repository", async () => {
@@ -521,7 +521,7 @@ describe("project selection", () => {
     const { id, inspectionId } = await inspected(t);
     expect(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/other" })).toMatchObject({ ok: false, error: { code: "not_candidate" } });
     expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId, path: "/Users/ada/studio" }))).toMatchObject({ kind: "project_select", state: "succeeded", project: { root: "/Users/ada/studio" } });
-    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", false, null, null);
+    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", false, null, null, false);
     expect(state(await t.ask({ op: "status", sessionId: id })).project).toEqual({ root: "/Users/ada/studio" });
   });
 
@@ -531,7 +531,7 @@ describe("project selection", () => {
     expect(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio" })).toMatchObject({ ok: false, error: { code: "initialize_required" } });
     expect(t.projects.select).not.toHaveBeenCalled();
     expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId, path: "/Users/ada/studio", initialize: true }))).toMatchObject({ state: "succeeded" });
-    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", true, null, null);
+    expect(t.projects.select).toHaveBeenCalledWith("/Users/ada/studio", true, null, null, false);
   });
 
   it("goes stale as soon as a newer inspection starts, from the window or a client", async () => {
@@ -640,12 +640,26 @@ describe("storage mode", () => {
     }
     expect(t.projects.select).not.toHaveBeenCalled();
     expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s3", inspectionId, path: "/Users/ada/studio", initialize: true, storage: "local" }))).toMatchObject({ state: "succeeded" });
-    expect(t.projects.select).toHaveBeenLastCalledWith("/Users/ada/studio", true, null, "local");
+    expect(t.projects.select).toHaveBeenLastCalledWith("/Users/ada/studio", true, null, "local", false);
     // The project already keeps its files out of Git: plain init follows it.
     expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s4", inspectionId, path: "/Users/ada/studio-x", initialize: true, storage: "local" }))).toMatchObject({ state: "succeeded" });
-    expect(t.projects.select).toHaveBeenLastCalledWith("/Users/ada/studio-x", true, null, null);
+    expect(t.projects.select).toHaveBeenLastCalledWith("/Users/ada/studio-x", true, null, null, false);
     // Already set up: nothing is written, so its storage is not asked.
     expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s5", inspectionId, path: "/Users/ada/done" }))).toMatchObject({ state: "succeeded" });
+  });
+
+  // The inspection showed .git/ for a folder outside Git, so selecting it with initialize consents to creating the
+  // repository: the project work gets --git-init only for such a plan (app-socket v2 `inspection`).
+  it("asks setup to create the repository only for a plan that showed .git/", async () => {
+    const t = setup();
+    const id = await session(t);
+    const created = [".doan/canvases/", ".doan/config.json", ".git/", ".git/info/exclude"];
+    t.projects.inspectPath.mockResolvedValueOnce({ ok: true, candidates: [{ path: "/Users/ada/new", changes: created, storage: "local" }, found.candidates[0]!] });
+    const { inspectionId } = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", path: "/Users/ada/code", storage: "local" })).inspection!;
+    expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/new", initialize: true, storage: "local" }))).toMatchObject({ state: "succeeded" });
+    expect(t.projects.select).toHaveBeenLastCalledWith("/Users/ada/new", true, null, "local", true);
+    expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s2", inspectionId, path: "/Users/ada/studio", initialize: true, storage: "local" }))).toMatchObject({ state: "succeeded" });
+    expect(t.projects.select).toHaveBeenLastCalledWith("/Users/ada/studio", true, null, "local", false);
   });
 
   it("a plain inspect of a project kept out of Git is selected without storage and follows it", async () => {
@@ -654,7 +668,7 @@ describe("storage mode", () => {
     t.projects.inspectPath.mockResolvedValueOnce({ ok: true, candidates: [found.candidates[1]!] });
     const { inspectionId } = operation(await t.ask({ op: "project_inspect", sessionId: id, requestId: "i1", path: "/Users/ada/studio-x" })).inspection!;
     expect(operation(await t.ask({ op: "project_select", sessionId: id, requestId: "s1", inspectionId, path: "/Users/ada/studio-x", initialize: true }))).toMatchObject({ state: "succeeded" });
-    expect(t.projects.select).toHaveBeenLastCalledWith("/Users/ada/studio-x", true, null, null);
+    expect(t.projects.select).toHaveBeenLastCalledWith("/Users/ada/studio-x", true, null, null, false);
   });
 
   it("plans a clone kept out of Git and clones it only for that storage", async () => {

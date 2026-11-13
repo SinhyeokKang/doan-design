@@ -53,8 +53,10 @@ function ownEnd(items: readonly ThreadItem[]): number {
 // A stage counts only for this turn and only while no event of it came after (seq). Without one, the last item says it:
 // an activity, or a permission answered with Allow right after one (the tool now runs). Codex's MCP startup lines are
 // activities but no tool. The thread's last activity row runs only while this names a tool (activityRun).
-export function turnStatus(all: readonly ThreadItem[], turn: TurnInfo | null, stage: StageSignal | null, root: string): TurnStatus {
-  if (!turn || !turn.live || turn.ended) return { kind: "none" };
+// stopping: main took a Stop of this turn (the list's `stopping`). The indicator goes at once although the turn's end
+// may be held while main reads the session transcript for steered messages.
+export function turnStatus(all: readonly ThreadItem[], turn: TurnInfo | null, stage: StageSignal | null, root: string, stopping = false): TurnStatus {
+  if (!turn || !turn.live || turn.ended || stopping) return { kind: "none" };
   const items = all.slice(0, ownEnd(all));
   if (items.some(waitsForPerson)) return { kind: "waiting" };
   const last = items.at(-1);
@@ -97,9 +99,9 @@ export function activityRun(items: readonly ThreadItem[], status: TurnStatus, ac
 // What both hosts pass the thread: the last turn's status, its id and its start, which the elapsed time
 // counts from. The id lets the thread drop the settle state of an earlier turn.
 export interface ThreadTurn { turnId: string; status: TurnStatus; at: string }
-export function threadTurn(events: readonly ConversationEvent[], items: readonly ThreadItem[], live: boolean, stage: StageSignal | null, root: string): ThreadTurn | null {
+export function threadTurn(events: readonly ConversationEvent[], items: readonly ThreadItem[], live: boolean, stage: StageSignal | null, root: string, stopping = false): ThreadTurn | null {
   const turn = turnOf(events, live);
-  return turn ? { turnId: turn.turnId, status: turnStatus(items, turn, stage, root), at: turn.at } : null;
+  return turn ? { turnId: turn.turnId, status: turnStatus(items, turn, stage, root, stopping), at: turn.at } : null;
 }
 
 // Which stage to keep: within a turn the higher rev, since a read's reply and a push sent after it may
@@ -155,4 +157,26 @@ const TOOL_ANNOUNCEMENT = { read: "is reading files", edit: "is editing files", 
 export function turnAnnouncement(status: TurnStatus, provider: string): string {
   if (hidden(status)) return "";
   return status.kind === "tool" ? `${provider} ${TOOL_ANNOUNCEMENT[status.activity]}` : turnText(status, provider);
+}
+
+// The background work line under a done turn: main's list names the turn whose process group still runs work it
+// started (memory only, gone with the group). sending: the thread shows the person's message after that turn, which
+// ends the group (the next send stops it first), so the line goes in that same render rather than when main's list
+// catches up. stopping: this window's Stop is waiting for main; main's own `stopping` covers a press in the other host.
+export function backgroundLine(input: { background: { turnId: string; stopping?: true } | null | undefined; sending: boolean; stopping: boolean }): { turnId: string; stopping: boolean } | null {
+  const { background } = input;
+  if (!background || input.sending) return null;
+  return { turnId: background.turnId, stopping: input.stopping || background.stopping === true };
+}
+
+export const BACKGROUND_STOP_FAILED = "Couldn’t stop the background work. Try again.";
+// The line's Stop. It names its done turn, so a press that reaches main after a newer send stops nothing there. Main
+// answers once the group is gone, or with a ConversationError when it was still there; null when the stop went through.
+export async function stopBackground(request: { conversationId: string; turnId: string }, interrupt: (request: { conversationId: string; turnId: string }) => Promise<void | { error: string }>): Promise<string | null> {
+  try {
+    const reply = await interrupt(request);
+    return reply && "error" in reply ? BACKGROUND_STOP_FAILED : null;
+  } catch {
+    return BACKGROUND_STOP_FAILED;
+  }
 }

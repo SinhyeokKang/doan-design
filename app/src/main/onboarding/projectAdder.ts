@@ -23,8 +23,8 @@ export interface AdderProjects {
   // storage: the mode setup is planned for; a folder whose project already keeps its files out of Git plans that.
   inspectPath(real: string, repo: GitHubUrl | null, storage: OnboardingStorage): Promise<{ ok: true; candidates: Candidate[] } | { ok: false; code: OnboardingOperationErrorCode }>;
   inspectUrl(repo: GitHubUrl, storage: OnboardingStorage): Promise<Candidate[]>;
-  // storage "local": set up with `init --storage local`; null runs plain init.
-  select(path: string, initialize: boolean, repo: GitHubUrl | null, storage: "local" | null): Promise<ProjectOutcome>;
+  // storage "local": set up with `init --storage local`; null runs plain init. gitInit: the plan showed .git/.
+  select(path: string, initialize: boolean, repo: GitHubUrl | null, storage: "local" | null, gitInit: boolean): Promise<ProjectOutcome>;
   // Resolves only after the clone's processes are gone and its own temporary directory is removed. commit() is asked
   // once the clone sits at its destination; after it says true no cancel applies.
   clone(url: string, destination: string, signal: AbortSignal, commit: () => boolean, storage: "local" | null): Promise<ProjectOutcome | { ok: false; cancelled: true }>;
@@ -60,6 +60,8 @@ const CLONE_CHANGES: Record<OnboardingStorage, OnboardingChange[]> = {
 // What setup a shown plan asks for: only a plan naming the exclude entry runs `init --storage local`. A folder whose
 // project already keeps its files out of Git runs plain init, which follows that mode.
 const initStorage = (changes: readonly OnboardingChange[]): "local" | null => changes.includes(EXCLUDE_LABEL) ? "local" : null;
+// The inspection showed the repository setup creates outside Git, so the consent to it covers `--git-init`.
+const initGit = (changes: readonly OnboardingChange[]): boolean => changes.includes(".git/");
 // Selection, clone and completion change or save the one project, so only one of them runs at a time.
 export const PROJECT_WORK = ["project_select", "project_clone", "complete"] as const;
 // What an operation reports when its work threw instead of answering.
@@ -172,7 +174,7 @@ export class ProjectAdder {
     const initialize = request.initialize === true;
     if (candidate.changes.length > 0 && !initialize) return refuse("initialize_required");
     const storage = initStorage(candidate.changes);
-    return this.launch("project_select", request.requestId, async () => this.selected(await this.projects.select(candidate.path, initialize, current.repo, storage)));
+    return this.launch("project_select", request.requestId, async () => this.selected(await this.projects.select(candidate.path, initialize, current.repo, storage, initGit(candidate.changes))));
   }
 
   async clone(request: OnboardingProjectCloneRequest): Promise<OnboardingResponse> {

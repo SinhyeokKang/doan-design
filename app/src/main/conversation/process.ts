@@ -1,7 +1,19 @@
 import { object } from "./sessions";
+// How a finished turn's process is ended for the next send. A done turn with its prompt read and no background work has
+// only its suggestion left: it is killed at once (a SIGTERM takes the CLI 0.5-1 s, and SIGKILL left every session
+// transcript whole and resumable, PoC). Background work runs in process groups of its own that only the CLI's SIGTERM
+// handling stops, so a group with any is never killed first. later: the usage read keeps the input open; decide once
+// it closes. none: the process is over.
+export type AfterTurnCleanup = "kill" | "term" | "none" | "later";
+export function afterTurnCleanup(input: { finished: boolean; inputClosed: boolean; background: number; doneTurn: boolean; promptRead: boolean }): AfterTurnCleanup {
+  if (input.finished) return "none";
+  if (!input.inputClosed) return "later";
+  return input.background === 0 && input.doneTurn && input.promptRead ? "kill" : "term";
+}
 export class OwnedGroup {
   private exited = false;
   private stopping: Promise<void> | undefined;
+  private killing: Promise<void> | undefined;
   private poll: ReturnType<typeof setInterval> | undefined;
   private escalation: ReturnType<typeof setTimeout> | undefined;
   constructor(readonly pid: number, private signal = (pid: number, signal: NodeJS.Signals) => { process.kill(-pid, signal); },
@@ -15,6 +27,14 @@ export class OwnedGroup {
     this.escalation.unref();
     this.stopping = new Promise(resolve => { const timer = setTimeout(resolve, 2000); timer.unref(); });
     return this.stopping;
+  }
+  // At once, also while a stop is still before its own SIGKILL: a finished turn's process with nothing left to save. The
+  // group is released only once it is observed gone, as after a stop.
+  kill(): Promise<void> {
+    if (this.exited) return Promise.resolve();
+    this.send("SIGKILL"); this.monitor();
+    this.killing ??= new Promise(resolve => { const timer = setTimeout(resolve, 2000); timer.unref(); });
+    return this.stopping ?? this.killing;
   }
   private send(signal: NodeJS.Signals): void { try { this.signal(this.pid, signal); } catch { /* Only an independent liveness observation releases ownership. */ } this.observe(); }
   private monitor(): void { if (!this.poll && !this.exited) { this.poll = setInterval(() => this.observe(), 100); this.poll.unref(); } }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { MAX_FRAMES, MAX_HREF, MAX_STRING, acceptCanvasMessage, parseCanvasMessage } from "./canvasMessage";
+import { MAX_COPY_TEXT, MAX_FRAMES, MAX_HREF, MAX_STRING, MAX_TEXT_RECTS, acceptCanvasMessage, parseCanvasMessage } from "./canvasMessage";
 
 const frame = { id: "login", title: "Login", x: 0, y: 10, width: 375, height: 800 };
 const layout = (over: Record<string, unknown> = {}) => ({
@@ -252,6 +252,44 @@ describe("parseCanvasMessage: wheel", () => {
     expect(parseCanvasMessage(wheel({ ctrl: 1 }))).toBeNull();
     expect(parseCanvasMessage(wheel({ meta: "true" }))).toBeNull();
     expect(parseCanvasMessage(wheel({ ctrl: undefined }))).toBeNull();
+  });
+});
+
+// The canvas's text range: the rects the app paints and, once released, the text ⌘C copies. Over a cap the whole
+// message is dropped: the script clips before sending, so only a forged message is over.
+describe("parseCanvasMessage: text-range", () => {
+  const rect = { x: 10, y: 20, width: 30, height: 18 };
+  const textRange = (over: Record<string, unknown> = {}) => ({ type: "text-range", document: "doc-1", epoch: 0, dragging: false, rects: [rect], text: "Copy me", ...over });
+
+  test("accepts a released range with its text and a dragging one without", () => {
+    expect(parseCanvasMessage(textRange())).toEqual({ type: "text-range", document: "doc-1", epoch: 0, dragging: false, rects: [rect], text: "Copy me" });
+    expect(parseCanvasMessage(textRange({ dragging: true, text: undefined, extra: 1 }))).toEqual({ type: "text-range", document: "doc-1", epoch: 0, dragging: true, rects: [rect] });
+    // An empty rect list is no range.
+    expect(parseCanvasMessage(textRange({ rects: [], text: undefined }))).toEqual({ type: "text-range", document: "doc-1", epoch: 0, dragging: false, rects: [] });
+  });
+
+  test("keeps line breaks and tabs in the text as they are", () => {
+    expect(parseCanvasMessage(textRange({ text: "a1\tb1\na2\tb2" }))).toMatchObject({ text: "a1\tb1\na2\tb2" });
+  });
+
+  test("rejects a wrong type in any field", () => {
+    for (const over of [{ document: 1 }, { document: "" }, { document: "d".repeat(MAX_STRING + 1) }, { epoch: -1 }, { epoch: 1.5 }, { epoch: "1" },
+      { dragging: "false" }, { rects: "x" }, { rects: [{ ...rect, width: -1 }] }, { rects: [{ ...rect, x: Number.NaN }] }, { rects: [null] }, { text: 5 }]) {
+      expect(parseCanvasMessage(textRange(over))).toBeNull();
+    }
+  });
+
+  test("takes exactly MAX_TEXT_RECTS rects and drops a message with one more", () => {
+    expect(parseCanvasMessage(textRange({ rects: Array(MAX_TEXT_RECTS).fill(rect) }))).not.toBeNull();
+    expect(parseCanvasMessage(textRange({ rects: Array(MAX_TEXT_RECTS + 1).fill(rect) }))).toBeNull();
+  });
+
+  // Code points, as the script clips: an astral character counts once.
+  test("takes text of exactly MAX_COPY_TEXT code points and drops one more, astral characters counted once", () => {
+    expect(parseCanvasMessage(textRange({ text: "a".repeat(MAX_COPY_TEXT) }))).not.toBeNull();
+    expect(parseCanvasMessage(textRange({ text: "a".repeat(MAX_COPY_TEXT + 1) }))).toBeNull();
+    expect(parseCanvasMessage(textRange({ text: "😀".repeat(MAX_COPY_TEXT) }))).not.toBeNull();
+    expect(parseCanvasMessage(textRange({ text: `${"😀".repeat(MAX_COPY_TEXT)}a` }))).toBeNull();
   });
 });
 
