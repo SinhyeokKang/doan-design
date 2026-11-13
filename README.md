@@ -143,7 +143,7 @@ Pick a design preset — shape, critique, harden, clarify and more — and the a
 | `doan active` | Read what you selected in the app: canvas, frame and element |
 | `doan work start` · `update` · `done` | Show in the app that an agent is working on a canvas, and on which frame |
 | `doan open <canvas> --frame <id>` | Open a canvas in the app, at a frame |
-| `doan handoff <canvas> --message <text>` | From a Doan canvas conversation, hand the work to a new conversation on the new canvas the turn created |
+| `doan handoff <canvas> --message <text>` | From a Doan canvas conversation, hand the work to a new conversation on a new canvas the turn created, once per new canvas |
 | `doan export <canvas> -o <file>` | Save a canvas as one HTML file that opens in any browser |
 | `doan skill` · `doan design-skill [<id>]` | Print the guide agents follow, and the design presets |
 | `doan onboarding` | Let an agent run first-time setup for you |
