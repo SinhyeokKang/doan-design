@@ -142,6 +142,14 @@ describe("playingFrameChip", () => {
     expect(playingFrameChip(view({ phase: "frame-unavailable", frame: "pay", title: "pay", frames: [] }), last)?.frame).toEqual({ id: "pay" });
   });
 
+  // The run still lists the frame, now without a title: its row decides, and the old title must not linger on the
+  // chip or the next anchor. The last title stands in only for a frame the run no longer lists.
+  test("a frame whose title was removed is named by its id, though the last chip had a title", () => {
+    const last = playingFrameChip(view(), null);
+    const untitled = [{ id: "checkout", size: "390x844", number: 1 }];
+    expect(playingFrameChip(view({ frames: untitled }), last)).toEqual({ frame: { id: "checkout" }, name: "checkout", description: "Frame checkout is sent with each message." });
+  });
+
   test("nothing before the first view", () => {
     expect(playingFrameChip(null, null)).toBeNull();
   });

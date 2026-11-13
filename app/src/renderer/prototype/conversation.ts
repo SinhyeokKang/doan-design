@@ -53,12 +53,13 @@ export function playingFrameCount(segments: readonly FieldSegment[], frame: Play
 export interface PlayingFrameChip { frame: PlayingFrame; name: string; description: string }
 
 // The pinned chip above the composer. The title comes from the run's `frames` only: `view.title` falls back to the id.
-// While the next frame loads, the chip is already that frame; a frame the run no longer lists keeps the title `last`
-// had for the same id.
+// While the next frame loads, the chip is already that frame. A listed row decides even without a title (one removed
+// since must not linger); only a frame the run no longer lists keeps the title `last` had for the same id.
 export function playingFrameChip(view: PrototypeView | null, last: PlayingFrameChip | null): PlayingFrameChip | null {
   if (!view) return null;
   const id = view.frame;
-  const title = view.frames.find(frame => frame.id === id)?.title ?? (last?.frame.id === id ? last.frame.title : undefined);
+  const row = view.frames.find(frame => frame.id === id);
+  const title = row ? row.title : last?.frame.id === id ? last.frame.title : undefined;
   const name = title ?? id;
   return { frame: { id, ...(title !== undefined ? { title } : {}) }, name, description: `Frame ${name} is sent with each message.` };
 }
