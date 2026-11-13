@@ -67,4 +67,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 12(승격·삭제)는 conducto
 - 정리: 리뷰어 `pce-ra`·`pce-rb`·`pce-rc`를 release하고 Orca로 worktree를 지웠다(브랜치는 남겼다). 보고서는 conductor `.scratch/evidence/`에 복사했다.
 - D-fix1 완료 → `9a3abb3b`, `ba111596`로 통합. X2에 `output_not_canvas_viewer`(일반 export와 바이트가 다르고 프로토타입 제목·noscript 안내가 있음)를 더했고, 명령 검사는 출력 경로를 요구하지 않는다. D가 쓴 POSTMORTEM 초안(재생성한 참조와의 바이트 비교만으로는 결과의 종류를 증명하지 못한다)은 conductor가 문서 단계에서 POSTMORTEM에 넣는다. D 리뷰 2회차를 같은 Opus 리뷰어에 보냈다. 통과하면 실제 라운드를 D에 보낸다.
 - D 리뷰 2회차(Opus): 🔴 0, 🟡 0, ⚪ 4. ⚪1(절대 경로를 문자열로 비교해 `/tmp` 별칭이 거짓 실패한다), ⚪2(W8 상대 경로 기준을 repo로), ⚪3(W8 rubric에 추가 일반 open 줄)은 첫 라운드 전에 D-fix2로 넣는다(conductor 판단: 첫 기록 라운드 뒤에는 시나리오가 고정된다). ⚪4(ARCHITECTURE §14)는 task 12. D-fix2 diff는 conductor가 직접 읽고 실제 라운드를 보낸다.
-- D-fix2 완료 → `a5cb0b3c`로 통합. conductor가 diff를 읽었다(경로 `realpath` 정규화, W8 repo 기준, rubric 한 줄). 실제 라운드(`pce-x2w8`, `pce-full`)를 D에 보냈다(`ctx_?`). 사용자 승인으로 실행 중이던 `/Applications/Doan.app`을 라운드 전에 종료했다.
+- D-fix2 완료 → `a5cb0b3c`로 통합. conductor가 diff를 읽었다(경로 `realpath` 정규화, W8 repo 기준, rubric 한 줄). 실제 라운드(`pce-x2w8`, `pce-full`)를 D에 보냈다(`ctx_5bdae7b6e8f0`). 사용자 승인으로 실행 중이던 `/Applications/Doan.app`을 라운드 전에 종료했다.
