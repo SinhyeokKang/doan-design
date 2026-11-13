@@ -255,7 +255,11 @@ test("tab list keys: Tab and Shift+Tab go back to the input keeping the active r
   expect(quickOpenTabKey("Tab", "canvas")).toEqual({ kind: "input", first: false });
   expect(quickOpenTabKey("ArrowDown", "canvas")).toEqual({ kind: "input", first: true });
   expect(quickOpenTabKey("ArrowRight", "all")).toEqual({ kind: "select", tab: "canvas" });
-  expect(quickOpenTabKey("ArrowLeft", "all")).toEqual({ kind: "select", tab: "frame" });
+  expect(quickOpenTabKey("ArrowLeft", "all")).toEqual({ kind: "select", tab: "conversation" });
+  expect(quickOpenTabKey("ArrowRight", "frame")).toEqual({ kind: "select", tab: "conversation" });
+  expect(quickOpenTabKey("ArrowRight", "conversation")).toEqual({ kind: "select", tab: "all" });
+  expect(quickOpenTabKey("ArrowLeft", "conversation")).toEqual({ kind: "select", tab: "frame" });
+  expect(quickOpenTabKey("Tab", "conversation")).toEqual({ kind: "input", first: false });
   expect(quickOpenTabKey("ArrowUp", "all")).toBeNull();
   expect(quickOpenTabKey("Enter", "all")).toBeNull();
 });
