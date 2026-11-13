@@ -1,0 +1,14 @@
+[
+  [
+    "export",
+    ".doan/canvases/onboarding.html",
+    "--frame",
+    "signup-phone",
+    "--prototype",
+    "-o",
+    "{{repo}}/../signup-prototype.html",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

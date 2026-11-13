@@ -1,0 +1,2 @@
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "doan export .doan/canvases/onboarding.html --frame signup-phone --prototype -o '{{repo}}/../signup-prototype.html' --repo '{{repo}}' --json"}}]}}
+{"type": "result", "result": "Saved signup-prototype.html next to the repository. It plays the Sign up (phone) frame, but the file still contains the whole canvas, including the other frames and notes."}

@@ -1,0 +1,2 @@
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "doan open .doan/canvases/onboarding.html --frame signup-phone --prototype --repo '{{repo}}' --json"}}]}}
+{"type": "result", "result": "Opened the Sign up (phone) frame in Doan\u2019s prototype window."}

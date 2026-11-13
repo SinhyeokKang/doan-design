@@ -1,0 +1,11 @@
+[
+  [
+    "export",
+    ".doan/canvases/onboarding.html",
+    "-o",
+    "{{repo}}/../signup-prototype.html",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]
