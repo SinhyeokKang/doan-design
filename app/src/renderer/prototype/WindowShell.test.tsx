@@ -233,6 +233,7 @@ describe("WindowShell content", () => {
   test("each iframe sits in its own clip box and keeps its own run's mark as its viewport", () => {
     const html = markup({ view: view({ gen: 3, phase: "loading", run: { url: A, markWidth: 240, markHeight: 400 } }), layers: { frames: [{ gen: 2, url: A, markWidth: 390, markHeight: 844 }, { gen: 3, url: A, markWidth: 240, markHeight: 400 }], visible: 2, snapshot: null } });
     expect(html.match(/<div class="pw-box"[^>]*><iframe/g)).toHaveLength(2);
+    expect(html).toMatch(/<div class="pw-content"[^>]*><div class="pw-stage"><div class="pw-box"/);
     const frames = html.match(/<iframe[^>]*>/g)!;
     expect(frames[0]).toMatch(/width:390px;height:844px/);
     expect(frames[1]).toMatch(/width:240px;height:400px/);
@@ -352,14 +353,20 @@ describe("prototype window styles", () => {
     expect(css).toContain(`:root { --pw-right: ${PROTOTYPE_HEADER_RIGHT}px; }`);
   });
 
-  // A panel or clip box that only hides its overflow still scrolls to show a focused control inside a scaled frame,
-  // which would move the frame off its box.
-  test("the panel and each frame's box clip instead of hiding overflow; the frame scales from its top-left", () => {
-    expect(css).toMatch(/\.pw-panel \{[^}]*overflow: clip;/);
+  // A box that only hides its overflow still scrolls to show a focused control inside a scaled frame, which would move
+  // the frame off its box. The panel's own corners are split between two clips (exportViewer.test.ts pins the shape).
+  test("the content, the stage and each frame's box clip instead of hiding overflow; the frame scales from its top-left", () => {
+    expect(css).toMatch(/\.pw-content \{[^}]*overflow: clip;/);
+    expect(css).toMatch(/\.pw-stage \{[^}]*overflow: clip;/);
     expect(css).toMatch(/\.pw-box \{[^}]*position: absolute;[^}]*overflow: clip;/);
     expect(css).toMatch(/\.pw-frame \{[^}]*transform-origin: 0 0;/);
-    expect(css).toMatch(/\.pw-content\[data-mode="fit"\] \{ background: var\(--surface-inset\); \}/);
-    expect(css).toMatch(/\.pw-content\[data-mode="fit"\] > \.pw-box \{ box-shadow: var\(--shadow-panel\); \}/);
+    expect(css).toMatch(/\.pw-content\[data-mode="fit"\] > \.pw-stage \{ background: var\(--surface-inset\); \}/);
+    expect(css).toMatch(/\.pw-content\[data-mode="fit"\] \.pw-box \{ box-shadow: var\(--shadow-panel\); \}/);
+  });
+
+  // The panel no longer clips, so the overlay rounds its own corners over the panel's.
+  test("the state overlay keeps the panel's corners", () => {
+    expect(css).toMatch(/\.pw-panel > \.problem-overlay \{[^}]*border-radius: inherit;/);
   });
 });
 

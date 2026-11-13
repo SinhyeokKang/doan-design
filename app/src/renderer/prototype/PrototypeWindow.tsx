@@ -253,14 +253,16 @@ function ContentPanel({ view, layers, covered, content, frames, children }: { vi
   const mode = view?.mode;
   return <div className="pw-panel" ref={panel}>
     <div className="pw-content" ref={content} inert={covered} data-mode={mode}>
-      {layers.snapshot && layers.visible === null && <div className="pw-box" style={clipStyle(layers.snapshot.box)}><img className="pw-snapshot" src={layers.snapshot.url} alt="" /></div>}
-      {layers.frames.map(frame => {
-        const styles = viewportStyles(prototypeViewportBox(size, { width: frame.markWidth, height: frame.markHeight }, mode ?? "fit"));
-        return <div key={frame.gen} className="pw-box" style={{ ...styles.clip, visibility: layers.visible === frame.gen ? "visible" : "hidden" }}>
-          <iframe className="pw-frame" src={frame.url} sandbox="allow-scripts allow-forms" title={view?.title ?? "Prototype"}
-            ref={node => { if (!frames) return; if (node) frames.set(frame.gen, node); else frames.delete(frame.gen); }} style={styles.frame} />
-        </div>;
-      })}
+      <div className="pw-stage">
+        {layers.snapshot && layers.visible === null && <div className="pw-box" style={clipStyle(layers.snapshot.box)}><img className="pw-snapshot" src={layers.snapshot.url} alt="" /></div>}
+        {layers.frames.map(frame => {
+          const styles = viewportStyles(prototypeViewportBox(size, { width: frame.markWidth, height: frame.markHeight }, mode ?? "fit"));
+          return <div key={frame.gen} className="pw-box" style={{ ...styles.clip, visibility: layers.visible === frame.gen ? "visible" : "hidden" }}>
+            <iframe className="pw-frame" src={frame.url} sandbox="allow-scripts allow-forms" title={view?.title ?? "Prototype"}
+              ref={node => { if (!frames) return; if (node) frames.set(frame.gen, node); else frames.delete(frame.gen); }} style={styles.frame} />
+          </div>;
+        })}
+      </div>
     </div>
     {children}
   </div>;

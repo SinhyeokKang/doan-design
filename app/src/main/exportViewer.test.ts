@@ -867,6 +867,22 @@ describe("the board iframe's ancestors never clip with four equal radii", () => 
     }
   });
 
+  // The prototype window's chain is React's (ContentPanel and WindowShell in prototype/PrototypeWindow.tsx). Its run
+  // iframe can be far larger than 8192 px in Fit (the marked viewport, scaled down), and it reaches every corner of the
+  // panel in Responsive, so the content clips the top corners and the stage inside it only the bottom ones.
+  const bottomRadius = /^border(-bottom-(left|right)|-end-(start|end))?-radius$/;
+  test("prototype window: the panel paints its corners without clipping, the content rounds only its top corners and the stage only its bottom ones", () => {
+    expect(declared(stylesCss, { tag: "div", classes: ["pw-panel"], attributes: ["class"] }, clipping)).toEqual([]);
+    expect(declared(stylesCss, { tag: "div", classes: ["pw-content"], attributes: ["class", "inert", "data-mode"] }, bottomRadius)).toEqual([]);
+    expect(declared(stylesCss, { tag: "div", classes: ["pw-content"], attributes: ["class", "inert", "data-mode"] }, clipping)).not.toEqual([]);
+    expect(declared(stylesCss, { tag: "div", classes: ["pw-stage"], attributes: ["class"] }, topRadius)).toEqual([]);
+    expect(declared(stylesCss, { tag: "div", classes: ["pw-stage"], attributes: ["class"] }, clipping)).not.toEqual([]);
+    for (const element of [{ tag: "iframe", classes: ["pw-frame"], attributes: ["class", "sandbox", "title", "src", "style"] }, { tag: "div", classes: ["pw-box"], attributes: ["class", "style"] },
+      { tag: "div", classes: ["pw", "name-row"], attributes: ["class"] }, { tag: "div", id: "root", classes: [] }, ...page]) {
+      expect(declared(stylesCss, element, radius), JSON.stringify(element)).toEqual([]);
+    }
+  });
+
   // The export's chain is read from shell.html, so a wrapper added around the iframe is checked too.
   const exportChain = (): Element[] => {
     const html = shellHtml.replace(/<!--[\s\S]*?-->/g, "");
