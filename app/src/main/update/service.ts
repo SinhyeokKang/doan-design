@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { autoUpdater as nativeUpdater } from "electron";
 import { MacUpdater } from "electron-updater";
 import type { UpdateInfoAndProvider } from "electron-updater/out/AppUpdater";
+import { REPOSITORY_URL } from "../repository";
 import { updateErrorCode, updateErrorSource } from "./errorCode";
 import { shouldCheck } from "./schedule";
 import { updateState } from "./state";
@@ -52,7 +53,7 @@ export const RESTART_STAGE_WAIT_MS = 60 * 1000;
 // After main's quit has torn everything down, the app must end even when the install never quits it.
 export const INSTALL_QUIT_WAIT_MS = 10 * 1000;
 
-const RELEASE_PAGE = "https://github.com/SinhyeokKang/doan-design/releases/tag/v";
+const RELEASE_PAGE = `${REPOSITORY_URL}/releases/tag/v`;
 const VERSION = /^\d+\.\d+\.\d+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$/;
 
 // The release page of the update the row names; null without one or for a version that is not a plain semver.

@@ -47,6 +47,17 @@ test.each(updates)("restricts %s to main", channel => {
   expect(senderAllowed(channel, "settings")).toBe(false);
   for (const kind of [undefined, null, "thumbnail", ""]) expect(senderAllowed(channel, kind)).toBe(false);
 });
+// The GitHub star card: Star on GitHub ↗ opens main's fixed URL, the dismissal and the busy read carry no data;
+// star:moment is an event main sends, not a request.
+const star = ["star:open", "star:dismiss", "star:busy"];
+test.each(star)("restricts %s to main", channel => {
+  expect(senderAllowed(channel, "main")).toBe(true);
+  expect(senderAllowed(channel, "settings")).toBe(false);
+  for (const kind of [undefined, null, "thumbnail", ""]) expect(senderAllowed(channel, kind)).toBe(false);
+});
+test("the star moment is not a request", () => {
+  for (const channel of ["star:moment", "star:", "star:done"]) expect(senderAllowed(channel, "main")).toBe(false);
+});
 test("the update events are not requests", () => {
   for (const channel of ["update:state", "update:popover", "update:"]) expect(senderAllowed(channel, "main")).toBe(false);
 });

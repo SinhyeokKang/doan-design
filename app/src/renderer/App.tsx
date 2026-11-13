@@ -46,6 +46,7 @@ import { LOADING_DELAY_MS } from "./ConversationThread";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsPage } from "./ProjectSettingsPage";
 import { useToast } from "./Toast";
+import { StarPrompt } from "./StarPrompt";
 import { AddProjectsPage, type AddPageReport } from "./AddProjectsPage";
 import { addPageReturn, pageEnter, pageEscape, projectSettingsReentry, workspaceRemoved, type AddPageEvent, type AddPageOrigin, type PageName, type ShellScreen } from "./addProjectsNav";
 import type { FolderFocus } from "../main/shell";
@@ -225,9 +226,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [settingsAnnouncement, setSettingsAnnouncement] = useState<string | undefined>(undefined);
   const beforeModal = useRef<HTMLElement | null>(null);
   const focusAfterModal = useRef(false);
-  const toast = useToast(previous => {
+  // A focused toast or star card that goes hands focus back to where it came from, or to the screen.
+  const restoreFloatingFocus = (previous: HTMLElement | null) => {
     if (document.activeElement === document.body || !document.activeElement?.isConnected) focusCurrent(previous);
-  });
+  };
+  const toast = useToast(restoreFloatingFocus);
   const workspaceFocus = useRef<HTMLElement | null>(null);
   // Set by the Overview's branch chip menu; the workspace focus effect then focuses the new Overview's chip.
   const chipFocus = useRef(false);
@@ -2219,6 +2222,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   })()}
   {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row))} cancel={closeTrash} confirm={confirmTrash} />}
   {toast.element}
+  <StarPrompt onboarding={wizard !== null || buddyIntro.open} pickOrCapture={state.picking || state.capturing} restoreFocus={restoreFloatingFocus} />
   {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} buddy={buddySelection} preferences={preferences}
     onClose={root => {

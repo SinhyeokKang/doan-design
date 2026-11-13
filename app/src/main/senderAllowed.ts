@@ -34,6 +34,8 @@ const mainOnly = new Set([
   // Settings > About's update row, the header button and the Doan menu item; update:state and update:popover are events
   // main sends, not requests.
   "update:get", "update:check", "update:install", "update:openNotes",
+  // The GitHub star card; star:moment is an event main sends, not a request.
+  "star:open", "star:dismiss", "star:busy",
   "setup:open-external",
   // Install and Update name a provider; main picks the command and writes the script.
   "setup:open-install",

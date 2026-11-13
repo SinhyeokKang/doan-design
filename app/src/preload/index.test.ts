@@ -443,6 +443,31 @@ test("update calls use fixed channels and send no data", async () => {
   }
 });
 
+// The GitHub star card. Requests carry no data: main holds the repository URL and the card's state.
+test("star calls use fixed channels and send no data", async () => {
+  const calls: [() => Promise<unknown>, unknown[]][] = [
+    [() => api.openStarRepository(), ["star:open"]],
+    [() => api.dismissStarPrompt(), ["star:dismiss"]],
+    [() => api.starPromptBusy(), ["star:busy"]],
+  ];
+  for (const [call, args] of calls) {
+    await call();
+    expect(mocks.invoke).toHaveBeenLastCalledWith(...args);
+  }
+});
+
+test("the star moment is a subscription with no first read, and it unsubscribes", () => {
+  const heard = vi.fn();
+  mocks.invoke.mockClear();
+  const stop = api.onStarMoment(heard);
+  expect(mocks.invoke).not.toHaveBeenCalled();
+  emitter.emit("star:moment", {}, { second: true });
+  stop();
+  emitter.emit("star:moment", {}, { second: false });
+  expect(heard.mock.calls).toEqual([[{ second: true }]]);
+  expect(emitter.listenerCount("star:moment")).toBe(0);
+});
+
 test("update snapshots come from one read, then change events, and the read never overwrites a newer event", async () => {
   const heard = vi.fn();
   let answer: (value: unknown) => void = () => {};

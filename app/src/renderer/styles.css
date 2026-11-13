@@ -74,7 +74,9 @@ code, kbd { font-family: var(--type-family); }
    and portalled surfaces turn transparent. Opacity only, so nothing moves and the focused tool keeps focus (POSTMORTEM
    2026-11-03, never visibility or display); !important beats the agent glow's opacity animation. Here, not inline:
    the renderer CSP blocks inline styles (PoC C1). */
-[data-capture-snapshot] :is(.overlay, .capture-marquee, .doan-canvas-top, .doan-canvas-bottom, .doan-agent-glow, .doan-agent-artist, .toast, [data-radix-popper-content-wrapper], .docked-buddy) { opacity: 0 !important; }
+[data-capture-snapshot] :is(.overlay, .capture-marquee, .doan-canvas-top, .doan-canvas-bottom, .doan-agent-glow, .doan-agent-artist, .toast, .star-prompt, [data-radix-popper-content-wrapper], .docked-buddy) { opacity: 0 !important; }
+/* Their exit fade would leave them half drawn in the capture. */
+[data-capture-snapshot] :is(.toast, .star-prompt) { transition: none !important; }
 /* Overlay marks (select-inspect draft): screen px, so lines stay 1px at any scale. */
 /* Agents draw canvases in any colour, so the dark line carries a white outer line to stay visible. */
 .mark { position: absolute; border: 1px solid var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); }
@@ -380,6 +382,33 @@ code, kbd { font-family: var(--type-family); }
 .toast .msg { min-width: 0; overflow-wrap: anywhere; }
 /* A running Retry keeps focus, so it is `data-disabled` rather than `:disabled`, and the hover fill must not come back. */
 .toast .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
+
+/* Surfaces that float on their own over the content (toasts, the GitHub star card) take the panel's ring with a wider
+   drop, so they read above whatever is under them. They enter as a dialog does, rising 8px and fading in; they leave
+   (`data-closing`, drawn for --time-fast by Toast.tsx and StarPrompt.tsx) dropping 4px and fading out. A toast that
+   replaces another keeps its element, so it does not enter again. */
+.star-prompt.doan-floating, .toast.doan-floating { box-shadow: var(--shadow-floating); transition: opacity var(--time-settle) var(--ease-enter), translate var(--time-settle) var(--ease-enter); }
+@starting-style {
+  .star-prompt.doan-floating, .toast.doan-floating { opacity: 0; translate: 0 var(--space-2); }
+}
+.star-prompt.doan-floating[data-closing], .toast.doan-floating[data-closing] { opacity: 0; translate: 0 var(--space-1); transition-duration: var(--time-fast); transition-timing-function: var(--ease-state); }
+/* Reduce motion keeps the fades and drops the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .star-prompt.doan-floating, .toast.doan-floating { transition: opacity var(--time-settle) var(--ease-enter); }
+  .star-prompt.doan-floating[data-closing], .toast.doan-floating[data-closing] { translate: none; }
+  @starting-style {
+    .star-prompt.doan-floating, .toast.doan-floating { translate: none; }
+  }
+}
+
+/* The GitHub star card: bottom left on every screen, 16px from the window's edges as the toast is from the right, and
+   on the toast's layer; neither moves the other. A fixed 240px, whatever the sidebar's width. Over the sidebar column
+   a backdrop-filter cannot blur the native vibrancy, so it takes the opaque popover fill with no blur everywhere, as
+   the sidebar's menus do. */
+.star-prompt { position: absolute; left: var(--space-4); bottom: var(--space-4); z-index: 6; display: grid; gap: var(--space-3); width: 240px; padding: var(--space-3); background: var(--surface-popover); -webkit-backdrop-filter: none; backdrop-filter: none; overflow-wrap: anywhere; }
+.star-prompt-text { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+/* Two sm buttons do not fit side by side in the card, so they stack, the action first. */
+.star-prompt-actions { display: grid; gap: var(--space-2); }
 
 .back { flex: none; }
 .top .divider { width: 1px; height: 18px; background: var(--border-standard); flex: none; margin: 0 -4px; }
