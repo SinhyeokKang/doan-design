@@ -9,7 +9,7 @@
   - 프로토타입 창을 360·480에서 640으로 넓히고 최소폭을 640↔360으로 바꾸는 순서(`setContentBounds`, `setMinimumSize`), 작업 영역 오른쪽 끝에 붙은 창, 작업 영역이 640보다 좁은 화면.
   - 프로토타입 창 페이지에 docked composer, thread, docked buddy를 가짜 호출 객체로 띄워 Radix popover, chip field 입력과 IME, WebGL buddy, `context-menu` 리스너, 프로토타입 창을 부모로 둔 Attach 대화상자가 그 partition과 CSP에서 동작하는지.
   - 검증: 명령 미정 — 사용자 확인 필요(안: `node .scratch/prototype-conversation/probe.mjs`, 스크린샷 포함). 실패하면 design.md를 고치고 멈춘다. 관찰(통과·실패·날짜)은 feature 문서에 적는다.
-- [ ] 2. `/design-draft`로 새 초안 `.doan/canvases/prototype-conversation.html`을 그리고 사용자 확인을 받는다. 기존 `frame-prototype.html`, `doan-canvas-conversation.html`과 형제 feature의 초안은 고치지 않는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`. 프레임:
+- [x] 2. `/design-draft`로 새 초안 `.doan/canvases/prototype-conversation.html`을 그리고 사용자 확인을 받는다. 기존 `frame-prototype.html`, `doan-canvas-conversation.html`과 형제 feature의 초안은 고치지 않는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`. 프레임:
   - 헤더 [Back, Forward, Reload · 프레임 이름 · 모드 토글, Export, 대화 버튼]: 대화 버튼의 닫힘, 열림, 답 대기 점, 작업 중 배지, 안 읽음 말풍선. 640 창(이름 캡슐 276), 480 창(첫째 줄 116), 360 창(이름 캡슐이 헤더 둘째 줄, 헤더 100). 헤더의 다른 컨트롤은 `prototype-responsive` 초안 그대로 둔다.
   - 360/480 창에서 열어 640이 된 모습, 640 이상 창에서 열린 모습과 최대폭, 작업 영역이 640보다 좁은 화면. 대화 열이 콘텐츠 패널 옆에서 창 아래 8까지 내려간 모습. Fit 모드와 Responsive 모드에서 각각.
   - 패널을 연 채 Play(spec 결정 6): 창이 표시 크기 + 패널 폭으로 맞춰진 모습, 작업 영역이 좁아 패널이 먼저 줄어든 모습.
