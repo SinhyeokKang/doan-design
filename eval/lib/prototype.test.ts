@@ -7,6 +7,7 @@ import { startFakeApp, validPrototypeRequest, validPrototypeResponse } from "./s
 import { createContext } from "./context.ts";
 import { keepOnboardingLog } from "./workspace.ts";
 import { contentHash } from "./work.ts";
+import type { PrototypeExchange } from "./types.ts";
 
 const path = ".doan/canvases/onboarding.html";
 
@@ -25,7 +26,7 @@ test("the fake app accepts v6, refuses invalid requests in order, and preserves 
   const app = await startFakeApp({ dir, root, selection: null });
   try {
     const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
-    const request = (args: Record<string, unknown>) => new Promise<Record<string, any>>((resolve, reject) => {
+    const request = (args: Record<string, unknown>) => new Promise<PrototypeExchange["response"]>((resolve, reject) => {
       const socket = connect(runtime.socket);
       let reply = "";
       socket.on("error", reject).on("data", bytes => { reply += bytes; }).on("end", () => resolve(JSON.parse(reply)));
@@ -41,6 +42,8 @@ test("the fake app accepts v6, refuses invalid requests in order, and preserves 
       [{ path: ".doan/canvases/gone.html" }, "canvas_not_found"],
     ] as const) {
       const response = await request(args);
+      assert.equal(response.ok, false);
+      if (response.ok) throw new Error("expected refusal");
       assert.equal(response.error.code, code);
       assert.equal(validPrototypeResponse(response), true);
     }

@@ -24,6 +24,13 @@ export interface OpenExchange {
   hashes: Record<string, string | null>;
 }
 
+export interface PrototypeExchange {
+  request: { v: 6; root: string; path: string; frame: string; mark: string };
+  response: { v: 6; ok: true; played: true } | { v: 6; ok: false; error: { code: string; message: string } };
+  at: string;
+  hashes: Record<string, string | null>;
+}
+
 export interface HandoffExchange {
   request: { v: 5; root: string; handoff: string; path: string; text: string };
   response: { v: 5; ok: true; requested: true } | { v: 5; ok: false; error: { code: string; message: string } };
@@ -64,6 +71,8 @@ export interface CheckContext {
   open(): OpenExchange[];
   // App-socket v5 exchanges (`doan handoff`) in order, token removed; empty when there were none.
   handoff(): HandoffExchange[];
+  // App-socket v6 exchanges, token removed, with canvas hashes at arrival.
+  prototype(): PrototypeExchange[];
   // Runs in the repo with the agent's environment and stdin from /dev/null.
   run(cmd: string, args: string[]): { code: number; stdout: string; stderr: string };
 }
