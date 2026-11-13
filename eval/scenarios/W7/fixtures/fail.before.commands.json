@@ -1,0 +1,4 @@
+[
+  ["work", "start", ".doan/canvases/onboarding.html", "--repo", "{{repo}}", "--json"],
+  ["work", "update", ".doan/canvases/onboarding.html", "--frame", "signup-phone", "--note", "Making the phone sign-up frame playable", "--repo", "{{repo}}", "--json"]
+]
