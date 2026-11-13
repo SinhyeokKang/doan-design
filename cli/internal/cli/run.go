@@ -66,6 +66,8 @@ type Flags struct {
 	SpendCopilotRequest, Initialize                                           bool
 	Output                                                                    string
 	Force                                                                     bool
+	// Prototype makes open play and export write the --frame alone, as in the prototype window.
+	Prototype bool
 	// GitInit lets init and config --storage local create a Git repository in a folder that belongs to none.
 	GitInit bool
 	// Given tells an empty flag value from an absent flag.
@@ -84,10 +86,10 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   work start <canvas path>
   work update <canvas path> [--frame <id>] [--note <text>]
   work done [<canvas path>...]
-  open <canvas path> [--frame <id>]
+  open <canvas path> [--frame <id> [--prototype]]
   handoff <canvas path> --message <text|->
       (Doan app conversations only)
-  export <canvas path> -o <file> [--force]
+  export <canvas path> [--frame <id> --prototype] -o <file> [--force]
   onboarding start
   onboarding status --session <id> [--operation <id>]
   onboarding check --session <id> --provider <id> --request <id> [--spend-copilot-request]
@@ -171,6 +173,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs.BoolVar(&f.GitInit, "git-init", false, "")
 	fs.StringVar(&f.Output, "o", "", "")
 	fs.BoolVar(&f.Force, "force", false, "")
+	fs.BoolVar(&f.Prototype, "prototype", false, "")
 	f.Given = map[string]bool{}
 	pos, err := SplitArgs(args, fs)
 	o := Outcome{}
@@ -200,6 +203,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			allowed["token-css"] = true
 		case "open":
 			allowed["frame"] = true
+			allowed["prototype"] = true
 		case "handoff":
 			allowed["message"] = true
 		case "work":
@@ -210,6 +214,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		case "export":
 			allowed["o"] = true
 			allowed["force"] = true
+			allowed["frame"] = true
+			allowed["prototype"] = true
 		case "onboarding":
 			// Onboarding takes absolute paths and never searches for a repository.
 			allowed = map[string]bool{"json": true}
