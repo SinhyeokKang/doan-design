@@ -58,8 +58,8 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1a. `prototype-responsive` | Claude Code · `prototype-responsive-orch` (`feat/prototype-responsive`) | 2026-11-13, `808252b4` | PR #189, 병합 `00fb6387` | 완료 |
-| 1b. `multi-handoff` | Claude Code · `multi-handoff-orch` (`feat/multi-handoff`) | 2026-11-13, `808252b4` | | 진행 중 |
-| 2. `prototype-cli-export` | | | | 대기 |
+| 1b. `multi-handoff` | Claude Code · `multi-handoff-orch` (`feat/multi-handoff`) | 2026-11-13, `808252b4` | PR #190, 병합 `a359ed91` | 완료 |
+| 2. `prototype-cli-export` | Claude Code · `prototype-cli-export-orch` (`feat/prototype-cli-export`) | 2026-11-14, `a359ed91` | | 진행 중 |
 | 3. `prototype-conversation` | | | | 대기 |
 
 ## 인계 기록
@@ -69,3 +69,4 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 - 2026-11-13 lead(develop checkout): Claude Code와 Codex 로그인을 `.scratch/provider-profile/userData`에 만들었다(사용자 승인). 링크 1의 두 conductor를 병렬로 시작했다. 브리프에는 `rm` 금지, 로그인 프로필 경로, Codex 워커 허용, `/ship`의 하위 스킬 로드 규칙, GUI 시간을 lead와 맞추는 규칙을 넣었다.
 - 2026-11-14 lead(develop checkout): 링크 1a를 병합했다(PR #189, `00fb6387`). worktree는 지웠고 브랜치는 남겼다. 형제 문서(cli-export, conversation)에서 지워진 responsive 문서를 가리키던 참조를 승격된 PRODUCT·ARCHITECTURE·DESIGN 절로 고쳤다. 다음 링크가 알아야 할 것(PR 본문 'For later links'): 오른쪽 무리 폭 R은 `fit.ts`의 `PROTOTYPE_HEADER_RIGHT`와 `styles.css`의 `--pw-right` 두 곳에 있고 테스트가 둘을 같게 묶는다. `.pw-right`에는 아직 토글만 있다. `prototypeCaptureRect`의 `sideColumn`은 지금 0이다. 새 iframe host나 패널 옆 열은 네 모서리를 같은 radius로 자르지 않는 불변식을 지키고 `exportViewer.test.ts`의 프로토타입 체인을 늘린다. 헤더 컨트롤은 주 버튼 `mousedown`에서 `preventDefault()`한다. 링크 1a 미확인: 실제 OS 입력·창 포커스, DPR 1, 패키지 앱, 390×844의 창 맞춤 908/952.
 - 2026-11-14 lead(develop checkout): 사용자 지시로 `rm` 금지 규칙을 없앴다. 다음 링크의 브리프에도 넣지 않는다.
+- 2026-11-14 lead(develop checkout): 링크 1b를 병합했다(PR #190, `a359ed91`). 게이트의 shard 3이 runner 문제로 로그 없이 15분 뒤 취소되어 다시 돌렸고 통과했다. worktree는 지웠고 브랜치는 남겼다. 공유 로그인 프로필은 그대로 연결되어 있다(task 9가 제자리에서 쓰고 상태 파일을 되돌렸다. 복사본은 프로필 경로에 묶인 Keychain 로그인을 잃는다). 링크 3이 알 것: `ConversationThread.tsx`(`HandoffLine` Open, missed), `threadItems.ts`(handoff key `h${turnId}:${path}`), `service.ts`(`HandoffTurn.requests`, `missedWaits`, 큐 settle·flush fence), `preload/index.ts`(`onConversationHandoff`가 `ConversationHandoffNotice`를 받음)가 바뀌었다. 링크 1b 미확인: Cursor·Antigravity·Copilot handoff, Codex의 `&&` 연결, runtime-test `codex-stay` 첫 턴 완료(probe 버그 수정 뒤 다른 두 시나리오에서만 통과), 새 Open 버튼의 hover·다크 모드. 링크 2를 시작했다.
