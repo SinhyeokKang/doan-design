@@ -73,10 +73,34 @@ describe("prototype controller", () => {
     expect(t.calls).toEqual([]);
   });
 
-  test("choosing another frame fits, activates and loads a new run", () => {
+  test("choosing another frame stills the ready screen before the refit, then fits, activates and loads a new run", async () => {
     const t = opened();
     t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
-    expect(t.calls).toEqual([["fit", { width: 820, height: 1180 }], ["activate"], ["load", { gen: 2, url: proto.url, frame: "tablet" }], ["view", 2, "loading"]]);
+    const effects = [["capture", 390], ["fit", { width: 820, height: 1180 }], ["activate"], ["load", { gen: 2, url: proto.url, frame: "tablet" }]];
+    expect(t.calls).toEqual(effects);
+    await vi.waitFor(() => expect(t.calls).toEqual([...effects, ["snapshot", 2, [1, 2]], ["view", 2, "loading"]]));
+  });
+
+  test("a reload, Retry or source change of a ready run stills it under the new run's gen", async () => {
+    for (const leave of [
+      (t: ReturnType<typeof opened>) => t.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 1 }),
+      (t: ReturnType<typeof opened>) => { t.setEntries([{ path: "/r", kind: "list", canvases: [{ ...proto, rev: 2 }], servedRev: 0 }]); t.controller.listChanged(); },
+    ]) {
+      const t = opened();
+      leave(t);
+      expect(t.calls).toEqual([["capture", 390], ["load", { gen: 2, url: proto.url, frame: "phone" }]]);
+      await vi.waitFor(() => expect(t.calls.slice(2)).toEqual([["snapshot", 2, [1, 2]], ["view", 2, "loading"]]));
+    }
+  });
+
+  test("staying ready or closing takes no still", async () => {
+    const t = opened();
+    t.controller.play("main", play);
+    t.controller.request(PROTOTYPE_CHANNELS.frames, "prototype", { gen: 1, frames: frames.slice(0, 1) });
+    t.controller.listChanged();
+    t.controller.request(PROTOTYPE_CHANNELS.close, "prototype", undefined);
+    await Promise.resolve();
+    expect(t.calls.some(call => Array.isArray(call) && call[0] === "capture")).toBe(false);
   });
 
   test("a timeout kills the run's renderer", () => {
@@ -101,7 +125,7 @@ describe("prototype controller", () => {
     const t = opened();
     t.setEntries([{ path: "/r", kind: "list", canvases: [], servedRev: 0 }]);
     t.controller.listChanged();
-    expect(t.calls).toEqual([]);
+    expect(t.calls).toEqual([["capture", 390]]);
     await vi.waitFor(() => expect(t.calls).toEqual([["capture", 390], ["snapshot", 1, [1, 2]], ["view", 1, "frame-unavailable"]]));
   });
 
@@ -113,7 +137,8 @@ describe("prototype controller", () => {
     t.controller.listChanged();
     t.setEntries([{ path: "/r", kind: "list", canvases: [{ ...proto, rev: 2 }], servedRev: 0 }]);
     t.controller.listChanged();
-    await vi.waitFor(() => expect(t.calls).toEqual([["load", { gen: 2, url: proto.url, frame: "phone" }], ["capture", 390]]));
+    // Leaving frame-unavailable is not leaving a ready run, so the restore takes no second still.
+    expect(t.calls).toEqual([["capture", 390], ["load", { gen: 2, url: proto.url, frame: "phone" }]]);
     release(null);
     await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 2, "loading"]));
     expect(t.calls.some(call => Array.isArray(call) && call[0] === "snapshot")).toBe(false);

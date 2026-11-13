@@ -3,7 +3,7 @@
 // Electron-free; prototypeWindow.ts is the host.
 import type { FolderEntry } from "../view";
 import type { WindowKind } from "../senderAllowed";
-import { PROTOTYPE_CHANNELS, type PrototypePhase, type PrototypeSnapshot, type PrototypeView } from "./ipc";
+import { PROTOTYPE_CHANNELS, type PrototypeSnapshot, type PrototypeView } from "./ipc";
 import type { PrototypeSize } from "./mark";
 import { parseChooseRequest, parseFramesReport, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
 import { resolveTarget } from "./targets";
@@ -23,8 +23,6 @@ export interface PrototypeHost {
   capture(markWidth: number): Promise<Uint8Array | null>;
   sendSnapshot(snapshot: PrototypeSnapshot): void;
 }
-
-const FAILED: ReadonlySet<PrototypePhase> = new Set(["read-failed", "init-failed", "frame-unavailable", "prototype-unavailable"]);
 
 export interface PrototypeController {
   play(kind: WindowKind, value: unknown): void;
@@ -59,12 +57,22 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     queue = next;
   };
 
-  const publish = (previous: PrototypeState) => {
-    const ready = previous.open && previous.phase === "ready" ? previous.run : null;
-    if (ready !== null && state.open && FAILED.has(state.phase)) {
+  // Leaving a ready run by any path (a reload, a source change, a restore, Retry, another target, a failure or a lost
+  // frame) takes a still of its screen. A reload keeps the old iframe showing until the new run is ready; if that run
+  // then fails, the renderer stops the old one behind this still, and a capture taken then would hold the loading
+  // overlay. Started before the step's effects, so a refit for another target cannot reach the image.
+  const leavingReady = (previous: PrototypeState): Promise<Uint8Array | null> | null => {
+    if (!previous.open || previous.phase !== "ready" || previous.run === null || !state.open) return null;
+    if (state.gen === previous.gen && state.phase === "ready") return null;
+    return host.capture(previous.run.markWidth).catch(() => null);
+  };
+
+  // The still goes out before the view of the state that followed, tagged with that view's gen.
+  const publish = (still: Promise<Uint8Array | null> | null) => {
+    if (still !== null) {
       const gen = state.gen;
       later(async () => {
-        const png = await host.capture(ready.markWidth).catch(() => null);
+        const png = await still;
         if (png !== null && state.open && state.gen === gen) host.sendSnapshot({ gen, png });
       });
     }
@@ -76,6 +84,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     if (step === null) return;
     const previous = state;
     state = step.state;
+    const still = leavingReady(previous);
     for (const effect of step.effects) {
       switch (effect.kind) {
         case "create": host.create(effect.size); break;
@@ -86,7 +95,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
         case "destroy": host.destroy(); break;
       }
     }
-    publish(previous);
+    publish(still);
   };
 
   return {
