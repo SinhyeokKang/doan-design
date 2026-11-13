@@ -43,3 +43,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 12(승격·삭제)는 conducto
 - B1 완료(`af667b69`) → `6c3887fc`로 통합. B1 리뷰는 B2와 함께 B 리뷰에서 한다(conductor 판단: 스키마만 바뀐 작은 커밋이고, B2가 이 검증기를 바로 쓴다). 같은 워커에 B2(`ctx_a31f6b36ef7f`)를 보냈다. C의 `runtime.ts` v6 분기는 C가 끝난 뒤 새 Task로 보낸다.
 - C 완료(`c9b09988..0001cbbb`) → `199a3393..e82f0a81`로 통합. 남은 것: `runtime.ts` v6 분기(C2, `ctx_7445cf99dfa4`로 보냄), 실제 앱 확인(task 9·10). C의 `runExport`는 `--frame=<id>`를 쓴다(프레임 ID `--`가 구분자로 읽히지 않게). Go `flag`가 이 형태를 받으므로 그대로 둔다(conductor 판단).
 - C 리뷰: Codex gpt-6-astra medium(`ctx_0bca41bcc560`, worktree `pce-rc`). 리뷰 초점에 프로토타입 창 renderer가 root 절대 경로를 받는 점을 넣었다.
+- C 리뷰 1회차(Codex): 🔴 0, 🟡 1(쓸 수 없는 Export가 `aria-disabled`만 있어 활성 색·hover를 유지한다. 초안은 비활성 잉크와 `not-allowed`), ⚪ 2(창 표시 이벤트 등록을 지워도 host 테스트가 통과한다, 창 닫힘·포커스·메인 창 독립성은 task 10에서 확인). 계획과 다른 점 7개와 root 절대 경로 노출은 수용. C2가 끝나면 🟡1과 ⚪1을 C에 보낸다.
