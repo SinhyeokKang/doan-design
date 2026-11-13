@@ -1,6 +1,6 @@
 # prototype-cli-export — design
 
-spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--frame <id> --prototype`, 캔버스 전체를 넣고 토스트와 guide로 알림, 프레임이 브라우저 viewport 전체를 채움, chrome 없음, header 오른쪽 끝 [Export][대화 버튼], 링크 없음, header Export와 CLI만, CLI 정적 판정, open의 `canvas_unreadable`, export 결과 `prototype: true`, target 비교로 오래된 클릭 거절, 창마다 한 번에 하나의 내보내기, 숨긴 채 시작하는 iframe.
+spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--frame <id> --prototype`, 캔버스 전체를 넣고 토스트와 guide로 알림, 프레임이 브라우저 viewport 전체를 채움, chrome 없음, Export는 아래 툴바 [Reload prototype | Fit, Responsive | Export prototype]의 마지막 버튼, 링크 없음, 툴바 Export와 CLI만, CLI 정적 판정, open의 `canvas_unreadable`, export 결과 `prototype: true`, target 비교로 오래된 클릭 거절, 창마다 한 번에 하나의 내보내기, 숨긴 채 시작하는 iframe.
 
 ## 영향 받는 구성 요소
 
@@ -26,10 +26,13 @@ spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--
 - `app/src/main/prototype/ipc.ts`: 채널 `prototype:export`(`{root, path, frame}`: 누른 순간의 target), `prototype:revealExport`(opaque id), 이벤트 `prototype:exportRunning`. `PROTOTYPE_WINDOW_REQUESTS`에 앞의 둘을 더한다.
 - `app/src/main/senderAllowed.ts`: 새 두 요청은 `prototype` role만 부를 수 있다. 메인 창의 `mainOnly`는 넓히지 않는다.
 - `app/src/main/canvasExport.ts`: 지금 `export(value)`는 `trashRequest`, 메인 창으로 보내는 `running`, 메인 창이 부모인 `choose`에 묶여 있다. 프로토타입 창용은 deps를 따로 준 `createCanvasExport`의 두 번째 인스턴스로 만든다(요청 해석은 프레임을 포함한 target, `running`은 프로토타입 창으로, 저장 패널의 부모는 프로토타입 창). 잠금과 `written`(Show in Finder id, 상한 16)은 인스턴스마다 따로다. 프로토타입 인스턴스의 잠금은 창 하나에 하나다(결정 15). `runExport`(`app/src/main/cli.ts`)에 `--frame <id> --prototype` 인자. `interpretExport`에 `frame_not_found` → `notFound`, `not_prototype` → `notMarked`.
-- `app/src/renderer/prototype/`: `WindowShell`의 header 오른쪽 끝에 Export 버튼(`IconTip`, `aria-disabled`와 이유 설명), 토스트 호스트(`app/src/renderer/Toast.tsx` 재사용), `PrototypeWindow.tsx`의 호출. 프로토타입 preload(`window.doanPrototype`)에 `export(target)`, `revealExport(id)`, `onExportRunning`, 그리고 `onWindowVisible`(또는 같은 역할의 채널). `useToast`가 토스트 타이머를 멈추고 다시 돌리려고 `window.doan.onWindowVisible`을 쓰기 때문이다(`Toast.tsx`).
-- **header 배치는 세 기능에 걸쳐 정해졌다**: 이 기능의 Export, `prototype-conversation`의 대화 버튼, `prototype-responsive`의 모드 컨트롤이 같은 프로토타입 창을 바꾼다. header 오른쪽 끝은 [Export][대화 버튼]이다(결정 7, `prototype-conversation`과 같은 결정). `prototype-responsive`는 모드 컨트롤(기본 Fit)을 header도, 콘텐츠 위에 뜬 툴바도 아닌, 프레임 열 아래의 66 px 툴바 줄에 둔다. 창 맞춤 높이는 표시 높이 + 122(header 56 + 툴바 줄 66)다. Tab 순서는 Back, Forward, Reload, 프레임 이름, Export, 대화 버튼, 모드 툴바, 프레임 콘텐츠다. 360 px 창에서 프레임 이름 버튼은 68 px다(결정 17).
-- **구현 순서**: `prototype-responsive` → `prototype-cli-export` → `prototype-conversation`. 이 기능은 responsive가 만든 툴바 줄과 창 맞춤 위에 Export를 더한다.
-- 형제 기능 `prototype-conversation`과 겹치는 곳: 프로토타입 창의 토스트 호스트(그쪽도 `WindowShell`에 토스트 자리를 둔다). 토스트 호스트는 하나만 두고, 이 기능이 먼저 만들고 `prototype-conversation`이 쓴다. 지금 `.toast`는 오른쪽·아래 `--space-4`에 붙으므로 좁은 창에서 아래 툴바 줄과 겹칠 수 있고, 이 겹침은 받아들인다(`prototype-responsive` 결정 11).
+- `app/src/renderer/prototype/`: 아래 툴바 줄의 툴바(`prototype-responsive`가 만든 컴포넌트)에 구분선과 Export 버튼을 더한다. 버튼은 캔버스 툴바 버튼(`doan-canvas-tool`, 40 px, 16 px 아이콘)과 같고, 접근 이름과 tooltip은 "Export prototype", 쓸 수 없을 때는 `aria-disabled`와 이유 tooltip·sr-only 설명이다(캔버스 툴바의 Play prototype·Export와 같은 `TooltipTrigger` 규칙). 그 밖에 토스트 호스트(`app/src/renderer/Toast.tsx` 재사용), `PrototypeWindow.tsx`의 호출. 프로토타입 preload(`window.doanPrototype`)에 `export(target)`, `revealExport(id)`, `onExportRunning`, 그리고 `onWindowVisible`(또는 같은 역할의 채널). `useToast`가 토스트 타이머를 멈추고 다시 돌리려고 `window.doan.onWindowVisible`을 쓰기 때문이다(`Toast.tsx`).
+- **창 배치는 세 기능에 걸쳐 정해졌다**: 이 기능의 Export, `prototype-conversation`의 대화 버튼, `prototype-responsive`의 툴바 줄이 같은 프로토타입 창을 바꾼다.
+  - header: Back, Forward, 프레임 이름 버튼, 대화 버튼. 이 기능은 header에 아무것도 더하지 않는다. 360 px 창의 이름 버튼 폭은 `prototype-responsive`가 다시 계산한다.
+  - 아래 툴바 줄(66 px, 프레임 열 아래): 툴바 [Reload prototype | Fit, Responsive | Export prototype]. Reload는 header에서 툴바로 내려오고(`prototype-responsive`가 옮긴다), Export는 마지막 묶음이다. 창 맞춤 높이는 표시 높이 + 122(header 56 + 툴바 줄 66)다.
+  - 키보드: 툴바는 Tab 정지가 하나이고 ←/→로 네 버튼을 오간다(쓸 수 없는 Export 포함). Tab 순서는 Back, Forward, 프레임 이름, 대화 버튼, 툴바, 프레임 콘텐츠다.
+- **구현 순서**: `prototype-responsive` → `prototype-cli-export` → `prototype-conversation`. 이 기능은 responsive가 만든 툴바에 Export 버튼을 더한다.
+- 형제 기능 `prototype-conversation`과 겹치는 곳: 프로토타입 창의 토스트 호스트(그쪽도 `WindowShell`에 토스트 자리를 둔다). 토스트 호스트는 하나만 두고, 이 기능이 먼저 만들고 `prototype-conversation`이 쓴다. 지금 `.toast`는 오른쪽·아래 `--space-4`에 붙으므로 아래 툴바 줄 위에 뜨고, 좁은 창에서는 툴바(Export 포함)와 겹칠 수 있다. 이 겹침은 받아들인다(`prototype-responsive` 결정 11). 토스트는 Export를 누른 뒤에 나오므로, 겹친 토스트가 다음 클릭을 가리는지는 `/design-draft`에서 그림으로 보인다.
 - `app/src/renderer/canvasRowMessages.ts`: 토스트 문구. 이름 자리에는 프레임 제목(없으면 ID)을 넣는다. 문구 초안(최종안은 `/design-draft`의 clarify):
   - 성공: "Exported “Checkout”. The file also contains the rest of the canvas." 외부 URL이 있으면 지금의 인터넷 문장을 뒤에 붙인다.
   - `notFound`: "Couldn’t export “Checkout”. Doan can export only a frame written in the canvas file, not one a script adds."
@@ -74,8 +77,8 @@ spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--
 
 ### 프로토타입 창의 Export
 
-1. 버튼은 `view.phase`가 `ready`, `loading`, `init-failed`일 때 쓸 수 있다. 이유는 툴바 Export와 같은 툴팁과 sr-only 설명이다.
-   - `view === null`(첫 순간): 이유 없이 쓸 수 없다. Reload와 같다.
+1. 버튼은 `view.phase`가 `ready`, `loading`, `init-failed`일 때 쓸 수 있다. 이유는 캔버스 툴바 Export와 같은 tooltip과 sr-only 설명이다.
+   - `view === null`(첫 순간): 이유 없이 쓸 수 없다. 툴바의 Reload, Fit, Responsive와 같다.
    - `read-failed`: "Can’t read this canvas."
    - `frame-unavailable`·`prototype-unavailable`: "Export isn’t available while this prototype can’t play." `prototype-unavailable`에서는 프레임이 그대로 있으므로 "frame"을 쓰지 않는다.
    - 내보내는 중: "Exporting".
@@ -84,7 +87,7 @@ spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--
    - 그 사이 창의 프레임이 바뀌어도 누른 프레임으로 끝까지 가고, 결과 토스트는 누른 프레임의 이름을 쓴다. 버튼은 끝날 때까지 "Exporting"이다(결정 15).
    - 그 사이 창이 닫히면 CLI는 끝까지 돌아 파일을 쓰고, 결과는 어디에도 보이지 않는다.
    - Show in Finder는 `prototype:revealExport`의 opaque id로만 연다.
-4. 포커스는 저장 패널이 닫히면 Export 버튼으로 돌아간다(툴바 Export와 같다).
+4. 포커스는 저장 패널이 닫히면 Export 버튼으로 돌아간다(캔버스 툴바 Export와 같다). 툴바의 Tab 정지도 Export로 옮긴다(roving tabindex).
 
 ## 순수 함수로 뺄 것 (`/tdd` 대상)
 
@@ -142,7 +145,7 @@ Viewer JS (`exportViewer.test.ts`가 실행)
   - §3 In scope 1(Show)과 8(Export).
   - §3 Out of scope 2: 프로토타입 표시는 창 재생 말고도 CLI 재생과 내보내기에 쓰인다.
   - §3 Out of scope 4: "`doan open` only moves"에 `--prototype`의 재생을 맞춘다.
-  - §5 item 2 'Prototype window': "nothing is exported or hosted" → "nothing is hosted", 'Header'에 Export·Tab 순서·Back/Forward 기록 대상(`doan open --prototype`), Independence의 재생 목록.
+  - §5 item 2 'Prototype window': "nothing is exported or hosted" → "nothing is hosted", 툴바(`prototype-responsive`가 쓰는 절)에 Export, 'Header'의 Back/Forward 기록 대상(`doan open --prototype`), Independence의 재생 목록.
   - §5 item 3 'Deep links': "same rules"와 "only moves". `--prototype`은 잠긴 페이지와 dialog에 막히지 않는다.
   - §5 item 3 'Export and viewer', item 10, item 12.
 
