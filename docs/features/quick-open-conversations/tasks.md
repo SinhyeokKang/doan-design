@@ -4,7 +4,7 @@
 
 - [x] 1. `/design-draft`로 새 초안 `.doan/canvases/quick-open-conversations.html`을 그리고 사용자 확인을 받는다. 프레임: Conversations 탭과 입력란 새 이름, 캔버스 대화·프로젝트 대화 행(시각 포함, readError 행), All의 섞인 결과, 빈 검색어 Conversations(workspace·Home), 빈 결과 문구 네 가지, 읽기 줄, 열 수 없을 때의 토스트. 기존 `doan-search.html`은 고치지 않는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
   - 커밋 경계: 초안.
-- [ ] 2. `/tdd`: 다음을 고정하고 red를 확인한다. 검증: `npm --prefix app test`가 새 테스트에서만 실패한다.
+- [x] 2. `/tdd`: 다음을 고정하고 red를 확인한다. 검증: `npm --prefix app test`가 새 테스트에서만 실패한다.
   - `canvasConversationRows.test.ts`: `conversationCanvasMatch`의 one·many·none, id 있는 대화와 id 없는 행, 읽기 오류 행의 path 대체, 기존 `canvasConversationRows` 결과가 그대로인 것.
   - `quickOpen.test.ts`:
     - `conversationEntries`: 캔버스 판정 one·many(`duplicate_canvas_id`)·none, 프로젝트 대화, 보관, legacy external, readError.
@@ -14,9 +14,9 @@
     - `emptyText`: 새 문구 네 가지, 대화 0개, 대화 목록 loading이면 null, problem root에서 unavailable 문구가 먼저인 것.
     - `resultParts`·`resultKey`: 대화 행, `sameShownConversation`.
   - `QuickOpenDialog.test.tsx`: `quickOpenTabKey` 네 탭.
-- [ ] 3. `/implement`: 순수 함수를 구현한다. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
+- [x] 3. `/implement`: 순수 함수를 구현한다. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
   - 커밋 경계: 순수 함수와 테스트.
-- [ ] 4. 화면 연결: `QuickOpenDialog.tsx`(탭, 아이콘, 입력란 이름, prop, `canvasDir` 분기), `homeRun.ts`(`canvasRow`가 `conversationCanvasMatch`를 쓰게 하고 미리 찾은 대상으로 여는 메서드), `App.tsx`(목록 전달, `pick` 분기, 같은 화면 판정, 토스트). `QuickOpenDialog.test.tsx`에 대화 행 렌더링, 탭 네 개, props가 바뀌었을 때(대화 삭제·보관·제목 변경) 결과가 바뀌는 것을 더한다. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
+- [x] 4. 화면 연결: `QuickOpenDialog.tsx`(탭, 아이콘, 입력란 이름, prop, `canvasDir` 분기), `homeRun.ts`(`canvasRow`가 `conversationCanvasMatch`를 쓰게 하고 미리 찾은 대상으로 여는 메서드), `App.tsx`(목록 전달, `pick` 분기, 같은 화면 판정, 토스트). `QuickOpenDialog.test.tsx`에 대화 행 렌더링, 탭 네 개, props가 바뀌었을 때(대화 삭제·보관·제목 변경) 결과가 바뀌는 것을 더한다. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
   - 커밋 경계: 화면 연결.
 - [ ] 5. `/design-sync`로 새 초안과 실제 앱의 대화 행·탭·빈 상태를 맞추고 DESIGN.md 'Quick Open'을 고친다. 검증: `node .scratch/design-sync/<screen>/measure.mjs`.
 - [ ] 6. `/runtime-test`: 격리 앱에서 다음을 확인한다. 검증: `/runtime-test` 스크린샷과 probe 결과가 아래 기대값과 같다.
