@@ -72,9 +72,61 @@ func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
 		"{{STYLE}}":  style,
 		"{{SCRIPT}}": shellScript,
 	}
-	// The page is written into one buffer of its final size, with the canvas
-	// escaped straight into it: an escaped copy of the canvas and a growing
-	// buffer would each hold the whole page again.
+	return fillPage(shell, values, srcdoc), nil
+}
+
+// Proto names the one frame an exported prototype plays. The CLI judged it from
+// the canvas file before assembling (it exists once and is marked).
+type Proto struct {
+	Frame string // data-doan-frame
+	Title string // data-doan-title, "" when the frame has none
+}
+
+// AssemblePrototype wraps the rewritten canvas HTML in the prototype page: the
+// whole canvas in a sandboxed iframe that fills the browser window, with
+// isolate.js first in its head to hide everything but the frame. It shares
+// Assemble's one-pass placeholder filling, srcdoc escaping, script placement
+// and byte order mark removal; only the shell differs. The page shows neither
+// the canvas name nor its width, but takes the same Meta as Assemble.
+func AssemblePrototype(m Meta, p Proto, canvasHTML []byte) ([]byte, error) {
+	if p.Frame == "" {
+		return nil, errors.New("prototype frame id must not be empty")
+	}
+	files := map[string]string{}
+	for _, name := range []string{"prototype.html", "prototype.css", "prototype.js", "isolate.js"} {
+		b, err := viewerFS.ReadFile("viewer/" + name)
+		if err != nil {
+			return nil, err
+		}
+		files[name] = string(b)
+	}
+	frame, err := json.Marshal(p.Frame)
+	if err != nil {
+		return nil, err
+	}
+	label := p.Title
+	if label == "" {
+		label = p.Frame
+	}
+	// json.Marshal writes "<", ">", "&", U+2028 and U+2029 as escapes, so the id
+	// can neither end the script nor open an HTML comment in it.
+	isolateScript := "<script>(function () {\nconst FRAME = " + string(frame) + ";\n" + files["isolate.js"] + "\n})();</script>"
+
+	canvas := bytes.TrimPrefix(canvasHTML, byteOrderMark)
+	at := measureOffset(canvas)
+	srcdoc := [][]byte{canvas[:at], []byte(isolateScript), canvas[at:]}
+	values := map[string]string{
+		"{{NAME}}":   html.EscapeString(label),
+		"{{STYLE}}":  files["prototype.css"],
+		"{{SCRIPT}}": "(function () {\n" + files["prototype.js"] + "\n})();",
+	}
+	return fillPage(files["prototype.html"], values, srcdoc), nil
+}
+
+// fillPage writes shell into one buffer of its final size, with the srcdoc
+// parts escaped straight into it: an escaped copy of the canvas and a growing
+// buffer would each hold the whole page again.
+func fillPage(shell string, values map[string]string, srcdoc [][]byte) []byte {
 	size := 0
 	fillShell(shell, func(s string) { size += len(s) }, func(key string) {
 		if key != srcdocKey {
@@ -95,7 +147,7 @@ func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
 			writeEscaped(out, part)
 		}
 	})
-	return out.Bytes(), nil
+	return out.Bytes()
 }
 
 const srcdocKey = "{{SRCDOC}}"

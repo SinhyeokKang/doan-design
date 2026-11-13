@@ -34,6 +34,9 @@ export interface PrototypeWindowDeps {
   reread(root: string): void;
   // The prototype window gained or lost focus: menu items of the main window go off while it has it.
   focusChanged?(focused: boolean): void;
+  // The whole app is hidden (⌘H). `doan open --prototype` can play while it is, and a window's show alone was not
+  // seen to bring a hidden app back.
+  appHidden?(): boolean;
 }
 
 export interface PrototypeWindow {
@@ -41,6 +44,13 @@ export interface PrototypeWindow {
   // The window's own main frame, for the sender guard; its iframes and other windows are not.
   owns(event: IpcMainInvokeEvent): boolean;
   ownsWindow(window: BaseWindow | undefined): boolean;
+  // The live window, as the export's save panel parent.
+  window(): BrowserWindow | undefined;
+  send(channel: string, value: unknown): void;
+  // Shown natively: visible, not minimized and the app not hidden.
+  visible(): boolean;
+  // The app was hidden or shown again (⌘H): the window's visibility goes to its page.
+  visibilityChanged(): void;
   close(): void;
   destroyForQuit(): void;
 }
@@ -153,6 +163,12 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     contents.on("render-process-gone", () => {
       if (window === created && !created.isDestroyed()) created.destroy();
     });
+    // The toast's clock in the page stops while the window is not shown natively.
+    const shownChanged = () => { if (window === created) sendVisible(); };
+    created.on("show", shownChanged);
+    created.on("hide", shownChanged);
+    created.on("minimize", shownChanged);
+    created.on("restore", shownChanged);
     created.on("focus", () => { if (window === created) deps.focusChanged?.(true); });
     created.on("blur", () => { if (window === created) deps.focusChanged?.(false); });
     created.on("close", () => {
@@ -175,8 +191,14 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     const devUrl = process.env.ELECTRON_RENDERER_URL;
     if (!app.isPackaged && devUrl) void created.loadURL(new URL("prototype.html", devUrl).toString());
     else void created.loadFile(fileURLToPath(new URL("../renderer/prototype.html", import.meta.url)));
+    unhide();
     created.show();
     created.focus();
+  }
+
+  // app.show() brings back only the windows ⌘H hid, so a main window closed before it stays closed.
+  function unhide(): void {
+    if (deps.appHidden?.() === true) app.show();
   }
 
   const host: PrototypeHost = {
@@ -191,6 +213,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       const target = live();
       if (target === undefined) return;
       if (target.isMinimized()) target.restore();
+      unhide();
       target.show();
       target.focus();
     },
@@ -242,6 +265,14 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
 
   const controller = createPrototypeController(host, deps.entries);
 
+  function visible(): boolean {
+    const target = live();
+    return target !== undefined && target.isVisible() && !target.isMinimized() && deps.appHidden?.() !== true;
+  }
+  function sendVisible(): void {
+    live()?.webContents.send(PROTOTYPE_CHANNELS.visible, { visible: visible() });
+  }
+
   return {
     controller,
     owns(event) {
@@ -251,6 +282,12 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     ownsWindow(candidate) {
       return candidate !== undefined && candidate === window;
     },
+    window: live,
+    send(channel, value) {
+      live()?.webContents.send(channel, value);
+    },
+    visible,
+    visibilityChanged: sendVisible,
     close() {
       live()?.close();
     },

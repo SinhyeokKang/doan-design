@@ -23,13 +23,12 @@ import (
 
 // Export writes one canvas as a single HTML file that opens without Doan, the
 // repository or a network. The order of the checks is the order of the error
-// codes in the docs: arguments, repository, canvas, references, size, output.
+// codes in the docs: arguments, repository, canvas, frame (with --prototype),
+// references, size, output.
 func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
-	if len(args) != 1 {
-		return Outcome{}, usageError("export takes one canvas path")
-	}
-	if f.Output == "" {
-		return Outcome{}, usageError("export needs -o <file>")
+	arg, frame, failure := exportInput(args, f.Output, f.Frames, f.Prototype)
+	if failure != nil {
+		return Outcome{}, failure
 	}
 	output := f.Output
 	if !filepath.IsAbs(output) {
@@ -51,9 +50,9 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if err != nil {
 		return Outcome{}, exportInternal(err)
 	}
-	canvasPath, ok := export.MatchListed(r.Root, listed, args[0])
+	canvasPath, ok := export.MatchListed(r.Root, listed, arg)
 	if !ok {
-		return Outcome{}, &Error{Code: "canvas_not_found", Message: "Canvas not found: " + canvasArgLabel(r.Root, args[0]), NextSteps: []string{"Run `doan ls --json` and pass a path it lists"}}
+		return Outcome{}, &Error{Code: "canvas_not_found", Message: "Canvas not found: " + canvasArgLabel(r.Root, arg), NextSteps: []string{"Run `doan ls --json` and pass a path it lists"}}
 	}
 	stored, err := os.Stat(filepath.Join(r.Root, filepath.FromSlash(canvasPath)))
 	if err != nil {
@@ -73,6 +72,14 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if !model.HasWidth || model.WidthDup || model.Width < 1 {
 		return Outcome{}, unreadableCanvas("The canvas needs exactly one `doan:width` meta in its head with a positive whole number.")
 	}
+	// The frame is judged before Inline so a wrong frame id does not cost a full inline of the canvas.
+	var played canvas.PrototypeFrame
+	if frame != nil {
+		var refusal canvas.PrototypeRefusal
+		if played, refusal = canvas.PrototypeTarget(model, *frame); refusal != canvas.PrototypeOK {
+			return Outcome{}, prototypeFrameFailure(refusal, *frame, canvasPath)
+		}
+	}
 	inlined, err := export.Inline(r.Root, r.Config, canvasPath, src)
 	if err != nil {
 		return Outcome{}, exportInternal(err)
@@ -88,7 +95,17 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	assets := append(inlined.Assets, self)
 	stem := strings.TrimSuffix(path.Base(canvasPath), path.Ext(canvasPath))
-	page, err := export.Assemble(export.Meta{Name: stem, Width: model.Width}, inlined.HTML)
+	meta := export.Meta{Name: stem, Width: model.Width}
+	var page []byte
+	if frame != nil {
+		proto := export.Proto{Frame: played.ID}
+		if played.Title != nil {
+			proto.Title = *played.Title
+		}
+		page, err = export.AssemblePrototype(meta, proto, inlined.HTML)
+	} else {
+		page, err = export.Assemble(meta, inlined.HTML)
+	}
 	if err != nil {
 		return Outcome{}, exportInternal(err)
 	}
@@ -98,10 +115,12 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if failure := writeExport(ctx, output, f.Force, page); failure != nil {
 		return Outcome{}, failure
 	}
-	return Outcome{
-		Result: map[string]any{"path": canvasPath, "output": output, "bytes": len(page), "frames": len(model.Frames), "external": inlined.External, "links": inlined.Links},
-		Text:   fmt.Sprintf("Exported %s to %s (%d bytes)", canvasPath, output, len(page)),
-	}, nil
+	result := map[string]any{"path": canvasPath, "output": output, "bytes": len(page), "frames": len(model.Frames), "external": inlined.External, "links": inlined.Links}
+	if frame != nil {
+		result["prototype"] = true
+		return Outcome{Result: result, Text: fmt.Sprintf("Exported %s frame %s to %s (%d bytes)", canvasPath, *frame, output, len(page))}, nil
+	}
+	return Outcome{Result: result, Text: fmt.Sprintf("Exported %s to %s (%d bytes)", canvasPath, output, len(page))}, nil
 }
 
 // canvasArgLabel names the canvas argument without an absolute path, which an export message must not hold:

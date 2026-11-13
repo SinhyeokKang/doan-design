@@ -1140,3 +1140,499 @@ describe("MIME table", () => {
     expect(Object.fromEntries(go)).toEqual(Object.fromEntries(server));
   });
 });
+
+// ── The exported prototype page (prototype.html, prototype.css, prototype.js, isolate.js) ─────
+
+// Read without throwing, so a missing file fails these tests and not the whole module.
+const readViewer = (name: string): string => {
+  try {
+    return read(name);
+  } catch {
+    return "";
+  }
+};
+const protoHtml = readViewer("prototype.html");
+const protoCss = readViewer("prototype.css");
+const protoJs = readViewer("prototype.js");
+const isolateJs = readViewer("isolate.js");
+const appPrototypeScript = readFileSync(new URL("./prototypeScript.ts", import.meta.url), "utf8");
+
+// The isolation sheet's text and the KEEP list, as written in a source.
+const isolationSheet = (source: string): string => {
+  const m = /sheet\.replaceSync\(`([\s\S]*?)`\);/.exec(source);
+  if (m === null) throw new Error("no isolation sheet");
+  return m[1]!.replace(/\s+/g, " ").trim();
+};
+const keepList = (source: string): string => {
+  const m = /const KEEP = new Set\(\[([^\]]*)\]\);/.exec(source);
+  if (m === null) throw new Error("no KEEP list");
+  return m[1]!.replace(/\s+/g, " ").trim();
+};
+
+// A function of a viewer file, loaded alone in a context with no globals.
+const loadFunctions = (source: string, names: string[]): Lib =>
+  runInNewContext(`${names.map(name => extractFunction(source, name)).join("\n")}\n({ ${names.join(", ")} })`, {}) as Lib;
+
+describe("isolate.js is the prototype window's isolation", () => {
+  test("its isolation sheet is prototypeScript.ts's, as text", () => {
+    expect(isolationSheet(appPrototypeScript).length).toBeGreaterThan(200);
+    expect(isolationSheet(isolateJs)).toBe(isolationSheet(appPrototypeScript));
+  });
+
+  test("its KEEP list is prototypeScript.ts's", () => {
+    expect(keepList(isolateJs)).toBe(keepList(appPrototypeScript));
+  });
+
+  test("the comparison fails when a copy drifts", () => {
+    const drifted = appPrototypeScript.replace("min-height: 100vh !important", "min-height: 50vh !important");
+    expect(isolationSheet(drifted)).not.toBe(isolationSheet(isolateJs));
+    expect(keepList(appPrototypeScript.replace('"NOSCRIPT"', '"NOSCRIPT", "SVG"'))).not.toBe(keepList(isolateJs));
+  });
+
+  test("only an href written with a leading # stays in the document", () => {
+    const { sameDocument } = loadFunctions(isolateJs, ["sameDocument"]);
+    for (const href of ["#", "#pl-target", "#a b"]) expect(sameDocument(href), href).toBe(true);
+    for (const href of ["", " #a", "/#a", "?q#a", "other.html", "other.html#a", "https://x/#a", "javascript:void(0)"]) expect(sameDocument(href), href).toBe(false);
+  });
+});
+
+// isolate.js and prototype.js run against these stand-ins for the few browser objects they touch.
+class FakeElement {
+  attributes = new Map<string, string>();
+  children: FakeElement[] = [];
+  parentElement: FakeElement | null = null;
+  constructor(public tagName: string, attrs: Record<string, string> = {}) {
+    for (const [k, value] of Object.entries(attrs)) this.attributes.set(k, value);
+  }
+  get localName() { return this.tagName.toLowerCase(); }
+  getAttribute(name: string) { return this.attributes.get(name) ?? null; }
+  setAttribute(name: string, value: string) { this.attributes.set(name, value); }
+  append(...els: FakeElement[]) { for (const el of els) { el.parentElement = this; this.children.push(el); } return this; }
+}
+
+type Listener = { type: string; fn: (event: unknown) => void; once: boolean; capture: boolean };
+type ListenerOptions = boolean | { once?: boolean; capture?: boolean } | undefined;
+// The third argument as addEventListener reads it: a boolean is the capture flag.
+const listener = (type: string, fn: (event: unknown) => void, opts: ListenerOptions): Listener =>
+  ({ type, fn, once: typeof opts === "object" && !!opts.once, capture: typeof opts === "boolean" ? opts : !!opts?.capture });
+
+// A History whose methods live on the prototype, as the browser's do, and refuse a URL the way a srcdoc
+// document does (SecurityError). A state carrying `clone` fails as an uncloneable one would.
+const named = (name: string) => Object.assign(new Error(name), { name });
+class FakeHistory {
+  calls: { name: string; self: unknown; args: unknown[] }[] = [];
+  urlError: string | null = "SecurityError";
+  retryError: string | null = null;
+  state: unknown = null;
+  pushState(...args: unknown[]) { this.native("pushState", args); }
+  replaceState(...args: unknown[]) { this.native("replaceState", args); }
+  private native(name: string, args: unknown[]) {
+    this.calls.push({ name, self: this, args });
+    const state = args[0];
+    if (state !== null && typeof state === "object" && "clone" in state) throw named("DataCloneError");
+    const url = args[2];
+    if (url !== undefined && url !== null && this.urlError !== null) throw named(this.urlError);
+    if (args.length < 3 && this.retryError !== null) throw named(this.retryError);
+    this.state = state;
+  }
+}
+
+function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId = "checkout") {
+  const posts: unknown[] = [];
+  const windowListeners: Listener[] = [];
+  const docListeners: Listener[] = [];
+  const timers: (() => void)[] = [];
+  const location = { hash: "" };
+  const document = {
+    readyState,
+    adoptedStyleSheets: [] as unknown[],
+    addEventListener: (type: string, fn: (e: unknown) => void, opts?: ListenerOptions) => docListeners.push(listener(type, fn, opts)),
+    querySelectorAll: (selector: string) => {
+      if (selector !== "[data-doan-frame]") throw new Error(`unexpected selector ${selector}`);
+      return frames();
+    },
+  };
+  const window = {
+    parent: { postMessage: (message: unknown, target: string) => posts.push({ message, target }) },
+    addEventListener: (type: string, fn: (e: unknown) => void, opts?: ListenerOptions) => windowListeners.push(listener(type, fn, opts)),
+  };
+  const history = new FakeHistory();
+  class CSSStyleSheet { text = ""; replaceSync(text: string) { this.text = text; } }
+  runInNewContext(`(function () {\nconst FRAME = ${JSON.stringify(frameId)};\n${isolateJs}\n})();`, {
+    window, document, location, history, CSSStyleSheet, Element: FakeElement, Array, Set,
+    setTimeout: (fn: () => void) => { timers.push(fn); return timers.length; },
+  });
+  const fire = (list: Listener[], type: string, event: unknown = {}) => {
+    for (const l of list.filter(l => l.type === type)) l.fn(event);
+  };
+  return {
+    posts, location, document, timers, windowListeners, history,
+    contentLoaded: () => fire(docListeners, "DOMContentLoaded"),
+    load: () => { fire(windowListeners, "load"); while (timers.length > 0) timers.shift()!(); },
+    dispatch: (type: string, event: unknown) => fire(windowListeners, type, event),
+  };
+}
+const navEvent = (path: FakeElement[], defaultPrevented = false) => {
+  const event = { defaultPrevented, prevented: 0, composedPath: () => path, preventDefault() { this.prevented++; this.defaultPrevented = true; } };
+  return event;
+};
+
+describe("isolate.js reports once and keeps the canvas in its document", () => {
+  const board = () => {
+    const body = new FakeElement("BODY");
+    const frame = new FakeElement("DIV", { "data-doan-frame": "checkout" });
+    const other = new FakeElement("DIV", { "data-doan-frame": "cart" });
+    const note = new FakeElement("P");
+    const style = new FakeElement("STYLE");
+    body.append(new FakeElement("SECTION").append(frame), new FakeElement("SECTION").append(other), note, style);
+    return { body, frame, other, note, style };
+  };
+
+  test("a frame there at DOMContentLoaded is isolated in place and reported ready, once", () => {
+    const b = board();
+    const run = runIsolate(() => [b.frame, b.other]);
+    expect(run.posts).toEqual([]);
+    run.contentLoaded();
+    expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "ready" }, target: "*" }]);
+    expect(b.frame.getAttribute("data-doan-proto-frame")).toBe("");
+    expect(b.note.getAttribute("data-doan-proto-hidden")).toBe("");
+    expect(b.other.parentElement!.getAttribute("data-doan-proto-hidden")).toBe("");
+    expect(b.style.getAttribute("data-doan-proto-hidden")).toBeNull();
+    expect(b.body.getAttribute("data-doan-proto-path")).toBe("");
+    expect(run.document.adoptedStyleSheets).toHaveLength(1);
+    run.load();
+    expect(run.posts).toHaveLength(1);
+  });
+
+  test("a frame made in a load handler is found after the load handlers", () => {
+    const b = board();
+    let made = false;
+    const run = runIsolate(() => (made ? [b.frame] : []));
+    run.contentLoaded();
+    expect(run.posts).toEqual([]);
+    made = true;
+    run.load();
+    expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "ready" }, target: "*" }]);
+  });
+
+  test("no frame after the load handlers, or two with the id, is missing and nothing is hidden", () => {
+    for (const frames of [[], [board().frame, board().frame]]) {
+      const run = runIsolate(() => frames);
+      run.contentLoaded();
+      run.load();
+      expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "missing" }, target: "*" }]);
+      expect(run.document.adoptedStyleSheets).toHaveLength(0);
+    }
+  });
+
+  test("only the frame with the exact id counts", () => {
+    const b = board();
+    const run = runIsolate(() => [b.frame, b.other], "loading", "Checkout");
+    run.contentLoaded();
+    run.load();
+    expect(run.posts).toEqual([{ message: { type: "doan-prototype", state: "missing" }, target: "*" }]);
+  });
+
+  test("a document already parsed is read at once, and a finished one after a turn", () => {
+    const b = board();
+    expect(runIsolate(() => [b.frame], "interactive").posts).toHaveLength(1);
+    const complete = runIsolate(() => [b.frame], "complete");
+    expect(complete.posts).toHaveLength(0);
+    complete.timers.shift()!();
+    expect(complete.posts).toHaveLength(1);
+  });
+
+  test("every submit's default is stopped, after the canvas's handlers (bubble phase on window)", () => {
+    const run = runIsolate(() => []);
+    const submit = run.windowListeners.filter(l => l.type === "submit");
+    expect(submit.map(l => l.capture)).toEqual([false]);
+    const event = navEvent([]);
+    run.dispatch("submit", event);
+    expect(event.prevented).toBe(1);
+  });
+
+  test("a link to another document does nothing; a # link moves within the document", () => {
+    const run = runIsolate(() => []);
+    // Bubble phase: a capture listener would cancel the click before a router's handler sees it.
+    expect(run.windowListeners.filter(l => l.type === "click").map(l => l.capture)).toEqual([false]);
+    const span = new FakeElement("SPAN");
+    for (const href of ["other.html", "https://example.com/", "", "?q"]) {
+      const event = navEvent([span, new FakeElement("A", { href }), new FakeElement("BODY")]);
+      run.dispatch("click", event);
+      expect(event.prevented, href).toBe(1);
+      expect(run.location.hash).toBe("");
+    }
+    const svgLink = navEvent([new FakeElement("a", { "xlink:href": "next.html" })]);
+    run.dispatch("click", svgLink);
+    expect(svgLink.prevented).toBe(1);
+    const area = navEvent([new FakeElement("AREA", { href: "next.html" })]);
+    run.dispatch("click", area);
+    expect(area.prevented).toBe(1);
+    const hash = navEvent([span, new FakeElement("A", { href: "#pl-target" })]);
+    run.dispatch("click", hash);
+    expect(hash.prevented).toBe(1);
+    expect(run.location.hash).toBe("#pl-target");
+  });
+
+  test("a click the canvas already handled, or one on no link, is left alone", () => {
+    const run = runIsolate(() => []);
+    expect(run.windowListeners.filter(l => l.type === "click")).toHaveLength(1);
+    const handled = navEvent([new FakeElement("A", { href: "#x" })], true);
+    run.dispatch("click", handled);
+    expect(handled.prevented).toBe(0);
+    expect(run.location.hash).toBe("");
+    const plain = navEvent([new FakeElement("BUTTON"), new FakeElement("BODY")]);
+    run.dispatch("click", plain);
+    expect(plain.prevented).toBe(0);
+    const noHref = navEvent([new FakeElement("A")]);
+    run.dispatch("click", noHref);
+    expect(noHref.prevented).toBe(0);
+  });
+});
+
+// A srcdoc document's URL is about:srcdoc while its base is the page's file URL, so the browser refuses
+// every History URL with SecurityError (Chromium and WebKit). isolate.js keeps the state and the script.
+describe("isolate.js keeps History calls with a URL from stopping the canvas", () => {
+  const methods = ["pushState", "replaceState"] as const;
+  type Call = (this: unknown, ...args: unknown[]) => void;
+  const call = (h: FakeHistory, name: (typeof methods)[number], ...args: unknown[]) => (h[name] as Call).apply(h, args);
+
+  test.each(methods)("%s with a URL the browser refuses records the state without the URL, on the same receiver", (name) => {
+    const { history } = runIsolate(() => []);
+    expect(() => call(history, name, { step: 2 }, "", "/step-2")).not.toThrow();
+    expect(history.calls.map(c => [c.name, c.args, c.self === history])).toEqual([
+      [name, [{ step: 2 }, "", "/step-2"], true],
+      [name, [{ step: 2 }, ""], true],
+    ]);
+    expect(history.state).toEqual({ step: 2 });
+  });
+
+  test.each(methods)("%s without a URL, or with one the browser takes, is one native call", (name) => {
+    const { history } = runIsolate(() => []);
+    for (const args of [[{ a: 1 }, ""], [{ a: 2 }, "", undefined], [{ a: 3 }, "", null]]) {
+      history.calls = [];
+      call(history, name, ...args);
+      expect(history.calls.map(c => c.args)).toEqual([args]);
+    }
+    history.urlError = null;
+    history.calls = [];
+    call(history, name, { a: 4 }, "", "/x");
+    expect(history.calls.map(c => c.args)).toEqual([[{ a: 4 }, "", "/x"]]);
+  });
+
+  test.each(methods)("%s lets any other error, and a retry that fails, through", (name) => {
+    const { history } = runIsolate(() => []);
+    expect(() => call(history, name, { clone: () => 1 }, "", "/x")).toThrow(expect.objectContaining({ name: "DataCloneError" }));
+    expect(history.calls).toHaveLength(1);
+    history.calls = [];
+    history.urlError = "TypeError";
+    expect(() => call(history, name, {}, "", "/x")).toThrow(expect.objectContaining({ name: "TypeError" }));
+    expect(history.calls).toHaveLength(1);
+    history.calls = [];
+    history.urlError = "SecurityError";
+    history.retryError = "InvalidStateError";
+    expect(() => call(history, name, {}, "", "/x")).toThrow(expect.objectContaining({ name: "InvalidStateError" }));
+    expect(history.calls).toHaveLength(2);
+  });
+});
+
+describe("prototype.js shows the frame only once it is isolated", () => {
+  const fns = () => loadFunctions(protoJs, ["nextPhase", "phaseView", "acceptState"]);
+
+  test("waiting hides both; ready shows the frame; missing and the timeout show the line with the frame hidden", () => {
+    const { nextPhase, phaseView } = fns();
+    expect(phaseView("waiting")).toEqual({ frameShown: false, lineShown: false });
+    expect(phaseView(nextPhase("waiting", "ready"))).toEqual({ frameShown: true, lineShown: false });
+    expect(phaseView(nextPhase("waiting", "missing"))).toEqual({ frameShown: false, lineShown: true });
+    expect(phaseView(nextPhase("waiting", "timeout"))).toEqual({ frameShown: false, lineShown: true });
+  });
+
+  test("a ready after the timeout clears the line and shows the frame", () => {
+    const { nextPhase, phaseView } = fns();
+    expect(phaseView(nextPhase(nextPhase("waiting", "timeout"), "ready"))).toEqual({ frameShown: true, lineShown: false });
+  });
+
+  test("ready and missing are final: nothing after them changes the page", () => {
+    const { nextPhase } = fns();
+    for (const input of ["ready", "missing", "timeout"]) {
+      expect(nextPhase("ready", input)).toBe("ready");
+      expect(nextPhase("missing", input)).toBe("missing");
+    }
+    expect(nextPhase(nextPhase("waiting", "timeout"), "timeout")).toBe("late");
+  });
+
+  test("only the iframe's own window with the opaque origin, and only the two states, count", () => {
+    const { acceptState } = fns();
+    const win = {};
+    const ok = (data: unknown, source: unknown = win, origin = "null") => acceptState({ source, origin, data }, win);
+    expect(ok({ type: "doan-prototype", state: "ready" })).toBe("ready");
+    expect(ok({ type: "doan-prototype", state: "missing" })).toBe("missing");
+    expect(ok({ type: "doan-prototype", state: "ready" }, {})).toBeNull();
+    expect(ok({ type: "doan-prototype", state: "ready" }, win, "file://")).toBeNull();
+    for (const data of [null, "ready", { state: "ready" }, { type: "layout", state: "ready" }, { type: "doan-prototype", state: "timeout" }, { type: "doan-prototype" }]) {
+      expect(ok(data), JSON.stringify(data)).toBeNull();
+    }
+  });
+
+  // The page as prototype.js drives it: the iframe's class and the line's hidden flag.
+  function runPage() {
+    const frameWindow = {};
+    const classes = new Set<string>();
+    const frame = { contentWindow: frameWindow, classList: { toggle: (name: string, on: boolean) => (on ? classes.add(name) : classes.delete(name)) } };
+    const line = { hidden: true };
+    let onMessage: ((event: unknown) => void) | null = null;
+    const timers: { fn: () => void; ms: number }[] = [];
+    runInNewContext(`(function () {\n${protoJs}\n})();`, {
+      document: { getElementById: (id: string) => (id === "prototype" ? frame : id === "line" ? line : null) },
+      window: { addEventListener: (type: string, fn: (e: unknown) => void) => { if (type === "message") onMessage = fn; } },
+      setTimeout: (fn: () => void, ms: number) => { timers.push({ fn, ms }); return timers.length; },
+    });
+    return {
+      timers,
+      shown: () => classes.has("shown"),
+      line: () => !line.hidden,
+      send: (state: string, source: unknown = frameWindow) => onMessage!({ source, origin: "null", data: { type: "doan-prototype", state } }),
+      timeout: () => timers.shift()!.fn(),
+    };
+  }
+
+  test("the page starts hidden and waits LOAD_TIMEOUT_MS (10 s) once", () => {
+    const page = runPage();
+    expect(page.shown()).toBe(false);
+    expect(page.line()).toBe(false);
+    expect(page.timers.map(t => t.ms)).toEqual([10000]);
+  });
+
+  test("ready shows the frame; the timeout after it changes nothing", () => {
+    const page = runPage();
+    page.send("ready");
+    expect([page.shown(), page.line()]).toEqual([true, false]);
+    page.timeout();
+    expect([page.shown(), page.line()]).toEqual([true, false]);
+  });
+
+  test("missing keeps the frame hidden and shows the line at once", () => {
+    const page = runPage();
+    page.send("missing");
+    expect([page.shown(), page.line()]).toEqual([false, true]);
+  });
+
+  test("a document that never answers: the line at the timeout, the frame still hidden", () => {
+    const page = runPage();
+    page.send("ready", {});
+    expect([page.shown(), page.line()]).toEqual([false, false]);
+    page.timeout();
+    expect([page.shown(), page.line()]).toEqual([false, true]);
+  });
+
+  test("a ready after the timeout clears the line and shows the frame", () => {
+    const page = runPage();
+    page.timeout();
+    page.send("ready");
+    expect([page.shown(), page.line()]).toEqual([true, false]);
+  });
+});
+
+describe("prototype viewer files", () => {
+  const files: Record<string, string> = { "prototype.html": protoHtml, "prototype.css": protoCss, "prototype.js": protoJs, "isolate.js": isolateJs };
+
+  test("the scripts compile in one function each and inline safely into <script>", () => {
+    expect(() => new Script(`(function () {\n${protoJs}\n})();`)).not.toThrow();
+    expect(() => new Script(`(function () {\nconst FRAME = "x";\n${isolateJs}\n})();`)).not.toThrow();
+    for (const [name, source] of Object.entries({ "prototype.js": protoJs, "isolate.js": isolateJs })) {
+      expect(source.length, name).toBeGreaterThan(100);
+      expect(source, name).not.toMatch(/<\/script/i);
+      expect(source, name).not.toContain("<!--");
+      expect(source, name).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\b|new Function/);
+    }
+  });
+
+  test("no file makes a request or carries a URL", () => {
+    for (const [name, source] of Object.entries(files)) {
+      expect(source.length, name).toBeGreaterThan(100);
+      expect(source, name).not.toMatch(/\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b|\bimport\s*\(/);
+      expect(source.replace(/<!--[\s\S]*?-->/, ""), name).not.toMatch(/https?:|@import|url\(/i);
+    }
+  });
+
+  test("prototype.html has no CSP, one iframe with allow-scripts allow-forms, and exactly the documented placeholders", () => {
+    expect(protoHtml).not.toMatch(/Content-Security-Policy/i);
+    expect([...protoHtml.matchAll(/\bsandbox="([^"]*)"/g)].map(m => m[1])).toEqual(["allow-scripts allow-forms"]);
+    expect(protoHtml).not.toMatch(/allow-(same-origin|top-navigation|popups|modals)/);
+    const body = protoHtml.replace(/<!--[\s\S]*?-->/, "");
+    const counts = new Map<string, number>();
+    for (const m of body.matchAll(/\{\{([A-Za-z_]+)\}\}/g)) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
+    expect(Object.fromEntries(counts)).toEqual({ NAME: 2, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
+    expect(protoHtml.match(/<!--[\s\S]*?-->/)?.[0]).not.toContain("{{");
+    for (const name of ["prototype.css", "prototype.js", "isolate.js"]) expect(files[name], name).not.toContain("{{");
+  });
+
+  test("the placeholders sit where their escaping rule applies", () => {
+    expect(protoHtml).toContain("<title>{{NAME}} — Prototype</title>");
+    expect(protoHtml).toMatch(/<iframe class="proto-frame" id="prototype" title="\{\{NAME\}\}" sandbox="allow-scripts allow-forms" srcdoc="\{\{SRCDOC\}\}"><\/iframe>/);
+  });
+
+  test("the page script is in the head, so its listener is there before the iframe can answer", () => {
+    const head = /<head>([\s\S]*?)<\/head>/.exec(protoHtml)?.[1] ?? "";
+    expect(head).toContain("<script>\n{{SCRIPT}}\n</script>");
+    expect(protoHtml.indexOf('id="line"')).toBeLessThan(protoHtml.indexOf('id="prototype"'));
+  });
+
+  test("the iframe fills the viewport and starts hidden; only .shown shows it", () => {
+    expect(declarations(protoCss, ".proto-frame")).toEqual(["position: fixed", "inset: 0", "width: 100%", "height: 100%", "border: 0", "visibility: hidden"]);
+    expect(declarations(protoCss, ".proto-frame.shown")).toEqual(["visibility: visible"]);
+    expect(declarations(protoCss, "body")).toContain("overflow: hidden");
+    expect(protoJs).toMatch(/classList\.toggle\("shown", view\.frameShown\)/);
+  });
+
+  test("the didn't-load line starts hidden, stays hidden while [hidden], and says to ask the sender", () => {
+    const line = /<p class="doan-notice doan-panel proto-line" id="line"[^>]*>([\s\S]*?)<\/p>/.exec(protoHtml);
+    expect(line?.[0]).toMatch(/ hidden>/);
+    expect(line?.[1]!.replace(/<[^>]*>/g, "")).toBe("This prototype’s frame didn’t load. Ask the sender to fix the canvas, then export it again.");
+    expect(declarations(protoCss, ".proto-line[hidden]")).toEqual(["display: none"]);
+  });
+});
+
+describe("the exported prototype without JavaScript", () => {
+  test("a <noscript> style in the head hides the iframe", () => {
+    const head = /<head>([\s\S]*?)<\/head>/.exec(protoHtml)?.[1] ?? "";
+    expect(head).toContain("<noscript><style>.proto-frame { display: none; }</style></noscript>");
+  });
+
+  test("the body's <noscript> carries only the line that says to open the file in a browser", () => {
+    const body = /<body>([\s\S]*?)<\/body>/.exec(protoHtml)?.[1] ?? "";
+    const noscripts = [...body.matchAll(/<noscript>([\s\S]*?)<\/noscript>/g)].map(m => m[1]!.replace(/<[^>]*>/g, ""));
+    expect(noscripts).toEqual(["Open this file in a web browser to play this prototype."]);
+  });
+});
+
+describe("the prototype page's look is the app's", () => {
+  const roots = (css: string): Map<string, string> => {
+    const map = new Map<string, string>();
+    for (const block of css.matchAll(/:root\s*\{([^}]*)\}/g)) for (const d of block[1]!.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) map.set(d[1]!, d[2]!.trim());
+    return map;
+  };
+  const resolve = (map: Map<string, string>, value: string): string => value.replace(/var\((--[\w-]+)\)/g, (_, name: string) => {
+    const next = map.get(name);
+    if (next === undefined) throw new Error(`${name} is not defined`);
+    return resolve(map, next);
+  }).replace(/\s+/g, " ");
+
+  test("every token the page copies resolves to the app's value", () => {
+    const app = roots(tokensCss);
+    const page = roots(protoCss);
+    expect(page.size).toBeGreaterThan(10);
+    for (const [name, value] of page) expect(resolve(page, value), name).toBe(resolve(app, app.get(name) ?? `var(${name})`));
+  });
+
+  test("the notice and the panel are ds/surfaces.css's", () => {
+    for (const selector of [".doan-panel", ".doan-notice", ".doan-alert-icon", ".doan-notice.doan-panel"]) {
+      expect(declarations(protoCss, selector), selector).toEqual(declarations(surfacesCss, selector));
+    }
+  });
+
+  test("the line sits where the export viewer's no-JavaScript line does, on the inset grey", () => {
+    expect(declarations(protoCss, ".proto-line")).toEqual(declarations(shellCss, ".vw-noscript"));
+    expect(declarations(protoCss, "body")).toContain("background: var(--surface-inset)");
+  });
+});

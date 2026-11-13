@@ -73,7 +73,7 @@ const ajvFromApp = createRequire(join(import.meta.dirname, "../../app/package.js
 // which do not change what validates.
 const ajv = new ajvFromApp.default({ logger: false });
 // Add every file before the first getSchema: v3's frame $refs v4's frameId by its absolute $id.
-for (const version of ["v2", "v3", "v4", "v5"]) ajv.addSchema(JSON.parse(readFileSync(join(import.meta.dirname, `../../schema/app-socket.${version}.schema.json`), "utf8")));
+for (const version of ["v2", "v3", "v4", "v5", "v6"]) ajv.addSchema(JSON.parse(readFileSync(join(import.meta.dirname, `../../schema/app-socket.${version}.schema.json`), "utf8")));
 const V2 = "https://doan.design/schema/app-socket.v2.schema.json";
 const requestSchema = ajv.getSchema(`${V2}#/$defs/request`);
 const responseSchema = ajv.getSchema(`${V2}#/$defs/response`);
@@ -97,6 +97,12 @@ const handoffRequestSchema = ajv.getSchema(`${V5}#/$defs/request`);
 const handoffResponseSchema = ajv.getSchema(`${V5}#/$defs/response`);
 export const validHandoffRequest = (v: unknown): boolean => handoffRequestSchema(v);
 export const validHandoffResponse = (v: unknown): boolean => handoffResponseSchema(v);
+
+const V6 = "https://doan.design/schema/app-socket.v6.schema.json";
+const prototypeRequestSchema = ajv.getSchema(`${V6}#/$defs/request`);
+const prototypeResponseSchema = ajv.getSchema(`${V6}#/$defs/response`);
+export const validPrototypeRequest = (v: unknown): boolean => prototypeRequestSchema(v);
+export const validPrototypeResponse = (v: unknown): boolean => prototypeResponseSchema(v);
 
 // A scenario's scripted app state. The fake is deterministic (session `s_eval`,
 // `op_<n>`, `insp_<n>`) so self-test fixtures can name ids ahead of time; real
@@ -362,7 +368,7 @@ function hasFrame(root: string, path: string, frame: string): boolean {
   try { return [...readFileSync(join(root, path), "utf8").matchAll(/\bdata-doan-frame="([^"]*)"/g)].some(match => match[1] === frame); } catch { return false; }
 }
 
-export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; openLog: string; handoffLog: string; close(): Promise<void> }
+export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; openLog: string; handoffLog: string; prototypeLog: string; close(): Promise<void> }
 // handoff: the conversation the fake stands for. `key` is the DOAN_HANDOFF value its environment carries and `canvas` the
 // canvas it works on; without it the fake is an older app that does not know v5.
 interface FakeAppOptions { dir: string; root: string; selection: Obj | null; onboarding?: OnboardingScript | null; handoff?: { key: string; canvas: string } | null }
@@ -380,6 +386,7 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   const workLog = join(o.dir, "work.jsonl");
   const openLog = join(o.dir, "open.jsonl");
   const handoffLog = join(o.dir, "handoff.jsonl");
+  const prototypeLog = join(o.dir, "prototype.jsonl");
   const paths = new Set<string>();
   const handoffTaken = new Set<string>();
   const contents = (path: string): Buffer | null => {
@@ -431,6 +438,22 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
       appendFileSync(openLog, JSON.stringify({ request, response, at: new Date().toISOString(), hashes }) + "\n", { mode: 0o600 });
       return response;
     }
+    if (isObj(parsed) && parsed.v === 6) {
+      const fail = (code: string, message: string) => ({ v: 6, ok: false, error: { code, message } });
+      // Frame judgment belongs to the CLI. This fake has no loading project, first run or buddy screen,
+      // so it cannot reach not_ready or busy; it acknowledges playback without rendering a window.
+      const response = !validPrototypeRequest(parsed) ? fail("bad_request", "The request is not an app-socket v6 request.")
+        : parsed.token !== token ? fail("bad_token", "The token does not match this app.")
+        : parsed.root !== o.root ? fail("project_not_open", "The project is not open in Doan.")
+        : snapshot(parsed.path as string) === null ? fail("canvas_not_found", "The canvas is not in this project's list.")
+        : { v: 6, ok: true, played: true };
+      const hashes: Record<string, string | null> = {};
+      if (response.ok && typeof parsed.path === "string") hashes[parsed.path] = snapshot(parsed.path);
+      if (!validPrototypeResponse(response)) throw new Error(`the eval fake app built an invalid v6 reply: ${JSON.stringify(response)}`);
+      const { token: _token, ...request } = parsed;
+      appendFileSync(prototypeLog, JSON.stringify({ request, response, at: new Date().toISOString(), hashes }) + "\n", { mode: 0o600 });
+      return response;
+    }
     if (isObj(parsed) && parsed.v === 5 && o.handoff) {
       const fail = (code: string, message: string) => ({ v: 5, ok: false, error: { code, message } });
       // The app's order for the checks this fake can reach: shape, token, project, key, then the asking turn's own state.
@@ -479,6 +502,7 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
     workLog,
     openLog,
     handoffLog,
+    prototypeLog,
     close: () => new Promise(resolve => {
       for (const connection of connections) connection.destroy();
       server.close(() => resolve());
@@ -506,6 +530,7 @@ export async function startFakeApp(o: FakeAppOptions): Promise<FakeApp> {
     workLog: join(o.dir, "work.jsonl"),
     openLog: join(o.dir, "open.jsonl"),
     handoffLog: join(o.dir, "handoff.jsonl"),
+    prototypeLog: join(o.dir, "prototype.jsonl"),
     // Bounded either way, so a stuck child cannot hold up the run's disposal.
     async close() {
       child.stdin.end();

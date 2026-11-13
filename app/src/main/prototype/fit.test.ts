@@ -12,8 +12,8 @@ describe("chrome constants", () => {
     expect(PROTOTYPE_WINDOW_MIN_WIDTH).toBe(360);
   });
 
-  test("the header's right group is the mode toggle alone; the name needs 80 or takes a 44 second row", () => {
-    expect(PROTOTYPE_HEADER_RIGHT).toBe(68);
+  test("the header's right group is the mode toggle and Export; the name needs 80 or takes a 44 second row", () => {
+    expect(PROTOTYPE_HEADER_RIGHT).toBe(104);
     expect(PROTOTYPE_NAME_MIN_WIDTH).toBe(80);
     expect(PROTOTYPE_NAME_ROW_HEIGHT).toBe(44);
   });
@@ -21,12 +21,13 @@ describe("chrome constants", () => {
 
 describe("fitPrototypeWindow", () => {
   test("adds the chrome to the mark and centres a new window in the work area", () => {
-    expect(fitPrototypeWindow({ width: 390, height: 844 }, laptop)).toEqual({ x: 553, y: 43, width: 406, height: 908 });
+    // 844 + 100 + 8 = 952 is taller than the laptop's work area, which clips it.
+    expect(fitPrototypeWindow({ width: 390, height: 844 }, laptop)).toEqual({ x: 553, y: 25, width: 406, height: 945 });
     expect(fitPrototypeWindow({ width: 1280, height: 800 }, laptop)).toEqual({ x: 108, y: 65, width: 1296, height: 864 });
   });
 
   test("never goes below the minimum width", () => {
-    // 360 is below 372, so the name takes the header's second row: 568 + 64 + 44.
+    // 360 is below 408, so the name takes the header's second row: 568 + 64 + 44.
     expect(fitPrototypeWindow({ width: 320, height: 568 }, laptop)).toEqual({ x: 576, y: 159, width: 360, height: 676 });
     expect(fitPrototypeWindow({ width: 1, height: 1 }, laptop).width).toBe(360);
   });
@@ -37,17 +38,17 @@ describe("fitPrototypeWindow", () => {
   });
 
   test("a replaced frame keeps the window's top-left when the new size fits there", () => {
-    expect(fitPrototypeWindow({ width: 390, height: 300 }, laptop, { x: 100, y: 100, width: 800, height: 600 })).toEqual({ x: 100, y: 100, width: 406, height: 364 });
+    expect(fitPrototypeWindow({ width: 390, height: 300 }, laptop, { x: 100, y: 100, width: 800, height: 600 })).toEqual({ x: 100, y: 100, width: 406, height: 408 });
   });
 
   test("a replaced frame is shifted back inside the work area", () => {
-    expect(fitPrototypeWindow({ width: 390, height: 844 }, laptop, { x: 1400, y: 100, width: 400, height: 400 })).toEqual({ x: 1106, y: 62, width: 406, height: 908 });
-    expect(fitPrototypeWindow({ width: 390, height: 300 }, laptop, { x: -500, y: -40, width: 400, height: 400 })).toEqual({ x: 0, y: 25, width: 406, height: 364 });
+    expect(fitPrototypeWindow({ width: 390, height: 844 }, laptop, { x: 1400, y: 100, width: 400, height: 400 })).toEqual({ x: 1106, y: 25, width: 406, height: 945 });
+    expect(fitPrototypeWindow({ width: 390, height: 300 }, laptop, { x: -500, y: -40, width: 400, height: 400 })).toEqual({ x: 0, y: 25, width: 406, height: 408 });
   });
 
   test("a second display's work area is used as given", () => {
     const right = { x: 1512, y: 0, width: 1920, height: 1055 };
-    expect(fitPrototypeWindow({ width: 390, height: 844 }, right)).toEqual({ x: 2269, y: 73, width: 406, height: 908 });
+    expect(fitPrototypeWindow({ width: 390, height: 844 }, right)).toEqual({ x: 2269, y: 51, width: 406, height: 952 });
   });
 
   test("a work area narrower than the minimum keeps the minimum at its left edge", () => {
@@ -55,12 +56,10 @@ describe("fitPrototypeWindow", () => {
   });
 
   test("a fitted width that keeps the name on the first row adds 64; one that moves it to the second row adds 108", () => {
-    // 390 + 16 = 406 is at least 68 + 304, so 390x844 fits at 406 x 908 while the right group is the toggle alone.
-    expect(fitPrototypeWindow({ width: 390, height: 844 }, laptop)).toMatchObject({ width: 406, height: 908 });
-    expect(fitPrototypeWindow({ width: 356, height: 400 }, laptop)).toMatchObject({ width: 372, height: 464 });
-    expect(fitPrototypeWindow({ width: 355, height: 400 }, laptop)).toMatchObject({ width: 371, height: 508 });
-    // With Export (104) or the conversation button (140) the same 406 is a two-row width: 844 + 100 + 8.
-    expect(prototypeHeaderRows(406, 104)).toBe(2);
+    // 390 + 16 = 406 is below 104 + 304, so with Export 390x844 fits at 406 x 952: 844 + 100 + 8.
+    expect(fitPrototypeWindow({ width: 390, height: 844 }, { x: 0, y: 0, width: 1920, height: 1055 })).toMatchObject({ width: 406, height: 952 });
+    expect(fitPrototypeWindow({ width: 392, height: 400 }, laptop)).toMatchObject({ width: 408, height: 464 });
+    expect(fitPrototypeWindow({ width: 391, height: 400 }, laptop)).toMatchObject({ width: 407, height: 508 });
     expect(prototypeHeaderRows(406, 140)).toBe(2);
   });
 
@@ -168,12 +167,12 @@ describe("prototypeCaptureRect", () => {
   });
 
   test("Fit at 1x captures the frame where it sits in the panel", () => {
-    expect(prototypeCaptureRect({ width: 406, height: 908 }, { width: 390, height: 844 }, "fit")).toEqual({ rect: { x: 8, y: 56, width: 390, height: 844 }, box: { x: 0, y: 0, width: 390, height: 844 } });
+    expect(prototypeCaptureRect({ width: 406, height: 952 }, { width: 390, height: 844 }, "fit")).toEqual({ rect: { x: 8, y: 100, width: 390, height: 844 }, box: { x: 0, y: 0, width: 390, height: 844 } });
     expect(prototypeCaptureRect({ width: 816, height: 964 }, { width: 390, height: 844 }, "fit")).toEqual({ rect: { x: 213, y: 84, width: 390, height: 844 }, box: { x: 205, y: 28, width: 390, height: 844 } });
   });
 
   test("Fit scaled down captures the visible frame; a two-row header moves the panel to y100", () => {
-    // 360 < 372: the name is on the second row, so the panel is 344 x 800 from y100.
+    // 360 < 408: the name is on the second row, so the panel is 344 x 800 from y100.
     expect(prototypeCaptureRect({ width: 360, height: 908 }, { width: 390, height: 844 }, "fit")).toEqual({ rect: { x: 8, y: 128, width: 344, height: 744 }, box: { x: 0, y: 28, width: 344, height: 744 } });
     expect(prototypeCaptureRect({ width: 360, height: 908 }, { width: 390, height: 844 }, "responsive")).toEqual({ rect: { x: 8, y: 100, width: 344, height: 800 }, box: { x: 0, y: 0, width: 344, height: 800 } });
   });

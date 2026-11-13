@@ -79,3 +79,20 @@ export function drawerRows(view: Pick<PrototypeView, "frames" | "frame">): Drawe
 export function drawerLabel(view: Pick<PrototypeView, "canvas">): string {
   return `Prototype frames in ${view.canvas}`;
 }
+
+// The header's Export. Available while the frame plays, loads or failed to start (the CLI reads the file, not the run);
+// otherwise unavailable with the canvas toolbar's reason, and with none before the first view, as the header's other
+// controls. An export under way holds it for its whole run.
+export type ExportAvailability = { available: true } | { available: false; reason: string | null };
+
+export function exportAvailability(view: Pick<PrototypeView, "phase"> | null, exporting: boolean): ExportAvailability {
+  if (view === null) return { available: false, reason: null };
+  if (exporting) return { available: false, reason: "Exporting" };
+  switch (view.phase) {
+    case "read-failed": return { available: false, reason: "Can’t read this canvas." };
+    // "prototype", not "frame": a prototype-unavailable frame is still there.
+    case "frame-unavailable":
+    case "prototype-unavailable": return { available: false, reason: "Export isn’t available while this prototype can’t play." };
+    default: return { available: true };
+  }
+}

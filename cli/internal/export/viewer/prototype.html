@@ -1,0 +1,42 @@
+<!doctype html>
+<!--
+  The page `doan export --frame <id> --prototype` writes: one frame of the canvas, filling the
+  browser window. The whole canvas sits in a sandboxed iframe; the isolation script in it hides
+  everything but the frame. `AssemblePrototype` replaces the placeholders below in ONE pass over
+  this file, as `Assemble` does for shell.html, so a replaced value is never searched again. A
+  placeholder is an upper-case name in double braces; this comment names them without braces on
+  purpose.
+
+    NAME    the frame's title, else its id, as HTML text: escape & < > " ', so it can neither close
+            a tag nor end the attribute it sits in. Used in the tab title and the iframe's title.
+    STYLE   prototype.css.
+    SCRIPT  prototype.js, wrapped in a function so its names stay local. In the head, so its message
+            listener is in place before the iframe can answer. It may not contain "</script" or an
+            HTML comment opener (viewer test).
+    SRCDOC  the rewritten canvas HTML as a double-quoted attribute value: escape & and ". Its head
+            starts with an inline script holding isolate.js after the frame id, wrapped in a
+            function (assemble builds that; this file does not).
+
+  allow-forms is there because without it no submit event fires, so a canvas's own handler never
+  runs; isolate.js stops the default submission. There is no CSP meta, as in shell.html: a srcdoc
+  document inherits its parent's CSP.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{NAME}} — Prototype</title>
+<style>
+{{STYLE}}
+</style>
+<noscript><style>.proto-frame { display: none; }</style></noscript>
+<script>
+{{SCRIPT}}
+</script>
+</head>
+<body>
+<noscript><p class="doan-notice doan-panel proto-line"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>Open this file in a web browser to play this prototype.</span></p></noscript>
+<p class="doan-notice doan-panel proto-line" id="line" role="status" hidden><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>This prototype’s frame didn’t load. Ask the sender to fix the canvas, then export it again.</span></p>
+<iframe class="proto-frame" id="prototype" title="{{NAME}}" sandbox="allow-scripts allow-forms" srcdoc="{{SRCDOC}}"></iframe>
+</body>
+</html>

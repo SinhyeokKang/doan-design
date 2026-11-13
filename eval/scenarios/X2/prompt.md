@@ -1,0 +1,1 @@
+In this repository, send me the "Sign up (phone)" frame in `.doan/canvases/onboarding.html` as a prototype HTML file I can email to a reviewer without Doan or this repository. Save it as `signup-prototype.html` in the folder that contains this repository, `{{repo}}/..`. Keep the design unchanged.

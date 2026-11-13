@@ -58,9 +58,11 @@ export function runDesignSkill(cli: string, id?: string, timeoutMs = CLI_TIMEOUT
 export const EXPORT_TIMEOUT_MS = 120_000;
 
 // `path` is a listed canvas row (`.doan/...`) and `output` the absolute file the save panel returned, so neither can
-// read as an option. `--force`: the save panel already asked before replacing a file.
-export function runExport(cli: string, root: string, path: string, output: string, timeoutMs = EXPORT_TIMEOUT_MS): Promise<CliRun> {
-  return runCli(cli, ["export", path, "-o", output, "--force", "--repo", root, "--json"], undefined, timeoutMs)
+// read as an option. `--force`: the save panel already asked before replacing a file. `frame`: the prototype window's
+// Export, in the flag's own argument, since a frame ID such as `--` or `-o` would otherwise read as a separator or flag.
+export function runExport(cli: string, root: string, path: string, output: string, options: { frame?: string; timeoutMs?: number } = {}): Promise<CliRun> {
+  const frame = options.frame === undefined ? [] : [`--frame=${options.frame}`, "--prototype"];
+  return runCli(cli, ["export", path, ...frame, "-o", output, "--force", "--repo", root, "--json"], undefined, options.timeoutMs ?? EXPORT_TIMEOUT_MS)
     .catch((error: unknown) => ({ exitCode: null, timedOut: false, spawnError: error instanceof Error ? error.message : String(error), stdout: "", stderr: "" }));
 }
 

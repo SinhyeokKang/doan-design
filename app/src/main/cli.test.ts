@@ -329,9 +329,18 @@ describe("runExport", () => {
     expect(run).toMatchObject({ exitCode: 0, timedOut: false });
   });
 
+  // The frame ID goes in the flag's own argument: an ID such as "--" or "-o" can never read as a separator or a flag.
+  test("a prototype export names its frame with --frame=<id> and --prototype", async () => {
+    const out = join(dir(), "args");
+    const fake = fakeCli(`printf '[%s]\\n' "$@" > '${out}'; echo '{"v":1,"ok":true,"result":{"external":[],"prototype":true}}'`);
+    await runExport(fake, "/repo", ".doan/canvases/a.html", "/tmp/a.html", { frame: "--" });
+    expect(spawn).toHaveBeenLastCalledWith(fake, ["export", ".doan/canvases/a.html", "--frame=--", "--prototype", "-o", "/tmp/a.html", "--force", "--repo", "/repo", "--json"], expect.any(Object));
+    expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["[export]", "[.doan/canvases/a.html]", "[--frame=--]", "[--prototype]", "[-o]", "[/tmp/a.html]", "[--force]", "[--repo]", "[/repo]", "[--json]"]);
+  });
+
   test("has a longer timeout than the other calls and is killed at it", async () => {
     expect(EXPORT_TIMEOUT_MS).toBeGreaterThan(10_000);
-    const run = await runExport(fakeCli("sleep 30"), "/repo", ".doan/canvases/a.html", "/tmp/a.html", 100);
+    const run = await runExport(fakeCli("sleep 30"), "/repo", ".doan/canvases/a.html", "/tmp/a.html", { timeoutMs: 100 });
     expect(run.timedOut).toBe(true);
   });
 

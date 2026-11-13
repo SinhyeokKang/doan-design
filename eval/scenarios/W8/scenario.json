@@ -1,0 +1,9 @@
+{
+  "id": "W8",
+  "title": "Open a marked frame as a prototype",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": "selection.json"
+}

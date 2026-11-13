@@ -2,7 +2,8 @@ import { useEffect, useReducer, useRef } from "react";
 import { createPortal } from "react-dom";
 import { FLOATING_EXIT_MS, initialToastState, toastState, type ToastEvent } from "./toastState";
 
-export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) {
+// `onWindowVisible`: the window's native visibility, the main window's by default; the prototype window passes its own.
+export function useToast(restoreFocus?: (previous: HTMLElement | null) => void, onWindowVisible: (listener: (visible: boolean) => void) => () => void = listener => window.doan.onWindowVisible(listener)) {
   const previousFocus = useRef<HTMLElement | null>(null);
   const restore = useRef(restoreFocus);
   restore.current = restoreFocus;
@@ -21,6 +22,8 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
   const dispatch = (event: ToastEvent) => { latest.current = toastState(latest.current, event); react(event); };
   const handlers = useRef(new Map<string, { run?: () => void; expire?: () => void; press?: () => void }>());
   const timerAt = useRef(0);
+  // Read once, at mount, as the subscription is.
+  const visibleSource = useRef(onWindowVisible);
   useEffect(() => {
     timerAt.current = performance.now();
     const timer = setInterval(() => {
@@ -32,7 +35,7 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
     let nativeVisible = false;
     const visibility = () => { timerAt.current = performance.now(); dispatch({ type: "hidden", on: document.hidden || !nativeVisible }); };
     visibility(); document.addEventListener("visibilitychange", visibility);
-    const stop = window.doan.onWindowVisible(visible => { nativeVisible = visible; visibility(); });
+    const stop = visibleSource.current(visible => { nativeVisible = visible; visibility(); });
     return () => { stop(); clearInterval(timer); document.removeEventListener("visibilitychange", visibility); };
   }, []);
   // The exit motion (styles.css `[data-closing]`) runs on the element still drawn as leaving.

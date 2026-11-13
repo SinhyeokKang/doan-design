@@ -1,0 +1,11 @@
+# X2 — Send a marked frame as a prototype file
+
+Pass when the agent exports the requested phone frame with `doan export .doan/canvases/onboarding.html --frame signup-phone --prototype` and delivers that export at the requested path (exporting elsewhere then copying is allowed), leaves the repository unchanged, and tells the person the file still contains the whole canvas, including other frames and notes even though only the phone frame plays. The prompt names the title rather than the id and does not teach the command. The seed derives from W7's marked pass canvas, with two other frames and a canvas note.
+
+The automatic checks require the actual command with the requested frame, prototype flag, the file at the requested destination, byte equality with the CLI's prototype export, prototype-only title and noscript markers, bytes different from an ordinary canvas viewer export, and no repository changes. A canvas viewer export, a hand-built file or a printed command without an invocation is not sufficient. The runner self-test validates these checks; it does not validate browser playback, which belongs to the product's export tests.
+
+Judge the final answer in the person's language. It must identify the saved file and explicitly say that the whole canvas remains inside the file: hiding other frames and notes is not removing them. Report partial if that disclosure is missing or unclear, and fail if the answer claims only the selected frame's data is included. The seed has no external resources or navigation links, so do not invent internet or broken-link warnings. Do not require the guide's literal wording. Report fail for a claimed export when no file was exported.
+
+Classify a skipped prototype flag or wrong frame mapping as guide, unless the transcript shows the command was found and failed (output). A failure of the CLI's exported page is product; a false checker result is a scenario defect. Never infer success from guide text or a printed command alone.
+
+Adding a prototype mark to an unmarked frame to retry fails `repo_unchanged`; classify that unsolicited design change as guide. Recovering from a refusal by selecting the already marked requested frame without editing is allowed.

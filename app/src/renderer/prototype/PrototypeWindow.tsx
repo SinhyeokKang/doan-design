@@ -1,30 +1,47 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { Popover } from "radix-ui";
-import { ArrowLeft, ArrowRight, ChevronDown, CircleSlash, Expand, FileWarning, Proportions, RotateCw, SquareDashed, TriangleAlert, type LucideIcon } from "lucide-react";
-import { PROTOTYPE_LOAD_TIMEOUT_MS, type FramesMessage, type PrototypeMode, type PrototypeSnapshot, type PrototypeView, type PrototypeWindowApi, type RunMessage } from "../../main/prototype/ipc";
+import { ArrowLeft, ArrowRight, ChevronDown, CircleSlash, Download, Expand, FileWarning, Proportions, RotateCw, SquareDashed, TriangleAlert, type LucideIcon } from "lucide-react";
+import type { ExportReply } from "../../main/canvasExport";
+import { PROTOTYPE_LOAD_TIMEOUT_MS, type ExportTarget, type FramesMessage, type PrototypeMode, type PrototypeSnapshot, type PrototypeView, type PrototypeWindowApi, type RunMessage } from "../../main/prototype/ipc";
 import { PROTOTYPE_HEADER_RIGHT, prototypeHeaderRows, prototypeViewportBox, type Rect, type ViewportBox } from "../../main/prototype/fit";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "../frameDrawerList";
 import { moveBetweenTools } from "../toolbarKeys";
 import { currentRun, forwardedMessage, layersForSnapshot, layersForView, NO_LAYERS, type HostLayers } from "./host";
-import { CLOSE, covered, DETAILS, drawerLabel, drawerRows, EMPTY_DRAWER, liveText, LOADING_LABEL, modeTooltip, RETRY, stateScene, windowTitle, type DrawerRow, type SceneIcon } from "./view";
+import { exportProgress, exportToast } from "../canvasRowMessages";
+import { useToast } from "../Toast";
+import { CLOSE, covered, DETAILS, drawerLabel, drawerRows, EMPTY_DRAWER, exportAvailability, liveText, LOADING_LABEL, modeTooltip, RETRY, stateScene, windowTitle, type DrawerRow, type SceneIcon } from "./view";
 
 // The prototype window (PRODUCT §3 Show, one frame): the main window's shell without a sidebar, a header of Back,
-// Forward and Reload, the playing frame's name, and the Fit/Responsive toggle, and the frame's own document in a
-// sandboxed iframe in the content panel. Every decision is main's; this window draws its view, hosts the run's iframe
-// and forwards the run's reports.
+// Forward and Reload, the playing frame's name, the Fit/Responsive toggle and Export, and the frame's own document in a
+// sandboxed iframe in the content panel. Every decision is main's; this window draws its view, hosts the run's iframe,
+// forwards the run's reports and shows its export's toasts.
 
 export type PrototypeApi = PrototypeWindowApi & { onSnapshot(listener: (snapshot: PrototypeSnapshot) => void): () => void };
 
 // The reading line waits so a quick load does not flash it in, as the shipped problem overlay's does.
 const READING_DELAY_MS = 300;
 const SCENE_HEADING_ID = "prototype-state-heading", SCENE_LINE_ID = "prototype-state-line";
+// Export's sr-only reason while it is unavailable: Radix links the tooltip only while it is open.
+const EXPORT_REASON_ID = "prototype-export-reason";
+// As the canvas row's Export: a quick export shows only its result.
+const EXPORT_PROGRESS_DELAY_MS = 1000;
 // The empty drawer's sentence as the name button's description: focus stays on the button when that drawer opens.
 const EMPTY_DRAWER_ID = "prototype-drawer-empty";
 const ICONS: Record<SceneIcon, LucideIcon> = { read: FileWarning, init: TriangleAlert, frame: SquareDashed, support: CircleSlash };
 const MODES: { mode: PrototypeMode; label: string; icon: LucideIcon }[] = [{ mode: "fit", label: "Fit", icon: Proportions }, { mode: "responsive", label: "Responsive", icon: Expand }];
 // A pointer press on a header control keeps focus where it was (usually in the frame), so keys keep reaching the frame.
 const keepFocus = (event: { preventDefault(): void }) => event.preventDefault();
+const sameTarget = (a: ExportTarget, b: ExportTarget) => a.root === b.root && a.path === b.path && a.frame === b.frame;
+
+// An export from the click to main's reply. `before`: where focus was at the click (Export after a key press; the frame
+// or wherever it was after a pointer press, which never moves it), given back once if the save panel left it on the page.
+interface ExportRun {
+  target: ExportTarget;
+  title: string;
+  before: HTMLElement | null;
+  timer?: ReturnType<typeof setTimeout>;
+}
 
 export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const [view, setView] = useState<PrototypeView | null>(null);
@@ -42,6 +59,13 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   // click), and the gen a pointer Reload then left (null otherwise).
   const pressedInFrame = useRef<boolean | null>(null);
   const reloadFocus = useRef<number | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const exportRun = useRef<ExportRun | null>(null);
+  const toast = useToast(previous => {
+    const active = document.activeElement;
+    if (active === null || active === document.body || !active.isConnected) previous?.focus();
+  }, api.onWindowVisible);
+  const toastRef = useRef(toast); toastRef.current = toast;
 
   // The header's rows follow the window's content width, which main's fit and capture use too.
   useEffect(() => {
@@ -145,11 +169,49 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     void api.reload(gen);
   };
 
+  // The save panel is a sheet of this window: focus that fell to the page while it was open goes back once, when main
+  // reports the run or answers (POSTMORTEM 2026-11-03: never leave focus on the page body).
+  const returnExportFocus = (run: ExportRun) => {
+    const before = run.before;
+    run.before = null;
+    const active = document.activeElement;
+    if (before !== null && (active === null || active === document.body) && before.isConnected) before.focus({ preventScroll: true });
+  };
+  useEffect(() => api.onExportRunning(target => {
+    const run = exportRun.current;
+    if (run === null || !sameTarget(run.target, target)) return;
+    setExporting(true);
+    returnExportFocus(run);
+    clearTimeout(run.timer);
+    run.timer = setTimeout(() => toastRef.current.show(exportProgress(run.title)), EXPORT_PROGRESS_DELAY_MS);
+  }), [api]);
+  useEffect(() => () => clearTimeout(exportRun.current?.timer), []);
+  // The frame and title at the click: main exports it only if it still plays, and the result names it even if another
+  // frame plays by then.
+  const onExport = () => {
+    if (view === null || exportRun.current !== null) return;
+    const active = document.activeElement;
+    const run: ExportRun = { target: { root: view.root, path: view.path, frame: view.frame }, title: view.title, before: active instanceof HTMLElement ? active : null };
+    exportRun.current = run;
+    const done = (reply: ExportReply) => {
+      clearTimeout(run.timer);
+      if (exportRun.current === run) exportRun.current = null;
+      setExporting(false);
+      returnExportFocus(run);
+      const result = exportToast(run.title, reply, true);
+      if (result === null) return;
+      const reveal = result.reveal;
+      if (reveal !== undefined) toastRef.current.show(result.text, "Show in Finder", () => { void api.revealExport(reveal).catch(console.error); });
+      else toastRef.current.show(result.text);
+    };
+    api.export(run.target).then(done, () => done({ kind: "failed", reason: "failed" }));
+  };
+
   const readingShown = phase === "loading" && readingGen === gen;
   return <WindowShell view={view} layers={layers} readingShown={readingShown} details={details} live={liveText(view, readingShown)}
     width={width} menuOpen={menuOpen} content={content} heading={heading} name={name} frames={frames.current}
     onBack={() => void api.back()} onForward={() => void api.forward()} onReload={() => { if (gen !== null) void api.reload(gen); }} onReloadPress={onReloadPress} onReloadClick={onReloadClick}
-    onMode={mode => void api.setMode(mode)} onMenuOpen={setMenuOpen}
+    onMode={mode => void api.setMode(mode)} onMenuOpen={setMenuOpen} exporting={exporting} onExport={onExport} toast={toast.element}
     onChoose={frame => void api.choose(frame)} onClose={() => void api.close()} onDetails={() => setDetails(open => !open)} />;
 }
 
@@ -162,6 +224,10 @@ export interface ShellProps {
   // The window's content width, which alone decides whether the name takes the header's second row.
   width: number;
   menuOpen: boolean;
+  // From main's running event to its reply: Export is unavailable as "Exporting".
+  exporting: boolean;
+  // The toast host: one per window, bottom right over the content panel, after everything else in the Tab order.
+  toast?: ReactNode;
   content?: RefObject<HTMLDivElement | null>;
   heading?: RefObject<HTMLHeadingElement | null>;
   name?: RefObject<HTMLButtonElement | null>;
@@ -169,14 +235,18 @@ export interface ShellProps {
   // onReload: the failure scene's Retry. The header's Reload reports its primary press and whether a pointer clicked it,
   // so only a pointer Reload hands focus back to the new run.
   onBack(): void; onForward(): void; onReload(): void; onReloadPress(): void; onReloadClick(pointer: boolean): void; onMode(mode: PrototypeMode): void; onMenuOpen(open: boolean): void;
-  onChoose(frame: string): void; onClose(): void; onDetails(): void;
+  onChoose(frame: string): void; onClose(): void; onDetails(): void; onExport(): void;
 }
 
 // The window's markup. Header controls come before the content in the Tab order; the state overlay covers the content
 // panel only, so they stay usable over it. Every control keeps one element tree in every state (no view yet, pressed or
 // not, either row) so a focused control or the open frame menu survives the change.
-export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, content, heading, name, frames, onBack, onForward, onReload, onReloadPress, onReloadClick, onMode, onMenuOpen, onChoose, onClose, onDetails }: ShellProps) {
+export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, exporting, toast, content, heading, name, frames, onBack, onForward, onReload, onReloadPress, onReloadClick, onMode, onMenuOpen, onChoose, onClose, onDetails, onExport }: ShellProps) {
   const scene = view === null ? null : stateScene(view);
+  // Export's rule is the canvas toolbar's: disabled with no reason before the first view, otherwise aria-disabled with
+  // its reason, so it keeps its Tab stop and stays the same element (and focus) through an export.
+  const exportState = exportAvailability(view, exporting);
+  const exportReason = exportState.available ? null : exportState.reason;
   const coveredNow = view !== null && covered(view.phase);
   // Radix gives an Esc to the top layer only, so a header tooltip over the open frame menu would leave the menu open;
   // the tooltip closes it as that Esc would have, and focus goes back to the name.
@@ -202,8 +272,14 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
             </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{modeTooltip(mode, view?.run)}</TooltipContent></Tooltip>;
           })}
         </div>
+        <Tooltip><TooltipTrigger asChild>
+          <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Export prototype" disabled={view === null}
+            {...(exportReason !== null ? { "aria-disabled": true, "aria-describedby": EXPORT_REASON_ID } : {})}
+            onMouseDown={keepFocus} onClick={() => { if (exportState.available) onExport(); }}><Download aria-hidden="true" /></button>
+        </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{exportReason ?? "Export prototype"}</TooltipContent></Tooltip>
       </div>
     </header>
+    {exportReason !== null && <span className="sr-only" id={EXPORT_REASON_ID}>{exportReason}</span>}
     <ContentPanel view={view} layers={layers} covered={coveredNow} content={content} frames={frames}>
       {view?.phase === "loading" && readingShown && <div className="problem-overlay reading"><p className="problem-reading"><span className="doan-spinner" aria-hidden="true" />{LOADING_LABEL}</p></div>}
       {scene !== null && <div className="problem-overlay">
@@ -222,6 +298,7 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
         </div>
       </div>}
     </ContentPanel>
+    {toast}
     <p className="sr-only" role="status" aria-live="polite">{live}</p>
   </div>;
 }

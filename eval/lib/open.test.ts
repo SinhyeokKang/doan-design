@@ -38,7 +38,7 @@ const exchange = (request: Partial<OpenExchange["request"]>, response: OpenExcha
 });
 const found = { v: 4, ok: true, opened: true, frame: "found" } as const;
 const ctx = (commands: string[], log: OpenExchange[], final = "final") =>
-  ({ calls: shell(...commands), open: () => log, read: () => final }) as unknown as CheckContext;
+  ({ calls: shell(...commands), open: () => log, prototype: () => [], read: () => final }) as unknown as CheckContext;
 
 test("noOpen fails on a command or on a request the app received, and passes on neither", () => {
   assert.equal(noOpen(ctx([], [])).pass, true);
@@ -94,4 +94,11 @@ test("the fake app answers v4 like the app's list check and logs token-free, has
     // v4 traffic stays out of the work log.
     assert.throws(() => readFileSync(app.workLog));
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("noOpen rejects v6-only evidence and reports both socket versions", () => {
+  const result = noOpen({ ...ctx([], []), prototype: () => [{ request: { v: 6, root: "/repo", path, frame: "phone", mark: "390x844" }, response: { v: 6, ok: true, played: true }, at: "now", hashes: {} }] });
+  assert.equal(result.pass, false);
+  assert.match(result.detail, /v4.*0.*v6.*1/);
+  assert.match(noOpen(ctx([], [])).detail, /v4.*v6/);
 });

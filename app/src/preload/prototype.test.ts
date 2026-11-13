@@ -35,10 +35,15 @@ test("every request goes to its prototype channel with the payload main parses",
   await api.choose("tablet");
   await api.close();
   await api.setMode("responsive");
+  await api.export({ root: "/r", path: ".doan/canvases/a.html", frame: "checkout" });
+  await api.revealExport("id-1");
+  mocks.invoke.mockResolvedValueOnce({ visible: true });
+  api.onWindowVisible(() => {})();
   expect(mocks.invoke.mock.calls).toEqual([
     [PROTOTYPE_CHANNELS.read], [PROTOTYPE_CHANNELS.result, { gen: 2, state: "timeout" }], [PROTOTYPE_CHANNELS.frames, { gen: 2, frames: [] }],
     [PROTOTYPE_CHANNELS.reload, { gen: 3 }], [PROTOTYPE_CHANNELS.back], [PROTOTYPE_CHANNELS.forward], [PROTOTYPE_CHANNELS.choose, { frame: "tablet" }],
     [PROTOTYPE_CHANNELS.close], [PROTOTYPE_CHANNELS.mode, { mode: "responsive" }],
+    [PROTOTYPE_CHANNELS.export, { root: "/r", path: ".doan/canvases/a.html", frame: "checkout" }], [PROTOTYPE_CHANNELS.revealExport, "id-1"], [PROTOTYPE_CHANNELS.visible],
   ]);
   expect(new Set(mocks.invoke.mock.calls.map(call => call[0]))).toEqual(new Set(PROTOTYPE_WINDOW_REQUESTS));
 });
@@ -65,4 +70,33 @@ test("the preloads import no values", () => {
     const values = [...source.matchAll(/^import (?!type )[^;]*from "([^"]+)";/gm)].map(match => match[1]);
     expect(values.filter(name => name !== "electron"), file).toEqual([]);
   }
+});
+
+test("the export's running event reaches its listener until unsubscribed", () => {
+  const running = vi.fn();
+  const stop = api.onExportRunning(running);
+  emitter.emit(PROTOTYPE_CHANNELS.exportRunning, {}, { root: "/r", path: ".doan/canvases/a.html", frame: "checkout" });
+  stop();
+  emitter.emit(PROTOTYPE_CHANNELS.exportRunning, {}, { root: "/r", path: ".doan/canvases/a.html", frame: "other" });
+  expect(running.mock.calls).toEqual([[{ root: "/r", path: ".doan/canvases/a.html", frame: "checkout" }]]);
+});
+
+// The toast's clock stops while the window is not visible natively: document.hidden misses a hidden app.
+test("window visibility comes from main's first answer, then its pushes; a push before the answer wins", async () => {
+  let answer!: (value: unknown) => void;
+  mocks.invoke.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  const seen = vi.fn();
+  const stop = api.onWindowVisible(seen);
+  emitter.emit(PROTOTYPE_CHANNELS.visible, {}, { visible: false });
+  answer({ visible: true });
+  await Promise.resolve(); await Promise.resolve();
+  expect(seen.mock.calls).toEqual([[false]]);
+  stop();
+  emitter.emit(PROTOTYPE_CHANNELS.visible, {}, { visible: true });
+  expect(seen.mock.calls).toEqual([[false]]);
+
+  mocks.invoke.mockResolvedValueOnce({ visible: true });
+  const first = vi.fn();
+  api.onWindowVisible(first);
+  await vi.waitFor(() => expect(first.mock.calls).toEqual([[true]]));
 });

@@ -287,3 +287,71 @@ describe("prototype controller", () => {
   });
 });
 
+
+// `doan open --prototype` (app-socket v6): main has judged the target and size; the same transition as Play runs.
+describe("playFromCli", () => {
+  const target = { root: "/r", canvas: { id: "proto" }, frame: "phone" };
+
+  test("opens the window on the frame, as the main window's Play does", () => {
+    const t = setup();
+    expect(t.controller.playFromCli({ target, size: phone })).toBe("played");
+    expect(t.calls).toEqual([["create", phone], ["load", { gen: 1, url: proto.url, frame: "phone" }], ["view", 1, "loading"]]);
+  });
+
+  test("the frame already playing only comes forward: no new run", () => {
+    const t = opened();
+    expect(t.controller.playFromCli({ target, size: phone })).toBe("activated");
+    expect(t.calls).toEqual([["activate"]]);
+  });
+
+  test("another frame plays in the same window and goes on its history", async () => {
+    const t = opened();
+    expect(t.controller.playFromCli({ target: { ...target, frame: "tablet" }, size: { width: 820, height: 1180 } })).toBe("played");
+    // The ready run's still goes out first, so the view follows it.
+    await vi.waitFor(() => expect(t.views.at(-1)?.gen).toBe(2));
+    expect(t.calls.filter(call => Array.isArray(call) && call[0] !== "capture" && call[0] !== "snapshot")).toEqual([
+      ["fit", { width: 820, height: 1180 }], ["activate"], ["load", { gen: 2, url: proto.url, frame: "tablet" }], ["view", 2, "loading"],
+    ]);
+    expect(t.views.at(-1)).toMatchObject({ frame: "tablet", canGoBack: true });
+  });
+
+  test("a canvas gone from the list since the decision is refused and nothing happens", () => {
+    const t = setup();
+    t.setEntries([{ path: "/r", kind: "list", canvases: [], servedRev: 0 }]);
+    expect(t.controller.playFromCli({ target, size: phone })).toBe("refused");
+    expect(t.calls).toEqual([]);
+  });
+});
+
+// `prototype:export`: the window names what it showed at the click; main exports only what still plays.
+describe("exportTarget", () => {
+  const clicked = { root: "/r", path: proto.path, frame: "phone" };
+
+  test("the view names the playing target's root and canvas path, which Export sends back", () => {
+    const t = opened();
+    expect(t.controller.request(PROTOTYPE_CHANNELS.read, "prototype", undefined)).toMatchObject({ root: "/r", path: proto.path, frame: "phone" });
+  });
+
+  test("the frame that still plays is exported", () => {
+    expect(opened().controller.exportTarget("prototype", clicked)).toEqual(clicked);
+  });
+
+  test("a click on a frame that no longer plays is refused as changed", () => {
+    const t = opened();
+    t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
+    expect(t.controller.exportTarget("prototype", clicked)).toEqual({ kind: "refused", reason: "changed" });
+  });
+
+  test("a canvas whose ID two rows now share has no exportable target", () => {
+    const t = opened();
+    t.setEntries([{ path: "/r", kind: "list", canvases: [proto, { ...proto, path: ".doan/canvases/copy.html" }], servedRev: 0 }]);
+    expect(t.controller.exportTarget("prototype", clicked)).toEqual({ kind: "refused", reason: "notListed" });
+  });
+
+  test("another sender, a malformed target or a closed window is refused before anything else", () => {
+    const t = opened();
+    expect(t.controller.exportTarget("main", clicked)).toEqual({ kind: "refused", reason: "notListed" });
+    expect(t.controller.exportTarget("prototype", { ...clicked, frame: "" })).toEqual({ kind: "refused", reason: "notListed" });
+    expect(setup().controller.exportTarget("prototype", clicked)).toEqual({ kind: "refused", reason: "notListed" });
+  });
+});

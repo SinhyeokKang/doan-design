@@ -21,10 +21,14 @@ export const exportProgress = (stem: string) => `Exporting “${stem}”`;
 
 // The result toast, with main's Show in Finder id once the file is written; null for a cancelled save panel. A
 // refusal from main (`exporting`, `notListed`) has no sentence of its own and reads as any other failure.
-export function exportToast(stem: string, reply: ExportReply): { text: string; reveal?: string } | null {
+// `prototype`: the prototype window's Export, where `stem` is the frame's title or ID. Its file plays one frame but
+// holds the whole canvas, other frames and notes included, so the success toast says so.
+export function exportToast(stem: string, reply: ExportReply, prototype = false): { text: string; reveal?: string } | null {
   const failed = `Couldn’t export “${stem}”.`;
   if (reply.kind === "cancelled") return null;
-  if (reply.kind === "exported") return { text: `Exported “${stem}”.${reply.external > 0 ? " Parts of it load from the internet." : ""}`, reveal: reply.reveal };
+  if (reply.kind === "exported") return { text: `Exported “${stem}”.${prototype ? " The file also contains the rest of the canvas." : ""}${reply.external > 0 ? " Parts of it load from the internet." : ""}`, reveal: reply.reveal };
+  // Export again would export the frame playing now, so this names the clicked frame instead of saying Try again.
+  if (reply.kind === "refused" && reply.reason === "changed") return { text: `${failed} Another frame started playing first. Play “${stem}” again, then export it.` };
   if (reply.kind === "refused") return { text: `${failed} Try again.` };
   switch (reply.reason) {
     case "refused": return { text: reply.count === 1
@@ -33,6 +37,8 @@ export function exportToast(stem: string, reply: ExportReply): { text: string; r
     case "unreadable": return { text: `${failed} Doan can’t read this canvas. Ask your agent to run doan check.` };
     // The CLI may name no asset; the sentence then ends at the limit (C2 brief).
     case "tooLarge": return { text: `${failed} The file would be over 50 MB.${reply.largest !== null ? ` The largest file it uses is ${reply.largest}.` : ""}` };
+    case "notFound": return { text: `${failed} Doan can export only a frame written in the canvas file, not one a script adds. Ask your agent to write it into the canvas file.` };
+    case "notMarked": return { text: `${failed} It isn’t marked for prototyping in the canvas file. Ask your agent to mark it.` };
     case "insideDoan": return { text: `${failed} Choose a folder outside .doan.` };
     case "failed": return { text: `${failed} Try again.` };
   }

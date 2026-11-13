@@ -1,0 +1,12 @@
+[
+  [
+    "open",
+    ".doan/canvases/onboarding.html",
+    "--frame",
+    "signup-phone",
+    "--prototype",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

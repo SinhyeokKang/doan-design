@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doan.design/schema/app-socket.v6.schema.json",
+  "$comment": "Play-prototype requests on the app's local socket, beside app-socket.v1 (active), v2 (onboarding), v3 (work), v4 (open) and v5 (handoff), which are unchanged. A separate v rather than a v4 field: an older app answers v6 with its v1 bad_request, which the CLI already reads as app_protocol_mismatch, and v4's readiness and refusal rules stay unmixed. The reader dispatches on numeric v before validating. Use the $defs; the root constrains nothing. The reply says what the app decided, not what the CLI prints: the CLI builds its own messages and next steps from the code.",
+  "$defs": {
+    "token": {
+      "type": "string",
+      "$comment": "Not pattern-checked so a wrong token reaches the app's bad_token answer instead of bad_request."
+    },
+    "absolutePath": {
+      "type": "string",
+      "pattern": "^/",
+      "$comment": "Absolute POSIX path; the app is macOS-only. Registration is checked by the app."
+    },
+    "request": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 6
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "root": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^\\.doan/(canvases|ds)/[^/]+\\.html$",
+          "$comment": "Repo-relative, '/'-separated canvas path, the same pattern as v4; the app checks the pattern again and then the canvas list."
+        },
+        "frame": {
+          "$ref": "https://doan.design/schema/app-socket.v4.schema.json#/$defs/frameId",
+          "$comment": "The schema bound is 200 code points, while the app and the injected prototype script cap frame ids at 200 UTF-16 units. The CLI refuses an id over 200 UTF-16 units before sending, so an id that passes here can still be one the CLI never sends."
+        },
+        "mark": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,4}x[1-9][0-9]{0,4}$",
+          "$comment": "The frame's raw data-doan-prototype value, which the CLI already judged; the grammar is ARCHITECTURE convention 14, the same literal Go and the app carry, pinned by schema/fixtures/prototype-mark/cases.json."
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "root",
+        "path",
+        "frame",
+        "mark"
+      ],
+      "additionalProperties": false
+    },
+    "errorCode": {
+      "enum": [
+        "bad_request",
+        "bad_token",
+        "project_not_open",
+        "canvas_not_found",
+        "busy",
+        "not_ready"
+      ],
+      "$comment": "In the app's check order after the schema and token: project_not_open, not_ready (launch restore or the project still loading, the one retryable answer), busy (first run or the buddy screen; unlike v4, the main window's locked pages and dialogs do not block, because the prototype window moves apart from it), canvas_not_found (not in the canvas list, or its canvas id is shared by two rows). Whether the frame exists and is marked is the CLI's judgment, not a reply code."
+    },
+    "response": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 6
+            },
+            "ok": {
+              "const": true
+            },
+            "played": {
+              "const": true
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "played"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 6
+            },
+            "ok": {
+              "const": false
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "$ref": "#/$defs/errorCode"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

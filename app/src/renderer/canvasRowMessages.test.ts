@@ -33,3 +33,27 @@ test("Export says its progress, its result with Show in Finder, and why it faile
   for (const reason of ["exporting", "notListed"] as const) expect(exportToast("checkout", { kind: "refused", reason })).toEqual({ text: "Couldn’t export “checkout”. Try again." });
   for (const reply of [{ kind: "failed", reason: "unreadable" }, { kind: "refused", reason: "notListed" }] as const) expect(exportToast("checkout", reply)?.reveal).toBeUndefined();
 });
+
+// The prototype window's Export: the name is the frame's title (or ID), and the file holds the whole canvas.
+test("a prototype export says the file also holds the rest of the canvas", () => {
+  expect(exportToast("Checkout", { kind: "exported", external: 0, reveal: "r1" }, true)).toEqual({ text: "Exported “Checkout”. The file also contains the rest of the canvas.", reveal: "r1" });
+  expect(exportToast("Checkout", { kind: "exported", external: 1, reveal: "r2" }, true)).toEqual({ text: "Exported “Checkout”. The file also contains the rest of the canvas. Parts of it load from the internet.", reveal: "r2" });
+});
+
+test("a prototype export names the frame the file cannot hold or play", () => {
+  expect(exportToast("Checkout", { kind: "failed", reason: "notFound" }, true)?.text).toBe("Couldn’t export “Checkout”. Doan can export only a frame written in the canvas file, not one a script adds. Ask your agent to write it into the canvas file.");
+  expect(exportToast("Checkout", { kind: "failed", reason: "notMarked" }, true)?.text).toBe("Couldn’t export “Checkout”. It isn’t marked for prototyping in the canvas file. Ask your agent to mark it.");
+});
+
+// Export again would export what plays now, so the toast does not say Try again.
+test("a click on a frame that stopped playing names it and how to export it", () => {
+  expect(exportToast("Checkout", { kind: "refused", reason: "changed" }, true)).toEqual({ text: "Couldn’t export “Checkout”. Another frame started playing first. Play “Checkout” again, then export it." });
+});
+
+test("a prototype export's other failures read as the canvas row's", () => {
+  for (const reply of [{ kind: "failed", reason: "unreadable" }, { kind: "failed", reason: "insideDoan" }, { kind: "failed", reason: "failed" }, { kind: "refused", reason: "exporting" },
+    { kind: "failed", reason: "tooLarge", largest: null }, { kind: "failed", reason: "refused", count: 2, first: "../a.png" }] as const) {
+    expect(exportToast("Checkout", reply, true), JSON.stringify(reply)).toEqual(exportToast("Checkout", reply));
+  }
+  expect(exportToast("Checkout", { kind: "cancelled" }, true)).toBeNull();
+});

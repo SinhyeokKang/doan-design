@@ -4,7 +4,7 @@ import { DropdownMenu } from "radix-ui";
 import { expect, test, vi } from "vitest";
 import type { CanvasConversationRow } from "../../canvasConversationRows";
 
-// Five unavailable controls name their reason with their own aria-describedby (an sr-only sibling, so
+// Unavailable controls name their reason with their own aria-describedby (an sr-only sibling, so
 // it is read while the tooltip is closed too). While the tooltip was open, Radix added its content id to that
 // attribute, and the same reason was read twice. Every tooltip here is drawn open (no DOM: static markup), and each
 // unavailable control must keep its own id alone; an available one still gets the open tooltip's id from Radix.
@@ -18,6 +18,7 @@ const { RowDelete } = await import("../../CanvasConversationList");
 const { ConversationDeleteItem } = await import("../../ConversationDeleteDialog");
 const { RowButton } = await import("../../SettingsMcpConnectors");
 const { SendButton } = await import("../../ComposerParts");
+const { WindowShell } = await import("../../prototype/PrototypeWindow");
 
 const describedBy = (html: string, marker: string) => {
   const tag = html.match(new RegExp(`<(?:button|div)[^>]*${marker}[^>]*>`))?.[0];
@@ -27,7 +28,7 @@ const describedBy = (html: string, marker: string) => {
 const open = (node: React.ReactNode) => renderToStaticMarkup(<TooltipProvider>{node}</TooltipProvider>);
 const noop = () => {};
 
-test("an unavailable control's open tooltip leaves its own aria-describedby alone, in all five places", () => {
+test("an unavailable control's open tooltip leaves its own aria-describedby alone, in every place", () => {
   const tools = open(<CanvasTools tool="select" picking={false} capturing={false} onTool={noop} onEscape={noop}
     picker={{ enabled: true, reason: null, onToggle: noop }} capture={{ enabled: false, reason: "Open a canvas to capture an area.", onToggle: noop }}
     player={{ reason: "Select a supported frame to play its prototype.", onPlay: noop }} exporter={{ reason: "No canvas is open.", onExport: noop }} />);
@@ -46,6 +47,12 @@ test("an unavailable control's open tooltip leaves its own aria-describedby alon
   const button = open(<RowButton button={{ command: "connect", label: "Connect", variant: "subtle", disabled: true, ariaLabel: "Connect Figma for Codex", tooltip: "Finish or cancel the Notion connection first." }}
     run={noop} describedBy="mcp-figma-reason" />);
   expect(describedBy(button, 'aria-label="Connect Figma for Codex"')).toBe("mcp-figma-reason");
+
+  // The prototype window's Export while its canvas can't be read.
+  const view = { gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "a", phase: "read-failed", mode: "fit", run: null, frames: [], canGoBack: false, canGoForward: false, previousStopped: false } as const;
+  const shell = open(<WindowShell view={{ ...view, frames: [] }} layers={{ frames: [], visible: null, snapshot: null }} readingShown={false} details={false} live="" width={640} menuOpen={false} exporting={false}
+    onBack={noop} onForward={noop} onReload={noop} onReloadPress={noop} onReloadClick={noop} onMode={noop} onMenuOpen={noop} onChoose={noop} onClose={noop} onDetails={noop} onExport={noop} />);
+  expect(describedBy(shell, 'aria-label="Export prototype"')).toBe("prototype-export-reason");
 });
 
 test("an available control still gets the open tooltip's id, as Radix gives it", () => {

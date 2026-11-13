@@ -18,8 +18,13 @@ describe("prototype channels", () => {
       mode: "prototype:mode",
       closed: "prototype:closed",
       snapshot: "prototype:snapshot",
+      export: "prototype:export",
+      revealExport: "prototype:revealExport",
+      exportRunning: "prototype:exportRunning",
+      visible: "prototype:visible",
     });
-    expect(PROTOTYPE_WINDOW_REQUESTS).toEqual(["prototype:read", "prototype:result", "prototype:frames", "prototype:reload", "prototype:back", "prototype:forward", "prototype:choose", "prototype:close", "prototype:mode"]);
+    expect(PROTOTYPE_WINDOW_REQUESTS).toEqual(["prototype:read", "prototype:result", "prototype:frames", "prototype:reload", "prototype:back", "prototype:forward", "prototype:choose", "prototype:close", "prototype:mode",
+      "prototype:export", "prototype:revealExport", "prototype:visible"]);
   });
 
   test("a run that does not answer in 10 s is an init failure", () => {
@@ -42,7 +47,16 @@ describe("sender guard", () => {
   });
 
   test("the events main sends are never requests", () => {
-    for (const kind of ["main", "prototype"]) for (const channel of [PROTOTYPE_CHANNELS.changed, PROTOTYPE_CHANNELS.closed, PROTOTYPE_CHANNELS.snapshot, "prototype:", "prototype:open", "prototype:evil"]) expect(senderAllowed(channel, kind)).toBe(false);
+    for (const kind of ["main", "prototype"]) for (const channel of [PROTOTYPE_CHANNELS.changed, PROTOTYPE_CHANNELS.closed, PROTOTYPE_CHANNELS.snapshot, PROTOTYPE_CHANNELS.exportRunning, "prototype:", "prototype:open", "prototype:evil"]) expect(senderAllowed(channel, kind)).toBe(false);
+  });
+
+  // The window's Export and its Show in Finder are its own; the main window's canvas export stays main-only.
+  test("only the prototype window may export its frame or reveal that file", () => {
+    for (const channel of [PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible]) {
+      expect(senderAllowed(channel, "prototype"), channel).toBe(true);
+      expect(senderAllowed(channel, "main"), channel).toBe(false);
+    }
+    for (const channel of ["canvas:export", "canvas:revealExport", "window:visible"]) expect(senderAllowed(channel, "prototype"), channel).toBe(false);
   });
 
   test("the prototype window gets none of the main window's channels", () => {

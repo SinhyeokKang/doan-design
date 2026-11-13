@@ -11,6 +11,8 @@ import {
   validateOnboardingResponse,
   validateOpenRequest,
   validateOpenResponse,
+  validatePrototypeRequest,
+  validatePrototypeResponse,
   validateRuntimeFile,
   validateSessionRecord,
   validateSelection,
@@ -44,6 +46,8 @@ const groups: { name: string; validate: Validate }[] = [
   { name: "app-socket-v4/response", validate: validateOpenResponse },
   { name: "app-socket-v5/request", validate: validateHandoffRequest },
   { name: "app-socket-v5/response", validate: validateHandoffResponse },
+  { name: "app-socket-v6/request", validate: validatePrototypeRequest },
+  { name: "app-socket-v6/response", validate: validatePrototypeResponse },
 ];
 
 for (const { name, validate } of groups) {
@@ -117,6 +121,59 @@ describe("app-socket v5 stays apart from v1 to v4", () => {
     for (const file of fixtureFiles(`app-socket-v5/${kind}`, "valid")) {
       test(`v5 ${kind} ${file} is not ${label}`, () => expect(validate(readJson(new URL(file, fixtureDirectory(`app-socket-v5/${kind}`, "valid"))))).toBe(false));
     }
+  }
+});
+
+describe("app-socket v6 stays apart from v1 to v5", () => {
+  const others: { kind: string; label: string; dir: string; validate: Validate }[] = [
+    { kind: "request", label: "v1", dir: "app-socket/request", validate: validateSocketRequest },
+    { kind: "request", label: "v2", dir: "app-socket-v2/request", validate: validateOnboardingRequest },
+    { kind: "request", label: "v3", dir: "app-socket-v3/request", validate: validateWorkRequest },
+    { kind: "request", label: "v4", dir: "app-socket-v4/request", validate: validateOpenRequest },
+    { kind: "request", label: "v5", dir: "app-socket-v5/request", validate: validateHandoffRequest },
+    { kind: "response", label: "v1", dir: "app-socket/response", validate: validateSocketResponse },
+    { kind: "response", label: "v2", dir: "app-socket-v2/response", validate: validateOnboardingResponse },
+    { kind: "response", label: "v3", dir: "app-socket-v3/response", validate: validateWorkResponse },
+    { kind: "response", label: "v4", dir: "app-socket-v4/response", validate: validateOpenResponse },
+    { kind: "response", label: "v5", dir: "app-socket-v5/response", validate: validateHandoffResponse },
+  ];
+  for (const { kind, label, dir, validate } of others) {
+    const v6 = kind === "request" ? validatePrototypeRequest : validatePrototypeResponse;
+    for (const file of fixtureFiles(dir, "valid")) {
+      test(`${label} ${kind} ${file} is not v6`, () => expect(v6(readJson(new URL(file, fixtureDirectory(dir, "valid"))))).toBe(false));
+    }
+    for (const file of fixtureFiles(`app-socket-v6/${kind}`, "valid")) {
+      test(`v6 ${kind} ${file} is not ${label}`, () => expect(validate(readJson(new URL(file, fixtureDirectory(`app-socket-v6/${kind}`, "valid"))))).toBe(false));
+    }
+  }
+});
+
+// The schema counts a frame id in code points, while the app and the injected prototype script count UTF-16 units,
+// so the boundary fixtures must sit on each side of both counts for the CLI's own UTF-16 check to be meaningful.
+describe("app-socket v6 frame boundary fixtures", () => {
+  const cases: { validity: string; file: string; codePoints: number; utf16Units: number }[] = [
+    { validity: "valid", file: "frame-200.json", codePoints: 200, utf16Units: 200 },
+    { validity: "valid", file: "frame-200-astral.json", codePoints: 200, utf16Units: 400 },
+    { validity: "invalid", file: "frame-201.json", codePoints: 201, utf16Units: 201 },
+    { validity: "invalid", file: "frame-201-astral.json", codePoints: 201, utf16Units: 402 },
+  ];
+  for (const { validity, file, codePoints, utf16Units } of cases) {
+    test(file, () => {
+      const { frame } = readJson(new URL(file, fixtureDirectory("app-socket-v6/request", validity))) as { frame: string };
+      expect([[...frame].length, frame.length]).toEqual([codePoints, utf16Units]);
+    });
+  }
+});
+
+// The v6 mark pattern must be the convention 14 grammar that the Go parser, the app and the injected script carry.
+describe("app-socket v6 mark follows the shared prototype-mark cases", () => {
+  const { values } = readJson(new URL("../../../schema/fixtures/prototype-mark/cases.json", import.meta.url)) as {
+    values: { name: string; value: string; valid: boolean }[];
+  };
+  const base = readJson(new URL("play.json", fixtureDirectory("app-socket-v6/request", "valid"))) as Record<string, unknown>;
+  test("cases exist", () => expect(values.length).toBeGreaterThan(0));
+  for (const { name, value, valid } of values) {
+    test(name, () => expect(validatePrototypeRequest({ ...base, mark: value })).toBe(valid));
   }
 });
 

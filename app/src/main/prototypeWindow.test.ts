@@ -7,6 +7,8 @@ import type { FolderEntry } from "./view";
 const created: FakeWindow[] = [];
 class FakeWindow extends EventEmitter {
   destroyed = false;
+  shown = true;
+  minimized = false;
   webContents = Object.assign(new EventEmitter(), {
     debugger: Object.assign(new EventEmitter(), { attach: vi.fn(), sendCommand: vi.fn(async () => ({})) }),
     send: vi.fn(),
@@ -23,11 +25,14 @@ class FakeWindow extends EventEmitter {
   getBounds() { return this.getContentBounds(); }
   loadFile = vi.fn(async () => {});
   loadURL = vi.fn(async () => {});
-  show() {}
-  focus() {}
+  show() { order.push("window.show"); }
+  focus() { order.push("window.focus"); }
+  isMinimized() { return this.minimized; }
+  isVisible() { return this.shown; }
 }
+const order: string[] = [];
 vi.mock("electron", () => ({
-  app: { isPackaged: true },
+  app: { isPackaged: true, show: () => order.push("app.show") },
   BrowserWindow: FakeWindow,
   screen: { getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1600, height: 1000 } }), getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1600, height: 1000 } }) },
   session: { fromPartition: () => ({}) },
@@ -38,7 +43,7 @@ const proto = { path: ".doan/canvases/proto.html", url: "http://127.0.0.1:5123/t
 const entries: FolderEntry[] = [{ path: "/r", kind: "list", canvases: [proto], servedRev: 0 }];
 const play = { root: "/r", path: proto.path, frame: "phone", mark: "390x844" };
 
-beforeEach(() => { created.length = 0; vi.resetModules(); });
+beforeEach(() => { created.length = 0; order.length = 0; vi.resetModules(); });
 
 async function opened() {
   const { createPrototypeWindow } = await import("./prototypeWindow");
@@ -91,4 +96,42 @@ test("a replaced window's late focus and blur are not reported", async () => {
   window.emit("focus");
   window.emit("blur");
   expect(focusChanged).not.toHaveBeenCalled();
+});
+
+// `doan open --prototype` arrives while another app is in front or Doan is hidden (⌘H): a hidden app is shown first,
+// since a window's show alone may not bring back a hidden app.
+test("a play while the app is hidden shows the app before the window, for a new window and a raised one", async () => {
+  const { createPrototypeWindow } = await import("./prototypeWindow");
+  let hidden = true;
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden });
+  const target = { root: "/r", canvas: { id: "proto" }, frame: "phone" };
+  expect(prototype.controller.playFromCli({ target, size: { width: 390, height: 844 } })).toBe("played");
+  expect(order).toEqual(["app.show", "window.show", "window.focus"]);
+  order.length = 0;
+  expect(prototype.controller.playFromCli({ target, size: { width: 390, height: 844 } })).toBe("activated");
+  expect(order).toEqual(["app.show", "window.show", "window.focus"]);
+  order.length = 0;
+  hidden = false;
+  prototype.controller.playFromCli({ target, size: { width: 390, height: 844 } });
+  expect(order).toEqual(["window.show", "window.focus"]);
+});
+
+// The page's toast clock stops while the window is not shown natively; document.hidden misses a minimized window and a
+// hidden app, so main pushes `prototype:visible` on each change, and answers the page's first read the same way.
+test("the window's native visibility goes to its page on show, hide, minimize, restore and an app hide", async () => {
+  const { createPrototypeWindow } = await import("./prototypeWindow");
+  let hidden = false;
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden });
+  prototype.controller.play("main", play);
+  const window = created[0]!;
+  const pushed = () => window.webContents.send.mock.calls.filter(call => call[0] === "prototype:visible").map(call => call[1]);
+  expect(prototype.visible()).toBe(true);
+  window.minimized = true; window.emit("minimize");
+  window.minimized = false; window.emit("restore");
+  window.shown = false; window.emit("hide");
+  window.shown = true; window.emit("show");
+  hidden = true; prototype.visibilityChanged();
+  expect(prototype.visible()).toBe(false);
+  hidden = false; prototype.visibilityChanged();
+  expect(pushed()).toEqual([{ visible: false }, { visible: true }, { visible: false }, { visible: true }, { visible: false }, { visible: true }]);
 });

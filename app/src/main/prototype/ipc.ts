@@ -1,9 +1,10 @@
+import type { ExportReply } from "../canvasExport";
 import type { Rect } from "./fit";
 import type { PrototypeSize } from "./mark";
 
-// The prototype window's IPC contract. `play` is the main window's request; `changed` and `snapshot` are events main
-// sends the prototype window, `closed` an event main sends the main window; every other channel is a request from the
-// prototype window's own main frame.
+// The prototype window's IPC contract. `play` is the main window's request; `changed`, `snapshot`, `exportRunning` and
+// `visible` are events main sends the prototype window (`visible` is also its request for the first value), `closed` an
+// event main sends the main window; every other channel is a request from the prototype window's own main frame.
 export const PROTOTYPE_CHANNELS = {
   play: "prototype:play",
   read: "prototype:read",
@@ -20,12 +21,19 @@ export const PROTOTYPE_CHANNELS = {
   closed: "prototype:closed",
   // To the prototype window, before the view that turns a ready run failed or unavailable (PrototypeSnapshot).
   snapshot: "prototype:snapshot",
+  // Export prototype names the target the window showed at the click; Show in Finder names only an id main gave.
+  export: "prototype:export",
+  revealExport: "prototype:revealExport",
+  // To the prototype window once the person chose a file and the CLI is about to run, with the export's target.
+  exportRunning: "prototype:exportRunning",
+  // Shown natively: the window is visible and not minimized, and the app is not hidden (document.hidden misses both).
+  visible: "prototype:visible",
 } as const;
 
 export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
   PROTOTYPE_CHANNELS.read, PROTOTYPE_CHANNELS.result, PROTOTYPE_CHANNELS.frames, PROTOTYPE_CHANNELS.reload,
   PROTOTYPE_CHANNELS.back, PROTOTYPE_CHANNELS.forward, PROTOTYPE_CHANNELS.choose, PROTOTYPE_CHANNELS.close,
-  PROTOTYPE_CHANNELS.mode,
+  PROTOTYPE_CHANNELS.mode, PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible,
 ];
 
 // From the moment the host sets the iframe's src to the run's result. The slowest measured canvas answered in under
@@ -88,6 +96,9 @@ export type PrototypePhase = "loading" | "ready" | "read-failed" | "init-failed"
 // gone.
 export interface PrototypeView {
   gen: number;
+  // The target's root and its canvas row's path (the last listed one while the canvas is gone): what Export sends back.
+  root: string;
+  path: string;
   frame: string;
   title: string;
   canvas: string;
@@ -115,6 +126,13 @@ export interface PrototypeSnapshot {
   box: Rect;
 }
 
+// `prototype:export` and `prototype:exportRunning`: a frame of a listed canvas row.
+export interface ExportTarget {
+  root: string;
+  path: string;
+  frame: string;
+}
+
 // The prototype window's preload API (`window.doanPrototype`). The preload implements it with
 // `satisfies PrototypeWindowApi`; the renderer reads its type from here.
 export interface PrototypeWindowApi {
@@ -128,4 +146,9 @@ export interface PrototypeWindowApi {
   choose(frame: string): Promise<void>;
   close(): Promise<void>;
   setMode(mode: PrototypeMode): Promise<void>;
+  // Main shows the save panel and runs the CLI; the reply is the canvas row export's.
+  export(target: ExportTarget): Promise<ExportReply>;
+  revealExport(id: string): Promise<void>;
+  onExportRunning(listener: (target: ExportTarget) => void): () => void;
+  onWindowVisible(listener: (visible: boolean) => void): () => void;
 }

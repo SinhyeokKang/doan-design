@@ -12,12 +12,12 @@ import { PROTOTYPE_HEADER_RIGHT, prototypeViewportBox } from "../../main/prototy
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 2, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }], canGoBack: true, canGoForward: false, previousStopped: false, ...over,
+  gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }], canGoBack: true, canGoForward: false, previousStopped: false, ...over,
 });
 const ready: HostLayers = { frames: [{ gen: 2, url: A, markWidth: 390, markHeight: 844 }], visible: 2, snapshot: null };
 const noop = () => {};
-const props = (over: Partial<ShellProps> = {}): ShellProps => ({ view: view(), layers: ready, readingShown: false, details: false, live: "", width: 640, menuOpen: false,
-  onBack: noop, onForward: noop, onReload: noop, onReloadPress: noop, onReloadClick: noop, onMode: noop, onMenuOpen: noop, onChoose: noop, onClose: noop, onDetails: noop, ...over });
+const props = (over: Partial<ShellProps> = {}): ShellProps => ({ view: view(), layers: ready, readingShown: false, details: false, live: "", width: 640, menuOpen: false, exporting: false,
+  onBack: noop, onExport: noop, onForward: noop, onReload: noop, onReloadPress: noop, onReloadClick: noop, onMode: noop, onMenuOpen: noop, onChoose: noop, onClose: noop, onDetails: noop, ...over });
 const markup = (over: Partial<ShellProps> = {}) => renderToStaticMarkup(<TooltipProvider><WindowShell {...props(over)} /></TooltipProvider>);
 const tag = (html: string, marker: string) => html.match(new RegExp(`<[a-z0-9]+[^>]*${marker}[^>]*>`))?.[0] ?? "";
 
@@ -49,15 +49,14 @@ const button = (node: ReactNode, label: string) => all(node).find(labelled(label
 const strip = (html: string) => html.replace(/<([a-z0-9]+)[^>]*>/g, "<$1>").replace(/>[^<]+</g, "><");
 
 describe("WindowShell header", () => {
-  test("Back, Forward, Reload, the frame name, then the right group's Fit and Responsive, all before the content", () => {
+  test("Back, Forward, Reload, the frame name, then the right group's Fit, Responsive and Export, all before the content", () => {
     const html = markup();
-    const order = ['aria-label="Back"', 'aria-label="Forward"', 'aria-label="Reload prototype"', 'class="shell-search pw-name"', 'class="pw-right"', 'aria-label="Fit"', 'aria-label="Responsive"', "<iframe"].map(marker => html.indexOf(marker));
+    const order = ['aria-label="Back"', 'aria-label="Forward"', 'aria-label="Reload prototype"', 'class="shell-search pw-name"', 'class="pw-right"', 'aria-label="Fit"', 'aria-label="Responsive"', 'aria-label="Export prototype"', "<iframe"].map(marker => html.indexOf(marker));
     expect(order.every(index => index >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toMatch(/<header class="top shell-top pw-top"><span class="traffic-space" aria-hidden="true"><\/span><div class="shell-history">/);
-    // No exporter yet, so the right group is the toggle alone (R 68).
-    expect(html).not.toContain("Export");
-    expect(html).toMatch(/<div class="pw-right"><div class="doan-toggle-group" role="group" aria-label="Viewport">/);
+    // The right group is the toggle, then Export (R 104).
+    expect(html).toMatch(/<div class="pw-right"><div class="doan-toggle-group" role="group" aria-label="Viewport">.*?<\/div><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Export prototype"/);
   });
 
   test("disables the history direction without an entry; Reload stays", () => {
@@ -171,11 +170,75 @@ describe("pointer presses in the header", () => {
   });
 });
 
+describe("Export prototype", () => {
+  test("a 32 chrome icon button with a Download glyph after the toggle, named and tipped Export prototype", () => {
+    const html = markup();
+    expect(tag(html, 'aria-label="Export prototype"')).toMatch(/^<button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Export prototype" data-state="closed" data-slot="tooltip-trigger">$/);
+    expect(html).toContain('aria-label="Export prototype" data-state="closed" data-slot="tooltip-trigger"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download"');
+    const tips = all(tree()).filter(element => element.type === TooltipContent).map(element => element.props.children);
+    expect(tips).toContain("Export prototype");
+  });
+
+  test("before the first view it is disabled with no reason and no Tab stop", () => {
+    const html = markup({ view: null, layers: NO_LAYERS });
+    expect(tag(html, 'aria-label="Export prototype"')).toContain("disabled");
+    expect(tag(html, 'aria-label="Export prototype"')).not.toContain("aria-disabled");
+    expect(html).not.toContain("prototype-export-reason");
+  });
+
+  test("an unavailable Export keeps its Tab stop and names its reason as an sr-only description and its tooltip", () => {
+    for (const [over, reason] of [
+      [{ view: view({ phase: "read-failed" }) }, "Can’t read this canvas."],
+      [{ view: view({ phase: "frame-unavailable" }) }, "Export isn’t available while this prototype can’t play."],
+      [{ view: view({ phase: "prototype-unavailable" }) }, "Export isn’t available while this prototype can’t play."],
+      [{ exporting: true }, "Exporting"],
+    ] as const) {
+      const html = markup(over);
+      const button = tag(html, 'aria-label="Export prototype"');
+      expect(button, reason).toContain('aria-disabled="true"');
+      expect(button, reason).toContain('aria-describedby="prototype-export-reason"');
+      expect(button, reason).not.toMatch(/ disabled/);
+      expect(html, reason).toContain(`<span class="sr-only" id="prototype-export-reason">${reason}</span>`);
+      expect(all(tree(over)).filter(element => element.type === TooltipContent).map(element => element.props.children), reason).toContain(reason);
+    }
+  });
+
+  test("a click exports only while available", () => {
+    const onExport = vi.fn();
+    for (const over of [{}, { view: view({ phase: "loading" }) }, { view: view({ phase: "init-failed" }) }]) (button(tree({ ...over, onExport }), "Export prototype").props.onClick as () => void)();
+    expect(onExport).toHaveBeenCalledTimes(3);
+    onExport.mockClear();
+    for (const over of [{ view: view({ phase: "read-failed" }) }, { exporting: true }, { view: view({ phase: "frame-unavailable" }) }]) (button(tree({ ...over, onExport }), "Export prototype").props.onClick as () => void)();
+    expect(onExport).not.toHaveBeenCalled();
+  });
+
+  // POSTMORTEM 2026-11-13: a control that turns unavailable while focused must stay the same element.
+  test("stays the same element whether available, unavailable, exporting or before the first view", () => {
+    const at = path(tree(), labelled("Export prototype"));
+    expect(at).not.toBeNull();
+    for (const over of [{ exporting: true }, { view: view({ phase: "read-failed" }) }, { view: view({ phase: "frame-unavailable" }) }, { view: null, layers: NO_LAYERS }, { width: 360 }]) {
+      expect(path(tree(over), labelled("Export prototype")), JSON.stringify(over)).toEqual(at);
+    }
+  });
+
+  test("a pointer press keeps focus where it was", () => {
+    const event = { button: 0, preventDefault: vi.fn() };
+    (button(tree(), "Export prototype").props.onMouseDown as (event: unknown) => void)(event);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+  });
+
+  test("the result toast sits after the content and the header, so it never comes before Export in the Tab order", () => {
+    const html = markup({ toast: <div className="toast">Exported</div> });
+    expect(html.indexOf('class="toast"')).toBeGreaterThan(html.indexOf("<iframe"));
+    expect(html.indexOf('class="toast"')).toBeGreaterThan(html.indexOf('aria-label="Export prototype"'));
+  });
+});
+
 describe("the name's row", () => {
-  test("the window's width alone decides it: first row from R + 304 (372), the second below, before any view too", () => {
+  test("the window's width alone decides it: first row from R + 304 (408), the second below, before any view too", () => {
     expect(tag(markup({ width: 640 }), 'class="pw')).toMatch(/^<div class="pw"/);
-    expect(tag(markup({ width: 372 }), 'class="pw')).toMatch(/^<div class="pw"/);
-    expect(tag(markup({ width: 371 }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
+    expect(tag(markup({ width: 408 }), 'class="pw')).toMatch(/^<div class="pw"/);
+    expect(tag(markup({ width: 407 }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
     expect(tag(markup({ width: 360, view: null, layers: NO_LAYERS }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
   });
 
@@ -198,7 +261,8 @@ describe("Esc over a header tooltip", () => {
   test("with the frame menu open, every header tooltip's Esc also closes the menu and puts focus on the name", () => {
     const onMenuOpen = vi.fn(), focus = vi.fn();
     const escapes = tipEscapes(tree({ menuOpen: true, onMenuOpen, name: { current: { focus } as never } }));
-    expect(escapes).toHaveLength(4);
+    // Reload, Fit, Responsive, Export and the name.
+    expect(escapes).toHaveLength(5);
     for (const escape of escapes) {
       onMenuOpen.mockClear(); focus.mockClear();
       const event = { defaultPrevented: false, preventDefault: vi.fn() };
@@ -359,6 +423,21 @@ describe("prototype window styles", () => {
     expect(css).not.toMatch(/519\.98px/);
   });
 
+  // An unavailable Export stays focusable (aria-disabled, not disabled), so the shared rules for :disabled never reach
+  // it: it takes the disabled ink and not-allowed cursor itself, and no fill under the pointer or while pressed. The
+  // shared chrome pressed rule counts its :is() by its most specific argument ([aria-haspopup][aria-expanded]), so the
+  // Export's rule must outweigh it, not only follow it.
+  test("an unavailable Export takes the disabled ink, a not-allowed cursor and no hover or pressed fill", () => {
+    expect(css).toMatch(/\.pw-right > \.doan-icon-button\[aria-disabled="true"\] \{ color: var\(--text-disabled\); cursor: not-allowed; \}/);
+    const none = css.match(/^([^{}\n]*\.pw-right > \.doan-icon-button\[aria-disabled="true"\]:is\(:hover, :active\)) \{ background: transparent; \}$/m)?.[1];
+    expect(none).toBeDefined();
+    const controls = readFileSync(new URL("../ds/controls.css", import.meta.url), "utf8");
+    const chrome = [/^\s*(\.doan-icon-button\[data-ui-placement="chrome"\]:hover:not\(:disabled\)) \{ background:/m, /^\s*(\.doan-icon-button\[data-ui-placement="chrome"\]:is\(:active,[^{]*\)) \{ background:/m]
+      .map(rule => controls.match(rule)?.[1]);
+    expect(chrome.every(selector => selector !== undefined)).toBe(true);
+    for (const selector of chrome) expect(compareSpecificity(specificity(none!), specificity(selector!)), selector).toBeGreaterThan(0);
+  });
+
   // Main fits and captures the window by the same width, so the two must change together.
   test("the stylesheet's right group is the width main fits by", () => {
     expect(css).toContain(`:root { --pw-right: ${PROTOTYPE_HEADER_RIGHT}px; }`);
@@ -390,5 +469,71 @@ describe("viewportStyles", () => {
   test("Responsive fills the panel at scale 1", () => {
     const box = prototypeViewportBox({ width: 624, height: 636 }, { width: 390, height: 844 }, "responsive");
     expect(viewportStyles(box)).toEqual({ clip: { left: 0, top: 0, width: 624, height: 636 }, frame: { width: 624, height: 636, transform: "scale(1)" } });
+  });
+});
+
+// Selector specificity as CSS Selectors 4 counts it, for the selectors this file checks: ids, then classes, attributes
+// and pseudo-classes, then types and pseudo-elements. :is(), :not() and :has() count their most specific argument,
+// :where() nothing.
+type Specificity = [number, number, number];
+function compareSpecificity(a: Specificity, b: Specificity): number {
+  return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+}
+function splitTop(list: string): string[] {
+  const parts: string[] = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < list.length; i++) {
+    const char = list[i];
+    if (char === "(" || char === "[") depth++;
+    else if (char === ")" || char === "]") depth--;
+    else if (char === "," && depth === 0) { parts.push(list.slice(start, i)); start = i + 1; }
+  }
+  return [...parts, list.slice(start)];
+}
+function specificity(selector: string): Specificity {
+  const total: Specificity = [0, 0, 0];
+  const ident = /^-?[_a-zA-Z][-_a-zA-Z0-9]*/;
+  let i = 0;
+  const closing = (open: string, close: string) => {
+    let depth = 0, quote: string | null = null;
+    for (let j = i; j < selector.length; j++) {
+      const char = selector[j]!;
+      if (quote !== null) { if (char === quote) quote = null; continue; }
+      if (char === '"' || char === "'") quote = char;
+      else if (char === open) depth++;
+      else if (char === close && --depth === 0) return j;
+    }
+    throw new Error(`unclosed ${open} in ${selector}`);
+  };
+  while (i < selector.length) {
+    const char = selector[i]!;
+    if (char === "#") { total[0]++; i += 1 + (selector.slice(i + 1).match(ident)?.[0].length ?? 0); }
+    else if (char === ".") { total[1]++; i += 1 + (selector.slice(i + 1).match(ident)?.[0].length ?? 0); }
+    else if (char === "[") { total[1]++; i = closing("[", "]") + 1; }
+    else if (selector.startsWith("::", i)) { total[2]++; i += 2 + (selector.slice(i + 2).match(ident)?.[0].length ?? 0); }
+    else if (char === ":") {
+      const name = selector.slice(i + 1).match(ident)?.[0] ?? "";
+      i += 1 + name.length;
+      if (selector[i] !== "(") { total[1]++; continue; }
+      const end = closing("(", ")");
+      const inner = selector.slice(i + 1, end);
+      i = end + 1;
+      if (name === "where") continue;
+      if (name === "is" || name === "not" || name === "has") {
+        const most = splitTop(inner).map(part => specificity(part.trim())).reduce((a, b) => (compareSpecificity(a, b) >= 0 ? a : b));
+        for (const k of [0, 1, 2] as const) total[k] += most[k];
+      } else total[1]++;
+    } else if (/[a-zA-Z]/.test(char)) { total[2]++; i += selector.slice(i).match(ident)?.[0].length ?? 1; }
+    else i++;
+  }
+  return total;
+}
+
+describe("specificity (the test's own helper)", () => {
+  test("counts :is() and :not() by their most specific argument", () => {
+    expect(specificity('.doan-icon-button[data-ui-placement="chrome"]:hover:not(:disabled)')).toEqual([0, 4, 0]);
+    expect(specificity('.doan-icon-button[data-ui-placement="chrome"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled)')).toEqual([0, 5, 0]);
+    expect(specificity('.pw-right > .doan-icon-button[aria-disabled="true"]:is(:hover, :active)')).toEqual([0, 4, 0]);
+    expect(specificity("#a div::before:where(.x)")).toEqual([1, 0, 2]);
   });
 });

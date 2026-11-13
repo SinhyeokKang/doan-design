@@ -17,13 +17,13 @@ export function openCalls(ctx: Pick<CheckContext, "calls">): OpenCall[] {
   });
 }
 
-// For scenarios where nobody asked to open anything: neither a `doan open` command nor a v4 request.
-export function noOpen(ctx: Pick<CheckContext, "calls" | "open">): Check {
-  const calls = openCalls(ctx), received = ctx.open();
+// For scenarios where nobody asked to open anything: neither a `doan open` command nor a v4/v6 request.
+export function noOpen(ctx: Pick<CheckContext, "calls" | "open" | "prototype">): Check {
+  const calls = openCalls(ctx), received = ctx.open(), prototypes = ctx.prototype();
   return {
     id: "no_doan_open",
-    pass: calls.length === 0 && received.length === 0,
-    detail: calls.length === 0 && received.length === 0 ? "no doan open command and no v4 request reached the app" : `doan open commands: ${JSON.stringify(calls)}; v4 requests the app received: ${received.length}`,
+    pass: calls.length === 0 && received.length === 0 && prototypes.length === 0,
+    detail: calls.length === 0 && received.length === 0 && prototypes.length === 0 ? "no doan open command and no v4 or v6 request reached the app" : `doan open commands: ${JSON.stringify(calls)}; v4 requests the app received: ${received.length}; v6 requests: ${prototypes.length}`,
   };
 }
 

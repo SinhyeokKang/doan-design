@@ -28,6 +28,7 @@ export interface Workspace {
   workLog: string;
   openLog: string;
   handoffLog: string;
+  prototypeLog: string;
   // Files the fake app wrote into `repo` with their content; absent until it writes one.
   appWrites: string;
   dispose(): Promise<void>;
@@ -103,7 +104,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue, handoff })
       : null;
     return {
-      base, repo, cwd, env, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), appWrites: join(base, "rt", APP_WRITES),
+      base, repo, cwd, env, seedCommit, gitDir, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), openLog: join(base, "rt/open.jsonl"), handoffLog: join(base, "rt/handoff.jsonl"), prototypeLog: join(base, "rt/prototype.jsonl"), appWrites: join(base, "rt", APP_WRITES),
       async dispose() {
         await app?.close();
         rmSync(base, { recursive: true, force: true });
@@ -117,10 +118,11 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
 
 // dispose deletes rt/, and the log is what onboarding checks were scored on.
 // It holds no token (eval/lib/socket.ts strips it).
-export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "workLog" | "openLog" | "handoffLog">>, dir: string): void {
+export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "workLog" | "openLog" | "handoffLog" | "prototypeLog">>, dir: string): void {
   if (existsSync(ws.onboardingLog)) cpSync(ws.onboardingLog, join(dir, "onboarding.jsonl"));
   if (ws.workLog && existsSync(ws.workLog)) cpSync(ws.workLog, join(dir, "work.jsonl"));
   if (ws.openLog && existsSync(ws.openLog)) cpSync(ws.openLog, join(dir, "open.jsonl"));
+  if (ws.prototypeLog && existsSync(ws.prototypeLog)) cpSync(ws.prototypeLog, join(dir, "prototype.jsonl"));
   if (ws.handoffLog && existsSync(ws.handoffLog)) cpSync(ws.handoffLog, join(dir, "handoff.jsonl"));
 }
 
