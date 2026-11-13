@@ -466,7 +466,7 @@ test("a refused terminal session offers a new conversation, which keeps the draf
   const { store, render } = setup({ mode: RESUME, provider: "codex", fixed: true, refuse, onStartNew, onSend: async () => ({ error: "session_in_use" }) }, [[draftKey(RESUME), draft("Fix the totals")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();
-  expect(refuse).toHaveBeenCalledWith("session_in_use", "codex");
+  expect(refuse).toHaveBeenCalledWith("session_in_use", "codex", null);
   expect(has(render(), "Couldn’t continue the terminal session: it’s open elsewhere.")).toBe(true);
   (find(render(), item => item.children === "Start a new conversation").onClick as () => void)();
   expect(onStartNew).toHaveBeenCalledTimes(1);
@@ -1039,6 +1039,8 @@ test("at the usage limit, Send is Queue with the reset in its description, and a
   expect(queueButton.disabled).toBe(false);
   expect(queueButton.title).toBeUndefined();
   expect(find(render(), props => props.className === "sr-only" && props.children === hint.description).id).toBe(queueButton["aria-describedby"]);
+  // The tooltip names the reset; without the limit it is the plain label.
+  expect(render().some(props => props.children === hint.tip)).toBe(true);
   (queueButton.onClick as () => void)();
   await flush();
   expect(send).toHaveBeenCalledWith({ text: "Also shorten the caption", anchors: [], attachments: [] });
@@ -1062,6 +1064,7 @@ test("scheduled rows show the status line, Sending… once the reset passed, and
   expect(elements(scheduleLine(render()).children as ReactNode).some(item => item.className === "doan-spinner")).toBe(true);
   // After the reset passed the slot stays Queue, its tooltip the plain label.
   expect(button(render(), "Queue")["aria-describedby"]).toBeUndefined();
+  expect(render().some(props => typeof props.children === "string" && props.children.startsWith("Queue — "))).toBe(false);
   props.scheduledFor = null; props.queued = [];
   expect(scheduleLine(render()).children).toBeFalsy();
 });

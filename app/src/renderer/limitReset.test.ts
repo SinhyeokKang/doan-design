@@ -30,10 +30,10 @@ describe("resetTimeText", () => {
   });
 
   test("days are counted in the clock's time zone", () => {
-    // 2026-11-14 01:00 in Seoul is still Nov 13 in New York.
-    const reset = at("2026-11-14T15:00:00");
-    expect(resetTimeText(reset, NOW, SEOUL)).toBe(`tomorrow at 3:00${NNBSP}PM`);
-    expect(resetTimeText(reset, NOW, { timeZone: "America/New_York", hour12: true })).toBe(`at 1:00${NNBSP}AM`);
+    // Now is Nov 12, 20:00 in New York, where a reset at 23:00 in Seoul is 9:00 the next morning.
+    const reset = at("2026-11-13T23:00:00");
+    expect(resetTimeText(reset, NOW, SEOUL)).toBe(`at 11:00${NNBSP}PM`);
+    expect(resetTimeText(reset, NOW, { timeZone: "America/New_York", hour12: true })).toBe(`tomorrow at 9:00${NNBSP}AM`);
   });
 
   test("a daylight saving change in between neither shifts the day nor the time", () => {
