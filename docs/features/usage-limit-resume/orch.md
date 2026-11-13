@@ -72,3 +72,4 @@
 - 통합 `1799adf2`에서 app typecheck·lint(80/80)·test(421 files·11251 passed) 통과.
 - M 수정 라운드 1 완료(통합 `103f67ef`·`8f400dfc`, test 11211 passed). VM에 재검토를 보냈다.
 - R 수정 라운드 1 완료(통합 `31637c8c`..`8235e700`, test 11261 passed). VR에 재검토를 보냈다.
+- S(design-sync)를 R 워커에 새 Task로 보냈다(`ctx_c21575848ec2`). lead에 GUI again을 알렸다.
