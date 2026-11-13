@@ -76,3 +76,4 @@
 - VM 재검토: R1·Y1·Y2·Y3 수정 확인. 새 🔴1(예약 전송 준비 중 Stop 뒤에도 전송) ⚪1. M에 수정 라운드 2를 보냈다. 보고서 `.scratch/orch/review-VM-2.md`.
 - VR 재검토: 기존 1~5 종결, 새 발견 0. 보고서 `.scratch/orch/review-VR-2.md`.
 - M 수정 라운드 2 완료(통합 `70b5d147`·`6b999f31`, test 11277 passed). 사람의 일반 Send에도 같은 틈이 있었고 함께 고쳤다(postmortem 후보). VM에 재검토 3을 보냈다.
+- VM 재검토 3: 🔴0 🟡0 ⚪1(실제 호출자가 없는 동기 재진입 probe, 수정 불필요). main 리뷰 종결. VM 워커를 해제하고 `ulr-review-main` worktree를 지웠다(브랜치는 남김, 증거는 `.scratch/orch/vm-evidence/`).
