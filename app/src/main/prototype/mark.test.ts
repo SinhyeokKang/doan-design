@@ -1,5 +1,20 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
 import { MAX_PROTOTYPE_MARK, PROTOTYPE_MARK_ATTRIBUTE, parsePrototypeMark } from "./mark";
+
+interface ValueCase { name: string; value: string; valid: boolean; width?: number; height?: number }
+// Shared with Go's canvas parser and `doan check`, so both sides judge every value the same way.
+const fixture = JSON.parse(readFileSync(new URL("../../../../schema/fixtures/prototype-mark/cases.json", import.meta.url), "utf8")) as { values: ValueCase[] };
+
+describe("shared prototype-mark fixture", () => {
+  test("has value cases", () => {
+    expect(fixture.values.length).toBeGreaterThan(0);
+  });
+
+  test.each(fixture.values.map(c => [c.name, c] as const))("%s", (_name, c) => {
+    expect(parsePrototypeMark(c.value)).toEqual(c.valid ? { width: c.width, height: c.height } : null);
+  });
+});
 
 describe("parsePrototypeMark", () => {
   test("reads width and height in CSS px", () => {
