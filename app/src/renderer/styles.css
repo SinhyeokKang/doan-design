@@ -1836,23 +1836,42 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .problem-detail { width: 100%; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; text-align: start; }
 .problem-reading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 
-/* The prototype window (.doan/canvases/frame-prototype.html prototype-window, prototype-states): the main window's
-   shell without a sidebar. The header reuses .top.shell-top, .traffic-space and .shell-history, so Back sits at x88
-   as in the main header; the frame name reuses .shell-search. */
+/* The prototype window (.doan/canvases/frame-prototype.html prototype-window, prototype-states; the header and the
+   frame box from prototype-responsive.html): the main window's shell without a sidebar. The header reuses .top.shell-top,
+   .traffic-space and .shell-history, so Back sits at x88 as in the main header; the frame name reuses .shell-search.
+   --pw-right is the header's right group, fit.ts PROTOTYPE_HEADER_RIGHT: main fits and captures the window by it. */
+:root { --pw-right: 68px; }
 .pw { position: absolute; inset: 0; display: grid; grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); }
+/* The name's second row, when the first leaves it less than 80 (the renderer sets it from the window's width, as main
+   does): 36 for the capsule and 8 under it. Both groups stay in the first row. */
+.pw.name-row { grid-template-rows: calc(var(--size-chrome) + 36px + var(--space-2)) minmax(0, 1fr); }
+.pw-top { align-items: flex-start; }
+.pw-top > .shell-history { height: var(--size-chrome); align-items: center; }
 /* Against the header, which starts 8px inside the window: its 8px padding, the traffic lights, three 32px buttons and
-   their gaps, then 8px. The same space stays free on the right so the name is centred in the window. */
-.pw-name { position: absolute; top: calc((var(--size-chrome) - 36px) / 2); left: calc(var(--space-2) + 72px + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-2)); right: calc(var(--space-2) + 72px + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-2)); width: auto; justify-content: center; }
+   their gaps, then 8px; on the right, 8px before the right group, which sits 16px in from the window's edge. The name is
+   centred between the groups. */
+.pw-name { position: absolute; top: calc((var(--size-chrome) - 36px) / 2); left: calc(var(--space-2) + 72px + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-2)); right: calc(2 * var(--space-2) + var(--pw-right)); width: auto; justify-content: center; }
+.pw.name-row .pw-name { top: var(--size-chrome); left: var(--space-2); right: var(--space-2); }
 .pw-name[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
 .pw-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pw-name .chev { flex: none; color: var(--text-metadata); }
-/* Narrower than two reserves and a usable name: the right reserve gives way to the 16px header inset. */
-@media (max-width: 519.98px) { .pw-name { right: var(--space-2); } }
-.pw-panel { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
-.pw-content { position: absolute; inset: 0; }
-.pw-frame, .pw-snapshot { position: absolute; top: 0; left: 0; display: block; width: 100%; height: 100%; border: 0; }
+.pw-right { position: absolute; top: 0; right: var(--space-2); display: flex; align-items: center; gap: var(--space-1); height: var(--size-chrome); }
+/* The panel paints its rounded corners without clipping; the content clips its top corners and the stage inside it its
+   bottom ones. No ancestor of the cross-origin run iframe may clip with four equal radii: Chromium then draws it only
+   within 8192 CSS px of its origin at DPR 2 (ARCHITECTURE §3 'Canvas view', POSTMORTEM 2026-11-11), and a Fit frame
+   keeps its marked size, however large. Clips, not hidden overflows: those scroll to show a focused control in a scaled
+   frame and move it off its box. */
+.pw-panel { position: relative; min-width: 0; min-height: 0; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+.pw-content { position: absolute; inset: 0; overflow: clip; border-top-left-radius: inherit; border-top-right-radius: inherit; }
+.pw-stage { position: absolute; inset: 0; overflow: clip; border-bottom-left-radius: var(--radius-container); border-bottom-right-radius: var(--radius-container); }
+/* Fit: around the frame the panel shows the canvas board's ground, and the frame box keeps the panel's fill and edge. */
+.pw-content[data-mode="fit"] > .pw-stage { background: var(--surface-inset); }
+.pw-box { position: absolute; overflow: clip; background: var(--surface-panel); }
+.pw-content[data-mode="fit"] .pw-box { box-shadow: var(--shadow-panel); }
+.pw-frame { position: absolute; top: 0; left: 0; display: block; border: 0; transform-origin: 0 0; }
+.pw-snapshot { display: block; width: 100%; height: 100%; }
 /* The problem overlay over the content panel only, so the header stays usable. */
-.pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+.pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; border-radius: inherit; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
 @media (prefers-reduced-transparency: reduce) { .pw-panel > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 /* Standard ink, so the body holds over a dark frame under the 60% overlay. */
 .pw-panel .problem-heading p { color: var(--text-standard); }

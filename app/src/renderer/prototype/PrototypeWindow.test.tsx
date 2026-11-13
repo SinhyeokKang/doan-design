@@ -35,13 +35,16 @@ const { PrototypeWindow } = await import("./PrototypeWindow");
 type Shell = import("./PrototypeWindow").ShellProps;
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
+const BOX = { x: 0, y: 0, width: 390, height: 844 };
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 1, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", run: { url: A, markWidth: 390 }, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, ...over,
+  gen: 1, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, ...over,
 });
 
 let changed: (view: PrototypeView | null) => void;
-let snapshot: (value: { gen: number; png: Uint8Array }) => void;
+let snapshot: (value: { gen: number; png: Uint8Array; box: typeof BOX }) => void;
 let messages: ((event: unknown) => void)[];
+let resizes: (() => void)[];
+let win: { innerWidth: number };
 let api: Record<string, ReturnType<typeof vi.fn>>;
 let doc: { title: string; activeElement: unknown; body: object };
 let shell: Shell;
@@ -62,18 +65,20 @@ const show = (next: PrototypeView | null) => { changed(next); return render(); }
 beforeEach(() => {
   vi.useFakeTimers();
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
-  messages = [];
+  messages = []; resizes = [];
   api = {
     read: vi.fn(async () => null),
     onChanged: vi.fn((listener: typeof changed) => { changed = listener; return () => {}; }),
     onSnapshot: vi.fn((listener: typeof snapshot) => { snapshot = listener; return () => {}; }),
     reportResult: vi.fn(async () => {}), reportFrames: vi.fn(async () => {}), reload: vi.fn(async () => {}),
-    back: vi.fn(async () => {}), forward: vi.fn(async () => {}), choose: vi.fn(async () => {}), close: vi.fn(async () => {}),
+    back: vi.fn(async () => {}), forward: vi.fn(async () => {}), choose: vi.fn(async () => {}), close: vi.fn(async () => {}), setMode: vi.fn(async () => {}),
   };
   doc = { title: "", activeElement: null, body: {} };
   vi.stubGlobal("document", doc);
-  vi.stubGlobal("window", { addEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "message") messages.push(listener); },
-    removeEventListener: (type: string, listener: (event: unknown) => void) => { messages = messages.filter(item => item !== listener); } });
+  win = { innerWidth: 640,
+    addEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "message") messages.push(listener); if (type === "resize") resizes.push(listener as () => void); },
+    removeEventListener: (type: string, listener: (event: unknown) => void) => { messages = messages.filter(item => item !== listener); resizes = resizes.filter(item => item !== listener); } } as never;
+  vi.stubGlobal("window", win);
   let blobs = 0;
   vi.stubGlobal("URL", Object.assign(class extends URL {}, { createObjectURL: vi.fn(() => `blob:${++blobs}`), revokeObjectURL: vi.fn() }));
   render();
@@ -82,7 +87,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("the run's iframe", () => {
   test("a loading view mounts a new iframe per gen and names the window after the frame", () => {
-    expect(show(view()).layers).toEqual({ frames: [{ gen: 1, url: A }], visible: null, snapshot: null });
+    expect(show(view()).layers).toEqual({ frames: [{ gen: 1, url: A, markWidth: 390, markHeight: 844 }], visible: null, snapshot: null });
     expect(doc.title).toBe("Checkout — Prototype");
     expect(show(view({ phase: "ready" })).layers.visible).toBe(1);
     expect(show(view({ gen: 2 })).layers.frames.map(frame => frame.gen)).toEqual([1, 2]);
@@ -162,11 +167,11 @@ describe("the still image", () => {
     show(view());
     show(view({ phase: "ready" }));
     // Main captures the ready run as it leaves for the reload, before the loading view.
-    snapshot({ gen: 2, png: new Uint8Array([1]) });
-    expect(show(view({ gen: 2 })).layers).toEqual({ frames: [{ gen: 1, url: A }, { gen: 2, url: A }], visible: 1, snapshot: { gen: 2, url: "blob:1" } });
-    expect(show(view({ gen: 2, phase: "init-failed" })).layers).toEqual({ frames: [], visible: null, snapshot: { gen: 2, url: "blob:1" } });
+    snapshot({ gen: 2, png: new Uint8Array([1]), box: BOX });
+    expect(show(view({ gen: 2 })).layers).toEqual({ frames: [{ gen: 1, url: A, markWidth: 390, markHeight: 844 }, { gen: 2, url: A, markWidth: 390, markHeight: 844 }], visible: 1, snapshot: { gen: 2, url: "blob:1", box: BOX } });
+    expect(show(view({ gen: 2, phase: "init-failed" })).layers).toEqual({ frames: [], visible: null, snapshot: { gen: 2, url: "blob:1", box: BOX } });
     // A late image for an older gen is freed at once.
-    snapshot({ gen: 1, png: new Uint8Array([1]) });
+    snapshot({ gen: 1, png: new Uint8Array([1]), box: BOX });
     render();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:2");
     show(view({ gen: 3 }));
@@ -224,5 +229,138 @@ describe("header and scene actions", () => {
     expect(render().details).toBe(true);
     show(view({ gen: 2, phase: "read-failed", detail: "EACCES" }));
     expect(shell.details).toBe(false);
+  });
+});
+
+describe("the header's width and mode", () => {
+  test("the shell gets the window's content width, before any view and after a resize", () => {
+    expect(shell.width).toBe(640);
+    win.innerWidth = 371;
+    for (const listener of resizes) listener();
+    expect(render().width).toBe(371);
+  });
+
+  test("Fit and Responsive go to main; the view's mode comes back from it", () => {
+    show(view({ phase: "ready" }));
+    shell.onMode("responsive");
+    expect(api.setMode).toHaveBeenCalledExactlyOnceWith("responsive");
+  });
+
+  test("the frame menu's open state is held here and handed to the shell", () => {
+    show(view({ phase: "ready" }));
+    expect(shell.menuOpen).toBe(false);
+    shell.onMenuOpen(true);
+    expect(render().menuOpen).toBe(true);
+    shell.onMenuOpen(false);
+    expect(render().menuOpen).toBe(false);
+  });
+});
+
+// A pointer Reload leaves focus where it was; the new run's iframe takes it when it was in the frame or on the page
+// before the press and is still on the page when the new run is ready.
+describe("focus after a pointer Reload", () => {
+  const iframe = () => ({ focus: vi.fn(), contentWindow: {} });
+  function reloadFrom(active: (old: ReturnType<typeof iframe>) => unknown) {
+    const s = show(view({ phase: "ready" }));
+    const old = iframe(), next = iframe();
+    s.frames!.set(1, old as never);
+    doc.activeElement = active(old);
+    shell.onReloadPress();
+    shell.onReloadClick(true);
+    expect(api.reload).toHaveBeenCalledWith(1);
+    show(view({ gen: 2 }));
+    s.frames!.set(2, next as never);
+    return { s, old, next };
+  }
+
+  test("focus in the frame moves to the new iframe once it is ready, if it fell to the page meanwhile", () => {
+    const { next } = reloadFrom(old => old);
+    doc.activeElement = doc.body;
+    show(view({ gen: 2, phase: "ready" }));
+    expect(next.focus).toHaveBeenCalledOnce();
+    // Only once: a later run is not pulled along.
+    show(view({ gen: 3 }));
+    shell.frames!.set(3, iframe() as never);
+    show(view({ gen: 3, phase: "ready" }));
+    expect(next.focus).toHaveBeenCalledOnce();
+  });
+
+  test("focus on the page before the press also moves to the new iframe", () => {
+    const { next } = reloadFrom(() => doc.body);
+    doc.activeElement = doc.body;
+    show(view({ gen: 2, phase: "ready" }));
+    expect(next.focus).toHaveBeenCalledOnce();
+  });
+
+  test("focus that moved elsewhere before the run was ready stays there", () => {
+    const { next } = reloadFrom(old => old);
+    doc.activeElement = { name: "composer" };
+    show(view({ gen: 2, phase: "ready" }));
+    expect(next.focus).not.toHaveBeenCalled();
+  });
+
+  test("focus elsewhere at the press stays there", () => {
+    const { next } = reloadFrom(() => ({ name: "Back" }));
+    doc.activeElement = doc.body;
+    show(view({ gen: 2, phase: "ready" }));
+    expect(next.focus).not.toHaveBeenCalled();
+  });
+
+  test("a keyboard Reload leaves focus on Reload", () => {
+    const s = show(view({ phase: "ready" }));
+    const next = iframe();
+    doc.activeElement = doc.body;
+    shell.onReloadClick(false);
+    expect(api.reload).toHaveBeenCalledWith(1);
+    show(view({ gen: 2 }));
+    s.frames!.set(2, next as never);
+    show(view({ gen: 2, phase: "ready" }));
+    expect(next.focus).not.toHaveBeenCalled();
+  });
+
+  // A press released off the button sends no click, so no Reload happened: nothing it remembered may move focus later.
+  test("a cancelled press does not move focus when another Play's run is ready", () => {
+    const s = show(view({ phase: "ready" }));
+    const old = iframe(), next = iframe();
+    s.frames!.set(1, old as never);
+    doc.activeElement = old;
+    shell.onReloadPress();
+    expect(api.reload).not.toHaveBeenCalled();
+    show(view({ gen: 2, frame: "account" }));
+    s.frames!.set(2, next as never);
+    doc.activeElement = doc.body;
+    show(view({ gen: 2, frame: "account", phase: "ready" }));
+    expect(next.focus).not.toHaveBeenCalled();
+  });
+
+  test("a keyboard Reload after a cancelled press leaves focus where it is", () => {
+    const s = show(view({ phase: "ready" }));
+    const old = iframe(), next = iframe();
+    s.frames!.set(1, old as never);
+    doc.activeElement = old;
+    shell.onReloadPress();
+    doc.activeElement = { name: "Reload prototype" };
+    shell.onReloadClick(false);
+    show(view({ gen: 2 }));
+    s.frames!.set(2, next as never);
+    doc.activeElement = doc.body;
+    show(view({ gen: 2, phase: "ready" }));
+    expect(next.focus).not.toHaveBeenCalled();
+  });
+
+  test("a new run that fails takes focus to the scene's title instead, and a later ready does not take it", () => {
+    const { s, next } = reloadFrom(old => old);
+    const heading = { focus: vi.fn() };
+    s.heading!.current = heading as never;
+    s.content!.current = { contains: () => false } as never;
+    doc.activeElement = doc.body;
+    show(view({ gen: 2, phase: "init-failed" }));
+    expect(heading.focus).toHaveBeenCalledOnce();
+    show(view({ gen: 3 }));
+    const third = iframe();
+    shell.frames!.set(3, third as never);
+    show(view({ gen: 3, phase: "ready" }));
+    expect(next.focus).not.toHaveBeenCalled();
+    expect(third.focus).not.toHaveBeenCalled();
   });
 });

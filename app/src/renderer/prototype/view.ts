@@ -1,4 +1,4 @@
-import type { PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
+import type { PrototypeMode, PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
 
 // What the prototype window draws from main's view: the window title, the state scene over the content panel, the
 // live region's line and the frame drawer's rows. Pure, so every state's copy and rule is tested without a window.
@@ -54,6 +54,13 @@ export function liveText(view: Pick<PrototypeView, "phase" | "detail" | "frames"
 
 export function covered(phase: PrototypePhase): boolean {
   return phase !== "ready";
+}
+
+// The viewport toggle's tooltips. Fit names the frame's size and that it fits to the window, so it does not read as
+// resizing the window to that size; a mark not known yet leaves the size out.
+export function modeTooltip(mode: PrototypeMode, run: { markWidth: number; markHeight: number } | null | undefined): string {
+  if (mode === "responsive") return "Responsive";
+  return run != null && run.markWidth > 0 && run.markHeight > 0 ? `Fit ${run.markWidth} × ${run.markHeight} to the window` : "Fit to the window";
 }
 
 export interface DrawerRow {

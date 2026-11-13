@@ -3,9 +3,10 @@
 // Electron-free; prototypeWindow.ts is the host.
 import type { FolderEntry } from "../view";
 import type { WindowKind } from "../senderAllowed";
-import { PROTOTYPE_CHANNELS, type PrototypeSnapshot, type PrototypeView } from "./ipc";
+import type { Rect } from "./fit";
+import { PROTOTYPE_CHANNELS, type PrototypeMode, type PrototypeSnapshot, type PrototypeView } from "./ipc";
 import type { PrototypeSize } from "./mark";
-import { parseChooseRequest, parseFramesReport, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
+import { parseChooseRequest, parseFramesReport, parseModeRequest, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
 import { resolveTarget } from "./targets";
 import * as transitions from "./windowState";
 import { CLOSED, type PrototypeState, type Resolve, type Step } from "./windowState";
@@ -21,9 +22,14 @@ export interface PrototypeHost {
   // Read the root's canvas list again; the refresh comes back through listChanged.
   reread(root: string): void;
   sendView(view: PrototypeView): void;
-  // The window's iframe area as PNG bytes, or null when it cannot be read.
-  capture(markWidth: number): Promise<Uint8Array | null>;
+  // The run's visible area as PNG bytes with where it sat in the content panel, or null when it cannot be read.
+  capture(mark: PrototypeSize, mode: PrototypeMode): Promise<Still | null>;
   sendSnapshot(snapshot: PrototypeSnapshot): void;
+}
+
+export interface Still {
+  png: Uint8Array;
+  box: Rect;
 }
 
 export interface PrototypeController {
@@ -43,7 +49,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
   // Snapshot captures are async; views queue behind them so the image always arrives before its view.
   let queue: Promise<void> | null = null;
   // The last still taken in this window, re-sent when a kill stops the screen it stood for.
-  let latest: Uint8Array | null = null;
+  let latest: Still | null = null;
   // The gen of a kill's view: the latest still goes out again just before that view, whenever the view is sent, so a
   // still that finishes after the kill is still the one re-sent.
   let resendFor: number | null = null;
@@ -57,7 +63,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     sent = text;
     if (resendFor === view.gen) {
       resendFor = null;
-      if (latest !== null) host.sendSnapshot({ gen: view.gen, png: latest });
+      if (latest !== null) host.sendSnapshot({ gen: view.gen, ...latest });
     }
     host.sendView(view);
   };
@@ -72,25 +78,26 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
   // frame) takes a still of its screen. A reload keeps the old iframe showing until the new run is ready; if that run
   // then fails, the renderer stops the old one behind this still, and a capture taken then would hold the loading
   // overlay. Started before the step's effects, so a refit for another target cannot reach the image.
-  const leavingReady = (previous: PrototypeState): Promise<Uint8Array | null> | null => {
+  const leavingReady = (previous: PrototypeState): Promise<Still | null> | null => {
     if (!previous.open || previous.phase !== "ready" || previous.run === null || !state.open) return null;
     if (state.gen === previous.gen && state.phase === "ready") return null;
-    return host.capture(previous.run.markWidth).catch(() => null);
+    return host.capture({ width: previous.run.markWidth, height: previous.run.markHeight }, previous.mode).catch(() => null);
   };
 
   // The still goes out before the view of the state that followed, tagged with that view's gen. A kill also stops the
   // earlier iframes still on screen (one renderer process), so the latest still goes out again under the new gen.
-  const publish = (still: Promise<Uint8Array | null> | null, killed: boolean) => {
+  const publish = (still: Promise<Still | null> | null, killed: boolean) => {
     if (killed && still === null && state.open) resendFor = state.gen;
     if (still !== null) {
       const gen = state.gen;
       later(async () => {
-        const png = await still;
+        const taken = await still;
         if (!state.open) return;
-        // Kept even when a later step moved the gen on: a kill right after leaving ready re-sends this still. A still
-        // that could not be read clears the last one, so another frame's screen is never re-sent in its place.
-        latest = png;
-        if (png !== null && state.gen === gen) host.sendSnapshot({ gen, png });
+        // Kept even when a later step moved the gen on: a kill right after leaving ready re-sends this still, with the
+        // box it was taken at. A still that could not be read clears the last one, so another frame's screen is never
+        // re-sent in its place.
+        latest = taken;
+        if (taken !== null && state.gen === gen) host.sendSnapshot({ gen, ...taken });
       });
     }
     if (queue === null) sendView();
@@ -139,6 +146,11 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
         case PROTOTYPE_CHANNELS.reload: {
           const gen = parseReloadRequest(kind, value);
           if (gen !== null) apply(transitions.reload(state, gen));
+          return undefined;
+        }
+        case PROTOTYPE_CHANNELS.mode: {
+          const mode = parseModeRequest(kind, value);
+          if (mode !== null) apply(transitions.setMode(state, mode));
           return undefined;
         }
         case PROTOTYPE_CHANNELS.choose: {

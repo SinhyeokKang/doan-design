@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { CanvasRow, FolderEntry } from "../view";
-import { MAX_REPORT_FRAMES, MAX_REPORT_STRING, parseChooseRequest, parseFramesReport, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
+import { MAX_REPORT_FRAMES, MAX_REPORT_STRING, parseChooseRequest, parseFramesReport, parseModeRequest, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
 
 const base = "http://127.0.0.1:5123/t/tok/";
 function row(path: string, patch: Partial<CanvasRow> = {}): CanvasRow {
@@ -72,6 +72,15 @@ describe("prototype window requests", () => {
     expect(parseReloadRequest("prototype", { gen: 3 })).toBe(3);
     for (const value of [{ gen: 0 }, { gen: -1 }, { gen: 1.5 }, { gen: "3" }, { gen: Number.MAX_SAFE_INTEGER + 1 }, {}, null]) expect(parseReloadRequest("prototype", value)).toBeNull();
     expect(parseReloadRequest("main", { gen: 3 })).toBeNull();
+  });
+
+  test("the viewport toggle names Fit or Responsive and nothing else", () => {
+    expect(parseModeRequest("prototype", { mode: "fit" })).toBe("fit");
+    expect(parseModeRequest("prototype", { mode: "responsive" })).toBe("responsive");
+    for (const value of [{ mode: "Fit" }, { mode: "zoom" }, { mode: "" }, { mode: 1 }, { mode: null }, { mode: "fit", gen: 1 }, {}, { modes: "fit" }, null, undefined, "fit", ["fit"]]) {
+      expect(parseModeRequest("prototype", value), JSON.stringify(value)).toBeNull();
+    }
+    for (const kind of ["main", "settings", undefined, null, ""]) expect(parseModeRequest(kind, { mode: "fit" })).toBeNull();
   });
 
   test("Back, Forward, Close and the state read come only from the prototype window", () => {

@@ -9,7 +9,7 @@ import { app, BrowserWindow, screen, session, webFrameMain, type BaseWindow, typ
 import { fileURLToPath } from "node:url";
 import { childOfTopFrame, fromAppFrame } from "./canvasFrame";
 import { createPrototypeController, type PrototypeController, type PrototypeHost } from "./prototype/controller";
-import { fitPrototypeWindow, prototypeIframeBox, PROTOTYPE_CHROME, PROTOTYPE_WINDOW_MIN_WIDTH } from "./prototype/fit";
+import { fitPrototypeWindow, prototypeCaptureRect, PROTOTYPE_WINDOW_MIN_WIDTH } from "./prototype/fit";
 import { PROTOTYPE_CHANNELS } from "./prototype/ipc";
 import { prototypeFrameNavigationAllowed } from "./prototypeFrame";
 import { prototypeScriptSource } from "./prototypeScript";
@@ -225,15 +225,15 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     sendView(view) {
       live()?.webContents.send(PROTOTYPE_CHANNELS.changed, view);
     },
-    async capture(markWidth) {
+    async capture(mark, mode) {
       const target = live();
       if (target === undefined) return null;
       const [width = 0, height = 0] = target.getContentSize();
-      const box = prototypeIframeBox(width - 2 * PROTOTYPE_CHROME.side, markWidth);
-      const rect = { x: PROTOTYPE_CHROME.side + box.x, y: PROTOTYPE_CHROME.header, width: box.width, height: height - PROTOTYPE_CHROME.header - PROTOTYPE_CHROME.bottom };
-      if (rect.width <= 0 || rect.height <= 0) return null;
-      const image = await target.webContents.capturePage(rect);
-      return image.isEmpty() ? null : new Uint8Array(image.toPNG());
+      // The renderer places the iframe by the same function, so the rectangle is the frame as it is on screen.
+      const area = prototypeCaptureRect({ width, height }, mark, mode);
+      if (area === null) return null;
+      const image = await target.webContents.capturePage(area.rect);
+      return image.isEmpty() ? null : { png: new Uint8Array(image.toPNG()), box: area.box };
     },
     sendSnapshot(snapshot) {
       live()?.webContents.send(PROTOTYPE_CHANNELS.snapshot, snapshot);

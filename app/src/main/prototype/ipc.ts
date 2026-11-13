@@ -1,3 +1,4 @@
+import type { Rect } from "./fit";
 import type { PrototypeSize } from "./mark";
 
 // The prototype window's IPC contract. `play` is the main window's request; `changed` and `snapshot` are events main
@@ -14,6 +15,7 @@ export const PROTOTYPE_CHANNELS = {
   forward: "prototype:forward",
   choose: "prototype:choose",
   close: "prototype:close",
+  mode: "prototype:mode",
   // To the main window when the prototype window closes for any reason, so focus can go back to a live Play control.
   closed: "prototype:closed",
   // To the prototype window, before the view that turns a ready run failed or unavailable (PrototypeSnapshot).
@@ -23,6 +25,7 @@ export const PROTOTYPE_CHANNELS = {
 export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
   PROTOTYPE_CHANNELS.read, PROTOTYPE_CHANNELS.result, PROTOTYPE_CHANNELS.frames, PROTOTYPE_CHANNELS.reload,
   PROTOTYPE_CHANNELS.back, PROTOTYPE_CHANNELS.forward, PROTOTYPE_CHANNELS.choose, PROTOTYPE_CHANNELS.close,
+  PROTOTYPE_CHANNELS.mode,
 ];
 
 // From the moment the host sets the iframe's src to the run's result. The slowest measured canvas answered in under
@@ -73,6 +76,9 @@ export interface FramesMessage {
   frames: PrototypeFrame[];
 }
 
+// Fit keeps the frame's viewport at its mark and scales it down to the panel; Responsive makes the panel the viewport.
+export type PrototypeMode = "fit" | "responsive";
+
 export type PrototypePhase = "loading" | "ready" | "read-failed" | "init-failed" | "frame-unavailable" | "prototype-unavailable";
 
 // `prototype:changed` and the reply to `prototype:read`. A new `gen` with a new `run` means a new iframe. `run` stays
@@ -87,7 +93,10 @@ export interface PrototypeView {
   canvas: string;
   phase: PrototypePhase;
   detail?: string;
-  run: { url: string; markWidth: number } | null;
+  // The mark is the run's size (its ready size once it answered), 0 x 0 while not known; each iframe keeps its own.
+  run: { url: string; markWidth: number; markHeight: number } | null;
+  // Main keeps it across runs and close, for as long as the app runs.
+  mode: PrototypeMode;
   // A loading run was killed since the last ready one. The window's canvases share one renderer process, so every
   // earlier iframe still on screen died with it: drop iframes older than `gen` and show the latest still image
   // (re-sent under this `gen` before this view). False again once a run is ready.
@@ -98,10 +107,12 @@ export interface PrototypeView {
 }
 
 // `prototype:snapshot`: the iframe area of the window as PNG bytes, captured when a ready run turns failed or
-// unavailable and sent before that view. `gen` is the view's gen it belongs under.
+// unavailable and sent before that view. `gen` is the view's gen it belongs under. `box` is where the image was taken
+// in the content panel; the window shows it there, even after a mode switch or a refit moved the frame.
 export interface PrototypeSnapshot {
   gen: number;
   png: Uint8Array;
+  box: Rect;
 }
 
 // The prototype window's preload API (`window.doanPrototype`). The preload implements it with
@@ -116,4 +127,5 @@ export interface PrototypeWindowApi {
   forward(): Promise<void>;
   choose(frame: string): Promise<void>;
   close(): Promise<void>;
+  setMode(mode: PrototypeMode): Promise<void>;
 }

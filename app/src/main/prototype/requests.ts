@@ -1,6 +1,6 @@
 import type { FolderEntry } from "../view";
 import type { WindowKind } from "../senderAllowed";
-import type { FramesMessage, LostState, PrototypeFrame, RunReport } from "./ipc";
+import type { FramesMessage, LostState, PrototypeFrame, PrototypeMode, RunReport } from "./ipc";
 import { parsePrototypeMark, type PrototypeSize } from "./mark";
 import { canvasKeyFor, type PrototypeTarget } from "./targets";
 
@@ -77,6 +77,12 @@ export function parseReloadRequest(kind: unknown, value: unknown): number | null
   if (!windowRequest(kind)) return null;
   const request = record(value, ["gen"]);
   return request !== null && gen(request.gen) ? request.gen : null;
+}
+
+export function parseModeRequest(kind: unknown, value: unknown): PrototypeMode | null {
+  if (!windowRequest(kind)) return null;
+  const request = record(value, ["mode"]);
+  return request !== null && (request.mode === "fit" || request.mode === "responsive") ? request.mode : null;
 }
 
 export function parseRunReport(kind: unknown, value: unknown): RunReport | null {
