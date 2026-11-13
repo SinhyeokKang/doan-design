@@ -81,12 +81,13 @@ describe("resolveTarget", () => {
     expect(resolveTarget(target, [list("/r", [row(proto.path), loose])], proto.path)).toEqual({ kind: "absent" });
     // Two rows that share the ID stay a conflict, whatever the last path.
     const twin = row(".doan/canvases/twin.html", { id: "proto" });
-    expect(resolveTarget(target, [list("/r", [proto, twin])], proto.path)).toEqual({ kind: "absent" });
+    expect(resolveTarget(target, [list("/r", [proto, twin])], proto.path)).toEqual({ kind: "absent", duplicate: true });
   });
 
+  // A shared ID says so, for the conversation panel's blocked composer (gone and shared read differently).
   test("never guesses: gone, conflicting ids, other worktrees and failed lists are absent", () => {
     expect(resolveTarget(target, [list("/r", [loose])])).toEqual({ kind: "absent" });
-    expect(resolveTarget(target, [list("/r", [proto, row(".doan/canvases/twin.html", { id: "proto" })])])).toEqual({ kind: "absent" });
+    expect(resolveTarget(target, [list("/r", [proto, row(".doan/canvases/twin.html", { id: "proto" })])])).toEqual({ kind: "absent", duplicate: true });
     expect(resolveTarget(target, [list("/r-wt", [proto])])).toEqual({ kind: "absent" });
     expect(resolveTarget(target, [])).toEqual({ kind: "absent" });
     for (const entry of [

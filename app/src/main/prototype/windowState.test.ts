@@ -635,3 +635,26 @@ describe("the conversation panel", () => {
     expect(setPanel(CLOSED, { open: true, width: 280 })).toEqual({ state: CLOSED, effects: [] });
   });
 });
+
+// The conversation panel blocks its composer while the canvas row is gone or shared, and says which (spec 'composer
+// blocked'); a lost frame or a failed load keeps it usable.
+describe("the target canvas row in the view", () => {
+  test("present, being read, gone or shared by two rows", () => {
+    const w = world();
+    const state = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
+    expect(prototypeView(state, w.resolve)?.canvasRow).toBe("present");
+    w.set(A, { kind: "unknown" });
+    expect(prototypeView(state, w.resolve)?.canvasRow).toBe("loading");
+    w.set(A, { kind: "absent" });
+    expect(prototypeView(state, w.resolve)?.canvasRow).toBe("gone");
+    w.set(A, { kind: "absent", duplicate: true });
+    expect(prototypeView(state, w.resolve)?.canvasRow).toBe("duplicate");
+  });
+
+  test("a frame the run lost leaves the row present", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    const lost = report(loading, { gen: loading.gen, state: "missing", frames: [] }).state;
+    expect(prototypeView(lost, w.resolve)).toMatchObject({ phase: "frame-unavailable", canvasRow: "present" });
+  });
+});

@@ -1,6 +1,13 @@
+import type { ComposerChoice } from "../../renderer/rememberChoice";
+import { validAuthId } from "../agentAuth/metadata";
+import { validProvider } from "../agentAuth/types";
+import { permissionModeId } from "../conversation/permissionMode";
+import { validAnchor } from "../conversation/prompt";
+import { parseReplyAnchor, type ReplyAnchor } from "../conversation/replyAnchor";
 import type { FolderEntry } from "../view";
 import type { WindowKind } from "../senderAllowed";
-import type { ExportTarget, FramesMessage, LostState, PrototypeFrame, PrototypeMode, RunReport } from "./ipc";
+import { PROTOTYPE_PANEL_MIN_WIDTH } from "./fit";
+import type { ExportTarget, FramesMessage, LostState, PanelRequest, PrototypeFrame, PrototypeMode, RevealPayload, RunReport } from "./ipc";
 import { parsePrototypeMark, type PrototypeSize } from "./mark";
 import { canvasKeyFor, type PrototypeTarget } from "./targets";
 
@@ -148,4 +155,97 @@ export function parseExportRequest(kind: unknown, value: unknown): ExportTarget 
 // `current` is null when nothing plays that main can name by a listed row (the canvas went, or its ID is now shared).
 export function exportTargetMatches(clicked: ExportTarget, current: ExportTarget | null): boolean {
   return current !== null && clicked.root === current.root && clicked.path === current.path && clicked.frame === current.frame;
+}
+
+// The widest panel any screen gives; the window's own range is the renderer's and main's fit's to apply.
+export const MAX_PANEL_WIDTH = 4096;
+
+export function parsePanelRequest(kind: unknown, value: unknown): PanelRequest | null {
+  if (!windowRequest(kind) || typeof value !== "object" || value === null) return null;
+  const request = record(value, "width" in value ? ["open", "width"] : ["open"]);
+  if (request === null || typeof request.open !== "boolean") return null;
+  if (request.width === undefined) return { open: request.open };
+  if (typeof request.width !== "number" || !Number.isFinite(request.width)) return null;
+  const width = Math.round(request.width);
+  return width >= PROTOTYPE_PANEL_MIN_WIDTH && width <= MAX_PANEL_WIDTH ? { open: request.open, width } : null;
+}
+
+export function parseShowingRequest(kind: unknown, value: unknown): { conversationId: string | null } | null {
+  if (!windowRequest(kind)) return null;
+  const request = record(value, ["conversationId"]);
+  if (request === null || (request.conversationId !== null && !validAuthId(request.conversationId))) return null;
+  return { conversationId: request.conversationId };
+}
+
+// The canvas a handoff names, as the conversation records it; main then finds it among the root's listed rows.
+const MAX_CANVAS_PATH = 4096;
+function canvasRef(value: unknown): { path: string; id?: string } | null {
+  if (typeof value !== "object" || value === null) return null;
+  const canvas = record(value, "id" in value ? ["path", "id"] : ["path"]);
+  if (canvas === null || typeof canvas.path !== "string" || canvas.path === "" || canvas.path.length > MAX_CANVAS_PATH) return null;
+  if (canvas.id !== undefined && !id(canvas.id)) return null;
+  return { path: canvas.path, ...(canvas.id === undefined ? {} : { id: canvas.id as string }) };
+}
+
+// An answer's chip as the thread parsed it from its doan: link; the same parse again must give the same link.
+function replyLink(value: unknown): ReplyAnchor | null {
+  const link = record(value, ["canvas", "kind", "id"]);
+  if (link === null || typeof link.canvas !== "string" || typeof link.kind !== "string" || typeof link.id !== "string") return null;
+  const parsed = parseReplyAnchor(`doan:${link.canvas}/${link.kind}/${encodeURIComponent(link.id)}`);
+  return parsed !== null && parsed.canvas === link.canvas && parsed.kind === link.kind && parsed.id === link.id ? parsed : null;
+}
+
+// The shape of `prototype:reveal`; whether its conversation and canvas belong to the playing canvas is
+// prototypeRevealRequest's check.
+export function parseRevealRequest(kind: unknown, value: unknown): RevealPayload | null {
+  if (!windowRequest(kind) || typeof value !== "object" || value === null) return null;
+  switch ((value as { kind?: unknown }).kind) {
+    case "chip": {
+      const request = record(value, ["kind", "conversationId", "anchor"]);
+      return request !== null && validAuthId(request.conversationId) && validAnchor(request.anchor) ? { kind: "chip", conversationId: request.conversationId, anchor: request.anchor } : null;
+    }
+    case "reply": {
+      const request = record(value, ["kind", "conversationId", "link"]);
+      const link = request === null ? null : replyLink(request.link);
+      return request !== null && link !== null && validAuthId(request.conversationId) ? { kind: "reply", conversationId: request.conversationId, link } : null;
+    }
+    case "settings": {
+      const request = record(value, ["kind", "provider"]);
+      return request !== null && validProvider(request.provider) ? { kind: "settings", provider: request.provider } : null;
+    }
+    case "conversation": {
+      const request = record(value, ["kind", "conversationId"]);
+      return request !== null && validAuthId(request.conversationId) ? { kind: "conversation", conversationId: request.conversationId } : null;
+    }
+    case "handoff": {
+      const request = record(value, "conversationId" in value ? ["kind", "canvas", "conversationId"] : ["kind", "canvas"]);
+      const canvas = request === null ? null : canvasRef(request.canvas);
+      if (request === null || canvas === null) return null;
+      if (request.conversationId === undefined) return { kind: "handoff", canvas };
+      return validAuthId(request.conversationId) ? { kind: "handoff", canvas, conversationId: request.conversationId } : null;
+    }
+    default:
+      return null;
+  }
+}
+
+// Model and effort ids come from a provider's model list; the bound only keeps a forged pick small.
+const MAX_CHOICE_ID = 256;
+const choiceId = (value: unknown): value is string | null => value === null || (typeof value === "string" && value !== "" && value.length <= MAX_CHOICE_ID);
+const CHOICE_KEYS = ["provider", "model", "effort", "permissionMode", "fast", "modelPicked", "effortPicked"];
+
+// `prototype:remember`: a composer pick as ComposerChoice; the main window remembers it as its own composer's.
+export function parseComposerChoice(kind: unknown, value: unknown): ComposerChoice | null {
+  if (!windowRequest(kind) || typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const choice = value as Record<string, unknown>;
+  if (!Object.keys(choice).every(key => CHOICE_KEYS.includes(key)) || !validProvider(choice.provider) || !("model" in choice) || !("effort" in choice)) return null;
+  if (!choiceId(choice.model) || !choiceId(choice.effort)) return null;
+  if (choice.permissionMode !== undefined && !permissionModeId(choice.permissionMode)) return null;
+  if (choice.fast !== undefined && typeof choice.fast !== "boolean") return null;
+  if ((choice.modelPicked !== undefined && choice.modelPicked !== true) || (choice.effortPicked !== undefined && choice.effortPicked !== true)) return null;
+  return {
+    provider: choice.provider, model: choice.model, effort: choice.effort,
+    ...(choice.permissionMode !== undefined ? { permissionMode: choice.permissionMode } : {}), ...(choice.fast !== undefined ? { fast: choice.fast } : {}),
+    ...(choice.modelPicked ? { modelPicked: true as const } : {}), ...(choice.effortPicked ? { effortPicked: true as const } : {}),
+  };
 }

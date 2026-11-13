@@ -2,10 +2,12 @@ import { describe, expect, test } from "vitest";
 import type { ConversationEvent, StageSignal } from "../conversation/types";
 import type { CanvasRow, FolderEntry } from "../view";
 import {
-  PROTOTYPE_CONVERSATION_METHODS, prototypeConversationScope, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
+  PROTOTYPE_CONVERSATION_METHODS, prototypeAuthSnapshot, prototypeComposerSettings, prototypeEntry, prototypeConversationScope, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
   type PlayingCanvas, type ScopedConversation,
 } from "./conversationScope";
 import type { WorkItem } from "../workState";
+import type { AuthStatusDto } from "../agentAuth/types";
+import { DEFAULT_PREFERENCES } from "../preferences";
 
 const base = "http://127.0.0.1:5123/t/tok/";
 function row(path: string, patch: Partial<CanvasRow> = {}): CanvasRow {
@@ -127,7 +129,7 @@ describe("prototypeConversationScope", () => {
 
     test("a row doan ls could not read is no match for an ID-keyed conversation, in either worktree", () => {
       // The file of the ID-keyed canvas became unreadable: listed as an errored, ID-less row at its last path.
-      const unreadable: FolderEntry[] = [list("/r", [row(PROTO, { error: "read failed" }), row(LOOSE)]), ENTRIES[1]!];
+      const unreadable: FolderEntry[] = [list("/r", [row(PROTO, { error: { code: "read_failed", message: "x" } }), row(LOOSE)]), ENTRIES[1]!];
       expect(allowed("read", { conversationId: "c-proto" }, PLAYING, unreadable)).toBe(false);
       expect(allowed("read", { conversationId: "c-proto-wt" }, PLAYING, unreadable)).toBe(false);
       expect(allowed("read", { conversationId: "c-proto-wt" }, PLAYING_WT, unreadable)).toBe(true);
@@ -237,5 +239,42 @@ describe("prototypeWorkItems", () => {
     const items = [item("s1", "claude"), item("s1", "codex"), item("s2", "claude", "/r"), item(null, null, "/r")];
     expect(prototypeWorkItems(items, { session: "s1", runtime: "claude" })).toEqual([item("s1", "claude")]);
     expect(prototypeWorkItems(items, null)).toEqual([]);
+  });
+});
+
+describe("prototypeAuthSnapshot", () => {
+  test("keeps readiness and drops every account's identity", () => {
+    const status = (provider: AuthStatusDto["provider"], account: AuthStatusDto["account"]): AuthStatusDto => ({
+      provider, revision: 3, generation: 2, phase: account ? "connected" : "disconnected", account, attempt: null,
+      readiness: { ready: account !== null, cause: account ? "ready" : "not_connected", action: account ? null : "signIn" } as AuthStatusDto["readiness"], error: null, actions: [],
+    });
+    const snapshot = { revision: 7, providers: [status("claude", { email: "me@example.com", displayName: "Me" }), status("codex", null)] };
+    const narrow = prototypeAuthSnapshot(snapshot);
+    expect(narrow).toEqual({ revision: 7, providers: [{ ...snapshot.providers[0], account: {} }, snapshot.providers[1]] });
+    expect(JSON.stringify(narrow)).not.toContain("example.com");
+    expect(JSON.stringify(narrow)).not.toContain("Me");
+  });
+});
+
+describe("prototypeComposerSettings", () => {
+  test("the New conversations default, Last used without the last project, and the buddy", () => {
+    const preferences = { ...DEFAULT_PREFERENCES, newConversation: { provider: "codex" as const, model: "gpt" }, buddy: "puri" as const };
+    const ui = { v: 1, home: { lastRoot: "/r", lastProvider: "claude" as const, models: { claude: { model: "sonnet" } } } } as const;
+    expect(prototypeComposerSettings(ui as never, preferences)).toEqual({ home: { lastProvider: "claude", models: { claude: { model: "sonnet" } } }, newConversation: { provider: "codex", model: "gpt" }, buddy: "puri" });
+  });
+  test("nothing remembered and no buddy chosen", () => {
+    expect(prototypeComposerSettings(null, DEFAULT_PREFERENCES)).toEqual({ home: null, newConversation: null, buddy: "doany" });
+  });
+});
+
+describe("prototypeEntry", () => {
+  test("the playing root's folder entry only, with its canvas rows", () => {
+    expect(prototypeEntry(ENTRIES, PLAYING)).toBe(ENTRIES[0]);
+    expect(prototypeEntry(ENTRIES, PLAYING_WT)).toBe(ENTRIES[1]);
+    expect(prototypeEntry([{ path: "/r", kind: "loading" }], PLAYING)).toEqual({ path: "/r", kind: "loading" });
+  });
+  test("nothing while nothing plays or the root is not registered", () => {
+    expect(prototypeEntry(ENTRIES, null)).toBeNull();
+    expect(prototypeEntry([ENTRIES[1]!], PLAYING)).toBeNull();
   });
 });

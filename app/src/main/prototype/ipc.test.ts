@@ -22,9 +22,24 @@ describe("prototype channels", () => {
       revealExport: "prototype:revealExport",
       exportRunning: "prototype:exportRunning",
       visible: "prototype:visible",
+      panel: "prototype:panel",
+      showing: "prototype:showing",
+      reveal: "prototype:reveal",
+      auth: "prototype:auth",
+      authChanged: "prototype:authChanged",
+      work: "prototype:work",
+      workChanged: "prototype:workChanged",
+      composer: "prototype:composer",
+      composerChanged: "prototype:composerChanged",
+      remember: "prototype:remember",
+      entry: "prototype:entry",
+      entryChanged: "prototype:entryChanged",
+      revealRequest: "prototype:revealRequest",
+      lastUsed: "prototype:lastUsed",
     });
     expect(PROTOTYPE_WINDOW_REQUESTS).toEqual(["prototype:read", "prototype:result", "prototype:frames", "prototype:reload", "prototype:back", "prototype:forward", "prototype:choose", "prototype:close", "prototype:mode",
-      "prototype:export", "prototype:revealExport", "prototype:visible"]);
+      "prototype:export", "prototype:revealExport", "prototype:visible", "prototype:panel", "prototype:showing", "prototype:reveal",
+      "prototype:auth", "prototype:work", "prototype:composer", "prototype:remember", "prototype:entry"]);
   });
 
   test("a run that does not answer in 10 s is an init failure", () => {
@@ -59,8 +74,9 @@ describe("sender guard", () => {
     for (const channel of ["canvas:export", "canvas:revealExport", "window:visible"]) expect(senderAllowed(channel, "prototype"), channel).toBe(false);
   });
 
-  test("the prototype window gets none of the main window's channels", () => {
-    for (const channel of ["selection:set", "ui-state:get", "ui-state:save", "preferences:read", "attachments:add-pasted", "read-state:showing", "folders:get", "shell:openLink", "canvas:export", "toString", "__proto__"]) {
+  // Its conversation panel's composer channels are the only main-window channels it shares (senderAllowed.test.ts).
+  test("the prototype window gets none of the main window's own channels", () => {
+    for (const channel of ["selection:set", "ui-state:get", "ui-state:save", "preferences:read", "attachments:capture", "read-state:showing", "folders:get", "canvas:export", "toString", "__proto__"]) {
       expect(senderAllowed(channel, "prototype"), channel).toBe(false);
     }
   });

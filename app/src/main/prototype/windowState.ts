@@ -2,7 +2,7 @@
 // and run results, runs the returned effects in order and sends `prototypeView` to the window whenever the state
 // object changes. Main-window navigation and hiding are not events here, so they cannot change the run.
 import { EMPTY_HISTORY, canStep, recordEntry, stepHistory, type Direction, type History } from "./history";
-import type { PrototypeFrame, PrototypeMode, PrototypePhase, PrototypeView, RunReport } from "./ipc";
+import type { PanelRequest, PrototypeFrame, PrototypeMode, PrototypePanel, PrototypePhase, PrototypeView, RunReport } from "./ipc";
 import { parsePrototypeMark, type PrototypeSize } from "./mark";
 import { canvasKeyString, sameCanvas, sameTarget, type CanvasRef, type PrototypeTarget, type Resolution } from "./targets";
 
@@ -36,6 +36,8 @@ export interface ClosedState {
   readonly history: History<HistoryEntry>;
   // The viewport mode outlives the window: closing and opening it again keeps it, quitting the app does not.
   readonly mode: PrototypeMode;
+  // The conversation panel outlives the window the same way, in memory only.
+  readonly panel: PrototypePanel;
 }
 
 export interface OpenState {
@@ -43,6 +45,7 @@ export interface OpenState {
   readonly gen: number;
   readonly history: History<HistoryEntry>;
   readonly mode: PrototypeMode;
+  readonly panel: PrototypePanel;
   readonly target: PrototypeTarget;
   readonly phase: PrototypePhase;
   readonly detail?: string;
@@ -78,7 +81,7 @@ export interface Step {
 // `lastPath`: the target's row path as last listed, for a canvas whose ID can no longer be read (resolveTarget).
 export type Resolve = (ref: CanvasRef, lastPath?: string) => Resolution;
 
-export const CLOSED: ClosedState = { open: false, gen: 0, history: EMPTY_HISTORY, mode: "fit" };
+export const CLOSED: ClosedState = { open: false, gen: 0, history: EMPTY_HISTORY, mode: "fit", panel: { open: false, width: null } };
 
 const same = (a: HistoryEntry, b: HistoryEntry): boolean => sameTarget(a.target, b.target);
 
@@ -121,7 +124,7 @@ function start(state: PrototypeState, target: PrototypeTarget, resolved: Present
   const listedTitle = [titleIn(resolved.frames, target.frame), keepFrames && state.open ? titleIn(state.frames, target.frame) : undefined]
     .find(listed => listed !== undefined);
   const base = {
-    open: true as const, gen, history, mode: state.mode, target, source: resolved.source, url: resolved.url, label: resolved.label, path: resolved.path,
+    open: true as const, gen, history, mode: state.mode, panel: state.panel, target, source: resolved.source, url: resolved.url, label: resolved.label, path: resolved.path,
     title: listedTitle !== undefined ? listedTitle : sameFrame && state.open ? state.title : null,
     previousStopped: killed.length > 0 || (state.open && state.previousStopped),
     frames: keepFrames && state.open ? state.frames : [], reports: state.open ? state.reports : {}, fitHint: fit?.size ?? null,
@@ -241,13 +244,22 @@ export function readFailed(state: PrototypeState, gen: number, detail: string): 
 
 export function close(state: PrototypeState): Step {
   if (!state.open) return none(state);
-  return { state: { open: false, gen: state.gen, history: EMPTY_HISTORY, mode: state.mode }, effects: [...leaving(state), { kind: "destroy" }] };
+  return { state: { open: false, gen: state.gen, history: EMPTY_HISTORY, mode: state.mode, panel: state.panel }, effects: [...leaving(state), { kind: "destroy" }] };
 }
 
 // The header's Fit/Responsive toggle. Only the iframe's box changes: no new run, refit or kill, and a loading run
 // keeps its gen and its timer.
 export function setMode(state: PrototypeState, mode: PrototypeMode): Step {
   return state.mode === mode ? none(state) : none({ ...state, mode });
+}
+
+// The conversation panel's open state and width. Like the mode it changes no run; the window's size is the host's, so
+// a close leaves the window as it is. A width the request leaves out keeps the last one.
+export function setPanel(state: PrototypeState, request: PanelRequest): Step {
+  if (!state.open) return none(state);
+  const width = request.width ?? state.panel.width;
+  if (state.panel.open === request.open && state.panel.width === width) return none(state);
+  return none({ ...state, panel: { open: request.open, width } });
 }
 
 export function prototypeView(state: PrototypeState, resolve: Resolve): PrototypeView | null {
@@ -257,7 +269,9 @@ export function prototypeView(state: PrototypeState, resolve: Resolve): Prototyp
   const title = state.title ?? frame;
   const ok = usable(state, resolve);
   return {
-    gen: state.gen, root: state.target.root, path: resolved.kind === "present" ? resolved.path : state.path, frame, title, canvas: resolved.kind === "present" ? resolved.label : state.label, phase: state.phase, ...(state.detail === undefined ? {} : { detail: state.detail }),
+    gen: state.gen, root: state.target.root, path: resolved.kind === "present" ? resolved.path : state.path, ...("id" in state.target.canvas ? { canvasId: state.target.canvas.id } : {}), frame, title, canvas: resolved.kind === "present" ? resolved.label : state.label, phase: state.phase, ...(state.detail === undefined ? {} : { detail: state.detail }),
     run: state.run, mode: state.mode, previousStopped: state.previousStopped, frames: [...state.frames], canGoBack: canStep(state.history, "back", ok), canGoForward: canStep(state.history, "forward", ok),
+    panel: { ...state.panel },
+    canvasRow: resolved.kind === "present" ? "present" : resolved.kind === "unknown" ? "loading" : resolved.duplicate ? "duplicate" : "gone",
   };
 }

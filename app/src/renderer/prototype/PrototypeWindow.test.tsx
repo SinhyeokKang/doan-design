@@ -46,7 +46,7 @@ type PrototypeApi = import("./PrototypeWindow").PrototypeApi;
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
 const BOX = { x: 0, y: 0, width: 390, height: 844 };
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 1, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, ...over,
+  gen: 1, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present", ...over,
 });
 
 let changed: (view: PrototypeView | null) => void;

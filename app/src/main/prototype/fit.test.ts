@@ -225,36 +225,37 @@ describe("openPanelResize", () => {
   const at = (x: number, width: number) => ({ x, y: 100, width, height: 800 });
 
   test("a 360 or 480 window grows to exactly 640 and the panel opens at 280", () => {
-    expect(openPanelResize(at(200, 360), laptop)).toEqual({ bounds: at(200, 640), panel: 280 });
-    expect(openPanelResize(at(200, 480), laptop)).toEqual({ bounds: at(200, 640), panel: 280 });
+    expect(openPanelResize(at(200, 360), laptop)).toEqual({ bounds: at(200, 640), panel: 280, minimum: 640 });
+    expect(openPanelResize(at(200, 480), laptop)).toEqual({ bounds: at(200, 640), panel: 280, minimum: 640 });
   });
 
   test("a window already 640 or wider keeps its size and the panel opens at the default, cut to the maximum", () => {
-    expect(openPanelResize(at(200, 640), laptop)).toEqual({ bounds: at(200, 640), panel: 280 });
-    expect(openPanelResize(at(100, 1000), laptop)).toEqual({ bounds: at(100, 1000), panel: 320 });
+    expect(openPanelResize(at(200, 640), laptop)).toEqual({ bounds: at(200, 640), panel: 280, minimum: 640 });
+    expect(openPanelResize(at(100, 1000), laptop)).toEqual({ bounds: at(100, 1000), panel: 320, minimum: 640 });
   });
 
   test("a remembered width comes back, cut to the window's range", () => {
-    expect(openPanelResize(at(100, 1000), laptop, 450)).toEqual({ bounds: at(100, 1000), panel: 450 });
-    expect(openPanelResize(at(100, 1000), laptop, 900)).toEqual({ bounds: at(100, 1000), panel: 500 });
+    expect(openPanelResize(at(100, 1000), laptop, 450)).toEqual({ bounds: at(100, 1000), panel: 450, minimum: 640 });
+    expect(openPanelResize(at(100, 1000), laptop, 900)).toEqual({ bounds: at(100, 1000), panel: 500, minimum: 640 });
     // A narrow window opens at 280 whatever was remembered.
-    expect(openPanelResize(at(200, 360), laptop, 450)).toEqual({ bounds: at(200, 640), panel: 280 });
+    expect(openPanelResize(at(200, 360), laptop, 450)).toEqual({ bounds: at(200, 640), panel: 280, minimum: 640 });
   });
 
   test("a widened window against the work area's right edge moves left to stay inside", () => {
-    expect(openPanelResize(at(1152, 360), laptop)).toEqual({ bounds: at(872, 640), panel: 280 });
+    expect(openPanelResize(at(1152, 360), laptop)).toEqual({ bounds: at(872, 640), panel: 280, minimum: 640 });
   });
 
   test("a work area narrower than 640 widens the window to the work area only, with the panel at 280", () => {
     const small = { x: 0, y: 0, width: 600, height: 900 };
-    expect(openPanelResize({ x: 120, y: 0, width: 360, height: 800 }, small)).toEqual({ bounds: { x: 0, y: 0, width: 600, height: 800 }, panel: 280 });
+    // The minimum is clamped to the work area too: macOS keeps a window as wide as its minimum, past the work area.
+    expect(openPanelResize({ x: 120, y: 0, width: 360, height: 800 }, small)).toEqual({ bounds: { x: 0, y: 0, width: 600, height: 800 }, panel: 280, minimum: 600 });
   });
 });
 
 describe("prototypePanelFit", () => {
   test("with the panel open a play fits the shown size plus 16 plus the panel, and 64 for a one-row header", () => {
     // 390 x 844 with a 300 panel: 406 + 300 = 706 wide, 844 + 64 = 908 high.
-    expect(prototypePanelFit({ width: 390, height: 844 }, laptop, 300)).toEqual({ bounds: { x: 403, y: 43, width: 706, height: 908 }, panel: 300 });
+    expect(prototypePanelFit({ width: 390, height: 844 }, laptop, 300)).toEqual({ bounds: { x: 403, y: 43, width: 706, height: 908 }, panel: 300, minimum: 640 });
   });
 
   test("never narrower than 640", () => {
@@ -263,7 +264,7 @@ describe("prototypePanelFit", () => {
 
   test("a fitted width that puts the name on the second row adds 108", () => {
     // A work area of 443 clips the window there, below 444: the name is on the second row.
-    expect(prototypePanelFit({ width: 100, height: 300 }, { x: 0, y: 0, width: 443, height: 1000 }, 280)).toMatchObject({ bounds: { width: 443, height: 408 }, panel: 280 });
+    expect(prototypePanelFit({ width: 100, height: 300 }, { x: 0, y: 0, width: 443, height: 1000 }, 280)).toMatchObject({ bounds: { width: 443, height: 408 }, panel: 280, minimum: 443 });
   });
 
   test("wider than the work area, the panel gives way first down to 280, then the frame column", () => {
@@ -283,7 +284,7 @@ describe("prototypePanelFit", () => {
   });
 
   test("a replaced frame keeps the window's top-left", () => {
-    expect(prototypePanelFit({ width: 390, height: 300 }, laptop, 300, { x: 100, y: 100, width: 800, height: 600 })).toEqual({ bounds: { x: 100, y: 100, width: 706, height: 364 }, panel: 300 });
+    expect(prototypePanelFit({ width: 390, height: 300 }, laptop, 300, { x: 100, y: 100, width: 800, height: 600 })).toEqual({ bounds: { x: 100, y: 100, width: 706, height: 364 }, panel: 300, minimum: 640 });
   });
 });
 

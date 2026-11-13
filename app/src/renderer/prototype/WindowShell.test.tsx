@@ -12,7 +12,7 @@ import { PROTOTYPE_HEADER_RIGHT, prototypeViewportBox } from "../../main/prototy
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }], canGoBack: true, canGoForward: false, previousStopped: false, ...over,
+  gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }], canGoBack: true, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present", ...over,
 });
 const ready: HostLayers = { frames: [{ gen: 2, url: A, markWidth: 390, markHeight: 844 }], visible: 2, snapshot: null };
 const noop = () => {};
@@ -55,7 +55,7 @@ describe("WindowShell header", () => {
     expect(order.every(index => index >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toMatch(/<header class="top shell-top pw-top"><span class="traffic-space" aria-hidden="true"><\/span><div class="shell-history">/);
-    // The right group is the toggle, then Export (R 104).
+    // The right group is the toggle, then Export (R 140 with the conversation button).
     expect(html).toMatch(/<div class="pw-right"><div class="doan-toggle-group" role="group" aria-label="Viewport">.*?<\/div><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Export prototype"/);
   });
 
@@ -235,10 +235,10 @@ describe("Export prototype", () => {
 });
 
 describe("the name's row", () => {
-  test("the window's width alone decides it: first row from R + 304 (408), the second below, before any view too", () => {
+  test("the window's width alone decides it: first row from R + 304 (444), the second below, before any view too", () => {
     expect(tag(markup({ width: 640 }), 'class="pw')).toMatch(/^<div class="pw"/);
-    expect(tag(markup({ width: 408 }), 'class="pw')).toMatch(/^<div class="pw"/);
-    expect(tag(markup({ width: 407 }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
+    expect(tag(markup({ width: 444 }), 'class="pw')).toMatch(/^<div class="pw"/);
+    expect(tag(markup({ width: 443 }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
     expect(tag(markup({ width: 360, view: null, layers: NO_LAYERS }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
   });
 

@@ -8,7 +8,9 @@ import type { NotificationPreferences } from "./preferences";
 export type NotificationKind = "approval" | "finished" | "failed";
 // Composed rather than trusting focus alone: a hidden or minimized window, or a hidden app, is not in front even if
 // Electron still reports it focused.
-export interface WindowVisibility { focused: boolean; shown: boolean; minimized: boolean; appHidden: boolean }
+// prototypeShows: the conversation the prototype window shows in its open panel while that window is focused, visible
+// and in front; the person sees it there.
+export interface WindowVisibility { focused: boolean; shown: boolean; minimized: boolean; appHidden: boolean; prototypeShows?: string | null }
 export interface ConversationNames { provider: string; root: string; project: string; branch: string | null }
 // What main sends the renderer on a click.
 export interface NotificationTarget { conversationId: string; root: string }
@@ -29,6 +31,7 @@ export function notificationFor(event: ConversationEvent, preferences: Notificat
   const kind: NotificationKind | null = asks ? "approval" : event.type === "turn.done" ? "finished" : event.type === "turn.failed" ? "failed" : null;
   if (kind === null || names === null || !preferences.enabled || !preferences[SWITCH[kind]]) return null;
   if (visibility.focused && visibility.shown && !visibility.minimized && !visibility.appHidden) return null;
+  if (visibility.prototypeShows === event.conversationId) return null;
   return {
     kind, title: `${names.provider} ${event.type === "question.request" ? "needs your answer" : TITLES[kind]}`, body: names.branch === null ? names.project : `${names.project} · ${names.branch}`,
     target: { conversationId: event.conversationId, root: names.root },
