@@ -33,7 +33,7 @@ BACKLOG.md 'Undecided'의 두 항목(CLI에서 프로토타입 열기, 프로토
 - **보이는 방식**: 브라우저에서 열면 그 프레임만 보인다. 캔버스 iframe이 브라우저 viewport 전체를 채우고, 프레임은 그 viewport를 채운다. 표시 크기(`<w>x<h>`)는 파일의 크기를 정하지 않는다. 브라우저 창 크기를 바꾸면 프레임이 그 폭으로 다시 배치된다 (결정 5). 그 밖의 viewer chrome(header, frame drawer, 줌, 도구)은 없다 (결정 6). 탭 제목은 "<frame title or id> — Prototype"이고 표시 크기는 넣지 않는다.
 - **불러오는 동안**: 프레임을 격리하기 전에는 캔버스 전체가 보일 수 있으므로, 페이지는 iframe을 숨긴 채 시작한다. 격리가 끝났다는 응답이 오면 보인다. 프레임이 없다는 응답이 오거나 10초가 지나면 iframe은 숨긴 채로 두고 아래 '프레임이 불러와지지 않을 때'의 줄만 보인다. 10초가 지난 뒤에 격리가 끝났다는 응답이 오면 줄을 지우고 프레임을 보인다.
 - **스크립트와 이동**: 캔버스의 스크립트가 돈다. 다른 페이지로 가는 링크 클릭과 기본 form 제출은 아무 일도 하지 않고, 같은 페이지 링크(`#`으로 시작하는 `href`), `location.hash`, `preventDefault()`를 부르는 submit handler는 동작한다(프로토타입 창과 같다). 프로토타입 창과 다른 점(PoC, tasks 1):
-  - `history.pushState`와 `replaceState`는 URL을 주지 않을 때만 동작한다. URL을 주면 fragment든 경로든 `SecurityError`를 던진다.
+  - `history.pushState`와 `replaceState`에 URL을 주면 상태와 기록 항목은 남지만 URL은 바뀌지 않는다(`location`은 srcdoc 문서 그대로다). 스크립트는 그 호출에서 멈추지 않지만, `pushState` 뒤에 `location.pathname`이나 `hash`를 다시 읽는 라우터는 따라가지 못할 수 있다.
   - 캔버스의 click·submit handler가 `stopPropagation()`을 부르면 이동을 막지 못한다. Safari는 그 대상을 프레임에 불러오고, Chromium은 `file:` 대상은 스스로 막지만 웹 주소는 불러온다.
   - 스크립트의 `location` 변경과 `form.submit()`도 막지 못한다.
 - **JavaScript 없이**(Quick Look, 메일 미리보기): 프레임 대신 "Open this file in a web browser to play this prototype." 한 줄을 보인다.

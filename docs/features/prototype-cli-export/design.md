@@ -73,7 +73,7 @@ spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--
    - 바깥 페이지 `prototype.html`: `<title>`은 "<title or id> — Prototype"(HTML 이스케이프, 표시 크기 없음). `<iframe title="<title or id>" sandbox="allow-scripts allow-forms" srcdoc>`가 CSS만으로 브라우저 viewport 전체(`position: fixed; inset: 0; width: 100%; height: 100%; border: 0`)를 채운다. 바깥 페이지는 스크롤하지 않는다. 그래서 iframe의 `innerWidth`, `innerHeight`, media query, `100vh`가 브라우저 창을 따르고, 창 크기를 바꾸면 프레임이 다시 배치된다. 표시 크기는 판정(표시가 있고 문법에 맞는지)에만 쓰고 크기에는 쓰지 않는다.
    - **iframe은 숨긴 채 시작한다**(결정 16): `visibility: hidden`으로 시작하고, `isolate.js`가 `ready`를 알릴 때만 보인다. `missing`을 받거나 `prototype.js`의 10 s 타이머가 끝나면 iframe은 숨긴 채로 두고 안내 줄만 보인다. 10 s 뒤에 `ready`가 늦게 오면 안내 줄을 지우고 iframe을 보인다(`missing` 뒤에는 `ready`가 오지 않는다. `isolate.js`는 결과를 한 번만 알린다). 격리되지 않은 iframe에는 캔버스 전체(다른 프레임과 메모)가 그려지므로, 받는 사람에게 보내려던 것이 아닌 내용을 드러내지 않는다. 타이머가 있어 메시지가 오지 않아도 화면이 비지 않는다(POSTMORTEM 2026-10-22).
    - **JavaScript가 없을 때**: srcdoc iframe은 JavaScript 없이도 그려진다(기존 `viewer/shell.html`의 noscript 안내가 이를 전제로 한다). 그래서 `<noscript>` 안의 `<style>`이 iframe을 `display: none`으로 숨기고 안내 줄만 보인다. JavaScript가 있을 때 보이기는 위 규칙을 따른다.
-   - srcdoc의 `<head>` 첫 스크립트는 `lib.js` 일부와 `isolate.js`를 함수로 감싼 것이다(`measure.js`와 같은 위치와 방식, `measureOffset` 재사용).
+   - srcdoc의 `<head>` 첫 스크립트는 프레임 ID(JSON)와 `isolate.js`를 함수로 감싼 것이다(`measure.js`와 같은 위치와 방식, `measureOffset` 재사용). `isolate.js`는 `lib.js`의 함수를 쓰지 않으므로 `lib.js`는 넣지 않는다.
    - `isolate.js`: DOMContentLoaded에(없으면 `load` handler 뒤에) 프레임을 ID로 찾고(정확히 하나), 프로토타입 창 `prototypeScript.ts`의 `isolate`와 같은 표시 속성과 adopted stylesheet로 격리한다. 표시 값은 다시 보지 않는다(판정은 CLI가 했다). 결과를 부모에 한 번 알린다(`ready` 또는 `missing`).
    - **이동 차단**: `window`에 bubble 단계 `submit` listener를 달아 늘 `preventDefault()`(캔버스의 handler가 먼저 돈다). `click` listener는 캔버스 handler가 이미 `preventDefault()`한 클릭은 그대로 두고, 그 밖의 `<a href>`·`<area href>` 활성화를 모두 `preventDefault()`한다. `href` 값이 `#`으로 시작하면("같은 문서" 판정 규칙) 그 값을 `location.hash`에 넣어 문서 안에서 옮긴다. srcdoc 문서는 `#id`를 바깥 파일 URL 기준으로 풀기 때문이다. PoC(tasks 1)에서 브라우저에 맡긴 `#id` 클릭은 WebKit에서 바깥 페이지를 프레임 안에 다시 불러왔고, Chromium에서는 아무 일도 하지 않았다. `location` 대입, `location.reload()`, 스크립트의 `form.submit()`은 막지 못한다.
    - 바깥 페이지는 `missing`이거나 10 s 안에 답이 없으면 "This prototype’s frame didn’t load. Ask the sender to fix the canvas, then export it again." 줄을 보인다. 이 줄은 JavaScript가 없을 때의 줄과 같은 기존 viewer 안내 줄(`shell.css` `.doan-notice.doan-panel`, `.vw-noscript` 자리)이다.
@@ -181,7 +181,12 @@ Viewer JS (`exportViewer.test.ts`가 실행)
 
 - 스크립트가 만드는 프레임은 CLI로 열거나 내보낼 수 없다(정적 판정). 그런 프레임을 재생 중인 창의 Export는 `frame_not_found` 토스트로 끝난다.
 - 내보낸 파일에서 캔버스 스크립트의 `location` 변경과 `form.submit()`은 막지 못한다. 그러면 iframe 안 문서가 바뀌고 새로고침으로 돌아온다.
-- 내보낸 파일에서 `history.pushState`·`replaceState`에 URL을 주면 `SecurityError`를 던진다(fragment, 절대 경로, 상대 경로 모두. Chromium·WebKit, PoC). srcdoc 문서의 URL은 `about:srcdoc`인데 base는 바깥 파일 URL이라, 어떤 URL도 같은 문서 URL로 풀리지 않는다. URL 없이 부르면 동작한다. 앱 프로토타입 창은 캔버스가 로컬 서버 URL에 있으므로 동작한다. `<base href="about:srcdoc">`를 넣으면 fragment는 풀리지만 `//host/x` 외부 URL이 깨지므로 쓰지 않는다.
+- 내보낸 파일에서 브라우저는 `history.pushState`·`replaceState`의 URL을 모두 `SecurityError`로 거절한다(fragment, 절대 경로, 상대 경로. Chromium·WebKit, PoC). srcdoc 문서의 URL은 `about:srcdoc`인데 base는 바깥 파일 URL이라, 어떤 URL도 같은 문서 URL로 풀리지 않기 때문이다.
+  - `isolate.js`는 캔버스 스크립트보다 먼저 두 함수를 감싼다. URL을 준 호출이 `SecurityError`로 실패하면 같은 receiver로 URL 없이 다시 부른다. 그래서 상태와 기록 항목은 남고(뒤로 가기의 `popstate` 포함) 스크립트는 멈추지 않는다.
+  - URL은 바뀌지 않는다(`location`은 srcdoc 문서 그대로다). `pushState` 뒤에 `location.pathname`이나 `hash`를 다시 읽는 라우터는 따라가지 못할 수 있다. 가상 `location`이나 라우터는 만들지 않는다.
+  - 다른 예외(`DataCloneError` 등)와 다시 부른 호출의 실패는 그대로 캔버스에 간다.
+  - 앱 프로토타입 창은 캔버스가 로컬 서버 URL에 있으므로 URL도 바뀐다. `<base href="about:srcdoc">`를 넣으면 fragment는 풀리지만 `//host/x` 외부 URL이 깨지므로 쓰지 않는다.
+- `ready`는 표시 규칙이지 격리가 됐다는 보안 증명이 아니다. 캔버스 스크립트도 `ready`를 직접 보낼 수 있고, 그러면 바깥 페이지는 격리되지 않은 캔버스를 더 보인다. 파일에는 어차피 캔버스 전체가 들어 있으므로(결정 4), 보내는 사람의 스크립트가 숨긴 내용을 드러내는 일은 막지 않는다. 바깥 페이지는 iframe 자신의 창과 opaque origin(`"null"`)에서 온 메시지만 받고, 확인하려고 `allow-same-origin`을 더하지 않는다.
 - 캔버스의 click·submit handler가 `stopPropagation()`을 부르면 `window`의 bubble listener가 돌지 않아 이동을 막지 못한다. WebKit은 대상 문서를 프레임에 불러오고, Chromium은 `file:` 대상은 스스로 막지만 웹 주소는 불러온다(PoC, 웹 주소는 `127.0.0.1` 로컬 서버로 확인했다). capture 단계에서 막으면 `defaultPrevented`를 보고 동작하는 클라이언트 라우터 링크가 깨지므로 bubble 단계를 유지한다.
 - 내보낸 파일은 앱 프로토타입 창의 Responsive 모드처럼 브라우저 viewport를 채우고(결정 5), Fit 모드는 없다. 앱의 기본인 Fit 모드(표시 크기 고정, 좁은 창에서는 비율 축소)와 다르므로, 표시 폭이 좁은 프레임도 파일에서는 창 폭으로 늘어난다. `/design-draft`에서 그림으로 보인다.
 - `fetch` 같은 요청은 막지 않는다(앱과 같다). 외부 URL은 온라인에서만 열린다(기존 Export와 같다).
