@@ -25,7 +25,7 @@ import { deleteAvailability, deleteDialogView, deleteRefusalText, quoted } from 
 import { focusFieldEnd } from "./chipField";
 import { draftKey, EMPTY_DRAFT } from "./dockedRules";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
-import type { HandoffNotice } from "../main/conversation/handoff";
+import type { ConversationHandoffNotice, HandoffNotice } from "../main/conversation/handoff";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { useControlFocusRecovery } from "./canvasControlFocus";
 import { useVisibleClock } from "./visibleClock";
@@ -62,7 +62,7 @@ import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, c
 import { captureAvailability } from "./canvasCapture";
 import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT } from "./canvasConversation";
 import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
-import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffToastText, type HandoffScreen } from "./handoffView";
+import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
 import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad, type Rect } from "./canvasPicker";
 import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
@@ -948,7 +948,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, conversationHandoff: (_notice: HandoffNotice) => {}, handoffCheck: () => {} });
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {} });
   live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest, conversationHandoff, handoffCheck };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
@@ -1586,19 +1586,26 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // not name yet waits for that read up to HANDOFF_WAIT_MS; leaving the source canvas, or any move or panel choice of the
   // person's meanwhile, turns the move into the toast (POSTMORTEM 2026-10-25: an action offered before a read finishes
   // waits for it; 2026-10-26: a later choice of the person's is never replaced). Unlike a link, it never closes a dialog:
-  // the person did not ask for this move.
+  // the person did not ask for this move. Several started handoffs never move: a summary toast, or nothing on the
+  // source canvas page, whose lines already show each one.
   interface HandoffWait { notice: HandoffNotice; expired: boolean; timer: ReturnType<typeof setTimeout>; intent: number; revision: number; entry: FolderEntry | undefined }
   const handoffWait = useRef<HandoffWait | null>(null);
-  // A toast's Open whose target the list did not name yet: it waits the same way, and a later move of the person's drops it.
-  const handoffOpen = useRef<HandoffWait | null>(null);
+  // A toast's Open whose canvas the list did not name yet: it waits the same way, and a later move of the person's drops
+  // it. to: the single handoff's target, or a summary's source.
+  interface HandoffOpen { root: string; to: { conversationId: string; canvas: Canvas }; expired: boolean; timer: ReturnType<typeof setTimeout>; intent: number; entry: FolderEntry | undefined }
+  const handoffOpen = useRef<HandoffOpen | null>(null);
   const handoffWaitFor = (notice: HandoffNotice, entry: FolderEntry | undefined): HandoffWait => {
     const wait: HandoffWait = { notice, expired: false, intent: navigationIntent.current, revision: canvasRun.current!.revision(), entry,
       timer: setTimeout(() => { wait.expired = true; live.current.handoffCheck(); }, HANDOFF_WAIT_MS) };
     return wait;
   };
-  function conversationHandoff(notice: HandoffNotice) {
+  function conversationHandoff(notice: ConversationHandoffNotice) {
     const earlier = handoffWait.current;
-    if (earlier) { clearTimeout(earlier.timer); handoffWait.current = null; handoffToast(earlier.notice, earlier.entry); }
+    if (earlier) { clearTimeout(earlier.timer); handoffWait.current = null; handoffToast(earlier.notice, earlier.notice.target, earlier.entry); }
+    if ("targets" in notice) {
+      if (handoffMultiStep(handoffScreen(notice, false), notice) === "toast") handoffToast(notice, notice.source, listedRow(notice.root, notice.source.canvas).entry);
+      return;
+    }
     handoffWait.current = handoffWaitFor(notice, listedRow(notice.root, notice.target.canvas).entry);
     handoffCheck();
   }
@@ -1616,13 +1623,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     clearTimeout(wait.timer);
     handoffWait.current = null;
     if (step === "move") openCanvasConversation(notice.root, row!, notice.target.conversationId, { kind: "handoff" });
-    else handoffToast(notice, wait.entry);
+    else handoffToast(notice, notice.target, wait.entry);
   }
   function canvasShown(root: string, canvas: Canvas): boolean {
     const open = openRef.current;
     return currentScreen.current === "workspace" && !!open && open.folder === root && shownOverviewRef.current === null && sameCanvas(canvas, open.row.id ? { path: open.canvas, id: open.row.id } : { path: open.canvas });
   }
-  function handoffScreen(notice: HandoffNotice, chose: boolean): HandoffScreen {
+  function handoffScreen(notice: ConversationHandoffNotice, chose: boolean): HandoffScreen {
     const open = openRef.current;
     const canvas = currentScreen.current === "workspace" && open && shownOverviewRef.current === null ? { root: open.folder, canvas: open.row.id ? { path: open.canvas, id: open.row.id } : { path: open.canvas } } : null;
     // The source conversation's composer holding focus with something in it: a draft, or an IME composition.
@@ -1632,28 +1639,30 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const typing = !!field && !!active && field.contains(active) && (filled || link!.composing());
     return { canvas, locked: locked(), dialog: topDialog() !== null, firstRun: wizard !== null || buddyIntro.open, typing, chose };
   }
-  // entry: the target's project as the renderer listed it when the handoff was announced. A list read since then that
-  // still lacks the target answers at once; before any, Open waits for it.
-  function handoffToast(notice: HandoffNotice, entry: FolderEntry | undefined) {
+  // entry: the project of Open's canvas as the renderer listed it when the handoff was announced. A list read since then
+  // that still lacks the canvas answers at once; before any, Open waits for it.
+  function handoffToast(notice: ConversationHandoffNotice, to: HandoffOpen["to"], entry: FolderEntry | undefined) {
     live.current.toast.show(handoffToastText(notice), "Open", () => {
       const earlier = handoffOpen.current;
       if (earlier) clearTimeout(earlier.timer);
-      handoffOpen.current = handoffWaitFor(notice, entry);
+      const wait: HandoffOpen = { root: notice.root, to, expired: false, intent: navigationIntent.current, entry,
+        timer: setTimeout(() => { wait.expired = true; live.current.handoffCheck(); }, HANDOFF_WAIT_MS) };
+      handoffOpen.current = wait;
       live.current.handoffCheck();
     });
   }
   function handoffOpenCheck() {
     const wait = handoffOpen.current;
     if (!wait) return;
-    const notice = wait.notice, { entry, row } = listedRow(notice.root, notice.target.canvas);
+    const { root, to } = wait, { entry, row } = listedRow(root, to.canvas);
     const done = () => { clearTimeout(wait.timer); handoffOpen.current = null; };
     if (wait.intent !== navigationIntent.current) { done(); return; }
     // Only a read still to come is waited for: a finished one that failed, or a project removed, answers at once
     // (POSTMORTEM 2026-10-25 recurrence).
     if (!row && !wait.expired && (entry?.kind === "loading" || (entry?.kind === "list" && entry === wait.entry))) return;
     done();
-    if (!row) { live.current.toast.show(entry?.kind === "list" ? handoffGoneText(notice.target.canvas.path, live.current.projectLabel(notice.root)) : unavailableCanvasMessage(entry, notice.target.canvas.path)); return; }
-    openCanvasConversation(notice.root, row, notice.target.conversationId, { kind: "notification", permission: false });
+    if (!row) { live.current.toast.show(entry?.kind === "list" ? handoffGoneText(to.canvas.path, live.current.projectLabel(root)) : unavailableCanvasMessage(entry, to.canvas.path)); return; }
+    openCanvasConversation(root, row, to.conversationId, { kind: "notification", permission: false });
   }
   function listedRow(root: string, canvas: Canvas): { entry: FolderEntry | undefined; row: CanvasRow | undefined } {
     const entry = entriesRef.current.find(entry => entry.path === root);

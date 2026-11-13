@@ -31,9 +31,10 @@ export type ThreadItem =
   // seq is null for the end a crash-folded turn never wrote; its key is the turn's, so it stays when later turns arrive.
   | { kind: "end"; key: string; seq: number | null; end: TurnEnd }
   | { kind: "marker"; key: string; seq: number; marker: "bound" | "archived" | "restored"; canvas: Canvas | null }
-  // A turn's handoff: the line sits where the request was made, and its resolution, which
-  // comes after the turn's end, replaces it there. Keyed by the turn: one request per turn.
-  | { kind: "handoff"; key: string; canvas: { path: string }; outcome: "pending" | "started" | "refused" | "cancelled"; target?: { conversationId: string; canvas: Canvas }; reason?: string }
+  // A turn's handoff, one line per requested path: the line sits where the request was made, and its resolution, which
+  // comes after the turn's end, replaces it there. "missed": a new canvas the turn edited and asked no handoff for, with
+  // its ID so a later rename or removal is judged as for a target; it sits after the turn's last handoff line.
+  | { kind: "handoff"; key: string; canvas: Canvas; outcome: "pending" | "started" | "refused" | "cancelled" | "missed"; target?: { conversationId: string; canvas: Canvas }; reason?: string }
   // A conversation a handoff started: its first message is the earlier agent's text, never the person's, so it is not
   // read for a preset line or {{n}} markers.
   | { kind: "handoffCard"; key: string; seq: number; origin: HandoffOrigin; text: string };
@@ -163,16 +164,21 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   let turn: string | null = null, group: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string } | null = null;
   const groups: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string }[] = [];
   const turnOf = new Map<string, string>(), askTurn = new Map<string, string>();
-  const handoffs = new Map<string, Extract<ThreadItem, { kind: "handoff" }>>();
+  // Handoff lines by `${turnId}:${path}`, and each turn's lines in order: a resolution without a path (written before
+  // a turn could request several) settles the turn's only line.
+  const handoffs = new Map<string, Extract<ThreadItem, { kind: "handoff" }>>(), turnHandoffs = new Map<string, Extract<ThreadItem, { kind: "handoff" }>[]>();
+  // Each turn's last item, where a missed line goes when the turn drew no handoff line. main writes the missed line
+  // after the turn's end, possibly after the next message, so it is placed by its turn, not by its arrival.
+  const lastOf = new Map<string, ThreadItem>();
   const endTurn = (turnId: string) => {
     ended.add(turnId);
     for (const [key, message] of agents) if (message.streaming && turnOf.get(key) === turnId) message.streaming = false;
     for (const ask of [...permissions.values(), ...questions.values()]) if (ask.status === "pending" && askTurn.get(`${ask.kind}:${ask.requestId}`) === turnId) ask.status = "expired";
   };
-  const push = (item: ThreadItem) => { group = null; items.push(item); };
+  const push = (item: ThreadItem, turnId?: string) => { group = null; items.push(item); if (turnId !== undefined) lastOf.set(turnId, item); };
   const foldCrashed = (turnId: string) => {
     endTurn(turnId);
-    push({ kind: "end", key: `x${turnId}`, seq: null, end: { kind: "interrupted", reason: "crashed" } });
+    push({ kind: "end", key: `x${turnId}`, seq: null, end: { kind: "interrupted", reason: "crashed" } }, turnId);
   };
 
   for (const event of events) {
@@ -183,10 +189,10 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       case "user.message": {
         // The next turn's message comes before its turn.started: an unfinished turn before it was folded.
         if (turn !== null && event.turnId !== turn && !ended.has(turn)) foldCrashed(turn);
-        if (event.origin) { push({ kind: "handoffCard", key: `u${event.seq}`, seq: event.seq, origin: event.origin, text: event.text }); continue; }
+        if (event.origin) { push({ kind: "handoffCard", key: `u${event.seq}`, seq: event.seq, origin: event.origin, text: event.text }, event.turnId); continue; }
         const attachments = (event.attachments ?? []).map((a): SentFile => a.kind === "directory" ? { name: a.name, kind: a.kind, path: a.path } : { name: a.name, size: a.size, kind: a.kind, path: a.path });
         const { preset, skills, body } = splitRequest(event.text, attachments.length);
-        push({ kind: "user", key: `u${event.seq}`, seq: event.seq, parts: anchorParts(body), anchors: event.anchors, preset, ...(skills.length ? { skills } : {}), attachments });
+        push({ kind: "user", key: `u${event.seq}`, seq: event.seq, parts: anchorParts(body), anchors: event.anchors, preset, ...(skills.length ? { skills } : {}), attachments }, event.turnId);
         continue;
       }
       case "turn.started":
@@ -196,11 +202,24 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         continue;
       // Written after the turn's end with the asking turn's id, and possibly after an archive marker.
       case "handoff.resolved": {
-        const line = handoffs.get(event.turnId);
+        const lines = turnHandoffs.get(event.turnId) ?? [];
+        const line = event.canvas ? handoffs.get(`${event.turnId}:${event.canvas.path}`) : lines.length === 1 ? lines[0] : undefined;
         if (line?.outcome !== "pending") continue;
         line.outcome = event.outcome;
         if (event.outcome === "started") line.target = event.target;
         if (event.outcome === "refused") line.reason = event.reason;
+        continue;
+      }
+      case "handoff.missed": {
+        const id = `${event.turnId}:${event.canvas.path}`;
+        if (handoffs.has(id)) continue;
+        const item = { kind: "handoff" as const, key: `h${id}`, canvas: event.canvas, outcome: "missed" as const };
+        const lines = turnHandoffs.get(event.turnId) ?? [];
+        const anchor = lines.at(-1) ?? lastOf.get(event.turnId), at = anchor ? items.indexOf(anchor) + 1 : items.length;
+        // Only a line at the very end closes the running activity group; one placed back in its turn leaves it open.
+        if (at === items.length) group = null;
+        items.splice(at, 0, item);
+        handoffs.set(id, item); turnHandoffs.set(event.turnId, [...lines, item]);
         continue;
       }
     }
@@ -221,7 +240,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         }
         const item = { kind: "agent" as const, key: `m${key}`, messageId: event.messageId, text: event.text, streaming: event.type === "message.delta" };
         agents.set(key, item); turnOf.set(key, event.turnId);
-        push(item);
+        push(item, event.turnId);
         break;
       }
       case "activity": {
@@ -231,7 +250,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         else if (group && group.turnId === event.turnId) group.item.steps.push(next);
         else {
           const item = { kind: "activity" as const, key: `a${event.seq}`, running: false, head: "", steps: [next] };
-          items.push(item);
+          items.push(item); lastOf.set(event.turnId, item);
           group = { item, turnId: event.turnId };
           groups.push(group);
         }
@@ -240,7 +259,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       case "permission.request": {
         const item = { kind: "permission" as const, key: `p${event.requestId}`, seq: event.seq, requestId: event.requestId, summary: event.summary, options: event.options, status: "pending" as const, answer: null as PermissionOption | null };
         permissions.set(event.requestId, item); askTurn.set(`permission:${event.requestId}`, event.turnId);
-        push(item);
+        push(item, event.turnId);
         break;
       }
       case "permission.resolved": {
@@ -253,7 +272,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       case "question.request": {
         const item = { kind: "question" as const, key: `Q${event.requestId}`, seq: event.seq, requestId: event.requestId, questions: event.questions, status: "pending" as Extract<ThreadItem, { kind: "question" }>["status"], answers: null as Record<string, StoredAnswer> | null };
         questions.set(event.requestId, item); askTurn.set(`question:${event.requestId}`, event.turnId);
-        push(item);
+        push(item, event.turnId);
         break;
       }
       case "question.resolved": {
@@ -262,26 +281,27 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         break;
       }
       case "handoff.requested": {
-        if (handoffs.has(event.turnId)) break;
-        const item = { kind: "handoff" as const, key: `h${event.turnId}`, canvas: { path: event.canvas.path }, outcome: "pending" as Extract<ThreadItem, { kind: "handoff" }>["outcome"] };
-        handoffs.set(event.turnId, item);
-        push(item);
+        const id = `${event.turnId}:${event.canvas.path}`;
+        if (handoffs.has(id)) break;
+        const item = { kind: "handoff" as const, key: `h${id}`, canvas: { path: event.canvas.path }, outcome: "pending" as Extract<ThreadItem, { kind: "handoff" }>["outcome"] };
+        handoffs.set(id, item); turnHandoffs.set(event.turnId, [...(turnHandoffs.get(event.turnId) ?? []), item]);
+        push(item, event.turnId);
         break;
       }
       case "fast.unused":
-        push({ kind: "fast", key: `f${event.seq}`, seq: event.seq, text: fastUnusedText(event), turnedOff: event.turnedOff === true });
+        push({ kind: "fast", key: `f${event.seq}`, seq: event.seq, text: fastUnusedText(event), turnedOff: event.turnedOff === true }, event.turnId);
         break;
       case "turn.done":
         endTurn(event.turnId);
-        if (!replied.has(event.turnId)) push({ kind: "noReply", key: `n${event.seq}` });
+        if (!replied.has(event.turnId)) push({ kind: "noReply", key: `n${event.seq}` }, event.turnId);
         break;
       case "turn.failed":
         endTurn(event.turnId);
-        push({ kind: "end", key: `e${event.seq}`, seq: event.seq, end: { kind: "failed", code: event.code, ...(event.model !== undefined ? { model: event.model } : {}), ...(event.code === "rate_limited" && event.detail !== undefined ? { detail: event.detail } : {}) } });
+        push({ kind: "end", key: `e${event.seq}`, seq: event.seq, end: { kind: "failed", code: event.code, ...(event.model !== undefined ? { model: event.model } : {}), ...(event.code === "rate_limited" && event.detail !== undefined ? { detail: event.detail } : {}) } }, event.turnId);
         break;
       case "interrupted":
         endTurn(event.turnId);
-        push({ kind: "end", key: `e${event.seq}`, seq: event.seq, end: { kind: "interrupted", reason: event.reason } });
+        push({ kind: "end", key: `e${event.seq}`, seq: event.seq, end: { kind: "interrupted", reason: event.reason } }, event.turnId);
         break;
     }
   }

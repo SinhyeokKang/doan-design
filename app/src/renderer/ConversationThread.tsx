@@ -52,8 +52,9 @@ export interface ConversationThreadProps {
   onSignIn(): void;
   onRetry(): void;
   onOpenCanvas(canvas: Canvas): void;
-  // A handoff line's or card's Open: that canvas with its panel on the given conversation. Without it neither offers Open.
-  onOpenHandoff?(canvas: Canvas, conversationId: string): void;
+  // A handoff line's or card's Open: that canvas with its panel on the given conversation, or the canvas alone for a
+  // missed line. Without it neither offers Open.
+  onOpenHandoff?(canvas: Canvas, conversationId?: string): void;
   // Only https links reach this; main checks again.
   onOpenLink(url: string): void;
   onCopy(text: string): Promise<boolean>;
@@ -463,12 +464,13 @@ function Steps({ id, steps }: { id: string; steps: readonly ActivityStep[] }) {
 }
 
 // A turn's handoff line (draft frames source-*): one line in the promotion marker's style, at the request's place.
+// Open is named by its canvas: a turn with several lines would otherwise offer several identical "Open" buttons.
 export function HandoffLine({ entry, project, provider, canvasListed, onOpen }: { entry: Extract<ThreadItem, { kind: "handoff" }>; project: string; provider: Provider;
-  canvasListed(canvas: Canvas): boolean; onOpen?: ((canvas: Canvas, conversationId: string) => void) | undefined }) {
+  canvasListed(canvas: Canvas): boolean; onOpen?: ((canvas: Canvas, conversationId?: string) => void) | undefined }) {
   const view = handoffLineText(entry, { project, provider, listed: canvasListed });
   const Icon = view.icon === "forward" ? Forward : Ban, open = view.open;
   return <div className="marker handoff"><span><Icon aria-hidden="true" />{view.text}</span>
-    {open && onOpen && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={() => onOpen(open.canvas, open.conversationId)}>Open</button>}</div>;
+    {open && onOpen && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={`Open ${open.canvas.path.split("/").at(-1) ?? open.canvas.path}`} onClick={() => onOpen(open.canvas, open.conversationId)}>Open</button>}</div>;
 }
 // The receiving conversation's first message (draft frame handoff-card): the earlier agent's text as its Markdown, apart
 // from the person's bubble. The card takes focus after a move, so it is a labelled group.
@@ -738,7 +740,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   // A kept item's handlers read the host's latest callbacks (ThreadEntry); its deps name what it draws from outside its data.
   const locate: ConversationThreadProps["onLocate"] = anchor => latest.current.onLocate!(anchor);
   const listed = (canvas: Canvas) => latest.current.canvasListed(canvas);
-  const openHandoff = (canvas: Canvas, conversationId: string) => latest.current.onOpenHandoff?.(canvas, conversationId);
+  const openHandoff = (canvas: Canvas, conversationId?: string) => latest.current.onOpenHandoff?.(canvas, conversationId);
   const depsOf = (entry: ThreadItem): readonly unknown[] => {
     switch (entry.kind) {
       case "user": return [props.frames, !!props.locateDisabled, !!props.onLocate, props.homeDirectory ?? null];
@@ -746,7 +748,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "permission": return [provider, entry.seq > props.liveAfter, unanswered.has(entry.requestId)];
       case "question": return entry.status === "pending" ? [provider, entry.seq > props.liveAfter, draftOf(entry.requestId)] : [];
       case "end": return [provider, entry.key === last?.key, entry.key === last?.key && last.resend, entry.key === last?.key ? props.limitResets ?? null : null, entry.key === last?.key && !!props.resendHidden];
-      case "handoff": return [provider, props.project, entry.target ? props.canvasListed(entry.target.canvas) : null, !!props.onOpenHandoff];
+      case "handoff": return [provider, props.project, entry.target ? props.canvasListed(entry.target.canvas) : entry.outcome === "missed" ? props.canvasListed(entry.canvas) : null, !!props.onOpenHandoff];
       case "handoffCard": return [props.project, props.canvasListed(entry.origin.canvas), !!props.onOpenHandoff];
       case "marker": return [props.project, entry.canvas ? props.canvasListed(entry.canvas) : null];
       default: return [];

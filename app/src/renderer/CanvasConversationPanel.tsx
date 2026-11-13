@@ -88,8 +88,8 @@ export interface CanvasConversationProps {
   onNotice(text: string): void;
   // The drawing project conversation's Open: its root's Overview shows it.
   onOpenProjectConversation(conversationId: string): void;
-  // A handoff line's or card's Open: that canvas of this root with its panel on that conversation.
-  onOpenHandoff?(canvas: Canvas, conversationId: string): void;
+  // A handoff line's or card's Open: that canvas of this root with its panel on that conversation, or the canvas alone.
+  onOpenHandoff?(canvas: Canvas, conversationId?: string): void;
   // The canvases terminal sessions work on: the terminal session choice waits while its session is among them.
   work: readonly WorkItem[];
   // The page's canvas press signal, for the composer's preset lists (the app's document never sees a canvas press).

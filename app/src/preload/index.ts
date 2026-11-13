@@ -13,7 +13,7 @@ import type { ModelsReply } from "../main/conversation/models";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { QuestionAnswerInput } from "../main/conversation/question";
 import type { ConversationSummary } from "../main/conversation/summary";
-import type { HandoffNotice } from "../main/conversation/handoff";
+import type { ConversationHandoffNotice } from "../main/conversation/handoff";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
 import type { Anchor, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
@@ -175,8 +175,8 @@ const api = {
   },
   // A handoff started a conversation on another canvas: its root, the earlier conversation
   // and its canvas, and the new one and its canvas. The renderer decides whether to move there or show a toast.
-  onConversationHandoff(listener: (notice: HandoffNotice) => void): () => void {
-    const receive = (_event: Electron.IpcRendererEvent, notice: HandoffNotice) => listener(notice);
+  onConversationHandoff(listener: (notice: ConversationHandoffNotice) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, notice: ConversationHandoffNotice) => listener(notice);
     ipcRenderer.on("conversation:handoff", receive);
     return () => ipcRenderer.removeListener("conversation:handoff", receive);
   },
