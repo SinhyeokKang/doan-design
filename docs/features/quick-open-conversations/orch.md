@@ -34,3 +34,14 @@
 - 7 → conductor
 
 ## 진행 기록
+
+- 배치 A 시작: dispatch `ctx_8d108fed9c97`, worktree `qoc-batch-a`, Opus high(launch 확인). Run `run_b490604baf71`.
+- 배치 A 1차 보고(16:27): tasks 2~4 커밋 `57d773d6`·`3e7ea98c`·`fb156171`·`fbea7b7e`, test·typecheck·lint 통과. 사용량 한도로 /code-review·/refactor를 못 했다. 계획과 다른 점: `openFound`가 캔버스 행 목록을 받아 다시 판정, `groupResults` 그대로, `conversationDelete.ts`의 `quoted()` export.
+- 18:10 한도 리셋 뒤 같은 워커에 /ship 5~7단계를 후속 Task로 보냈다(dispatch `ctx_d06065f1ccf3`).
+- 배치 A 리뷰·정리 완료: 🔴 0, 🟡 1 수정(`3c9aa5a9`). 남긴 ⚪: `canvasRow`가 `conversationCanvasMatch`를 쓰게 되어 ID가 중복된 캔버스 대화의 알림 Open은 첫 행 대신 Overview로 간다(design이 요구한 변경, conductor 판단으로 수용, PR 본문에 적는다). 빈 제목 행의 이름은 비어 보인다(spec에 규칙 없음).
+- 배치 B 시작: 같은 워커에 후속 Task(dispatch `ctx_eb1c2faaadf7`). lead에 GUI again을 보냈다.
+- 배치 B 완료: design-sync 구현 결함 0(`57fa9f57` DESIGN.md), runtime-test 기대값 5개 모두 통과, tasks 5~6 체크(`73b88231`). 코드 변경 없음. real-state 검사는 probe 여러 번에서 실패했다. 실행 중인 사용자 `/Applications/Doan.app`(pid 18002, codex 자식이 agent-auth WAL을 쥠)이 쓴 것으로 보고 받아들였다(conductor 판단 — 격리 앱은 임시 userData만 썼고, measure run5는 통과). 토스트의 missing·duplicate 원인은 단위 테스트로만 확인했다.
+- lead에 GUI done을 보냈다. 독립 리뷰 R을 Claude Opus subagent로 시작했다.
+- 독립 리뷰 R: 🔴 0, 🟡 3, ⚪ 5. 사용자 결정: 알림·strip의 Open은 출시된 `canvasRow` 규칙을 유지하고, 새 판정은 Quick Open에서만 쓴다(design의 canvasRow 줄은 승격 때 반영하지 않는다). conductor 판단: 빈 제목 대화 행은 Conversation 메뉴처럼 빈 이름 그대로 둔다.
+- 수정 라운드 1을 워커에 보냈다(dispatch `ctx_d76624db8bab`): 실패 시 Escape와 같은 닫기 경로, canvasRow 되돌리기, 기다림 판정 통일, 색인 memo 분리, DESIGN.md 옛 문구, 빈 검색어 동점 순서. lead에 GUI again을 보냈다.
+- 수정 라운드 1 완료: `0c422188` test, `8c36d9ca` fix, `b2183b28` docs(DESIGN). test 11128 통과, typecheck·lint 통과(워커 보고). probe 8개 검사 통과. real-state 검사는 다시 실패했다: probe의 `app.hide()`가 사용자의 실제 Doan.app을 앞으로 가져와 그 앱이 자기 ui-state를 저장한 것으로 본다(증명 안 됨). conductor가 수정 diff를 직접 읽고 받아들였다.
