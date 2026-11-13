@@ -1,4 +1,5 @@
 import { canvasesAt } from "./project";
+import { sameCanvas } from "./sessions";
 import type { Canvas, HandoffResolution } from "./types";
 // The renderer imports this module's notice types with `import type` only: its value imports reach Node modules
 // (POSTMORTEM 2026-10-30).
@@ -35,9 +36,9 @@ export function handoffDecision(input: HandoffJudgement): HandoffDecision {
   if (!rows.length) return input.settled ? { kind: "refused", reason: "not_listed" } : { kind: "wait" };
   const row = rows[0]!;
   if (rows.length > 1 || (row.id !== undefined && input.listed.filter(other => other.id === row.id).length > 1)) return { kind: "refused", reason: "not_listed" };
-  if (input.source && same(input.source, row)) return { kind: "refused", reason: "same_canvas" };
+  if (input.source && sameCanvas(input.source, row)) return { kind: "refused", reason: "same_canvas" };
   // A path that held a canvas at the start counts as existing too: a handoff goes only to a new canvas (ARCHITECTURE §7 'Handoff').
-  if (input.snapshot.some(old => same(old, row) || old.path === row.path)) return { kind: "refused", reason: "not_new" };
+  if (input.snapshot.some(old => sameCanvas(old, row) || old.path === row.path)) return { kind: "refused", reason: "not_new" };
   if (input.current(row)) return { kind: "refused", reason: "has_conversation" };
   return { kind: "start", canvas: row.id === undefined ? { path: row.path } : { path: row.path, id: row.id } };
 }
@@ -54,8 +55,8 @@ export interface MissedInput { root: string; edits: readonly string[]; listed: r
 // off to by handoffDecision's rules. A file made by a shell command has no edit path, so it is never named.
 export function missedHandoffs(input: MissedInput): Canvas[] {
   const rows = input.listed.filter(row => input.listed.filter(other => other.path === row.path || (row.id !== undefined && other.id === row.id)).length === 1);
-  return canvasesAt(input.root, input.edits, rows, input.snapshot).filter(row => !same(input.source, row) &&
-    !input.snapshot.some(old => same(old, row) || old.path === row.path) && !input.requested.includes(row.path) && !input.current(row));
+  return canvasesAt(input.root, input.edits, rows, input.snapshot).filter(row => !sameCanvas(input.source, row) &&
+    !input.snapshot.some(old => sameCanvas(old, row) || old.path === row.path) && !input.requested.includes(row.path) && !input.current(row));
 }
 // Where a handoff turn's queued messages go once every request resolved. move: to the one started conversation. With
 // several requests the messages may be meant for any canvas, so they go to the source, or back to the draft when a
@@ -76,8 +77,4 @@ export function handoffNoticeKind(input: { root: string; source: HandoffNotice["
   const [first, second] = input.started;
   if (!first) return null;
   return second ? { root: input.root, source: input.source, targets: [...input.started] } : { root: input.root, source: input.source, target: first };
-}
-// sessions.ts sameCanvas, repeated so this module imports no code.
-function same(a: Canvas, b: Canvas): boolean {
-  return a.id !== undefined || b.id !== undefined ? a.id !== undefined && a.id === b.id : a.path === b.path;
 }
