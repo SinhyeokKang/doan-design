@@ -112,7 +112,8 @@ describe("playingFrameCount", () => {
 const frames = [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }, { id: "account", size: "390x844", number: 3 }];
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
   gen: 2, root: ROOT, path: CHECKOUT.path, frame: "checkout", title: "Checkout", canvas: "checkout", phase: "ready", mode: "fit",
-  run: { url: "http://127.0.0.1/a.html", markWidth: 390, markHeight: 844 }, frames, canGoBack: false, canGoForward: false, previousStopped: false, ...over,
+  run: { url: "http://127.0.0.1/a.html", markWidth: 390, markHeight: 844 }, frames, canGoBack: false, canGoForward: false, previousStopped: false,
+  panel: { open: false, width: null }, canvasRow: "present", ...over,
 });
 
 describe("playingFrameChip", () => {
