@@ -101,3 +101,27 @@
 ## 디자인 프리셋
 
 `shape`(기존 대기열 행과 실패 줄의 확장)와 `clarify`(상태 줄, 실패 줄, 거절 문구, Queue 버튼 설명)를 읽었다.
+
+## 초안 요청
+
+- 파일: `.doan/canvases/usage-limit-resume.html`, 캔버스 id `usage-limit-resume`, 폭 1760. docked composer, 대기열 행, thread의 실패 줄, 사이드바, 삭제 확인창, Home composer는 지금 코드와 DESIGN.md대로 복사하고 새 부분만 그린다.
+- 프레임(id — 내용):
+  - `queue-button` — 한도 상태의 docked composer. Send 자리의 Queue 버튼과 리셋 시각을 담은 tooltip.
+  - `scheduled-rows` — 예약 행 두 개와 그 아래 상태 줄 “Sends when the limit resets at …”. 시각 형식 네 가지(오늘, tomorrow, 요일, 날짜)를 타일로.
+  - `sending` — 리셋 시각이 지났지만 아직 보내지 않은 상태 줄 “Sending…”.
+  - `failed-line` — 마지막 턴이 한도로 끝난 thread와 새 둘째 줄 “Resets at <시각>. Messages you send now go out then.”. 비교용으로 리셋 시각을 모를 때의 지금 문구 타일.
+  - `auto-scheduled` — 에이전트 활동 없이 한도로 실패한 턴이 thread에 남고, 같은 메시지가 예약 행으로 들어간 상태.
+  - `rescheduled` — 리셋 때 보낸 턴이 다시 막혀 새 시각으로 예약된 상태.
+  - `sidebar-slot` — 사이드바 슬롯의 예약 상태.
+  - `delete-dialog` — 예약 메시지가 버려진다는 줄이 더해진 삭제 확인창.
+  - `home-refusal` — 리셋 시각이 들어간 Home 시작 거절 문구.
+- `/design-sync`가 비교할 프레임: `queue-button`, `scheduled-rows`, `failed-line`, `sidebar-slot`, `delete-dialog`.
+- 초안 리뷰에서 정한 것(사용자 결정, 2026-11-13):
+  - 예약 상태는 사이드바 슬롯(Home 대화만)과 함께 대화 메뉴의 `StatusMark`(Overview 드롭다운, Canvas conversations 목록)에도 시계 아이콘(`--text-subtle`)으로 보인다.
+  - 리셋이 지났지만 예약이 아직 나가지 않은 동안(“Sending…”)에도 버튼은 Queue로 남고, 새 메시지는 예약 행 뒤에 붙는다. 이때 tooltip은 출시 그대로 "Queue"다.
+  - 누르기 전 단서는 Queue tooltip뿐이다. 한도 상태가 생기면 이전 거절 줄을 지운다.
+  - 패널과 Overview의 New conversation 시작 거절에도 리셋 시각을 넣는다.
+  - 자동 예약된 실패 턴의 Edit and resend는 예약된 동안 숨기고, 행을 제거하면 다시 보인다.
+  - 시각 문구는 “resets at 3:00 PM” / “resets tomorrow at 3:00 PM” / “resets Thursday at 3:00 PM” / “resets Nov 20 at 3:00 PM”이고, 시각과 AM/PM은 U+202F로 묶는다.
+  - 슬롯 우선순위는 권한·질문, 문제, 일하는 중, 터미널 작업, 예약됨, 아직 보지 않은 끝 순이다. '예약됨'은 Show sidebar 배지에 세지 않고, 누르면 그 대화를 연다.
+  - 상태 줄의 live region은 빈 컨테이너로 항상 있고 내용만 바뀐다. DESIGN.md 'Queued messages'의 "No caption sits under the list" 규칙이 이 기능으로 바뀐다.
