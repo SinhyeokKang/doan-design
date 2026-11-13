@@ -402,7 +402,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         questionDraft={requestId => run.store.questionDraft(conversationId, requestId)} onQuestionDraft={(requestId, action) => run.store.editQuestion(conversationId, requestId, action)}
         onFocusComposer={focusField}
         onStop={() => void window.doan.interruptConversation({ conversationId }).catch(console.error)}
-        limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())}
+        limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={run.store.resendHidden(conversationId)}
         onEditAndResend={() => editAndResend(conversationId)}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         onRetry={() => run.retryThread(conversationId)}

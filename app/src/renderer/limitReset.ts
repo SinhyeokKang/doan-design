@@ -6,11 +6,12 @@ import type { Slot } from "./homeConversations";
 
 export interface Clock { timeZone: string; hour12: boolean }
 
-// The renderer's own time zone and the hour cycle of its locale. Nothing here reads macOS's 24-hour setting, which the
-// reset time should follow, so the two can differ.
+// The renderer's own time zone, and macOS's 12/24-hour setting as main passed it to the window: the renderer's Intl
+// follows the locale instead, so it is only the fallback where the preload value is missing (tests).
 export function localClock(): Clock {
   const options = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions();
-  return { timeZone: options.timeZone, hour12: options.hour12 ?? true };
+  const passed = (globalThis as { window?: { doan?: { clockHour12?: unknown } } }).window?.doan?.clockHour12;
+  return { timeZone: options.timeZone, hour12: typeof passed === "boolean" ? passed : options.hour12 ?? true };
 }
 
 const DAY = 86_400_000;

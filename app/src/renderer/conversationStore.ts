@@ -24,7 +24,8 @@ export type ListView = readonly ConversationSummary[] | "loading" | "error";
 export interface Thread { events: ConversationEvent[]; read: "loading" | "error" | "ready"; liveAfter: number }
 // text: the row's line. message: the request itself, which the thread draws once Send now moves it there; without it
 // the thread shows the line alone.
-export interface QueuedMessage { id: string; text: string; message?: { text: string; anchors: readonly Anchor[]; attachments: readonly SentFile[] } }
+// turnId: the failed turn whose own message this row sends again at the usage limit's reset.
+export interface QueuedMessage { id: string; text: string; message?: { text: string; anchors: readonly Anchor[]; attachments: readonly SentFile[] }; turnId?: string }
 // pressed: Send now put this message into the running turn and main has not answered; the press's order. The item
 // keeps its place in the queue, so a refusal puts its row back where it was.
 type Held = QueuedMessage & { pressed?: number };
@@ -167,10 +168,17 @@ export class ConversationStore {
       // The answer belongs to the schedule it was asked for: a list that moved on meanwhile is read again.
       if (listed() !== schedule) { if (this.schedules.get(conversationId) === schedule) this.schedules.delete(conversationId); return; }
       if (!Array.isArray(reply) || this.deletedIds.has(conversationId)) return;
-      const items = reply.map((item): QueuedMessage => ({ id: item.itemId, text: messageLine(stripRequestLines(item.text), item.anchors), message: { text: item.text, anchors: item.anchors, attachments: item.attachments } }));
+      const items = reply.map((item): QueuedMessage => ({ id: item.itemId, text: messageLine(stripRequestLines(item.text), item.anchors), message: { text: item.text, anchors: item.anchors, attachments: item.attachments }, ...(item.turnId ? { turnId: item.turnId } : {}) }));
       this.queues.set(conversationId, { root, items, after: this.host.readsStarted(root), turn: this.currentTurn(conversationId) });
       this.host.changed();
     });
+  }
+  // The last turn failed and its own message waits in the queue to go out again at the reset: its Edit and resend would
+  // send it twice, so it hides until that row is removed.
+  resendHidden(conversationId: string): boolean {
+    const ends = (this.threads.get(conversationId)?.events ?? []).filter(event => event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted");
+    const end = ends.at(-1);
+    return end?.type === "turn.failed" && (this.queues.get(conversationId)?.items ?? []).some(item => item.turnId === end.turnId);
   }
   questionDraft(conversationId: string, requestId: string): QuestionDraft {
     return this.questions.get(conversationId)?.get(requestId) ?? EMPTY_QUESTION_DRAFT;

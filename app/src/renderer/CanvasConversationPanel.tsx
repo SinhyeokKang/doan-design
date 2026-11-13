@@ -458,7 +458,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
           void store.editAndResend(conversationId).then(applied => { if (applied && shown && run.stillShowing(shown)) focusField(); });
         }}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
-        limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())}
+        limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={store.resendHidden(conversationId)}
         onRetry={() => store.retryThread(conversationId)}
         onOpenCanvas={() => {}} {...(props.onOpenHandoff ? { onOpenHandoff: props.onOpenHandoff } : {})}
         onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
