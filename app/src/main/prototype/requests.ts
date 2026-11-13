@@ -47,19 +47,42 @@ function frameList(value: unknown): PrototypeFrame[] | null {
   return frames;
 }
 
-export function validatePlay(kind: unknown, value: unknown, entries: readonly FolderEntry[]): { target: PrototypeTarget; size: PrototypeSize } | null {
-  if (kind !== ("main" satisfies WindowKind)) return null;
-  const request = record(value, ["root", "path", "frame", "mark"]);
-  if (request === null || typeof request.root !== "string" || typeof request.path !== "string" || !id(request.frame)) return null;
-  const size = parsePrototypeMark(request.mark);
+// The row and canvas key a play names in main's own list: the main window's Play and `doan open --prototype` alike. A
+// canvas ID two rows share is no target, as the board refuses it.
+export function playTarget(root: string, path: string, frame: unknown, mark: unknown, entries: readonly FolderEntry[]): { target: PrototypeTarget; size: PrototypeSize } | null {
+  if (!id(frame)) return null;
+  const size = parsePrototypeMark(mark);
   if (size === null) return null;
-  const entry = entries.find(candidate => candidate.path === request.root);
+  const entry = entries.find(candidate => candidate.path === root);
   if (entry === undefined || entry.kind !== "list") return null;
-  const row = entry.canvases.find(candidate => candidate.path === request.path);
+  const row = entry.canvases.find(candidate => candidate.path === path);
   if (row === undefined) return null;
   const canvas = canvasKeyFor(row, entry.canvases);
   if (canvas === null) return null;
-  return { target: { root: entry.path, canvas, frame: request.frame }, size };
+  return { target: { root: entry.path, canvas, frame }, size };
+}
+
+export function validatePlay(kind: unknown, value: unknown, entries: readonly FolderEntry[]): { target: PrototypeTarget; size: PrototypeSize } | null {
+  if (kind !== ("main" satisfies WindowKind)) return null;
+  const request = record(value, ["root", "path", "frame", "mark"]);
+  if (request === null || typeof request.root !== "string" || typeof request.path !== "string") return null;
+  return playTarget(request.root, request.path, request.frame, request.mark, entries);
+}
+
+// `doan open --prototype` (app-socket v6) as main acts on it. The schema allows a frame ID of 200 code points; only 200
+// UTF-16 units can be selected on the board or listed by a run, so a longer one is refused here too.
+export interface CliPlay {
+  root: string;
+  path: string;
+  frame: string;
+  mark: string;
+}
+
+export function validateCliPlay(value: unknown): CliPlay | null {
+  const request = record(value, ["v", "token", "root", "path", "frame", "mark"]);
+  if (request === null || request.v !== 6 || typeof request.token !== "string" || typeof request.root !== "string" || typeof request.path !== "string") return null;
+  if (!id(request.frame) || typeof request.mark !== "string" || parsePrototypeMark(request.mark) === null) return null;
+  return { root: request.root, path: request.path, frame: request.frame, mark: request.mark };
 }
 
 // Back, Forward, Close and the state read carry nothing; only the role is checked.
@@ -112,4 +135,23 @@ export function parseFramesReport(kind: unknown, value: unknown): FramesMessage 
   if (message === null || !gen(message.gen)) return null;
   const frames = frameList(message.frames);
   return frames === null ? null : { gen: message.gen, frames };
+}
+
+// `prototype:export`: the target the window showed when Export was pressed, compared with what plays when main gets it.
+export interface ExportRequest {
+  root: string;
+  path: string;
+  frame: string;
+}
+
+export function parseExportRequest(kind: unknown, value: unknown): ExportRequest | null {
+  if (!windowRequest(kind)) return null;
+  const request = record(value, ["root", "path", "frame"]);
+  if (request === null || typeof request.root !== "string" || typeof request.path !== "string" || !id(request.frame)) return null;
+  return { root: request.root, path: request.path, frame: request.frame };
+}
+
+// `current` is null when nothing plays that main can name by a listed row (the canvas went, or its ID is now shared).
+export function exportTargetMatches(clicked: ExportRequest, current: ExportRequest | null): boolean {
+  return current !== null && clicked.root === current.root && clicked.path === current.path && clicked.frame === current.frame;
 }

@@ -15,14 +15,18 @@ import type { FolderEntry } from "./view";
 //   `doan:width`). `tooLarge`: over 50 MiB, `largest` the biggest asset's repo-relative path when the CLI named one.
 //   `insideDoan`: the chosen folder is inside a `.doan` directory. `failed`: anything else (no CLI, a crash, a timeout,
 //   output that is not an envelope, a write failure).
-// - `refused`: `notListed` for a root or row main does not list; `exporting` while an export of the same canvas runs.
+//   A prototype export (`--frame <id> --prototype`) adds `notFound`: the file holds no such frame, or two (the window may
+//   play one a script adds), and `notMarked`: the file's frame has no valid prototype mark.
+// - `refused`: `notListed` for a root or row main does not list; `exporting` while an export of the same canvas runs (or,
+//   in the prototype window, any export of that window); `changed` when the prototype window's frame at the click is no
+//   longer the one playing.
 export type ExportReply =
   | { kind: "cancelled" }
   | { kind: "exported"; external: number; reveal: string }
   | { kind: "failed"; reason: "refused"; count: number; first: string }
   | { kind: "failed"; reason: "tooLarge"; largest: string | null }
-  | { kind: "failed"; reason: "unreadable" | "insideDoan" | "failed" }
-  | { kind: "refused"; reason: "notListed" | "exporting" };
+  | { kind: "failed"; reason: "unreadable" | "insideDoan" | "failed" | "notFound" | "notMarked" }
+  | { kind: "refused"; reason: "notListed" | "exporting" | "changed" };
 export type ExportOutcome = Exclude<ExportReply, { kind: "cancelled" | "refused" | "exported" }> | { kind: "exported"; external: number };
 
 export const EXPORT_REFUSED: ExportReply = { kind: "refused", reason: "notListed" };
@@ -32,6 +36,14 @@ export function exportName(path: string): string {
   const name = posix.basename(path);
   const stem = name.toLowerCase().endsWith(".html") ? name.slice(0, -".html".length) : name;
   return `${stem || name}.html`;
+}
+
+// The prototype window's suggested name, `<canvas stem>-<frame id>.html`. A frame ID may hold characters a file name
+// cannot (`/`) or that Finder shows as `/` (`:`), and control characters; each becomes a hyphen.
+export function prototypeExportName(path: string, frame: string): string {
+  const stem = exportName(path).slice(0, -".html".length);
+  const name = posix.basename(path).toLowerCase() === ".html" ? frame : `${stem}-${frame}`;
+  return `${name.replace(/[/:\u0000-\u001f\u007f]/g, "-")}.html`;
 }
 
 // The CLI lists references (export_refused) and assets (export_too_large) one per line as `- <item>: <detail>`, the
@@ -47,14 +59,16 @@ function listed(message: string): string[] {
 // disk `.DOAN` is the same directory.
 const insideDoan = (output: string) => posix.dirname(output).split("/").some(segment => segment.toLowerCase() === ".doan");
 
-// One `doan export` run read as the renderer's outcome. `output` is the file main asked the CLI to write.
-export function interpretExport(run: CliRun, output: string): ExportOutcome {
+// One `doan export` run read as the renderer's outcome. `output` is the file main asked the CLI to write. `prototype`:
+// the run had `--prototype`, so only a result that says so is the file asked for.
+export function interpretExport(run: CliRun, output: string, prototype = false): ExportOutcome {
   let value: unknown;
   try { value = JSON.parse(run.stdout); } catch { return { kind: "failed", reason: "failed" }; }
   if (typeof value !== "object" || value === null || Reflect.get(value, "v") !== 1) return { kind: "failed", reason: "failed" };
   if (Reflect.get(value, "ok") === true && run.exitCode === 0) {
     const result: unknown = Reflect.get(value, "result");
     const external: unknown = typeof result === "object" && result !== null ? Reflect.get(result, "external") : undefined;
+    if (prototype && (typeof result !== "object" || result === null || Reflect.get(result, "prototype") !== true)) return { kind: "failed", reason: "failed" };
     return { kind: "exported", external: Array.isArray(external) ? external.filter(url => typeof url === "string").length : 0 };
   }
   const error: unknown = Reflect.get(value, "error");
@@ -63,6 +77,8 @@ export function interpretExport(run: CliRun, output: string): ExportOutcome {
   const lines = typeof message === "string" ? listed(message) : [];
   switch (code) {
     case "export_refused": return lines[0] === undefined ? { kind: "failed", reason: "unreadable" } : { kind: "failed", reason: "refused", count: lines.length, first: lines[0] };
+    case "frame_not_found": return { kind: "failed", reason: "notFound" };
+    case "not_prototype": return { kind: "failed", reason: "notMarked" };
     case "export_too_large": return { kind: "failed", reason: "tooLarge", largest: lines[0] ?? null };
     // The CLI refuses an output under `.doan` as a usage error; any other usage error is the app's own fault.
     case "usage_error": return insideDoan(output) ? { kind: "failed", reason: "insideDoan" } : { kind: "failed", reason: "failed" };
