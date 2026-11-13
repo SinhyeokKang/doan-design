@@ -71,3 +71,6 @@ task 2(`/design-draft`)는 이미 끝났다. task 12(승격·삭제)는 conducto
 - C task 9·10 완료 → DESIGN.md `aa5c9d25`로 통합. design-sync 487행 차이 0(비활성 Export 기본·hover·press·forcePseudoState 포함), runtime-test 26/26 통과, 결함 없음. 미확인: 406 × 952(화면 work area 823), DPR 1, 실제 sheet로 파일 저장(main에서 stub), 실제 선택이 있을 때 선택 유지. design-sync 독립 리뷰 단계는 고친 코드가 없어 건너뛰었다. lead에 `GUI done`을 보냈다.
 - D 실제 라운드: `pce-x2w8` 7 pass, W7-codex fail(`done_at_end`, judge partial). real-state는 `keychain:provider-items`만 바뀌어(USABILITY-EVAL의 기존 사례와 같다) 그대로 기록하고 `pce-full`과 W7-codex 반복을 진행하게 했다.
 - task 12 승격(서브에이전트, Claude Opus): PRODUCT `f96f04c2`, ARCHITECTURE `252197fd`, README `89f0c9d6`, BACKLOG `5a805cc1`, POSTMORTEM `e3120299`. ARCHITECTURE §1 convention 14에 "CLI는 파일로 판정한다" 한 문장을 더했다(결정 10의 결과). 독립 리뷰: Codex gpt-6-astra medium(`ctx_9b05df94b15c`).
+- 문서 리뷰(Codex): 🔴 0, 🟡 1(export의 파일 읽기 실패는 `export_refused`가 아니라 `canvas_not_found`/`internal_error`), ⚪ 2(측정 이력·변경 전후 문구, 소스와 겹치는 필드·채널 목록). 모두 `06eb2a1e`에서 고쳤다. 문서 리뷰어 worktree는 지웠다.
+- `/verify --eval`을 `06eb2a1e`에서 시작했다(D의 실제 라운드와 동시에 돈다).
+- `/verify --eval` 통과(`06eb2a1e`): verify-tests, runtime-support, go-test, go-vet, typecheck, lint, app-test, eval-tests, eval-self-test(`self-test PASS`), build. 로그 `.scratch/verify/2026-11-13T18-26-53-176Z-34900/`.
