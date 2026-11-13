@@ -185,7 +185,8 @@ test("a cancelled card focus was not in, with nothing typed, moves no focus", ()
 // Two windows can answer one request and the first answer wins: the later one's reply is stale. Its card shows no
 // failure, whether that reply or permission.resolved arrives first (Electron does not order a handle reply against
 // an earlier send; POSTMORTEM 2026-10-26).
-const alerted = () => tree.some(element => element.props.role === "alert");
+// The card's own failure line; a live request's card is itself an alert.
+const alerted = () => tree.some(element => element.props.className === "ask-error");
 test("a stale permission answer shows no failure, before or after the resolution arrives", async () => {
   for (const order of ["reply first", "resolved first"] as const) {
     hooks.slots = []; hooks.layout = []; controls = new Map(); active = body;

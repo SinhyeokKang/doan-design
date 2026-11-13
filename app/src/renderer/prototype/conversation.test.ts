@@ -25,7 +25,8 @@ describe("prototypeShownConversation", () => {
     expect(prototypeShownConversation([], target)).toEqual({ kind: "new" });
     expect(prototypeShownConversation([summary({ conversationId: "old", state: "archived" })], target)).toEqual({ kind: "new" });
     // A project conversation has no canvas and is never the canvas's.
-    expect(prototypeShownConversation([summary({ conversationId: "p", canvas: undefined })], target)).toEqual({ kind: "new" });
+    const { canvas: _none, ...project } = summary({ conversationId: "p" });
+    expect(prototypeShownConversation([project], target)).toEqual({ kind: "new" });
   });
 
   test("tells a list still read from one that failed", () => {
