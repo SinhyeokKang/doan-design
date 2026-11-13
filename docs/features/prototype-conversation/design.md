@@ -7,13 +7,16 @@
 세 prototype feature는 `prototype-responsive` → `prototype-cli-export` → `prototype-conversation` 순서로 구현하고 병합한다(직렬 체인, spec 결정 18). 이 feature는 앞의 두 feature가 develop에 넣은 것 위에 선다.
 
 - `prototype-responsive`
-  - 프레임 열의 아래 모드 툴바 줄(66 높이)과 `PROTOTYPE_CHROME`의 툴바 줄. 창 맞춤 높이가 표시 높이 + 122가 된다.
+  - 툴바 줄은 없다. 창의 컨트롤은 모두 헤더에 있고, 콘텐츠 패널과 그 아래 8 여백은 지금 그대로다. 헤더는 한 줄(56)이거나 이름이 내려간 두 줄(100)이고, 창 맞춤 높이는 표시 높이 + 64, 맞춘 폭에서 이름이 둘째 줄이면 + 108이다(`prototype-responsive` design '헤더 배치').
   - `prototypeIframeBox`를 대신하는 `prototypeViewportBox(panel, mark, mode)`. Fit 모드(기본)는 표시 크기를 지키고 줄여 보이고, Responsive 모드는 콘텐츠 패널을 채운다.
   - `prototypeCaptureRect(content, mark, mode, sideColumn = 0)`. 이 feature가 `sideColumn`에 대화 열 폭을 넘긴다.
   - main `PrototypeState`의 모드를 `CLOSED`에도 두는 방식. 패널 상태도 같은 자리에 둔다.
-  - 헤더에서 Reload를 아래 툴바 [Reload prototype | Fit, Responsive | Export prototype]로 옮긴 것. 헤더는 Back, Forward, 프레임 이름 버튼이고, 이름 버튼은 왼쪽·오른쪽 164를 비운다. 이 feature는 헤더 오른쪽 끝에 대화 버튼 하나를 더한다(이름 버튼 뒤 8, 오른쪽 inset 16). 그때 360 창의 이름 버튼은 140, 640 창은 312 그대로다(`prototype-responsive` design '헤더').
+  - 세 무리 헤더. 왼쪽 [Back x88, Forward x124, Reload x160]은 지금 그대로이고, 오른쪽 무리(`.pw-right`)는 창 오른쪽 끝 16 안쪽에 항목 간격 4로 [모드 토글(`.doan-toggle-group`, 이름 "Viewport", 68 × 36), Export(32)]다. 이 feature는 그 끝(Export 뒤 4)에 대화 버튼(32)을 더해 오른쪽 무리 폭 R을 104에서 140으로 만든다.
+  - 프레임 이름 캡슐(`.pw-name`)은 x200부터 W − 24 − R까지의 공간(폭 S = W − 224 − R, W는 창 콘텐츠 폭)을 채운다. S ≥ 80이면 첫째 줄이고, S < 80이면 같은 캡슐이 헤더 둘째 줄로 간다(`.pw.name-row`, `prototype-responsive`의 순수 함수 7 `prototypeHeaderRows`). 둘째 줄은 높이 44(캡슐 36 + 8)이고, 캡슐은 x16부터 W − 16까지, y56–92이며 이름은 가운데다. traffic light와 두 무리는 첫째 줄에 남고, 헤더는 100, 콘텐츠 패널과 대화 열은 y100에서 시작한다. 프레임 메뉴는 캡슐 4 아래에 열린다. 이름은 언제나 보이고 메뉴는 언제나 열 수 있다.
+  - R 140에서는 창 폭 444부터 첫째 줄이고, 443 이하는 둘째 줄이다. 예: 640 창 캡슐 276, 600 창 236, 520 창 156, 480 창 116, 444 창 80, 443 창 둘째 줄 411, 406 창 374, 360 창 328.
+  - 창 폭이 경계를 지나면 같은 요소가 CSS로 줄을 옮긴다. 포커스와 열린 메뉴는 캡슐에 남고, 콘텐츠 패널과 대화 열은 애니메이션 없이 44 움직인다. 360·480 창에서 패널을 열어 640이 될 때도 같다(360 창은 둘째 줄에서 첫째 줄로).
 - `prototype-cli-export`
-  - 아래 툴바 끝의 Export prototype. Export는 헤더에 오지 않는다.
+  - 헤더 오른쪽 무리에서 토글 다음의 Export prototype(32 chrome 아이콘 버튼, `Download`). 대화 버튼은 그 뒤에 온다.
   - 프로토타입 창의 토스트 호스트(`Toast.tsx` 재사용)와, `Toast.tsx`가 쓰는 `onWindowVisible`의 프로토타입 preload 판. 이 feature는 그 호스트를 쓰고 새로 만들지 않는다.
   - `doan open --prototype`으로 시작하는 Play. 새 Play 목록에 들어간다.
 - 앞의 두 feature가 계획과 다르게 병합되면 이 문서의 해당 문장을 `/tdd` 전에 고친다.
@@ -50,7 +53,7 @@
 | `app/src/renderer/CanvasConversationPanel.tsx`, `canvasRun.ts`(`conversationResumeTarget`), `dockedSupport.ts`, `useProjectSkills.ts`, `dockedBuddyShell.ts`, `visibleClock.ts`(`onWindowVisible`) | 같은 주입. `CanvasConversationPanel`의 `droppedPath`도 주입한다. 본체가 main 창 전용 부분 없이도 그려지도록 "머리 없는 본체"를 꺼낸다(아래 '패널 본체 나누기') |
 | `app/src/renderer/ConversationThread.tsx` | `answerReached`가 `{error: "stale"}`을 `settleQuestionSend`처럼 실패 없이 다룬다. 지금은 권한 카드에 "Couldn’t send your answer. Choose again."이 떠서, 다른 창이 먼저 답한 경우에 맞지 않는다 |
 | `app/src/renderer/App.tsx` | main 창이 `reveal`을 받아 처리한다(아래 '프로토타입 창 → main 창'). 프로토타입 composer의 Last used 선택을 받아 `rememberChoice`와 `preferenceAfterPick`으로 적용한다 |
-| `app/src/renderer/prototype/PrototypeWindow.tsx`, `WindowShell` | 헤더 오른쪽 끝의 대화 버튼과 배지(이름 버튼의 오른쪽 끝을 대화 버튼 앞 8에서 멈춤), 프레임 열 옆의 대화 열(창 아래 8까지), 리사이즈 손잡이, buddy accent 적용. 토스트는 `prototype-cli-export`의 호스트를 쓴다 |
+| `app/src/renderer/prototype/PrototypeWindow.tsx`, `WindowShell` | 헤더 오른쪽 무리 끝의 대화 버튼과 배지(오른쪽 무리 R 140, 이름의 줄은 위 '형제 feature와의 의존'의 규칙), 콘텐츠 패널 옆의 대화 열(창 아래 8까지), 리사이즈 손잡이, buddy accent 적용. 토스트는 `prototype-cli-export`의 호스트를 쓴다 |
 | `app/src/renderer/prototype/conversation.ts` (새 파일) | 순수 함수 4, 5, 9, 11 |
 | `app/src/renderer/prototype/PrototypeConversation.tsx` (새 파일) | 프로토타입 창의 대화 host: store, 구독(구독 먼저, 그다음 읽기), 재생 프레임 칩, 본체, docked buddy, 칩과 main 창 전용 버튼을 `prototype:reveal`로 보내기 |
 | `app/src/renderer/rendererImports.test.ts` | 이미 `prototype.html`을 entry로 걷는다. 새 import 사슬이 ajv·Node 모듈에 닿지 않는지 그대로 확인한다 |
@@ -89,6 +92,7 @@
 ### 재생 프레임 칩과 앵커
 
 - 고정 칩은 composer 필드 밖, composer 위에 그린다. 필드의 segment가 아니므로 지우거나 잘라 낼 수 없고 Undo 대상도 아니다. 이름은 run이 보고한 `frames`의 원래 title을 쓴다. `view.title`은 title이 없으면 id로 바뀐 값이라 앵커의 `title`로 쓰지 않는다.
+- 고정 칩은 포커스를 받지 않는다. 그래서 힌트는 native `title` "Sent with each message" 하나뿐이고(shipped chip field의 칩과 같다, `chipField.ts`), 공유 Tooltip은 쓰지 않는다. 칩의 뜻은 composer 필드의 `aria-describedby`("Frame <이름> is sent with each message.")로 전한다. 재생 프레임이 바뀌면 이 설명도 바꾸고, composer가 잠기면(캔버스가 목록에 없음, ID 중복) 필드에서 설명을 뺀다.
 - 보낼 때 `withPlayingFrame`(순수 함수 5)이 재생 프레임 칩 segment를 필드 segment 앞에 붙이고, 그 결과를 지금의 `toMessage`로 메시지로 만든다. `toMessage`는 같은 장소에 같은 번호를 다시 쓰므로, 필드에 같은 프레임 칩이 있어도 앵커가 하나만 생긴다. 필드가 이미 같은 재생 프레임 칩으로 시작하면 붙이지 않는다.
 - 앵커는 `{frame: {id, title}}`이고, `validAnchor`와 `anchorTokens` 규칙(marker가 앵커를 정확히 덮는다)을 그대로 지킨다. 그래서 앵커 형식, 프롬프트 직렬화(`turnPrompt`), 이벤트 형식이 바뀌지 않는다.
 - 한도: 필드의 32개 장소 한도(붙여 넣은 칩을 칩으로 남길지 이름으로 바꿀지의 판정)에 재생 프레임을 센다. 보낼 때의 검사는 지금 그대로이고, 재생 프레임까지 세어 넘으면 기존 한도 문구로 거절한다.
@@ -119,12 +123,13 @@
 
 ### 패널 폭
 
-- 창 레이아웃: 헤더(창 전체 폭) 아래에 [프레임 열: 콘텐츠 패널 + 그 아래 모드 툴바 줄] [손잡이] [대화 열]. 대화 열은 헤더 아래에서 창 아래 8까지 내려가고, main 창의 `doan-conv-column`·`ov-right` 모양을 그대로 쓰되 머리만 뺀다. 툴바 줄은 프레임 열에만 있으므로 폭 계산(360, 640)은 툴바 줄과 상관없다(`prototype-responsive` '툴바 줄과 대화 열').
+- 창 레이아웃: 헤더(창 전체 폭) 아래에 [프레임 열: 콘텐츠 패널] [손잡이] [대화 열]. 둘 다 헤더 아래에서 창 아래 8까지 내려가 높이가 같다. 대화 열은 main 창의 `doan-conv-column`·`ov-right` 모양을 그대로 쓰되 머리만 뺀다. 콘텐츠 패널은 시작 쪽 모서리를, 대화 열은 끝 쪽 모서리를 둥글게 두고, 그 사이는 shipped 1 px 시작 테두리다(`prototype-responsive` '헤더와 대화 열').
 - 패널을 열 때 창 폭이 640보다 좁으면 창을 640으로 넓히고 패널을 280으로 연다. 640 이상이면 창은 그대로이고 패널은 기본폭(`max(320px, 28dvw)`)을 최대폭으로 자른 값으로 연다. 작업 영역이 640보다 좁으면 작업 영역 폭까지만 넓히고 패널은 280으로 연다(프레임 열이 360보다 좁아진다). 넓힌 창은 작업 영역 안에 머물도록 옮긴다.
 - 열려 있는 동안 창 최소폭은 640(`PROTOTYPE_WINDOW_MIN_WIDTH` 360 + 패널 최소 280)이고, 닫히면 360으로 돌아간다. 닫을 때 창 크기는 바꾸지 않는다.
-- 패널 최대폭은 `min(50dvw, 창 폭 − 360)`이다(canvas 패널 규칙: DESIGN.md 'Panel width'). 창 폭 360일 때 콘텐츠 패널이 344인 것처럼, 프레임 열 360에서 콘텐츠 패널은 344다. 콘텐츠 패널의 8 px 여백을 대화 열 쪽에서 어떻게 두는지는 `/design-draft`에서 정하고 `/design-sync`에서 숫자로 고정한다.
-- 패널이 열린 채 새 Play가 창을 맞출 때는 창 콘텐츠 폭 = 표시 폭 + 16 + 패널 폭(최소 640), 높이 = 표시 높이 + 122(`prototype-responsive`의 헤더 56 + 툴바 줄 66)로 맞춘다. 폭이 작업 영역보다 넓으면 패널을 먼저 280까지 줄이고, 그다음 프레임 열을 줄인다. 높이는 작업 영역 높이까지다.
-- 프레임 iframe은 `prototypeViewportBox(panel, mark, mode)`를 따른다. 대화 열이 폭을 가져가면 콘텐츠 패널이 좁아지고, Responsive 모드에서는 viewport가 패널을 채운 채 `innerWidth`와 media query가 줄어든다. Fit 모드에서는 viewport가 표시 크기를 지키고, 패널이 표시 크기보다 좁으면 비율을 지켜 줄여 보인다. 표시 폭이 344보다 좁은 프레임은 Fit 모드에서 자기 크기로 가운데에 놓이고, Responsive 모드에서는 패널을 채운다.
+- 작업 영역이 640보다 좁아 창 폭이 640보다 작으면 최대폭 `min(50dvw, 창 폭 − 360)`이 280보다 작아진다(600 창에서 240). 이때도 패널은 280을 지키므로(spec 결정 4) 손잡이의 최솟값과 최댓값이 모두 280이고 조절 범위가 없다(`aria-valuemax="280"`). shipped `panelBounds`(`rightPanelSize.ts`)는 두 한도가 겹치면 최댓값이 이기므로 이 경우에 그대로 쓰지 않는다.
+- 패널 최대폭은 `min(50dvw, 창 폭 − 360)`이다(canvas 패널 규칙: DESIGN.md 'Panel width'). 창 폭 360일 때 콘텐츠 패널이 344인 것처럼, 프레임 열 360에서 콘텐츠 패널은 344다. 패널이 열리면 콘텐츠 패널과 대화 열 사이에는 간격이 없다. 둘은 한 면이고 그 경계는 대화 열의 shipped 1 px 시작 테두리다. 모서리는 콘텐츠 패널이 `R 0 0 R`, 대화 열이 `0 R R 0`(R = `--radius-container`)이다. 숫자는 `/design-sync`에서 잰다.
+- 패널이 열린 채 새 Play가 창을 맞출 때는 창 콘텐츠 폭 = 표시 폭 + 16 + 패널 폭(최소 640), 높이 = 표시 높이 + 64(헤더 56 + 아래 여백 8)로 맞추고, 맞춘 창 폭에서 이름이 둘째 줄이면 + 108(헤더 100 + 8)로 맞춘다. 패널을 연 창은 640 이상이라 보통 한 줄이다. 폭이 작업 영역보다 넓으면 패널을 먼저 280까지 줄이고, 그다음 프레임 열을 줄인다. 높이는 작업 영역 높이까지다.
+- 프레임 iframe은 `prototypeViewportBox(panel, mark, mode)`를 따른다. 대화 열이 폭을 가져가면 콘텐츠 패널이 좁아지고, Responsive 모드에서는 viewport가 패널을 채운 채 `innerWidth`와 media query가 줄어든다. Fit 모드에서는 viewport가 표시 크기를 지키고, 패널이 표시 크기보다 좁으면 비율을 지켜 줄여 보인다. 표시 폭이 344보다 좁은 프레임은 Fit 모드에서 자기 크기로 가운데에 놓이고, Responsive 모드에서는 패널을 채운다. Fit 모드의 프레임 경계(콘텐츠 패널 바탕 `--surface-inset`, 흰 프레임 상자, `--shadow-panel`)는 `prototype-responsive` 초안이 정한 것을 그대로 쓴다.
 - 창 크기는 main이 바꾼다(`setContentBounds`, `setMinimumSize`). renderer는 열림과 폭을 `prototype:panel`로 요청하고, main이 순수 함수 6·7·8의 결과로 창을 맞추고 view로 패널 상태를 돌려준다. 창이 커지는 것은 run을 새로 시작하지 않는다(사람이 창을 키울 때와 같다).
 - 정지 이미지: run이 ready에서 벗어날 때 main이 찍는 사각형(`prototypeCaptureRect`)에 `sideColumn` = 대화 열 폭(손잡이 포함)을 넘긴다. 그러지 않으면 패널 글이 정지 이미지에 찍힌다.
 
@@ -137,8 +142,11 @@
 ### 포커스
 
 - 패널을 열면 composer 필드로, 닫으면 대화 버튼으로 포커스가 간다. 대화 버튼은 열림·배지가 바뀌어도 같은 요소다.
-- DOM 순서와 Tab 순서는 헤더(Back, Forward, 프레임 이름, 대화 버튼) → 아래 툴바(Reload prototype, Fit/Responsive, Export prototype) → 프레임 콘텐츠 → 대화 패널이다(spec 결정 16). `prototype-responsive`가 툴바를 DOM에서 `.pw-panel` 앞에 둔 순서를 그대로 두고, 대화 열을 그 뒤에 놓는다.
+- 대화 버튼은 첫 view 전에도 쓸 수 있다(`disabled`가 아니다). 패널은 프레임에 기대지 않기 때문이다. 같은 때 `disabled`인 Reload와 모드 토글과 다르다.
+- 대화 버튼의 `aria-controls`는 모든 상태에서 shipped `CONVERSATION_PANEL_ID`(`"doan-conversation-panel"`, `ConversationPanel.tsx`)를 가리키고, 그 id는 대화 열의 aside에 둔다. main 창의 Show conversation·Hide conversation과 같다. 초안은 패널을 여러 개 그리므로 이 속성을 빼고 `header-button` 캡션에 적었다.
+- DOM 순서와 Tab 순서는 헤더(Back, Forward, Reload prototype, 프레임 이름(첫째 줄이나 둘째 줄의 캡슐), 모드 토글(Tab 정지 하나), Export prototype, 대화 버튼) → 프레임 콘텐츠 → 대화 패널이다(spec 결정 16). `prototype-responsive`의 헤더 순서 끝에 대화 버튼을 두고, 대화 열을 `.pw-panel` 뒤에 놓는다.
 - 프레임 문서가 다시 로드될 때 캔버스 스크립트의 `focus()`나 `autofocus`가 composer의 포커스를 가져갈 수 있다. 포커스가 대화 열 안에 있는 동안에는 새 run iframe이 포커스를 가져가지 못하게 한다(방법은 PoC에서 정한다: 예를 들어 그 동안 iframe을 `inert`로 두거나, iframe으로 간 포커스를 composer로 되돌림. IME 조합이 끊기지 않는지가 기준이다).
+- 헤더의 Reload를 포인터로 누른 뒤에는 두 조건이 모두 맞을 때만 새 run이 ready가 되면 포커스를 새 iframe 안으로 옮긴다: 누르기 전 포커스가 프레임 안이나 페이지(`body`)에 있었고, ready 때도 아직 페이지에 있다. 누르기 전 포커스가 composer나 그 밖의 곳에 있었으면 그대로 둔다(spec 결정 17이 이긴다).
 
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 
@@ -149,7 +157,7 @@
 5. `withPlayingFrame(segments, frame)` (같은 파일) — 재생 프레임 칩 segment를 앞에 붙이고(이미 같은 칩으로 시작하면 그대로) `toMessage`로 만든 메시지, 또는 32개 한도 거절. 필드 한도 계산용 `playingFrameCount`도 둔다.
 6. `prototypePanelBounds(windowWidth)` (`main/prototype/fit.ts`) — 패널 최소 280, 최대 `min(50% of window, window − 360)`, 기본 `max(320, 28% of window)`을 최대로 자름.
 7. `openPanelResize(window, workArea)` (같은 파일) — 패널을 열 때의 창 콘텐츠 bounds와 패널 폭. 640보다 좁으면 640·280, 640 이상이면 그대로·기본폭, 작업 영역이 640보다 좁으면 작업 영역 폭·280. 창은 작업 영역 안으로 옮긴다.
-8. `fitPrototypeWindow` 확장 — 패널이 열려 있으면 폭 = 표시 + 16 + 패널(최소 640), 높이 = 표시 + 122. 작업 영역보다 넓으면 패널을 280까지 먼저 줄이고 그다음 프레임 열. 결과에 조정된 패널 폭을 함께 돌려준다.
+8. `fitPrototypeWindow` 확장 — 패널이 열려 있으면 폭 = 표시 + 16 + 패널(최소 640), 높이 = 표시 + 64(맞춘 폭에서 이름이 둘째 줄이면 + 108). 작업 영역보다 넓으면 패널을 280까지 먼저 줄이고 그다음 프레임 열. 결과에 조정된 패널 폭을 함께 돌려준다.
 9. `playingFrameChip(view)`와 `conversationButton(state)` (`renderer/prototype/conversation.ts`) — 고정 칩의 이름(`frames`의 원래 제목, 없으면 id), 상태별 표시(loading 중엔 다음 프레임, lost엔 마지막 id와 제목), 접근 이름. 대화 버튼의 라벨·배지·접근 이름(답 대기 > 작업 중 > 안 읽음).
 10. `notificationFor` 확장 (`main/notifications.ts`) — 포커스된 프로토타입 창이 열린 패널에 그 대화를 보여 주면 알림을 만들지 않는다. 다른 대화는 지금과 같다.
 11. `carryPrototypeDraft(drafts, from, to)` (`renderer/prototype/conversation.ts`) — 현재 대화가 바뀔 때 앞 대화 키의 초안을, 새 키에 초안이 없을 때만 옮긴다.
@@ -174,7 +182,7 @@
 - **PRODUCT §5 item 2 'Prototype window'**
   - "Nothing in the window reaches the main window's selection, `doan active`, drafts, attachments or settings"를 새 경계로 다시 쓴다. 대화는 두 창이 함께 쓰고, 초안·첨부 칩은 창마다 따로이며, Last used 기억이 설정 쪽 예외다. 칩과 main 창 전용 버튼이 main 창을 앞으로 가져와 옮긴다. 같은 줄의 "viewing a canvas only there does not mark it seen"은 그대로 둔다.
   - 'Independence'의 "only a new play … changes its frame"은 그대로 둔다. 거기에 "프로토타입 창이 main 창을 바꾸는 길은 칩과 main 창 전용 버튼 클릭뿐"을 더한다.
-  - 'Header'의 Tab 순서에 대화 버튼과 대화 패널을 더한다: Back, Forward, 프레임 이름, 대화 버튼 → 아래 툴바 → 프레임 콘텐츠 → 대화 패널(`prototype-responsive`가 적을 순서에 대화 버튼과 패널을 넣는다).
+  - 'Header'에 대화 버튼을 더한다: 오른쪽 무리의 끝(Export 뒤)에 있고, 그래서 오른쪽 무리가 140이 되어 이름 캡슐이 창 폭 444부터 첫째 줄이고 443 이하에서는 헤더 둘째 줄이다. Tab 순서에 대화 버튼과 대화 패널을 더한다: Back, Forward, Reload, 프레임 이름, 모드 토글, Export, 대화 버튼 → 프레임 콘텐츠 → 대화 패널(`prototype-responsive`가 적을 순서에 대화 버튼과 패널을 넣는다).
 - **PRODUCT §5 'Text edit menu'**: "Inside the canvas iframe, the thumbnail window and the prototype window … there is no menu" → 프로토타입 창의 main frame(헤더와 패널)에는 메뉴가 있고, 그 프레임 콘텐츠에는 없다.
 - **PRODUCT §5 item 2 'Conversation panel' 'Seen'**("only while its canvas page shows it in the unfolded panel and the window has focus")과 **item 0 'Notifications'**("Doan notifies only while its main window is not active"): 포커스된 프로토타입 창이 열린 패널에 보여 주는 대화를 더한다.
 - **PRODUCT §3 Out of scope**: 해당하는 항목이 없다. 사람의 메시지만 턴을 시작하고, 칩과 Open은 이동일 뿐이라 Out of scope 4(자율 wake-up)에 걸리지 않는다. 스코프 게이트 통과.
