@@ -54,3 +54,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 10은 리뷰 행과 conductor�
 - M 완료(`6bb05a85..fa69e60e`) → `ed13b721..b712117a`로 통합. M 보고: test 11976개, typecheck, lint 통과, 미룬 항목 없음(PoC 순서 반영). 계획과 다른 점: `prototypePanelFit`을 새 함수로 둠, `conversationHandler`는 boolean에 `rows`만 더함, reveal 종류에 `handoff` 추가, 좁은 읽기는 `onAgentAuth`·`getWork`·`onWorkChanged`(같은 이름)와 `readComposerSettings`·`readTargetEntry`(새 이름), view에 `canvasRow`, 창이 닫힐 때 첨부는 `remove`만(큐 메시지의 재확인 때문). 실제 앱 확인은 U의 task 9로 넘어간다.
 - M 리뷰: Codex gpt-6-astra medium(같은 리뷰어 `pcv-rr`, `ctx_2df4d51678da`). 통합 HEAD `b712117a`에서 conductor가 `/verify`를 돌린다.
 - 통합 `/verify`(`b712117a`)가 typecheck에서 실패했다. 병렬로 만든 R의 view fixture(`conversation.test.ts`)에 M이 필수로 만든 `panel`·`canvasRow`가 없었다. conductor가 통합 커밋으로 fixture 두 필드를 더했다(test 27개 통과, typecheck 통과). `/verify`를 다시 돌린다.
+- U(`ctx_3be22563ff7e`, worktree `pcv-u`, Claude Opus high)를 `bfcd64ab`에서 시작했다. 첫 Task는 task 7과 `revealDecision`이다. task 8·9는 리뷰 뒤 새 Task로 보낸다.
