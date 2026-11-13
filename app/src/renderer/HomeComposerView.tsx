@@ -8,7 +8,7 @@ import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { FolderEntry } from "../main/view";
 import type { HomeMemory, ShellProject } from "../restore/uiState";
 import { localClock, resetTimeText } from "./limitReset";
-import { useProjectSkills } from "./useProjectSkills";
+import { useProjectSkills, type SkillsCalls } from "./useProjectSkills";
 import { fieldSkillRuns } from "./skillWords";
 import { AlertIcon } from "./AlertIcon";
 import {
@@ -153,6 +153,8 @@ function HomeStage({ children }: { children: ReactNode }) {
 }
 
 const effortKey = (provider: Provider, model: string) => `${provider}\n${model}`;
+// Home is only in the main window. Read on call, not on render: Home renders where `window.doan` is not set (its tests).
+const MAIN_SKILLS: SkillsCalls = { listConversationSkills: request => window.doan.listConversationSkills(request) };
 
 export { slashKey } from "./homeComposer";
 
@@ -274,7 +276,7 @@ export function HeroComposer(props: HeroComposerProps) {
 
   // The draft
   const { text, preset, attachments } = m;
-  const projectSkills = useProjectSkills(root, provider, root && props.running.has(root) ? "running" : "idle", generation);
+  const projectSkills = useProjectSkills(MAIN_SKILLS, root, provider, root && props.running.has(root) ? "running" : "idle", generation);
   const skills = projectSkills.skills;
   const skillNames = new Set(skills.map(skill => skill.name));
   const matched = fieldSkillRuns(textSegments(text), skillNames).map(run => run.name);

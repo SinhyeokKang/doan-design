@@ -13,6 +13,7 @@ import type { SendingMessage, SentFile } from "./threadItems";
 import { newerStage } from "./turnStatus";
 import { messageLine } from "../main/conversation/messageText";
 import { stripRequestLines } from "../main/conversation/requestLines";
+import type { DoanApi } from "../preload";
 
 // What the Overview's main conversation and the canvas panel share: the threads
 // read and merged with live events, the composer drafts by draftKey, queued messages, returned drafts and the
@@ -29,6 +30,11 @@ export interface QueuedMessage { id: string; text: string; message?: { text: str
 // pressed: Send now put this message into the running turn and main has not answered; the press's order. The item
 // keeps its place in the queue, so a refusal puts its row back where it was.
 type Held = QueuedMessage & { pressed?: number };
+
+// The store's calls to main: `window.doan` in the main window, the same members of `window.doanPrototype` in the
+// prototype window, which has no `window.doan`.
+export type StoreCalls = Pick<DoanApi, "readConversation" | "takeConversationDraft" | "sendQueuedNow" | "scheduledMessages" |
+  "removeAttachment" | "releaseAttachments" | "recheckAttachments" | "attachmentsFromPaths">;
 
 export interface ConversationStoreHost {
   list(root: string): ListView;
@@ -74,7 +80,7 @@ export class ConversationStore {
   private schedules = new Map<string, { root: string; schedule: string; token: number }>();
   private scheduleReads = 0;
 
-  constructor(private host: ConversationStoreHost) {}
+  constructor(private host: ConversationStoreHost, private calls: StoreCalls) {}
 
   subscribe(listener: (conversationId: string, change: "read" | "event") => void): () => void {
     this.listeners.add(listener);
@@ -111,7 +117,7 @@ export class ConversationStore {
   // drew it decides, not the last draw (only a running turn's refusal is said under the row).
   async sendQueuedNow(conversationId: string, itemId: string): Promise<void | { error: string; turnRuns?: boolean }> {
     if (!this.markQueued(conversationId, itemId, true)) return { error: "stale" };
-    const reply = await window.doan.sendQueuedNow({ conversationId, itemId }).catch(() => ({ error: "unknown" }));
+    const reply = await this.calls.sendQueuedNow({ conversationId, itemId }).catch(() => ({ error: "unknown" }));
     if (!reply || !("error" in reply)) { this.unqueued(conversationId, itemId); return reply; }
     this.markQueued(conversationId, itemId, false);
     return { error: reply.error, turnRuns: this.turnRuns(conversationId) };
@@ -164,7 +170,7 @@ export class ConversationStore {
     if (this.schedules.get(conversationId)?.schedule === schedule) return;
     const token = ++this.scheduleReads;
     this.schedules.set(conversationId, { root, schedule, token });
-    void window.doan.scheduledMessages({ conversationId }).catch(error => { console.error(error); return null; }).then(reply => {
+    void this.calls.scheduledMessages({ conversationId }).catch(error => { console.error(error); return null; }).then(reply => {
       if (this.schedules.get(conversationId)?.token !== token) return;
       // A failed read, or a list that moved on meanwhile, leaves the schedule to be read again on the next sync.
       if (!Array.isArray(reply) || this.scheduleOf(root, conversationId) !== schedule) { this.schedules.delete(conversationId); return; }
@@ -230,7 +236,7 @@ export class ConversationStore {
   }
   // Drafts whose key matches go (a removed project's), with the returned queue's ids they held.
   dropDrafts(drop: (key: string) => boolean): void {
-    for (const [key, draft] of this.drafts) if (drop(key)) dropHeld(draft);
+    for (const [key, draft] of this.drafts) if (drop(key)) dropHeld(this.calls, draft);
     this.drafts = new Map([...this.drafts].filter(([key]) => !drop(key)));
   }
   // The typed text, composition included, follows into another draft; the field element stays the same, so focus and
@@ -258,7 +264,7 @@ export class ConversationStore {
     keys.forEach((key, i) => {
       const result = results[i] ?? null;
       const owner = [...drafts].find(([, draft]) => draft.attachments.some(a => a.key === key));
-      if (!owner) { if (result?.ok) void window.doan.removeAttachment(result.attachment.id).catch(() => false); return; }
+      if (!owner) { if (result?.ok) void this.calls.removeAttachment(result.attachment.id).catch(() => false); return; }
       const [at, draft] = owner;
       const chip = draft.attachments.find(a => a.key === key)!;
       if (!result || !result.ok) {
@@ -281,13 +287,13 @@ export class ConversationStore {
     const message = [...this.threads.get(conversationId)?.events ?? []].reverse().find(event => event.type === "user.message");
     if (message?.type !== "user.message") return false;
     const key = `conversation:${conversationId}`, before = this.drafts.get(key);
-    const restored = await draftFrom(message.text, message.anchors, message.attachments ?? []);
+    const restored = await draftFrom(this.calls, message.text, message.anchors, message.attachments ?? []);
     if (this.drafts.get(key) !== before || this.deletedIds.has(conversationId)) {
       // Not applied: the files issued for it go back.
-      for (const attachment of restored.attachments) if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(() => false);
+      for (const attachment of restored.attachments) if (attachment.id) void this.calls.removeAttachment(attachment.id).catch(() => false);
       return false;
     }
-    dropHeld(before);
+    dropHeld(this.calls, before);
     this.setDrafts(drafts => new Map(drafts).set(key, restored));
     return true;
   }
@@ -336,7 +342,7 @@ export class ConversationStore {
     return false;
   }
   private readThread(conversationId: string): void {
-    void window.doan.readConversation({ conversationId }).catch(() => ({ error: "unknown" })).then(reply => {
+    void this.calls.readConversation({ conversationId }).catch(() => ({ error: "unknown" })).then(reply => {
       const thread = this.threads.get(conversationId);
       if (!thread) return;
       if ("error" in reply) { this.threads.set(conversationId, { ...thread, read: "error" }); this.host.changed(); return; }
@@ -360,13 +366,13 @@ export class ConversationStore {
     const took = this.taken.get(conversationId);
     if (took !== undefined && this.host.readsApplied(root) <= took) return;
     this.taking.add(conversationId);
-    void window.doan.takeConversationDraft({ conversationId }).catch(() => null).then(async reply => {
+    void this.calls.takeConversationDraft({ conversationId }).catch(() => null).then(async reply => {
       this.taken.set(conversationId, this.host.readsStarted(root));
       if (!reply || "error" in reply) { this.taking.delete(conversationId); return; }
-      const returned = await draftFrom(reply.text, reply.anchors, reply.attachments, reply.ids);
+      const returned = await draftFrom(this.calls, reply.text, reply.anchors, reply.attachments, reply.ids);
       this.taking.delete(conversationId);
       if (this.deletedIds.has(conversationId)) {
-        for (const attachment of returned.attachments) dropAttachment(attachment);
+        for (const attachment of returned.attachments) dropAttachment(this.calls, attachment);
         return;
       }
       const key = `conversation:${conversationId}`;
@@ -398,14 +404,14 @@ export function steerPhaseOf(events: readonly ConversationEvent[] | null, summar
 }
 // A chip leaving a conversation draft gives its file back to main. A held id is released after the remove, which put it
 // back aside as sent; a pasted file stays on disk under its sent marker.
-export function dropAttachment(attachment: AttachmentDraft): void {
+export function dropAttachment(calls: Pick<StoreCalls, "removeAttachment" | "releaseAttachments">, attachment: AttachmentDraft): void {
   const id = attachment.id; if (!id) return;
-  const removed = window.doan.removeAttachment(id);
-  void (attachment.held ? removed.then(() => window.doan.releaseAttachments([id])) : removed).catch(console.error);
+  const removed = calls.removeAttachment(id);
+  void (attachment.held ? removed.then(() => calls.releaseAttachments([id])) : removed).catch(console.error);
 }
 // A draft dropped whole releases the ids a returned queue handed it.
-function dropHeld(draft: DockedDraft | undefined): void {
-  for (const attachment of draft?.attachments ?? []) if (attachment.held) dropAttachment(attachment);
+function dropHeld(calls: StoreCalls, draft: DockedDraft | undefined): void {
+  for (const attachment of draft?.attachments ?? []) if (attachment.held) dropAttachment(calls, attachment);
 }
 const emptyDraft = (draft: DockedDraft) => draft.segments.length === 0 && !draft.preset && draft.attachments.length === 0;
 
@@ -413,12 +419,12 @@ const emptyDraft = (draft: DockedDraft) => draft.segments.length === 0 && !draft
 // paths (a moved file comes back as a missing chip). Shared by a returned queue and Edit and resend. held: per record,
 // the id a queue returned in this run held it as (takeDraft's ids); that one is checked again as the same file or
 // folder, so one replaced since comes back Replaced.
-export async function draftFrom(text: string, anchors: readonly Anchor[], records: readonly AttachmentRecord[], held: readonly (string | null)[] = []): Promise<DockedDraft> {
+export async function draftFrom(calls: StoreCalls, text: string, anchors: readonly Anchor[], records: readonly AttachmentRecord[], held: readonly (string | null)[] = []): Promise<DockedDraft> {
   const { preset, body } = splitRequest(text, records.length);
   const heldIds = records.flatMap((_, i) => { const id = held[i]; return id ? [id] : []; }), fresh = records.filter((_, i) => !held[i]);
   const [rechecked, issued] = await Promise.all([
-    heldIds.length ? window.doan.recheckAttachments(heldIds).catch(() => null) : [],
-    fresh.length ? window.doan.attachmentsFromPaths(fresh.map(record => record.path)).catch(() => null) : [],
+    heldIds.length ? calls.recheckAttachments(heldIds).catch(() => null) : [],
+    fresh.length ? calls.attachmentsFromPaths(fresh.map(record => record.path)).catch(() => null) : [],
   ]);
   let next = 0;
   const attachments = records.map((record, i): AttachmentDraft => {
@@ -428,7 +434,7 @@ export async function draftFrom(text: string, anchors: readonly Anchor[], record
       return { ...result?.ok ? readyAttachment(key, result.attachment) : { ...recordedAttachment(key, record), id, ...(result?.error === "replaced" ? { status: "replaced" as const } : {}) }, held: true };
     }
     const { chip, release } = issuedAttachment(key, record, issued?.[next++]);
-    if (release) void window.doan.removeAttachment(release).catch(() => false);
+    if (release) void calls.removeAttachment(release).catch(() => false);
     return chip;
   });
   return { segments: fromMessage(body, anchors), preset: preset ? { ...preset, description: "", scope: "" } : null, attachments, shape: body.includes("\n") || attachments.length ? "box" : "capsule" };

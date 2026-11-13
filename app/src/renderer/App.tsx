@@ -427,7 +427,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     notice: text => live.current.toast.show(text),
     label: root => live.current.projectLabel(root),
     changed: () => setRunTick(tick => tick + 1),
-  });
+  }, window.doan);
   // The canvas page's conversation panel; it shares the Overview's threads and drafts.
   const canvasRun = useRef<CanvasRun | null>(null);
   if (!(canvasRun.current instanceof CanvasRun)) canvasRun.current = new CanvasRun({
@@ -439,13 +439,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     focused: () => document.hasFocus(),
     drawing: (root, canvas) => homeRun.current.drawing(root, canvas),
     changed: () => setRunTick(tick => tick + 1),
-  }, overviewRun.current.store);
+  }, overviewRun.current.store, window.doan);
   // Where focus goes once the panel shows what an entry asked for; a new seq per entry.
   // The seq only grows: the panel applies an arrival once by its seq, so a later entry must never reuse one.
   const [arrival, setArrival] = useState<PanelArrival | null>(null);
   const panelArrivals = useRef(0);
   const support = useRef<DockedSupport | null>(null);
-  if (!support.current) support.current = new DockedSupport(() => setRunTick(tick => tick + 1));
+  if (!support.current) support.current = new DockedSupport(() => setRunTick(tick => tick + 1), window.doan);
   const loadedRootRef = useRef(loadedRoot); loadedRootRef.current = loadedRoot;
   const openRef = useRef(state.open); openRef.current = state.open;
   // Problem overlay (ARCHITECTURE §7): set by the render below, read by effects and listeners declared before it.
@@ -555,7 +555,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
   }, []);
   // Wall-clock text ("3m", "now", a time of day) is computed while rendering, and nothing re-renders App at rest.
-  const clock = useVisibleClock(1000);
+  const clock = useVisibleClock(1000, window.doan);
   useEffect(() => { void window.doan.homeDirectory().then(setHomeDirectory).catch(console.error); }, []);
   // First run shows when main's session has no completion record (P's v1 marker); the session is the one the CLI
   // shares, so a hidden and shown window keeps it.
@@ -1979,7 +1979,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useEffect(() => {
     const root = shellRoot.current;
     if (!inWorkspace || !root) return;
-    dockedBuddy.start(root, () => controller.current?.personMovedAt() ?? 0);
+    dockedBuddy.start(root, () => controller.current?.personMovedAt() ?? 0, window.doan);
     return () => dockedBuddy.stop();
   }, [inWorkspace]);
   useLayoutEffect(() => { dockedBuddy.setBuddy(buddySelection.shown); }, [buddySelection.shown]);
@@ -2279,7 +2279,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
         title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={clock} seen={run.seenPending()}
           title={panelTitle.title} current={panelTitle.current} onChoose={() => controller.current?.dropPendingLocate()} onDelete={openDelete} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
-        {panelTarget && entry?.kind === "list" && <CanvasConversation run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
+        {panelTarget && entry?.kind === "list" && <CanvasConversation calls={window.doan} run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
           defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} blocked={panelBlocked} onRemember={rememberPick}
           frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}

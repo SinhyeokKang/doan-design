@@ -25,7 +25,7 @@ test("the clock ticks while visible, stops while the document or the window is h
   let native: (visible: boolean) => void = () => {};
   const off = vi.fn();
   vi.stubGlobal("window", { doan: { onWindowVisible: (listener: typeof native) => { native = listener; return off; } } });
-  useVisibleClock(1000);
+  useVisibleClock(1000, window.doan);
   const cleanup = hooks.effects[0]!() as () => void;
   vi.advanceTimersByTime(3000);
   expect(hooks.sets).toBe(3);

@@ -73,11 +73,11 @@ function overview(list: ListView, current: string | null | undefined) {
   const run = new OverviewRun({
     list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: () => {}, remembered: () => ({}), remember: () => {},
     markSeen: () => {}, focused: () => true, openCanvas: () => {}, toast: () => {}, label: () => "doan", changed: () => {},
-  });
+  }, window.doan);
   run.show(ROOT);
   if (current !== undefined) run.select(ROOT, current);
   const onDeleteConversation = vi.fn((_target: unknown, _trigger: unknown) => true);
-  const html = renderToStaticMarkup(<TooltipProvider><ProjectOverview run={run} support={new DockedSupport(() => {})} root={ROOT} project="doan" entry={entry} worktrees={[entry]} homeDirectory="/code"
+  const html = renderToStaticMarkup(<TooltipProvider><ProjectOverview run={run} support={new DockedSupport(() => {}, window.doan)} root={ROOT} project="doan" entry={entry} worktrees={[entry]} homeDirectory="/code"
     notice={null} unavailable={null} list={list} seen={new Set()} holder={null} prefs={{}} defaults={null} now={Date.parse("2026-10-30T00:03:00.000Z")}
     onWorktree={() => {}} onOpenCanvas={() => {}} onRetryList={() => {}} onStart={async () => ({ ok: true })} onSettings={() => {}}
     onSendConversation={async () => {}} onAction={() => {}} onProjectSettings={() => {}} onDeleteConversation={onDeleteConversation} /></TooltipProvider>);
@@ -85,8 +85,8 @@ function overview(list: ListView, current: string | null | undefined) {
 }
 function canvas(list: ListView, current: string | null) {
   const lists = new Map<string, ListView>([[ROOT, list]]);
-  const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
-  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   run.select(current);

@@ -149,3 +149,35 @@ test("the store reads a thread and takes a returned draft through the call objec
   expect(calls.readConversation).toHaveBeenCalledWith({ conversationId: "c1" });
   expect(calls.takeConversationDraft).toHaveBeenCalledWith({ conversationId: "c1" });
 });
+
+// The prototype window routes main-window-only buttons to its host; the promotion notice's Open is one of them.
+test("the promotion notice's Open goes to the host's callback when it gives one", async () => {
+  const calls = fakeCalls();
+  const summary = (canvas?: Canvas) => ({ conversationId: "p1", ...(canvas ? { canvas } : {}), title: "Ideas", state: "current", owner: "doan", provider: "claude", fromHome: false,
+    phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }) as const;
+  let list: ListView = [summary()];
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, calls);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  list = [summary(CANVAS)];
+  run.sync();
+  await flush();
+  const onOpenPromoted = vi.fn();
+  const tree = render(() => CanvasConversation({
+    calls, run, support: new DockedSupport(() => {}, calls), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], onOpenPromoted,
+  }));
+  const open = (node: ReactNode): { onClick(): void } | null => {
+    if (Array.isArray(node)) { for (const child of node) { const found = open(child); if (found) return found; } return null; }
+    if (!node || typeof node !== "object" || !("props" in node)) return null;
+    const element = node as { props: { children?: ReactNode; "aria-label"?: string; onClick?(): void } };
+    if (element.props["aria-label"] === "Open the current conversation") return element.props as { onClick(): void };
+    return open(element.props.children);
+  };
+  open(tree)!.onClick();
+  expect(onOpenPromoted).toHaveBeenCalledWith("p1");
+  // The panel did not switch to it itself.
+  expect(run.view()?.kind).toBe("new");
+});

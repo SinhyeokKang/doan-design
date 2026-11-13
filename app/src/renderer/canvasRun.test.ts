@@ -55,8 +55,8 @@ function harness() {
     drawing: () => state.drawing,
     changed: vi.fn(),
   };
-  const store = new ConversationStore({ list: host.list, readsStarted: host.readsStarted, readsApplied: host.readsApplied, notice: vi.fn(), changed: vi.fn() });
-  const run = new CanvasRun(host, store);
+  const store = new ConversationStore({ list: host.list, readsStarted: host.readsStarted, readsApplied: host.readsApplied, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun(host, store, window.doan);
   const answer = (list: ListView) => {
     const n = (started.get(ROOT) ?? 0) + 1;
     started.set(ROOT, n);

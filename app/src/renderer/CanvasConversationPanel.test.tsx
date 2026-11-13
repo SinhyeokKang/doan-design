@@ -45,14 +45,14 @@ const PICK = { pressed: false, enabled: true, reason: null, onToggle: () => {} }
 
 async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {}, patch: Partial<CanvasConversationProps> = {}) {
   const lists = new Map<string, ListView>([[ROOT, list]]);
-  const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
-  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => drawing, changed: vi.fn() }, store);
+  const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => drawing, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   setup(run);
   await flush();
   const props: CanvasConversationProps = {
-    run, support: new DockedSupport(() => {}), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY,
+    calls: window.doan, run, support: new DockedSupport(() => {}, window.doan), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY,
     list, seen: new Set(), prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
     onLocate: vi.fn(async () => "shown" as const), pick: PICK, composerLink: { current: null }, onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], ...patch,
   };
@@ -136,7 +136,7 @@ test("another session, or an anonymous one, working in a terminal leaves the cho
 // The new conversation's suggestion rows highlight the canvas name inside the same sentence.
 test("a new conversation's suggestion rows highlight the canvas name and keep the sentence as the title", async () => {
   const presets = (["critique", "polish"] as const).map(id => ({ id, title: id, description: `About ${id}.`, scope: `${id} scope`, group: "review" }));
-  const support = Object.assign(new DockedSupport(() => {}), { auth: { revision: 1, providers: [connected("claude")] }, presets: { v: 1 as const, ok: true as const, result: { version: "1", presets } } });
+  const support = Object.assign(new DockedSupport(() => {}, window.doan), { auth: { revision: 1, providers: [connected("claude")] }, presets: { v: 1 as const, ok: true as const, result: { version: "1", presets } } });
   const out = await panel([], () => {}, { support });
   expect(out).toContain('title="Review the checkout canvas"');
   expect(out).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">checkout</span> canvas</span>');
@@ -146,7 +146,7 @@ test("a new conversation's suggestion rows highlight the canvas name and keep th
 // A terminal session's mode is its own; the tray shows the fixed trigger, never the picker.
 test("a terminal session shows the fixed Permission trigger and no picker", async () => {
   resume = { available: true, runtime: "claude", lastCheckAt: "2026-11-01T14:02:00" };
-  const support = () => Object.assign(new DockedSupport(() => {}), { auth: { revision: 1, providers: [connected("claude")] } });
+  const support = () => Object.assign(new DockedSupport(() => {}, window.doan), { auth: { revision: 1, providers: [connected("claude")] } });
   const out = await panel([], () => {}, { support: support(), prefs: { permissions: { claude: "bypass" } } });
   expect(out).toContain('aria-label="Permission: set by the terminal session"');
   expect(out).not.toContain("data-mode=");
@@ -181,7 +181,7 @@ test("the shown time of a terminal link reads as the time of day, with the date 
 
 // Before the list answers, the panel does not know the busy line or the terminal session yet.
 test("while the list is read, Send waits even with a draft and a signed-in agent", async () => {
-  const support = new DockedSupport(() => {});
+  const support = new DockedSupport(() => {}, window.doan);
   support.setAuth({ revision: 1, providers: [connected("claude")] });
   const draft = (run: CanvasRun) => run.store.setDrafts(drafts => new Map(drafts).set(canvasScope({ root: ROOT, canvas: CANVAS }), { segments: textSegments("Fix the totals"), preset: null, attachments: [], shape: "capsule" }));
   // The same draft and agent send once the list and the terminal session answered.
@@ -194,8 +194,8 @@ test("a queued message and the title before the list names the conversation show
   expect(queuedText({ text: "Change {{1}}", anchors: [{ frame: { id: "cart", title: "Cart" } }], attachments: [] })).toBe("Change Cart");
   const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
   doan.readConversation!.mockResolvedValue({ events: [{ v: 1, conversationId: "s1", seq: 1, turnId: "t", at: "2026-11-01T00:00:00Z", type: "user.message", text: "Make {{1}} quieter", anchors: [{ frame: { id: "cart", title: "Cart" } }] }], lastSeq: 1, turn: "idle" });
-  const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
-  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.started({ root: ROOT, canvas: CANVAS }, "s1", "claude", run.revision());
   await flush();
@@ -215,15 +215,15 @@ test("a queued message keeps its request for the thread", () => {
 test("New while the list loads holds Send after the session answers, until the list shows the running current", async () => {
   resume = { available: false, reason: "no_record" };
   const lists = new Map<string, ListView>([[ROOT, "loading"]]);
-  const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
-  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
-  const support = new DockedSupport(() => {});
+  const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const support = new DockedSupport(() => {}, window.doan);
   support.setAuth({ revision: 1, providers: [connected("claude")] });
   run.show({ root: ROOT, canvas: CANVAS });
   store.setDrafts(drafts => new Map(drafts).set(canvasScope({ root: ROOT, canvas: CANVAS }), { segments: textSegments("Fix the totals"), preset: null, attachments: [], shape: "capsule" }));
   run.select(null);
   await flush();
-  const draw = () => renderToStaticMarkup(<TooltipProvider>{<CanvasConversation run={run} support={support} target={{ root: ROOT, canvas: CANVAS }} canvasName="checkout" project="acme-web" entry={ENTRY}
+  const draw = () => renderToStaticMarkup(<TooltipProvider>{<CanvasConversation calls={window.doan} run={run} support={support} target={{ root: ROOT, canvas: CANVAS }} canvasName="checkout" project="acme-web" entry={ENTRY}
     list={lists.get(ROOT)!} seen={new Set()} prefs={null} defaults={null} now={Date.parse("2026-11-01T15:00:00")} blocked={null} frames={[]} locateDisabled={false} arrival={null}
     onArrived={vi.fn()} onLocate={vi.fn(async () => "shown" as const)} pick={PICK} composerLink={{ current: null }} onSettings={vi.fn()} onNotice={vi.fn()} onOpenProjectConversation={vi.fn()} work={[]} /> as ReactElement}</TooltipProvider>);
   expect(run.view()).toMatchObject({ kind: "new" });
@@ -241,8 +241,8 @@ test("New while the list loads holds Send after the session answers, until the l
 test("a promotion while the panel is open keeps New conversation with the notice and Open over later reads", async () => {
   const project = (extra: Partial<ConversationSummary> = {}) => { const { canvas: _canvas, ...rest } = summary("proj", extra); return rest as ConversationSummary; };
   let list: ListView = [project()];
-  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
-  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   list = [summary("proj")];
@@ -251,7 +251,7 @@ test("a promotion while the panel is open keeps New conversation with the notice
   run.sync();
   await flush();
   const props: CanvasConversationProps = {
-    run, support: new DockedSupport(() => {}), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY,
+    calls: window.doan, run, support: new DockedSupport(() => {}, window.doan), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY,
     list, seen: new Set(), prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
     onLocate: vi.fn(async () => "shown" as const), pick: PICK, composerLink: { current: null }, onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
   };
@@ -263,7 +263,7 @@ test("a promotion while the panel is open keeps New conversation with the notice
 
 // Dogfooding: New conversation as an icon button in the panel header, after the title menu (so left of Hide conversation).
 test("the panel header offers New conversation next to the title menu", () => {
-  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }));
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan), window.doan);
   const html = renderToStaticMarkup(<TooltipProvider><CanvasConversationTitle run={run} list={[]} canvasName="checkout" now={0} seen={new Set()} title="Payment copy" current="c1" onPicked={() => {}} /></TooltipProvider>);
   const title = html.indexOf("doan-conv-title"), button = html.indexOf('aria-label="New conversation"');
   expect(title).toBeGreaterThanOrEqual(0);
@@ -374,7 +374,7 @@ test("in a handoff's judging window the composer offers a disabled Send, not Sto
   const auth = { revision: 1, providers: [connected("claude")] };
   const slot = (out: string) => /<button type="button" class="composer-send[^"]*"[^>]*aria-label="(Send|Stop|Queue)"[^>]*>/.exec(out)?.[0] ?? "";
   const shown = (setup: (run: CanvasRun) => void = () => {}) => panel(list, run => { run.store.track("now"); setup(run); }, {
-    support: Object.assign(new DockedSupport(() => {}), { auth }) });
+    support: Object.assign(new DockedSupport(() => {}, window.doan), { auth }) });
   const out = await shown();
   expect(out).toContain("Hands off to billing.html when this turn ends");
   expect(out).not.toContain("ti-reply");
@@ -389,7 +389,7 @@ test("in a handoff's judging window the composer offers a disabled Send, not Sto
 test("the panel's composer tells the docked buddy about a waiting request and a card that takes no input, not about suggestions", async () => {
   const slot = (html: string) => /<div class="docked-buddy-slot"[^>]*>/.exec(html)![0];
   const presets = (["critique", "polish"] as const).map(id => ({ id, title: id, description: `About ${id}.`, scope: `${id} scope`, group: "review" }));
-  const support = Object.assign(new DockedSupport(() => {}), { auth: { revision: 1, providers: [connected("claude")] }, presets: { v: 1 as const, ok: true as const, result: { version: "1", presets } } });
+  const support = Object.assign(new DockedSupport(() => {}, window.doan), { auth: { revision: 1, providers: [connected("claude")] }, presets: { v: 1 as const, ok: true as const, result: { version: "1", presets } } });
   const fresh = await panel([], () => {}, { support });
   expect(fresh).toContain('aria-label="Suggested prompts"');
   expect(slot(fresh)).toBe('<div class="docked-buddy-slot" aria-hidden="true">');

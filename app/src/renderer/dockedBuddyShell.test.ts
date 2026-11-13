@@ -110,7 +110,7 @@ function setup(options: { buddy?: BuddyId } = {}) {
   if (options.buddy) shell.setBuddy(options.buddy);
   const dock = slot("dock"), tools = slot("tools");
   const detach = { dock: shell.dockSlot(dock as unknown as HTMLElement), tools: shell.toolsSlot(tools as unknown as HTMLElement) };
-  const start = () => shell.start(container as unknown as HTMLElement, () => 0);
+  const start = () => shell.start(container as unknown as HTMLElement, () => 0, window.doan);
   // Runs the pending frame, if any, at now ms.
   const frame = (now = clock) => { const first = [...frames][0]; if (!first) return false; frames.delete(first[0]); first[1](now); return true; };
   const run = (count: number, step = 16) => { for (let i = 0; i < count; i++) { clock += step; frame(clock); } };

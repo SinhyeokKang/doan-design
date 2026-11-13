@@ -1,6 +1,7 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas, Runtime } from "../main/conversation/types";
+import type { DoanApi } from "../preload";
 import { newConversationMode, pickCanvasConversation, shouldMarkSeen, type CanvasNotice, type NewConversationView, type ResumeTarget } from "./canvasConversation";
 import type { ConversationStore, ListView } from "./conversationStore";
 import { draftKey, type DockedMode } from "./dockedRules";
@@ -23,6 +24,9 @@ export interface CanvasRunHost {
   drawing(root: string, canvas: Canvas): string | null;
   changed(): void;
 }
+
+// The terminal session read: `window.doan`, or the prototype window's same member.
+export type ResumeCalls = Pick<DoanApi, "conversationResumeTarget">;
 
 export interface CanvasTarget { root: string; canvas: Canvas }
 // lastCheckAt: when doan check linked the terminal session (main's resume target).
@@ -69,7 +73,7 @@ export class CanvasRun {
   private scrolls = 0;
   private resumeAsks = 0;
 
-  constructor(private host: CanvasRunHost, readonly store: ConversationStore) {
+  constructor(private host: CanvasRunHost, readonly store: ConversationStore, private calls: ResumeCalls) {
     store.subscribe((conversationId, change) => {
       this.checkSeen();
       if (change !== "read") return;
@@ -298,7 +302,7 @@ export class CanvasRun {
   private askResume(s: CanvasState): void {
     const ask = s.ask = ++this.resumeAsks;
     const { root, canvas } = s.target;
-    void window.doan.conversationResumeTarget({ root, canvas }).catch(() => ({ error: "unknown" })).then(reply => {
+    void this.calls.conversationResumeTarget({ root, canvas }).catch(() => ({ error: "unknown" })).then(reply => {
       if (s.ask !== ask) return;
       s.resume = "error" in reply ? { error: reply.error } : reply.available ? { available: true, runtime: reply.runtime, lastCheckAt: reply.lastCheckAt, ...(reply.session ? { session: reply.session } : {}) } : { available: false, reason: reply.reason, ...(reply.runtime && reply.session ? { runtime: reply.runtime, session: reply.session } : {}) };
       this.host.changed();

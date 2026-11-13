@@ -168,7 +168,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   // A new connection of the provider has a list of its own to read.
   const generation = chosen ? generationOf(auth, chosen) : 0;
-  const projectSkills = useProjectSkills(root, chosen, conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle", generation);
+  const projectSkills = useProjectSkills(window.doan, root, chosen, conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle", generation);
   useEffect(() => { if (healthy && chosen && ready) support.readModels(root, chosen); }, [root, healthy, chosen, ready, generation]);
 
   const presets = support.presets?.ok ? support.presets.result.presets : [];
@@ -434,7 +434,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
-        onAttachmentRemoved={dropAttachment}
+        onAttachmentRemoved={attachment => dropAttachment(window.doan, attachment)}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events) : null}
         stepAside={{ waiting: asking, notice: !conversationId && !waiting && !!moved }}
         queued={conversationId ? run.queue(conversationId) : []}
