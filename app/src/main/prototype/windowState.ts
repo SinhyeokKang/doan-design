@@ -89,8 +89,17 @@ function leaving(state: PrototypeState): Effect[] {
 
 type Present = Extract<Resolution, { kind: "present" }>;
 
-function titleIn(frames: readonly { id: string; title?: string }[], frame: string): string | undefined {
-  return frames.find(candidate => candidate.id === frame)?.title;
+// A list that has the frame names it, by its title or by none (null); undefined only when the frame is not listed, the
+// one case where an earlier title still stands.
+function titleIn(frames: readonly { id: string; title?: string }[], frame: string): string | null | undefined {
+  const listed = frames.find(candidate => candidate.id === frame);
+  return listed === undefined ? undefined : listed.title ?? null;
+}
+
+// A run's list names the target if it lists it; otherwise the last title stands.
+function latestTitle(frames: readonly { id: string; title?: string }[], state: OpenState): string | null {
+  const listed = titleIn(frames, state.target.frame);
+  return listed === undefined ? state.title : listed;
 }
 
 // A new run of `target`. `fit` is set for a play that changes the target (or opens the window); a reload, Retry or
@@ -104,9 +113,13 @@ function start(state: PrototypeState, target: PrototypeTarget, resolved: Present
   const sameFrame = state.open && sameTarget(state.target, target);
   const keepFrames = state.open && sameCanvas(state.target, target) && state.listed === "ok";
   const markWidth = fit?.size.width ?? (state.open ? state.run?.markWidth : undefined) ?? 0;
+  // doan ls first (newest), then the frame list kept from this canvas's last run; the target's own last title stands
+  // only when neither lists the frame.
+  const listedTitle = [titleIn(resolved.frames, target.frame), keepFrames && state.open ? titleIn(state.frames, target.frame) : undefined]
+    .find(listed => listed !== undefined);
   const base = {
     open: true as const, gen, history, target, source: resolved.source, url: resolved.url, label: resolved.label, path: resolved.path,
-    title: titleIn(resolved.frames, target.frame) ?? (sameFrame && state.open ? state.title : null),
+    title: listedTitle !== undefined ? listedTitle : sameFrame && state.open ? state.title : null,
     previousStopped: killed.length > 0 || (state.open && state.previousStopped),
     frames: keepFrames && state.open ? state.frames : [], reports: state.open ? state.reports : {}, fitHint: fit?.size ?? null,
   };
@@ -199,7 +212,7 @@ export function report(state: PrototypeState, result: RunReport): Step {
   if (!state.open || !current(state, result.gen)) return none(state);
   if (result.state === "timeout") return { state: { ...state, phase: "init-failed", fitHint: null, previousStopped: true }, effects: [{ kind: "kill", gen: result.gen }] };
   const reports = { ...state.reports, [canvasKeyString(state.target)]: result.frames.map(frame => frame.id) };
-  const title = titleIn(result.frames, state.target.frame) ?? state.title;
+  const title = latestTitle(result.frames, state);
   if (result.state !== "ready") {
     const phase = result.state === "missing" || result.state === "duplicate" ? "frame-unavailable" : "prototype-unavailable";
     return { state: { ...state, phase, frames: result.frames, reports, title, fitHint: null }, effects: [] };
@@ -214,7 +227,7 @@ export function report(state: PrototypeState, result: RunReport): Step {
 
 export function framesReported(state: PrototypeState, gen: number, frames: PrototypeFrame[]): Step {
   if (!state.open || gen !== state.gen || state.listed !== "ok") return none(state);
-  return { state: { ...state, frames, title: titleIn(frames, state.target.frame) ?? state.title, reports: { ...state.reports, [canvasKeyString(state.target)]: frames.map(frame => frame.id) } }, effects: [] };
+  return { state: { ...state, frames, title: latestTitle(frames, state), reports: { ...state.reports, [canvasKeyString(state.target)]: frames.map(frame => frame.id) } }, effects: [] };
 }
 
 // The server could not give the run's document (main sees the iframe's failed load).
@@ -232,7 +245,7 @@ export function prototypeView(state: PrototypeState, resolve: Resolve): Prototyp
   if (!state.open) return null;
   const { frame } = state.target;
   const resolved = resolve(state.target, state.path);
-  const title = titleIn(state.frames, frame) ?? (resolved.kind === "present" ? titleIn(resolved.frames, frame) : undefined) ?? state.title ?? frame;
+  const title = state.title ?? frame;
   const ok = usable(state, resolve);
   return {
     gen: state.gen, frame, title, canvas: resolved.kind === "present" ? resolved.label : state.label, phase: state.phase, ...(state.detail === undefined ? {} : { detail: state.detail }),

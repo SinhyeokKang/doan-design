@@ -272,6 +272,32 @@ describe("an unreadable canvas with an ID", () => {
   });
 });
 
+describe("the frame's title", () => {
+  test("a frame still listed without a title shows its ID; the last title is kept only while it is not listed", () => {
+    const w = world();
+    const shown = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
+    expect(prototypeView(shown, w.resolve)?.title).toBe("Phone");
+    // The agent removed the title: the run's list and doan ls list the frame without one.
+    w.set(A, w.present("http://h/t/tok/k1/proto.html", "s2", [{ id: "phone" }]));
+    const reloading = listChanged(shown, w.resolve).state;
+    expect(prototypeView(reloading, w.resolve)?.title).toBe("phone");
+    const untitled = [{ id: "phone", size: "390x844", number: 1 }];
+    const plain = report(reloading, { gen: reloading.gen, state: "ready", size: phone, frames: untitled }).state;
+    expect(prototypeView(plain, w.resolve)?.title).toBe("phone");
+    // Then the frame goes: no older title comes back.
+    w.set(A, { kind: "absent" });
+    expect(prototypeView(listChanged(plain, w.resolve).state, w.resolve)?.title).toBe("phone");
+  });
+
+  test("a later frame list without the title drops it too", () => {
+    const w = world();
+    const shown = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
+    w.set(A, w.present("http://h/t/tok/k1/proto.html", "s1", [{ id: "phone" }]));
+    const step = framesReported(shown, shown.gen, [{ id: "phone", size: "390x844", number: 1 }]);
+    expect(prototypeView(step.state, w.resolve)?.title).toBe("phone");
+  });
+});
+
 describe("failures, retry and stale results", () => {
   function loading() {
     const w = world();
