@@ -746,6 +746,29 @@ describe("the GitHub star card", () => {
   });
 });
 
+// Home's credit line: the repository link opens main's fixed URL, never one the renderer sends, and leaves the star
+// card's state alone.
+describe("the Home credit's repository link", () => {
+  test("opens only main's fixed repository URL and does not count as the star card's open", async () => {
+    expect(await invoke("repository:open", window().webContents, null)).toBe(true);
+    expect(mocks.electronShell.openExternal).toHaveBeenCalledExactlyOnceWith("https://github.com/SinhyeokKang/doan-design");
+    expect(mocks.starPrompt.opened).not.toHaveBeenCalled();
+  });
+
+  test("a browser that did not open answers false", async () => {
+    mocks.electronShell.openExternal.mockRejectedValueOnce(new Error("no handler"));
+    expect(await invoke("repository:open", window().webContents, null)).toBe(false);
+  });
+
+  test("other senders and requests with data are refused, and nothing opens", async () => {
+    const other = new mocks.Window({ show: false }).webContents;
+    expect(await invoke("repository:open", other, null)).toBe(false);
+    expect(await invoke("repository:open", window().webContents, {})).toBe(false);
+    expect(await invoke("repository:open", window().webContents, null, "https://evil.example")).toBe(false);
+    expect(mocks.electronShell.openExternal).not.toHaveBeenCalled();
+  });
+});
+
 // Nothing asks the renderer before Quit: the teardown is scheduled within the event.
 test("a quit goes ahead without asking the renderer", async () => {
   const event = { preventDefault: vi.fn() };
