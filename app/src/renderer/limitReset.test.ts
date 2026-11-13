@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { queueButtonHint, queueStatusLine, resetTimeText, scheduledSlot, type Clock } from "./limitReset";
+import { liveReset, queueButtonHint, queueStatusLine, resetTimeText, scheduledSlot, waitsForReset, type Clock } from "./limitReset";
 
 const SEOUL: Clock = { timeZone: "Asia/Seoul", hour12: true };
 const NNBSP = " ";
@@ -90,5 +90,20 @@ describe("scheduledSlot", () => {
   test("once the reset passed it reads as going out, without a time", () => {
     const reset = at("2026-11-13T15:00:00");
     expect(scheduledSlot(reset, Date.parse(reset) + 1, SEOUL)).toEqual({ kind: "scheduled", label: "Queued — sending" });
+  });
+});
+
+describe("waitsForReset and liveReset", () => {
+  test("a send waits while the limit holds or the conversation is scheduled", () => {
+    expect(waitsForReset({ limitResetsAt: "2026-11-13T06:00:00.000Z" })).toBe(true);
+    expect(waitsForReset({ scheduledAt: "2026-11-13T06:00:00.000Z" })).toBe(true);
+    expect(waitsForReset({})).toBe(false);
+    expect(waitsForReset(undefined)).toBe(false);
+  });
+  test("the failed turn names the reset only before it", () => {
+    const reset = at("2026-11-13T15:00:00");
+    expect(liveReset(reset, NOW, SEOUL)).toBe(`at 3:00${NNBSP}PM`);
+    expect(liveReset(reset, Date.parse(reset), SEOUL)).toBeNull();
+    expect(liveReset(undefined, NOW, SEOUL)).toBeNull();
   });
 });

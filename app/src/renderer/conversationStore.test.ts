@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Anchor, ConversationEvent } from "../main/conversation/types";
 import { ConversationStore, type ListView } from "./conversationStore";
@@ -360,4 +360,82 @@ test("a refused Send now row the transcript later shows as read goes with the ne
   expect(h.ids()).toEqual([]);
   expect(h.store.sending(A)).toEqual([]);
   expect(threadItems(h.store.thread(A)!.events, ROOT, true).filter(item => item.kind === "user").map(item => item.key)).toEqual(["u1", `u${message.seq}`]);
+});
+
+// A scheduled conversation's rows come from main (conversation `scheduled`): main schedules some by itself after a turn
+// the usage limit stopped, and a reschedule changes the time. They are read when the list's schedule appears or changes.
+describe("scheduled rows", () => {
+  const AT = "2026-11-13T06:00:00.000Z", LATER = "2026-11-14T06:00:00.000Z";
+  const item = (itemId: string, text: string, extra: Partial<{ anchors: Anchor[]; attachments: { name: string; size?: number; kind: "file" | "directory"; path: string }[] }> = {}) =>
+    ({ itemId, text, anchors: [], attachments: [], ...extra });
+  function scheduledHarness(first: ConversationSummary) {
+    let list: ListView = [first];
+    let started = 1, applied = 1;
+    const host = { list: () => list, readsStarted: () => started, readsApplied: () => applied, notice: vi.fn(), changed: vi.fn() };
+    const store = new ConversationStore(host);
+    const ids = () => store.queue(A).map(row => row.id);
+    const read = (next: ConversationSummary[]) => { started++; applied = started; list = next; store.syncQueues(); };
+    return { store, ids, read, setList: (next: ConversationSummary[]) => { list = next; }, startRead: () => { started++; }, applyRead: (next: ConversationSummary[]) => { applied = started; list = next; store.syncQueues(); } };
+  }
+  const scheduled = (extra: Partial<ConversationSummary> = {}) => summary({ phase: "ended", working: false, queued: 1, scheduledAt: AT, ...extra });
+
+  test("a schedule in the list reads main's items once as rows: chips by name, files kept for the thread", async () => {
+    doan.scheduledMessages = vi.fn(async () => [item("s1", "Use the spacing from {{1}}", { anchors: [CTA], attachments: [{ name: "notes.pdf", size: 10, kind: "file", path: "/Users/ada/notes.pdf" }] })]);
+    const h = scheduledHarness(scheduled());
+    h.store.readScheduled(ROOT, A);
+    await flush();
+    expect(doan.scheduledMessages).toHaveBeenCalledWith({ conversationId: A });
+    expect(h.store.queue(A)).toEqual([{ id: "s1", text: "Use the spacing from element hero-cta", message: { text: "Use the spacing from {{1}}", anchors: [CTA], attachments: [{ name: "notes.pdf", size: 10, kind: "file", path: "/Users/ada/notes.pdf" }] } }]);
+    h.store.readScheduled(ROOT, A);
+    expect(doan.scheduledMessages).toHaveBeenCalledTimes(1);
+  });
+
+  test("a new time or count reads again and replaces the rows; no schedule reads nothing", async () => {
+    doan.scheduledMessages = vi.fn(async () => [item("s1", "First")]);
+    const h = scheduledHarness(summary({ phase: "ended", working: false, queued: 0 }));
+    h.store.readScheduled(ROOT, A);
+    expect(doan.scheduledMessages).not.toHaveBeenCalled();
+    h.setList([scheduled()]);
+    h.store.readScheduled(ROOT, A);
+    await flush();
+    doan.scheduledMessages = vi.fn(async () => [item("s1", "First"), item("s2", "Second")]);
+    h.setList([scheduled({ queued: 2 })]);
+    h.store.readScheduled(ROOT, A);
+    await flush();
+    expect(h.ids()).toEqual(["s1", "s2"]);
+    doan.scheduledMessages = vi.fn(async () => [item("s3", "Again")]);
+    h.setList([scheduled({ scheduledAt: LATER })]);
+    h.store.readScheduled(ROOT, A);
+    await flush();
+    expect(h.ids()).toEqual(["s3"]);
+  });
+
+  test("an answer for a schedule that changed meanwhile, or a refusal, leaves the rows alone", async () => {
+    const answer = deferred<unknown>();
+    doan.scheduledMessages = vi.fn(() => answer.promise);
+    const h = scheduledHarness(scheduled());
+    h.store.readScheduled(ROOT, A);
+    h.setList([scheduled({ scheduledAt: LATER })]);
+    answer.resolve([item("old", "Old")]);
+    await flush();
+    expect(h.ids()).toEqual([]);
+    doan.scheduledMessages = vi.fn(async () => ({ error: "not_found" }));
+    h.store.readScheduled(ROOT, A);
+    await flush();
+    expect(h.ids()).toEqual([]);
+  });
+
+  // POSTMORTEM 2026-11-05: main's count drops to 0 while a scheduled send goes out and comes back on a reschedule, so
+  // only a read started after the rows came back can drop them.
+  test("rows read from a schedule stay through a read that started before them", async () => {
+    doan.scheduledMessages = vi.fn(async () => [item("s1", "First")]);
+    const h = scheduledHarness(scheduled());
+    h.startRead();
+    h.store.readScheduled(ROOT, A);
+    await flush();
+    h.applyRead([summary({ phase: "ended", working: false, queued: 0 })]);
+    expect(h.ids()).toEqual(["s1"]);
+    h.read([summary({ phase: "ended", working: false, queued: 0 })]);
+    expect(h.ids()).toEqual([]);
+  });
 });

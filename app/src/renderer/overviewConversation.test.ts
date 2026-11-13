@@ -232,3 +232,11 @@ describe("conversationStatus while scheduled", () => {
     expect(conversationStatus(summary({ queued: 1, unseen: true }), new Set(), scheduled)).toEqual(scheduled);
   });
 });
+
+test("a scheduled conversation's dropdown row shows the scheduled StatusMark", () => {
+  const now = Date.now();
+  const at = new Date(now + 3_600_000).toISOString();
+  const [row] = projectConversationMenu([summary({ queued: 1, scheduledAt: at })], now);
+  expect(row?.status?.kind).toBe("scheduled");
+  expect(row?.status?.label).toMatch(/^Queued — sends when the limit resets /);
+});

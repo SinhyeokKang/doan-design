@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
-import { conversationWork, slotsFromList, stripFromList, withTerminalSlots } from "./conversationList";
+import { conversationWork, scheduledOf, slotsFromList, stripFromList, withTerminalSlots } from "./conversationList";
 import { slotKey, type Slot } from "./homeConversations";
 import { projectSlot } from "./ShellSidebar";
 
@@ -166,5 +166,21 @@ describe("the scheduled slot", () => {
     expect(project([["/r", unseen], [slotKey("/r", A), scheduled]])).toEqual(scheduled);
     expect(project([["/r", scheduled], [slotKey("/r", A), { kind: "working", label: "w" }]])?.kind).toBe("working");
     expect(project([["/r", scheduled], [slotKey("/r", A), { kind: "permission", label: "p" }]])?.kind).toBe("permission");
+  });
+});
+
+describe("scheduledOf", () => {
+  test("a summary's schedule becomes its slot; no schedule is none", () => {
+    const now = Date.parse("2026-11-13T01:00:00.000Z");
+    const clock = { timeZone: "Asia/Seoul", hour12: true };
+    expect(scheduledOf(summary({ scheduledAt: "2026-11-13T06:00:00.000Z" }), now, clock)).toEqual({ kind: "scheduled", label: "Queued — sends when the limit resets at 3:00\u202fPM" });
+    expect(scheduledOf(summary({}), now, clock)).toBeNull();
+  });
+
+  test("the sidebar slots show it for Home conversations; the strip never does", () => {
+    const at = new Date(Date.now() + 3_600_000).toISOString();
+    const lists = new Map([["/r/doan", [summary({ conversationId: "s", queued: 1, scheduledAt: at })]]]);
+    expect(slotsFromList(lists, none, canvases).get("/r/doan")?.kind).toBe("scheduled");
+    expect(stripFromList(lists.get("/r/doan")!, none)).toBeNull();
   });
 });
