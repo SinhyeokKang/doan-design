@@ -156,11 +156,11 @@ describe("prototype window", () => {
   });
   test("its own requests include the panel, the conversation it shows, a reveal in the main window and the composer's narrow reads", async () => {
     const { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } = await import("./prototype/ipc");
-    for (const channel of [PROTOTYPE_CHANNELS.panel, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal, PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember]) {
+    for (const channel of [PROTOTYPE_CHANNELS.panel, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal, PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember, PROTOTYPE_CHANNELS.entry]) {
       expect(PROTOTYPE_WINDOW_REQUESTS, channel).toContain(channel);
     }
     // Events main sends, in either window, are never requests.
-    for (const channel of [PROTOTYPE_CHANNELS.authChanged, PROTOTYPE_CHANNELS.workChanged, PROTOTYPE_CHANNELS.composerChanged, PROTOTYPE_CHANNELS.revealRequest, PROTOTYPE_CHANNELS.lastUsed]) {
+    for (const channel of [PROTOTYPE_CHANNELS.authChanged, PROTOTYPE_CHANNELS.workChanged, PROTOTYPE_CHANNELS.composerChanged, PROTOTYPE_CHANNELS.entryChanged, PROTOTYPE_CHANNELS.revealRequest, PROTOTYPE_CHANNELS.lastUsed]) {
       for (const kind of ["main", "prototype"]) expect(senderAllowed(channel, kind), `${channel} ${kind}`).toBe(false);
     }
   });

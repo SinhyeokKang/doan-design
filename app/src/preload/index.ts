@@ -41,7 +41,8 @@ import type { ExportReply } from "../main/canvasExport";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
 import type { AddPageResponse, AddPageState } from "../main/addPage";
-import type { PlayRequest } from "../main/prototype/ipc";
+import type { PlayRequest, PrototypeReveal } from "../main/prototype/ipc";
+import type { ComposerChoice } from "../renderer/rememberChoice";
 
 export type { AddPageResponse, AddPageState, WorkItem, OpenLinkResult, TrashPlanReply, TrashReply, ExportReply };
 export type { McpAddReply, McpReply, McpSnapshot };
@@ -528,6 +529,19 @@ const api = {
     const receive = () => listener();
     ipcRenderer.on("prototype:closed", receive);
     return () => ipcRenderer.removeListener("prototype:closed", receive);
+  },
+  // A thread chip or a main-window-only button pressed in the prototype window, checked by main against the playing
+  // canvas. Main has already shown and focused this window; it decides whether it can show the target now.
+  onPrototypeReveal(listener: (request: PrototypeReveal) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, request: PrototypeReveal) => listener(request);
+    ipcRenderer.on("prototype:revealRequest", receive);
+    return () => ipcRenderer.removeListener("prototype:revealRequest", receive);
+  },
+  // A pick in the prototype window's composer, to remember as Last used exactly as this window's own composer picks.
+  onPrototypeLastUsed(listener: (choice: ComposerChoice) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, choice: ComposerChoice) => listener(choice);
+    ipcRenderer.on("prototype:lastUsed", receive);
+    return () => ipcRenderer.removeListener("prototype:lastUsed", receive);
   },
   // Main asks for the Settings page, at a category and optionally a provider row; a hidden window is already shown.
   onOpenSettingsPage(listener: (target: SettingsPageTarget) => void): () => void {

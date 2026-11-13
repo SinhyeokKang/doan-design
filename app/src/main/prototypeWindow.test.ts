@@ -20,8 +20,11 @@ class FakeWindow extends EventEmitter {
   isDestroyed() { return this.destroyed; }
   destroy() { if (this.destroyed) return; this.destroyed = true; this.emit("closed"); }
   close() { this.emit("close"); this.destroy(); }
-  setContentBounds() {}
-  getContentBounds() { return { x: 0, y: 0, width: 406, height: 908 }; }
+  bounds = { x: 0, y: 0, width: 406, height: 908 };
+  minimum: [number, number] = [0, 0];
+  setContentBounds(bounds: { x: number; y: number; width: number; height: number }) { this.bounds = bounds; }
+  getContentBounds() { return this.bounds; }
+  setMinimumSize(width: number, height: number) { this.minimum = [width, height]; }
   getBounds() { return this.getContentBounds(); }
   loadFile = vi.fn(async () => {});
   loadURL = vi.fn(async () => {});
@@ -33,6 +36,7 @@ class FakeWindow extends EventEmitter {
 const order: string[] = [];
 vi.mock("electron", () => ({
   app: { isPackaged: true, show: () => order.push("app.show") },
+  Menu: { buildFromTemplate: (template: unknown[]) => ({ popup: () => order.push(`menu ${template.length}`) }) },
   BrowserWindow: FakeWindow,
   screen: { getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1600, height: 1000 } }), getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1600, height: 1000 } }) },
   session: { fromPartition: () => ({}) },
@@ -49,7 +53,7 @@ async function opened() {
   const { createPrototypeWindow } = await import("./prototypeWindow");
   const closed = vi.fn();
   const focusChanged = vi.fn();
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed, denyPermissions: vi.fn(), reread: vi.fn(), focusChanged });
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed, denyPermissions: vi.fn(), reread: vi.fn(), focusChanged, buddy: () => "puri" });
   prototype.controller.play("main", play);
   expect(created).toHaveLength(1);
   return { prototype, closed, focusChanged, window: created[0]! };
@@ -103,7 +107,7 @@ test("a replaced window's late focus and blur are not reported", async () => {
 test("a play while the app is hidden shows the app before the window, for a new window and a raised one", async () => {
   const { createPrototypeWindow } = await import("./prototypeWindow");
   let hidden = true;
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden });
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden, buddy: () => "puri" });
   const target = { root: "/r", canvas: { id: "proto" }, frame: "phone" };
   expect(prototype.controller.playFromCli({ target, size: { width: 390, height: 844 } })).toBe("played");
   expect(order).toEqual(["app.show", "window.show", "window.focus"]);
@@ -121,7 +125,7 @@ test("a play while the app is hidden shows the app before the window, for a new 
 test("the window's native visibility goes to its page on show, hide, minimize, restore and an app hide", async () => {
   const { createPrototypeWindow } = await import("./prototypeWindow");
   let hidden = false;
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden });
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden, buddy: () => "puri" });
   prototype.controller.play("main", play);
   const window = created[0]!;
   const pushed = () => window.webContents.send.mock.calls.filter(call => call[0] === "prototype:visible").map(call => call[1]);
@@ -134,4 +138,27 @@ test("the window's native visibility goes to its page on show, hide, minimize, r
   expect(prototype.visible()).toBe(false);
   hidden = false; prototype.visibilityChanged();
   expect(pushed()).toEqual([{ visible: false }, { visible: true }, { visible: false }, { visible: true }, { visible: false }, { visible: true }]);
+});
+
+test("the page gets the saved buddy in its query, as the main window's does", async () => {
+  const { window } = await opened();
+  expect(window.loadFile).toHaveBeenCalledWith(expect.stringContaining("prototype.html"), { query: { buddy: "puri" } });
+});
+
+test("opening the conversation panel widens a narrow window to 640 and keeps it there; closing leaves the size", async () => {
+  const { prototype, window } = await opened();
+  window.bounds = { x: 1400, y: 50, width: 406, height: 908 };
+  prototype.controller.request("prototype:panel", "prototype", { open: true });
+  // 1400 + 640 would leave the 1600 work area: moved left to 960.
+  expect(window.bounds).toEqual({ x: 960, y: 50, width: 640, height: 908 });
+  expect(window.minimum).toEqual([640, 0]);
+  prototype.controller.request("prototype:panel", "prototype", { open: false });
+  expect(window.bounds).toEqual({ x: 960, y: 50, width: 640, height: 908 });
+  expect(window.minimum).toEqual([360, 0]);
+});
+
+test("the text edit menu opens for the window's own page", async () => {
+  const { window } = await opened();
+  window.webContents.emit("context-menu", {}, { isEditable: true, editFlags: { canCut: true, canCopy: true, canPaste: true, canSelectAll: true }, selectionText: "", formControlType: "none", misspelledWord: "", dictionarySuggestions: [], frame: { parent: null }, x: 1, y: 1 });
+  expect(order.some(entry => entry.startsWith("menu "))).toBe(true);
 });

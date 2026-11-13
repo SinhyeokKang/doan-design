@@ -5,7 +5,7 @@ import { connectorFacts, createAccountPrepare, createPrepare, routePrepare, wire
 import { listModels, listSkills, openRunner } from "./conversation/runners";
 import { ModelCatalog } from "./conversation/models";
 import { SkillCatalog } from "./conversation/skills";
-import { AttachmentStore, captureRequest, type AttachmentResult } from "./attachments";
+import { AttachmentStore, captureRequest, type AttachmentResult, type RecheckResult } from "./attachments";
 import { conversationHandler, conversationMethods, queueFiles } from "./conversation/ipc";
 import { DraftStore } from "./conversation/drafts";
 import { folderRefreshes } from "./conversation/refreshes";
@@ -93,6 +93,13 @@ import { openLinkQueue, openRequests, resolveOpenLink } from "./deepLinks";
 import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, workItemsChanged, type WorkState } from "./workState";
 import { applyConversationWork, endConversationWork, type ConversationWork } from "./conversationWork";
 import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
+import {
+  prototypeAuthSnapshot, prototypeComposerSettings, prototypeConversationScope, prototypeEntry, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
+  type ConversationBroadcast, type ResumeSession, type ScopedConversation,
+} from "./prototype/conversationScope";
+import { canvasKeyString } from "./prototype/targets";
+import { parseComposerChoice, parseRevealRequest, parseShowingRequest } from "./prototype/requests";
+import { parseUiState, type UiState } from "../restore/uiState";
 import { createPrototypeWindow } from "./prototypeWindow";
 import { answerCliPlay } from "./prototype/cliPlay";
 
@@ -167,6 +174,7 @@ function updateWork(next: WorkState): void {
   }
   armWorkTimer();
   if (workItemsChanged(previous, items)) send("work:changed", items);
+  sendPrototypeWork();
 }
 // App conversations' work updates, kept apart from terminal work so they never count as a terminal.
 let conversationWork: readonly ConversationWork[] = [];
@@ -252,6 +260,15 @@ const HOME: MenuInputs = { screen: "home", modal: false };
 let menuInputs: MenuInputs = HOME;
 // The prototype window has focus: the main window's own menu items go off (menuState `prototypeFocused`).
 let prototypeFocused = false;
+// The conversation the prototype window's open panel shows (prototype:showing), for notifications.
+let prototypeShowing: string | null = null;
+// The terminal session the playing canvas would resume, from main's last resumeTarget answer to the prototype window,
+// with the canvas it was for: its composer sees only that session's terminal work.
+let prototypeResume: { canvas: string; held: ResumeSession } | null = null;
+let prototypeWorkSent = "[]";
+let prototypeEntrySent: string | null = null;
+// Set once the attachment store exists: forget the attachments the prototype window held when it closes.
+let prototypeAttachmentsClosed: () => void = () => {};
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
 
 // Thumbnails are for the window's overview, so nothing is captured while it
@@ -319,7 +336,15 @@ function playPrototype(request: PrototypeRequest): PrototypeResponse {
 const prototype = createPrototypeWindow({
   entries: () => shell?.entries() ?? [],
   mainWindow: () => win,
-  closed: () => send(PROTOTYPE_CHANNELS.closed),
+  closed: () => {
+    prototypeShowing = null;
+    prototypeResume = null;
+    prototypeWorkSent = "[]";
+    prototypeEntrySent = null;
+    prototypeAttachmentsClosed();
+    send(PROTOTYPE_CHANNELS.closed);
+  },
+  buddy: () => prototypeBuddy(),
   denyPermissions,
   reread: root => shell?.reread([root]),
   appHidden: () => appHidden,
@@ -329,6 +354,33 @@ const prototype = createPrototypeWindow({
     setMenu();
   },
 });
+
+// The buddy a new prototype window's page starts with; the saved one once preferences are read.
+let prototypeBuddy: () => BuddyId = () => "doany";
+
+// The playing canvas's resume session, while it is still the canvas playing.
+function prototypeHeldSession(): ResumeSession | null {
+  const playing = prototype.controller.playing();
+  return playing !== null && prototypeResume !== null && prototypeResume.canvas === canvasKeyString(playing) ? prototypeResume.held : null;
+}
+
+function sendPrototypeWork(): void {
+  if (prototype.window() === undefined) return;
+  const items = prototypeWorkItems(workItems(workState), prototypeHeldSession());
+  const text = JSON.stringify(items);
+  if (text === prototypeWorkSent) return;
+  prototypeWorkSent = text;
+  prototype.send(PROTOTYPE_CHANNELS.workChanged, items);
+}
+
+function sendPrototypeEntry(): void {
+  if (prototype.window() === undefined) return;
+  const entry = prototypeEntry(shell?.entries() ?? [], prototype.controller.playing());
+  const text = JSON.stringify(entry);
+  if (text === prototypeEntrySent) return;
+  prototypeEntrySent = text;
+  prototype.send(PROTOTYPE_CHANNELS.entryChanged, entry);
+}
 
 // A registered window's main frame, or nothing: iframes, the capture window
 // and windows that are gone are not senders.
@@ -764,6 +816,7 @@ async function start(): Promise<void> {
     thumbnails?.entriesChanged(entries);
     // A source change reloads the prototype, a gone canvas or root shows it unavailable, and it comes back on restore.
     prototype.controller.listChanged();
+    sendPrototypeEntry();
     seen.listed(entries);
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", seen.decorate(entries), focus);
     readyOpenLinks();
@@ -796,8 +849,12 @@ async function start(): Promise<void> {
   // The main window names a frame of a listed canvas; main builds the URL itself. Each window request is checked again
   // for the prototype role inside the controller.
   handle(PROTOTYPE_CHANNELS.play, undefined, (_event, value: unknown, kind) => { prototype.controller.play(kind, value); });
-  // Export and visibility are the window host's, not the run controller's (handled with the CLI below).
-  const hostRequests: ReadonlySet<string> = new Set([PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible]);
+  // Export and visibility are the window host's, not the run controller's (handled with the CLI below), and so are the
+  // conversation panel's requests other than its open state, which reach the main window, settings and work state.
+  const hostRequests: ReadonlySet<string> = new Set([
+    PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
+    PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember, PROTOTYPE_CHANNELS.entry,
+  ]);
   handle(PROTOTYPE_CHANNELS.visible, null, (_event, value: unknown) => value === undefined ? { visible: prototype.visible() } : null);
   for (const channel of PROTOTYPE_WINDOW_REQUESTS) {
     if (hostRequests.has(channel)) continue;
@@ -922,7 +979,7 @@ async function start(): Promise<void> {
       probe: provider => toolFacts(provider, { shell: shellForFacts, run: runProcess, executable, inherited: process.env, cli }),
       // MCP Connectors follows every auth change: readiness, a new verified connection (pending logouts, reconcile and
       // status reads) or a lost one. Claude's prompt suggestions go with a signed-out or replaced Claude connection.
-      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); for (const provider of MCP_PROVIDERS) mcp?.authChanged(provider); usage?.authChanged(); for (const provider of ["claude", "codex"] as const) conversations?.connectionChanged(provider, agentAuth?.state(provider).connection?.connectionId); },
+      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); prototype.send(PROTOTYPE_CHANNELS.authChanged, prototypeAuthSnapshot(snapshot)); onboarding?.authChanged(snapshot); for (const provider of MCP_PROVIDERS) mcp?.authChanged(provider); usage?.authChanged(); for (const provider of ["claude", "codex"] as const) conversations?.connectionChanged(provider, agentAuth?.state(provider).connection?.connectionId); },
       prompt: (owner, event) => { if (win && !win.isDestroyed() && win.webContents.id === owner) send(AUTH_CHANNELS.prompt, event); },
     });
   }
@@ -1065,7 +1122,11 @@ async function start(): Promise<void> {
   const preferences = createPreferencesStore(join(userData, "preferences.json"));
   const notify = createNotifyService({
     preferences: () => preferences.current().notifications,
-    visibility: () => ({ focused: win !== undefined && !win.isDestroyed() && win.isFocused(), shown: windowShown, minimized: win !== undefined && !win.isDestroyed() && win.isMinimized(), appHidden }),
+    visibility: () => ({
+      focused: win !== undefined && !win.isDestroyed() && win.isFocused(), shown: windowShown, minimized: win !== undefined && !win.isDestroyed() && win.isMinimized(), appHidden,
+      // The person sees that conversation in the prototype window's open panel while the window is in front.
+      prototypeShows: prototypeFocused && prototype.visible() && prototype.controller.panelOpen() ? prototypeShowing : null,
+    }),
     names(conversationId) {
       // An unreadable conversation index fails the conversation calls themselves, which report it; here it only
       // leaves the event without a notification.
@@ -1091,7 +1152,25 @@ async function start(): Promise<void> {
   // Every conversation event, and every end of a turn's work (a history that stopped taking writes publishes no event),
   // may start or end a turn or a question, which Restart to Update waits for.
   // A turn the usage limit stopped holds its failure notification until main knows it was not scheduled again (notice).
-  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, (event, deferNotice) => { send("conversation:event", event); if (!deferNotice) notify.event(event); updates?.conversationsChanged(); starPrompt?.event(event); }, (root, canvas) => {
+  // The prototype window's scope reads the conversation index. Events stream many times a second, so their filter keeps
+  // the index in memory until a list change or a binding change; a conversation it does not know reads it again.
+  const indexed = (): ScopedConversation[] => { try { return conversationStore.list(); } catch { return []; } };
+  let known: ScopedConversation[] | null = null;
+  const knownFor = (id: string): ScopedConversation[] => {
+    known ??= indexed();
+    if (!known.some(conversation => conversation.conversationId === id)) known = indexed();
+    return known;
+  };
+  // Every conversation broadcast goes to the main window, and to the prototype window when it is about the canvas that
+  // plays there (prototypeReceives).
+  const broadcast = (message: ConversationBroadcast): void => {
+    send(message.channel, message.value);
+    if (message.channel === "conversation:listChanged" || (message.channel === "conversation:event" && ["conversation.bound", "conversation.archived", "conversation.restored"].includes(message.value.type))) known = null;
+    if (prototype.window() === undefined) return;
+    const list = message.channel === "conversation:event" || message.channel === "conversation:stage" ? knownFor(message.value.conversationId) : known ?? [];
+    if (prototypeReceives(message, prototype.controller.playing(), list)) prototype.send(message.channel, message.value);
+  };
+  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, (event, deferNotice) => { broadcast({ channel: "conversation:event", value: event }); if (!deferNotice) notify.event(event); updates?.conversationsChanged(); starPrompt?.event(event); }, (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
     if (!project) throw new Error("project_not_open");
     if (canvas) {
@@ -1101,31 +1180,65 @@ async function start(): Promise<void> {
   }, undefined, root => {
     const project = ready.entries().find(entry => entry.path === root);
     return project?.kind === "list" ? project.canvases : [];
-  }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true,
+  }, root => broadcast({ channel: "conversation:listChanged", value: { root } }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true,
     limitWindows: (provider, connectionId) => usage ? usage.limitWindows(provider, connectionId) : Promise.resolve([]), resumed: listener => { powerMonitor.on("resume", listener); }, notice: event => notify.event(event) }, id => notify.close(id),
   // A stage is a live signal beside the events, never one of them: its own channel, to the main window only as events go.
-  id => { updateConversationWork(endConversationWork(conversationWork, id)); updates?.conversationsChanged(); }, notice => send("conversation:handoff", notice), signal => send("conversation:stage", signal));
+  id => { updateConversationWork(endConversationWork(conversationWork, id)); updates?.conversationsChanged(); }, notice => broadcast({ channel: "conversation:handoff", value: notice }), signal => broadcast({ channel: "conversation:stage", value: signal }));
   conversations = conversationService;
   attachments.cleanup();
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.readListing(input, listModels));
   const skillCatalog = new SkillCatalog((root, provider) => conversationService.prepareListing(root, provider), input => conversationService.readListing(input, listSkills));
   const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries(), { models: modelCatalog, skills: skillCatalog, attachments });
+  // The prototype window's main frame is a second sender, kept to the playing canvas: the scope is judged against the
+  // target and the index as they are when the request arrives, and its list keeps that canvas's conversations only.
   for (const method of conversationMethods) {
-    ipcMain.handle(`conversation:${method}`, (event, value: unknown) => conversationRequest(fromWindow(event), method, value));
+    ipcMain.handle(`conversation:${method}`, async (event, value: unknown) => {
+      const kind = senderKind(event);
+      if (kind !== "prototype") return conversationRequest(kind === "main", method, value);
+      const playing = prototype.controller.playing();
+      const entries = ready.entries();
+      const allowed = prototypeConversationScope(method, value, playing, indexed(), entries);
+      const reply = await conversationRequest(allowed, method, value, all => prototypeListRows(all, playing, entries));
+      if (allowed && method === "resumeTarget" && playing !== null) {
+        const held = typeof reply === "object" && reply !== null && "session" in reply && typeof reply.session === "string" && "runtime" in reply && typeof reply.runtime === "string"
+          ? { session: reply.session, runtime: reply.runtime } : null;
+        prototypeResume = held === null ? null : { canvas: canvasKeyString(playing), held };
+        sendPrototypeWork();
+      }
+      return reply;
+    });
   }
 
-  // Home attachments: paths the person chose, checked and kept by main; the page never names a path main did not give it.
-  handle("attachments:choose", [], async (event): Promise<AttachmentResult[]> => {
-    if (!fromWindow(event) || !win) return [];
-    const picked = await dialog.showOpenDialog(win, { title: "Attach Files or Folders", properties: ["openFile", "openDirectory", "multiSelections"] });
-    return picked.canceled || picked.filePaths.length === 0 ? [] : attachments.addPaths({ paths: picked.filePaths.slice(0, 64) }) ?? [];
+  // Composer attachments, from the main window and the prototype window's panel (senderAllowed): paths the person chose,
+  // checked and kept by main; the page never names a path main did not give it. The ids issued to the prototype window
+  // are kept so its closing forgets them: its draft goes with it.
+  const prototypeAttachments = new Set<string>();
+  const issued = (kind: WindowKind, results: readonly (AttachmentResult | RecheckResult | null)[] | null): void => {
+    if (kind === "prototype") for (const result of results ?? []) if (result?.ok) prototypeAttachments.add(result.attachment.id);
+  };
+  prototypeAttachmentsClosed = () => {
+    const ids = [...prototypeAttachments];
+    prototypeAttachments.clear();
+    // The draft's chips go with the window: an unsent paste is deleted, a local file forgotten. A sent or queued one
+    // is not this draft's any more and stays: a queued message rechecks its ids when it goes out.
+    for (const id of ids) attachments.remove({ id });
+  };
+  handle("attachments:choose", [], async (_event, _value, kind): Promise<AttachmentResult[]> => {
+    // The dialog opens over the window that asked.
+    const parent = kind === "prototype" ? prototype.window() : win;
+    if (!parent || parent.isDestroyed()) return [];
+    const picked = await dialog.showOpenDialog(parent, { title: "Attach Files or Folders", properties: ["openFile", "openDirectory", "multiSelections"] });
+    const results = picked.canceled || picked.filePaths.length === 0 ? [] : attachments.addPaths({ paths: picked.filePaths.slice(0, 64) }) ?? [];
+    issued(kind, results);
+    return results;
   });
-  handle("attachments:add-paths", null, (event, value: unknown) => fromWindow(event) ? attachments.addPaths(value) : null);
-  handle("attachments:add-pasted", null, (event, value: unknown) => fromWindow(event) ? attachments.addPasted(value) : null);
-  handle("attachments:remove", false, (event, value: unknown) => fromWindow(event) && attachments.remove(value));
-  handle("attachments:recheck", null, (event, value: unknown) => fromWindow(event) ? attachments.recheck(value) : null);
-  handle("attachments:release", false, (event, value: unknown) => fromWindow(event) && attachments.release(value));
-  handle("attachments:fromPaths", null, (event, value: unknown) => fromWindow(event) ? attachments.fromPaths(value) : null);
+  handle("attachments:add-paths", null, (_event, value: unknown, kind) => { const results = attachments.addPaths(value); issued(kind, results); return results; });
+  handle("attachments:add-pasted", null, (_event, value: unknown, kind) => { const result = attachments.addPasted(value); issued(kind, [result]); return result; });
+  handle("attachments:remove", false, (_event, value: unknown) => attachments.remove(value));
+  // A passing sent id becomes a draft attachment again, of the window that asked.
+  handle("attachments:recheck", null, (_event, value: unknown, kind) => { const results = attachments.recheck(value); issued(kind, results); return results; });
+  handle("attachments:release", false, (_event, value: unknown) => attachments.release(value));
+  handle("attachments:fromPaths", null, (_event, value: unknown, kind) => { const results = attachments.fromPaths(value); issued(kind, results); return results; });
   // The pixels the person sees in a rect of the window, read by main; the renderer names only the rect and never sends
   // image bytes.
   handle("attachments:capture", null, async (event, value: unknown): Promise<AttachmentResult | null> => {
@@ -1243,7 +1356,26 @@ async function start(): Promise<void> {
     return { x: (cursor.x - content.x) / zoom, y: (cursor.y - content.y) / zoom };
   });
   handle("ui-state:get", null, (event) => (fromWindow(event) ? store.read() : null));
-  handle("ui-state:save", false, (event, value: unknown) => fromWindow(event) && store.save(value));
+  // The main window's last save, as main parsed it: the file lags behind saves, and the prototype window's composer
+  // reads Last used from here. Undefined until the first save; the file stands in until then.
+  let savedUi: UiState | null | undefined;
+  let composerSent: string | null = null;
+  const composerSettings = async () => prototypeComposerSettings(savedUi !== undefined ? savedUi : await store.read(), preferences.current());
+  const sendComposerSettings = async () => {
+    if (prototype.window() === undefined) return;
+    const settings = await composerSettings();
+    const text = JSON.stringify(settings);
+    if (text === composerSent) return;
+    composerSent = text;
+    prototype.send(PROTOTYPE_CHANNELS.composerChanged, settings);
+  };
+  handle("ui-state:save", false, (event, value: unknown) => {
+    if (!fromWindow(event) || !store.save(value)) return false;
+    // No root spellings: the composer settings leave out Home's last project, the one field they would change.
+    savedUi = parseUiState(JSON.stringify(value), ready.entries().map(entry => entry.path));
+    void sendComposerSettings();
+    return true;
+  });
   // The Settings page's preferences, notifications and About. Main fixes the URL, the notification
   // and the clipboard text; the renderer sends a change or nothing.
   handle("preferences:read", null, () => preferences.read());
@@ -1257,7 +1389,46 @@ async function start(): Promise<void> {
     const reply = await preferences.update(value);
     // The choice in effect, which a refused or failed write leaves as it was.
     updates?.setAutoCheck(reply.snapshot.preferences.updates.autoCheck);
+    void sendComposerSettings();
     return reply;
+  });
+  prototypeBuddy = () => windowBuddy(preferences.read());
+  // The prototype window's conversation panel (hostRequests above). Each request was allowed for the prototype role
+  // only; the parsers check the role again.
+  handle(PROTOTYPE_CHANNELS.showing, undefined, (_event, value: unknown, kind) => {
+    const request = parseShowingRequest(kind, value);
+    if (request !== null) prototypeShowing = request.conversationId;
+  });
+  // A chip or a main-window-only button: the main window comes forward as for a notification's click, then decides
+  // what it can show (a dialog, a page lock or first run keeps everything as it is).
+  handle(PROTOTYPE_CHANNELS.reveal, undefined, (_event, value: unknown, kind) => {
+    const payload = parseRevealRequest(kind, value);
+    const request = payload === null ? null : prototypeRevealRequest(payload, prototype.controller.playing(), indexed(), ready.entries());
+    const window = win;
+    if (request === null || !window || window.isDestroyed()) return;
+    bringForward(window);
+    window.focus();
+    send(PROTOTYPE_CHANNELS.revealRequest, request);
+  });
+  handle(PROTOTYPE_CHANNELS.auth, null, async (_event, value: unknown) => value === undefined && authIpc ? prototypeAuthSnapshot(await authIpc.read()) : null);
+  handle(PROTOTYPE_CHANNELS.entry, null, (_event, value: unknown) => {
+    if (value !== undefined) return null;
+    const entry = prototypeEntry(ready.entries(), prototype.controller.playing());
+    prototypeEntrySent = JSON.stringify(entry);
+    return entry;
+  });
+  handle(PROTOTYPE_CHANNELS.work, [], (_event, value: unknown) => value === undefined ? prototypeWorkItems(workItems(workState), prototypeHeldSession()) : []);
+  handle(PROTOTYPE_CHANNELS.composer, null, async (_event, value: unknown) => {
+    if (value !== undefined) return null;
+    const settings = await composerSettings();
+    composerSent = JSON.stringify(settings);
+    return settings;
+  });
+  // Last used is the main window's ui-state: it remembers the pick as its own composer's, so its next whole-file save
+  // keeps it.
+  handle(PROTOTYPE_CHANNELS.remember, undefined, (_event, value: unknown, kind) => {
+    const choice = parseComposerChoice(kind, value);
+    if (choice !== null) send(PROTOTYPE_CHANNELS.lastUsed, choice);
   });
   handle("notifications:test", null, (_event, value: unknown) => value === undefined ? notify.test() : null);
   handle("notifications:open-settings", false, async (_event, value: unknown) => {

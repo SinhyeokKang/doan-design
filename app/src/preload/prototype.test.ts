@@ -50,6 +50,7 @@ test("every request goes to its prototype channel with the payload main parses",
   await api.getWork();
   await api.readComposerSettings();
   await api.rememberChoice({ provider: "claude", model: "sonnet", effort: null, modelPicked: true });
+  await api.readTargetEntry();
   expect(mocks.invoke.mock.calls).toEqual([
     [PROTOTYPE_CHANNELS.read], [PROTOTYPE_CHANNELS.result, { gen: 2, state: "timeout" }], [PROTOTYPE_CHANNELS.frames, { gen: 2, frames: [] }],
     [PROTOTYPE_CHANNELS.reload, { gen: 3 }], [PROTOTYPE_CHANNELS.back], [PROTOTYPE_CHANNELS.forward], [PROTOTYPE_CHANNELS.choose, { frame: "tablet" }],
@@ -57,7 +58,7 @@ test("every request goes to its prototype channel with the payload main parses",
     [PROTOTYPE_CHANNELS.export, { root: "/r", path: ".doan/canvases/a.html", frame: "checkout" }], [PROTOTYPE_CHANNELS.revealExport, "id-1"], [PROTOTYPE_CHANNELS.visible],
     [PROTOTYPE_CHANNELS.panel, { open: true, width: 300 }], [PROTOTYPE_CHANNELS.showing, { conversationId: "c1" }], [PROTOTYPE_CHANNELS.showing, { conversationId: null }],
     [PROTOTYPE_CHANNELS.reveal, { kind: "settings", provider: "claude" }], [PROTOTYPE_CHANNELS.auth], [PROTOTYPE_CHANNELS.work], [PROTOTYPE_CHANNELS.composer],
-    [PROTOTYPE_CHANNELS.remember, { provider: "claude", model: "sonnet", effort: null, modelPicked: true }],
+    [PROTOTYPE_CHANNELS.remember, { provider: "claude", model: "sonnet", effort: null, modelPicked: true }], [PROTOTYPE_CHANNELS.entry],
   ]);
   expect(new Set(mocks.invoke.mock.calls.map(call => call[0]))).toEqual(new Set(PROTOTYPE_WINDOW_REQUESTS));
 });
@@ -218,16 +219,21 @@ test("provider readiness carries no account identity and delivers only newer rev
   expect(seen.mock.calls.map(call => (call[0] as { revision: number }).revision)).toEqual([2, 3]);
 });
 
-test("terminal work and composer settings arrive from their pushes until unsubscribed", () => {
+test("terminal work, composer settings and the target root's entry arrive from their pushes until unsubscribed", () => {
   const work = vi.fn();
   const settings = vi.fn();
+  const entry = vi.fn();
   const stopWork = api.onWorkChanged(work);
   const stopSettings = api.onComposerSettings(settings);
+  const stopEntry = api.onTargetEntry(entry);
   emitter.emit(PROTOTYPE_CHANNELS.workChanged, {}, []);
   emitter.emit(PROTOTYPE_CHANNELS.composerChanged, {}, { home: null, newConversation: null, buddy: "doany" });
-  stopWork(); stopSettings();
+  emitter.emit(PROTOTYPE_CHANNELS.entryChanged, {}, { path: "/r", kind: "loading" });
+  stopWork(); stopSettings(); stopEntry();
   emitter.emit(PROTOTYPE_CHANNELS.workChanged, {}, [{}]);
   emitter.emit(PROTOTYPE_CHANNELS.composerChanged, {}, null);
+  emitter.emit(PROTOTYPE_CHANNELS.entryChanged, {}, null);
   expect(work.mock.calls).toEqual([[[]]]);
   expect(settings.mock.calls).toEqual([[{ home: null, newConversation: null, buddy: "doany" }]]);
+  expect(entry.mock.calls).toEqual([[{ path: "/r", kind: "loading" }]]);
 });

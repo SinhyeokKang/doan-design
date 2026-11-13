@@ -18,16 +18,21 @@ function setup() {
   const views: PrototypeView[] = [];
   type Still = { png: Uint8Array; box: Rect } | null;
   let capture: (mark: PrototypeSize, mode: PrototypeMode) => Promise<Still> = async () => ({ png: new Uint8Array([1, 2]), box: BOX });
+  // What the window gives the panel on a fit with it open, and on opening it.
+  let fittedPanel: number | null = null;
+  let openedPanel = 280;
   const host: PrototypeHost = {
-    create: size => calls.push(["create", size]),
-    fit: size => calls.push(["fit", size]),
+    create: (size, panel) => { calls.push(panel === null ? ["create", size] : ["create", size, panel]); return panel === null ? null : fittedPanel ?? panel; },
+    fit: (size, panel) => { calls.push(panel === null ? ["fit", size] : ["fit", size, panel]); return panel === null ? null : fittedPanel ?? panel; },
+    openPanel: remembered => { calls.push(["openPanel", remembered]); return openedPanel; },
+    closePanel: () => { calls.push(["closePanel"]); },
     activate: () => calls.push(["activate"]),
     load: run => calls.push(["load", run]),
     kill: gen => calls.push(["kill", gen]),
     destroy: () => calls.push(["destroy"]),
     reread: root => calls.push(["reread", root]),
     sendView: view => { calls.push(["view", view.gen, view.phase]); views.push(view); },
-    capture: (mark, mode) => { calls.push(["capture", mark, mode]); return capture(mark, mode); },
+    capture: (mark, mode, side) => { calls.push(side === 0 ? ["capture", mark, mode] : ["capture", mark, mode, side]); return capture(mark, mode); },
     sendSnapshot: snapshot => calls.push(["snapshot", snapshot.gen, Array.from(snapshot.png), snapshot.box]),
   };
   const controller = createPrototypeController(host, () => entries);
@@ -35,6 +40,8 @@ function setup() {
     controller, calls, views,
     setEntries: (next: FolderEntry[]) => { entries = next; },
     setCapture: (next: typeof capture) => { capture = next; },
+    setFittedPanel: (next: number | null) => { fittedPanel = next; },
+    setOpenedPanel: (next: number) => { openedPanel = next; },
   };
 }
 
@@ -353,5 +360,61 @@ describe("exportTarget", () => {
     expect(t.controller.exportTarget("main", clicked)).toEqual({ kind: "refused", reason: "notListed" });
     expect(t.controller.exportTarget("prototype", { ...clicked, frame: "" })).toEqual({ kind: "refused", reason: "notListed" });
     expect(setup().controller.exportTarget("prototype", clicked)).toEqual({ kind: "refused", reason: "notListed" });
+  });
+});
+
+describe("the conversation panel", () => {
+  test("opening asks the window to make room and keeps the width it gave; closing leaves the size to the window", () => {
+    const t = opened();
+    t.setOpenedPanel(320);
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true });
+    expect(t.calls).toEqual([["openPanel", null], ["view", 1, "ready"]]);
+    expect(t.views.at(-1)?.panel).toEqual({ open: true, width: 320 });
+    t.calls.length = 0;
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true, width: 400 });
+    expect(t.calls).toEqual([["view", 1, "ready"]]);
+    t.calls.length = 0;
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: false });
+    expect(t.calls).toEqual([["closePanel"], ["view", 1, "ready"]]);
+    expect(t.views.at(-1)?.panel).toEqual({ open: false, width: 400 });
+    t.calls.length = 0;
+    // Opening again starts from the remembered width.
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true });
+    expect(t.calls[0]).toEqual(["openPanel", 400]);
+    expect(t.controller.panelOpen()).toBe(true);
+  });
+
+  test("a panel request from another role or with a bad width does nothing", () => {
+    const t = opened();
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "main", { open: true });
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true, width: 10 });
+    expect(t.calls).toEqual([]);
+  });
+
+  test("a play with the panel open fits the window with it and keeps the width the fit gave", () => {
+    const t = opened();
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true, width: 300 });
+    t.calls.length = 0;
+    t.setFittedPanel(280);
+    t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
+    expect(t.calls).toContainEqual(["fit", { width: 820, height: 1180 }, 280]);
+    expect(t.views.at(-1)?.panel).toEqual({ open: true, width: 280 });
+  });
+
+  test("the still of a ready run leaves the open panel's column out", () => {
+    const t = opened();
+    t.setOpenedPanel(300);
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true });
+    t.calls.length = 0;
+    t.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 1 });
+    expect(t.calls[0]).toEqual(["capture", phone, "fit", 300]);
+  });
+
+  test("the playing canvas names the target's root, key and last path; nothing while closed", () => {
+    const t = opened();
+    expect(t.controller.playing()).toEqual({ root: "/r", canvas: { id: "proto" }, path: proto.path });
+    t.controller.request(PROTOTYPE_CHANNELS.close, "prototype", undefined);
+    expect(t.controller.playing()).toBeNull();
+    expect(t.controller.panelOpen()).toBe(false);
   });
 });

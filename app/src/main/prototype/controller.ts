@@ -7,14 +7,21 @@ import type { WindowKind } from "../senderAllowed";
 import type { Rect } from "./fit";
 import { PROTOTYPE_CHANNELS, type ExportTarget, type PrototypeMode, type PrototypeSnapshot, type PrototypeView } from "./ipc";
 import type { PrototypeSize } from "./mark";
-import { exportTargetMatches, parseChooseRequest, parseExportRequest, parseFramesReport, parseModeRequest, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
+import type { PlayingCanvas } from "./conversationScope";
+import { exportTargetMatches, parseChooseRequest, parseExportRequest, parseFramesReport, parseModeRequest, parsePanelRequest, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
 import { resolveTarget, type PrototypeTarget } from "./targets";
 import * as transitions from "./windowState";
 import { CLOSED, type PrototypeState, type Resolve, type Step } from "./windowState";
 
 export interface PrototypeHost {
-  create(size: PrototypeSize): void;
-  fit(size: PrototypeSize): void;
+  // `panel`: the conversation panel's width while it is open, else null. With the panel open the window fits the shown
+  // size plus the panel (prototypePanelFit) and answers the panel width it gave; null otherwise.
+  create(size: PrototypeSize, panel: number | null): number | null;
+  fit(size: PrototypeSize, panel: number | null): number | null;
+  // Open the conversation panel: widen a narrow window (openPanelResize) and keep it at least 640; answers the width.
+  openPanel(remembered: number | null): number;
+  // The panel closed: the window keeps its size and may be 360 again.
+  closePanel(): void;
   activate(): void;
   // Arm the injection for this run before its iframe exists.
   load(run: { gen: number; url: string; frame: string }): void;
@@ -24,7 +31,8 @@ export interface PrototypeHost {
   reread(root: string): void;
   sendView(view: PrototypeView): void;
   // The run's visible area as PNG bytes with where it sat in the content panel, or null when it cannot be read.
-  capture(mark: PrototypeSize, mode: PrototypeMode): Promise<Still | null>;
+  // `sideColumn` is the conversation column's width (its handle included), which the still must leave out.
+  capture(mark: PrototypeSize, mode: PrototypeMode, sideColumn: number): Promise<Still | null>;
   sendSnapshot(snapshot: PrototypeSnapshot): void;
 }
 
@@ -50,6 +58,10 @@ export interface PrototypeController {
   readFailed(gen: number, detail: string): void;
   // ⌘W, the native close and the window going away by any other path.
   windowClosing(): void;
+  // The canvas the window plays now, for the conversation scope; null while closed.
+  playing(): PlayingCanvas | null;
+  // The conversation panel is open now.
+  panelOpen(): boolean;
 }
 
 export function createPrototypeController(host: PrototypeHost, entries: () => readonly FolderEntry[]): PrototypeController {
@@ -90,7 +102,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
   const leavingReady = (previous: PrototypeState): Promise<Still | null> | null => {
     if (!previous.open || previous.phase !== "ready" || previous.run === null || !state.open) return null;
     if (state.gen === previous.gen && state.phase === "ready") return null;
-    return host.capture({ width: previous.run.markWidth, height: previous.run.markHeight }, previous.mode).catch(() => null);
+    return host.capture({ width: previous.run.markWidth, height: previous.run.markHeight }, previous.mode, previous.panel.open ? previous.panel.width ?? 0 : 0).catch(() => null);
   };
 
   // The still goes out before the view of the state that followed, tagged with that view's gen. A kill also stops the
@@ -119,10 +131,15 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     state = step.state;
     if (!state.open) { latest = null; resendFor = null; }
     const still = leavingReady(previous);
+    // A fit with the panel open may narrow the panel to fit the work area (prototypePanelFit); the view says so.
+    const fitted = (given: number | null) => {
+      if (given !== null && state.open && state.panel.open && given !== state.panel.width) state = { ...state, panel: { open: true, width: given } };
+    };
+    const panel = () => (state.open && state.panel.open ? state.panel.width : null);
     for (const effect of step.effects) {
       switch (effect.kind) {
-        case "create": host.create(effect.size); break;
-        case "fit": host.fit(effect.size); break;
+        case "create": fitted(host.create(effect.size, panel())); break;
+        case "fit": fitted(host.fit(effect.size, panel())); break;
         case "activate": host.activate(); break;
         case "load": host.load({ gen: effect.gen, url: effect.url, frame: effect.frame }); break;
         case "kill": host.kill(effect.gen); break;
@@ -178,6 +195,17 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
           if (mode !== null) apply(transitions.setMode(state, mode));
           return undefined;
         }
+        case PROTOTYPE_CHANNELS.panel: {
+          const request = parsePanelRequest(kind, value);
+          if (request === null || !state.open) return undefined;
+          if (request.open && !state.panel.open) {
+            apply(transitions.setPanel(state, { open: true, width: host.openPanel(request.width ?? state.panel.width) }));
+            return undefined;
+          }
+          if (!request.open && state.panel.open) host.closePanel();
+          apply(transitions.setPanel(state, request));
+          return undefined;
+        }
         case PROTOTYPE_CHANNELS.choose: {
           const frame = parseChooseRequest(kind, value);
           if (frame !== null) apply(transitions.choose(state, frame, resolve));
@@ -199,5 +227,9 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     listChanged() { apply(transitions.listChanged(state, resolve)); },
     readFailed(gen, detail) { apply(transitions.readFailed(state, gen, detail)); },
     windowClosing() { apply(transitions.close(state)); },
+    playing() {
+      return state.open ? { root: state.target.root, canvas: state.target.canvas, path: state.path } : null;
+    },
+    panelOpen() { return state.open && state.panel.open; },
   };
 }
