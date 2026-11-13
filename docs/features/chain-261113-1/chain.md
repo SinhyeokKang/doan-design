@@ -23,7 +23,7 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 2. **링크 1 실제 앱 확인**: dev 빌드를 `app/runtime/` 격리로 띄우고 `electronApp.evaluate`로 `star:moment`와 `shell.openExternal`을 대신한다(tasks 5). 실제 Applications 설치, 실제 브라우저 열기, provider 로그인은 하지 않는다. 격리 앱 창이 사용자가 일하는 중에 뜬다.
 3. **링크 2 PoC와 계약**: 지원 표시 속성 이름·값, 실행 계약, 공유 schema와 `v`는 PoC가 정한다(design.md 'PoC가 먼저 정할 구현 계약'). 지원 조건이 사용자 요구를 줄여야 하면 conductor가 묻는다.
 4. **링크 2 `/agent-eval`**: 가이드와 `doan check`가 바뀌므로 마지막 통합 전에 실제 Claude Code와 Codex로 라운드를 돈다(다른 계열 판정은 AGENTS.md 상시 예외). 사용량을 쓴다.
-5. **링크 2 프리셋 크기**: `doan design-skill document --json`이 출력 상한 21,600바이트 중 21,588바이트다(체인 261112 링크 1). 링크 2가 `document` 프리셋에 문장을 더하면 `TestDesignSkillFitsToolOutputCap`이 깨진다. 더해야 하면 다른 문장을 줄이거나 사용자에게 묻는다.
+5. **링크 2 프리셋 크기**: `doan design-skill document --json`이 출력 상한 21,600바이트 중 21,528바이트다(설치된 0.1.10 기준). 링크 2가 `document` 프리셋에 문장을 더하면 `TestDesignSkillFitsToolOutputCap`이 깨진다. 더해야 하면 다른 문장을 줄이거나 사용자에게 묻는다.
 
 ## 상시 권한
 
@@ -46,9 +46,16 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1. `github-star-prompt` | | | | 대기(체인 261112와 릴리스 대기) |
+| 1. `github-star-prompt` | Claude Code · `github-star-prompt-orch` (`feat/github-star-prompt`) | 2026-11-13 | | 진행 |
 | 2. `frame-prototype` | | | | 대기 |
 
 ## 인계 기록
 
 - 2026-11-13 lead(develop checkout): 사용자 요청으로 체인 파일을 써 두었다. 체인 261112가 끝나고 릴리스한 뒤 시작 점검을 묻고 링크 1을 시작한다.
+- 2026-11-13 lead(develop checkout): 시작 점검을 사용자에게 한 번에 물어 승인받았다.
+  1. 시작 조건: 0.1.10은 태그와 main 병합(PR #182)까지 끝났고 서명 run은 진행 중이다. 사용자가 릴리스 게시를 기다리지 않고 지금 시작하기로 했다.
+  2. 링크 1 실제 앱 확인: 격리 앱 창이 작업 중에 떠도 된다(승인).
+  3. 링크 2 PoC와 계약: 시작 점검 문구대로 둔다. 지원 조건이 사용자 요구를 줄여야 하면 conductor가 묻는다.
+  4. 링크 2 `/agent-eval`: 마지막 통합 전 실제 Claude Code·Codex 라운드를 승인했다. 사용량은 conductor가 시작할 때 확인한다.
+  5. 링크 2 프리셋 크기: 문장을 더해야 하면 conductor가 뜻을 유지한 채 다른 문장을 줄인다. 줄인 내용은 PR 본문에 적는다.
+  링크 1 conductor를 시작했다.
