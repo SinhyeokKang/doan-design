@@ -1,6 +1,6 @@
 # prototype-conversation — design
 
-동작은 spec.md에 있고 모두 사용자가 정했다('결정'). 이 문서는 구현 방법이다. 남은 미확인은 'PoC 의존'뿐이다.
+동작은 spec.md에 있고 모두 사용자가 정했다('결정'). 이 문서는 구현 방법이다. PoC 결과와 PoC가 보지 못한 것은 'PoC 의존'에 있다.
 
 ## 형제 feature와의 의존
 
@@ -126,12 +126,12 @@
 
 - 창 레이아웃: 헤더(창 전체 폭) 아래에 [프레임 열: 콘텐츠 패널] [손잡이] [대화 열]. 둘 다 헤더 아래에서 창 아래 8까지 내려가 높이가 같다. 대화 열은 main 창의 `doan-conv-column`·`ov-right` 모양을 그대로 쓰되 머리만 뺀다. 콘텐츠 패널은 시작 쪽 모서리를, 대화 열은 끝 쪽 모서리를 둥글게 두고, 그 사이는 shipped 1 px 시작 테두리다(DESIGN 'Frame prototype').
 - 패널을 열 때 창 폭이 640보다 좁으면 창을 640으로 넓히고 패널을 280으로 연다. 640 이상이면 창은 그대로이고 패널은 기본폭(`max(320px, 28dvw)`)을 최대폭으로 자른 값으로 연다. 작업 영역이 640보다 좁으면 작업 영역 폭까지만 넓히고 패널은 280으로 연다(프레임 열이 360보다 좁아진다). 넓힌 창은 작업 영역 안에 머물도록 옮긴다.
-- 열려 있는 동안 창 최소폭은 640(`PROTOTYPE_WINDOW_MIN_WIDTH` 360 + 패널 최소 280)이고, 닫히면 360으로 돌아간다. 닫을 때 창 크기는 바꾸지 않는다.
+- 열려 있는 동안 창 최소폭은 640(`PROTOTYPE_WINDOW_MIN_WIDTH` 360 + 패널 최소 280)이고, 닫히면 360으로 돌아간다. 닫을 때 창 크기는 바꾸지 않는다. 작업 영역이 640보다 좁으면 열려 있는 동안의 최소폭도 작업 영역 폭이다. 최소폭이 작업 영역보다 크면 macOS가 창을 작업 영역 밖까지 둔다('PoC 의존').
 - 작업 영역이 640보다 좁아 창 폭이 640보다 작으면 최대폭 `min(50dvw, 창 폭 − 360)`이 280보다 작아진다(600 창에서 240). 이때도 패널은 280을 지키므로(spec 결정 4) 손잡이의 최솟값과 최댓값이 모두 280이고 조절 범위가 없다(`aria-valuemax="280"`). shipped `panelBounds`(`rightPanelSize.ts`)는 두 한도가 겹치면 최댓값이 이기므로 이 경우에 그대로 쓰지 않는다.
 - 패널 최대폭은 `min(50dvw, 창 폭 − 360)`이다(canvas 패널 규칙: DESIGN.md 'Panel width'). 창 폭 360일 때 콘텐츠 패널이 344인 것처럼, 프레임 열 360에서 콘텐츠 패널은 344다. 패널이 열리면 콘텐츠 패널과 대화 열 사이에는 간격이 없다. 둘은 한 면이고 그 경계는 대화 열의 shipped 1 px 시작 테두리다. 모서리는 콘텐츠 패널이 `R 0 0 R`, 대화 열이 `0 R R 0`(R = `--radius-container`)이다. 숫자는 `/design-sync`에서 잰다.
 - 패널이 열린 채 새 Play가 창을 맞출 때는 창 콘텐츠 폭 = 표시 폭 + 16 + 패널 폭(최소 640), 높이 = 표시 높이 + 64(헤더 56 + 아래 여백 8)로 맞추고, 맞춘 창 폭에서 이름이 둘째 줄이면 + 108(헤더 100 + 8)로 맞춘다. 패널을 연 창은 640 이상이라 보통 한 줄이다. 폭이 작업 영역보다 넓으면 패널을 먼저 280까지 줄이고, 그다음 프레임 열을 줄인다. 높이는 작업 영역 높이까지다.
 - 프레임 iframe은 `prototypeViewportBox(panel, mark, mode)`를 따른다. 대화 열이 폭을 가져가면 콘텐츠 패널이 좁아지고, Responsive 모드에서는 viewport가 패널을 채운 채 `innerWidth`와 media query가 줄어든다. Fit 모드에서는 viewport가 표시 크기를 지키고, 패널이 표시 크기보다 좁으면 비율을 지켜 줄여 보인다. 표시 폭이 344보다 좁은 프레임은 Fit 모드에서 자기 크기로 가운데에 놓이고, Responsive 모드에서는 패널을 채운다. Fit 모드의 프레임 경계(콘텐츠 패널 바탕 `--surface-inset`, 흰 프레임 상자, `--shadow-panel`)는 `prototype-responsive` 초안이 정한 것을 그대로 쓴다.
-- 창 크기는 main이 바꾼다(`setContentBounds`, `setMinimumSize`). renderer는 열림과 폭을 `prototype:panel`로 요청하고, main이 순수 함수 6·7·8의 결과로 창을 맞추고 view로 패널 상태를 돌려준다. 창이 커지는 것은 run을 새로 시작하지 않는다(사람이 창을 키울 때와 같다).
+- 창 크기는 main이 바꾼다. 열 때는 작업 영역 안으로 옮긴 x와 새 폭으로 `setContentBounds`를 먼저 부르고, 그다음 `setMinimumSize(최소폭, 0)`을 부른다. 닫을 때는 `setMinimumSize(360, 0)`만 부른다('PoC 의존'). renderer는 열림과 폭을 `prototype:panel`로 요청하고, main이 순수 함수 6·7·8의 결과로 창을 맞추고 view로 패널 상태를 돌려준다. 창이 커지는 것은 run을 새로 시작하지 않는다(사람이 창을 키울 때와 같다).
 - 정지 이미지: run이 ready에서 벗어날 때 main이 찍는 사각형(`prototypeCaptureRect`)에 `sideColumn` = 대화 열 폭(손잡이 포함)을 넘긴다. 그러지 않으면 패널 글이 정지 이미지에 찍힌다.
 
 ### seen, 알림, 작업 중 배지
@@ -146,7 +146,11 @@
 - 대화 버튼은 첫 view 전에도 쓸 수 있다(`disabled`가 아니다). 패널은 프레임에 기대지 않기 때문이다. 같은 때 `disabled`인 Reload와 모드 토글과 다르다.
 - 대화 버튼의 `aria-controls`는 모든 상태에서 shipped `CONVERSATION_PANEL_ID`(`"doan-conversation-panel"`, `ConversationPanel.tsx`)를 가리키고, 그 id는 대화 열의 aside에 둔다. main 창의 Show conversation·Hide conversation과 같다. 초안은 패널을 여러 개 그리므로 이 속성을 빼고 `header-button` 캡션에 적었다.
 - DOM 순서와 Tab 순서는 헤더(Back, Forward, Reload prototype, 프레임 이름(첫째 줄이나 둘째 줄의 캡슐), 모드 토글(Tab 정지 하나), Export prototype, 대화 버튼) → 프레임 콘텐츠 → 대화 패널이다(spec 결정 16). `prototype-responsive`의 헤더 순서 끝에 대화 버튼을 두고, 대화 열을 `.pw-panel` 뒤에 놓는다.
-- 프레임 문서가 다시 로드될 때 캔버스 스크립트의 `focus()`나 `autofocus`가 composer의 포커스를 가져갈 수 있다. 포커스가 대화 열 안에 있는 동안에는 새 run iframe이 포커스를 가져가지 못하게 한다(방법은 PoC에서 정한다: 예를 들어 그 동안 iframe을 `inert`로 두거나, iframe으로 간 포커스를 composer로 되돌림. IME 조합이 끊기지 않는지가 기준이다).
+- 프레임 문서가 다시 로드될 때 캔버스 스크립트의 `focus()`나 `autofocus`가 composer의 포커스를 가져간다(PoC에서 재현). 그래서 포커스가 대화 열 안에 있을 때 만들어진 새 run iframe이 포커스를 가져가면, host가 포커스를 직전의 대화 열 요소로 바로 되돌린다. 되돌리는 기간은 그 iframe이 만들어진 때부터 그 run이 ready가 되어 보이고 1초 뒤까지다.
+  - host 문서는 cross-origin iframe으로 간 포커스를 `relatedTarget`이 없는 `focusout`(과 window `blur`)으로만 안다. 대화 열 요소의 그 `focusout`에서 한 task 뒤(`setTimeout` 0) `document.activeElement`가 그 run iframe이면 되돌린다.
+  - 기간을 두는 이유: host는 사람이 iframe 안을 누른 것과 스크립트의 `focus()`를 구별하지 못한다(iframe의 `:hover`도 false다). 기간 없이 늘 되돌리면 사람이 프레임을 눌러도 포커스가 composer로 돌아간다(PoC에서 재현).
+  - 되돌려도 composer의 IME 조합이 이어진다(CDP `Input.imeSetComposition` 기준). 그 기간이 지난 뒤 캔버스가 부르는 `focus()`는 막지 않는다.
+  - `inert`와 iframe의 `allow="focus-without-user-activation 'none'"`은 프레임 자신의 `focus()`를 막지 못해 쓰지 않는다(PoC).
 - 헤더의 Reload를 포인터로 누른 뒤에는 두 조건이 모두 맞을 때만 새 run이 ready가 되면 포커스를 새 iframe 안으로 옮긴다: 누르기 전 포커스가 프레임 안이나 페이지(`body`)에 있었고, ready 때도 아직 페이지에 있다. 누르기 전 포커스가 composer나 그 밖의 곳에 있었으면 그대로 둔다(spec 결정 17이 이긴다).
 
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
@@ -196,10 +200,28 @@
 
 ## PoC 의존
 
-- **창 폭을 640으로 넓히고 최소폭을 바꾸기**: `setMinimumSize`를 현재 폭보다 크게 줄 때 macOS가 창을 저절로 넓히는지, 아니면 `setContentBounds`를 먼저 불러야 하는지 확인하지 않았다. 작업 영역 오른쪽 끝에 붙은 창이 넓어질 때 왼쪽으로 밀리는지도 마찬가지다. 기존 `fitPrototypeWindow`의 "작업 영역 안에 머물도록 옮긴다" 규칙을 쓸 예정이다.
-- **대화 renderer를 프로토타입 창에서 돌리기**: 프로토타입 창은 메모리 전용 partition(`doan-prototype`)에서 같은 CSP로 `prototype.html`을 띄운다. docked composer의 Radix popover(모델·프리셋·권한 picker), chip field 입력과 IME, docked buddy(WebGL), 텍스트 편집 메뉴, 프로토타입 창을 부모로 둔 Attach 대화상자가 그 창에서 그대로 동작하는지 아직 띄워 본 적이 없다.
-- **다시 로드되는 프레임이 composer 포커스를 가져가지 않기**(spec 결정 17): `autofocus`나 `focus()`를 부르는 캔버스를 Reload할 때 composer 포커스와 IME 조합이 남는지, 남지 않으면 어떤 방법(`inert`, 포커스 되돌리기)이 조합을 끊지 않는지. 가장 먼저 확인한다.
-- 셋 다 tasks의 첫 task에서 `.scratch/` probe로 본다. 실패하면 설계를 다시 본다.
+2026-11-14 격리 dev 앱에서 `node .scratch/prototype-conversation/probe.mjs`로 확인했다(exit 0, 스크린샷 `.scratch/prototype-conversation/shot-*.png`). 프로토타입 창 페이지에 임시 패치로 docked composer, thread, docked buddy를 가짜 호출 객체와 함께 콘텐츠 패널 옆 300 열에 띄웠다. 패치는 커밋하지 않았다. probe는 Playwright `_electron`으로 돌았고, 포커스 시험 전에 `app.focus({steal: true})`로 창을 실제 key 창으로 만들었다.
+
+- **다시 로드되는 프레임이 composer 포커스를 가져가지 않기**(spec 결정 17): 정했다. 방법은 '포커스'의 포커스 되돌리기다.
+  - 가드가 없으면 실패한다. `focus()`를 부르는 프레임은 Reload와 파일 변경 모두에서 composer 포커스를 가져갔고, 그 뒤 입력이 프레임의 input으로 들어갔다. `autofocus` 프레임도 iframe에 포커스를 가져갔다(매번은 아니다).
+  - `inert`는 실패했다. 새 iframe에 `inert`가 걸린 채로도 프레임의 `focus()`가 포커스를 가져갔다. `allow="focus-without-user-activation 'none'"`도 실패했다.
+  - 포커스 되돌리기는 통과했다. `autofocus`와 `focus()`(시작 때와 600 ms 뒤) 프레임을 Reload와 파일 변경으로 다시 로드한 네 경우 모두 포커스가 composer에 남았다. 조합 중이던 "한"은 `compositionend` 없이 이어져서 "abc 한글"로 확정됐다.
+  - 기간 없는 되돌리기는 사람이 프레임 안 input을 누른 것까지 되돌렸다(실패). 위 기간을 둔 되돌리기에서는 그 클릭으로 포커스가 프레임 input에 갔다(통과).
+  - Reload 규칙은 통과했다. 프레임 안에 포커스를 두고 Reload를 포인터로 누르면 ready 뒤 포커스가 새 iframe에 있다(가드 있을 때와 없을 때 모두). composer에 포커스를 두고 누르면 composer에 남는다.
+  - 확인하지 못한 것: macOS의 실제 한국어 입력기다. CDP 조합은 renderer의 입력 처리로 바로 가고 `NSTextInputClient`를 거치지 않는다. 실제 입력기에서 포커스가 iframe으로 갔다가 돌아올 때 조합 중인 글자가 남는지는 `/runtime-test`(tasks 9)에서 본다.
+- **창 폭을 640으로 넓히고 최소폭을 바꾸기**: 정했다. 호출 순서는 '패널 폭'에 있다.
+  - `setMinimumSize(640, 0)`만 부르면 360·480 창이 넓어지지 않았다. `setContentBounds(640)`를 부르면 앞뒤 순서와 상관없이 640이 됐고, 페이지 `innerWidth`도 640이었다. 최소폭이 640인 동안 500을 요청하면 640으로 남았다.
+  - 닫을 때 `setMinimumSize(360, 0)`을 부르면 폭은 640 그대로이고, 그 뒤 420으로 줄일 수 있었다.
+  - 작업 영역 오른쪽 끝에 붙은 360·480 창을 같은 x로 640까지 넓히면 macOS는 창을 왼쪽으로 밀지 않고 작업 영역 밖으로 넘겼다(1440 작업 영역에서 오른쪽 끝 1720·1600). x를 `min(x, 작업 영역 오른쪽 − 640)`으로 옮기면 작업 영역 안에 들어왔다(`fitPrototypeWindow`의 `place`와 같은 규칙).
+  - 이 창은 프레임 크기와 콘텐츠 크기가 같고(`hiddenInset`), 처음 최소 크기는 `[360, 0]`이다.
+  - 작업 영역이 640보다 좁은 화면은 실제로 보지 못했다. 이 Mac에는 1440 폭 화면 하나뿐이다. 같은 꼴을 작업 영역보다 넓은 폭으로 시험했다. 폭과 최소폭을 작업 영역 + 160으로 주면 macOS가 창을 작업 영역보다 넓게 두었고, 둘 다 작업 영역 폭으로 자르면 안에 들어왔다. 그래서 '패널 폭'에 최소폭을 작업 영역 폭으로 자르는 규칙을 더했다.
+- **대화 renderer를 프로토타입 창에서 돌리기**: 통과했다. `doan-prototype` partition과 그 CSP에서 다음이 동작했다.
+  - Radix popover: 모델, Effort, 프리셋, 권한 picker가 열리고 Esc로 닫혔고, 포커스가 trigger로 돌아왔다. 권한을 고르면 host 콜백에 닿았다.
+  - chip field: 한국어 `insertText`와 확정된 조합("안녕 프로")이 들어가고 Enter로 보내졌다. `/` 프리셋 목록이 열렸다.
+  - docked buddy: WebGL로 그려졌다. GPU 프로세스를 죽이면 still 이미지로 갔다가 다시 WebGL로 돌아오고, poke에 움직였다(POSTMORTEM 2026-11-12). 단, `dockedBuddyShell.ts`가 부르는 `window.doan.onWindowVisible`은 PoC가 `window.doanPrototype.onWindowVisible`로 이어 줬다. 주입 리팩터(tasks 5)가 이것을 호출 객체로 바꿔야 한다.
+  - `context-menu`: probe가 프로토타입 창 `webContents`에 붙인 리스너가 composer 우클릭을 main frame(`frame.parent === null`, editable)으로 받아 메뉴를 띄웠다. 프레임 콘텐츠 우클릭은 child frame으로 와서 메뉴를 띄우지 않았다.
+  - Attach: 프로토타입 창을 부모로 둔 `dialog.showOpenDialog`가 그 창의 시트로 열렸다(`sheet-begin`).
+  - CSP 경고: 콘솔 오류는 DESIGN.md 'Known console warning'의 Radix scroll-lock 스타일 경고(같은 해시)뿐이다. 그 코드는 main 창과 같은 `DockedComposer` chunk에 있다. 이 페이지의 CSP(`default-src 'self'`)는 `<style>` 요소를 막으므로, 패널의 스타일은 `styles.css`나 inline style 속성으로 둔다.
 - 이미 확인된 것: 먼저 도착한 답이 이긴다. main의 `answerQuestion`과 `answerPermission`은 이미 해결된 요청에 `stale`을 돌려준다(`service.ts`의 answer 경로, `runners.test.ts`). renderer는 질문에서 `stale`에 실패를 보이지 않지만, 권한 카드(`answerReached`)는 지금 실패 문구를 보인다. 이것은 renderer 수정으로 다룬다(바뀌는 파일 `ConversationThread.tsx`).
 
 ## POSTMORTEM에서 가져온 함정
