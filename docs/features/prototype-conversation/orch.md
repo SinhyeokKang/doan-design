@@ -50,3 +50,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 10은 리뷰 행과 conductor�
 - R 리뷰 1회차(Codex): 🔴 0, 🟡 1(현재 목록에 제목 없는 프레임 행이 있어도 `playingFrameChip`이 이전 제목을 붙인다), ⚪ 2(headless 테스트가 기존 대화 전송·큐와 첨부 해제 경로를 `window.doan` 없이 실행하지 않는다 / 두 worktree 사이 목록 귀속은 U host가 맞춘다). 계획과 다른 점 다섯은 모두 수용. 🟡1과 ⚪1을 R-fix1(`ctx_0bca00c8a5f7`)로 보냈다. ⚪2는 U 브리프에 넣는다.
 - conductor 판단 — M이 `PrototypeView`의 새 필드(`panel`, `canvasRow`)와 R 140 때문에 깨지는 renderer 테스트 fixture 네 파일(`tooltip.describedby.test.tsx`, `PrototypeWindow.test.tsx`, `WindowShell.test.tsx`, `view.test.ts`)을 고치게 했다. 근거: M이 가진 계약 변경의 직접 결과이고, renderer 소스는 바꾸지 않는다.
 - R-fix1 완료(`df89de8b`, `70530d84`) → `bebffd16`, `3a83ef56`으로 통합. 회귀 테스트가 red 뒤 green이고, test 11914개, typecheck, lint 통과(R 보고). R 리뷰 2회차를 같은 Codex 리뷰어에 보냈다.
+- R 리뷰 2회차(Codex): 🟡1·⚪1 해결, 새 결함 없음. R 완료. R 워커를 release하고 worktree `pcv-r`를 지웠다(브랜치 `SinhyeokKang/pcv-r` `70530d84` 유지). handoff와 리뷰 보고서는 conductor `.scratch/`에 복사했다. 리뷰어(`pcv-rr`)는 M 리뷰에 다시 쓴다.
