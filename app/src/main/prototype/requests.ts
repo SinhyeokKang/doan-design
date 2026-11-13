@@ -1,6 +1,6 @@
 import type { FolderEntry } from "../view";
 import type { WindowKind } from "../senderAllowed";
-import type { FramesMessage, LostState, PrototypeFrame, PrototypeMode, RunReport } from "./ipc";
+import type { ExportTarget, FramesMessage, LostState, PrototypeFrame, PrototypeMode, RunReport } from "./ipc";
 import { parsePrototypeMark, type PrototypeSize } from "./mark";
 import { canvasKeyFor, type PrototypeTarget } from "./targets";
 
@@ -138,13 +138,7 @@ export function parseFramesReport(kind: unknown, value: unknown): FramesMessage 
 }
 
 // `prototype:export`: the target the window showed when Export was pressed, compared with what plays when main gets it.
-export interface ExportRequest {
-  root: string;
-  path: string;
-  frame: string;
-}
-
-export function parseExportRequest(kind: unknown, value: unknown): ExportRequest | null {
+export function parseExportRequest(kind: unknown, value: unknown): ExportTarget | null {
   if (!windowRequest(kind)) return null;
   const request = record(value, ["root", "path", "frame"]);
   if (request === null || typeof request.root !== "string" || typeof request.path !== "string" || !id(request.frame)) return null;
@@ -152,6 +146,6 @@ export function parseExportRequest(kind: unknown, value: unknown): ExportRequest
 }
 
 // `current` is null when nothing plays that main can name by a listed row (the canvas went, or its ID is now shared).
-export function exportTargetMatches(clicked: ExportRequest, current: ExportRequest | null): boolean {
+export function exportTargetMatches(clicked: ExportTarget, current: ExportTarget | null): boolean {
   return current !== null && clicked.root === current.root && clicked.path === current.path && clicked.frame === current.frame;
 }

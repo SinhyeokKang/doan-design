@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { posix } from "node:path";
 import type { CliRun } from "./folderState";
 import { trashRequest, trashTarget } from "./canvasTrash";
+import type { ExportTarget } from "./prototype/ipc";
+import type { WindowKind } from "./senderAllowed";
 import type { FolderEntry } from "./view";
 
 // Export (`canvas:export`): the save panel, then `doan export` through the bundled CLI. The renderer
@@ -103,14 +105,48 @@ export interface CanvasExport {
   reveal(value: unknown): void;
 }
 
+// A frame of a listed canvas row, for the prototype window's Export (prototype/ipc.ts).
+export type { ExportTarget };
+
 // Show in Finder ids of recent exports; an older toast's button does nothing.
 const REVEAL_LIMIT = 16;
 
-export function createCanvasExport(deps: CanvasExportDeps): CanvasExport {
-  // Held from the request through the panel and the CLI run, per root and path.
+type Refusal = Extract<ExportReply, { kind: "refused" }>;
+
+// The flow both exports share: a lock held from the request through the panel and the CLI run, then the Show in Finder
+// id of a written file. Each instance has its own lock and ids.
+function exportFlow(choose: (name: string) => Promise<string | null>, reveal: (path: string) => void) {
   const exporting = new Set<string>();
   const written = new Map<string, string>();
+  return {
+    async start(lock: string, name: string, running: () => void, attempt: (output: string) => Promise<ExportOutcome>): Promise<ExportReply> {
+      if (exporting.has(lock)) return { kind: "refused", reason: "exporting" };
+      exporting.add(lock);
+      try {
+        const output = await choose(name);
+        if (output === null) return { kind: "cancelled" };
+        running();
+        const outcome = await attempt(output);
+        if (outcome.kind !== "exported") return outcome;
+        const id = randomUUID();
+        written.set(id, output);
+        for (const old of written.keys()) if (written.size > REVEAL_LIMIT) written.delete(old);
+        return { ...outcome, reveal: id };
+      } catch {
+        return { kind: "failed", reason: "failed" };
+      } finally {
+        exporting.delete(lock);
+      }
+    },
+    reveal(value: unknown) {
+      const path = typeof value === "string" ? written.get(value) : undefined;
+      if (path !== undefined) reveal(path);
+    },
+  };
+}
 
+export function createCanvasExport(deps: CanvasExportDeps): CanvasExport {
+  const flow = exportFlow(deps.choose, deps.reveal);
   return {
     async export(value) {
       // Checks 1 and 2 of Move to Trash: a registered root whose list holds this exact canvas path.
@@ -118,28 +154,40 @@ export function createCanvasExport(deps: CanvasExportDeps): CanvasExport {
       if (request === null) return EXPORT_REFUSED;
       const target = trashTarget(deps.entries(), request);
       if ("kind" in target) return EXPORT_REFUSED;
-      const key = `${target.root}\n${target.path}`;
-      if (exporting.has(key)) return { kind: "refused", reason: "exporting" };
-      exporting.add(key);
-      try {
-        const output = await deps.choose(exportName(target.path));
-        if (output === null) return { kind: "cancelled" };
-        deps.running(target.root, target.path);
-        const outcome = interpretExport(await deps.run(target.root, target.path, output), output);
-        if (outcome.kind !== "exported") return outcome;
-        const reveal = randomUUID();
-        written.set(reveal, output);
-        for (const old of written.keys()) if (written.size > REVEAL_LIMIT) written.delete(old);
-        return { ...outcome, reveal };
-      } catch {
-        return { kind: "failed", reason: "failed" };
-      } finally {
-        exporting.delete(key);
-      }
+      // Held per root and path.
+      return flow.start(`${target.root}\n${target.path}`, exportName(target.path), () => deps.running(target.root, target.path),
+        async output => interpretExport(await deps.run(target.root, target.path, output), output));
     },
-    reveal(value) {
-      const path = typeof value === "string" ? written.get(value) : undefined;
-      if (path !== undefined) deps.reveal(path);
+    reveal: flow.reveal,
+  };
+}
+
+export interface PrototypeExportDeps {
+  // The clicked target if it is still the one playing (controller.exportTarget), else main's refusal.
+  target(kind: WindowKind, value: unknown): ExportTarget | Refusal;
+  // The save panel, a sheet of the prototype window; null when cancelled or the window is gone.
+  choose(name: string): Promise<string | null>;
+  running(target: ExportTarget): void;
+  run(target: ExportTarget, output: string): Promise<CliRun>;
+  reveal(path: string): void;
+}
+
+export interface PrototypeExport {
+  export(kind: WindowKind, value: unknown): Promise<ExportReply>;
+  reveal(value: unknown): void;
+}
+
+// The prototype window's Export: one export at a time for the window, whatever frame it plays meanwhile. Nothing here
+// waits on the window, so one closed mid-run still gets its file written.
+export function createPrototypeExport(deps: PrototypeExportDeps): PrototypeExport {
+  const flow = exportFlow(deps.choose, deps.reveal);
+  return {
+    async export(kind, value) {
+      const target = deps.target(kind, value);
+      if ("kind" in target) return target;
+      return flow.start("window", prototypeExportName(target.path, target.frame), () => deps.running(target),
+        async output => interpretExport(await deps.run(target, output), output, true));
     },
+    reveal: flow.reveal,
   };
 }

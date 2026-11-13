@@ -8,9 +8,9 @@ export const PROTOTYPE_CHROME = { header: 56, side: 8, bottom: 8 } as const;
 
 export const PROTOTYPE_WINDOW_MIN_WIDTH = 360;
 
-// The header's right group: the Fit/Responsive toggle (2 + 32 + 32 + 2). Sibling features widen it as they add
-// Export and the conversation button; main's fit and capture and the renderer's header read the same value.
-export const PROTOTYPE_HEADER_RIGHT = 68;
+// The header's right group: the Fit/Responsive toggle (2 + 32 + 32 + 2), then 4 and Export (32). The conversation
+// button widens it again; main's fit and capture and the renderer's header read the same value.
+export const PROTOTYPE_HEADER_RIGHT = 104;
 // The narrowest name capsule that still reads: its padding, gap and chevron leave three letters and an ellipsis.
 export const PROTOTYPE_NAME_MIN_WIDTH = 80;
 // The header's second row, where the name capsule goes when the first row cannot give it the minimum.

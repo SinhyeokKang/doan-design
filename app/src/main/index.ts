@@ -46,7 +46,7 @@ import { editMenuInput, editMenuTemplate } from "./editMenu";
 import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, type AddFlow } from "./addProjects";
 import { cliCommand, cliEnv, readFolder, runConfig, runDesignSkill, runExport, runLs, type CliEnv } from "./cli";
-import { createCanvasExport, EXPORT_REFUSED } from "./canvasExport";
+import { createCanvasExport, createPrototypeExport, EXPORT_REFUSED } from "./canvasExport";
 import { createCanvasTrash, TRASH_REFUSED, trashBusy } from "./canvasTrash";
 import { createConfigBridge, storageWrite, type ConfigBridge } from "./configBridge";
 import { aboutCli, aboutText, aboutTool, type AboutRead } from "./about";
@@ -796,7 +796,11 @@ async function start(): Promise<void> {
   // The main window names a frame of a listed canvas; main builds the URL itself. Each window request is checked again
   // for the prototype role inside the controller.
   handle(PROTOTYPE_CHANNELS.play, undefined, (_event, value: unknown, kind) => { prototype.controller.play(kind, value); });
+  // Export and visibility are the window host's, not the run controller's (handled with the CLI below).
+  const hostRequests: ReadonlySet<string> = new Set([PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible]);
+  handle(PROTOTYPE_CHANNELS.visible, null, (_event, value: unknown) => value === undefined ? { visible: prototype.visible() } : null);
   for (const channel of PROTOTYPE_WINDOW_REQUESTS) {
+    if (hostRequests.has(channel)) continue;
     const refused = channel === PROTOTYPE_CHANNELS.read ? null : undefined;
     handle(channel, refused, (_event, value: unknown, kind) => prototype.controller.request(channel, kind, value));
   }
@@ -810,8 +814,8 @@ async function start(): Promise<void> {
   thumbnails = thumbs;
   // Electron has no app hide event. AppKit posts these at the end of
   // NSApplication's hide:/unhide:, which the `hide` role item (⌘H) sends.
-  systemPreferences.subscribeLocalNotification("NSApplicationDidHideNotification", () => { appHidden = true; visibilityChanged(); });
-  systemPreferences.subscribeLocalNotification("NSApplicationDidUnhideNotification", () => { appHidden = false; visibilityChanged(); });
+  systemPreferences.subscribeLocalNotification("NSApplicationDidHideNotification", () => { appHidden = true; visibilityChanged(); prototype.visibilityChanged(); });
+  systemPreferences.subscribeLocalNotification("NSApplicationDidUnhideNotification", () => { appHidden = false; visibilityChanged(); prototype.visibilityChanged(); });
   // Starts the once-per-launch cache cleanup even when no folder update follows.
   thumbs.entriesChanged(ready.entries());
   const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
@@ -845,6 +849,21 @@ async function start(): Promise<void> {
   });
   handle("canvas:export", EXPORT_REFUSED, (_event, value: unknown) => canvasExport.export(value));
   handle("canvas:revealExport", undefined, (_event, value: unknown) => { canvasExport.reveal(value); });
+  // The prototype window's Export: its own lock (one export per window) and Show in Finder ids, and its own save panel.
+  const prototypeExport = createPrototypeExport({
+    target: (kind, value) => prototype.controller.exportTarget(kind, value),
+    async choose(name) {
+      const parent = prototype.window();
+      if (parent === undefined) return null;
+      const picked = await dialog.showSaveDialog(parent, { defaultPath: name, filters: [{ name: "HTML", extensions: ["html"] }] });
+      return picked.canceled || !picked.filePath ? null : picked.filePath;
+    },
+    running: target => prototype.send(PROTOTYPE_CHANNELS.exportRunning, target),
+    run: (target, output) => runExport(cli, target.root, target.path, output, { frame: target.frame }),
+    reveal: path => electronShell.showItemInFolder(path),
+  });
+  handle(PROTOTYPE_CHANNELS.export, EXPORT_REFUSED, (_event, value: unknown, kind) => prototypeExport.export(kind, value));
+  handle(PROTOTYPE_CHANNELS.revealExport, undefined, (_event, value: unknown) => { prototypeExport.reveal(value); });
   // `doan active` is an extra; the app works without it, and the CLI then
   // reports that the app is not running.
   runtime = await startRuntime(userData, {

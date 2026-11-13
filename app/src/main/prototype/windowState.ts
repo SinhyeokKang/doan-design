@@ -257,7 +257,7 @@ export function prototypeView(state: PrototypeState, resolve: Resolve): Prototyp
   const title = state.title ?? frame;
   const ok = usable(state, resolve);
   return {
-    gen: state.gen, frame, title, canvas: resolved.kind === "present" ? resolved.label : state.label, phase: state.phase, ...(state.detail === undefined ? {} : { detail: state.detail }),
+    gen: state.gen, root: state.target.root, path: resolved.kind === "present" ? resolved.path : state.path, frame, title, canvas: resolved.kind === "present" ? resolved.label : state.label, phase: state.phase, ...(state.detail === undefined ? {} : { detail: state.detail }),
     run: state.run, mode: state.mode, previousStopped: state.previousStopped, frames: [...state.frames], canGoBack: canStep(state.history, "back", ok), canGoForward: canStep(state.history, "forward", ok),
   };
 }

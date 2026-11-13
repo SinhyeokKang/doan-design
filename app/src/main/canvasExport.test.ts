@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import { createCanvasExport, createPrototypeExport, exportName, interpretExport, prototypeExportName, type ExportTarget } from "./canvasExport";
 import type { CliRun } from "./folderState";
+import type { WindowKind } from "./senderAllowed";
 import type { CanvasRow, FolderEntry } from "./view";
 
 const ok = (result: unknown): CliRun => ({ exitCode: 0, timedOut: false, stdout: JSON.stringify({ v: 1, ok: true, result }), stderr: "" });
@@ -230,7 +231,7 @@ describe("createPrototypeExport", () => {
     const run = vi.fn(async (_target: ExportTarget, _output: string): Promise<CliRun> => done());
     const reveal = vi.fn();
     const running = vi.fn();
-    const targetOf = vi.fn((_kind: unknown, value: unknown): ExportTarget | { kind: "refused"; reason: "notListed" | "changed" } => value as ExportTarget);
+    const targetOf = vi.fn((_kind: WindowKind, value: unknown): ExportTarget | { kind: "refused"; reason: "notListed" | "changed" } => value as ExportTarget);
     return { choose, run, reveal, running, targetOf, exporter: createPrototypeExport({ target: targetOf, choose, running, run, reveal }) };
   }
 

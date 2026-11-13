@@ -1,12 +1,13 @@
 // The one prototype window's state as main holds it: requests, list refreshes and run results go through the pure
 // transitions, their effects go to the window host in order, and the window gets the view whenever it changes.
 // Electron-free; prototypeWindow.ts is the host.
+import type { ExportReply } from "../canvasExport";
 import type { FolderEntry } from "../view";
 import type { WindowKind } from "../senderAllowed";
 import type { Rect } from "./fit";
-import { PROTOTYPE_CHANNELS, type PrototypeMode, type PrototypeSnapshot, type PrototypeView } from "./ipc";
+import { PROTOTYPE_CHANNELS, type ExportTarget, type PrototypeMode, type PrototypeSnapshot, type PrototypeView } from "./ipc";
 import type { PrototypeSize } from "./mark";
-import { parseChooseRequest, parseFramesReport, parseModeRequest, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
+import { exportTargetMatches, parseChooseRequest, parseExportRequest, parseFramesReport, parseModeRequest, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
 import { resolveTarget, type PrototypeTarget } from "./targets";
 import * as transitions from "./windowState";
 import { CLOSED, type PrototypeState, type Resolve, type Step } from "./windowState";
@@ -40,6 +41,8 @@ export interface PrototypeController {
   play(kind: WindowKind, value: unknown): void;
   // `doan open --prototype`, already judged against main's list (cliPlay.ts).
   playFromCli(request: { target: PrototypeTarget; size: PrototypeSize }): CliPlayResult;
+  // `prototype:export`: the clicked target when it is still the one playing, else main's refusal.
+  exportTarget(kind: WindowKind, value: unknown): ExportTarget | Extract<ExportReply, { kind: "refused" }>;
   // Every `prototype:*` request of the prototype window; `read`'s reply is the view, every other reply is undefined.
   request(channel: string, kind: WindowKind, value: unknown): PrototypeView | null | undefined;
   listChanged(): void;
@@ -141,6 +144,15 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
       const activated = step.state === state;
       apply(step);
       return activated ? "activated" : "played";
+    },
+    exportTarget(kind, value) {
+      const clicked = parseExportRequest(kind, value);
+      if (clicked === null || !state.open) return { kind: "refused", reason: "notListed" };
+      // A canvas ID two rows now share resolves to nothing, as it does for a run.
+      const resolved = resolve(state.target, state.path);
+      const current = resolved.kind === "present" ? { root: state.target.root, path: resolved.path, frame: state.target.frame } : null;
+      if (exportTargetMatches(clicked, current)) return clicked;
+      return { kind: "refused", reason: current === null ? "notListed" : "changed" };
     },
     request(channel, kind, value) {
       switch (channel) {

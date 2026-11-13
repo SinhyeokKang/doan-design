@@ -1840,7 +1840,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    frame box from prototype-responsive.html): the main window's shell without a sidebar. The header reuses .top.shell-top,
    .traffic-space and .shell-history, so Back sits at x88 as in the main header; the frame name reuses .shell-search.
    --pw-right is the header's right group, fit.ts PROTOTYPE_HEADER_RIGHT: main fits and captures the window by it. */
-:root { --pw-right: 68px; }
+:root { --pw-right: 104px; }
 .pw { position: absolute; inset: 0; display: grid; grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); }
 /* The name's second row, when the first leaves it less than 80 (the renderer sets it from the window's width, as main
    does): 36 for the capsule and 8 under it. Both groups stay in the first row. */

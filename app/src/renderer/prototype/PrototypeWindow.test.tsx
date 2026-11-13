@@ -56,6 +56,7 @@ let resizes: (() => void)[];
 let win: { innerWidth: number };
 let api: Record<string, ReturnType<typeof vi.fn>>;
 let doc: { title: string; activeElement: unknown; body: object; hidden: boolean; addEventListener(): void; removeEventListener(): void; querySelector(): null };
+class FakeElement { isConnected = true; focus = vi.fn(); }
 let running: (target: { root: string; path: string; frame: string }) => void;
 let shell: Shell;
 
@@ -87,6 +88,7 @@ beforeEach(() => {
     onWindowVisible: vi.fn((listener: (visible: boolean) => void) => { listener(true); return () => {}; }),
   };
   doc = { title: "", activeElement: null, body: {}, hidden: false, addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null };
+  vi.stubGlobal("HTMLElement", FakeElement);
   // The toast's clock reads performance.now, which the fake timers leave alone.
   vi.stubGlobal("performance", { now: () => Date.now() });
   vi.stubGlobal("document", doc);
@@ -500,7 +502,7 @@ describe("Export", () => {
   // the frame after a pointer press, which never moves focus), once, if it fell to the page.
   test("focus that fell to the page during the save panel goes back where it was before the press", async () => {
     show(view({ phase: "ready" }));
-    const before = { focus: vi.fn(), isConnected: true };
+    const before = new FakeElement();
     doc.activeElement = before;
     const answer = pending();
     shell.onExport();
@@ -515,7 +517,7 @@ describe("Export", () => {
 
   test("focus put elsewhere meanwhile stays there", async () => {
     show(view({ phase: "ready" }));
-    const before = { focus: vi.fn(), isConnected: true };
+    const before = new FakeElement();
     doc.activeElement = before;
     shell.onExport();
     doc.activeElement = { name: "Back" };

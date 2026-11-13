@@ -1,7 +1,8 @@
 // The prototype window's preload: its host page drives its own run and nothing else. No main-window call is here,
 // and main checks the window role on every channel again.
 import { contextBridge, ipcRenderer } from "electron";
-import type { FramesMessage, PrototypeMode, PrototypeSnapshot, PrototypeView, PrototypeWindowApi, RunMessage } from "../main/prototype/ipc";
+import type { ExportReply } from "../main/canvasExport";
+import type { ExportTarget, FramesMessage, PrototypeMode, PrototypeSnapshot, PrototypeView, PrototypeWindowApi, RunMessage } from "../main/prototype/ipc";
 
 // Channel names stay literal (pinned against PROTOTYPE_CHANNELS in the test): a value import shared with the main
 // preload would become a chunk, which a sandboxed preload cannot require.
@@ -21,6 +22,22 @@ const api = {
   choose: (frame: string): Promise<void> => ipcRenderer.invoke("prototype:choose", { frame }),
   close: (): Promise<void> => ipcRenderer.invoke("prototype:close"),
   setMode: (mode: PrototypeMode): Promise<void> => ipcRenderer.invoke("prototype:mode", { mode }),
+  // The target the window showed at the click; main exports it only if it still plays.
+  export: (target: ExportTarget): Promise<ExportReply> => ipcRenderer.invoke("prototype:export", target),
+  revealExport: (id: string): Promise<void> => ipcRenderer.invoke("prototype:revealExport", id),
+  onExportRunning(listener: (target: ExportTarget) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, target: ExportTarget) => listener(target);
+    ipcRenderer.on("prototype:exportRunning", receive);
+    return () => ipcRenderer.removeListener("prototype:exportRunning", receive);
+  },
+  // Main's first answer unless a push came before it; the toast's clock stops while the window is not visible.
+  onWindowVisible(listener: (visible: boolean) => void): () => void {
+    let active = true, received = false;
+    const receive = (_event: Electron.IpcRendererEvent, value: { visible: boolean }) => { received = true; listener(value.visible); };
+    ipcRenderer.on("prototype:visible", receive);
+    void ipcRenderer.invoke("prototype:visible").then((value: { visible: boolean } | null) => { if (active && !received && value !== null) listener(value.visible); });
+    return () => { active = false; ipcRenderer.removeListener("prototype:visible", receive); };
+  },
   // The last look of a ready run that turned failed or unavailable, sent before that view; show it under the overlay
   // as a blob: image at its box, in place of the iframe.
   onSnapshot(listener: (snapshot: PrototypeSnapshot) => void): () => void {

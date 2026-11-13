@@ -173,8 +173,8 @@ describe("pointer presses in the header", () => {
 describe("Export prototype", () => {
   test("a 32 chrome icon button with a Download glyph after the toggle, named and tipped Export prototype", () => {
     const html = markup();
-    expect(tag(html, 'aria-label="Export prototype"')).toBe('<button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Export prototype">');
-    expect(html).toContain('aria-label="Export prototype"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download"');
+    expect(tag(html, 'aria-label="Export prototype"')).toMatch(/^<button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Export prototype" data-state="closed" data-slot="tooltip-trigger">$/);
+    expect(html).toContain('aria-label="Export prototype" data-state="closed" data-slot="tooltip-trigger"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-download"');
     const tips = all(tree()).filter(element => element.type === TooltipContent).map(element => element.props.children);
     expect(tips).toContain("Export prototype");
   });
