@@ -43,13 +43,15 @@ describe("limitResetFromUsage", () => {
     const limits = codexSession.payload.rate_limits, primary = limits.primary;
     return { rateLimits: { ...codexUsageFixture.rateLimits, primary: { usedPercent: primary.used_percent, windowDurationMins: primary.window_minutes, resetsAt: primary.resets_at }, secondary: null, rateLimitReachedType: reached } };
   }
-  it("reads a Codex usage read only when Codex says the limit is reached", () => {
-    const at = Date.parse(codexSession.timestamp);
+  it("reads a Codex usage read whose window is full, with or without a reached type", () => {
+    const at = Date.parse(codexSession.timestamp), reset = codexSession.payload.rate_limits.primary.resets_at * 1000;
     const full = codexUsage(codexRead(null), at), reached = codexUsage(codexRead("primary"), at);
     if (full.status !== "ok" || reached.status !== "ok") throw new Error("fixture unread");
-    // 100% used with rate_limit_reached_type null, as the session recorded it: not a reached limit.
-    expect(limitResetFromUsage(full.windows, at)).toBeNull();
-    expect(limitResetFromUsage(reached.windows, at)).toBe(codexSession.payload.rate_limits.primary.resets_at * 1000);
+    // 100% used with rate_limit_reached_type null, as the session recorded it while Codex refused the account.
+    expect(limitResetFromUsage(full.windows, at)).toBe(reset);
+    expect(limitResetFromUsage(reached.windows, at)).toBe(reset);
+    const short = codexUsage({ rateLimits: { primary: { usedPercent: 99, windowDurationMins: 43200, resetsAt: codexSession.payload.rate_limits.primary.resets_at }, rateLimitReachedType: null } }, at);
+    expect(short.status === "ok" && limitResetFromUsage(short.windows, at)).toBeNull();
   });
 });
 
