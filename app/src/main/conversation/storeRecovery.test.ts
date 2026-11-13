@@ -330,3 +330,25 @@ describe("prompt unread history", () => {
     expect(() => new ConversationStore(f.root).read("c")).toThrow();
   });
 });
+
+// A turn that handed off to several canvases names each resolution's request; lines from before keep reading, and a
+// missed line without its canvas makes the history unreadable.
+describe("multi-handoff history", () => {
+  const event = (fields: object, seq = 1) => ({ ...fields, v: 1, conversationId: "c", turnId: "t", seq, at: "2026-11-13T00:00:00Z" });
+  it("reads requests, per-canvas resolutions and missed lines after reopening, beside a resolution without a canvas", () => {
+    const f = setup();
+    const events = [
+      event({ type: "handoff.requested", canvas: { path: ".doan/canvases/b.html" }, text: "Go on." }, 1),
+      event({ type: "handoff.resolved", outcome: "cancelled" }, 2),
+      event({ type: "handoff.resolved", canvas: { path: ".doan/canvases/b.html" }, outcome: "refused", reason: "has_conversation" }, 3),
+      event({ type: "handoff.missed", canvas: { path: ".doan/canvases/c.html", id: "c" } }, 4),
+    ];
+    writeFileSync(f.path("c"), events.map(e => JSON.stringify(e) + "\n").join(""));
+    expect(new ConversationStore(f.root).read("c")).toEqual(events);
+  });
+  it.each([{}, { canvas: null }, { canvas: { id: "c" } }, { canvas: { path: ".doan/canvases/c.html", id: 1 } }])("rejects a missed line without a valid canvas: %j", fields => {
+    const f = setup();
+    writeFileSync(f.path("c"), JSON.stringify(event({ type: "handoff.missed", ...fields })) + "\n");
+    expect(() => new ConversationStore(f.root).read("c")).toThrow();
+  });
+});

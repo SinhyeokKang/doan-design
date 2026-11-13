@@ -323,6 +323,24 @@ describe("handoff events in event v1", () => {
     ];
     expect(new ConversationStore(f.root).read("c")).toEqual(saved);
   });
+  // A turn may hand off to several canvases, so each resolution names its request's path; a missed line names a new
+  // canvas the agent never asked for.
+  it("round-trips resolutions that name their request's canvas, and a missed handoff", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    const saved = [
+      store.append("c", "t", { type: "handoff.resolved", canvas: { path: ".doan/canvases/b.html" }, outcome: "started", target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html", id: "b" } } }),
+      store.append("c", "t", { type: "handoff.resolved", canvas: { path: ".doan/canvases/x.html" }, outcome: "refused", reason: "not_listed" }),
+      store.append("c", "t", { type: "handoff.resolved", canvas: { path: ".doan/canvases/y.html" }, outcome: "cancelled" }),
+      store.append("c", "t", { type: "handoff.missed", canvas: { path: ".doan/canvases/c.html", id: "c" } }),
+      store.append("c", "t", { type: "handoff.missed", canvas: { path: ".doan/canvases/plain.html" } }),
+    ];
+    expect(new ConversationStore(f.root).read("c")).toEqual(saved);
+  });
+  it("still reads a resolution written before resolutions named their canvas", () => {
+    const old = line({ type: "handoff.resolved", outcome: "started", target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html" } } });
+    const f = seed({ "c.jsonl": old });
+    expect(new ConversationStore(f.root).read("c")).toEqual([JSON.parse(old)]);
+  });
   it("still refuses a person's message whose markers name no anchor", () => {
     const f = seed({ "c.jsonl": line({ type: "user.message", text: "{{1}}", anchors: [] }) });
     expect(() => new ConversationStore(f.root).read("c")).toThrow("Invalid conversation event");
@@ -338,6 +356,13 @@ describe("handoff events in event v1", () => {
       { type: "handoff.resolved", outcome: "started", conversationId: "b", canvas: { path: ".doan/canvases/a.html" } },
       { type: "handoff.resolved", outcome: "refused" },
       { type: "handoff.resolved", outcome: "maybe" },
+      { type: "handoff.resolved", canvas: { path: "" }, outcome: "cancelled" },
+      { type: "handoff.resolved", canvas: ".doan/canvases/a.html", outcome: "cancelled" },
+      { type: "handoff.resolved", canvas: {}, outcome: "cancelled" },
+      { type: "handoff.missed" },
+      { type: "handoff.missed", canvas: { path: "" } },
+      { type: "handoff.missed", canvas: { path: "a.html" } },
+      { type: "handoff.missed", canvas: { path: ".doan/canvases/a.html", id: "Not An Id" } },
     ];
     for (const body of bad) {
       const f = seed({ "c.jsonl": line(body) });

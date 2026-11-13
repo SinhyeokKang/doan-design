@@ -619,8 +619,10 @@ export class ConversationService {
     const running = !!live && !!turn && live.handoffKey === request.handoff && turn.turnId === live.turnId && live.accepted && live.busy && !live.terminal &&
       !live.closed && !live.failedPersistence && !this.quitting && m.state === "current";
     const refused = handoffEligibility(request, { root: m.root, ...(m.canvas ? { canvas: m.canvas } : {}), ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}),
-      running, ...(turn?.startedBy ? { startedBy: turn.startedBy } : {}), requested: !!turn?.request });
+      running, ...(turn?.startedBy ? { startedBy: turn.startedBy } : {}), requested: turn?.request ? [turn.request.path] : [] });
     if (refused) return refused;
+    // HandoffTurn still holds one request, so a later one for another path would replace it: refuse it as before.
+    if (turn?.request) return "already_requested";
     const text = request.text.trim(); if (!text) throw new Error("bad_request");
     this.append(id, live!.turnId, { type: "handoff.requested", canvas: { path: request.path }, text });
     turn!.request = { path: request.path, text };
