@@ -43,3 +43,7 @@ task 2(`/design-draft`)는 이미 끝났다. task 10은 리뷰 행과 conductor�
 - R 완료(`a9eaa8bb..10f1462f`) → `62284160..d76bd1f0`로 통합. R 보고: test 11911개, typecheck, lint(경고 80/80) 통과. 계획과 다른 점: target에 `lost?: "gone" | "duplicate"`, `playingFrameChip(view, last)`, `withPlayingFrame`이 칩 뒤에 공백 하나. `revealDecision`은 계획대로 U 몫이다.
 - conductor 판단 — R이 남긴 계약 공백을 M에 보냈다(`msg_88a65c855399`): 프로토타입 preload가 R의 호출 객체 타입 전체를 같은 이름으로 낸다(`scheduledMessages`, `designSkills`, `onAgentAuth` 포함). `onAgentAuth`는 계정 정보(email 등)를 뺀 snapshot만 준다. view가 target 캔버스 행의 사라짐·ID 겹침을 구분해 알린다. 본체가 받는 `entry`는 target root의 `FolderEntry`만 좁은 읽기로 준다. 근거: 캔버스 행은 대화가 아니므로 design '범위 검사'가 지키는 것(다른 캔버스 대화, 프로젝트 대화, 삭제, email, 설정 쓰기)에 닿지 않는다.
 - R 리뷰: Codex gpt-6-astra medium(`ctx_ff7a9e592159`, worktree `pcv-rr`).
+- P 완료(`8c38b98b`) → `c6aa81ae`로 통합. probe exit 0, 29 checks, 스크린샷 13장(P 보고, 결과는 design.md 'PoC 의존'). design이 바뀐 곳 둘: 포커스 지키기는 `inert`가 아니라 포커스 되돌리기이고, 대화 열에 포커스가 있을 때 만들어진 run이 보이고 1초 뒤까지만 되돌린다(사람의 프레임 클릭과 스크립트 `focus()`를 host가 구별하지 못해서다). 패널을 연 동안의 최소폭은 `min(640, 작업 영역 폭)`이다.
+- conductor 판단 — PoC의 두 설계 변경을 받아들인다. 근거: design이 방법을 PoC에 맡겼고("방법은 PoC에서 정한다"), 최소폭 자르기는 spec 결정 4의 "작업 영역 폭까지만 넓힌다"를 따른다. 남는 한계: 새 run이 보이고 1초가 지난 뒤 캔버스가 부르는 `focus()`는 막지 않는다. PR 본문에 적는다.
+- task 1의 체크는 비워 둔다. 작업 영역이 640보다 좁은 실제 화면과 macOS 실제 한국어 입력기는 보지 못했다. 실제 입력기는 task 9에서 본다.
+- M에 창 넓히기 순서(미룬 항목)를 보냈다(`msg_9fd6b70c6aa4`). lead에 `GUI done`을 알렸다. P 워커를 release하고 worktree `pcv-p`를 지웠다(브랜치 `SinhyeokKang/pcv-p` `8c38b98b` 유지). probe와 스크린샷은 conductor `.scratch/prototype-conversation/`에 복사했다.
