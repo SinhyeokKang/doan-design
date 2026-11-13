@@ -44,7 +44,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
   let queue: Promise<void> | null = null;
   // The last still sent to this window, re-sent when a kill stops the screen it stood for.
   let latest: Uint8Array | null = null;
-  const resolve: Resolve = ref => resolveTarget(ref, entries());
+  const resolve: Resolve = (ref, lastPath) => resolveTarget(ref, entries(), lastPath);
 
   const sendView = () => {
     const view = transitions.prototypeView(state, resolve);

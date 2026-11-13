@@ -49,6 +49,8 @@ export interface OpenState {
   readonly source: string | null;
   // The canvas label from the last list that had the canvas, so a lost canvas keeps its name in the view.
   readonly label: string;
+  // The canvas row's path from that list, so an unreadable file (listed without its ID) is still this canvas.
+  readonly path: string;
   // The frame's title as last listed (by `doan ls` or a run), so a lost frame keeps its name; null before any.
   readonly title: string | null;
   // A kill since the last ready run: the canvases of this window share one renderer process, so the killed run took
@@ -70,7 +72,8 @@ export interface Step {
   effects: Effect[];
 }
 
-export type Resolve = (ref: CanvasRef) => Resolution;
+// `lastPath`: the target's row path as last listed, for a canvas whose ID can no longer be read (resolveTarget).
+export type Resolve = (ref: CanvasRef, lastPath?: string) => Resolution;
 
 export const CLOSED: ClosedState = { open: false, gen: 0, history: EMPTY_HISTORY };
 
@@ -102,7 +105,7 @@ function start(state: PrototypeState, target: PrototypeTarget, resolved: Present
   const keepFrames = state.open && sameCanvas(state.target, target) && state.listed === "ok";
   const markWidth = fit?.size.width ?? (state.open ? state.run?.markWidth : undefined) ?? 0;
   const base = {
-    open: true as const, gen, history, target, source: resolved.source, url: resolved.url, label: resolved.label,
+    open: true as const, gen, history, target, source: resolved.source, url: resolved.url, label: resolved.label, path: resolved.path,
     title: titleIn(resolved.frames, target.frame) ?? (sameFrame && state.open ? state.title : null),
     previousStopped: killed.length > 0 || (state.open && state.previousStopped),
     frames: keepFrames && state.open ? state.frames : [], reports: state.open ? state.reports : {}, fitHint: fit?.size ?? null,
@@ -167,7 +170,7 @@ export function forward(state: PrototypeState, resolve: Resolve): Step | null {
 // After every list refresh: a changed source reloads, a gone canvas is lost, and the same canvas coming back reloads.
 export function listChanged(state: PrototypeState, resolve: Resolve): Step {
   if (!state.open) return none(state);
-  const resolved = resolve(state.target);
+  const resolved = resolve(state.target, state.path);
   if (resolved.kind === "unknown") return none(state);
   if (resolved.kind === "absent") {
     if (state.listed === "absent") return none(state);
@@ -185,7 +188,7 @@ export function reload(state: PrototypeState, gen: number): Step {
   if (!state.open || gen !== state.gen) return none(state);
   if (state.listed === "error") return { state, effects: [{ kind: "reread", root: state.target.root }] };
   if (state.listed !== "ok" || state.url === null || state.source === null) return none(state);
-  return start(state, state.target, { kind: "present", url: state.url, source: state.source, error: false, frames: [], label: state.label }, null, state.history);
+  return start(state, state.target, { kind: "present", url: state.url, source: state.source, error: false, frames: [], label: state.label, path: state.path }, null, state.history);
 }
 
 function current(state: OpenState, gen: number): boolean {
@@ -228,7 +231,7 @@ export function close(state: PrototypeState): Step {
 export function prototypeView(state: PrototypeState, resolve: Resolve): PrototypeView | null {
   if (!state.open) return null;
   const { frame } = state.target;
-  const resolved = resolve(state.target);
+  const resolved = resolve(state.target, state.path);
   const title = titleIn(state.frames, frame) ?? (resolved.kind === "present" ? titleIn(resolved.frames, frame) : undefined) ?? state.title ?? frame;
   const ok = usable(state, resolve);
   return {

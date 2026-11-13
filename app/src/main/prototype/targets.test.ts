@@ -41,7 +41,7 @@ describe("identity", () => {
 describe("resolveTarget", () => {
   test("finds the row by id and reports its URL, source and static frames", () => {
     const resolved = resolveTarget(target, entries);
-    expect(resolved).toEqual({ kind: "present", url: proto.url, source: expect.any(String), error: false, frames: [{ id: "phone", title: "Phone" }], label: "proto" });
+    expect(resolved).toEqual({ kind: "present", url: proto.url, source: expect.any(String), error: false, frames: [{ id: "phone", title: "Phone" }], label: "proto", path: proto.path });
   });
 
   test("an ID-keyed canvas follows a rename", () => {
@@ -69,6 +69,19 @@ describe("resolveTarget", () => {
 
   test("a row doan ls could not read is present with an error", () => {
     expect(resolveTarget(target, [list("/r", [{ ...proto, error: { code: "read_failed", message: "boom" } }])])).toMatchObject({ kind: "present", error: true });
+  });
+
+  // doan ls lists a file it cannot read as {path, error} without the ID inside it.
+  test("an ID-keyed canvas whose file became unreadable is its last path's errored row", () => {
+    const unreadable = row(proto.path, { error: { code: "unreadable_canvas", message: "permission denied" } });
+    expect(resolveTarget(target, [list("/r", [unreadable, loose])], proto.path)).toMatchObject({ kind: "present", error: true, url: unreadable.url, path: proto.path });
+    // Without a last path, at another path, or a readable ID-less row there: never guessed.
+    expect(resolveTarget(target, [list("/r", [unreadable, loose])])).toEqual({ kind: "absent" });
+    expect(resolveTarget(target, [list("/r", [unreadable, loose])], loose.path)).toEqual({ kind: "absent" });
+    expect(resolveTarget(target, [list("/r", [row(proto.path), loose])], proto.path)).toEqual({ kind: "absent" });
+    // Two rows that share the ID stay a conflict, whatever the last path.
+    const twin = row(".doan/canvases/twin.html", { id: "proto" });
+    expect(resolveTarget(target, [list("/r", [proto, twin])], proto.path)).toEqual({ kind: "absent" });
   });
 
   test("never guesses: gone, conflicting ids, other worktrees and failed lists are absent", () => {

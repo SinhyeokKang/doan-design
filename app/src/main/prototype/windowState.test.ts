@@ -1,8 +1,9 @@
 import { describe, expect, test } from "vitest";
 import type { PrototypeFrame } from "./ipc";
-import { canvasKeyString, type PrototypeTarget, type Resolution } from "./targets";
+import type { CanvasRow } from "../view";
+import { canvasKeyString, resolveTarget, type PrototypeTarget, type Resolution } from "./targets";
 import {
-  CLOSED, back, choose, close, forward, framesReported, listChanged, play, prototypeView, readFailed, reload, report, type PrototypeState, type Step,
+  CLOSED, back, choose, close, forward, framesReported, listChanged, play, prototypeView, readFailed, reload, report, type PrototypeState, type Resolve, type Step,
 } from "./windowState";
 
 const A: PrototypeTarget = { root: "/r", canvas: { id: "proto" }, frame: "phone" };
@@ -17,7 +18,7 @@ const listed: PrototypeFrame[] = [{ id: "phone", title: "Phone", size: "390x844"
 function world() {
   const rows = new Map<string, Resolution>();
   const set = (t: Pick<PrototypeTarget, "root" | "canvas">, r: Resolution) => rows.set(canvasKeyString(t), r);
-  const present = (url: string, source = "s1", frames: { id: string; title?: string }[] = []): Resolution => ({ kind: "present", url, source, error: false, frames, label: url.slice(url.lastIndexOf("/") + 1, -".html".length) });
+  const present = (url: string, source = "s1", frames: { id: string; title?: string }[] = []): Resolution => ({ kind: "present", url, source, error: false, frames, label: url.slice(url.lastIndexOf("/") + 1, -".html".length), path: url.slice(url.lastIndexOf("/") + 1) });
   set(A, present("http://h/t/tok/k1/proto.html", "s1", [{ id: "phone", title: "Phone" }]));
   set(C, present("http://h/t/tok/k1/other.html"));
   set(A_WT, present("http://h/t/tok/k2/proto.html"));
@@ -176,7 +177,7 @@ describe("source changes and loss", () => {
 
   test("a row doan ls cannot read is a read failure, not a run", () => {
     const { w, state } = opened();
-    w.set(A, { kind: "present", url: "http://h/t/tok/k1/proto.html", source: "s9", error: true, frames: [], label: "proto" });
+    w.set(A, { kind: "present", url: "http://h/t/tok/k1/proto.html", source: "s9", error: true, frames: [], label: "proto", path: ".doan/canvases/proto.html" });
     const step = listChanged(state, w.resolve);
     expect(step.effects).toEqual([]);
     expect(prototypeView(step.state, w.resolve)?.phase).toBe("read-failed");
@@ -228,7 +229,7 @@ describe("review round 1", () => {
 
   test("Retry of a row doan ls could not read asks for that root's list again", () => {
     const w = world();
-    w.set(A, { kind: "present", url: "http://h/t/tok/k1/proto.html", source: "s9", error: true, frames: [], label: "proto" });
+    w.set(A, { kind: "present", url: "http://h/t/tok/k1/proto.html", source: "s9", error: true, frames: [], label: "proto", path: ".doan/canvases/proto.html" });
     const failed = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
     expect(prototypeView(failed, w.resolve)?.phase).toBe("read-failed");
     expect(reload(failed, failed.gen)).toEqual({ state: failed, effects: [{ kind: "reread", root: "/r" }] });
@@ -251,6 +252,23 @@ describe("review round 1", () => {
     // A frame never shown with a title still falls back to its ID.
     const loadingTablet = ok(play(CLOSED, { target: { ...A, frame: "card" }, size: card }, world().resolve)).state;
     expect(prototypeView(loadingTablet, world().resolve)?.title).toBe("card");
+  });
+});
+
+describe("an unreadable canvas with an ID", () => {
+  test("is a read failure with Retry, not Frame unavailable, and plays again once readable", () => {
+    const base = "http://h/t/tok/k1/";
+    const readable: CanvasRow = { path: ".doan/canvases/proto.html", url: `${base}.doan/canvases/proto.html`, id: "proto", frames: [{ id: "phone", title: "Phone" }] };
+    let rows: CanvasRow[] = [readable];
+    const resolve: Resolve = (ref, lastPath) => resolveTarget(ref, [{ path: "/r", kind: "list", canvases: rows, servedRev: 0 }], lastPath);
+    const shown = ready(ok(play(CLOSED, { target: A, size: phone }, resolve)).state).state;
+    rows = [{ path: readable.path, url: readable.url, error: { code: "unreadable_canvas", message: "permission denied" } }];
+    const failed = listChanged(shown, resolve).state;
+    expect(prototypeView(failed, resolve)).toMatchObject({ phase: "read-failed", title: "Phone", canvas: "proto" });
+    expect(reload(failed, failed.gen).effects).toEqual([{ kind: "reread", root: "/r" }]);
+    rows = [readable];
+    const again = listChanged(failed, resolve);
+    expect(again.effects).toContainEqual({ kind: "load", gen: failed.gen + 1, url: readable.url, frame: "phone" });
   });
 });
 
