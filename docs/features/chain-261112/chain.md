@@ -68,7 +68,7 @@ lead는 링크 시작 전에 아래를 사용자에게 한 번에 묻고, 승인
 |---|---|---|---|---|
 | 1. `canvas-svg-sprites` | `canvas-svg-sprites-orch` (Claude conductor). worktree 삭제됨 | 2026-11-12, `8e9c33e9` | [#179](https://github.com/SinhyeokKang/doan-design/pull/179), 병합 `c0d99ed4` | 병합 |
 | 2. `claude-turn-end` | `claude-turn-end-orch` (Claude conductor), `/Users/sinhyeok/orca/workspaces/doan-design/claude-turn-end-orch` | 2026-11-12, `8e9c33e9` | | 진행 중 |
-| 3. `canvas-text-copy` | `canvas-text-copy-orch` (Claude conductor), `/Users/sinhyeok/orca/workspaces/doan-design/canvas-text-copy-orch` | 2026-11-13, `02e6e505` | | 진행 중 |
+| 3. `canvas-text-copy` | `canvas-text-copy-orch` (Claude conductor). worktree 삭제됨 | 2026-11-13, `02e6e505` | [#180](https://github.com/SinhyeokKang/doan-design/pull/180), 병합 `5ef8b392` | 병합 |
 
 ## 인계 기록
 
@@ -78,3 +78,4 @@ lead는 링크 시작 전에 아래를 사용자에게 한 번에 묻고, 승인
 - 2026-11-13 lead: 링크 3 시작 전 점검 1–4를 사용자가 모두 승인했다. `fix/space-cursor-over-frame` PR이 병합되면 lead가 바로 링크 3을 시작한다.
 - 2026-11-13 lead: `fix/space-cursor-over-frame`(PR #178)을 `02e6e505`로 병합했다. `/agent-eval`은 사용자 결정으로 생략했다(viewer 커서만 바뀌고 가이드·CLI 응답·check는 그대로). 그 PR이 `cli/internal/export/output_test.go`의 export digest를 바꿨다고 링크 1 conductor에게 알렸다. 링크 3을 `02e6e505`에서 시작했다.
 - 2026-11-13 lead: 링크 1 PR #179를 `c0d99ed4`로 병합했다(CI 샤드가 러너를 받지 못해 취소된 것을 다시 돌려 통과). 다음 링크가 알 것: 다른 파일의 SVG `<use>`는 이제 `doan check` error·export 거부이고, 여러 폴더가 다르게 푸는 custom property `url()`은 export 거부(check는 warning)다. 릴리스 노트 문구는 PR 본문에 있다. `doan design-skill document --json`이 출력 상한 21,600바이트 중 21,588바이트라 그 프리셋에 더하면 `TestDesignSkillFitsToolOutputCap`이 깨진다. `app/`은 바뀌지 않았다.
+- 2026-11-13 lead: 사용자 결정으로 링크 3 PR #180을 링크 2보다 먼저 `5ef8b392`로 병합했다(코드 파일이 겹치지 않고, 링크 2는 화면 대기로 E가 늦어짐). 링크 2는 PR 전에 `origin/develop`을 받아 verify한다. 다음 링크가 알 것: Select 텍스트 드래그와 복사, `text-range` 채널(문서 토큰 + epoch), 범위는 OS 커서가 `.area` 위일 때만 믿음, `canvasScript.ts`의 `cursorSheet` 재사용. 미검증 항목은 BACKLOG.
