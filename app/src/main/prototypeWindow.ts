@@ -80,7 +80,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       void (async () => {
         try {
           if (params.targetInfo?.type === "iframe" && run !== null) {
-            // Without Page.enable the added script never ran (PoC).
+            // Without Page.enable the added script never ran.
             await dbg.sendCommand("Page.enable", {}, child);
             await dbg.sendCommand("Page.addScriptToEvaluateOnNewDocument", { source: prototypeScriptSource(run.frame, run.gen, run.url) }, child);
           }
