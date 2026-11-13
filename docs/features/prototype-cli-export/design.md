@@ -1,6 +1,6 @@
 # prototype-cli-export — design
 
-spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--frame <id> --prototype`, 캔버스 전체를 넣고 토스트와 guide로 알림, 프레임이 브라우저 viewport 전체를 채움, chrome 없음, Export는 아래 툴바 [Reload prototype | Fit, Responsive | Export prototype]의 마지막 버튼, 링크 없음, 툴바 Export와 CLI만, CLI 정적 판정, open의 `canvas_unreadable`, export 결과 `prototype: true`, target 비교로 오래된 클릭 거절, 창마다 한 번에 하나의 내보내기, 숨긴 채 시작하는 iframe.
+spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--frame <id> --prototype`, 캔버스 전체를 넣고 토스트와 guide로 알림, 프레임이 브라우저 viewport 전체를 채움, chrome 없음, Export는 프로토타입 창 헤더 오른쪽 무리에서 모드 토글 다음 버튼, 링크 없음, 헤더 Export와 CLI만, CLI 정적 판정, open의 `canvas_unreadable`, export 결과 `prototype: true`, target 비교로 오래된 클릭 거절, 창마다 한 번에 하나의 내보내기, 숨긴 채 시작하는 iframe.
 
 ## 영향 받는 구성 요소
 
@@ -26,18 +26,22 @@ spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--
 - `app/src/main/prototype/ipc.ts`: 채널 `prototype:export`(`{root, path, frame}`: 누른 순간의 target), `prototype:revealExport`(opaque id), 이벤트 `prototype:exportRunning`. `PROTOTYPE_WINDOW_REQUESTS`에 앞의 둘을 더한다.
 - `app/src/main/senderAllowed.ts`: 새 두 요청은 `prototype` role만 부를 수 있다. 메인 창의 `mainOnly`는 넓히지 않는다.
 - `app/src/main/canvasExport.ts`: 지금 `export(value)`는 `trashRequest`, 메인 창으로 보내는 `running`, 메인 창이 부모인 `choose`에 묶여 있다. 프로토타입 창용은 deps를 따로 준 `createCanvasExport`의 두 번째 인스턴스로 만든다(요청 해석은 프레임을 포함한 target, `running`은 프로토타입 창으로, 저장 패널의 부모는 프로토타입 창). 잠금과 `written`(Show in Finder id, 상한 16)은 인스턴스마다 따로다. 프로토타입 인스턴스의 잠금은 창 하나에 하나다(결정 15). `runExport`(`app/src/main/cli.ts`)에 `--frame <id> --prototype` 인자. `interpretExport`에 `frame_not_found` → `notFound`, `not_prototype` → `notMarked`.
-- `app/src/renderer/prototype/`: 아래 툴바 줄의 툴바(`prototype-responsive`가 만든 컴포넌트)에 구분선과 Export 버튼을 더한다. 버튼은 캔버스 툴바 버튼(`doan-canvas-tool`, 40 px, 16 px 아이콘)과 같고, 접근 이름과 tooltip은 "Export prototype", 쓸 수 없을 때는 `aria-disabled`와 이유 tooltip·sr-only 설명이다(캔버스 툴바의 Play prototype·Export와 같은 `TooltipTrigger` 규칙). 그 밖에 토스트 호스트(`app/src/renderer/Toast.tsx` 재사용), `PrototypeWindow.tsx`의 호출. 프로토타입 preload(`window.doanPrototype`)에 `export(target)`, `revealExport(id)`, `onExportRunning`, 그리고 `onWindowVisible`(또는 같은 역할의 채널). `useToast`가 토스트 타이머를 멈추고 다시 돌리려고 `window.doan.onWindowVisible`을 쓰기 때문이다(`Toast.tsx`).
-- **창 배치는 세 기능에 걸쳐 정해졌다**: 이 기능의 Export, `prototype-conversation`의 대화 버튼, `prototype-responsive`의 툴바 줄이 같은 프로토타입 창을 바꾼다.
-  - header: Back, Forward, 프레임 이름 버튼, 대화 버튼. 이 기능은 header에 아무것도 더하지 않는다. 360 px 창의 이름 버튼 폭은 `prototype-responsive`가 다시 계산한다.
-  - 아래 툴바 줄(66 px, 프레임 열 아래): 툴바 [Reload prototype | Fit, Responsive | Export prototype]. Reload는 header에서 툴바로 내려오고(`prototype-responsive`가 옮긴다), Export는 마지막 묶음이다. 창 맞춤 높이는 표시 높이 + 122(header 56 + 툴바 줄 66)다.
-  - 키보드: 툴바는 Tab 정지가 하나이고 ←/→로 네 버튼을 오간다(쓸 수 없는 Export 포함). Tab 순서는 Back, Forward, 프레임 이름, 대화 버튼, 툴바, 프레임 콘텐츠다.
-- **구현 순서**: `prototype-responsive` → `prototype-cli-export` → `prototype-conversation`. 이 기능은 responsive가 만든 툴바에 Export 버튼을 더한다.
-- 형제 기능 `prototype-conversation`과 겹치는 곳: 프로토타입 창의 토스트 호스트(그쪽도 `WindowShell`에 토스트 자리를 둔다). 토스트 호스트는 하나만 두고, 이 기능이 먼저 만들고 `prototype-conversation`이 쓴다. 지금 `.toast`는 오른쪽·아래 `--space-4`에 붙으므로 아래 툴바 줄 위에 뜨고, 좁은 창에서는 툴바(Export 포함)와 겹칠 수 있다. 이 겹침은 받아들인다(`prototype-responsive` 결정 11). 토스트는 Export를 누른 뒤에 나오므로, 겹친 토스트가 다음 클릭을 가리는지는 `/design-draft`에서 그림으로 보인다.
-- `app/src/renderer/canvasRowMessages.ts`: 토스트 문구. 이름 자리에는 프레임 제목(없으면 ID)을 넣는다. 문구 초안(최종안은 `/design-draft`의 clarify):
+- `app/src/renderer/prototype/`: 헤더 오른쪽 무리(`prototype-responsive`가 만든 `.pw-right`)의 모드 토글 다음에 Export 버튼을 더한다. 버튼은 헤더의 다른 아이콘 버튼(`doan-icon-button` `data-ui-placement="chrome"`, 32 px, 16 px lucide `Download`)과 같고, 접근 이름과 tooltip은 "Export prototype", 쓸 수 없을 때는 `aria-disabled`와 이유 tooltip·sr-only 설명이다(캔버스 툴바의 Play prototype·Export와 같은 `TooltipTrigger` 규칙). 그 밖에 토스트 호스트(`app/src/renderer/Toast.tsx` 재사용), `PrototypeWindow.tsx`의 호출. 프로토타입 preload(`window.doanPrototype`)에 `export(target)`, `revealExport(id)`, `onExportRunning`, 그리고 `onWindowVisible`(또는 같은 역할의 채널). `useToast`가 토스트 타이머를 멈추고 다시 돌리려고 `window.doan.onWindowVisible`을 쓰기 때문이다(`Toast.tsx`).
+- **창 배치는 세 기능에 걸쳐 정해졌다**: 툴바 줄은 없고 창의 컨트롤은 모두 헤더(56)에 있다(`prototype-responsive` 결정 2·12). 이 기능의 Export, `prototype-conversation`의 대화 버튼, `prototype-responsive`의 헤더 배치와 모드 토글이 같은 헤더를 바꾼다. 아래 x는 창 콘텐츠 왼쪽 끝 기준이고 W는 창 콘텐츠 폭이다.
+  - 왼쪽 무리는 지금 그대로다: Back x88, Forward x124, Reload x160(32 버튼, 간격 4).
+  - 오른쪽 무리 `.pw-right`는 W − 16에 붙고 간격 4다: 모드 토글 68(`.doan-toggle-group`, `role="group"`, 이름 "Viewport") → Export 32 → 대화 버튼 32. 이 기능은 Export를 더해 R을 68에서 104로 넓히고, `prototype-conversation`이 140으로 넓힌다.
+  - 프레임 이름 캡슐은 언제나 보인다(`prototype-responsive` '헤더 배치', '프레임 이름의 둘째 줄'). 두 무리 사이 S = W − 224 − R이 80 이상이면 첫째 줄의 x200부터 W − 24 − R까지 놓인다. 80보다 작으면(W < R + 304) 헤더 둘째 줄(높이 44)로 내려가 x16부터 W − 16까지, y56–92에 놓이고 이름은 가운데다. 그때 traffic light와 두 무리는 첫째 줄에 남고, 헤더는 100, 콘텐츠 패널은 y100에서 시작한다. 경계를 지나면 같은 캡슐이 CSS로 줄을 옮기고, 포커스와 열린 프레임 메뉴는 남으며, 콘텐츠는 애니메이션 없이 44 움직인다.
+  - R 104에서 첫째 줄에 남는 창 폭은 408부터다. 640 창 캡슐 312, 520 창 192, 408 창 80이고, 407·406·360 창은 둘째 줄(캡슐 375, 374, 328)이다.
+  - 창 맞춤은 표시 폭 + 16 × 표시 높이 + 64(헤더 56 + 아래 여백 8)이고, 맞춘 폭에서 이름이 둘째 줄이면 + 108이다. R 104에서 390×844는 406 × 952다.
+  - 키보드: Export는 자기 Tab 정지를 갖는다. Tab 순서는 Back, Forward, Reload, 프레임 이름(그려질 때), 토글(Tab 정지 하나), Export, 대화 버튼, 프레임 콘텐츠다. 포인터로 Reload, Fit, Responsive, Export를 눌러도 포커스는 옮겨 가지 않는다(`prototype-responsive` 결정 10, `mousedown`의 `preventDefault()`).
+  - Export tooltip은 다른 헤더 tooltip처럼 버튼 4 아래, 버튼 가운데에 맞추고, 창 밖으로 나가면 창 끝에 붙는다. 공유 `TooltipContent`(`components/ui/tooltip.tsx`)는 collision padding을 주지 않기 때문이다. Export가 창 오른쪽 끝 가까이 있으므로 "Export prototype"도 R 104에서는 창 오른쪽 끝에 붙는다.
+- **구현 순서**: `prototype-responsive` → `prototype-cli-export` → `prototype-conversation`. 이 기능은 responsive가 만든 헤더 오른쪽 무리에 Export 버튼을 더한다. 그래서 이 기능의 `/design-sync` 때 앱에는 대화 버튼이 없고(R 104), 초안도 R 104로 그린다.
+- 형제 기능 `prototype-conversation`과 겹치는 곳: 프로토타입 창의 토스트 호스트(그쪽도 `WindowShell`에 토스트 자리를 둔다). 토스트 호스트는 하나만 두고, 이 기능이 먼저 만들고 `prototype-conversation`이 쓴다. 지금 `.toast`는 창의 오른쪽·아래 `--space-4`에 붙고 폭은 min(384, 창 폭 − 32)이다. 창 아래에는 컨트롤이 없으므로 토스트는 콘텐츠 패널의 오른쪽 아래(재생 중인 프레임 위)를 덮고, Export를 포함한 헤더 컨트롤은 가리지 않는다.
+- `app/src/renderer/canvasRowMessages.ts`: 토스트 문구. 이름 자리에는 프레임 제목(없으면 ID)을 넣는다. 아래는 `/design-draft`에서 clarify로 정한 최종 문구다:
   - 성공: "Exported “Checkout”. The file also contains the rest of the canvas." 외부 URL이 있으면 지금의 인터넷 문장을 뒤에 붙인다.
-  - `notFound`: "Couldn’t export “Checkout”. Doan can export only a frame written in the canvas file, not one a script adds."
-  - `notMarked`: "Couldn’t export “Checkout”. The canvas file doesn’t mark this frame as a prototype. Ask your agent to run doan check."
-  - target이 바뀐 클릭: "Couldn’t export “Checkout”. The prototype changed before the export started. Try again."
+  - `notFound`: "Couldn’t export “Checkout”. Doan can export only a frame written in the canvas file, not one a script adds. Ask your agent to write it into the canvas file."
+  - `notMarked`: "Couldn’t export “Checkout”. It isn’t marked for prototyping in the canvas file. Ask your agent to mark it." "marked for prototyping"은 프로토타입 창의 기존 용어다(`prototype/view.ts`).
+  - target이 바뀐 클릭: "Couldn’t export “Checkout”. Another frame started playing first. Play “Checkout” again, then export it." 이름은 누른 프레임이다. Export를 다시 누르면 지금 재생 중인 프레임이 나가므로 "Try again"을 쓰지 않는다.
 - `app/src/main/exportViewer.test.ts`: 새 viewer 파일의 고정 검사(아래).
 
 ### 포맷
@@ -66,19 +70,20 @@ spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--
 1. 지금의 export 순서에 프레임 판정을 파싱과 `doan:width` 검사 직후에 넣는다.
 2. `Inline`은 그대로 돈다(캔버스 전체).
 3. `AssemblePrototype(Meta{Name, Width}, Proto{Frame, Title}, inlined.HTML)`:
-   - 바깥 페이지 `prototype.html`: `<title>`은 "<title or id> — Prototype"(HTML 이스케이프, 표시 크기 없음). `<iframe sandbox="allow-scripts allow-forms" srcdoc>`가 CSS만으로 브라우저 viewport 전체(`position: fixed; inset: 0; width: 100%; height: 100%; border: 0`)를 채운다. 바깥 페이지는 스크롤하지 않는다. 그래서 iframe의 `innerWidth`, `innerHeight`, media query, `100vh`가 브라우저 창을 따르고, 창 크기를 바꾸면 프레임이 다시 배치된다. 표시 크기는 판정(표시가 있고 문법에 맞는지)에만 쓰고 크기에는 쓰지 않는다.
-   - **iframe은 숨긴 채 시작한다**(결정 16): `visibility: hidden`으로 시작하고, `isolate.js`가 `ready`나 `missing`을 알리거나 `prototype.js`의 10 s 타이머가 끝나면 보인다. 격리 전에는 캔버스 전체(다른 프레임과 메모)가 그려지므로 그 순간을 가린다. 타이머가 있어 메시지가 오지 않아도 화면이 비지 않는다(POSTMORTEM 2026-10-22).
+   - 바깥 페이지 `prototype.html`: `<title>`은 "<title or id> — Prototype"(HTML 이스케이프, 표시 크기 없음). `<iframe title="<title or id>" sandbox="allow-scripts allow-forms" srcdoc>`가 CSS만으로 브라우저 viewport 전체(`position: fixed; inset: 0; width: 100%; height: 100%; border: 0`)를 채운다. 바깥 페이지는 스크롤하지 않는다. 그래서 iframe의 `innerWidth`, `innerHeight`, media query, `100vh`가 브라우저 창을 따르고, 창 크기를 바꾸면 프레임이 다시 배치된다. 표시 크기는 판정(표시가 있고 문법에 맞는지)에만 쓰고 크기에는 쓰지 않는다.
+   - **iframe은 숨긴 채 시작한다**(결정 16): `visibility: hidden`으로 시작하고, `isolate.js`가 `ready`를 알릴 때만 보인다. `missing`을 받거나 `prototype.js`의 10 s 타이머가 끝나면 iframe은 숨긴 채로 두고 안내 줄만 보인다. 10 s 뒤에 `ready`가 늦게 오면 안내 줄을 지우고 iframe을 보인다(`missing` 뒤에는 `ready`가 오지 않는다. `isolate.js`는 결과를 한 번만 알린다). 격리되지 않은 iframe에는 캔버스 전체(다른 프레임과 메모)가 그려지므로, 받는 사람에게 보내려던 것이 아닌 내용을 드러내지 않는다. 타이머가 있어 메시지가 오지 않아도 화면이 비지 않는다(POSTMORTEM 2026-10-22).
    - **JavaScript가 없을 때**: srcdoc iframe은 JavaScript 없이도 그려진다(기존 `viewer/shell.html`의 noscript 안내가 이를 전제로 한다). 그래서 `<noscript>` 안의 `<style>`이 iframe을 `display: none`으로 숨기고 안내 줄만 보인다. JavaScript가 있을 때 보이기는 위 규칙을 따른다.
    - srcdoc의 `<head>` 첫 스크립트는 `lib.js` 일부와 `isolate.js`를 함수로 감싼 것이다(`measure.js`와 같은 위치와 방식, `measureOffset` 재사용).
    - `isolate.js`: DOMContentLoaded에(없으면 `load` handler 뒤에) 프레임을 ID로 찾고(정확히 하나), 프로토타입 창 `prototypeScript.ts`의 `isolate`와 같은 표시 속성과 adopted stylesheet로 격리한다. 표시 값은 다시 보지 않는다(판정은 CLI가 했다). 결과를 부모에 한 번 알린다(`ready` 또는 `missing`).
    - **이동 차단**: `window`에 bubble 단계 `submit` listener를 달아 늘 `preventDefault()`(캔버스의 handler가 먼저 돈다). `click` listener는 `href` 값이 `#`으로 시작하지 않는 `<a href>` 활성화를 `preventDefault()`한다("같은 문서" 판정 규칙). `location` 대입, `location.reload()`, 스크립트의 `form.submit()`은 막지 못한다. srcdoc 문서는 부모의 base URL을 물려받으므로, `#id` 클릭·`location.hash`·`pushState`(fragment와 경로)가 문서를 떠나지 않는지, 캔버스 handler가 `stopPropagation()`할 때 `window` listener가 돌지 않는 경우를 PoC가 확인한다. PoC에서 실패한 경우는 '알려진 한계'와 spec B로 옮긴다.
-   - 바깥 페이지는 `missing`이면 "This prototype’s frame didn’t load. Ask the sender to export it again." 줄을 보인다.
+   - 바깥 페이지는 `missing`이거나 10 s 안에 답이 없으면 "This prototype’s frame didn’t load. Ask the sender to fix the canvas, then export it again." 줄을 보인다. 이 줄은 JavaScript가 없을 때의 줄과 같은 기존 viewer 안내 줄(`shell.css` `.doan-notice.doan-panel`, `.vw-noscript` 자리)이다.
+   - `prototype.css`는 `tokens.css`를 링크할 수 없다(파일 하나로 나가고 앱 파일을 참조하지 않는다). 그래서 기존 `viewer/shell.css`처럼 필요한 값(색, 글꼴, 간격, 안내 줄 모양)을 `shell.css`에서 복사한다. 초안이 앱 토큰과 Geist로 그린 페이지는 이 복사본의 값을 가리킨다.
 4. 결과 `{path, output, bytes, frames, external, links, prototype: true}`. 텍스트 "Exported <path> frame <id> to <output> (<n> bytes)".
 
 ### 프로토타입 창의 Export
 
 1. 버튼은 `view.phase`가 `ready`, `loading`, `init-failed`일 때 쓸 수 있다. 이유는 캔버스 툴바 Export와 같은 tooltip과 sr-only 설명이다.
-   - `view === null`(첫 순간): 이유 없이 쓸 수 없다. 툴바의 Reload, Fit, Responsive와 같다.
+   - `view === null`(첫 순간): 이유 없이 쓸 수 없다(`disabled`). 헤더의 Back, Reload, Fit, Responsive와 같다.
    - `read-failed`: "Can’t read this canvas."
    - `frame-unavailable`·`prototype-unavailable`: "Export isn’t available while this prototype can’t play." `prototype-unavailable`에서는 프레임이 그대로 있으므로 "frame"을 쓰지 않는다.
    - 내보내는 중: "Exporting".
@@ -87,7 +92,7 @@ spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--
    - 그 사이 창의 프레임이 바뀌어도 누른 프레임으로 끝까지 가고, 결과 토스트는 누른 프레임의 이름을 쓴다. 버튼은 끝날 때까지 "Exporting"이다(결정 15).
    - 그 사이 창이 닫히면 CLI는 끝까지 돌아 파일을 쓰고, 결과는 어디에도 보이지 않는다.
    - Show in Finder는 `prototype:revealExport`의 opaque id로만 연다.
-4. 포커스는 저장 패널이 닫히면 Export 버튼으로 돌아간다(캔버스 툴바 Export와 같다). 툴바의 Tab 정지도 Export로 옮긴다(roving tabindex).
+4. 포커스: 포인터로 누르면 포커스는 옮겨 가지 않고(`prototype-responsive` 결정 10), 저장 패널이 닫히면 누르기 전 자리로 돌아온다. 키보드로 눌렀으면 Export로 돌아온다. 내보내는 동안 Export는 같은 요소로 남고(`aria-disabled`) 자기 Tab 정지를 지킨다.
 
 ## 순수 함수로 뺄 것 (`/tdd` 대상)
 
@@ -111,12 +116,12 @@ TypeScript (renderer)
 
 Viewer JS (`exportViewer.test.ts`가 실행)
 - `isolate.js`의 격리 stylesheet 문자열과 `KEEP` 목록: `prototypeScript.ts`의 것과 같은 텍스트로 고정한다. 다른 viewer 복사본처럼, 앱 쪽이 바뀌고 복사본이 그대로면 테스트가 실패해야 한다.
-- `isolate.js`의 같은 문서 판정(`href`가 `#`으로 시작)과 `prototype.js`의 보이기 판정(`ready`·`missing`·10 s).
+- `isolate.js`의 같은 문서 판정(`href`가 `#`으로 시작)과 `prototype.js`의 보이기 판정(`ready`면 iframe을 보이고, `missing`·10 s면 iframe을 숨긴 채 안내 줄을 보인다. 10 s 뒤의 `ready`는 줄을 지우고 iframe을 보인다).
 
 ## 포맷 변경
 
 - **새 socket 버전 v6**: `schema/app-socket.v6.schema.json`. 요청 `{v: 6, token, root, path, frame, mark}`.
-  - `path`는 v4의 그때 pattern을 따른다(지금 `^\.doan/(canvases|ds)/[^/]+\.html$`). `monorepo-services`의 결정 14는 v3–v5의 pattern만 넓히므로, 두 기능 중 나중에 병합되는 쪽이 v6 pattern과 fixture도 맞춘다.
+  - `path`는 v4의 그때 pattern을 따른다(지금 `^\.doan/(canvases|ds)/[^/]+\.html$`).
   - `frame`은 v4의 `$defs/frameId`를 절대 `$id`로 참조한다(v3가 하는 방식).
   - `mark`는 convention 14 문법 패턴(`^[1-9][0-9]{0,4}x[1-9][0-9]{0,4}$`).
   - 응답 성공 `{v:6, ok:true, played:true}`, 실패 코드 `bad_request`, `bad_token`, `project_not_open`, `canvas_not_found`, `busy`, `not_ready`. 객체는 모르는 속성을 거절한다.
@@ -145,7 +150,7 @@ Viewer JS (`exportViewer.test.ts`가 실행)
   - §3 In scope 1(Show)과 8(Export).
   - §3 Out of scope 2: 프로토타입 표시는 창 재생 말고도 CLI 재생과 내보내기에 쓰인다.
   - §3 Out of scope 4: "`doan open` only moves"에 `--prototype`의 재생을 맞춘다.
-  - §5 item 2 'Prototype window': "nothing is exported or hosted" → "nothing is hosted", 툴바(`prototype-responsive`가 쓰는 절)에 Export, 'Header'의 Back/Forward 기록 대상(`doan open --prototype`), Independence의 재생 목록.
+  - §5 item 2 'Prototype window': "nothing is exported or hosted" → "nothing is hosted", 'Header'의 Export(헤더의 세 무리는 `prototype-responsive`가 쓴다), 'Header'의 Back/Forward 기록 대상(`doan open --prototype`), Independence의 재생 목록.
   - §5 item 3 'Deep links': "same rules"와 "only moves". `--prototype`은 잠긴 페이지와 dialog에 막히지 않는다.
   - §5 item 3 'Export and viewer', item 10, item 12.
 
@@ -168,7 +173,7 @@ Viewer JS (`exportViewer.test.ts`가 실행)
 - **2026-11-03 'Export refused icons the app showed, set as url() in a custom property'**: "any code that resolves a CSS `url()` must ask whether the token sits in a custom property value" → 이번 변경은 `url()`을 새로 해석하지 않는다. `Inline`을 바꾸지 않는다.
 - **2026-11-09 '`open -g` to a running Doan brought its window over the app in use'**: "A handler for an OS 'bring forward' event must check `app.isActive()` before showing a window … `app.focus({ steal: true })` does not activate Doan while another app is in front." → CLI 재생의 활성화는 `activate` 이벤트에 기대지 않고 명시적으로 한다. PoC 2와 `/runtime-test`에서 터미널이 앞에 있는 경우를 확인한다.
 - **2026-10-21 'TS and Go comment folding diverged on inputs the shared fixtures did not cover'**: "For any rule implemented in both TS and Go, state the exact character set / numeric range in design and add a fixture at the boundary" → 프레임 ID 상한은 두 단위가 섞여 있다. v4 스키마 `frameId`는 200 code point이고, 앱 `requests.ts` `MAX_REPORT_STRING`과 프로토타입 스크립트는 200 UTF-16 단위다. Go `PrototypeTarget`은 UTF-16 단위로 세어 200을 넘으면 `frame_not_found`로 거절한다(보드에서도 고를 수 없는 ID). v6 fixture에 200 code point지만 UTF-16 200을 넘는 ID를 넣는다(스키마는 통과, CLI는 보내지 않음).
-- **2026-10-22 'A canvas link to a document without the canvas script left a dead board'**: "For any state that depends on a message from inside the iframe, write the e2e step for the document that never sends it." → 내보낸 파일의 바깥 페이지는 `isolate.js`의 응답에만 기대지 않는다. 10 s 타이머로 iframe을 보이고, 테스트에 응답하지 않는 문서를 넣는다.
+- **2026-10-22 'A canvas link to a document without the canvas script left a dead board'**: "For any state that depends on a message from inside the iframe, write the e2e step for the document that never sends it." → 내보낸 파일의 바깥 페이지는 `isolate.js`의 응답에만 기대지 않는다. 10 s 타이머로 안내 줄을 보이고(iframe은 숨긴 채), 테스트에 응답하지 않는 문서와 10 s 뒤에 `ready`를 보내는 문서를 넣는다.
 - **2026-11-13 'A toolbar control that turned unavailable while focused was mounted anew and focus fell to the page'**: "a wrapper that adapts props for some states keeps the same component tree in every state" → 새 Export 버튼은 `TooltipTrigger`(asChild)를 지금 규칙대로 쓰고, 포커스가 있는 채로 사용 불가로 바뀌는 경우(내보내기 시작, 프레임 사라짐)를 테스트한다.
 - **2026-11-07 'Radix added an open tooltip's id to an unavailable control's own description'**: "a control that carries its own description and also sits under a Radix tooltip keeps it through `TooltipTrigger`'s rule … check an open tooltip's attributes, not only the closed markup." → 프로토타입 창 Export를 `tooltip.describedby.test.tsx`에 일곱 번째 caller로 넣고, tooltip이 열린 상태의 `aria-describedby`를 확인한다.
 
@@ -181,4 +186,4 @@ Viewer JS (`exportViewer.test.ts`가 실행)
 
 ## 디자인 프리셋
 
-- `doan design-skill --json`으로 목록을 보고 `clarify`(버튼 이름, 이유 문구, 토스트, 파일의 안내 줄)와 `harden`(사용 불가·진행·실패·JavaScript 없음 상태)을 읽었다. 이 문서의 문구는 그 기준으로 쓴 초안이고, 최종 문구는 `/design-draft`에서 정한다.
+- `doan design-skill --json`으로 목록을 보고 `clarify`(버튼 이름, 이유 문구, 토스트, 파일의 안내 줄)와 `harden`(사용 불가·진행·실패·JavaScript 없음 상태)을 읽었다. 토스트 문구는 `/design-draft`에서 clarify로 확정했다('영향 받는 구성 요소'의 `canvasRowMessages.ts`).
