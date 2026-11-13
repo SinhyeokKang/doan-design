@@ -52,7 +52,6 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 - 워커 대기는 `/orchestrate` §2의 백그라운드 감시 루프를 쓴다. 메일함을 소비하지 않는다.
 - GUI probe는 짧게 돌린다. 사용자에게 화면이 필요한 동안과 끝난 때를 lead에게 알린다(`[conductor <slug>] GUI done` / `GUI again`). 링크 1의 두 conductor는 서로 GUI 시간을 lead를 거쳐 맞춘다.
 - `/agent-eval`: 링크 1b(`multi-handoff`)와 링크 2(`prototype-cli-export`)에 해당한다. 링크 1a와 3은 프롬프트, guide, CLI 출력을 바꾸지 않아 해당하지 않는다.
-- subagent와 워커는 `rm` 같은 삭제 명령을 쓰지 않는다. 사용자 터미널에 경고가 뜬다. 스크래치 파일은 `.scratch/`에 그대로 둔다.
 
 ## 링크 상태
 
@@ -69,3 +68,4 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 - 2026-11-13 lead(develop checkout): 사용자가 시작 점검을 승인했다. 1) 격리 앱 창 승인, 2) `prototype-conversation` PoC 검증 명령은 `node .scratch/prototype-conversation/probe.mjs`(스크린샷 포함), 3) `/agent-eval` 승인, 4) Claude Code와 Codex 로그인을 lead가 미리 준비한다. 0.1.11 릴리스는 main 병합과 태그를 마쳤고 release run이 진행 중이다. 체인은 그와 무관하게 시작한다.
 - 2026-11-13 lead(develop checkout): Claude Code와 Codex 로그인을 `.scratch/provider-profile/userData`에 만들었다(사용자 승인). 링크 1의 두 conductor를 병렬로 시작했다. 브리프에는 `rm` 금지, 로그인 프로필 경로, Codex 워커 허용, `/ship`의 하위 스킬 로드 규칙, GUI 시간을 lead와 맞추는 규칙을 넣었다.
 - 2026-11-14 lead(develop checkout): 링크 1a를 병합했다(PR #189, `00fb6387`). worktree는 지웠고 브랜치는 남겼다. 형제 문서(cli-export, conversation)에서 지워진 responsive 문서를 가리키던 참조를 승격된 PRODUCT·ARCHITECTURE·DESIGN 절로 고쳤다. 다음 링크가 알아야 할 것(PR 본문 'For later links'): 오른쪽 무리 폭 R은 `fit.ts`의 `PROTOTYPE_HEADER_RIGHT`와 `styles.css`의 `--pw-right` 두 곳에 있고 테스트가 둘을 같게 묶는다. `.pw-right`에는 아직 토글만 있다. `prototypeCaptureRect`의 `sideColumn`은 지금 0이다. 새 iframe host나 패널 옆 열은 네 모서리를 같은 radius로 자르지 않는 불변식을 지키고 `exportViewer.test.ts`의 프로토타입 체인을 늘린다. 헤더 컨트롤은 주 버튼 `mousedown`에서 `preventDefault()`한다. 링크 1a 미확인: 실제 OS 입력·창 포커스, DPR 1, 패키지 앱, 390×844의 창 맞춤 908/952.
+- 2026-11-14 lead(develop checkout): 사용자 지시로 `rm` 금지 규칙을 없앴다. 다음 링크의 브리프에도 넣지 않는다.
