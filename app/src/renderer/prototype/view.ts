@@ -1,12 +1,7 @@
-import type { PrototypeFrame, PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
+import type { PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
 
 // What the prototype window draws from main's view: the window title, the state scene over the content panel, the
 // live region's line and the frame drawer's rows. Pure, so every state's copy and rule is tested without a window.
-
-// `number` (the frame's number in the canvas, as the main frame drawer shows it) and `canvas` (the canvas label) are
-// optional here until the view contract carries them; the window drops the number column and the canvas name meanwhile.
-export type ShownFrame = PrototypeFrame & { number?: number };
-export type ShownView = Omit<PrototypeView, "frames"> & { frames: ShownFrame[]; canvas?: string };
 
 export const LOADING_LABEL = "Loading prototype";
 export const RETRY = "Retry", CLOSE = "Close", DETAILS = "Details";
@@ -14,7 +9,7 @@ export const EMPTY_DRAWER = "No frames in this canvas are marked for prototyping
 // init-failed comes only from the host's own 10 s timer, so the window can say why when main sends no detail.
 export const TIMEOUT_DETAIL = "The frame didn’t finish loading within 10 seconds.";
 
-export function windowTitle(view: ShownView | null): string {
+export function windowTitle(view: PrototypeView | null): string {
   return view === null ? "Prototype" : `${view.title} — Prototype`;
 }
 
@@ -32,7 +27,7 @@ const LOST_CLAUSE = "; to play another, choose one from the frame menu above";
 
 // The state scene for a failure or a lost target; null while loading or ready. A lost scene names the frame menu only
 // while it has a frame to choose (the canvas is gone, or no other frame is marked).
-export function stateScene(view: Pick<ShownView, "phase" | "detail" | "frames">): Scene | null {
+export function stateScene(view: Pick<PrototypeView, "phase" | "detail" | "frames">): Scene | null {
   const clause = view.frames.length > 0 ? LOST_CLAUSE : "";
   switch (view.phase) {
     case "read-failed":
@@ -50,7 +45,7 @@ export function stateScene(view: Pick<ShownView, "phase" | "detail" | "frames">)
 
 // The always-mounted polite live region: the reading line once it shows, a scene's heading and body, nothing when the
 // prototype runs (a restored frame needs no announcement of success).
-export function liveText(view: Pick<ShownView, "phase" | "detail" | "frames"> | null, readingShown: boolean): string {
+export function liveText(view: Pick<PrototypeView, "phase" | "detail" | "frames"> | null, readingShown: boolean): string {
   if (view === null) return "";
   if (view.phase === "loading") return readingShown ? LOADING_LABEL : "";
   const scene = stateScene(view);
@@ -64,16 +59,16 @@ export function covered(phase: PrototypePhase): boolean {
 export interface DrawerRow {
   key: string;
   id: string;
-  number: number | null;
+  number: number;
   name: string;
   current: boolean;
 }
 
 // The frames the run listed, in document order; the playing frame is current while it is still listed.
-export function drawerRows(view: Pick<ShownView, "frames" | "frame">): DrawerRow[] {
-  return view.frames.map(frame => ({ key: frame.id, id: frame.id, number: frame.number ?? null, name: frame.title ?? frame.id, current: frame.id === view.frame }));
+export function drawerRows(view: Pick<PrototypeView, "frames" | "frame">): DrawerRow[] {
+  return view.frames.map(frame => ({ key: frame.id, id: frame.id, number: frame.number, name: frame.title ?? frame.id, current: frame.id === view.frame }));
 }
 
-export function drawerLabel(view: Pick<ShownView, "canvas">): string {
-  return view.canvas === undefined ? "Prototype frames" : `Prototype frames in ${view.canvas}`;
+export function drawerLabel(view: Pick<PrototypeView, "canvas">): string {
+  return `Prototype frames in ${view.canvas}`;
 }

@@ -36,7 +36,7 @@ type Shell = import("./PrototypeWindow").ShellProps;
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 1, frame: "checkout", title: "Checkout", phase: "loading", run: { url: A, markWidth: 390 }, frames: [], canGoBack: false, canGoForward: false, ...over,
+  gen: 1, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", run: { url: A, markWidth: 390 }, frames: [], canGoBack: false, canGoForward: false, ...over,
 });
 
 let changed: (view: PrototypeView | null) => void;
@@ -158,16 +158,19 @@ describe("the reading line", () => {
 });
 
 describe("the still image", () => {
-  test("replaces the run for the gen on screen, and goes when a new run is ready", () => {
+  test("waits behind a reloading run, replaces every run when the reload fails, and goes when a run is ready", () => {
     show(view());
     show(view({ phase: "ready" }));
+    // Main captures the ready run as it leaves for the reload, before the loading view.
+    snapshot({ gen: 2, png: new Uint8Array([1]) });
+    expect(show(view({ gen: 2 })).layers).toEqual({ frames: [{ gen: 1, url: A }, { gen: 2, url: A }], visible: 1, snapshot: { gen: 2, url: "blob:1" } });
+    expect(show(view({ gen: 2, phase: "init-failed" })).layers).toEqual({ frames: [], visible: null, snapshot: { gen: 2, url: "blob:1" } });
+    // A late image for an older gen is freed at once.
     snapshot({ gen: 1, png: new Uint8Array([1]) });
-    expect(render().layers).toEqual({ frames: [], visible: null, snapshot: { gen: 1, url: "blob:1" } });
-    snapshot({ gen: 0, png: new Uint8Array([1]) });
     render();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:2");
-    show(view({ gen: 2 }));
-    show(view({ gen: 2, phase: "ready" }));
+    show(view({ gen: 3 }));
+    show(view({ gen: 3, phase: "ready" }));
     expect(shell.layers.snapshot).toBeNull();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:1");
   });

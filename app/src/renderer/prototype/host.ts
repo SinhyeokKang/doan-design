@@ -1,15 +1,16 @@
 import type { FramesMessage, PrototypePhase, RunMessage } from "../../main/prototype/ipc";
 
 // The prototype window's content layers: one iframe per run (a new element for every `gen` that starts a load) and the
-// still image main captures when a ready run fails or loses its frame. Pure, so the window's order of events is
-// tested without one.
+// still image main captures whenever a run leaves a ready phase. Pure, so the window's order of events is tested
+// without one.
 
 export interface RunFrame { gen: number; url: string }
 export interface HostLayers {
-  // Mounted iframes, oldest first. While a run loads, the previous screen stays visible above it.
+  // Mounted iframes, oldest first. While a run loads, the previous run stays visible and live above it.
   frames: RunFrame[];
-  // The run on screen; null when nothing ran yet or a still image replaced it.
+  // The run on screen; null when nothing ran yet or a failed or lost state removed the runs.
   visible: number | null;
+  // Main's latest still image. It shows only while no run is on screen, and goes when a run is ready.
   snapshot: { gen: number; url: string } | null;
 }
 
@@ -18,8 +19,9 @@ export const NO_LAYERS: HostLayers = { frames: [], visible: null, snapshot: null
 export interface LayerView { gen: number; phase: PrototypePhase; run: { url: string } | null }
 
 // A run starts only with a `loading` view of a gen no iframe has; a failed read keeps the last run's url without one.
-// A ready run takes the screen, and older iframes and any still image go. A run that ends failed or lost before it was
-// ready is removed, which stops it; what was on screen stays under the overlay.
+// A ready run takes the screen, and older iframes and the still image go. A failed or lost state removes every iframe,
+// which stops the runs, and leaves the still image in their place (an empty panel when there is none, as after a first
+// load in a new window).
 export function layersForView(layers: HostLayers, view: LayerView | null): HostLayers {
   if (view === null) return NO_LAYERS;
   const mounted = layers.frames.some(frame => frame.gen === view.gen);
@@ -27,20 +29,20 @@ export function layersForView(layers: HostLayers, view: LayerView | null): HostL
     if (mounted || view.run === null) return layers;
     return { ...layers, frames: [...layers.frames, { gen: view.gen, url: view.run.url }] };
   }
-  if (!mounted) return layers;
   if (view.phase === "ready") {
+    if (!mounted) return layers;
     if (layers.visible === view.gen && layers.frames.length === 1 && layers.snapshot === null) return layers;
     return { frames: layers.frames.filter(frame => frame.gen === view.gen), visible: view.gen, snapshot: null };
   }
-  if (layers.visible === view.gen) return layers;
-  return { ...layers, frames: layers.frames.filter(frame => frame.gen !== view.gen) };
+  if (layers.frames.length === 0 && layers.visible === null) return layers;
+  return { frames: [], visible: null, snapshot: layers.snapshot };
 }
 
-// Main's still image of the run's last moment, sent before the failed or lost view: it replaces every iframe, which
-// stops the run. One for an older run than the window shows is stale.
+// Main sends the image before the view it belongs to, so its gen is the view's current one or the next; an older one
+// arrived late and is dropped.
 export function layersForSnapshot(layers: HostLayers, snapshot: { gen: number; url: string }, currentGen: number | null): HostLayers {
-  if (currentGen === null || snapshot.gen !== currentGen) return layers;
-  return { frames: [], visible: null, snapshot };
+  if (currentGen !== null && snapshot.gen < currentGen) return layers;
+  return { ...layers, snapshot };
 }
 
 // The run whose messages the host forwards and whose timer runs: the newest iframe, while it is the view's gen.

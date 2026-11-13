@@ -26,21 +26,30 @@ describe("layersForView", () => {
     expect(layers).toEqual({ frames: [{ gen: 2, url: B }], visible: 2, snapshot: null });
   });
 
-  test("a run that fails or loses its frame before it was ready is removed; the screen before it stays", () => {
+  test("a failed or lost state removes every iframe, which stops the runs, and shows the still image in their place", () => {
     for (const phase of ["init-failed", "frame-unavailable", "prototype-unavailable", "read-failed"] as const) {
-      const layers = after(at(1, "loading"), at(1, "ready"), at(2, "loading"), at(2, phase));
-      expect(layers, phase).toEqual({ frames: [{ gen: 1, url: A }], visible: 1, snapshot: null });
+      // Main captured the ready run as it left for the reload, before the loading view.
+      const reloading = layersForSnapshot(after(at(1, "loading"), at(1, "ready")), { gen: 2, url: "blob:1" }, 1);
+      const loading = layersForView(reloading, at(2, "loading"));
+      // While loading, the previous run stays on screen and live.
+      expect(loading.visible, phase).toBe(1);
+      expect(layersForView(loading, at(2, phase)), phase).toEqual({ frames: [], visible: null, snapshot: { gen: 2, url: "blob:1" } });
     }
   });
 
-  test("a ready run that loses its frame stays mounted for main's still image", () => {
-    const layers = after(at(1, "loading"), at(1, "ready"));
-    expect(layersForView(layers, at(1, "frame-unavailable"))).toBe(layers);
+  test("a ready run that loses its frame gives way to the still image sent before that view", () => {
+    const still = layersForSnapshot(after(at(1, "loading"), at(1, "ready")), { gen: 1, url: "blob:1" }, 1);
+    expect(still.visible).toBe(1);
+    expect(layersForView(still, at(1, "frame-unavailable"))).toEqual({ frames: [], visible: null, snapshot: { gen: 1, url: "blob:1" } });
   });
 
-  test("a failed read of a new gen starts no iframe", () => {
-    const layers = after(at(1, "loading"), at(1, "ready"));
-    expect(layersForView(layers, at(2, "read-failed"))).toBe(layers);
+  test("a first load that fails in a new window leaves an empty panel", () => {
+    expect(after(at(1, "loading"), at(1, "init-failed"))).toEqual(NO_LAYERS);
+  });
+
+  test("a failed read of a new gen while a run is on screen removes it too", () => {
+    const layers = layersForSnapshot(after(at(1, "loading"), at(1, "ready")), { gen: 2, url: "blob:1" }, 1);
+    expect(layersForView(layers, at(2, "read-failed"))).toEqual({ frames: [], visible: null, snapshot: { gen: 2, url: "blob:1" } });
   });
 
   test("a loading view with no run starts nothing; a closed window drops everything", () => {
@@ -50,20 +59,22 @@ describe("layersForView", () => {
 });
 
 describe("layersForSnapshot", () => {
-  test("replaces every iframe with the still image of the current gen, and a ready run clears it", () => {
+  test("keeps the latest image for the current gen or the next, until a run is ready", () => {
     const layers = after(at(1, "loading"), at(1, "ready"));
     const still = layersForSnapshot(layers, { gen: 1, url: "blob:1" }, 1);
-    expect(still).toEqual({ frames: [], visible: null, snapshot: { gen: 1, url: "blob:1" } });
-    // A reload keeps the image on screen while it loads, then the run replaces it.
-    const reloading = layersForView(still, at(2, "loading"));
-    expect(reloading.snapshot).toEqual({ gen: 1, url: "blob:1" });
-    expect(layersForView(reloading, at(2, "ready"))).toEqual({ frames: [{ gen: 2, url: A }], visible: 2, snapshot: null });
+    expect(still).toEqual({ ...layers, snapshot: { gen: 1, url: "blob:1" } });
+    const next = layersForSnapshot(still, { gen: 2, url: "blob:2" }, 1);
+    expect(next.snapshot).toEqual({ gen: 2, url: "blob:2" });
+    // Retry after a failure: the image stays while the new run loads, then the ready run replaces it.
+    const failed = layersForView(next, at(2, "init-failed"));
+    const retrying = layersForView(failed, at(3, "loading"));
+    expect(retrying.snapshot).toEqual({ gen: 2, url: "blob:2" });
+    expect(layersForView(retrying, at(3, "ready"))).toEqual({ frames: [{ gen: 3, url: A }], visible: 3, snapshot: null });
   });
 
-  test("ignores an image for another gen or before any view", () => {
-    const layers = after(at(1, "loading"), at(1, "ready"));
-    expect(layersForSnapshot(layers, { gen: 0, url: "blob:0" }, 1)).toBe(layers);
-    expect(layersForSnapshot(layers, { gen: 1, url: "blob:1" }, null)).toBe(layers);
+  test("drops an image for an older gen, which arrived late", () => {
+    const layers = after(at(1, "loading"), at(1, "ready"), at(2, "loading"));
+    expect(layersForSnapshot(layers, { gen: 1, url: "blob:1" }, 2)).toBe(layers);
   });
 });
 

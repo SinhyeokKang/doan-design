@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
-import type { PrototypePhase } from "../../main/prototype/ipc";
-import { covered, drawerLabel, drawerRows, liveText, LOADING_LABEL, stateScene, TIMEOUT_DETAIL, windowTitle, type ShownView } from "./view";
+import type { PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
+import { covered, drawerLabel, drawerRows, liveText, LOADING_LABEL, stateScene, TIMEOUT_DETAIL, windowTitle } from "./view";
 
 const frames = [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }, { id: "account", size: "390x844", number: 3 }];
-const view = (over: Partial<ShownView> = {}): ShownView => ({
-  gen: 2, frame: "checkout", title: "Checkout", phase: "ready", run: { url: "http://127.0.0.1/a.html", markWidth: 390 }, frames, canGoBack: false, canGoForward: false, ...over,
+const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
+  gen: 2, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", run: { url: "http://127.0.0.1/a.html", markWidth: 390 }, frames, canGoBack: false, canGoForward: false, ...over,
 });
 
 describe("windowTitle", () => {
@@ -63,13 +63,11 @@ describe("drawerRows", () => {
     ]);
   });
 
-  test("no row is current once the playing frame left the list; no number until the view carries one", () => {
+  test("no row is current once the playing frame left the list", () => {
     expect(drawerRows(view({ frame: "gone" })).some(row => row.current)).toBe(false);
-    expect(drawerRows(view({ frames: [{ id: "a", size: "1x1" }] }))[0]?.number).toBeNull();
   });
 
-  test("names the list after the canvas when the view carries it", () => {
-    expect(drawerLabel(view({ canvas: "Checkout flow" }))).toBe("Prototype frames in Checkout flow");
-    expect(drawerLabel(view())).toBe("Prototype frames");
+  test("names the list after the canvas", () => {
+    expect(drawerLabel(view())).toBe("Prototype frames in Checkout flow");
   });
 });

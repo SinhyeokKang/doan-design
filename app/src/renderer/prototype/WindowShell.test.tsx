@@ -4,11 +4,11 @@ import { describe, expect, test } from "vitest";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { NO_LAYERS, type HostLayers } from "./host";
 import { WindowShell, type ShellProps } from "./PrototypeWindow";
-import type { ShownView } from "./view";
+import type { PrototypeView } from "../../main/prototype/ipc";
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
-const view = (over: Partial<ShownView> = {}): ShownView => ({
-  gen: 2, frame: "checkout", title: "Checkout", phase: "ready", run: { url: A, markWidth: 390 }, frames: [{ id: "checkout", title: "Checkout", size: "390x844" }], canGoBack: true, canGoForward: false, ...over,
+const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
+  gen: 2, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", run: { url: A, markWidth: 390 }, frames: [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }], canGoBack: true, canGoForward: false, ...over,
 });
 const ready: HostLayers = { frames: [{ gen: 2, url: A }], visible: 2, snapshot: null };
 const noop = () => {};
@@ -62,10 +62,13 @@ describe("WindowShell content", () => {
     expect(html.match(/visibility:(visible|hidden)/g)).toEqual(["visibility:visible", "visibility:hidden"]);
   });
 
-  test("main's still image takes the iframe's place, decorative", () => {
+  test("main's still image takes the iframes' place, decorative, only while no run is on screen", () => {
     const html = markup({ view: view({ phase: "frame-unavailable" }), layers: { frames: [], visible: null, snapshot: { gen: 2, url: "blob:still" } } });
     expect(html).not.toContain("<iframe");
     expect(tag(html, "pw-snapshot")).toMatch(/src="blob:still"[^>]*alt=""/);
+    // Reloading: the previous run stays on screen and live; the image waits behind nothing.
+    const reloading = markup({ view: view({ gen: 3, phase: "loading" }), layers: { frames: [{ gen: 2, url: A }, { gen: 3, url: A }], visible: 2, snapshot: { gen: 3, url: "blob:still" } } });
+    expect(reloading).not.toContain("pw-snapshot");
   });
 
   test("the polite live region is always mounted, outside the overlay", () => {

@@ -1,18 +1,17 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode, type RefObject } from "react";
 import { Popover } from "radix-ui";
 import { ArrowLeft, ArrowRight, ChevronDown, CircleSlash, FileWarning, RotateCw, SquareDashed, TriangleAlert, type LucideIcon } from "lucide-react";
-import { PROTOTYPE_LOAD_TIMEOUT_MS, type FramesMessage, type PrototypeWindowApi, type RunMessage } from "../../main/prototype/ipc";
+import { PROTOTYPE_LOAD_TIMEOUT_MS, type FramesMessage, type PrototypeSnapshot, type PrototypeView, type PrototypeWindowApi, type RunMessage } from "../../main/prototype/ipc";
 import { prototypeIframeBox } from "../../main/prototype/fit";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "../frameDrawerList";
 import { currentRun, forwardedMessage, layersForSnapshot, layersForView, NO_LAYERS, type HostLayers } from "./host";
-import { CLOSE, covered, DETAILS, drawerLabel, drawerRows, EMPTY_DRAWER, liveText, LOADING_LABEL, RETRY, stateScene, windowTitle, type DrawerRow, type SceneIcon, type ShownView } from "./view";
+import { CLOSE, covered, DETAILS, drawerLabel, drawerRows, EMPTY_DRAWER, liveText, LOADING_LABEL, RETRY, stateScene, windowTitle, type DrawerRow, type SceneIcon } from "./view";
 
 // The prototype window (PRODUCT §3 Show, one frame): the main window's shell without a sidebar, a header of Back,
 // Forward, Reload and the playing frame's name, and the frame's own document in a sandboxed iframe in the content
 // panel. Every decision is main's; this window draws its view, hosts the run's iframe and forwards the run's reports.
 
-export interface PrototypeSnapshot { gen: number; png: Uint8Array }
 export type PrototypeApi = PrototypeWindowApi & { onSnapshot(listener: (snapshot: PrototypeSnapshot) => void): () => void };
 
 // The reading line waits so a quick load does not flash it in, as the shipped problem overlay's does.
@@ -21,7 +20,7 @@ const SCENE_HEADING_ID = "prototype-state-heading", SCENE_LINE_ID = "prototype-s
 const ICONS: Record<SceneIcon, LucideIcon> = { read: FileWarning, init: TriangleAlert, frame: SquareDashed, support: CircleSlash };
 
 export function PrototypeWindow({ api }: { api: PrototypeApi }) {
-  const [view, setView] = useState<ShownView | null>(null);
+  const [view, setView] = useState<PrototypeView | null>(null);
   const [layers, setLayers] = useState<HostLayers>(NO_LAYERS);
   const [readingGen, setReadingGen] = useState<number | null>(null);
   const [details, setDetails] = useState(false);
@@ -108,7 +107,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
 }
 
 export interface ShellProps {
-  view: ShownView | null;
+  view: PrototypeView | null;
   layers: HostLayers;
   readingShown: boolean;
   details: boolean;
@@ -166,8 +165,9 @@ function IconTip({ label, children }: { label: string; children: ReactElement })
 }
 
 // The content panel: the run's iframes (a new element per run; one loading stays hidden under the previous screen
-// until it is ready) or main's still image, inert while anything but a ready run shows, then the state overlay.
-function ContentPanel({ view, layers, covered, content, frames, children }: { view: ShownView | null; layers: HostLayers; covered: boolean; content?: RefObject<HTMLDivElement | null> | undefined; frames?: Map<number, HTMLIFrameElement> | undefined; children: ReactNode }) {
+// until it is ready) or, with no run on screen, main's still image; inert while anything but a ready run shows, then
+// the state overlay.
+function ContentPanel({ view, layers, covered, content, frames, children }: { view: PrototypeView | null; layers: HostLayers; covered: boolean; content?: RefObject<HTMLDivElement | null> | undefined; frames?: Map<number, HTMLIFrameElement> | undefined; children: ReactNode }) {
   const panel = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   useLayoutEffect(() => {
@@ -185,7 +185,7 @@ function ContentPanel({ view, layers, covered, content, frames, children }: { vi
   const place = { left: box.x, ...(box.width === null ? {} : { width: box.width }) };
   return <div className="pw-panel" ref={panel}>
     <div className="pw-content" ref={content} inert={covered}>
-      {layers.snapshot && <img className="pw-snapshot" src={layers.snapshot.url} alt="" style={place} />}
+      {layers.snapshot && layers.visible === null && <img className="pw-snapshot" src={layers.snapshot.url} alt="" style={place} />}
       {layers.frames.map(frame => <iframe key={frame.gen} className="pw-frame" src={frame.url} sandbox="allow-scripts allow-forms" title={view?.title ?? "Prototype"}
         ref={node => { if (!frames) return; if (node) frames.set(frame.gen, node); else frames.delete(frame.gen); }}
         style={{ ...place, visibility: layers.visible === frame.gen ? "visible" : "hidden" }} />)}
@@ -196,7 +196,7 @@ function ContentPanel({ view, layers, covered, content, frames, children }: { vi
 
 // The frame name, centred in the window, opens this canvas's marked frames. It names the whole title in the shared
 // Tooltip only while the name is cut short.
-function FrameMenu({ view, onChoose }: { view: ShownView; onChoose(frame: string): void }) {
+function FrameMenu({ view, onChoose }: { view: PrototypeView; onChoose(frame: string): void }) {
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
   const [cut, setCut] = useState(false);
@@ -275,7 +275,7 @@ function FrameMenu({ view, onChoose }: { view: ShownView; onChoose(frame: string
             onFocus={() => setFocused(row.key)}
             onPointerMove={event => { if (document.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }); }}
             onClick={() => pick(row)}>
-            {row.number !== null && <span className="doan-frame-num">{row.number}</span>}<span className="doan-frame-name">{row.name}</span>{row.current && <span className="doan-frame-viewing">Playing</span>}
+            <span className="doan-frame-num">{row.number}</span><span className="doan-frame-name">{row.name}</span>{row.current && <span className="doan-frame-viewing">Playing</span>}
           </div>)}
         </div>}
     </Popover.Content></Popover.Portal>

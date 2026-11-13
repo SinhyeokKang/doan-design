@@ -7,8 +7,6 @@ export interface PrototypeMainCalls {
   onPrototypeClosed(listener: () => void): () => void;
 }
 
-// Integration shim: the main-window preload that adds these two methods lands in a parallel batch. Once it does,
-// this becomes `return window.doan satisfies PrototypeMainCalls`.
 export function prototypeMainCalls(): PrototypeMainCalls {
-  return window.doan as unknown as PrototypeMainCalls;
+  return window.doan satisfies PrototypeMainCalls;
 }
