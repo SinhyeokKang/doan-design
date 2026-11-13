@@ -37,7 +37,7 @@ spec.md '결정'(사용자 확인)을 따른다. 세 형제 기능의 구현 순
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
   - 커밋 경계: 앱 socket과 재생.
 - [ ] 8. **프로토타입 창 Export**: `ipc.ts` 채널, 프로토타입 preload(`export`, `revealExport`, `onExportRunning`, `onWindowVisible`), `senderAllowed.ts`(prototype role만), 프로토타입 창용 `createCanvasExport` 두 번째 인스턴스(창 하나에 하나의 잠금, target 비교), `cli.ts` `runExport` 인자, 저장 패널 부모, 헤더의 Export 버튼과 토스트 호스트, `PrototypeWindow.tsx` 연결.
-  - 헤더 테스트(`prototype-responsive`의 헤더 테스트 파일)와 `WindowShell.test.tsx`: Export 버튼 markup(32 chrome 아이콘 버튼, "Export prototype", 토글 다음), 이유 설명, 포커스가 있는 채로 사용 불가로 바뀌어도 같은 요소, 쓸 수 없을 때도 Tab으로 닿음, Tab 순서(Back, Forward, Reload, 이름, 토글, Export, 콘텐츠), 포인터 누름이 포커스를 옮기지 않음.
+  - 헤더 테스트(`app/src/renderer/prototype/WindowShell.test.tsx`, `PrototypeWindow.test.tsx`): Export 버튼 markup(32 chrome 아이콘 버튼, "Export prototype", 토글 다음), 이유 설명, 포커스가 있는 채로 사용 불가로 바뀌어도 같은 요소, 쓸 수 없을 때도 Tab으로 닿음, Tab 순서(Back, Forward, Reload, 이름, 토글, Export, 콘텐츠), 포인터 누름이 포커스를 옮기지 않음.
   - `tooltip.describedby.test.tsx`: 프로토타입 창 Export를 일곱 번째 caller로(POSTMORTEM 2026-11-07).
   - `PrototypeWindow.test.tsx`: 진행·결과 토스트, 성공 토스트가 시간이 지나면 사라짐, 패널 취소, 저장 패널 뒤 포커스, 내보내는 중 프레임이 바뀌어도 결과 토스트가 누른 프레임 이름을 씀, target이 바뀐 클릭의 거절 토스트.
   - main 테스트: stale target 거절, 내보내는 중 두 번째 요청 거절, 창이 닫혀도 CLI가 끝까지 돎.
@@ -59,7 +59,7 @@ spec.md '결정'(사용자 확인)을 따른다. 세 형제 기능의 구현 순
   - PRODUCT:
     - §3 In scope 1(Show)·8(Export).
     - §3 Out of scope 2(표시는 CLI 재생과 내보내기에도 쓰임), Out of scope 4("`doan open` only moves"에 `--prototype` 재생을 맞춤).
-    - §5 item 2 'Prototype window': “nothing is exported or hosted”를 “nothing is hosted”로 바꾸고 Export를 가리킴. 'Header'의 Export(세 무리 절은 `prototype-responsive`가 쓴다), 'Header'의 Back/Forward 기록 대상에 `doan open --prototype`. Independence의 재생 목록.
+    - §5 item 2 'Prototype window': “nothing is exported or hosted”를 “nothing is hosted”로 바꾸고 Export를 가리킴. 'Header'의 Export(세 무리 절은 이미 PRODUCT 'Header'에 있다), 'Header'의 Back/Forward 기록 대상에 `doan open --prototype`. Independence의 재생 목록.
     - §5 item 3 'Deep links': "same rules"와 "only moves"(`--prototype`은 잠긴 페이지와 dialog에 막히지 않음). 'Export and viewer'(프로토타입 파일).
     - item 10(`doan open … --prototype`), item 12(`doan export … --frame <id> --prototype`).
   - ARCHITECTURE:

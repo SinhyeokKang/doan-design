@@ -38,7 +38,7 @@ BACKLOG.md 'Undecided'의 두 항목(CLI에서 프로토타입 열기, 프로토
 - **앱**: Export 버튼은 프로토타입 창 헤더의 오른쪽 무리에서 Fit·Responsive 토글 바로 다음에 들어간다 (결정 7). 툴바 줄은 없다. 헤더는 왼쪽 [Back, Forward, Reload prototype], 가운데 프레임 이름, 오른쪽 [Fit·Responsive 토글, Export prototype, 대화 버튼]이고, 헤더 배치와 토글은 `prototype-responsive`가 만든다.
   - 모습은 헤더의 다른 아이콘 버튼과 같다: 32 px chrome 아이콘 버튼, 16 px Download 아이콘. 접근 이름과 tooltip은 "Export prototype"이고, tooltip은 다른 헤더 tooltip처럼 버튼 4 아래에 뜬다. 쓸 수 없을 때는 캔버스 툴바의 Play prototype·Export처럼 `aria-disabled`로 포커스를 받고, 이유를 tooltip과 sr-only 설명으로 보인다.
   - 키보드: Export는 자기 Tab 정지를 갖고, 쓸 수 없을 때도 Tab으로 닿는다(`aria-disabled`). 첫 view 전(`disabled`)에만 닿지 않는다. Tab 순서는 Back, Forward, Reload, 프레임 이름(그려질 때), 토글(Tab 정지 하나), Export, 대화 버튼, 프레임 콘텐츠다.
-  - 포인터로 Export를 눌러도 포커스는 옮겨 가지 않는다(`prototype-responsive` 결정 10). 저장 패널이 닫히면 포커스는 누르기 전 자리로 돌아온다. 키보드로 눌렀으면 Export다.
+  - 포인터로 Export를 눌러도 포커스는 옮겨 가지 않는다(PRODUCT 'Header'). 저장 패널이 닫히면 포커스는 누르기 전 자리로 돌아온다. 키보드로 눌렀으면 Export다.
   - 저장 패널의 기본 이름은 `<canvas file stem>-<frame id>.html`이다. 결과는 프로토타입 창 안의 토스트로 알리고, 성공 토스트에는 Show in Finder가 있다.
   - 창 하나에서 한 번에 하나만 내보낸다. 내보내는 동안 버튼은 "Exporting"으로 쓸 수 없고, 누른 프레임으로 끝까지 가며, 결과 토스트는 그 프레임 이름을 쓴다. 그 사이 창이 닫히면 파일은 쓰이고 결과는 보이지 않는다.
   - 누른 순간의 프레임(root, 캔버스 경로, 프레임)이 main이 받을 때의 프레임과 다르면 내보내지 않고 거절 토스트를 보인다.

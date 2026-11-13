@@ -27,13 +27,13 @@ spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--
 - `app/src/main/senderAllowed.ts`: 새 두 요청은 `prototype` role만 부를 수 있다. 메인 창의 `mainOnly`는 넓히지 않는다.
 - `app/src/main/canvasExport.ts`: 지금 `export(value)`는 `trashRequest`, 메인 창으로 보내는 `running`, 메인 창이 부모인 `choose`에 묶여 있다. 프로토타입 창용은 deps를 따로 준 `createCanvasExport`의 두 번째 인스턴스로 만든다(요청 해석은 프레임을 포함한 target, `running`은 프로토타입 창으로, 저장 패널의 부모는 프로토타입 창). 잠금과 `written`(Show in Finder id, 상한 16)은 인스턴스마다 따로다. 프로토타입 인스턴스의 잠금은 창 하나에 하나다(결정 15). `runExport`(`app/src/main/cli.ts`)에 `--frame <id> --prototype` 인자. `interpretExport`에 `frame_not_found` → `notFound`, `not_prototype` → `notMarked`.
 - `app/src/renderer/prototype/`: 헤더 오른쪽 무리(`prototype-responsive`가 만든 `.pw-right`)의 모드 토글 다음에 Export 버튼을 더한다. 버튼은 헤더의 다른 아이콘 버튼(`doan-icon-button` `data-ui-placement="chrome"`, 32 px, 16 px lucide `Download`)과 같고, 접근 이름과 tooltip은 "Export prototype", 쓸 수 없을 때는 `aria-disabled`와 이유 tooltip·sr-only 설명이다(캔버스 툴바의 Play prototype·Export와 같은 `TooltipTrigger` 규칙). 그 밖에 토스트 호스트(`app/src/renderer/Toast.tsx` 재사용), `PrototypeWindow.tsx`의 호출. 프로토타입 preload(`window.doanPrototype`)에 `export(target)`, `revealExport(id)`, `onExportRunning`, 그리고 `onWindowVisible`(또는 같은 역할의 채널). `useToast`가 토스트 타이머를 멈추고 다시 돌리려고 `window.doan.onWindowVisible`을 쓰기 때문이다(`Toast.tsx`).
-- **창 배치는 세 기능에 걸쳐 정해졌다**: 툴바 줄은 없고 창의 컨트롤은 모두 헤더(56)에 있다(`prototype-responsive` 결정 2·12). 이 기능의 Export, `prototype-conversation`의 대화 버튼, `prototype-responsive`의 헤더 배치와 모드 토글이 같은 헤더를 바꾼다. 아래 x는 창 콘텐츠 왼쪽 끝 기준이고 W는 창 콘텐츠 폭이다.
+- **창 배치는 세 기능에 걸쳐 정해졌다**: 툴바 줄은 없고 창의 컨트롤은 모두 헤더(56)에 있다(PRODUCT §5 item 2 'Prototype window' 'Header'). 이 기능의 Export, `prototype-conversation`의 대화 버튼, `prototype-responsive`의 헤더 배치와 모드 토글이 같은 헤더를 바꾼다. 아래 x는 창 콘텐츠 왼쪽 끝 기준이고 W는 창 콘텐츠 폭이다.
   - 왼쪽 무리는 지금 그대로다: Back x88, Forward x124, Reload x160(32 버튼, 간격 4).
   - 오른쪽 무리 `.pw-right`는 W − 16에 붙고 간격 4다: 모드 토글 68(`.doan-toggle-group`, `role="group"`, 이름 "Viewport") → Export 32 → 대화 버튼 32. 이 기능은 Export를 더해 R을 68에서 104로 넓히고, `prototype-conversation`이 140으로 넓힌다.
-  - 프레임 이름 캡슐은 언제나 보인다(`prototype-responsive` '헤더 배치', '프레임 이름의 둘째 줄'). 두 무리 사이 S = W − 224 − R이 80 이상이면 첫째 줄의 x200부터 W − 24 − R까지 놓인다. 80보다 작으면(W < R + 304) 헤더 둘째 줄(높이 44)로 내려가 x16부터 W − 16까지, y56–92에 놓이고 이름은 가운데다. 그때 traffic light와 두 무리는 첫째 줄에 남고, 헤더는 100, 콘텐츠 패널은 y100에서 시작한다. 경계를 지나면 같은 캡슐이 CSS로 줄을 옮기고, 포커스와 열린 프레임 메뉴는 남으며, 콘텐츠는 애니메이션 없이 44 움직인다.
+  - 프레임 이름 캡슐은 언제나 보인다(PRODUCT 'Header', ARCHITECTURE §3 'Prototype window' 'Fit'의 `prototypeHeaderRows`와 R, DESIGN 'Frame prototype'의 'Header right group'·'Frame name'). 두 무리 사이 S = W − 224 − R이 80 이상이면 첫째 줄의 x200부터 W − 24 − R까지 놓인다. 80보다 작으면(W < R + 304) 헤더 둘째 줄(높이 44)로 내려가 x16부터 W − 16까지, y56–92에 놓이고 이름은 가운데다. 그때 traffic light와 두 무리는 첫째 줄에 남고, 헤더는 100, 콘텐츠 패널은 y100에서 시작한다. 경계를 지나면 같은 캡슐이 CSS로 줄을 옮기고, 포커스와 열린 프레임 메뉴는 남으며, 콘텐츠는 애니메이션 없이 44 움직인다.
   - R 104에서 첫째 줄에 남는 창 폭은 408부터다. 640 창 캡슐 312, 520 창 192, 408 창 80이고, 407·406·360 창은 둘째 줄(캡슐 375, 374, 328)이다.
   - 창 맞춤은 표시 폭 + 16 × 표시 높이 + 64(헤더 56 + 아래 여백 8)이고, 맞춘 폭에서 이름이 둘째 줄이면 + 108이다. R 104에서 390×844는 406 × 952다.
-  - 키보드: Export는 자기 Tab 정지를 갖는다. Tab 순서는 Back, Forward, Reload, 프레임 이름(그려질 때), 토글(Tab 정지 하나), Export, 대화 버튼, 프레임 콘텐츠다. 포인터로 Reload, Fit, Responsive, Export를 눌러도 포커스는 옮겨 가지 않는다(`prototype-responsive` 결정 10, `mousedown`의 `preventDefault()`).
+  - 키보드: Export는 자기 Tab 정지를 갖는다. Tab 순서는 Back, Forward, Reload, 프레임 이름(그려질 때), 토글(Tab 정지 하나), Export, 대화 버튼, 프레임 콘텐츠다. 포인터로 Reload, Fit, Responsive, Export를 눌러도 포커스는 옮겨 가지 않는다(PRODUCT 'Header', `mousedown`의 `preventDefault()`).
   - Export tooltip은 다른 헤더 tooltip처럼 버튼 4 아래, 버튼 가운데에 맞추고, 창 밖으로 나가면 창 끝에 붙는다. 공유 `TooltipContent`(`components/ui/tooltip.tsx`)는 collision padding을 주지 않기 때문이다. Export가 창 오른쪽 끝 가까이 있으므로 "Export prototype"도 R 104에서는 창 오른쪽 끝에 붙는다.
 - **구현 순서**: `prototype-responsive` → `prototype-cli-export` → `prototype-conversation`. 이 기능은 responsive가 만든 헤더 오른쪽 무리에 Export 버튼을 더한다. 그래서 이 기능의 `/design-sync` 때 앱에는 대화 버튼이 없고(R 104), 초안도 R 104로 그린다.
 - 형제 기능 `prototype-conversation`과 겹치는 곳: 프로토타입 창의 토스트 호스트(그쪽도 `WindowShell`에 토스트 자리를 둔다). 토스트 호스트는 하나만 두고, 이 기능이 먼저 만들고 `prototype-conversation`이 쓴다. 지금 `.toast`는 창의 오른쪽·아래 `--space-4`에 붙고 폭은 min(384, 창 폭 − 32)이다. 창 아래에는 컨트롤이 없으므로 토스트는 콘텐츠 패널의 오른쪽 아래(재생 중인 프레임 위)를 덮고, Export를 포함한 헤더 컨트롤은 가리지 않는다.
@@ -92,7 +92,7 @@ spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--
    - 그 사이 창의 프레임이 바뀌어도 누른 프레임으로 끝까지 가고, 결과 토스트는 누른 프레임의 이름을 쓴다. 버튼은 끝날 때까지 "Exporting"이다(결정 15).
    - 그 사이 창이 닫히면 CLI는 끝까지 돌아 파일을 쓰고, 결과는 어디에도 보이지 않는다.
    - Show in Finder는 `prototype:revealExport`의 opaque id로만 연다.
-4. 포커스: 포인터로 누르면 포커스는 옮겨 가지 않고(`prototype-responsive` 결정 10), 저장 패널이 닫히면 누르기 전 자리로 돌아온다. 키보드로 눌렀으면 Export로 돌아온다. 내보내는 동안 Export는 같은 요소로 남고(`aria-disabled`) 자기 Tab 정지를 지킨다.
+4. 포커스: 포인터로 누르면 포커스는 옮겨 가지 않고(PRODUCT 'Header'), 저장 패널이 닫히면 누르기 전 자리로 돌아온다. 키보드로 눌렀으면 Export로 돌아온다. 내보내는 동안 Export는 같은 요소로 남고(`aria-disabled`) 자기 Tab 정지를 지킨다.
 
 ## 순수 함수로 뺄 것 (`/tdd` 대상)
 
@@ -150,7 +150,7 @@ Viewer JS (`exportViewer.test.ts`가 실행)
   - §3 In scope 1(Show)과 8(Export).
   - §3 Out of scope 2: 프로토타입 표시는 창 재생 말고도 CLI 재생과 내보내기에 쓰인다.
   - §3 Out of scope 4: "`doan open` only moves"에 `--prototype`의 재생을 맞춘다.
-  - §5 item 2 'Prototype window': "nothing is exported or hosted" → "nothing is hosted", 'Header'의 Export(헤더의 세 무리는 `prototype-responsive`가 쓴다), 'Header'의 Back/Forward 기록 대상(`doan open --prototype`), Independence의 재생 목록.
+  - §5 item 2 'Prototype window': "nothing is exported or hosted" → "nothing is hosted", 'Header'의 Export(헤더의 세 무리는 이미 PRODUCT 'Header'에 있다), 'Header'의 Back/Forward 기록 대상(`doan open --prototype`), Independence의 재생 목록.
   - §5 item 3 'Deep links': "same rules"와 "only moves". `--prototype`은 잠긴 페이지와 dialog에 막히지 않는다.
   - §5 item 3 'Export and viewer', item 10, item 12.
 
