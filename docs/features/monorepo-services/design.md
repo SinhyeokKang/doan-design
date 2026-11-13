@@ -95,6 +95,7 @@
 - 네 곳을 한 규칙으로 바꾼다: `.doan/canvases/`·`.doan/ds/`·`.doan/services/<id>/canvases/`·`.doan/services/<id>/ds/` 아래(`<id>`는 id 패턴), 하위 폴더 허용, 어느 조각도 비거나 `.`으로 시작하지 않음, `.html`(대소문자 무시는 나열 규칙과 같게). 이 규칙은 경로 모양만 본다. 서비스가 config에 있는지는 뒤따르는 나열 확인이 본다. `work start`는 나열을 확인하지 않으므로(ARCHITECTURE §4 "a path not yet listed waits in the set") config에 없는 서비스 경로도 받지만 화면에는 보이지 않는다. `open`과 링크는 main의 목록 확인이 거절한다.
 - 공유 `.doan/canvases/`·`.doan/ds/`의 하위 폴더 캔버스도 받는다(결정 16).
 - `v`는 그대로 두고 pattern만 넓힌다(결정 14). fixture: `schema/fixtures/app-socket-v3`·`app-socket-v4`·`open-link/cases.json`에 서비스·하위 폴더 허용 사례와 `..`·숨은 조각·잘못된 id 거절 사례.
+- 형제 기능 `prototype-cli-export`가 더하는 app-socket v6의 `path`는 그때의 v4 pattern을 따른다. 두 기능 중 나중에 병합되는 쪽이 v6 pattern과 fixture(`schema/fixtures/app-socket-v6`)도 맞춘다.
 - 링크 보안 경계(ARCHITECTURE §7 'Deep links')는 그대로다.
 
 ### 2.8 이전 CLI·앱의 동작
