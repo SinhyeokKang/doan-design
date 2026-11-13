@@ -55,7 +55,7 @@ let messages: ((event: unknown) => void)[];
 let resizes: (() => void)[];
 let win: { innerWidth: number };
 let api: Record<string, ReturnType<typeof vi.fn>>;
-let doc: { title: string; activeElement: unknown; body: object; hidden: boolean; addEventListener(): void; removeEventListener(): void; querySelector(): null };
+let doc: { title: string; activeElement: unknown; body: object; hidden: boolean; addEventListener(): void; removeEventListener(): void; querySelector(): null; hasFocus(): boolean };
 class FakeElement { isConnected = true; focus = vi.fn(); }
 let running: (target: { root: string; path: string; frame: string }) => void;
 let shell: Shell;
@@ -86,8 +86,13 @@ beforeEach(() => {
     export: vi.fn(async () => ({ kind: "cancelled" })), revealExport: vi.fn(async () => {}),
     onExportRunning: vi.fn((listener: typeof running) => { running = listener; return () => {}; }),
     onWindowVisible: vi.fn((listener: (visible: boolean) => void) => { listener(true); return () => {}; }),
+    // The conversation panel's calls; the panel itself has its own tests (PrototypeConversation*.test.tsx).
+    setPanel: vi.fn(async () => {}), setShowing: vi.fn(async () => {}), reveal: vi.fn(async () => {}), rememberChoice: vi.fn(async () => {}),
+    readComposerSettings: vi.fn(async () => null), readTargetEntry: vi.fn(async () => null), getWork: vi.fn(async () => []), listConversations: vi.fn(() => new Promise(() => {})),
+    conversationResumeTarget: vi.fn(() => new Promise(() => {})),
+    ...Object.fromEntries(["onComposerSettings", "onTargetEntry", "onWorkChanged", "onConversationEvent", "onConversationStage", "onConversationListChanged", "onConversationHandoff", "onAgentAuth"].map(name => [name, vi.fn(() => () => {})])),
   };
-  doc = { title: "", activeElement: null, body: {}, hidden: false, addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null };
+  doc = { title: "", activeElement: null, body: {}, hidden: false, addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null, hasFocus: () => true };
   vi.stubGlobal("HTMLElement", FakeElement);
   // The toast's clock reads performance.now, which the fake timers leave alone.
   vi.stubGlobal("performance", { now: () => Date.now() });
@@ -523,5 +528,68 @@ describe("Export", () => {
     doc.activeElement = { name: "Back" };
     await settle();
     expect(before.focus).not.toHaveBeenCalled();
+  });
+});
+
+describe("the conversation panel", () => {
+  const conversation = () => shell.conversation!;
+  const field = () => ({ focus: vi.fn() });
+
+  test("the button asks main to open the panel, before any view too, and to fold it", () => {
+    conversation().onToggle();
+    expect(api.setPanel).toHaveBeenLastCalledWith({ open: true });
+    show(view({ panel: { open: true, width: 280 } }));
+    conversation().onToggle();
+    expect(api.setPanel).toHaveBeenLastCalledWith({ open: false });
+  });
+
+  test("the button and column follow main's panel state, at the width main answered", () => {
+    expect(show(view()).conversation).toMatchObject({ open: false, button: { label: "Show conversation" } });
+    expect(show(view({ panel: { open: true, width: 300 } })).conversation).toMatchObject({ open: true, width: 300, button: { label: "Hide conversation" } });
+  });
+
+  test("opening puts focus in the composer's field; folding puts it on the button", () => {
+    show(view());
+    const input = field();
+    conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? input : null, contains: () => false } as never;
+    conversation().onToggle();
+    show(view({ panel: { open: true, width: 280 } }));
+    vi.runAllTicks();
+    expect(input.focus).toHaveBeenCalledOnce();
+    const button = field();
+    conversation().buttonRef!.current = button as never;
+    conversation().onToggle();
+    show(view({ panel: { open: false, width: 280 } }));
+    vi.runAllTicks();
+    expect(button.focus).toHaveBeenCalledOnce();
+    expect(input.focus).toHaveBeenCalledOnce();
+  });
+
+  test("a view that arrives with the panel already open moves no focus", () => {
+    const input = field();
+    conversation().column!.current = { querySelector: () => input, contains: () => false } as never;
+    show(view({ panel: { open: true, width: 280 } }));
+    vi.runAllTicks();
+    expect(input.focus).not.toHaveBeenCalled();
+  });
+
+  test("a resize is clamped to the panel's range for the window before main hears it", () => {
+    win.innerWidth = 1000;
+    resizes.forEach(resize => resize());
+    show(view({ panel: { open: true, width: 320 } }));
+    conversation().onResize(900);
+    expect(api.setPanel).toHaveBeenLastCalledWith({ open: true, width: 500 });
+    conversation().onResize(100);
+    expect(api.setPanel).toHaveBeenLastCalledWith({ open: true, width: 280 });
+    // A double click is the default width, max(320, 28 %) cut to the maximum.
+    conversation().onResize(undefined);
+    expect(api.setPanel).toHaveBeenLastCalledWith({ open: true, width: 320 });
+    expect(conversation().bounds).toEqual({ min: 280, max: 500 });
+  });
+
+  test("under 640 the handle has no range: 280 to 280", () => {
+    win.innerWidth = 600;
+    resizes.forEach(resize => resize());
+    expect(show(view({ panel: { open: true, width: 280 } })).conversation).toMatchObject({ width: 280, bounds: { min: 280, max: 280 } });
   });
 });

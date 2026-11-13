@@ -878,9 +878,23 @@ describe("the board iframe's ancestors never clip with four equal radii", () => 
     expect(declared(stylesCss, { tag: "div", classes: ["pw-stage"], attributes: ["class"] }, topRadius)).toEqual([]);
     expect(declared(stylesCss, { tag: "div", classes: ["pw-stage"], attributes: ["class"] }, clipping)).not.toEqual([]);
     for (const element of [{ tag: "iframe", classes: ["pw-frame"], attributes: ["class", "sandbox", "title", "src", "style"] }, { tag: "div", classes: ["pw-box"], attributes: ["class", "style"] },
-      { tag: "div", classes: ["pw", "name-row"], attributes: ["class"] }, { tag: "div", id: "root", classes: [] }, ...page]) {
+      { tag: "div", classes: ["pw", "name-row"], attributes: ["class", "data-panel", "style"] }, { tag: "div", id: "root", classes: [] }, ...page]) {
       expect(declared(stylesCss, element, radius), JSON.stringify(element)).toEqual([]);
     }
+  });
+
+  // With the conversation column open beside it, the content panel and the column are one surface: the panel keeps
+  // its start corners (R 0 0 R) and the column its end ones (0 R R 0). The content still clips only its top corner and
+  // the stage only its bottom one, so no clip in the run iframe's chain has four equal radii in either state.
+  test("prototype window with the conversation column open: the content panel keeps only its start corners", () => {
+    const open = (subject: RegExp) => subjects(stylesCss).filter(rule => subject.test(rule.subject)).flatMap(rule => rule.declarations);
+    expect(stylesCss).toMatch(/\.pw\[data-panel="open"\]\s*>\s*\.pw-panel\s*\{[^}]*border-radius:\s*var\(--radius-container\) 0 0 var\(--radius-container\)/);
+    expect(stylesCss).toMatch(/\.pw\[data-panel="open"\][^{]*\.pw-stage\s*\{[^}]*border-bottom-right-radius:\s*0/);
+    expect(stylesCss).toMatch(/\.pw\s+\.right\.doan-conv-panel\s*\{[^}]*border-radius:\s*0 var\(--radius-container\) var\(--radius-container\) 0/);
+    // The column holds no part of the iframe's chain, but its own clip must not be four equal radii either.
+    for (const declaration of open(/^\.doan-conv-column$/)) expect(declaration).not.toMatch(/radius/);
+    // The content inherits the panel's top corners, so its top-right corner follows the panel to 0.
+    expect(declarations(stylesCss, ".pw-content")).toEqual(expect.arrayContaining(["border-top-left-radius: inherit", "border-top-right-radius: inherit"]));
   });
 
   // The export's chain is read from shell.html, so a wrapper added around the iframe is checked too.
