@@ -79,3 +79,22 @@ type SearchResult = (CanvasTarget & ({ kind: "canvas" } | { kind: "frame"; frame
 ## 디자인 프리셋
 
 `shape`(기존 화면 확장: 시각 체계는 그대로, 새 내용과 상태만 정한다)와 `clarify`(빈 결과 문구, 토스트)를 읽었다.
+
+## 초안 요청
+
+- 파일: `.doan/canvases/quick-open-conversations.html`, 캔버스 id `quick-open-conversations`, 폭 2560. 기존 `doan-search.html`의 Quick Open 대화상자를 그대로 복사해 쓰고, 새 부분만 그린다.
+- 프레임(id — 내용):
+  - `results-all` — 검색어가 있는 All 탭. 두 프로젝트 묶음에 캔버스·프레임·대화 행이 섞여 있다.
+  - `results-conversations` — 검색어가 있는 Conversations 탭. 캔버스 대화 행, 프로젝트 대화 행(최근 활동 시각), 기록을 읽지 못한 대화 행(시각 없음), 긴 제목.
+  - `empty-query-conversations-workspace` — workspace에서 빈 검색어의 Conversations 탭(그 root의 대화, 최근 순).
+  - `empty-query-conversations-home` — Home에서 빈 검색어의 Conversations 탭(프로젝트 묶음이 가장 최근 대화 순).
+  - `no-match` — 빈 결과 문구 네 가지를 타일로: All, Conversations, "<탭 문구>. <n> other results in All."(Conversations 탭과 Frames 탭), "No conversations to show".
+  - `reading` — 대화 목록을 읽는 중인 프로젝트가 읽기 줄에 포함된 상태.
+  - `open-failed` — 고른 대화를 찾을 수 없을 때의 토스트.
+- `/design-sync`가 비교할 프레임: `results-conversations`, `no-match`, `open-failed`.
+- 초안 리뷰에서 정한 것(사용자 결정, 2026-11-13):
+  - 대화 아이콘은 lucide `MessagesSquare`다. `MessageCircle`은 앱에서 "읽지 않은 완료 대화" 표시로 쓰인다.
+  - 열 수 없을 때의 토스트는 원인별로 기존 문구를 다시 쓴다. 대화가 없으면 “Couldn’t open “<title>”. It was deleted.”, 캔버스가 없으면 “Couldn’t open “<title>”. The canvas isn’t in <project>.”, ID 중복이면 `replyChipRefusal`의 중복 문구다. 제목은 `quoted()`(60자, 빈 제목은 "this conversation")를 쓰고, 메시지는 `selectable`이다.
+  - 열기에 실패하면 포커스는 Quick Open을 연 곳으로 돌아간다(Escape와 같다).
+  - 행의 접근 이름은 시각을 풀어 쓴다(메뉴의 `ShortTime.label`과 같다).
+  - 같은 점수와 근접도에서 캔버스와 프레임은 출시 규칙(색인 순서)을 따르고, 대화만 그 뒤에 둔다.
