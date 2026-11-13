@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ReactNode } from "react";
+import type { AttachmentResult } from "../main/attachments";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { ListView } from "./conversationStore";
+import type { AttachmentDraft } from "./homeComposer";
 
 // The canvas conversation panel body, run with hooks as plain state (the App tests' no-DOM style).
 const hooks = vi.hoisted(() => ({
@@ -84,7 +86,7 @@ function fakeCalls() {
     scheduledMessages: vi.fn(async () => []),
     sendQueuedNow: vi.fn(async () => undefined), removeQueuedMessage: vi.fn(async () => undefined), interruptConversation: vi.fn(async () => undefined),
     answerConversationPermission: vi.fn(async () => undefined), answerConversationQuestion: vi.fn(async () => undefined), setConversationPermissionMode: vi.fn(async () => undefined),
-    chooseAttachments: vi.fn(async () => []), addAttachmentFiles: vi.fn(async () => []), addPastedImage: vi.fn(async () => null), droppedPath: vi.fn(() => null),
+    chooseAttachments: vi.fn(async () => []), addAttachmentFiles: vi.fn(async (_files: readonly File[]): Promise<AttachmentResult[] | null> => []), addPastedImage: vi.fn(async () => null), droppedPath: vi.fn(() => null),
     removeAttachment: vi.fn(async () => true), releaseAttachments: vi.fn(async () => true), recheckAttachments: vi.fn(async () => []), attachmentsFromPaths: vi.fn(async () => []),
     openLink: vi.fn(async () => true),
   };
@@ -180,4 +182,59 @@ test("the promotion notice's Open goes to the host's callback when it gives one"
   expect(onOpenPromoted).toHaveBeenCalledWith("p1");
   // The panel did not switch to it itself.
   expect(run.view()?.kind).toBe("new");
+});
+
+// An existing conversation's composer: its send, queue and attachment paths, still without window.doan.
+async function existing(calls: ReturnType<typeof fakeCalls>) {
+  const list: ListView = [{ conversationId: "c1", canvas: CANVAS, title: "Ideas", state: "current", owner: "doan", provider: "claude", fromHome: false,
+    phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }];
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, calls);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  await flush();
+  const support = new DockedSupport(() => {}, calls);
+  const tree = render(() => CanvasConversation({
+    calls, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+  }));
+  expect(run.view()).toMatchObject({ kind: "conversation", conversationId: "c1" });
+  const composer = dockedProps(tree)! as {
+    onSend(request: unknown): Promise<unknown>; onQueue(request: unknown): Promise<unknown>;
+    onFiles(files: File[], pasted: boolean): void; onAttachmentRemoved(attachment: AttachmentDraft): void;
+  };
+  return { store, composer };
+}
+
+test("an existing conversation's send and queue go through the call object", async () => {
+  const calls = fakeCalls();
+  const { store, composer } = await existing(calls);
+  const anchors = [{ frame: { id: "pay", title: "Pay" } }];
+  expect(await composer.onSend({ text: "{{1}} Tighten it", anchors, attachments: [] })).toEqual({ ok: true });
+  expect(calls.sendConversation.mock.calls[0]![0]).toMatchObject({ conversationId: "c1", text: "{{1}} Tighten it", anchors });
+  expect(await composer.onQueue({ text: "{{1}} Then this", anchors, attachments: [] })).toEqual({ ok: true, itemId: "q1" });
+  expect(calls.queueConversation).toHaveBeenCalledWith({ conversationId: "c1", text: "{{1}} Then this", anchors });
+  expect(store.queue("c1").map(item => item.id)).toEqual(["q1"]);
+  expect(calls.startConversation).not.toHaveBeenCalled();
+});
+
+test("a file main checks after its chip was removed, and a held chip's removal, give their ids back through the call object", async () => {
+  const calls = fakeCalls();
+  let answer!: (results: AttachmentResult[]) => void;
+  calls.addAttachmentFiles.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
+  const { store, composer } = await existing(calls);
+  composer.onFiles([new File(["notes"], "notes.md", { type: "text/markdown" })], false);
+  expect(calls.addAttachmentFiles).toHaveBeenCalledOnce();
+  expect(store.drafts.get("conversation:c1")?.attachments).toHaveLength(1);
+  // The chip leaves the draft before main answers: main's late id has no chip to land on.
+  store.setDrafts(() => new Map());
+  answer([{ ok: true, attachment: { id: "late", name: "notes.md", kind: "file", pasted: false, size: 5, path: "/u/notes.md" } }]);
+  await flush();
+  expect(calls.removeAttachment).toHaveBeenCalledWith("late");
+  // A chip a returned queue held: removed, then released.
+  composer.onAttachmentRemoved({ key: "k", id: "held", name: "a.md", kind: "file", pasted: false, status: "ready", held: true });
+  await flush();
+  expect(calls.removeAttachment).toHaveBeenCalledWith("held");
+  expect(calls.releaseAttachments).toHaveBeenCalledWith(["held"]);
 });
