@@ -17,7 +17,7 @@ const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
 const ready: HostLayers = { frames: [{ gen: 2, url: A, markWidth: 390, markHeight: 844 }], visible: 2, snapshot: null };
 const noop = () => {};
 const props = (over: Partial<ShellProps> = {}): ShellProps => ({ view: view(), layers: ready, readingShown: false, details: false, live: "", width: 640, menuOpen: false,
-  onBack: noop, onForward: noop, onReload: noop, onReloadPress: noop, onMode: noop, onMenuOpen: noop, onChoose: noop, onClose: noop, onDetails: noop, ...over });
+  onBack: noop, onForward: noop, onReload: noop, onReloadPress: noop, onReloadClick: noop, onMode: noop, onMenuOpen: noop, onChoose: noop, onClose: noop, onDetails: noop, ...over });
 const markup = (over: Partial<ShellProps> = {}) => renderToStaticMarkup(<TooltipProvider><WindowShell {...props(over)} /></TooltipProvider>);
 const tag = (html: string, marker: string) => html.match(new RegExp(`<[a-z0-9]+[^>]*${marker}[^>]*>`))?.[0] ?? "";
 
@@ -141,21 +141,32 @@ describe("the viewport toggle", () => {
 
 describe("pointer presses in the header", () => {
   // A pointer press leaves focus where it was (in the frame), so the keys typed next still reach the frame.
-  test("Reload, Fit and Responsive keep focus on mousedown; Reload also tells the window it was a pointer press", () => {
+  test("Reload, Fit and Responsive keep focus on mousedown; Reload also tells the window of a primary-button press", () => {
     const onReloadPress = vi.fn();
     const shell = tree({ onReloadPress });
     for (const label of ["Reload prototype", "Fit", "Responsive"]) {
-      const event = { preventDefault: vi.fn() };
+      const event = { button: 0, preventDefault: vi.fn() };
       (button(shell, label).props.onMouseDown as (event: unknown) => void)(event);
       expect(event.preventDefault).toHaveBeenCalledOnce();
     }
     expect(onReloadPress).toHaveBeenCalledOnce();
   });
 
-  test("the header's Reload and the failure scene's Retry make the same call", () => {
-    const onReload = vi.fn();
-    const shell = tree({ view: view({ phase: "init-failed" }), onReload });
-    expect(button(shell, "Reload prototype").props.onClick).toBe(onReload);
+  test("a right or middle press on Reload is not a Reload press", () => {
+    const onReloadPress = vi.fn();
+    const reload = button(tree({ onReloadPress }), "Reload prototype");
+    for (const which of [1, 2]) (reload.props.onMouseDown as (event: unknown) => void)({ button: which, preventDefault: vi.fn() });
+    expect(onReloadPress).not.toHaveBeenCalled();
+  });
+
+  // A click a key sends has detail 0; a pointer's counts its presses.
+  test("the header's Reload says whether a pointer clicked it; the failure scene's Retry reloads as before", () => {
+    const onReload = vi.fn(), onReloadClick = vi.fn();
+    const shell = tree({ view: view({ phase: "init-failed" }), onReload, onReloadClick });
+    const click = button(shell, "Reload prototype").props.onClick as (event: unknown) => void;
+    click({ detail: 1 });
+    click({ detail: 0 });
+    expect(onReloadClick.mock.calls).toEqual([[true], [false]]);
     expect(all(shell).find(element => element.type === "button" && element.props.children === "Retry")!.props.onClick).toBe(onReload);
   });
 });

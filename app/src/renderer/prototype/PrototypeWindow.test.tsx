@@ -266,7 +266,7 @@ describe("focus after a pointer Reload", () => {
     s.frames!.set(1, old as never);
     doc.activeElement = active(old);
     shell.onReloadPress();
-    shell.onReload();
+    shell.onReloadClick(true);
     expect(api.reload).toHaveBeenCalledWith(1);
     show(view({ gen: 2 }));
     s.frames!.set(2, next as never);
@@ -310,9 +310,40 @@ describe("focus after a pointer Reload", () => {
     const s = show(view({ phase: "ready" }));
     const next = iframe();
     doc.activeElement = doc.body;
-    shell.onReload();
+    shell.onReloadClick(false);
+    expect(api.reload).toHaveBeenCalledWith(1);
     show(view({ gen: 2 }));
     s.frames!.set(2, next as never);
+    show(view({ gen: 2, phase: "ready" }));
+    expect(next.focus).not.toHaveBeenCalled();
+  });
+
+  // A press released off the button sends no click, so no Reload happened: nothing it remembered may move focus later.
+  test("a cancelled press does not move focus when another Play's run is ready", () => {
+    const s = show(view({ phase: "ready" }));
+    const old = iframe(), next = iframe();
+    s.frames!.set(1, old as never);
+    doc.activeElement = old;
+    shell.onReloadPress();
+    expect(api.reload).not.toHaveBeenCalled();
+    show(view({ gen: 2, frame: "account" }));
+    s.frames!.set(2, next as never);
+    doc.activeElement = doc.body;
+    show(view({ gen: 2, frame: "account", phase: "ready" }));
+    expect(next.focus).not.toHaveBeenCalled();
+  });
+
+  test("a keyboard Reload after a cancelled press leaves focus where it is", () => {
+    const s = show(view({ phase: "ready" }));
+    const old = iframe(), next = iframe();
+    s.frames!.set(1, old as never);
+    doc.activeElement = old;
+    shell.onReloadPress();
+    doc.activeElement = { name: "Reload prototype" };
+    shell.onReloadClick(false);
+    show(view({ gen: 2 }));
+    s.frames!.set(2, next as never);
+    doc.activeElement = doc.body;
     show(view({ gen: 2, phase: "ready" }));
     expect(next.focus).not.toHaveBeenCalled();
   });

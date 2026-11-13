@@ -38,7 +38,9 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const content = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const name = useRef<HTMLButtonElement>(null);
-  // The gen a pointer Reload left while focus was in the frame or on the page (null otherwise).
+  // Whether focus was in the frame or on the page at the last primary press on Reload (null: no press since the last
+  // click), and the gen a pointer Reload then left (null otherwise).
+  const pressedInFrame = useRef<boolean | null>(null);
   const reloadFocus = useRef<number | null>(null);
 
   // The header's rows follow the window's content width, which main's fit and capture use too.
@@ -132,14 +134,21 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   }, [phase, visibleGen]);
   const onReloadPress = () => {
     const active = document.activeElement;
-    const inFrame = active === null || active === document.body || [...frames.current.values()].some(frame => frame === active);
-    reloadFocus.current = inFrame ? gen : null;
+    pressedInFrame.current = active === null || active === document.body || [...frames.current.values()].some(frame => frame === active);
+  };
+  // Only a pointer click arms the return: a press released off the button sends no click, and a key's click (detail 0)
+  // after such a press must not inherit it.
+  const onReloadClick = (pointer: boolean) => {
+    if (gen === null) return;
+    reloadFocus.current = pointer && pressedInFrame.current === true ? gen : null;
+    pressedInFrame.current = null;
+    void api.reload(gen);
   };
 
   const readingShown = phase === "loading" && readingGen === gen;
   return <WindowShell view={view} layers={layers} readingShown={readingShown} details={details} live={liveText(view, readingShown)}
     width={width} menuOpen={menuOpen} content={content} heading={heading} name={name} frames={frames.current}
-    onBack={() => void api.back()} onForward={() => void api.forward()} onReload={() => { if (gen !== null) void api.reload(gen); }} onReloadPress={onReloadPress}
+    onBack={() => void api.back()} onForward={() => void api.forward()} onReload={() => { if (gen !== null) void api.reload(gen); }} onReloadPress={onReloadPress} onReloadClick={onReloadClick}
     onMode={mode => void api.setMode(mode)} onMenuOpen={setMenuOpen}
     onChoose={frame => void api.choose(frame)} onClose={() => void api.close()} onDetails={() => setDetails(open => !open)} />;
 }
@@ -157,14 +166,16 @@ export interface ShellProps {
   heading?: RefObject<HTMLHeadingElement | null>;
   name?: RefObject<HTMLButtonElement | null>;
   frames?: Map<number, HTMLIFrameElement>;
-  onBack(): void; onForward(): void; onReload(): void; onReloadPress(): void; onMode(mode: PrototypeMode): void; onMenuOpen(open: boolean): void;
+  // onReload: the failure scene's Retry. The header's Reload reports its primary press and whether a pointer clicked it,
+  // so only a pointer Reload hands focus back to the new run.
+  onBack(): void; onForward(): void; onReload(): void; onReloadPress(): void; onReloadClick(pointer: boolean): void; onMode(mode: PrototypeMode): void; onMenuOpen(open: boolean): void;
   onChoose(frame: string): void; onClose(): void; onDetails(): void;
 }
 
 // The window's markup. Header controls come before the content in the Tab order; the state overlay covers the content
 // panel only, so they stay usable over it. Every control keeps one element tree in every state (no view yet, pressed or
 // not, either row) so a focused control or the open frame menu survives the change.
-export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, content, heading, name, frames, onBack, onForward, onReload, onReloadPress, onMode, onMenuOpen, onChoose, onClose, onDetails }: ShellProps) {
+export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, content, heading, name, frames, onBack, onForward, onReload, onReloadPress, onReloadClick, onMode, onMenuOpen, onChoose, onClose, onDetails }: ShellProps) {
   const scene = view === null ? null : stateScene(view);
   const coveredNow = view !== null && covered(view.phase);
   // Radix gives an Esc to the top layer only, so a header tooltip over the open frame menu would leave the menu open;
@@ -177,7 +188,7 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
         <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!view?.canGoBack} onClick={onBack}><ArrowLeft aria-hidden="true" /></button>
         <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!view?.canGoForward} onClick={onForward}><ArrowRight aria-hidden="true" /></button>
         <Tooltip><TooltipTrigger asChild>
-          <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Reload prototype" disabled={view === null} onMouseDown={event => { keepFocus(event); onReloadPress(); }} onClick={onReload}><RotateCw aria-hidden="true" /></button>
+          <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Reload prototype" disabled={view === null} onMouseDown={event => { keepFocus(event); if (event.button === 0) onReloadPress(); }} onClick={event => onReloadClick(event.detail > 0)}><RotateCw aria-hidden="true" /></button>
         </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>Reload prototype</TooltipContent></Tooltip>
       </div>
       {view !== null && <FrameMenu view={view} open={menuOpen} onOpenChange={onMenuOpen} trigger={name} onTipEscape={tipEscape} onChoose={onChoose} />}
