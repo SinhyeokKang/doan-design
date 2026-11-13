@@ -7,8 +7,8 @@ import type { UsageEntry } from "../main/agentAuth/usageTypes";
 import type { McpAddReply, McpReply, McpSnapshot } from "../main/mcpConnectors/ipc";
 import type { McpProvider } from "../main/mcpConnectors/presets";
 import type { ShellActivity } from "../main/shellActivity";
-import type { ConversationService, StartRequest, TakenDraft } from "../main/conversation/service";
-import type { ConversationError } from "../main/conversation/ipc";
+import type { ConversationService, ScheduledItem, StartRequest, TakenDraft } from "../main/conversation/service";
+import type { ConversationError, ScheduledSend } from "../main/conversation/ipc";
 import type { ModelsReply } from "../main/conversation/models";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { QuestionAnswerInput } from "../main/conversation/question";
@@ -121,7 +121,13 @@ const api = {
   // and no request names a provider. project_busy: another conversation of this project without a canvas is working.
   // A send to an archived conversation restores it: busy while the canvas's current conversation works,
   // canvas_not_found when its canvas is gone or its ID is listed twice.
-  sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:send", request),
+  // While the conversation's usage limit holds, or it is scheduled (list row limitResetsAt or scheduledAt), main keeps
+  // the message as a queued item and answers { scheduled }; such a send takes no model, effort, fast or permissionMode
+  // (bad_request), as a queue does. rate_limited carries resetsAt when main knows it.
+  sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }): Promise<void | ScheduledSend | ConversationError> => ipcRenderer.invoke("conversation:send", request),
+  // A scheduled conversation's waiting messages, in order, also those main scheduled by itself after a turn the usage
+  // limit stopped; empty when it is not scheduled.
+  scheduledMessages: (request: { conversationId: string }): Promise<ScheduledItem[] | ConversationError> => ipcRenderer.invoke("conversation:scheduled", request),
   // While the conversation works (not_running otherwise), a message waits in main and goes out with the others as one
   // message after turn.done; text, anchors and attachments only (model, effort and permissionMode are bad_request; the
   // queue goes out in the mode stored when it is flushed, setConversationPermissionMode). queue_limit: the

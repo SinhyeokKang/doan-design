@@ -106,6 +106,8 @@ export interface Runner { mechanism?: FenceMechanism; sessionId: string; send(pr
 // A queued attachment's id with the record it was queued as (item.attachments and ids are in the same order).
 type Held = { id: string; record: AttachmentRecord | undefined };
 export type TakenDraft = ReturnedDraft & { ids?: (string | null)[] };
+// A scheduled conversation's waiting message (conversation `scheduled`), as the renderer shows a queued row.
+export interface ScheduledItem { itemId: string; text: string; anchors: Anchor[]; attachments: AttachmentRecord[] }
 export interface QueueFiles { reclaim(ids: string[]): StartAttachments; consume(ids: string[]): void; discard?(ids: string[]): void; release?(ids: string[]): void }
 // drafts: the input queue and the drafts it hands back; files: the queue's attachments; defaultEffort: the level a queued
 // turn names when the conversation's model has no stored effort (models.ts ModelCatalog.defaultEffort); fast: whether

@@ -9,11 +9,14 @@ import type { SkillCatalog } from "./skills";
 import type { AttachmentStore } from "../attachments";
 import { QUESTION_LIMITS, type QuestionAnswerInput } from "./question";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
-export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "skills", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode", "delete"] as const;
+export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "skills", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode", "delete", "scheduled"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
 // attachment_missing names the attachments that were moved, deleted or forgotten since they were added; replaced, the
-// ones among them that are folders now leading to another folder.
-export interface ConversationError { error: string; missing?: string[]; replaced?: string[] }
+// ones among them that are folders now leading to another folder. resetsAt (ISO): with rate_limited, when the usage
+// limit of the refused start's or send's Doan connection resets, if main knows it.
+export interface ConversationError { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string }
+// A send main took while its conversation's usage limit holds: the message waits as a queued item until at (ISO).
+export interface ScheduledSend { scheduled: { itemId: string; at: string } }
 interface Project { path: string; kind: string; canvases?: Canvas[] }
 function message(raw: Record<string, unknown>): { text: string; anchors: Anchor[] } | null {
   if (typeof raw.text !== "string" || !raw.text.trim() || raw.text.length > LIMITS.text) return null;
