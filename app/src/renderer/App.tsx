@@ -1480,7 +1480,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const onPage = screen === "addProjects", onSettings = screen === "settings", onProjectSettings = screen === "projectSettings";
   const pageLocked = (onPage && page.locked) || (onSettings && settings.locked) || (onProjectSettings && projectSettings.locked);
   const command = (name: ViewCommand) => controller.current?.command(name);
-  // A pick from the Add Projects page goes through openCanvas too.
   // What the workspace shows now, for a pick of the conversation already on screen.
   function shownConversation(): ShownConversation {
     if (currentScreen.current !== "workspace" || overlaidRef.current) return null;
@@ -1513,6 +1512,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     live.current.toast.show(conversationOpenRefusal(outcome, result.title, live.current.projectLabel(result.root)));
     return false;
   }
+  // A pick from the Add Projects page goes through openCanvas too.
   function pick(result: SearchResult): boolean | void {
     if (locked()) return;
     cancelRestore();

@@ -333,8 +333,7 @@ test("the results follow the conversation lists: a deleted conversation goes, an
   expect(key(renamed, "pricing")).toBe(key(before, "checkout copy"));
 });
 
-test("a conversation list still loading counts in the reading row once Conversations can show it", () => {
+test("a conversation list still loading is not counted on an empty All, which lists canvases only", () => {
   const html = renderToStaticMarkup(<QuickOpen entries={entries.filter(entry => entry.kind === "list")} conversations={new Map([["/code/acme-web", "loading"]])} currentRoot="/code/acme-web" pick={() => {}} close={() => {}} />);
-  // An empty All lists canvases only, so the loading list is not counted there.
   expect(readingRow(html)).toBe("");
 });
