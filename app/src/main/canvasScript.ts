@@ -222,6 +222,8 @@ interface CanvasLib {
 export function canvasScript(lib: CanvasLib): void {
   const MAX_FRAMES = 1000;
   const MAX_STRING = 200;
+  // mark.ts's MAX_PROTOTYPE_MARK: the longest valid mark is 11 characters, so a cut value stays invalid.
+  const MAX_PROTOTYPE_MARK = 32;
   const MAX_SELECTOR = 1000;
   const MAX_HTML = 2000;
   const MAX_TEXT = 500;
@@ -245,7 +247,7 @@ export function canvasScript(lib: CanvasLib): void {
   const documentToken = `${Date.now()}-${Math.random()}`;
 
   const frames = () => {
-    const list: { id: string; title?: string; x: number; y: number; width: number; height: number }[] = [];
+    const list: { id: string; title?: string; prototype?: string; x: number; y: number; width: number; height: number }[] = [];
     let truncated = false;
     const clip = (text: string) => {
       const kept = lib.clipText(text, MAX_STRING);
@@ -278,6 +280,9 @@ export function canvasScript(lib: CanvasLib): void {
       const frame: (typeof list)[number] = { id: clip(el.getAttribute("data-doan-frame") ?? ""), x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height };
       const title = el.getAttribute("data-doan-title");
       if (title !== null) frame.title = clip(title);
+      // The raw prototype mark, judged by the renderer; cutting a junk value does not make the list truncated.
+      const mark = el.getAttribute("data-doan-prototype");
+      if (mark !== null) frame.prototype = lib.clipText(mark, MAX_PROTOTYPE_MARK);
       list.push(frame);
     }
     return { list, truncated, bottom };

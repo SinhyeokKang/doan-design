@@ -45,6 +45,8 @@ export interface OpenState {
   readonly listed: Listed;
   readonly url: string | null;
   readonly source: string | null;
+  // The canvas label from the last list that had the canvas, so a lost canvas keeps its name in the view.
+  readonly label: string;
   // The drawer list of the target's canvas, from the current run.
   readonly frames: readonly PrototypeFrame[];
   // The last listed frame IDs per canvas seen in this window: `doan ls` has no marks, so Back/Forward know a canvas's
@@ -87,7 +89,7 @@ function start(state: PrototypeState, target: PrototypeTarget, resolved: Present
   const keepFrames = state.open && sameCanvas(state.target, target) && state.listed === "ok";
   const markWidth = fit?.size.width ?? (state.open ? state.run?.markWidth : undefined) ?? 0;
   const base = {
-    open: true as const, gen, history, target, source: resolved.source, url: resolved.url,
+    open: true as const, gen, history, target, source: resolved.source, url: resolved.url, label: resolved.label,
     frames: keepFrames && state.open ? state.frames : [], reports: state.open ? state.reports : {}, fitHint: fit?.size ?? null,
   };
   if (resolved.error) {
@@ -164,7 +166,7 @@ export function listChanged(state: PrototypeState, resolve: Resolve): Step {
 // Header Reload and the failure screens' Retry, for the run the window shows.
 export function reload(state: PrototypeState, gen: number): Step {
   if (!state.open || gen !== state.gen || state.listed !== "ok" || state.url === null || state.source === null) return none(state);
-  return start(state, state.target, { kind: "present", url: state.url, source: state.source, error: false, frames: [] }, null, state.history);
+  return start(state, state.target, { kind: "present", url: state.url, source: state.source, error: false, frames: [], label: state.label }, null, state.history);
 }
 
 function current(state: OpenState, gen: number): boolean {
@@ -212,7 +214,7 @@ export function prototypeView(state: PrototypeState, resolve: Resolve): Prototyp
     ?? frame;
   const ok = usable(state, resolve);
   return {
-    gen: state.gen, frame, title, phase: state.phase, ...(state.detail === undefined ? {} : { detail: state.detail }),
+    gen: state.gen, frame, title, canvas: resolved.kind === "present" ? resolved.label : state.label, phase: state.phase, ...(state.detail === undefined ? {} : { detail: state.detail }),
     run: state.run, frames: [...state.frames], canGoBack: canStep(state.history, "back", ok), canGoForward: canStep(state.history, "forward", ok),
   };
 }

@@ -32,13 +32,17 @@ function frameList(value: unknown): PrototypeFrame[] | null {
   if (!Array.isArray(value) || value.length > MAX_REPORT_FRAMES) return null;
   const seen = new Set<string>();
   const frames: PrototypeFrame[] = [];
+  // Numbers count every frame of the document, listed or not, so they only ever grow down the list.
+  let last = 0;
   for (const raw of value) {
     if (typeof raw !== "object" || raw === null) return null;
-    const entry = record(raw, "title" in raw ? ["id", "title", "size"] : ["id", "size"]);
+    const entry = record(raw, "title" in raw ? ["id", "title", "size", "number"] : ["id", "size", "number"]);
     if (entry === null || !id(entry.id) || seen.has(entry.id) || parsePrototypeMark(entry.size) === null) return null;
     if (entry.title !== undefined && (typeof entry.title !== "string" || entry.title.length > MAX_REPORT_STRING)) return null;
+    if (!Number.isSafeInteger(entry.number) || (entry.number as number) <= last) return null;
+    last = entry.number as number;
     seen.add(entry.id);
-    frames.push({ id: entry.id, ...(entry.title === undefined ? {} : { title: entry.title as string }), size: entry.size as string });
+    frames.push({ id: entry.id, ...(entry.title === undefined ? {} : { title: entry.title as string }), size: entry.size as string, number: last });
   }
   return frames;
 }

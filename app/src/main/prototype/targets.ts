@@ -1,3 +1,4 @@
+import { canvasLabel } from "../../renderer/canvasTree";
 import type { CanvasRow, FolderEntry } from "../view";
 
 // A canvas is keyed by its ID; an ID-less canvas by its path, as the device-local state keys it.
@@ -14,11 +15,12 @@ export type CanvasRef = Pick<PrototypeTarget, "root" | "canvas">;
 
 // `unknown`: the root's list is being read, so nothing can be concluded yet. `absent` covers a gone row, a canvas ID
 // two rows share, an unregistered root and a root whose list failed: none is replaced by a guess.
-// `source` changes whenever the served document may have changed; `frames` are `doan ls`'s static frames.
+// `source` changes whenever the served document may have changed; `frames` are `doan ls`'s static frames; `label` is
+// the canvas's name as the sidebar shows it.
 export type Resolution =
   | { kind: "unknown" }
   | { kind: "absent" }
-  | { kind: "present"; url: string; source: string; error: boolean; frames: { id: string; title?: string }[] };
+  | { kind: "present"; url: string; source: string; error: boolean; frames: { id: string; title?: string }[]; label: string };
 
 function sameKey(a: CanvasKey, b: CanvasKey): boolean {
   if ("id" in a) return "id" in b && a.id === b.id;
@@ -59,5 +61,5 @@ export function resolveTarget(ref: CanvasRef, entries: readonly FolderEntry[]): 
   if (row === null) return { kind: "absent" };
   // The board reloads on the same signals: the row's own rev and the folder's served rev (a stylesheet or asset).
   const source = JSON.stringify([row.url, entry.servedRev, row.rev ?? 0]);
-  return { kind: "present", url: row.url, source, error: row.error !== undefined, frames: (row.frames ?? []).map(frame => ({ ...frame })) };
+  return { kind: "present", url: row.url, source, error: row.error !== undefined, frames: (row.frames ?? []).map(frame => ({ ...frame })), label: canvasLabel(row) };
 }

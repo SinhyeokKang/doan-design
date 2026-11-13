@@ -41,6 +41,7 @@ import type { ExportReply } from "../main/canvasExport";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
 import type { AddPageResponse, AddPageState } from "../main/addPage";
+import type { PlayRequest } from "../main/prototype/ipc";
 
 export type { AddPageResponse, AddPageState, WorkItem, OpenLinkResult, TrashPlanReply, TrashReply, ExportReply };
 export type { McpAddReply, McpReply, McpSnapshot };
@@ -502,6 +503,16 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, quitting: boolean) => listener(quitting);
     ipcRenderer.on("app:quitting", receive);
     return () => ipcRenderer.removeListener("app:quitting", receive);
+  },
+  // Play prototype: the selected frame of a listed canvas and its raw mark from the live layout. Main builds the URL
+  // from its own list and ignores a request it cannot match. Channel names stay literal: a shared value import would
+  // put a chunk between the two preloads, which a sandboxed preload cannot require.
+  playPrototype(request: PlayRequest): void { void ipcRenderer.invoke("prototype:play", request); },
+  // The prototype window closed, by any path; focus may go back to a live Play control.
+  onPrototypeClosed(listener: () => void): () => void {
+    const receive = () => listener();
+    ipcRenderer.on("prototype:closed", receive);
+    return () => ipcRenderer.removeListener("prototype:closed", receive);
   },
   // Main asks for the Settings page, at a category and optionally a provider row; a hidden window is already shown.
   onOpenSettingsPage(listener: (target: SettingsPageTarget) => void): () => void {

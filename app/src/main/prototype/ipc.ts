@@ -1,7 +1,8 @@
 import type { PrototypeSize } from "./mark";
 
-// The prototype window's IPC contract. `play` is the main window's request; `changed` is an event main sends the
-// prototype window; every other channel is a request from the prototype window's own main frame.
+// The prototype window's IPC contract. `play` is the main window's request; `changed` and `snapshot` are events main
+// sends the prototype window, `closed` an event main sends the main window; every other channel is a request from the
+// prototype window's own main frame.
 export const PROTOTYPE_CHANNELS = {
   play: "prototype:play",
   read: "prototype:read",
@@ -13,6 +14,10 @@ export const PROTOTYPE_CHANNELS = {
   forward: "prototype:forward",
   choose: "prototype:choose",
   close: "prototype:close",
+  // To the main window when the prototype window closes for any reason, so focus can go back to a live Play control.
+  closed: "prototype:closed",
+  // To the prototype window, before the view that turns a ready run failed or unavailable (PrototypeSnapshot).
+  snapshot: "prototype:snapshot",
 } as const;
 
 export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
@@ -34,14 +39,21 @@ export interface PlayRequest {
 }
 
 // A frame the run's document lists for the drawer: a unique, non-empty ID with a valid mark, in document order.
+// `number` is its 1-based position among all `data-doan-frame` elements of that document outside `<template>`, the
+// order the board's layout lists, so the drawer numbers a frame as the main frame drawer does.
 export interface PrototypeFrame {
   id: string;
   title?: string;
   size: string;
+  number: number;
 }
 
 export type LostState = "missing" | "duplicate" | "unmarked" | "invalid";
 
+// The prototype script in the run's document posts a RunMessage once and, when that went out before the `load`
+// handlers, one FramesMessage after them, both exactly as typed here (a RunMessage has `state`, a FramesMessage does
+// not). The host accepts only its current iframe's window, origin "null" and the current `gen`, then forwards the data
+// unchanged; main validates it again.
 // `prototype:result`, sent once per run by the host. `ready` and the lost states come from the prototype script in the
 // run's document (at DOMContentLoaded, or after the `load` handlers); `timeout` is the host's own 10 s timer.
 export type RunMessage =
@@ -65,17 +77,27 @@ export type PrototypePhase = "loading" | "ready" | "read-failed" | "init-failed"
 
 // `prototype:changed` and the reply to `prototype:read`. A new `gen` with a new `run` means a new iframe. `run` stays
 // the last run's while a frame is lost, so the host keeps the frozen screen under the overlay; it is null only before
-// any run started. `title` is the frame's title, or its ID without one. `frames` is empty when the canvas is gone.
+// any run started. `title` is the frame's title, or its ID without one. `canvas` is the target canvas's label (its file
+// stem, as the sidebar names it), the last known one while the canvas is gone. `frames` is empty when the canvas is
+// gone.
 export interface PrototypeView {
   gen: number;
   frame: string;
   title: string;
+  canvas: string;
   phase: PrototypePhase;
   detail?: string;
   run: { url: string; markWidth: number } | null;
   frames: PrototypeFrame[];
   canGoBack: boolean;
   canGoForward: boolean;
+}
+
+// `prototype:snapshot`: the iframe area of the window as PNG bytes, captured when a ready run turns failed or
+// unavailable and sent before that view. `gen` is the view's gen it belongs under.
+export interface PrototypeSnapshot {
+  gen: number;
+  png: Uint8Array;
 }
 
 // The prototype window's preload API (`window.doanPrototype`). The preload implements it with
