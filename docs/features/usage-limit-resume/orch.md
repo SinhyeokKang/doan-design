@@ -22,6 +22,11 @@
 - **사용자 결정(M 인계의 두 질문)**:
   - 한도로 끝난 턴의 사용량 읽기는 Agent usage의 5분 간격을 건너뛴다(숨김·차단·읽는 중이면 여전히 읽지 않는다). 승격 때 PRODUCT §5 item 0에 예외로 적는다.
   - Codex 사용량 창은 `rateLimitReachedType`이 있을 때뿐 아니라 `usedPercent`가 100 이상이면 limited다. Agent usage도 그 창을 'Limit reached'로 보인다. 근거: 이 Mac의 실제 Codex 기록에서 막힌 계정의 스냅샷이 `used_percent: 100`, `rate_limit_reached_type: null`이었다.
+- **사용자 결정(VM 리뷰)**: 한도로 끝난 턴 직후의 사용량 읽기는 앱이 숨겨져 있어도 한 번 한다. 차단 중이면 읽지 않고, 이미 읽는 중이면 그 읽기를 기다린다.
+- **conductor 판단(VM 리뷰)**:
+  - `claudeResetFromDetail`의 '최근 1시간 안에 지난 같은 시각은 지난 시각으로 본다' 규칙은 이전 리셋이 있을 때(재시도)만 쓴다. 근거: design.md의 '다음 시각' 규칙을 지키면서 같은 시각 재시도만 살린다.
+  - 실패한 턴에 사람 메시지가 둘 이상이면(Send now로 합쳐진 메시지) 자동 예약하지 않고 평소 실패로 끝내며 알림도 보낸다. 근거: 메시지 하나만 다시 보내면 나머지가 조용히 사라진다. spec은 '그 턴의 메시지' 하나를 다룬다.
+  - `limitWindows`는 그 provider의 읽기만 기다린다.
 - 구현 배치는 Claude, 독립 리뷰는 Codex로 섞는다(conductor 판단 — 사용자의 이전 지시 '주 업무는 Claude, 리뷰에 Codex를 섞는다').
 - tasks 9(`/verify`와 문서 승격)는 conductor가 통합 뒤에 한다.
 
@@ -60,3 +65,6 @@
 - R 1부 완료(`1eae1f9b`까지 4커밋, test 416 files·11175 passed, typecheck 0, lint 80/80). 미룬 연결 작업을 2부로 보냈다(`ctx_a43548b38383`). 계약 보완 2를 M에 보냈다.
 - M 완료(`b3faab39`까지 7커밋, test 418 files·11198 passed, typecheck·lint 통과). 통합 `a23c68a8`까지. M의 인계는 `.scratch/handoff-M.md`(ulr-main).
 - VM(Codex gpt-6-astra medium, `ctx_49d98a6954f9`, worktree `ulr-review-main`)을 시작했다. 사용자 결정 두 개를 M 후속 Task로 보냈다(`ctx_b531db015c42`).
+- M 후속 1 완료(`d8a97c1c` → 통합 `50b640f3`). R 2부 완료(통합 `738d1cec`..`1799adf2`, test 421 files·11250 passed, typecheck 0, lint 80/80).
+- VM 결과: 🔴1(조회 중 Stop 뒤 재예약) 🟡3(재발급 kind 보존, 보관 중 알림 누락, Send now 메시지 누락) ⚪1(경합 테스트). 보고서 `.scratch/orch/review-VM.md`. M에 수정 라운드 1을 보냈다(`ctx_7a04d9288453`).
+- VR(Codex gpt-6-astra medium, `ctx_bead34a028c9`, worktree `ulr-review-renderer`)을 시작했다.
