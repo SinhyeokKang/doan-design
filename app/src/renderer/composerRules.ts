@@ -28,8 +28,10 @@ export type ComposerTurn = "idle" | "running" | "waiting" | "holding";
 // something to send. `request` is the composed request (homeComposer's composeRequest), so a chip alone counts as
 // content. Queued messages do not change a running turn's slot. While holding, text still queues, and Stop shows only
 // while queue rows wait (`queueRows`: the rows drawn, those going out included), since it returns them as a draft.
-export function composerAction(turn: ComposerTurn, request: string, queueRows: number): ComposerAction {
-  if (turn === "idle") return "send";
+// limited: the conversation's Doan connection is at its usage limit, or its rows wait for the reset; a message then
+// waits too, so the idle slot is Queue (disabled by the host while the field is empty, as Send is).
+export function composerAction(turn: ComposerTurn, request: string, queueRows: number, limited = false): ComposerAction {
+  if (turn === "idle") return limited ? "queue" : "send";
   if (request.trim() !== "") return "queue";
   return turn === "holding" && queueRows === 0 ? "send" : "stop";
 }

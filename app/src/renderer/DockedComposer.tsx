@@ -1,5 +1,5 @@
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
-import { Crosshair, Folder, Gauge, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
+import { Clock, Crosshair, Folder, Gauge, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
@@ -32,6 +32,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { queueFocusAfter, type QueueFocus } from "./queueFocus";
 import { dockedBuddy } from "./dockedBuddyShell";
+import { localClock, queueButtonHint, queueStatusLine, resetTimeText } from "./limitReset";
 import type { PermissionPickerView } from "./permissionPicker";
 import type { SettingsTarget } from "./settingsSections";
 
@@ -54,7 +55,8 @@ export interface DockedFieldLink {
 }
 // The composer's Pick from canvas button: pressed while the canvas picks; `reason` is the tooltip while unavailable.
 export interface DockedPicker { pressed: boolean; enabled: boolean; reason: string | null; onToggle(): void }
-export type DockedOutcome = { ok: true; itemId?: string } | { error: string; missing?: string[]; replaced?: string[] };
+// resetsAt: a usage-limit refusal's reset time (ISO), when main knew it.
+export type DockedOutcome = { ok: true; itemId?: string } | { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string };
 
 export interface DockedComposerProps {
   mode: DockedMode;
@@ -102,7 +104,13 @@ export interface DockedComposerProps {
   // the triggers keep their place but cannot be chosen, and nothing can be attached.
   fixed?: boolean;
   // The host's reading of a refused send (the canvas panel's canvasConversationError); dockedRefusal otherwise.
-  refuse?(code: string, provider: Provider): DockedRefusal;
+  // resets: a usage-limit refusal's reset time as limitReset.ts words it.
+  refuse?(code: string, provider: Provider, resets: string | null): DockedRefusal;
+  // The conversation's Doan connection is at its usage limit until this reset (ISO): Send is Queue, and a message waits
+  // for the reset in main.
+  limitResetsAt?: string | null;
+  // The reset (ISO) the queued rows wait for: no Send now, and the status line under them names it.
+  scheduledFor?: string | null;
   // A refused terminal session's "Start a new conversation".
   onStartNew?(): void;
   // A message Send now has in flight is not among them: it shows in the thread. message: the request, whose attachments
@@ -155,7 +163,8 @@ export function DockedComposer(props: DockedComposerProps) {
   const [sending, setSending] = useState<ReadonlyMap<string, number>>(new Map());
   // A refusal holds while its draft is the one that was refused; a change to that draft, by the person or the host
   // (chips it added), drops it. A drop notice has no draft and lasts until the person edits.
-  const [refusals, setRefusals] = useState<ReadonlyMap<string, { refusal: DockedRefusal; draft?: DockedDraft }>>(new Map());
+  // code: main's refusal code, which the usage limit's state reads.
+  const [refusals, setRefusals] = useState<ReadonlyMap<string, { refusal: DockedRefusal; draft?: DockedDraft; code?: string }>>(new Map());
   // The / list's Escape and highlight belong to the draft they were made on, so a switch reads them per key.
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
   const [highlightAt, setHighlightAt] = useState<{ key: string; index: number }>({ key, index: 0 });
@@ -166,6 +175,8 @@ export function DockedComposer(props: DockedComposerProps) {
   // "No longer in the canvas" by the composer chip that was not found: an overlay placed
   // under the chip, outside the field's DOM, and the chip described by it like a thread chip.
   const [missingAt, setMissingAt] = useState<{ chip: HTMLElement; left: number; top: number } | null>(null);
+  // Draws again when a reset passes, so the status line and the Queue tooltip follow the clock.
+  const [resetTick, setResetPassed] = useState(0);
   // A draft already pointing at the limit's number of places takes no more from the canvas, so the canvas panel's
   // composer says why under the card; removing one takes the line away.
   const full = !!props.pick && distinctTargets(draft.segments) >= LIMITS.anchors;
@@ -200,12 +211,24 @@ export function DockedComposer(props: DockedComposerProps) {
   const blocked = refusal?.kind === "blocked" ? refusal : null;
   const skillNames = new Set(props.skills.map(skill => skill.name));
   const matched = fieldSkillRuns(draft.segments, skillNames).map(run => run.name);
-  const checked = dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, skills: matched, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed });
+  const limitResetsAt = props.limitResetsAt ?? null, scheduledFor = props.scheduledFor ?? null;
+  const limited = limitResetsAt !== null || scheduledFor !== null;
+  const now = Date.now(), clock = localClock();
+  const checked = dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, skills: matched, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed, limited });
   const availability = blocked && !isSending && !props.unavailable ? { enabled: false, reason: { text: blocked.text, ...(blocked.action ? { action: blocked.action } : {}) } }
     : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
   const message = dockedMessage(draft, matched);
   const placeholder = composerPlaceholder({ readOnly: isSending || locked, preset: draft.preset, empty: draft.segments.length === 0, mode: mode.kind, text: props.placeholder, suggestion: props.suggestion });
-  const action = composerAction(props.turn, message.text, props.queued.length);
+  const action = composerAction(props.turn, message.text, props.queued.length, limited);
+  const queueHint = action === "queue" ? queueButtonHint(limitResetsAt, now, clock) : null;
+  const scheduleLine = scheduledFor !== null ? queueStatusLine(scheduledFor, now, clock) : null;
+  useEffect(() => {
+    const waits = [limitResetsAt, scheduledFor].map(at => at === null ? NaN : Date.parse(at) - Date.now()).filter(ms => ms > 0);
+    if (waits.length === 0) return;
+    // A timer's delay is a 32-bit count of milliseconds; a reset further off re-arms when that one fires.
+    const timer = setTimeout(() => setResetPassed(n => n + 1), Math.min(Math.min(...waits) + 1, 2 ** 31 - 1));
+    return () => clearTimeout(timer);
+  }, [limitResetsAt, scheduledFor, resetTick]);
   const canSendNow = !!props.sendNow && !!props.onSendQueuedNow;
   const picker = dockedPicker(props.picker, mode);
   // The terminal's provider, drawn on the fixed trigger.
@@ -339,9 +362,11 @@ export function DockedComposer(props: DockedComposerProps) {
       : a.kind === "directory" ? [{ name: a.name, kind: a.kind, path: a.path }] : [{ name: a.name, size: a.size ?? 0, kind: a.kind, path: a.path }]);
     const request: DockedRequest = { text: message.text, anchors: message.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []), ...(files.length ? { files } : {}) };
     setSending(current => new Map(current).set(at, mine));
-    let outcome = await (action === "queue" ? props.onQueue(request) : props.onSend(request)).catch((): DockedOutcome => ({ error: "unknown" }));
+    // Queue with no turn running is the usage limit's: main's send queues the message for the reset.
+    const queues = action === "queue" && props.turn !== "idle";
+    let outcome = await (queues ? props.onQueue(request) : props.onSend(request)).catch((): DockedOutcome => ({ error: "unknown" }));
     // The turn ended before the queue took the message: nothing works to queue behind, so it goes out as a send.
-    if (action === "queue" && "error" in outcome && outcome.error === "not_running") outcome = await props.onSend(request).catch((): DockedOutcome => ({ error: "unknown" }));
+    if (queues && "error" in outcome && outcome.error === "not_running") outcome = await props.onSend(request).catch((): DockedOutcome => ({ error: "unknown" }));
     setSending(current => { if (current.get(at) !== mine) return current; const next = new Map(current); next.delete(at); return next; });
     if ("ok" in outcome) {
       clearRefusal(at);
@@ -358,8 +383,10 @@ export function DockedComposer(props: DockedComposerProps) {
       });
     } else {
       const provider = mode.kind === "new" ? props.provider : mode.provider;
-      const refused = provider ? (props.refuse ? props.refuse(outcome.error, provider) : dockedRefusal(outcome.error, mode, provider, props.project)) : null;
-      if (refused) setRefusals(previous => new Map(previous).set(at, { refusal: refused, draft: sent }));
+      const resets = outcome.resetsAt ? resetTimeText(outcome.resetsAt, Date.now(), localClock()) : null;
+      const refused = provider ? (props.refuse ? props.refuse(outcome.error, provider, resets) : dockedRefusal(outcome.error, mode, provider, props.project, resets)) : null;
+      const code = outcome.error;
+      if (refused) setRefusals(previous => new Map(previous).set(at, { refusal: refused, draft: sent, code }));
     }
     if (at === shown.current) focus({ kind: "sent" });
     return outcome;
@@ -420,7 +447,8 @@ export function DockedComposer(props: DockedComposerProps) {
 
   if (props.canvasGone || refusal?.kind === "gone") return <div className="canvas-gone" role="status"><AlertIcon /><span>{canvasGoneText(props.project)}</span></div>;
   const reason = availability.reason;
-  const notice = refusal?.kind === "notice" ? refusal : null;
+  // Once the usage limit's state shows, the Queue tooltip says what an earlier usage-limit refusal said.
+  const notice = refusal?.kind === "notice" && !(limited && held?.code === "rate_limited") ? refusal : null;
   // Only an id drawn below; the live reason shows with an older notice rather than behind it.
   const describedBy = [reason && !reason.noAgent ? reasonId : null, placeholder.suggestion !== null ? hintId : null].filter(Boolean).join(" ") || undefined;
   return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
@@ -428,6 +456,8 @@ export function DockedComposer(props: DockedComposerProps) {
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
       // The same refusal again changes the region's text by a no-break space, so it is read again.
       announce={text => setAnnouncement(current => current === text ? `${text}\u00a0` : text)} />
+    {/* Always drawn, empty when nothing waits for a reset, so the live region is registered before it speaks. */}
+    <div className="queue-schedule" role="status">{scheduleLine && <>{scheduleLine.kind === "sending" ? <span className="doan-spinner" aria-hidden="true" /> : <Clock aria-hidden="true" />}<span>{scheduleLine.text}</span></>}</div>
     <ComposerCard readonly={isSending}>
       {/* The docked buddy's floor on the card's top edge; the buddy reads its reasons from these attributes. */}
       <div className="docked-buddy-slot" ref={dockedBuddy.dockSlot} aria-hidden="true" data-accepts={locked ? "false" : undefined}
@@ -444,7 +474,8 @@ export function DockedComposer(props: DockedComposerProps) {
           onOpen={() => { props.onSkillsWanted(); props.onPresetsOpen(); }} onChoose={(id, kind) => chooseRow(id, kind, false)} onRetry={props.onPresetsRetry} onPicked={() => { if (pickedSkill.current) { pickedSkill.current = false; field.current?.focus(); } else focus({ kind: "restored" }); }} canvasPress={props.canvasPress} />
         {slashOpen && slashView && <SlashPresets skills={props.skills} view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={(id, kind) => chooseRow(id, kind, true)} onRetry={props.onPresetsRetry} />}
         <span className="grow" />
-        <SendButton action={action} enabled={action === "stop" ? !isSending : availability.enabled} sending={isSending} onSend={() => { if (action === "stop") stop(); else void send(); }} hint={reason?.noAgent ? reason.text : undefined} />
+        <SendButton action={action} enabled={action === "stop" ? !isSending : availability.enabled} sending={isSending} onSend={() => { if (action === "stop") stop(); else void send(); }} hint={reason?.noAgent ? reason.text : undefined}
+          tip={queueHint?.tip} description={queueHint?.description} />
       </ComposerTools>
       {drop.cover}
     </ComposerCard>

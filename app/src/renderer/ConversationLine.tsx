@@ -1,15 +1,15 @@
-import { Hand, MessageCircle } from "lucide-react";
+import { Clock, Hand, MessageCircle } from "lucide-react";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { providerLogo } from "./homeComposer";
 import type { ConversationLine, ConversationStatus } from "./overviewConversation";
 
 // The first line shared by the Overview's dropdown items and its right panel's canvas rows:
-// provider logo (its name as alt text), the name, the status mark the sidebar slot draws (hand, spinner, or the speech bubble of an unread finished conversation), the short time flush
+// provider logo (its name as alt text), the name, the status mark the sidebar slot draws (hand, spinner, the clock of messages waiting for a usage limit's reset, or the speech bubble of an unread finished conversation), the short time flush
 // right, spelled out for screen readers.
 
 export function StatusMark({ status }: { status: ConversationStatus }) {
   return <span className={`row-slot ${status.kind === "unseen" ? "ended" : status.kind}`} role="img" aria-label={status.label}>
-    {status.kind === "permission" ? <Hand aria-hidden="true" /> : status.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : status.kind === "unseen" ? <MessageCircle aria-hidden="true" /> : <i />}
+    {status.kind === "permission" ? <Hand aria-hidden="true" /> : status.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : status.kind === "scheduled" ? <Clock aria-hidden="true" /> : status.kind === "unseen" ? <MessageCircle aria-hidden="true" /> : <i />}
   </span>;
 }
 

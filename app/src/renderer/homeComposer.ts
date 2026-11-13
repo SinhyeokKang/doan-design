@@ -151,7 +151,9 @@ const START_ERRORS: Record<string, { text: (p: string, project: string) => strin
 };
 
 // Home has no sign-in, so provider codes only explain; bad_request, unknown and codes this table does not know retry.
-export function startErrorView(code: string, provider: Provider, project: string): { text: string; retry: boolean } {
+// resets: the usage limit's reset as limitReset.ts words it, when main knew it.
+export function startErrorView(code: string, provider: Provider, project: string, resets: string | null = null): { text: string; retry: boolean } {
+  if (code === "rate_limited" && resets) return { text: `${PROVIDER_NAMES[provider]} reached a usage limit. Send again after it resets ${resets}.`, retry: false };
   const row = Object.hasOwn(START_ERRORS, code) ? START_ERRORS[code]! : { text: () => "Couldn’t start the conversation. Try again.", retry: true };
   return { text: row.text(PROVIDER_NAMES[provider], project), retry: row.retry };
 }

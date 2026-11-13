@@ -7,16 +7,19 @@ import { slotKey, type Slot } from "./homeConversations";
 
 export type ConversationList = ReadonlyMap<string, readonly ConversationSummary[]>;
 
-const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1 };
+// A scheduled conversation asks nothing of the person: after working and a terminal agent, before an unseen ending.
+const RANK: Record<Slot["kind"], number> = { permission: 4, working: 3, scheduled: 2, unseen: 1 };
 
 // What is left for the person in one conversation, or null. `seen` holds conversations the person marked seen whose
 // list refresh has not arrived yet (Dismiss, a visit): the reply and the list notice may come in any order
 // (POSTMORTEM 2026-10-26). Any conversation, whatever started it: the sidebar's own callers keep their fromHome filter.
-export function conversationWork(c: ConversationSummary, seen: ReadonlySet<string>): Slot | null {
+// `scheduled`: the conversation's slot while its messages wait for the usage limit's reset (limitReset.ts).
+export function conversationWork(c: ConversationSummary, seen: ReadonlySet<string>, scheduled: Slot | null = null): Slot | null {
   if (c.readError) return null;
   const p = PROVIDER_NAMES[c.provider];
   if (c.phase === "waiting") return { kind: "permission", label: `${p} needs your answer` };
   if (c.phase === "running") return { kind: "working", label: `${p} is working` };
+  if (scheduled) return scheduled;
   // Failed and stopped turns may have changed files too, so every ending waits to be seen (2026-10-29 user).
   return c.unseen && !seen.has(c.conversationId) ? { kind: "unseen", label: "Conversation finished — unread" } : null;
 }

@@ -53,7 +53,7 @@ export interface Removing { paths: string[]; conversations: string[]; title: str
 
 const RUNNING: readonly StripState["kind"][] = ["starting", "working", "permission", "question"];
 const RANK: Record<StripState["kind"], number> = { permission: 3, question: 3, starting: 2, working: 2, done: 1, failed: 1, interrupted: 1 };
-const RANK_SLOT: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1 };
+const RANK_SLOT: Record<Slot["kind"], number> = { permission: 4, working: 3, scheduled: 2, unseen: 1 };
 
 // Text deltas only tell the strip the agent started answering; one per turn is kept.
 function isText(event: ConversationEvent) { return event.type === "message.delta" || event.type === "message.done"; }

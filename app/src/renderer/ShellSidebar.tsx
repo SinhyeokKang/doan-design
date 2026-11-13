@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Bell, Bot, Check, ChevronDown, CircleMinus, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, MessageCircle, PanelsTopLeft, Plug, Search, Settings, SlidersHorizontal, SwatchBook, Trash2 } from "lucide-react";
+import { Bell, Bot, Check, ChevronDown, CircleMinus, Clock, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, MessageCircle, PanelsTopLeft, Plug, Search, Settings, SlidersHorizontal, SwatchBook, Trash2 } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, ROW_ACTION_ICONS as icons, ROW_ACTION_LABELS as labels, type HomeCard, type RowAction } from "./homeCards";
@@ -100,7 +100,7 @@ export function recoveryKey(previous: readonly TreeRow[], current: readonly Tree
   return current[Math.min(Math.max(0, index), current.length - 1)]?.key;
 }
 const SECTION_ICONS: Record<SettingsSection, typeof Bot> = { general: SlidersHorizontal, agents: Bot, mcp: Plug, notifications: Bell, about: Info };
-const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1, canvas: 0 };
+const RANK: Record<Slot["kind"], number> = { permission: 4, working: 3, scheduled: 2, unseen: 1, canvas: 0 };
 // A project row shows its roots' own slots, and a bound canvas's slot while that canvas row is not on screen, so a
 // permission request in a collapsed project is never hidden. Among equals the first in `slots` wins.
 export function projectSlot(slots: ReadonlyMap<string, Slot>, roots: readonly string[], shownCanvases: readonly string[]): Slot | undefined {
@@ -116,7 +116,7 @@ function SlotMark({ slot }: { slot: Slot | undefined }) {
   if (!slot) return null;
   // A canvas notice is the accent dot; an unread finished conversation is a speech bubble, so the two never read alike.
   const cls = slot.kind === "canvas" ? "unseen" : slot.kind === "unseen" ? "ended" : slot.kind;
-  return <span className={`row-slot ${cls}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : slot.kind === "unseen" ? <MessageCircle aria-hidden="true" /> : <i />}</span>;
+  return <span className={`row-slot ${cls}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : slot.kind === "scheduled" ? <Clock aria-hidden="true" /> : slot.kind === "unseen" ? <MessageCircle aria-hidden="true" /> : <i />}</span>;
 }
 // A project row's slot: a problem icon or the reading spinner, which are hidden from assistive technology and named by
 // the row's own description instead (PRODUCT §5 item 1), or a conversation state as on a canvas row.

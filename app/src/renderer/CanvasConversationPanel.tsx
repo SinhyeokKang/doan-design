@@ -403,8 +403,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
     return { ok: true, itemId: reply.itemId };
   };
   // The canvas panel's reading of a refusal (canvasConversationError): attachment_missing is the composer's own.
-  const refuse = (code: string, provider: Provider): DockedRefusal => {
-    const error = canvasConversationError(code, mode, provider, project);
+  const refuse = (code: string, provider: Provider, resets: string | null): DockedRefusal => {
+    const error = canvasConversationError(code, mode, provider, project, [], resets);
     switch (error.kind) {
       case "busy": return { kind: "busy", busy: error.busy };
       case "blocked": return { kind: "blocked", text: error.text, ...(error.action ? { action: error.action } : {}) };
