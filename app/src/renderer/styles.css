@@ -89,6 +89,14 @@ code, kbd { font-family: var(--type-family); }
 .text-range > .text-rect { position: absolute; background: color-mix(in srgb, var(--affordance-accent) 30%, transparent); }
 /* The same prominent capsule as the tooltip. */
 .dims { position: absolute; top: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: var(--affordance-prominent); color: var(--text-on-prominent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); padding: var(--space-1) var(--space-2); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
+/* Play prototype in the size bubble (.doan/canvases/frame-prototype.html prototype-controls): a 14px icon whose hit
+   target is the 24px capsule height. The only pointer target in the overlay; its ring is drawn inside so it does not
+   cover the size text. */
+.dims.playable { display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1) 0 var(--space-2); }
+.bubble-play { pointer-events: auto; color: var(--text-on-prominent); }
+.bubble-play svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.bubble-play:hover { background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); }
+.bubble-play:focus-visible { outline-color: var(--text-on-prominent); outline-offset: -2px; }
 .canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); pointer-events: none; }
 .canvas-status button { pointer-events: auto; }
 .canvas-status b { color: var(--text-standard); font-weight: var(--type-weight-medium); }
@@ -1361,6 +1369,8 @@ body:has(.shell-top) { background: transparent; }
 .doan-frame-num { flex: none; min-width: var(--space-6); color: var(--text-metadata); font-variant-numeric: tabular-nums; }
 .doan-frame-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .doan-frame-viewing { flex: none; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+/* A frame marked for prototyping: caption metadata, not an action; the row still moves to and selects the frame. */
+.prototype-meta { flex: none; display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
 .doan-frame-note { margin: var(--space-1) 0 0; padding-top: var(--space-2); border-top: 1px solid var(--border-standard); white-space: normal; }
 .doan-zoom-menu { width: 184px; }
 .doan-zoom-key { margin-left: auto; }

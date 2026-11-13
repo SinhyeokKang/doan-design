@@ -225,6 +225,94 @@ function stepAnswer(h: { current: () => { contentWindow: { postMessage: ReturnTy
 describe("selection", () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  // The size bubble's Play prototype (design.md 'UI와 회귀 예방'): the frame itself, marked, in Select.
+  describe("the size bubble's Play prototype", () => {
+    const marked = [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }];
+    const frameTarget = (id: string) => ({ rect: { x: 0, y: 0, width: 320, height: 180 }, tag: "section", frame: { id }, frameIndex: 0, path: [] });
+    const setup = () => {
+      const h = selectionHarness();
+      const play = { onPlay: vi.fn(), onFocusLost: vi.fn() };
+      h.controller.bubblePlay = play;
+      h.layout({ frames: marked });
+      return { h, play, dims: () => h.markOf("dims")!, button: () => h.marks.find(mark => mark.className.includes("bubble-play")) };
+    };
+
+    it("shows beside the size label only while the marked frame itself is selected", () => {
+      const { h, dims, button } = setup();
+      try {
+        h.select(1, { target: frameTarget("intro") });
+        expect(dims().className).toBe("dims playable");
+        expect(dims().children).toEqual([expect.objectContaining({ textContent: "320 × 180" }), button()]);
+        expect(h.controller.bubblePlayButton()).toBe(button());
+        h.select(2, { target: frameTarget("hero") });
+        expect(dims().className).toBe("dims");
+        expect(dims().textContent).toBe("320 × 180");
+        expect(h.controller.bubblePlayButton()).toBeNull();
+        h.select(3, { target: { ...h.target, frame: { id: "intro" }, frameIndex: 0 } });
+        expect(dims().className).toBe("dims");
+        expect(h.controller.bubblePlayButton()).toBeNull();
+      } finally { h.controller.dispose(); }
+    });
+
+    it("goes during capture mode and comes back when it ends, without a new selection", () => {
+      const { h, dims } = setup();
+      try {
+        h.select(1, { target: frameTarget("intro") });
+        expect(h.controller.startCapture()).toBe(true);
+        expect(dims().className).toBe("dims");
+        expect(h.controller.bubblePlayButton()).toBeNull();
+        h.controller.cancelCapture();
+        expect(dims().className).toBe("dims playable");
+      } finally { h.controller.dispose(); }
+    });
+
+    it("goes with the selection when Hand drops it", () => {
+      const { h } = setup();
+      try {
+        h.select(1, { target: frameTarget("intro") });
+        h.controller.setTool("hand");
+        expect(h.markOf("selected")?.hidden).toBe(true);
+        expect(h.controller.bubblePlayButton()).toBeNull();
+      } finally { h.controller.dispose(); }
+    });
+
+    it("follows the live layout's mark", () => {
+      const { h, dims } = setup();
+      try {
+        h.select(1, { target: frameTarget("intro") });
+        h.layout({ frames: [{ ...marked[0]!, prototype: "390" }, marked[1]] });
+        expect(dims().className).toBe("dims");
+      } finally { h.controller.dispose(); }
+    });
+
+    it("plays on click and keeps the press and click from reaching the canvas or the board", () => {
+      const { h, play, button } = setup();
+      try {
+        h.select(1, { target: frameTarget("intro") });
+        for (const type of ["pointerdown", "mousedown", "click"]) {
+          const event = new Event(type, { bubbles: true });
+          (button() as unknown as EventTarget).dispatchEvent(event);
+          expect(event.cancelBubble, type).toBe(true);
+        }
+        expect(play.onPlay).toHaveBeenCalledOnce();
+      } finally { h.controller.dispose(); }
+    });
+
+    it("hands focus on when it goes away while focused, and not when it goes unfocused", () => {
+      const { h, play, button } = setup();
+      try {
+        h.select(1, { target: frameTarget("intro") });
+        h.doc.activeElement = button();
+        h.select(2, { target: frameTarget("hero") });
+        expect(play.onFocusLost).toHaveBeenCalledOnce();
+        h.select(3, { target: frameTarget("intro") });
+        h.doc.activeElement = null;
+        h.select(4, { target: frameTarget("hero") });
+        expect(play.onFocusLost).toHaveBeenCalledOnce();
+      } finally { h.controller.dispose(); }
+    });
+  });
+
   it("redraws the selection mark on a plain wheel pan without notifying React", () => {
     const h = selectionHarness();
     try {
@@ -3937,7 +4025,7 @@ describe("capture", () => {
     const event = keyEvent("keydown", "Escape", { target, ...over });
     if (tooltip) {
       const toolbar = CanvasTools({ tool: "select", picking: false, capturing: h.state().capturing, onTool: () => {}, picker: { enabled: true, reason: null, onToggle: () => {} },
-        capture: { enabled: true, reason: null, onToggle: () => {} }, exporter: { reason: null, onExport: () => {} }, onEscape: (escape: KeyboardEvent) => h.controller.toolbarEscape(escape) });
+        capture: { enabled: true, reason: null, onToggle: () => {} }, player: { reason: null, onPlay: () => {} }, exporter: { reason: null, onExport: () => {} }, onEscape: (escape: KeyboardEvent) => h.controller.toolbarEscape(escape) });
       const content = walk(toolbar).find(element => element.type === TooltipContent)!;
       (content.props.onEscapeKeyDown as ((event: Event) => void) | undefined)?.(event);
       // Radix dismisses the tooltip.

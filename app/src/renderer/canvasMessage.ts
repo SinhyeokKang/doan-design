@@ -3,6 +3,7 @@
 // is checked and copied into a fresh object; nothing is trusted by shape.
 
 import type { SelectionElement } from "../formats/types";
+import { MAX_PROTOTYPE_MARK } from "../main/prototype/mark";
 
 // The nodes an anchors answer found for one reply chip target, from exact DOM lookups; html/text never identify a node.
 export interface TargetCandidates {
@@ -36,6 +37,8 @@ export const MAX_TEXT_RECTS = 2000;
 export interface CanvasFrameRect {
   id: string;
   title?: string;
+  // The frame's raw `data-doan-prototype` value; playability parses it.
+  prototype?: string;
   x: number;
   y: number;
   width: number;
@@ -391,11 +394,13 @@ function parseLayout(data: Record<string, unknown>): LayoutMessage | null {
 
 function parseFrame(raw: unknown): { frame: CanvasFrameRect; cut: boolean } | null {
   if (!isRecord(raw)) return null;
-  const { id, title, x, y, width, height } = raw;
+  const { id, title, prototype, x, y, width, height } = raw;
   if (typeof id !== "string" || (title !== undefined && typeof title !== "string")) return null;
   if (!finite(x) || !finite(y) || !nonNegative(width) || !nonNegative(height)) return null;
   const clippedId = clip(id);
   const frame: CanvasFrameRect = { id: clippedId.text, x, y, width, height };
+  // A mark that is not a string or is over the cap is dropped, not the frame: the frame stays listed, unmarked.
+  if (typeof prototype === "string" && prototype.length <= MAX_PROTOTYPE_MARK) frame.prototype = prototype;
   let cut = clippedId.cut;
   if (title !== undefined) {
     const clippedTitle = clip(title);

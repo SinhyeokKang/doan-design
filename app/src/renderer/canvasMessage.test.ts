@@ -1,4 +1,6 @@
 import { describe, expect, test } from "vitest";
+import { MAX_PROTOTYPE_MARK } from "../main/prototype/mark";
+import type { LayoutMessage } from "./canvasMessage";
 import { MAX_COPY_TEXT, MAX_FRAMES, MAX_HREF, MAX_STRING, MAX_TEXT_RECTS, acceptCanvasMessage, parseCanvasMessage } from "./canvasMessage";
 
 const frame = { id: "login", title: "Login", x: 0, y: 10, width: 375, height: 800 };
@@ -169,6 +171,22 @@ describe("parseCanvasMessage: layout", () => {
     const id = parsed.frames[0]?.id ?? "";
     expect(id).toBe("a".repeat(MAX_STRING - 1));
     expect(/[\uD800-\uDBFF]$/.test(id)).toBe(false);
+  });
+
+  test("keeps a frame's raw prototype mark up to the cap, unparsed", () => {
+    const frames = (prototype: unknown) => (parseCanvasMessage(layout({ frames: [{ ...frame, prototype }] })) as LayoutMessage).frames;
+    expect(frames("390x844")).toEqual([{ ...frame, prototype: "390x844" }]);
+    // Validity is playability's question; the parser only carries the value.
+    expect(frames("390")).toEqual([{ ...frame, prototype: "390" }]);
+    expect(frames("")).toEqual([{ ...frame, prototype: "" }]);
+    expect(frames("x".repeat(MAX_PROTOTYPE_MARK))[0]).toHaveProperty("prototype", "x".repeat(MAX_PROTOTYPE_MARK));
+  });
+
+  test("drops a prototype mark over the cap or not a string, and keeps the frame unmarked", () => {
+    for (const prototype of ["x".repeat(MAX_PROTOTYPE_MARK + 1), 390, null, { width: 390 }]) {
+      const parsed = parseCanvasMessage(layout({ frames: [{ ...frame, prototype }] })) as LayoutMessage;
+      expect(parsed.frames).toEqual([frame]);
+    }
   });
 
   test("keeps a truncated flag the injected script already raised", () => {

@@ -1,5 +1,5 @@
-import type { KeyboardEvent } from "react";
-import { Crosshair, Download, Hand, MousePointer2, Scan } from "lucide-react";
+import type { KeyboardEvent, RefObject } from "react";
+import { Crosshair, Download, Hand, MousePointer2, Play, Scan } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import type { CanvasTool } from "./canvasTool";
 import { dockedBuddy } from "./dockedBuddyShell";
@@ -30,14 +30,19 @@ const TOOLS: readonly { tool: CanvasTool; label: string; key: string; Icon: type
 // Capture area follows the Picker: a mode, pressed only during capture mode, with no
 // shortcut, and Export's sr-only reason while unavailable. During capture mode it always ends the mode, even
 // once it could not start again (a paste filled the draft meanwhile), so a pressed button is never a dead one.
+// Play prototype sits before Export: like Export it is an action with no pressed state, reached with ←/→, and its
+// unavailable reason is its sr-only description. `onPlay` gets the button; `button` lets App focus it when the size
+// bubble's Play goes away or the prototype window closes.
 const EXPORT_REASON_ID = "canvas-export-reason";
+const PLAY_REASON_ID = "canvas-play-reason";
 const CAPTURE_REASON_ID = "canvas-capture-reason";
 export interface PickerTool { enabled: boolean; reason: string | null; onToggle(): void }
 export interface CaptureTool { enabled: boolean; reason: string | null; onToggle(): void }
 export interface ExportTool { reason: string | null; onExport(button: HTMLElement): void }
+export interface PlayTool { reason: string | null; onPlay(): void; button?: RefObject<HTMLButtonElement | null> }
 // An open tooltip takes the Escape first (Radix prevents it), so each tooltip's Escape also runs `onEscape`, the
 // canvas's next Escape step; the tooltip still closes on that press (ARCHITECTURE §3 'Actions and focus').
-export function CanvasTools({ tool, picking, capturing, onTool, picker, capture, exporter, onEscape }: { tool: CanvasTool; picking: boolean; capturing: boolean; onTool(tool: CanvasTool): void; picker: PickerTool; capture: CaptureTool; exporter: ExportTool; onEscape(event: globalThis.KeyboardEvent): void }) {
+export function CanvasTools({ tool, picking, capturing, onTool, picker, capture, player, exporter, onEscape }: { tool: CanvasTool; picking: boolean; capturing: boolean; onTool(tool: CanvasTool): void; picker: PickerTool; capture: CaptureTool; player: PlayTool; exporter: ExportTool; onEscape(event: globalThis.KeyboardEvent): void }) {
   const pressed = (own: CanvasTool) => !picking && !capturing && tool === own;
   const captureOff = !capturing && !capture.enabled;
   return <div className="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools" onKeyDown={moveBetweenTools}>
@@ -60,6 +65,12 @@ export function CanvasTools({ tool, picking, capturing, onTool, picker, capture,
     </TooltipTrigger><TooltipContent onEscapeKeyDown={onEscape}>{captureOff ? capture.reason ?? "Capture area" : "Capture area"}</TooltipContent></Tooltip>
     {captureOff && <span className="sr-only" id={CAPTURE_REASON_ID}>{capture.reason ?? "Capture area"}</span>}
     <span className="doan-canvas-tools-sep" role="separator" aria-orientation="vertical" />
+    <Tooltip><TooltipTrigger asChild>
+      <button ref={player.button} type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Play prototype" tabIndex={-1}
+        {...(player.reason !== null ? { "aria-disabled": true, "aria-describedby": PLAY_REASON_ID } : {})}
+        onClick={() => { if (player.reason === null) player.onPlay(); }}><Play aria-hidden="true" /></button>
+    </TooltipTrigger><TooltipContent onEscapeKeyDown={onEscape}>{player.reason ?? "Play prototype"}</TooltipContent></Tooltip>
+    {player.reason !== null && <span className="sr-only" id={PLAY_REASON_ID}>{player.reason}</span>}
     <Tooltip><TooltipTrigger asChild>
       <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export canvas" tabIndex={-1}
         {...(exporter.reason !== null ? { "aria-disabled": true, "aria-describedby": EXPORT_REASON_ID } : {})}
