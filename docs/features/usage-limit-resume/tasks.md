@@ -1,19 +1,58 @@
 # usage-limit-resume — tasks
 
-PoC → 순수 함수 → main(I/O) → UI → 문서 순서로 간다. 포맷 변경은 없다.
+`/feature-review`는 끝났다. PoC → 초안 → 순수 함수와 IPC 모양 → main(I/O) → renderer → 문서 순서로 간다. 포맷 변경은 없다. PoC가 늦어지면 PoC에 기대지 않는 순수 함수(3의 `limitState`, `sendDecision`, `autoSchedule`, `resetTimeText`, `queueStatusLine`, `endView`, 슬롯)는 먼저 시작할 수 있다.
 
-- [ ] 1. PoC(`.scratch/`): 실제 Doan 연결로 Claude Code 평소 턴의 `rate_limit_event` 모양과 `resetsAt` 단위를 기록하고, 한도에 걸린 계정에서 `rejected` 이벤트와 Codex `account/rateLimits/read`의 다 찬 창, 리셋 정각 전송의 수락 여부를 확인한다. 결과로 `sendAt` 여유와 fixture를 정한다. 검증: 명령 미정 — 사용자 확인 필요(한도에 걸린 실제 계정이 있어야 한다).
+- [ ] 1. PoC(`.scratch/`): 한도에 걸린 실제 Doan 연결 계정으로 Claude Code와 Codex 각각 다음을 기록한다. 결과로 `limitResetFromUsage`·`turnHadActivity` fixture와 `sendAt` 여유를 정한다. 검증: 명령 미정 — 사용자 확인 필요(한도에 걸린 실제 계정이 있어야 한다).
+  - 한도 실패 직후 Agent usage 읽기의 창과 `limited`, `resetsAt`.
+  - 거절된 턴의 이벤트.
+  - 리셋 정각 전송의 수락 여부.
   - 커밋 경계: PoC 관찰은 이 문서나 커밋 메시지에 적는다.
-- [ ] 2. `/feature-review` 후 `/design-draft`로 예약된 대기열 행, 실패 줄의 새 둘째 줄, 재예약된 행, 초안으로 돌아온 상태를 초안 캔버스에 그리고 사용자 확인을 받는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
+- [ ] 2. `/design-draft`로 새 초안 `.doan/canvases/usage-limit-resume.html`을 그리고 사용자 확인을 받는다. 프레임: Queue 버튼과 tooltip, 예약 행과 상태 줄(시각 형식 네 가지, Sending…), 실패 줄의 새 둘째 줄, 자동 예약된 실패 턴, 재예약, 사이드바 슬롯의 예약 상태, 삭제 확인창의 새 줄, Home 거절 문구. 기존 화면의 초안은 고치지 않는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
   - 커밋 경계: 초안.
-- [ ] 3. `/tdd`: PoC fixture로 `claudeLimitReset`, `codexLimitReset`, `limitState`, `sendDecision`, `sendAt`, `retryDecision`, `scheduledRowText`, `endView` 확장을 고정하고 red를 확인한다. 검증: `npm --prefix app test`가 새 테스트에서만 실패한다.
+- [ ] 3. `/tdd`: 순수 함수와 IPC 모양을 고정하고 red를 확인한다. 검증: `npm --prefix app test`가 새 테스트에서만 실패한다.
+  - `limitResetFromUsage`: 리셋 시각 없음, 이미 지난 시각, 정각, 두 provider fixture.
+  - `limitState`: 만료, 연결 교체.
+  - `sendDecision`: ACP provider·legacy external·새 대화 시작은 `refuse`, 일하는 중이면 `queue`, 한도 상태면 `schedule`.
+  - `turnHadActivity`: PoC fixture.
+  - `autoSchedule`: 활동 있음, 시각 모름, 더 늦지 않은 재예약.
+  - `sendAt`.
+  - `resetTimeText`: 오늘·내일·6일 안·그보다 먼 날, 자정 경계, 시간대 변경, 일광 절약 시간 전환, 12/24시간.
+  - `queueStatusLine`, `endView`의 새 둘째 줄(마지막 턴일 때만, detail과 한도 상태가 둘 다 있을 때), 슬롯 우선순위.
+  - `ipc.test.ts`: `send`의 `{ scheduled }` 응답, `scheduled` 메서드, 예약 Send의 picker 변경 거절.
 - [ ] 4. `/implement` 순수 함수. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
   - 커밋 경계: 순수 함수와 테스트.
-- [ ] 5. main: transport에서 리셋 시각 읽기, service의 한도 상태와 예약 대기열, 타이머와 `powerMonitor` resume, 재예약, 로그아웃·보관·삭제·재시작 정리. 가짜 시계로 `service.test.ts`에 예약→전송, 재예약, 초안 복귀를 고정한다. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
+- [ ] 5. main: 한도 실패 뒤 사용량 읽기, 연결별 한도 상태, 예약 상태와 세 들어가는 길, 시계·타이머·resume seam, 전송과 `project_busy` 대기, 정리(제거·보관·로그아웃·삭제·재시작). 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
+  - `service.test.ts`에 가짜 시계로 다음을 고정한다:
+    - 예약 → 전송, 행 제거 시 타이머 해제.
+    - 활동 없는 실패의 자동 예약과 첨부 재발급(재발급 실패 시 평소 실패), 실패 턴의 대기열이 예약으로 바뀌는 것.
+    - 재예약과 Couldn’t finish 알림 없음.
+    - 같은 연결의 여러 대화가 같은 시각에 나가는 것, 같은 root 프로젝트 대화의 `project_busy` 대기.
+    - 캔버스의 현재 대화가 일하는 중일 때.
+    - 보관·로그아웃·계정 교체에서 즉시 초안, 삭제에서 버림.
+    - resume에서 지난 예약 전송과 남은 예약 재계산.
+    - 첨부가 그 사이에 사라졌을 때, 256 MiB 기록 한도 거절.
+    - 재시작 뒤 초안.
   - 커밋 경계: main.
-- [ ] 6. renderer: 예약 행, 실패 줄, 요약·대기열 상태 반영. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
+- [ ] 6. renderer: Queue 버튼, 예약 행과 상태 줄, 마지막 행 제거 뒤 포커스, Control+Enter, 실패 줄, 슬롯, 삭제 확인창, Home 거절 문구. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
+  - `conversationStore.test.ts`: `scheduled` 응답과 main이 만든 예약 읽기, POSTMORTEM 2026-11-05의 `readsStarted` 경로.
+  - `DockedComposer.queue.test.tsx`: Queue 버튼, 행, 상태 줄, Control+Enter.
+  - `ConversationThread.test.tsx`: 실패 줄.
+  - `dockedRules.test.ts`.
   - 커밋 경계: renderer.
-- [ ] 7. `/design-sync`로 초안과 실제 앱의 예약 행·실패 줄을 맞추고 DESIGN.md를 고친다. 검증: `node .scratch/design-sync/<screen>/measure.mjs`.
-- [ ] 8. `/runtime-test`: 격리 앱에서 한도 실패를 가짜 runner로 만들고 가까운 리셋 시각을 넣어, 예약 행 → 전송, 재예약, 앱 재시작 뒤 초안 복귀를 확인한다. 검증: `/runtime-test` 스크린샷과 probe 결과.
-- [ ] 9. `/verify` 후 결론을 승격한다: PRODUCT §3 Out of scope 4(예외 문장), PRODUCT §5 item 3(한도 문단, 예약 행), ARCHITECTURE §7(리셋 시각 출처, 메모리 전용 한도 상태와 예약, 타이머), DESIGN.md(예약 행). 그리고 `docs/features/usage-limit-resume/`를 삭제한다. 검증: `node .agents/skills/verify/scripts/verify.mjs`.
+- [ ] 7. `/design-sync`로 새 초안과 실제 앱의 Queue 버튼·예약 행·상태 줄·실패 줄을 맞추고 DESIGN.md를 고친다. 검증: `node .scratch/design-sync/<screen>/measure.mjs`.
+- [ ] 8. `/runtime-test`: 격리 앱에서 가짜 Claude CLI(`runners.ts`가 SDK에 넘기는 `pathToClaudeCodeExecutable`에 넣는다)로 한도 실패와 가까운 리셋 시각을 만들어 다음을 확인한다. Codex와 잠자기·깨어나기는 단위 테스트로만 확인하고, runtime 미확인으로 남긴다. 검증: `/runtime-test` 스크린샷과 probe 결과.
+  - Queue 버튼 → 예약 행 → 전송.
+  - 활동 없는 실패의 자동 예약.
+  - 재예약.
+  - 행 제거.
+  - 앱 재시작 뒤 초안 복귀.
+- [ ] 9. `/verify` 후 결론을 승격한다. 그리고 `docs/features/usage-limit-resume/`를 삭제한다. 검증: `node .agents/skills/verify/scripts/verify.mjs`.
+  - PRODUCT:
+    - §3 Out of scope 4(예외 문장).
+    - In scope 6("the one exception to Out of scope 4").
+    - §4 Loop 4("apart from a handoff").
+    - §5 item 1 대기열 규칙과 사이드바 슬롯 규칙.
+    - §5 item 3 한도 문단과 삭제 확인창.
+  - ARCHITECTURE §7: 리셋 시각 출처(Agent usage 재사용), 연결별 한도 상태, 예약 상태와 IPC, 타이머와 `powerMonitor`.
+  - DESIGN.md: Queue 버튼, 예약 상태 줄, 슬롯.
   - 커밋 경계: 문서 승격(문서마다 커밋).

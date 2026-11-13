@@ -2,42 +2,73 @@
 
 ## 영향 범위
 
-- **앱 main**: `app/src/main/conversation/`의 transport(리셋 시각 읽기), service(한도 상태, 예약, 재예약), 대기열(`queue.ts`·`drafts.ts`), Codex runner(`account/rateLimits/read`).
-- **앱 renderer**: 대기열 행의 예약 표시(`conversationStore.ts`와 docked composer의 대기열 행), 실패한 턴의 둘째 줄(`ConversationThread.tsx` `endView`), 한도 중 Send의 거절 문구(`dockedRules.ts`, `homeComposer.ts`).
-- **IPC**: 대화 목록 요약(`summary.ts` `ConversationSummary`)에 예약 정보(`scheduledAt?`)를 더하거나 대기열 응답에 담는다. 정확한 자리는 `/tdd`에서 정한다. 채널은 늘리지 않는다.
+- **앱 main** (`app/src/main/conversation/`, `app/src/main/agentAuth/`)
+  - 한도 실패 뒤 사용량 읽기: `runners.ts`의 `usageAtTurnEnd`는 지금 `turn.done`에서만 불린다. 한도 실패(`rate_limited`)에도 부르도록 넓히고, 결과를 `usageService.ts`의 연결별 사용량에서 받는다.
+  - 한도 상태와 예약 상태: `service.ts`.
+  - 예약 항목: `drafts.ts`(`DraftStore`)의 대기열 항목을 쓰고, 보낼 시각은 메모리에만 둔다.
+  - 타이머와 잠자기: `service.ts`에 시계·타이머 seam, Electron `powerMonitor`(main에서 처음 쓴다).
+  - IPC: `ipc.ts`의 `send` 응답, 새 메서드 `scheduled`(아래 'IPC').
+- **앱 renderer**
+  - 대기열 행과 상태 줄: `conversationStore.ts`, docked composer의 대기열 부분.
+  - Queue 버튼: `dockedRules.ts`.
+  - 실패 줄: `ConversationThread.tsx`의 `endView`.
+  - 사이드바 슬롯: `homeRun.ts`의 `slots()`.
+  - Home 거절 문구: `homeComposer.ts`.
+  - 삭제 확인창: `ConversationDeleteDialog.tsx`.
 - **CLI(Go), 스킬, 캔버스 규약**: 바뀌지 않는다.
 
 ## 리셋 시각의 출처
 
-| provider | 출처 | 상태 |
-|---|---|---|
-| Claude Code | Agent SDK의 `rate_limit_event`(`rate_limit_info.status === "rejected"`, `resetsAt`, `rateLimitType`). 타입은 `@anthropic-ai/claude-agent-sdk` `sdk.d.ts`의 `SDKRateLimitInfo` | 한도 거절 때 실제로 오는지, `resetsAt` 단위(초인지 밀리초인지)는 PoC로 확인 |
-| Codex | 한도 실패(`transport.ts`의 `rate_limited` 판정) 뒤 같은 연결에서 `account/rateLimits/read`를 읽어, 다 찬 창들 중 가장 늦은 `resetsAt`(초)을 쓴다. 읽기 형태는 Agent usage가 이미 쓴다(`agentAuth/usageParse.ts`) | 한도 상태에서 다 찬 창이 어떤 값으로 오는지 PoC로 확인 |
+- Agent usage(`agentAuth/usageService.ts`, `usageRead.ts`, `usageParse.ts`)가 이미 Doan 연결마다 창별 `usedPercent`, `resetsAt`(ms), `limited`를 읽는다. PRODUCT §5 item 0 'Agent usage'의 "Limit reached · resets in"이 이것이다. 새로 파싱하지 않는다.
+- 한도 상태의 리셋 시각은 그 연결에서 `limited`인 창들의 `resetsAt` 중 가장 늦은 값이다. Codex는 `usageParse.ts`의 `limited` 규칙(`rateLimitReachedType`)을, Claude는 그 파서의 창 규칙을 그대로 쓴다.
+- Claude transport의 `rate_limit_event`(`SDKRateLimitInfo`)는 지금 쓰지 않고 지나친다. 이 기능에서도 그대로 둔다. 참고로 `resetsAt`은 초 단위다(`app/src/main/conversation/fixtures/claude-frames-2.1.322-next-turn-after-stop.jsonl`의 `"resetsAt":1794978000`).
+- 실패 detail의 사람용 문구("resets 3pm")는 해석하지 않는다. 지금처럼 화면 문구에만 쓴다.
 
-어느 쪽이든 리셋 시각을 얻지 못하면 한도 상태를 만들지 않는다. 실패 detail의 사람용 문구("resets 3pm")는 해석하지 않는다. 지금처럼 화면 문구에만 쓴다.
+## 상태 모델
+
+- **한도 상태** `Map<connectionId, resetsAt>`: 메모리 전용. 키는 Doan 연결의 `connectionId`다. `connectionChanged(provider, connectionId)`(service.ts, suggestion 정리에 쓰는 것)와 로그아웃에서 지운다. 리셋 시각이 지나면 지운다.
+- **예약됨**: 대화 하나에 대해 "일하는 중이 아니고, root를 잡지 않으며, 대기열 항목이 있고, 보낼 시각이 있다"인 상태다.
+  - 지금 대기열은 일하는 중에만 있다(`queue()`가 일하지 않으면 `not_running`). `holding`을 쓰면 `working()`이 true가 되어 Send가 busy로 거절되고, 프로젝트 대화는 리셋 때까지 root를 잡는다(`project_busy`). 그래서 예약됨은 working과 holding 어느 쪽도 쓰지 않는 별도 상태다.
+  - 대화의 예약은 함께 나가므로 보낼 시각은 하나다(`scheduledAt`).
+  - `ended`/`flush`/`stopRuns`와의 관계: 예약된 대화에는 live 실행이 없으므로 `stopRuns`는 건드리지 않는다. 예약 시각의 전송은 `flush`가 쓰는 전송 경로를 다시 쓴다.
+- **들어가는 길**
+  1. 한도 상태가 있는 동안의 Send: main은 메시지를 받아들이지 않고(기록에 쓰지 않고, 첨부를 소비하지 않고) 대기열 항목으로 둔다. 첨부는 대기열 항목처럼 예약해 둔다.
+  2. 활동 없는 한도 실패: 턴이 `rate_limited`로 끝났고 그 턴에 에이전트 활동이 없었으며(`turnHadActivity`가 false) 리셋 시각을 얻으면, 그 턴의 메시지를 새 대기열 항목으로 만든다. 이 메시지는 이미 받아들여져 기록에 쓰였고 첨부도 소비됐다. 그래서 글과 칩은 기록에서, 첨부는 Edit and resend처럼 경로로 다시 발급(`attachments:fromPaths`와 같은 재발급)해서 만든다. 다시 발급할 수 없는 첨부가 있으면 예약하지 않고 평소 실패로 둔다.
+  3. 한도로 실패한 턴에 이미 대기열이 있었으면, 그 대기열은 초안으로 돌리지 않고 같은 시각의 예약이 된다.
+- **나가는 길**: 시각이 되면 보낸다. 같은 root의 프로젝트 대화가 일하는 중이면(`project_busy`) 그 root의 턴이 끝날 때 다시 시도한다. 제거, 보관, 로그아웃은 예약을 즉시 정리한다(제거는 버리고, 보관과 로그아웃은 초안으로). 삭제는 기존 삭제가 초안과 대기열을 버리는 것과 같이 버린다.
+- **재시작**: `drafts.json`의 대기열 항목은 시작할 때 모두 초안이 된다(ARCHITECTURE §7 'Device-local storage and limits'). 보낼 시각은 저장하지 않으므로 재시작 뒤 저절로 나가지 않는다.
+
+## IPC
+
+- `ConversationSummary`에 `scheduledAt?: string`(ISO)을 더한다. 대화 목록이 이미 쓰는 자리라 사이드바 슬롯, 실패 줄, 상태 줄이 같은 값을 읽는다. `working`은 false이고 `queued`는 예약 항목 수다.
+- `send`가 예약으로 끝나면 `{ scheduled: { itemId, at } }`를 돌려준다. renderer는 지금 queue 응답으로 행을 만드는 것처럼 이 응답으로 행을 만든다(`conversationStore.ts`).
+- main이 스스로 만든 예약(들어가는 길 2, 3)은 renderer가 내용을 모른다. 그래서 `conversation` 메서드에 `scheduled {conversationId}`를 더한다. 이 메서드는 예약 항목들(글, 칩, 첨부 표시)을 돌려준다. renderer는 목록의 `scheduledAt`이 생기거나 바뀌면 이것을 읽는다. 채널은 늘리지 않는다.
+- 예약된 Send에 picker 변경(model, effort, fast, mode)이 실려 오면 지금의 queue와 같이 거절한다. composer의 picker 변경은 다음 보내기에 적용되는 기존 규칙을 따른다.
 
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 
-1. `claudeLimitReset(event)` — `rate_limit_event` 한 개에서 `{ resetsAt: ms } | null`. `rejected`가 아니거나 값이 이상하면 null.
-2. `codexLimitReset(rateLimits, now)` — `account/rateLimits/read` 응답에서 다 찬 창들의 가장 늦은 리셋 시각(ms), 없으면 null.
-3. `limitState(prev, reset, now)` — 계정별 한도 상태 갱신과 만료. 지난 시각은 버린다.
-4. `sendDecision({ provider, limit, working, now })` — `"send" | "schedule" | "refuse"`. ACP provider와 새 대화 시작은 `schedule`이 되지 않는다.
-5. `sendAt(resetsAt, margin)` — 실제 전송 시각.
-6. `retryDecision({ previousReset, newReset, promptRead })` — `"reschedule" | "draft"`. 새 시각이 더 늦고 메시지가 읽히지 않았을 때만 재예약.
-7. `scheduledRowText(at, now, timeZone)` — 행 문구와 시각 형식.
-8. `endView` 확장 — 리셋 시각을 알 때의 둘째 줄.
+1. `limitResetFromUsage(windows, now)` — 한 연결의 사용량 창에서 `limited` 창들의 가장 늦은 `resetsAt`(ms). 없거나 이미 지났으면 null.
+2. `limitState(prev, connectionId, reset, now)` — 연결별 상태 갱신과 만료.
+3. `sendDecision({ provider, owner, limit, working, scheduled, now })` — `"send" | "queue" | "schedule" | "refuse"`. ACP provider, legacy external, 새 대화 시작은 `schedule`이 되지 않는다. 일하는 중이면 지금처럼 `queue`다.
+4. `turnHadActivity(events)` — 한 턴의 이벤트에 에이전트의 답 글이나 도구 단계가 있었는지. 정확한 기준은 PoC가 정한다.
+5. `autoSchedule({ code, hadActivity, reset, previousReset, now })` — `"schedule" | "none"`. `rate_limited`이고 활동이 없고, 리셋 시각을 알며, 재예약이면 이전보다 늦을 때만 schedule.
+6. `sendAt(resetsAt, margin)` — 실제 전송 시각.
+7. `resetTimeText(at, now, { timeZone, hour12 })` — 오늘·tomorrow·요일·날짜 형식. 자정 경계, 시간대 변경, 일광 절약 시간 전환을 다룬다.
+8. `queueStatusLine(scheduledAt, now)` — “Sends when the limit resets at …” 또는 “Sending…”.
+9. `endView` 확장 — 마지막 턴이고 한도 상태가 살아 있을 때의 둘째 줄. detail의 "resets <when>"과 한도 상태가 둘 다 있으면 한도 상태의 시각을 쓴다.
+10. 슬롯 우선순위 확장(`homeRun.ts`의 슬롯 판정 함수) — '예약됨'의 자리.
 
 ## 셸(I/O)
 
-- 한도 상태는 main 메모리(`ConversationService`)에 provider 계정 키로 둔다. 로그아웃과 계정 교체(`AuthStatusDto.generation`)에서 지운다.
-- 예약은 대기열 항목에 메모리 전용 표시(보낼 시각)를 붙인다. `drafts.json`에는 예약 시각을 쓰지 않는다. 시작할 때 모든 대기열 항목이 초안이 되므로(ARCHITECTURE §7 'Device-local storage and limits' `drafts.json`) 재시작 뒤 저절로 나가지 않는다는 규칙이 그대로 지켜진다.
-- 타이머는 대화마다 하나, 가장 이른 전송 시각에 unref된 timeout을 건다(폴링 없음, `workState.ts`의 만료 타이머와 같은 방식). `powerMonitor`의 `resume`에서 지난 예약을 바로 처리한다.
-- 전송은 턴이 끝난 뒤 대기열을 보내는 기존 경로를 다시 쓴다. 그래서 project 대화의 `project_busy`, 캔버스 대화의 현재 대화 규칙, 보관된 대화의 복원 규칙이 그대로 적용된다.
+- 타이머는 대화마다 하나, 그 대화의 보낼 시각에 unref된 timeout을 건다(폴링 없음, `workState.ts`의 만료 타이머와 같은 방식). 타이머가 울리면 그 대화와 예약 항목이 아직 같은지 다시 확인한 뒤 보낸다.
+- `powerMonitor`의 `resume`에서 모든 타이머를 벽시계 기준으로 다시 계산하고, 지난 예약은 바로 보낸다. 잠든 동안 타이머 시계가 멈추기 때문이다.
+- 테스트를 위해 `ConversationService`에 시계(`now`)와 타이머(`setTimer`/`clearTimer`), resume 구독을 주입할 seam을 둔다.
+- 한도 실패 뒤의 사용량 읽기는 Agent usage의 읽기 lease 규칙을 따른다. 읽기가 실패하면 리셋 시각이 없는 것으로 보고 평소 실패로 둔다.
 
 ## 포맷 변경
 
-- 대화 이벤트 JSONL, `index.json`, `drafts.json`, 공유 JSON Schema는 바뀌지 않는다. 리셋 시각과 예약은 메모리에만 있다. 그래서 `v`도 바뀌지 않는다.
-- `turn.failed`에 리셋 시각을 저장하지 않는 이유: 기록 읽기는 이벤트 하나라도 검사에 실패하면 전체가 실패하므로(ARCHITECTURE §7 'Device-local storage and limits'), 새 필드는 이전 Doan이 그 대화를 못 읽게 만든다.
+- 대화 이벤트 JSONL, `index.json`, `drafts.json`, 공유 JSON Schema는 바뀌지 않는다. 한도 상태와 보낼 시각은 메모리에만 있다. 그래서 `v`도 바뀌지 않는다.
+- 리셋 시각을 `turn.failed`에 저장하지 않는다. 기록 읽기는 이벤트 하나라도 검사에 실패하면 전체가 실패하므로(ARCHITECTURE §7 'Device-local storage and limits'), 새 필드는 이전 Doan이 그 대화를 못 읽게 만든다. transport가 리셋 정보를 다룬다면 `EventPayload`로 내보내지 말고 `suggested`나 `stage`처럼 기록에 남지 않는 콜백으로 service에 넘긴다.
 
 ## 규약 영향
 
@@ -45,23 +76,28 @@
 
 ## 결정 영향
 
-- **PRODUCT §3 Out of scope 4**: 예외 문장을 더한다. "사람이 한도 중에 보낸 메시지는 리셋 시각까지 기다렸다가 그대로 나간다. Doan은 글을 만들거나 더하지 않고, 앱이 꺼져 있으면 보내지 않는다." 사람의 메시지만 작업을 시작한다는 원칙은 유지된다.
-- 서버 없음(§3 5), GitHub 토큰, git 명령과 무관하다. Codex의 `account/rateLimits/read`는 이미 Agent usage가 쓰는 Doan 연결의 읽기다.
+- **PRODUCT §3 Out of scope 4**: 예외 문장을 더한다. 초안: "A message the person sent while their Doan connection's usage limit is in force, or one whose turn the limit stopped before the agent did anything, waits and goes out when the limit resets; a turn the limit stops the same way again waits for a later reset. Doan writes nothing of its own and sends nothing while it is not running."
+- **PRODUCT In scope 6**의 "the one exception to Out of scope 4"와 **§4 Loop 4**의 "apart from a handoff"가 둘째 예외를 반영하도록 고친다.
+- **PRODUCT §5 item 1**의 대기열 규칙("after a failed … turn, the queue comes back as the draft")에 한도 실패의 예외를 더한다.
+- 서버 없음(§3 5), GitHub 토큰, git 명령과 무관하다. 사용량 읽기는 Agent usage가 이미 쓰는 Doan 연결의 읽기다.
 
 ## PoC 의존
 
-1. Claude Code 한도 거절 때 `rate_limit_event`가 `rejected`와 `resetsAt`을 담아 턴 실패 전에 오는지, `resetsAt` 단위는 무엇인지. 평소 턴의 `allowed` 이벤트로 필드 모양과 단위는 볼 수 있지만, `rejected`는 실제로 한도에 걸린 계정에서만 볼 수 있다.
-2. Codex 한도 실패 뒤 `account/rateLimits/read`가 다 찬 창과 리셋 시각을 돌려주는지.
+1. 한도 실패 직후 Agent usage 읽기가 두 provider 모두에서 `limited` 창과 리셋 시각을 돌려주는지.
+2. 한도로 거절된 턴이 어떤 이벤트를 남기는지(Claude: `rate_limit_event` `rejected` 앞뒤의 이벤트, 답 글이나 도구 단계의 유무. Codex: 실패 전 이벤트). 이것으로 `turnHadActivity`의 기준을 정한다.
 3. 리셋 시각 정각에 보낸 요청이 받아들여지는지, 여유가 얼마나 필요한지.
 
-두 provider 모두 한도에 걸린 실제 계정이 필요하다. PoC가 사용자의 실제 계정 상태에 기대므로 시점을 사용자와 맞춘다(확인 필요).
+세 항목 모두 한도에 걸린 실제 Doan 연결 계정이 있어야 한다. 시점은 사용자와 맞춘다(확인 필요). PoC는 `limitResetFromUsage`와 `turnHadActivity`의 fixture, `sendAt`의 여유만 막는다. 나머지 순수 함수는 PoC 없이 시작할 수 있다.
 
 ## POSTMORTEM에서 가져온 함정
 
-- 2026-11-05 'A Send now row refused back into the queue could vanish while main still held it': main의 대기열 수가 줄었다가 돌아올 수 있으면(예약 행이 전송 중으로 빠졌다가 재예약으로 돌아오는 경우) 읽기 표시를 `readsStarted(root)`로 옮긴다. 재예약은 이 경로와 같은 모양이다.
-- 2026-10-27 'Successful appends crossed the history reader's byte limit': `drafts.json` 읽기와 쓰기는 같은 한도를 쓴다. 예약 표시를 `drafts.json`에 쓰지 않는 이유 중 하나다.
-- 2026-10-28(열린 stdin이 CLI를 살려 둔다): 예약 전송도 기존 대기열 전송 경로로 보내고, 새 프로세스 수명 규칙을 만들지 않는다.
+- 2026-11-05 'A Send now row refused back into the queue could vanish while main still held it': main의 대기열 수가 줄었다가 돌아오는 경우(예약 전송 → 재예약)에 읽기 표시를 `readsStarted(root)`로 옮긴다. 테스트로 고정한다.
+- 2026-10-27 'Successful appends crossed the history reader's byte limit': `drafts.json`의 읽기와 쓰기는 같은 한도를 쓴다. 보낼 시각을 `drafts.json`에 쓰지 않는 이유 중 하나다.
+- 2026-10-28 'A send right after turn.done was refused as busy until the previous process group was gone': 예약 전송도 기존 전송 경로를 쓰고 새 프로세스 수명 규칙을 만들지 않는다.
+- 2026-10-27 'Awaited conversation work outlived its current turn': 타이머가 울리거나 사용량 읽기가 돌아왔을 때 대화와 예약의 identity를 다시 확인한다.
+- 2026-11-06 'The Codex model list stayed the previous account's after an account replacement': 한도 상태는 `connectionId`를 키로 두고 계정 교체에서 지운다.
+- 2026-10-30 'Timing tests failed under machine load because their waits matched or beat the test limit': 시간이 드는 테스트는 가짜 시계로 쓰고 실제 대기를 두지 않는다.
 
 ## 디자인 프리셋
 
-`shape`(기존 대기열 행과 실패 줄의 확장)와 `clarify`(행 문구, 실패 줄 둘째 줄)를 읽었다.
+`shape`(기존 대기열 행과 실패 줄의 확장)와 `clarify`(상태 줄, 실패 줄, 거절 문구, Queue 버튼 설명)를 읽었다.
