@@ -55,3 +55,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 12(승격·삭제)는 conducto
 - B 리뷰 1회차(Codex, B1+B2): 🔴 0, 🟡 0, ⚪ 1(export 테스트에 앱이 쓰는 `--frame=<id>` 형태를 고정). ⚪1은 B3 브리프에 이미 있다. 계획과 다른 점(guide 축약, item 14 유지, `nextSteps` 이동 등)은 모두 수용됐다. B3가 끝나면 같은 리뷰어에게 B3 diff를 보낸다.
 - D 완료(`d800cc37..d03b2f2c`) → `db780096..cb381a26`로 통합. eval 테스트 316개, self-test 41개 통과(D 보고). X2 실패 fixture는 지금 `prototype_export_command`로만 실패한다(B3 전이라 프로토타입 파일과 캔버스 viewer의 바이트가 같다). B3 통합 뒤 self-test를 다시 돈다. W8 거절 변형(표시 없는 프레임 → `not_prototype`)은 별도 시나리오 제안으로 남겼다.
 - D 리뷰: Claude Opus high(`ctx_50c1c13435f5`, `pce-rd`).
+- C 리뷰 2회차(Codex): 🔴 0, 🟡 1(새 비활성 규칙의 specificity (0,4,0)가 공유 pressed 규칙 (0,5,0)에 져 눌린 배경이 남는다. Chromium `forcePseudoState`로 재현), ⚪ 1(실제 앱 통합은 task 9·10). v6 socket 순서·CLI 요청과 응답의 일치·visibility 보강은 수용. C-fix2로 보냈다.
