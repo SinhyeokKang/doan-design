@@ -125,6 +125,19 @@
 /* Keyboard focus is one ring outside the control, the same on every emphasis. */
 :is(.doan-button, .doan-icon-button, .doan-checkbox, .doan-chip):focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 
+/* A toggle group wraps a few chrome icon buttons in one translucent track, so the group reads as one control and
+   needs no divider from its neighbours. The track's corner is its item corner plus the inset (nested corners).
+   One item is pressed; it rises onto the panel fill, as the header's mode tabs do. */
+.doan-toggle-group {
+  display: flex;
+  padding: var(--space-half);
+  border-radius: var(--radius-chip);
+  background: var(--affordance-backdrop-hover);
+}
+.doan-toggle-group .doan-icon-button[aria-pressed="false"]:not(:disabled) { color: var(--text-subtle); }
+/* Weighs more than the chrome :active rule above (0,5,0), so hovering or pressing the raised item keeps its fill. */
+.doan-toggle-group[role="group"] .doan-icon-button[data-ui-placement="chrome"][aria-pressed="true"]:not(:disabled) { background: var(--surface-panel); box-shadow: var(--shadow-panel); color: var(--text-standard); }
+
 /* ── Text fields ─────────────────────────────────────────────────────────────
    An inset fill whose 1px border is always reserved, so focus and errors recolour the
    edge without moving the text. The edge, not an outline, shows focus. */
