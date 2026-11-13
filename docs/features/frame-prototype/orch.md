@@ -30,7 +30,7 @@
 | M | tasks 4 main | `app/src/main/`(창·제공/주입·내비게이션·IPC·읽음 분리), `app/src/preload/`, electron-vite 설정 | C | Opus high — sandbox·sender guard·수명 경합 | `npm --prefix app test`, typecheck, lint (격리 앱 검증표는 M·R 통합 뒤 Task) | 통합 `218e66ee`·`74f705e1`, 실제 앱 미검증 |
 | R | tasks 4 UI + `/design-sync` | `app/src/renderer/`(도구 바·버블·서랍 메타·프로토타입 창 UI), `styles.css`, DESIGN.md | C (실제 앱 확인은 M) | Opus high — 포커스·상태 오버레이·초안 일치 | `npm --prefix app test`, typecheck, lint (`/design-sync`는 M 통합 뒤 Task) | 통합 `e7ca5553`·`42f78d5f`·`2694956d`, shim 제거 Task 진행 |
 | V | `/code-review` | 보고만 | M·R | Opus high — 보안 경계 리뷰 | 🔴 0 | 1회차 🔴 0 · 🟡 5 · ⚪ 6, 수정 라운드 진행(R 진행, M은 probe 뒤) |
-| E | tasks 5 `/agent-eval` | `docs/USABILITY-EVAL.md` | 마지막 통합 직전 | Sonnet medium — 정해진 절차 실행 | 스킬 기준 | 대기 |
+| E | tasks 5 `/agent-eval` | `docs/USABILITY-EVAL.md` | 마지막 통합 직전 | Sonnet high — 정해진 절차지만 실패 분류에 판단이 든다 | 스킬 기준 | 진행(전체 라운드 `frame-prototype-261113`, 시작 시 사용량 Claude 7d 32%·Codex 7d 16%) |
 | D | tasks 6 승격·삭제 | PRODUCT·ARCHITECTURE·DESIGN, 이 디렉터리 | 전부 | conductor | 대조 | 대기 |
 
 ## 겹침과 순서
