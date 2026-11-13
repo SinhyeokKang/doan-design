@@ -46,8 +46,8 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1. `github-star-prompt` | Claude Code · `github-star-prompt-orch` (`feat/github-star-prompt`) | 2026-11-13 | | 진행 |
-| 2. `frame-prototype` | | | | 대기 |
+| 1. `github-star-prompt` | Claude Code · `github-star-prompt-orch` (`feat/github-star-prompt`, worktree 제거) | 2026-11-13 | [#183](https://github.com/SinhyeokKang/doan-design/pull/183) · `956400be` | 병합 |
+| 2. `frame-prototype` | Claude Code · `frame-prototype-orch` (`feat/frame-prototype`) | 2026-11-13 | | 진행 |
 
 ## 인계 기록
 
@@ -59,3 +59,12 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
   4. 링크 2 `/agent-eval`: 마지막 통합 전 실제 Claude Code·Codex 라운드를 승인했다. 사용량은 conductor가 시작할 때 확인한다.
   5. 링크 2 프리셋 크기: 문장을 더해야 하면 conductor가 뜻을 유지한 채 다른 문장을 줄인다. 줄인 내용은 PR 본문에 적는다.
   링크 1 conductor를 시작했다.
+- 2026-11-13 lead: 링크 1 PR #183을 검토했다(범위가 브리프와 맞고, PRODUCT Out of scope 5 문장은 spec의 사용자 결정대로이며, CI `gate` 통과). 병합 커밋은 `956400be`이다. conductor worktree를 제거했고 브랜치 `feat/github-star-prompt`(`f39dbd0a`)와 `SinhyeokKang/github-star-prompt-A`(`0eef76fd`)는 남겼다.
+  - 검증 못 한 것: VoiceOver 실제 낭독, `/Applications` 릴리스 사본에서 실제 턴 세기(단위 테스트로만 고정), 다른 앱 뒤에 있는 실제 창, 다크 모드·강제 색상·투명도 감소. BACKLOG 'Not verified in the real app'에 적혀 있다.
+  - 링크 2가 알아야 할 것(PR #183 본문 'For link 2'):
+    - 토스트: `state.slot`이 키다. 사라지는 토스트는 120 ms 동안 `data-closing`과 `inert` 상태로 DOM에 남는다. `ToastState`에 `slot`·`leaving`이, `ToastEvent`에 `left`가 더해졌다.
+    - `--shadow-floating`: `styles.css`의 `.star-prompt.doan-floating, .toast.doan-floating`에 있다. 모달은 쓰지 않는다.
+    - `index.ts`: `releaseEligibility`를 한 번 계산한다. IPC `star:open`·`star:dismiss`·`star:busy`는 `update:openNotes` 바로 뒤에 있고, 세 채널은 `senderAllowed.ts`에 있다. conversation publish 콜백 끝에서 `starPrompt?.event(event)`를 부른다.
+    - `App.tsx`: `<StarPrompt />`가 마지막 Tab 정지점이다. 그 뒤에 Tab으로 닿는 요소를 더하면 안 된다. 포커스 복원 콜백은 `restoreFloatingFocus`이다.
+    - 캡처 스냅샷: `.star-prompt`가 숨김 목록에 있다(`ds/controls.test.ts`).
+  링크 2 conductor를 시작했다.
