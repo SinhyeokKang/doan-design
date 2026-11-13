@@ -1206,7 +1206,6 @@ class FakeElement {
   }
   get localName() { return this.tagName.toLowerCase(); }
   getAttribute(name: string) { return this.attributes.get(name) ?? null; }
-  getAttributeNS() { return null; }
   setAttribute(name: string, value: string) { this.attributes.set(name, value); }
   append(...els: FakeElement[]) { for (const el of els) { el.parentElement = this; this.children.push(el); } return this; }
 }
@@ -1335,6 +1334,9 @@ describe("isolate.js reports once and keeps the canvas in its document", () => {
       expect(event.prevented, href).toBe(1);
       expect(run.location.hash).toBe("");
     }
+    const svgLink = navEvent([new FakeElement("a", { "xlink:href": "next.html" })]);
+    run.dispatch("click", svgLink);
+    expect(svgLink.prevented).toBe(1);
     const area = navEvent([new FakeElement("AREA", { href: "next.html" })]);
     run.dispatch("click", area);
     expect(area.prevented).toBe(1);

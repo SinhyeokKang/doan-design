@@ -217,9 +217,9 @@ func TestAssemblePrototypeOutputIsPinned(t *testing.T) {
 		proto        Proto
 		want         string
 	}{
-		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", Proto{Frame: "a", Title: `a "&" <b>`}, ""},
-		{"bare", "<p>a & \"b\"</p>", Proto{Frame: "x</script>"}, ""},
-		{"empty", "", Proto{Frame: "checkout", Title: "Checkout"}, ""},
+		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", Proto{Frame: "a", Title: `a "&" <b>`}, "5fef02994adf9d822cdf4609e35f2f25702bc46dbebd3947a6fef172142f35dd"},
+		{"bare", "<p>a & \"b\"</p>", Proto{Frame: "x</script>"}, "bff74ba7041e7f9c73258bb7f85fd34ac1f92441791fd4863346270048f6c1db"},
+		{"empty", "", Proto{Frame: "checkout", Title: "Checkout"}, "4361c36be9d4f6d34fffa71d6a27490625095e287be3aa7a098c3bec1a7da68d"},
 	} {
 		page, err := AssemblePrototype(Meta{Name: "pinned", Width: 320}, c.proto, []byte(c.canvas))
 		if err != nil {
