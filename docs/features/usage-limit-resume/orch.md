@@ -77,3 +77,7 @@
 - VR 재검토: 기존 1~5 종결, 새 발견 0. 보고서 `.scratch/orch/review-VR-2.md`.
 - M 수정 라운드 2 완료(통합 `70b5d147`·`6b999f31`, test 11277 passed). 사람의 일반 Send에도 같은 틈이 있었고 함께 고쳤다(postmortem 후보). VM에 재검토 3을 보냈다.
 - VM 재검토 3: 🔴0 🟡0 ⚪1(실제 호출자가 없는 동기 재진입 probe, 수정 불필요). main 리뷰 종결. VM 워커를 해제하고 `ulr-review-main` worktree를 지웠다(브랜치는 남김, 증거는 `.scratch/orch/vm-evidence/`).
+- S(design-sync) 완료: 39쌍 모두 일치(맥락 차이는 DESIGN.md에 기록), 제품 코드 수정 없음. 통합 `4ee9ca2a`(DESIGN.md). 미확인: 12시간 U+202F 등 다른 시각 문구, Overview 오른쪽 패널 StatusMark와 프로젝트 행 슬롯, 시작 거절 문구. 증거 `.scratch/orch/design-sync-evidence/`.
+- 사용자의 /Applications/Doan.app이 실행 중이며 실제 `ui-state.json`·`sessions.jsonl`·`agent-auth/profiles/codex/` 일부를 스스로 바꾼다(design-sync의 200초 idle 확인과 lsof). 링크 1의 미확인 항목과 같은 원인이다.
+- VR 워커를 해제하고 `ulr-review-renderer` worktree를 지웠다(브랜치는 남김, 증거 `.scratch/orch/vr-evidence/`).
+- T(runtime-test, Opus medium, `ctx_5dc259227cac`, worktree `ulr-runtime`)를 시작했다. lead에 GUI 상태를 알렸다.
