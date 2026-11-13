@@ -11,8 +11,9 @@
   - `prototypeIframeBox`를 대신하는 `prototypeViewportBox(panel, mark, mode)`. Fit 모드(기본)는 표시 크기를 지키고 줄여 보이고, Responsive 모드는 콘텐츠 패널을 채운다.
   - `prototypeCaptureRect(content, mark, mode, sideColumn = 0)`. 이 feature가 `sideColumn`에 대화 열 폭을 넘긴다.
   - main `PrototypeState`의 모드를 `CLOSED`에도 두는 방식. 패널 상태도 같은 자리에 둔다.
+  - 헤더에서 Reload를 아래 툴바 [Reload prototype | Fit, Responsive | Export prototype]로 옮긴 것. 헤더는 Back, Forward, 프레임 이름 버튼이고, 이름 버튼은 왼쪽·오른쪽 164를 비운다. 이 feature는 헤더 오른쪽 끝에 대화 버튼 하나를 더한다(이름 버튼 뒤 8, 오른쪽 inset 16). 그때 360 창의 이름 버튼은 140, 640 창은 312 그대로다(`prototype-responsive` design '헤더').
 - `prototype-cli-export`
-  - 헤더 오른쪽 끝의 Export 버튼과 360 창에서 프레임 이름 버튼 폭(68 px). 이 feature는 그 오른쪽에 대화 버튼을 더한다.
+  - 아래 툴바 끝의 Export prototype. Export는 헤더에 오지 않는다.
   - 프로토타입 창의 토스트 호스트(`Toast.tsx` 재사용)와, `Toast.tsx`가 쓰는 `onWindowVisible`의 프로토타입 preload 판. 이 feature는 그 호스트를 쓰고 새로 만들지 않는다.
   - `doan open --prototype`으로 시작하는 Play. 새 Play 목록에 들어간다.
 - 앞의 두 feature가 계획과 다르게 병합되면 이 문서의 해당 문장을 `/tdd` 전에 고친다.
@@ -49,7 +50,7 @@
 | `app/src/renderer/CanvasConversationPanel.tsx`, `canvasRun.ts`(`conversationResumeTarget`), `dockedSupport.ts`, `useProjectSkills.ts`, `dockedBuddyShell.ts`, `visibleClock.ts`(`onWindowVisible`) | 같은 주입. `CanvasConversationPanel`의 `droppedPath`도 주입한다. 본체가 main 창 전용 부분 없이도 그려지도록 "머리 없는 본체"를 꺼낸다(아래 '패널 본체 나누기') |
 | `app/src/renderer/ConversationThread.tsx` | `answerReached`가 `{error: "stale"}`을 `settleQuestionSend`처럼 실패 없이 다룬다. 지금은 권한 카드에 "Couldn’t send your answer. Choose again."이 떠서, 다른 창이 먼저 답한 경우에 맞지 않는다 |
 | `app/src/renderer/App.tsx` | main 창이 `reveal`을 받아 처리한다(아래 '프로토타입 창 → main 창'). 프로토타입 composer의 Last used 선택을 받아 `rememberChoice`와 `preferenceAfterPick`으로 적용한다 |
-| `app/src/renderer/prototype/PrototypeWindow.tsx`, `WindowShell` | 헤더 오른쪽 끝(Export 다음)의 대화 버튼과 배지, 프레임 열 옆의 대화 열(창 아래 8까지), 리사이즈 손잡이, buddy accent 적용. 토스트는 `prototype-cli-export`의 호스트를 쓴다 |
+| `app/src/renderer/prototype/PrototypeWindow.tsx`, `WindowShell` | 헤더 오른쪽 끝의 대화 버튼과 배지(이름 버튼의 오른쪽 끝을 대화 버튼 앞 8에서 멈춤), 프레임 열 옆의 대화 열(창 아래 8까지), 리사이즈 손잡이, buddy accent 적용. 토스트는 `prototype-cli-export`의 호스트를 쓴다 |
 | `app/src/renderer/prototype/conversation.ts` (새 파일) | 순수 함수 4, 5, 9, 11 |
 | `app/src/renderer/prototype/PrototypeConversation.tsx` (새 파일) | 프로토타입 창의 대화 host: store, 구독(구독 먼저, 그다음 읽기), 재생 프레임 칩, 본체, docked buddy, 칩과 main 창 전용 버튼을 `prototype:reveal`로 보내기 |
 | `app/src/renderer/rendererImports.test.ts` | 이미 `prototype.html`을 entry로 걷는다. 새 import 사슬이 ajv·Node 모듈에 닿지 않는지 그대로 확인한다 |
@@ -136,7 +137,7 @@
 ### 포커스
 
 - 패널을 열면 composer 필드로, 닫으면 대화 버튼으로 포커스가 간다. 대화 버튼은 열림·배지가 바뀌어도 같은 요소다.
-- DOM 순서와 Tab 순서는 헤더 → 모드 툴바 → 프레임 콘텐츠 → 대화 패널이다(spec 결정 16). `prototype-responsive`가 툴바를 DOM에서 `.pw-panel` 앞에 둔 순서를 그대로 두고, 대화 열을 그 뒤에 놓는다.
+- DOM 순서와 Tab 순서는 헤더(Back, Forward, 프레임 이름, 대화 버튼) → 아래 툴바(Reload prototype, Fit/Responsive, Export prototype) → 프레임 콘텐츠 → 대화 패널이다(spec 결정 16). `prototype-responsive`가 툴바를 DOM에서 `.pw-panel` 앞에 둔 순서를 그대로 두고, 대화 열을 그 뒤에 놓는다.
 - 프레임 문서가 다시 로드될 때 캔버스 스크립트의 `focus()`나 `autofocus`가 composer의 포커스를 가져갈 수 있다. 포커스가 대화 열 안에 있는 동안에는 새 run iframe이 포커스를 가져가지 못하게 한다(방법은 PoC에서 정한다: 예를 들어 그 동안 iframe을 `inert`로 두거나, iframe으로 간 포커스를 composer로 되돌림. IME 조합이 끊기지 않는지가 기준이다).
 
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
@@ -173,7 +174,7 @@
 - **PRODUCT §5 item 2 'Prototype window'**
   - "Nothing in the window reaches the main window's selection, `doan active`, drafts, attachments or settings"를 새 경계로 다시 쓴다. 대화는 두 창이 함께 쓰고, 초안·첨부 칩은 창마다 따로이며, Last used 기억이 설정 쪽 예외다. 칩과 main 창 전용 버튼이 main 창을 앞으로 가져와 옮긴다. 같은 줄의 "viewing a canvas only there does not mark it seen"은 그대로 둔다.
   - 'Independence'의 "only a new play … changes its frame"은 그대로 둔다. 거기에 "프로토타입 창이 main 창을 바꾸는 길은 칩과 main 창 전용 버튼 클릭뿐"을 더한다.
-  - 'Header'의 Tab 순서에 대화 버튼과 대화 패널을 더한다: 헤더 → 모드 툴바 → 프레임 콘텐츠 → 대화 패널(`prototype-responsive`가 적을 순서 뒤에 패널을 붙인다).
+  - 'Header'의 Tab 순서에 대화 버튼과 대화 패널을 더한다: Back, Forward, 프레임 이름, 대화 버튼 → 아래 툴바 → 프레임 콘텐츠 → 대화 패널(`prototype-responsive`가 적을 순서에 대화 버튼과 패널을 넣는다).
 - **PRODUCT §5 'Text edit menu'**: "Inside the canvas iframe, the thumbnail window and the prototype window … there is no menu" → 프로토타입 창의 main frame(헤더와 패널)에는 메뉴가 있고, 그 프레임 콘텐츠에는 없다.
 - **PRODUCT §5 item 2 'Conversation panel' 'Seen'**("only while its canvas page shows it in the unfolded panel and the window has focus")과 **item 0 'Notifications'**("Doan notifies only while its main window is not active"): 포커스된 프로토타입 창이 열린 패널에 보여 주는 대화를 더한다.
 - **PRODUCT §3 Out of scope**: 해당하는 항목이 없다. 사람의 메시지만 턴을 시작하고, 칩과 Open은 이동일 뿐이라 Out of scope 4(자율 wake-up)에 걸리지 않는다. 스코프 게이트 통과.

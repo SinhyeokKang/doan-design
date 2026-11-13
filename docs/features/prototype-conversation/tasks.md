@@ -1,6 +1,6 @@
 # prototype-conversation — tasks
 
-**형제 의존**: 세 prototype feature는 `prototype-responsive` → `prototype-cli-export` → `prototype-conversation` 순서로 구현하고 병합한다(직렬 체인, spec 결정 18). 이 feature는 앞의 두 feature가 develop에 넣은 모드 툴바 줄과 창 맞춤 높이 + 122, `prototypeViewportBox`, `prototypeCaptureRect`의 `sideColumn`, 프로토타입 창 토스트 호스트와 `onWindowVisible`, 헤더의 Export 버튼, `doan open --prototype` 위에 선다(design.md '형제 feature와의 의존'). 시작할 때 그 이름과 모양이 develop과 맞는지 먼저 보고, 다르면 design.md를 고친다.
+**형제 의존**: 세 prototype feature는 `prototype-responsive` → `prototype-cli-export` → `prototype-conversation` 순서로 구현하고 병합한다(직렬 체인, spec 결정 18). 이 feature는 앞의 두 feature가 develop에 넣은 모드 툴바 줄과 창 맞춤 높이 + 122, `prototypeViewportBox`, `prototypeCaptureRect`의 `sideColumn`, 프로토타입 창 토스트 호스트와 `onWindowVisible`, 아래 툴바 [Reload prototype | Fit, Responsive | Export prototype]와 Reload가 빠진 헤더, `doan open --prototype` 위에 선다(design.md '형제 feature와의 의존'). 시작할 때 그 이름과 모양이 develop과 맞는지 먼저 보고, 다르면 design.md를 고친다.
 
 포맷과 fixture 변경은 없다. PoC → 초안 → 순수 함수 → 주입 리팩터 → main·preload(I/O) → UI → 문서 순서로 간다. 프롬프트·guide·CLI 출력이 바뀌지 않으므로 `/agent-eval`은 하지 않는다.
 
@@ -10,7 +10,7 @@
   - 프로토타입 창 페이지에 docked composer, thread, docked buddy를 가짜 호출 객체로 띄워 Radix popover, chip field 입력과 IME, WebGL buddy, `context-menu` 리스너, 프로토타입 창을 부모로 둔 Attach 대화상자가 그 partition과 CSP에서 동작하는지.
   - 검증: 명령 미정 — 사용자 확인 필요(안: `node .scratch/prototype-conversation/probe.mjs`, 스크린샷 포함). 실패하면 design.md를 고치고 멈춘다. 관찰(통과·실패·날짜)은 feature 문서에 적는다.
 - [ ] 2. `/design-draft`로 새 초안 `.doan/canvases/prototype-conversation.html`을 그리고 사용자 확인을 받는다. 기존 `frame-prototype.html`, `doan-canvas-conversation.html`과 형제 feature의 초안은 고치지 않는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`. 프레임:
-  - 헤더 오른쪽 끝 [Export] [대화 버튼]: 닫힘, 열림, 답 대기 점, 작업 중 배지, 안 읽음 말풍선.
+  - 헤더 [Back, Forward, 프레임 이름 버튼 … 대화 버튼]: 대화 버튼의 닫힘, 열림, 답 대기 점, 작업 중 배지, 안 읽음 말풍선. 360 창(이름 버튼 140)과 640 창(312). 아래 툴바 [Reload prototype | Fit, Responsive | Export prototype]는 형제 초안 그대로 둔다.
   - 360/480 창에서 열어 640이 된 모습, 640 이상 창에서 열린 모습과 최대폭, 작업 영역이 640보다 좁은 화면. 모드 툴바 줄이 프레임 열에만 있고 대화 열이 창 아래 8까지 내려간 모습. Fit 모드와 Responsive 모드에서 각각.
   - 머리 없는 패널: 대화 있음, 제안 프롬프트가 있는 새 대화 상태, 터미널 세션 선택, 목록 loading, 목록 읽기 실패(오류 줄과 Retry, 막힌 composer), 캔버스 막힘. docked buddy.
   - 고정 재생 프레임 칩(보통, loading, Frame unavailable), 보낸 메시지의 맨 앞 칩, 두 창에서 같은 질문 카드, 32개 한도 거절.
@@ -49,7 +49,7 @@
   - 커밋 경계: main·preload.
 - [ ] 7. UI: 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`.
   - `PrototypeConversation.tsx`: store, 구독 먼저·읽기 나중, target이 바뀔 때 갈아타기, 지운 대화 정리, 초안 옮기기, `markSeen`과 `prototype:showing`, 칩과 main 창 전용 버튼 → `prototype:reveal`, 목록 읽기 실패 줄과 Retry.
-  - `PrototypeWindow.tsx`·`WindowShell`: 헤더 대화 버튼과 배지, 프레임 열 옆 대화 열(창 아래 8까지), 손잡이, buddy accent, DOM·Tab 순서(헤더 → 모드 툴바 → 프레임 콘텐츠 → 패널).
+  - `PrototypeWindow.tsx`·`WindowShell`: 헤더 대화 버튼과 배지, 프레임 열 옆 대화 열(창 아래 8까지), 손잡이, buddy accent, DOM·Tab 순서(Back, Forward, 이름, 대화 버튼 → 아래 툴바 → 프레임 콘텐츠 → 패널).
   - `App.tsx`: `reveal` 처리(`revealDecision`), Last used 적용.
   - 테스트:
     - `renderer/prototype/PrototypeConversation.test.tsx`: 초안 분리(spec '패널 내용'), 배지와 접근 이름, 돌아온 초안은 먼저 보여 준 창이 가져감, 구독이 읽기보다 먼저(target 전환 때도), 지운 대화는 `deleted()`로 정리, `window.doan` 없이 렌더됨, 목록 읽기 실패 때 composer가 막힘.
@@ -57,7 +57,7 @@
     - App 테스트: 같은 캔버스 locate, 다른 캔버스 열기와 이동, 대상 없음("No longer in the canvas"), 캔버스를 찾지 못한 토스트, 첫 실행·페이지 잠금·dialog 중 "Couldn’t show …" 토스트(아무것도 취소되지 않음), 숨긴 main 창 보이기, Sign in과 Open들이 main 창의 같은 함수로 가는지.
     - Last used: 손대지 않은 프로토타입 composer 마운트는 아무것도 기억하지 않고, Settings의 네 모양에서 다른 것을 골라도 고정값이 바뀌지 않는다(POSTMORTEM 2026-11-06 두 항목). 저장된 provider가 하나일 때 pick이 provider를 바꾼다.
   - 커밋 경계: UI.
-- [ ] 8. `/design-sync`로 초안과 실제 앱의 헤더 버튼과 배지, 패널 폭(360·480·640 이상, 최대폭), 머리 없는 패널의 위쪽 여백, 대화 열 아래 끝, 고정 칩, docked buddy를 맞추고 DESIGN.md 'Frame prototype'에 잰 값을 적는다. 검증: `node .scratch/design-sync/prototype-conversation/measure.mjs`.
+- [ ] 8. `/design-sync`로 초안과 실제 앱의 헤더 대화 버튼과 배지, 360 창 이름 버튼 140, 패널 폭(360·480·640 이상, 최대폭), 머리 없는 패널의 위쪽 여백, 대화 열 아래 끝, 고정 칩, docked buddy를 맞추고 DESIGN.md 'Frame prototype'에 잰 값을 적는다. 검증: `node .scratch/design-sync/prototype-conversation/measure.mjs`.
 - [ ] 9. `/runtime-test`: 격리 앱에서 확인한다. 검증: `/runtime-test` 스크린샷과 probe 결과가 아래 기대값과 같다.
   - Responsive 모드에서 360과 480 창에서 Show conversation을 누르면 창이 640, 패널이 280, 프레임 `innerWidth`가 344가 되고 포커스가 composer에 있다. 640 이상 창은 크기가 그대로다. 패널을 닫아도 창 크기가 그대로다. 패널이 열린 채 드로어로 다른 프레임을 고르면 창이 표시 + 패널 폭, 높이 표시 + 122가 된다. Fit 모드에서는 패널을 열어도 `innerWidth`가 표시 폭으로 남고 프레임이 줄어 보인다.
   - 실패·lost로 바뀌며 찍힌 정지 이미지에 패널 글이 없다.
