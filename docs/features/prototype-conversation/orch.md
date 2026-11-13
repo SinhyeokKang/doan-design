@@ -39,3 +39,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 10은 리뷰 행과 conductor�
 - 마지막: 통합 전체 리뷰, `/verify`, 문서 승격, 기능 디렉터리 삭제, PR.
 
 ## 진행 기록
+- Run `run_5d7cc862a3b3`. P(`ctx_020a88944e06`, worktree `pcv-p`), M(`ctx_fc3d827698c9`, `pcv-m`), R(`ctx_cc4a43ae2c10`, `pcv-r`)를 `b04ca1dc`에서 시작했다. 모두 Claude Opus high(`launch` 확인). lead에 P의 `GUI again`을 알렸다.
