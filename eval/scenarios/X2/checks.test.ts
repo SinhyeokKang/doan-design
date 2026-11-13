@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import checks from "./checks.ts";
@@ -48,4 +48,13 @@ test("X2 rejects viewer bytes even when the prototype CLI reference regresses to
   assert.deepEqual(failures([command], missingTitle, [], missingTitle), ["output_not_canvas_viewer"]);
   const missingNotice = prototype.replace("Open this file in a web browser to play this prototype.", "");
   assert.deepEqual(failures([command], missingNotice, [], missingNotice), ["output_not_canvas_viewer"]);
+}));
+
+test("X2 accepts an absolute canvas path through a repository symlink alias", () => withOutput((failures, repo, dir) => {
+  mkdirSync(join(repo, ".doan/canvases"), { recursive: true });
+  writeFileSync(join(repo, path), "canvas");
+  const alias = join(dir, "alias");
+  symlinkSync(repo, alias);
+  assert.deepEqual(failures([command.replace(path, join(alias, path))], prototype), []);
+  assert.deepEqual(failures([command.replace(path, join(alias, ".doan/canvases/other.html"))], prototype), ["prototype_export_command"]);
 }));

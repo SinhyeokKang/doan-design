@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Checks } from "../../lib/types.ts";
-import { prototypeCalls } from "../../lib/prototype.ts";
+import { prototypeCalls, prototypeCanvasPath } from "../../lib/prototype.ts";
 
 const path = ".doan/canvases/onboarding.html";
 const frame = "signup-phone";
@@ -11,7 +11,7 @@ const checks: Checks = ctx => {
   const viewerReference = resolve(ctx.repo, "..", "reference-canvas-viewer.html");
   const calls = prototypeCalls(ctx.calls.commands, "export");
   const asked = calls.some(call => call.prototype && call.frame === frame && call.path !== undefined
-    && resolve(ctx.repo, call.path) === resolve(ctx.repo, path));
+    && prototypeCanvasPath(ctx.repo, call.path) === prototypeCanvasPath(ctx.repo, path));
   const page = existsSync(output) ? readFileSync(output) : null;
   let same = false, detail = "no output file", notViewer = false, pageDetail = "no output file";
   if (page) {

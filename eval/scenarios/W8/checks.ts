@@ -1,6 +1,5 @@
-import { resolve } from "node:path";
 import type { Checks } from "../../lib/types.ts";
-import { prototypeCalls } from "../../lib/prototype.ts";
+import { prototypeCalls, prototypeCanvasPath } from "../../lib/prototype.ts";
 import { contentHash } from "../../lib/work.ts";
 
 const path = ".doan/canvases/onboarding.html";
@@ -8,7 +7,7 @@ const frame = "signup-phone";
 
 const checks: Checks = ctx => {
   const calls = prototypeCalls(ctx.calls.commands, "open");
-  const asked = calls.some(call => call.prototype && call.frame === frame && call.path !== undefined && resolve(ctx.cwd, call.path) === resolve(ctx.repo, path));
+  const asked = calls.some(call => call.prototype && call.frame === frame && call.path !== undefined && prototypeCanvasPath(ctx.repo, call.path) === prototypeCanvasPath(ctx.repo, path));
   const received = ctx.prototype();
   const final = contentHash(ctx.read(path));
   const played = final !== null && received.some(e => e.request.root === ctx.repo && e.request.path === path && e.request.frame === frame

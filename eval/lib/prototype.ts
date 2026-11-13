@@ -1,3 +1,5 @@
+import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
 import { commandWords, doanCommand, doanPositionals } from "./transcript.ts";
 
 export interface PrototypeCall { path: string | undefined; frame: string | undefined; prototype: boolean; output: string | undefined }
@@ -19,4 +21,12 @@ export function prototypeCalls(commands: string[], command: "open" | "export"): 
     }
     return { path: doanPositionals(words)?.[1], frame, prototype, output };
   });
+}
+
+export function prototypeCanvasPath(repo: string, path: string): string {
+  const absolute = resolve(repo, path);
+  try { return realpathSync(absolute); } catch {
+    // Missing paths still need deterministic comparison for command evidence.
+    return absolute;
+  }
 }
