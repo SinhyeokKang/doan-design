@@ -19,6 +19,9 @@
   - `ScheduledItem.turnId?`: 실패한 턴의 메시지를 되풀이하는 항목(들어가는 길 2)에만 둔다. renderer는 그 항목이 있는 동안 그 턴의 Edit and resend를 숨긴다. 근거: renderer는 계약만으로 자동 예약 행과 나중에 누른 Queue 행을 구별할 수 없다.
   - 12/24시간: 이 Mac에서 macOS 24시간 설정(`AppleICUForce24HourTime = 1`)인데 Electron renderer의 Intl은 h12로 풀린다(측정, `.scratch/orch/hc/`). 그래서 main이 `systemPreferences`로 읽어 `additionalArguments`로 넘기고 preload가 동기 값으로 내놓는다. 설정을 바꾸면 재시작 뒤 반영된다.
   - R이 초안에 없는 상태에 고른 문구(리셋 뒤 슬롯 “Queued — sending”, 초안과 예약 메시지가 함께 있을 때의 삭제 줄)를 받아들인다(clarify 프리셋을 읽고 고른 것).
+- **사용자 결정(M 인계의 두 질문)**:
+  - 한도로 끝난 턴의 사용량 읽기는 Agent usage의 5분 간격을 건너뛴다(숨김·차단·읽는 중이면 여전히 읽지 않는다). 승격 때 PRODUCT §5 item 0에 예외로 적는다.
+  - Codex 사용량 창은 `rateLimitReachedType`이 있을 때뿐 아니라 `usedPercent`가 100 이상이면 limited다. Agent usage도 그 창을 'Limit reached'로 보인다. 근거: 이 Mac의 실제 Codex 기록에서 막힌 계정의 스냅샷이 `used_percent: 100`, `rate_limit_reached_type: null`이었다.
 - 구현 배치는 Claude, 독립 리뷰는 Codex로 섞는다(conductor 판단 — 사용자의 이전 지시 '주 업무는 Claude, 리뷰에 Codex를 섞는다').
 - tasks 9(`/verify`와 문서 승격)는 conductor가 통합 뒤에 한다.
 
@@ -55,3 +58,5 @@
 - M·R을 병렬로 시작했다(run `run_2f3bf8784f31`, M `ctx_09ae75aadc68` worktree `ulr-main`, R `ctx_ab72b7ab767c` worktree `ulr-renderer`, 둘 다 `launch.effective` 확인).
 - M의 IPC 타입 커밋을 먼저 통합했다(`97864b00`, typecheck 통과).
 - R 1부 완료(`1eae1f9b`까지 4커밋, test 416 files·11175 passed, typecheck 0, lint 80/80). 미룬 연결 작업을 2부로 보냈다(`ctx_a43548b38383`). 계약 보완 2를 M에 보냈다.
+- M 완료(`b3faab39`까지 7커밋, test 418 files·11198 passed, typecheck·lint 통과). 통합 `a23c68a8`까지. M의 인계는 `.scratch/handoff-M.md`(ulr-main).
+- VM(Codex gpt-6-astra medium, `ctx_49d98a6954f9`, worktree `ulr-review-main`)을 시작했다. 사용자 결정 두 개를 M 후속 Task로 보냈다(`ctx_b531db015c42`).
