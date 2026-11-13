@@ -1095,3 +1095,80 @@ test("a stale list read does not bring back a cleared suggestion", async () => {
   await flush();
   expect(shown()).toBe("Now tighten the footer");
 });
+
+// Quick Open's pick carries the root and the canvas rows it searched, not the view at the time of the click.
+test("a Quick Open pick opens a canvas conversation's matched row from the rows it searched, waiting or not", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "w", phase: "waiting", canvas: { path: ".doan/canvases/a.html", id: "a" } }), summary({ conversationId: "e", canvas: { path: ".doan/canvases/b.html", id: "b" } })] });
+  const h = harness([list(ROOT, [])]);
+  h.run.entriesChanged();
+  await flush();
+  const rows = [row("a"), row("b")];
+  expect(h.run.openFound(ROOT, "w", rows)).toBe("opened");
+  expect(h.host.openCanvas).toHaveBeenLastCalledWith(ROOT, rows[0], { conversationId: "w", waiting: true });
+  expect(h.run.openFound(ROOT, "e", rows)).toBe("opened");
+  expect(h.host.openCanvas).toHaveBeenLastCalledWith(ROOT, rows[1], { conversationId: "e", waiting: false });
+  expect(h.host.openOverview).not.toHaveBeenCalled();
+});
+
+test("a Quick Open pick of a project conversation asks for it on its Overview and says once it arrived whether it waits", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p" }), summary({ conversationId: "q", phase: "waiting" })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  const arrived = vi.fn();
+  expect(h.run.openFound(ROOT, "p", [], arrived)).toBe("opened");
+  expect(h.host.openOverview).toHaveBeenLastCalledWith(ROOT, expect.any(Function), expect.any(Function), "p");
+  expect(arrived).not.toHaveBeenCalled();
+  expect(h.accept()).toBe(true);
+  expect(arrived).toHaveBeenLastCalledWith(false);
+  expect(h.run.openFound(ROOT, "q", [], arrived)).toBe("opened");
+  h.accept();
+  expect(arrived).toHaveBeenLastCalledWith(true);
+});
+
+test("a Quick Open pick that can no longer be opened goes nowhere and says why", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "gone", canvas: { path: ".doan/canvases/gone.html", id: "gone" } }), summary({ conversationId: "dup", canvas: { path: ".doan/canvases/a.html", id: "a" } })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  const twin: CanvasRow = { path: ".doan/canvases/copy.html", id: "a", url: "u" };
+  expect(h.run.openFound(ROOT, "deleted", [row("a")])).toBe("deleted");
+  expect(h.run.openFound(OTHER, "dup", [row("a")])).toBe("deleted");
+  expect(h.run.openFound(ROOT, "gone", [row("a")])).toBe("missing");
+  expect(h.run.openFound(ROOT, "dup", [row("a"), twin])).toBe("duplicate");
+  expect(h.host.openCanvas).not.toHaveBeenCalled();
+  expect(h.host.openOverview).not.toHaveBeenCalled();
+});
+
+// The notification and strip Open keep the shipped lookup: a shared id opens the first matching row, and a conversation
+// bound without an id matches by path (Quick Open alone refuses those through conversationCanvasMatch).
+test("a notification Open of a canvas conversation whose id is shared opens the first matching row, and an id-less one opens by path", async () => {
+  const twin: CanvasRow = { path: ".doan/canvases/copy.html", id: "a", url: "u" };
+  lists({ [ROOT]: [summary({ conversationId: "dup", canvas: { path: ".doan/canvases/a.html", id: "a" } }), summary({ conversationId: "legacy", canvas: { path: ".doan/canvases/b.html" } })] });
+  const h = harness([{ kind: "list", path: ROOT, servedRev: 0, canvases: [row("a"), twin, row("b")] }]);
+  h.run.entriesChanged();
+  await flush();
+  h.run.openConversation("dup");
+  expect(h.host.openCanvas).toHaveBeenLastCalledWith(ROOT, row("a"), { conversationId: "dup", waiting: false });
+  h.run.openConversation("legacy");
+  expect(h.host.openCanvas).toHaveBeenLastCalledWith(ROOT, row("b"), { conversationId: "legacy", waiting: false });
+  expect(h.host.openOverview).not.toHaveBeenCalled();
+});
+
+// App's askConversation scrolls the Overview to the request only when the listed phase waits; arrived must follow the
+// same rule, or a strip that already asks while the list lags would get neither the card nor the composer.
+test("a Quick Open pick of a project conversation says it waits by the listed phase, the rule the Overview's scroll uses", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
+  h.arrive();
+  h.run.event(event("c1", { type: "turn.started" }));
+  h.run.event(event("c1", { type: "permission.request", requestId: "r1", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] }));
+  expect(h.run.strip(ROOT)?.state.kind).toBe("permission");
+  lists({ [ROOT]: [summary({ conversationId: "c1", phase: "ended" })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  const arrived = vi.fn();
+  expect(h.run.openFound(ROOT, "c1", [], arrived)).toBe("opened");
+  h.accept();
+  expect(arrived).toHaveBeenLastCalledWith(false);
+});

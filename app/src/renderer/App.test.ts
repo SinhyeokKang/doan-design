@@ -1,5 +1,5 @@
 import { expect, it, test, vi } from "vitest";
-import { App, menuCommand } from "./App";
+import { App, conversationOpenRefusal, menuCommand } from "./App";
 
 const harness = vi.hoisted(() => ({ effects: [] as (() => (() => void) | undefined)[], dispose: vi.fn(), command: vi.fn(), updateEntries: vi.fn() }));
 vi.mock("react", async importOriginal => ({
@@ -73,4 +73,13 @@ it("routes each menu command to its own handler, and an unknown or removed comma
   // View > Hide/Show Sidebar (⌘B).
   menuCommand("toggleSidebar", to);
   expect(to.toggleSidebar).toHaveBeenCalledOnce();
+});
+
+test("a Quick Open conversation that can no longer be opened names its quoted title and the cause", () => {
+  expect(conversationOpenRefusal("deleted", "Tighten the checkout copy", "acme-web")).toBe("Couldn’t open “Tighten the checkout copy”. It was deleted.");
+  expect(conversationOpenRefusal("missing", "Tighten the checkout copy", "acme-web")).toBe("Couldn’t open “Tighten the checkout copy”. The canvas isn’t in acme-web.");
+  expect(conversationOpenRefusal("duplicate", "Tighten the checkout copy", "acme-web")).toBe("Couldn’t open “Tighten the checkout copy”. More than one canvas in acme-web uses this ID. Run doan check in a terminal to find them.");
+  expect(conversationOpenRefusal("deleted", "Onboarding checklist for teams invited from the admin console, with the empty state", "acme-web"))
+    .toBe("Couldn’t open “Onboarding checklist for teams invited from the admin consol…”. It was deleted.");
+  expect(conversationOpenRefusal("deleted", "  ", "acme-web")).toBe("Couldn’t open this conversation. It was deleted.");
 });
