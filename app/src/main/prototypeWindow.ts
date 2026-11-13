@@ -34,6 +34,9 @@ export interface PrototypeWindowDeps {
   reread(root: string): void;
   // The prototype window gained or lost focus: menu items of the main window go off while it has it.
   focusChanged?(focused: boolean): void;
+  // The whole app is hidden (⌘H). `doan open --prototype` can play while it is, and a window's show alone was not
+  // seen to bring a hidden app back.
+  appHidden?(): boolean;
 }
 
 export interface PrototypeWindow {
@@ -175,8 +178,14 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     const devUrl = process.env.ELECTRON_RENDERER_URL;
     if (!app.isPackaged && devUrl) void created.loadURL(new URL("prototype.html", devUrl).toString());
     else void created.loadFile(fileURLToPath(new URL("../renderer/prototype.html", import.meta.url)));
+    unhide();
     created.show();
     created.focus();
+  }
+
+  // app.show() brings back only the windows ⌘H hid, so a main window closed before it stays closed.
+  function unhide(): void {
+    if (deps.appHidden?.() === true) app.show();
   }
 
   const host: PrototypeHost = {
@@ -191,6 +200,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       const target = live();
       if (target === undefined) return;
       if (target.isMinimized()) target.restore();
+      unhide();
       target.show();
       target.focus();
     },

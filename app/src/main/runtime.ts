@@ -8,6 +8,7 @@ import type { HandoffErrorCode, HandoffRequest, HandoffResponse, OpenRequest, Op
 import { validateHandoffRequest, validateOpenRequest, validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
 import { autoRegisterRoot } from "./autoFolders";
 import type { ConversationUpdate } from "./conversationWork";
+import type { CliPlayResponse } from "./prototype/cliPlay";
 import type { FolderState } from "./folderState";
 
 // Electron-free on purpose, like shell.ts: index.ts supplies the open projects
@@ -38,6 +39,9 @@ export interface RuntimeState extends ActiveState {
   // Called only with a schema-valid v5 request whose token matched and whose root is registered: the conversation
   // service's checks from the key on (ConversationService.requestHandoff), null when it took the request.
   handoff(request: HandoffRequest): HandoffRefusalCode | null;
+  // `doan open --prototype` (app-socket v6) once its schema, token and registered root passed. Answers at once: the
+  // play starts, or the window comes forward, before the reply.
+  playPrototype(request: unknown): CliPlayResponse;
   // Auto-registration of a saved repository's worktree on a v3 start (ARCHITECTURE §4 'Auto-registration'): the registered roots,
   // `doan ls --json --repo <root>` (never killed early, so a late registration still lands), and the registration,
   // which must make `isOpen(root)` true before it returns so the start's work applies.

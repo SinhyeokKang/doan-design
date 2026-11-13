@@ -7,7 +7,7 @@ import type { Rect } from "./fit";
 import { PROTOTYPE_CHANNELS, type PrototypeMode, type PrototypeSnapshot, type PrototypeView } from "./ipc";
 import type { PrototypeSize } from "./mark";
 import { parseChooseRequest, parseFramesReport, parseModeRequest, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
-import { resolveTarget } from "./targets";
+import { resolveTarget, type PrototypeTarget } from "./targets";
 import * as transitions from "./windowState";
 import { CLOSED, type PrototypeState, type Resolve, type Step } from "./windowState";
 
@@ -32,8 +32,14 @@ export interface Still {
   box: Rect;
 }
 
+// `played`: the window opened or moved to the frame; `activated`: it was playing already and only came forward;
+// `refused`: the canvas is no longer a target (its row went, or its ID is now shared).
+export type CliPlayResult = "played" | "activated" | "refused";
+
 export interface PrototypeController {
   play(kind: WindowKind, value: unknown): void;
+  // `doan open --prototype`, already judged against main's list (cliPlay.ts).
+  playFromCli(request: { target: PrototypeTarget; size: PrototypeSize }): CliPlayResult;
   // Every `prototype:*` request of the prototype window; `read`'s reply is the view, every other reply is undefined.
   request(channel: string, kind: WindowKind, value: unknown): PrototypeView | null | undefined;
   listChanged(): void;
@@ -128,6 +134,13 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     play(kind, value) {
       const request = validatePlay(kind, value, entries());
       if (request !== null) apply(transitions.play(state, request, resolve));
+    },
+    playFromCli(request) {
+      const step = transitions.play(state, request, resolve);
+      if (step === null) return "refused";
+      const activated = step.state === state;
+      apply(step);
+      return activated ? "activated" : "played";
     },
     request(channel, kind, value) {
       switch (channel) {

@@ -2,10 +2,11 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { answerLine, AUTO_REGISTER_WAIT_MS } from "./runtime";
 import type { OnboardingResponse, OpenResponse } from "../formats/types";
 import type { FolderState } from "./folderState";
+import { cliPlayError } from "./prototype/cliPlay";
 const token = "secret", root = "/repo", path = ".doan/canvases/a.html";
 const request = { v: 3, token, root, action: "start", path };
 const state = () => ({ isOpen: vi.fn((value: string) => value === root), selection: () => null, work: vi.fn(), conversationWork: vi.fn(), onboarding: async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } }),
-  open: async (): Promise<OpenResponse> => ({ v: 4, ok: false, error: { code: "busy", message: "unused" } }), handoff: () => null,
+  open: async (): Promise<OpenResponse> => ({ v: 4, ok: false, error: { code: "busy", message: "unused" } }), handoff: () => null, playPrototype: () => cliPlayError("not_ready", "unused"),
   roots: () => [root], readRoot: vi.fn(async (): Promise<FolderState> => ({ kind: "uninitialized" })), adopt: vi.fn() });
 test("v3 validates schema, then token, then registered root, before applying work", async () => {
   const service = state();

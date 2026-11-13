@@ -94,6 +94,8 @@ import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, work
 import { applyConversationWork, endConversationWork, type ConversationWork } from "./conversationWork";
 import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
 import { createPrototypeWindow } from "./prototypeWindow";
+import { CLI_PLAY_NOT_FOUND, cliPlayDecision, cliPlayError, type CliPlayResponse } from "./prototype/cliPlay";
+import { validateCliPlay } from "./prototype/requests";
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
@@ -303,6 +305,16 @@ function fromWindow(event: IpcMainInvokeEvent): boolean {
   return win !== undefined && !win.isDestroyed() && fromAppFrame(event, win);
 }
 
+// `doan open --prototype` (app-socket v6): the same readiness as `doan open`, but only first run and the buddy screen
+// block it, since the prototype window plays apart from the main window's pages and dialogs.
+function playPrototype(value: unknown): CliPlayResponse {
+  const request = validateCliPlay(value);
+  if (request === null) return cliPlayError("bad_request", "The request is not an app-socket v6 request.");
+  const decision = cliPlayDecision({ ready: openLinksReady(), firstRun: onboardingOpen || buddyIntroOpen, entries: shell?.entries() ?? [], request });
+  if (decision.kind === "refuse") return decision.response;
+  return prototype.controller.playFromCli(decision) === "refused" ? CLI_PLAY_NOT_FOUND : { v: 6, ok: true, played: true };
+}
+
 // The single-frame prototype window: made on the first Play, apart from `win`'s lifecycle and sender guard.
 const prototype = createPrototypeWindow({
   entries: () => shell?.entries() ?? [],
@@ -310,6 +322,7 @@ const prototype = createPrototypeWindow({
   closed: () => send(PROTOTYPE_CHANNELS.closed),
   denyPermissions,
   reread: root => shell?.reread([root]),
+  appHidden: () => appHidden,
   focusChanged(focused) {
     if (focused === prototypeFocused) return;
     prototypeFocused = focused;
@@ -848,6 +861,7 @@ async function start(): Promise<void> {
     open: request => openCanvasRequests.open(request),
     // Before the conversation service exists no conversation holds a key.
     handoff: request => conversations ? conversations.requestHandoff(request) : "not_app_conversation",
+    playPrototype,
     async onboarding(request) {
       const service = await onboardingStarted;
       // start keeps the session and its input; the window comes forward only when Doan is
