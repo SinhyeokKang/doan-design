@@ -5,8 +5,19 @@
 - **D1 상한**: 턴 하나가 시작하는 핸드오프 대화 수에 상한을 두지 않는다. 이유: 사용자가 "몇 개든"이라고 했고, 핸드오프는 사람이 보낸 메시지의 턴에서만 생긴다.
 - **D2 큐**: 모든 요청이 해결된 뒤 한 번만 처리한다. 요청이 하나면 지금과 같다. 둘 이상이면 취소가 하나라도 있으면 초안, 아니면 소스. 이유: 메시지가 어느 캔버스를 향하는지 Doan이 알 수 없고, Stop이나 sign-out 직후 큐가 전송되면 안 된다.
 - **D3 화면**: 시작된 것이 둘 이상이면 이동하지 않는다. 소스 캔버스 페이지에 있으면 아무것도 띄우지 않고, 다른 곳이면 요약 토스트 하나(“<source file> handed off to <n> canvases”, Open은 소스). 이유: 큐가 소스로 가므로 화면도 소스에 둬야 맞고, 요청 순서는 에이전트가 정한 것이라 사람이 관심 있는 캔버스라는 보장이 없다.
-- **D4 누락 줄**: “Didn’t hand off to <file>. The agent didn’t ask to.” + Open(그 캔버스, Quick Open 경로). 아이콘은 기존 거절 줄과 같은 `ban`. 이유: 기존 핸드오프 줄과 같은 첫 단어로 훑어 읽을 수 있고, Open은 Doan이 이미 제공하는 이동이라 에이전트를 깨우겠다는 약속이 아니다(clarify preset).
+- **D4 누락 줄**: “Didn’t hand off to <file>. The agent didn’t ask to.” + Open(그 캔버스, Quick Open 경로). 아이콘은 기존 거절 줄과 같은 `ban`. 그 캔버스가 나중에 사라지면 Open을 숨기고 “It’s no longer in <project>.” 문장을 덧붙인다(마침표로 끝나는 줄이라 “ · No longer in” 접미사를 쓰지 않는다). 이유: 기존 핸드오프 줄과 같은 첫 단어로 훑어 읽을 수 있고, Open은 Doan이 이미 제공하는 이동이라 에이전트를 깨우겠다는 약속이 아니다(clarify preset).
 - **D5 안내 범위**: 이번 턴에 만든 모든 새 캔버스에 핸드오프한다. 사람이 하지 말라고 하거나 머물라고 할 때만 예외다. 그런 턴에도 누락 줄은 사실대로 나온다.
+
+## 드래프트 요청
+
+- 캔버스 `.doan/canvases/multi-handoff.html`, id `multi-handoff`, 너비 1440. 기존 `canvas-handoff.html`(develop에 나간 화면의 드래프트)은 고치지 않는다. 스레드, 줄, 토스트의 모양은 `ConversationThread.tsx`, `App.tsx`, DESIGN.md 'Canvas handoff'에서 그대로 베끼고, 값은 `tokens.css` 토큰만 쓴다.
+- 프레임(모두 새 프레임이고 `/design-sync`가 비교한다):
+  1. `source-multi-pending`: 턴이 끝난 직후 “Hands off to …” 줄 세 개가 연달아 있는 소스 스레드.
+  2. `source-multi-resolved`: 섞인 결과. Handed off 두 개(Open), Didn’t hand off(현재 대화 있음), Handed off · No longer in, 누락 줄(Open).
+  3. `source-missed-only`: 요청이 없던 턴. 누락 줄 두 개이고, 그중 하나는 캔버스가 사라져 Open 없이 “… It’s no longer in <project>.”(D4).
+  4. `toast-multi`: 다른 페이지에서 뜨는 요약 토스트 “<source file> handed off to 3 canvases”와 Open, 그리고 소스가 사라진 뒤 Open의 “Couldn’t open …”.
+- 단일 핸드오프 상태는 기존 드래프트와 같으므로 다시 그리지 않는다.
+- 사용자가 앱에서 드래프트를 확인하고 확정했다. 구현은 이 드래프트를 기준으로 하고, `/design-sync`가 네 프레임을 비교한다.
 
 ## 영향받는 구성 요소
 

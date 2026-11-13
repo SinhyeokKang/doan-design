@@ -19,7 +19,7 @@
 4. **소스 스레드의 줄**: 요청마다 줄 하나를 요청한 자리에 보여 준다(“Hands off to <file> when this turn ends” → “Handed off to <file>” / “Didn’t hand off to <file>. …”). 기존 단일 핸드오프의 문구와 동작은 그대로다. 줄의 Open 버튼은 접근 이름에 파일 이름을 담는다(“Open <file>”).
 5. **기록 형식**: `handoff.resolved` 이벤트는 어느 요청의 결과인지 캔버스 경로로 밝힌다. 경로가 없는 기존 기록은 그 턴의 유일한 요청에 대한 결과로 읽는다.
 6. **안내**: `HANDOFF_GUIDANCE`는 "이번 턴에 `.doan/canvases/`에 만든 새 캔버스마다, 마지막 단계에서 연달아 `doan handoff`를 한 번씩 실행하라. 사람이 핸드오프하지 말라고 하거나 이 캔버스에 머물라고 하면 하지 마라"고 안내한다. Send now로 끼어든 메시지의 프롬프트도, 그 턴에 이미 요청이 있었더라도 이 안내를 유지한다.
-7. **누락 줄**: 턴을 보낼 때 `HANDOFF_GUIDANCE`를 받은 턴이 done으로 끝났을 때, 다음을 모두 만족하는 캔버스마다 소스 스레드에 줄을 하나씩 보여 준다. 문구는 “Didn’t hand off to <file>. The agent didn’t ask to.”이고 Open이 있다(그 캔버스를 Quick Open처럼 연다). Doan은 이 캔버스에 대화를 시작하지 않는다.
+7. **누락 줄**: 턴을 보낼 때 `HANDOFF_GUIDANCE`를 받은 턴이 done으로 끝났을 때, 다음을 모두 만족하는 캔버스마다 소스 스레드에 줄을 하나씩 보여 준다. 문구는 “Didn’t hand off to <file>. The agent didn’t ask to.”이고 Open이 있다(그 캔버스를 Quick Open처럼 연다). 그 캔버스가 나중에 사라지면 Open을 숨기고 “It’s no longer in <project>.”를 덧붙인다. Doan은 이 캔버스에 대화를 시작하지 않는다.
    - 그 턴의 활동 기록에 edit 경로로 보고됐다.
    - 턴 시작 때 없던 캔버스이고, 판정 때 목록에 하나뿐이다.
    - 소스 캔버스가 아니고, 그 턴에 핸드오프 요청이 없었고, 판정 때 현재 대화가 없다.

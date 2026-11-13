@@ -48,7 +48,7 @@
      - 경로 없는 기존 `handoff.resolved` → 유일한 줄.
      - 섞인 결과(started·refused·cancelled·missed)의 문구.
      - `missed` 줄이 다음 사용자 메시지 뒤에 도착해도 그 턴 위치에 그려진다.
-     - `missed` Open이 캔버스를 연다. 캔버스가 사라졌으면 Open을 숨기고 “ · No longer in <project>”를 붙인다.
+     - `missed` Open이 캔버스를 연다. 캔버스가 사라졌으면 Open을 숨기고 “It’s no longer in <project>.”를 덧붙인다.
      - Open의 접근 이름은 “Open <file>”.
      - 다중 알림: 소스 페이지면 이동도 토스트도 없다. 다른 곳이면 요약 토스트 하나이고, 그 Open은 소스로 간다.
      - 단일 알림은 지금과 같다.
