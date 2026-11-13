@@ -29,7 +29,7 @@
     - 첨부가 그 사이에 사라졌을 때, 256 MiB 기록 한도 거절.
     - 재시작 뒤 초안.
   - 커밋 경계: main.
-- [ ] 6. renderer: Queue 버튼, 예약 행과 상태 줄, 마지막 행 제거 뒤 포커스, Control+Enter, 실패 줄, 슬롯, 삭제 확인창, Home 거절 문구. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
+- [ ] 6. renderer: Queue 버튼, 예약 행과 상태 줄, 마지막 행 제거 뒤 포커스, Control+Enter, 실패 줄과 예약 중 Edit and resend 숨김, 슬롯, 대화 메뉴 `StatusMark`, 삭제 확인창, Home 거절 문구. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
   - `conversationStore.test.ts`: `scheduled` 응답과 main이 만든 예약 읽기, POSTMORTEM 2026-11-05의 `readsStarted` 경로.
   - `DockedComposer.queue.test.tsx`: Queue 버튼, 행, 상태 줄, Control+Enter.
   - `ConversationThread.test.tsx`: 실패 줄.
@@ -47,7 +47,7 @@
     - §3 Out of scope 4(예외 문장).
     - In scope 6("the one exception to Out of scope 4").
     - §4 Loop 4("apart from a handoff").
-    - §5 item 1 대기열 규칙과 사이드바 슬롯 규칙.
+    - §5 item 1 대기열 규칙, 사이드바 슬롯 규칙, 대화 메뉴 상태 표시.
     - §5 item 3 한도 문단과 삭제 확인창.
   - ARCHITECTURE §7: 리셋 시각 출처(Agent usage 재사용), 연결별 한도 상태, 예약 상태와 IPC, 타이머와 `powerMonitor`.
   - DESIGN.md: Queue 버튼, 예약 상태 줄, 슬롯.
