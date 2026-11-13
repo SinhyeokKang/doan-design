@@ -47,3 +47,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 10은 리뷰 행과 conductor�
 - conductor 판단 — PoC의 두 설계 변경을 받아들인다. 근거: design이 방법을 PoC에 맡겼고("방법은 PoC에서 정한다"), 최소폭 자르기는 spec 결정 4의 "작업 영역 폭까지만 넓힌다"를 따른다. 남는 한계: 새 run이 보이고 1초가 지난 뒤 캔버스가 부르는 `focus()`는 막지 않는다. PR 본문에 적는다.
 - task 1의 체크는 비워 둔다. 작업 영역이 640보다 좁은 실제 화면과 macOS 실제 한국어 입력기는 보지 못했다. 실제 입력기는 task 9에서 본다.
 - M에 창 넓히기 순서(미룬 항목)를 보냈다(`msg_9fd6b70c6aa4`). lead에 `GUI done`을 알렸다. P 워커를 release하고 worktree `pcv-p`를 지웠다(브랜치 `SinhyeokKang/pcv-p` `8c38b98b` 유지). probe와 스크린샷은 conductor `.scratch/prototype-conversation/`에 복사했다.
+- R 리뷰 1회차(Codex): 🔴 0, 🟡 1(현재 목록에 제목 없는 프레임 행이 있어도 `playingFrameChip`이 이전 제목을 붙인다), ⚪ 2(headless 테스트가 기존 대화 전송·큐와 첨부 해제 경로를 `window.doan` 없이 실행하지 않는다 / 두 worktree 사이 목록 귀속은 U host가 맞춘다). 계획과 다른 점 다섯은 모두 수용. 🟡1과 ⚪1을 R-fix1(`ctx_0bca00c8a5f7`)로 보냈다. ⚪2는 U 브리프에 넣는다.
