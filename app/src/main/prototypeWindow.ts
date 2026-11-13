@@ -145,6 +145,10 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       if (isMainFrame || code < 400 || run === null || !sameUrl(url, run.url) || !directChild(processId, routingId)) return;
       controller.readFailed(run.gen, status ? `HTTP ${code} ${status}` : `HTTP ${code}`);
     });
+    // A dead host renderer cannot show or report anything; the window goes by the normal closed path.
+    contents.on("render-process-gone", () => {
+      if (window === created && !created.isDestroyed()) created.destroy();
+    });
     created.on("close", () => {
       if (window !== created) return;
       closing = true;
