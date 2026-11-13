@@ -28,12 +28,20 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 1. **실제 앱 확인 창**: 모든 링크가 PoC, `/design-sync`, `/runtime-test`에서 격리된 dev 앱 창을 띄운다(`app/runtime/` 격리, 임시 HOME·userData·SHELL·DOAN_RUNTIME). 링크 1은 두 conductor가 동시에 창을 띄울 수 있다.
 2. **`prototype-conversation` PoC 검증 명령**: tasks 1의 검증이 "명령 미정 — 사용자 확인 필요"다(안: `node .scratch/prototype-conversation/probe.mjs`, 스크린샷 포함).
 3. **`/agent-eval`**: `multi-handoff`(R10·R11, tasks 10)와 `prototype-cli-export`(guide 변경, X2·W8, tasks 11)는 패키지한 CLI로 실제 Claude Code와 Codex를 돌린다. 실제 에이전트 상태를 건드리고 `python3.12`가 필요하다. 다른 계열이 각 실행을 판정하는 것은 AGENTS.md의 상시 예외다.
-4. **로그인**: 네 feature의 tasks에 provider 로그인이 필요한 확인은 없다. conductor가 필요하다고 판단하면 그때 묻는다.
+4. **로그인**: 네 feature의 tasks에 provider 로그인이 필요한 확인은 없지만, 사용자는 Claude Code와 Codex 로그인을 미리 준비하기로 했다('로그인').
 
 ## 상시 권한
 
 - lead는 각 링크의 PR을 검토와 게이트 통과 뒤 링크 순서대로 develop에 병합하고, 다음 링크를 시작한다. 링크 1은 1a, 1b 순으로 병합하고, 둘 다 병합한 뒤 링크 2를 시작한다.
 - conductor 런타임은 Claude Code다. 사용자가 모든 링크에 Codex 워커를 허용했다(Claude 워커와 함께 쓴다). conductor는 링크를 시작할 때와 배치를 나눌 때 Codex의 남은 사용량을 확인하고, 각 링크의 `orch.md`에 실제로 쓴 범위를 적는다. `/agent-eval`의 상시 예외는 이와 별개다.
+
+## 로그인
+
+- probe는 실제 HOME의 provider 로그인(Keychain)을 쓴다. 임시 HOME에서는 로그인이 실패한다.
+- lead가 시작 점검에서 Claude Code와 Codex 로그인을 만든다. 승인은 사용자가 자기 브라우저에서 한다.
+- 로그인한 userData는 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`에 둔다. 링크마다 worktree가 따로 있으므로 이 절대 경로를 쓴다.
+- 링크는 이 프로필을 재사용한다. 망가질 수 있는 probe는 복사본을 쓴다. 새 로그인을 묻기 전에 아직 연결되어 있는지 확인한다. 링크마다 로그아웃하지 않는다.
+- 마지막 링크의 PR이 오면 lead가 앱에서 로그아웃하고, Keychain 항목이 사라졌는지 확인한 뒤 userData를 지우고 나서 병합한다.
 
 ## 진행 규칙
 
@@ -58,3 +66,4 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 ## 인계 기록
 
 - 2026-11-13 lead(develop checkout): 사용자 요청으로 체인 파일을 미리 썼다. 체인 261113-2를 마무리하고 릴리스한 뒤 시작한다. 시작할 때 시작 점검을 한 번에 묻는다.
+- 2026-11-13 lead(develop checkout): 사용자가 시작 점검을 승인했다. 1) 격리 앱 창 승인, 2) `prototype-conversation` PoC 검증 명령은 `node .scratch/prototype-conversation/probe.mjs`(스크린샷 포함), 3) `/agent-eval` 승인, 4) Claude Code와 Codex 로그인을 lead가 미리 준비한다. 0.1.11 릴리스는 main 병합과 태그를 마쳤고 release run이 진행 중이다. 체인은 그와 무관하게 시작한다.
