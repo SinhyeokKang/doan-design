@@ -439,3 +439,29 @@ describe("scheduled rows", () => {
     expect(h.ids()).toEqual([]);
   });
 });
+
+// The row that repeats a failed turn's own message (main's turnId) hides that turn's Edit and resend until it is removed.
+test("Edit and resend hides while the failed turn's own message waits, and returns once its row is removed", async () => {
+  history = [event({ type: "user.message", text: "Draw it", anchors: [] }), event({ type: "turn.started" }), event({ type: "turn.failed", code: "rate_limited" })];
+  doan.scheduledMessages = vi.fn(async () => [{ itemId: "s1", text: "Draw it", anchors: [], attachments: [], turnId: "t1" }]);
+  const list: ListView = [summary({ phase: "ended", working: false, queued: 1, scheduledAt: "2026-11-13T06:00:00.000Z" })];
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  store.track(A); await flush();
+  store.readScheduled(ROOT, A);
+  await flush();
+  expect(store.resendHidden(A)).toBe(true);
+  store.unqueued(A, "s1");
+  expect(store.resendHidden(A)).toBe(false);
+});
+
+test("a row without the failed turn's id leaves Edit and resend", async () => {
+  history = [event({ type: "user.message", text: "Draw it", anchors: [] }), event({ type: "turn.started" }), event({ type: "turn.failed", code: "rate_limited" })];
+  doan.scheduledMessages = vi.fn(async () => [{ itemId: "s1", text: "Later", anchors: [], attachments: [] }]);
+  const list: ListView = [summary({ phase: "ended", working: false, queued: 1, scheduledAt: "2026-11-13T06:00:00.000Z" })];
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  store.track(A); await flush();
+  store.readScheduled(ROOT, A);
+  await flush();
+  expect(store.resendHidden(A)).toBe(false);
+});
+

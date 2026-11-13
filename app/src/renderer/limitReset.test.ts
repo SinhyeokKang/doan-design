@@ -1,5 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { liveReset, queueButtonHint, queueStatusLine, resetTimeText, scheduledSlot, waitsForReset, type Clock } from "./limitReset";
+import { describe, expect, test, vi } from "vitest";
+import { liveReset, localClock, queueButtonHint, queueStatusLine, resetTimeText, scheduledSlot, waitsForReset, type Clock } from "./limitReset";
 
 const SEOUL: Clock = { timeZone: "Asia/Seoul", hour12: true };
 const NNBSP = " ";
@@ -107,3 +107,14 @@ describe("waitsForReset and liveReset", () => {
     expect(liveReset(undefined, NOW, SEOUL)).toBeNull();
   });
 });
+
+describe("localClock", () => {
+  test("takes macOS's hour cycle from the preload value, and the locale's without it", () => {
+    vi.stubGlobal("window", { doan: { clockHour12: false } });
+    try { expect(localClock().hour12).toBe(false); } finally { vi.unstubAllGlobals(); }
+    vi.stubGlobal("window", { doan: { clockHour12: true } });
+    try { expect(localClock().hour12).toBe(true); } finally { vi.unstubAllGlobals(); }
+    expect(typeof localClock().hour12).toBe("boolean");
+  });
+});
+
