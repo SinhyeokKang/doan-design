@@ -11,6 +11,7 @@ spec.md '결정'(사용자 확인)을 구현하는 방법이다. 용어는 spec.
 - `app/src/main/prototype/windowState.ts`: `OpenState.run`은 `{url, markWidth}`이고 표시 높이는 없다. `start`는 표시 크기를 모르면(읽기 실패 뒤 `listChanged`) `markWidth`를 0으로 둔다. `report`는 ready 크기로 `markWidth`만 바꾼다. `start`의 `base`와 `close`는 state를 펼치지 않고 새 객체를 만든다. `ClosedState`는 `gen`과 `history`만 갖는다.
 - `senderAllowed.ts`와 `index.ts`는 프로토타입 창 요청 목록을 `PROTOTYPE_WINDOW_REQUESTS`에서 만든다. 요청별 처리는 `controller.ts`의 `request` switch에 있다. 목록은 `ipc.test.ts`(목록 `toEqual`)와 `preload/prototype.test.ts`(채널 집합)가 고정한다.
 - `prototypeScript.ts`는 프레임이 viewport 폭을 채우고 높이는 최소 viewport 높이가 되게 한다. 그래서 iframe 크기가 곧 프레임의 viewport다.
+- 프로토타입 창 헤더(`WindowShell`): traffic light 자리, `.shell-history` 안의 Back, Forward, Reload prototype(`IconTip` tooltip, `disabled={view === null}`, `onReload`가 `api.reload(gen)`을 부름), 그리고 `FrameMenu`(이름 버튼). 실패 장면의 Retry도 같은 `onReload`를 부른다. `.pw-name`의 `left`·`right`는 버튼 3개 폭으로 계산하고(`styles.css` 1827행), 520보다 좁으면 오른쪽 끝이 16 inset까지 물러난다(1832행).
 - 캔버스 툴바: `app/src/renderer/CanvasTools.tsx`, `styles.css`의 `.doan-canvas-tools`, DESIGN.md 'Canvas area and right panel' 'Tools row'(`.doan-floating` 90 % 흰 유리, `--blur-sm`, `--shadow-panel`, radius 24, inset 4, gap 2, 40 px `md` 버튼, 눌린 버튼은 hover·누르는 동안에도 `--affordance-backdrop-pressed`).
 
 ## 영향 범위
@@ -26,11 +27,11 @@ spec.md '결정'(사용자 확인)을 구현하는 방법이다. 용어는 spec.
 | `app/src/preload/prototype.ts` | `setMode` |
 | `app/src/renderer/prototype/host.ts` | 순수 함수 5 |
 | `app/src/renderer/prototype/view.ts` | 순수 함수 6 |
-| `app/src/renderer/prototype/PrototypeWindow.tsx` | `WindowShell`의 툴바 줄과 새 컴포넌트 `PrototypeModeTools`, `ContentPanel`의 폭·높이 측정과 iframe별 상자(`transform: scale`), 툴바 tooltip Esc와 드로어 닫기 연결 |
+| `app/src/renderer/prototype/PrototypeWindow.tsx` | `WindowShell` 헤더에서 Reload를 빼고, 툴바 줄과 새 컴포넌트 `PrototypeTools`([Reload | Fit, Responsive | Export 자리])를 둔다. `ContentPanel`의 폭·높이 측정과 iframe별 상자(`transform: scale`), 툴바 tooltip Esc와 드로어 닫기 연결 |
 | `app/src/renderer/CanvasTools.tsx` → 새 `app/src/renderer/toolbarKeys.ts` | `moveBetweenTools`를 옮겨 두 툴바가 같은 함수를 쓴다. 캔버스 툴바 동작은 바뀌지 않는다 |
-| `app/src/renderer/styles.css` | `.pw`의 셋째 줄(툴바 줄), 툴바 자리(`.pw-tools`), 패널 안 프레임 배치, `.pw-panel`의 `overflow: clip` |
+| `app/src/renderer/styles.css` | `.pw`의 셋째 줄(툴바 줄), 툴바 자리(`.pw-tools`), 패널 안 프레임 배치, `.pw-panel`의 `overflow: clip`, `.pw-name`의 `left`·`right`(버튼 3개 → 2개)와 좁은 창 경계(520 → 448) |
 
-`senderAllowed.ts`, `index.ts`, CLI(Go), 스킬, guide, 공유 스키마, 프로토타입 창 헤더는 바뀌지 않는다.
+`senderAllowed.ts`, `index.ts`, CLI(Go), 스킬, guide, 공유 스키마는 바뀌지 않는다. Reload의 IPC(`prototype:reload`)와 main 쪽 처리도 그대로다.
 
 ## 툴바 줄
 
@@ -45,14 +46,14 @@ spec.md '결정'(사용자 확인)을 구현하는 방법이다. 용어는 spec.
 ### 툴바 줄과 대화 열
 
 - 툴바 줄은 프레임 열(콘텐츠 패널)에만 있고, 형제 feature `prototype-conversation`의 대화 열은 지금처럼 헤더 아래에서 창 아래 8까지 내려간다.
-- 이유: 헤더가 창 전체 폭인 것은 그 컨트롤(Back, Forward, Reload, 프레임 이름, Export, 대화 버튼)이 창 전체에 작용하기 때문이다. 모드 툴바는 프레임에만 작용하므로, 캔버스 툴바가 보드에 속하듯이 프레임 열에 속한다. 창 전체 폭으로 두면 대화 열이 58만큼 짧아져 thread와 composer가 공간을 잃고, 툴바를 어느 폭의 가운데에 둘지도 흐려진다.
+- 이유: 헤더가 창 전체 폭인 것은 그 컨트롤(Back, Forward, 프레임 이름, 대화 버튼)이 창 전체(재생 기록, 프레임 선택, 대화 열)에 작용하기 때문이다. 툴바의 Reload, Fit, Responsive, Export는 재생 중인 프레임에만 작용하므로, 캔버스 툴바가 보드에 속하듯이 프레임 열에 속한다. 창 전체 폭으로 두면 대화 열이 58만큼 짧아져 thread와 composer가 공간을 잃고, 툴바를 어느 폭의 가운데에 둘지도 흐려진다.
 - 그래서 대화 패널을 열면 툴바 줄은 프레임 열과 함께 좁아지고, 툴바는 그 가운데로 옮겨 간다. 대화 열의 손잡이는 프레임 열과 대화 열 사이에 있으므로 툴바와 겹치지 않는다.
 - 형제 feature의 창 맞춤 규칙(패널을 연 채 Play하면 표시 + chrome + 패널 폭)에서 "chrome" 높이는 이 feature의 + 122를 쓴다. 형제 feature의 폭 규칙(360·640)은 바뀌지 않는다.
-- 콘텐츠 패널이 가장 좁을 때(360 창에서 344)에도 92 폭 캡슐은 들어간다.
+- 콘텐츠 패널이 가장 좁을 때(360 창에서 344)에도 198 폭 툴바는 들어간다(양옆 73). 대화 패널이 열린 창에서는 형제 feature가 프레임 쪽을 360 아래로 줄이지 않으므로 마찬가지다. 작업 영역이 640보다 좁아 프레임 쪽이 360보다 좁아지는 경우(그쪽 spec)에도 198 이상이면 들어간다. 그보다 좁을 때 툴바를 어떻게 둘지는 `/design-draft`에서 정한다.
 
 ### 토스트
 
-- 형제 feature가 이 창에 두는 토스트(오른쪽 아래 16, 폭 384, z-index 6)는 폭이 약 892보다 좁은 창에서 툴바 줄의 툴바와 겹칠 수 있다. 받아들인다(결정 11).
+- 형제 feature가 이 창에 두는 토스트(오른쪽 아래 16, 폭 384, z-index 6)는 폭이 약 998보다 좁은 창에서 툴바와 겹칠 수 있다(토스트 왼쪽 끝 창폭 − 400이 툴바 오른쪽 끝 창폭 ÷ 2 + 99보다 왼쪽일 때. Export 전 145 툴바면 약 945). 받아들인다(결정 11).
 
 ## 모드별 iframe 상자
 
@@ -76,26 +77,54 @@ spec.md '결정'(사용자 확인)을 구현하는 방법이다. 용어는 spec.
 - 캡처: main은 run이 ready에서 벗어날 때 iframe 영역을 찍는다. 사각형은 순수 함수 2가 `PROTOTYPE_CHROME`(헤더, 옆 여백, 툴바 줄)과 순수 함수 1의 보이는 상자로 정한다. 툴바는 패널 밖에 있으므로 찍히지 않는다. 형제 feature의 대화 패널이 develop에 있으면 이 feature가 콘텐츠 패널 폭에서 대화 열 폭을 뺀다(그쪽 문서에는 capture 변경이 없다).
 - 정지 이미지 자리: main이 찍을 때 쓴 패널 기준 상자를 `PrototypeSnapshot.box`로 함께 보내고, renderer는 그 값을 그대로 쓴다(순수 함수 5). 최신 이미지를 같은 gen으로 다시 보낼 때(kill 뒤)도 처음 찍을 때의 상자를 쓴다. 도착할 때 다시 계산하면 `fit` effect나 다시 보내기 뒤에 상자가 틀어진다. 모드를 바꿔도 정지 이미지는 그 자리에 남는다.
 
-## 모드 툴바
+## 프로토타입 툴바
+
+### 내용과 폭
+
+- 툴바는 [Reload prototype | Fit, Responsive | Export prototype]이다(결정 12). 캔버스 툴바처럼 무리 사이에 `.doan-canvas-tools-sep`(폭 1, 양옆 margin 4, `role="separator"`)을 둔다.
+- 폭: 테두리 1 + inset 4 + Reload 40 + 2 + 구분선 9 + 2 + Fit 40 + 2 + Responsive 40 + 2 + 구분선 9 + 2 + Export 40 + inset 4 + 테두리 1 = 198. 같은 셈으로 캔버스 툴바의 실측값(Capture area 이전 187 × 50: 버튼 4개와 구분선 1개)이 나오는 것을 확인했다. Export가 없을 때(`prototype-cli-export` 전)는 둘째 구분선과 Export가 빠져 145다.
+- 360 창의 콘텐츠 패널 344 안에서 198 툴바는 양옆 73을 남긴다.
 
 ### 자리와 모습
 
-- 툴바 줄의 가운데(프레임 열 기준), 위 여백 8에 둔다. 캔버스 툴바의 모습을 그대로 쓴다(결정 2): `.doan-floating` 캡슐 92 × 50(테두리 1 + inset 4 + 40 + 2 + 40 + inset 4 + 테두리 1), `doan-icon-button doan-canvas-tool` `data-ui-size="md"` 버튼, `.doan-canvas-tools`의 규칙(아이콘 색, 눌린 버튼 채움 유지, 간격 2), `role="toolbar"`와 `aria-label` "Prototype viewport", `aria-pressed`, 눌린 버튼만 `tabIndex=0`, ←/→ 이동(`moveBetweenTools`를 `toolbarKeys.ts`로 옮겨 함께 쓴다), 공유 `Tooltip`·`TooltipTrigger`(asChild).
-- 컴포넌트는 새로 둔다(`PrototypeModeTools`). `CanvasTools`는 Select/Hand 목록, Picker, Capture area, Play, Export, docked buddy 자리, 캔버스 Esc 단계를 props로 묶은 캔버스 전용 컴포넌트라서 두 버튼만 꺼내 쓸 수 없다. 공용 컴포넌트로 나누는 리팩터는 하지 않는다.
+- 툴바 줄의 가운데(프레임 열 기준), 위 여백 8에 둔다. 캔버스 툴바의 모습을 그대로 쓴다(결정 2): `.doan-floating` 캡슐(50 높이), `doan-icon-button doan-canvas-tool` `data-ui-size="md"` 버튼, `.doan-canvas-tools`의 규칙(아이콘 색, 눌린 버튼 채움 유지, 간격 2, `aria-disabled` 버튼의 색과 커서), 구분선, `role="toolbar"`와 `aria-label` "Prototype tools", 공유 `Tooltip`·`TooltipTrigger`(asChild).
+- 컴포넌트는 새로 둔다(`PrototypeTools`). `CanvasTools`는 Select/Hand 목록, Picker, Capture area, Play, Export, docked buddy 자리, 캔버스 Esc 단계를 props로 묶은 캔버스 전용 컴포넌트라서 그대로 쓸 수 없다. 공용 컴포넌트로 나누는 리팩터는 하지 않는다. `PrototypeTools`는 `reload`(쓸 수 있는지, 누를 때), `mode`(지금 모드, 표시 크기, 바꿀 때), `exporter`(없으면 둘째 구분선과 Export를 그리지 않음)를 받는다. `exporter`의 모양은 `prototype-cli-export`가 정한다.
 - 클래스는 그대로 붙인다(`doan-floating doan-canvas-tools`). 그러면 `styles.css`의 툴바 규칙이 같은 값으로 걸린다. 캔버스 자리에만 걸리는 규칙(`.doan-canvas-bottom > …`)은 `.pw-tools` 자리 규칙으로 따로 둔다.
-- 빼는 것: 키 tooltip(`has-key`와 `doan-kbd`, 단축키가 없으므로), docked buddy 자리, 구분선, 캔버스 Esc 단계.
-- 아이콘은 lucide 1.61.0(앱 의존성)에 있는 후보 `Proportions`, `Scaling`, `Shrink`, `MoveHorizontal`, `Expand` 중에서 `/design-draft`에서 고른다.
-- view가 오기 전에는 두 버튼 모두 `disabled`이고 `aria-pressed`가 둘 다 false다. 같은 컴포넌트 트리 안에서 속성만 바꾼다(아래 POSTMORTEM 2026-11-13).
+- 빼는 것: 키 tooltip(`has-key`와 `doan-kbd`, 단축키가 없으므로), docked buddy 자리, 캔버스 Esc 단계.
+- 모드 아이콘은 lucide 1.61.0(앱 의존성)에 있는 후보 `Proportions`, `Scaling`, `Shrink`, `MoveHorizontal`, `Expand` 중에서 `/design-draft`에서 고른다. Reload는 지금처럼 `RotateCw`다.
+
+### Reload prototype
+
+- 헤더의 Reload를 툴바 첫 버튼으로 옮긴다. 이름과 tooltip "Reload prototype", `RotateCw`, `disabled={view === null}`, 누르면 `onReload`(지금처럼 현재 gen으로 `api.reload`)는 그대로다. main의 `reload` 처리(다시 시작, 창 크기 유지, 기록 없음)와 실패 장면의 Retry가 같은 `onReload`를 쓰는 것도 그대로다. 새로 더하는 것은 모드 유지(위 '모드 상태와 IPC')와 아래 포인터 규칙뿐이다.
+- 눌림 상태가 없는 동작 버튼이고 `aria-pressed`를 두지 않는다. 캔버스 툴바의 Play prototype처럼 `tabIndex=-1`이고 ←/→로 닿는다.
+
+### Fit, Responsive
+
+- `aria-pressed`, 눌린 버튼만 `tabIndex=0`. view가 오기 전에는 두 버튼 모두 `disabled`이고 `aria-pressed`가 둘 다 false다. 같은 컴포넌트 트리 안에서 속성만 바꾼다(아래 POSTMORTEM 2026-11-13).
+
+### Export 자리
+
+- 툴바 끝에 둘째 구분선과 Export 버튼 자리를 둔다. 이름("Export prototype"), 쓸 수 없는 이유(`aria-disabled`와 sr-only 설명), 저장 패널, 토스트, 저장 패널 뒤 포커스 복귀, 포인터 포커스는 `prototype-cli-export`가 정한다. 이 feature가 정하는 것은 자리, 모습(`doan-canvas-tool` md), `tabIndex=-1`과 ←/→로 닿는 것뿐이다.
+- 구현 순서는 이 feature → `prototype-cli-export` → `prototype-conversation`이다(`prototype-cli-export` design.md). 이 feature가 합쳐질 때 툴바는 145 폭의 [Reload | Fit, Responsive]다.
+
+### 키보드
+
+- 툴바 전체가 Tab 정지 하나다. 캔버스 툴바처럼 Tab 정지는 눌린 모드 버튼이 갖고, ←/→가 Reload, Fit, Responsive, Export 사이를 오간다(`moveBetweenTools`를 `toolbarKeys.ts`로 옮겨 함께 쓴다. 그 함수는 `disabled` 버튼을 건너뛰고 `aria-disabled` 버튼에는 닿는다).
+- 버튼마다 Tab 정지를 두지 않는 이유: 캔버스 툴바와 같은 모델이라 앱 안에서 하나만 배우면 되고, 프레임 콘텐츠 앞에 Tab 정지가 하나만 늘어난다.
+- view가 오기 전에는 모든 버튼이 `disabled`라서 툴바에 Tab 정지가 없다. 지금 헤더의 Reload가 `disabled`일 때 Tab에서 빠지는 것과 같다.
+- DOM에서 툴바를 `.pw-panel`보다 앞에 두고, grid로 아래 줄에 놓는다. 그래서 Tab 순서는 헤더(Back, Forward, 이름, 대화 버튼) → 툴바 → 프레임 콘텐츠 → 형제 feature의 대화 패널이다. 프레임은 Tab 정지가 많을 수 있어서, 툴바를 그 뒤에 두면 닿기 어렵다. overlay가 덮은 동안은 헤더 → 툴바 → 장면 버튼(Retry, Close, Details)이다. 보이는 자리(아래)와 Tab 순서(콘텐츠 앞)가 다른 점은 `/design-draft`에서 확인한다.
+- 형제 feature의 "Tab 순서는 헤더 → 프레임 콘텐츠 → 패널"은 툴바를 헤더와 콘텐츠 사이에 넣어도 그대로 성립한다.
 
 ### 포인터와 포커스
 
-- 버튼의 `mousedown`에서 `preventDefault()`를 불러 포인터 누름이 포커스를 옮기지 않게 한다(결정 10). 클릭은 그대로 모드를 바꾼다. 그래서 프레임 iframe 안 입력의 포커스와 blur로 닫히는 메뉴가 남는다. 툴바에는 키보드로만 포커스가 온다. iframe 안에 포커스가 있을 때 바깥 문서의 `mousedown` 기본 동작을 막으면 포커스가 iframe에 남는지는 PoC로 확인한다.
-- DOM에서 툴바를 `.pw-panel`보다 앞에 두고, grid로 아래 줄에 놓는다. 그래서 Tab 순서는 헤더 → 툴바(눌린 버튼 하나) → 프레임 콘텐츠 → 형제 feature의 대화 패널이다. 프레임은 Tab 정지가 많을 수 있어서, 툴바를 그 뒤에 두면 닿기 어렵다. overlay가 덮은 동안은 헤더 → 툴바 → 장면 버튼(Retry, Close, Details)이다. 보이는 자리(아래)와 Tab 순서(콘텐츠 앞)가 다른 점은 `/design-draft`에서 확인한다.
-- 형제 feature의 "Tab 순서는 헤더 → 프레임 콘텐츠 → 패널"은 툴바를 헤더와 콘텐츠 사이에 넣어도 그대로 성립한다.
+- Reload, Fit, Responsive의 `mousedown`에서 `preventDefault()`를 불러 포인터 누름이 포커스를 옮기지 않게 한다(결정 10). 클릭은 그대로 일어난다.
+- 모드 전환에서는 프레임 iframe 안 입력의 포커스와 blur로 닫히는 메뉴가 남는다.
+- Reload에서는 run이 새 iframe으로 바뀌므로, 프레임 안에 있던 포커스는 이전 iframe이 빠질 때 페이지로 떨어진다. 지금 헤더의 Reload를 눌렀을 때 포커스가 Reload에 남는 것과 다르다. 툴바의 한 규칙을 지키고, 포커스가 Reload에 남아 다음 Space가 프레임 대신 Reload를 다시 누르는 일을 막기 위해서다. 새 run이 실패 장면을 띄우면 지금 규칙대로 포커스가 장면 제목으로 간다(`focusWasInside`가 페이지로 떨어진 포커스를 안쪽으로 본다).
+- 툴바에는 키보드로만 포커스가 온다. iframe 안에 포커스가 있을 때 바깥 문서의 `mousedown` 기본 동작을 막으면 포커스가 iframe에 남는지는 PoC로 확인한다.
 
 ### 상태 overlay와 Esc
 
-- 로딩·실패·lost overlay는 콘텐츠 패널만 덮는다. 툴바 줄은 패널 밖이므로 overlay와 겹치지 않고, `.pw-content`의 `inert`에도 들지 않는다. overlay의 padding과 스크롤은 지금 그대로다.
+- 로딩·실패·lost overlay는 콘텐츠 패널만 덮는다. 툴바 줄은 패널 밖이므로 overlay와 겹치지 않고, `.pw-content`의 `inert`에도 들지 않는다. overlay의 padding과 스크롤은 지금 그대로다. 실패 화면에서는 툴바의 Reload와 장면의 Retry가 같은 일을 한다.
 - Esc: 프로토타입 창의 Esc는 드로어를 닫거나 프레임 콘텐츠로 간다(PRODUCT §5 item 2). 툴바 tooltip이 열린 채 Esc를 누르면 Radix가 tooltip을 닫는다. 프레임 드로어는 non-modal Popover라서, 드로어도 열려 있을 때 Radix는 tooltip만 닫는다. 그래서 툴바 tooltip의 `onEscapeKeyDown`이 드로어가 열려 있으면 드로어도 닫고 포커스를 프레임 이름에 둔다. 드로어 열림 상태는 `WindowShell`이 툴바와 드로어에 함께 넘긴다. 캔버스 툴바의 캔버스 Esc 단계는 연결하지 않는다. 툴바에 포커스가 있고 tooltip이 없을 때 Esc는 아무 일도 하지 않는다.
 
 ### 그리는 층
@@ -104,9 +133,12 @@ spec.md '결정'(사용자 확인)을 구현하는 방법이다. 용어는 spec.
 
 ## 헤더
 
-- 이 feature는 헤더를 바꾸지 않는다. 형제 feature들이 더하는 [Export][대화 버튼]만 있을 때 360 창을 계산했다.
-- 이름 버튼 왼쪽 끝은 창에서 200이다(DESIGN.md 'Frame name': `.pw` 8 + 헤더 padding 8 + traffic light 72 + 버튼 32 × 3 + 간격 4 × 2 + 8). 오른쪽 그룹은 32 + 4 + 32 = 68이고, 창 오른쪽 inset은 16이다(`.pw` 8 + 헤더 padding 8). 이름 버튼과 그룹 사이 간격을 왼쪽과 같은 8로 두면 360 창에서 이름 버튼 폭은 360 − 200 − 8 − 68 − 16 = 68이다.
-- 68 폭 안에서 `.shell-search`의 padding 10 × 2, 간격 8, chevron 16을 빼면 글자 자리는 24다. 버튼은 들어가고, 이름은 2–3글자와 말줄임표로 보이며, 잘리면 지금처럼 tooltip이 전체 이름을 보인다. 지금 360 창의 이름 버튼(144)보다 76 좁아지는 것은 형제 feature들의 변경 때문이고, 그 폭은 두 feature가 정한다.
+- 헤더는 Back, Forward, 프레임 이름 버튼, (형제 feature의 대화 버튼)이다. Reload가 툴바로 내려가고, Export는 헤더에 오지 않는다.
+- 이름 버튼 왼쪽 끝: 지금 200(`.pw` 8 + 헤더 padding 8 + traffic light 72 + 버튼 32 × 3 + 간격 4 × 2 + 8)에서 164(버튼 32 × 2 + 간격 4)가 된다. 이름은 창 가운데에 두고 오른쪽도 같은 폭을 비우므로, 640 창에서 이름 버튼은 왼쪽·오른쪽 164, 폭 312다(지금 240).
+- 좁은 창 경계: 지금 520은 "두 예약 + 쓸 만한 이름"(2 × 200 + 120)이다(`styles.css` 1831행 주석). 같은 규칙으로 448(2 × 164 + 120)이 된다. 그보다 좁으면 오른쪽 끝이 물러난다.
+- 360 창: 대화 버튼이 없으면 오른쪽 끝이 16 inset까지 물러나 360 − 164 − 16 = 180이다(지금 144). 글자 자리는 `.shell-search`의 padding 10 × 2, 간격 8, chevron 16을 빼 136이다. 대화 버튼(32)이 있으면 그 앞 8에서 멈춰 360 − 164 − 8 − 32 − 16 = 140이고 글자 자리는 96이다. 640 창에서는 대화 버튼이 있어도 오른쪽 예약 164 안에 들어가므로(16 + 32 + 8 = 56) 312 그대로다.
+- 대화 버튼과 그 앞 간격은 `prototype-conversation`이 정한다. 위 140은 간격을 왼쪽과 같은 8로 둔 값이다.
+- Back, Forward의 자리(x88, x124)는 바뀌지 않는다. Reload 자리(x160)는 비고 이름 버튼이 그만큼 왼쪽으로 온다.
 
 ## 순수 함수로 뺄 것 (`/tdd` 대상)
 
@@ -129,11 +161,18 @@ spec.md '결정'(사용자 확인)을 구현하는 방법이다. 용어는 spec.
 ## 결정 영향
 
 - **sandbox iframe**(`allow-scripts allow-forms`, no `allow-same-origin`), 주입 스크립트, navigation gate, partition, kill 규칙은 그대로다. 줄이기는 바깥 문서의 CSS `transform`이고 iframe 안으로 아무것도 넣지 않는다.
-- **PRODUCT §5 item 2 'Prototype window'**: 'One window'의 "lays the frame out again when the person resizes it, like a browser viewport; a frame narrower than the content panel of a 360 px window keeps its own width, centred"가 두 모드 문장으로 바뀌고, 창 맞춤에 툴바 줄이 더해진다. 'Content'의 "the frame fills the window's content panel as a viewport"가 모드별로 바뀐다. 'Header'의 Tab 순서 문장에 툴바가 더해지고, Esc 문장("otherwise reaches the content")에 툴바 tooltip 경우가 더해진다. 모드 툴바(툴바 줄, 이름과 tooltip, 포인터 포커스, 기억)가 새로 들어간다. 마지막 task가 고친다.
+- **PRODUCT §5 item 2 'Prototype window'**: 마지막 task가 다음을 고친다.
+  - 'One window'의 "lays the frame out again when the person resizes it, like a browser viewport; a frame narrower than the content panel of a 360 px window keeps its own width, centred"를 두 모드 문장으로 바꾸고, 창 맞춤에 툴바 줄을 더한다.
+  - 'Header'의 첫 문장 "Back and Forward in the main window's place and look, Reload prototype, and the playing frame's name …"에서 Reload prototype을 뺀다.
+  - 'Header'의 "Reload prototype restarts the frame (inputs, open modals, scroll and animations reset), keeps the window's size, records nothing and has no shortcut; on a failure screen it does what Retry does."는 새 'Toolbar' 항목으로 옮기고 "keeps the window's size and mode"로 고친다.
+  - 'Header'의 "Tab reaches Back, Forward, Reload and the name before the frame's content"를 "Tab reaches Back, Forward, the name and the toolbar before the frame's content"로(대화 버튼은 `prototype-conversation`이 더한다), "Esc … otherwise reaches the content"에 툴바 tooltip 경우를 더한다.
+  - 새 'Toolbar' 항목: 툴바 줄, [Reload | Fit, Responsive | Export], 모드 이름과 tooltip, 기본 Fit, 기억, 한 Tab 정지와 ←/→, 포인터 누름이 포커스를 옮기지 않는 것.
+  - 'Content'의 "the frame fills the window's content panel as a viewport"를 모드별로 바꾼다.
+  - 'States'의 "the header stays usable over them"을 "the header and the toolbar stay usable over them"으로 바꾼다.
 - **ARCHITECTURE §3 'Prototype window'**: 'One window'(모드 상태가 닫힘을 넘어 남음), 'Rendering in place'(모드별 iframe 상자, 축소, iframe별 표시 크기), 'Timeout and kill'(캡처 영역과 스냅숏 상자), 'Fit'(창 맞춤만 남김: 툴바 줄 높이, `PROTOTYPE_NARROW_BELOW` 문장 삭제)가 바뀐다. §7 'Prototype window IPC'에 모드 요청과 스냅숏 상자가 더해진다.
 - **형제 feature와 겹치는 곳**
-  - `prototype-conversation`: 대화 패널은 콘텐츠 패널 폭을 가져간다. Responsive 모드에서는 그만큼 viewport가 줄고, Fit 모드에서는 viewport가 표시 크기를 지키고 패널이 좁아지면 줄어든다. 그쪽의 창 폭 규칙(360·640, 열 때 640으로 넓힘, 패널을 연 채 Play하면 표시 + 패널 폭)은 콘텐츠 패널에 대한 규칙이라 두 모드에서 같고, 창 맞춤 높이는 이 feature의 + 122를 쓴다. 툴바 줄은 프레임 열에만 있다('툴바 줄과 대화 열'). 그쪽 design.md '패널 폭'의 "마크가 344보다 좁은 프레임은 지금처럼 자기 폭을 지키고 가운데에 놓인다"는 결정 3·5와 맞지 않는다: 기본(Fit 모드)에서는 자기 크기로 가운데이고, Responsive 모드에서는 패널을 채운다. 그쪽이 먼저 `/tdd`를 돌면 지울 동작을 고정하게 되므로, 그 문장은 이 feature의 구현 전에 맞춰야 한다. 대화 패널 관련 확인은 `prototype-conversation`이 develop에 있을 때만 한다(두 feature의 병합 순서는 아직 정해지지 않았다).
-  - `prototype-cli-export`: 헤더는 바뀌지 않는다. 내보낸 파일은 모드와 상관없이 viewport를 채운다(그쪽 결정 5). `doan open --prototype`의 재생은 다른 Play처럼 모드를 유지한다. 그쪽 design.md 29행과 tasks.md 2의 "모드 전환의 자리"는 헤더에 없으므로 빠져야 하고, 142행의 앱과 파일의 차이 설명("앱 프로토타입 창은 표시 폭이 `PROTOTYPE_NARROW_BELOW`보다 좁으면 그 폭을 지키고 가운데 둔다")은 "앱은 기본(Fit 모드)에서 표시 크기를 지킨다"로 바뀌어야 한다.
+  - `prototype-conversation`: 대화 패널은 콘텐츠 패널 폭을 가져간다. Responsive 모드에서는 그만큼 viewport가 줄고, Fit 모드에서는 viewport가 표시 크기를 지키고 패널이 좁아지면 줄어든다. 그쪽의 창 폭 규칙(360·640, 열 때 640으로 넓힘, 패널을 연 채 Play하면 표시 + 패널 폭)은 콘텐츠 패널에 대한 규칙이라 두 모드에서 같고, 창 맞춤 높이는 이 feature의 + 122를 쓴다. 툴바 줄은 프레임 열에만 있다('툴바 줄과 대화 열'). 헤더 오른쪽에는 대화 버튼 하나만 온다(Export는 툴바에 있다). 그 버튼이 있을 때 360 창의 이름 버튼은 140이다('헤더'). 그쪽 design.md '패널 폭'의 "마크가 344보다 좁은 프레임은 지금처럼 자기 폭을 지키고 가운데에 놓인다"는 결정 3·5와 맞지 않는다: 기본(Fit 모드)에서는 자기 크기로 가운데이고, Responsive 모드에서는 패널을 채운다. 그쪽이 먼저 `/tdd`를 돌면 지울 동작을 고정하게 되므로, 그 문장은 이 feature의 구현 전에 맞춰야 한다. 대화 패널 관련 확인은 `prototype-conversation`이 develop에 있을 때만 한다(두 feature의 병합 순서는 아직 정해지지 않았다).
+  - `prototype-cli-export`: Export는 헤더가 아니라 이 feature가 만든 툴바 끝 자리에 들어간다(결정 12). 그쪽 문서에서 바뀌어야 할 곳: spec.md '사용자'와 B '앱'의 "header의 Export"와 [Export][대화 버튼] 배치, Tab 순서(Back, Forward, 이름, 대화 버튼, 툴바, 프레임 콘텐츠이고 Export는 툴바 안에서 ←/→로 닿는다), 결정 7·9의 "header", design.md 29–31행(`WindowShell` header의 Export, header 배치), 저장 패널 뒤 포커스 복귀와 포인터 포커스(이 feature의 툴바는 포인터 누름이 포커스를 옮기지 않는다), 승격 목록의 'Header'. Export 버튼의 상태와 동작은 그쪽이 그대로 정한다. 내보낸 파일은 모드와 상관없이 viewport를 채운다(그쪽 결정 5). `doan open --prototype`의 재생은 다른 Play처럼 모드를 유지한다. 그쪽 design.md 142행의 앱과 파일의 차이 설명("앱 프로토타입 창은 표시 폭이 `PROTOTYPE_NARROW_BELOW`보다 좁으면 그 폭을 지키고 가운데 둔다")은 "앱은 기본(Fit 모드)에서 표시 크기를 지킨다"로 바뀌어야 한다.
   - 초안: 세 feature가 각자 새 초안을 그리고 기존 `frame-prototype.html`은 고치지 않는다.
 
 ## PoC 의존
@@ -152,7 +191,7 @@ Fit 모드의 축소(결정 1)와 포인터 포커스(결정 10)는 아직 확�
 
 ## POSTMORTEM에서 가져온 함정
 
-- **2026-11-13 'A toolbar control that turned unavailable while focused was mounted anew and focus fell to the page'**: "a wrapper that adapts props for some states keeps the same component tree in every state and decides inside it". 모드 버튼은 눌림이 바뀌어도, view가 처음 와서 `disabled`가 풀려도 같은 요소로 남아야 한다. 두 상태를 렌더해 자식 요소의 `type`이 같은지 테스트하고, 실제 앱에서 포커스된 버튼의 눌림을 바꾼 뒤 `document.activeElement`를 읽는다.
+- **2026-11-13 'A toolbar control that turned unavailable while focused was mounted anew and focus fell to the page'**: "a wrapper that adapts props for some states keeps the same component tree in every state and decides inside it". 모드 버튼은 눌림이 바뀌어도 같은 요소로 남아야 하고, Reload와 모드 버튼은 view가 처음 와서 `disabled`가 풀려도 같은 요소로 남아야 한다. Reload를 헤더에서 툴바로 옮길 때도 `IconTip`의 `TooltipTrigger`(asChild) 구조를 그대로 쓴다. 두 상태를 렌더해 자식 요소의 `type`이 같은지 테스트하고, 실제 앱에서 포커스된 버튼의 눌림을 바꾼 뒤 `document.activeElement`를 읽는다.
 - **2026-11-07 'A toolbar tooltip took the Esc the canvas needed'**: "a Radix layer over a control whose Esc matters hands the decision on rather than taking the step". 툴바 tooltip은 Esc를 혼자 갖지 않고, 드로어가 열려 있으면 드로어 닫기를 함께 한다. tooltip과 드로어가 함께 열린 경우와 tooltip만 열린 경우를 테스트한다.
 - **2026-11-02 'Tab walked into the draft…'**: `overflow: hidden` 상자는 포커스된 자손을 드러내려고 스크롤한다. Fit 모드에서 줄인 프레임의 아래쪽 컨트롤로 Tab하면 `.pw-panel`이 스크롤해 프레임 자리가 틀어질 수 있으므로 `.pw-panel`을 `overflow: clip`으로 바꾼다.
 - **2026-11-02 'Every Overview menu…'**: 새로 그리는 층은 기존 portal 메뉴보다 위에 그려지면 안 된다. 툴바 줄이 보이는 채 드로어를 열고, 드로어가 위에 그려지는지 스크린샷으로 판정한다.
@@ -161,7 +200,7 @@ Fit 모드의 축소(결정 1)와 포인터 포커스(결정 10)는 아직 확�
 ## 디자인 프리셋
 
 - `clarify`: 이름은 사용자가 정한 "Fit", "Responsive"이고 접근 이름도 같다. Fit의 tooltip은 결과를 말하는 "Fit to 390 × 844"로 접근 이름보다 길다. 크기는 숫자를 구조로 두고 "×"(U+00D7)와 공백을 PRODUCT·DESIGN의 크기 표기와 맞춘다.
-- `adapt`: "A size is not a device"에 따라 기기 이름을 쓰지 않는다. 좁은 콘텐츠 패널(344–360)에서도 툴바가 들어가는지 확인했다.
+- `adapt`: "A size is not a device"에 따라 기기 이름을 쓰지 않는다. 좁은 콘텐츠 패널(344–360)에서도 198 폭 툴바가 들어가는지 확인했다.
 - `harden`: 로딩·실패·lost 상태의 툴바, 정지 이미지 자리, 작업 영역보다 큰 표시, 표시 크기를 모르는 run, 아주 큰 표시를 상태로 다룬다.
 
 ## 참고와 출처
