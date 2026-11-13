@@ -72,11 +72,13 @@ export function StarPrompt(props: StarPromptProps) {
       const input = () => { last = Date.now(); clearTimeout(timer); timer = setTimeout(decide, STAR_IDLE_MS); };
       const stop = () => { clearTimeout(timer); for (const type of INPUT_EVENTS) window.removeEventListener(type, input, true); };
       function decide() {
+        // The quiet time is judged now; input while main answers the busy read must not start the wait again.
+        stop();
+        const idleMs = Date.now() - last;
         void window.doan.starPromptBusy().catch(() => true).then(busy => {
-          stop();
           waiting.current = false;
           const show = starPromptMoment({
-            idleMs: Date.now() - last,
+            idleMs,
             windowActive: nativeVisible.current && !document.hidden && document.hasFocus(),
             onboarding: latest.current.onboarding,
             overlayOpen: document.querySelector(STAR_OVERLAY_QUERY) !== null,
@@ -139,10 +141,11 @@ export function StarPromptView({ card, onOpen, onDismiss, onKeyDown, onFocus, bu
   const key = (name: string) => card.closing ? `${name}:closing` : name;
   return <div className="star-prompt doan-floating" role="region" aria-label="Doan on GitHub" {...(card.closing ? { "data-closing": "", inert: true } : {})}
     onKeyDown={event => onKeyDown({ key: event.key, defaultPrevented: event.defaultPrevented, isComposing: event.nativeEvent.isComposing, preventDefault: () => event.preventDefault(), stopPropagation: () => event.stopPropagation() })} onFocus={onFocus}>
-    {/* The words are read through the live region below; this copy is for the eye. */}
+    {/* The words, and a failure after them, are read through the live region below; these copies are for the eye and
+        the pointer (the address stays selectable). The region is atomic, so the added failure is read once. */}
     <p className="star-prompt-text" aria-hidden="true">{STAR_TEXT}</p>
-    <p className="sr-only" role="status">{card.said ? card.failed ? starOpenFailedLine : STAR_TEXT : ""}</p>
-    {card.failed && <p className="settings-msg error selectable star-prompt-failure"><AlertIcon /><span>{FAILED_LEAD}<span className="star-prompt-url">{REPOSITORY_URL}</span></span></p>}
+    <p className="sr-only" role="status">{card.said ? card.failed ? `${STAR_TEXT} ${starOpenFailedLine}` : STAR_TEXT : ""}</p>
+    {card.failed && <p className="settings-msg error selectable star-prompt-failure" aria-hidden="true"><AlertIcon /><span>{FAILED_LEAD}<span className="star-prompt-url">{REPOSITORY_URL}</span></span></p>}
     <div className="star-prompt-actions">
       <button key={key("open")} ref={buttonRef} type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={onOpen}>Star on GitHub ↗</button>
       <button key={key("dismiss")} ref={buttonRef} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={onDismiss}>{card.second ? "Don’t ask again" : "Not now"}</button>

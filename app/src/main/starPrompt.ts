@@ -44,7 +44,8 @@ export function starPromptTurn(state: StarPromptState, now: number): StarPromptS
 export function starPromptAfter(state: StarPromptState, action: StarPromptAction, now: number): StarPromptState {
   if (action === "openFailed") return state;
   if (action === "opened" || state.asks === 1) return { ...state, done: true };
-  // Counted from the turn the card showed on, which an overlay may have put off past the threshold.
+  // Counted from the count when Not now is pressed: turns keep counting while the card shows, and an overlay may have
+  // put the card off past the threshold.
   return { ...state, asks: 1, threshold: state.turns + MORE_TURNS, deferredUntil: now + DEFER_MS };
 }
 

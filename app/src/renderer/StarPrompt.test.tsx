@@ -108,6 +108,23 @@ test("1.2 s with no key or pointer input after main's moment shows the first car
   expect(listeners.size).toBe(0);
 });
 
+// Idle is judged when the 1.2 s run out; input while main answers the busy read neither starts the wait again nor runs
+// the decision twice.
+test("the wait ends when the 1.2 s run out, and input while main answers the busy read changes nothing", async () => {
+  let answer: (value: boolean) => void = () => {};
+  doan.starPromptBusy!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  render(); visible(true);
+  moment({ second: false });
+  await wait(1200);
+  expect(doan.starPromptBusy).toHaveBeenCalledOnce();
+  expect(listeners.size).toBe(0);
+  vi.advanceTimersByTime(2000);
+  answer(false);
+  const view = await wait(0);
+  expect(view.card).toMatchObject({ second: false });
+  expect(doan.starPromptBusy).toHaveBeenCalledOnce();
+});
+
 test.each(["keydown", "pointerdown", "pointermove", "wheel"])("a %s during the wait starts the 1.2 s again", async type => {
   render(); visible(true);
   moment({ second: false });
@@ -280,10 +297,12 @@ describe("the view", () => {
     expect(renderToStaticMarkup(<StarPromptView {...props({ ...card, said: false })} />)).toContain(`<p class="sr-only" role="status"></p>`);
   });
 
+  // The live region keeps the words and reads the failure after them; the visible line, its copy for the eye, stays out
+  // of the accessibility tree while its address can still be selected with the pointer.
   test("a browser that did not open adds About's failure line, with the address as selectable text, between the words and the buttons", () => {
     expect(starOpenFailedLine).toBe(`Couldn’t open GitHub in your browser. Try again, or find Doan at ${REPOSITORY_URL}`);
     const html = renderToStaticMarkup(<StarPromptView {...props({ ...card, failed: true })} />);
-    expect(html).toMatch(new RegExp(`<p class="sr-only" role="status">${starOpenFailedLine}</p><p class="settings-msg error selectable star-prompt-failure"><svg[^>]*class="[^"]*doan-alert-icon"[^>]*>.*</svg>`
+    expect(html).toMatch(new RegExp(`<p class="sr-only" role="status">${STAR_TEXT.replace("?", "\\?")} ${starOpenFailedLine}</p><p class="settings-msg error selectable star-prompt-failure" aria-hidden="true"><svg[^>]*class="[^"]*doan-alert-icon"[^>]*>.*</svg>`
       + `<span>Couldn’t open GitHub in your browser. Try again, or find Doan at <span class="star-prompt-url">${REPOSITORY_URL}</span></span></p><div class="star-prompt-actions">`));
   });
 

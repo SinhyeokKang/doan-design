@@ -27,9 +27,9 @@ describe("starPromptDue", () => {
 });
 
 describe("starPromptAfter", () => {
-  test("the first Not now asks again 40 turns after the turn it showed on, and at least 3 days later", () => {
+  test("the first Not now asks again 40 turns after the count when Not now is pressed, and at least 3 days later", () => {
     expect(starPromptAfter(state({ turns: 20 }), "dismissed", NOW)).toEqual(state({ turns: 20, threshold: 60, deferredUntil: NOW + 3 * DAY, asks: 1 }));
-    // Put off by an open overlay, the card showed on the 27th turn.
+    // Put off by an open overlay, Not now was pressed at the 27th turn.
     expect(starPromptAfter(state({ turns: 27 }), "dismissed", NOW)).toEqual(state({ turns: 27, threshold: 67, deferredUntil: NOW + 3 * DAY, asks: 1 }));
   });
 

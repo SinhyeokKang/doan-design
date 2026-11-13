@@ -702,8 +702,8 @@ describe("design skills", () => {
   });
 });
 
-// Nothing asks the renderer before Quit: the teardown is scheduled within the event.
 describe("the GitHub star card", () => {
+  // A copy that updates gets an enabled store: 'app updates' > 'in a copy that updates' below.
   test("a development launch makes a store that neither counts nor asks", () => {
     expect(mocks.createStarPrompt.mock.calls[0]![0]).toMatchObject({ file: "/tmp/doan-index-test/star-prompt.json", enabled: false });
   });
@@ -746,6 +746,7 @@ describe("the GitHub star card", () => {
   });
 });
 
+// Nothing asks the renderer before Quit: the teardown is scheduled within the event.
 test("a quit goes ahead without asking the renderer", async () => {
   const event = { preventDefault: vi.fn() };
   window().webContents.send.mockClear();
