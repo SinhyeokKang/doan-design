@@ -27,7 +27,7 @@
 | VC | C diff 독립 리뷰(`/code-review`, 보고만) | 없음(읽기만) | C | Codex gpt-6-astra medium — 다른 계열의 눈으로 상태 기계와 캡처 계약을 본다 | 🔴 0 | 대기 |
 | VT | T diff 독립 리뷰 | 없음 | T | Codex gpt-6.1-sol medium — 작은 diff, 정해진 값 대조 | 🔴 0 | 대기 |
 | VU | U diff 독립 리뷰 | 없음 | U | Codex gpt-6-astra medium — 포커스·접근성 판단 | 🔴 0 | 대기 |
-| R | tasks 8 `/runtime-test`(보고만) | `.scratch/runtime-test/prototype-responsive/`만 | U 통합 | Claude Sonnet high — 기대값이 tasks 8에 정해진 짧은 probe | probe 결과·스크린샷이 tasks 8과 같음 | 대기 |
+| R | tasks 8 `/runtime-test`(보고만) | `.scratch/runtime-test/prototype-responsive/`만 | U 통합 | Claude Sonnet high — 기대값이 tasks 8에 정해진 짧은 probe | probe 결과·스크린샷이 tasks 8과 같음 | 완료(수정 전 79건, `073650f9`에서 85건 실패 0), worktree 정리 |
 | 9·10 | `/verify`, PRODUCT·ARCHITECTURE·DESIGN·BACKLOG 승격, feature 디렉터리 삭제 | 문서 | R | conductor | `node .agents/skills/verify/scripts/verify.mjs` | 대기 |
 
 ## 파일 겹침과 순서
@@ -61,3 +61,4 @@
 - VU(Codex gpt-6-astra medium)와 R(Claude Sonnet high, `pr-r`)을 병렬로 시작했다. VU 고침이 생기면 R 증거 중 영향받는 것만 다시 본다.
 - VU 결과 🔴 0 / 🟡 2 / 🟢 1. 🟡1: Fit에서 8192 넘는 iframe이 `.pw-panel`의 네 모서리 같은 radius clip 아래에 있다(ARCHITECTURE의 불변, POSTMORTEM 2026-11-11 재발 조건). 🟡2: 취소된 Reload 누름(놓기 취소, 우클릭)이 포커스 기억을 남겨 뒤의 다른 run에서 iframe에 포커스를 준다. 🟢1: DESIGN.md Frame drawer 행의 옛 메뉴 좌표와 Tab 순서 문장. 셋 모두 U에 수정 라운드 1로 보냈다.
 - U 수정 라운드 1 통합(커밋 4개): 패널 clip을 `.pw-content`(위 두 모서리)와 새 `.pw-stage`(아래 두 모서리)로 나눴다. `exportViewer.test.ts`에 프로토타입 창 조상 검사를 더했다(red 확인). Reload 포커스 복귀는 포인터 click일 때만 켠다. DESIGN.md를 정정했고, POSTMORTEM 2026-11-11 항목에 재발 기록을 붙였다. 390×10000 Fit 잘림은 옛 clip에서도 재현되지 않아 구조 수정이다. conductor가 `corners-responsive.png`(네 모서리 둥긂)와 `fit-tall-split.png`(끝까지 그려짐)를 확인했다. 남은 것: Fit 바깥 면 색 재측정(stage로 옮김). ARCHITECTURE §3의 불변 문장에 프로토타입 창을 더하는 일은 tasks 10에서 한다.
+- R 완료. 수정 전 base `6f88e36d`에서 79건, U 수정 뒤 `073650f9`에서 85건이 모두 통과했다. 큰 Fit 표시 세 경우가 끝까지 그려지고, 조상 중에 네 모서리 같은 radius로 자르는 것이 없다. 취소된 포인터 Reload는 뒤의 Play와 키보드 Reload에서 포커스를 옮기지 않는다. 재지 못한 것: 작업 영역이 1440 × 823이라 406 × 908과 344 × 744 literal(작업 영역에서 잘린 규칙으로 대신 확인), `prototype-conversation` 항목(develop에 없음), OS 실제 입력·포커스, DPR 1, 패키지 `.app`.
