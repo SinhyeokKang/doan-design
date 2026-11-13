@@ -18,6 +18,7 @@ import { AUTH_CHANNELS, AuthIpc } from "./agentAuth/ipc";
 import { sharedShell, toolFacts } from "./agentAuth/facts";
 import { readUsage } from "./agentAuth/usageRead";
 import { UsageService, withTurnUsage } from "./agentAuth/usageService";
+import { clockArgument, clockHour12 } from "./clockHourCycle";
 import { USAGE_CHANNELS, usageRequest } from "./agentAuth/usageIpc";
 import { probeShell, runProcess } from "./onboarding/machine";
 import { osascriptAdmin, runAgentSetup, setupEligibility } from "./agentSetup/runner";
@@ -526,6 +527,10 @@ function createWindow(buddy: BuddyId): BrowserWindow {
       sandbox: true,
       // CJS: a sandboxed preload cannot load ESM, and package.json is "type": "module".
       preload: fileURLToPath(new URL("../preload/index.cjs", import.meta.url)),
+      additionalArguments: [clockArgument(clockHour12({
+        force24: systemPreferences.getUserDefault("AppleICUForce24HourTime", "boolean") === true,
+        force12: systemPreferences.getUserDefault("AppleICUForce12HourTime", "boolean") === true,
+      }, app.getSystemLocale()))],
     },
   });
   const devUrl = process.env.ELECTRON_RENDERER_URL;

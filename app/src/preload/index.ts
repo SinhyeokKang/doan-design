@@ -76,9 +76,16 @@ function subscribe<T>(event: string, initial: string, listener: (value: T) => vo
 // The onboarding socket DTO as the window sends it: main adds the version and needs no token from its own window.
 type SessionRequest<T> = T extends unknown ? Omit<T, "v" | "token" | "op"> : never;
 
+// main/clockHourCycle.ts's argument: whether times read in 12-hour form, as macOS is set when the window opened.
+function clockHour12(argv: readonly string[]): boolean {
+  const value = argv.find(arg => arg.startsWith("--doan-clock-hour12="))?.slice("--doan-clock-hour12=".length);
+  return value !== "0";
+}
 // The renderer gets these calls and nothing else: no ipcRenderer, no
 // channel names, no paths it did not receive from main.
 const api = {
+  // Whether the clock reads in 12-hour form (macOS's setting when this window opened; a change applies after a restart).
+  clockHour12: clockHour12(process.argv),
   // Subscribe before getWork so a signal received during the read is not lost.
   getWork: (): Promise<WorkItem[]> => ipcRenderer.invoke("work:get"),
   onWorkChanged(listener: (items: WorkItem[]) => void): () => void {

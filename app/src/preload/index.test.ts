@@ -26,6 +26,16 @@ beforeEach(async () => {
   api = exposed;
 });
 
+test("reads the clock's hour cycle main passed to the window, 12-hour by default", async () => {
+  expect(api.clockHour12).toBe(true);
+  const argv = process.argv;
+  try {
+    process.argv = [...argv, "--doan-clock-hour12=0"];
+    vi.resetModules(); mocks.expose.mockClear(); await import("./index");
+    expect(mocks.expose.mock.calls[0]?.[1].clockHour12).toBe(false);
+  } finally { process.argv = argv; }
+});
+
 test("Open Project resolves the stored root main returns", async () => {
   mocks.invoke.mockResolvedValueOnce("/repo");
   expect(await api.openFolder()).toBe("/repo");

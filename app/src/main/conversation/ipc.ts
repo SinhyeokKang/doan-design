@@ -15,7 +15,8 @@ export type ConversationMethod = typeof conversationMethods[number];
 // ones among them that are folders now leading to another folder. resetsAt (ISO): with rate_limited, when the usage
 // limit of the refused start's or send's Doan connection resets, if main knows it.
 export interface ConversationError { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string }
-// A send main took while its conversation's usage limit holds: the message waits as a queued item until at (ISO).
+// A send main took while its conversation's usage limit holds: the message waits as a queued item for the limit's reset
+// at `at` (ISO) and goes out shortly after it.
 export interface ScheduledSend { scheduled: { itemId: string; at: string } }
 interface Project { path: string; kind: string; canvases?: Canvas[] }
 function message(raw: Record<string, unknown>): { text: string; anchors: Anchor[] } | null {

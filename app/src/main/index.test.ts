@@ -86,7 +86,7 @@ const mocks = await vi.hoisted(async () => {
     // The GitHub star card's state; its file and timing are covered in starPromptStore.test.ts.
     starPrompt: { event: vi.fn(), opened: vi.fn(), dismissed: vi.fn() },
     createStarPrompt: vi.fn(),
-    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), relaunch: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true),
+    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", getSystemLocale: () => "en-US", exit: vi.fn(), quit: vi.fn(), relaunch: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true),
       isActive: vi.fn(() => true), dock: { bounce: vi.fn(() => 7) } }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
@@ -135,7 +135,7 @@ vi.mock("electron", () => ({
   webContents: { getFocusedWebContents: () => null },
   nativeTheme: mocks.nativeTheme,
   autoUpdater: mocks.nativeUpdater,
-  systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
+  systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; }, getUserDefault: (key: string) => key === "AppleICUForce24HourTime" },
   powerMonitor: { on: vi.fn() },
 }));
 vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return mocks.conversations; } finishDeletions() {} } }));
@@ -355,6 +355,8 @@ test("draws light whatever the macOS appearance", () => {
 test("defines the requested window geometry and File menu", () => {
   expect(shellColour()).toMatch(/^#[0-9a-f]{6}$/);
   expect(window().options).toMatchObject({ width: 1238, height: 780, minWidth: 960, minHeight: 600, titleBarStyle: "hiddenInset", trafficLightPosition: { x: 16, y: 21 }, backgroundColor: "#00000000", vibrancy: "sidebar", visualEffectState: "followWindow" });
+  // macOS's forced 24-hour time reaches the renderer, which cannot read it itself (clockHourCycle.ts).
+  expect(window().options.webPreferences).toMatchObject({ additionalArguments: ["--doan-clock-hour12=0"] });
   expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
   expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
 });

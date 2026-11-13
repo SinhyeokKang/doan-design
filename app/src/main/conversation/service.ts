@@ -109,8 +109,9 @@ export interface Runner { mechanism?: FenceMechanism; sessionId: string; send(pr
 // A queued attachment's id with the record it was queued as (item.attachments and ids are in the same order).
 type Held = { id: string; record: AttachmentRecord | undefined };
 export type TakenDraft = ReturnedDraft & { ids?: (string | null)[] };
-// A scheduled conversation's waiting message (conversation `scheduled`), as the renderer shows a queued row.
-export interface ScheduledItem { itemId: string; text: string; anchors: Anchor[]; attachments: AttachmentRecord[] }
+// A scheduled conversation's waiting message (conversation `scheduled`), as the renderer shows a queued row. turnId: the
+// failed turn whose own message this is, sent again (the renderer hides that turn's Edit and resend meanwhile).
+export interface ScheduledItem { itemId: string; text: string; anchors: Anchor[]; attachments: AttachmentRecord[]; turnId?: string }
 // reissue: a sent message's files issued again by their recorded paths and held as a queued message's (a turn the usage
 // limit stopped goes out again); null when any of them cannot be.
 export interface QueueFiles { reclaim(ids: string[]): StartAttachments; consume(ids: string[]): void; discard?(ids: string[]): void; release?(ids: string[]): void; reissue?(records: readonly AttachmentRecord[]): string[] | null }
@@ -154,7 +155,8 @@ const CLOCK: ScheduleClock = {
   setTimer: (run, ms) => { const timer = setTimeout(run, Math.min(ms, MAX_TIMER_MS)); timer.unref?.(); return timer; },
   clearTimer: timer => clearTimeout(timer as ReturnType<typeof setTimeout>),
 };
-// A scheduled conversation's send (usage limit): its queued messages go out together at `at`, after reset, on the
+// A scheduled conversation's send (usage limit): its queued messages go out together at `at`, after reset (the time the
+// renderer shows: scheduledAt and send's `at`; a same-reset retry keeps it), on the
 // Doan connection it was scheduled for. retried: it waits to go once more for a reset that already stopped it. due: its
 // time came while it could not go (its own turn not judged yet, or another project conversation holding the root); it
 // goes once the conversation list says something changed.
@@ -250,6 +252,8 @@ export class ConversationService {
   private resent = new Map<string, { reset: number; retried: boolean }>();
   private waking = false;
   private clock: ScheduleClock;
+  // A queued message that is a failed turn's own message sent again, by itemId, until it leaves the queue (forget).
+  private repeats = new Map<string, { owner: string; turnId: string }>();
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
   // deleted: a conversation deleted (delete), once its index entry is gone.
   // workEnded: the conversation's turn can no longer take a `doan work update` (its end, an archive or deletion, a
@@ -727,7 +731,7 @@ export class ConversationService {
       const background = live?.background && !live.busy ? live.background : undefined, stopping = live?.stopping && live.busy;
       const queued = this.drafts.queued(m.conversationId).length, working = this.working(m.conversationId);
       const limit = this.limitOf(m), schedule = this.schedules.get(m.conversationId);
-      const scheduledAt = schedule && !working && queued ? new Date(schedule.at).toISOString() : undefined;
+      const scheduledAt = schedule && !working && queued ? new Date(schedule.reset).toISOString() : undefined;
       return conversationSummary(m, read, { live: this.ran(m.conversationId), queued, working, returned: !!this.drafts.returned(m.conversationId), ...(suggestion ? { suggestion } : {}), ...(background ? { background } : {}), ...(stopping ? { stopping: true as const } : {}),
         ...(limit !== null ? { limitResetsAt: new Date(limit).toISOString() } : {}), ...(scheduledAt ? { scheduledAt } : {}) });
     });
@@ -979,13 +983,16 @@ export class ConversationService {
     if (item.ids?.length) this.queuedExtras.set(itemId, { owner: id, ids: item.ids, records: item.attachments ?? [] });
     const schedule = this.schedules.get(id) ?? this.arm(id, { at: sendAt(limit!), reset: limit!, provider: owner.provider, connectionId: connectionId!, retried: false });
     this.changed(m.root);
-    return { itemId, at: new Date(schedule.at).toISOString() };
+    return { itemId, at: new Date(schedule.reset).toISOString() };
   }
   // The scheduled conversation's waiting messages, in order; none when it is not scheduled.
   scheduled(id: string): ScheduledItem[] {
     this.metadata(id);
     if (!this.schedules.has(id)) return [];
-    return this.drafts.queued(id).map(item => ({ itemId: item.itemId, text: item.text, anchors: item.anchors, attachments: item.attachments }));
+    return this.drafts.queued(id).map(item => {
+      const repeat = this.repeats.get(item.itemId);
+      return { itemId: item.itemId, text: item.text, anchors: item.anchors, attachments: item.attachments, ...(repeat ? { turnId: repeat.turnId } : {}) };
+    });
   }
   // The connection a Doan conversation runs on now: the provider's current one once auth reported it.
   private connectionOf(owner: Extract<ConversationOwner, { kind: "doan" }>): string | undefined {
@@ -1045,7 +1052,7 @@ export class ConversationService {
     const decision = autoSchedule({ code: saved.code, hadActivity: turnHadActivity(events), reset, ...(previous !== undefined ? { previousReset: previous } : {}), retriedSame: resent?.retried ?? false, now });
     const at = decision === "retry" ? now + SEND_DELAY_MS : reset !== null && reset > now ? sendAt(reset) : null;
     if (at === null) return none;
-    const again = decision !== "none" && this.requeue(id, events);
+    const again = decision !== "none" && this.requeue(id, saved.turnId, events);
     // The messages queued behind the turn wait for the same reset; the turn's own only when it did nothing.
     if (!this.drafts.queued(id).length) return none;
     this.arm(id, { at, reset: reset!, provider: owner.provider, connectionId: owner.connectionId, retried: decision === "retry" });
@@ -1054,7 +1061,7 @@ export class ConversationService {
   // The turn's own message goes back to the front of the queue as the person wrote it: its text and anchors from the
   // history, its files issued again by path as Edit and resend does. Not a handoff's first message, which the agent
   // wrote. False when it cannot.
-  private requeue(id: string, events: readonly ConversationEvent[]): boolean {
+  private requeue(id: string, turnId: string, events: readonly ConversationEvent[]): boolean {
     const message = events.find(e => e.type === "user.message");
     if (message?.type !== "user.message" || message.origin) return false;
     const records = message.attachments ?? [], files = this.queueOptions.files;
@@ -1064,6 +1071,7 @@ export class ConversationService {
     try { this.drafts.add(id, { itemId, text: message.text, anchors: message.anchors, attachments: [...records] }, true); }
     catch (error) { if (ids.length) files?.discard?.(ids); console.error("doan: a stopped message could not be queued again", error); return false; }
     if (ids.length) this.queuedExtras.set(itemId, { owner: id, ids, records });
+    this.repeats.set(itemId, { owner: id, turnId });
     return true;
   }
   private arm(id: string, schedule: Schedule): Schedule {
@@ -1349,6 +1357,7 @@ export class ConversationService {
     } else if (held.length) this.queueOptions.files?.release?.(held.map(h => h.id));
   }
   private forget(id: string, itemIds?: readonly string[]): Held[] {
+    for (const [itemId, repeat] of [...this.repeats]) if (repeat.owner === id && (!itemIds || itemIds.includes(itemId))) this.repeats.delete(itemId);
     const held: Held[] = [];
     for (const [itemId, extras] of [...this.queuedExtras]) if (extras.owner === id && (!itemIds || itemIds.includes(itemId))) {
       held.push(...extras.ids.map((heldId, i) => ({ id: heldId, record: extras.records[i] })));

@@ -29,8 +29,9 @@ export interface ConversationSummary {
   // ISO: the reset time of the usage limit main holds, in memory only, for the Doan connection of this current Claude
   // Code or Codex conversation; a send now is scheduled for after it (conversation `send` answers { scheduled }).
   limitResetsAt?: string;
-  // ISO: the conversation is scheduled: its queued messages (queued counts them) go out at this time. It is then not
-  // working and holds no root; the items themselves come from the conversation `scheduled` method.
+  // ISO: the conversation is scheduled: its queued messages (queued counts them) wait for the usage limit's reset at this
+  // time and go out shortly after it. It is then not working and holds no root; the items themselves come from the
+  // conversation `scheduled` method.
   scheduledAt?: string;
 }
 // Long enough for one line of a canvas row or conversation menu; the renderer still truncates to its width.

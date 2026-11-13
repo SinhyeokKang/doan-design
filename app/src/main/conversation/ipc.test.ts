@@ -862,7 +862,7 @@ describe("usage-limit schedule channels", () => {
     try {
       const h = limited(dir); const id = await stopped(h);
       expect(await h.handle(true, "scheduled", { conversationId: id })).toEqual([]);
-      const at = new Date(RESET + 60_000).toISOString();
+      const at = new Date(RESET).toISOString();
       const reply = await h.handle(true, "send", { conversationId: id, text: "after the reset", attachments: [{ id: "a" }] }) as { scheduled: { itemId: string; at: string } };
       expect(reply).toEqual({ scheduled: { itemId: expect.any(String), at } });
       expect(h.attachments.markSent).toHaveBeenLastCalledWith([{ id: "a" }]);
