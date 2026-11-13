@@ -51,3 +51,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 12(승격·삭제)는 conducto
 - A 리뷰 1회차(Codex): 🔴 0, 🟡 1(URL을 준 `pushState`·`replaceState`가 `SecurityError`를 던져 캔버스 스크립트가 멈춘다 → `isolate.js`가 그 경우만 URL 없이 다시 부른다), ⚪ 2(click·submit listener가 capture로 바뀌어도 테스트가 통과한다 / 캔버스가 `ready`를 위조할 수 있다 — 표시 규칙일 뿐 보안 경계가 아니므로 수용하고 한계에 적는다). 🟡1 수용은 conductor 판단: spec B의 "pushState가 동작한다"에 더 가깝다. A-fix1(`ctx_68e25df0ef66`)로 보냈다.
 - C-fix1(`ctx_a23439f93fb1`), B3(`ctx_15915121cc50`, `AssemblePrototype` 호출과 CLI 출력 파일 probe), B 리뷰(Codex gpt-6-astra medium, `ctx_dc814240397d`, `pce-rb`), D(Codex gpt-6-astra medium, `ctx_da0c3e984a5b`, `pce-d`)를 보냈다. D의 실제 `/agent-eval` 라운드는 B3 통합과 package 뒤 새 Task로 보낸다.
 - Codex 사용 범위(지금까지): A·B·C 리뷰, D 구현.
+- C-fix1 완료 → `0d29661e`, `fd113a3d`로 통합. 표시 이벤트 등록을 지우는 변이가 이제 실패한다. C 리뷰 2회차(C2와 C-fix1)를 같은 Codex 리뷰어에 보냈다(`ctx_22abc182df7a`). C의 task 9·10은 A-fix1과 B3가 통합된 뒤 보낸다.
