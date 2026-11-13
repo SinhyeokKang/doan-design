@@ -52,6 +52,15 @@ describe("deleteDialogView", () => {
     expect(deleteDialogView("Ideas", "claude", true).body).toBe(`${BODY} Its unsent message is discarded too.`);
   });
 
+  // Messages waiting for the usage limit's reset go with the conversation; one sentence names both with a draft.
+  test("queued messages add one line, with the draft when there is one", () => {
+    expect(deleteDialogView("Ideas", "claude", false, 2).body).toBe(`${BODY} Its queued messages are discarded too.`);
+    expect(deleteDialogView("Ideas", "claude", false, 1).body).toBe(`${BODY} Its queued message is discarded too.`);
+    expect(deleteDialogView("Ideas", "claude", true, 2).body).toBe(`${BODY} Its unsent message and queued messages are discarded too.`);
+    expect(deleteDialogView("Ideas", "claude", true, 1).body).toBe(`${BODY} Its unsent message and queued message are discarded too.`);
+    expect(deleteDialogView("Ideas", "claude", false, 0).body).toBe(BODY);
+  });
+
   test("a title over 60 code points is cut there with an ellipsis; one of exactly 60 is not", () => {
     const sixty = "Rework the checkout summary so saved cards, promo codes, gif";
     expect([...sixty]).toHaveLength(60);

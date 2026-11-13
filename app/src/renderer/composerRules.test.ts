@@ -83,3 +83,17 @@ describe("steerAllPlan", () => {
     expect(steerAllPlan({ sendNow: true, rows: 3, draft: true })).toEqual({ rows: true, draft: true });
   });
 });
+
+// While the conversation's Doan connection is at its usage limit, or its rows wait for the reset, the Send slot is
+// Queue though no turn runs; an empty field is a disabled Queue, as Send is (usage-limit-resume draft, queue-button).
+describe("composerAction at the usage limit", () => {
+  test("idle: Queue with or without text", () => {
+    expect(composerAction("idle", "Also the caption", 0, true)).toBe("queue");
+    expect(composerAction("idle", "", 0, true)).toBe("queue");
+    expect(composerAction("idle", "", 2, true)).toBe("queue");
+  });
+  test("a running turn keeps its own slot", () => {
+    expect(composerAction("running", "", 0, true)).toBe("stop");
+    expect(composerAction("running", "Also", 0, true)).toBe("queue");
+  });
+});

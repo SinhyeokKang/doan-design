@@ -37,3 +37,10 @@ describe("sidebarToggleView", () => {
     expect(sidebarToggleView(true, terminal).badge).toBe("working");
   });
 });
+
+// A scheduled conversation asks nothing of the person, so it never badges the hidden sidebar (usage-limit-resume).
+test("a scheduled slot is not counted in the Show sidebar badge", () => {
+  const scheduled = new Map<string, SidebarSlot>([["s", { kind: "scheduled", label: "Queued" }]]);
+  expect(sidebarToggleView(true, scheduled)).toEqual({ label: "Show sidebar", icon: "show", badge: null });
+  expect(sidebarToggleView(true, new Map<string, SidebarSlot>([...scheduled, ["u", { kind: "unseen", label: "l" }]])).badge).toBe("unseen");
+});

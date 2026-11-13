@@ -282,3 +282,16 @@ describe("composerTurn", () => {
     expect(composerTurn(opened(), summary({}), false)).toBe("idle");
   });
 });
+
+describe("at the usage limit", () => {
+  // The message waits in the queue for the reset, so another project conversation holding the root does not stop it
+  // being queued; main waits for the root when the reset comes.
+  test("Queue is not held by another conversation in the project", () => {
+    expect(dockedAvailability(input({ limited: true, busy: { kind: "project", open: "c9" } }))).toEqual({ enabled: true, reason: null });
+    expect(dockedAvailability(input({ limited: true, draft: EMPTY_DRAFT })).enabled).toBe(false);
+  });
+  test("a refused start names the reset time when main gave one", () => {
+    expect(dockedRefusal("rate_limited", { kind: "new", root: "/r" }, "codex", "doan-design", "at 3:00\u202fPM"))
+      .toEqual({ kind: "notice", text: "Codex reached a usage limit. Send again after it resets at 3:00\u202fPM." });
+  });
+});

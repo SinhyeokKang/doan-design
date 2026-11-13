@@ -9,3 +9,8 @@ test("an unread finished conversation shows the speech bubble with its label, th
   expect(renderToStaticMarkup(<StatusMark status={{ kind: "working", label: "Working" }} />)).toContain("doan-spinner");
   expect(renderToStaticMarkup(<StatusMark status={{ kind: "permission", label: "Needs your answer" }} />)).toContain("lucide-hand");
 });
+
+test("a scheduled conversation shows the clock in subtle ink with its label", () => {
+  const out = renderToStaticMarkup(<StatusMark status={{ kind: "scheduled", label: "Queued — sends when the limit resets at 3:00\u202fPM" }} />);
+  expect(out).toMatch(/<span class="row-slot scheduled" role="img" aria-label="Queued — sends when the limit resets at 3:00\u202fPM"><svg[^>]*lucide-clock/);
+});

@@ -232,6 +232,29 @@ describe("thread items", () => {
     expect(out).not.toContain("Sign in again");
   });
 
+  // usage-limit-resume draft, failed-line: only the last turn's limit end, while the connection's limit state is live,
+  // says that messages sent now go out at the reset; its time wins over the time Claude's detail names.
+  test("the last usage-limit end names the live reset and says messages sent now go out then", () => {
+    const phrase = "at 3:00\u202fPM";
+    expect(endView({ kind: "failed", code: "rate_limited" }, "claude", phrase)).toMatchObject({ title: "Claude Code reached a usage limit", body: "Resets at 3:00\u202fPM. Messages you send now go out then." });
+    expect(endView({ kind: "failed", code: "rate_limited", detail: "You've hit your weekly limit · resets Nov 11 at 2pm (Asia/Seoul)" }, "claude", phrase).body).toBe("Resets at 3:00\u202fPM. Messages you send now go out then.");
+    expect(endView({ kind: "failed", code: "process_exited" }, "claude", phrase).body).toBe("It may have changed files before it stopped.");
+    const user = (key: string, seq: number): ThreadItem => ({ kind: "user", key, seq, anchors: [], preset: null, parts: [{ text: "Tighten it" }], attachments: [] });
+    const end = (key: string, seq: number): ThreadItem => ({ kind: "end", key, seq, end: { kind: "failed", code: "rate_limited" } });
+    const out = html([user("u1", 1), end("e2", 2), user("u3", 3), end("e4", 4)], { limitResets: phrase });
+    expect(out.match(/Messages you send now go out then\./g)?.length).toBe(1);
+    expect(out).toContain("<b>Claude Code reached a usage limit</b><span>Send again after it resets.</span>");
+    expect(out).toContain("<b>Claude Code reached a usage limit</b><span>Resets at 3:00\u202fPM. Messages you send now go out then.</span>");
+    expect(html([user("u1", 1), end("e2", 2)])).toContain("<span>Send again after it resets.</span>");
+  });
+
+  // The failed turn's own message waits in the queue, so Edit and resend would put it out twice; it is back after Remove.
+  test("Edit and resend is hidden while the failed turn's message is queued", () => {
+    const items: ThreadItem[] = [{ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, parts: [{ text: "Tighten it" }], attachments: [] }, { kind: "end", key: "e2", seq: 2, end: { kind: "failed", code: "rate_limited" } }];
+    expect(html(items, { limitResets: "at 3:00\u202fPM", resendHidden: true })).not.toContain("Edit and resend");
+    expect(html(items, { limitResets: "at 3:00\u202fPM" })).toContain(">Edit and resend</button>");
+  });
+
   test("a crash-folded turn's end offers Edit and resend like any other end", () => {
     const out = html([{ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, parts: [{ text: "Draw it" }], attachments: [] }, { kind: "end", key: "xt1", seq: null, end: { kind: "interrupted", reason: "crashed" } }]);
     expect(out).toContain("<b>Stopped</b><span>The agent stopped before it finished.</span>");

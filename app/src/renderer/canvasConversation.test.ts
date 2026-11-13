@@ -291,3 +291,10 @@ describe("resumeHeld", () => {
     expect(resumeHeld({ available: true, runtime: "codex" }, work)).toBe(false);
   });
 });
+
+// The canvas panel's New conversation names the usage limit's reset as the Overview's does (usage-limit-resume draft).
+test("a start refused by the usage limit names the reset time in the canvas panel", () => {
+  const NEW: DockedMode = { kind: "new", root: "/code/acme", canvas: billing };
+  expect(canvasConversationError("rate_limited", NEW, "claude", "acme-web", [], "at 3:00\u202fPM"))
+    .toEqual({ kind: "notice", text: "Claude Code reached a usage limit. Send again after it resets at 3:00\u202fPM.", retry: false, startNew: false });
+});

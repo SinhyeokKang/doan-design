@@ -225,3 +225,10 @@ describe("overviewAfterListChange", () => {
     expect(overviewAfterListChange({ ...current, listed: false }, { root, list: [] })).toEqual({ kind: "keep" });
   });
 });
+
+describe("conversationStatus while scheduled", () => {
+  test("StatusMark takes the scheduled slot's own label, over an unseen ending", () => {
+    const scheduled = { kind: "scheduled" as const, label: "Queued — sends when the limit resets at 3:00\u202fPM" };
+    expect(conversationStatus(summary({ queued: 1, unseen: true }), new Set(), scheduled)).toEqual(scheduled);
+  });
+});

@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
-import { slotsFromList, stripFromList, withTerminalSlots } from "./conversationList";
+import { conversationWork, slotsFromList, stripFromList, withTerminalSlots } from "./conversationList";
 import { slotKey, type Slot } from "./homeConversations";
 import { projectSlot } from "./ShellSidebar";
 
@@ -140,5 +140,31 @@ describe("withTerminalSlots", () => {
   test("no work leaves the conversation slots as they are", () => {
     const app: Slot = { kind: "working", label: "Codex is working" };
     expect([...withTerminalSlots(new Map([["/r", app]]), [], entries)]).toEqual([["/r", app]]);
+  });
+});
+
+// A conversation whose messages wait for the usage limit's reset: after an answer request, working and a terminal agent's
+// spinner, before an unseen ending (usage-limit-resume draft, sidebar-slot).
+describe("the scheduled slot", () => {
+  const scheduled: Slot = { kind: "scheduled", label: "Queued — sends when the limit resets at 3:00\u202fPM" };
+
+  test("a scheduled conversation shows its slot, over its own unseen ending", () => {
+    expect(conversationWork(summary({ queued: 1 }), none, scheduled)).toEqual(scheduled);
+    expect(conversationWork(summary({ queued: 1, unseen: true }), none, scheduled)).toEqual(scheduled);
+    expect(conversationWork(summary({ queued: 1, readError: true }), none, scheduled)).toBeNull();
+    expect(conversationWork(summary({ unseen: true }), none, null)?.kind).toBe("unseen");
+  });
+
+  test("on a row it beats an unseen ending and loses to working, an answer request and a terminal agent", () => {
+    const A = ".doan/canvases/a.html";
+    const entries: FolderEntry[] = [{ path: "/r", kind: "list", servedRev: 0, canvases: [{ path: A, url: A }] }];
+    const unseen: Slot = { kind: "unseen", label: "Conversation finished — unread" };
+    const terminal: WorkItem = { root: "/r", path: A, provider: "codex", session: "codex-1", touched: 0, turn: "none:t" };
+    expect(withTerminalSlots(new Map([[slotKey("/r", A), scheduled]]), [terminal], entries).get(slotKey("/r", A))?.source).toBe("terminal");
+    expect(withTerminalSlots(new Map([[slotKey("/r", A), scheduled]]), [], entries).get(slotKey("/r", A))).toEqual(scheduled);
+    const project = (slots: [string, Slot][]) => projectSlot(new Map(slots), ["/r"], []);
+    expect(project([["/r", unseen], [slotKey("/r", A), scheduled]])).toEqual(scheduled);
+    expect(project([["/r", scheduled], [slotKey("/r", A), { kind: "working", label: "w" }]])?.kind).toBe("working");
+    expect(project([["/r", scheduled], [slotKey("/r", A), { kind: "permission", label: "p" }]])?.kind).toBe("permission");
   });
 });
