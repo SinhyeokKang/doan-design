@@ -125,3 +125,4 @@
   - 시각 문구는 “resets at 3:00 PM” / “resets tomorrow at 3:00 PM” / “resets Thursday at 3:00 PM” / “resets Nov 20 at 3:00 PM”이고, 시각과 AM/PM은 U+202F로 묶는다.
   - 슬롯 우선순위는 권한·질문, 문제, 일하는 중, 터미널 작업, 예약됨, 아직 보지 않은 끝 순이다. '예약됨'은 Show sidebar 배지에 세지 않고, 누르면 그 대화를 연다.
   - 상태 줄의 live region은 빈 컨테이너로 항상 있고 내용만 바뀐다. DESIGN.md 'Queued messages'의 "No caption sits under the list" 규칙이 이 기능으로 바뀐다.
+- 초안 `.doan/canvases/usage-limit-resume.html`은 사용자가 앱에서 확인했다(2026-11-13, `ead60218`).

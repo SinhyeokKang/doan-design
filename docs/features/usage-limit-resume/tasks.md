@@ -7,7 +7,7 @@
   - 거절된 턴의 이벤트.
   - 리셋 정각 전송의 수락 여부.
   - 커밋 경계: PoC 관찰은 이 문서나 커밋 메시지에 적는다.
-- [ ] 2. `/design-draft`로 새 초안 `.doan/canvases/usage-limit-resume.html`을 그리고 사용자 확인을 받는다. 프레임: Queue 버튼과 tooltip, 예약 행과 상태 줄(시각 형식 네 가지, Sending…), 실패 줄의 새 둘째 줄, 자동 예약된 실패 턴, 재예약, 사이드바 슬롯의 예약 상태, 삭제 확인창의 새 줄, Home 거절 문구. 기존 화면의 초안은 고치지 않는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
+- [x] 2. `/design-draft`로 새 초안 `.doan/canvases/usage-limit-resume.html`을 그리고 사용자 확인을 받는다. 프레임: Queue 버튼과 tooltip, 예약 행과 상태 줄(시각 형식 네 가지, Sending…), 실패 줄의 새 둘째 줄, 자동 예약된 실패 턴, 재예약, 사이드바 슬롯의 예약 상태, 삭제 확인창의 새 줄, Home 거절 문구. 기존 화면의 초안은 고치지 않는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
   - 커밋 경계: 초안.
 - [ ] 3. `/tdd`: 순수 함수와 IPC 모양을 고정하고 red를 확인한다. 검증: `npm --prefix app test`가 새 테스트에서만 실패한다.
   - `limitResetFromUsage`: 리셋 시각 없음, 이미 지난 시각, 정각, 두 provider fixture.
