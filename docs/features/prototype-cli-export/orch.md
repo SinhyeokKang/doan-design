@@ -65,3 +65,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 12(승격·삭제)는 conducto
 - lead에 `GUI again`을 보내고 C에 task 9·10(`ctx_34f8e7525844`)을 보냈다.
 - B 리뷰 2회차(Codex, B3): 🔴 0, 🟡 0, ⚪ 1(공백 제목 회귀 테스트는 선택). 앱도 공백 제목을 그대로 쓰므로 id로 바꾸지 않는다. ⚪1은 넣지 않는다(conductor 판단: 앱과 같은 동작이고 리뷰어도 선택으로 분류). B 배치를 닫는다. task 10에서 CLI 결함이 나오면 B로 돌려보낸다.
 - 정리: 리뷰어 `pce-ra`·`pce-rb`·`pce-rc`를 release하고 Orca로 worktree를 지웠다(브랜치는 남겼다). 보고서는 conductor `.scratch/evidence/`에 복사했다.
+- D-fix1 완료 → `9a3abb3b`, `ba111596`로 통합. X2에 `output_not_canvas_viewer`(일반 export와 바이트가 다르고 프로토타입 제목·noscript 안내가 있음)를 더했고, 명령 검사는 출력 경로를 요구하지 않는다. D가 쓴 POSTMORTEM 초안(재생성한 참조와의 바이트 비교만으로는 결과의 종류를 증명하지 못한다)은 conductor가 문서 단계에서 POSTMORTEM에 넣는다. D 리뷰 2회차를 같은 Opus 리뷰어에 보냈다. 통과하면 실제 라운드를 D에 보낸다.
