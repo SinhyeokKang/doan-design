@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { NO_LAYERS, type HostLayers } from "./host";
 import { WindowShell, type ShellProps } from "./PrototypeWindow";
+import { EMPTY_DRAWER } from "./view";
 import type { PrototypeView } from "../../main/prototype/ipc";
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
@@ -37,6 +38,15 @@ describe("WindowShell header", () => {
     expect(tag(html, "pw-name")).toContain('aria-haspopup="listbox"');
     expect(html).toContain('<span class="pw-name-text">Checkout</span>');
     expect(tag(html, "pw-name")).not.toContain("title=");
+  });
+
+  // Focus stays on the name button when the empty drawer opens, so the button itself is described by the sentence.
+  test("with no marked frame the name button is described by the drawer's sentence", () => {
+    const html = markup({ view: view({ frames: [] }) });
+    const id = /aria-describedby="([^"]+)"/.exec(tag(html, "pw-name"))?.[1];
+    expect(id).toBeDefined();
+    expect(html).toContain(`id="${id}">${EMPTY_DRAWER}</span>`);
+    expect(tag(markup(), "pw-name")).not.toContain("aria-describedby");
   });
 
   test("with no marked frame the name opens a dialog of one line, not a listbox", () => {

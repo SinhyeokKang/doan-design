@@ -17,6 +17,8 @@ export type PrototypeApi = PrototypeWindowApi & { onSnapshot(listener: (snapshot
 // The reading line waits so a quick load does not flash it in, as the shipped problem overlay's does.
 const READING_DELAY_MS = 300;
 const SCENE_HEADING_ID = "prototype-state-heading", SCENE_LINE_ID = "prototype-state-line";
+// The empty drawer's sentence as the name button's description: focus stays on the button when that drawer opens.
+const EMPTY_DRAWER_ID = "prototype-drawer-empty";
 const ICONS: Record<SceneIcon, LucideIcon> = { read: FileWarning, init: TriangleAlert, frame: SquareDashed, support: CircleSlash };
 
 export function PrototypeWindow({ api }: { api: PrototypeApi }) {
@@ -260,8 +262,8 @@ function FrameMenu({ view, onChoose }: { view: PrototypeView; onChoose(frame: st
   const empty = rows.length === 0;
   const trigger = <button type="button" className="shell-search pw-name" aria-haspopup={empty ? "dialog" : "listbox"}>
     <span className="pw-name-text" ref={text}>{view.title}</span><ChevronDown className="chev" aria-hidden="true" /></button>;
-  return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) setFocused(null); }}>
-    <Tooltip open={cut && tip} onOpenChange={setTip}><TooltipTrigger asChild><Popover.Trigger asChild>{trigger}</Popover.Trigger></TooltipTrigger><TooltipContent>{view.title}</TooltipContent></Tooltip>
+  return <><Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) setFocused(null); }}>
+    <Tooltip open={cut && tip} onOpenChange={setTip}><TooltipTrigger asChild><Popover.Trigger asChild {...(empty ? { "aria-describedby": EMPTY_DRAWER_ID } : {})}>{trigger}</Popover.Trigger></TooltipTrigger><TooltipContent>{view.title}</TooltipContent></Tooltip>
     <Popover.Portal><Popover.Content ref={list} role={empty ? "dialog" : undefined} aria-label={empty ? drawerLabel(view) : undefined} className="doan-floating doan-menu doan-frame-list pw-drawer" align="center" sideOffset={4} collisionPadding={8}
       onOpenAutoFocus={event => {
         event.preventDefault();
@@ -281,5 +283,5 @@ function FrameMenu({ view, onChoose }: { view: PrototypeView; onChoose(frame: st
           </div>)}
         </div>}
     </Popover.Content></Popover.Portal>
-  </Popover.Root>;
+  </Popover.Root>{empty && <span className="sr-only" id={EMPTY_DRAWER_ID}>{EMPTY_DRAWER}</span>}</>;
 }
