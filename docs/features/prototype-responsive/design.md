@@ -181,6 +181,20 @@ Fit 모드의 축소(결정 1)와 포인터 포커스(결정 10·13)는 아직 �
 
 실패하면 design.md를 고치고 멈춰 사용자에게 해당 결정을 다시 묻는다. Responsive 모드는 지금 코드와 같은 방식이라 PoC가 필요 없다.
 
+### PoC 결과
+
+2026-11-13, Electron 45.0.0, dev 빌드(`app/out/`)를 격리 환경(`app/runtime/` 임시 userData·HOME·SHELL·DOAN_RUNTIME)으로 띄웠다. probe는 `.scratch/prototype-responsive/probe.mjs`이고, 앱 코드는 바꾸지 않고 바깥 문서에 축소 상자와 리스너를 주입했다. 축소는 패널 344 × 500, 표시 390×844, scale 0.592(보이는 상자 231 × 500, x 56)로 쟀다. 입력은 Playwright가 CDP로 창에 보낸 포인터·키 이벤트이고 OS의 실제 입력은 아니다. 실제 사용자 상태는 바뀌지 않았다(real-state 확인 통과). 여덟 항목 모두 통과했다.
+
+- (a) 통과: 줄인 iframe 문서의 `innerWidth` 390, `innerHeight` 844, `(width: 390px)`·`(height: 844px)` media query 일치, `100vh` 844, `documentElement` 390 × 844.
+- (b) 통과: 클릭 1회가 버튼에 닿았고, hover는 `:hover`와 `mouseenter`가 맞았다. 화면 30 × 20 드래그는 문서 좌표 50.6 × 33.8(= 30/s × 20/s)로 왔고, 휠은 스크롤 상자를 202.5 움직였으며, 텍스트 선택은 "Alpha bravo charlie del"이었다.
+- (c) 통과(눈으로 확인): 11px·20px 글자가 0.592배에서도 흐리지 않게 다시 그려졌다(`c-text-scaled.png`, 프레임 DPR 2).
+- (d) 통과: 5000×5000 표시를 패널 1424 × 759에서 scale 0.152로 줄이자 245 ms 안에 네 모서리 표식이 모두 찍혔다. 앱 전체 메모리는 줄이기 전 681 MB에서 704 MB로 늘었다. 줄인 문서의 `innerWidth`·`innerHeight`는 5000이다.
+- (e) 통과: `webContents.capturePage({x: 64, y: 56, width: 231, height: 500})`가 줄인 프레임을 보이는 대로 찍었다(462 × 1000 px, 왼쪽 위 빨강·오른쪽 위 파랑·아래 막대 초록이 제자리).
+- (f) 통과: Fit → Responsive(344 × 500) → Fit으로 iframe 크기만 바꿨을 때 문서가 다시 불러와지지 않았다(같은 boot 표식, `load` 1회). `resize`만 두 번 받았고 입력 값 "keep"과 열린 `<dialog>` 모달이 남았다.
+- (g) 통과: 프레임 입력에 포커스가 있을 때 `mousedown`에서 `preventDefault()`를 부르는 바깥 버튼을 포인터로 누르면 클릭은 일어나고, 바깥 `activeElement`는 iframe, 프레임 `activeElement`는 그 입력으로 남았으며, 이어 친 키가 입력에 들어갔다. 대조군(`preventDefault()` 없음)은 포커스를 버튼으로 가져가 키가 프레임에 가지 않았다.
+- (h) 통과: Reload에 `mousedown` `preventDefault()`를 걸고 포인터로 누르자(누르기 전 포커스는 iframe) 새 run이 정상으로 떴다(새 boot 표식, overlay 없음, 390 × 844). ready 때 바깥 포커스는 `body`였고, 바깥 문서가 새 iframe에 `focus()`를 부른 뒤의 키("k", "q")가 새 프레임 문서로 갔다.
+- 구현에 남길 관찰: 프로토타입 페이지의 CSP(`default-src 'self'`)는 주입한 `<style>` 요소를 막는다. 축소 상자는 React 인라인 style(CSSOM)로 주면 된다.
+
 ## POSTMORTEM에서 가져온 함정
 
 - **2026-11-13 'A toolbar control that turned unavailable while focused was mounted anew and focus fell to the page'**: "a wrapper that adapts props for some states keeps the same component tree in every state and decides inside it". 모드 버튼은 눌림이 바뀌어도 같은 요소로 남아야 하고, Reload와 모드 버튼은 view가 처음 와서 `disabled`가 풀려도 같은 요소로 남아야 한다. 토글 항목도 `IconTip`의 `TooltipTrigger`(asChild) 구조를 쓴다. 이름 캡슐은 줄이 바뀌어도 DOM에서 옮기지 않고 CSS(`.pw.name-row`)로 자리만 바꾸므로 포커스와 열린 메뉴가 남는다. 두 상태를 렌더해 자식 요소의 `type`이 같은지 테스트하고, 실제 앱에서 포커스된 버튼의 눌림을 바꾼 뒤 `document.activeElement`를 읽는다.
