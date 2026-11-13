@@ -423,6 +423,15 @@ describe("prototype window styles", () => {
     expect(css).not.toMatch(/519\.98px/);
   });
 
+  // An unavailable Export stays focusable (aria-disabled, not disabled), so the shared rules for :disabled never reach
+  // it: it takes the disabled ink and not-allowed cursor itself, and no fill under the pointer or while pressed. The
+  // header's chrome hover and pressed rules have the same weight, so this one wins by coming after ds/controls.css.
+  test("an unavailable Export takes the disabled ink, a not-allowed cursor and no hover or pressed fill", () => {
+    expect(css).toMatch(/\.pw-right > \.doan-icon-button\[aria-disabled="true"\] \{ color: var\(--text-disabled\); cursor: not-allowed; \}/);
+    expect(css).toMatch(/\.pw-right > \.doan-icon-button\[aria-disabled="true"\]:is\(:hover, :active\) \{ background: transparent; \}/);
+    expect(css.indexOf('@import "./ds/index.css";')).toBeLessThan(css.indexOf('.pw-right > .doan-icon-button[aria-disabled="true"]'));
+  });
+
   // Main fits and captures the window by the same width, so the two must change together.
   test("the stylesheet's right group is the width main fits by", () => {
     expect(css).toContain(`:root { --pw-right: ${PROTOTYPE_HEADER_RIGHT}px; }`);

@@ -1856,6 +1856,11 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .pw-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pw-name .chev { flex: none; color: var(--text-metadata); }
 .pw-right { position: absolute; top: 0; right: var(--space-2); display: flex; align-items: center; gap: var(--space-1); height: var(--size-chrome); }
+/* Export unavailable with a reason is aria-disabled, so it keeps its Tab stop; the :disabled rules of ds/controls.css
+   miss it. It takes their ink and cursor itself, and no chrome fill under the pointer or while pressed (same weight as
+   those rules, so it wins by coming later). */
+.pw-right > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: not-allowed; }
+.pw-right > .doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 /* The panel paints its rounded corners without clipping; the content clips its top corners and the stage inside it its
    bottom ones. No ancestor of the cross-origin run iframe may clip with four equal radii: Chromium then draws it only
    within 8192 CSS px of its origin at DPR 2 (ARCHITECTURE §3 'Canvas view', POSTMORTEM 2026-11-11), and a Fit frame
