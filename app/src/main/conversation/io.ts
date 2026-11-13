@@ -94,7 +94,9 @@ async function claudeRecordVerdict(directory: string, listed: Stats, name: strin
     const identity = registryIdentity(name, raw); if (!identity) return "unknown";
     if (!identity.host) return registryRecordVerdict(raw, sessionId, "foreign");
     const actual = await inspect(identity.pid);
-    const live = actual !== null && actual.replace(/\s+/g, " ").trim() === identity.procStart.replace(/\s+/g, " ").trim();
+    // Without procStart (Claude Code 2.1.323) a reused pid cannot be told apart: a live one is judged by its sessionId,
+    // which only refuses the resume of the session it names.
+    const live = actual !== null && (identity.procStart === undefined || actual.replace(/\s+/g, " ").trim() === identity.procStart.replace(/\s+/g, " ").trim());
     return registryRecordVerdict(raw, sessionId, live ? "live" : "dead");
   } catch { return "unknown"; }
 }

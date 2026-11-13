@@ -227,7 +227,9 @@ describe("conversation disk boundaries", () => {
     const inspect = async (pid: number) => pid === 30 ? start : null;
     const live = { pid: 30, sessionId: "x", cwd: "/w", kind: "interactive", version: "2.1.321", procStart: start };
     const path = join(config, "sessions", "30.json");
-    for (const value of [{ ...live, pid: 31 }, { ...live, procStart: undefined }, { ...live, pid: undefined }]) { writeFileSync(path, JSON.stringify(value)); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown"); }
+    // A missing procStart is a 2.1.323 record and is judged by its pid (the describe above); one that is there but
+    // unreadable is a shape this reader does not know.
+    for (const value of [{ ...live, pid: 31 }, { ...live, procStart: 1 }, { ...live, pid: undefined }]) { writeFileSync(path, JSON.stringify(value)); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown"); }
     writeFileSync(path, "{broken"); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
     writeFileSync(path, JSON.stringify(live)); expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
     expect(await claudeOccupancy(config, "s", async () => { throw new Error("ps failed"); })).toBe("unknown");
