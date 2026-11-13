@@ -26,8 +26,9 @@ describe("counting", () => {
   test("only a turn that ended in success counts; failed, interrupted and other events do not", async () => {
     const { file, store, moment } = setup();
     store.event(done(1));
-    store.event({ ...done(2), type: "turn.failed", code: "process_exited" });
-    for (const reason of ["user", "appQuit", "crashed"]) store.event({ ...done(3), type: "interrupted", reason });
+    const failed = { ...done(2), type: "turn.failed", code: "process_exited" };
+    store.event(failed);
+    for (const reason of ["user", "appQuit", "crashed"]) { const interrupted = { ...done(3), type: "interrupted", reason }; store.event(interrupted); }
     for (const type of ["turn.started", "message.agent", "permission.request"]) store.event({ ...done(4), type });
     await flush();
     expect(json(file)).toEqual({ v: 1, turns: 1, threshold: 20, deferredUntil: 0, asks: 0, done: false });

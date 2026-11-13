@@ -32,6 +32,7 @@ import type { Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWri
 import type { NotificationTarget } from "../main/notifications";
 import type { TestNotificationReply } from "../main/notifyService";
 import type { AboutRead } from "../main/about";
+import type { StarMoment } from "../main/starPrompt";
 import type { InstallGate, UpdateSnapshot } from "../main/update/types";
 import type { InspectResult } from "../main/inspect";
 import type { FolderEntry, ReadStateProblem } from "../main/view";
@@ -463,6 +464,17 @@ const api = {
   installUpdate: (): Promise<InstallGate | null> => ipcRenderer.invoke("update:install"),
   // The ready version's GitHub release page in the browser; false when there is none or it could not open.
   openReleaseNotes: (): Promise<boolean> => ipcRenderer.invoke("update:openNotes"),
+  // The GitHub star card. Main says when a card is due; the renderer still waits for a quiet moment. Requests carry no
+  // data: main opens its own repository URL (true when the browser opened) and keeps the card's state.
+  onStarMoment(listener: (moment: StarMoment) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, moment: StarMoment) => listener(moment);
+    ipcRenderer.on("star:moment", receive);
+    return () => ipcRenderer.removeListener("star:moment", receive);
+  },
+  openStarRepository: (): Promise<boolean> => ipcRenderer.invoke("star:open"),
+  dismissStarPrompt: (): Promise<void> => ipcRenderer.invoke("star:dismiss"),
+  // A conversation running or waiting for an answer, which puts the card off.
+  starPromptBusy: (): Promise<boolean> => ipcRenderer.invoke("star:busy"),
   // The menu's Restart to Update was blocked: main has shown the window; open the header button's popover.
   onUpdatePopover(listener: () => void): () => void {
     const receive = () => listener();

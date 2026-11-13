@@ -75,6 +75,8 @@ import { menuState, updateMenu, type Screen } from "./menuState";
 import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
 import { updateEligibility } from "./update/eligibility";
 import { installGate } from "./update/gate";
+import { REPOSITORY_URL } from "./repository";
+import { createStarPrompt, type StarPromptStore } from "./starPromptStore";
 import { updateView, type UpdateMenuView } from "./update/view";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
@@ -206,6 +208,7 @@ app.on("did-become-active", () => {
 });
 let conversations: ConversationService | undefined;
 let updates: UpdateService | undefined;
+let starPrompt: StarPromptStore | undefined;
 // The menu item's view as last built, so a snapshot that leaves it alone does not rebuild the menu.
 let updateMenuKey = "";
 let agentAuth: AuthManager | undefined;
@@ -1018,7 +1021,7 @@ async function start(): Promise<void> {
   let modelCatalog: ModelCatalog | undefined;
   // Every conversation event, and every end of a turn's work (a history that stopped taking writes publishes no event),
   // may start or end a turn or a question, which Restart to Update waits for.
-  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => { send("conversation:event", event); notify.event(event); updates?.conversationsChanged(); }, (root, canvas) => {
+  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => { send("conversation:event", event); notify.event(event); updates?.conversationsChanged(); starPrompt?.event(event); }, (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
     if (!project) throw new Error("project_not_open");
     if (canvas) {
@@ -1259,12 +1262,13 @@ async function start(): Promise<void> {
   handle("about:read", null, (_event, value: unknown) => value === undefined ? readAbout() : null);
   // App updates (ARCHITECTURE §7). Eligibility is agent setup's for this bundle, asked without waiting for setup's
   // login-shell probe, plus the release feed file; a copy that doesn't update never makes an updater.
+  const releaseEligibility = updateEligibility({
+    isPackaged: app.isPackaged, hasFeedConfig: hasFeedConfig(process.resourcesPath),
+    install: setupEligibility({ home: homeDirectory(), resources: process.resourcesPath, isPackaged: app.isPackaged }),
+  });
   const updateService = new UpdateService({
     version: app.getVersion(),
-    eligibility: updateEligibility({
-      isPackaged: app.isPackaged, hasFeedConfig: hasFeedConfig(process.resourcesPath),
-      install: setupEligibility({ home: homeDirectory(), resources: process.resourcesPath, isPackaged: app.isPackaged }),
-    }),
+    eligibility: releaseEligibility,
     autoCheck: preferences.current().updates.autoCheck,
     ...electronUpdater(),
     gate: () => installGate(conversationService.restartHolds()),
@@ -1287,6 +1291,19 @@ async function start(): Promise<void> {
     if (url === null) return false;
     try { await electronShell.openExternal(url); return true; } catch { return false; }
   });
+  // The GitHub star card counts and asks only in a copy that updates, the release builds people install. The renderer
+  // names nothing: main opens its own fixed URL, and a dismissal or the busy read carry no data.
+  starPrompt = createStarPrompt({ file: join(userData, "star-prompt.json"), enabled: releaseEligibility.kind === "enabled", now: () => Date.now(), moment: moment => send("star:moment", moment) });
+  const stars = starPrompt;
+  handle("star:open", false, async (_event, value: unknown) => {
+    if (value !== undefined) return false;
+    try { await electronShell.openExternal(REPOSITORY_URL); } catch { return false; }
+    stars.opened();
+    return true;
+  });
+  handle("star:dismiss", undefined, (_event, value: unknown) => { if (value === undefined) stars.dismissed(); });
+  // A conversation running or waiting for an answer puts the card off, as it holds Restart to Update.
+  handle("star:busy", true, (_event, value: unknown) => value === undefined ? installGate(conversationService.restartHolds()).kind === "blocked" : true);
   // Copies what About last showed, so the text matches the page.
   handle("about:copy", { kind: "stale" }, async (_event, value: unknown) => value === undefined ? copy(aboutText(lastAbout ?? await readAbout(), updateService.snapshot())) : { kind: "stale" });
   handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);

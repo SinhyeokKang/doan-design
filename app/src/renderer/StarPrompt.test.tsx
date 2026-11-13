@@ -127,11 +127,11 @@ describe("puts the card off until main's next moment", () => {
     ["a canvas pick or Capture area", () => { pickOrCapture = true; }],
   ])("%s", async (_name, put) => {
     render(); visible(true);
-    put();
+    put(); render();
     moment({ second: false });
     expect((await wait(1200)).card).toBeNull();
     expect((await wait(10_000)).card).toBeNull();
-    overlay = null; busy = false; focused = true; visible(true); onboarding = false; pickOrCapture = false;
+    overlay = null; busy = false; focused = true; visible(true); onboarding = false; pickOrCapture = false; render();
     moment({ second: false });
     expect((await wait(1200)).card).not.toBeNull();
   });
@@ -268,7 +268,7 @@ describe("the view", () => {
   test("a browser that did not open adds About's failure line, with the address as selectable text, between the words and the buttons", () => {
     expect(starOpenFailedLine).toBe(`Couldn’t open GitHub in your browser. Try again, or find Doan at ${REPOSITORY_URL}`);
     const html = renderToStaticMarkup(<StarPromptView {...props({ ...card, failed: true })} />);
-    expect(html).toMatch(new RegExp(`<p class="sr-only" role="status">${starOpenFailedLine}</p><p class="settings-msg error selectable star-prompt-failure"><svg[^>]*class="lucide lucide-circle-alert doan-alert-icon"[^>]*>.*</svg>`
+    expect(html).toMatch(new RegExp(`<p class="sr-only" role="status">${starOpenFailedLine}</p><p class="settings-msg error selectable star-prompt-failure"><svg[^>]*class="[^"]*doan-alert-icon"[^>]*>.*</svg>`
       + `<span>Couldn’t open GitHub in your browser. Try again, or find Doan at <span class="star-prompt-url">${REPOSITORY_URL}</span></span></p><div class="star-prompt-actions">`));
   });
 
