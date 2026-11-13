@@ -13,13 +13,14 @@
 - conductor 판단 — PoC가 정한 지원 조건은 spec 요구를 줄이지 않는다. 파싱 중 프레임 밖에 만든 요소가 숨는 것은 spec 6의 '프레임 내부' 모달 밖의 경우이고, 가이드가 필요한 요소를 프레임 안에 두라고 쓴다. 사용자에게 묻지 않았다. PR 본문에 적는다.
 - conductor 판단 — PoC 결론(지원 속성·실행 계약·schema·`v`·응답 없음 시간)은 PoC 워커가 design.md 'PoC가 먼저 정할 구현 계약'에 확정 문장으로 쓴다. 지원 조건이 사용자 요구를 줄이면 사용자에게 묻는다.
 - conductor 판단(C 질문) — (1) 메인 창 재생 요청은 선택한 프레임의 `layout` 표시 원문을 크기 힌트로만 보낸다. main이 공용 파서로 읽고 URL은 main이 만든다. 로드 전에 창을 맞추고, 준비 결과의 표시 크기가 다르면 한 번 다시 맞춘다. 드로어 재생은 실행이 보고한 프레임 목록의 크기를, 기록 항목은 저장한 크기를 쓴다. (2) 최소 창 폭에서의 콘텐츠 패널 폭(360에서 패널 여백을 뺀 값)보다 좁은 프레임은 창을 넓혀도 자기 폭으로 가운데 놓는다. (3) live `layout`에서 ID가 비었거나 중복된 프레임의 비활성 이유는 `Select a supported frame to play its prototype.`이다. (4) Back/Forward는 캔버스 행이 없거나 ID가 충돌하거나 루트가 등록 해제된 항목, 그리고 이 창의 그 캔버스 마지막 실행 보고에 없는 프레임을 건너뛴다. 보고가 없으면 재생하고 실행이 판정한다. 근거: spec 5·13·19의 의도 안에서 정하는 구현 세부다.
+- G 워커 판단(수용) — 프레임 아닌 요소의 무효 값은 `prototype_not_frame`만 낸다. 프레임의 빈 값은 `invalid_prototype_size`다. 같은 원문의 프레임 아닌 표시가 여럿이면 한 번만 보고한다.
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | P | tasks 1 PoC | `.scratch/poc-*`(커밋 안 함), design.md 'PoC가 먼저 정할 구현 계약' | 없음 | Opus high — 격리·내비게이션 경계와 형식 계약을 정하는 판단이 크다 | 격리 dev 앱 probe 증거, 결론별 통과/실패 기록 | 통합 `a0d25c5f` |
-| G | tasks 3 Go·fixture·가이드 | `schema/fixtures/prototype-mark/`, `cli/internal/{canvas,check}`, `cli/internal/cli/skill.md` | P | Sonnet high — 계약이 정해진 파서·검사 두 개와 가이드 한 항목 | `go test ./...`, `go vet ./...`, `node eval/run.ts --self-test` | 진행 |
+| G | tasks 3 Go·fixture·가이드 | `schema/fixtures/prototype-mark/`, `cli/internal/{canvas,check}`, `cli/internal/cli/skill.md` | P | Sonnet high — 계약이 정해진 파서·검사 두 개와 가이드 한 항목 | `go test ./...`, `go vet ./...`, `node eval/run.ts --self-test` | 통합 `a9328883` |
 | C | tasks 3 TS 계약 | 새 순수 모듈(표시 파서·실행 가능 여부·창 상태·기록·요청 검증·창 맞춤·내비게이션 gate), `prototype:*` IPC·preload 타입, `senderAllowed.ts` | P (fixture 테스트는 G 뒤 지연 항목) | Opus high — 수명 경합과 sender 경계 | `npm --prefix app test`, typecheck, lint | 진행 |
 | M | tasks 4 main | `app/src/main/`(창·제공/주입·내비게이션·IPC·읽음 분리), `app/src/preload/`, electron-vite 설정 | C | Opus high — sandbox·sender guard·수명 경합 | `npm --prefix app test`, 격리 앱 검증표 | PoC 뒤 확정 |
 | R | tasks 4 UI + `/design-sync` | `app/src/renderer/`(도구 바·버블·서랍 메타·프로토타입 창 UI), `styles.css`, DESIGN.md | C (실제 앱 확인은 M) | Opus high — 포커스·상태 오버레이·초안 일치 | `npm --prefix app test`, `/design-sync` | PoC 뒤 확정 |
