@@ -58,7 +58,7 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1a. `prototype-responsive` | Claude Code · `prototype-responsive-orch` (`feat/prototype-responsive`) | 2026-11-13, `808252b4` | | 진행 중 |
+| 1a. `prototype-responsive` | Claude Code · `prototype-responsive-orch` (`feat/prototype-responsive`) | 2026-11-13, `808252b4` | PR #189, 병합 `00fb6387` | 완료 |
 | 1b. `multi-handoff` | Claude Code · `multi-handoff-orch` (`feat/multi-handoff`) | 2026-11-13, `808252b4` | | 진행 중 |
 | 2. `prototype-cli-export` | | | | 대기 |
 | 3. `prototype-conversation` | | | | 대기 |
@@ -68,3 +68,4 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 - 2026-11-13 lead(develop checkout): 사용자 요청으로 체인 파일을 미리 썼다. 체인 261113-2를 마무리하고 릴리스한 뒤 시작한다. 시작할 때 시작 점검을 한 번에 묻는다.
 - 2026-11-13 lead(develop checkout): 사용자가 시작 점검을 승인했다. 1) 격리 앱 창 승인, 2) `prototype-conversation` PoC 검증 명령은 `node .scratch/prototype-conversation/probe.mjs`(스크린샷 포함), 3) `/agent-eval` 승인, 4) Claude Code와 Codex 로그인을 lead가 미리 준비한다. 0.1.11 릴리스는 main 병합과 태그를 마쳤고 release run이 진행 중이다. 체인은 그와 무관하게 시작한다.
 - 2026-11-13 lead(develop checkout): Claude Code와 Codex 로그인을 `.scratch/provider-profile/userData`에 만들었다(사용자 승인). 링크 1의 두 conductor를 병렬로 시작했다. 브리프에는 `rm` 금지, 로그인 프로필 경로, Codex 워커 허용, `/ship`의 하위 스킬 로드 규칙, GUI 시간을 lead와 맞추는 규칙을 넣었다.
+- 2026-11-14 lead(develop checkout): 링크 1a를 병합했다(PR #189, `00fb6387`). worktree는 지웠고 브랜치는 남겼다. 형제 문서(cli-export, conversation)에서 지워진 responsive 문서를 가리키던 참조를 승격된 PRODUCT·ARCHITECTURE·DESIGN 절로 고쳤다. 다음 링크가 알아야 할 것(PR 본문 'For later links'): 오른쪽 무리 폭 R은 `fit.ts`의 `PROTOTYPE_HEADER_RIGHT`와 `styles.css`의 `--pw-right` 두 곳에 있고 테스트가 둘을 같게 묶는다. `.pw-right`에는 아직 토글만 있다. `prototypeCaptureRect`의 `sideColumn`은 지금 0이다. 새 iframe host나 패널 옆 열은 네 모서리를 같은 radius로 자르지 않는 불변식을 지키고 `exportViewer.test.ts`의 프로토타입 체인을 늘린다. 헤더 컨트롤은 주 버튼 `mousedown`에서 `preventDefault()`한다. 링크 1a 미확인: 실제 OS 입력·창 포커스, DPR 1, 패키지 앱, 390×844의 창 맞춤 908/952.
