@@ -74,7 +74,9 @@ code, kbd { font-family: var(--type-family); }
    and portalled surfaces turn transparent. Opacity only, so nothing moves and the focused tool keeps focus (POSTMORTEM
    2026-11-03, never visibility or display); !important beats the agent glow's opacity animation. Here, not inline:
    the renderer CSP blocks inline styles (PoC C1). */
-[data-capture-snapshot] :is(.overlay, .capture-marquee, .doan-canvas-top, .doan-canvas-bottom, .doan-agent-glow, .doan-agent-artist, .toast, [data-radix-popper-content-wrapper], .docked-buddy) { opacity: 0 !important; }
+[data-capture-snapshot] :is(.overlay, .capture-marquee, .doan-canvas-top, .doan-canvas-bottom, .doan-agent-glow, .doan-agent-artist, .toast, .star-prompt, [data-radix-popper-content-wrapper], .docked-buddy) { opacity: 0 !important; }
+/* Their exit fade would leave them half drawn in the capture. */
+[data-capture-snapshot] :is(.toast, .star-prompt) { transition: none !important; }
 /* Overlay marks (select-inspect draft): screen px, so lines stay 1px at any scale. */
 /* Agents draw canvases in any colour, so the dark line carries a white outer line to stay visible. */
 .mark { position: absolute; border: 1px solid var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); }
@@ -87,6 +89,16 @@ code, kbd { font-family: var(--type-family); }
 .text-range > .text-rect { position: absolute; background: color-mix(in srgb, var(--affordance-accent) 30%, transparent); }
 /* The same prominent capsule as the tooltip. */
 .dims { position: absolute; top: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: var(--affordance-prominent); color: var(--text-on-prominent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); padding: var(--space-1) var(--space-2); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
+/* No room below the selection (a tall frame, the floating tools): the bubble hangs above it instead. */
+.dims.above { top: auto; bottom: calc(100% + 5px); }
+/* Play prototype in the size bubble (.doan/canvases/frame-prototype.html prototype-controls): a 14px icon whose hit
+   target is the 24px capsule height. The only pointer target in the overlay; its ring is drawn inside so it does not
+   cover the size text. */
+.dims.playable { display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1) 0 var(--space-2); }
+.bubble-play { pointer-events: auto; color: var(--text-on-prominent); }
+.bubble-play svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.bubble-play:hover { background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); }
+.bubble-play:focus-visible { outline-color: var(--text-on-prominent); outline-offset: -2px; }
 .canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); pointer-events: none; }
 .canvas-status button { pointer-events: auto; }
 .canvas-status b { color: var(--text-standard); font-weight: var(--type-weight-medium); }
@@ -381,6 +393,33 @@ code, kbd { font-family: var(--type-family); }
 /* A running Retry keeps focus, so it is `data-disabled` rather than `:disabled`, and the hover fill must not come back. */
 .toast .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
 
+/* Surfaces that float on their own over the content (toasts, the GitHub star card) take the panel's ring with a wider
+   drop, so they read above whatever is under them. They enter as a dialog does, rising 8px and fading in; they leave
+   (`data-closing`, drawn for --time-fast by Toast.tsx and StarPrompt.tsx) dropping 4px and fading out. A toast that
+   replaces another keeps its element, so it does not enter again. */
+.star-prompt.doan-floating, .toast.doan-floating { box-shadow: var(--shadow-floating); transition: opacity var(--time-settle) var(--ease-enter), translate var(--time-settle) var(--ease-enter); }
+@starting-style {
+  .star-prompt.doan-floating, .toast.doan-floating { opacity: 0; translate: 0 var(--space-2); }
+}
+.star-prompt.doan-floating[data-closing], .toast.doan-floating[data-closing] { opacity: 0; translate: 0 var(--space-1); transition-duration: var(--time-fast); transition-timing-function: var(--ease-state); }
+/* Reduce motion keeps the fades and drops the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .star-prompt.doan-floating, .toast.doan-floating { transition: opacity var(--time-settle) var(--ease-enter); }
+  .star-prompt.doan-floating[data-closing], .toast.doan-floating[data-closing] { translate: none; }
+  @starting-style {
+    .star-prompt.doan-floating, .toast.doan-floating { translate: none; }
+  }
+}
+
+/* The GitHub star card: bottom left on every screen, 16px from the window's edges as the toast is from the right, and
+   on the toast's layer; neither moves the other. A fixed 240px, whatever the sidebar's width. Over the sidebar column
+   a backdrop-filter cannot blur the native vibrancy, so it takes the opaque popover fill with no blur everywhere, as
+   the sidebar's menus do. */
+.star-prompt { position: absolute; left: var(--space-4); bottom: var(--space-4); z-index: 6; display: grid; gap: var(--space-3); width: 240px; padding: var(--space-3); background: var(--surface-popover); -webkit-backdrop-filter: none; backdrop-filter: none; overflow-wrap: anywhere; }
+.star-prompt-text { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+/* Two sm buttons do not fit side by side in the card, so they stack, the action first. */
+.star-prompt-actions { display: grid; gap: var(--space-2); }
+
 .back { flex: none; }
 .top .divider { width: 1px; height: 18px; background: var(--border-standard); flex: none; margin: 0 -4px; }
 
@@ -612,7 +651,17 @@ body:has(.shell-top) { background: transparent; }
 .doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }
 .shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }
 /* The top inset is set from the reference group by HomeComposer (stageInsets); this is its floor. */
-.home-stage { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: var(--space-8); }
+.home-stage { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: var(--space-8); padding-bottom: var(--space-5); }
+/* The credit line stays in the stage's flow, so a short panel scrolls to it rather than it covering the suggestions:
+   the auto margin takes spare height, and the top padding keeps 40px after the suggestions (or the composer) when
+   there is none. --text-disabled is about 3.0:1 on white, kept on purpose for a quiet footer. */
+.home-credit { margin-top: auto; padding-top: var(--space-10); display: grid; justify-items: center; max-width: 100%; color: var(--text-disabled); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); text-align: center; }
+.home-credit-line { max-width: 100%; overflow-wrap: anywhere; }
+.home-credit-line > span[aria-hidden="true"] { opacity: 0.4; }
+.home-credit-link { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: var(--space-half); cursor: pointer; outline: none; transition: color var(--time-state) var(--ease-state); }
+@media (hover: hover) { .home-credit-link:hover { color: var(--text-standard); } }
+.home-credit-link:active { color: var(--text-standard); }
+.home-credit-link:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .home-greeting { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); color: var(--text-standard); text-align: center; }
 .home-composer { position: relative; width: min(680px, 100%); margin-top: var(--space-10); }
 .home-project { gap: var(--space-2); margin: 0 0 var(--space-2) var(--space-2); font-weight: var(--type-weight-medium); }
@@ -860,6 +909,12 @@ body:has(.shell-top) { background: transparent; }
 .queue-status:not(:empty) { margin-top: var(--space-1); }
 .queue-status { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); }
 .queue-status svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
+/* The usage limit's line under the rows: always in the composer as a polite status, taking no space while empty; 4
+   below the last row, then the list's 8 to the card. */
+.queue:has(+ .queue-schedule:not(:empty)) { margin-bottom: 0; }
+.queue-schedule:not(:empty) { margin: var(--space-1) 0 var(--space-2); }
+.queue-schedule { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); }
+.queue-schedule svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
 /* A queued message's first folder and the count of its other attachments, before its text (folder-attachments draft).
    Name and text both truncate; the tooltip lists every attachment. The caps are the draft's: 180px, 100px in a narrow
    queue such as the 360px canvas panel. */
@@ -923,6 +978,8 @@ body:has(.shell-top) { background: transparent; }
 .row-slot svg { width: var(--size-icon); height: var(--size-icon); }
 .row-slot .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .row-slot.ended { color: var(--text-accent); }
+/* Messages waiting for the usage limit's reset ask nothing of the person: no accent. */
+.row-slot.scheduled { color: var(--text-subtle); }
 .row-slot.unseen i { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); }
 .shell-side .shell-project-row.flash { box-shadow: inset 0 0 0 2px var(--border-focus); }
 
@@ -1332,6 +1389,8 @@ body:has(.shell-top) { background: transparent; }
 .doan-frame-num { flex: none; min-width: var(--space-6); color: var(--text-metadata); font-variant-numeric: tabular-nums; }
 .doan-frame-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .doan-frame-viewing { flex: none; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+/* A frame marked for prototyping: caption metadata, not an action; the row still moves to and selects the frame. */
+.prototype-meta { flex: none; display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
 .doan-frame-note { margin: var(--space-1) 0 0; padding-top: var(--space-2); border-top: 1px solid var(--border-standard); white-space: normal; }
 .doan-zoom-menu { width: 184px; }
 .doan-zoom-key { margin-left: auto; }
@@ -1776,3 +1835,25 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* Project Settings' details block (.project-settings-details), under the actions. */
 .problem-detail { width: 100%; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; text-align: start; }
 .problem-reading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+
+/* The prototype window (.doan/canvases/frame-prototype.html prototype-window, prototype-states): the main window's
+   shell without a sidebar. The header reuses .top.shell-top, .traffic-space and .shell-history, so Back sits at x88
+   as in the main header; the frame name reuses .shell-search. */
+.pw { position: absolute; inset: 0; display: grid; grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); }
+/* Against the header, which starts 8px inside the window: its 8px padding, the traffic lights, three 32px buttons and
+   their gaps, then 8px. The same space stays free on the right so the name is centred in the window. */
+.pw-name { position: absolute; top: calc((var(--size-chrome) - 36px) / 2); left: calc(var(--space-2) + 72px + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-2)); right: calc(var(--space-2) + 72px + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-2)); width: auto; justify-content: center; }
+.pw-name[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
+.pw-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pw-name .chev { flex: none; color: var(--text-metadata); }
+/* Narrower than two reserves and a usable name: the right reserve gives way to the 16px header inset. */
+@media (max-width: 519.98px) { .pw-name { right: var(--space-2); } }
+.pw-panel { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+.pw-content { position: absolute; inset: 0; }
+.pw-frame, .pw-snapshot { position: absolute; top: 0; left: 0; display: block; width: 100%; height: 100%; border: 0; }
+/* The problem overlay over the content panel only, so the header stays usable. */
+.pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+@media (prefers-reduced-transparency: reduce) { .pw-panel > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+/* Standard ink, so the body holds over a dark frame under the 60% overlay. */
+.pw-panel .problem-heading p { color: var(--text-standard); }
+.pw-drawer-empty { white-space: normal; padding-bottom: var(--space-2); }

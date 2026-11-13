@@ -184,6 +184,31 @@ test("typing keeps the suggestions' place, out of the accessibility tree and the
   expect(css).toContain(".home-stage .home-suggestions[inert] { visibility: hidden; }");
 });
 
+// home-credits draft: the credit is the stage's last child, in its flow, so a short panel scrolls to it instead of it
+// covering the suggestions or the composer.
+test("the credit line ends the stage, after the suggestions, or after the composer when there are none", () => {
+  const ending = /<footer class="home-credit">(?:(?!<footer).)*<\/footer><\/div><\/section><\/main>$/;
+  const html = render([project("/code/doan-design")]);
+  expect(html).toMatch(ending);
+  expect(html.indexOf('class="home-suggestions"')).toBeLessThan(html.indexOf('class="home-credit"'));
+  const none = render([], { text: "Draw a pricing page." });
+  expect(none).not.toContain("home-suggestions");
+  expect(none).toMatch(ending);
+  expect(none.match(/class="home-credit"/g)).toHaveLength(1);
+});
+
+test("credit CSS: pushed to the stage's end with a 40px floor, 20px from the panel's edge, caption type in disabled ink", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\n\.home-stage \{[^}]*padding-bottom: var\(--space-5\);/);
+  const credit = css.match(/\n\.home-credit \{[^}]*\}/)![0];
+  for (const value of ["margin-top: auto;", "padding-top: var(--space-10);", "color: var(--text-disabled);", "font-size: var(--type-caption-size);", "line-height: var(--type-caption-line-height);", "letter-spacing: var(--type-caption-letter-spacing);", "text-align: center;"]) expect(credit).toContain(value);
+  expect(css).toMatch(/\.home-credit-line > span\[aria-hidden="true"\] \{ opacity: 0\.4; \}/);
+  // Hover and press share the standard ink; there is no separate pressed colour.
+  expect(css).toMatch(/@media \(hover: hover\) \{ \.home-credit-link:hover \{ color: var\(--text-standard\); \} \}/);
+  expect(css).toContain(".home-credit-link:active { color: var(--text-standard); }");
+  expect(css).toMatch(/\.home-credit-link:focus-visible \{ outline: 2px solid var\(--border-focus\); outline-offset: 2px; \}/);
+});
+
 test("Doany (114px) is the stage's first child, above the greeting; the stage has no fixed top padding", () => {
   const html = render([project("/code/doan-design")]);
   expect(html).toContain('<div class="home-stage"><button type="button" class="doany" aria-label="Make Doany hop" style="width:114px;height:114px"><img src="doany/doany.png" alt=""/><img class="buddy-shadow" src="buddies/doany/shadow.png" alt="" aria-hidden="true" style="transform-origin:calc(16.5% + 67% * 0.458) calc(16.5% + 67% * 0.941)"/><canvas hidden="" aria-hidden="true"></canvas></button><h1 class="home-greeting">');

@@ -4,6 +4,8 @@ import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Plus, Settings
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import { sendNowShown } from "../main/conversation/steerSupport";
+import type { ScheduledSend } from "../main/conversation/ipc";
+import { liveReset, localClock, waitsForReset } from "./limitReset";
 import type { AttachmentResult } from "../main/attachments";
 import type { Canvas } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
@@ -79,7 +81,7 @@ export interface ProjectOverviewProps {
   onRetryList(): void;
   onStart(request: StartInput, last: LastRequest): Promise<StartOutcome>;
   // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens.
-  onSendConversation(provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[]; replaced?: string[] }>;
+  onSendConversation(provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | ScheduledSend | { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string }>;
   // A problem worktree's repair actions in the branch chip's menu, as the sidebar's project menu runs them.
   onAction(name: RowAction, root: string): void;
   onProjectSettings(root: string): void;
@@ -261,11 +263,17 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       return "ok" in outcome ? { ok: true } : outcome;
     }
     const revision = run.revision(root);
+    // A message that waits for the usage limit's reset carries no picker change; the picks stay for the next send.
+    const waits = waitsForReset(summary);
     const reply = await props.onSendConversation(mode.provider, {
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
-      ...(changedModel && model ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
+      ...(waits ? {} : { ...(changedModel && model ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}) }), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) return reply;
+    if (reply && "scheduled" in reply) {
+      run.queued(root, mode.conversationId, { id: reply.scheduled.itemId, text: stripRequestLines(request.text), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } });
+      return { ok: true, itemId: reply.scheduled.itemId };
+    }
     run.sent(root, mode.conversationId, revision);
     return { ok: true };
   };
@@ -394,6 +402,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         questionDraft={requestId => run.store.questionDraft(conversationId, requestId)} onQuestionDraft={(requestId, action) => run.store.editQuestion(conversationId, requestId, action)}
         onFocusComposer={focusField}
         onStop={() => void window.doan.interruptConversation({ conversationId }).catch(console.error)}
+        limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={run.store.resendHidden(conversationId)}
         onEditAndResend={() => editAndResend(conversationId)}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         onRetry={() => run.retryThread(conversationId)}
@@ -429,7 +438,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events) : null}
         stepAside={{ waiting: asking, notice: !conversationId && !waiting && !!moved }}
         queued={conversationId ? run.queue(conversationId) : []}
-        sendNow={!!conversationId && !!provider && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
+        // Rows waiting for the usage limit's reset have no Send now: nothing runs to take them.
+        limitResetsAt={summary?.limitResetsAt ?? null} scheduledFor={summary?.scheduledAt ?? null}
+        sendNow={!!conversationId && !!provider && !summary?.scheduledAt && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? run.store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}
         onSend={send} onQueue={queue}
         // A conversation another sign-in owns leaves for a new one in this project, taking the refused draft along.

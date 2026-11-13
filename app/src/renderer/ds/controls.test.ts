@@ -264,7 +264,7 @@ test("the capture snapshot hides app marks with opacity alone", () => {
   const hide = /\[data-capture-snapshot\] :is\(([^)]*(?:\([^)]*\)[^)]*)*)\) \{([^}]*)\}/.exec(styles);
   expect(hide).not.toBeNull();
   const targets = hide![1]!.split(",").map(target => target.trim());
-  expect(targets.sort()).toEqual([".capture-marquee", ".doan-agent-artist", ".doan-agent-glow", ".doan-canvas-bottom", ".doan-canvas-top", ".overlay", ".toast", "[data-radix-popper-content-wrapper]", ".docked-buddy"].sort());
+  expect(targets.sort()).toEqual([".capture-marquee", ".doan-agent-artist", ".doan-agent-glow", ".doan-canvas-bottom", ".doan-canvas-top", ".overlay", ".toast", ".star-prompt", "[data-radix-popper-content-wrapper]", ".docked-buddy"].sort());
   expect(hide![2]!.trim()).toBe("opacity: 0 !important;");
   expect(styles).not.toMatch(/\[data-capture-snapshot\][^{]*\{[^}]*(visibility|display)/);
 });

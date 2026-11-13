@@ -957,3 +957,22 @@ test("an Edit and resend that resolves after the delete restores nothing and rel
   expect(h.run.drafts.has(`conversation:${A}`)).toBe(false);
   expect(doan.removeAttachment).toHaveBeenCalledWith("x");
 });
+
+// Fix round 1: like the canvas panel, the Overview reads a scheduled conversation's rows only for the root it shows.
+test("scheduled rows are read only for the Overview's shown root", async () => {
+  const h = harness();
+  doan.scheduledMessages = vi.fn(async () => [{ itemId: "s1", text: "First", anchors: [], attachments: [] }]);
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A)]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+  h.run.show(OTHER);
+  h.answer(ROOT, [summary(A, { queued: 1, scheduledAt: "2026-11-13T06:00:00.000Z" })]);
+  await flush();
+  expect(doan.scheduledMessages).not.toHaveBeenCalled();
+  h.run.show(ROOT);
+  h.run.sync();
+  await flush();
+  expect(doan.scheduledMessages).toHaveBeenCalledWith({ conversationId: A });
+  expect(h.run.queue(A).map(row => row.id)).toEqual(["s1"]);
+});
+

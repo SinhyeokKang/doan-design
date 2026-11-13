@@ -51,6 +51,8 @@ describe("transport normalization", () => {
     expect(transportError("Thread already has an active writer")).toBe("session_in_use");
     expect(transportError("Not logged in")).toBe("not_logged_in");
     expect(transportError("rate limit exceeded")).toBe("rate_limited");
+    // Codex 0.144.2's own words for a reached usage limit (a session rollout on this Mac).
+    expect(transportError("You've hit your usage limit. Upgrade to Plus to continue using Codex (https://chatgpt.com/explore/plus), or try again at Jul 25th, 2026 1:02 PM.")).toBe("rate_limited");
     expect(transportError("unfamiliar error")).toBe("unknown");
     expect(collect("claude", [{ type: "result", subtype: "error_during_execution", is_error: true, errors: ["Not logged in"] }]).events).toContainEqual({ type: "turn.failed", code: "not_logged_in", detail: "Not logged in" });
   });

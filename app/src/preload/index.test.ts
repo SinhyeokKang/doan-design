@@ -26,6 +26,16 @@ beforeEach(async () => {
   api = exposed;
 });
 
+test("reads the clock's hour cycle main passed to the window, 12-hour by default", async () => {
+  expect(api.clockHour12).toBe(true);
+  const argv = process.argv;
+  try {
+    process.argv = [...argv, "--doan-clock-hour12=0"];
+    vi.resetModules(); mocks.expose.mockClear(); await import("./index");
+    expect(mocks.expose.mock.calls[0]?.[1].clockHour12).toBe(false);
+  } finally { process.argv = argv; }
+});
+
 test("Open Project resolves the stored root main returns", async () => {
   mocks.invoke.mockResolvedValueOnce("/repo");
   expect(await api.openFolder()).toBe("/repo");
@@ -443,6 +453,37 @@ test("update calls use fixed channels and send no data", async () => {
   }
 });
 
+// The GitHub star card. Requests carry no data: main holds the repository URL and the card's state.
+test("star calls use fixed channels and send no data", async () => {
+  const calls: [() => Promise<unknown>, unknown[]][] = [
+    [() => api.openStarRepository(), ["star:open"]],
+    [() => api.dismissStarPrompt(), ["star:dismiss"]],
+    [() => api.starPromptBusy(), ["star:busy"]],
+  ];
+  for (const [call, args] of calls) {
+    await call();
+    expect(mocks.invoke).toHaveBeenLastCalledWith(...args);
+  }
+});
+
+// Home's credit line: main holds the repository URL, so the request carries none.
+test("the repository link uses a fixed channel and sends no data", async () => {
+  await api.openRepository();
+  expect(mocks.invoke).toHaveBeenLastCalledWith("repository:open");
+});
+
+test("the star moment is a subscription with no first read, and it unsubscribes", () => {
+  const heard = vi.fn();
+  mocks.invoke.mockClear();
+  const stop = api.onStarMoment(heard);
+  expect(mocks.invoke).not.toHaveBeenCalled();
+  emitter.emit("star:moment", {}, { second: true });
+  stop();
+  emitter.emit("star:moment", {}, { second: false });
+  expect(heard.mock.calls).toEqual([[{ second: true }]]);
+  expect(emitter.listenerCount("star:moment")).toBe(0);
+});
+
 test("update snapshots come from one read, then change events, and the read never overwrites a newer event", async () => {
   const heard = vi.fn();
   let answer: (value: unknown) => void = () => {};
@@ -646,4 +687,17 @@ test("delivers MCP connector snapshots newest first, never an older revision aft
   expect(seen).toEqual([5, 6]);
   stop();
   expect(emitter.listenerCount("mcp-connectors:changed")).toBe(0);
+});
+
+test("Play prototype and the closed event use the prototype channels", () => {
+  const request = { root: "/r", path: ".doan/canvases/proto.html", frame: "phone", mark: "390x844" };
+  api.playPrototype(request);
+  expect(mocks.invoke).toHaveBeenCalledWith("prototype:play", request);
+  const closed = vi.fn();
+  const stop = api.onPrototypeClosed(closed);
+  emitter.emit("prototype:closed", {});
+  stop();
+  emitter.emit("prototype:closed", {});
+  expect(closed).toHaveBeenCalledTimes(1);
+  expect(closed.mock.calls[0]).toEqual([]);
 });

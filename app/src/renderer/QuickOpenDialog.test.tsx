@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
+import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { activeIndex, activeScroll, closesOnClick, optionId, quickOpenTabKey, projectWhere, quickOpenKey, QuickOpen, QuickOpenList } from "./QuickOpenDialog";
-import { groupResults, outsideDialog, resultKey, searchIndex, searchMatch, type SearchFolder, type SearchResult } from "./quickOpen";
+import { activeIndex, activeScroll, closesOnClick, conversationIndex, optionId, quickOpenTabKey, projectWhere, quickOpenKey, QuickOpen, QuickOpenList } from "./QuickOpenDialog";
+import { groupResults, outsideDialog, resultKey, searchIndex, searchMatch, type ConversationLists, type SearchFolder, type SearchResult } from "./quickOpen";
 import { projectHue } from "./shellNavigation";
 
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, url: "u", ...extra });
@@ -24,8 +25,8 @@ test("a modal dialog with a combobox over a listbox, the placeholder and no key 
   const html = render("/code/acme-web");
   expect(html).toMatch(/^<dialog class="doan-dialog qo" data-ui-presentation="search" aria-label="Quick Open"/);
   expect(html).toMatch(/<input[^>]*role="combobox"[^>]*>/);
-  expect(html).toContain('aria-label="Search canvases and frames"');
-  expect(html).toContain('placeholder="Search canvases and frames"');
+  expect(html).toContain('aria-label="Search canvases, frames and conversations"');
+  expect(html).toContain('placeholder="Search canvases, frames and conversations"');
   expect(html).toContain('aria-expanded="true"');
   const controls = html.match(/aria-controls="([^"]+)"/)?.[1];
   expect(html).toContain(`role="listbox" id="${controls}"`);
@@ -36,16 +37,18 @@ test("a modal dialog with a combobox over a listbox, the placeholder and no key 
   expect(html).not.toContain(">esc<");
 });
 
-test("filter tabs: All, Canvases and Frames, All chosen and the one Tab stop, each controlling the results", () => {
+test("filter tabs: All, Canvases, Frames and Conversations, All chosen and the one Tab stop, each controlling the results", () => {
   const html = render("/code/acme-web");
   const listbox = html.match(/role="listbox" id="([^"]+)"/)?.[1];
   expect(html).toContain('role="tablist" aria-label="Result types"');
   const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>.*?<\/button>/g)].map(match => match[0]);
-  expect(tabs.map(tab => tab.replace(/<[^>]+>/g, ""))).toEqual(["All", "Canvases", "Frames"]);
-  expect(tabs.map(tab => tab.match(/aria-selected="(\w+)"/)?.[1])).toEqual(["true", "false", "false"]);
+  expect(tabs.map(tab => tab.replace(/<[^>]+>/g, ""))).toEqual(["All", "Canvases", "Frames", "Conversations"]);
+  expect(tabs.map(tab => tab.match(/aria-selected="(\w+)"/)?.[1])).toEqual(["true", "false", "false", "false"]);
   // The Canvases tab holds both kinds of canvas, so it takes the plain canvas icon.
   expect(tabs[1]).toMatch(/lucide-panels-top-left/);
-  expect(tabs.map(tab => tab.match(/tabindex="(-?\d)"/)?.[1])).toEqual(["0", "-1", "-1"]);
+  // MessageCircle already marks a finished, unread conversation, so Conversations takes MessagesSquare.
+  expect(tabs[3]).toMatch(/lucide-messages-square/);
+  expect(tabs.map(tab => tab.match(/tabindex="(-?\d)"/)?.[1])).toEqual(["0", "-1", "-1", "-1"]);
   for (const tab of tabs) expect(tab).toContain(`aria-controls="${listbox}"`);
   // The list scrolls but is not a Tab stop: the input and the tab list are.
   expect(html).toMatch(/role="listbox"[^>]*tabindex="-1"/);
@@ -175,7 +178,7 @@ test("keys: arrows move and wrap, Enter picks, Escape closes", () => {
 
 test("no match shows the spec's sentence instead of options", () => {
   const html = renderToStaticMarkup(<QuickOpenList id="r" query="zzz" groups={[]} active={0} pick={() => {}} activate={() => {}} />);
-  expect(html).toContain('<p class="qo-none" role="status">No canvases or frames match</p>');
+  expect(html).toContain('<p class="qo-none" role="status">No canvases, frames or conversations match</p>');
   expect(html).not.toContain('role="option"');
 });
 
@@ -255,7 +258,11 @@ test("tab list keys: Tab and Shift+Tab go back to the input keeping the active r
   expect(quickOpenTabKey("Tab", "canvas")).toEqual({ kind: "input", first: false });
   expect(quickOpenTabKey("ArrowDown", "canvas")).toEqual({ kind: "input", first: true });
   expect(quickOpenTabKey("ArrowRight", "all")).toEqual({ kind: "select", tab: "canvas" });
-  expect(quickOpenTabKey("ArrowLeft", "all")).toEqual({ kind: "select", tab: "frame" });
+  expect(quickOpenTabKey("ArrowLeft", "all")).toEqual({ kind: "select", tab: "conversation" });
+  expect(quickOpenTabKey("ArrowRight", "frame")).toEqual({ kind: "select", tab: "conversation" });
+  expect(quickOpenTabKey("ArrowRight", "conversation")).toEqual({ kind: "select", tab: "all" });
+  expect(quickOpenTabKey("ArrowLeft", "conversation")).toEqual({ kind: "select", tab: "frame" });
+  expect(quickOpenTabKey("Tab", "conversation")).toEqual({ kind: "input", first: false });
   expect(quickOpenTabKey("ArrowUp", "all")).toBeNull();
   expect(quickOpenTabKey("Enter", "all")).toBeNull();
 });
@@ -272,4 +279,61 @@ test("the results box clips only the block axis so the list's scrollbar is not c
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.qo-height \{[^}]*overflow-x: visible; overflow-y: clip;/);
   expect(css).toMatch(/\.qo-list \{[^}]*margin-inline: calc\(-1 \* var\(--space-1\)\);/);
+});
+
+const NOW = Date.parse("2026-11-13T12:00:00.000Z");
+const MIN = 60_000;
+const talk = (conversationId: string, patch: Partial<ConversationSummary> = {}): ConversationSummary => ({
+  conversationId, title: conversationId, state: "current", owner: "doan", provider: "claude", fromHome: false,
+  phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: new Date(NOW - 12 * MIN).toISOString(), preview: "", ...patch,
+});
+const conversationRows = (list: readonly FolderEntry[], conversations: ConversationLists, query: string, currentRoot: string | null) =>
+  groupResults(searchMatch([...searchIndex(list as readonly SearchFolder[]), ...conversationIndex(list, conversations)], query, currentRoot, () => undefined), projectWhere(list));
+
+test("a conversation row: the conversations icon, the title with its matched letters, and its canvas or project with the time", () => {
+  const conversations: ConversationLists = new Map([["/code/acme-web", [
+    talk("c1", { title: "Tighten the checkout copy", canvas: { path: ".doan/canvases/tokens.html", id: ".doan/canvases/tokens.html" } }),
+    talk("p1", { title: "Checkout flow", lastActivityAt: "", readError: true }),
+  ]]]);
+  const groups = conversationRows(entries, conversations, "checkout", "/code/acme-web");
+  const html = renderToStaticMarkup(<QuickOpenList id="r" query="checkout" groups={groups} active={0} pick={() => {}} activate={() => {}} now={NOW} />);
+  const [first, second] = [...html.matchAll(/<div class="qo-item"[^>]*>.*?<\/span><\/span><\/span><\/div>/g)].map(match => match[0]);
+  expect(first).toContain('aria-label="Checkout flow — Project conversation · acme-web · main"');
+  expect(first).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-messages-square/);
+  expect(first).toContain('<span class="qo-name" title="Checkout flow"><mark class="qo-match">Checkout</mark> flow</span>');
+  expect(first).toContain('<span class="qo-context" title="Project conversation">Project conversation</span>');
+  expect(second).toContain('aria-label="Tighten the checkout copy — tokens · 12 minutes ago · acme-web · main"');
+  expect(second).toContain('<span class="qo-context" title="tokens · 12m">tokens · 12m</span>');
+});
+
+test("Home finds both projects' conversations by a part of their titles, each in its project's group", () => {
+  const conversations: ConversationLists = new Map<string, readonly ConversationSummary[] | "loading" | "error">([
+    ["/code/acme-web", [talk("a", { title: "Onboarding welcome copy" })]],
+    ["/Users/alex/Documents/brand-kit", [talk("b", { title: "Onboarding illustrations" })]],
+    ["/code/reading", "loading"],
+  ]);
+  const groups = conversationRows(entries, conversations, "boarding", null);
+  expect(groups.map(group => [group.title, group.rows.map(result => result.kind === "conversation" ? result.title : result.kind)])).toEqual([
+    ["acme-web · main", ["Onboarding welcome copy"]],
+    ["brand-kit", ["Onboarding illustrations"]],
+  ]);
+});
+
+test("the results follow the conversation lists: a deleted conversation goes, an archived one stays, a renamed one matches its new title", () => {
+  const before: ConversationLists = new Map([["/code/acme-web", [talk("keep", { title: "Checkout copy" }), talk("drop", { title: "Checkout audit" })]]]);
+  const titles = (lists: ConversationLists, query: string) => conversationRows(entries, lists, query, "/code/acme-web").flatMap(group => group.rows).map(result => result.kind === "conversation" ? result.title : result.kind);
+  expect(titles(before, "checkout")).toEqual(["Checkout copy", "Checkout audit"]);
+  expect(titles(new Map([["/code/acme-web", [talk("keep", { title: "Checkout copy" })]]]), "checkout")).toEqual(["Checkout copy"]);
+  expect(titles(new Map([["/code/acme-web", [talk("keep", { title: "Checkout copy", state: "archived" }), talk("drop", { title: "Checkout audit" })]]]), "checkout")).toEqual(["Checkout copy", "Checkout audit"]);
+  const renamed: ConversationLists = new Map([["/code/acme-web", [talk("keep", { title: "Pricing copy" }), talk("drop", { title: "Checkout audit" })]]]);
+  expect(titles(renamed, "checkout")).toEqual(["Checkout audit"]);
+  expect(titles(renamed, "pricing")).toEqual(["Pricing copy"]);
+  // The renamed row keeps its key, so the highlight stays on it.
+  const key = (lists: ConversationLists, query: string) => resultKey(conversationRows(entries, lists, query, "/code/acme-web")[0]!.rows[0]!);
+  expect(key(renamed, "pricing")).toBe(key(before, "checkout copy"));
+});
+
+test("a conversation list still loading is not counted on an empty All, which lists canvases only", () => {
+  const html = renderToStaticMarkup(<QuickOpen entries={entries.filter(entry => entry.kind === "list")} conversations={new Map([["/code/acme-web", "loading"]])} currentRoot="/code/acme-web" pick={() => {}} close={() => {}} />);
+  expect(readingRow(html)).toBe("");
 });

@@ -1,10 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState, type Ref } from "react";
-import { Hash, Layers, PanelsTopLeft, Search, SwatchBook } from "lucide-react";
+import { Hash, Layers, MessagesSquare, PanelsTopLeft, Search, SwatchBook } from "lucide-react";
 import { canvasDir } from "../formats/canvasPath";
 import type { FolderEntry } from "../main/view";
 import { tabKey } from "./ComposerParts";
 import { cardRow, groupProjects } from "./homeCards";
-import { countMatches, emptyText, groupResults, readingCount, readingText, markRuns, matchPositions, outsideDialog, resultKey, resultParts, searchIndex, searchMatch, type RenderedSearchFrames, type ResultGroup, type SearchFolder, type SearchKind, type SearchResult } from "./quickOpen";
+import { conversationEntries, countMatches, emptyText, groupResults, readingCount, readingText, markRuns, matchPositions, outsideDialog, resultKey, resultParts, searchIndex, searchMatch, type ConversationLists, type RenderedSearchFrames, type ResultGroup, type SearchEntry, type SearchFolder, type SearchKind, type SearchResult } from "./quickOpen";
 import { projectHue, projectInitial } from "./shellNavigation";
 
 // The repository name, which picks the thumbnail as in the sidebar, and the title
@@ -18,6 +18,12 @@ export function projectWhere(entries: readonly FolderEntry[]): Map<string, { nam
     }
   }
   return where;
+}
+
+// A canvas conversation is judged against its root's listed rows, the ones searched here.
+export function conversationIndex(entries: readonly FolderEntry[], conversations: ConversationLists): SearchEntry[] {
+  const rowsOf = (root: string) => { const entry = entries.find(item => item.path === root); return entry?.kind === "list" ? entry.canvases : null; };
+  return conversationEntries(conversations, rowsOf);
 }
 
 // Ids built from paths would need escaping, so a short hash of the key stands in for it.
@@ -61,6 +67,8 @@ const TABS: readonly { kind: SearchKind; label: string; Icon: typeof Layers }[] 
   // The tab holds both kinds of canvas, so it takes the plain canvas icon.
   { kind: "canvas", label: "Canvases", Icon: PanelsTopLeft },
   { kind: "frame", label: "Frames", Icon: Hash },
+  // MessageCircle already marks a finished, unread conversation.
+  { kind: "conversation", label: "Conversations", Icon: MessagesSquare },
 ];
 
 // Leaving the tab list by Tab keeps the row the person was on; only ↓ asks for the first row again.
@@ -76,19 +84,25 @@ export function activeScroll(index: number): "top" | "nearest" {
   return index === 0 ? "top" : "nearest";
 }
 
+const NO_CONVERSATIONS: ConversationLists = new Map();
+const KINDS: readonly SearchResult["kind"][] = ["canvas", "frame", "conversation"];
+
 interface QuickOpenProps {
   // Every saved project; reading and problem rows are left out of the index.
   entries: readonly FolderEntry[];
+  // HomeRun's conversation list per listed project; a new map whenever one changes, so the results follow.
+  conversations?: ConversationLists;
   // The loaded workspace, or null on Home.
   currentRoot: string | null;
   // The open canvas's rendered frames, which replace its static ones.
   rendered?: RenderedSearchFrames | undefined;
-  pick: (result: SearchResult) => void;
+  // false: the pick could not be opened (App said why), and Quick Open closes as on Escape.
+  pick: (result: SearchResult) => boolean | void;
   // Escape; focus has already gone back to where Quick Open was opened.
   close: () => void;
 }
 
-export function QuickOpen({ entries, currentRoot, rendered, pick, close }: QuickOpenProps) {
+export function QuickOpen({ entries, conversations = NO_CONVERSATIONS, currentRoot, rendered, pick, close }: QuickOpenProps) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -98,7 +112,11 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<SearchKind>("all");
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const index = useMemo(() => searchIndex(entries as readonly SearchFolder[], rendered), [entries, rendered]);
+  // Built apart, so a conversation list change does not rebuild every canvas and frame entry. Conversations go after
+  // canvases and frames, so they follow them at equal score and proximity.
+  const canvasIndex = useMemo(() => searchIndex(entries as readonly SearchFolder[], rendered), [entries, rendered]);
+  const talkIndex = useMemo(() => conversationIndex(entries, conversations), [entries, conversations]);
+  const index = useMemo(() => [...canvasIndex, ...talkIndex], [canvasIndex, talkIndex]);
   const commons = useMemo(() => new Map(entries.flatMap(entry => entry.kind === "list" && entry.git ? [[entry.path, entry.git.common]] : [])), [entries]);
   const results = useMemo(() => searchMatch(index, query, currentRoot, root => commons.get(root), kind, rendered), [index, query, currentRoot, commons, kind, rendered]);
   const where = useMemo(() => projectWhere(entries), [entries]);
@@ -106,18 +124,20 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
   const rows = useMemo(() => groups.flatMap(group => group.rows), [groups]);
   const current = activeIndex(rows, activeKey);
   const scope = entries.filter(entry => currentRoot === null || entry.path === currentRoot);
-  // Counted only when the chosen kind hid everything, so the person learns the other tab has results.
-  const otherCount = kind !== "all" && query.trim() && rows.length === 0 ? countMatches(index, query, kind === "canvas" ? "frame" : "canvas") : 0;
+  // Counted only when the chosen kind hid everything, so the person learns the other tabs have results.
+  const otherCount = kind !== "all" && query.trim() && rows.length === 0 ? KINDS.filter(other => other !== kind).reduce((sum, other) => sum + countMatches(index, query, other), 0) : 0;
+  // Focus goes back only after the dialog closes: behind an open modal everything is inert.
+  const refocus = () => { if (opener.current instanceof HTMLElement && opener.current.isConnected) opener.current.focus(); };
   const dismiss = () => {
     dialog.current?.close();
-    // Focus goes back only after the dialog closes: behind an open modal everything is inert.
-    if (opener.current instanceof HTMLElement && opener.current.isConnected) opener.current.focus();
+    refocus();
     close();
   };
   const choose = (result: SearchResult | undefined) => {
     if (!result) return;
     dialog.current?.close();
-    pick(result);
+    // The same close as Escape: App recovers focus there when the opener has gone.
+    if (pick(result) === false) { refocus(); close(); }
   };
   const activate = (at: number) => { const row = rows[at]; if (row) setActiveKey(resultKey(row)); };
   const filter = (next: SearchKind) => { setKind(next); setActiveKey(null); };
@@ -145,7 +165,7 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
     }}>
     <label className="qo-search">
       <Search aria-hidden="true" />
-      <input ref={input} className="doan-input q" role="combobox" aria-label="Search canvases and frames" placeholder="Search canvases and frames" autoFocus spellCheck={false} autoComplete="off"
+      <input ref={input} className="doan-input q" role="combobox" aria-label="Search canvases, frames and conversations" placeholder="Search canvases, frames and conversations" autoFocus spellCheck={false} autoComplete="off"
         aria-expanded="true" aria-controls={id} aria-autocomplete="list" aria-activedescendant={activeId}
         value={query} onChange={event => { setQuery(event.target.value); setActiveKey(null); }}
         onKeyDown={event => {
@@ -179,11 +199,11 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
           requestAnimationFrame(focusTab);
         }}><tab.Icon aria-hidden="true" />{tab.label}</button>)}
     </div>
-    <QuickOpenList emptyText={emptyText(kind, query, scope, otherCount)} id={id} listRef={list} query={query} groups={groups} active={current} pick={choose} activate={activate} reading={readingCount(entries, currentRoot, query)} />
+    <QuickOpenList emptyText={emptyText(kind, query, scope, otherCount, conversations)} id={id} listRef={list} query={query} groups={groups} active={current} pick={choose} activate={activate} reading={readingCount(entries, conversations, currentRoot, query, kind)} />
   </dialog>;
 }
 
-export function QuickOpenList({ emptyText = "No canvases or frames match", id, listRef, query, groups, active, pick, activate, reading = 0 }: { emptyText?: string | null; id: string; listRef?: Ref<HTMLDivElement>; query: string; groups: readonly ResultGroup[]; active: number; pick: (result: SearchResult) => void; activate: (index: number) => void; reading?: number }) {
+export function QuickOpenList({ emptyText = "No canvases, frames or conversations match", id, listRef, query, groups, active, pick, activate, reading = 0, now = Date.now() }: { emptyText?: string | null; id: string; listRef?: Ref<HTMLDivElement>; query: string; groups: readonly ResultGroup[]; active: number; pick: (result: SearchResult) => void; activate: (index: number) => void; reading?: number; now?: number }) {
   let at = 0;
   return <div className="qo-height">
     <div className="qo-list doan-scroll" role="listbox" id={id} aria-label="Results" tabIndex={-1} ref={listRef}>
@@ -193,8 +213,8 @@ export function QuickOpenList({ emptyText = "No canvases or frames match", id, l
           <div className="qo-group-title" id={titleId}><span className={`shell-thumbnail hue-${projectHue(group.name)}`} aria-hidden="true">{projectInitial(group.name)}</span><span className="qo-group-name">{group.title}</span></div>
           {group.rows.map(result => {
             const index = at++;
-            const parts = resultParts(result, group.title);
-            const Icon = parts.icon === "frame" ? Hash : canvasDir(result.path) === "ds" ? SwatchBook : PanelsTopLeft;
+            const parts = resultParts(result, group.title, now);
+            const Icon = result.kind === "frame" ? Hash : result.kind === "conversation" ? MessagesSquare : canvasDir(result.path) === "ds" ? SwatchBook : PanelsTopLeft;
             return <div className="qo-item" role="option" id={optionId(id, result)} aria-selected={index === active} aria-label={parts.accessibleName} key={resultKey(result)}
               onMouseMove={() => { if (index !== active) activate(index); }} onClick={() => pick(result)}>
               <span className="qo-icon" aria-hidden="true"><Icon /></span>

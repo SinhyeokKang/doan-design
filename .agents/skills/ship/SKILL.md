@@ -5,6 +5,8 @@ description: Use to carry one small change through tdd→implement→code-review
 
 Conducts one small, surgical change in the order **`/tdd` → commit → `/implement` → commit → `/code-review` → `/refactor` → (`/postmortem`) → docs freshness → push**. Sub-skills do the body of each step; `/ship` only handles order, gates, and stopping. There is no deploy step.
 
+**Load each sub-skill when its step starts** (Claude Code: the Skill tool; Codex: read `.agents/skills/<name>/SKILL.md`) and follow its body, even when you ran it earlier in the session. The gates below are only the exit checks: they leave out each sub-skill's own rules, such as `/tdd` stopping on an unexpected green, `/implement`'s self-check and POSTMORTEM grep, and `/refactor` seeing a bug finding's regression test go red before fixing it. Fixing review findings without `/refactor` skips those rules.
+
 > A sub-skill's report ("Next: /refactor" etc.) is not the end of the turn. Inside `/ship`, run the next step in the same turn. The only things that stop it are the conditions under 'Stop' below.
 
 ## Usage

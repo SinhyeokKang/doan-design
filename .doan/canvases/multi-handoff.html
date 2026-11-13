@@ -1,0 +1,157 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="multi-handoff"><meta name="doan:width" content="1440"><title>multi-handoff — Several hand-offs in one turn, the missed line and the summary toast</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/ds-canvas.css"><style>
+/* ── Board layout for this canvas only ── */
+body{padding:var(--space-8);background:var(--surface-inset)}
+.intro{max-width:1100px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle)}
+.intro ul{margin-top:var(--space-2);color:var(--text-subtle);list-style:disc;padding-left:var(--space-5)}
+.intro li+li{margin-top:var(--space-1)}
+.specimen+.specimen{margin-top:var(--space-10)}
+.caption{display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);margin-bottom:var(--space-4);max-width:1100px}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1)}
+.caption h2{font-size:var(--type-body-size);line-height:var(--type-body-line-height);letter-spacing:var(--type-body-letter-spacing);font-weight:var(--type-weight-medium);display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.caption p{grid-column:2;color:var(--text-subtle)}
+.tiles{display:flex;flex-wrap:wrap;gap:var(--space-8);align-items:flex-start}
+.tile{display:grid;gap:var(--space-2);justify-items:start}
+.tile-label{max-width:347px;color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+/* A slice of the window: the panel at the default width (347 at 1238 × 780), cut under the thread. The docked composer
+   under it is unchanged and not drawn. */
+.panel-tile{display:flex;width:347px;padding-bottom:var(--space-4);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);overflow:hidden}
+.panel-tile>.right{border-left:0;border-radius:var(--radius-container)}
+/* A thread slice without the panel head: one line in its place in the thread. */
+.line-tile{width:347px;padding:var(--space-4);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.toast-stage{position:relative;width:520px;height:120px;border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+
+/* ── Restated from app/src/renderer/styles.css as shipped (3de8dfd2), which canvases cannot link ── */
+.chev{width:var(--space-4);height:var(--space-4);color:var(--text-metadata)}
+.right{background:var(--surface-panel);border-left:1px solid var(--border-standard)}
+.right.doan-conv-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-radius:0 var(--radius-container) var(--radius-container) 0;overflow:hidden}
+.doan-conv-head{display:flex;align-items:center;min-height:var(--size-chrome);padding-right:var(--space-2)}
+.doan-conv-head .doan-icon-button{color:var(--text-standard)}
+.doan-conv-body{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:var(--space-4)}
+.doan-conv-title{flex:1;min-width:0;padding:var(--space-2) 0 var(--space-2) var(--space-2)}
+.doan-conv-title .ov-title.doan-button{max-width:100%}
+.doan-conv-body:has(>.doan-conv-content){padding:0;align-items:stretch;justify-content:stretch}
+.doan-conv-content{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+.cp-scroll{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;padding:var(--space-2) var(--space-4) 0}
+.cp-scroll:has(>.conversation-thread){padding:0}
+.cp-scroll>.conversation-thread{flex:1;min-height:0}
+.doan-conv-panel .thread-scroll{padding:var(--space-2) var(--space-4) var(--space-6)}
+.doan-conv-panel .conversation-thread .thread{gap:var(--space-5)}
+.doan-conv-panel .msg-user{max-width:92%}
+.doan-conv-panel :is(.md,.msg-agent p,.bubble){font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+.ov-title-wrap{display:flex;min-width:0}
+.ov-title.doan-button{min-width:0;flex-shrink:1;gap:var(--space-1h);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
+.ov-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Thread */
+.conversation-thread{position:relative;display:flex;flex-direction:column;min-height:0;height:100%}
+.conversation-thread .thread-scroll{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb-quiet) transparent}
+.conversation-thread .thread{display:flex;flex-direction:column;gap:var(--space-6)}
+.conversation-thread .thread-item{display:flex;flex-direction:column;min-width:0}
+.conversation-thread .msg-user{align-self:flex-end;display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-1h);max-width:80%;min-width:0}
+.conversation-thread .bubble{padding:var(--space-2) var(--space-4);border-radius:var(--radius-row);background:var(--surface-accent-subtle);color:var(--text-standard);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;user-select:text}
+.conversation-thread .msg-agent{display:flex;flex-direction:column;gap:var(--space-2);min-width:0;user-select:text}
+.conversation-thread .msg-agent p{font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);overflow-wrap:anywhere}
+.conversation-thread .md{display:flex;flex-direction:column;gap:var(--space-4);min-width:0;font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing)}
+.conversation-thread .md strong{font-weight:var(--type-weight-semibold)}
+.conversation-thread .md :is(ul,ol){display:flex;flex-direction:column;gap:var(--space-1);padding-left:var(--space-6)}
+.conversation-thread .md ul{list-style:disc}
+.conversation-thread .md>p:has(+ :is(ul,ol)){margin-bottom:calc(var(--space-2) - var(--space-4))}
+.conversation-thread .md code{font-family:var(--type-family-mono);font-size:var(--type-body-sm-size);background:var(--surface-inset);border-radius:var(--space-1);padding:var(--space-half) var(--space-1);overflow-wrap:anywhere}
+.conversation-thread .activity{display:flex;flex-direction:column;gap:var(--space-1)}
+.conversation-thread .activity-head{display:inline-flex;align-items:center;gap:var(--space-2);align-self:flex-start;min-height:var(--size-control-sm);padding:0 var(--space-2) 0 var(--space-3);margin-left:calc(-1 * var(--space-3));border-radius:var(--radius-control);color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);max-width:100%}
+.conversation-thread .activity-head span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conversation-thread .activity-head .chev{transform:rotate(-90deg)}
+.conversation-thread .activity-head .doan-spinner{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.strip-agent{display:inline-grid;place-items:center;flex:none}
+.strip-agent .logo{width:var(--size-icon);height:var(--size-icon)}
+.strip-text{display:flex;flex-direction:column;gap:var(--space-1);min-width:0;flex:1}
+.strip-text b{font-weight:var(--type-weight-medium)}
+.strip-text span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.strip-actions{display:flex;align-items:center;gap:var(--space-2)}
+.conversation-thread .thread-notice{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:var(--space-1h);row-gap:var(--space-3)}
+.conversation-thread .thread-notice>.strip-actions{grid-column:2;flex-wrap:wrap;margin-block:0;align-self:start}
+.conversation-thread .thread-notice>svg{width:var(--size-icon);height:var(--size-icon)}
+.conversation-thread .thread-notice .strip-text span{white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
+.conversation-thread .marker{display:flex;align-items:center;gap:var(--space-3);color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height)}
+.conversation-thread .marker::before,.conversation-thread .marker::after{content:"";flex:1;height:1px;background:var(--border-standard)}
+.conversation-thread .marker span{display:inline-flex;align-items:center;gap:var(--space-1h);min-width:0;max-width:80%;text-align:center}
+.conversation-thread .marker svg{flex:none;width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.conversation-thread .marker .doan-button{color:var(--text-standard)}
+.conversation-thread .marker .doan-button:disabled{color:var(--text-disabled)}
+/* Toast */
+.toast{position:absolute;right:var(--space-4);bottom:var(--space-4);z-index:6}
+.toast .msg{min-width:0;overflow-wrap:anywhere}
+
+/* Hand-off lines as shipped (.marker.handoff): a reason wraps inside the marker's 80 %, the icon on its first line. */
+.conversation-thread .marker.handoff span{align-items:flex-start}
+.conversation-thread .marker.handoff span svg{margin-block:calc((var(--type-caption-line-height) - var(--size-icon-sm)) / 2)}
+</style></head><body>
+<svg class="sprite" aria-hidden="true">
+<symbol id="i-forward" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 17 5-5-5-5"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></g></symbol>
+<symbol id="i-ban" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M4.929 4.929 19.07 19.071"/></g></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-new" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></g></symbol>
+<symbol id="i-hide" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/></g></symbol>
+</svg>
+
+<header class="intro"><span class="doan-chip">multi-handoff · draft for review · 4 frames</span><h1>One turn hands off to every new canvas it made.</h1>
+<p>Scope: <code>docs/features/multi-handoff/</code> (spec ‘완료 조건’ 4, 7, 9; design ‘결정’ D2–D5 and ‘드래프트 요청’). A new file; <code>canvas-handoff.html</code>, the shipped single hand-off’s draft, is left as it is. <code>/design-sync</code> compares every frame below: <code>source-multi-pending</code>, <code>source-multi-resolved</code>, <code>source-missed-only</code>, <code>toast-multi</code>. New, not in code: several hand-off lines in one turn, the missed line and its Open, and the summary toast. Each frame’s heading says which parts are new.</p>
+<ul>
+<li>Copied as shipped (3de8dfd2): the canvas conversation panel head and thread (<code>ConversationThread.tsx</code> <code>HandoffLine</code>, <code>CanvasConversationPanel.tsx</code>), the hand-off line <code>.marker.handoff</code> and its result wording (<code>handoffView.ts</code>, DESIGN.md ‘Canvas handoff’), the activity row and the toast (<code>Toast.tsx</code>, <code>ds/surfaces.css</code>). Rules restated from <code>styles.css</code>; tokens and primitives linked from <code>app/src/renderer/</code>. Each tile is cut under the thread; the docked composer is unchanged and not drawn.</li>
+<li>Every Open on a hand-off line is named “Open &lt;file&gt;” for assistive tech (spec ‘완료 조건’ 4); the visible label stays “Open”.</li>
+<li>Example project <code>acme-web</code>; the original conversation is on <code>drafts.html</code>; the provider is Claude Code.</li>
+<li>Not drawn: the single hand-off (same as <code>canvas-handoff.html</code>), the receiving conversations’ handoff cards (unchanged), and the cancel line (unchanged; every request not started yet reads it).</li>
+<li>References: none outside Doan. Wording from design D3 and D4 and ‘드래프트 요청’, chosen there with Doan’s <code>clarify</code> preset after the shipped “Didn’t hand off to …” lines and toast. The gone missed line is drawn in its own tile, as the shipped draft draws the gone handed-off line. Icons are the shipped lucide <code>forward</code>, <code>ban</code>, <code>chevron-down</code>, <code>square-pen</code>, <code>panel-right-close</code>, copied from <code>canvas-handoff.html</code>.</li>
+</ul></header>
+
+<section class="specimen"><div class="caption"><span>01</span><h2>Original conversation · three hand-offs requested <span class="doan-chip" data-ui-variant="translucent">Several lines in one turn, not in code</span></h2><p>The agent ran <code>doan handoff</code> once for each new canvas, one after another as its last step. Each accepted request puts its own line where it happened, with the shipped “Hands off to … when this turn ends” wording; the lines stay so while Doan waits for the turn to end and the canvases to be listed. Nothing else changes in the panel.</p></div>
+<div class="tiles" data-doan-frame="source-multi-pending" data-doan-title="Original conversation · three hand-offs requested" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="tile"><div class="panel-tile"><aside class="right ov-right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Split checkout into cart, payment and shipping canvases</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Split checkout into cart, payment and shipping canvases, and keep working on each one</div></div></div>
+<div class="thread-item"><div class="activity"><button type="button" class="activity-head" aria-expanded="false"><span>9 steps</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div>
+<div class="thread-item"><div class="marker handoff" data-doan-id="pending-cart"><span><svg aria-hidden="true"><use href="#i-forward"/></svg>Hands off to cart.html when this turn ends</span></div></div>
+<div class="thread-item"><div class="marker handoff" data-doan-id="pending-payment"><span><svg aria-hidden="true"><use href="#i-forward"/></svg>Hands off to payment.html when this turn ends</span></div></div>
+<div class="thread-item"><div class="marker handoff" data-doan-id="pending-shipping"><span><svg aria-hidden="true"><use href="#i-forward"/></svg>Hands off to shipping.html when this turn ends</span></div></div>
+<div class="thread-item"><div class="msg-agent md"><p>I made <code>cart.html</code>, <code>payment.html</code> and <code>shipping.html</code>. When this reply ends, each one continues in its own new conversation.</p></div></div>
+</div></div></div></div></div></div></aside></div><span class="tile-label">Turn running or just ended · three requests, one line each, in request order</span></div>
+</div></section>
+<section class="specimen"><div class="caption"><span>02</span><h2>Original conversation · hand-offs resolved <span class="doan-chip" data-ui-variant="translucent">Several lines and the missed line, not in code</span></h2><p>Each request is judged on its own, then the accepted ones start one at a time in request order; one refusal does not stop the others. Here the person started a conversation on shipping.html while the turn ran, and receipt.html was renamed later. Each line turns into its shipped result wording in place. A new canvas the turn edited but did not hand off gets the new missed line, after the last hand-off line, with Open (opens that canvas as Quick Open does; Doan starts no conversation there). Two or more started: the screen does not move, and messages queued meanwhile go to this conversation.</p></div>
+<div class="tiles" data-doan-frame="source-multi-resolved" data-doan-title="Original conversation · hand-offs resolved" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="tile"><div class="panel-tile"><aside class="right ov-right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Split checkout into cart, payment, shipping and receipt canvases</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Split checkout into cart, payment, shipping and receipt canvases, plus a confirmation page</div></div></div>
+<div class="thread-item"><div class="activity"><button type="button" class="activity-head" aria-expanded="false"><span>14 steps</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div>
+<div class="thread-item"><div class="marker handoff" data-doan-id="mixed-cart"><span><svg aria-hidden="true"><use href="#i-forward"/></svg>Handed off to cart.html</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open cart.html" data-doan-id="mixed-cart-open">Open</button></div></div>
+<div class="thread-item"><div class="marker handoff" data-doan-id="mixed-payment"><span><svg aria-hidden="true"><use href="#i-forward"/></svg>Handed off to payment.html</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open payment.html" data-doan-id="mixed-payment-open">Open</button></div></div>
+<div class="thread-item"><div class="marker handoff" data-doan-id="mixed-shipping"><span><svg aria-hidden="true"><use href="#i-ban"/></svg>Didn’t hand off to shipping.html. It already has a conversation.</span></div></div>
+<div class="thread-item"><div class="marker handoff" data-doan-id="mixed-receipt"><span><svg aria-hidden="true"><use href="#i-forward"/></svg>Handed off to receipt.html · No longer in acme-web</span></div></div>
+<div class="thread-item"><div class="marker handoff" data-doan-id="mixed-missed"><span><svg aria-hidden="true"><use href="#i-ban"/></svg>Didn’t hand off to confirmation.html. The agent didn’t ask to.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open confirmation.html" data-doan-id="mixed-missed-open">Open</button></div></div>
+<div class="thread-item"><div class="msg-agent md"><p>I made <code>cart.html</code>, <code>payment.html</code>, <code>shipping.html</code>, <code>receipt.html</code> and <code>confirmation.html</code>, When this reply ends, cart, payment, shipping and receipt each continue in their own conversation.</p></div></div>
+</div></div></div></div></div></div></aside></div><span class="tile-label">Resolved · started, refused, started then gone, and a canvas made without a request (after the last hand-off line)</span></div>
+</div></section>
+<section class="specimen"><div class="caption"><span>03</span><h2>Original conversation · new canvases without a hand-off <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>The turn could hand off but the agent asked for none. When the turn ends done, Doan finds each new canvas the turn edited and shows one missed line per canvas at the turn’s end. A canvas made by a shell command reports no edit path, so it gets no line. If the canvas later disappears, Open is hidden and the line ends with one more sentence, “It’s no longer in acme-web.”, since the line already ends in a full stop. The lines show even when the person asked the agent not to hand off: they state what happened.</p></div>
+<div class="tiles" data-doan-frame="source-missed-only" data-doan-title="Original conversation · new canvases without a hand-off" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="tile"><div class="panel-tile"><aside class="right ov-right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Try two layouts for the pricing table as new canvases</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Try two layouts for the pricing table as new canvases</div></div></div>
+<div class="thread-item"><div class="activity"><button type="button" class="activity-head" aria-expanded="false"><span>6 steps</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div>
+<div class="thread-item"><div class="msg-agent md"><p>I made <code>pricing-cards.html</code> and <code>pricing-table.html</code> with the same plans in two layouts.</p></div></div>
+<div class="thread-item"><div class="marker handoff" data-doan-id="missed-cards"><span><svg aria-hidden="true"><use href="#i-ban"/></svg>Didn’t hand off to pricing-cards.html. The agent didn’t ask to.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open pricing-cards.html" data-doan-id="missed-cards-open">Open</button></div></div>
+<div class="thread-item"><div class="marker handoff" data-doan-id="missed-table"><span><svg aria-hidden="true"><use href="#i-ban"/></svg>Didn’t hand off to pricing-table.html. The agent didn’t ask to.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open pricing-table.html" data-doan-id="missed-table-open">Open</button></div></div>
+</div></div></div></div></div></div></aside></div><span class="tile-label">No request in the turn · lines at the turn’s end, after the reply</span></div>
+<div class="tile"><div class="line-tile"><div class="conversation-thread"><div class="thread">
+<div class="thread-item"><div class="marker handoff" data-doan-id="missed-gone"><span><svg aria-hidden="true"><use href="#i-ban"/></svg>Didn’t hand off to pricing-table.html. The agent didn’t ask to. It’s no longer in acme-web.</span></div></div>
+</div></div></div><span class="tile-label">The canvas was later deleted or renamed · Open hidden</span></div>
+</div></section>
+<section class="specimen"><div class="caption"><span>04</span><h2>Toast · several hand-offs off screen <span class="doan-chip" data-ui-variant="translucent">New message, not in code</span></h2><p>Two or more hand-offs started and the person is not on drafts.html: one toast for the whole turn, at the window’s lower right, instead of one per canvas. Open opens drafts.html with its panel on the original conversation, where every line and its Open are. On drafts.html itself nothing shows: the lines are already there. One started hand-off keeps the shipped move and toast unchanged.</p></div>
+<div class="tiles" data-doan-frame="toast-multi" data-doan-title="Toast · several hand-offs off screen" data-doan-implements="app/src/renderer/App.tsx">
+<div class="tile"><div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="toast-multi"><span class="msg">drafts.html handed off to 3 canvases</span><button class="btn doan-button" data-ui-variant="prominent" data-ui-size="sm">Open</button></div></div><span class="tile-label">Two or more started while elsewhere · Open opens drafts.html with its panel on the original conversation</span></div>
+<div class="tile"><div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="toast-multi-gone"><span class="msg">Couldn’t open drafts.html. The canvas isn’t in acme-web.</span></div></div><span class="tile-label">Open after drafts.html disappeared (shipped wording)</span></div>
+</div></section>
+</body></html>

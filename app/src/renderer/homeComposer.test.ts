@@ -6,7 +6,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import {
   attachmentChipView, attachmentLimit, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, fixedPreference,
   GREETINGS, greetingText, foldRows, olderOrder, lockedOlderSide, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
-  draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
+  draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, sendRefusal, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT, attachRefusal, markRefused, queueAttachmentSummary, readyAttachment, recordedAttachment, sentFileView,
   type AttachmentDraft, type ModelsState, type PresetListReply, type PresetSummary, type SendInput,
 } from "./homeComposer";
@@ -1033,4 +1033,17 @@ test("an open model menu keeps its first painted side until close releases the l
   expect(top).toBe("top");
   expect(lockedOlderSide(top, "bottom")).toBe("top");
   expect(lockedOlderSide(null, "left")).toBeNull();
+});
+
+// A start refused by the usage limit names the reset when main knows it (usage-limit-resume.html home-refusal).
+test("a usage-limit start refusal names the reset time when it is known", () => {
+  expect(startErrorView("rate_limited", "claude", "doan-design", "at 3:00\u202fPM")).toEqual({ text: "Claude Code reached a usage limit. Send again after it resets at 3:00\u202fPM.", retry: false });
+  expect(startErrorView("rate_limited", "codex", "doan-design", "Thursday at 3:00\u202fPM").text).toBe("Codex reached a usage limit. Send again after it resets Thursday at 3:00\u202fPM.");
+  expect(startErrorView("rate_limited", "claude", "doan-design", null).text).toBe("Claude Code reached a usage limit. Send again after it resets.");
+  expect(startErrorView("busy", "claude", "doan-design", "at 3:00\u202fPM").text).toBe("Claude Code is finishing a previous run. Try again in a moment.");
+});
+
+test("a refusal keeps main's usage-limit reset time", () => {
+  expect(sendRefusal({ error: "rate_limited", resetsAt: "2026-11-13T06:00:00.000Z" })).toEqual({ error: "rate_limited", resetsAt: "2026-11-13T06:00:00.000Z" });
+  expect(sendRefusal({ error: "rate_limited", resetsAt: 5 })).toEqual({ error: "rate_limited" });
 });

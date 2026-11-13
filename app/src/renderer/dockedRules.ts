@@ -62,6 +62,8 @@ export interface DockedInput {
   unavailable?: string | null;
   // The conversation runs on a terminal's own sign-in (a legacy external one), so Doan's accounts do not decide.
   external?: boolean;
+  // At the usage limit the message waits for the reset (composerRules composerAction).
+  limited?: boolean;
 }
 
 // Main's turn as the composer reads it, the same in both hosts: the merged events first (the list lags them), then the
@@ -89,8 +91,9 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
   if (agent) return off({ text: agent.text, ...("kind" in agent && agent.kind === "noAgent" ? { noAgent: true as const } : {}), ...("action" in agent && agent.action ? { action: agent.action } : {}) });
   const waiting = input.turn === "waiting" ? { text: "Answer or stop the request above." } : null;
   if (!hasContent(draft.segments) && !draft.preset && draft.attachments.length === 0) return off(waiting);
-  // A running or holding turn takes the message into its queue, so the limits on starting a turn do not apply yet.
-  if (input.busy && input.turn === "idle") return off(busyReason(input.busy, input.project));
+  // A running or holding turn takes the message into its queue, and at the usage limit it waits for the reset, so the
+  // limits on starting a turn do not apply yet: main waits for the root when the reset comes.
+  if (input.busy && input.turn === "idle" && !input.limited) return off(busyReason(input.busy, input.project));
   const problem = draftProblem(draft.segments, draft.preset, draft.attachments, input.skills);
   return problem ? off({ text: problem.text, ...(problem.kind === "attachmentMissing" ? { alert: true as const } : {}) }) : { enabled: true, reason: waiting };
 }
@@ -136,11 +139,12 @@ export function carryDraft(drafts: ReadonlyMap<string, DockedDraft>, from: strin
   if (!draft || (waiting && (waiting.segments.length || waiting.preset || waiting.attachments.length))) return drafts;
   return new Map(drafts).set(to, draft).set(from, EMPTY_DRAFT);
 }
-export function dockedRefusal(code: string, mode: DockedMode, provider: Provider, project: string): DockedRefusal {
+// resets: a usage-limit refusal's reset time as limitReset.ts words it; only a start names it.
+export function dockedRefusal(code: string, mode: DockedMode, provider: Provider, project: string, resets: string | null = null): DockedRefusal {
   if (code === "project_busy") return { kind: "busy", busy: { kind: "project", open: null } };
   if (mode.kind === "archived" && code === "busy") return { kind: "busy", busy: { kind: "restore", open: null } };
   if (code === "canvas_not_found") return { kind: "gone" };
-  if (mode.kind === "new") return { kind: "notice", text: startErrorView(code, provider, project).text };
+  if (mode.kind === "new") return { kind: "notice", text: startErrorView(code, provider, project, resets).text };
   if (mode.kind === "resume") return { kind: "notice", text: resumeRefusalText(code, provider) };
   const p = PROVIDER_NAMES[provider];
   // Another sign-in owns the conversation: Retry never runs it, so the notice offers a new conversation instead.

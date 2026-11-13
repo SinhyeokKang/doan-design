@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow } from "../main/view";
-import { canvasConversationRows, canvasRowProblemText } from "./canvasConversationRows";
+import { canvasConversationRows, canvasRowProblemText, conversationCanvasMatch } from "./canvasConversationRows";
 
 const NOW = Date.parse("2026-11-01T12:00:00.000Z");
 const MIN = 60_000;
@@ -165,5 +165,35 @@ describe("canvasRowProblemText", () => {
     const broken = row({ path: ".doan/canvases/broken.html", id: "broken", error: { code: "parse", message: "bad html" } });
     const [unreadable] = canvasConversationRows([summary({ canvas: { path: broken.path, id: "broken" } })], [broken], NOW);
     expect(canvasRowProblemText(unreadable!.problem!, "doan")).toBe("Can't read this canvas — run doan check");
+  });
+});
+
+// The rule canvasConversationRows judges a canvas conversation's row by, shared with Quick Open.
+describe("conversationCanvasMatch", () => {
+  test("one listed row, several when the id is shared, none when the canvas is gone", () => {
+    const twin = row({ path: ".doan/canvases/copy.html", id: "billing" });
+    expect(conversationCanvasMatch({ path: billing.path, id: "billing" }, [plain, billing, quiet])).toEqual({ kind: "one", row: billing });
+    expect(conversationCanvasMatch({ path: billing.path, id: "billing" }, [billing, plain, twin])).toEqual({ kind: "many", rows: [billing, twin] });
+    expect(conversationCanvasMatch({ path: ".doan/canvases/gone.html", id: "gone" }, [billing, plain])).toEqual({ kind: "none" });
+    expect(conversationCanvasMatch({ path: billing.path, id: "billing" }, [])).toEqual({ kind: "none" });
+  });
+
+  test("an id on either side matches by id only; without ids the path matches", () => {
+    const moved = row({ path: ".doan/canvases/pay/billing-v2.html", id: "billing" });
+    expect(conversationCanvasMatch({ path: billing.path, id: "billing" }, [moved])).toEqual({ kind: "one", row: moved });
+    expect(conversationCanvasMatch({ path: plain.path }, [plain])).toEqual({ kind: "one", row: plain });
+    // The conversation has no id, the row has one: not the same canvas.
+    expect(conversationCanvasMatch({ path: billing.path }, [billing])).toEqual({ kind: "none" });
+    // A readable row without an id is another canvas, even at the same path.
+    expect(conversationCanvasMatch({ path: plain.path, id: "plain" }, [plain])).toEqual({ kind: "none" });
+  });
+
+  test("an unreadable row listed without its id matches by path, unless an id match exists elsewhere", () => {
+    const broken = row({ path: ".doan/canvases/legacy-cart.html", error: { code: "unreadable_canvas", message: "permission denied" } });
+    const moved = row({ path: ".doan/canvases/cart/legacy-cart.html", id: "legacy-cart" });
+    expect(conversationCanvasMatch({ path: broken.path, id: "legacy-cart" }, [broken, billing])).toEqual({ kind: "one", row: broken });
+    expect(conversationCanvasMatch({ path: broken.path, id: "legacy-cart" }, [broken, moved])).toEqual({ kind: "one", row: moved });
+    const brokenTwin = row({ path: broken.path, error: { code: "parse", message: "bad html" } });
+    expect(conversationCanvasMatch({ path: broken.path, id: "legacy-cart" }, [broken, brokenTwin])).toEqual({ kind: "many", rows: [broken, brokenTwin] });
   });
 });

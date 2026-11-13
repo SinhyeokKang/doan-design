@@ -18,6 +18,7 @@ import { AUTH_CHANNELS, AuthIpc } from "./agentAuth/ipc";
 import { sharedShell, toolFacts } from "./agentAuth/facts";
 import { readUsage } from "./agentAuth/usageRead";
 import { UsageService, withTurnUsage } from "./agentAuth/usageService";
+import { clockArgument, clockHour12 } from "./clockHourCycle";
 import { USAGE_CHANNELS, usageRequest } from "./agentAuth/usageIpc";
 import { probeShell, runProcess } from "./onboarding/machine";
 import { osascriptAdmin, runAgentSetup, setupEligibility } from "./agentSetup/runner";
@@ -32,7 +33,7 @@ import { readGitRemotes } from "./onboarding/gitConfig";
 import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, leftoverPresent, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
 import { groupRoots, projectKeepsLocal } from "./storage";
 import { DocumentBindings } from "./document/bindings";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, screen, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, powerMonitor, screen, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions, type Session } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, lstatSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -75,6 +76,8 @@ import { menuState, updateMenu, type Screen } from "./menuState";
 import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
 import { updateEligibility } from "./update/eligibility";
 import { installGate } from "./update/gate";
+import { REPOSITORY_URL } from "./repository";
+import { createStarPrompt, type StarPromptStore } from "./starPromptStore";
 import { updateView, type UpdateMenuView } from "./update/view";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
@@ -89,6 +92,8 @@ import { linkTarget } from "./openLink";
 import { openLinkQueue, openRequests, resolveOpenLink } from "./deepLinks";
 import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, workItemsChanged, type WorkState } from "./workState";
 import { applyConversationWork, endConversationWork, type ConversationWork } from "./conversationWork";
+import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
+import { createPrototypeWindow } from "./prototypeWindow";
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
@@ -206,6 +211,7 @@ app.on("did-become-active", () => {
 });
 let conversations: ConversationService | undefined;
 let updates: UpdateService | undefined;
+let starPrompt: StarPromptStore | undefined;
 // The menu item's view as last built, so a snapshot that leaves it alone does not rebuild the menu.
 let updateMenuKey = "";
 let agentAuth: AuthManager | undefined;
@@ -243,6 +249,8 @@ let thumbnails: Thumbnails | undefined;
 // The app always starts on Home.
 const HOME: MenuInputs = { screen: "home", modal: false };
 let menuInputs: MenuInputs = HOME;
+// The prototype window has focus: the main window's own menu items go off (menuState `prototypeFocused`).
+let prototypeFocused = false;
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
 
 // Thumbnails are for the window's overview, so nothing is captured while it
@@ -295,10 +303,25 @@ function fromWindow(event: IpcMainInvokeEvent): boolean {
   return win !== undefined && !win.isDestroyed() && fromAppFrame(event, win);
 }
 
+// The single-frame prototype window: made on the first Play, apart from `win`'s lifecycle and sender guard.
+const prototype = createPrototypeWindow({
+  entries: () => shell?.entries() ?? [],
+  mainWindow: () => win,
+  closed: () => send(PROTOTYPE_CHANNELS.closed),
+  denyPermissions,
+  reread: root => shell?.reread([root]),
+  focusChanged(focused) {
+    if (focused === prototypeFocused) return;
+    prototypeFocused = focused;
+    setMenu();
+  },
+});
+
 // A registered window's main frame, or nothing: iframes, the capture window
 // and windows that are gone are not senders.
 function senderKind(event: IpcMainInvokeEvent): WindowKind | undefined {
   if (fromWindow(event)) return "main";
+  if (prototype.owns(event)) return "prototype";
   return undefined;
 }
 
@@ -350,7 +373,7 @@ function editHistory(kind: "undo" | "redo"): NonNullable<MenuItemConstructorOpti
 // go to the renderer, which zooms the board and reloads only the canvas.
 // The menu is rebuilt whenever its enablement changes.
 function menuEnabledNow() {
-  return menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen || buddyIntroOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true });
+  return menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen || buddyIntroOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true, prototypeFocused });
 }
 
 function setMenu(): void {
@@ -377,8 +400,10 @@ function setMenu(): void {
           { label: "New Conversation", accelerator: "CmdOrCtrl+N", enabled: enabled.newConversation, click: command("newConversation") },
           { label: "Add Project…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: openAddProjects },
           { type: "separator" },
-          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: () => {
-            if (win && !win.isDestroyed()) win.close();
+          // The focused window: from the prototype window it closes only that window.
+          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: (_item, focused) => {
+            if (prototype.ownsWindow(focused)) prototype.close();
+            else if (win && !win.isDestroyed()) win.close();
           } },
         ],
       },
@@ -463,13 +488,14 @@ function parseMenuInputs(value: unknown): MenuInputs | null {
 
 // Without handlers Electron grants permissions to the app's own main frame.
 // Canvas iframes are already stopped by Permissions Policy, so this guards the app.
-function denyPermissions(): void {
-  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
-  session.defaultSession.setDevicePermissionHandler(() => false);
+// The prototype window's own session gets the same.
+function denyPermissions(target: Session = session.defaultSession): void {
+  target.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+  target.setPermissionCheckHandler(() => false);
+  target.setDevicePermissionHandler(() => false);
   // Chromium turns an ⌥-clicked canvas link into a download, and the iframe
   // sandbox without `allow-downloads` does not stop it.
-  session.defaultSession.on("will-download", (event) => event.preventDefault());
+  target.on("will-download", (event) => event.preventDefault());
 }
 
 // buddy: the saved buddy, passed in the renderer's query for the first paint.
@@ -501,6 +527,10 @@ function createWindow(buddy: BuddyId): BrowserWindow {
       sandbox: true,
       // CJS: a sandboxed preload cannot load ESM, and package.json is "type": "module".
       preload: fileURLToPath(new URL("../preload/index.cjs", import.meta.url)),
+      additionalArguments: [clockArgument(clockHour12({
+        force24: systemPreferences.getUserDefault("AppleICUForce24HourTime", "boolean") === true,
+        force12: systemPreferences.getUserDefault("AppleICUForce12HourTime", "boolean") === true,
+      }, app.getSystemLocale()))],
     },
   });
   const devUrl = process.env.ELECTRON_RENDERER_URL;
@@ -719,6 +749,8 @@ async function start(): Promise<void> {
       if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
     }
     thumbnails?.entriesChanged(entries);
+    // A source change reloads the prototype, a gone canvas or root shows it unavailable, and it comes back on restore.
+    prototype.controller.listChanged();
     seen.listed(entries);
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", seen.decorate(entries), focus);
     readyOpenLinks();
@@ -748,6 +780,13 @@ async function start(): Promise<void> {
     readyOpenLinks();
   });
   handle("doan-open:answer", undefined, (_event, value: unknown) => { openCanvasRequests.answer(value); });
+  // The main window names a frame of a listed canvas; main builds the URL itself. Each window request is checked again
+  // for the prototype role inside the controller.
+  handle(PROTOTYPE_CHANNELS.play, undefined, (_event, value: unknown, kind) => { prototype.controller.play(kind, value); });
+  for (const channel of PROTOTYPE_WINDOW_REQUESTS) {
+    const refused = channel === PROTOTYPE_CHANNELS.read ? null : undefined;
+    handle(channel, refused, (_event, value: unknown, kind) => prototype.controller.request(channel, kind, value));
+  }
   // The capture window is made on the first capture and stays out of the
   // app window's lifecycle: `win` alone is shown, closed and trusted for IPC.
   const thumbs = createThumbnails({
@@ -850,7 +889,7 @@ async function start(): Promise<void> {
       probe: provider => toolFacts(provider, { shell: shellForFacts, run: runProcess, executable, inherited: process.env, cli }),
       // MCP Connectors follows every auth change: readiness, a new verified connection (pending logouts, reconcile and
       // status reads) or a lost one. Claude's prompt suggestions go with a signed-out or replaced Claude connection.
-      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); for (const provider of MCP_PROVIDERS) mcp?.authChanged(provider); usage?.authChanged(); conversations?.connectionChanged("claude", agentAuth?.state("claude").connection?.connectionId); },
+      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); for (const provider of MCP_PROVIDERS) mcp?.authChanged(provider); usage?.authChanged(); for (const provider of ["claude", "codex"] as const) conversations?.connectionChanged(provider, agentAuth?.state(provider).connection?.connectionId); },
       prompt: (owner, event) => { if (win && !win.isDestroyed() && win.webContents.id === owner) send(AUTH_CHANNELS.prompt, event); },
     });
   }
@@ -1018,7 +1057,8 @@ async function start(): Promise<void> {
   let modelCatalog: ModelCatalog | undefined;
   // Every conversation event, and every end of a turn's work (a history that stopped taking writes publishes no event),
   // may start or end a turn or a question, which Restart to Update waits for.
-  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => { send("conversation:event", event); notify.event(event); updates?.conversationsChanged(); }, (root, canvas) => {
+  // A turn the usage limit stopped holds its failure notification until main knows it was not scheduled again (notice).
+  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, (event, deferNotice) => { send("conversation:event", event); if (!deferNotice) notify.event(event); updates?.conversationsChanged(); starPrompt?.event(event); }, (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
     if (!project) throw new Error("project_not_open");
     if (canvas) {
@@ -1028,7 +1068,8 @@ async function start(): Promise<void> {
   }, undefined, root => {
     const project = ready.entries().find(entry => entry.path === root);
     return project?.kind === "list" ? project.canvases : [];
-  }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true }, id => notify.close(id),
+  }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true,
+    limitWindows: (provider, connectionId) => usage ? usage.limitWindows(provider, connectionId) : Promise.resolve([]), resumed: listener => { powerMonitor.on("resume", listener); }, notice: event => notify.event(event) }, id => notify.close(id),
   // A stage is a live signal beside the events, never one of them: its own channel, to the main window only as events go.
   id => { updateConversationWork(endConversationWork(conversationWork, id)); updates?.conversationsChanged(); }, notice => send("conversation:handoff", notice), signal => send("conversation:stage", signal));
   conversations = conversationService;
@@ -1259,12 +1300,13 @@ async function start(): Promise<void> {
   handle("about:read", null, (_event, value: unknown) => value === undefined ? readAbout() : null);
   // App updates (ARCHITECTURE §7). Eligibility is agent setup's for this bundle, asked without waiting for setup's
   // login-shell probe, plus the release feed file; a copy that doesn't update never makes an updater.
+  const releaseEligibility = updateEligibility({
+    isPackaged: app.isPackaged, hasFeedConfig: hasFeedConfig(process.resourcesPath),
+    install: setupEligibility({ home: homeDirectory(), resources: process.resourcesPath, isPackaged: app.isPackaged }),
+  });
   const updateService = new UpdateService({
     version: app.getVersion(),
-    eligibility: updateEligibility({
-      isPackaged: app.isPackaged, hasFeedConfig: hasFeedConfig(process.resourcesPath),
-      install: setupEligibility({ home: homeDirectory(), resources: process.resourcesPath, isPackaged: app.isPackaged }),
-    }),
+    eligibility: releaseEligibility,
     autoCheck: preferences.current().updates.autoCheck,
     ...electronUpdater(),
     gate: () => installGate(conversationService.restartHolds()),
@@ -1286,6 +1328,28 @@ async function start(): Promise<void> {
     const url = value === undefined ? releaseNotesUrl(updateService.snapshot()) : null;
     if (url === null) return false;
     try { await electronShell.openExternal(url); return true; } catch { return false; }
+  });
+  // The GitHub star card counts and asks only in a copy that updates, the release builds people install. The renderer
+  // names nothing: main opens its own fixed URL, and a dismissal or the busy read carry no data.
+  starPrompt = createStarPrompt({ file: join(userData, "star-prompt.json"), enabled: releaseEligibility.kind === "enabled", now: () => Date.now(), moment: moment => send("star:moment", moment) });
+  const stars = starPrompt;
+  handle("star:open", false, async (_event, value: unknown) => {
+    if (value !== undefined) return false;
+    try { await electronShell.openExternal(REPOSITORY_URL); } catch { return false; }
+    stars.opened();
+    return true;
+  });
+  // Home's credit line: the same fixed URL, without touching the star card's state.
+  handle("repository:open", false, async (_event, value: unknown) => {
+    if (value !== undefined) return false;
+    try { await electronShell.openExternal(REPOSITORY_URL); return true; } catch { return false; }
+  });
+  handle("star:dismiss", undefined, (_event, value: unknown) => { if (value === undefined) stars.dismissed(); });
+  // A conversation running or waiting for an answer puts the card off.
+  handle("star:busy", true, (_event, value: unknown) => {
+    if (value !== undefined) return true;
+    const holds = conversationService.restartHolds();
+    return holds.liveTurns > 0 || holds.pendingAnswers > 0;
   });
   // Copies what About last showed, so the text matches the page.
   handle("about:copy", { kind: "stale" }, async (_event, value: unknown) => value === undefined ? copy(aboutText(lastAbout ?? await readAbout(), updateService.snapshot())) : { kind: "stale" });
@@ -1389,7 +1453,7 @@ app.on("before-quit", (event) => {
       if (result.status === "rejected") console.error("doan: project cleanup failed during quit", result.reason);
     }
     quitting = true;
-    try { cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose(); } catch (error) {
+    try { prototype.destroyForQuit(); cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose(); } catch (error) {
       console.error("doan: final cleanup failed during quit", error);
     }
     // Restart to Update installs only here, after the save and the flush; quitting is set, so the windows the install

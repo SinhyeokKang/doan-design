@@ -2,7 +2,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
 import { deleteAvailability, type DeleteAvailability } from "./conversationDelete";
-import { conversationWork } from "./conversationList";
+import { conversationWork, scheduledOf } from "./conversationList";
 import { draftKey } from "./dockedRules";
 import type { Slot } from "./homeConversations";
 
@@ -31,13 +31,15 @@ export function shortAgo(at: string, now: number): ShortTime | null {
 }
 
 export interface ConversationStatus { kind: Slot["kind"]; label: string }
-const STATUS_LABELS: Record<Slot["kind"], string> = { permission: "Needs your answer", working: "Working", unseen: "Conversation finished — unread" };
+const STATUS_LABELS: Record<Exclude<Slot["kind"], "scheduled">, string> = { permission: "Needs your answer", working: "Working", unseen: "Conversation finished — unread" };
 
 // From the sidebar slot's own per-conversation rule (conversationWork), so a row and its slot never disagree between
-// renders. Unlike the sidebar, every conversation counts here, not only those started from Home.
-export function conversationStatus(c: ConversationSummary, seen: ReadonlySet<string>): ConversationStatus | null {
-  const slot = conversationWork(c, seen);
-  return slot ? { kind: slot.kind, label: STATUS_LABELS[slot.kind] } : null;
+// renders. Unlike the sidebar, every conversation counts here, not only those started from Home. A scheduled slot keeps
+// its own label, which names the reset.
+export function conversationStatus(c: ConversationSummary, seen: ReadonlySet<string>, scheduled: Slot | null = null): ConversationStatus | null {
+  const slot = conversationWork(c, seen, scheduled);
+  if (!slot) return null;
+  return { kind: slot.kind, label: slot.kind === "scheduled" ? slot.label : STATUS_LABELS[slot.kind] };
 }
 
 // One dropdown item or canvas row line: the same component draws both.
@@ -48,7 +50,7 @@ export const UNREADABLE_CONVERSATION = "Can’t read this conversation";
 
 export function conversationLine(c: ConversationSummary, now: number, seen: ReadonlySet<string>): ConversationLine {
   return {
-    conversationId: c.conversationId, provider: c.provider, status: conversationStatus(c, seen),
+    conversationId: c.conversationId, provider: c.provider, status: conversationStatus(c, seen, scheduledOf(c, now)),
     time: shortAgo(c.lastActivityAt, now), preview: c.readError ? UNREADABLE_CONVERSATION : c.preview,
   };
 }

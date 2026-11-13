@@ -83,7 +83,10 @@ const mocks = await vi.hoisted(async () => {
     conversationService: undefined as { list(root: string): unknown[]; projectEvidence(root: string): unknown[] } | undefined,
     preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn(), buddyKey: vi.fn() },
     createPreferencesStore: vi.fn(),
-    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), relaunch: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true),
+    // The GitHub star card's state; its file and timing are covered in starPromptStore.test.ts.
+    starPrompt: { event: vi.fn(), opened: vi.fn(), dismissed: vi.fn() },
+    createStarPrompt: vi.fn(),
+    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", getSystemLocale: () => "en-US", exit: vi.fn(), quit: vi.fn(), relaunch: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true),
       isActive: vi.fn(() => true), dock: { bounce: vi.fn(() => 7) } }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
@@ -132,7 +135,8 @@ vi.mock("electron", () => ({
   webContents: { getFocusedWebContents: () => null },
   nativeTheme: mocks.nativeTheme,
   autoUpdater: mocks.nativeUpdater,
-  systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
+  systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; }, getUserDefault: (key: string) => key === "AppleICUForce24HourTime" },
+  powerMonitor: { on: vi.fn() },
 }));
 vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return mocks.conversations; } finishDeletions() {} } }));
 // The fake store makes no conversations directory, so the queue's drafts stay in memory.
@@ -143,6 +147,7 @@ vi.mock("./conversation/service", async (importOriginal) => {
     constructor(...args: ConstructorParameters<typeof actual.ConversationService>) { super(...args); mocks.publishConversation = args[3] as never; mocks.deletedConversation = args[9] as never; mocks.workEnded = args[10] as never; mocks.stageConversation = args[12] as never; mocks.conversationService = this; }
   } };
 });
+vi.mock("./starPromptStore", () => ({ createStarPrompt: mocks.createStarPrompt }));
 vi.mock("./preferences", async (importOriginal) => ({ ...await importOriginal<typeof import("./preferences")>(), createPreferencesStore: mocks.createPreferencesStore }));
 // Move to Trash checks the disk with the real calls (canvasTrash.ts); nothing else here reaches them.
 vi.mock("node:fs/promises", async (importOriginal) => {
@@ -235,6 +240,7 @@ beforeEach(async () => {
   mocks.conversations = [];
   mocks.Notification.instances.length = 0;
   mocks.createPreferencesStore.mockReturnValue(mocks.preferences);
+  mocks.createStarPrompt.mockReturnValue(mocks.starPrompt);
   mocks.preferences.read.mockReturnValue({ preferences: DEFAULTS, notice: launchNotice });
   mocks.preferences.current.mockReturnValue(DEFAULTS);
   mocks.preferences.buddyKey.mockReturnValue(launchBuddyKey);
@@ -349,6 +355,8 @@ test("draws light whatever the macOS appearance", () => {
 test("defines the requested window geometry and File menu", () => {
   expect(shellColour()).toMatch(/^#[0-9a-f]{6}$/);
   expect(window().options).toMatchObject({ width: 1238, height: 780, minWidth: 960, minHeight: 600, titleBarStyle: "hiddenInset", trafficLightPosition: { x: 16, y: 21 }, backgroundColor: "#00000000", vibrancy: "sidebar", visualEffectState: "followWindow" });
+  // macOS's forced 24-hour time reaches the renderer, which cannot read it itself (clockHourCycle.ts).
+  expect(window().options.webPreferences).toMatchObject({ additionalArguments: ["--doan-clock-hour12=0"] });
   expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
   expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
 });
@@ -694,6 +702,73 @@ describe("design skills", () => {
     }
     expect(await invoke("design-skills:list", window().webContents, null, { all: true })).toEqual(REFUSED);
     expect(mocks.runDesignSkill).not.toHaveBeenCalled();
+  });
+});
+
+describe("the GitHub star card", () => {
+  // A copy that updates gets an enabled store: 'app updates' > 'in a copy that updates' below.
+  test("a development launch makes a store that neither counts nor asks", () => {
+    expect(mocks.createStarPrompt.mock.calls[0]![0]).toMatchObject({ file: "/tmp/doan-index-test/star-prompt.json", enabled: false });
+  });
+
+  test("Star on GitHub ↗ opens only main's fixed repository URL, and a browser that opened ends the asking", async () => {
+    expect(await invoke("star:open", window().webContents, null)).toBe(true);
+    expect(mocks.electronShell.openExternal).toHaveBeenCalledExactlyOnceWith("https://github.com/SinhyeokKang/doan-design");
+    expect(mocks.starPrompt.opened).toHaveBeenCalledOnce();
+  });
+
+  test("a browser that did not open answers false and changes nothing", async () => {
+    mocks.electronShell.openExternal.mockRejectedValueOnce(new Error("no handler"));
+    expect(await invoke("star:open", window().webContents, null)).toBe(false);
+    expect(mocks.starPrompt.opened).not.toHaveBeenCalled();
+  });
+
+  test("the dismissal reaches the store", async () => {
+    await invoke("star:dismiss", window().webContents, null);
+    expect(mocks.starPrompt.dismissed).toHaveBeenCalledOnce();
+  });
+
+  test("busy is main's restart hold: no conversation running or waiting for an answer", async () => {
+    expect(await invoke("star:busy", window().webContents, null)).toBe(false);
+    const service = mocks.conversationService as unknown as { restartHolds(): { liveTurns: number; pendingAnswers: number } };
+    vi.spyOn(service, "restartHolds").mockReturnValueOnce({ liveTurns: 0, pendingAnswers: 1 }).mockReturnValueOnce({ liveTurns: 1, pendingAnswers: 0 });
+    expect(await invoke("star:busy", window().webContents, null)).toBe(true);
+    expect(await invoke("star:busy", window().webContents, null)).toBe(true);
+  });
+
+  test("other senders and requests with data are refused, and nothing opens or changes", async () => {
+    const other = new mocks.Window({ show: false }).webContents;
+    for (const [channel, refused] of [["star:open", false], ["star:dismiss", undefined], ["star:busy", true]] as const) {
+      expect(await invoke(channel, other, null), channel).toEqual(refused);
+      expect(await invoke(channel, window().webContents, {}), channel).toEqual(refused);
+      expect(await invoke(channel, window().webContents, null, "https://evil.example"), channel).toEqual(refused);
+    }
+    expect(mocks.electronShell.openExternal).not.toHaveBeenCalled();
+    expect(mocks.starPrompt.opened).not.toHaveBeenCalled();
+    expect(mocks.starPrompt.dismissed).not.toHaveBeenCalled();
+  });
+});
+
+// Home's credit line: the repository link opens main's fixed URL, never one the renderer sends, and leaves the star
+// card's state alone.
+describe("the Home credit's repository link", () => {
+  test("opens only main's fixed repository URL and does not count as the star card's open", async () => {
+    expect(await invoke("repository:open", window().webContents, null)).toBe(true);
+    expect(mocks.electronShell.openExternal).toHaveBeenCalledExactlyOnceWith("https://github.com/SinhyeokKang/doan-design");
+    expect(mocks.starPrompt.opened).not.toHaveBeenCalled();
+  });
+
+  test("a browser that did not open answers false", async () => {
+    mocks.electronShell.openExternal.mockRejectedValueOnce(new Error("no handler"));
+    expect(await invoke("repository:open", window().webContents, null)).toBe(false);
+  });
+
+  test("other senders and requests with data are refused, and nothing opens", async () => {
+    const other = new mocks.Window({ show: false }).webContents;
+    expect(await invoke("repository:open", other, null)).toBe(false);
+    expect(await invoke("repository:open", window().webContents, {})).toBe(false);
+    expect(await invoke("repository:open", window().webContents, null, "https://evil.example")).toBe(false);
+    expect(mocks.electronShell.openExternal).not.toHaveBeenCalled();
   });
 });
 
@@ -2373,6 +2448,14 @@ describe("settings page", () => {
       expect(mocks.Notification.instances).toHaveLength(1);
     });
 
+    // Only saved events are published, so a turn whose ending could not be written is never counted.
+    test("every published conversation event reaches the star card's count", () => {
+      const failed = { ...turnDone, seq: 3, type: "turn.failed", code: "process_exited" };
+      publish(turnDone);
+      publish(failed);
+      expect(mocks.starPrompt.event.mock.calls).toEqual([[turnDone], [failed]]);
+    });
+
     test("a stage reaches the main window on its own channel, with no notification and not as an event", () => {
       const signal = { conversationId: "c1", turnId: "t1", seq: 2, rev: 1, stage: { kind: "thinking" } };
       window().webContents.send.mockClear();
@@ -3080,6 +3163,15 @@ describe("app updates", () => {
       expect(updater().checkForUpdates).toHaveBeenCalledOnce();
     });
 
+    test("the star card counts in a copy that updates, from the same eligibility, and its moment reaches the window", () => {
+      expect(mocks.createStarPrompt).toHaveBeenCalledOnce();
+      const options = mocks.createStarPrompt.mock.calls[0]![0] as { file: string; enabled: boolean; now(): number; moment(moment: unknown): void };
+      expect(options).toMatchObject({ file: "/tmp/doan-index-test/star-prompt.json", enabled: true });
+      expect(Math.abs(options.now() - Date.now())).toBeLessThan(1000);
+      options.moment({ second: true });
+      expect(window().webContents.send).toHaveBeenLastCalledWith("star:moment", { second: true });
+    });
+
     test("update:check is a manual check", async () => {
       updater().emit("update-not-available", { version: "9.8.7" });
       await invoke("update:check", window().webContents, null);
@@ -3224,6 +3316,11 @@ describe("app updates", () => {
   describe("in a copy that doesn't update", () => {
     beforeAll(() => { launchCompletion = COMPLETE; launchEligibility = "outside-applications"; launchFeed = true; });
     afterAll(() => { launchCompletion = { kind: "missing" }; launchEligibility = "dev"; launchFeed = false; });
+
+    test("the star card neither counts nor asks", () => {
+      expect(mocks.createStarPrompt).toHaveBeenCalledOnce();
+      expect(mocks.createStarPrompt.mock.calls[0]![0]).toMatchObject({ file: "/tmp/doan-index-test/star-prompt.json", enabled: false });
+    });
 
     test("no updater is made, nothing checks, and the menu item only opens About", async () => {
       await vi.waitFor(() => expect(mocks.setupEligibility).toHaveBeenCalled());

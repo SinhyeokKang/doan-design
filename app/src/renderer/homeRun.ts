@@ -1,10 +1,12 @@
+import type { ScheduledSend } from "../main/conversation/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationEvent } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { PROVIDER_NAMES } from "./agentAuthView";
-import { conversationWork, slotKeyOf, slotsFromList } from "./conversationList";
+import { conversationCanvasMatch } from "./canvasConversationRows";
+import { conversationWork, scheduledOf, slotKeyOf, slotsFromList } from "./conversationList";
 import { asksPerson, mergeConversationEvents, stripState, type StripState } from "./conversationStrip";
 import { newCanvasText } from "./newCanvasText";
 import { issuedAttachment, sendRefusal, splitRequest, type AttachmentDraft } from "./homeComposer";
@@ -52,7 +54,7 @@ export interface Removing { paths: string[]; conversations: string[]; title: str
 
 const RUNNING: readonly StripState["kind"][] = ["starting", "working", "permission", "question"];
 const RANK: Record<StripState["kind"], number> = { permission: 3, question: 3, starting: 2, working: 2, done: 1, failed: 1, interrupted: 1 };
-const RANK_SLOT: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1 };
+const RANK_SLOT: Record<Slot["kind"], number> = { permission: 4, working: 3, scheduled: 2, unseen: 1 };
 
 // Text deltas only tell the strip the agent started answering; one per turn is kept.
 function isText(event: ConversationEvent) { return event.type === "message.delta" || event.type === "message.done"; }
@@ -217,7 +219,8 @@ export class HomeRun {
   // A send in an existing project conversation from the Overview: the new canvas its
   // turn makes opens as a start's does, from the canvases listed before main accepted the send and only while the
   // person opened no canvas since. An edit of a canvas already listed is not new; main's promotion handles it.
-  async send(root: string, provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[]; replaced?: string[] }> {
+  // A send main scheduled for the usage limit's reset starts no turn: its answer goes back as it is.
+  async send(root: string, provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | ScheduledSend | { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string }> {
     const listed = this.host.view().entries.find(entry => entry.path === root);
     const atStart = listed?.kind === "list" ? listed.canvases.map(row => row.path) : [];
     const canvasOpens = this.canvasOpens;
@@ -230,6 +233,7 @@ export class HomeRun {
     const stripBefore = this.strips[id];
     const reply = await window.doan.sendConversation(request).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) return sendRefusal(reply);
+    if (reply && "scheduled" in reply) return reply;
     const previous = this.extras.get(id);
     this.track(id);
     // The turn may have started, and even ended, before the reply: its end keeps main's binding window for the
@@ -271,6 +275,24 @@ export class HomeRun {
     const row = this.canvasRow(root, conversationId);
     if (row) this.host.openCanvas(root, row, { conversationId, waiting: found?.phase === "waiting" || asksPerson(this.strips[conversationId]?.kind ?? "starting") });
     else this.host.openOverview(root, () => true, () => {}, conversationId);
+  }
+
+  // Quick Open's pick, with the root and canvas rows it searched rather than the view now (POSTMORTEM: producer state
+  // goes in the callback). The list is checked again first: the conversation may have gone or its canvas may no longer
+  // be exactly one row since the results were drawn; then nothing opens and App says why. `arrived` follows a project
+  // conversation's move, with whether it waits for an answer (its card takes focus then): by the listed phase, the rule
+  // App's askConversation scrolls by, so focus lands on the card or the composer even while the strip runs ahead.
+  openFound(root: string, conversationId: string, rows: readonly CanvasRow[], arrived: (waiting: boolean) => void = () => {}): "opened" | "deleted" | "missing" | "duplicate" {
+    const found = this.lists.get(root)?.find(c => c.conversationId === conversationId);
+    if (!found) return "deleted";
+    const match = found.canvas ? conversationCanvasMatch(found.canvas, rows) : null;
+    if (match?.kind === "none") return "missing";
+    if (match?.kind === "many") return "duplicate";
+    this.personNavigated();
+    // The canvas panel's notification trigger takes the same waiting as openConversation.
+    if (match) this.host.openCanvas(root, match.row, { conversationId, waiting: found.phase === "waiting" || asksPerson(this.strips[conversationId]?.kind ?? "starting") });
+    else this.host.openOverview(root, () => { arrived(found.phase === "waiting"); return true; }, () => {}, conversationId);
+    return "opened";
   }
 
   // main deleted it. This run keeps its own conversations whatever the list says, so
@@ -391,7 +413,7 @@ export class HomeRun {
     const seen = new Set(this.seen.keys());
     let best: { c: ConversationSummary; rank: number } | null = null;
     for (const c of this.merged().get(root) ?? []) {
-      const work = c.fromHome && !c.canvas ? conversationWork(c, seen) : null;
+      const work = c.fromHome && !c.canvas ? conversationWork(c, seen, scheduledOf(c)) : null;
       if (!work) continue;
       const rank = RANK_SLOT[work.kind];
       if (!best || rank > best.rank || (rank === best.rank && c.lastActivityAt > best.c.lastActivityAt)) best = { c, rank };

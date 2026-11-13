@@ -1,0 +1,74 @@
+# prototype-cli-export — tasks
+
+spec.md '결정'(사용자 확인)을 따른다. 세 형제 기능의 구현 순서는 `prototype-responsive` → `prototype-cli-export` → `prototype-conversation`이므로, 이 기능은 responsive가 병합된 develop에서 시작한다. 순서: PoC → 초안 → 스키마와 fixture → 순수 함수 → 셸(I/O) → UI → 측정·확인 → guide와 eval → 문서 승격. 내보낸 파일의 브라우저 확인 명령은 `node .scratch/prototype-export-poc/probe.mjs [<exported file>]` 하나다(결정 11). Playwright Chromium과 WebKit을 쓰고, 인자가 없으면 PoC 페이지, 있으면 실제 출력 파일을 열며, 모든 확인이 통과할 때만 exit 0이다.
+
+- [ ] 1. **PoC: 내보낸 프로토타입 파일의 이동 차단과 격리**(design.md 'PoC 의존' 1). 손으로 만든 프로토타입 페이지(바깥 페이지 + 숨긴 채 시작하는 `sandbox="allow-scripts allow-forms"` srcdoc iframe + 격리 스크립트)와 위 명령을 `.scratch/prototype-export-poc/`에 만든다. Chromium과 WebKit에서 다음을 확인한다.
+  - (a) 캔버스 submit handler가 돈 뒤 기본 제출이 막힌다.
+  - (b) `#`으로 시작하지 않는 링크 클릭이 막히고, `#id` 클릭·`location.hash`·`pushState`(fragment와 경로)는 문서를 떠나지 않는다.
+  - (c) 캔버스 handler가 `stopPropagation()`할 때의 결과를 기록한다.
+  - (d) 격리 stylesheet가 두 엔진에서 같게 보인다.
+  - (e) viewport를 채운 iframe 안 `100vh`·`innerWidth`가 브라우저 창을 따르고, 창 크기를 바꾸면 프레임이 다시 배치된다.
+  - (f) JavaScript를 끄면 iframe이 숨고 안내 줄만 보인다.
+  - (g) 격리 전에는 iframe이 보이지 않는다. 프레임이 없는 문서(`missing`)는 바로, 응답하지 않는 문서는 10 s 뒤에 iframe을 숨긴 채 안내 줄만 보인다. 10 s 뒤에 `ready`를 보내는 문서는 그때 줄이 사라지고 프레임이 보인다.
+  결과(통과/실패, 엔진 버전, 날짜)는 이 문서의 이 task 아래에 적는다. 실패한 경우는 design.md '알려진 한계'와 spec B로 옮기고, sandbox 절 자체가 무너지면 다음으로 가지 않는다.
+  - 검증: `node .scratch/prototype-export-poc/probe.mjs`가 exit 0(실패를 한계로 옮긴 항목은 검사에서 기대값을 바꾼 뒤).
+- [x] 2. **`/design-draft`**: 새 초안 `.doan/canvases/prototype-cli-export.html`. 기존 `frame-prototype.html`과 `canvas-row-menu.html`은 고치지 않는다. `clarify` 프리셋으로 문구를 확정하고, 사용자가 앱에서 초안을 확인한다. 프레임:
+  - 헤더의 Export: 오른쪽 무리 [토글, Export]에서 사용 가능, 이유 없는 불가(첫 순간), 이유 세 가지(tooltip), 내보내는 중, 키보드 포커스. 640·520·360 폭 창을 `prototype-responsive`의 헤더(R 104, 기본 Fit)와 함께 그린다. 360 창은 이름 캡슐이 헤더 둘째 줄에 있다.
+  - 프로토타입 창 토스트: 진행, 성공(캔버스 전체가 들어 있다는 문장, 결정 4), 성공+인터넷, 실패 이유별, target이 바뀐 클릭의 거절. 360 창에서 토스트가 콘텐츠 패널 오른쪽 아래를 덮고 헤더 컨트롤은 가리지 않는 모습.
+  - 내보낸 파일: 넓은 창과 좁은 창에서 viewport를 채운 프레임, 표시 폭이 좁은 프레임이 창 폭으로 늘어난 모습, JavaScript 없음, 프레임이 불러와지지 않음.
+  - 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
+  - 커밋 경계: 초안.
+- [ ] 3. **스키마와 fixture**: `schema/app-socket.v6.schema.json`(design.md '포맷 변경'), `schema/fixtures/app-socket-v6/{request,response}/{valid,invalid}/`. 등록은 `cli/internal/formats/validate.go`의 `files` 목록과 `app/src/formats/validate.ts`의 import다(`schema/embed.go`는 glob이라 그대로). Go와 TS의 v6 검증기와 fixture 테스트를 더한다. 요청 경계 fixture:
+  - valid: `frame` 200 code point, UTF-16 200을 넘는 astral ID(200 code point 이내), `v: 6.0`(runtime·sessions fixture의 선례).
+  - invalid: `frame` 201 code point, 빈 `frame`, 제어 문자, 문법 밖 `mark`, 모르는 속성.
+  - 검증: `go test ./...`, `npm --prefix app test`(v6 fixture 테스트 green).
+  - 커밋 경계: 스키마와 fixture.
+- [ ] 4. **`/tdd`**: design.md '순수 함수로 뺄 것'을 테스트로 고정하고 red를 확인한다. 같은 canvas ID 두 행 → `canvas_not_found`, 재생 중 ID가 겹치면 Export 거절, 누른 target과 지금 target이 다르면 거절하는 경우를 포함한다. `TestExportOutputIsPinned`와 `TestAssembleOutputIsPinned`는 그대로 둔다(캔버스 Export 무변경의 증거).
+  - 검증: `go vet ./...`의 오류가 새 심볼의 `undefined`뿐이고(Go는 없는 심볼 때문에 패키지 컴파일이 깨진다), `npm --prefix app test`는 새 테스트에서만 실패한다.
+- [ ] 5. **`/implement` 순수 함수**: `canvas.PrototypeTarget`, `openInput`·`exportInput`, `prototypeRequest`·`prototypeReply`, `playTarget`·`validateCliPlay`·`cliPlayDecision`, `prototypeExportName`, `interpretExport` 확장, `parseExportRequest`·`exportTargetMatches`, `exportAvailability`, `exportToast` 확장.
+  - 검증: `go test ./...`, `go vet ./...`, `npm --prefix app test`, `npm --prefix app run typecheck`.
+  - 커밋 경계: 순수 함수와 테스트.
+- [ ] 6. **CLI 셸**: `run.go`(`--prototype`, 허용 플래그, usage), `open.go`(stat → 읽기 → 파싱 → 판정, v6 경로, bootstrap 재사용), `export.go`(프레임 판정 위치, `AssemblePrototype`, 결과 `prototype: true`), `envelope.go` `ExitCode`(`frame_not_found`, `not_prototype`, `canvas_unreadable` → 2), viewer 파일 `prototype.html`·`prototype.css`·`prototype.js`·`isolate.js`와 `exportViewer.test.ts`의 고정 검사(격리 stylesheet와 `KEEP`이 `prototypeScript.ts`와 같은 텍스트, 숨긴 채 시작해 `ready`에 보이고 `missing`·10 s에는 숨긴 채 안내 줄을 보임, 10 s 뒤의 `ready`에 줄을 지우고 보임, 응답하지 않는 문서, `<noscript>` 규칙, placeholder 이스케이프).
+  - `open_test.go`: 결과 모양, 오류 코드와 exit, v4 경로 무변경, 그리고 v6 경로의 v1 거절 → `app_protocol_mismatch`, runtime 없음 → `app_not_running`, set-but-empty `DOAN_RUNTIME`이면 launch하지 않음, `not_ready`가 상한에 닿으면 `busy`, `bad_token` → `app_not_running`, 응답에 token이 있으면 거절. launch는 `onboarding_test.go` 방식의 fake launcher로 확인하고, 실제 launch는 runtime 미확인으로 남긴다.
+  - `export_test.go`: `prototype: true`, `--frame`만 주면 `usage_error`, 프레임 판정 코드와 순서.
+  - 검증: `go test ./...`, `go vet ./...`, `npm --prefix app test`.
+  - 커밋 경계: CLI와 viewer.
+- [ ] 7. **앱 socket과 재생**: `runtime.ts` `answerLine`의 v6 분기, `index.ts`의 `playPrototype`(준비, 첫 실행·buddy 화면, 목록, `playFromCli`), `controller.ts` `playFromCli`(`played`·`activated`·`refused`), `prototypeWindow.ts`의 활성화(다른 앱이 앞에 있음, 숨긴 앱). `runtime.test.ts`에 순서(bad token이 root를 알 수 없음), `not_ready`, `busy`, `canvas_not_found`(같은 canvas ID 두 행 포함), 성공을 더한다. v1–v5 응답이 그대로인지 확인한다.
+  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
+  - 커밋 경계: 앱 socket과 재생.
+- [ ] 8. **프로토타입 창 Export**: `ipc.ts` 채널, 프로토타입 preload(`export`, `revealExport`, `onExportRunning`, `onWindowVisible`), `senderAllowed.ts`(prototype role만), 프로토타입 창용 `createCanvasExport` 두 번째 인스턴스(창 하나에 하나의 잠금, target 비교), `cli.ts` `runExport` 인자, 저장 패널 부모, 헤더의 Export 버튼과 토스트 호스트, `PrototypeWindow.tsx` 연결.
+  - 헤더 테스트(`prototype-responsive`의 헤더 테스트 파일)와 `WindowShell.test.tsx`: Export 버튼 markup(32 chrome 아이콘 버튼, "Export prototype", 토글 다음), 이유 설명, 포커스가 있는 채로 사용 불가로 바뀌어도 같은 요소, 쓸 수 없을 때도 Tab으로 닿음, Tab 순서(Back, Forward, Reload, 이름, 토글, Export, 콘텐츠), 포인터 누름이 포커스를 옮기지 않음.
+  - `tooltip.describedby.test.tsx`: 프로토타입 창 Export를 일곱 번째 caller로(POSTMORTEM 2026-11-07).
+  - `PrototypeWindow.test.tsx`: 진행·결과 토스트, 성공 토스트가 시간이 지나면 사라짐, 패널 취소, 저장 패널 뒤 포커스, 내보내는 중 프레임이 바뀌어도 결과 토스트가 누른 프레임 이름을 씀, target이 바뀐 클릭의 거절 토스트.
+  - main 테스트: stale target 거절, 내보내는 중 두 번째 요청 거절, 창이 닫혀도 CLI가 끝까지 돎.
+  - `ipc.test.ts`: preload 채널 이름 고정.
+  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`.
+  - 커밋 경계: 프로토타입 창 Export.
+- [ ] 9. **`/design-sync`**: 초안과 실제 앱의 헤더 Export·토스트를 측정하고 맞춘다. 판정 기준은 초안과 차이 0이고, 아니면 DESIGN.md에 documented difference로 적는다. 빌드한 CLI가 쓴 프로토타입 파일은 브라우저 동작을 결정 11의 명령으로 따로 확인한다. DESIGN.md 'Frame prototype'과 'Canvas row menu and export viewer'(또는 새 절)에 측정값, 초안과의 차이, 확인하지 못한 표면을 적는다.
+  - 검증: `node .scratch/design-sync/prototype-cli-export/measure.mjs`, `node .scratch/prototype-export-poc/probe.mjs <exported file>`.
+- [ ] 10. **`/runtime-test`**: 격리 앱(임시 HOME, SHELL, userData, `DOAN_RUNTIME`)에서 확인한다.
+  - `doan open --frame <marked> --prototype`: 창이 열리고 그 프레임이 재생되며 메인 창 캔버스·선택은 그대로다. 같은 요청은 창만 앞으로 가져오고, 다른 프레임은 바꾸며 Back이 돌아간다.
+  - 터미널(다른 앱)이 앞에 있을 때와 앱을 숨겼을 때 창이 앞으로 오는지(design.md 'PoC 의존' 2). 활성화가 실패하면 task 7로 돌아가 `app.show()` + `showWindow`로 바꾼다. 메인 창을 닫아 둔 채 앱을 숨겼을 때 메인 창이 나타나지 않는다.
+  - 첫 실행 중 `busy`, 표시 없는 프레임 `not_prototype`, 없는 프레임 `frame_not_found`.
+  - 프로토타입 창 Export → 저장 → Show in Finder. 저장한 파일을 Chromium과 WebKit에서 열어 resize, 다른 문서 링크와 기본 submit, 오프라인 자산, JavaScript 끔, 프레임 없음 줄을 확인한다.
+  - 검증: `/runtime-test` 스크린샷과 probe 결과가 위 기대와 같고, 저장한 파일에 `node .scratch/prototype-export-poc/probe.mjs <exported file>`이 exit 0.
+- [ ] 11. **guide와 `/agent-eval`**: `cli/internal/cli/skill.md`의 `doan open`, `doan export` 줄과 item 14(design.md '규약 영향'), `skill_test.go`의 고정값(export 줄이 캔버스 전체가 들어 있다고 말함). `eval/lib/socket.ts`의 fake app이 v2–v5만 등록하므로 v6를 더한다(runner가 바뀐다). guide와 CLI 출력이 바뀌므로 마지막 통합 전에 `/agent-eval` 라운드를 돌린다. 새 시나리오 제안: X2(프로토타입을 파일로 보내 달라는 요청: `--frame --prototype`과 캔버스 전체가 들어 있다는 안내(결정 4)를 확인, 파일만 다루므로 fake app 불필요)와 W8(프레임을 프로토타입으로 열어 달라는 요청: `doan open --prototype`, fake app의 v6 응답 사용). 시나리오 추가는 `/agent-eval`의 규칙(USABILITY-EVAL.md 'Loop' 5)대로 한다. 결과는 USABILITY-EVAL.md에 적는다.
+  - 검증: `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios X2,W8`(`self-test PASS`, exit 0; self-test는 CLI를 스스로 빌드한다), 그리고 `npm --prefix app run package` 후 `node eval/run.ts --scenarios X1,X2,W7,W8 --agents claude,codex`와 `/agent-eval` 기본 범위.
+  - 커밋 경계: guide, eval runner와 시나리오, USABILITY-EVAL.md(문서별로 나눈다).
+- [ ] 12. **`/verify` 후 승격과 삭제**: 결론을 현재 규칙으로 옮기고(영어, 근거는 커밋 메시지) `docs/features/prototype-cli-export/`를 삭제한다. BACKLOG.md의 두 항목('Opening a prototype from the CLI', 'Exporting a prototype')을 지운다.
+  - PRODUCT:
+    - §3 In scope 1(Show)·8(Export).
+    - §3 Out of scope 2(표시는 CLI 재생과 내보내기에도 쓰임), Out of scope 4("`doan open` only moves"에 `--prototype` 재생을 맞춤).
+    - §5 item 2 'Prototype window': “nothing is exported or hosted”를 “nothing is hosted”로 바꾸고 Export를 가리킴. 'Header'의 Export(세 무리 절은 `prototype-responsive`가 쓴다), 'Header'의 Back/Forward 기록 대상에 `doan open --prototype`. Independence의 재생 목록.
+    - §5 item 3 'Deep links': "same rules"와 "only moves"(`--prototype`은 잠긴 페이지와 dialog에 막히지 않음). 'Export and viewer'(프로토타입 파일).
+    - item 10(`doan open … --prototype`), item 12(`doan export … --frame <id> --prototype`).
+  - ARCHITECTURE:
+    - §3 'Prototype window'(CLI 재생, 활성화 목록), §3 'Exported canvas and viewer'(프로토타입 shell, 숨긴 채 시작, `allow-forms`와 이동 차단, `<noscript>` 규칙, 알려진 한계, 고정 검사).
+    - §4 새 절 'Playing a prototype over app-socket v6'와 'Dispatch'의 버전 범위.
+    - §7 'Prototype window IPC'(새 채널, “No new format” 줄 수정), §7 'Canvas row menu IPC'(두 번째 인스턴스), §7 'Deep links'(경계는 그대로, `doan open --prototype` 언급).
+    - §11(v6, fixture 디렉터리), §12(`open`·`export` 결과 모양, 새 오류 코드와 exit 표).
+    - §14 'Check contract'의 "`ctx.open()` does the same for v4"에 v6을 맞춘다.
+  - README: CLI 표의 `doan open <canvas> --frame <id>`와 `doan export <canvas> -o <file>` 줄.
+  - DESIGN.md: task 9에서 적은 절 확인.
+  - 검증: `node .agents/skills/verify/scripts/verify.mjs --eval`(eval runner가 바뀌었으므로).
+  - 커밋 경계: 문서별 커밋(PRODUCT, ARCHITECTURE, README, BACKLOG, 기능 디렉터리 삭제).

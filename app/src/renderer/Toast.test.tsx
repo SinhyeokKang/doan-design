@@ -219,3 +219,43 @@ test("the clock dispatches no tick while no toast is shown", () => {
   now += 1000; vi.advanceTimersByTime(1000);
   expect(ticks()).toBe(after);
 });
+
+// A toast that replaces another only changes its content: the same element (keyed by the slot) stays, so the enter
+// motion does not play again. Its button is keyed by the toast, so focus on the old toast's action does not pass to
+// the new one's.
+test("a replacing toast keeps the element and changes only its content", () => {
+  setup();
+  const first = useToast().element!;
+  useToast().show("Exported “tasks”.", "Show in Finder", vi.fn());
+  const second = useToast().element!;
+  expect(second.key).toBe(first.key);
+  expect(second.props.children[0].props.children).toBe("Exported “tasks”.");
+  expect(second.props.children[1].key).not.toBe(first.props.children[1].key);
+  expect(second.props["data-closing"]).toBeUndefined();
+});
+
+// The exit motion needs the element for --time-fast (120 ms) after the toast is gone: it stays drawn, closing and
+// inert (no pointer, no focus, out of the accessibility tree), then goes. Its action button is a new element, so
+// focus on the old one leaves with the toast.
+test("a toast that goes stays drawn closing and inert for 120 ms, then goes", () => {
+  const h = setup(); h.native(true);
+  const shown = useToast().element!;
+  useToast().action();
+  const closing = useToast().element!;
+  expect(closing.key).toBe(shown.key);
+  expect(closing.props).toMatchObject({ "data-closing": "", inert: true });
+  expect(closing.props.children[0].props.children).toBe("Removed");
+  expect(closing.props.children[1].key).not.toBe(shown.props.children[1].key);
+  rerender();
+  vi.advanceTimersByTime(119);
+  expect(useToast().element).not.toBeNull();
+  vi.advanceTimersByTime(1);
+  expect(useToast().element).toBeNull();
+});
+
+test("the exit time is the --time-fast token", async () => {
+  const { readFileSync } = await vi.importActual<typeof import("node:fs")>("node:fs");
+  const { FLOATING_EXIT_MS } = await import("./toastState");
+  const tokens = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
+  expect(tokens).toMatch(new RegExp(`--time-fast: ${FLOATING_EXIT_MS}ms;`));
+});

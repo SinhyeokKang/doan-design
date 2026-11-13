@@ -17,6 +17,7 @@ const { CanvasTools } = await import("../../CanvasTools");
 const { RowDelete } = await import("../../CanvasConversationList");
 const { ConversationDeleteItem } = await import("../../ConversationDeleteDialog");
 const { RowButton } = await import("../../SettingsMcpConnectors");
+const { SendButton } = await import("../../ComposerParts");
 
 const describedBy = (html: string, marker: string) => {
   const tag = html.match(new RegExp(`<(?:button|div)[^>]*${marker}[^>]*>`))?.[0];
@@ -29,8 +30,9 @@ const noop = () => {};
 test("an unavailable control's open tooltip leaves its own aria-describedby alone, in all five places", () => {
   const tools = open(<CanvasTools tool="select" picking={false} capturing={false} onTool={noop} onEscape={noop}
     picker={{ enabled: true, reason: null, onToggle: noop }} capture={{ enabled: false, reason: "Open a canvas to capture an area.", onToggle: noop }}
-    exporter={{ reason: "No canvas is open.", onExport: noop }} />);
+    player={{ reason: "Select a supported frame to play its prototype.", onPlay: noop }} exporter={{ reason: "No canvas is open.", onExport: noop }} />);
   expect(describedBy(tools, 'aria-label="Capture area"')).toBe("canvas-capture-reason");
+  expect(describedBy(tools, 'aria-label="Play prototype"')).toBe("canvas-play-reason");
   expect(describedBy(tools, 'aria-label="Export canvas"')).toBe("canvas-export-reason");
 
   const row = { key: "c1", title: "Tidy the header", deletable: { available: false, reason: "An agent is working on this conversation." } } as CanvasConversationRow;
@@ -48,8 +50,8 @@ test("an unavailable control's open tooltip leaves its own aria-describedby alon
 
 test("an available control still gets the open tooltip's id, as Radix gives it", () => {
   const tools = open(<CanvasTools tool="select" picking={false} capturing={false} onTool={noop} onEscape={noop}
-    picker={{ enabled: true, reason: null, onToggle: noop }} capture={{ enabled: true, reason: null, onToggle: noop }} exporter={{ reason: null, onExport: noop }} />);
-  for (const label of ["Select", "Capture area", "Export canvas"]) expect(describedBy(tools, `aria-label="${label}"`), label).toMatch(/^radix-\S+$/);
+    picker={{ enabled: true, reason: null, onToggle: noop }} capture={{ enabled: true, reason: null, onToggle: noop }} player={{ reason: null, onPlay: noop }} exporter={{ reason: null, onExport: noop }} />);
+  for (const label of ["Select", "Capture area", "Play prototype", "Export canvas"]) expect(describedBy(tools, `aria-label="${label}"`), label).toMatch(/^radix-\S+$/);
 });
 
 // Only an unavailable control keeps its description alone: an enabled one that names a description of its own (a queued
@@ -63,4 +65,12 @@ test("an enabled control with its own aria-describedby still gets the open toolt
   }
   const html = open(<Tooltip><TooltipTrigger asChild><button type="button" aria-label="Unavailable" aria-disabled="true" aria-describedby="why">x</button></TooltipTrigger><TooltipContent>Why</TooltipContent></Tooltip>);
   expect(describedBy(html, 'aria-label="Unavailable"')).toBe("why");
+});
+
+// At the usage limit the enabled Queue button names the reset in its own sr-only description, and its tooltip says the
+// same, so the open tooltip's id would read it twice.
+test("Queue's own reset description stays alone while its tooltip is open", () => {
+  const html = open(<SendButton action="queue" enabled sending={false} onSend={noop} description={"Sends when the limit resets at 3:00\u202fPM."} tip={"Queue — sends when the limit resets at 3:00\u202fPM"} />);
+  expect(describedBy(html, 'aria-label="Queue"')).toMatch(/^[^\s]+$/);
+  expect(describedBy(html, 'aria-label="Queue"')).not.toMatch(/^radix-/);
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
-import { countMatches, emptyText, readingCount, readingText, groupResults, markRuns, matchPositions, missingCanvasMessage, outsideDialog, removedCanvasMessage, resultKey, resultParts, unavailableCanvasMessage, pickTarget, searchIndex, searchMatch, type SearchCanvas, type SearchFolder, type SearchResult } from "./quickOpen";
+import { conversationEntries, countMatches, emptyText, readingCount, readingText, groupResults, markRuns, matchPositions, missingCanvasMessage, outsideDialog, removedCanvasMessage, resultKey, resultParts, sameShownConversation, unavailableCanvasMessage, pickTarget, searchIndex, searchMatch, type ConversationLists, type ConversationResult, type SearchCanvas, type SearchFolder, type SearchResult } from "./quickOpen";
 
 function canvas(path: string, extra: Partial<SearchCanvas> = {}): SearchCanvas {
   return { path, url: `http://localhost/${path}`, ...extra };
@@ -371,18 +372,34 @@ describe("quick open kind filter", () => {
 describe("quick open empty text", () => {
   const listed: FolderEntry[] = [{ path: "/repo", kind: "list", canvases: [], servedRev: 0 }];
   it("keeps the All texts and names each kind tab", () => {
-    expect(emptyText("all", "card", listed, 3)).toBe("No canvases or frames match");
+    expect(emptyText("all", "card", listed, 3)).toBe("No canvases, frames or conversations match");
     expect(emptyText("canvas", "card", listed, 0)).toBe("No canvases match");
     expect(emptyText("frame", "card", listed, 0)).toBe("No frames match");
   });
 
-  it("adds how many of the other kind match in All", () => {
-    expect(emptyText("frame", "card", listed, 1)).toBe("No frames match. 1 canvas matches in All.");
-    expect(emptyText("frame", "card", listed, 2)).toBe("No frames match. 2 canvases match in All.");
-    expect(emptyText("canvas", "card", listed, 1)).toBe("No canvases match. 1 frame matches in All.");
-    expect(emptyText("canvas", "card", listed, 2)).toBe("No canvases match. 2 frames match in All.");
-    expect(emptyText("canvas", "card", listed, 50)).toBe("No canvases match. 50 frames match in All.");
-    expect(emptyText("canvas", "card", listed, 51)).toBe("No canvases match. 50+ frames match in All.");
+  it("adds how many results of the other kinds match in All, in one form for every tab", () => {
+    expect(emptyText("frame", "card", listed, 1)).toBe("No frames match. 1 other result in All.");
+    expect(emptyText("frame", "card", listed, 2)).toBe("No frames match. 2 other results in All.");
+    expect(emptyText("canvas", "card", listed, 1)).toBe("No canvases match. 1 other result in All.");
+    expect(emptyText("canvas", "card", listed, 50)).toBe("No canvases match. 50 other results in All.");
+    expect(emptyText("canvas", "card", listed, 51)).toBe("No canvases match. 50+ other results in All.");
+    expect(emptyText("conversation", "card", listed, 2)).toBe("No conversations match. 2 other results in All.");
+    expect(emptyText("conversation", "card", listed, 1)).toBe("No conversations match. 1 other result in All.");
+  });
+
+  it("names the Conversations texts: no match, nothing to show, and nothing while the scope's conversation list is read", () => {
+    const lists = (state: readonly ConversationSummary[] | "loading" | "error"): ConversationLists => new Map([["/repo", state]]);
+    expect(emptyText("conversation", "card", listed, 0, lists([]))).toBe("No conversations match");
+    expect(emptyText("conversation", "", listed, 0, lists([]))).toBe("No conversations to show");
+    expect(emptyText("conversation", "", listed, 0, lists("loading"))).toBeNull();
+    expect(emptyText("conversation", "", [{ path: "/repo", kind: "loading" }], 0)).toBeNull();
+    // A list that failed adds nothing and says nothing here; its Overview offers Retry.
+    expect(emptyText("conversation", "", listed, 0, lists("error"))).toBe("No conversations to show");
+    expect(emptyText("conversation", "", [], 0)).toBe("No conversations to show");
+    // An unavailable project's sentence comes first on this tab too.
+    expect(emptyText("conversation", "", [...listed, { path: "/gone", kind: "notFound" }], 0, lists("loading"))).toBe("Project is unavailable. Fix it from its menu in the sidebar.");
+    // An empty All lists canvases only, so a conversation list still being read does not hold its text back.
+    expect(emptyText("all", "", listed, 0, lists("loading"))).toBe("No canvases to show");
   });
 
   it("leaves a reading project to the reading row and puts unavailable projects before the empty-query texts", () => {
@@ -411,14 +428,29 @@ describe("quick open reading row", () => {
     { path: "/c", kind: "list", canvases: [], servedRev: 0 },
     { path: "/d", kind: "notFound" },
   ];
+  const none: ConversationLists = new Map();
   it("counts the reading projects Quick Open searches: every project on Home or with a query, the workspace's own without one", () => {
-    expect(readingCount(entries, null, "")).toBe(2);
-    expect(readingCount(entries, null, "card")).toBe(2);
-    expect(readingCount(entries, "/a", "")).toBe(1);
-    expect(readingCount(entries, "/c", "")).toBe(0);
-    expect(readingCount(entries, "/c", "card")).toBe(2);
-    expect(readingCount(entries, "/c", "  ")).toBe(0);
-    expect(readingCount([], null, "")).toBe(0);
+    expect(readingCount(entries, none, null, "", "all")).toBe(2);
+    expect(readingCount(entries, none, null, "card", "all")).toBe(2);
+    expect(readingCount(entries, none, "/a", "", "all")).toBe(1);
+    expect(readingCount(entries, none, "/c", "", "all")).toBe(0);
+    expect(readingCount(entries, none, "/c", "card", "all")).toBe(2);
+    expect(readingCount(entries, none, "/c", "  ", "all")).toBe(0);
+    expect(readingCount([], none, null, "", "all")).toBe(0);
+  });
+
+  it("adds a read project whose conversation list is still loading, once, where conversations can show", () => {
+    const more: FolderEntry[] = [...entries, { path: "/e", kind: "list", canvases: [], servedRev: 0 }];
+    // /a's folder and list are both being read: it counts once. /e's list failed: it is not counted.
+    const lists: ConversationLists = new Map<string, readonly ConversationSummary[] | "loading" | "error">([["/a", "loading"], ["/c", "loading"], ["/e", "error"]]);
+    expect(readingCount(more, lists, null, "", "conversation")).toBe(3);
+    expect(readingCount(more, lists, null, "card", "all")).toBe(3);
+    // An empty All lists canvases only; Canvases and Frames never show conversations.
+    expect(readingCount(more, lists, null, "", "all")).toBe(2);
+    expect(readingCount(more, lists, null, "card", "canvas")).toBe(2);
+    expect(readingCount(more, lists, null, "card", "frame")).toBe(2);
+    expect(readingCount(more, lists, "/c", "", "conversation")).toBe(1);
+    expect(readingCount(more, lists, "/e", "", "conversation")).toBe(0);
   });
 
   it("names the count, singular for one project", () => {
@@ -435,7 +467,7 @@ describe("quick open groups", () => {
     ["/other", { name: "brand-kit", title: "brand-kit" }],
     ["/x", { name: "brand-kit", title: "brand-kit" }],
   ]);
-  const grouped = (results: readonly SearchResult[]) => groupResults(results, names).map(group => [group.root, group.rows.map(row => row.path)]);
+  const grouped = (results: readonly SearchResult[]) => groupResults(results, names).map(group => [group.root, group.rows.map(row => row.kind === "conversation" ? row.conversationId : row.path)]);
 
   it("orders groups by their best match, even another root's exact match before the current root", () => {
     const index = searchIndex([
@@ -469,7 +501,7 @@ describe("quick open groups", () => {
     const index = searchIndex([folder("/other", [canvas(".doan/canvases/z.html"), canvas(".doan/canvases/a.html")]), folder("/repo", [canvas(".doan/canvases/m.html")])]);
     const results = searchMatch(index, "", null, commonOf);
     const groups = groupResults(results, names);
-    expect(groups.map(group => [group.root, group.name, group.title, group.rows.map(row => row.path)])).toEqual([
+    expect(groups.map(group => [group.root, group.name, group.title, group.rows.map(row => row.kind === "conversation" ? row.conversationId : row.path)])).toEqual([
       ["/other", "brand-kit", "brand-kit", [".doan/canvases/z.html", ".doan/canvases/a.html"]],
       ["/repo", "acme-web", "acme-web · main", [".doan/canvases/m.html"]],
     ]);
@@ -535,5 +567,187 @@ describe("quick open outside click", () => {
     expect(outsideDialog(rect, press(50, 57), { x: 50, y: 57 }, strip)).toBe(true);
     expect(outsideDialog(rect, press(50, 400), { x: 50, y: 400 }, strip)).toBe(true);
     expect(outsideDialog(rect, press(50, 400), { x: 50, y: 400 }, null)).toBe(true);
+  });
+});
+
+const NOW = Date.parse("2026-11-13T12:00:00.000Z");
+const MIN = 60_000;
+const ago = (ms: number) => new Date(NOW - ms).toISOString();
+function talk(conversationId: string, patch: Partial<ConversationSummary> = {}): ConversationSummary {
+  return { conversationId, title: conversationId, state: "current", owner: "doan", provider: "claude", fromHome: false,
+    phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: ago(MIN), preview: "", ...patch };
+}
+const rowsIn = (entries: readonly SearchFolder[]) => (root: string) => {
+  const entry = entries.find(item => item.path === root);
+  return entry?.kind === "list" ? entry.canvases : null;
+};
+const listsOf = (lists: Record<string, readonly ConversationSummary[] | "loading" | "error">): ConversationLists => new Map(Object.entries(lists));
+const fullIndex = (entries: readonly SearchFolder[], lists: ConversationLists) => [...searchIndex(entries), ...conversationEntries(lists, rowsIn(entries))];
+const conversationIds = (results: readonly SearchResult[]) => results.map(result => result.kind === "conversation" ? result.conversationId : `${result.kind}:${result.label}`);
+
+describe("quick open conversation index", () => {
+  const billing = canvas(".doan/canvases/settings/billing.html", { id: "billing" });
+  const twin = canvas(".doan/canvases/copy.html", { id: "billing" });
+  const plain = canvas(".doan/canvases/plain.html");
+
+  it("indexes a canvas conversation only when its canvas is exactly one listed row, named by the file stem", () => {
+    const entries = [folder("/repo", [billing, plain])];
+    const index = conversationEntries(listsOf({ "/repo": [
+      talk("one", { title: "Edit billing", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(2 * MIN) }),
+      talk("gone", { canvas: { path: ".doan/canvases/gone.html", id: "gone" } }),
+      talk("path", { canvas: { path: plain.path } }),
+    ] }), rowsIn(entries));
+    expect(index.map(entry => entry.conversationId)).toEqual(["one", "path"]);
+    expect(index[0]).toEqual({ kind: "conversation", root: "/repo", conversationId: "one", title: "Edit billing",
+      canvas: { path: billing.path, label: "billing" }, lastActivityAt: ago(2 * MIN), fields: ["edit billing"] });
+    const duplicated = conversationEntries(listsOf({ "/repo": [talk("dup", { canvas: { path: billing.path, id: "billing" } })] }), rowsIn([folder("/repo", [billing, twin])]));
+    expect(duplicated).toEqual([]);
+  });
+
+  it("indexes project, archived, legacy external and unreadable conversations alike", () => {
+    const entries = [folder("/repo", [billing])];
+    const index = conversationEntries(listsOf({ "/repo": [
+      talk("project", { title: "Checkout flow" }),
+      talk("archived", { state: "archived", canvas: { path: billing.path, id: "billing" } }),
+      talk("legacy", { owner: "legacy-external" }),
+      talk("unreadable", { readError: true, lastActivityAt: "", preview: "" }),
+    ] }), rowsIn(entries));
+    expect(index.map(entry => entry.conversationId)).toEqual(["project", "archived", "legacy", "unreadable"]);
+    expect(index[0]).toEqual({ kind: "conversation", root: "/repo", conversationId: "project", title: "Checkout flow", lastActivityAt: ago(MIN), fields: ["checkout flow"] });
+    expect(index[3]).toMatchObject({ lastActivityAt: "" });
+  });
+
+  it("leaves out a root whose list is not read, whose list failed, or whose folder is not a list", () => {
+    const entries: SearchFolder[] = [folder("/repo", []), folder("/failed", []), { path: "/reading", kind: "loading" }, folder("/waiting", [])];
+    const index = conversationEntries(listsOf({ "/repo": [talk("a")], "/failed": "error", "/reading": [talk("b")], "/waiting": "loading" }), rowsIn(entries));
+    expect(index.map(entry => [entry.root, entry.conversationId])).toEqual([["/repo", "a"]]);
+  });
+});
+
+describe("quick open conversation matching", () => {
+  const checkout = canvas(".doan/canvases/checkout.html", { id: "checkout" });
+  const billing = canvas(".doan/canvases/billing.html", { id: "billing", frames: [{ id: "summary", title: "Checkout summary" }] });
+
+  it("matches conversation titles only, ranked by the same prefix, word start and substring scores", () => {
+    const entries = [folder("/repo", [checkout])];
+    const index = fullIndex(entries, listsOf({ "/repo": [
+      talk("sub", { title: "Precheckout notes" }), talk("word", { title: "Tighten the checkout copy" }), talk("prefix", { title: "Checkout flow" }),
+      talk("canvas-only", { title: "Header", canvas: { path: checkout.path, id: "checkout" } }),
+    ] }));
+    // "canvas-only" is on the checkout canvas, but its canvas name is not one of its fields.
+    expect(conversationIds(searchMatch(index, "checkout", "/repo", commonOf, "conversation"))).toEqual(["prefix", "word", "sub"]);
+    expect(conversationIds(searchMatch(index, "tighten copy", "/repo", commonOf, "conversation"))).toEqual(["word"]);
+  });
+
+  it("puts canvases and frames in index order before conversations of equal score and proximity", () => {
+    const entries = [folder("/repo", [billing, checkout])];
+    const index = fullIndex(entries, listsOf({ "/repo": [talk("talk", { title: "Checkout flow for guests" })] }));
+    expect(conversationIds(searchMatch(index, "checkout", "/repo", commonOf))).toEqual(["frame:Checkout summary", "canvas:checkout", "talk"]);
+  });
+
+  it("ranks conversations by proximity: the workspace, its other worktrees, then other repositories", () => {
+    const entries = [folder("/other", []), folder("/sibling", []), folder("/repo", [])];
+    const lists = listsOf({ "/other": [talk("o", { title: "Checkout" })], "/sibling": [talk("s", { title: "Checkout" })], "/repo": [talk("r", { title: "Checkout" })] });
+    const commons = (root: string) => ({ "/repo": "/repo/.git", "/sibling": "/repo/.git", "/other": "/other/.git" })[root];
+    expect(conversationIds(searchMatch(fullIndex(entries, lists), "checkout", "/repo", commons))).toEqual(["r", "s", "o"]);
+    // Home ranks by score, then index order.
+    expect(conversationIds(searchMatch(fullIndex(entries, lists), "checkout", null, commons))).toEqual(["o", "s", "r"]);
+  });
+
+  it("filters to conversations on the Conversations tab and keeps them out of the Canvases and Frames tabs", () => {
+    const entries = [folder("/repo", [billing, checkout])];
+    const index = fullIndex(entries, listsOf({ "/repo": [talk("talk", { title: "Checkout flow" })] }));
+    expect(conversationIds(searchMatch(index, "checkout", "/repo", commonOf, "conversation"))).toEqual(["talk"]);
+    expect(conversationIds(searchMatch(index, "checkout", "/repo", commonOf, "canvas"))).toEqual(["canvas:checkout"]);
+    expect(conversationIds(searchMatch(index, "checkout", "/repo", commonOf, "frame"))).toEqual(["frame:Checkout summary"]);
+    expect(countMatches(index, "checkout", "conversation")).toBe(1);
+  });
+
+  it("lists the scope's conversations for an empty Conversations query, most recent first, unread histories last, at most 50", () => {
+    const entries = [folder("/repo", [checkout]), folder("/other", [])];
+    const lists = listsOf({
+      "/repo": [talk("old", { lastActivityAt: ago(60 * MIN) }), talk("unread", { readError: true, lastActivityAt: "" }), talk("new", { lastActivityAt: ago(MIN) })],
+      "/other": [talk("elsewhere", { lastActivityAt: ago(30 * MIN) })],
+    });
+    expect(conversationIds(searchMatch(fullIndex(entries, lists), "", "/repo", commonOf, "conversation"))).toEqual(["new", "old", "unread"]);
+    expect(conversationIds(searchMatch(fullIndex(entries, lists), "", null, commonOf, "conversation"))).toEqual(["new", "elsewhere", "old", "unread"]);
+    // All and Canvases still list canvases only.
+    expect(conversationIds(searchMatch(fullIndex(entries, lists), "", "/repo", commonOf))).toEqual(["canvas:checkout"]);
+    expect(conversationIds(searchMatch(fullIndex(entries, lists), "", "/repo", commonOf, "canvas"))).toEqual(["canvas:checkout"]);
+    const many = listsOf({ "/repo": Array.from({ length: 60 }, (_, i) => talk(`c${i}`, { lastActivityAt: ago(i * MIN) })) });
+    const shown = searchMatch(fullIndex(entries, many), "", "/repo", commonOf, "conversation");
+    expect(shown).toHaveLength(50);
+    expect(conversationIds(shown).at(-1)).toBe("c49");
+  });
+
+  it("breaks equal activity times by conversation id, as the Conversation menu does", () => {
+    const at = ago(5 * MIN);
+    const entries = [folder("/repo", [])];
+    const lists = listsOf({ "/repo": [talk("m", { lastActivityAt: at }), talk("b", { lastActivityAt: at }), talk("z", { lastActivityAt: at }), talk("x", { lastActivityAt: "" }), talk("a", { lastActivityAt: "" })] });
+    expect(conversationIds(searchMatch(fullIndex(entries, lists), "", "/repo", commonOf, "conversation"))).toEqual(["b", "m", "z", "a", "x"]);
+  });
+
+  it("groups an empty Conversations query by each root's most recent conversation", () => {
+    const entries = [folder("/repo", []), folder("/sibling", []), folder("/other", [])];
+    const lists = listsOf({
+      "/repo": [talk("r1", { lastActivityAt: ago(12 * MIN) }), talk("r2", { lastActivityAt: ago(120 * MIN) })],
+      "/sibling": [talk("s1", { lastActivityAt: ago(180 * MIN) })],
+      "/other": [talk("o1", { lastActivityAt: ago(0) }), talk("o2", { lastActivityAt: ago(300 * MIN) })],
+    });
+    const groups = groupResults(searchMatch(fullIndex(entries, lists), "", null, commonOf, "conversation"), new Map());
+    expect(groups.map(group => [group.root, conversationIds(group.rows)])).toEqual([
+      ["/other", ["o1", "o2"]], ["/repo", ["r1", "r2"]], ["/sibling", ["s1"]],
+    ]);
+  });
+});
+
+describe("quick open conversation rows", () => {
+  const canvasTalk: ConversationResult = { kind: "conversation", root: "/code/acme-web", conversationId: "c1", title: "Tighten the checkout copy",
+    canvas: { path: ".doan/canvases/checkout.html", label: "checkout" }, lastActivityAt: ago(12 * MIN) };
+  const projectTalk: ConversationResult = { kind: "conversation", root: "/code/acme-web", conversationId: "p1", title: "Checkout flow for guests", lastActivityAt: ago(25 * 60 * MIN) };
+
+  it("names the canvas or the project, then the Conversation menu's time, spelled out in the accessible name", () => {
+    expect(resultParts(canvasTalk, "acme-web · main", NOW)).toEqual({ icon: "conversation", name: "Tighten the checkout copy", detail: "checkout · 12m",
+      accessibleName: "Tighten the checkout copy — checkout · 12 minutes ago · acme-web · main" });
+    expect(resultParts(projectTalk, "acme-web · main", NOW)).toEqual({ icon: "conversation", name: "Checkout flow for guests", detail: "Project conversation · 1d",
+      accessibleName: "Checkout flow for guests — Project conversation · 1 day ago · acme-web · main" });
+  });
+
+  it("adds no time for a conversation whose history could not be read", () => {
+    expect(resultParts({ ...projectTalk, lastActivityAt: "" }, "acme-web · main", NOW)).toEqual({ icon: "conversation", name: "Checkout flow for guests", detail: "Project conversation",
+      accessibleName: "Checkout flow for guests — Project conversation · acme-web · main" });
+    expect(resultParts({ ...canvasTalk, lastActivityAt: "" }, undefined, NOW)).toMatchObject({ detail: "checkout", accessibleName: "Tighten the checkout copy — checkout" });
+  });
+
+  it("keys a conversation row by its id, apart from every canvas and frame key", () => {
+    expect(resultKey(canvasTalk)).toBe(JSON.stringify(["conversation", "c1"]));
+    expect(resultKey({ ...canvasTalk, title: "Renamed", lastActivityAt: ago(0) })).toBe(resultKey(canvasTalk));
+    expect(resultKey(projectTalk)).not.toBe(resultKey(canvasTalk));
+  });
+});
+
+describe("quick open shown conversation", () => {
+  const canvasTalk: ConversationResult = { kind: "conversation", root: "/repo", conversationId: "c1", title: "t", canvas: { path: ".doan/canvases/a.html", label: "a" }, lastActivityAt: "" };
+  const projectTalk: ConversationResult = { kind: "conversation", root: "/repo", conversationId: "p1", title: "t", lastActivityAt: "" };
+
+  it("is the Overview's conversation for a project conversation of the same root", () => {
+    expect(sameShownConversation(projectTalk, { kind: "overview", root: "/repo", conversationId: "p1" })).toBe(true);
+    expect(sameShownConversation(projectTalk, { kind: "overview", root: "/repo", conversationId: "other" })).toBe(false);
+    expect(sameShownConversation(projectTalk, { kind: "overview", root: "/repo", conversationId: null })).toBe(false);
+    expect(sameShownConversation(projectTalk, { kind: "overview", root: "/sibling", conversationId: "p1" })).toBe(false);
+    expect(sameShownConversation(projectTalk, { kind: "canvas", root: "/repo", path: ".doan/canvases/a.html", conversationId: "p1" })).toBe(false);
+  });
+
+  it("is the open canvas panel's conversation for a canvas conversation of that canvas", () => {
+    expect(sameShownConversation(canvasTalk, { kind: "canvas", root: "/repo", path: ".doan/canvases/a.html", conversationId: "c1" })).toBe(true);
+    expect(sameShownConversation(canvasTalk, { kind: "canvas", root: "/repo", path: ".doan/canvases/b.html", conversationId: "c1" })).toBe(false);
+    expect(sameShownConversation(canvasTalk, { kind: "canvas", root: "/repo", path: ".doan/canvases/a.html", conversationId: null })).toBe(false);
+    expect(sameShownConversation(canvasTalk, { kind: "canvas", root: "/other", path: ".doan/canvases/a.html", conversationId: "c1" })).toBe(false);
+    expect(sameShownConversation(canvasTalk, { kind: "overview", root: "/repo", conversationId: "c1" })).toBe(false);
+  });
+
+  it("is never shown on Home or another page", () => {
+    expect(sameShownConversation(projectTalk, null)).toBe(false);
+    expect(sameShownConversation(canvasTalk, null)).toBe(false);
   });
 });

@@ -21,7 +21,7 @@ import { canvasExportReason, trashBlock } from "./canvasRowMenu";
 import { canvasStem, exportProgress, exportToast, trashToast } from "./canvasRowMessages";
 import { CanvasTrashDialog, trashDialogView } from "./CanvasTrashDialog";
 import { ConversationDeleteDialog, unsentDraft, type DeleteTarget } from "./ConversationDeleteDialog";
-import { deleteAvailability, deleteDialogView, deleteRefusalText } from "./conversationDelete";
+import { deleteAvailability, deleteDialogView, deleteRefusalText, quoted } from "./conversationDelete";
 import { focusFieldEnd } from "./chipField";
 import { draftKey, EMPTY_DRAFT } from "./dockedRules";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
@@ -31,7 +31,11 @@ import { useControlFocusRecovery } from "./canvasControlFocus";
 import { useVisibleClock } from "./visibleClock";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
-import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool } from "./CanvasTools";
+import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool, type PlayTool } from "./CanvasTools";
+import { canvasPlayability, playRequest } from "./prototypePlay";
+import { prototypeMainCalls } from "./prototype/mainCalls";
+import { PrototypeClosedFocus } from "./PrototypeClosedFocus";
+import type { PlayRequest } from "../main/prototype/ipc";
 import { dockedBuddy } from "./dockedBuddyShell";
 import { AlertIcon } from "./AlertIcon";
 import { noticeToast } from "./selection";
@@ -46,6 +50,7 @@ import { LOADING_DELAY_MS } from "./ConversationThread";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsPage } from "./ProjectSettingsPage";
 import { useToast } from "./Toast";
+import { StarPrompt } from "./StarPrompt";
 import { AddProjectsPage, type AddPageReport } from "./AddProjectsPage";
 import { addPageReturn, pageEnter, pageEscape, projectSettingsReentry, workspaceRemoved, type AddPageEvent, type AddPageOrigin, type PageName, type ShellScreen } from "./addProjectsNav";
 import type { FolderFocus } from "../main/shell";
@@ -80,7 +85,7 @@ import { useThumbnails } from "./thumbnails";
 import { canvasConversationRows } from "./canvasConversationRows";
 import type { CanvasList } from "./CanvasConversationList";
 import { QuickOpen } from "./QuickOpenDialog";
-import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, unavailableCanvasMessage, type SearchResult } from "./quickOpen";
+import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, sameShownConversation, unavailableCanvasMessage, type ConversationLists, type SearchResult, type ShownConversation } from "./quickOpen";
 import { blockedLinkMessage, decideOpen, type OpenPage } from "./openDecision";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import { withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
@@ -165,6 +170,13 @@ export function replyChipRefusal(target: "missing" | "duplicate" | "unavailable"
   return entry?.kind === "loading" ? "Project is still being read. Try again shortly." : unavailableCanvasMessage(entry, canvas);
 }
 
+// A Quick Open conversation that can no longer be opened (draft frame `open-failed`): the title quoted as the delete
+// toasts quote it, then the reply chip's sentences for a canvas that is gone or whose id is shared.
+export function conversationOpenRefusal(cause: "deleted" | "missing" | "duplicate", title: string, project: string): string {
+  const name = quoted(title) ?? "this conversation";
+  return cause === "deleted" ? `Couldn’t open ${name}. It was deleted.` : replyChipRefusal(cause, name, project, undefined);
+}
+
 export function validHistoryVisit(entries: readonly FolderEntry[], visit: Visit): boolean {
   const entry = entries.find(entry => entry.path === visit.root);
   return !!entry && entry.kind !== "notFound" && (entry.kind !== "list" || !visit.canvas || entry.canvases.some(row => row.path === visit.canvas));
@@ -225,9 +237,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [settingsAnnouncement, setSettingsAnnouncement] = useState<string | undefined>(undefined);
   const beforeModal = useRef<HTMLElement | null>(null);
   const focusAfterModal = useRef(false);
-  const toast = useToast(previous => {
+  // A focused toast or star card that goes hands focus back to where it came from, or to the screen.
+  const restoreFloatingFocus = (previous: HTMLElement | null) => {
     if (document.activeElement === document.body || !document.activeElement?.isConnected) focusCurrent(previous);
-  });
+  };
+  const toast = useToast(restoreFloatingFocus);
   const workspaceFocus = useRef<HTMLElement | null>(null);
   // Set by the Overview's branch chip menu; the workspace focus effect then focuses the new Overview's chip.
   const chipFocus = useRef(false);
@@ -255,6 +269,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const overlay = useRef<HTMLDivElement>(null);
   const dragLayer = useRef<HTMLDivElement>(null);
   const controller = useRef<CanvasController | null>(null);
+  // Play prototype: the toolbar's button (focus comes back to it) and the request the bubble's Play sends, as of the
+  // last render.
+  const playButton = useRef<HTMLButtonElement | null>(null);
+  const playNext = useRef<PlayRequest | null>(null);
   const [reroot, setReroot] = useState<(FolderFocus & { seq: number }) | null>(null);
   // `rerootSeq` counts the re-root focuses seen; Set Up keeps the count at its start so a re-root from before it is not
   // taken for its own. `locateFrom` is the root a Locate is waiting on: main reports that move as a re-root focus too,
@@ -264,6 +282,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const beforeWizard = useRef<HTMLElement | null>(null);
   const restoreFocus = useRef(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  // Counts Quick Open picks of a project conversation that should focus the Overview's composer field.
+  const [overviewComposerFocus, setOverviewComposerFocus] = useState(0);
   const [expanded, setExpanded] = useState<Record<string, string[]>>({});
   const [shellProjects, setShellProjects] = useState<Record<string, ShellProject>>({});
   const [history, setHistory] = useState(emptyHistory);
@@ -520,6 +540,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     instance.onPicked(result => live.current.pickEnded(result));
     instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
+    // The floating tools cover the area's bottom: the size bubble stays above them, 8px clear (sizeBubble.ts).
+    instance.bubbleRoom = () => {
+      const tools = viewport.current?.querySelector<HTMLElement>(".doan-canvas-bottom");
+      return tools ? { top: 0, bottom: tools.offsetTop - 8 } : null;
+    };
+    instance.bubblePlay = {
+      onPlay: () => sendPlay(playNext.current),
+      // The bubble went while it had focus: the toolbar's Play is the visible control for the same action.
+      onFocusLost: () => { (playButton.current?.isConnected ? playButton.current : viewport.current)?.focus({ preventScroll: true }); },
+    };
     // The overlay covers the canvas, so its view commands do nothing meanwhile (ARCHITECTURE §7 'Problem overlay').
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace" && !overlaidRef.current) instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
@@ -1450,11 +1480,45 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const onPage = screen === "addProjects", onSettings = screen === "settings", onProjectSettings = screen === "projectSettings";
   const pageLocked = (onPage && page.locked) || (onSettings && settings.locked) || (onProjectSettings && projectSettings.locked);
   const command = (name: ViewCommand) => controller.current?.command(name);
+  // What the workspace shows now, for a pick of the conversation already on screen.
+  function shownConversation(): ShownConversation {
+    if (currentScreen.current !== "workspace" || overlaidRef.current) return null;
+    const root = shownOverviewRef.current;
+    if (root) {
+      const view = overviewRun.current!.view(root);
+      return { kind: "overview", root, conversationId: view.kind === "conversation" ? view.conversationId : null };
+    }
+    const open = openRef.current;
+    if (!open || !rightPanelRef.current.open) return null;
+    return { kind: "canvas", root: open.folder, path: open.canvas, conversationId: canvasRun.current!.showing()?.conversationId ?? null };
+  }
+  // A conversation result opens through HomeRun with the rows Quick Open searched. The one already on screen only takes
+  // focus: no move and no visit. One that can no longer be opened goes nowhere and returns false, so Quick Open hands
+  // focus back to where it was opened.
+  function pickConversation(result: Extract<SearchResult, { kind: "conversation" }>): boolean {
+    const target = entries.find(entry => entry.path === result.root);
+    const rows = target?.kind === "list" ? target.canvases : [];
+    const list = homeRun.current.listState(result.root);
+    // The listed phase, the rule askConversation scrolls by, so focus lands on the waiting card or the composer.
+    const waiting = Array.isArray(list) && list.some(c => c.conversationId === result.conversationId && c.phase === "waiting");
+    if (sameShownConversation(result, shownConversation())) {
+      const row = result.canvas && rows.find(row => row.path === result.canvas!.path);
+      if (row) openCanvasConversation(result.root, row, result.conversationId, { kind: "notification", permission: waiting });
+      else if (waiting) askConversation(result.root, result.conversationId);
+      else setOverviewComposerFocus(seq => seq + 1);
+      return true;
+    }
+    const outcome = homeRun.current.openFound(result.root, result.conversationId, rows, waits => { if (!waits) setOverviewComposerFocus(seq => seq + 1); });
+    if (outcome === "opened") return true;
+    live.current.toast.show(conversationOpenRefusal(outcome, result.title, live.current.projectLabel(result.root)));
+    return false;
+  }
   // A pick from the Add Projects page goes through openCanvas too.
-  function pick(result: SearchResult) {
+  function pick(result: SearchResult): boolean | void {
     if (locked()) return;
     cancelRestore();
     setQuickOpen(false);
+    if (result.kind === "conversation") return pickConversation(result);
     const target = entries.find(entry => entry.path === result.root);
     const row = target?.kind === "list" ? target.canvases.find(row => row.path === result.path) : undefined;
     const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.path));
@@ -1729,6 +1793,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     exportFocus.current = { key: `${exportTarget.folder}\n${exportTarget.row.path}`, button };
     exportCanvas(exportTarget.folder, exportTarget.row);
   } };
+  // One judgement for the toolbar's Play and the size bubble's (prototypePlay.ts); main opens or reuses the prototype
+  // window and nothing here changes the canvas.
+  const playable = canvasPlayability(state);
+  playNext.current = playRequest(state);
+  const player: PlayTool = { reason: playable.enabled ? null : playable.reason, button: playButton,
+    onPlay: () => sendPlay(playNext.current) };
   const picking = state.picking;
   // Capture area: the canvas, the composer's input, its Attach rule and its attachment count,
   // first match wins. Without the panel's composer the canvas counts as not shown, as for the Picker.
@@ -2021,6 +2091,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const resizePanel = (width: number | undefined) => changePanel(previous => width === undefined ? { open: previous.open } : { ...previous, width });
   const rendered = useMemo(() => state.open && state.layout ? { root: state.open.folder, path: state.open.canvas, frames: state.layout.frames } : undefined, [state.open?.folder, state.open?.canvas, state.layout]);
   const run = homeRun.current;
+  // Quick Open searches every listed project's conversations; a new map at each list change, so open results follow.
+  const conversationLists = useMemo<ConversationLists>(() => new Map(entries.flatMap(entry => entry.kind === "list" ? [[entry.path, run.listState(entry.path)] as const] : [])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run.revision moves with each list HomeRun applies or fails to read.
+    [entries, run, run.revision]);
+  // A Quick Open pick of a project conversation lands in the Overview's composer field. Declared after the workspace's
+  // focus effect, so in the commit that shows the Overview it runs last.
+  useEffect(() => {
+    if (overviewComposerFocus === 0 || sceneRef.current) return;
+    document.querySelector<HTMLElement>(".workspace .ov-main .composer-input")?.focus();
+  }, [overviewComposerFocus]);
   // The Overview's right panel: canvases with a current conversation, thumbnails asked for those only.
   const listed = overview ? run.listState(overview.path) : null;
   const canvasList: CanvasList = overview === null || listed === null ? [] : typeof listed === "string" ? listed
@@ -2169,7 +2249,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
         onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
-      picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} exporter={exporter} />
+      picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} player={player} exporter={exporter} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={null}
@@ -2204,7 +2284,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       announcement={announcement ? `${announcement.text}${announcement.seq % 2 ? "" : "\u00a0"}` : ""} onAction={overlayAction} />}
   </main>
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
-  {quickOpen && <QuickOpen entries={entries} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
+  {quickOpen && <QuickOpen entries={entries} conversations={conversationLists} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
   {run.removing && <dialog className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="project-remove-title">{run.removing.title}</h3><p className="doan-dialog-description" id="project-remove-body">{run.removing.body}</p></div></div>
     <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" autoFocus onClick={() => { run.cancelRemove(); modalClosed(); }}>{run.removing.cancel}</button>
@@ -2214,11 +2294,15 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const { target, pending } = deletingConversation, summary = deleteSummary(target);
     const draft = unsentDraft(overviewRun.current!.store.drafts.get(draftKey({ kind: "existing", conversationId: target.conversationId, provider: target.provider }))) || summary?.returnedDraft === true;
     const availability = summary ? deleteAvailability(summary) : { available: true as const };
-    return <ConversationDeleteDialog view={deleteDialogView(target.title, target.provider, draft)} reason={availability.available ? null : availability.reason} pending={pending}
+    // Not working with messages queued: they wait for the usage limit's reset, and go with the conversation.
+    const queued = summary && !summary.working ? summary.queued : 0;
+    return <ConversationDeleteDialog view={deleteDialogView(target.title, target.provider, draft, queued)} reason={availability.available ? null : availability.reason} pending={pending}
       cancel={closeDelete} confirm={() => void confirmDelete()} />;
   })()}
   {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row))} cancel={closeTrash} confirm={confirmTrash} />}
   {toast.element}
+  <PrototypeClosedFocus controller={controller} toolbar={playButton} />
+  <StarPrompt onboarding={wizard !== null || buddyIntro.open} pickOrCapture={state.picking || state.capturing} restoreFocus={restoreFloatingFocus} />
   {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} buddy={buddySelection} preferences={preferences}
     onClose={root => {
@@ -2262,12 +2346,16 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
 type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
   conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
-function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, exporter }: {
+function sendPlay(request: PlayRequest | null): void {
+  if (request !== null) prototypeMainCalls().playPrototype(request);
+}
+
+function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
   state: CanvasState; view: CanvasViewStore; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
   zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: OpenBadge | null }; agent: AgentProps;
-  picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; exporter: ExportTool;
+  picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; player: PlayTool; exporter: ExportTool;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   useControlFocusRecovery(panel, viewport, covered, view);
@@ -2300,7 +2388,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
       {/* Capture mode's hint, in the picking hint's look with Capture area's glyph. */}
       {capturing && <div className="doan-agent doan-picking" role="status"><Scan className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Drag to capture an area</span>
         <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
-      <CanvasTools tool={tool} picking={picking} capturing={capturing} onTool={onTool} picker={picker} capture={capture} exporter={exporter} onEscape={onToolbarEscape} />
+      <CanvasTools tool={tool} picking={picking} capturing={capturing} onTool={onTool} picker={picker} capture={capture} player={player} exporter={exporter} onEscape={onToolbarEscape} />
     </div>
     </section>
   </div>;

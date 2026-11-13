@@ -7,8 +7,8 @@ import type { UsageEntry } from "../main/agentAuth/usageTypes";
 import type { McpAddReply, McpReply, McpSnapshot } from "../main/mcpConnectors/ipc";
 import type { McpProvider } from "../main/mcpConnectors/presets";
 import type { ShellActivity } from "../main/shellActivity";
-import type { ConversationService, StartRequest, TakenDraft } from "../main/conversation/service";
-import type { ConversationError } from "../main/conversation/ipc";
+import type { ConversationService, ScheduledItem, StartRequest, TakenDraft } from "../main/conversation/service";
+import type { ConversationError, ScheduledSend } from "../main/conversation/ipc";
 import type { ModelsReply } from "../main/conversation/models";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { QuestionAnswerInput } from "../main/conversation/question";
@@ -32,6 +32,7 @@ import type { Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWri
 import type { NotificationTarget } from "../main/notifications";
 import type { TestNotificationReply } from "../main/notifyService";
 import type { AboutRead } from "../main/about";
+import type { StarMoment } from "../main/starPrompt";
 import type { InstallGate, UpdateSnapshot } from "../main/update/types";
 import type { InspectResult } from "../main/inspect";
 import type { FolderEntry, ReadStateProblem } from "../main/view";
@@ -40,6 +41,7 @@ import type { ExportReply } from "../main/canvasExport";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
 import type { AddPageResponse, AddPageState } from "../main/addPage";
+import type { PlayRequest } from "../main/prototype/ipc";
 
 export type { AddPageResponse, AddPageState, WorkItem, OpenLinkResult, TrashPlanReply, TrashReply, ExportReply };
 export type { McpAddReply, McpReply, McpSnapshot };
@@ -74,9 +76,16 @@ function subscribe<T>(event: string, initial: string, listener: (value: T) => vo
 // The onboarding socket DTO as the window sends it: main adds the version and needs no token from its own window.
 type SessionRequest<T> = T extends unknown ? Omit<T, "v" | "token" | "op"> : never;
 
+// main/clockHourCycle.ts's argument: whether times read in 12-hour form, as macOS is set when the window opened.
+function clockHour12(argv: readonly string[]): boolean {
+  const value = argv.find(arg => arg.startsWith("--doan-clock-hour12="))?.slice("--doan-clock-hour12=".length);
+  return value !== "0";
+}
 // The renderer gets these calls and nothing else: no ipcRenderer, no
 // channel names, no paths it did not receive from main.
 const api = {
+  // Whether the clock reads in 12-hour form (macOS's setting when this window opened; a change applies after a restart).
+  clockHour12: clockHour12(process.argv),
   // Subscribe before getWork so a signal received during the read is not lost.
   getWork: (): Promise<WorkItem[]> => ipcRenderer.invoke("work:get"),
   onWorkChanged(listener: (items: WorkItem[]) => void): () => void {
@@ -119,7 +128,13 @@ const api = {
   // and no request names a provider. project_busy: another conversation of this project without a canvas is working.
   // A send to an archived conversation restores it: busy while the canvas's current conversation works,
   // canvas_not_found when its canvas is gone or its ID is listed twice.
-  sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:send", request),
+  // While the conversation's usage limit holds, or it is scheduled (list row limitResetsAt or scheduledAt), main keeps
+  // the message as a queued item and answers { scheduled }; such a send takes no model, effort, fast or permissionMode
+  // (bad_request), as a queue does. rate_limited carries resetsAt when main knows it.
+  sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }): Promise<void | ScheduledSend | ConversationError> => ipcRenderer.invoke("conversation:send", request),
+  // A scheduled conversation's waiting messages, in order, also those main scheduled by itself after a turn the usage
+  // limit stopped; empty when it is not scheduled.
+  scheduledMessages: (request: { conversationId: string }): Promise<ScheduledItem[] | ConversationError> => ipcRenderer.invoke("conversation:scheduled", request),
   // While the conversation works (not_running otherwise), a message waits in main and goes out with the others as one
   // message after turn.done; text, anchors and attachments only (model, effort and permissionMode are bad_request; the
   // queue goes out in the mode stored when it is flushed, setConversationPermissionMode). queue_limit: the
@@ -463,6 +478,19 @@ const api = {
   installUpdate: (): Promise<InstallGate | null> => ipcRenderer.invoke("update:install"),
   // The ready version's GitHub release page in the browser; false when there is none or it could not open.
   openReleaseNotes: (): Promise<boolean> => ipcRenderer.invoke("update:openNotes"),
+  // The GitHub star card. Main says when a card is due; the renderer still waits for a quiet moment. Requests carry no
+  // data: main opens its own repository URL (true when the browser opened) and keeps the card's state.
+  onStarMoment(listener: (moment: StarMoment) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, moment: StarMoment) => listener(moment);
+    ipcRenderer.on("star:moment", receive);
+    return () => ipcRenderer.removeListener("star:moment", receive);
+  },
+  openStarRepository: (): Promise<boolean> => ipcRenderer.invoke("star:open"),
+  dismissStarPrompt: (): Promise<void> => ipcRenderer.invoke("star:dismiss"),
+  // Home's credit line; main holds the URL.
+  openRepository: (): Promise<boolean> => ipcRenderer.invoke("repository:open"),
+  // A conversation running or waiting for an answer, which puts the card off.
+  starPromptBusy: (): Promise<boolean> => ipcRenderer.invoke("star:busy"),
   // The menu's Restart to Update was blocked: main has shown the window; open the header button's popover.
   onUpdatePopover(listener: () => void): () => void {
     const receive = () => listener();
@@ -490,6 +518,16 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, quitting: boolean) => listener(quitting);
     ipcRenderer.on("app:quitting", receive);
     return () => ipcRenderer.removeListener("app:quitting", receive);
+  },
+  // Play prototype: the selected frame of a listed canvas and its raw mark from the live layout. Main builds the URL
+  // from its own list and ignores a request it cannot match. Channel names stay literal: a shared value import would
+  // put a chunk between the two preloads, which a sandboxed preload cannot require.
+  playPrototype(request: PlayRequest): void { void ipcRenderer.invoke("prototype:play", request); },
+  // The prototype window closed, by any path; focus may go back to a live Play control.
+  onPrototypeClosed(listener: () => void): () => void {
+    const receive = () => listener();
+    ipcRenderer.on("prototype:closed", receive);
+    return () => ipcRenderer.removeListener("prototype:closed", receive);
   },
   // Main asks for the Settings page, at a category and optionally a provider row; a hidden window is already shown.
   onOpenSettingsPage(listener: (target: SettingsPageTarget) => void): () => void {

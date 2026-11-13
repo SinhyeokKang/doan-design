@@ -1,0 +1,9 @@
+{
+  "id": "W7",
+  "title": "Make one frame of a canvas playable at a phone size",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": "selection.json"
+}

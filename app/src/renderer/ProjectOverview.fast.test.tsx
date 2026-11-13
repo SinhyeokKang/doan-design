@@ -196,3 +196,19 @@ test("an existing conversation reads its provider's list again after that provid
   expect(window.doan.listConversationModels).toHaveBeenCalledWith({ root: ROOT, runtime: "codex" });
   expect(composer.picker.groups.find(group => group.provider === "codex")?.rows.map(row => row.label)).not.toContain("GPT Old");
 });
+
+// While the usage limit holds main refuses a send naming a model, effort, Fast or mode (bad_request): the waiting send
+// carries none of the picks, which stay chosen and go with the next ordinary send.
+test("a send that waits for the usage limit's reset carries no pick, and the next ordinary send still does", async () => {
+  const at = new Date(Date.now() + 3_600_000).toISOString();
+  const waiting = vi.fn(async (_provider: Provider, _request: unknown) => ({ scheduled: { itemId: "s1", at } }));
+  const choose = (support: DockedSupport) => support.pick(KEY, { model: "sonnet", effort: "high", fast: false, permissionMode: "acceptEdits" });
+  const limited = render([summary({ fast: true, limitResetsAt: at })], A, { onSendConversation: waiting }, choose);
+  expect(await limited.composer.onSend(REQUEST)).toEqual({ ok: true, itemId: "s1" });
+  expect(waiting.mock.calls.at(-1)![1]).toEqual({ conversationId: A, text: "Go", anchors: [] });
+  expect(limited.support.picks[KEY]).toMatchObject({ model: "sonnet", effort: "high", fast: false, permissionMode: "acceptEdits" });
+  const ordinary = vi.fn(async (_provider: Provider, _request: unknown) => {});
+  await render([summary({ fast: true })], A, { onSendConversation: ordinary }, choose).composer.onSend(REQUEST);
+  expect(ordinary.mock.calls.at(-1)![1]).toMatchObject({ conversationId: A, model: "sonnet", effort: "high", fast: false });
+});
+

@@ -22,6 +22,8 @@ import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload,
 import type { LiveTurn } from "../conversationWork";
 import type { AfterTurnCleanup } from "./process";
 import { readInTranscript, readTranscriptFrom, transcriptSize } from "./io";
+import { autoSchedule, claudeResetFromDetail, limitResetFromUsage, limitState, sendAt, sendDecision, SEND_DELAY_MS, turnHadActivity, type LimitEntry } from "./usageLimit";
+import type { UsageWindow } from "../agentAuth/usageTypes";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
 // model and effort: a choice from the list this run delivered (ipc checks it). attachments: files main rechecked just now.
 // permissionMode: one of the common ids (ipc checks it); Default is never stored.
@@ -54,10 +56,11 @@ export interface Prepared {
   steerConsumed?: (messageId: string) => void;
   // Doan-account Claude and Codex runs only: the provider's MCP connector facts (prepare.ts McpConnectorFacts).
   mcp?: McpRun;
-  // Doan-account Claude and Codex runs only: called after a turn ends done, with a read of the account's usage on this
-  // run's own connection (no new process). The hook decides whether to read; a Claude run keeps its input open until
-  // it resolves, since the CLI exits once its input closes (agentAuth/usageService.ts withTurnUsage).
-  usageAtTurnEnd?: (read: () => Promise<unknown>) => Promise<void>;
+  // Doan-account Claude and Codex runs only: called after a turn ends done, or failed on the usage limit (limit), with
+  // a read of the account's usage on this run's own connection (no new process). The hook decides whether to read; a
+  // Claude run keeps its input open until it resolves, since the CLI exits once its input closes
+  // (agentAuth/usageService.ts withTurnUsage). The service reads the reset from it (QueueOptions.limitWindows).
+  usageAtTurnEnd?: (read: () => Promise<unknown>, limit?: true) => Promise<void>;
   // Claude runs only: the cleaned text of the first prompt suggestion after a done turn (runners.ts openClaude).
   suggested?: (text: string) => void;
   // Claude runs only: whether background work the done turn started still runs (runners.ts backgroundTasks).
@@ -106,14 +109,27 @@ export interface Runner { mechanism?: FenceMechanism; sessionId: string; send(pr
 // A queued attachment's id with the record it was queued as (item.attachments and ids are in the same order).
 type Held = { id: string; record: AttachmentRecord | undefined };
 export type TakenDraft = ReturnedDraft & { ids?: (string | null)[] };
-export interface QueueFiles { reclaim(ids: string[]): StartAttachments; consume(ids: string[]): void; discard?(ids: string[]): void; release?(ids: string[]): void }
+// A scheduled conversation's waiting message (conversation `scheduled`), as the renderer shows a queued row. turnId: the
+// failed turn whose own message this is, sent again (the renderer hides that turn's Edit and resend meanwhile).
+export interface ScheduledItem { itemId: string; text: string; anchors: Anchor[]; attachments: AttachmentRecord[]; turnId?: string }
+// reissue: a sent message's files issued again by their recorded paths and held as a queued message's (a turn the usage
+// limit stopped goes out again); null when any of them cannot be.
+export interface QueueFiles { reclaim(ids: string[]): StartAttachments; consume(ids: string[]): void; discard?(ids: string[]): void; release?(ids: string[]): void; reissue?(records: readonly AttachmentRecord[]): string[] | null }
 // drafts: the input queue and the drafts it hands back; files: the queue's attachments; defaultEffort: the level a queued
 // turn names when the conversation's model has no stored effort (models.ts ModelCatalog.defaultEffort); fast: whether
 // this run's list says the model (its default row when none) takes Fast now, for the turns ipc does not judge: a start,
 // a handoff's start and a queue flush (models.ts ModelCatalog.fast). Without it no such turn runs with Fast.
 // The Claude session transcript a turn's unreported steers are looked for in (io.ts claudeTranscript).
 export interface TranscriptReader { size(configDir: string, sessionId: string): number; read(configDir: string, sessionId: string, from: number): string | null }
-export interface QueueOptions { transcripts?: TranscriptReader; drafts?: DraftStore; files?: QueueFiles; defaultEffort?: (root: string, provider: Provider, model: string) => string | undefined; fast?: (root: string, provider: Provider, model: string | undefined) => boolean }
+// The wall clock and the timers a usage-limit schedule runs on; a timer may fire late, never early by design.
+export interface ScheduleClock { now(): number; setTimer(run: () => void, ms: number): unknown; clearTimer(timer: unknown): void }
+// limitWindows: the usage windows of a Doan connection after a turn the usage limit stopped, once the read that turn's
+// end started is over (agentAuth/usageService.ts limitWindows); without it no limit is held and nothing is scheduled.
+// clock: the schedule's clock (tests pass a fake one). resumed: subscribes to the Mac waking from sleep, when timers
+// stopped while the wall clock went on. notice: a turn.failed published with its notice held back (publish's
+// deferNotice), once main knows the turn was not scheduled again.
+export interface QueueOptions { transcripts?: TranscriptReader; drafts?: DraftStore; files?: QueueFiles; defaultEffort?: (root: string, provider: Provider, model: string) => string | undefined; fast?: (root: string, provider: Provider, model: string | undefined) => boolean;
+  limitWindows?: (provider: Provider, connectionId: string) => Promise<readonly UsageWindow[]>; clock?: ScheduleClock; resumed?: (listener: () => void) => void; notice?: (event: ConversationEvent) => void }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;
 // use "listing": a list read (models, project skills), which a sign-out stops without asking (agentAuth/manager.ts acquire).
 // reusing: a send to this conversation's live Codex server, which keeps its thread open between turns.
@@ -132,6 +148,19 @@ const EXIT_WAIT_MS = 10_000;
 // past it they go back to the queue without the lookup, as before.
 const HELD_END_MS = 2_000;
 const TRANSCRIPTS: TranscriptReader = { size: transcriptSize, read: readTranscriptFrom };
+// setTimeout fires at once past this delay; a longer schedule is armed again when its timer fires early.
+const MAX_TIMER_MS = 2 ** 31 - 1;
+const CLOCK: ScheduleClock = {
+  now: () => Date.now(),
+  setTimer: (run, ms) => { const timer = setTimeout(run, Math.min(ms, MAX_TIMER_MS)); timer.unref?.(); return timer; },
+  clearTimer: timer => clearTimeout(timer as ReturnType<typeof setTimeout>),
+};
+// A scheduled conversation's send (usage limit): its queued messages go out together at `at`, after reset (the time the
+// renderer shows: scheduledAt and send's `at`; a same-reset retry keeps it), on the
+// Doan connection it was scheduled for. retried: it waits to go once more for a reset that already stopped it. due: its
+// time came while it could not go (its own turn not judged yet, or another project conversation holding the root); it
+// goes once the conversation list says something changed.
+interface Schedule { at: number; reset: number; provider: Provider; connectionId: string; retried: boolean; timer?: unknown; due?: true }
 // provider: set for a run on a doan account, whose lease a sign-out or replacement waits for (stopRuns).
 // since: the stopRuns count when this start or send began; a later stop of its provider stops it once it spawns.
 // endedAt: when the accepted turn's terminal event arrived, for binding.
@@ -157,7 +186,16 @@ const TRANSCRIPTS: TranscriptReader = { size: transcriptSize, read: readTranscri
 interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean; handoffKey?: string; lastSeq?: number; stage?: StageSignal; stageRev?: number; pastedStore?: string;
   exitedAt?: number; cleaned?: boolean; background?: { turnId: string; stopping?: true }; stopping?: true; quiet?: (on: boolean) => void;
   transcript?: { configDir: string; sessionId: string; size?: number }; held?: { event: EventPayload; timer: ReturnType<typeof setTimeout> };
-  lookup?: { steers: { messageId: string; itemId: string }[]; timer: ReturnType<typeof setTimeout>; giveBack: boolean }; unheld?: true }
+  lookup?: { steers: { messageId: string; itemId: string }[]; timer: ReturnType<typeof setTimeout>; giveBack: boolean }; unheld?: true;
+  // A turn the usage limit stopped: its connection's usage is being read to learn the reset. Working until then, so its
+  // queue stays and no send goes first.
+  limitLookup?: LimitLookup;
+  // A Stop came while this send was prepared, before acceptance: the send is refused at its next check and never runs.
+  cancelled?: true }
+// The usage read after a turn the usage limit stopped (limitEnded). A Stop, a stop of the provider's runs, a sign-out
+// or replacement and an archive end it (cancelLimit). since: the stops count when it began. told: its deferred failure
+// notice was delivered, which happens once unless the turn's own message goes out again.
+interface LimitLookup { turnId: string; provider: Provider; connectionId: string; since: number; saved: Extract<ConversationEvent, { type: "turn.failed" }>; told: boolean }
 // A project turn's grounds for promotion: the canvas list when the turn was accepted, the paths of its own
 // edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
 // folder refresh, or for the timer at the end of the binding window. turnId: the judged turn, for its bound marker.
@@ -212,14 +250,28 @@ export class ConversationService {
   // DOAN_HANDOFF value → conversation, for each runner process still alive; never on disk.
   private handoffKeys = new Map<string, string>();
   private handoffTurns = new Map<string, HandoffTurn>();
+  // Each Doan connection's usage limit, in memory only (usageLimit.ts limitState); limitTimer drops a passed one.
+  private limits = new Map<string, LimitEntry>();
+  private limitTimer: unknown;
+  private schedules = new Map<string, Schedule>();
+  // A scheduled send on its way out, until its turn ends: the reset it went for, for a stop by the same limit.
+  private resent = new Map<string, { reset: number; retried: boolean }>();
+  private waking = false;
+  private clock: ScheduleClock;
+  // A queued message that is a failed turn's own message sent again, by itemId, until it leaves the queue (forget).
+  private repeats = new Map<string, { owner: string; turnId: string }>();
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
   // deleted: a conversation deleted (delete), once its index entry is gone.
   // workEnded: the conversation's turn can no longer take a `doan work update` (its end, an archive or deletion, a
   // history that stopped taking writes, the app quitting), so main drops its work (conversationWork.ts).
   // handedOff: a handoff started its target conversation (conversation:handoff, main window only).
   // staged: a running turn's stage changed (conversation:stage, main window only); never written to the history.
-  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}, private workEnded: (id: string) => void = () => {}, private handedOff: (notice: HandoffNotice) => void = () => {}, private staged: (signal: StageSignal) => void = () => {}) {
+  // publish's deferNotice: a turn.failed whose notification waits until main knows the turn was not scheduled again
+  // (QueueOptions.notice).
+  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent, deferNotice?: true) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}, private workEnded: (id: string) => void = () => {}, private handedOff: (notice: HandoffNotice) => void = () => {}, private staged: (signal: StageSignal) => void = () => {}) {
     this.drafts = queueOptions.drafts ?? new DraftStore(null);
+    this.clock = queueOptions.clock ?? CLOCK;
+    queueOptions.resumed?.(() => this.resumed());
     // The deletions an earlier run recorded finish here, their drafts included (store.ts finishDeletions).
     store.finishDeletions(id => this.drafts.discard(id));
   }
@@ -243,6 +295,12 @@ export class ConversationService {
     const admitted = this.admit(request.root, request.canvas);
     if (admitted) request = { ...request, canvas: admitted };
     const project = request.mode === "newDesign" ? request.root : undefined;
+    // A new conversation never waits for a usage limit: it is refused while its connection's limit holds.
+    if (request.mode !== "resume" && request.runtime) {
+      const connectionId = this.connections.get(request.runtime), limit = connectionId === undefined ? undefined : this.limits.get(connectionId);
+      if (limit && sendDecision({ provider: request.runtime, owner: "doan", start: true, limit: limit.resetsAt, working: false, scheduled: false, now: this.clock.now() }) === "refuse")
+        throw Object.assign(new Error("rate_limited"), { resetsAt: new Date(limit.resetsAt).toISOString() });
+    }
     if (project) this.checkProject(project);
     const id = randomUUID(); this.reserve(id);
     const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops, ...(project ? { project } : {}) }; this.live.set(id, live);
@@ -309,7 +367,8 @@ export class ConversationService {
       for (const event of saved) this.deliver(event);
       this.changed(request.root);
       for (const event of live.events.splice(0)) this.receive(id, event);
-      this.sendTurn(id, live, runner, prompt, attachments.length ? attachments : undefined);
+      // A terminal event that came before acceptance (the process gone) already ended the turn: nothing is sent.
+      if (!live.terminal) this.sendTurn(id, live, runner, prompt, attachments.length ? attachments : undefined);
       return { conversationId: id };
     } catch (error) {
       // A refused start no longer holds the project, though its process may take a while to go.
@@ -351,7 +410,7 @@ export class ConversationService {
     // An archived conversation's runner is closing; previousExit waited for its process, so a new one opens.
     const live: Live = (existing?.runner && !existing.closed ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: 0 };
     live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; delete live.closed; delete live.stage; live.turnId = randomUUID(); live.since = this.stops; this.live.set(id, live);
-    delete live.exitedAt; delete live.cleaned; delete live.background; delete live.stopping; delete live.transcript; delete live.unheld;
+    delete live.exitedAt; delete live.cleaned; delete live.background; delete live.stopping; delete live.transcript; delete live.unheld; delete live.cancelled;
     if (project) live.project = project; else delete live.project;
     this.changedOf(id);
     // The mode is judged apart from the model: a send may change either alone.
@@ -429,13 +488,14 @@ export class ConversationService {
       const reloadMcp = !opening && generation !== undefined && generation !== live.mcpGeneration;
       if (reloadMcp) live.mcpGeneration = generation;
       const turnChoice: TurnChoice = { ...chosen, permissionMode: chosen.permissionMode ?? "default", ...(!chosen.effort && extras.defaultEffort ? { effort: extras.defaultEffort } : {}), ...(extras.fastTurn ? { fast: true as const } : {}), ...(reloadMcp ? { reloadMcp: true as const } : {}) };
-      this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, turnChoice);
+      if (!live.terminal) this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, turnChoice);
     } catch (error) {
       live.busy = false;
       if (reserved && !opening && !live.runner) this.reservations = releaseReservation(this.reservations, id, "not_spawned");
       if (!leased) freeLease(input);
       // Messages queued behind a send that never ran have nothing left to follow; a queue's own send hands them back.
-      if (!this.working(id)) this.giveBack(id, reason(error));
+      // A send the person stopped hands them back as stopped.
+      if (!this.working(id)) this.giveBack(id, live.cancelled ? "interrupted" : reason(error));
       this.changedOf(id);
       if (opening) void live.runner?.close(); throw error;
     }
@@ -582,12 +642,12 @@ export class ConversationService {
         live.held = { event, timer: setTimeout(() => this.writeHeld(id, live, false), HELD_END_MS) }; live.held.timer.unref?.();
         return;
       }
-      this.append(id, live.turnId, event);
+      const saved = this.append(id, live.turnId, event);
       const evidence = this.evidence.get(id);
       if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
       if (event.type === "permission.request" || event.type === "question.request") (live.asking ??= new Set()).add(askingKey(event));
       else if (event.type === "permission.resolved" || event.type === "question.resolved") live.asking?.delete(askingKey(event));
-      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.done = event.type === "turn.done"; live.endedAt = Date.now(); delete live.asking; delete live.stage; delete live.stopping; this.endWork(id); this.dropSteers(id); this.ended(id, live, event.type); }
+      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.done = event.type === "turn.done"; live.endedAt = Date.now(); delete live.asking; delete live.stage; delete live.stopping; this.endWork(id); this.dropSteers(id); this.ended(id, live, saved); }
     } catch (error) {
       live.failedPersistence = true; delete live.stage; console.error("doan: conversation event persistence failed", error); void live.runner?.close();
       this.endWork(id);
@@ -677,7 +737,11 @@ export class ConversationService {
       const suggestion = this.suggestions.get(m.conversationId)?.text;
       const live = this.live.get(m.conversationId);
       const background = live?.background && !live.busy ? live.background : undefined, stopping = live?.stopping && live.busy;
-      return conversationSummary(m, read, { live: this.ran(m.conversationId), queued: this.drafts.queued(m.conversationId).length, working: this.working(m.conversationId), returned: !!this.drafts.returned(m.conversationId), ...(suggestion ? { suggestion } : {}), ...(background ? { background } : {}), ...(stopping ? { stopping: true as const } : {}) });
+      const queued = this.drafts.queued(m.conversationId).length, working = this.working(m.conversationId);
+      const limit = this.limitOf(m), schedule = this.schedules.get(m.conversationId);
+      const scheduledAt = schedule && !working && queued ? new Date(schedule.reset).toISOString() : undefined;
+      return conversationSummary(m, read, { live: this.ran(m.conversationId), queued, working, returned: !!this.drafts.returned(m.conversationId), ...(suggestion ? { suggestion } : {}), ...(background ? { background } : {}), ...(stopping ? { stopping: true as const } : {}),
+        ...(limit !== null ? { limitResetsAt: new Date(limit).toISOString() } : {}), ...(scheduledAt ? { scheduledAt } : {}) });
     });
   }
   // An entry without seenSeq has had its whole history seen, so a lower seq never makes it unseen.
@@ -718,11 +782,16 @@ export class ConversationService {
     }
     if (turnId !== undefined && current?.turnId !== turnId) return;
     this.cancelWait(id); const live = this.live.get(id);
+    // Stop while the usage read after a limited turn runs: that turn is not sent again; its queue comes back below.
+    if (live?.limitLookup) this.cancelLimit(id, live);
     // Stop while the queue waits to go out (for the judgement or the previous process) hands it back instead.
     if (live?.holding && !live.busy) { this.release(id, live, live.holding); this.giveBack(id, "interrupted"); return; }
     // A send cancelled while it waited for the judgement or the previous process leaves the queue behind it nothing
     // to follow.
     if (!live || !live.busy) { this.giveBack(id, "interrupted"); return; }
+    // A send not accepted yet has no turn to stop: it is cancelled, and refused at its next check (checkSend), before
+    // anything reaches the runner. Its queued messages then come back as stopped (submit).
+    if (!live.accepted && !live.failedPersistence) { live.cancelled = true; this.changedOf(id); return; }
     // A history that stopped taking writes takes no interrupted event: the Stop ends the closed run's group, and the
     // turn ends once it is gone (releaseFailed).
     if (!live.failedPersistence) { live.stopping = true; this.changedOf(id); }
@@ -758,6 +827,8 @@ export class ConversationService {
   // still preparing or opening is stopped as soon as it spawns. External runs hold no lease and are left alone.
   async stopRuns(provider: Provider): Promise<void> {
     this.stops += 1; this.lastStop.set(provider, this.stops);
+    // A scheduled send would go out on the account the person is leaving.
+    for (const [id, schedule] of [...this.schedules]) if (schedule.provider === provider) this.giveBack(id, "interrupted");
     // Such a cancelled send leaves the queue accepted behind it nothing to follow; it comes back as interrupted. A quit
     // keeps it on disk for the next start instead.
     for (const [id, wait] of [...this.waits, ...this.judging]) if (wait.provider === provider) { this.cancelWait(id); this.giveBack(id, "interrupted"); }
@@ -767,6 +838,7 @@ export class ConversationService {
       if (live.provider !== provider) continue;
       // A queue held for its judgement or for the previous process is the person's to send again, not this run's.
       if (live.holding && !live.busy) { this.release(id, live, live.holding); this.giveBack(id, "interrupted"); }
+      if (live.limitLookup) { this.cancelLimit(id, live); this.giveBack(id, "interrupted"); }
       if (live.accepted && live.busy && !live.terminal) this.receive(id, { type: "interrupted", reason: "user" });
       // A held end is written once the group is gone, after the steers the transcript shows.
       if (live.accepted && !live.held) { live.terminal = true; live.busy = false; delete live.stage; }
@@ -792,7 +864,10 @@ export class ConversationService {
   quit(): Promise<void> {
     const closing: Promise<void>[] = [];
     this.quitting = true;
-    // Queued messages stay in drafts.json and come back as drafts at the next start.
+    // Queued messages stay in drafts.json and come back as drafts at the next start; a scheduled one never goes out.
+    for (const schedule of this.schedules.values()) if (schedule.timer !== undefined) this.clock.clearTimer(schedule.timer);
+    this.schedules.clear(); this.resent.clear();
+    if (this.limitTimer !== undefined) { this.clock.clearTimer(this.limitTimer); this.limitTimer = undefined; }
     for (const id of [...this.evidence.keys()]) this.dropEvidence(id);
     // An unresolved handoff stays a request in the history, which the next start reads as cancelled.
     for (const id of [...this.handoffTurns.keys()]) this.dropHandoff(id);
@@ -844,6 +919,8 @@ export class ConversationService {
     const m = this.metadata(id);
     if (!this.drafts.remove(id, itemId)) throw new Error("stale");
     const held = this.forget(id, [itemId]); if (held.length) this.queueOptions.files?.discard?.(held.map(h => h.id));
+    // The last scheduled message removed: nothing is left to send at the reset.
+    if (!this.drafts.queued(id).length) this.disarm(id);
     this.changed(m.root);
   }
   // Send now: one queued message into the running turn, without stopping it. It resolves once the agent read the
@@ -901,6 +978,211 @@ export class ConversationService {
     this.changed(m.root);
     return ids.some(heldId => heldId !== null) ? { ...draft, ids } : draft;
   }
+  // A send that waits for its usage limit (ipc routes it to schedule): an existing, current Doan Claude Code or Codex
+  // conversation that is not working, while its connection's limit holds or its messages already wait for a reset.
+  scheduling(id: string): boolean {
+    const m = this.metadata(id);
+    if (this.quitting || m.state !== "current") return false;
+    const provider = m.owner.kind === "doan" ? m.owner.provider : m.session.runtime;
+    return sendDecision({ provider, owner: m.owner.kind, start: false, limit: this.limitOf(m), working: this.working(id), scheduled: this.schedules.has(id), now: this.clock.now() }) === "schedule";
+  }
+  // The message waits in drafts.json as a queued one (a restart hands it back as a draft); only its send time is in
+  // memory. ids: the attachment ids main holds for it, as for queue. busy: it is not a send that waits (scheduling).
+  schedule(id: string, item: { text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; ids?: string[] }): { itemId: string; at: string } {
+    const m = this.metadata(id);
+    if (!this.scheduling(id) || m.owner.kind !== "doan") throw new Error("busy");
+    const owner = m.owner, connectionId = this.connectionOf(owner), limit = this.limitOf(m);
+    const itemId = randomUUID();
+    this.drafts.add(id, { itemId, text: item.text, anchors: item.anchors, attachments: item.attachments ?? [] });
+    if (item.ids?.length) this.queuedExtras.set(itemId, { owner: id, ids: item.ids, records: item.attachments ?? [] });
+    const schedule = this.schedules.get(id) ?? this.arm(id, { at: sendAt(limit!), reset: limit!, provider: owner.provider, connectionId: connectionId!, retried: false });
+    this.changed(m.root);
+    return { itemId, at: new Date(schedule.reset).toISOString() };
+  }
+  // The scheduled conversation's waiting messages, in order; none when it is not scheduled.
+  scheduled(id: string): ScheduledItem[] {
+    this.metadata(id);
+    if (!this.schedules.has(id)) return [];
+    return this.drafts.queued(id).map(item => {
+      const repeat = this.repeats.get(item.itemId);
+      return { itemId: item.itemId, text: item.text, anchors: item.anchors, attachments: item.attachments, ...(repeat ? { turnId: repeat.turnId } : {}) };
+    });
+  }
+  // The connection a Doan conversation runs on now: the provider's current one once auth reported it.
+  private connectionOf(owner: Extract<ConversationOwner, { kind: "doan" }>): string | undefined {
+    return this.connections.has(owner.provider) ? this.connections.get(owner.provider) : owner.connectionId;
+  }
+  // The reset of the limit a current Doan Claude Code or Codex conversation's connection holds now, else null.
+  private limitOf(m: ConversationMetadata): number | null {
+    if (m.owner.kind !== "doan" || m.state !== "current" || (m.owner.provider !== "claude" && m.owner.provider !== "codex")) return null;
+    const connectionId = this.connectionOf(m.owner), entry = connectionId === undefined ? undefined : this.limits.get(connectionId);
+    return entry && entry.resetsAt > this.clock.now() ? entry.resetsAt : null;
+  }
+  // A turn the usage limit stopped whose conversation may wait for the reset; its failure notice waits for the decision.
+  private limitCandidate(id: string, event: EventPayload): boolean {
+    if (event.type !== "turn.failed" || event.code !== "rate_limited" || this.quitting || !this.queueOptions.limitWindows) return false;
+    const m = this.store.list().find(e => e.conversationId === id);
+    return m?.state === "current" && m.owner.kind === "doan" && (m.owner.provider === "claude" || m.owner.provider === "codex");
+  }
+  // Reads the connection's usage after the turn (the runner started that read right after it emitted the end, so this
+  // waits for it), then decides (settleLimit). The checks run again once the read is back (POSTMORTEM 2026-10-27
+  // 'Awaited conversation work outlived its current turn'): an archive, a deletion or the quit took the queue already.
+  private limitEnded(id: string, live: Live, saved: Extract<ConversationEvent, { type: "turn.failed" }>, resent: { reset: number; retried: boolean } | undefined): void {
+    const m = this.store.list().find(e => e.conversationId === id); if (m?.owner.kind !== "doan") return;
+    const owner = m.owner, read = this.queueOptions.limitWindows!;
+    const lookup: LimitLookup = { turnId: saved.turnId, provider: owner.provider, connectionId: owner.connectionId, since: this.stops, saved, told: false };
+    live.limitLookup = lookup;
+    void (async () => {
+      await Promise.resolve();
+      let windows: readonly UsageWindow[] = [];
+      // A read that failed tells no reset: the turn then fails as before, unless Claude Code's own message names one.
+      try { windows = await read(owner.provider, owner.connectionId); } catch { windows = []; }
+      // Whatever ended the lookup meanwhile (cancelLimit, the quit, a later turn) took the queue and the notice.
+      if (this.quitting || this.live.get(id) !== live || live.limitLookup !== lookup || live.turnId !== lookup.turnId || this.stopped(lookup)) return;
+      delete live.limitLookup;
+      let settled = { armed: false, again: false };
+      try { settled = this.settleLimit(id, owner, saved, windows, resent); }
+      catch (error) { console.error("doan: a turn the usage limit stopped could not be scheduled", error); }
+      try { if (!settled.armed) this.giveBack(id, this.connectionOf(owner) === owner.connectionId ? "turn_failed" : "interrupted"); }
+      catch (error) { console.error("doan: queued messages could not be handed back", error); }
+      // A turn whose own message goes out again did not end for the person; any other failure is told as before.
+      if (!settled.again) this.tell(lookup);
+      this.changedOf(id);
+    })();
+  }
+  // Ends a running lookup: the turn is not sent again, and its failure is told. The caller hands the queue back.
+  private cancelLimit(id: string, live: Live): void {
+    const lookup = live.limitLookup; if (!lookup) return;
+    delete live.limitLookup;
+    this.tell(lookup);
+    this.changedOf(id);
+  }
+  private tell(lookup: LimitLookup): void {
+    if (lookup.told) return;
+    lookup.told = true;
+    try { this.queueOptions.notice?.(lookup.saved); } catch (error) { console.error("doan: conversation notice failed", error); }
+  }
+  // The reset from the usage read, else (Claude Code only) from its own limit message; the connection's limit; then
+  // whether the turn's own message waits for it (autoSchedule) and whether the queue behind it does. armed: something
+  // waits; again: the turn's own message is among it.
+  private settleLimit(id: string, owner: Extract<ConversationOwner, { kind: "doan" }>, saved: Extract<ConversationEvent, { type: "turn.failed" }>, windows: readonly UsageWindow[], resent: { reset: number; retried: boolean } | undefined): { armed: boolean; again: boolean } {
+    const none = { armed: false, again: false };
+    const now = this.clock.now(), previous = resent?.reset;
+    let reset = limitResetFromUsage(windows, now, previous);
+    if (reset === null && owner.provider === "claude" && saved.detail) {
+      const read = claudeResetFromDetail(saved.detail, now, previous);
+      if (read !== null && (read > now || read === previous)) reset = read;
+    }
+    // A sign-out or replacement meanwhile: this connection is no longer the one the person uses.
+    if (this.connectionOf(owner) !== owner.connectionId) return none;
+    if (reset !== null && reset > now) { this.limits = limitState(this.limits, owner.connectionId, { provider: owner.provider, resetsAt: reset }, now); this.limitChanged(owner.provider); }
+    const m = this.metadata(id); if (m.state !== "current") return none;
+    const events = this.store.read(id).filter(e => e.turnId === saved.turnId);
+    // A turn that also took a message by Send now holds more than one message of the person's: sending the first again
+    // would drop the other, so it fails as before (the queue behind it still waits).
+    const decision = events.filter(e => e.type === "user.message").length > 1 ? "none" : autoSchedule({ code: saved.code, hadActivity: turnHadActivity(events), reset, ...(previous !== undefined ? { previousReset: previous } : {}), retriedSame: resent?.retried ?? false, now });
+    const at = decision === "retry" ? now + SEND_DELAY_MS : reset !== null && reset > now ? sendAt(reset) : null;
+    if (at === null) return none;
+    const again = decision !== "none" && this.requeue(id, saved.turnId, events);
+    // The messages queued behind the turn wait for the same reset; the turn's own only when it did nothing.
+    if (!this.drafts.queued(id).length) return none;
+    this.arm(id, { at, reset: reset!, provider: owner.provider, connectionId: owner.connectionId, retried: decision === "retry" });
+    return { armed: true, again };
+  }
+  // The turn's own message goes back to the front of the queue as the person wrote it: its text and anchors from the
+  // history, its files issued again by path as Edit and resend does. Not a handoff's first message, which the agent
+  // wrote. False when it cannot.
+  private requeue(id: string, turnId: string, events: readonly ConversationEvent[]): boolean {
+    const message = events.find(e => e.type === "user.message");
+    if (message?.type !== "user.message" || message.origin) return false;
+    const records = message.attachments ?? [], files = this.queueOptions.files;
+    const ids = records.length ? files?.reissue?.(records) ?? null : [];
+    if (ids === null) return false;
+    const itemId = randomUUID();
+    try { this.drafts.add(id, { itemId, text: message.text, anchors: message.anchors, attachments: [...records] }, true); }
+    catch (error) { if (ids.length) files?.discard?.(ids); console.error("doan: a stopped message could not be queued again", error); return false; }
+    if (ids.length) this.queuedExtras.set(itemId, { owner: id, ids, records });
+    this.repeats.set(itemId, { owner: id, turnId });
+    return true;
+  }
+  private arm(id: string, schedule: Schedule): Schedule {
+    this.disarm(id);
+    this.schedules.set(id, schedule); this.setTimer(id, schedule);
+    return schedule;
+  }
+  private setTimer(id: string, schedule: Schedule): void {
+    schedule.timer = this.clock.setTimer(() => this.fire(id, schedule), Math.max(0, schedule.at - this.clock.now()));
+  }
+  private disarm(id: string): void {
+    const schedule = this.schedules.get(id); if (!schedule) return;
+    if (schedule.timer !== undefined) this.clock.clearTimer(schedule.timer);
+    this.schedules.delete(id);
+  }
+  // A timer fires late after a busy loop and early past MAX_TIMER_MS: the wall clock decides.
+  private fire(id: string, schedule: Schedule): void {
+    if (this.schedules.get(id) !== schedule || this.quitting) return;
+    delete schedule.timer;
+    if (this.clock.now() < schedule.at) { this.setTimer(id, schedule); return; }
+    schedule.due = true;
+    this.sendDue(id, schedule);
+  }
+  // The scheduled messages go out as a queue does after a done turn (flush), checks and attachments included. It
+  // waits while the conversation still works (its stopped turn not judged yet) or another project conversation holds
+  // the root, and goes once either ends (wakeDue).
+  private sendDue(id: string, schedule: Schedule): void {
+    if (this.schedules.get(id) !== schedule || this.quitting) return;
+    const m = this.store.list().find(e => e.conversationId === id);
+    if (!m || m.state !== "current" || !this.drafts.queued(id).length) { this.disarm(id); this.changedOf(id); return; }
+    if (this.working(id)) return;
+    if (!m.canvas) { try { this.checkProject(m.root, id); } catch { return; } }
+    this.disarm(id);
+    this.resent.set(id, { reset: schedule.reset, retried: schedule.retried });
+    let live = this.live.get(id);
+    if (!live) { live = { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops }; this.live.set(id, live); }
+    live.provider ??= schedule.provider;
+    live.holding = {};
+    if (!m.canvas) live.project = m.root;
+    this.flush(id, live);
+  }
+  // After any list change: a due schedule tries again, once per tick.
+  private wakeDue(): void {
+    if (this.waking || this.quitting || ![...this.schedules.values()].some(schedule => schedule.due)) return;
+    this.waking = true;
+    queueMicrotask(() => {
+      this.waking = false;
+      for (const [id, schedule] of [...this.schedules]) if (schedule.due) this.sendDue(id, schedule);
+    });
+  }
+  // The Mac woke: timers stopped while it slept, so each schedule is judged by the wall clock again.
+  private resumed(): void {
+    if (this.quitting) return;
+    const now = this.clock.now();
+    for (const [id, schedule] of [...this.schedules]) {
+      if (schedule.timer !== undefined) { this.clock.clearTimer(schedule.timer); delete schedule.timer; }
+      if (schedule.due || now >= schedule.at) { schedule.due = true; this.sendDue(id, schedule); } else this.setTimer(id, schedule);
+    }
+    this.armLimitExpiry();
+  }
+  // A provider's limit came or went: every root with its conversations reads the list again (limitResetsAt).
+  private limitChanged(provider: Provider): void {
+    const roots = new Set(this.store.list().filter(m => m.owner.kind === "doan" && m.owner.provider === provider).map(m => m.root));
+    for (const root of roots) this.changed(root);
+    this.armLimitExpiry();
+  }
+  // One timer for the next reset, which drops the limits that passed and announces them.
+  private armLimitExpiry(): void {
+    if (this.limitTimer !== undefined) { this.clock.clearTimer(this.limitTimer); this.limitTimer = undefined; }
+    if (this.quitting || !this.limits.size) return;
+    const next = Math.min(...[...this.limits.values()].map(entry => entry.resetsAt));
+    this.limitTimer = this.clock.setTimer(() => {
+      this.limitTimer = undefined;
+      const now = this.clock.now(), passed = [...this.limits].filter(([, entry]) => entry.resetsAt <= now);
+      if (!passed.length) { this.armLimitExpiry(); return; }
+      for (const [connectionId] of passed) this.limits = limitState(this.limits, connectionId, null, now);
+      for (const provider of new Set(passed.map(([, entry]) => entry.provider))) this.limitChanged(provider);
+      this.armLimitExpiry();
+    }, Math.max(0, next - this.clock.now()));
+  }
   // Deleting removes Doan's own record of the conversation on this device: its index entry, history, queue and returned
   // draft. The agent's session files stay. Refused (busy) while it works or the app quits. The check and the deletion
   // run in one tick, so no send starts between them; an awaiting send is working, and later calls find no metadata.
@@ -913,6 +1195,7 @@ export class ConversationService {
     this.archive(id);
     this.dropHandoff(id);
     this.store.delete(id);
+    this.disarm(id); this.resent.delete(id);
     this.drafts.discard(id);
     const held = this.returnedHeld.get(id); this.returnedHeld.delete(id);
     if (held?.length) this.queueOptions.files?.release?.(held.map(h => h.id));
@@ -924,13 +1207,17 @@ export class ConversationService {
   private working(id: string): boolean {
     const live = this.live.get(id);
     const turn = this.handoffTurns.get(id);
-    return !!live && (live.busy || !!live.holding) || this.waits.has(id) || this.judging.has(id) || this.evidence.get(id)?.endedAt !== undefined || (!!turn && this.handoffPending(turn));
+    return !!live && (live.busy || !!live.holding || !!live.limitLookup) || this.waits.has(id) || this.judging.has(id) || this.evidence.get(id)?.endedAt !== undefined || (!!turn && this.handoffPending(turn));
   }
   // A turn's terminal event: queued messages go out after a done turn (a project turn's once it is judged) and come back
   // as a draft after a failed or stopped one; a project turn waits for its judgement.
   // A turn that asked for a handoff cancels it unless done; a done one is judged now, or once its canvas may be listed.
-  private ended(id: string, live: Live, type: "turn.done" | "turn.failed" | "interrupted"): void {
-    if (type !== "turn.done") this.giveBack(id, type === "interrupted" ? "interrupted" : "turn_failed");
+  // A turn the usage limit stopped keeps its queue until main read when the limit resets (limitEnded).
+  private ended(id: string, live: Live, saved: ConversationEvent): void {
+    const type = saved.type as "turn.done" | "turn.failed" | "interrupted";
+    const resent = this.resent.get(id); this.resent.delete(id);
+    if (saved.type === "turn.failed" && this.limitCandidate(id, saved)) this.limitEnded(id, live, saved, resent);
+    else if (type !== "turn.done") this.giveBack(id, type === "interrupted" ? "interrupted" : "turn_failed");
     else if (this.drafts.queued(id).length) live.holding = {};
     // The queue going out is the next send: it ends the finished turn's process as a send does.
     if (live.holding) this.endAfterTurn(id);
@@ -1077,12 +1364,14 @@ export class ConversationService {
     const running = this.live.get(id);
     if (running) {
       running.terminal = true; running.busy = false; running.closed = true; delete running.holding; delete running.project; delete running.stage;
+      this.cancelLimit(id, running);
       void running.runner?.close();
     }
     const turn = this.handoffTurns.get(id);
     if (turn?.request && turn.state !== "resolved") this.resolveHandoff(id, turn, { outcome: "cancelled" });
     this.dropEvidence(id);
     this.cancelWait(id);
+    this.resent.delete(id);
     // Steers the agent may have taken unreported: the queue comes back once the transcript was read for them.
     const later = running ? this.lookLater(id, running, true) : false;
     this.dropSteers(id);
@@ -1091,6 +1380,8 @@ export class ConversationService {
   // Every queued message, also those on their way out, comes back as one draft. Its held ids stay for the draft's take
   // in this run; after a restart the draft carries only the files' paths, for attachments:fromPaths.
   private giveBack(id: string, why: string): void {
+    // Every waiting message is handed back, so a schedule has nothing left to send.
+    this.disarm(id);
     const held = this.forget(id);
     if (this.drafts.giveBackQueued(id, why)) {
       if (held.length) this.returnedHeld.set(id, [...this.returnedHeld.get(id) ?? [], ...held]);
@@ -1098,6 +1389,7 @@ export class ConversationService {
     } else if (held.length) this.queueOptions.files?.release?.(held.map(h => h.id));
   }
   private forget(id: string, itemIds?: readonly string[]): Held[] {
+    for (const [itemId, repeat] of [...this.repeats]) if (repeat.owner === id && (!itemIds || itemIds.includes(itemId))) this.repeats.delete(itemId);
     const held: Held[] = [];
     for (const [itemId, extras] of [...this.queuedExtras]) if (extras.owner === id && (!itemIds || itemIds.includes(itemId))) {
       held.push(...extras.ids.map((heldId, i) => ({ id: heldId, record: extras.records[i] })));
@@ -1133,7 +1425,11 @@ export class ConversationService {
         this.forget(id, sent); this.drafts.sent(id, sent);
         if (ids.length) files?.consume(ids);
       } catch (error) {
-        this.giveBack(id, provider && (this.lastStop.get(provider) ?? 0) > since ? "interrupted" : reason(error));
+        // A scheduled send refused before its turn: no turn of it can be stopped by the same limit.
+        this.resent.delete(id);
+        // Stopped meanwhile: by the person (the send's cancel) or by a sign-out of its provider.
+        const stopped = this.live.get(id)?.cancelled === true || (!!provider && (this.lastStop.get(provider) ?? 0) > since);
+        this.giveBack(id, stopped ? "interrupted" : reason(error));
       } finally { this.release(id, live, hold); }
     });
   }
@@ -1213,12 +1509,22 @@ export class ConversationService {
   }
   // A provider's connection now (undefined: signed out). A suggestion made on another connection of it no longer
   // belongs to what the person is signed into.
+  // The same holds for a usage limit and the messages scheduled on it: a sign-out or replacement hands them back as a
+  // draft at once.
   connectionChanged(provider: Provider, connectionId: string | undefined): void {
     this.connections.set(provider, connectionId);
     for (const [id, kept] of [...this.suggestions]) {
       if (kept.provider !== provider || kept.connectionId === connectionId) continue;
       this.suggestions.delete(id); this.changed(kept.root);
     }
+    let dropped = false;
+    for (const [other, entry] of [...this.limits]) if (entry.provider === provider && other !== connectionId) { this.limits = limitState(this.limits, other, null, this.clock.now()); dropped = true; }
+    for (const [id, schedule] of [...this.schedules]) if (schedule.provider === provider && schedule.connectionId !== connectionId) this.giveBack(id, "interrupted");
+    for (const [id, live] of [...this.live]) {
+      const lookup = live.limitLookup;
+      if (lookup && lookup.provider === provider && lookup.connectionId !== connectionId) { this.cancelLimit(id, live); this.giveBack(id, "interrupted"); }
+    }
+    if (dropped) this.limitChanged(provider);
   }
   // Saved and announced only when it changes; Default as no key.
   private storeMode(id: string, value: PermissionModeId): void {
@@ -1262,26 +1568,29 @@ export class ConversationService {
   }
   private snapshot(root: string): Canvas[] { return this.canvases(root).map(c => c.id === undefined ? { path: c.path } : { path: c.path, id: c.id }); }
   private checkSend(id: string, live: Live, state: "current" | "archived"): void {
-    if (this.quitting || this.live.get(id) !== live || live.terminal || this.metadata(id).state !== state) throw new Error("busy");
+    if (this.quitting || this.live.get(id) !== live || live.terminal || live.cancelled || this.metadata(id).state !== state) throw new Error("busy");
   }
   private metadata(id: string): ConversationMetadata { const m = this.store.list().find(m => m.conversationId === id); if (!m) throw new Error("not_found"); return m; }
-  private append(id: string, turn: string, event: EventPayload): void {
+  private append(id: string, turn: string, event: EventPayload): ConversationEvent {
     const saved = this.store.append(id, turn, event);
-    this.deliver(saved);
+    this.deliver(saved, event.type === "turn.failed" && this.limitCandidate(id, event));
     // Streamed text changes no list field the list shows while a turn runs; its end and activities do.
     if (event.type !== "message.delta") this.changedOf(id);
+    return saved;
   }
   // The event is already saved: an index that cannot be read here must not fail it.
   private changedOf(id: string): void {
     try { const root = this.store.list().find(m => m.conversationId === id)?.root; if (root) this.listChanged(root); }
     catch (error) { console.error("doan: conversation list change could not be announced", error); }
+    this.wakeDue();
   }
   private changed(root: string): void {
     try { this.listChanged(root); } catch (error) { console.error("doan: conversation list change could not be announced", error); }
+    this.wakeDue();
   }
-  private deliver(saved: ConversationEvent): void {
+  private deliver(saved: ConversationEvent, deferNotice = false): void {
     const live = this.live.get(saved.conversationId); if (live) live.lastSeq = saved.seq;
-    try { this.publish(saved); } catch (error) { console.error("doan: persisted conversation event could not be delivered", error); }
+    try { if (deferNotice) this.publish(saved, true); else this.publish(saved); } catch (error) { console.error("doan: persisted conversation event could not be delivered", error); }
   }
   private exited(id: string): void {
     // The reservation goes first (POSTMORTEM 2026-10-27); a held end is written after the transcript was read.

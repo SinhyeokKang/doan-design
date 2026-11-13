@@ -9,11 +9,15 @@ import type { SkillCatalog } from "./skills";
 import type { AttachmentStore } from "../attachments";
 import { QUESTION_LIMITS, type QuestionAnswerInput } from "./question";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
-export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "skills", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode", "delete"] as const;
+export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "skills", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode", "delete", "scheduled"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
 // attachment_missing names the attachments that were moved, deleted or forgotten since they were added; replaced, the
-// ones among them that are folders now leading to another folder.
-export interface ConversationError { error: string; missing?: string[]; replaced?: string[] }
+// ones among them that are folders now leading to another folder. resetsAt (ISO): with rate_limited, when the usage
+// limit of the refused start's or send's Doan connection resets, if main knows it.
+export interface ConversationError { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string }
+// A send main took while its conversation's usage limit holds: the message waits as a queued item for the limit's reset
+// at `at` (ISO) and goes out shortly after it.
+export interface ScheduledSend { scheduled: { itemId: string; at: string } }
 interface Project { path: string; kind: string; canvases?: Canvas[] }
 function message(raw: Record<string, unknown>): { text: string; anchors: Anchor[] } | null {
   if (typeof raw.text !== "string" || !raw.text.trim() || raw.text.length > LIMITS.text) return null;
@@ -105,6 +109,17 @@ export function queueFiles(store: AttachmentStore): QueueFiles {
     consume: ids => store.consume(ids.map(id => ({ id }))),
     discard: ids => store.discard(ids),
     release: ids => { store.release({ ids }); },
+    // As Edit and resend's attachments:fromPaths, then held as a queued message's (consumed at once). Each must still
+    // be the kind it was sent as (ARCHITECTURE §7 'Attachments'): a file that became a folder would send the folder.
+    // Any refusal refuses the whole message and releases every id issued for it.
+    reissue: records => {
+      const results = store.fromPaths({ paths: records.map(record => record.path) });
+      const ids = (results ?? []).flatMap(result => result.ok ? [result.attachment.id] : []);
+      const same = !!results && results.length === records.length && results.every((result, i) => result.ok && result.attachment.kind === records[i]!.kind);
+      if (!same) { for (const id of ids) store.remove({ id }); return null; }
+      store.consume(ids.map(id => ({ id })));
+      return ids;
+    },
   };
 }
 export function conversationHandler(service: ConversationService, prepare: Prepare, projects: () => Project[], home: { models?: ModelCatalog; skills?: SkillCatalog; attachments?: AttachmentStore } = {}) {
@@ -185,6 +200,16 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         case "send": {
           const input = message(raw); if (!input) throw new Error("bad_request");
           const target = service.sendTarget(raw.conversationId);
+          // While its usage limit holds, the message waits in main as a queued one does, and takes no picker change.
+          if (service.scheduling(raw.conversationId)) {
+            if (raw.model !== undefined || raw.effort !== undefined || raw.fast !== undefined || raw.permissionMode !== undefined) throw new Error("bad_request");
+            const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home), store = home.attachments;
+            const ids = extras.ids.map(item => (item as { id: string }).id);
+            if (store && ids.length) store.markSent(extras.ids);
+            const scheduled = service.schedule(raw.conversationId, { ...input, ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(ids.length ? { ids } : {}) });
+            if (store && ids.length) store.consume(extras.ids);
+            return { scheduled } satisfies ScheduledSend;
+          }
           const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home, target), store = home.attachments;
           // The turn's model without an effort still names the model's default level (models.ts defaultEffort).
           const model = extras.model ?? target.model, effort = extras.model !== undefined ? extras.effort : target.effort;
@@ -225,6 +250,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           if (typeof raw.itemId !== "string" || raw.itemId.length > 64 || raw.fast !== undefined) throw new Error("bad_request");
           await service.sendNow(raw.conversationId, raw.itemId); return undefined;
         case "takeDraft": return service.takeDraft(raw.conversationId);
+        case "scheduled": return service.scheduled(raw.conversationId);
         case "delete": service.delete(raw.conversationId); return undefined;
         case "markSeen":
           if (typeof raw.seq !== "number" || !Number.isSafeInteger(raw.seq) || raw.seq < 0) throw new Error("bad_request");
@@ -243,6 +269,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
       if (code === "attachment_missing" && error instanceof Error && "missing" in error && Array.isArray(error.missing)) {
         return { error: code, missing: error.missing, ...("replaced" in error && Array.isArray(error.replaced) ? { replaced: error.replaced } : {}) };
       }
+      if (code === "rate_limited" && error instanceof Error && "resetsAt" in error && typeof error.resetsAt === "string") return { error: code, resetsAt: error.resetsAt };
       return { error: code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown" };
     }
   };

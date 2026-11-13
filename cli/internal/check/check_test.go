@@ -1,6 +1,9 @@
 package check
 
 import (
+	"encoding/json"
+	"html"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -69,6 +72,11 @@ func TestRules(t *testing.T) {
 		{"viewport_height_unit", func(i *Input) {
 			i.Canvases[0].Styles = canvas.ScanCSS(`a{height:calc(100dvh - 8px)}`, canvas.Stylesheet)
 		}},
+		{"invalid_prototype_size", func(i *Input) {
+			v := "390"
+			i.Canvases[0].Frames = []canvas.Frame{{ID: "a", Prototype: &v}}
+		}},
+		{"prototype_not_frame", func(i *Input) { i.Canvases[0].StrayPrototypes = []string{"390x844"} }},
 		{"svg_use_not_inline", func(i *Input) { i.Canvases[0].UseRefs = []string{"../assets/sprite.svg#icon"} }},
 		{"ambiguous_custom_url", func(i *Input) {
 			i.Canvases[0].Custom = canvas.CustomText{Uses: canvas.CustomUses(`.x{mask:var(--i)}`, canvas.Stylesheet), URLs: []canvas.CSSRef{{Value: "icons/i.svg", Custom: "--i"}}}
@@ -363,5 +371,87 @@ func TestViewportHeightUnitKeepsRawToken(t *testing.T) {
 	fs := codes(Run(in), "viewport_height_unit")
 	if len(fs) != 3 || fs[0].Value != "+5vh" || fs[1].Value != `100v\68` || fs[2].Value != "1e+2vh" || !strings.Contains(fs[2].Message, `"1e+2vh"`) {
 		t.Fatalf("%+v", fs)
+	}
+}
+
+type prototypeFixtures struct {
+	Values []struct {
+		Name, Value string
+		Valid       bool
+	}
+	Placements []struct {
+		Name, HTML string
+		Codes      []string
+	}
+}
+
+func readPrototypeFixtures(t *testing.T) prototypeFixtures {
+	t.Helper()
+	var fx prototypeFixtures
+	data, err := os.ReadFile("../../../schema/fixtures/prototype-mark/cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(data, &fx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.Values) == 0 || len(fx.Placements) == 0 {
+		t.Fatal("no fixtures")
+	}
+	return fx
+}
+
+func prototypeCodes(in Input) []string {
+	got := []string{}
+	for _, f := range Run(in) {
+		if f.Code == "invalid_prototype_size" || f.Code == "prototype_not_frame" {
+			got = append(got, f.Code)
+		}
+	}
+	return got
+}
+
+func TestPrototypeMarkValuesFixture(t *testing.T) {
+	for _, tt := range readPrototypeFixtures(t).Values {
+		t.Run(tt.Name, func(t *testing.T) {
+			in := base()
+			in.Canvases[0] = parse(".doan/canvases/a.html", metadata, `<div data-doan-frame="a" data-doan-prototype="`+html.EscapeString(tt.Value)+`"></div>`)
+			want := []string{"invalid_prototype_size"}
+			if tt.Valid {
+				want = []string{}
+			}
+			if got := prototypeCodes(in); !reflect.DeepEqual(got, want) {
+				t.Fatalf("%q: got %v want %v", tt.Value, got, want)
+			}
+		})
+	}
+}
+
+func TestPrototypeMarkPlacementsFixture(t *testing.T) {
+	for _, tt := range readPrototypeFixtures(t).Placements {
+		t.Run(tt.Name, func(t *testing.T) {
+			in := base()
+			in.Canvases[0] = parse(".doan/canvases/a.html", metadata, tt.HTML)
+			want := tt.Codes
+			if want == nil {
+				want = []string{}
+			}
+			if got := prototypeCodes(in); !reflect.DeepEqual(got, want) {
+				t.Fatalf("got %v want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestPrototypeFindingsNameTheMark(t *testing.T) {
+	in := base()
+	in.Canvases[0] = parse(".doan/canvases/a.html", metadata, `<div data-doan-frame="home" data-doan-prototype="390"></div><p data-doan-prototype="1x1"></p>`)
+	size := codes(Run(in), "invalid_prototype_size")
+	if len(size) != 1 || size[0].Frame != "home" || size[0].Value != "390" || size[0].Canvas != "one" || !strings.Contains(size[0].Message, `"390"`) {
+		t.Fatalf("%+v", size)
+	}
+	stray := codes(Run(in), "prototype_not_frame")
+	if len(stray) != 1 || stray[0].Value != "1x1" || stray[0].Severity != "error" || !strings.Contains(stray[0].Message, "data-doan-frame") {
+		t.Fatalf("%+v", stray)
 	}
 }

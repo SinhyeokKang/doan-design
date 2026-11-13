@@ -9,6 +9,7 @@ import { DockedComposer, QueueRows, SEND_NOW_REFUSED_TEXT, type DockedComposerPr
 import { draftKey, EMPTY_DRAFT, type DockedDraft, type DockedMode } from "./dockedRules";
 import { emptyComposer, HeroComposer } from "./HomeComposerView";
 import type { ModelPickerView } from "./homeComposer";
+import { localClock, queueButtonHint, queueStatusLine } from "./limitReset";
 
 // Hooks run as plain state so the composer's handlers can be called without a DOM (HomeComposerView.interaction).
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, effects: [] as (() => unknown)[] }));
@@ -465,7 +466,7 @@ test("a refused terminal session offers a new conversation, which keeps the draf
   const { store, render } = setup({ mode: RESUME, provider: "codex", fixed: true, refuse, onStartNew, onSend: async () => ({ error: "session_in_use" }) }, [[draftKey(RESUME), draft("Fix the totals")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();
-  expect(refuse).toHaveBeenCalledWith("session_in_use", "codex");
+  expect(refuse).toHaveBeenCalledWith("session_in_use", "codex", null);
   expect(has(render(), "Couldn’t continue the terminal session: it’s open elsewhere.")).toBe(true);
   (find(render(), item => item.children === "Start a new conversation").onClick as () => void)();
   expect(onStartNew).toHaveBeenCalledTimes(1);
@@ -1018,3 +1019,102 @@ test("a skill ending at an anchor chip sends the same names as its field highlig
   (button(tree, "Send").onClick as () => void)(); await flush();
   expect(send.mock.calls[0]?.[0]).toMatchObject({ text: "Use the project skill `deploy`.\n\n/deploy{{1}}" });
 });
+
+// usage-limit-resume.html queue-button / scheduled-rows / sending: while the conversation's Doan connection is at its
+// usage limit, Send is Queue though no turn runs, and a press hands the message to main's send, which queues it for
+// the reset. The rows that wait have a status line under the list; no Send now, so Control+Enter acts as Enter.
+const IN_3H = () => new Date(Date.now() + 3 * 3_600_000).toISOString();
+const scheduleLine = (tree: Record<string, unknown>[]) => find(tree, props => props.className === "queue-schedule");
+const lineText = (tree: Record<string, unknown>[]) => {
+  const region = scheduleLine(tree);
+  const text = elements(region.children as ReactNode).find(props => typeof props.children === "string")?.children;
+  return text ?? null;
+};
+
+test("at the usage limit, Send is Queue with the reset in its description, and a press goes to main's send", async () => {
+  const resetsAt = IN_3H();
+  const { send, queue, render, store } = setup({ limitResetsAt: resetsAt }, [["conversation:a", draft("Also shorten the caption")]]);
+  const hint = queueButtonHint(resetsAt, Date.now(), localClock())!;
+  const queueButton = button(render(), "Queue");
+  expect(queueButton.disabled).toBe(false);
+  expect(queueButton.title).toBeUndefined();
+  expect(find(render(), props => props.className === "sr-only" && props.children === hint.description).id).toBe(queueButton["aria-describedby"]);
+  // The tooltip names the reset; without the limit it is the plain label.
+  expect(render().some(props => props.children === hint.tip)).toBe(true);
+  (queueButton.onClick as () => void)();
+  await flush();
+  expect(send).toHaveBeenCalledWith({ text: "Also shorten the caption", anchors: [], attachments: [] });
+  expect(queue).not.toHaveBeenCalled();
+  expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
+});
+
+test("at the usage limit an empty field is a disabled Queue", () => {
+  const { render } = setup({ limitResetsAt: IN_3H() });
+  expect(button(render(), "Queue").disabled).toBe(true);
+  expect(() => button(render(), "Send")).toThrow("not found");
+});
+
+test("scheduled rows show the status line, Sending… once the reset passed, and the empty region otherwise", () => {
+  const resetsAt = IN_3H();
+  const { render, props } = setup({ queued: [{ id: "q1", text: "Also" }], scheduledFor: resetsAt });
+  expect(scheduleLine(render())).toMatchObject({ role: "status" });
+  expect(lineText(render())).toBe(queueStatusLine(resetsAt, Date.now(), localClock()).text);
+  props.scheduledFor = new Date(Date.now() - 1000).toISOString();
+  expect(lineText(render())).toBe("Sending…");
+  expect(elements(scheduleLine(render()).children as ReactNode).some(item => item.className === "doan-spinner")).toBe(true);
+  // After the reset passed the slot stays Queue, its tooltip the plain label.
+  expect(button(render(), "Queue")["aria-describedby"]).toBeUndefined();
+  expect(render().some(props => typeof props.children === "string" && props.children.startsWith("Queue — "))).toBe(false);
+  props.scheduledFor = null; props.queued = [];
+  expect(scheduleLine(render()).children).toBeFalsy();
+});
+
+test("with scheduled rows and no Send now, Control+Enter adds the draft as another row through main's send", async () => {
+  const { render, send, queue, props } = shortcutSetup({ turn: "idle", sendNow: false, scheduledFor: IN_3H(), limitResetsAt: IN_3H(), queued: [{ id: "q1", text: "First" }] }, "Second");
+  expect(field(render())["aria-keyshortcuts"]).toBeUndefined();
+  pressControl(render()); await flush();
+  expect(send).toHaveBeenCalledOnce();
+  expect(queue).not.toHaveBeenCalled();
+  expect(props.onSendQueuedNow).not.toHaveBeenCalled();
+});
+
+test("an earlier usage-limit refusal under the card goes once the limit state appears", async () => {
+  const onSend = vi.fn(async (): Promise<DockedOutcome> => ({ error: "rate_limited" }));
+  const { render, props } = setup({ onSend }, [["conversation:a", draft("Fix")]]);
+  (button(render(), "Send").onClick as () => void)();
+  await flush();
+  const text = "Claude Code reached a usage limit. Send again after it resets.";
+  expect(render().some(item => item.children === text)).toBe(true);
+  props.limitResetsAt = IN_3H();
+  expect(render().some(item => item.children === text)).toBe(false);
+});
+
+test("a start refused by the usage limit names the reset main gave", async () => {
+  const resetsAt = IN_3H();
+  const onSend = vi.fn(async (): Promise<DockedOutcome> => ({ error: "rate_limited", resetsAt }));
+  const mode: DockedMode = { kind: "new", root: "/w" };
+  const { render } = setup({ mode, onSend }, [[draftKey(mode), draft("Fix")]]);
+  (button(render(), "Send").onClick as () => void)();
+  await flush();
+  const hint = queueButtonHint(resetsAt, Date.now(), localClock())!;
+  const phrase = hint.description.replace(/^Sends when the limit resets /, "").replace(/\.$/, "");
+  expect(render().some(item => item.children === `Claude Code reached a usage limit. Send again after it resets ${phrase}.`)).toBe(true);
+});
+
+// The composer draws again when the reset passes, so the line turns to Sending… without another prop change.
+test("on a fake clock, the reset timer redraws the status line as Sending…", () => {
+  vi.useFakeTimers({ now: Date.parse("2026-11-13T05:00:00.000Z"), toFake: ["setTimeout", "clearTimeout", "Date"] });
+  try {
+    const resetsAt = "2026-11-13T06:00:00.000Z";
+    const { render } = setup({ queued: [{ id: "q1", text: "Also" }], scheduledFor: resetsAt });
+    expect(lineText(render())).toMatch(/^Sends when the limit resets /);
+    const before = [...hooks.states];
+    for (const effect of hooks.effects) effect();
+    vi.advanceTimersByTime(3_600_000);
+    expect(hooks.states).toEqual(before);
+    vi.advanceTimersByTime(1);
+    expect(hooks.states).not.toEqual(before);
+    expect(lineText(render())).toBe("Sending…");
+  } finally { vi.useRealTimers(); }
+});
+

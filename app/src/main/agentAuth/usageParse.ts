@@ -78,7 +78,9 @@ function durationLabel(mins: number | undefined, fallback: string): string {
 }
 
 // Codex app-server account/rateLimits/read. rateLimitReachedType belongs to the snapshot, not to one window, so it
-// marks the fullest window(s): the one the provider is holding the account on.
+// marks the fullest window(s): the one the provider is holding the account on. A full window (usedPercent 100 or more)
+// is limited too: a Codex 0.144.2 rollout refused the account ("You've hit your usage limit") while its snapshot held
+// used_percent 100 and rate_limit_reached_type null, so the reached type alone misses a held account.
 export function codexUsage(response: unknown, readAt: number): UsageReading {
   return reading(readAt, () => {
     const limits = obj(obj(response).rateLimits), windows: UsageWindow[] = [];
@@ -86,7 +88,8 @@ export function codexUsage(response: unknown, readAt: number): UsageReading {
       const entry = optional(limits[key], obj);
       if (!entry) continue;
       const resetsAt = optional(entry.resetsAt, num), mins = optional(entry.windowDurationMins, num);
-      windows.push(window(key, durationLabel(mins, fallback), mins, num(entry.usedPercent), resetsAt === undefined ? undefined : resetsAt * 1000));
+      const used = num(entry.usedPercent);
+      windows.push(window(key, durationLabel(mins, fallback), mins, used, resetsAt === undefined ? undefined : resetsAt * 1000, used >= 100));
     }
     const reached = limits.rateLimitReachedType;
     if (reached !== undefined && reached !== null) {

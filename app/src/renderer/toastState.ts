@@ -1,4 +1,6 @@
 export const TOAST_MS = 8000;
+// How long a floating surface that went (a toast, the GitHub star card) stays drawn for its exit motion: --time-fast.
+export const FLOATING_EXIT_MS = 120;
 
 export interface Toast {
   id: string;
@@ -26,6 +28,11 @@ export interface ToastState {
   // The toast the last event took away, so the caller can act on its ending
   // without re-deriving it.
   ended?: ToastEnd;
+  // The element's key: a new one for a toast shown while none is, kept by a toast that replaces another, so a
+  // replacement changes only the content and does not enter again.
+  slot: number;
+  // The toast that expired or was acted on, still drawn for its exit motion until `left`.
+  leaving: Toast | null;
 }
 
 export type ToastEvent =
@@ -38,9 +45,11 @@ export type ToastEvent =
   | { type: "dismiss"; id: string }
   // The dialog it was drawn in has gone; the toast is drawn in its usual place from now on. That is a new element, and
   // the old one unmounted without a mouseleave or blur, so the hover and focus pauses go; Toast re-reads them.
-  | { type: "leftDialog" };
+  | { type: "leftDialog" }
+  // The leaving toast's exit motion is over.
+  | { type: "left" };
 
-export const initialToastState: ToastState = { toast: null, remainingMs: 0, hovered: false, focused: false, hidden: false, modal: false };
+export const initialToastState: ToastState = { toast: null, remainingMs: 0, hovered: false, focused: false, hidden: false, modal: false, slot: 0, leaving: null };
 
 export function isToastPaused(state: ToastState): boolean {
   return state.hovered || state.focused || state.hidden || state.toast?.busy === true || (state.modal && !state.toast?.dialog);
@@ -55,7 +64,7 @@ export function toastState(state: ToastState, event: ToastEvent): ToastState {
       // The old element unmounts without a mouseleave or blur; the component
       // re-reports hover/focus if the new element is under the pointer. `hidden`
       // and `modal` belong to the app, so they stay.
-      return { ...base, toast: event.toast, remainingMs: TOAST_MS, hovered: false, focused: false, ...(state.toast ? { ended: { id: state.toast.id, reason: "replaced" as const } } : {}) };
+      return { ...base, toast: event.toast, remainingMs: TOAST_MS, hovered: false, focused: false, slot: state.toast ? state.slot : state.slot + 1, leaving: null, ...(state.toast ? { ended: { id: state.toast.id, reason: "replaced" as const } } : {}) };
     case "tick": {
       // The same object when nothing changes: useToast ticks every 100 ms for the life of App, and a new state each
       // time re-rendered all of App while no toast was shown.
@@ -90,10 +99,12 @@ export function toastState(state: ToastState, event: ToastEvent): ToastState {
       const { dialog: _dialog, ...toast } = state.toast;
       return { ...base, toast, hovered: false, focused: false };
     }
+    case "left":
+      return state.leaving ? { ...base, leaving: null } : base;
   }
 }
 
 // The toast's element unmounts, so no mouseleave or blur will come for it.
 function gone(state: Omit<ToastState, "ended">, toast: Toast, reason: ToastEnd["reason"]): ToastState {
-  return { ...state, toast: null, remainingMs: 0, hovered: false, focused: false, ended: { id: toast.id, reason } };
+  return { ...state, toast: null, remainingMs: 0, hovered: false, focused: false, leaving: toast, ended: { id: toast.id, reason } };
 }

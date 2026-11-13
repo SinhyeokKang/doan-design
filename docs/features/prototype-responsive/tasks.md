@@ -1,0 +1,52 @@
+# prototype-responsive — tasks
+
+spec.md '결정'(사용자 확인)을 따른다. 공유 포맷, CLI, app-socket이 바뀌지 않으므로 형식 버전 `v`나 앱이 꺼진 경우의 처리는 해당이 없다. 순서: PoC → 초안 → 순수 함수 → main·preload(I/O) → UI → 측정·확인 → 문서 승격. guide, CLI 출력, `doan check`가 바뀌지 않으므로 `/agent-eval`은 하지 않는다. 대화 패널 관련 확인은 `prototype-conversation`이 develop에 있을 때만 한다. 병합 순서는 이 feature → `prototype-cli-export` → `prototype-conversation`이다.
+
+- [x] 0. **형제 문서 맞추기**: 두 형제 feature의 문서와 초안이 이 feature의 헤더(세 무리, 이름의 둘째 줄), 창 맞춤(+ 64, 둘째 줄이면 + 108), Tab 순서, 포인터 포커스, 두 모드의 344 규칙, 캡처의 `sideColumn`에 맞춰졌다.
+  - 검증: `grep -rn -e "+ 122" -e "자기 폭을 지키고 가운데" -e PROTOTYPE_NARROW_BELOW docs/features/prototype-conversation docs/features/prototype-cli-export`가 0건(그 문서들이 남아 있을 때).
+- [ ] 1. **PoC: Fit 모드 축소와 포인터 포커스**(design.md 'PoC 의존'). `.scratch/prototype-responsive/`에서 격리한 앱(임시 userData·HOME·SHELL·DOAN_RUNTIME)으로 프로토타입 창의 run iframe에 `transform: scale`을 걸고 (a) iframe 문서의 `innerWidth`·`innerHeight`·`matchMedia`·`100vh`, (b) 클릭·hover·드래그·휠·텍스트 선택, (c) 글자 선명도, (d) 5000×5000 표시의 축소 렌더와 시간·메모리, (e) `capturePage` 결과, (f) 크기 변경 뒤 다시 불러오기 없이 입력 값·모달 유지, (g) iframe 입력에 포커스가 있을 때 바깥 버튼 `mousedown` `preventDefault()`로 클릭은 되고 포커스는 남는지, (h) 그 상태에서 포인터로 Reload를 누르면 새 run이 정상으로 뜨고, ready 뒤 바깥 문서가 새 iframe에 `focus()`를 부르면 키가 프레임 문서로 가는지를 확인한다. 결과(통과·실패, Electron 버전, 날짜)를 design.md 'PoC 의존' 아래에 적는다. 실패하면 design.md를 고치고 멈춰 사용자에게 해당 결정을 다시 묻는다.
+  - 검증: `node .scratch/prototype-responsive/probe.mjs`(스크린샷 포함).
+- [x] 2. **`/design-draft`**: 새 초안 `.doan/canvases/prototype-responsive.html`. 프레임: 헤더의 세 무리(왼쪽 Back, Forward, Reload; 가운데 이름; 오른쪽 모드 토글, Export 자리, 대화 버튼 자리), 모드 토글의 기본·hover·눌림·키보드 포커스·`disabled`·표시 크기 모름, tooltip "Reload prototype", "Fit 390 × 844 to the window", "Fit to the window", "Responsive", 640·520·406·360 창과 R 140·104·68 경계 양옆의 이름 줄(첫째·둘째), Fit 모드 1배·축소의 프레임 자리와 Fit 프레임 경계, Responsive 모드, 표시 폭 240 프레임의 두 모드, 대화 패널이 열린 두 모드, 로딩·실패·lost 화면과 헤더, 첫째 줄과 둘째 줄 캡슐에서 연 프레임 메뉴. `clarify`로 문구와 아이콘을 확정한다. 기존 `frame-prototype.html`과 형제 feature의 초안은 고치지 않는다. 사용자가 앱에서 초안을 확인한다.
+  - 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
+  - 커밋 경계: 초안.
+- [ ] 3. **`/tdd`**: design.md '순수 함수로 뺄 것' 1–7을 테스트로 고정하고 red를 확인한다.
+  - `fit.test.ts`: `prototypeViewportBox`(Responsive, Fit 1배·축소, 표시 0, 패널 0, 정수 출력; `prototypeIframeBox` 테스트는 새 함수의 경우로 옮긴다), `prototypeCaptureRect`(Responsive, Fit 1배·축소, 패널 0), `prototypeHeaderRows`(경계 양옆), `fitPrototypeWindow`의 둘째 줄(390×844 → R 68 406 × 908, R 104·140 406 × 952, 작업 영역에서 잘린 폭), 둘째 줄일 때의 `prototypeCaptureRect`(패널 y100).
+  - `windowState.test.ts`: `setMode`, 처음 값 Fit, 모드 유지(`start`의 `base`, `close`, `CLOSED`), 전환에 effect 없음, `run`의 `markHeight`(`start`, `report`), mark 0과 run null.
+  - `controller.test.ts`: 전환은 view만 보냄, 로딩 중 전환에서 gen과 timeout 그대로, 캡처에 모드와 표시 크기, 스냅숏에 상자가 실려 가고 다시 보낼 때도 같은 상자.
+  - `requests.test.ts`(`parseModeRequest`), `host.test.ts`(스냅숏 상자 유지, `RunFrame`의 표시 크기), `view.test.ts`(`modeTooltip`), `ipc.test.ts`(`PROTOTYPE_WINDOW_REQUESTS` 목록), `preload/prototype.test.ts`(채널 집합).
+  - 검증: `npm --prefix app test`가 새 테스트에서만 실패한다.
+- [ ] 4. **`/implement` 순수 함수**: 1–7과 `ipc.ts`의 타입(`PrototypeMode`, `PrototypeView.mode`, `run.markHeight`, `PrototypeSnapshot.box`, 채널, `PROTOTYPE_WINDOW_REQUESTS`). `PROTOTYPE_NARROW_BELOW`와 `prototypeIframeBox`를 지운다.
+  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
+  - 커밋 경계: 순수 함수와 테스트.
+- [ ] 5. **main·preload**: `controller.ts`의 `request` switch `prototype:mode` case와 캡처 인자·스냅숏 상자, `prototypeWindow.ts`의 `capture` 사각형(대화 패널이 develop에 있으면 대화 열 폭을 뺀다), `preload/prototype.ts`의 `setMode`.
+  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
+  - 커밋 경계: main·preload.
+- [ ] 6. **UI**: `moveBetweenTools`를 `app/src/renderer/toolbarKeys.ts`로 옮기고 `CanvasTools.tsx`가 그것을 쓴다(`CanvasTools.test.tsx` 그대로 green). 새 프리미티브 `.doan-toggle-group`을 `ds/controls.css`에 더하고 디자인 시스템 캔버스 `.doan/ds/toggle-group.html`과 DESIGN.md 'Design-system canvases' 줄을 더한다. `WindowShell` 헤더: Reload는 그대로, 오른쪽 무리 `.pw-right`(토글: `role="group"` "Viewport", 항목의 `aria-pressed`, 눌린 항목만 `tabIndex=0`, ←/→, 공유 Tooltip, `mousedown` `preventDefault()`, view 전 `disabled`; `exporter`가 없으면 Export 없음), 이름 캡슐의 줄(`prototypeHeaderRows`, `.pw`의 `name-row`, 캡슐은 DOM에서 옮기지 않음), `.pw-name`의 `right`와 520 경계 삭제. Reload의 `mousedown` `preventDefault()`와 포인터 Reload 전 프레임이나 페이지에 있던 포커스가 새 run이 ready일 때도 페이지에 있으면 새 iframe으로 옮기기. 헤더 tooltip의 `onEscapeKeyDown`이 열린 프레임 메뉴를 닫고 이름 트리거에 포커스를 둔다. `ContentPanel`의 폭·높이 측정과 iframe별 `prototypeViewportBox` 적용(`transform`), `.pw-panel`의 `overflow: clip`, `styles.css`.
+  - `WindowShell.test.tsx`·`PrototypeWindow.test.tsx`에 더할 것: 헤더 순서(Back, Forward, Reload, 이름, 토글, Export), Reload가 `api.reload(gen)`을 부르고 view 전 `disabled`이며 실패 장면의 Retry와 같은 호출을 함, ←/→가 토글 항목 사이만 오감, Tab 순서(Back, Forward, Reload, 이름 → 토글의 눌린 항목 → Export → 프레임 콘텐츠, 덮인 상태에서 헤더 → 장면 버튼), 포커스된 항목의 눌림이 바뀌거나 view가 처음 와도 같은 요소인지, 줄이 바뀌어도 캡슐이 같은 요소이고 포커스와 열린 메뉴가 남는지, 첫 view 전에도 줄 수가 창 폭으로 정해지는지, 포인터 누름(Reload, Fit, Responsive)이 포커스를 옮기지 않는지, 프레임이나 페이지에 포커스가 있을 때 포인터 Reload 뒤 새 run이 ready이면 새 iframe에 포커스가 가고 실패하면 장면 제목에 가는지, 그사이 포커스가 composer나 헤더로 옮겨 갔거나 누르기 전 다른 곳에 있었으면 그 자리에 남는지, tooltip이 열린 채 Esc가 tooltip만 닫는지와 메뉴가 함께 열렸으면 메뉴도 닫고 이름 트리거에 포커스가 가는지, overlay가 콘텐츠를 `inert`로 만들어도 헤더를 쓸 수 있는지, 전환이 iframe 요소를 바꾸지 않는지, 이전 run iframe이 자기 표시 크기를 지키는지, 정지 이미지가 실려 온 상자에 남는지.
+  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`.
+  - 커밋 경계: UI.
+- [ ] 7. **`/design-sync`**: 초안과 실제 앱의 헤더(Back x88, Forward x124, Reload x160, 오른쪽 무리 끝 16 안쪽과 간격 4, 토글 68 × 36과 항목 32 × 32, 트랙·눌린 항목·hover·disabled의 계산된 스타일, 이름 캡슐 x200부터 W − 24 − R까지, 둘째 줄의 캡슐 x16–W−16·y56과 헤더 100, 640·520·406·360 창과 경계 양옆의 줄; 헤더 위치는 초안의 R 68 타일과 비교하고, 다른 프레임은 토글 자체의 스타일과 콘텐츠 패널 안의 프레임 상자만 비교한다), Fit 모드 1배·축소의 프레임 자리를 맞추고 DESIGN.md 'Frame prototype'에 잰 값을 적는다.
+  - 검증: `node .scratch/design-sync/prototype-responsive/measure.mjs`. 통과 기준: 계산된 스타일이 초안과 차이 0(documented difference 제외).
+- [ ] 8. **`/runtime-test`**: 격리 앱에서 확인한다.
+  - 검증: `node .scratch/runtime-test/prototype-responsive/probe.mjs`의 결과와 스크린샷이 아래 기대값과 같다.
+  - 390×844를 Play하면 창 콘텐츠가 406 × 908(이 feature만 있을 때, R 68; 형제 feature 뒤에는 406 × 952, 작업 영역이 충분할 때)이고 모드가 Fit이다. 창 폭을 360으로 줄이면 `innerWidth` 390, `innerHeight` 844이고 보이는 프레임이 344 × 744로 가운데에 놓이며, 줄인 프레임의 버튼 클릭이 그 버튼에 닿는다.
+  - 작은 작업 영역에서 1440×900을 Fit 모드로 재생하면 `innerHeight`가 900이다.
+  - Responsive 모드에서 창을 640 → 480으로 줄이면 프레임 문서의 `innerWidth`가 624 → 464가 되고, 표시 폭 240 프레임도 패널을 채운다.
+  - 모드를 바꾸면 gen이 그대로이고 입력 값·열린 모달이 남는다. 프레임 입력에 포커스가 있을 때 포인터로 바꾸면 포커스가 그 입력에 남는다.
+  - 헤더의 Reload가 프레임을 다시 시작하고(입력 값·모달 초기화) 창 크기와 모드를 유지하며 Back이 생기지 않는다. 실패 화면에서 헤더 Reload가 Retry와 같이 다시 연다. 프레임 입력에 포커스가 있을 때 포인터로 Reload를 누르면 포커스가 Reload로 가지 않고, 새 프레임이 ready일 때 그 iframe에 포커스가 있어 키 입력이 프레임에 닿는다. 로딩 중 헤더 이름으로 포커스를 옮기면 ready 뒤에도 이름에 남는다.
+  - Reload, 드로어 선택, Back/Forward, 창 닫고 다시 Play 뒤에도 모드가 같다.
+  - Fit 모드 축소 중 캔버스 파일에서 표시를 지우면 정지 이미지가 줄인 프레임 자리에 남는다. duplicate와 frame-unavailable 상태에서도 헤더의 Reload와 토글을 쓸 수 있고 정지 이미지가 제자리에 있다.
+  - Fit 모드 축소 상태에서 프레임 아래쪽 컨트롤로 Tab한 뒤에도 프레임의 y가 같다.
+  - 창 폭을 끌어 경계(R 68에서 372/371)를 지나면 캡슐이 둘째 줄로 가고 패널이 44 내려가며, 캡슐에 있던 포커스와 열린 프레임 메뉴가 남는다. 둘째 줄 캡슐에서 연 메뉴가 헤더와 프레임 위에 그려진다(스크린샷).
+  - 키보드: Back, Forward, Reload, 이름 다음 Tab으로 토글의 눌린 항목에 오고, ←/→로 다른 항목에 가며, Enter/Space로 누르고, 바꾼 뒤 `document.activeElement`가 같은 버튼이다. tooltip이 열린 채 Esc를 누르면 tooltip만 닫히고, 프레임 메뉴가 함께 열려 있었으면 메뉴가 닫히고 포커스가 이름 트리거에 간다.
+  - (`prototype-conversation`이 develop에 있을 때만) 대화 패널을 열면 대화 열이 헤더 아래에서 창 아래 8까지 내려가고, Fit 모드 축소 중 캡처한 정지 이미지에 대화 열이 들어가지 않는다.
+  - 빌드된 앱에서 프로토타입 창이 빈 화면 없이 뜬다.
+- [ ] 9. `/code-review` → `/refactor` → `/verify`.
+  - 검증: `node .agents/skills/verify/scripts/verify.mjs`.
+- [ ] 10. **결론 승격**: 다음을 현재 규칙으로 고치고(근거는 커밋 메시지) `docs/features/prototype-responsive/`를 삭제한다. 문서마다 커밋한다.
+  - PRODUCT §5 item 2 'Prototype window': design.md '결정 영향'의 PRODUCT 목록대로. 'One window'의 크기 문장을 두 모드로, 'Header'의 첫 문장을 세 무리와 이름의 세 꼴로, Reload 문장("keeps the window's size and mode"), Tab 순서 문장(토글 더함)과 Esc 문장, 'Content'의 viewport 문장과 "clicks … reach the content", 'Header'에 모드 토글(이름과 tooltip, 기본 Fit, 기억, Tab 정지 하나와 ←/→, 포인터 포커스).
+  - ARCHITECTURE §3 'Prototype window': 'One window'(모드 상태가 닫힘을 넘어 남음), 'Rendering in place'(Fit 모드·Responsive 모드의 iframe 상자, 축소, iframe별 표시 크기), 'Timeout and kill'(캡처 영역, 스냅숏 상자), 'Fit'(창 맞춤만: `PROTOTYPE_NARROW_BELOW` 문장 삭제). §7 'Prototype window IPC'(모드 요청, 스냅숏 상자, preload API).
+  - DESIGN.md 'Frame prototype'(7번에서 이미 고침)의 'Window shell'·'Frame name'(오른쪽 무리, 이름 공간과 세 꼴의 경계)·'Run iframe' 줄, 'Behaviour measured'의 Tab 순서 문장, 'Not verified' 항목. DESIGN.md 'Design-system canvases'의 `toggle-group`(6번에서 더함). BACKLOG.md 'Prototype window … not for' 항목.
+  - 형제 feature가 이미 승격됐으면 PRODUCT·ARCHITECTURE에서 그쪽이 쓴 344 문장과 헤더 배치를 위 규칙으로 고친다.
+  - 검증: `git grep -n -e PROTOTYPE_NARROW_BELOW -e prototypeIframeBox -- app/src docs`가 0건이고 `test ! -e docs/features/prototype-responsive`가 성공한다. 그 뒤 `node .agents/skills/verify/scripts/verify.mjs`(문서만 바뀌면 대상 확인).
+  - 커밋 경계: 문서 승격.

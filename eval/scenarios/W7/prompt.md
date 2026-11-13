@@ -1,0 +1,1 @@
+In this repository, I want to try the "Sign up (phone)" frame in `.doan/canvases/onboarding.html` as if it were running on a phone: make that frame playable in its own window at a phone size. Keep the canvas, frame and element ids and the rest of the design unchanged. Make the canvas ready for review.

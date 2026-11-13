@@ -29,8 +29,11 @@ export interface MenuEnabled {
 // `overview`: the workspace shows a project's Overview, not a problem screen.
 // `pickerAvailable`: the composer takes input and the canvas is loaded, so the menu follows the same availability as
 // the canvas toolbar's Picker.
-export function menuState(screen: Screen, modalOpen: boolean, context: { wizardOpen: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean } = { wizardOpen: false }): MenuEnabled {
+// `prototypeFocused`: the prototype window has focus. Every item that acts on the main window's canvas, conversation,
+// view or navigation goes off, so it cannot change the main window behind it; the app-level items stay.
+export function menuState(screen: Screen, modalOpen: boolean, context: { wizardOpen: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; prototypeFocused?: boolean } = { wizardOpen: false }): MenuEnabled {
   const settings = !context.wizardOpen && !modalOpen && context.locked !== true;
+  if (context.prototypeFocused === true) return { settings, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, pickFromCanvas: false, toggleSidebar: false };
   const toggleSidebar = !context.wizardOpen && !modalOpen;
   if (modalOpen || context.locked === true) return { settings, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, pickFromCanvas: false, toggleSidebar };
   return { settings, toggleSidebar, addProject: screen !== "addProjects" || context.choose === true, home: screen !== "home", canvasView: screen === "canvas", quickOpen: true,

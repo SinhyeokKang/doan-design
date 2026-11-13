@@ -1,0 +1,144 @@
+{
+  "description": "Cases for the prototype mark data-doan-prototype=\"<width>x<height>\". Read by Go (canvas parser, doan check) and by TypeScript (renderer judgment, the prototype window's injected script). values: each raw attribute value with whether it is valid under ^[1-9][0-9]{0,4}x[1-9][0-9]{0,4}$ (anchored to the whole string, no trimming, no multiline) and, when valid, its parsed width and height. placements: a body fragment with the marks a parser must report outside <template>: frames lists every data-doan-frame element in document order with its raw mark (null when absent); stray lists the raw marks on elements without data-doan-frame, in document order; codes lists the doan check codes about marks the fragment must produce (invalid_prototype_size for an invalid mark on a frame, prototype_not_frame for any mark on a non-frame element; a non-frame mark is never also judged for its size). Frames and marks inside <template> do not count.",
+  "values": [
+    { "name": "phone", "value": "390x844", "valid": true, "width": 390, "height": 844 },
+    { "name": "smallest", "value": "1x1", "valid": true, "width": 1, "height": 1 },
+    { "name": "largest", "value": "99999x99999", "valid": true, "width": 99999, "height": 99999 },
+    { "name": "square", "value": "500x500", "valid": true, "width": 500, "height": 500 },
+    { "name": "width-only", "value": "390", "valid": false },
+    { "name": "zero-width", "value": "0x10", "valid": false },
+    { "name": "zero-height", "value": "390x0", "valid": false },
+    { "name": "leading-zero-width", "value": "010x10", "valid": false },
+    { "name": "leading-zero-height", "value": "390x010", "valid": false },
+    { "name": "uppercase-x", "value": "390X844", "valid": false },
+    { "name": "six-digit-width", "value": "100000x1", "valid": false },
+    { "name": "six-digit-height", "value": "1x100000", "valid": false },
+    { "name": "leading-space", "value": " 390x844", "valid": false },
+    { "name": "trailing-space", "value": "390x844 ", "valid": false },
+    { "name": "trailing-newline", "value": "390x844\n", "valid": false },
+    { "name": "spaces-around-x", "value": "390 x 844", "valid": false },
+    { "name": "empty", "value": "", "valid": false },
+    { "name": "missing-height", "value": "390x", "valid": false },
+    { "name": "missing-width", "value": "x844", "valid": false },
+    { "name": "third-number", "value": "390x844x1", "valid": false },
+    { "name": "multiplication-sign", "value": "390×844", "valid": false },
+    { "name": "negative", "value": "-390x844", "valid": false },
+    { "name": "decimal", "value": "390.5x844", "valid": false },
+    { "name": "fullwidth-digits", "value": "３９０x844", "valid": false },
+    { "name": "units", "value": "390pxx844px", "valid": false }
+  ],
+  "placements": [
+    {
+      "name": "marked-frame",
+      "html": "<div data-doan-frame=\"home\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "home", "prototype": "390x844" }],
+      "stray": [],
+      "codes": []
+    },
+    {
+      "name": "unmarked-frame",
+      "html": "<div data-doan-frame=\"home\"></div>",
+      "frames": [{ "id": "home", "prototype": null }],
+      "stray": [],
+      "codes": []
+    },
+    {
+      "name": "invalid-mark-on-frame",
+      "html": "<div data-doan-frame=\"home\" data-doan-prototype=\"390\"></div>",
+      "frames": [{ "id": "home", "prototype": "390" }],
+      "stray": [],
+      "codes": ["invalid_prototype_size"]
+    },
+    {
+      "name": "empty-mark-on-frame",
+      "html": "<div data-doan-frame=\"home\" data-doan-prototype></div>",
+      "frames": [{ "id": "home", "prototype": "" }],
+      "stray": [],
+      "codes": ["invalid_prototype_size"]
+    },
+    {
+      "name": "two-frames-one-marked",
+      "html": "<div data-doan-frame=\"a\"></div><div data-doan-frame=\"b\" data-doan-prototype=\"320x568\"></div>",
+      "frames": [{ "id": "a", "prototype": null }, { "id": "b", "prototype": "320x568" }],
+      "stray": [],
+      "codes": []
+    },
+    {
+      "name": "mark-on-non-frame",
+      "html": "<div data-doan-prototype=\"390x844\"></div>",
+      "frames": [],
+      "stray": ["390x844"],
+      "codes": ["prototype_not_frame"]
+    },
+    {
+      "name": "invalid-mark-on-non-frame",
+      "html": "<div data-doan-prototype=\"390\"></div>",
+      "frames": [],
+      "stray": ["390"],
+      "codes": ["prototype_not_frame"]
+    },
+    {
+      "name": "mark-on-child-of-frame",
+      "html": "<div data-doan-frame=\"home\"><section data-doan-prototype=\"390x844\"></section></div>",
+      "frames": [{ "id": "home", "prototype": null }],
+      "stray": ["390x844"],
+      "codes": ["prototype_not_frame"]
+    },
+    {
+      "name": "mark-on-svg-element",
+      "html": "<svg data-doan-prototype=\"390x844\"></svg>",
+      "frames": [],
+      "stray": ["390x844"],
+      "codes": ["prototype_not_frame"]
+    },
+    {
+      "name": "marked-frame-in-template",
+      "html": "<template><div data-doan-frame=\"home\" data-doan-prototype=\"390x844\"></div></template>",
+      "frames": [],
+      "stray": [],
+      "codes": []
+    },
+    {
+      "name": "invalid-mark-in-template",
+      "html": "<template><div data-doan-frame=\"home\" data-doan-prototype=\"390\"></div><p data-doan-prototype=\"390x844\"></p></template>",
+      "frames": [],
+      "stray": [],
+      "codes": []
+    },
+    {
+      "name": "frame-after-template",
+      "html": "<template><div data-doan-frame=\"home\" data-doan-prototype=\"390x844\"></div></template><div data-doan-frame=\"home\" data-doan-prototype=\"320x568\"></div>",
+      "frames": [{ "id": "home", "prototype": "320x568" }],
+      "stray": [],
+      "codes": []
+    },
+    {
+      "name": "empty-frame-id-with-mark",
+      "html": "<div data-doan-frame=\"\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "", "prototype": "390x844" }],
+      "stray": [],
+      "codes": []
+    },
+    {
+      "name": "duplicate-frame-ids-with-marks",
+      "html": "<div data-doan-frame=\"home\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"home\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "home", "prototype": "390x844" }, { "id": "home", "prototype": "390x844" }],
+      "stray": [],
+      "codes": []
+    },
+    {
+      "name": "repeated-attribute-first-wins",
+      "html": "<div data-doan-frame=\"home\" data-doan-prototype=\"390x844\" data-doan-prototype=\"1\"></div>",
+      "frames": [{ "id": "home", "prototype": "390x844" }],
+      "stray": [],
+      "codes": []
+    },
+    {
+      "name": "uppercase-attribute-name",
+      "html": "<div DATA-DOAN-FRAME=\"home\" DATA-DOAN-PROTOTYPE=\"390x844\"></div>",
+      "frames": [{ "id": "home", "prototype": "390x844" }],
+      "stray": [],
+      "codes": []
+    }
+  ]
+}

@@ -4,7 +4,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { DropdownMenu } from "radix-ui";
-import { AgentPicker, EffortPicker, IconTip, PermissionPicker, useOlderFold, presetBody, PresetsButton, SlashPresets } from "./ComposerParts";
+import { AgentPicker, EffortPicker, IconTip, PermissionPicker, useOlderFold, presetBody, PresetsButton, SendButton, SlashPresets } from "./ComposerParts";
 import type { ModelPickerView } from "./homeComposer";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { permissionPickerView } from "./permissionPicker";
@@ -475,4 +475,12 @@ test("a checked older group waits for settled placement before unfolding, then r
     shown.mockClear(); frames.splice(0).forEach(callback => callback(0));
     expect(shown).toHaveBeenCalledWith({ block: "nearest" });
   } finally { vi.unstubAllGlobals(); }
+});
+
+// At the usage limit the Queue button keeps its name; the reset time is its sr-only description, tied by
+// aria-describedby, never a native title (usage-limit-resume.html queue-button).
+test("Queue's reset description is an sr-only span inside the button, not a title", () => {
+  const out = renderToStaticMarkup(<TooltipProvider><SendButton action="queue" enabled sending={false} onSend={() => {}} description={"Sends when the limit resets at 3:00\u202fPM."} tip={"Queue — sends when the limit resets at 3:00\u202fPM"} /></TooltipProvider>);
+  expect(out).toMatch(/<button[^>]*aria-label="Queue"[^>]*aria-describedby="([^"]+)"[^>]*>.*<span id="\1" class="sr-only">Sends when the limit resets at 3:00\u202fPM\.<\/span><\/button>/);
+  expect(out).not.toContain("title=");
 });

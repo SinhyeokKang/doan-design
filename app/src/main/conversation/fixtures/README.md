@@ -160,3 +160,17 @@ when the configured default model was not on the ChatGPT account (that turn's
 rollout recorded `codex_error_info: "model_not_found"`).
 
 `skills-claude-2.1.284.json`, `skills-claude-2.1.318.json`, `skills-codex-0.158.0.json` and `skills-codex-0.166.0.json` (2026-11-07) are recorded project-skill listings: Claude Code's `initializationResult().commands` and Codex app-server `skills/list`, at the minimum and the then-current version of each. The person's own rows were replaced by generic rows of the same shape; `skills.test.ts` reads them.
+
+`claude-rate-limit-transcripts.json` (2026-11-13, usage-limit-resume) holds three usage-limit refusals from Claude Code
+session transcripts on one Mac (2.1.296, 2.1.319, 2.1.323): the person's message right before each (content
+replaced by `<removed>`; no assistant line came between them) and the synthetic assistant message Claude Code wrote for
+the limit (`error: "rate_limit"`, `isApiErrorMessage`, model `<synthetic>`, its text as recorded). Of each line only
+the type, timestamps, the error fields, the `rate_limit_info` status, reset (seconds) and type, and the message's
+model, role, stop reason and content are kept; ids, paths, the session and every other field were dropped. The
+transcript is not the SDK stream: a test that feeds the assistant line through `normalizeClaude` constructs the
+`result` frame that ends the turn.
+
+`codex-rate-limits-session.json` (2026-11-13) is one `token_count` record of a Codex 0.144.2 session rollout
+(`~/.codex/sessions`) with `used_percent: 100.0`; only its timestamp and `rate_limits` are kept. The rollout uses
+snake_case; `account/rateLimits/read` answers the same fields in camelCase (`agentAuth/fixtures/codex-usage.json`), and
+`rate_limit_reached_type` was null although the window was full.
