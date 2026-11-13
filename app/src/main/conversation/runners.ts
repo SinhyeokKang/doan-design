@@ -128,6 +128,8 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   const dispatcher: CodexDispatcher = new CodexDispatcher(write, event => {
     emit(event);
     if (event.type === "turn.done") void input.usageAtTurnEnd?.(() => dispatcher.query("account/rateLimits/read", undefined)).catch(() => {});
+    // A turn the usage limit stopped reads it too, for the reset the service schedules its message for.
+    else if (event.type === "turn.failed" && event.code === "rate_limited") void input.usageAtTurnEnd?.(() => dispatcher.query("account/rateLimits/read", undefined), true).catch(() => {});
   }, () => failProtocol(), id => input.steerConsumed?.(id), stage => input.stage?.(stage));
   const failProtocol = () => {
     if (protocolFailed) return; protocolFailed = true;
@@ -470,8 +472,10 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             // Reported with the turn's end, after its terminal event, so the service knows the turn as done.
             if (!after && doneTurn && shown.length && !backgroundShown) { backgroundShown = true; input.backgroundChanged?.(true); }
             // The CLI exits once its input closes, so a done turn's usage is read on this Query first (ARCHITECTURE §7 'Agent usage').
-            if (input.usageAtTurnEnd && doneTurn && !after) {
-              await input.usageAtTurnEnd(() => timeout(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }), TURN_USAGE_MS)).catch(() => {});
+            // A turn the usage limit stopped is read as well: the service schedules its message for the reset it reports.
+            const limitTurn = !after && result.events.some(event => event.type === "turn.failed" && event.code === "rate_limited");
+            if (input.usageAtTurnEnd && (doneTurn || limitTurn) && !after) {
+              await input.usageAtTurnEnd(() => timeout(q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }), TURN_USAGE_MS), limitTurn ? true : undefined).catch(() => {});
             }
             closeInput();
             // The next send asked during the usage read: the input is closed now, so the decision is made.

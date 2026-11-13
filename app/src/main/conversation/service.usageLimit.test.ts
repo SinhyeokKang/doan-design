@@ -94,10 +94,12 @@ describe("a send while the limit holds", () => {
   });
   it("lets the timer go when the last item is removed, and sends nothing", async () => {
     const h = fixture(); h.limit(RESET); const id = await h.start(); await h.limited(id, true);
-    const { itemId } = h.service.schedule(id, { text: "never", anchors: [] });
+    // One timer drops the limit once its reset passed; the schedule adds its own.
     expect(h.clock.pending()).toBe(1);
+    const { itemId } = h.service.schedule(id, { text: "never", anchors: [] });
+    expect(h.clock.pending()).toBe(2);
     h.service.removeQueued(id, itemId);
-    expect(h.clock.pending()).toBe(0);
+    expect(h.clock.pending()).toBe(1);
     expect(h.summary(id)).not.toHaveProperty("scheduledAt");
     h.clock.advance(2 * HOUR); await tick();
     expect(h.texts(id)).toEqual(["hello"]);
@@ -180,13 +182,14 @@ describe("a turn the limit stopped before the agent did anything", () => {
     h.clock.advance(HOUR + MIN);
     await vi.waitFor(() => expect(h.texts(id)).toEqual(["hello", "hello\n\nqueued behind it"]));
   });
-  it("fails as before when the agent did something, and the failure notice goes out then", async () => {
+  it("fails as before when the agent did something, and the failure notice goes out then, its queue still waiting", async () => {
     const h = fixture(); h.limit(RESET); const id = await h.start();
     h.service.queue(id, { text: "queued", anchors: [] });
     await h.limited(id, true);
-    expect(h.service.scheduled(id)).toEqual([]);
-    expect(h.summary(id)).toMatchObject({ limitResetsAt: iso(RESET), queued: 0, returnedDraft: true });
-    expect(h.drafts.returned(id)).toMatchObject({ text: "queued", reason: "turn_failed" });
+    // The message queued behind the turn still waits for the reset; the turn's own does not go again.
+    expect(h.service.scheduled(id).map(item => item.text)).toEqual(["queued"]);
+    expect(h.summary(id)).toMatchObject({ limitResetsAt: iso(RESET), scheduledAt: iso(RESET + MIN), queued: 1 });
+    expect(h.drafts.returned(id)).toBeUndefined();
     expect(failedNotices(h)).toHaveLength(1);
   });
   it("fails as before when the reset is unknown", async () => {
@@ -269,7 +272,8 @@ describe("clearing a schedule", () => {
     await h.service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "replacing", anchors: [] });
     expect(h.store.list().find(m => m.conversationId === id)?.state).toBe("archived");
     expect(h.drafts.returned(id)).toMatchObject({ text: "waiting" });
-    expect(h.clock.pending()).toBe(0);
+    // Only the limit's own timer is left.
+    expect(h.clock.pending()).toBe(1);
   });
   it("hands it back as a draft at once on a sign-out or an account replacement, and forgets the limit", async () => {
     for (const next of [undefined, "c2"]) {
@@ -286,7 +290,7 @@ describe("clearing a schedule", () => {
     h.service.delete(id);
     expect(h.drafts.queued(id)).toEqual([]);
     expect(h.drafts.returned(id)).toBeUndefined();
-    expect(h.clock.pending()).toBe(0);
+    expect(h.clock.pending()).toBe(1);
   });
   it("comes back as a draft after a restart and never goes out by itself", async () => {
     const h = fixture(); h.limit(RESET); const id = await scheduled(h);
@@ -313,7 +317,7 @@ describe("waking from sleep", () => {
     await vi.waitFor(() => expect(h.texts(a).at(-1)).toBe("due"));
     expect(h.texts(b).at(-1)).toBe("hello");
     expect(h.summary(b)).toMatchObject({ scheduledAt: iso(LATER + MIN) });
-    h.clock.advance(3 * HOUR);
+    h.clock.advance(3 * HOUR + MIN);
     await vi.waitFor(() => expect(h.texts(b).at(-1)).toBe("later"));
   });
 });

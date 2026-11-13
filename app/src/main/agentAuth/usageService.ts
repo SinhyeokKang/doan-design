@@ -6,7 +6,7 @@ import { usageNotSupported } from "./usageParse";
 import { parseUsage, type UsageProvider } from "./usageRead";
 import { shouldRead } from "./usageSchedule";
 import { UsageStore } from "./usageStore";
-import type { UsageBlock, UsageEntry, UsageReading, UsageTrigger } from "./usageTypes";
+import type { UsageBlock, UsageEntry, UsageReading, UsageTrigger, UsageWindow } from "./usageTypes";
 
 // Antigravity has no usage read Doan can use (PoC) and is never shown.
 export const USAGE_PROVIDERS = PROVIDERS.filter((provider): provider is UsageProvider => provider !== "antigravity");
@@ -88,9 +88,10 @@ export class UsageService {
   }
 
   // A Doan-account turn's end: read on the run's own connection (runners.ts usageAtTurnEnd), no lease and no process.
-  async turnEnd(provider: Provider, connectionId: string, read: () => Promise<unknown>): Promise<void> {
+  // limit: the usage limit stopped the turn (not only a done one), so the read is not held back by the 5-minute rule.
+  async turnEnd(provider: Provider, connectionId: string, read: () => Promise<unknown>, limit?: true): Promise<void> {
     if (this.closed || !shown(provider) || this.connections.get(provider) !== connectionId) return;
-    if (!shouldRead(this.scheduled(provider), this.now(), { kind: "turnEnd", owner: "doan" }, this.options.visible())) return;
+    if (!shouldRead(this.scheduled(provider), this.now(), { kind: "turnEnd", owner: "doan", ...(limit ? { limit } : {}) }, this.options.visible())) return;
     this.store.begin(provider, connectionId); this.publish();
     const done = (async () => {
       let reading: UsageReading;
@@ -100,6 +101,15 @@ export class UsageService {
     })();
     this.track(done);
     await done;
+  }
+
+  // The windows the connection's latest read reported, once the reads running now ended (a turn the usage limit stopped
+  // starts one at its end); none for another connection or a read that failed (conversation/service.ts limitEnded).
+  async limitWindows(provider: Provider, connectionId: string): Promise<UsageWindow[]> {
+    if (!shown(provider)) return [];
+    await this.settled();
+    const reading = this.connections.get(provider) === connectionId ? this.store.get(provider)?.reading : undefined;
+    return reading?.status === "ok" ? reading.windows : [];
   }
 
   // A sign-out or replacement (AuthManager stopRuns): the provider's read stops, and this resolves once its lease is released.
@@ -216,5 +226,5 @@ export class UsageService {
 export function withTurnUsage(prepared: Prepared, usage: Pick<UsageService, "turnEnd">): Prepared {
   const owner = prepared.owner;
   if (!owner || (prepared.runtime !== "claude" && prepared.runtime !== "codex")) return prepared;
-  return { ...prepared, usageAtTurnEnd: read => usage.turnEnd(owner.provider, owner.connectionId, read) };
+  return { ...prepared, usageAtTurnEnd: (read, limit) => limit ? usage.turnEnd(owner.provider, owner.connectionId, read, limit) : usage.turnEnd(owner.provider, owner.connectionId, read) };
 }

@@ -8,7 +8,8 @@ export const READ_INTERVAL_MS = 5 * 60_000;
 export function shouldRead(entry: Pick<UsageEntry, "reading" | "inFlight" | "blocked">, now: number, trigger: UsageTrigger, visible: boolean): boolean {
   if (!visible || entry.blocked !== undefined || entry.inFlight) return false;
   if (trigger.kind === "turnEnd" && trigger.owner !== "doan") return false;
-  if (trigger.kind === "refresh") return true;
+  // A turn the limit stopped needs the reset now: an earlier read may predate the limit.
+  if (trigger.kind === "refresh" || (trigger.kind === "turnEnd" && trigger.limit)) return true;
   const { reading } = entry;
   if (!reading) return true;
   if (trigger.kind === "open") {

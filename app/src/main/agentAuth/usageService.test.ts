@@ -350,6 +350,23 @@ describe("UsageService visibility", () => {
 });
 
 describe("UsageService turn ends", () => {
+  // conversation/service.ts schedules a stopped turn's message for the reset this read reports.
+  it("reads again after a turn the usage limit stopped, within five minutes, and hands its windows over", async () => {
+    const h = setup();
+    h.auth.states.set("codex", connected("codex", "x1"));
+    const usage = h.make();
+    const limited = { rateLimits: { primary: { usedPercent: 100, windowDurationMins: 300, resetsAt: 1_800 }, rateLimitReachedType: "primary" } };
+    const read = vi.fn(async () => codexFixture);
+    await usage.turnEnd("codex", "x1", read);
+    h.advance(60_000);
+    const reading = usage.turnEnd("codex", "x1", async () => limited, true);
+    // Asked while the read runs, it answers once that read ended.
+    const windows = usage.limitWindows("codex", "x1");
+    await reading;
+    expect(await windows).toEqual([{ id: "primary", label: "5-hour", periodMins: 300, usedPercent: 100, resetsAt: 1_800_000, limited: true }]);
+    expect(await usage.limitWindows("codex", "other")).toEqual([]);
+    expect(await usage.limitWindows("antigravity", "x1")).toEqual([]);
+  });
   it("reads through the run's open connection without a lease or a new process, under the 5-minute rule", async () => {
     const h = setup();
     h.auth.states.set("claude", connected("claude", "c1"));
@@ -398,6 +415,8 @@ describe("UsageService turn ends", () => {
     const read = async () => codexFixture;
     await hooked.usageAtTurnEnd!(read);
     expect(usage.turnEnd).toHaveBeenCalledExactlyOnceWith("codex", "conn-codex", read);
+    await hooked.usageAtTurnEnd!(read, true);
+    expect(usage.turnEnd).toHaveBeenLastCalledWith("codex", "conn-codex", read, true);
   });
 });
 

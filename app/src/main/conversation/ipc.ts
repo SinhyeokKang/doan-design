@@ -108,6 +108,14 @@ export function queueFiles(store: AttachmentStore): QueueFiles {
     consume: ids => store.consume(ids.map(id => ({ id }))),
     discard: ids => store.discard(ids),
     release: ids => { store.release({ ids }); },
+    // As Edit and resend's attachments:fromPaths, then held as a queued message's (consumed at once).
+    reissue: records => {
+      const results = store.fromPaths({ paths: records.map(record => record.path) });
+      const ids = (results ?? []).flatMap(result => result.ok ? [result.attachment.id] : []);
+      if (!results || ids.length !== records.length) { for (const id of ids) store.remove({ id }); return null; }
+      store.consume(ids.map(id => ({ id })));
+      return ids;
+    },
   };
 }
 export function conversationHandler(service: ConversationService, prepare: Prepare, projects: () => Project[], home: { models?: ModelCatalog; skills?: SkillCatalog; attachments?: AttachmentStore } = {}) {
@@ -188,6 +196,16 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         case "send": {
           const input = message(raw); if (!input) throw new Error("bad_request");
           const target = service.sendTarget(raw.conversationId);
+          // While its usage limit holds, the message waits in main as a queued one does, and takes no picker change.
+          if (service.scheduling(raw.conversationId)) {
+            if (raw.model !== undefined || raw.effort !== undefined || raw.fast !== undefined || raw.permissionMode !== undefined) throw new Error("bad_request");
+            const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home), store = home.attachments;
+            const ids = extras.ids.map(item => (item as { id: string }).id);
+            if (store && ids.length) store.markSent(extras.ids);
+            const scheduled = service.schedule(raw.conversationId, { ...input, ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(ids.length ? { ids } : {}) });
+            if (store && ids.length) store.consume(extras.ids);
+            return { scheduled } satisfies ScheduledSend;
+          }
           const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home, target), store = home.attachments;
           // The turn's model without an effort still names the model's default level (models.ts defaultEffort).
           const model = extras.model ?? target.model, effort = extras.model !== undefined ? extras.effort : target.effort;
@@ -228,6 +246,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           if (typeof raw.itemId !== "string" || raw.itemId.length > 64 || raw.fast !== undefined) throw new Error("bad_request");
           await service.sendNow(raw.conversationId, raw.itemId); return undefined;
         case "takeDraft": return service.takeDraft(raw.conversationId);
+        case "scheduled": return service.scheduled(raw.conversationId);
         case "delete": service.delete(raw.conversationId); return undefined;
         case "markSeen":
           if (typeof raw.seq !== "number" || !Number.isSafeInteger(raw.seq) || raw.seq < 0) throw new Error("bad_request");
@@ -246,6 +265,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
       if (code === "attachment_missing" && error instanceof Error && "missing" in error && Array.isArray(error.missing)) {
         return { error: code, missing: error.missing, ...("replaced" in error && Array.isArray(error.replaced) ? { replaced: error.replaced } : {}) };
       }
+      if (code === "rate_limited" && error instanceof Error && "resetsAt" in error && typeof error.resetsAt === "string") return { error: code, resetsAt: error.resetsAt };
       return { error: code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown" };
     }
   };

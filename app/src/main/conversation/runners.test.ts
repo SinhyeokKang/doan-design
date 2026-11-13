@@ -1404,7 +1404,13 @@ const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
 require('node:readline').createInterface({input:process.stdin}).on('line', line => {
  const r = JSON.parse(line); fs.appendFileSync(log, line + '\\n');
  if(r.type==='control_request' && !(r.request.subtype==='get_usage' && process.env.FAKE_NO_USAGE)) send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:r.request.subtype==='get_usage'?${JSON.stringify(usageReply)}:{commands:[],models:[],account:{}}}});
- if(r.type==='user') setTimeout(() => {
+ if(r.type==='user' && process.env.FAKE_LIMIT) setTimeout(() => {
+  // As Claude Code 2.1.319 refuses a turn on the usage limit (fixtures/claude-rate-limit-transcripts.json).
+  const text = "You've hit your 5-hour limit · resets 10:10pm (Asia/Seoul)";
+  send({type:'assistant',parent_tool_use_id:null,error:'rate_limit',message:{id:'m',model:'<synthetic>',role:'assistant',content:[{type:'text',text}]}});
+  send({type:'result',subtype:'success',is_error:true,result:text,user_message_uuids:[r.uuid],session_id:r.session_id});
+ }, 0);
+ else if(r.type==='user') setTimeout(() => {
   send({type:'assistant',parent_tool_use_id:null,message:{id:'m',role:'assistant',content:[{type:'text',text:process.env.FAKE_FAIL?'':'hello'}]}});
   send(process.env.FAKE_FAIL ? {type:'result',subtype:'error_during_execution',is_error:true,errors:['failed'],session_id:r.session_id} : {type:'result',subtype:'success',is_error:false,result:'hello',user_message_uuids:[r.uuid],session_id:r.session_id});
  }, Number(process.env.FAKE_RESULT_MS || 0));
@@ -1428,6 +1434,20 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
       expect(lines.filter(line => "start" in line)).toHaveLength(1);
       expect(lines.filter(line => line.type === "control_request").map(line => (line.request as { subtype: string }).subtype)).toEqual(["initialize", "get_usage"]);
       expect((lines.find(line => (line.request as { subtype?: string } | undefined)?.subtype === "get_usage")!.request as Record<string, unknown>).skip_behaviors).toBe(true);
+    } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
+  }, 15000);
+  // The service schedules the stopped message for the reset this read reports (service.ts limitEnded).
+  it("asks for usage after a turn the usage limit stopped too, saying so", async () => {
+    const root = mkdtempSync(join(tmpdir(), "doan-usage-claude-")), command = fakeClaude(root);
+    const calls: (true | undefined)[] = [], replies: unknown[] = [];
+    const usageAtTurnEnd = vi.fn(async (read: () => Promise<unknown>, limit?: true) => { calls.push(limit); replies.push(await read()); });
+    const events: EventPayload[] = []; const exited = vi.fn();
+    const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, FAKE_LIMIT: "1" }, usageAtTurnEnd }, e => events.push(e), exited, () => {});
+    try {
+      await runner.send("hello", "local-turn");
+      expect(events).toContainEqual(expect.objectContaining({ type: "turn.failed", code: "rate_limited" }));
+      expect(calls).toEqual([true]);
+      expect(replies).toEqual([usageReply]);
     } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
   }, 15000);
   it("sends no usage request when the hook declines to read, and none after a failed turn", async () => {
@@ -1505,6 +1525,30 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
       expect(seen(root).filter(line => "start" in line)).toHaveLength(1);
       expect(events.filter(e => e.type === "turn.done")).toHaveLength(2);
       expect(events.some(e => e.type === "turn.failed")).toBe(false);
+    } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
+  }, 15000);
+  it("reads Codex usage after a turn the usage limit stopped, and not after another failure", async () => {
+    const root = mkdtempSync(join(tmpdir(), "doan-usage-codex-")), command = join(root, "codex");
+    writeFileSync(command, `#!/usr/bin/env node
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+let turns = 0;
+require('node:readline').createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line);
+ if(r.method==='initialize') send({id:r.id,result:{}});
+ if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
+ if(r.method==='account/rateLimits/read') send({id:r.id,result:{rateLimits:{primary:{usedPercent:100,windowDurationMins:300,resetsAt:1794057000},rateLimitReachedType:'primary'}}});
+ if(r.method==='turn/start') { const id = 'native-' + (++turns); send({id:r.id,result:{turn:{id}}}); send({method:'turn/completed',params:{threadId:'session',turn:{id,status:'failed',error:{message:turns===1?'Rate limit reached':'Something else broke'}}}}); }
+});
+`, { mode: 0o700 });
+    const calls: (true | undefined)[] = [];
+    const usageAtTurnEnd = vi.fn(async (read: () => Promise<unknown>, limit?: true) => { await read(); calls.push(limit); });
+    const events: EventPayload[] = []; const exited = vi.fn();
+    const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: process.env, usageAtTurnEnd }, e => events.push(e), exited, () => {});
+    try {
+      await runner.send("one", "turn-1"); await vi.waitFor(() => expect(calls).toEqual([true]));
+      await runner.send("two", "turn-2"); await vi.waitFor(() => expect(events.filter(e => e.type === "turn.failed")).toHaveLength(2));
+      expect(events.filter(e => e.type === "turn.failed").map(e => e.type === "turn.failed" && e.code)).toEqual(["rate_limited", "unknown"]);
+      expect(calls).toEqual([true]);
     } finally { await runner.close(); await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce()); rmSync(root, { recursive: true, force: true }); }
   }, 15000);
 });

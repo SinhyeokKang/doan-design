@@ -834,7 +834,8 @@ describe("usage-limit schedule channels", () => {
   function limited(dir: string) {
     const store = new ConversationStore(dir);
     const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "acct", workspaceId: null, profile: "claude" };
-    const open = vi.fn<OpenRunner>(async input => ({ sessionId: input.sessionId ?? "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    let session = 0;
+    const open = vi.fn<OpenRunner>(async input => ({ sessionId: input.sessionId ?? `s${++session}`, send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
     const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
     const records = [{ name: "a.png", size: 3, kind: "image" as const, path: "/Users/me/a.png" }];
     const attachments = { resolve: vi.fn(() => ({ ok: true, records })), markSent: vi.fn(), consume: vi.fn() };
@@ -868,7 +869,8 @@ describe("usage-limit schedule channels", () => {
       expect(h.attachments.consume).toHaveBeenLastCalledWith([{ id: "a" }]);
       expect(h.service.list("/repo")[0]).toMatchObject({ scheduledAt: at, queued: 1, working: false });
       expect(await h.handle(true, "scheduled", { conversationId: id })).toEqual([{ itemId: reply.scheduled.itemId, text: "after the reset", anchors: [], attachments: h.records }]);
-      expect(await h.handle(true, "scheduled", { conversationId: "missing" })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "scheduled", { conversationId: "missing" })).toEqual({ error: "not_found" });
+      expect(await h.handle(true, "scheduled", { conversationId: 1 })).toEqual({ error: "bad_request" });
       expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: reply.scheduled.itemId })).toBeUndefined();
       expect(await h.handle(true, "scheduled", { conversationId: id })).toEqual([]);
     } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -890,7 +892,7 @@ describe("usage-limit schedule channels", () => {
       const h = limited(dir); await stopped(h);
       expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "again" })).toEqual({ error: "rate_limited", resetsAt: new Date(RESET).toISOString() });
       // Another provider's connection holds no limit.
-      expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "codex", text: "elsewhere" })).toEqual({ error: "project_busy" });
+      expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "codex", text: "elsewhere" })).toEqual({ conversationId: expect.any(String) });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

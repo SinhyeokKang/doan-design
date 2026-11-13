@@ -115,11 +115,12 @@ export class DraftStore {
   queued(id: string): readonly QueuedItem[] { return (this.file.queued[id] ?? []).filter(item => !item.sending); }
   // Refused (queue_limit) before anything changes when the conversation's returned draft, queue and this item would not
   // fit one message, or the file would pass what the reader reads; throws when the queue cannot be saved.
-  add(id: string, item: QueuedItem): void {
+  // first: ahead of the waiting ones (a turn's own message the usage limit stopped, which goes out again first).
+  add(id: string, item: QueuedItem, first = false): void {
     if (this.broken || id in this.unread.queued || id in this.unread.returned) throw new Error("Conversation drafts are damaged");
     const before = this.file.queued[id], earlier = this.file.returned[id];
     if (!fits(joined([...(earlier ? [earlier] : []), ...before ?? [], item]))) throw new Error("queue_limit");
-    this.file.queued[id] = [...before ?? [], item];
+    this.file.queued[id] = first ? [item, ...before ?? []] : [...before ?? [], item];
     try {
       if (this.bytes() > this.fileBytes) throw new Error("queue_limit");
       this.write();

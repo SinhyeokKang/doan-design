@@ -136,6 +136,7 @@ vi.mock("electron", () => ({
   nativeTheme: mocks.nativeTheme,
   autoUpdater: mocks.nativeUpdater,
   systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
+  powerMonitor: { on: vi.fn() },
 }));
 vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return mocks.conversations; } finishDeletions() {} } }));
 // The fake store makes no conversations directory, so the queue's drafts stay in memory.
