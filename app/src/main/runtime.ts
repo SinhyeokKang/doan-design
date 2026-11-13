@@ -4,11 +4,10 @@ import { chmod, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { HandoffErrorCode, HandoffRequest, HandoffResponse, OpenRequest, OpenResponse, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
-import { validateHandoffRequest, validateOpenRequest, validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
+import type { HandoffErrorCode, HandoffRequest, HandoffResponse, OpenRequest, OpenResponse, PrototypeRequest, PrototypeResponse, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
+import { validateHandoffRequest, validateOpenRequest, validatePrototypeRequest, validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
 import { autoRegisterRoot } from "./autoFolders";
 import type { ConversationUpdate } from "./conversationWork";
-import type { CliPlayResponse } from "./prototype/cliPlay";
 import type { FolderState } from "./folderState";
 
 // Electron-free on purpose, like shell.ts: index.ts supplies the open projects
@@ -41,7 +40,7 @@ export interface RuntimeState extends ActiveState {
   handoff(request: HandoffRequest): HandoffRefusalCode | null;
   // `doan open --prototype` (app-socket v6) once its schema, token and registered root passed. Answers at once: the
   // play starts, or the window comes forward, before the reply.
-  playPrototype(request: unknown): CliPlayResponse;
+  playPrototype(request: PrototypeRequest): PrototypeResponse;
   // Auto-registration of a saved repository's worktree on a v3 start (ARCHITECTURE §4 'Auto-registration'): the registered roots,
   // `doan ls --json --repo <root>` (never killed early, so a late registration still lands), and the registration,
   // which must make `isOpen(root)` true before it returns so the start's work applies.
@@ -129,6 +128,10 @@ function handoffError(code: HandoffErrorCode, message = HANDOFF_MESSAGES[code]):
   return { v: 5, ok: false, error: { code, message } };
 }
 
+function prototypeError(code: "bad_request" | "bad_token" | "project_not_open", message: string): PrototypeResponse {
+  return { v: 6, ok: false, error: { code, message } };
+}
+
 function workError(code: "bad_request" | "bad_token" | "project_not_open", message: string): WorkResponse {
   return { v: 3, ok: false, error: { code, message } };
 }
@@ -181,10 +184,17 @@ async function workAfterRegistration(state: RuntimeState, request: WorkRequest):
 }
 
 // Unknown versions keep the v1 refusal. No version exposes state before its token matched.
-type Answer = SocketResponse | OnboardingResponse | WorkResponse | OpenResponse | HandoffResponse;
+type Answer = SocketResponse | OnboardingResponse | WorkResponse | OpenResponse | HandoffResponse | PrototypeResponse;
 export async function answerLine(line: string, token: string, state: RuntimeState): Promise<Answer> {
   let value: unknown;
   try { value = JSON.parse(line); } catch { value = null; }
+  if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 6) {
+    if (!validatePrototypeRequest(value)) return prototypeError("bad_request", "The request is not an app-socket v6 request.");
+    if (!tokenMatches(value.token, token)) return prototypeError("bad_token", "The token does not match this app.");
+    if (!state.isOpen(value.root)) return prototypeError("project_not_open", "The project is not open in Doan.");
+    try { return state.playPrototype(value); }
+    catch (error) { console.error("doan: prototype request failed", error); return prototypeError("bad_request", "Doan could not handle this request."); }
+  }
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 5) {
     if (!validateHandoffRequest(value)) return handoffError("bad_request", "The request is not an app-socket v5 request.");
     if (!tokenMatches(value.token, token)) return handoffError("bad_token");

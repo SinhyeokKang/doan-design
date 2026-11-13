@@ -39,7 +39,7 @@ import { accessSync, constants as fsConstants, lstatSync, readlinkSync, realpath
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Selection } from "../formats/types";
+import type { PrototypeRequest, PrototypeResponse, Selection } from "../formats/types";
 import { validateSelection } from "../formats/validate";
 import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } from "./canvasFrame";
 import { editMenuInput, editMenuTemplate } from "./editMenu";
@@ -94,8 +94,7 @@ import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, work
 import { applyConversationWork, endConversationWork, type ConversationWork } from "./conversationWork";
 import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
 import { createPrototypeWindow } from "./prototypeWindow";
-import { CLI_PLAY_NOT_FOUND, cliPlayDecision, cliPlayError, type CliPlayResponse } from "./prototype/cliPlay";
-import { validateCliPlay } from "./prototype/requests";
+import { answerCliPlay } from "./prototype/cliPlay";
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
@@ -307,12 +306,13 @@ function fromWindow(event: IpcMainInvokeEvent): boolean {
 
 // `doan open --prototype` (app-socket v6): the same readiness as `doan open`, but only first run and the buddy screen
 // block it, since the prototype window plays apart from the main window's pages and dialogs.
-function playPrototype(value: unknown): CliPlayResponse {
-  const request = validateCliPlay(value);
-  if (request === null) return cliPlayError("bad_request", "The request is not an app-socket v6 request.");
-  const decision = cliPlayDecision({ ready: openLinksReady(), firstRun: onboardingOpen || buddyIntroOpen, entries: shell?.entries() ?? [], request });
-  if (decision.kind === "refuse") return decision.response;
-  return prototype.controller.playFromCli(decision) === "refused" ? CLI_PLAY_NOT_FOUND : { v: 6, ok: true, played: true };
+function playPrototype(request: PrototypeRequest): PrototypeResponse {
+  return answerCliPlay(request, {
+    ready: openLinksReady,
+    firstRun: () => onboardingOpen || buddyIntroOpen,
+    entries: () => shell?.entries() ?? [],
+    play: target => prototype.controller.playFromCli(target),
+  });
 }
 
 // The single-frame prototype window: made on the first Play, apart from `win`'s lifecycle and sender guard.

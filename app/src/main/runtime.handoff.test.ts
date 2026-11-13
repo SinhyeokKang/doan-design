@@ -1,11 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import type { HandoffRequest, OnboardingResponse, OpenResponse } from "../formats/types";
+import type { HandoffRequest, OnboardingResponse, OpenResponse, PrototypeResponse } from "../formats/types";
 import { validateHandoffResponse } from "../formats/validate";
 import { answerLine, type RuntimeState } from "./runtime";
 import type { FolderState } from "./folderState";
-import type { CliPlayResponse } from "./prototype/cliPlay";
 
 // App-socket v5 (`doan handoff`), main's half. answerLine checks schema, token and registered root
 // in the v3/v4 order, and only then asks the conversation service, which owns every later check.
@@ -16,7 +15,7 @@ const state = (handoff: RuntimeState["handoff"] = () => null) => ({
   isOpen: vi.fn((value: string) => value === root), selection: vi.fn(() => null), work: vi.fn(), conversationWork: vi.fn(),
   onboarding: vi.fn(async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } })),
   open: vi.fn(async (): Promise<OpenResponse> => ({ v: 4, ok: true, opened: true, frame: "none" })),
-  handoff: vi.fn(handoff), playPrototype: vi.fn((): CliPlayResponse => ({ v: 6, ok: false, error: { code: "not_ready", message: "unused" } })),
+  handoff: vi.fn(handoff), playPrototype: vi.fn((): PrototypeResponse => ({ v: 6, ok: false, error: { code: "not_ready", message: "unused" } })),
   roots: () => [root], readRoot: vi.fn(async (): Promise<FolderState> => ({ kind: "uninitialized" })), adopt: vi.fn(),
 });
 afterEach(() => { vi.restoreAllMocks(); });
