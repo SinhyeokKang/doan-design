@@ -1100,3 +1100,21 @@ test("a start refused by the usage limit names the reset main gave", async () =>
   const phrase = hint.description.replace(/^Sends when the limit resets /, "").replace(/\.$/, "");
   expect(render().some(item => item.children === `Claude Code reached a usage limit. Send again after it resets ${phrase}.`)).toBe(true);
 });
+
+// The composer draws again when the reset passes, so the line turns to Sending… without another prop change.
+test("on a fake clock, the reset timer redraws the status line as Sending…", () => {
+  vi.useFakeTimers({ now: Date.parse("2026-11-13T05:00:00.000Z"), toFake: ["setTimeout", "clearTimeout", "Date"] });
+  try {
+    const resetsAt = "2026-11-13T06:00:00.000Z";
+    const { render } = setup({ queued: [{ id: "q1", text: "Also" }], scheduledFor: resetsAt });
+    expect(lineText(render())).toMatch(/^Sends when the limit resets /);
+    const before = [...hooks.states];
+    for (const effect of hooks.effects) effect();
+    vi.advanceTimersByTime(3_600_000);
+    expect(hooks.states).toEqual(before);
+    vi.advanceTimersByTime(1);
+    expect(hooks.states).not.toEqual(before);
+    expect(lineText(render())).toBe("Sending…");
+  } finally { vi.useRealTimers(); }
+});
+
