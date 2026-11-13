@@ -108,7 +108,8 @@ function withConsumed(result: TransportResult, consumed: string[]): SteerResult 
 export function transportError(detail: string): FailureCode {
   if (/already has an active writer/i.test(detail)) return "session_in_use";
   if (/not logged in|authentication required|unauthorized|invalid api key|authentication failed/i.test(detail)) return "not_logged_in";
-  if (/rate.?limit|too many requests|hit your weekly limit/i.test(detail)) return "rate_limited";
+  // "hit your usage limit": Codex's own words for a reached usage limit (0.144.2).
+  if (/rate.?limit|too many requests|hit your weekly limit|hit your usage limit/i.test(detail)) return "rate_limited";
   if (/session.*(not found|unavailable)|thread.*not found/i.test(detail)) return "session_unavailable";
   return "unknown";
 }

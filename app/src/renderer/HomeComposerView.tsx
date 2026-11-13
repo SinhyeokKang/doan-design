@@ -7,6 +7,7 @@ import type { AttachmentResult } from "../main/attachments";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { FolderEntry } from "../main/view";
 import type { HomeMemory, ShellProject } from "../restore/uiState";
+import { localClock, resetTimeText } from "./limitReset";
 import { useProjectSkills } from "./useProjectSkills";
 import { fieldSkillRuns } from "./skillWords";
 import { AlertIcon } from "./AlertIcon";
@@ -85,8 +86,9 @@ function viewers(memory: { current: ComposerMemory }): Set<() => void> {
 }
 
 export interface StartInput { root: string; mode: "newDesign"; runtime: Provider; text: string; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }
-// conversationId: the started conversation, for a host that shows it in place (the project Overview).
-export type StartOutcome = { ok: true; conversationId?: string } | { error: string; missing?: string[]; replaced?: string[] };
+// conversationId: the started conversation, for a host that shows it in place (the project Overview). resetsAt: a
+// usage-limit refusal's reset time (ISO), when main knew it.
+export type StartOutcome = { ok: true; conversationId?: string } | { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string };
 
 export interface HeroComposerProps {
   entries: readonly FolderEntry[]; homeDirectory: string | null;
@@ -455,7 +457,7 @@ export function HeroComposer(props: HeroComposerProps) {
       update(current => ({ sending: null, attachments: markRefused(current.attachments, missing, replaced) }));
     // A late project_busy is shown by the reason line, which the run's list now carries.
     } else if (outcome.error === "project_busy") update({ sending: null });
-    else update({ sending: null, notice: startErrorView(outcome.error, provider, project) });
+    else update({ sending: null, notice: startErrorView(outcome.error, provider, project, outcome.resetsAt ? resetTimeText(outcome.resetsAt, Date.now(), localClock()) : null) });
     queueMicrotask(() => field.current?.focus());
   };
 

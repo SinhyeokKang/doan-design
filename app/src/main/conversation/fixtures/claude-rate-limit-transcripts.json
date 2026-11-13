@@ -1,0 +1,113 @@
+[
+  {
+    "version": "2.1.319",
+    "user": {
+      "type": "user",
+      "timestamp": "2026-11-07T12:21:07.989Z",
+      "message": {
+        "role": "user",
+        "content": "<removed>"
+      }
+    },
+    "assistant": {
+      "type": "assistant",
+      "timestamp": "2026-11-07T12:21:08.817Z",
+      "error": "rate_limit",
+      "isApiErrorMessage": true,
+      "apiError": "usage_limit_reached",
+      "apiErrorParams": {
+        "rate_limit_info": {
+          "status": "rejected",
+          "resetsAt": 1794057000,
+          "rateLimitType": "five_hour"
+        }
+      },
+      "message": {
+        "model": "<synthetic>",
+        "role": "assistant",
+        "type": "message",
+        "stop_reason": "stop_sequence",
+        "content": [
+          {
+            "type": "text",
+            "text": "You've hit your 5-hour limit · resets 10:10pm (Asia/Seoul)"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "version": "2.1.296",
+    "user": {
+      "type": "user",
+      "timestamp": "2026-10-14T16:32:38.311Z",
+      "message": {
+        "role": "user",
+        "content": "<removed>"
+      }
+    },
+    "assistant": {
+      "type": "assistant",
+      "timestamp": "2026-10-14T16:32:38.825Z",
+      "error": "rate_limit",
+      "isApiErrorMessage": true,
+      "apiError": "usage_limit_reached",
+      "apiErrorParams": {
+        "rate_limit_info": {
+          "status": "rejected",
+          "resetsAt": 1792209600,
+          "rateLimitType": "seven_day"
+        }
+      },
+      "message": {
+        "model": "<synthetic>",
+        "role": "assistant",
+        "type": "message",
+        "stop_reason": "stop_sequence",
+        "content": [
+          {
+            "type": "text",
+            "text": "You've hit your weekly limit · resets Oct 17 at 1pm (Asia/Seoul)"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "version": "2.1.323",
+    "user": {
+      "type": "user",
+      "timestamp": "2026-11-13T07:27:06.869Z",
+      "message": {
+        "role": "user",
+        "content": "<removed>"
+      }
+    },
+    "assistant": {
+      "type": "assistant",
+      "timestamp": "2026-11-13T07:27:07.531Z",
+      "error": "rate_limit",
+      "isApiErrorMessage": true,
+      "apiError": "usage_limit_reached",
+      "apiErrorParams": {
+        "rate_limit_info": {
+          "status": "rejected",
+          "resetsAt": 1794561000,
+          "rateLimitType": "five_hour"
+        }
+      },
+      "message": {
+        "model": "<synthetic>",
+        "role": "assistant",
+        "type": "message",
+        "stop_reason": "stop_sequence",
+        "content": [
+          {
+            "type": "text",
+            "text": "You've hit your 5-hour limit · resets 6:10pm (Asia/Seoul)"
+          }
+        ]
+      }
+    }
+  }
+]

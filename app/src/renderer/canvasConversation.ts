@@ -131,7 +131,8 @@ export type CanvasConversationError =
 // A refused start or send in the canvas panel. Codes the Overview also meets read the same
 // (startErrorView, dockedRefusal); canvas_duplicate is the host's own code for a canvas whose id another one shares.
 // `missing` is attachment_missing's list of attachment ids.
-export function canvasConversationError(code: string, mode: DockedMode, provider: Provider, project: string, missing: readonly string[] = []): CanvasConversationError {
+// `resets`: a usage-limit refusal's reset time as limitReset.ts words it.
+export function canvasConversationError(code: string, mode: DockedMode, provider: Provider, project: string, missing: readonly string[] = [], resets: string | null = null): CanvasConversationError {
   if (code === "attachment_missing") return { kind: "attachments", missing };
   // A queue main gave back with more files than a message takes; the person removes some before sending again.
   if (code === "attachment_limit") return { kind: "notice", text: ATTACHMENT_LIMIT_TEXT, retry: false, startNew: false };
@@ -140,7 +141,7 @@ export function canvasConversationError(code: string, mode: DockedMode, provider
   if (code === "canvas_duplicate") return { kind: "blocked", text: DUPLICATE_CANVAS_TEXT };
   if (code === "project_not_open") return { kind: "blocked", text: startErrorView(code, provider, project).text };
   if (code === "no_agent" && mode.kind === "new") return { kind: "blocked", text: startErrorView(code, provider, project).text, action: { label: "Sign in to an agent…", target: { section: "agents" } } };
-  const refusal = dockedRefusal(code, mode, provider, project);
+  const refusal = dockedRefusal(code, mode, provider, project, resets);
   if (refusal.kind === "busy") return refusal;
   // dockedRefusal's gone is canvas_not_found, answered above.
   const text = refusal.kind === "notice" ? refusal.text : canvasUnlistedText(project);

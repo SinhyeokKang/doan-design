@@ -827,3 +827,112 @@ it("passes a Stop's turn on to the service and refuses a malformed one", async (
     expect(interrupt).toHaveBeenCalledTimes(2);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+// While a Doan connection's usage limit holds, a send to its conversation waits in main and goes out after the reset
+// (service.ts schedule); a start is refused as before, with the reset time when main knows it.
+describe("usage-limit schedule channels", () => {
+  const NOW = Date.parse("2026-11-13T07:00:00.000Z"), RESET = NOW + 3_600_000;
+  function limited(dir: string) {
+    const store = new ConversationStore(dir);
+    const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "acct", workspaceId: null, profile: "claude" };
+    let session = 0;
+    const open = vi.fn<OpenRunner>(async input => ({ sessionId: input.sessionId ?? `s${++session}`, send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+    const records = [{ name: "a.png", size: 3, kind: "image" as const, path: "/Users/me/a.png" }];
+    const attachments = { resolve: vi.fn(() => ({ ok: true, records })), markSent: vi.fn(), consume: vi.fn() };
+    const clock = { now: () => NOW, setTimer: vi.fn(() => ({})), clearTimer: vi.fn() };
+    const windows = [{ id: "five_hour", label: "5-hour", periodMins: 300, usedPercent: 100, resetsAt: RESET, limited: true as const }];
+    const service = new ConversationService(store, prepare, open, () => {}, undefined, undefined, undefined, undefined, { limitWindows: async () => windows, clock });
+    service.connectionChanged("claude", "c1");
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { attachments: attachments as unknown as AttachmentStore });
+    return { handle, service, attachments, records };
+  }
+  // The turn worked before the limit stopped it, so nothing is scheduled by itself; the limit is known from then on.
+  async function stopped(h: ReturnType<typeof limited>): Promise<string> {
+    const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+    h.service.receive(id, { type: "activity", kind: "read", summary: "Reading files" });
+    h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "Rate limited" }); h.service.refreshed("/repo", []);
+    await vi.waitFor(() => expect(h.service.list("/repo")[0]).toMatchObject({ limitResetsAt: new Date(RESET).toISOString(), working: false }));
+    return id;
+  }
+  it("names the scheduled method among the conversation methods", () => {
+    expect(conversationMethods).toContain("scheduled");
+  });
+  it("answers a send with its schedule, holds its attachments and hands the items over", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = limited(dir); const id = await stopped(h);
+      expect(await h.handle(true, "scheduled", { conversationId: id })).toEqual([]);
+      const at = new Date(RESET).toISOString();
+      const reply = await h.handle(true, "send", { conversationId: id, text: "after the reset", attachments: [{ id: "a" }] }) as { scheduled: { itemId: string; at: string } };
+      expect(reply).toEqual({ scheduled: { itemId: expect.any(String), at } });
+      expect(h.attachments.markSent).toHaveBeenLastCalledWith([{ id: "a" }]);
+      expect(h.attachments.consume).toHaveBeenLastCalledWith([{ id: "a" }]);
+      expect(h.service.list("/repo")[0]).toMatchObject({ scheduledAt: at, queued: 1, working: false });
+      expect(await h.handle(true, "scheduled", { conversationId: id })).toEqual([{ itemId: reply.scheduled.itemId, text: "after the reset", anchors: [], attachments: h.records }]);
+      expect(await h.handle(true, "scheduled", { conversationId: "missing" })).toEqual({ error: "not_found" });
+      expect(await h.handle(true, "scheduled", { conversationId: 1 })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: reply.scheduled.itemId })).toBeUndefined();
+      expect(await h.handle(true, "scheduled", { conversationId: id })).toEqual([]);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  // As a queued message, it goes out in the conversation's model, effort, Fast and mode of the moment it is sent.
+  it("refuses a scheduled send that carries a picker change", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = limited(dir); const id = await stopped(h);
+      for (const extra of [{ model: "sonnet" }, { effort: "low" }, { fast: false }, { permissionMode: "plan" }])
+        expect(await h.handle(true, "send", { conversationId: id, text: "y", ...extra })).toEqual({ error: "bad_request" });
+      expect(h.service.list("/repo")[0]).toMatchObject({ queued: 0 });
+      expect(h.service.list("/repo")[0]).not.toHaveProperty("scheduledAt");
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("refuses a start while the limit holds, with its reset time", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = limited(dir); await stopped(h);
+      expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "again" })).toEqual({ error: "rate_limited", resetsAt: new Date(RESET).toISOString() });
+      // Another provider's connection holds no limit.
+      expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "codex", text: "elsewhere" })).toEqual({ conversationId: expect.any(String) });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+// A stopped turn's files are issued again by their recorded paths (ARCHITECTURE §7 'Attachments'): each must still be
+// the kind it was sent as, and a refusal leaves no id issued behind.
+describe("re-issuing a stopped turn's attachments", () => {
+  function files(dir: string) {
+    const store = new AttachmentStore(join(dir, "attachments"), { thumbnail: () => null, reencode: () => null });
+    const issue = vi.spyOn(store, "fromPaths"), remove = vi.spyOn(store, "remove");
+    const issued = () => issue.mock.results.flatMap(result => (result.value as { ok: boolean; attachment?: { id: string } }[] | null ?? []).flatMap(r => r.ok ? [r.attachment!.id] : []));
+    return { store, reissue: queueFiles(store).reissue!, remove, issued };
+  }
+  it("issues every recorded file again and holds it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      writeFileSync(join(dir, "a.txt"), "a"); mkdirSync(join(dir, "folder"));
+      const h = files(dir);
+      const ids = h.reissue([{ name: "a.txt", size: 1, kind: "file", path: join(dir, "a.txt") }, { name: "folder", kind: "directory", path: join(dir, "folder") }]);
+      expect(ids).toHaveLength(2);
+      expect(h.store.recheck({ ids })?.every(result => result.ok)).toBe(true);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("refuses the whole set when a recorded file is a folder now, and releases what it issued", () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      writeFileSync(join(dir, "a.txt"), "a"); mkdirSync(join(dir, "was-a-file"));
+      const h = files(dir);
+      expect(h.reissue([{ name: "a.txt", size: 1, kind: "file", path: join(dir, "a.txt") }, { name: "was-a-file", size: 3, kind: "file", path: join(dir, "was-a-file") }])).toBeNull();
+      expect(h.issued()).toHaveLength(2);
+      expect(h.remove.mock.calls.map(call => (call[0] as { id: string }).id).sort()).toEqual([...h.issued()].sort());
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("refuses the whole set when one recorded file is gone, and releases the others", () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      writeFileSync(join(dir, "a.txt"), "a");
+      const h = files(dir);
+      expect(h.reissue([{ name: "a.txt", size: 1, kind: "file", path: join(dir, "a.txt") }, { name: "gone.txt", size: 1, kind: "file", path: join(dir, "gone.txt") }])).toBeNull();
+      expect(h.issued()).toHaveLength(1);
+      expect(h.remove.mock.calls.map(call => (call[0] as { id: string }).id)).toEqual(h.issued());
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});

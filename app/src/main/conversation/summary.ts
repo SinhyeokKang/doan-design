@@ -26,6 +26,13 @@ export interface ConversationSummary {
   background?: { turnId: string; stopping?: true };
   // A Stop of the running turn was taken; its end may still be on its way.
   stopping?: true;
+  // ISO: the reset time of the usage limit main holds, in memory only, for the Doan connection of this current Claude
+  // Code or Codex conversation; a send now is scheduled for after it (conversation `send` answers { scheduled }).
+  limitResetsAt?: string;
+  // ISO: the conversation is scheduled: its queued messages (queued counts them) wait for the usage limit's reset at this
+  // time and go out shortly after it. It is then not working and holds no root; the items themselves come from the
+  // conversation `scheduled` method.
+  scheduledAt?: string;
 }
 // Long enough for one line of a canvas row or conversation menu; the renderer still truncates to its width.
 export const PREVIEW_CHARS = 140;
@@ -33,13 +40,15 @@ const COMMAND = "Running a command";
 // live: this run holds the conversation, so an unfinished turn is still running rather than folded as crashed.
 // returned: a returned draft waits (drafts.ts). suggestion: the suggestion main holds for this conversation.
 // background and stopping: memory-only facts of the run (service.ts list).
-export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean; returned?: boolean; suggestion?: string; background?: { turnId: string; stopping?: true }; stopping?: true }): ConversationSummary {
+// limitResetsAt and scheduledAt: the usage-limit facts main holds in memory (service.ts list).
+export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean; returned?: boolean; suggestion?: string; background?: { turnId: string; stopping?: true }; stopping?: true; limitResetsAt?: string; scheduledAt?: string }): ConversationSummary {
   const base = {
     conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title, state: m.state,
     owner: m.owner.kind, provider: m.session.runtime, ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}),
     ...(m.fast ? { fast: true as const } : {}), ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}), fromHome: m.fromHome === true, queued: live.queued, working: live.working,
     ...(live.returned ? { returnedDraft: true as const } : {}),
     ...(live.background ? { background: live.background } : {}), ...(live.stopping ? { stopping: true as const } : {}),
+    ...(live.limitResetsAt ? { limitResetsAt: live.limitResetsAt } : {}), ...(live.scheduledAt ? { scheduledAt: live.scheduledAt } : {}),
   };
   if (!read.ok) return { ...base, phase: "ended", unseen: false, lastActivityAt: "", preview: "", readError: true };
   const events = read.events, folded = foldConversation(events, m.conversationId, !live.live);

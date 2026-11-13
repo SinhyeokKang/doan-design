@@ -168,3 +168,14 @@ test("a second Send now on a row already in flight is ignored", async () => {
   (rows(draw(), "Send queued message now")[0]!.onClick as () => void)();
   expect(props.onSendNow).toHaveBeenCalledTimes(2);
 });
+
+// A scheduled conversation's rows have no Send now; removing its only row leaves the queue empty and focus in the field.
+test("removing the only scheduled row puts focus in the composer field", async () => {
+  const { props, focused, draw, rows } = setup({ items: [{ id: "s1", text: "Tighten it" }], sendNow: false });
+  (rows(draw(), "Remove queued message")[0]!.onClick as () => void)();
+  await Promise.resolve(); await Promise.resolve();
+  expect(props.onRemove).toHaveBeenCalledWith("s1");
+  props.items = [];
+  draw();
+  expect(focused.at).toBe("input");
+});

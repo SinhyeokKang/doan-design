@@ -430,3 +430,12 @@ it("gives a locked canvas row button no hover or pressed fill, outweighing the s
   expect(shared.length).toBeGreaterThanOrEqual(2);
   for (const selector of shared) expect(weight(reset)).toBeGreaterThan(weight(selector));
 });
+
+test("a scheduled conversation's slot is the clock with its label", () => {
+  const canvas = { path: ".doan/canvases/a.html", url: "u" };
+  const entries: FolderEntry[] = [{ path: "/a", kind: "list", servedRev: 0, canvases: [canvas] }];
+  const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, disclose: () => {}, toggleGroup: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {}, projectSettings: () => {}, canvasMenu: NO_CANVAS_MENU };
+  const label = "Queued — sends when the limit resets at 3:00\u202fPM";
+  const out = renderToStaticMarkup(<ShellSidebar {...props} home slots={new Map([["/a\n.doan/canvases/a.html", { kind: "scheduled" as const, label }]])} />);
+  expect(out).toMatch(new RegExp(`<span>a</span><span class="row-slot scheduled" role="img" aria-label="${label}"><svg[^>]*lucide-clock`));
+});

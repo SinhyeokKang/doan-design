@@ -14,7 +14,8 @@ export type UsageReading =
 export interface UsageBlock { readiness: Extract<Readiness, { ready: false }>; phase: AuthPhase; error?: AuthErrorCode; attempt?: AuthAttempt["kind"] }
 // What the app window receives. A connection that can't be used carries its block instead of a read.
 export interface UsageEntry { provider: Provider; reading?: UsageReading; inFlight: boolean; blocked?: UsageBlock }
-// What may start a read. A turn end counts only for a Doan connection's conversation.
+// What may start a read. A turn end counts only for a Doan connection's conversation; limit: the usage limit stopped
+// that turn, and the read tells when it resets.
 export type UsageTrigger =
   | { kind: "start" | "signIn" | "open" | "refresh" }
-  | { kind: "turnEnd"; owner: "doan" | "legacy-external" };
+  | { kind: "turnEnd"; owner: "doan" | "legacy-external"; limit?: true };

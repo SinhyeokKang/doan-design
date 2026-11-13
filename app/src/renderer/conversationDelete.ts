@@ -29,11 +29,16 @@ export function deleteItemLabel(title: string): string {
   return `Delete ${quoted(title) ?? "this conversation"}`;
 }
 
-// hasDraft: the conversation's composer draft or a queue main gave back, both discarded with it.
-export function deleteDialogView(title: string, provider: Provider, hasDraft: boolean): { title: string; body: string } {
+// hasDraft: the conversation's composer draft or a queue main gave back; queued: messages waiting for the usage limit's
+// reset. All are discarded with it, so they never go out.
+export function deleteDialogView(title: string, provider: Provider, hasDraft: boolean, queued = 0): { title: string; body: string } {
   const name = quoted(title);
   const body = `Doan deletes this conversation from this device. ${PROVIDER_NAMES[provider]}’s own session files stay. You can’t undo this.`;
-  return { title: name ? `Delete ${name}?` : "Delete this conversation?", body: hasDraft ? `${body} Its unsent message is discarded too.` : body };
+  const rows = queued === 1 ? "queued message" : "queued messages";
+  const discarded = hasDraft && queued > 0 ? `Its unsent message and ${rows} are discarded too.`
+    : queued > 0 ? `Its ${rows} ${queued === 1 ? "is" : "are"} discarded too.`
+    : hasDraft ? "Its unsent message is discarded too." : null;
+  return { title: name ? `Delete ${name}?` : "Delete this conversation?", body: discarded ? `${body} ${discarded}` : body };
 }
 
 // main's refusal codes: busy (it started working, or the app is quitting, when the window closes anyway), not_found;

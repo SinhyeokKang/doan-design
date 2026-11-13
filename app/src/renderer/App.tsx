@@ -2294,7 +2294,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const { target, pending } = deletingConversation, summary = deleteSummary(target);
     const draft = unsentDraft(overviewRun.current!.store.drafts.get(draftKey({ kind: "existing", conversationId: target.conversationId, provider: target.provider }))) || summary?.returnedDraft === true;
     const availability = summary ? deleteAvailability(summary) : { available: true as const };
-    return <ConversationDeleteDialog view={deleteDialogView(target.title, target.provider, draft)} reason={availability.available ? null : availability.reason} pending={pending}
+    // Not working with messages queued: they wait for the usage limit's reset, and go with the conversation.
+    const queued = summary && !summary.working ? summary.queued : 0;
+    return <ConversationDeleteDialog view={deleteDialogView(target.title, target.provider, draft, queued)} reason={availability.available ? null : availability.reason} pending={pending}
       cancel={closeDelete} confirm={() => void confirmDelete()} />;
   })()}
   {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row))} cancel={closeTrash} confirm={confirmTrash} />}

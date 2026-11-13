@@ -909,6 +909,12 @@ body:has(.shell-top) { background: transparent; }
 .queue-status:not(:empty) { margin-top: var(--space-1); }
 .queue-status { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); }
 .queue-status svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
+/* The usage limit's line under the rows: always in the composer as a polite status, taking no space while empty; 4
+   below the last row, then the list's 8 to the card. */
+.queue:has(+ .queue-schedule:not(:empty)) { margin-bottom: 0; }
+.queue-schedule:not(:empty) { margin: var(--space-1) 0 var(--space-2); }
+.queue-schedule { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); }
+.queue-schedule svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
 /* A queued message's first folder and the count of its other attachments, before its text (folder-attachments draft).
    Name and text both truncate; the tooltip lists every attachment. The caps are the draft's: 180px, 100px in a narrow
    queue such as the 360px canvas panel. */
@@ -972,6 +978,8 @@ body:has(.shell-top) { background: transparent; }
 .row-slot svg { width: var(--size-icon); height: var(--size-icon); }
 .row-slot .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .row-slot.ended { color: var(--text-accent); }
+/* Messages waiting for the usage limit's reset ask nothing of the person: no accent. */
+.row-slot.scheduled { color: var(--text-subtle); }
 .row-slot.unseen i { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); }
 .shell-side .shell-project-row.flash { box-shadow: inset 0 0 0 2px var(--border-focus); }
 

@@ -530,10 +530,14 @@ export function PermissionPicker({ view, disabled, onPick, size = "sm" }: { view
 const SLOT_LABELS: Record<ComposerAction, string> = { send: "Send", stop: "Stop", queue: "Queue" };
 // `hint` is why Send is off when no line says so (no ready agent): a native title, since a disabled button gets no
 // Radix tooltip, and a description for assistive tech.
-export function SendButton({ enabled, sending, onSend, action = "send", hint }: { enabled: boolean; sending: boolean; onSend(): void; action?: ComposerAction; hint?: string | undefined }) {
+// tip and description: the usage limit's reset, in the tooltip and as the button's sr-only description; the name stays
+// the slot's label, and no native title shows beside the tooltip.
+export function SendButton({ enabled, sending, onSend, action = "send", hint, tip, description }: { enabled: boolean; sending: boolean; onSend(): void; action?: ComposerAction; hint?: string | undefined; tip?: string | undefined; description?: string | undefined }) {
   const label = SLOT_LABELS[action];
   const hintId = useId();
-  return <IconTip label={label}><button type="button" className={`composer-send doan-icon-button${action === "stop" ? " composer-stop" : ""}${sending ? " sending" : ""}`} data-ui-variant="accent" aria-label={label} aria-busy={sending || undefined} disabled={!enabled} title={hint} aria-describedby={hint ? hintId : undefined} onClick={onSend}>
+  const described = hint ?? description;
+  return <IconTip label={tip ?? label}><button type="button" className={`composer-send doan-icon-button${action === "stop" ? " composer-stop" : ""}${sending ? " sending" : ""}`} data-ui-variant="accent" aria-label={label} aria-busy={sending || undefined} disabled={!enabled} title={hint} aria-describedby={described ? hintId : undefined}
+    data-own-description={description && !hint ? "" : undefined} onClick={onSend}>
     {sending ? <span className="doan-spinner" aria-hidden="true" /> : action === "stop" ? <Square fill="currentColor" stroke="none" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
-    {hint && <span id={hintId} className="sr-only">{hint}</span>}</button></IconTip>;
+    {described && <span id={hintId} className="sr-only">{described}</span>}</button></IconTip>;
 }

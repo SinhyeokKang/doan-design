@@ -64,6 +64,11 @@ export interface ConversationThreadProps {
   // with how the locate ended; only "missing" shows "No longer in the canvas".
   onLocate?(anchor: Anchor): Promise<LocateOutcome>;
   locateDisabled?: boolean;
+  // The conversation's Doan connection is at its usage limit until this reset (limitReset.ts resetTimeText): the last
+  // turn's usage-limit end says messages sent now go out then.
+  limitResets?: string | null;
+  // The last turn's own message waits in the queue for the reset, so Edit and resend would send it twice.
+  resendHidden?: boolean;
   // The open canvas's frames, which name a frame chip by its current title; undefined while it has no layout.
   frames?: readonly FrameName[] | undefined;
   // Chips in the agent's replies: `doan:` links that point into a canvas of the
@@ -123,14 +128,17 @@ export function useLocateNote(scroller?: () => EventTarget | null): [shown: bool
 const COPIED_MS = 2000;
 
 // The draft's copy (thread-states). Codes without a frame of their own read as an unexpected stop. resend: false when
-// the turn never began, so there is no request worth resending as it was (body "" draws no second line).
-export function endView(end: TurnEnd, provider: Provider): { title: string; body: string; tone: "error" | null; signIn: boolean; resend?: false } {
+// the turn never began, so there is no request worth resending as it was (body "" draws no second line). resets: the
+// connection's live usage-limit reset as limitReset.ts words it, given for the last turn only; it wins over the time
+// Claude's detail names, since messages sent now wait for it.
+export function endView(end: TurnEnd, provider: Provider, resets: string | null = null): { title: string; body: string; tone: "error" | null; signIn: boolean; resend?: false } {
   const p = PROVIDER_NAMES[provider];
   if (end.kind === "interrupted") return { title: "Stopped", body: end.reason === "user" ? "You stopped the agent." : "The agent stopped before it finished.", tone: null, signIn: false };
   // The provider had no such model for this account; the turn did no work, so no file warning.
   if (end.code === "model_unavailable" && end.model) return { title: `${end.model} isn’t available for this account.`, body: "", tone: "error", signIn: false, resend: false };
   if (end.code === "not_logged_in") return { title: `${p}’s sign-in expired`, body: "Sign in again, then resend your request.", tone: "error", signIn: true };
   if (end.code === "rate_limited") {
+    if (resets) return { title: `${p} reached a usage limit`, body: `Resets ${resets}. Messages you send now go out then.`, tone: "error", signIn: false };
     const when = end.detail ? RESETS.exec(end.detail.trim())?.[1] : undefined;
     return { title: `${p} reached a usage limit`, body: when ? `Resets ${when}. Send again after that.` : "Send again after it resets.", tone: "error", signIn: false };
   }
@@ -737,7 +745,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "activity": return [expanded.has(entry.key)];
       case "permission": return [provider, entry.seq > props.liveAfter, unanswered.has(entry.requestId)];
       case "question": return entry.status === "pending" ? [provider, entry.seq > props.liveAfter, draftOf(entry.requestId)] : [];
-      case "end": return [provider, entry.key === last?.key, entry.key === last?.key && last.resend];
+      case "end": return [provider, entry.key === last?.key, entry.key === last?.key && last.resend, entry.key === last?.key ? props.limitResets ?? null : null, entry.key === last?.key && !!props.resendHidden];
       case "handoff": return [provider, props.project, entry.target ? props.canvasListed(entry.target.canvas) : null, !!props.onOpenHandoff];
       case "handoffCard": return [props.project, props.canvasListed(entry.origin.canvas), !!props.onOpenHandoff];
       case "marker": return [props.project, entry.canvas ? props.canvasListed(entry.canvas) : null];
@@ -781,13 +789,15 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
           onDraft={action => editQuestion(entry.requestId, action)} onSend={() => sendQuestion(entry, "answer")} onSkip={() => sendQuestion(entry, "skip")} onStop={() => stop(entry.requestId)} />;
       }
       case "end": {
-        const view = endView(entry.end, provider);
+        const isLast = entry.key === last?.key;
+        const view = endView(entry.end, provider, isLast ? props.limitResets ?? null : null);
+        const resend = isLast && last.resend && view.resend !== false && !props.resendHidden;
         return <div className={`doan-notice${view.tone ? ` ${view.tone}` : ""} thread-notice`}>
           {view.tone ? <AlertIcon /> : <CircleStop className="doan-alert-icon" aria-hidden="true" />}
           <span className="strip-text selectable"><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
-          {entry.key === last?.key && (view.signIn || (last.resend && view.resend !== false)) && <span className="strip-actions">
+          {isLast && (view.signIn || resend) && <span className="strip-actions">
             {view.signIn && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => latest.current.onSignIn()}>Sign in again…</button>}
-            {last.resend && view.resend !== false && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => latest.current.onEditAndResend()}>Edit and resend</button>}
+            {resend && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => latest.current.onEditAndResend()}>Edit and resend</button>}
           </span>}
         </div>;
       }

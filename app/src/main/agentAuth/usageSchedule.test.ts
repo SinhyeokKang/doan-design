@@ -24,6 +24,17 @@ describe("shouldRead", () => {
     expect(shouldRead(entry(ok(READ_INTERVAL_MS)), NOW, trigger, true)).toBe(true);
   });
 
+  // One read right after the turn, which the schedule needs whether or not the window shows.
+  it("reads at the end of a turn the usage limit stopped despite the interval and a hidden window, but not blocked or in flight", () => {
+    const limit = { kind: "turnEnd", owner: "doan", limit: true } satisfies UsageTrigger;
+    expect(shouldRead(entry(ok(SOON)), NOW, limit, true)).toBe(true);
+    expect(shouldRead(entry(ok(SOON)), NOW, limit, false)).toBe(true);
+    expect(shouldRead(entry(ok(SOON), { inFlight: true }), NOW, limit, false)).toBe(false);
+    expect(shouldRead(entry(ok(SOON), { inFlight: true }), NOW, limit, true)).toBe(false);
+    const blocked = { readiness: { ready: false, cause: "unverified" }, phase: "connected" } as NonNullable<UsageEntry["blocked"]>;
+    expect(shouldRead(entry(ok(SOON), { blocked }), NOW, limit, true)).toBe(false);
+  });
+
   it("counts a failed read toward the interval for every trigger but opening", () => {
     expect(shouldRead(entry(failed(SOON)), NOW, T.turnEnd, true)).toBe(false);
     expect(shouldRead(entry(failed(SOON)), NOW, T.start, true)).toBe(false);
