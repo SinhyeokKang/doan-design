@@ -40,3 +40,7 @@
 - GUI(`/design-sync`, `/runtime-test`)는 lead를 거쳐 링크 1a와 시간을 맞춘다.
 
 ## 진행 기록
+- Run `run_521b91a76b33`. A1: dispatch `ctx_57c60097df90`, worktree `mh-main`(Claude Opus high). B: dispatch `ctx_cc2233bfd8b5`, worktree `mh-eval`(Codex gpt-6-astra medium). 둘 다 `c627a774`에서 시작했다.
+- B 완료(`6fb9645b`, `94871718`). 워커 보고: 앱 프롬프트 테스트, eval 309개, Go test·vet, typecheck, R10·R11 self-test 통과. 처음 eval 실행에서 R8d pass fixture 실패가 있었으나 다른 suite와 겹쳐 돌린 탓이었고 단독 실행에서는 재현되지 않았다. task 10 회차에 R8d·R9b·R10 프롬프트를 같은 id 안에서 바꿨다고 적어야 한다.
+- R-B 시작: dispatch `ctx_26f7cd73ccb1`, worktree `mh-eval`(Claude Opus high).
+- A1 완료(`5d9cbb1c`, `95fd518c`) → `feat/multi-handoff`에 `3df9e116`, `a7690623`로 통합했다(C의 시작점이 필요해 리뷰 전에 넣었다. 리뷰는 A2와 함께 R-A에서 한다). 워커 보고: storeIndex·storeRecovery 127개, handoff 29개, typecheck·lint 통과. 계획과 다른 점: preload 알림 타입은 App.tsx와 같이 바꿔야 해서 C로 넘겼고, `service.ts`에 A2가 지울 임시 가드(`if (turn?.request) return "already_requested"`)가 있다. 다중 알림 타입은 `HandoffMultiNotice { root, source, targets[] }`, 구분은 `"targets" in notice`.
