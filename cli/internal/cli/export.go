@@ -73,8 +73,10 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		return Outcome{}, unreadableCanvas("The canvas needs exactly one `doan:width` meta in its head with a positive whole number.")
 	}
 	// The frame is judged before Inline so a wrong frame id does not cost a full inline of the canvas.
+	var played canvas.PrototypeFrame
 	if frame != nil {
-		if _, refusal := canvas.PrototypeTarget(model, *frame); refusal != canvas.PrototypeOK {
+		var refusal canvas.PrototypeRefusal
+		if played, refusal = canvas.PrototypeTarget(model, *frame); refusal != canvas.PrototypeOK {
 			return Outcome{}, prototypeFrameFailure(refusal, *frame, canvasPath)
 		}
 	}
@@ -93,7 +95,17 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	assets := append(inlined.Assets, self)
 	stem := strings.TrimSuffix(path.Base(canvasPath), path.Ext(canvasPath))
-	page, err := export.Assemble(export.Meta{Name: stem, Width: model.Width}, inlined.HTML)
+	meta := export.Meta{Name: stem, Width: model.Width}
+	var page []byte
+	if frame != nil {
+		proto := export.Proto{Frame: played.ID}
+		if played.Title != nil {
+			proto.Title = *played.Title
+		}
+		page, err = export.AssemblePrototype(meta, proto, inlined.HTML)
+	} else {
+		page, err = export.Assemble(meta, inlined.HTML)
+	}
 	if err != nil {
 		return Outcome{}, exportInternal(err)
 	}
