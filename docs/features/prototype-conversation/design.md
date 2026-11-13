@@ -7,12 +7,12 @@
 세 prototype feature는 `prototype-responsive` → `prototype-cli-export` → `prototype-conversation` 순서로 구현하고 병합한다(직렬 체인, spec 결정 18). 이 feature는 앞의 두 feature가 develop에 넣은 것 위에 선다.
 
 - `prototype-responsive`
-  - 툴바 줄은 없다. 창의 컨트롤은 모두 헤더에 있고, 콘텐츠 패널과 그 아래 8 여백은 지금 그대로다. 헤더는 한 줄(56)이거나 이름이 내려간 두 줄(100)이고, 창 맞춤 높이는 표시 높이 + 64, 맞춘 폭에서 이름이 둘째 줄이면 + 108이다(`prototype-responsive` design '헤더 배치').
-  - `prototypeIframeBox`를 대신하는 `prototypeViewportBox(panel, mark, mode)`. Fit 모드(기본)는 표시 크기를 지키고 줄여 보이고, Responsive 모드는 콘텐츠 패널을 채운다.
+  - 툴바 줄은 없다. 창의 컨트롤은 모두 헤더에 있고, 콘텐츠 패널과 그 아래 8 여백은 지금 그대로다. 헤더는 한 줄(56)이거나 이름이 내려간 두 줄(100)이고, 창 맞춤 높이는 표시 높이 + 64, 맞춘 폭에서 이름이 둘째 줄이면 + 108이다(PRODUCT §5 item 2 'Prototype window' 'One window', ARCHITECTURE §3 'Prototype window' 'Fit').
+  - `prototypeViewportBox(panel, mark, mode)`(ARCHITECTURE §3 'Prototype window' 'Rendering in place'). Fit 모드(기본)는 표시 크기를 지키고 줄여 보이고, Responsive 모드는 콘텐츠 패널을 채운다.
   - `prototypeCaptureRect(content, mark, mode, sideColumn = 0)`. 이 feature가 `sideColumn`에 대화 열 폭을 넘긴다.
   - main `PrototypeState`의 모드를 `CLOSED`에도 두는 방식. 패널 상태도 같은 자리에 둔다.
   - 세 무리 헤더. 왼쪽 [Back x88, Forward x124, Reload x160]은 지금 그대로이고, 오른쪽 무리(`.pw-right`)는 창 오른쪽 끝 16 안쪽에 항목 간격 4로 [모드 토글(`.doan-toggle-group`, 이름 "Viewport", 68 × 36), Export(32)]다. 이 feature는 그 끝(Export 뒤 4)에 대화 버튼(32)을 더해 오른쪽 무리 폭 R을 104에서 140으로 만든다.
-  - 프레임 이름 캡슐(`.pw-name`)은 x200부터 W − 24 − R까지의 공간(폭 S = W − 224 − R, W는 창 콘텐츠 폭)을 채운다. S ≥ 80이면 첫째 줄이고, S < 80이면 같은 캡슐이 헤더 둘째 줄로 간다(`.pw.name-row`, `prototype-responsive`의 순수 함수 7 `prototypeHeaderRows`). 둘째 줄은 높이 44(캡슐 36 + 8)이고, 캡슐은 x16부터 W − 16까지, y56–92이며 이름은 가운데다. traffic light와 두 무리는 첫째 줄에 남고, 헤더는 100, 콘텐츠 패널과 대화 열은 y100에서 시작한다. 프레임 메뉴는 캡슐 4 아래에 열린다. 이름은 언제나 보이고 메뉴는 언제나 열 수 있다.
+  - 프레임 이름 캡슐(`.pw-name`)은 x200부터 W − 24 − R까지의 공간(폭 S = W − 224 − R, W는 창 콘텐츠 폭)을 채운다. S ≥ 80이면 첫째 줄이고, S < 80이면 같은 캡슐이 헤더 둘째 줄로 간다(`.pw.name-row`, ARCHITECTURE 'Fit'의 `prototypeHeaderRows`). 둘째 줄은 높이 44(캡슐 36 + 8)이고, 캡슐은 x16부터 W − 16까지, y56–92이며 이름은 가운데다. traffic light와 두 무리는 첫째 줄에 남고, 헤더는 100, 콘텐츠 패널과 대화 열은 y100에서 시작한다. 프레임 메뉴는 캡슐 4 아래에 열린다. 이름은 언제나 보이고 메뉴는 언제나 열 수 있다.
   - R 140에서는 창 폭 444부터 첫째 줄이고, 443 이하는 둘째 줄이다. 예: 640 창 캡슐 276, 600 창 236, 520 창 156, 480 창 116, 444 창 80, 443 창 둘째 줄 411, 406 창 374, 360 창 328.
   - 창 폭이 경계를 지나면 같은 요소가 CSS로 줄을 옮긴다. 포커스와 열린 메뉴는 캡슐에 남고, 콘텐츠 패널과 대화 열은 애니메이션 없이 44 움직인다. 360·480 창에서 패널을 열어 640이 될 때도 같다(360 창은 둘째 줄에서 첫째 줄로).
 - `prototype-cli-export`
@@ -123,7 +123,7 @@
 
 ### 패널 폭
 
-- 창 레이아웃: 헤더(창 전체 폭) 아래에 [프레임 열: 콘텐츠 패널] [손잡이] [대화 열]. 둘 다 헤더 아래에서 창 아래 8까지 내려가 높이가 같다. 대화 열은 main 창의 `doan-conv-column`·`ov-right` 모양을 그대로 쓰되 머리만 뺀다. 콘텐츠 패널은 시작 쪽 모서리를, 대화 열은 끝 쪽 모서리를 둥글게 두고, 그 사이는 shipped 1 px 시작 테두리다(`prototype-responsive` '헤더와 대화 열').
+- 창 레이아웃: 헤더(창 전체 폭) 아래에 [프레임 열: 콘텐츠 패널] [손잡이] [대화 열]. 둘 다 헤더 아래에서 창 아래 8까지 내려가 높이가 같다. 대화 열은 main 창의 `doan-conv-column`·`ov-right` 모양을 그대로 쓰되 머리만 뺀다. 콘텐츠 패널은 시작 쪽 모서리를, 대화 열은 끝 쪽 모서리를 둥글게 두고, 그 사이는 shipped 1 px 시작 테두리다(DESIGN 'Frame prototype').
 - 패널을 열 때 창 폭이 640보다 좁으면 창을 640으로 넓히고 패널을 280으로 연다. 640 이상이면 창은 그대로이고 패널은 기본폭(`max(320px, 28dvw)`)을 최대폭으로 자른 값으로 연다. 작업 영역이 640보다 좁으면 작업 영역 폭까지만 넓히고 패널은 280으로 연다(프레임 열이 360보다 좁아진다). 넓힌 창은 작업 영역 안에 머물도록 옮긴다.
 - 열려 있는 동안 창 최소폭은 640(`PROTOTYPE_WINDOW_MIN_WIDTH` 360 + 패널 최소 280)이고, 닫히면 360으로 돌아간다. 닫을 때 창 크기는 바꾸지 않는다.
 - 작업 영역이 640보다 좁아 창 폭이 640보다 작으면 최대폭 `min(50dvw, 창 폭 − 360)`이 280보다 작아진다(600 창에서 240). 이때도 패널은 280을 지키므로(spec 결정 4) 손잡이의 최솟값과 최댓값이 모두 280이고 조절 범위가 없다(`aria-valuemax="280"`). shipped `panelBounds`(`rightPanelSize.ts`)는 두 한도가 겹치면 최댓값이 이기므로 이 경우에 그대로 쓰지 않는다.
