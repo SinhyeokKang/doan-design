@@ -8,7 +8,7 @@ import type { PrototypeView } from "../../main/prototype/ipc";
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 2, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", run: { url: A, markWidth: 390 }, frames: [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }], canGoBack: true, canGoForward: false, ...over,
+  gen: 2, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", run: { url: A, markWidth: 390 }, frames: [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }], canGoBack: true, canGoForward: false, previousStopped: false, ...over,
 });
 const ready: HostLayers = { frames: [{ gen: 2, url: A }], visible: 2, snapshot: null };
 const noop = () => {};

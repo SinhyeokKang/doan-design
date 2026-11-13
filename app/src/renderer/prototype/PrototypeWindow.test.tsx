@@ -36,7 +36,7 @@ type Shell = import("./PrototypeWindow").ShellProps;
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 1, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", run: { url: A, markWidth: 390 }, frames: [], canGoBack: false, canGoForward: false, ...over,
+  gen: 1, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", run: { url: A, markWidth: 390 }, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, ...over,
 });
 
 let changed: (view: PrototypeView | null) => void;

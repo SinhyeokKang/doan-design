@@ -3,7 +3,7 @@ import type { PrototypePhase } from "../../main/prototype/ipc";
 import { currentRun, forwardedMessage, layersForSnapshot, layersForView, NO_LAYERS, type HostLayers } from "./host";
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html", B = "http://127.0.0.1:4000/t/k/a/.doan/canvases/b.html";
-const at = (gen: number, phase: PrototypePhase, url: string | null = A) => ({ gen, phase, run: url === null ? null : { url } });
+const at = (gen: number, phase: PrototypePhase, url: string | null = A) => ({ gen, phase, run: url === null ? null : { url }, previousStopped: false });
 const after = (...views: ReturnType<typeof at>[]) => views.reduce<HostLayers>(layersForView, NO_LAYERS);
 
 describe("layersForView", () => {

@@ -4,7 +4,7 @@ import { covered, drawerLabel, drawerRows, liveText, LOADING_LABEL, stateScene, 
 
 const frames = [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }, { id: "account", size: "390x844", number: 3 }];
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 2, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", run: { url: "http://127.0.0.1/a.html", markWidth: 390 }, frames, canGoBack: false, canGoForward: false, ...over,
+  gen: 2, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", run: { url: "http://127.0.0.1/a.html", markWidth: 390 }, frames, canGoBack: false, canGoForward: false, previousStopped: false, ...over,
 });
 
 describe("windowTitle", () => {
