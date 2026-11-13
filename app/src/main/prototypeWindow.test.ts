@@ -23,11 +23,13 @@ class FakeWindow extends EventEmitter {
   getBounds() { return this.getContentBounds(); }
   loadFile = vi.fn(async () => {});
   loadURL = vi.fn(async () => {});
-  show() {}
-  focus() {}
+  show() { order.push("window.show"); }
+  focus() { order.push("window.focus"); }
+  isMinimized() { return false; }
 }
+const order: string[] = [];
 vi.mock("electron", () => ({
-  app: { isPackaged: true },
+  app: { isPackaged: true, show: () => order.push("app.show") },
   BrowserWindow: FakeWindow,
   screen: { getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1600, height: 1000 } }), getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1600, height: 1000 } }) },
   session: { fromPartition: () => ({}) },
@@ -38,7 +40,7 @@ const proto = { path: ".doan/canvases/proto.html", url: "http://127.0.0.1:5123/t
 const entries: FolderEntry[] = [{ path: "/r", kind: "list", canvases: [proto], servedRev: 0 }];
 const play = { root: "/r", path: proto.path, frame: "phone", mark: "390x844" };
 
-beforeEach(() => { created.length = 0; vi.resetModules(); });
+beforeEach(() => { created.length = 0; order.length = 0; vi.resetModules(); });
 
 async function opened() {
   const { createPrototypeWindow } = await import("./prototypeWindow");
@@ -91,4 +93,22 @@ test("a replaced window's late focus and blur are not reported", async () => {
   window.emit("focus");
   window.emit("blur");
   expect(focusChanged).not.toHaveBeenCalled();
+});
+
+// `doan open --prototype` arrives while another app is in front or Doan is hidden (⌘H): a hidden app is shown first,
+// since a window's show alone may not bring back a hidden app.
+test("a play while the app is hidden shows the app before the window, for a new window and a raised one", async () => {
+  const { createPrototypeWindow } = await import("./prototypeWindow");
+  let hidden = true;
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), appHidden: () => hidden });
+  const target = { root: "/r", canvas: { id: "proto" }, frame: "phone" };
+  expect(prototype.controller.playFromCli({ target, size: { width: 390, height: 844 } })).toBe("played");
+  expect(order).toEqual(["app.show", "window.show", "window.focus"]);
+  order.length = 0;
+  expect(prototype.controller.playFromCli({ target, size: { width: 390, height: 844 } })).toBe("activated");
+  expect(order).toEqual(["app.show", "window.show", "window.focus"]);
+  order.length = 0;
+  hidden = false;
+  prototype.controller.playFromCli({ target, size: { width: 390, height: 844 } });
+  expect(order).toEqual(["window.show", "window.focus"]);
 });

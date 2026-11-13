@@ -287,3 +287,38 @@ describe("prototype controller", () => {
   });
 });
 
+
+// `doan open --prototype` (app-socket v6): main has judged the target and size; the same transition as Play runs.
+describe("playFromCli", () => {
+  const target = { root: "/r", canvas: { id: "proto" }, frame: "phone" };
+
+  test("opens the window on the frame, as the main window's Play does", () => {
+    const t = setup();
+    expect(t.controller.playFromCli({ target, size: phone })).toBe("played");
+    expect(t.calls).toEqual([["create", phone], ["load", { gen: 1, url: proto.url, frame: "phone" }], ["view", 1, "loading"]]);
+  });
+
+  test("the frame already playing only comes forward: no new run", () => {
+    const t = opened();
+    expect(t.controller.playFromCli({ target, size: phone })).toBe("activated");
+    expect(t.calls).toEqual([["activate"]]);
+  });
+
+  test("another frame plays in the same window and goes on its history", async () => {
+    const t = opened();
+    expect(t.controller.playFromCli({ target: { ...target, frame: "tablet" }, size: { width: 820, height: 1180 } })).toBe("played");
+    // The ready run's still goes out first, so the view follows it.
+    await vi.waitFor(() => expect(t.views.at(-1)?.gen).toBe(2));
+    expect(t.calls.filter(call => Array.isArray(call) && call[0] !== "capture" && call[0] !== "snapshot")).toEqual([
+      ["fit", { width: 820, height: 1180 }], ["activate"], ["load", { gen: 2, url: proto.url, frame: "tablet" }], ["view", 2, "loading"],
+    ]);
+    expect(t.views.at(-1)).toMatchObject({ frame: "tablet", canGoBack: true });
+  });
+
+  test("a canvas gone from the list since the decision is refused and nothing happens", () => {
+    const t = setup();
+    t.setEntries([{ path: "/r", kind: "list", canvases: [], servedRev: 0 }]);
+    expect(t.controller.playFromCli({ target, size: phone })).toBe("refused");
+    expect(t.calls).toEqual([]);
+  });
+});
