@@ -43,10 +43,11 @@ beforeEach(() => { created.length = 0; vi.resetModules(); });
 async function opened() {
   const { createPrototypeWindow } = await import("./prototypeWindow");
   const closed = vi.fn();
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed, denyPermissions: vi.fn(), reread: vi.fn() });
+  const focusChanged = vi.fn();
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed, denyPermissions: vi.fn(), reread: vi.fn(), focusChanged });
   prototype.controller.play("main", play);
   expect(created).toHaveLength(1);
-  return { prototype, closed, window: created[0]! };
+  return { prototype, closed, focusChanged, window: created[0]! };
 }
 
 test("a host renderer that dies closes the window by the normal path", async () => {
@@ -66,4 +67,28 @@ test("a dead renderer of a window already replaced does not touch the new one", 
   window.webContents.emit("render-process-gone", {}, { reason: "crashed", exitCode: 1 });
   expect(created[1]!.destroyed).toBe(false);
   expect(closed).toHaveBeenCalledTimes(1);
+});
+
+// The menu follows these: the main window's items go off while the prototype window has focus and come back when it
+// loses it or closes, before main hears prototype:closed.
+test("focus, blur and close report focus changes in order", async () => {
+  const { closed, focusChanged, window } = await opened();
+  const order: string[] = [];
+  focusChanged.mockImplementation((focused: boolean) => order.push(`focus:${focused}`));
+  closed.mockImplementation(() => order.push("closed"));
+  window.emit("focus");
+  window.emit("blur");
+  window.emit("focus");
+  window.destroy();
+  expect(order).toEqual(["focus:true", "focus:false", "focus:true", "focus:false", "closed"]);
+});
+
+test("a replaced window's late focus and blur are not reported", async () => {
+  const { prototype, focusChanged, window } = await opened();
+  window.close();
+  prototype.controller.play("main", play);
+  focusChanged.mockClear();
+  window.emit("focus");
+  window.emit("blur");
+  expect(focusChanged).not.toHaveBeenCalled();
 });
