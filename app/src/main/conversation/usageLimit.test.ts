@@ -122,12 +122,17 @@ describe("claudeResetFromDetail", () => {
   it.each(transcripts.map(c => [c.assistant.message.content[0]!.text, c] as const))("reads %s as its recorded reset", (text, recorded) => {
     expect(claudeResetFromDetail(text, Date.parse(recorded.assistant.timestamp))).toBe(recorded.assistant.apiErrorParams!.rate_limit_info.resetsAt * 1000);
   });
-  it("takes the next such time without a date, unless that time passed within the hour", () => {
+  it("takes the next such time without a date, or the reset a send just went out for when it names that one", () => {
     const at = (iso: string) => Date.parse(iso);
     // 23:30 in Seoul: 10:10pm tomorrow is next, the one today passed 80 minutes ago.
     expect(claudeResetFromDetail("You've hit your 5-hour limit · resets 10:10pm (Asia/Seoul)", at("2026-11-13T14:30:00Z"))).toBe(at("2026-11-14T13:10:00Z"));
-    // 22:20: a send right after the reset was stopped again, still naming 10:10pm.
-    expect(claudeResetFromDetail("You've hit your 5-hour limit · resets 10:10pm (Asia/Seoul)", at("2026-11-13T13:20:00Z"))).toBe(at("2026-11-13T13:10:00Z"));
+    // 22:20, a first refusal: the next 10:10pm.
+    expect(claudeResetFromDetail("You've hit your 5-hour limit · resets 10:10pm (Asia/Seoul)", at("2026-11-13T13:20:00Z"))).toBe(at("2026-11-14T13:10:00Z"));
+    // 22:20, a send that went out for today's 10:10pm was stopped again, still naming it.
+    expect(claudeResetFromDetail("You've hit your 5-hour limit · resets 10:10pm (Asia/Seoul)", at("2026-11-13T13:20:00Z"), at("2026-11-13T13:10:00Z"))).toBe(at("2026-11-13T13:10:00Z"));
+    // A previous reset that is not the one named, or passed more than an hour ago, changes nothing.
+    expect(claudeResetFromDetail("You've hit your 5-hour limit · resets 10:10pm (Asia/Seoul)", at("2026-11-13T13:20:00Z"), at("2026-11-13T12:10:00Z"))).toBe(at("2026-11-14T13:10:00Z"));
+    expect(claudeResetFromDetail("You've hit your 5-hour limit · resets 10:10pm (Asia/Seoul)", at("2026-11-13T14:30:00Z"), at("2026-11-13T13:10:00Z"))).toBe(at("2026-11-14T13:10:00Z"));
     expect(claudeResetFromDetail("You've hit your 5-hour limit · resets 1am (Asia/Seoul)", at("2026-11-13T14:30:00Z"))).toBe(at("2026-11-13T16:00:00Z"));
     expect(claudeResetFromDetail("You've hit your 5-hour limit · resets 22:10 (Europe/London)", at("2026-11-13T20:00:00Z"))).toBe(at("2026-11-13T22:10:00Z"));
   });

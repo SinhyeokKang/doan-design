@@ -896,3 +896,43 @@ describe("usage-limit schedule channels", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
+// A stopped turn's files are issued again by their recorded paths (ARCHITECTURE §7 'Attachments'): each must still be
+// the kind it was sent as, and a refusal leaves no id issued behind.
+describe("re-issuing a stopped turn's attachments", () => {
+  function files(dir: string) {
+    const store = new AttachmentStore(join(dir, "attachments"), { thumbnail: () => null, reencode: () => null });
+    const issue = vi.spyOn(store, "fromPaths"), remove = vi.spyOn(store, "remove");
+    const issued = () => issue.mock.results.flatMap(result => (result.value as { ok: boolean; attachment?: { id: string } }[] | null ?? []).flatMap(r => r.ok ? [r.attachment!.id] : []));
+    return { store, reissue: queueFiles(store).reissue!, remove, issued };
+  }
+  it("issues every recorded file again and holds it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      writeFileSync(join(dir, "a.txt"), "a"); mkdirSync(join(dir, "folder"));
+      const h = files(dir);
+      const ids = h.reissue([{ name: "a.txt", size: 1, kind: "file", path: join(dir, "a.txt") }, { name: "folder", kind: "directory", path: join(dir, "folder") }]);
+      expect(ids).toHaveLength(2);
+      expect(h.store.recheck({ ids })?.every(result => result.ok)).toBe(true);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("refuses the whole set when a recorded file is a folder now, and releases what it issued", () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      writeFileSync(join(dir, "a.txt"), "a"); mkdirSync(join(dir, "was-a-file"));
+      const h = files(dir);
+      expect(h.reissue([{ name: "a.txt", size: 1, kind: "file", path: join(dir, "a.txt") }, { name: "was-a-file", size: 3, kind: "file", path: join(dir, "was-a-file") }])).toBeNull();
+      expect(h.issued()).toHaveLength(2);
+      expect(h.remove.mock.calls.map(call => (call[0] as { id: string }).id).sort()).toEqual([...h.issued()].sort());
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("refuses the whole set when one recorded file is gone, and releases the others", () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      writeFileSync(join(dir, "a.txt"), "a");
+      const h = files(dir);
+      expect(h.reissue([{ name: "a.txt", size: 1, kind: "file", path: join(dir, "a.txt") }, { name: "gone.txt", size: 1, kind: "file", path: join(dir, "gone.txt") }])).toBeNull();
+      expect(h.issued()).toHaveLength(1);
+      expect(h.remove.mock.calls.map(call => (call[0] as { id: string }).id)).toEqual(h.issued());
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});

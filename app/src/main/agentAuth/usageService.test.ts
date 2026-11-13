@@ -367,6 +367,19 @@ describe("UsageService turn ends", () => {
     expect(await usage.limitWindows("codex", "other")).toEqual([]);
     expect(await usage.limitWindows("antigravity", "x1")).toEqual([]);
   });
+  // Another provider's slow read must not keep this conversation working.
+  it("waits only for the read of the asked provider", async () => {
+    const gate = deferred<UsageReading>();
+    const h = setup({ read: provider => provider === "claude" ? gate.promise : Promise.resolve(ok(h.now())) });
+    h.auth.states.set("claude", connected("claude", "c1")); h.auth.states.set("codex", connected("codex", "x1"));
+    const usage = h.make();
+    usage.trigger({ kind: "refresh" }); await flush();
+    let answered = false;
+    void usage.limitWindows("codex", "x1").then(() => { answered = true; });
+    for (let i = 0; i < 50; i++) await Promise.resolve();
+    expect(answered).toBe(true);
+    gate.resolve(ok(h.now())); await usage.settled();
+  });
   it("reads through the run's open connection without a lease or a new process, under the 5-minute rule", async () => {
     const h = setup();
     h.auth.states.set("claude", connected("claude", "c1"));

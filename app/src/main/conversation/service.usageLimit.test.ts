@@ -28,6 +28,8 @@ function fakeClock() {
     // The Mac slept: the wall clock moved, and no timer ran.
     sleep(ms: number) { now += ms; },
     pending: () => timers.size,
+    // The callbacks armed now, to run one by hand after it was cancelled.
+    armed: () => [...timers].map(timer => timer.run),
   };
 }
 type Run = { emit: (event: EventPayload) => void; exited: () => void; runner: Runner };
@@ -46,7 +48,9 @@ function fixture(options: { provider?: Provider; files?: QueueFiles; listed?: Ca
   const drafts = new DraftStore(join(dir, "conversations"));
   const clock = fakeClock();
   let windows: UsageWindow[] = [];
-  const limitWindows = vi.fn(async () => windows);
+  // held: the next post-limit usage read stays open until the test answers it.
+  let held: ReturnType<typeof deferred<readonly UsageWindow[]>> | undefined;
+  const limitWindows = vi.fn((): Promise<readonly UsageWindow[]> => { const read = held; held = undefined; return read ? read.promise : Promise.resolve(windows); });
   let resume: (() => void) | undefined;
   const published: { event: ConversationEvent; deferred: boolean }[] = [], notices: ConversationEvent[] = [];
   const admit = (_root: string, canvas?: Canvas) => canvas ? resolveListedCanvas(canvas, listed) : undefined;
@@ -63,12 +67,17 @@ function fixture(options: { provider?: Provider; files?: QueueFiles; listed?: Ca
   const limited = async (id: string, activity = false, detail = "You've hit your usage limit.") => {
     if (activity) service.receive(id, { type: "activity", kind: "read", summary: "Reading files" });
     service.receive(id, { type: "turn.failed", code: "rate_limited", detail }); service.refreshed("/repo", []);
-    await vi.waitFor(() => expect(summary(id).working).toBe(false));
+    await drain(); expect(summary(id).working).toBe(false);
   };
   return { dir, service, store, runs, open, prepare, drafts, clock, limitWindows, published, notices, summary, texts, start, startProject, limit, noLimit, limited, listed,
-    resume: () => resume?.(), setConnection: (id: string) => { connection = id; } };
+    resume: () => resume?.(), setConnection: (id: string) => { connection = id; },
+    holdRead: () => { const read = deferred<readonly UsageWindow[]>(); held = read; return { answer: () => read.resolve(windows) }; } };
 }
-const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+// Every step of a send here is a promise (mocked prepare and runner, synchronous store), so running the microtask queue
+// out settles it: no test waits for a timer or a poll.
+async function drain(): Promise<void> { for (let i = 0; i < 200; i++) await Promise.resolve(); }
+// A promise the test settles itself, for a usage read still running while something else happens.
+function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 const iso = (at: number) => new Date(at).toISOString();
 const failedNotices = (h: ReturnType<typeof fixture>) => h.notices.filter(e => e.type === "turn.failed");
 
@@ -86,9 +95,9 @@ describe("a send while the limit holds", () => {
     expect(h.service.scheduled(id).map(item => item.text)).toEqual(["first", "second"]);
     expect(h.service.scheduled(id).some(item => "turnId" in item)).toBe(false);
     // Nothing goes out before the time; the history keeps only the stopped turn.
-    h.clock.advance(HOUR + MIN - 1); await tick();
+    h.clock.advance(HOUR + MIN - 1); await drain();
     expect(h.texts(id)).toEqual(["hello"]);
-    h.clock.advance(1); await vi.waitFor(() => expect(h.texts(id)).toEqual(["hello", "first\n\nsecond"]));
+    h.clock.advance(1); await drain(); expect(h.texts(id)).toEqual(["hello", "first\n\nsecond"]);
     expect(h.runs[0]!.runner.send).toHaveBeenCalledTimes(2);
     expect(h.summary(id)).not.toHaveProperty("scheduledAt");
     expect(h.summary(id)).toMatchObject({ queued: 0, working: true });
@@ -103,7 +112,7 @@ describe("a send while the limit holds", () => {
     h.service.removeQueued(id, itemId);
     expect(h.clock.pending()).toBe(1);
     expect(h.summary(id)).not.toHaveProperty("scheduledAt");
-    h.clock.advance(2 * HOUR); await tick();
+    h.clock.advance(2 * HOUR); await drain();
     expect(h.texts(id)).toEqual(["hello"]);
     // Its reset passed, so the limit is gone too.
     expect(h.summary(id)).not.toHaveProperty("limitResetsAt");
@@ -122,7 +131,7 @@ describe("a send while the limit holds", () => {
     h.service.receive(b, { type: "turn.done" });
     h.service.schedule(a, { text: "to a", anchors: [] }); h.service.schedule(b, { text: "to b", anchors: [] });
     h.clock.advance(HOUR + MIN);
-    await vi.waitFor(() => { expect(h.texts(a).at(-1)).toBe("to a"); expect(h.texts(b).at(-1)).toBe("to b"); });
+    await drain(); expect(h.texts(a).at(-1)).toBe("to a"); expect(h.texts(b).at(-1)).toBe("to b");
   });
   // Another project conversation of the root holds it at the reset: the schedule waits and goes once the root is free.
   it("waits for the root another project conversation holds", async () => {
@@ -132,25 +141,25 @@ describe("a send while the limit holds", () => {
     h.clock.advance(HOUR);
     h.noLimit();
     const other = await h.startProject("other");
-    h.clock.advance(MIN); await tick();
+    h.clock.advance(MIN); await drain();
     expect(h.summary(first)).toMatchObject({ scheduledAt: iso(RESET), working: false });
     expect(h.texts(first)).toEqual(["first"]);
     h.service.receive(other, { type: "turn.done" }); h.service.refreshed("/repo", []);
-    await vi.waitFor(() => expect(h.texts(first)).toEqual(["first", "after the reset"]));
+    await drain(); expect(h.texts(first)).toEqual(["first", "after the reset"]);
   });
   // A turn the limit stopped is judged as any project turn; a schedule due before that judgement waits for it.
   it("waits for its own turn's judgement when it comes due before it", async () => {
     const h = fixture(); h.limit(NOW + 30_000);
     const id = await h.startProject();
     h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "limit" });
-    await vi.waitFor(() => expect(h.service.scheduled(id)).toHaveLength(1));
+    await drain(); expect(h.service.scheduled(id)).toHaveLength(1);
     // Still working while it waits for its judgement, so not shown as scheduled yet.
     expect(h.summary(id).working).toBe(true);
     expect(h.summary(id)).not.toHaveProperty("scheduledAt");
-    h.clock.advance(30_000 + MIN); await tick();
+    h.clock.advance(30_000 + MIN); await drain();
     expect(h.texts(id)).toEqual(["make a page"]);
     h.service.refreshed("/repo", []);
-    await vi.waitFor(() => expect(h.texts(id)).toEqual(["make a page", "make a page"]));
+    await drain(); expect(h.texts(id)).toEqual(["make a page", "make a page"]);
   });
   it("leaves a legacy external, an ACP provider's and a new conversation's send as before", async () => {
     for (const provider of ["cursor", "copilot", "antigravity"] as const) {
@@ -185,7 +194,7 @@ describe("a turn the limit stopped before the agent did anything", () => {
     expect(h.published.find(p => p.event.type === "turn.failed")?.deferred).toBe(true);
     expect(failedNotices(h)).toEqual([]);
     h.clock.advance(HOUR + MIN);
-    await vi.waitFor(() => expect(h.texts(id)).toEqual(["hello", "hello\n\nqueued behind it"]));
+    await drain(); expect(h.texts(id)).toEqual(["hello", "hello\n\nqueued behind it"]);
   });
   it("fails as before when the agent did something, and the failure notice goes out then, its queue still waiting", async () => {
     const h = fixture(); h.limit(RESET); const id = await h.start();
@@ -220,7 +229,7 @@ describe("a turn the limit stopped before the agent did anything", () => {
     expect(files.reissue).toHaveBeenLastCalledWith([record]);
     expect(h.service.scheduled(id)).toEqual([{ itemId: expect.any(String), text: "with a file", anchors: [], attachments: [record], turnId: expect.any(String) }]);
     h.clock.advance(HOUR + MIN);
-    await vi.waitFor(() => expect(h.texts(id)).toHaveLength(2));
+    await drain(); expect(h.texts(id)).toHaveLength(2);
     expect(files.reclaim).toHaveBeenLastCalledWith(["again"]);
     const other = (await h.service.start({ root: "/repo", mode: "new", runtime: "codex", canvas: { path: ".doan/canvases/b.html" }, text: "file gone", anchors: [], attachments: [record] })).conversationId;
     gone = true; h.limit(LATER);
@@ -234,7 +243,7 @@ describe("a scheduled send the limit stops again", () => {
   async function sentOnce(h: ReturnType<typeof fixture>) {
     const id = await h.start(); await h.limited(id);
     h.clock.advance(HOUR + MIN);
-    await vi.waitFor(() => expect(h.texts(id)).toEqual(["hello", "hello"]));
+    await drain(); expect(h.texts(id)).toEqual(["hello", "hello"]);
     return id;
   }
   it("waits again for a later reset, with no failure notice", async () => {
@@ -252,10 +261,10 @@ describe("a scheduled send the limit stops again", () => {
     await h.limited(id);
     // Sent once more a minute later, still showing the same reset.
     expect(h.summary(id)).toMatchObject({ scheduledAt: iso(RESET) });
-    h.clock.advance(MIN - 1); await tick();
+    h.clock.advance(MIN - 1); await drain();
     expect(h.texts(id)).toHaveLength(2);
     h.clock.advance(1);
-    await vi.waitFor(() => expect(h.texts(id)).toEqual(["hello", "hello", "hello"]));
+    await drain(); expect(h.texts(id)).toEqual(["hello", "hello", "hello"]);
     await h.limited(id);
     expect(h.service.scheduled(id)).toEqual([]);
     expect(h.summary(id).queued).toBe(0);
@@ -311,7 +320,7 @@ describe("clearing a schedule", () => {
     expect(drafts.returned(id)).toMatchObject({ text: "waiting", reason: "restarted" });
     const restarted = new ConversationService(h.store, h.prepare, h.open, () => {}, () => {}, 10_000, () => [], () => {}, { drafts, clock: h.clock });
     expect(restarted.list("/repo").find(s => s.conversationId === id)).not.toHaveProperty("scheduledAt");
-    h.clock.advance(2 * HOUR); await tick();
+    h.clock.advance(2 * HOUR); await drain();
     expect(h.texts(id)).toEqual(["hello"]);
   });
 });
@@ -326,11 +335,11 @@ describe("waking from sleep", () => {
     h.service.schedule(b, { text: "later", anchors: [] });
     expect(h.summary(a)).toMatchObject({ scheduledAt: iso(RESET) });
     h.clock.sleep(2 * HOUR); h.resume();
-    await vi.waitFor(() => expect(h.texts(a).at(-1)).toBe("due"));
+    await drain(); expect(h.texts(a).at(-1)).toBe("due");
     expect(h.texts(b).at(-1)).toBe("hello");
     expect(h.summary(b)).toMatchObject({ scheduledAt: iso(LATER) });
     h.clock.advance(3 * HOUR + MIN);
-    await vi.waitFor(() => expect(h.texts(b).at(-1)).toBe("later"));
+    await drain(); expect(h.texts(b).at(-1)).toBe("later");
   });
 });
 
@@ -340,7 +349,7 @@ describe("a scheduled send that cannot go out", () => {
     const h = fixture({ files }); h.limit(RESET); const id = await h.start(); await h.limited(id, true);
     h.service.schedule(id, { text: "with a file", anchors: [], attachments: [{ name: "a.png", size: 3, kind: "image", path: "/Users/me/a.png" }], ids: ["f1"] });
     h.clock.advance(HOUR + MIN);
-    await vi.waitFor(() => expect(h.drafts.returned(id)).toMatchObject({ text: "with a file", reason: "attachment_missing" }));
+    await drain(); expect(h.drafts.returned(id)).toMatchObject({ text: "with a file", reason: "attachment_missing" });
     expect(h.texts(id)).toEqual(["hello"]);
   });
   it("hands the messages back as a draft when the history takes no more", async () => {
@@ -348,7 +357,118 @@ describe("a scheduled send that cannot go out", () => {
     h.service.schedule(id, { text: "too much", anchors: [] });
     vi.spyOn(h.store, "appendAll").mockImplementation(() => { throw new Error("File exceeds limit"); });
     h.clock.advance(HOUR + MIN);
-    await vi.waitFor(() => expect(h.drafts.returned(id)).toMatchObject({ text: "too much" }));
+    await drain(); expect(h.drafts.returned(id)).toMatchObject({ text: "too much" });
     expect(h.summary(id)).toMatchObject({ working: false, queued: 0 });
+  });
+});
+
+// A Stop, an archive, a sign-out or a stop of the provider's runs while the usage read after a limited turn still runs
+// ends that lookup: the stopped turn never goes out again, and its failure notice is told exactly once.
+describe("a usage read still running after a limited turn", () => {
+  async function stoppedWhileReading(h: ReturnType<typeof fixture>) {
+    h.limit(RESET); const id = await h.start();
+    h.service.queue(id, { text: "behind", anchors: [] });
+    const read = h.holdRead();
+    h.service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "limit" });
+    await drain();
+    expect(h.summary(id).working).toBe(true);
+    expect(failedNotices(h)).toEqual([]);
+    return { id, read };
+  }
+  async function stillNothingAfterTheRead(h: ReturnType<typeof fixture>, id: string, read: { answer(): void }) {
+    expect(failedNotices(h)).toHaveLength(1);
+    read.answer(); await drain();
+    expect(h.service.scheduled(id)).toEqual([]);
+    expect(failedNotices(h)).toHaveLength(1);
+    h.clock.advance(2 * HOUR); await drain();
+    expect(h.texts(id)).toEqual(["hello"]);
+  }
+  it("ends with a Stop: the queue comes back and the turn is not sent again", async () => {
+    const h = fixture(); const { id, read } = await stoppedWhileReading(h);
+    await h.service.interrupt(id);
+    expect(h.drafts.returned(id)).toMatchObject({ text: "behind", reason: "interrupted" });
+    expect(h.summary(id).working).toBe(false);
+    await stillNothingAfterTheRead(h, id, read);
+  });
+  it("ends with a stop of the provider's runs, before auth reports a new connection", async () => {
+    const h = fixture(); const { id, read } = await stoppedWhileReading(h);
+    await h.service.stopRuns("codex");
+    expect(h.drafts.returned(id)).toMatchObject({ text: "behind", reason: "interrupted" });
+    await stillNothingAfterTheRead(h, id, read);
+  });
+  it("ends with a sign-out", async () => {
+    const h = fixture(); const { id, read } = await stoppedWhileReading(h);
+    h.service.connectionChanged("codex", undefined);
+    expect(h.drafts.returned(id)).toMatchObject({ text: "behind", reason: "interrupted" });
+    await stillNothingAfterTheRead(h, id, read);
+  });
+  it("ends with an archive", async () => {
+    const h = fixture(); const { id, read } = await stoppedWhileReading(h);
+    await h.service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "replacing", anchors: [] });
+    expect(h.drafts.returned(id)).toMatchObject({ text: "behind" });
+    await stillNothingAfterTheRead(h, id, read);
+  });
+});
+
+// A message Send now put into the turn is the person's too; sending only the first again would drop it.
+it("does not send a stopped turn again that took a second message, and tells its failure", async () => {
+  const h = fixture(); h.limit(RESET); const id = await h.start();
+  h.service.queue(id, { text: "behind", anchors: [] });
+  h.service.receive(id, { type: "user.message", text: "steered in", anchors: [] });
+  await h.limited(id);
+  expect(h.service.scheduled(id)).toEqual([{ itemId: expect.any(String), text: "behind", anchors: [], attachments: [] }]);
+  expect(failedNotices(h)).toHaveLength(1);
+});
+
+describe("schedule timers", () => {
+  it("does nothing when a cancelled timer's callback still runs", async () => {
+    const h = fixture(); h.limit(RESET); const id = await h.start(); await h.limited(id, true);
+    const before = h.clock.armed();
+    const { itemId } = h.service.schedule(id, { text: "removed", anchors: [] });
+    const run = h.clock.armed().find(callback => !before.includes(callback))!;
+    h.service.removeQueued(id, itemId);
+    h.clock.sleep(2 * HOUR); run(); await drain();
+    expect(h.texts(id)).toEqual(["hello"]);
+  });
+  // setTimeout fires at once past 2^31-1 ms; the default clock arms such a schedule again until its time.
+  it("waits out a reset further away than one timer can, on the default clock", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"], now: NOW });
+    try {
+      const far = NOW + 30 * 24 * HOUR;
+      const dir = mkdtempSync(join(tmpdir(), "doan-limit-")); paths.push(dir);
+      const store = new ConversationStore(dir);
+      const open = vi.fn<OpenRunner>(async input => ({ sessionId: input.sessionId ?? "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+      const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {},
+        owner: { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: null, workspaceId: null, profile: "codex" }, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+      const service = new ConversationService(store, prepare, open, () => {}, undefined, 10_000, () => [], () => {},
+        { limitWindows: async () => [{ id: "primary", label: "30-day", usedPercent: 100, resetsAt: far, limited: true }] });
+      service.connectionChanged("codex", "c1");
+      const id = (await service.start({ root: "/repo", mode: "new", runtime: "codex", canvas: { path: ".doan/canvases/a.html" }, text: "hello", anchors: [] })).conversationId;
+      service.receive(id, { type: "turn.failed", code: "rate_limited", detail: "limit" });
+      await drain();
+      const texts = () => store.read(id).flatMap(e => e.type === "user.message" ? [e.text] : []);
+      vi.advanceTimersByTime(2 ** 31 - 1); await drain();
+      expect(texts()).toEqual(["hello"]);
+      vi.advanceTimersByTime(far + MIN - NOW - (2 ** 31 - 1) - 1); await drain();
+      expect(texts()).toEqual(["hello"]);
+      vi.advanceTimersByTime(1); await drain();
+      expect(texts()).toEqual(["hello", "hello"]);
+    } finally { vi.useRealTimers(); }
+  });
+  // Two project conversations of one root due at the same time: one goes, the other once the root is free again.
+  it("sends two schedules of one root one after the other", async () => {
+    const h = fixture();
+    const first = await h.startProject("first"); h.service.receive(first, { type: "turn.done" }); h.service.refreshed("/repo", []);
+    const second = await h.startProject("second"); h.service.receive(second, { type: "turn.done" }); h.service.refreshed("/repo", []);
+    h.limit(RESET);
+    await h.service.send(first, "again", []); await h.limited(first, true);
+    h.service.schedule(first, { text: "first after", anchors: [] }); h.service.schedule(second, { text: "second after", anchors: [] });
+    h.clock.advance(HOUR + MIN); await drain();
+    const went = [first, second].filter(id => h.texts(id).at(-1)?.endsWith(" after"));
+    expect(went).toHaveLength(1);
+    const other = went[0] === first ? second : first;
+    expect(h.summary(other)).toMatchObject({ scheduledAt: iso(RESET), working: false });
+    h.service.receive(went[0]!, { type: "turn.done" }); h.service.refreshed("/repo", []); await drain();
+    expect(h.texts(other).at(-1)).toBe(other === first ? "first after" : "second after");
   });
 });
