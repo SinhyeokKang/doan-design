@@ -474,6 +474,8 @@ const api = {
   },
   openStarRepository: (): Promise<boolean> => ipcRenderer.invoke("star:open"),
   dismissStarPrompt: (): Promise<void> => ipcRenderer.invoke("star:dismiss"),
+  // Home's credit line; main holds the URL.
+  openRepository: (): Promise<boolean> => ipcRenderer.invoke("repository:open"),
   // A conversation running or waiting for an answer, which puts the card off.
   starPromptBusy: (): Promise<boolean> => ipcRenderer.invoke("star:busy"),
   // The menu's Restart to Update was blocked: main has shown the window; open the header button's popover.

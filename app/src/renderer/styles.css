@@ -651,7 +651,17 @@ body:has(.shell-top) { background: transparent; }
 .doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }
 .shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }
 /* The top inset is set from the reference group by HomeComposer (stageInsets); this is its floor. */
-.home-stage { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: var(--space-8); }
+.home-stage { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: var(--space-8); padding-bottom: var(--space-5); }
+/* The credit line stays in the stage's flow, so a short panel scrolls to it rather than it covering the suggestions:
+   the auto margin takes spare height, and the top padding keeps 40px after the suggestions (or the composer) when
+   there is none. --text-disabled is about 3.0:1 on white, kept on purpose for a quiet footer. */
+.home-credit { margin-top: auto; padding-top: var(--space-10); display: grid; justify-items: center; max-width: 100%; color: var(--text-disabled); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); text-align: center; }
+.home-credit-line { max-width: 100%; overflow-wrap: anywhere; }
+.home-credit-line > span[aria-hidden="true"] { opacity: 0.4; }
+.home-credit-link { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: var(--space-half); cursor: pointer; outline: none; transition: color var(--time-state) var(--ease-state); }
+@media (hover: hover) { .home-credit-link:hover { color: var(--text-standard); } }
+.home-credit-link:active { color: var(--text-standard); }
+.home-credit-link:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .home-greeting { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); color: var(--text-standard); text-align: center; }
 .home-composer { position: relative; width: min(680px, 100%); margin-top: var(--space-10); }
 .home-project { gap: var(--space-2); margin: 0 0 var(--space-2) var(--space-2); font-weight: var(--type-weight-medium); }
