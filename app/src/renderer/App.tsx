@@ -1473,7 +1473,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const command = (name: ViewCommand) => controller.current?.command(name);
   // A pick from the Add Projects page goes through openCanvas too.
   function pick(result: SearchResult) {
-    if (locked()) return;
+    if (locked() || result.kind === "conversation") return;
     cancelRestore();
     setQuickOpen(false);
     const target = entries.find(entry => entry.path === result.root);

@@ -36,16 +36,18 @@ test("a modal dialog with a combobox over a listbox, the placeholder and no key 
   expect(html).not.toContain(">esc<");
 });
 
-test("filter tabs: All, Canvases and Frames, All chosen and the one Tab stop, each controlling the results", () => {
+test("filter tabs: All, Canvases, Frames and Conversations, All chosen and the one Tab stop, each controlling the results", () => {
   const html = render("/code/acme-web");
   const listbox = html.match(/role="listbox" id="([^"]+)"/)?.[1];
   expect(html).toContain('role="tablist" aria-label="Result types"');
   const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>.*?<\/button>/g)].map(match => match[0]);
-  expect(tabs.map(tab => tab.replace(/<[^>]+>/g, ""))).toEqual(["All", "Canvases", "Frames"]);
-  expect(tabs.map(tab => tab.match(/aria-selected="(\w+)"/)?.[1])).toEqual(["true", "false", "false"]);
+  expect(tabs.map(tab => tab.replace(/<[^>]+>/g, ""))).toEqual(["All", "Canvases", "Frames", "Conversations"]);
+  expect(tabs.map(tab => tab.match(/aria-selected="(\w+)"/)?.[1])).toEqual(["true", "false", "false", "false"]);
   // The Canvases tab holds both kinds of canvas, so it takes the plain canvas icon.
   expect(tabs[1]).toMatch(/lucide-panels-top-left/);
-  expect(tabs.map(tab => tab.match(/tabindex="(-?\d)"/)?.[1])).toEqual(["0", "-1", "-1"]);
+  // MessageCircle already marks a finished, unread conversation, so Conversations takes MessagesSquare.
+  expect(tabs[3]).toMatch(/lucide-messages-square/);
+  expect(tabs.map(tab => tab.match(/tabindex="(-?\d)"/)?.[1])).toEqual(["0", "-1", "-1", "-1"]);
   for (const tab of tabs) expect(tab).toContain(`aria-controls="${listbox}"`);
   // The list scrolls but is not a Tab stop: the input and the tab list are.
   expect(html).toMatch(/role="listbox"[^>]*tabindex="-1"/);

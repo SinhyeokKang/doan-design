@@ -586,7 +586,7 @@ const fullIndex = (entries: readonly SearchFolder[], lists: ConversationLists) =
 const conversationIds = (results: readonly SearchResult[]) => results.map(result => result.kind === "conversation" ? result.conversationId : `${result.kind}:${result.label}`);
 
 describe("quick open conversation index", () => {
-  const billing = canvas(".doan/canvases/settings/billing.html", { id: "billing", title: "Billing & plans" });
+  const billing = canvas(".doan/canvases/settings/billing.html", { id: "billing" });
   const twin = canvas(".doan/canvases/copy.html", { id: "billing" });
   const plain = canvas(".doan/canvases/plain.html");
 

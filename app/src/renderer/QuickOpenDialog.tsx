@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type Ref } from "react";
-import { Hash, Layers, PanelsTopLeft, Search, SwatchBook } from "lucide-react";
+import { Hash, Layers, MessagesSquare, PanelsTopLeft, Search, SwatchBook } from "lucide-react";
 import { canvasDir } from "../formats/canvasPath";
 import type { FolderEntry } from "../main/view";
 import { tabKey } from "./ComposerParts";
@@ -61,6 +61,8 @@ const TABS: readonly { kind: SearchKind; label: string; Icon: typeof Layers }[] 
   // The tab holds both kinds of canvas, so it takes the plain canvas icon.
   { kind: "canvas", label: "Canvases", Icon: PanelsTopLeft },
   { kind: "frame", label: "Frames", Icon: Hash },
+  // MessageCircle already marks a finished, unread conversation.
+  { kind: "conversation", label: "Conversations", Icon: MessagesSquare },
 ];
 
 // Leaving the tab list by Tab keeps the row the person was on; only ↓ asks for the first row again.
@@ -179,7 +181,7 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
           requestAnimationFrame(focusTab);
         }}><tab.Icon aria-hidden="true" />{tab.label}</button>)}
     </div>
-    <QuickOpenList emptyText={emptyText(kind, query, scope, otherCount)} id={id} listRef={list} query={query} groups={groups} active={current} pick={choose} activate={activate} reading={readingCount(entries, currentRoot, query)} />
+    <QuickOpenList emptyText={emptyText(kind, query, scope, otherCount)} id={id} listRef={list} query={query} groups={groups} active={current} pick={choose} activate={activate} reading={readingCount(entries, new Map(), currentRoot, query, kind)} />
   </dialog>;
 }
 
@@ -194,7 +196,7 @@ export function QuickOpenList({ emptyText = "No canvases or frames match", id, l
           {group.rows.map(result => {
             const index = at++;
             const parts = resultParts(result, group.title);
-            const Icon = parts.icon === "frame" ? Hash : canvasDir(result.path) === "ds" ? SwatchBook : PanelsTopLeft;
+            const Icon = result.kind === "frame" ? Hash : result.kind === "conversation" ? MessagesSquare : canvasDir(result.path) === "ds" ? SwatchBook : PanelsTopLeft;
             return <div className="qo-item" role="option" id={optionId(id, result)} aria-selected={index === active} aria-label={parts.accessibleName} key={resultKey(result)}
               onMouseMove={() => { if (index !== active) activate(index); }} onClick={() => pick(result)}>
               <span className="qo-icon" aria-hidden="true"><Icon /></span>
