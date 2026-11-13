@@ -68,9 +68,11 @@ export class ConversationStore {
   // Each conversation's latest stage signal, pushed or on a read's reply. Kept for a
   // conversation not read yet as its events are; the indicator uses it only for the turn and seq it names.
   private stages = new Map<string, StageSignal>();
-  // The list's schedule (its time and count) each scheduled conversation's rows were last asked for, so a list read that
-  // repeats it asks main no more and an answer for an older one is dropped.
-  private schedules = new Map<string, string>();
+  // The schedule (its time and count) each scheduled conversation's rows were last asked for, with that read's own
+  // token. Every list read drops the ones the list moved past, shown or not, so the same time and count coming back
+  // (a same-reset retry) is read again; only the read holding the current token may apply its answer.
+  private schedules = new Map<string, { root: string; schedule: string; token: number }>();
+  private scheduleReads = 0;
 
   constructor(private host: ConversationStoreHost) {}
 
@@ -137,8 +139,10 @@ export class ConversationStore {
   // A queue main already sent shows no more once a read started after the queue says so. Main's count leaves out the
   // message Send now has in flight, so that message stays until Send now's answer settles it. It also leaves out a queue
   // on its way out after its turn ended: while main still holds the conversation after that turn and gave nothing back
-  // as a draft, the rows stay until the next turn opens, so the composer keeps Stop over them.
+  // as a draft, the rows stay until the next turn opens, so the composer keeps Stop over them. Every read also forgets
+  // the scheduled rows' reads the list moved past (readScheduled).
   syncQueues(): void {
+    for (const [id, held] of this.schedules) if (this.scheduleOf(held.root, id) !== held.schedule) this.schedules.delete(id);
     for (const [id, queue] of this.queues) {
       const list = this.host.list(queue.root);
       const c = Array.isArray(list) ? list.find(item => item.conversationId === id) : undefined;
@@ -155,23 +159,25 @@ export class ConversationStore {
   // the whole queue. main's count dips while a scheduled send goes out and comes back on a reschedule, so the rows'
   // read mark moves to the reads started from now (POSTMORTEM 2026-11-05).
   readScheduled(root: string, conversationId: string): void {
-    const listed = () => {
-      const list = this.host.list(root);
-      const c = Array.isArray(list) ? list.find(item => item.conversationId === conversationId) : undefined;
-      return c?.scheduledAt ? `${c.scheduledAt}\n${c.queued}` : null;
-    };
-    const schedule = listed();
+    const schedule = this.scheduleOf(root, conversationId);
     if (schedule === null) { this.schedules.delete(conversationId); return; }
-    if (this.schedules.get(conversationId) === schedule) return;
-    this.schedules.set(conversationId, schedule);
-    void window.doan.scheduledMessages({ conversationId }).catch(() => null).then(reply => {
-      // The answer belongs to the schedule it was asked for: a list that moved on meanwhile is read again.
-      if (listed() !== schedule) { if (this.schedules.get(conversationId) === schedule) this.schedules.delete(conversationId); return; }
-      if (!Array.isArray(reply) || this.deletedIds.has(conversationId)) return;
+    if (this.schedules.get(conversationId)?.schedule === schedule) return;
+    const token = ++this.scheduleReads;
+    this.schedules.set(conversationId, { root, schedule, token });
+    void window.doan.scheduledMessages({ conversationId }).catch(error => { console.error(error); return null; }).then(reply => {
+      if (this.schedules.get(conversationId)?.token !== token) return;
+      // A failed read, or a list that moved on meanwhile, leaves the schedule to be read again on the next sync.
+      if (!Array.isArray(reply) || this.scheduleOf(root, conversationId) !== schedule) { this.schedules.delete(conversationId); return; }
+      if (this.deletedIds.has(conversationId)) return;
       const items = reply.map((item): QueuedMessage => ({ id: item.itemId, text: messageLine(stripRequestLines(item.text), item.anchors), message: { text: item.text, anchors: item.anchors, attachments: item.attachments }, ...(item.turnId ? { turnId: item.turnId } : {}) }));
       this.queues.set(conversationId, { root, items, after: this.host.readsStarted(root), turn: this.currentTurn(conversationId) });
       this.host.changed();
     });
+  }
+  private scheduleOf(root: string, conversationId: string): string | null {
+    const list = this.host.list(root);
+    const c = Array.isArray(list) ? list.find(item => item.conversationId === conversationId) : undefined;
+    return c?.scheduledAt ? `${c.scheduledAt}\n${c.queued}` : null;
   }
   // The last turn failed and its own message waits in the queue to go out again at the reset: its Edit and resend would
   // send it twice, so it hides until that row is removed.
