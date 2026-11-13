@@ -1637,7 +1637,7 @@ Documented differences, beyond the Canvas handoff ones above (panel width, text-
 - **The toast's shadow.** The app's `styles.css` gives the floating toast `--shadow-floating`; the draft restates only the toast's position.
 - **The gone missed line's tile.** Drawn outside the panel in the draft; the app draws it in the panel (width only).
 
-Not verified: a real provider turn with several requests (the R1 runtime check), the missed line's Open moving to the canvas in the real app (pinned by `ConversationThread.test.tsx` and the shared `openConversationCanvas` path), a summary toast while a single move still waits for its read (`App.handoff.test.tsx`), hover, pressed and keyboard-focus states of Open (the probe read no outline; only Open's CDP name), dark mode and forced colours.
+A real-app run with Claude Code and Codex (Ask first, sent from the composer) saw two lines and two started conversations with no move on the source canvas page, the summary toast and its Open from Home, and a missed line whose Open opened its canvas. Not verified: other providers, a summary toast while a single move still waits for its read (`App.handoff.test.tsx`), hover, pressed and keyboard-focus states of Open (the probe read no outline; only Open's CDP name), dark mode and forced colours.
 
 Regression pointers: `threadItems.test.ts` (per-path lines, path-less resolution, missed placement), `handoffView.test.ts` (missed copy, summary text, `handoffMultiStep`), `ConversationThread.test.tsx` (missed markup, “Open <file>” names, missed Open without a conversation), `App.handoff.test.tsx` (summary toast, nothing on the source page, gone source, a waiting single move turned into its toast).
 
