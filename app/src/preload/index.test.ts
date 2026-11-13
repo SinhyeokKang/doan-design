@@ -701,3 +701,20 @@ test("Play prototype and the closed event use the prototype channels", () => {
   expect(closed).toHaveBeenCalledTimes(1);
   expect(closed.mock.calls[0]).toEqual([]);
 });
+
+// The prototype window asks the main window to show a chip's target, a Settings section or a conversation, and hands
+// over a composer pick to remember as Last used; main sends both here after its checks.
+test("prototype reveal requests and Last used picks reach their listeners until unsubscribed", () => {
+  const reveals = vi.fn();
+  const picks = vi.fn();
+  const stopReveals = api.onPrototypeReveal(reveals);
+  const stopPicks = api.onPrototypeLastUsed(picks);
+  const reveal = { kind: "chip", root: "/r", canvas: { id: "proto", path: ".doan/canvases/proto.html" }, conversationId: "c", anchor: { frame: { id: "f" } } };
+  emitter.emit("prototype:revealRequest", {}, reveal);
+  emitter.emit("prototype:lastUsed", {}, { provider: "claude", model: "sonnet", effort: null, modelPicked: true });
+  stopReveals(); stopPicks();
+  emitter.emit("prototype:revealRequest", {}, { kind: "settings", provider: "codex" });
+  emitter.emit("prototype:lastUsed", {}, { provider: "codex", model: null, effort: null });
+  expect(reveals.mock.calls).toEqual([[reveal]]);
+  expect(picks.mock.calls).toEqual([[{ provider: "claude", model: "sonnet", effort: null, modelPicked: true }]]);
+});

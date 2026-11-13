@@ -139,3 +139,40 @@ test("restricts the agent usage read to main and refuses its event", async () =>
   for (const kind of ["settings", "capture", undefined]) expect(senderAllowed(USAGE_CHANNELS.read, kind)).toBe(false);
   for (const kind of ["main", "settings"]) for (const channel of [USAGE_CHANNELS.changed, "agent-usage:", "agent-usage:refresh"]) expect(senderAllowed(channel, kind)).toBe(false);
 });
+// The prototype window's main frame: its own run, and, scoped to the playing canvas by main, the conversation panel's
+// composer channels. The main window's set is not widened for it.
+describe("prototype window", () => {
+  const composer = [
+    "design-skills:list", "design-skills:get",
+    "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release", "attachments:fromPaths",
+    "shell:openLink",
+  ];
+  test("may call its own requests, and those are not the main window's", async () => {
+    const { PROTOTYPE_WINDOW_REQUESTS } = await import("./prototype/ipc");
+    for (const channel of PROTOTYPE_WINDOW_REQUESTS) {
+      expect(senderAllowed(channel, "prototype"), channel).toBe(true);
+      expect(senderAllowed(channel, "main"), channel).toBe(false);
+    }
+  });
+  test("its own requests include the panel, the conversation it shows, a reveal in the main window and the composer's narrow reads", async () => {
+    const { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } = await import("./prototype/ipc");
+    for (const channel of [PROTOTYPE_CHANNELS.panel, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal, PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember]) {
+      expect(PROTOTYPE_WINDOW_REQUESTS, channel).toContain(channel);
+    }
+    // Events main sends, in either window, are never requests.
+    for (const channel of [PROTOTYPE_CHANNELS.authChanged, PROTOTYPE_CHANNELS.workChanged, PROTOTYPE_CHANNELS.composerChanged, PROTOTYPE_CHANNELS.revealRequest, PROTOTYPE_CHANNELS.lastUsed]) {
+      for (const kind of ["main", "prototype"]) expect(senderAllowed(channel, kind), `${channel} ${kind}`).toBe(false);
+    }
+  });
+  test.each(composer)("%s is open to the composer of both windows", channel => {
+    expect(senderAllowed(channel, "main")).toBe(true);
+    expect(senderAllowed(channel, "prototype")).toBe(true);
+  });
+  test("account, settings, terminal work, capture and the main window's own requests stay closed to it", () => {
+    for (const channel of [
+      "agent-auth:read", "agent-auth:sign-in", "agent-auth:sign-out", "preferences:read", "preferences:write", "work:get", "conversation-work:get",
+      "attachments:capture", "ui-state:get", "ui-state:save", "selection:set", "folders:get", "pointer:get", "window:visible", "prototype:play",
+      "conversation:delete", "conversation:newDesign", "canvas:trash", "config:write",
+    ]) expect(senderAllowed(channel, "prototype"), channel).toBe(false);
+  });
+});

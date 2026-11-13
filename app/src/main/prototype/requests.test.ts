@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { CanvasRow, FolderEntry } from "../view";
-import { exportTargetMatches, MAX_REPORT_FRAMES, MAX_REPORT_STRING, parseChooseRequest, parseExportRequest, parseFramesReport, parseModeRequest, parseReloadRequest, parseRunReport, playTarget, validateCliPlay, validatePlay, windowRequest } from "./requests";
+import { exportTargetMatches, MAX_REPORT_FRAMES, MAX_REPORT_STRING, parseChooseRequest, parseComposerChoice, parseExportRequest, parseFramesReport, parseModeRequest, parsePanelRequest, parseReloadRequest, parseRevealRequest, parseRunReport, parseShowingRequest, playTarget, validateCliPlay, validatePlay, windowRequest } from "./requests";
 
 const base = "http://127.0.0.1:5123/t/tok/";
 function row(path: string, patch: Partial<CanvasRow> = {}): CanvasRow {
@@ -223,5 +223,87 @@ describe("prototype window export", () => {
   // `null`: nothing plays that main can name, e.g. the playing canvas's ID is now shared by two rows.
   test("nothing playing never matches", () => {
     expect(exportTargetMatches(clicked, null)).toBe(false);
+  });
+});
+
+// The prototype window's conversation panel: its open state and width, the conversation it shows, and what it asks the
+// main window to show. Every parser refuses another window's role first.
+describe("parsePanelRequest", () => {
+  test("open and close, with a width in the panel's range", () => {
+    expect(parsePanelRequest("prototype", { open: true })).toEqual({ open: true });
+    expect(parsePanelRequest("prototype", { open: false })).toEqual({ open: false });
+    expect(parsePanelRequest("prototype", { open: true, width: 280 })).toEqual({ open: true, width: 280 });
+    expect(parsePanelRequest("prototype", { open: true, width: 333.6 })).toEqual({ open: true, width: 334 });
+    expect(parsePanelRequest("prototype", { open: true, width: 4096 })).toEqual({ open: true, width: 4096 });
+  });
+  test("refuses a width below the panel's minimum, beyond any screen, or not a number", () => {
+    for (const width of [279, 4097, -1, 0, Number.NaN, Number.POSITIVE_INFINITY, "300", null]) expect(parsePanelRequest("prototype", { open: true, width }), String(width)).toBeNull();
+  });
+  test("refuses another role and any other shape", () => {
+    expect(parsePanelRequest("main", { open: true })).toBeNull();
+    for (const value of [undefined, null, {}, { open: "yes" }, { open: true, extra: 1 }, [true]]) expect(parsePanelRequest("prototype", value), JSON.stringify(value)).toBeNull();
+  });
+});
+
+describe("parseShowingRequest", () => {
+  test("a conversation id or null", () => {
+    expect(parseShowingRequest("prototype", { conversationId: "c-1" })).toEqual({ conversationId: "c-1" });
+    expect(parseShowingRequest("prototype", { conversationId: null })).toEqual({ conversationId: null });
+  });
+  test("refuses another role and any other shape", () => {
+    expect(parseShowingRequest("main", { conversationId: "c-1" })).toBeNull();
+    for (const value of [undefined, {}, { conversationId: "" }, { conversationId: "../x" }, { conversationId: 1 }, { conversationId: "c", extra: 1 }]) expect(parseShowingRequest("prototype", value), JSON.stringify(value)).toBeNull();
+  });
+});
+
+describe("parseRevealRequest", () => {
+  test("a person's chip: its conversation and a valid anchor", () => {
+    expect(parseRevealRequest("prototype", { kind: "chip", conversationId: "c-1", anchor: { frame: { id: "checkout", title: "Checkout" } } }))
+      .toEqual({ kind: "chip", conversationId: "c-1", anchor: { frame: { id: "checkout", title: "Checkout" } } });
+    expect(parseRevealRequest("prototype", { kind: "chip", conversationId: "c-1", anchor: { element: { selector: "#pay" }, point: { dx: 1, dy: 2 } } })).toBeNull();
+    expect(parseRevealRequest("prototype", { kind: "chip", conversationId: "c-1", anchor: {} })).toBeNull();
+    expect(parseRevealRequest("prototype", { kind: "chip", conversationId: "c-1" })).toBeNull();
+  });
+  test("an answer's chip: a reply link as the thread parsed it", () => {
+    expect(parseRevealRequest("prototype", { kind: "reply", conversationId: "c-1", link: { canvas: "proto", kind: "element", id: "pay button" } }))
+      .toEqual({ kind: "reply", conversationId: "c-1", link: { canvas: "proto", kind: "element", id: "pay button" } });
+    for (const link of [{ canvas: "Proto", kind: "frame", id: "a" }, { canvas: "proto", kind: "point", id: "a" }, { canvas: "proto", kind: "frame", id: "" }, { canvas: "proto", kind: "frame", id: "x".repeat(201) }, { canvas: "proto", kind: "frame" }]) {
+      expect(parseRevealRequest("prototype", { kind: "reply", conversationId: "c-1", link }), JSON.stringify(link)).toBeNull();
+    }
+  });
+  test("Sign in names a provider", () => {
+    expect(parseRevealRequest("prototype", { kind: "settings", provider: "claude" })).toEqual({ kind: "settings", provider: "claude" });
+    expect(parseRevealRequest("prototype", { kind: "settings", provider: "gpt" })).toBeNull();
+  });
+  test("an Open names a conversation, or a handoff's canvas with or without its conversation", () => {
+    expect(parseRevealRequest("prototype", { kind: "conversation", conversationId: "c-1" })).toEqual({ kind: "conversation", conversationId: "c-1" });
+    expect(parseRevealRequest("prototype", { kind: "handoff", canvas: { id: "proto", path: ".doan/canvases/proto.html" }, conversationId: "c-2" }))
+      .toEqual({ kind: "handoff", canvas: { id: "proto", path: ".doan/canvases/proto.html" }, conversationId: "c-2" });
+    expect(parseRevealRequest("prototype", { kind: "handoff", canvas: { path: ".doan/canvases/loose.html" } })).toEqual({ kind: "handoff", canvas: { path: ".doan/canvases/loose.html" } });
+    for (const canvas of [{}, { path: "" }, { path: 1 }, { path: "a.html", id: 3 }, { path: "a.html", extra: 1 }, "a.html"]) {
+      expect(parseRevealRequest("prototype", { kind: "handoff", canvas }), JSON.stringify(canvas)).toBeNull();
+    }
+  });
+  test("refuses another role, an unknown kind and extra keys", () => {
+    expect(parseRevealRequest("main", { kind: "conversation", conversationId: "c-1" })).toBeNull();
+    for (const value of [undefined, null, {}, { kind: "delete", conversationId: "c-1" }, { kind: "conversation", conversationId: "c-1", extra: 1 }, { kind: "conversation", conversationId: "bad id" }]) {
+      expect(parseRevealRequest("prototype", value), JSON.stringify(value)).toBeNull();
+    }
+  });
+});
+
+describe("parseComposerChoice", () => {
+  test("a composer pick as the main window's composer remembers it", () => {
+    expect(parseComposerChoice("prototype", { provider: "claude", model: "sonnet", effort: "high", modelPicked: true })).toEqual({ provider: "claude", model: "sonnet", effort: "high", modelPicked: true });
+    expect(parseComposerChoice("prototype", { provider: "codex", model: null, effort: null, permissionMode: "plan", fast: true, effortPicked: true }))
+      .toEqual({ provider: "codex", model: null, effort: null, permissionMode: "plan", fast: true, effortPicked: true });
+  });
+  test("refuses another role, an unknown provider or mode, and anything that is not a pick", () => {
+    expect(parseComposerChoice("main", { provider: "claude", model: null, effort: null })).toBeNull();
+    for (const value of [
+      undefined, {}, { provider: "gpt", model: null, effort: null }, { provider: "claude", model: "", effort: null }, { provider: "claude", model: "x".repeat(257), effort: null },
+      { provider: "claude", model: null }, { provider: "claude", model: null, effort: null, permissionMode: "yolo" }, { provider: "claude", model: null, effort: null, fast: "on" },
+      { provider: "claude", model: null, effort: null, modelPicked: false }, { provider: "claude", model: null, effort: null, lastRoot: "/r" },
+    ]) expect(parseComposerChoice("prototype", value), JSON.stringify(value)).toBeNull();
   });
 });
