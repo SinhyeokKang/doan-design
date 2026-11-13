@@ -30,6 +30,8 @@ export interface PrototypeWindowDeps {
   closed(): void;
   // The same permission, device and download denials as the default session.
   denyPermissions(target: Session): void;
+  // Read a root's canvas list again (Retry of a row `doan ls` could not read).
+  reread(root: string): void;
   // The prototype window gained or lost focus: menu items of the main window go off while it has it.
   focusChanged?(focused: boolean): void;
 }
@@ -219,6 +221,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       const target = live();
       if (target !== undefined && !closing) target.destroy();
     },
+    reread(root) { deps.reread(root); },
     sendView(view) {
       live()?.webContents.send(PROTOTYPE_CHANNELS.changed, view);
     },

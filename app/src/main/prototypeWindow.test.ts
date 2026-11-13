@@ -43,7 +43,7 @@ beforeEach(() => { created.length = 0; vi.resetModules(); });
 async function opened() {
   const { createPrototypeWindow } = await import("./prototypeWindow");
   const closed = vi.fn();
-  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed, denyPermissions: vi.fn() });
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed, denyPermissions: vi.fn(), reread: vi.fn() });
   prototype.controller.play("main", play);
   expect(created).toHaveLength(1);
   return { prototype, closed, window: created[0]! };

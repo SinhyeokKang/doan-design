@@ -226,6 +226,18 @@ describe("review round 1", () => {
     expect(prototypeView(ok(play(closed, { target: A, size: phone }, w.resolve)).state, w.resolve)?.previousStopped).toBe(false);
   });
 
+  test("Retry of a row doan ls could not read asks for that root's list again", () => {
+    const w = world();
+    w.set(A, { kind: "present", url: "http://h/t/tok/k1/proto.html", source: "s9", error: true, frames: [], label: "proto" });
+    const failed = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    expect(prototypeView(failed, w.resolve)?.phase).toBe("read-failed");
+    expect(reload(failed, failed.gen)).toEqual({ state: failed, effects: [{ kind: "reread", root: "/r" }] });
+    expect(reload(failed, failed.gen + 1)).toEqual({ state: failed, effects: [] });
+    // Read again and readable: the list refresh starts the run.
+    w.set(A, w.present("http://h/t/tok/k1/proto.html", "s9"));
+    expect(listChanged(failed, w.resolve).effects).toContainEqual({ kind: "load", gen: failed.gen + 1, url: "http://h/t/tok/k1/proto.html", frame: "phone" });
+  });
+
   test("a lost frame keeps the last title it was shown with", () => {
     const w = world();
     const shown = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;

@@ -308,6 +308,7 @@ const prototype = createPrototypeWindow({
   mainWindow: () => win,
   closed: () => send(PROTOTYPE_CHANNELS.closed),
   denyPermissions,
+  reread: root => shell?.reread([root]),
   focusChanged(focused) {
     if (focused === prototypeFocused) return;
     prototypeFocused = focused;

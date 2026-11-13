@@ -18,6 +18,8 @@ export interface PrototypeHost {
   load(run: { gen: number; url: string; frame: string }): void;
   kill(gen: number): void;
   destroy(): void;
+  // Read the root's canvas list again; the refresh comes back through listChanged.
+  reread(root: string): void;
   sendView(view: PrototypeView): void;
   // The window's iframe area as PNG bytes, or null when it cannot be read.
   capture(markWidth: number): Promise<Uint8Array | null>;
@@ -102,6 +104,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
         case "load": host.load({ gen: effect.gen, url: effect.url, frame: effect.frame }); break;
         case "kill": host.kill(effect.gen); break;
         case "destroy": host.destroy(); break;
+        case "reread": host.reread(effect.root); break;
       }
     }
     publish(still, step.effects.some(effect => effect.kind === "kill"));

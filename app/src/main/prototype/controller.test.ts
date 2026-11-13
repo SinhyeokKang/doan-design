@@ -20,6 +20,7 @@ function setup() {
     load: run => calls.push(["load", run]),
     kill: gen => calls.push(["kill", gen]),
     destroy: () => calls.push(["destroy"]),
+    reread: root => calls.push(["reread", root]),
     sendView: view => { calls.push(["view", view.gen, view.phase]); views.push(view); },
     capture: markWidth => { calls.push(["capture", markWidth]); return capture(markWidth); },
     sendSnapshot: snapshot => calls.push(["snapshot", snapshot.gen, Array.from(snapshot.png)]),
@@ -198,4 +199,13 @@ describe("prototype controller", () => {
     expect(u.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([["snapshot", 2, [1, 2]]]);
   });
 
+  test("Retry of a row doan ls could not read asks the host to read the root again", () => {
+    const t = setup();
+    t.setEntries([{ path: "/r", kind: "list", canvases: [{ ...proto, error: { code: "read_failed", message: "boom" } }], servedRev: 0 }]);
+    t.controller.play("main", play);
+    expect(t.views.at(-1)?.phase).toBe("read-failed");
+    t.calls.length = 0;
+    t.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 1 });
+    expect(t.calls).toEqual([["reread", "/r"]]);
+  });
 });

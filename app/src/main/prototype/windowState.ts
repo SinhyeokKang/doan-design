@@ -14,14 +14,16 @@ export interface HistoryEntry {
 
 // `create` opens, shows and focuses the window at the fitted size; `fit` refits an open one (fitPrototypeWindow);
 // `load` starts run `gen` (inject for it, then the host makes a new iframe); `kill` ends the canvas renderer process
-// of a run that may be hung, since the next iframe would reuse it; `destroy` closes the window.
+// of a run that may be hung, since the next iframe would reuse it; `destroy` closes the window; `reread` asks for the
+// root's canvas list again (Retry of a row `doan ls` could not read).
 export type Effect =
   | { kind: "create"; size: PrototypeSize }
   | { kind: "fit"; size: PrototypeSize }
   | { kind: "activate" }
   | { kind: "load"; gen: number; url: string; frame: string }
   | { kind: "kill"; gen: number }
-  | { kind: "destroy" };
+  | { kind: "destroy" }
+  | { kind: "reread"; root: string };
 
 // How the target's canvas row last looked in the list: `ok` can run, `error` is a row `doan ls` could not read,
 // `absent` is gone (or ambiguous, or its root failed).
@@ -177,9 +179,12 @@ export function listChanged(state: PrototypeState, resolve: Resolve): Step {
   return start(state, state.target, resolved, null, state.history);
 }
 
-// Header Reload and the failure screens' Retry, for the run the window shows.
+// Header Reload and the failure screens' Retry, for the run the window shows. A row `doan ls` could not read has no
+// run to start: Retry reads the root's list again, and that refresh judges the row anew (listChanged).
 export function reload(state: PrototypeState, gen: number): Step {
-  if (!state.open || gen !== state.gen || state.listed !== "ok" || state.url === null || state.source === null) return none(state);
+  if (!state.open || gen !== state.gen) return none(state);
+  if (state.listed === "error") return { state, effects: [{ kind: "reread", root: state.target.root }] };
+  if (state.listed !== "ok" || state.url === null || state.source === null) return none(state);
   return start(state, state.target, { kind: "present", url: state.url, source: state.source, error: false, frames: [], label: state.label }, null, state.history);
 }
 
