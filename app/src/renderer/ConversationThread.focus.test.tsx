@@ -181,3 +181,39 @@ test("a cancelled card focus was not in, with nothing typed, moves no focus", ()
   expect(composer).not.toHaveBeenCalled();
   expect(focusedOption()).toEqual([]);
 });
+
+// Two windows can answer one request and the first answer wins: the later one's reply is stale. Its card shows no
+// failure, whether that reply or permission.resolved arrives first (Electron does not order a handle reply against
+// an earlier send; POSTMORTEM 2026-10-26).
+const alerted = () => tree.some(element => element.props.role === "alert");
+test("a stale permission answer shows no failure, before or after the resolution arrives", async () => {
+  for (const order of ["reply first", "resolved first"] as const) {
+    hooks.slots = []; hooks.layout = []; controls = new Map(); active = body;
+    let reply!: (value: { error: string }) => void;
+    props = { ...props, onAnswer: () => new Promise(resolve => { reply = resolve; }) };
+    draw([permission("a")]);
+    press(() => (permissionButton("a", "Allow").props.onClick as () => void)());
+    if (order === "reply first") {
+      reply({ error: "stale" });
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+      draw([permission("a")]);
+      expect(alerted(), order).toBe(false);
+      draw([permission("a", "answered")]);
+    } else {
+      draw([permission("a", "answered")]);
+      reply({ error: "stale" });
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+      draw([permission("a", "answered")]);
+    }
+    expect(alerted(), order).toBe(false);
+  }
+});
+
+test("an answer main refused for another reason still asks to choose again", async () => {
+  props = { ...props, onAnswer: async () => ({ error: "not_found" }) };
+  draw([permission("a")]);
+  press(() => (permissionButton("a", "Allow").props.onClick as () => void)());
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  draw([permission("a")]);
+  expect(alerted()).toBe(true);
+});
