@@ -226,6 +226,20 @@ describe("review round 1", () => {
     expect(prototypeView(ok(play(closed, { target: A, size: phone }, w.resolve)).state, w.resolve)?.previousStopped).toBe(false);
   });
 
+  test("a lost frame keeps the last title it was shown with", () => {
+    const w = world();
+    const shown = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
+    // The frame's ID changes in the file: doan ls and the next run no longer list it.
+    w.set(A, w.present("http://h/t/tok/k1/proto.html", "s2", [{ id: "phone-gone", title: "Phone" }]));
+    const reloading = listChanged(shown, w.resolve).state;
+    const missing = report(reloading, { gen: reloading.gen, state: "missing", frames: [] }).state;
+    expect(prototypeView(missing, w.resolve)).toMatchObject({ phase: "frame-unavailable", title: "Phone" });
+    w.set(A, { kind: "absent" });
+    expect(prototypeView(listChanged(shown, w.resolve).state, w.resolve)).toMatchObject({ phase: "frame-unavailable", title: "Phone" });
+    // A frame never shown with a title still falls back to its ID.
+    const loadingTablet = ok(play(CLOSED, { target: { ...A, frame: "card" }, size: card }, world().resolve)).state;
+    expect(prototypeView(loadingTablet, world().resolve)?.title).toBe("card");
+  });
 });
 
 describe("failures, retry and stale results", () => {
