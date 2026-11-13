@@ -52,3 +52,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 12(승격·삭제)는 conducto
 - C-fix1(`ctx_a23439f93fb1`), B3(`ctx_15915121cc50`, `AssemblePrototype` 호출과 CLI 출력 파일 probe), B 리뷰(Codex gpt-6-astra medium, `ctx_dc814240397d`, `pce-rb`), D(Codex gpt-6-astra medium, `ctx_da0c3e984a5b`, `pce-d`)를 보냈다. D의 실제 `/agent-eval` 라운드는 B3 통합과 package 뒤 새 Task로 보낸다.
 - Codex 사용 범위(지금까지): A·B·C 리뷰, D 구현.
 - C-fix1 완료 → `0d29661e`, `fd113a3d`로 통합. 표시 이벤트 등록을 지우는 변이가 이제 실패한다. C 리뷰 2회차(C2와 C-fix1)를 같은 Codex 리뷰어에 보냈다(`ctx_22abc182df7a`). C의 task 9·10은 A-fix1과 B3가 통합된 뒤 보낸다.
+- B 리뷰 1회차(Codex, B1+B2): 🔴 0, 🟡 0, ⚪ 1(export 테스트에 앱이 쓰는 `--frame=<id>` 형태를 고정). ⚪1은 B3 브리프에 이미 있다. 계획과 다른 점(guide 축약, item 14 유지, `nextSteps` 이동 등)은 모두 수용됐다. B3가 끝나면 같은 리뷰어에게 B3 diff를 보낸다.
