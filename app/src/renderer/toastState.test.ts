@@ -153,3 +153,30 @@ test("an idle tick keeps the same state, so nothing re-renders; a tick still cle
   expect(after.ended).toBeUndefined();
   expect(toastState(after, { type: "tick", elapsedMs: 100 })).toBe(after);
 });
+
+// The toast's element (Toast.tsx) is keyed by its slot: a replacement changes only the content and does not play the
+// enter motion again; a toast that comes after none, or after one that is leaving, is a new element that enters.
+test("a toast shown with none on screen takes a new slot; a replacement or an update keeps it", () => {
+  const first = run([{ type: "show", toast: one }]);
+  expect(first.slot).toBe(initialToastState.slot + 1);
+  expect(run([{ type: "show", toast: two }], first).slot).toBe(first.slot);
+  expect(run([{ type: "update", id: "1", message: "Retrying", action: "Retry", busy: true }], first).slot).toBe(first.slot);
+  const gone = run([{ type: "action" }], first);
+  expect(gone.slot).toBe(first.slot);
+  expect(run([{ type: "show", toast: two }], gone).slot).toBe(first.slot + 1);
+});
+
+// The exit motion needs the element for --time-fast after the toast is gone; Toast.tsx draws `leaving` until `left`.
+test("an expired, acted-on or dismissed toast leaves; a replaced one does not; a new toast or left clears it", () => {
+  const expired = run([{ type: "show", toast: one }, { type: "tick", elapsedMs: TOAST_MS }]);
+  expect(expired).toMatchObject({ toast: null, leaving: one });
+  expect(run([{ type: "show", toast: one }, { type: "action" }]).leaving).toEqual(one);
+  expect(run([{ type: "show", toast: two }, { type: "dismiss", id: "2" }]).leaving).toEqual(two);
+  expect(run([{ type: "show", toast: one }, { type: "show", toast: two }]).leaving).toBeNull();
+  expect(run([{ type: "left" }], expired).leaving).toBeNull();
+  expect(run([{ type: "show", toast: two }], expired)).toMatchObject({ toast: two, leaving: null });
+  // A tick while only a leaving toast is drawn changes nothing; the leave timer ends it, not the clock.
+  const settled = run([{ type: "tick", elapsedMs: 100 }], expired);
+  expect(run([{ type: "tick", elapsedMs: 100 }], settled)).toBe(settled);
+  expect(settled.leaving).toEqual(one);
+});
