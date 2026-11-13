@@ -12,7 +12,7 @@ spec.md '결정'(사용자 확인)을 따른다. 세 형제 기능의 구현 순
   - (g) 격리 전에는 iframe이 보이지 않는다. 프레임이 없는 문서(`missing`)는 바로, 응답하지 않는 문서는 10 s 뒤에 iframe을 숨긴 채 안내 줄만 보인다. 10 s 뒤에 `ready`를 보내는 문서는 그때 줄이 사라지고 프레임이 보인다.
   결과(통과/실패, 엔진 버전, 날짜)는 이 문서의 이 task 아래에 적는다. 실패한 경우는 design.md '알려진 한계'와 spec B로 옮기고, sandbox 절 자체가 무너지면 다음으로 가지 않는다.
   - 검증: `node .scratch/prototype-export-poc/probe.mjs`가 exit 0(실패를 한계로 옮긴 항목은 검사에서 기대값을 바꾼 뒤).
-- [ ] 2. **`/design-draft`**: 새 초안 `.doan/canvases/prototype-cli-export.html`. 기존 `frame-prototype.html`과 `canvas-row-menu.html`은 고치지 않는다. `clarify` 프리셋으로 문구를 확정하고, 사용자가 앱에서 초안을 확인한다. 프레임:
+- [x] 2. **`/design-draft`**: 새 초안 `.doan/canvases/prototype-cli-export.html`. 기존 `frame-prototype.html`과 `canvas-row-menu.html`은 고치지 않는다. `clarify` 프리셋으로 문구를 확정하고, 사용자가 앱에서 초안을 확인한다. 프레임:
   - 헤더의 Export: 오른쪽 무리 [토글, Export]에서 사용 가능, 이유 없는 불가(첫 순간), 이유 세 가지(tooltip), 내보내는 중, 키보드 포커스. 640·520·360 폭 창을 `prototype-responsive`의 헤더(R 104, 기본 Fit)와 함께 그린다. 360 창은 이름 캡슐이 헤더 둘째 줄에 있다.
   - 프로토타입 창 토스트: 진행, 성공(캔버스 전체가 들어 있다는 문장, 결정 4), 성공+인터넷, 실패 이유별, target이 바뀐 클릭의 거절. 360 창에서 토스트가 콘텐츠 패널 오른쪽 아래를 덮고 헤더 컨트롤은 가리지 않는 모습.
   - 내보낸 파일: 넓은 창과 좁은 창에서 viewport를 채운 프레임, 표시 폭이 좁은 프레임이 창 폭으로 늘어난 모습, JavaScript 없음, 프레임이 불러와지지 않음.
