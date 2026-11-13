@@ -35,12 +35,13 @@ const { PrototypeWindow } = await import("./PrototypeWindow");
 type Shell = import("./PrototypeWindow").ShellProps;
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
+const BOX = { x: 0, y: 0, width: 390, height: 844 };
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 1, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", run: { url: A, markWidth: 390 }, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, ...over,
+  gen: 1, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, ...over,
 });
 
 let changed: (view: PrototypeView | null) => void;
-let snapshot: (value: { gen: number; png: Uint8Array }) => void;
+let snapshot: (value: { gen: number; png: Uint8Array; box: typeof BOX }) => void;
 let messages: ((event: unknown) => void)[];
 let api: Record<string, ReturnType<typeof vi.fn>>;
 let doc: { title: string; activeElement: unknown; body: object };
@@ -68,7 +69,7 @@ beforeEach(() => {
     onChanged: vi.fn((listener: typeof changed) => { changed = listener; return () => {}; }),
     onSnapshot: vi.fn((listener: typeof snapshot) => { snapshot = listener; return () => {}; }),
     reportResult: vi.fn(async () => {}), reportFrames: vi.fn(async () => {}), reload: vi.fn(async () => {}),
-    back: vi.fn(async () => {}), forward: vi.fn(async () => {}), choose: vi.fn(async () => {}), close: vi.fn(async () => {}),
+    back: vi.fn(async () => {}), forward: vi.fn(async () => {}), choose: vi.fn(async () => {}), close: vi.fn(async () => {}), setMode: vi.fn(async () => {}),
   };
   doc = { title: "", activeElement: null, body: {} };
   vi.stubGlobal("document", doc);
@@ -82,7 +83,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe("the run's iframe", () => {
   test("a loading view mounts a new iframe per gen and names the window after the frame", () => {
-    expect(show(view()).layers).toEqual({ frames: [{ gen: 1, url: A }], visible: null, snapshot: null });
+    expect(show(view()).layers).toEqual({ frames: [{ gen: 1, url: A, markWidth: 390, markHeight: 844 }], visible: null, snapshot: null });
     expect(doc.title).toBe("Checkout — Prototype");
     expect(show(view({ phase: "ready" })).layers.visible).toBe(1);
     expect(show(view({ gen: 2 })).layers.frames.map(frame => frame.gen)).toEqual([1, 2]);
@@ -162,11 +163,11 @@ describe("the still image", () => {
     show(view());
     show(view({ phase: "ready" }));
     // Main captures the ready run as it leaves for the reload, before the loading view.
-    snapshot({ gen: 2, png: new Uint8Array([1]) });
-    expect(show(view({ gen: 2 })).layers).toEqual({ frames: [{ gen: 1, url: A }, { gen: 2, url: A }], visible: 1, snapshot: { gen: 2, url: "blob:1" } });
-    expect(show(view({ gen: 2, phase: "init-failed" })).layers).toEqual({ frames: [], visible: null, snapshot: { gen: 2, url: "blob:1" } });
+    snapshot({ gen: 2, png: new Uint8Array([1]), box: BOX });
+    expect(show(view({ gen: 2 })).layers).toEqual({ frames: [{ gen: 1, url: A, markWidth: 390, markHeight: 844 }, { gen: 2, url: A, markWidth: 390, markHeight: 844 }], visible: 1, snapshot: { gen: 2, url: "blob:1", box: BOX } });
+    expect(show(view({ gen: 2, phase: "init-failed" })).layers).toEqual({ frames: [], visible: null, snapshot: { gen: 2, url: "blob:1", box: BOX } });
     // A late image for an older gen is freed at once.
-    snapshot({ gen: 1, png: new Uint8Array([1]) });
+    snapshot({ gen: 1, png: new Uint8Array([1]), box: BOX });
     render();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:2");
     show(view({ gen: 3 }));

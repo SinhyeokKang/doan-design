@@ -2,7 +2,7 @@
 // and run results, runs the returned effects in order and sends `prototypeView` to the window whenever the state
 // object changes. Main-window navigation and hiding are not events here, so they cannot change the run.
 import { EMPTY_HISTORY, canStep, recordEntry, stepHistory, type Direction, type History } from "./history";
-import type { PrototypeFrame, PrototypePhase, PrototypeView, RunReport } from "./ipc";
+import type { PrototypeFrame, PrototypeMode, PrototypePhase, PrototypeView, RunReport } from "./ipc";
 import { parsePrototypeMark, type PrototypeSize } from "./mark";
 import { canvasKeyString, sameCanvas, sameTarget, type CanvasRef, type PrototypeTarget, type Resolution } from "./targets";
 
@@ -34,16 +34,19 @@ export interface ClosedState {
   // Generations keep counting across close, so a late result from a closed window can never match a new run.
   readonly gen: number;
   readonly history: History<HistoryEntry>;
+  // The viewport mode outlives the window: closing and opening it again keeps it, quitting the app does not.
+  readonly mode: PrototypeMode;
 }
 
 export interface OpenState {
   readonly open: true;
   readonly gen: number;
   readonly history: History<HistoryEntry>;
+  readonly mode: PrototypeMode;
   readonly target: PrototypeTarget;
   readonly phase: PrototypePhase;
   readonly detail?: string;
-  readonly run: { url: string; markWidth: number } | null;
+  readonly run: { url: string; markWidth: number; markHeight: number } | null;
   readonly listed: Listed;
   readonly url: string | null;
   readonly source: string | null;
@@ -75,7 +78,7 @@ export interface Step {
 // `lastPath`: the target's row path as last listed, for a canvas whose ID can no longer be read (resolveTarget).
 export type Resolve = (ref: CanvasRef, lastPath?: string) => Resolution;
 
-export const CLOSED: ClosedState = { open: false, gen: 0, history: EMPTY_HISTORY };
+export const CLOSED: ClosedState = { open: false, gen: 0, history: EMPTY_HISTORY, mode: "fit" };
 
 const same = (a: HistoryEntry, b: HistoryEntry): boolean => sameTarget(a.target, b.target);
 
@@ -112,13 +115,13 @@ function start(state: PrototypeState, target: PrototypeTarget, resolved: Present
   const gen = state.gen + 1;
   const sameFrame = state.open && sameTarget(state.target, target);
   const keepFrames = state.open && sameCanvas(state.target, target) && state.listed === "ok";
-  const markWidth = fit?.size.width ?? (state.open ? state.run?.markWidth : undefined) ?? 0;
+  const mark = fit?.size ?? (state.open && state.run !== null ? { width: state.run.markWidth, height: state.run.markHeight } : { width: 0, height: 0 });
   // doan ls first (newest), then the frame list kept from this canvas's last run; the target's own last title stands
   // only when neither lists the frame.
   const listedTitle = [titleIn(resolved.frames, target.frame), keepFrames && state.open ? titleIn(state.frames, target.frame) : undefined]
     .find(listed => listed !== undefined);
   const base = {
-    open: true as const, gen, history, target, source: resolved.source, url: resolved.url, label: resolved.label, path: resolved.path,
+    open: true as const, gen, history, mode: state.mode, target, source: resolved.source, url: resolved.url, label: resolved.label, path: resolved.path,
     title: listedTitle !== undefined ? listedTitle : sameFrame && state.open ? state.title : null,
     previousStopped: killed.length > 0 || (state.open && state.previousStopped),
     frames: keepFrames && state.open ? state.frames : [], reports: state.open ? state.reports : {}, fitHint: fit?.size ?? null,
@@ -127,7 +130,7 @@ function start(state: PrototypeState, target: PrototypeTarget, resolved: Present
     return { state: { ...base, phase: "read-failed", listed: "error", run: state.open ? state.run : null }, effects };
   }
   effects.push({ kind: "load", gen, url: resolved.url, frame: target.frame });
-  return { state: { ...base, phase: "loading", listed: "ok", run: { url: resolved.url, markWidth } }, effects };
+  return { state: { ...base, phase: "loading", listed: "ok", run: { url: resolved.url, markWidth: mark.width, markHeight: mark.height } }, effects };
 }
 
 function usable(state: OpenState, resolve: Resolve) {
@@ -221,7 +224,7 @@ export function report(state: PrototypeState, result: RunReport): Step {
   const hint = state.fitHint;
   const effects: Effect[] = hint !== null && (hint.width !== size.width || hint.height !== size.height) ? [{ kind: "fit", size }] : [];
   const entries = state.history.entries.map(entry => (sameTarget(entry.target, state.target) ? { ...entry, size } : entry));
-  const run = state.run === null ? null : { ...state.run, markWidth: size.width };
+  const run = state.run === null ? null : { ...state.run, markWidth: size.width, markHeight: size.height };
   return { state: { ...state, phase: "ready", run, frames: result.frames, reports, title, previousStopped: false, fitHint: null, history: { entries, index: state.history.index } }, effects };
 }
 
@@ -238,7 +241,13 @@ export function readFailed(state: PrototypeState, gen: number, detail: string): 
 
 export function close(state: PrototypeState): Step {
   if (!state.open) return none(state);
-  return { state: { open: false, gen: state.gen, history: EMPTY_HISTORY }, effects: [...leaving(state), { kind: "destroy" }] };
+  return { state: { open: false, gen: state.gen, history: EMPTY_HISTORY, mode: state.mode }, effects: [...leaving(state), { kind: "destroy" }] };
+}
+
+// The header's Fit/Responsive toggle. Only the iframe's box changes: no new run, refit or kill, and a loading run
+// keeps its gen and its timer.
+export function setMode(state: PrototypeState, mode: PrototypeMode): Step {
+  return state.mode === mode ? none(state) : none({ ...state, mode });
 }
 
 export function prototypeView(state: PrototypeState, resolve: Resolve): PrototypeView | null {
@@ -249,6 +258,6 @@ export function prototypeView(state: PrototypeState, resolve: Resolve): Prototyp
   const ok = usable(state, resolve);
   return {
     gen: state.gen, frame, title, canvas: resolved.kind === "present" ? resolved.label : state.label, phase: state.phase, ...(state.detail === undefined ? {} : { detail: state.detail }),
-    run: state.run, previousStopped: state.previousStopped, frames: [...state.frames], canGoBack: canStep(state.history, "back", ok), canGoForward: canStep(state.history, "forward", ok),
+    run: state.run, mode: state.mode, previousStopped: state.previousStopped, frames: [...state.frames], canGoBack: canStep(state.history, "back", ok), canGoForward: canStep(state.history, "forward", ok),
   };
 }

@@ -38,10 +38,10 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     return stop;
   }, [api]);
 
-  useEffect(() => api.onSnapshot(({ gen, png }) => {
+  useEffect(() => api.onSnapshot(({ gen, png, box }) => {
     const url = URL.createObjectURL(new Blob([png as Uint8Array<ArrayBuffer>], { type: "image/png" }));
     setLayers(previous => {
-      const next = layersForSnapshot(previous, { gen, url }, viewRef.current?.gen ?? null);
+      const next = layersForSnapshot(previous, { gen, url, box }, viewRef.current?.gen ?? null);
       if (next === previous) URL.revokeObjectURL(url);
       return next;
     });
