@@ -57,3 +57,5 @@
 - VT 결과 🔴 0 / 🟡 1: 코드 결함은 없다. 첫 전체 테스트의 7건 실패는 이름과 오류가 남지 않아 diff와의 관련을 배제하지 못했다. T에 고칠 것은 없으므로 통합 `/verify`에서 재발하면 그 출력을 보존해 판단한다(conductor 판단 — 실패 출력이 사라져 다시 볼 수 없다).
 - C 수정 라운드 1 통합(`995bd060`): `ViewportBox`에 `visibleWidth`·`visibleHeight`를 더했고 캡처 box가 같은 값을 쓴다. 이 라운드에서 quickOpen 시간 측정 테스트가 한 번 실패했다가 단독 두 번과 전체 재실행에서 통과했다(변경과 무관한 파일).
 - U를 Claude Opus high로 시작한다(base `995bd060` 이후).
+- U 완료(커밋 3개, test 11351·typecheck·lint·build, `/design-sync` 104행 차이 0, 문서화된 차이 3). 통합 `3de5c551`·`c5acaabc`·`6f88e36d`. 못 잰 것: 작업 영역 높이 823이라 406 × 952·360 × 952 타일, 상태·대화·둘째 줄 메뉴 타일 대조. U의 ⚪: Fit에서 iframe이 표시 크기(최대 99999) CSS 크기를 갖고 `.pw-panel`의 네 모서리 같은 radius clip 아래 있어 8192 CSS px를 넘으면 POSTMORTEM 2026-11-11과 같은 잘림이 생길 수 있다. R에 큰 표시(1440x9000, 9000x900) 확인을 더했다.
+- VU(Codex gpt-6-astra medium)와 R(Claude Sonnet high, `pr-r`)을 병렬로 시작했다. VU 고침이 생기면 R 증거 중 영향받는 것만 다시 본다.
