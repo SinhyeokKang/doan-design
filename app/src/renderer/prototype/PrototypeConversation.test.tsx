@@ -132,6 +132,20 @@ describe("the conversation the panel shows", () => {
     expect(run.store.drafts.get("conversation:old")).toBe(mine);
   });
 
+  // The draft of the new conversation state may be the message this window is sending: a list naming the conversation
+  // its start made can come before the start's reply, and that draft must not move into the conversation.
+  test("from the new conversation state the canvas's new current conversation shows, and the new state's draft stays", async () => {
+    await playing({}, []);
+    const key = run.run.composerKey()!;
+    const sending = { segments: [{ kind: "text" as const, text: "This button does nothing" }], preset: null, attachments: [], shape: "capsule" as const };
+    run.store.setDrafts(drafts => new Map(drafts).set(key, sending));
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "started" })]);
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "started" });
+    expect(run.store.drafts.get(key)).toBe(sending);
+    expect(run.store.drafts.get("conversation:started")).toBeUndefined();
+  });
+
   test("a conversation the main window deleted goes through the store's deleted path, and its draft moves nowhere", async () => {
     await playing({}, [summary({ conversationId: "gone" })]);
     run.store.setDrafts(drafts => new Map(drafts).set("conversation:gone", { segments: [{ kind: "text", text: "lost" }], preset: null, attachments: [], shape: "capsule" }));

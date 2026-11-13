@@ -159,13 +159,17 @@ export class PrototypeConversationRun {
   }
 
   // CanvasRun keeps showing what it showed while it is listed; this window shows the canvas's current conversation
-  // only, so a new current one started in the main window takes over, with this window's draft when it has none.
+  // only, so a new current one started in the main window takes over, with the previous conversation's draft when it
+  // has none. The new conversation state's draft stays: it may be this window's own first message still being sent,
+  // whose start a list read can name before the start's reply comes.
   private sync(): void {
     this.run.sync();
-    const shown = this.shown(), view = this.run.view(), from = this.run.composerKey();
-    if (shown.kind === "conversation" && from !== null && (view?.kind === "new" || (view?.kind === "conversation" && view.conversationId !== shown.conversationId))) {
-      const to = `conversation:${shown.conversationId}`;
-      this.store.setDrafts(drafts => carryPrototypeDraft(drafts, from, to));
+    const shown = this.shown(), view = this.run.view();
+    if (shown.kind === "conversation" && (view?.kind === "new" || (view?.kind === "conversation" && view.conversationId !== shown.conversationId))) {
+      if (view.kind === "conversation") {
+        const from = `conversation:${view.conversationId}`, to = `conversation:${shown.conversationId}`;
+        this.store.setDrafts(drafts => carryPrototypeDraft(drafts, from, to));
+      }
       this.run.select(shown.conversationId);
     }
     this.changed();
