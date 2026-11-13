@@ -58,8 +58,8 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1a. `prototype-responsive` | | | | 대기 |
-| 1b. `multi-handoff` | | | | 대기 |
+| 1a. `prototype-responsive` | Claude Code · `prototype-responsive-orch` (`feat/prototype-responsive`) | 2026-11-13, `808252b4` | | 진행 중 |
+| 1b. `multi-handoff` | Claude Code · `multi-handoff-orch` (`feat/multi-handoff`) | 2026-11-13, `808252b4` | | 진행 중 |
 | 2. `prototype-cli-export` | | | | 대기 |
 | 3. `prototype-conversation` | | | | 대기 |
 
@@ -67,3 +67,4 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 - 2026-11-13 lead(develop checkout): 사용자 요청으로 체인 파일을 미리 썼다. 체인 261113-2를 마무리하고 릴리스한 뒤 시작한다. 시작할 때 시작 점검을 한 번에 묻는다.
 - 2026-11-13 lead(develop checkout): 사용자가 시작 점검을 승인했다. 1) 격리 앱 창 승인, 2) `prototype-conversation` PoC 검증 명령은 `node .scratch/prototype-conversation/probe.mjs`(스크린샷 포함), 3) `/agent-eval` 승인, 4) Claude Code와 Codex 로그인을 lead가 미리 준비한다. 0.1.11 릴리스는 main 병합과 태그를 마쳤고 release run이 진행 중이다. 체인은 그와 무관하게 시작한다.
+- 2026-11-13 lead(develop checkout): Claude Code와 Codex 로그인을 `.scratch/provider-profile/userData`에 만들었다(사용자 승인). 링크 1의 두 conductor를 병렬로 시작했다. 브리프에는 `rm` 금지, 로그인 프로필 경로, Codex 워커 허용, `/ship`의 하위 스킬 로드 규칙, GUI 시간을 lead와 맞추는 규칙을 넣었다.
