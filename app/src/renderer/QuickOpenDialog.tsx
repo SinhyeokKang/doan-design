@@ -20,11 +20,10 @@ export function projectWhere(entries: readonly FolderEntry[]): Map<string, { nam
   return where;
 }
 
-// Canvases and frames first, then conversations, so conversations follow them at equal score and proximity. A canvas
-// conversation is judged against its root's listed rows, the ones searched here.
-export function quickOpenIndex(entries: readonly FolderEntry[], conversations: ConversationLists, rendered?: RenderedSearchFrames): SearchEntry[] {
+// A canvas conversation is judged against its root's listed rows, the ones searched here.
+export function conversationIndex(entries: readonly FolderEntry[], conversations: ConversationLists): SearchEntry[] {
   const rowsOf = (root: string) => { const entry = entries.find(item => item.path === root); return entry?.kind === "list" ? entry.canvases : null; };
-  return [...searchIndex(entries as readonly SearchFolder[], rendered), ...conversationEntries(conversations, rowsOf)];
+  return conversationEntries(conversations, rowsOf);
 }
 
 // Ids built from paths would need escaping, so a short hash of the key stands in for it.
@@ -97,7 +96,7 @@ interface QuickOpenProps {
   currentRoot: string | null;
   // The open canvas's rendered frames, which replace its static ones.
   rendered?: RenderedSearchFrames | undefined;
-  // false: the pick could not be opened (App said why), and focus goes back to where Quick Open was opened.
+  // false: the pick could not be opened (App said why), and Quick Open closes as on Escape.
   pick: (result: SearchResult) => boolean | void;
   // Escape; focus has already gone back to where Quick Open was opened.
   close: () => void;
@@ -113,7 +112,11 @@ export function QuickOpen({ entries, conversations = NO_CONVERSATIONS, currentRo
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<SearchKind>("all");
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const index = useMemo(() => quickOpenIndex(entries, conversations, rendered), [entries, conversations, rendered]);
+  // Built apart, so a conversation list change does not rebuild every canvas and frame entry. Conversations go after
+  // canvases and frames, so they follow them at equal score and proximity.
+  const canvasIndex = useMemo(() => searchIndex(entries as readonly SearchFolder[], rendered), [entries, rendered]);
+  const talkIndex = useMemo(() => conversationIndex(entries, conversations), [entries, conversations]);
+  const index = useMemo(() => [...canvasIndex, ...talkIndex], [canvasIndex, talkIndex]);
   const commons = useMemo(() => new Map(entries.flatMap(entry => entry.kind === "list" && entry.git ? [[entry.path, entry.git.common]] : [])), [entries]);
   const results = useMemo(() => searchMatch(index, query, currentRoot, root => commons.get(root), kind, rendered), [index, query, currentRoot, commons, kind, rendered]);
   const where = useMemo(() => projectWhere(entries), [entries]);
@@ -133,7 +136,8 @@ export function QuickOpen({ entries, conversations = NO_CONVERSATIONS, currentRo
   const choose = (result: SearchResult | undefined) => {
     if (!result) return;
     dialog.current?.close();
-    if (pick(result) === false) refocus();
+    // The same close as Escape: App recovers focus there when the opener has gone.
+    if (pick(result) === false) { refocus(); close(); }
   };
   const activate = (at: number) => { const row = rows[at]; if (row) setActiveKey(resultKey(row)); };
   const filter = (next: SearchKind) => { setKind(next); setActiveKey(null); };

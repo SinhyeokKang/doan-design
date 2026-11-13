@@ -182,9 +182,14 @@ export function searchMatch(
     const shown = kind === "frame" || kind === "conversation" ? kind : "canvas";
     const scoped = index.filter((entry) => entry.kind === shown && (currentRoot === null || entry.root === currentRoot));
     if (kind === "conversation") {
-      // ISO times compare as strings; an unreadable history's "" sorts last. The sort is stable, so ties keep index order.
-      const at = (entry: SearchEntry) => entry.kind === "conversation" ? entry.lastActivityAt : "";
-      return scoped.sort((a, b) => at(a) < at(b) ? 1 : at(a) > at(b) ? -1 : 0).slice(0, 50).map(searchResult);
+      // The Conversation menu's order (byActivity): ISO times compare as strings, an unreadable history's "" sorts last,
+      // and the id breaks ties.
+      const key = (entry: SearchEntry) => entry.kind === "conversation" ? [entry.lastActivityAt, entry.conversationId] as const : ["", ""] as const;
+      return scoped.sort((a, b) => {
+        const [ta, ia] = key(a), [tb, ib] = key(b);
+        if (ta !== tb) return ta < tb ? 1 : -1;
+        return ia < ib ? -1 : ia > ib ? 1 : 0;
+      }).slice(0, 50).map(searchResult);
     }
     if (kind === "frame" && open !== undefined && currentRoot !== null && open.root === currentRoot) {
       const inOpen = (entry: SearchEntry) => entry.kind === "frame" && entry.path === open.path;

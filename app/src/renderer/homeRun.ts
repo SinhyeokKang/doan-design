@@ -277,17 +277,18 @@ export class HomeRun {
   // Quick Open's pick, with the root and canvas rows it searched rather than the view now (POSTMORTEM: producer state
   // goes in the callback). The list is checked again first: the conversation may have gone or its canvas may no longer
   // be exactly one row since the results were drawn; then nothing opens and App says why. `arrived` follows a project
-  // conversation's move, with whether it waits for an answer (its card takes focus then).
+  // conversation's move, with whether it waits for an answer (its card takes focus then): by the listed phase, the rule
+  // App's askConversation scrolls by, so focus lands on the card or the composer even while the strip runs ahead.
   openFound(root: string, conversationId: string, rows: readonly CanvasRow[], arrived: (waiting: boolean) => void = () => {}): "opened" | "deleted" | "missing" | "duplicate" {
     const found = this.lists.get(root)?.find(c => c.conversationId === conversationId);
     if (!found) return "deleted";
-    const waiting = found.phase === "waiting" || asksPerson(this.strips[conversationId]?.kind ?? "starting");
     const match = found.canvas ? conversationCanvasMatch(found.canvas, rows) : null;
     if (match?.kind === "none") return "missing";
     if (match?.kind === "many") return "duplicate";
     this.personNavigated();
-    if (match) this.host.openCanvas(root, match.row, { conversationId, waiting });
-    else this.host.openOverview(root, () => { arrived(waiting); return true; }, () => {}, conversationId);
+    // The canvas panel's notification trigger takes the same waiting as openConversation.
+    if (match) this.host.openCanvas(root, match.row, { conversationId, waiting: found.phase === "waiting" || asksPerson(this.strips[conversationId]?.kind ?? "starting") });
+    else this.host.openOverview(root, () => { arrived(found.phase === "waiting"); return true; }, () => {}, conversationId);
     return "opened";
   }
 
@@ -601,7 +602,7 @@ export class HomeRun {
   private canvasRow(root: string, conversationId: string): CanvasRow | undefined {
     const canvas = this.summary(conversationId)?.canvas;
     const rows = this.rows(root);
-    if (canvas) { const match = conversationCanvasMatch(canvas, rows); return match.kind === "one" ? match.row : undefined; }
+    if (canvas) return rows.find(row => canvas.id ? row.id === canvas.id : row.path === canvas.path);
     const path = this.conversations.find(item => item.conversationId === conversationId)?.canvas;
     return path ? rows.find(row => row.path === path) : undefined;
   }

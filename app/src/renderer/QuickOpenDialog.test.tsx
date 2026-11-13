@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { activeIndex, activeScroll, closesOnClick, optionId, quickOpenIndex, quickOpenTabKey, projectWhere, quickOpenKey, QuickOpen, QuickOpenList } from "./QuickOpenDialog";
+import { activeIndex, activeScroll, closesOnClick, conversationIndex, optionId, quickOpenTabKey, projectWhere, quickOpenKey, QuickOpen, QuickOpenList } from "./QuickOpenDialog";
 import { groupResults, outsideDialog, resultKey, searchIndex, searchMatch, type ConversationLists, type SearchFolder, type SearchResult } from "./quickOpen";
 import { projectHue } from "./shellNavigation";
 
@@ -288,7 +288,7 @@ const talk = (conversationId: string, patch: Partial<ConversationSummary> = {}):
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: new Date(NOW - 12 * MIN).toISOString(), preview: "", ...patch,
 });
 const conversationRows = (list: readonly FolderEntry[], conversations: ConversationLists, query: string, currentRoot: string | null) =>
-  groupResults(searchMatch(quickOpenIndex(list, conversations), query, currentRoot, () => undefined), projectWhere(list));
+  groupResults(searchMatch([...searchIndex(list as readonly SearchFolder[]), ...conversationIndex(list, conversations)], query, currentRoot, () => undefined), projectWhere(list));
 
 test("a conversation row: the conversations icon, the title with its matched letters, and its canvas or project with the time", () => {
   const conversations: ConversationLists = new Map([["/code/acme-web", [

@@ -1499,6 +1499,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const target = entries.find(entry => entry.path === result.root);
     const rows = target?.kind === "list" ? target.canvases : [];
     const list = homeRun.current.listState(result.root);
+    // The listed phase, the rule askConversation scrolls by, so focus lands on the waiting card or the composer.
     const waiting = Array.isArray(list) && list.some(c => c.conversationId === result.conversationId && c.phase === "waiting");
     if (sameShownConversation(result, shownConversation())) {
       const row = result.canvas && rows.find(row => row.path === result.canvas!.path);
