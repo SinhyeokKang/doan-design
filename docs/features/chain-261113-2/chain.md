@@ -53,3 +53,4 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 - 2026-11-13 lead(develop checkout): 사용자 요청으로 체인 파일을 썼다. 컨텍스트가 커서 다음 lead 세션에 인계한다. 다음 세션은 (1) 시작 점검을 사용자에게 한 번에 묻고 승인을 여기에 남긴 뒤 링크 1을 시작하고, (2) 링크가 도는 동안 프로토타입 후속 feature 세 개의 `/feature`를 쓴다.
 - 2026-11-13 lead(develop checkout): 이전 체인 정리는 이미 끝나 있었다(PR #184 병합, `ba51bf23`에서 chain-261113-1 삭제). 사용자가 시작 점검 네 항목을 모두 승인했다. 링크 1을 시작한다. 브리프와 subagent 지시에 `rm` 같은 삭제 명령 금지를 넣는다.
+- 2026-11-13 lead(develop checkout): 사용량 한도에 걸려 인계한다. 링크 1 conductor는 진행 중이다(PR 아직 없음). 프로토타입 후속 feature: `prototype-conversation` 문서는 커밋했다(`bae013c6`). `prototype-cli-export`(CLI 열기와 Export를 하나로 묶음)는 문서를 썼고 사용자 답을 반영하는 중이며 커밋 전이다. 새 feature `prototype-responsive`(Fit/Responsive 토글, 캔버스 툴바 스타일 재사용)는 문서를 쓰는 중이다. 헤더 오른쪽 끝은 [Export] [Conversation]이다. 별건으로 Home 크레딧 줄 초안 `.doan/canvases/home-credits.html`(미커밋)을 새 리뷰어가 검수 중이며, 수정 뒤 사용자에게 보인다. 다음 lead는 남은 두 feature를 커밋하고 `/feature-review` → `/design-draft` → 새 리뷰어 검수(critique·audit·clarify·harden) 순으로 진행한다.
