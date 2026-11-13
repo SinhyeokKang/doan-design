@@ -57,3 +57,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 12(승격·삭제)는 conducto
 - D 리뷰: Claude Opus high(`ctx_50c1c13435f5`, `pce-rd`).
 - C 리뷰 2회차(Codex): 🔴 0, 🟡 1(새 비활성 규칙의 specificity (0,4,0)가 공유 pressed 규칙 (0,5,0)에 져 눌린 배경이 남는다. Chromium `forcePseudoState`로 재현), ⚪ 1(실제 앱 통합은 task 9·10). v6 socket 순서·CLI 요청과 응답의 일치·visibility 보강은 수용. C-fix2로 보냈다.
 - A-fix1 완료 → `40b149ad`, `02b8b834`로 통합. probe 65(PoC)·63(실제 파일) 통과, capture 변이가 이제 실패한다(A 보고). A 리뷰 2회차를 같은 Codex 리뷰어에 보냈다(`ctx_2d53be29289d`).
+- A 리뷰 2회차(Codex): 🔴 0, 🟡 0, ⚪ 1(모든 URL이 거절되는 것은 아니다. `about:srcdoc#…`은 성공한다. 주석과 문서 표현을 좁힌다). A-fix2로 보냈다.
