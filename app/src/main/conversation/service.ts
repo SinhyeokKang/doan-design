@@ -189,7 +189,9 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   lookup?: { steers: { messageId: string; itemId: string }[]; timer: ReturnType<typeof setTimeout>; giveBack: boolean }; unheld?: true;
   // A turn the usage limit stopped: its connection's usage is being read to learn the reset. Working until then, so its
   // queue stays and no send goes first.
-  limitLookup?: LimitLookup }
+  limitLookup?: LimitLookup;
+  // A Stop came while this send was prepared, before acceptance: the send is refused at its next check and never runs.
+  cancelled?: true }
 // The usage read after a turn the usage limit stopped (limitEnded). A Stop, a stop of the provider's runs, a sign-out
 // or replacement and an archive end it (cancelLimit). since: the stops count when it began. told: its deferred failure
 // notice was delivered, which happens once unless the turn's own message goes out again.
@@ -365,7 +367,8 @@ export class ConversationService {
       for (const event of saved) this.deliver(event);
       this.changed(request.root);
       for (const event of live.events.splice(0)) this.receive(id, event);
-      this.sendTurn(id, live, runner, prompt, attachments.length ? attachments : undefined);
+      // A terminal event that came before acceptance (the process gone) already ended the turn: nothing is sent.
+      if (!live.terminal) this.sendTurn(id, live, runner, prompt, attachments.length ? attachments : undefined);
       return { conversationId: id };
     } catch (error) {
       // A refused start no longer holds the project, though its process may take a while to go.
@@ -407,7 +410,7 @@ export class ConversationService {
     // An archived conversation's runner is closing; previousExit waited for its process, so a new one opens.
     const live: Live = (existing?.runner && !existing.closed ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: 0 };
     live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; delete live.closed; delete live.stage; live.turnId = randomUUID(); live.since = this.stops; this.live.set(id, live);
-    delete live.exitedAt; delete live.cleaned; delete live.background; delete live.stopping; delete live.transcript; delete live.unheld;
+    delete live.exitedAt; delete live.cleaned; delete live.background; delete live.stopping; delete live.transcript; delete live.unheld; delete live.cancelled;
     if (project) live.project = project; else delete live.project;
     this.changedOf(id);
     // The mode is judged apart from the model: a send may change either alone.
@@ -485,13 +488,14 @@ export class ConversationService {
       const reloadMcp = !opening && generation !== undefined && generation !== live.mcpGeneration;
       if (reloadMcp) live.mcpGeneration = generation;
       const turnChoice: TurnChoice = { ...chosen, permissionMode: chosen.permissionMode ?? "default", ...(!chosen.effort && extras.defaultEffort ? { effort: extras.defaultEffort } : {}), ...(extras.fastTurn ? { fast: true as const } : {}), ...(reloadMcp ? { reloadMcp: true as const } : {}) };
-      this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, turnChoice);
+      if (!live.terminal) this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, turnChoice);
     } catch (error) {
       live.busy = false;
       if (reserved && !opening && !live.runner) this.reservations = releaseReservation(this.reservations, id, "not_spawned");
       if (!leased) freeLease(input);
       // Messages queued behind a send that never ran have nothing left to follow; a queue's own send hands them back.
-      if (!this.working(id)) this.giveBack(id, reason(error));
+      // A send the person stopped hands them back as stopped.
+      if (!this.working(id)) this.giveBack(id, live.cancelled ? "interrupted" : reason(error));
       this.changedOf(id);
       if (opening) void live.runner?.close(); throw error;
     }
@@ -785,6 +789,9 @@ export class ConversationService {
     // A send cancelled while it waited for the judgement or the previous process leaves the queue behind it nothing
     // to follow.
     if (!live || !live.busy) { this.giveBack(id, "interrupted"); return; }
+    // A send not accepted yet has no turn to stop: it is cancelled, and refused at its next check (checkSend), before
+    // anything reaches the runner. Its queued messages then come back as stopped (submit).
+    if (!live.accepted && !live.failedPersistence) { live.cancelled = true; this.changedOf(id); return; }
     // A history that stopped taking writes takes no interrupted event: the Stop ends the closed run's group, and the
     // turn ends once it is gone (releaseFailed).
     if (!live.failedPersistence) { live.stopping = true; this.changedOf(id); }
@@ -1420,7 +1427,9 @@ export class ConversationService {
       } catch (error) {
         // A scheduled send refused before its turn: no turn of it can be stopped by the same limit.
         this.resent.delete(id);
-        this.giveBack(id, provider && (this.lastStop.get(provider) ?? 0) > since ? "interrupted" : reason(error));
+        // Stopped meanwhile: by the person (the send's cancel) or by a sign-out of its provider.
+        const stopped = this.live.get(id)?.cancelled === true || (!!provider && (this.lastStop.get(provider) ?? 0) > since);
+        this.giveBack(id, stopped ? "interrupted" : reason(error));
       } finally { this.release(id, live, hold); }
     });
   }
@@ -1559,7 +1568,7 @@ export class ConversationService {
   }
   private snapshot(root: string): Canvas[] { return this.canvases(root).map(c => c.id === undefined ? { path: c.path } : { path: c.path, id: c.id }); }
   private checkSend(id: string, live: Live, state: "current" | "archived"): void {
-    if (this.quitting || this.live.get(id) !== live || live.terminal || this.metadata(id).state !== state) throw new Error("busy");
+    if (this.quitting || this.live.get(id) !== live || live.terminal || live.cancelled || this.metadata(id).state !== state) throw new Error("busy");
   }
   private metadata(id: string): ConversationMetadata { const m = this.store.list().find(m => m.conversationId === id); if (!m) throw new Error("not_found"); return m; }
   private append(id: string, turn: string, event: EventPayload): ConversationEvent {
