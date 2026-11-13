@@ -29,8 +29,9 @@ const noop = () => {};
 test("an unavailable control's open tooltip leaves its own aria-describedby alone, in all five places", () => {
   const tools = open(<CanvasTools tool="select" picking={false} capturing={false} onTool={noop} onEscape={noop}
     picker={{ enabled: true, reason: null, onToggle: noop }} capture={{ enabled: false, reason: "Open a canvas to capture an area.", onToggle: noop }}
-    exporter={{ reason: "No canvas is open.", onExport: noop }} />);
+    player={{ reason: "Select a supported frame to play its prototype.", onPlay: noop }} exporter={{ reason: "No canvas is open.", onExport: noop }} />);
   expect(describedBy(tools, 'aria-label="Capture area"')).toBe("canvas-capture-reason");
+  expect(describedBy(tools, 'aria-label="Play prototype"')).toBe("canvas-play-reason");
   expect(describedBy(tools, 'aria-label="Export canvas"')).toBe("canvas-export-reason");
 
   const row = { key: "c1", title: "Tidy the header", deletable: { available: false, reason: "An agent is working on this conversation." } } as CanvasConversationRow;
@@ -48,8 +49,8 @@ test("an unavailable control's open tooltip leaves its own aria-describedby alon
 
 test("an available control still gets the open tooltip's id, as Radix gives it", () => {
   const tools = open(<CanvasTools tool="select" picking={false} capturing={false} onTool={noop} onEscape={noop}
-    picker={{ enabled: true, reason: null, onToggle: noop }} capture={{ enabled: true, reason: null, onToggle: noop }} exporter={{ reason: null, onExport: noop }} />);
-  for (const label of ["Select", "Capture area", "Export canvas"]) expect(describedBy(tools, `aria-label="${label}"`), label).toMatch(/^radix-\S+$/);
+    picker={{ enabled: true, reason: null, onToggle: noop }} capture={{ enabled: true, reason: null, onToggle: noop }} player={{ reason: null, onPlay: noop }} exporter={{ reason: null, onExport: noop }} />);
+  for (const label of ["Select", "Capture area", "Play prototype", "Export canvas"]) expect(describedBy(tools, `aria-label="${label}"`), label).toMatch(/^radix-\S+$/);
 });
 
 // Only an unavailable control keeps its description alone: an enabled one that names a description of its own (a queued

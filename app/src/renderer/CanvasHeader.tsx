@@ -143,7 +143,7 @@ function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: 
           onFocus={() => setFocused(row.key)}
           onPointerMove={event => { if (document.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }); }}
           onClick={() => pick(row)}>
-          <span className="doan-frame-num">{row.number}</span><span className="doan-frame-name">{row.name}</span>{row.current && <span className="doan-frame-viewing">Viewing</span>}
+          <span className="doan-frame-num">{row.number}</span><span className="doan-frame-name">{row.name}</span>{row.prototype && <span className="prototype-meta">Prototype</span>}{row.current && <span className="doan-frame-viewing">Viewing</span>}
         </div>)}
       </div>
       {view.truncatedNote && <p className="doan-menu-head doan-frame-note">{view.truncatedNote}</p>}

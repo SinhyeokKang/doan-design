@@ -42,10 +42,11 @@ Where things live, one entry per directory. File-level detail is in the code; ru
   - `document/`: canvas document evidence and the shared object guard.
   - `mcpConnectors/`: MCP connectors for Claude Code and Codex — the server list and pending-logout files, the provider MCP commands (Claude's sign-in in a pty), status and logout rules, the Codex startup and approval rules, IPC, and provider-output `fixtures/`.
   - `onboarding/`: first run and the session shared with the Add Projects page, clone, the skill stub `SKILL.md`, and completion-record and earlier-stub `fixtures/`.
+  - `prototype/`: the prototype window's Electron-free contract — the mark, playability, window fit, targets, request validation, the lifecycle transitions and their controller, history and the IPC types — which the renderer also imports.
   - `serve/`: the local canvas server.
   - `update/`: in-app updates — pure eligibility, schedule, state, error and view rules the renderer shares, and the electron-updater service (only `app/src/main/update/service.ts` drives the updater).
-- `app/src/preload/`: the `window.doan` API.
-- `app/src/renderer/`: the React renderer (`main.ts` is the entry, `App.tsx` the root) — screens, the canvas controller, the conversation UI, pure view rules with their tests; `ds/` the design-system CSS and checks, `components/ui/` shadcn components, `public/` static assets (fonts, provider marks, MCP preset marks, Doany's motion files and working-notice GIFs in `doany/`, every other buddy file, the shared eye and the Welcome group photo in `buddies/`).
+- `app/src/preload/`: the main window's `window.doan` API and the prototype window's `window.doanPrototype`.
+- `app/src/renderer/`: the React renderer (`main.ts` is the entry, `App.tsx` the root) — screens, the canvas controller, the conversation UI, pure view rules with their tests; `prototype/` the prototype window's UI (its page is `prototype.html`, beside `index.html`), `ds/` the design-system CSS and checks, `components/ui/` shadcn components, `public/` static assets (fonts, provider marks, MCP preset marks, Doany's motion files and working-notice GIFs in `doany/`, every other buddy file, the shared eye and the Welcome group photo in `buddies/`).
 - `app/src/formats/`, `app/src/restore/`: pure modules shared by main and renderer (TypeScript format validation, UI-state restore planning).
 - `app/src/brand/`: test-only product-name checks (Go counterpart in `cli/internal/cli/brand_test.go`).
 - `app/runtime/`: reusable support for focused real-Electron probes (isolation, cleanup, real-state fingerprints, native helpers), with Node tests in the shared gate.

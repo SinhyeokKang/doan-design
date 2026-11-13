@@ -31,14 +31,17 @@ function Tooltip({
 // An unavailable control that names its reason with its own aria-describedby (an sr-only sibling, so it is read while
 // the tooltip is closed too) keeps that description alone: Radix adds the open content's id, which holds the same
 // reason, so it would be read twice. Between Radix's trigger and the control, the trigger's props
-// are merged into the control again by Radix's Slot (handlers, ref, class) without the added id. Any other trigger
-// keeps Radix's description.
+// are merged into the control again by Radix's Slot (handlers, ref, class), without the added id when `own`. Any other
+// trigger keeps Radix's description. Every asChild trigger goes through this layer, unavailable or not: a control that
+// turns unavailable while focused (Play prototype losing its frame's mark) must stay the same element, or React mounts
+// a new button and focus falls to the page.
 function OwnDescription({
-  "aria-describedby": _added,
+  "aria-describedby": added,
+  own,
   control,
   ...props
-}: { "aria-describedby"?: string; control: React.ReactElement } & Record<string, unknown>) {
-  return <SlotPrimitive.Slot {...props}>{control}</SlotPrimitive.Slot>
+}: { "aria-describedby"?: string; own: boolean; control: React.ReactElement } & Record<string, unknown>) {
+  return <SlotPrimitive.Slot {...props} {...(own || added === undefined ? {} : { "aria-describedby": added })}>{control}</SlotPrimitive.Slot>
 }
 
 function TooltipTrigger({
@@ -46,12 +49,13 @@ function TooltipTrigger({
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  const own = asChild && React.isValidElement<Record<string, unknown>>(children)
+  const element = asChild === true && React.isValidElement<Record<string, unknown>>(children)
+  const own = element
     && (children.props["aria-disabled"] === true || children.props["aria-disabled"] === "true")
     && typeof children.props["aria-describedby"] === "string"
   return (
     <TooltipPrimitive.Trigger data-slot="tooltip-trigger" asChild={asChild} {...props}>
-      {own ? <OwnDescription control={children} /> : children}
+      {element ? <OwnDescription own={own} control={children} /> : children}
     </TooltipPrimitive.Trigger>
   )
 }

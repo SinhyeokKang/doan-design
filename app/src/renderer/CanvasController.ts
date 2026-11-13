@@ -8,6 +8,8 @@ import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem
 import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, TrashMarks, type OpenCanvas } from "./canvasView";
 import { switchTarget } from "./switchTarget";
 import { activityKey, activityKind, pushActivity, type ActivityEvent } from "./activity";
+import { canvasPlayability } from "./prototypePlay";
+import { sizeBubblePlace, type BubbleRoom } from "./sizeBubble";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
@@ -151,6 +153,10 @@ export interface AnchorTarget { id: string; doanId?: string; selector?: string; 
 export type OpenTarget = { frame: string } | { element: string };
 
 // React owns the surrounding shell; only this controller owns the board's children.
+// The size bubble as styles.css draws it: 24px tall (a caption line and 4px padding, or the xs Play button) and hung
+// 5px from the selection.
+const SIZE_BUBBLE = { height: 24, gap: 5 };
+
 export class CanvasController {
   private state = initialCanvasState();
   private entries: FolderEntry[] = [];
@@ -466,6 +472,9 @@ export class CanvasController {
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
     this.state.reloading = this.loading && this.state.status === null;
+    // Play's judgement reads the tool, a pick, capture mode and the layout, which change without a selection change.
+    // Before drawWork, so the bubble's room is read before this publish writes styles.
+    if (this.marks !== null) { const selected = this.markHidden ? null : this.selectedRect; this.placeSize(this.marks.size, selected, selected === null ? null : this.sizeBubbleRoom()); }
     this.drawWork();
     this.syncMain();
     this.changed({ ...this.state });
@@ -486,7 +495,8 @@ export class CanvasController {
 
   private layoutDisplayKey(): string {
     const { layout, status, shown, unlisted } = this.state;
-    return JSON.stringify([layout?.frames.map(frame => [frame.id, frame.title]), layout?.truncated, status, shown, unlisted]);
+    // The prototype mark too: the drawer's caption and Play's availability show it.
+    return JSON.stringify([layout?.frames.map(frame => [frame.id, frame.title, frame.prototype]), layout?.truncated, status, shown, unlisted]);
   }
 
   // `listed` is main's list before App hides rows (PRODUCT §5 item 1): a hidden root keeps its
@@ -586,6 +596,15 @@ export class CanvasController {
   // Pans do not publish state, so persistence listens here.
   viewChanged: (() => void) | null = null;
   linkedCanvas: ((root: string) => void) | null = null;
+  // The size bubble's Play prototype, shown while the selected frame itself can play (the toolbar Play's judgement).
+  // `onFocusLost`: the button had focus and is going away, so App can hand focus to another visible control first.
+  bubblePlay: { onPlay(): void; onFocusLost(): void } | null = null;
+  // The band the size bubble may sit in, in the canvas area's coordinates: from its top to the floating tools' top.
+  // Without it the whole area counts.
+  bubbleRoom: (() => BubbleRoom | null) | null = null;
+  private bubble: { label: HTMLElement; button: HTMLButtonElement; shown: boolean } | null = null;
+  // The bubble's Play while it is on screen, for focus to come back to when the prototype window closes.
+  bubblePlayButton(): HTMLButtonElement | null { return this.bubble?.shown ? this.bubble.button : null; }
   currentView(): View { return { ...this.view }; }
   // Per-root memory as saved to and restored from `ui-state.json` (`lastByRoot`).
   memory(): Record<string, { canvas: string; view: View }> {
@@ -2065,6 +2084,8 @@ export class CanvasController {
   private drawMarks(): void {
     const hover = this.markHidden || this.altHeld || this.layerShown || this.captureShown || this.textDragging ? null : this.hoverRect;
     const selected = this.markHidden ? null : this.selectedRect;
+    // Read before this draw writes any style, so it costs no forced layout.
+    const room = selected === null ? null : this.sizeBubbleRoom();
     if (this.marks === null) {
       if (hover === null && selected === null) return;
       const node = (className: string) => {
@@ -2087,7 +2108,52 @@ export class CanvasController {
     };
     place(this.marks.hover, hover);
     place(this.marks.selected, selected);
-    if (selected !== null) this.marks.size.textContent = sizeLabel(selected);
+    this.placeSize(this.marks.size, selected, room);
+  }
+
+  private sizeBubbleRoom(): BubbleRoom {
+    return this.bubbleRoom?.() ?? { top: 0, bottom: this.viewportSize().height };
+  }
+
+  // The size label, and Play prototype beside it while the selected frame can play. The button is the overlay's only
+  // pointer target: its press and click stop at it, so they never select through to the canvas or start a board drag.
+  private placeSize(size: HTMLElement, selected: CanvasRect | null, room: BubbleRoom | null): void {
+    const bubble = this.bubble;
+    const focused = bubble !== null && bubble.shown && document.activeElement === bubble.button;
+    const play = selected !== null && this.bubblePlay !== null && canvasPlayability(this.state).enabled;
+    if (selected !== null) {
+      if (play) {
+        const shown = bubble ?? this.makeBubble();
+        if (!shown.shown) { size.textContent = ""; size.append(shown.label, shown.button); }
+        shown.label.textContent = sizeLabel(selected);
+        shown.shown = true;
+      } else {
+        size.textContent = sizeLabel(selected);
+        if (bubble !== null) bubble.shown = false;
+      }
+      const screen = boardRectToScreen(this.view, selected);
+      const place = sizeBubblePlace(screen, SIZE_BUBBLE, room ?? this.sizeBubbleRoom());
+      size.className = `dims${play ? " playable" : ""}${place.kind === "above" ? " above" : ""}`;
+      size.style.top = place.kind === "inside" ? `${place.top - screen.y}px` : "";
+    } else if (bubble !== null) bubble.shown = false;
+    if (focused && !play) this.bubblePlay?.onFocusLost();
+  }
+
+  private makeBubble(): { label: HTMLElement; button: HTMLButtonElement; shown: boolean } {
+    const label = document.createElement("span");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "doan-icon-button bubble-play";
+    button.setAttribute("data-ui-size", "xs");
+    button.setAttribute("aria-label", "Play prototype");
+    // lucide's Play, as the toolbar's button draws it.
+    button.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg>';
+    const stop = (event: Event) => event.stopPropagation();
+    button.addEventListener("pointerdown", stop);
+    button.addEventListener("mousedown", stop);
+    button.addEventListener("click", event => { event.stopPropagation(); if (this.bubble?.shown) this.bubblePlay?.onPlay(); });
+    this.bubble = { label, button, shown: false };
+    return this.bubble;
   }
 
   private setFrameWidth(width: number): void { this.frameWidth = width; if (this.frame) this.frame.style.width = `${width}px`; }

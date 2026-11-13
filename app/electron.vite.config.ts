@@ -33,7 +33,11 @@ export default defineConfig({
       // A sandboxed preload cannot load ESM, and package.json is "type": "module",
       // so electron-vite would otherwise emit index.mjs.
       rolldownOptions: {
-        input: { index: fileURLToPath(new URL("./src/preload/index.ts", import.meta.url)) },
+        // The prototype window gets its own preload; neither imports a value the other does, so no shared chunk.
+        input: {
+          index: fileURLToPath(new URL("./src/preload/index.ts", import.meta.url)),
+          prototype: fileURLToPath(new URL("./src/preload/prototype.ts", import.meta.url)),
+        },
         output: { format: "cjs", entryFileNames: "[name].cjs" },
       },
     },
@@ -43,7 +47,10 @@ export default defineConfig({
     plugins: [contentSecurityPolicy(), tailwindcss()],
     build: {
       rolldownOptions: {
-        input: { index: fileURLToPath(new URL("./src/renderer/index.html", import.meta.url)) },
+        input: {
+          index: fileURLToPath(new URL("./src/renderer/index.html", import.meta.url)),
+          prototype: fileURLToPath(new URL("./src/renderer/prototype.html", import.meta.url)),
+        },
       },
     },
   },

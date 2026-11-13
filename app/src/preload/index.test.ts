@@ -672,3 +672,16 @@ test("delivers MCP connector snapshots newest first, never an older revision aft
   stop();
   expect(emitter.listenerCount("mcp-connectors:changed")).toBe(0);
 });
+
+test("Play prototype and the closed event use the prototype channels", () => {
+  const request = { root: "/r", path: ".doan/canvases/proto.html", frame: "phone", mark: "390x844" };
+  api.playPrototype(request);
+  expect(mocks.invoke).toHaveBeenCalledWith("prototype:play", request);
+  const closed = vi.fn();
+  const stop = api.onPrototypeClosed(closed);
+  emitter.emit("prototype:closed", {});
+  stop();
+  emitter.emit("prototype:closed", {});
+  expect(closed).toHaveBeenCalledTimes(1);
+  expect(closed.mock.calls[0]).toEqual([]);
+});

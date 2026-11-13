@@ -15,6 +15,8 @@ import (
 type Frame struct {
 	ID                string
 	Title, Implements *string
+	// Prototype is the raw data-doan-prototype value, nil when absent.
+	Prototype *string
 }
 type Canvas struct {
 	Path, ID, Title, WidthRaw        string
@@ -30,7 +32,16 @@ type Canvas struct {
 	// Custom is what the canvas's own <style> elements and style attributes
 	// do with custom properties.
 	Custom CustomText
+	// StrayPrototypes holds the raw data-doan-prototype value of each element
+	// outside <template> that is not a data-doan-frame element.
+	StrayPrototypes []string
 }
+
+var prototypePattern = regexp.MustCompile(`^[1-9][0-9]{0,4}x[1-9][0-9]{0,4}$`)
+
+// PrototypeSizeValid reports whether a data-doan-prototype value is
+// "<width>x<height>", whole CSS pixels from 1 to 99999 with no padding.
+func PrototypeSizeValid(v string) bool { return prototypePattern.MatchString(v) }
 
 var widthPattern = regexp.MustCompile(`^[1-9][0-9]*$`)
 var schemePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.-]*:`)
@@ -91,7 +102,7 @@ func words(s string) []string {
 	return strings.FieldsFunc(s, func(r rune) bool { return r < 128 && asciiSpace(byte(r)) })
 }
 func Parse(path string, data []byte) (Canvas, error) {
-	c := Canvas{Path: path, BodyMeta: map[string]bool{}, Frames: []Frame{}, DoanIDs: []string{}, Links: []string{}, ExternalURLs: []string{}, Styles: Scan{Defs: map[string]bool{}},
+	c := Canvas{Path: path, BodyMeta: map[string]bool{}, Frames: []Frame{}, StrayPrototypes: []string{}, DoanIDs: []string{}, Links: []string{}, ExternalURLs: []string{}, Styles: Scan{Defs: map[string]bool{}},
 		Custom: CustomText{Uses: CustomUse{Used: map[string]bool{}, Hops: map[string]map[string]bool{}, URLSyntax: map[string]bool{}}}}
 	// Parser resource limits can fail even when the reader cannot.
 	root, err := html.Parse(bytes.NewReader(data))
@@ -164,7 +175,12 @@ func Parse(path string, data []byte) (Canvas, error) {
 				if v, ok := attrs["data-doan-implements"]; ok {
 					f.Implements = &v
 				}
+				if v, ok := attrs["data-doan-prototype"]; ok {
+					f.Prototype = &v
+				}
 				c.Frames = append(c.Frames, f)
+			} else if v, ok := attrs["data-doan-prototype"]; ok {
+				c.StrayPrototypes = append(c.StrayPrototypes, v)
 			}
 			if id, ok := attrs["data-doan-id"]; ok {
 				c.DoanIDs = append(c.DoanIDs, id)

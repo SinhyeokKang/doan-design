@@ -35,10 +35,15 @@ const EXTRA_ROOTS = [
   join(SRC, "main/update/view.ts"),
 ];
 
+// The HTML pages electron-vite builds as renderer entries: the main window and the prototype window.
+const PAGES = ["index.html", "prototype.html"];
+
 function entries(): string[] {
-  // Every renderer entry electron-vite builds is an HTML file whose module script starts the closure.
-  const html = readFileSync(join(SRC, "renderer/index.html"), "utf8");
-  return [...html.matchAll(/<script[^>]*type="module"[^>]*src="([^"]+)"/g)].map(match => resolve(join(SRC, "renderer"), match[1]!.replace(/^\//, "")));
+  // Every renderer entry is an HTML file whose module script starts the closure.
+  return PAGES.flatMap(page => {
+    const html = readFileSync(join(SRC, "renderer", page), "utf8");
+    return [...html.matchAll(/<script[^>]*type="module"[^>]*src="([^"]+)"/g)].map(match => resolve(join(SRC, "renderer"), match[1]!.replace(/^\//, "")));
+  });
 }
 
 function resolveImport(from: string, spec: string): string | null {
@@ -121,8 +126,20 @@ describe("value imports the renderer bundle keeps", () => {
 });
 
 describe("renderer import closure", () => {
-  it("starts from the renderer's module entry", () => {
-    expect(entries().map(file => relative(APP, file))).toEqual(["src/renderer/main.ts"]);
+  it("starts from every renderer page's module entry", () => {
+    expect(entries().map(file => relative(APP, file))).toEqual(["src/renderer/main.ts", "src/renderer/prototype/main.tsx"]);
+  });
+
+  it("knows every HTML page electron-vite builds as a renderer entry", () => {
+    const config = readFileSync(join(APP, "electron.vite.config.ts"), "utf8");
+    const pages = [...config.matchAll(/"\.\/src\/renderer\/([^"]+\.html)"/g)].map(match => match[1]);
+    expect(pages).toEqual(PAGES);
+  });
+
+  it("walks the prototype window's page into its contract modules", () => {
+    const { files } = closure();
+    expect(files.has(join(SRC, "renderer/prototype/PrototypeWindow.tsx"))).toBe(true);
+    expect(files.has(join(SRC, "main/prototype/fit.ts"))).toBe(true);
   });
 
   it("never reaches the ajv validators, ajv itself or a Node module", () => {

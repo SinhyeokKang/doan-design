@@ -1,6 +1,7 @@
 import { runInNewContext } from "node:vm";
 import { describe, expect, test } from "vitest";
 import { MAX_COPY_TEXT, MAX_TEXT_RECTS } from "../renderer/canvasMessage";
+import { MAX_PROTOTYPE_MARK } from "./prototype/mark";
 import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, escapeTarget, frameBottom, frameStep, nextHeight, textBoundary, textDragState, textQuote, type ChainLink } from "./canvasScript";
 
 describe("nextHeight", () => {
@@ -744,6 +745,22 @@ describe("canvasScriptSource", () => {
     });
     const second = (canvas.posted[0] as { message: { frames: object[] } }).message.frames[1];
     expect(second).not.toHaveProperty("title");
+  });
+
+  test("carries each frame's raw prototype mark, cut at MAX_PROTOTYPE_MARK without truncating the list", () => {
+    const canvas = fakeCanvas({
+      frames: [
+        { attrs: { "data-doan-frame": "a", "data-doan-prototype": "390x844" } },
+        { attrs: { "data-doan-frame": "b", "data-doan-prototype": "" } },
+        { attrs: { "data-doan-frame": "c" } },
+        { attrs: { "data-doan-frame": "d", "data-doan-prototype": "9".repeat(MAX_PROTOTYPE_MARK + 1) } },
+      ],
+    });
+    canvas.ready();
+    const message = (canvas.posted[0] as { message: { frames: Record<string, unknown>[]; truncated: boolean } }).message;
+    expect(message.frames.map(frame => frame.prototype)).toEqual(["390x844", "", undefined, "9".repeat(MAX_PROTOTYPE_MARK)]);
+    expect(message.frames[2]).not.toHaveProperty("prototype");
+    expect(message.truncated).toBe(false);
   });
 
   test("cuts the list at 1,000 frames and strings at 200 characters", () => {

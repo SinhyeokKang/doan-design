@@ -13,3 +13,15 @@ test("a caller can still override the provider's timing", () => {
   const element = TooltipProvider({ children: null, delayDuration: 0 });
   expect(element.props).toMatchObject({ delayDuration: 0, skipDelayDuration: 300, disableHoverableContent: true });
 });
+
+// A control that turns unavailable while focused (Play prototype losing its frame's mark) must stay the same element:
+// a different component between the trigger and the control would make React mount a new button and drop focus.
+test("an asChild trigger keeps one tree whether its control is available or not", async () => {
+  const { createElement } = await import("react");
+  const { TooltipTrigger } = await import("./tooltip");
+  const layer = (control: ReturnType<typeof createElement>) => (TooltipTrigger({ asChild: true, children: control }).props as { children: { type: unknown; props: { own: boolean } } }).children;
+  const available = layer(createElement("button", { "aria-label": "Play prototype" }));
+  const unavailable = layer(createElement("button", { "aria-label": "Play prototype", "aria-disabled": true, "aria-describedby": "canvas-play-reason" }));
+  expect(unavailable.type).toBe(available.type);
+  expect([available.props.own, unavailable.props.own]).toEqual([false, true]);
+});

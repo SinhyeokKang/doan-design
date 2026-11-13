@@ -32,7 +32,7 @@ import { readGitRemotes } from "./onboarding/gitConfig";
 import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, leftoverPresent, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
 import { groupRoots, projectKeepsLocal } from "./storage";
 import { DocumentBindings } from "./document/bindings";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, screen, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, screen, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions, type Session } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, lstatSync, readlinkSync, realpathSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -91,6 +91,8 @@ import { linkTarget } from "./openLink";
 import { openLinkQueue, openRequests, resolveOpenLink } from "./deepLinks";
 import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, workItemsChanged, type WorkState } from "./workState";
 import { applyConversationWork, endConversationWork, type ConversationWork } from "./conversationWork";
+import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
+import { createPrototypeWindow } from "./prototypeWindow";
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
@@ -246,6 +248,8 @@ let thumbnails: Thumbnails | undefined;
 // The app always starts on Home.
 const HOME: MenuInputs = { screen: "home", modal: false };
 let menuInputs: MenuInputs = HOME;
+// The prototype window has focus: the main window's own menu items go off (menuState `prototypeFocused`).
+let prototypeFocused = false;
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
 
 // Thumbnails are for the window's overview, so nothing is captured while it
@@ -298,10 +302,25 @@ function fromWindow(event: IpcMainInvokeEvent): boolean {
   return win !== undefined && !win.isDestroyed() && fromAppFrame(event, win);
 }
 
+// The single-frame prototype window: made on the first Play, apart from `win`'s lifecycle and sender guard.
+const prototype = createPrototypeWindow({
+  entries: () => shell?.entries() ?? [],
+  mainWindow: () => win,
+  closed: () => send(PROTOTYPE_CHANNELS.closed),
+  denyPermissions,
+  reread: root => shell?.reread([root]),
+  focusChanged(focused) {
+    if (focused === prototypeFocused) return;
+    prototypeFocused = focused;
+    setMenu();
+  },
+});
+
 // A registered window's main frame, or nothing: iframes, the capture window
 // and windows that are gone are not senders.
 function senderKind(event: IpcMainInvokeEvent): WindowKind | undefined {
   if (fromWindow(event)) return "main";
+  if (prototype.owns(event)) return "prototype";
   return undefined;
 }
 
@@ -353,7 +372,7 @@ function editHistory(kind: "undo" | "redo"): NonNullable<MenuItemConstructorOpti
 // go to the renderer, which zooms the board and reloads only the canvas.
 // The menu is rebuilt whenever its enablement changes.
 function menuEnabledNow() {
-  return menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen || buddyIntroOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true });
+  return menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen || buddyIntroOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, pickerAvailable: menuInputs.pickerAvailable === true, prototypeFocused });
 }
 
 function setMenu(): void {
@@ -380,8 +399,10 @@ function setMenu(): void {
           { label: "New Conversation", accelerator: "CmdOrCtrl+N", enabled: enabled.newConversation, click: command("newConversation") },
           { label: "Add Project…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: openAddProjects },
           { type: "separator" },
-          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: () => {
-            if (win && !win.isDestroyed()) win.close();
+          // The focused window: from the prototype window it closes only that window.
+          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: (_item, focused) => {
+            if (prototype.ownsWindow(focused)) prototype.close();
+            else if (win && !win.isDestroyed()) win.close();
           } },
         ],
       },
@@ -466,13 +487,14 @@ function parseMenuInputs(value: unknown): MenuInputs | null {
 
 // Without handlers Electron grants permissions to the app's own main frame.
 // Canvas iframes are already stopped by Permissions Policy, so this guards the app.
-function denyPermissions(): void {
-  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
-  session.defaultSession.setDevicePermissionHandler(() => false);
+// The prototype window's own session gets the same.
+function denyPermissions(target: Session = session.defaultSession): void {
+  target.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+  target.setPermissionCheckHandler(() => false);
+  target.setDevicePermissionHandler(() => false);
   // Chromium turns an ⌥-clicked canvas link into a download, and the iframe
   // sandbox without `allow-downloads` does not stop it.
-  session.defaultSession.on("will-download", (event) => event.preventDefault());
+  target.on("will-download", (event) => event.preventDefault());
 }
 
 // buddy: the saved buddy, passed in the renderer's query for the first paint.
@@ -722,6 +744,8 @@ async function start(): Promise<void> {
       if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
     }
     thumbnails?.entriesChanged(entries);
+    // A source change reloads the prototype, a gone canvas or root shows it unavailable, and it comes back on restore.
+    prototype.controller.listChanged();
     seen.listed(entries);
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", seen.decorate(entries), focus);
     readyOpenLinks();
@@ -751,6 +775,13 @@ async function start(): Promise<void> {
     readyOpenLinks();
   });
   handle("doan-open:answer", undefined, (_event, value: unknown) => { openCanvasRequests.answer(value); });
+  // The main window names a frame of a listed canvas; main builds the URL itself. Each window request is checked again
+  // for the prototype role inside the controller.
+  handle(PROTOTYPE_CHANNELS.play, undefined, (_event, value: unknown, kind) => { prototype.controller.play(kind, value); });
+  for (const channel of PROTOTYPE_WINDOW_REQUESTS) {
+    const refused = channel === PROTOTYPE_CHANNELS.read ? null : undefined;
+    handle(channel, refused, (_event, value: unknown, kind) => prototype.controller.request(channel, kind, value));
+  }
   // The capture window is made on the first capture and stays out of the
   // app window's lifecycle: `win` alone is shown, closed and trusted for IPC.
   const thumbs = createThumbnails({
@@ -1410,7 +1441,7 @@ app.on("before-quit", (event) => {
       if (result.status === "rejected") console.error("doan: project cleanup failed during quit", result.reason);
     }
     quitting = true;
-    try { cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose(); } catch (error) {
+    try { prototype.destroyForQuit(); cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose(); } catch (error) {
       console.error("doan: final cleanup failed during quit", error);
     }
     // Restart to Update installs only here, after the save and the flush; quitting is set, so the windows the install

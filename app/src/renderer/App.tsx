@@ -31,7 +31,11 @@ import { useControlFocusRecovery } from "./canvasControlFocus";
 import { useVisibleClock } from "./visibleClock";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
-import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool } from "./CanvasTools";
+import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool, type PlayTool } from "./CanvasTools";
+import { canvasPlayability, playRequest } from "./prototypePlay";
+import { prototypeMainCalls } from "./prototype/mainCalls";
+import { PrototypeClosedFocus } from "./PrototypeClosedFocus";
+import type { PlayRequest } from "../main/prototype/ipc";
 import { dockedBuddy } from "./dockedBuddyShell";
 import { AlertIcon } from "./AlertIcon";
 import { noticeToast } from "./selection";
@@ -258,6 +262,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const overlay = useRef<HTMLDivElement>(null);
   const dragLayer = useRef<HTMLDivElement>(null);
   const controller = useRef<CanvasController | null>(null);
+  // Play prototype: the toolbar's button (focus comes back to it) and the request the bubble's Play sends, as of the
+  // last render.
+  const playButton = useRef<HTMLButtonElement | null>(null);
+  const playNext = useRef<PlayRequest | null>(null);
   const [reroot, setReroot] = useState<(FolderFocus & { seq: number }) | null>(null);
   // `rerootSeq` counts the re-root focuses seen; Set Up keeps the count at its start so a re-root from before it is not
   // taken for its own. `locateFrom` is the root a Locate is waiting on: main reports that move as a re-root focus too,
@@ -523,6 +531,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     instance.onPicked(result => live.current.pickEnded(result));
     instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
+    // The floating tools cover the area's bottom: the size bubble stays above them, 8px clear (sizeBubble.ts).
+    instance.bubbleRoom = () => {
+      const tools = viewport.current?.querySelector<HTMLElement>(".doan-canvas-bottom");
+      return tools ? { top: 0, bottom: tools.offsetTop - 8 } : null;
+    };
+    instance.bubblePlay = {
+      onPlay: () => sendPlay(playNext.current),
+      // The bubble went while it had focus: the toolbar's Play is the visible control for the same action.
+      onFocusLost: () => { (playButton.current?.isConnected ? playButton.current : viewport.current)?.focus({ preventScroll: true }); },
+    };
     // The overlay covers the canvas, so its view commands do nothing meanwhile (ARCHITECTURE §7 'Problem overlay').
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace" && !overlaidRef.current) instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
@@ -1732,6 +1750,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     exportFocus.current = { key: `${exportTarget.folder}\n${exportTarget.row.path}`, button };
     exportCanvas(exportTarget.folder, exportTarget.row);
   } };
+  // One judgement for the toolbar's Play and the size bubble's (prototypePlay.ts); main opens or reuses the prototype
+  // window and nothing here changes the canvas.
+  const playable = canvasPlayability(state);
+  playNext.current = playRequest(state);
+  const player: PlayTool = { reason: playable.enabled ? null : playable.reason, button: playButton,
+    onPlay: () => sendPlay(playNext.current) };
   const picking = state.picking;
   // Capture area: the canvas, the composer's input, its Attach rule and its attachment count,
   // first match wins. Without the panel's composer the canvas counts as not shown, as for the Picker.
@@ -2172,7 +2196,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
         onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
-      picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} exporter={exporter} />
+      picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} player={player} exporter={exporter} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={null}
@@ -2222,6 +2246,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   })()}
   {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row))} cancel={closeTrash} confirm={confirmTrash} />}
   {toast.element}
+  <PrototypeClosedFocus controller={controller} toolbar={playButton} />
   <StarPrompt onboarding={wizard !== null || buddyIntro.open} pickOrCapture={state.picking || state.capturing} restoreFocus={restoreFloatingFocus} />
   {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} buddy={buddySelection} preferences={preferences}
@@ -2266,12 +2291,16 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
 type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
   conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
-function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, exporter }: {
+function sendPlay(request: PlayRequest | null): void {
+  if (request !== null) prototypeMainCalls().playPrototype(request);
+}
+
+function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
   state: CanvasState; view: CanvasViewStore; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
   zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: OpenBadge | null }; agent: AgentProps;
-  picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; exporter: ExportTool;
+  picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; player: PlayTool; exporter: ExportTool;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   useControlFocusRecovery(panel, viewport, covered, view);
@@ -2304,7 +2333,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
       {/* Capture mode's hint, in the picking hint's look with Capture area's glyph. */}
       {capturing && <div className="doan-agent doan-picking" role="status"><Scan className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Drag to capture an area</span>
         <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
-      <CanvasTools tool={tool} picking={picking} capturing={capturing} onTool={onTool} picker={picker} capture={capture} exporter={exporter} onEscape={onToolbarEscape} />
+      <CanvasTools tool={tool} picking={picking} capturing={capturing} onTool={onTool} picker={picker} capture={capture} player={player} exporter={exporter} onEscape={onToolbarEscape} />
     </div>
     </section>
   </div>;

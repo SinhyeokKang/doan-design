@@ -132,4 +132,15 @@ describe("the update item", () => {
       expect(updateMenu(CHECK, enabled)).toEqual({ ...CHECK, enabled: false });
     }
   });
+
+  // The prototype window takes these keys only while it is focused; the main window's canvas, conversation, view and
+  // navigation must not change behind it.
+  test("with the prototype window focused, only app-level items stay on", () => {
+    for (const screen of ["home", "workspace", "canvas", "addProjects", "settings"] as const) {
+      expect(menuState(screen, false, { wizardOpen: false, overview: true, pickerAvailable: true, choose: true, prototypeFocused: true }), screen).toEqual({
+        settings: true, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, pickFromCanvas: false, toggleSidebar: false,
+      });
+    }
+  });
 });
+
