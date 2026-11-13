@@ -40,3 +40,6 @@ task 2(`/design-draft`)는 이미 끝났다. task 10은 리뷰 행과 conductor�
 
 ## 진행 기록
 - Run `run_5d7cc862a3b3`. P(`ctx_020a88944e06`, worktree `pcv-p`), M(`ctx_fc3d827698c9`, `pcv-m`), R(`ctx_cc4a43ae2c10`, `pcv-r`)를 `b04ca1dc`에서 시작했다. 모두 Claude Opus high(`launch` 확인). lead에 P의 `GUI again`을 알렸다.
+- R 완료(`a9eaa8bb..10f1462f`) → `62284160..d76bd1f0`로 통합. R 보고: test 11911개, typecheck, lint(경고 80/80) 통과. 계획과 다른 점: target에 `lost?: "gone" | "duplicate"`, `playingFrameChip(view, last)`, `withPlayingFrame`이 칩 뒤에 공백 하나. `revealDecision`은 계획대로 U 몫이다.
+- conductor 판단 — R이 남긴 계약 공백을 M에 보냈다(`msg_88a65c855399`): 프로토타입 preload가 R의 호출 객체 타입 전체를 같은 이름으로 낸다(`scheduledMessages`, `designSkills`, `onAgentAuth` 포함). `onAgentAuth`는 계정 정보(email 등)를 뺀 snapshot만 준다. view가 target 캔버스 행의 사라짐·ID 겹침을 구분해 알린다. 본체가 받는 `entry`는 target root의 `FolderEntry`만 좁은 읽기로 준다. 근거: 캔버스 행은 대화가 아니므로 design '범위 검사'가 지키는 것(다른 캔버스 대화, 프로젝트 대화, 삭제, email, 설정 쓰기)에 닿지 않는다.
+- R 리뷰: Codex gpt-6-astra medium(`ctx_ff7a9e592159`, worktree `pcv-rr`).
