@@ -201,6 +201,7 @@ One canvas per token group, shared component and shared surface in `.doan/ds/`, 
 | `alert-icon` | 16 and 20px, ink | `AlertIcon.tsx` |
 | `settings-group`, `preference-row` | Group; row content, trailing, disabled, narrow | `ds/surfaces.css` |
 | `mode-tabs` | Page tabs in the header, filter tabs | `styles.css` (`.shell-modes`) |
+| `toggle-group` | Chrome icon buttons in one track, one raised: default, hover, pressed, focus, disabled, none pressed | `ds/controls.css` |
 | `status-pill` | Tones | `styles.css` (`.ob-chip`) |
 | `inline-error` | Error and warning lines | `styles.css` (`.ob-msg`, `.settings-msg`) |
 | `inline-code` | Code chip in a sentence | `styles.css` |
