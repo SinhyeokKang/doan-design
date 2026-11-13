@@ -1815,3 +1815,25 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* Project Settings' details block (.project-settings-details), under the actions. */
 .problem-detail { width: 100%; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; text-align: start; }
 .problem-reading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+
+/* The prototype window (.doan/canvases/frame-prototype.html prototype-window, prototype-states): the main window's
+   shell without a sidebar. The header reuses .top.shell-top, .traffic-space and .shell-history, so Back sits at x88
+   as in the main header; the frame name reuses .shell-search. */
+.pw { position: absolute; inset: 0; display: grid; grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); }
+/* Against the header, which starts 8px inside the window: its 8px padding, the traffic lights, three 32px buttons and
+   their gaps, then 8px. The same space stays free on the right so the name is centred in the window. */
+.pw-name { position: absolute; top: calc((var(--size-chrome) - 36px) / 2); left: calc(var(--space-2) + 72px + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-2)); right: calc(var(--space-2) + 72px + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-2)); width: auto; justify-content: center; }
+.pw-name[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
+.pw-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pw-name .chev { flex: none; color: var(--text-metadata); }
+/* Narrower than two reserves and a usable name: the right reserve gives way to the 16px header inset. */
+@media (max-width: 519.98px) { .pw-name { right: var(--space-2); } }
+.pw-panel { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+.pw-content { position: absolute; inset: 0; }
+.pw-frame, .pw-snapshot { position: absolute; top: 0; left: 0; display: block; width: 100%; height: 100%; border: 0; }
+/* The problem overlay over the content panel only, so the header stays usable. */
+.pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+@media (prefers-reduced-transparency: reduce) { .pw-panel > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+/* Standard ink, so the body holds over a dark frame under the 60% overlay. */
+.pw-panel .problem-heading p { color: var(--text-standard); }
+.pw-drawer-empty { white-space: normal; padding-bottom: var(--space-2); }

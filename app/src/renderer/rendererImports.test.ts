@@ -33,6 +33,8 @@ const EXTRA_ROOTS = [
   join(SRC, "renderer/agentUsage.ts"),
   // The update rows, header button and menu item Settings > About and the header will import by value.
   join(SRC, "main/update/view.ts"),
+  // The prototype window's renderer entry: it runs under the same CSP and imports the prototype contract by value.
+  join(SRC, "renderer/prototype/main.tsx"),
 ];
 
 function entries(): string[] {
