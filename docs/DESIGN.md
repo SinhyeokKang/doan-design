@@ -1916,7 +1916,7 @@ The header's right group, the name's rows and the frame box follow `.doan/canvas
 - The bubble's room counts the floating tools only: the agent notice column at the area's top is not counted, and a picking or capture hint added to the tools is counted from the next draw.
 - A drawer with exactly one row, the short-window drawer scroll, dark mode and forced colours; fullscreen (no traffic-light space change); a prototype-window renderer reload while a run is ready.
 - From `prototype-responsive.html`: the 406 × 952 and 360 × 952 tiles (1× at the marked size and the scaled 344 × 744 at y50) need a work area taller than the 823 px of the measuring display; the same function placed every measured box. Not measured against the draft: the conversation-panel tiles (no conversation panel yet), the loading, failure and lost tiles over a scaled frame, the frame menu opened from the second row, the toggle's tooltip Esc and the pointer Reload's focus (unit tests only).
-- A mark taller or wider than 8192 CSS px in Fit, drawn under the split corner clips at DPR 2 (the four-equal-radius shape is gone; the split is pinned by `exportViewer.test.ts`, not drawn); 5000 × 5000 drew whole in the PoC.
+- A mark larger than 9000 CSS px in Fit, and any mark above 8192 CSS px at DPR 1. At DPR 2, `1440x9000` and `9000x900` (one also touching the panel's rounded corners) drew whole under the split corner clips in the runtime probe, with corner markers and no cut line; the split is pinned by `exportViewer.test.ts`.
 - The frame drawer's position under the current header (under the first-row capsule, and at top 96 under the second-row one), and Tab from the toggle into the content and Shift+Tab back through the header.
 
 ### Regression pointers
