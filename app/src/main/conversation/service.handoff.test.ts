@@ -8,14 +8,14 @@ import { ConversationService, resolveListedCanvas, type OpenRunner, type Prepare
 import { foldConversation } from "./state";
 import { DraftStore } from "./drafts";
 import type { ConversationHandoffNotice } from "./handoff";
-import type { Canvas, ConversationEvent } from "./types";
+import type { Canvas, ConversationEvent, EventPayload } from "./types";
 
 // The conversation service's half of a handoff, with fake runners.
 const paths: string[] = [];
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" }, c = { path: ".doan/canvases/c.html", id: "c" };
 type Steering = Runner & { steer: NonNullable<Runner["steer"]> };
-function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; legacy?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"]; defaultEffort?: QueueOptions["defaultEffort"] } = {}) {
+function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; legacy?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"]; defaultEffort?: QueueOptions["defaultEffort"]; draftsDir?: string } = {}) {
   const provider = options.provider ?? "codex";
   const dir = mkdtempSync(join(tmpdir(), "doan-handoff-")); paths.push(dir);
   const store = new ConversationStore(dir); const runners: Steering[] = []; let session = 0;
@@ -27,7 +27,7 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
   const prepared: Prepare = async (_request, stored) => ({ runtime: provider, configDir: "/profile", cwd: "/repo", command: "/fake", env: { KEEP: "1" }, ...(options.legacy ? {} : { owner }), ...(stored ? { sessionId: stored.session.sessionId } : {}) });
   const prepare = vi.fn<Prepare>(prepared);
   const listed: Canvas[] = [...options.listed ?? [a]];
-  const drafts = new DraftStore(null);
+  const drafts = new DraftStore(options.draftsDir ?? null);
   const notices: ConversationHandoffNotice[] = [];
   const published: ConversationEvent[] = [];
   const admit = (_root: string, canvas?: Canvas) => canvas ? resolveListedCanvas(canvas, listed) : undefined;
@@ -52,7 +52,9 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
   const missed = (id: string) => store.read(id).filter(e => e.type === "handoff.missed");
   const texts = (id: string) => store.read(id).flatMap(e => e.type === "user.message" ? [e.text] : []);
   const edit = (id: string, path: string) => service.receive(id, { type: "activity", kind: "edit", path, summary: "Edit" });
-  return { dir, service, store, runners, open, prepare, listed, drafts, notices, published, key, ask, prompt, entry, on, last, turnOf, start, settled, resolutions, missed, texts, edit };
+  // Lets a released start run to its end: its prepare, then the checks and the refusal after it.
+  const drained = async (call: number) => { await prepare.mock.results[call]!.value; for (let i = 0; i < 5; i++) await new Promise<void>(resolve => setImmediate(resolve)); };
+  return { dir, drained, service, store, runners, open, prepare, listed, drafts, notices, published, key, ask, prompt, entry, on, last, turnOf, start, settled, resolutions, missed, texts, edit };
 }
 
 describe("the handoff key", () => {
@@ -252,18 +254,32 @@ describe("the end of a turn that asked", () => {
     expect(h.on(b)).toBeUndefined();
     await vi.waitFor(() => expect(h.store.read(id).filter(e => e.type === "user.message")).toHaveLength(2));
   });
-  it("sends the queue to the source when the next conversation's turn ended before its start was accepted", async () => {
+  // The queue follows a single started handoff even when that conversation's first turn ended before its start was
+  // accepted: it is then handled as that turn's end handles a queue (sent after done, a draft after a failure).
+  const endedEarly = async (end: EventPayload) => {
     const h = fixture(); const id = await h.start();
     h.ask(h.key(0), b.path); h.listed.push(b);
     h.service.queue(id, { text: "and the cart", anchors: [] });
     const open = h.open.getMockImplementation()!;
-    h.open.mockImplementationOnce(async (input, event, ...rest) => { const runner = await open(input, event, ...rest); event({ type: "turn.failed", code: "process_exited" }); return runner; });
+    h.open.mockImplementationOnce(async (input, event, ...rest) => { const runner = await open(input, event, ...rest); event(end); return runner; });
     h.service.receive(id, { type: "turn.done" });
     await h.settled();
-    const target = h.on(b)!.conversationId;
-    expect(h.last(target)).toMatchObject({ type: "turn.failed" });
-    await vi.waitFor(() => expect(h.store.read(id).filter(e => e.type === "user.message").map(e => e.type === "user.message" && e.text)).toEqual(["Make a checkout page", "and the cart"]));
+    return { h, id, target: h.on(b)!.conversationId };
+  };
+  it("moves the queue to a next conversation whose first turn ended done before acceptance, which sends it", async () => {
+    const { h, id, target } = await endedEarly({ type: "turn.done" });
+    await vi.waitFor(() => expect(h.texts(target)).toEqual([expect.any(String), "and the cart"]));
     expect(h.drafts.queued(target)).toEqual([]);
+    expect(h.texts(id)).toEqual(["Make a checkout page"]);
+    expect(h.drafts.queued(id)).toEqual([]); expect(h.drafts.returned(id)).toBeUndefined();
+  });
+  it("moves the queue to a next conversation whose first turn failed before acceptance, which returns it as its draft", async () => {
+    const { h, id, target } = await endedEarly({ type: "turn.failed", code: "process_exited" });
+    expect(h.drafts.returned(target)).toMatchObject({ text: "and the cart", reason: "turn_failed" });
+    expect(h.drafts.queued(target)).toEqual([]);
+    expect(h.service.list("/repo").find(s => s.conversationId === target)?.working).toBe(false);
+    expect(h.texts(id)).toEqual(["Make a checkout page"]);
+    expect(h.drafts.queued(id)).toEqual([]); expect(h.drafts.returned(id)).toBeUndefined();
   });
   it("moves the person's queue to the next conversation, which sends it after its first turn", async () => {
     const h = fixture(); const id = await h.start();
@@ -382,8 +398,8 @@ describe("a handoff a stop, an archive, a quit or a broken history meets", () =>
     await h.service.stopRuns("codex");
     expect(resolutions(h, id)).toMatchObject([{ outcome: "cancelled" }]);
     release();
-    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
-    await Promise.resolve(); await Promise.resolve();
+    await h.drained(1);
+    expect(h.open).toHaveBeenCalledOnce();
     expect(h.on(b)).toBeUndefined();
     expect(resolutions(h, id)).toHaveLength(1);
     expect(h.notices).toEqual([]);
@@ -411,8 +427,8 @@ describe("a handoff a stop, an archive, a quit or a broken history meets", () =>
     expect(h.entry(id).state).toBe("archived");
     expect(resolutions(h, id)).toMatchObject([{ outcome: "cancelled" }]);
     release();
-    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(3));
-    await Promise.resolve(); await Promise.resolve();
+    await h.drained(1);
+    expect(h.open).toHaveBeenCalledTimes(2);
     expect(h.on(b)).toBeUndefined();
     expect(resolutions(h, id)).toHaveLength(1);
     expect(h.notices).toEqual([]);
@@ -608,8 +624,9 @@ describe("a turn that asks for several canvases", () => {
     expect(outcomes(h, id)).toEqual([[b.path, "started", undefined], [c.path, "cancelled", undefined]]);
     expect(h.drafts.returned(id)).toMatchObject({ text: "and the cart" });
     release();
-    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(4));
-    await Promise.resolve(); await Promise.resolve();
+    await h.drained(2);
+    // No runner and no lease for the cancelled request: source, b and the replacement only.
+    expect(h.open).toHaveBeenCalledTimes(3);
     expect(h.on(c)).toBeUndefined();
     expect(h.resolutions(id)).toHaveLength(2);
     expect(h.entry(onB).state).toBe("current");
@@ -626,8 +643,8 @@ describe("a turn that asks for several canvases", () => {
     expect(outcomes(h, id)).toEqual([[b.path, "started", undefined], [c.path, "cancelled", undefined]]);
     expect(h.drafts.returned(id)).toMatchObject({ text: "and the cart" });
     release();
-    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(3));
-    await Promise.resolve(); await Promise.resolve();
+    await h.drained(2);
+    expect(h.open).toHaveBeenCalledTimes(2);
     expect(h.on(c)).toBeUndefined();
     expect(h.resolutions(id)).toHaveLength(2);
     expect(h.texts(id)).toEqual(["Make a checkout page"]);
@@ -644,6 +661,20 @@ describe("a turn that asks for several canvases", () => {
     expect(outcomes(h, id)).toEqual([[b.path, "started", undefined]]);
     expect(foldConversation(h.store.read(id), id, true).handoffs[h.turnOf(id)]?.map(f => f.outcome)).toEqual(["started", "cancelled"]);
     expect(h.on(c)).toBeUndefined();
+  });
+  it("keeps a queue on disk when the app quits between two starts, and the next start returns it as a draft", async () => {
+    const draftsDir = mkdtempSync(join(tmpdir(), "doan-handoff-drafts-")); paths.push(draftsDir);
+    const h = fixture({ draftsDir }); const id = await h.start();
+    asks(h, b.path, c.path); h.listed.push(b, c);
+    h.service.queue(id, { text: "and the cart", anchors: [] });
+    const release = hold(h, 2);
+    h.service.receive(id, { type: "turn.done" });
+    await vi.waitFor(() => expect(h.prepare).toHaveBeenCalledTimes(3));
+    await h.service.quit();
+    release(); await h.drained(2);
+    expect(h.texts(id)).toEqual(["Make a checkout page"]);
+    expect(h.drafts.returned(id)).toBeUndefined();
+    expect(new DraftStore(draftsDir).returned(id)).toMatchObject({ text: "and the cart", reason: "restarted" });
   });
   it("cancels every request of a turn that failed", async () => {
     const h = fixture(); const id = await h.start();
@@ -721,6 +752,83 @@ describe("missed handoffs", () => {
     await h.service.send(id, "more", []);
     deadline();
     expect(h.missed(id)).toMatchObject([{ canvas: c, turnId: first }]);
+  });
+  it("names a canvas listed only after the first refresh, as long as it is listed by the deadline", async () => {
+    fake();
+    const h = fixture(); const id = await h.start();
+    h.edit(id, at(c));
+    h.service.receive(id, { type: "turn.done" });
+    h.service.refreshed("/repo", []);
+    vi.advanceTimersByTime(4_000);
+    h.listed.push(c); h.service.refreshed("/repo", [c.path]);
+    deadline();
+    expect(h.missed(id)).toMatchObject([{ canvas: c }]);
+  });
+  it("keeps each guided turn's missed line when the next turn ends before the earlier deadline, under its own turn", async () => {
+    fake();
+    const d = { path: ".doan/canvases/d.html", id: "d" };
+    const h = fixture(); const id = await h.start(); const first = h.turnOf(id);
+    h.listed.push(c); h.edit(id, at(c));
+    h.service.receive(id, { type: "turn.done" });
+    vi.advanceTimersByTime(1_000);
+    await h.service.send(id, "and d", []); const second = h.turnOf(id);
+    h.listed.push(d); h.edit(id, at(d));
+    h.service.receive(id, { type: "turn.done" });
+    vi.advanceTimersByTime(9_000);
+    expect(h.missed(id)).toMatchObject([{ canvas: c, turnId: first }]);
+    vi.advanceTimersByTime(1_000);
+    expect(h.missed(id)).toMatchObject([{ canvas: c, turnId: first }, { canvas: d, turnId: second }]);
+  });
+  it("comes a settle time after a late exit, but never after the window's end", async () => {
+    fake();
+    const late = fixture({ provider: "claude" }); const id = await late.start();
+    late.listed.push(c); late.edit(id, at(c));
+    late.service.receive(id, { type: "turn.done" });
+    vi.advanceTimersByTime(3_000);
+    late.open.mock.calls[0]![2]();
+    vi.advanceTimersByTime(5_571);
+    expect(late.missed(id)).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(late.missed(id)).toHaveLength(1);
+
+    const capped = fixture({ provider: "claude" }); const other = await capped.start();
+    capped.listed.push(c); capped.edit(other, at(c));
+    capped.service.receive(other, { type: "turn.done" });
+    vi.advanceTimersByTime(9_000);
+    capped.open.mock.calls[0]![2]();
+    vi.advanceTimersByTime(999);
+    expect(capped.missed(other)).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(capped.missed(other)).toHaveLength(1);
+  });
+  it("comes a settle time after the previous runner exits while the next send waits for it", async () => {
+    fake();
+    const h = fixture({ provider: "claude" }); const id = await h.start(); const first = h.turnOf(id);
+    h.listed.push(c); h.edit(id, at(c));
+    h.service.receive(id, { type: "turn.done" });
+    vi.advanceTimersByTime(1_000);
+    const sent = h.service.send(id, "more", []);
+    vi.advanceTimersByTime(1_000);
+    h.open.mock.calls[0]![2]();
+    await sent;
+    vi.advanceTimersByTime(5_571);
+    expect(h.missed(id)).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(h.missed(id)).toMatchObject([{ canvas: c, turnId: first }]);
+  });
+  it("attempts no missed write once a later write failed and dropped the conversation's handoffs", async () => {
+    fake();
+    const h = fixture(); const id = await h.start();
+    h.listed.push(c); h.edit(id, at(c));
+    h.service.receive(id, { type: "turn.done" });
+    await h.service.send(id, "more", []);
+    const append = h.store.append.bind(h.store);
+    const spy = vi.spyOn(h.store, "append").mockImplementation((conversation, turn, event) => { if (conversation === id && event.type === "activity") throw new Error("EIO"); return append(conversation, turn, event); });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    h.service.receive(id, { type: "activity", kind: "other", summary: "x" });
+    deadline();
+    expect(spy.mock.calls.filter(([, , event]) => event.type === "handoff.missed")).toEqual([]);
+    expect(h.missed(id)).toEqual([]);
   });
   const none = async (setup: (h: ReturnType<typeof fixture>) => Promise<string>) => {
     fake();

@@ -324,6 +324,8 @@ export class ConversationService {
       if (input.owner) live.provider = input.owner.provider;
       if (input.quiet) live.quiet = input.quiet;
       if (this.quitting) throw new Error("busy");
+      // A handoff cancelled while this was prepared opens no runner and holds no lease (POSTMORTEM 2026-10-27).
+      if (handoff) this.checkHandoffSource(handoff.origin.conversationId, handoff.path);
       if (input.sessionId) this.promote(id, input, input.sessionId);
       opening = true;
       live.mcpGeneration = input.mcp?.generation();
@@ -1367,11 +1369,9 @@ export class ConversationService {
     clearTimeout(turn.timer); delete turn.timer; turn.state = "resolved";
     const resolutions = turn.requests.flatMap(r => r.resolution ? [r.resolution] : []);
     const started = resolutions.flatMap(r => r.outcome === "started" ? [r.target] : []);
-    let outcome = handoffQueueOutcome(resolutions.map(r => r.outcome));
-    // A next conversation whose turn already ended (its process gone before the start was accepted) would never send it.
-    if (outcome === "move" && !this.working(started[0]!.conversationId)) outcome = "source";
+    const outcome = handoffQueueOutcome(resolutions.map(r => r.outcome));
     const live = this.live.get(id);
-    if (outcome === "move") this.moveQueue(id, started[0]!.conversationId);
+    if (outcome === "move") { this.moveQueue(id, started[0]!.conversationId); this.queueAfterEnd(started[0]!.conversationId); }
     if (live?.holding) {
       if (outcome === "source") this.flush(id, live);
       else { this.release(id, live, live.holding); if (outcome === "draft") this.giveBack(id, "interrupted"); }
@@ -1382,6 +1382,18 @@ export class ConversationService {
     if (!notice) return;
     try { this.handedOff(notice); }
     catch (error) { console.error("doan: handoff could not be announced", error); }
+  }
+  // A queue moved to a conversation whose turn already ended (its first turn's end came before the start was accepted):
+  // handled as that end handles a queue (ended), so nothing is left waiting. A usage-limit read that end started takes
+  // the queue when it is over (limitEnded), and a send scheduled for the reset sends it then (sendDue).
+  private queueAfterEnd(id: string): void {
+    const live = this.live.get(id);
+    if (!live?.terminal || live.busy || live.holding || live.limitLookup || this.schedules.has(id) || !this.drafts.queued(id).length) return;
+    if (live.done) { live.holding = {}; this.endAfterTurn(id); this.flush(id, live); return; }
+    let interrupted = false;
+    try { interrupted = [...this.store.read(id)].reverse().find(e => e.turnId === live.turnId && (e.type === "turn.failed" || e.type === "interrupted"))?.type === "interrupted"; }
+    catch (error) { console.error("doan: the turn's end could not be read for its queue", error); }
+    this.giveBack(id, interrupted ? "interrupted" : "turn_failed");
   }
   // Nothing will judge it: the history stopped taking writes, it was deleted, or the app quits. Its missed lines are not
   // written either.
