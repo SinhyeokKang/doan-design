@@ -32,7 +32,10 @@ BACKLOG.md 'Undecided'의 두 항목(CLI에서 프로토타입 열기, 프로토
 - **파일 내용**: 기존 Export와 같은 파이프라인으로 캔버스 전체와 필요한 저장소 파일을 넣은 HTML 파일 하나를 쓴다. 포함·거절 규칙(서빙 범위, 50 MiB, `<base href>`, SVG `<use>`, custom property `url()`)은 그대로다. 파일은 다른 프레임과 메모도 담고 화면에서만 숨긴다. 성공 토스트와 guide가 이 사실을 알린다 (결정 4).
 - **보이는 방식**: 브라우저에서 열면 그 프레임만 보인다. 캔버스 iframe이 브라우저 viewport 전체를 채우고, 프레임은 그 viewport를 채운다. 표시 크기(`<w>x<h>`)는 파일의 크기를 정하지 않는다. 브라우저 창 크기를 바꾸면 프레임이 그 폭으로 다시 배치된다 (결정 5). 그 밖의 viewer chrome(header, frame drawer, 줌, 도구)은 없다 (결정 6). 탭 제목은 "<frame title or id> — Prototype"이고 표시 크기는 넣지 않는다.
 - **불러오는 동안**: 프레임을 격리하기 전에는 캔버스 전체가 보일 수 있으므로, 페이지는 iframe을 숨긴 채 시작한다. 격리가 끝났다는 응답이 오면 보인다. 프레임이 없다는 응답이 오거나 10초가 지나면 iframe은 숨긴 채로 두고 아래 '프레임이 불러와지지 않을 때'의 줄만 보인다. 10초가 지난 뒤에 격리가 끝났다는 응답이 오면 줄을 지우고 프레임을 보인다.
-- **스크립트와 이동**: 캔버스의 스크립트가 돈다. 다른 페이지로 가는 링크 클릭과 기본 form 제출은 아무 일도 하지 않고, 같은 페이지 링크(`#`으로 시작하는 `href`), `history.pushState`, `preventDefault()`를 부르는 submit handler는 동작한다(프로토타입 창과 같다). 스크립트의 `location` 변경과 `form.submit()`은 브라우저에서 막지 못한다. PoC(tasks 1)가 더 찾는 실패는 여기와 design.md '알려진 한계'에 더한다.
+- **스크립트와 이동**: 캔버스의 스크립트가 돈다. 다른 페이지로 가는 링크 클릭과 기본 form 제출은 아무 일도 하지 않고, 같은 페이지 링크(`#`으로 시작하는 `href`), `location.hash`, `preventDefault()`를 부르는 submit handler는 동작한다(프로토타입 창과 같다). 프로토타입 창과 다른 점(PoC, tasks 1):
+  - `history.pushState`와 `replaceState`는 URL을 주지 않을 때만 동작한다. URL을 주면 fragment든 경로든 `SecurityError`를 던진다.
+  - 캔버스의 click·submit handler가 `stopPropagation()`을 부르면 이동을 막지 못한다. Safari는 그 대상을 프레임에 불러오고, Chromium은 `file:` 대상은 스스로 막지만 웹 주소는 불러온다.
+  - 스크립트의 `location` 변경과 `form.submit()`도 막지 못한다.
 - **JavaScript 없이**(Quick Look, 메일 미리보기): 프레임 대신 "Open this file in a web browser to play this prototype." 한 줄을 보인다.
 - **프레임이 불러와지지 않을 때**(프레임이 없다는 응답, 또는 10초 안에 응답 없음): 캔버스는 보이지 않고 "This prototype’s frame didn’t load. Ask the sender to fix the canvas, then export it again." 한 줄만 보인다.
 - **앱**: Export 버튼은 프로토타입 창 헤더의 오른쪽 무리에서 Fit·Responsive 토글 바로 다음에 들어간다 (결정 7). 툴바 줄은 없다. 헤더는 왼쪽 [Back, Forward, Reload prototype], 가운데 프레임 이름, 오른쪽 [Fit·Responsive 토글, Export prototype, 대화 버튼]이고, 헤더 배치와 토글은 `prototype-responsive`가 만든다.

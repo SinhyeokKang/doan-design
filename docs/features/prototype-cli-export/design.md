@@ -75,7 +75,7 @@ spec.md '결정'(사용자 확인)을 따른다: v6, 프로토타입 창만, `--
    - **JavaScript가 없을 때**: srcdoc iframe은 JavaScript 없이도 그려진다(기존 `viewer/shell.html`의 noscript 안내가 이를 전제로 한다). 그래서 `<noscript>` 안의 `<style>`이 iframe을 `display: none`으로 숨기고 안내 줄만 보인다. JavaScript가 있을 때 보이기는 위 규칙을 따른다.
    - srcdoc의 `<head>` 첫 스크립트는 `lib.js` 일부와 `isolate.js`를 함수로 감싼 것이다(`measure.js`와 같은 위치와 방식, `measureOffset` 재사용).
    - `isolate.js`: DOMContentLoaded에(없으면 `load` handler 뒤에) 프레임을 ID로 찾고(정확히 하나), 프로토타입 창 `prototypeScript.ts`의 `isolate`와 같은 표시 속성과 adopted stylesheet로 격리한다. 표시 값은 다시 보지 않는다(판정은 CLI가 했다). 결과를 부모에 한 번 알린다(`ready` 또는 `missing`).
-   - **이동 차단**: `window`에 bubble 단계 `submit` listener를 달아 늘 `preventDefault()`(캔버스의 handler가 먼저 돈다). `click` listener는 `href` 값이 `#`으로 시작하지 않는 `<a href>` 활성화를 `preventDefault()`한다("같은 문서" 판정 규칙). `location` 대입, `location.reload()`, 스크립트의 `form.submit()`은 막지 못한다. srcdoc 문서는 부모의 base URL을 물려받으므로, `#id` 클릭·`location.hash`·`pushState`(fragment와 경로)가 문서를 떠나지 않는지, 캔버스 handler가 `stopPropagation()`할 때 `window` listener가 돌지 않는 경우를 PoC가 확인한다. PoC에서 실패한 경우는 '알려진 한계'와 spec B로 옮긴다.
+   - **이동 차단**: `window`에 bubble 단계 `submit` listener를 달아 늘 `preventDefault()`(캔버스의 handler가 먼저 돈다). `click` listener는 캔버스 handler가 이미 `preventDefault()`한 클릭은 그대로 두고, 그 밖의 `<a href>`·`<area href>` 활성화를 모두 `preventDefault()`한다. `href` 값이 `#`으로 시작하면("같은 문서" 판정 규칙) 그 값을 `location.hash`에 넣어 문서 안에서 옮긴다. srcdoc 문서는 `#id`를 바깥 파일 URL 기준으로 풀기 때문이다. PoC(tasks 1)에서 브라우저에 맡긴 `#id` 클릭은 WebKit에서 바깥 페이지를 프레임 안에 다시 불러왔고, Chromium에서는 아무 일도 하지 않았다. `location` 대입, `location.reload()`, 스크립트의 `form.submit()`은 막지 못한다.
    - 바깥 페이지는 `missing`이거나 10 s 안에 답이 없으면 "This prototype’s frame didn’t load. Ask the sender to fix the canvas, then export it again." 줄을 보인다. 이 줄은 JavaScript가 없을 때의 줄과 같은 기존 viewer 안내 줄(`shell.css` `.doan-notice.doan-panel`, `.vw-noscript` 자리)이다.
    - `prototype.css`는 `tokens.css`를 링크할 수 없다(파일 하나로 나가고 앱 파일을 참조하지 않는다). 그래서 기존 `viewer/shell.css`처럼 필요한 값(색, 글꼴, 간격, 안내 줄 모양)을 `shell.css`에서 복사한다. 초안이 앱 토큰과 Geist로 그린 페이지는 이 복사본의 값을 가리킨다.
 4. 결과 `{path, output, bytes, frames, external, links, prototype: true}`. 텍스트 "Exported <path> frame <id> to <output> (<n> bytes)".
@@ -180,7 +180,9 @@ Viewer JS (`exportViewer.test.ts`가 실행)
 ## 알려진 한계 (PRODUCT·ARCHITECTURE 승격 때 적는다)
 
 - 스크립트가 만드는 프레임은 CLI로 열거나 내보낼 수 없다(정적 판정). 그런 프레임을 재생 중인 창의 Export는 `frame_not_found` 토스트로 끝난다.
-- 내보낸 파일에서 캔버스 스크립트의 `location` 변경과 `form.submit()`은 막지 못한다. 그러면 iframe 안 문서가 바뀌고 새로고침으로 돌아온다. PoC에서 더 찾은 실패도 여기에 적는다.
+- 내보낸 파일에서 캔버스 스크립트의 `location` 변경과 `form.submit()`은 막지 못한다. 그러면 iframe 안 문서가 바뀌고 새로고침으로 돌아온다.
+- 내보낸 파일에서 `history.pushState`·`replaceState`에 URL을 주면 `SecurityError`를 던진다(fragment, 절대 경로, 상대 경로 모두. Chromium·WebKit, PoC). srcdoc 문서의 URL은 `about:srcdoc`인데 base는 바깥 파일 URL이라, 어떤 URL도 같은 문서 URL로 풀리지 않는다. URL 없이 부르면 동작한다. 앱 프로토타입 창은 캔버스가 로컬 서버 URL에 있으므로 동작한다. `<base href="about:srcdoc">`를 넣으면 fragment는 풀리지만 `//host/x` 외부 URL이 깨지므로 쓰지 않는다.
+- 캔버스의 click·submit handler가 `stopPropagation()`을 부르면 `window`의 bubble listener가 돌지 않아 이동을 막지 못한다. WebKit은 대상 문서를 프레임에 불러오고, Chromium은 `file:` 대상은 스스로 막지만 웹 주소는 불러온다(PoC, 웹 주소는 오프라인이라 확인하지 않았다). capture 단계에서 막으면 `defaultPrevented`를 보고 동작하는 클라이언트 라우터 링크가 깨지므로 bubble 단계를 유지한다.
 - 내보낸 파일은 앱 프로토타입 창의 Responsive 모드처럼 브라우저 viewport를 채우고(결정 5), Fit 모드는 없다. 앱의 기본인 Fit 모드(표시 크기 고정, 좁은 창에서는 비율 축소)와 다르므로, 표시 폭이 좁은 프레임도 파일에서는 창 폭으로 늘어난다. `/design-draft`에서 그림으로 보인다.
 - `fetch` 같은 요청은 막지 않는다(앱과 같다). 외부 URL은 온라인에서만 열린다(기존 Export와 같다).
 

@@ -2,7 +2,7 @@
 
 spec.md '결정'(사용자 확인)을 따른다. 세 형제 기능의 구현 순서는 `prototype-responsive` → `prototype-cli-export` → `prototype-conversation`이므로, 이 기능은 responsive가 병합된 develop에서 시작한다. 순서: PoC → 초안 → 스키마와 fixture → 순수 함수 → 셸(I/O) → UI → 측정·확인 → guide와 eval → 문서 승격. 내보낸 파일의 브라우저 확인 명령은 `node .scratch/prototype-export-poc/probe.mjs [<exported file>]` 하나다(결정 11). Playwright Chromium과 WebKit을 쓰고, 인자가 없으면 PoC 페이지, 있으면 실제 출력 파일을 열며, 모든 확인이 통과할 때만 exit 0이다.
 
-- [ ] 1. **PoC: 내보낸 프로토타입 파일의 이동 차단과 격리**(design.md 'PoC 의존' 1). 손으로 만든 프로토타입 페이지(바깥 페이지 + 숨긴 채 시작하는 `sandbox="allow-scripts allow-forms"` srcdoc iframe + 격리 스크립트)와 위 명령을 `.scratch/prototype-export-poc/`에 만든다. Chromium과 WebKit에서 다음을 확인한다.
+- [x] 1. **PoC: 내보낸 프로토타입 파일의 이동 차단과 격리**(design.md 'PoC 의존' 1). 손으로 만든 프로토타입 페이지(바깥 페이지 + 숨긴 채 시작하는 `sandbox="allow-scripts allow-forms"` srcdoc iframe + 격리 스크립트)와 위 명령을 `.scratch/prototype-export-poc/`에 만든다. Chromium과 WebKit에서 다음을 확인한다.
   - (a) 캔버스 submit handler가 돈 뒤 기본 제출이 막힌다.
   - (b) `#`으로 시작하지 않는 링크 클릭이 막히고, `#id` 클릭·`location.hash`·`pushState`(fragment와 경로)는 문서를 떠나지 않는다.
   - (c) 캔버스 handler가 `stopPropagation()`할 때의 결과를 기록한다.
@@ -12,6 +12,15 @@ spec.md '결정'(사용자 확인)을 따른다. 세 형제 기능의 구현 순
   - (g) 격리 전에는 iframe이 보이지 않는다. 프레임이 없는 문서(`missing`)는 바로, 응답하지 않는 문서는 10 s 뒤에 iframe을 숨긴 채 안내 줄만 보인다. 10 s 뒤에 `ready`를 보내는 문서는 그때 줄이 사라지고 프레임이 보인다.
   결과(통과/실패, 엔진 버전, 날짜)는 이 문서의 이 task 아래에 적는다. 실패한 경우는 design.md '알려진 한계'와 spec B로 옮기고, sandbox 절 자체가 무너지면 다음으로 가지 않는다.
   - 검증: `node .scratch/prototype-export-poc/probe.mjs`가 exit 0(실패를 한계로 옮긴 항목은 검사에서 기대값을 바꾼 뒤).
+  - **결과(2026-11-14, Playwright 1.64.1의 Chromium 156.0.8078.4·WebKit 27.2, headless, `file:` URL, 오프라인)**: 두 엔진 모두 59개 검사 통과, exit 0. 손으로 만든 페이지는 `make-poc.mjs`가 `poc-canvas.html`(변환·이동된 조상, 다른 프레임 둘, 메모, data: 이미지, 600 px media query)에서 만든다.
+    - (a) 통과: 캔버스 submit handler가 돈 뒤 기본 제출이 막힌다(버튼 클릭, `requestSubmit()`, `preventDefault()`하는 handler).
+    - (b) 조건부 통과: 다른 문서 링크(상대, 절대 `file:`, 웹)는 막힌다. 브라우저에 맡긴 `#id` 클릭은 실패했다. WebKit은 바깥 페이지를 프레임에 다시 불러왔고 Chromium은 아무 일도 하지 않았다. 그래서 `isolate.js`가 `#` 링크를 `location.hash`로 직접 옮기고, 그 뒤 두 엔진에서 대상으로 스크롤한다(design.md '흐름' 이동 차단). `location.hash`는 문서 안에서 움직인다. `pushState`는 URL을 주면 fragment·절대 경로·상대 경로 모두 `SecurityError`를 던지고(한계, 기대값 고정), URL 없이는 동작한다.
+    - (c) 한계: 캔버스 handler가 `stopPropagation()`하면 WebKit은 링크와 submit 모두 대상을 프레임에 불러온다. Chromium은 `file:` 대상이라 스스로 막아 문서에 남는다. 엔진별 관찰값으로 기대값을 고정했다.
+    - (d) 통과: 프레임이 viewport 왼쪽 위에 폭 전체, 높이 이상으로 놓이고 프레임 밖에서 그려지는 요소가 없다. 두 엔진의 위치와 폭이 같다.
+    - (e) 통과: 900×700에서 `innerWidth`·`innerHeight`·`100vh`가 브라우저 viewport와 같고, 420×640으로 줄이면 따라오며 `(max-width: 600px)`가 맞는다.
+    - (f) 통과: JavaScript를 끄면 iframe은 상자가 없고 "Open this file in a web browser to play this prototype." 한 줄만 보인다.
+    - (g) 통과: `missing`이면 1.5 s 안에 줄만 보인다. 응답하지 않는 문서는 9 s까지 아무것도 보이지 않고 10.6 s에 줄만 보인다. 11 s에 `ready`를 보내는 문서는 격리 전에 보이지 않고, 10.6 s에 줄, 12.5 s에 줄이 사라지고 프레임이 보인다. 응답하지 않는 문서와 늦은 문서는 probe가 출력 파일의 격리 스크립트를 지우거나 11 s 늦춰 만든다.
+    - 추가: 탭 제목, 오프라인 data: 이미지, 캔버스 스크립트 실행 통과.
 - [x] 2. **`/design-draft`**: 새 초안 `.doan/canvases/prototype-cli-export.html`. 기존 `frame-prototype.html`과 `canvas-row-menu.html`은 고치지 않는다. `clarify` 프리셋으로 문구를 확정하고, 사용자가 앱에서 초안을 확인한다. 프레임:
   - 헤더의 Export: 오른쪽 무리 [토글, Export]에서 사용 가능, 이유 없는 불가(첫 순간), 이유 세 가지(tooltip), 내보내는 중, 키보드 포커스. 640·520·360 폭 창을 `prototype-responsive`의 헤더(R 104, 기본 Fit)와 함께 그린다. 360 창은 이름 캡슐이 헤더 둘째 줄에 있다.
   - 프로토타입 창 토스트: 진행, 성공(캔버스 전체가 들어 있다는 문장, 결정 4), 성공+인터넷, 실패 이유별, target이 바뀐 클릭의 거절. 360 창에서 토스트가 콘텐츠 패널 오른쪽 아래를 덮고 헤더 컨트롤은 가리지 않는 모습.
