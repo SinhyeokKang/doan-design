@@ -12,12 +12,12 @@ const A_WT: PrototypeTarget = { root: "/r-wt", canvas: { id: "proto" }, frame: "
 const phone = { width: 390, height: 844 };
 const tablet = { width: 820, height: 1180 };
 const card = { width: 300, height: 200 };
-const listed: PrototypeFrame[] = [{ id: "phone", title: "Phone", size: "390x844" }, { id: "tablet", title: "Tablet", size: "820x1180" }];
+const listed: PrototypeFrame[] = [{ id: "phone", title: "Phone", size: "390x844", number: 1 }, { id: "tablet", title: "Tablet", size: "820x1180", number: 2 }];
 
 function world() {
   const rows = new Map<string, Resolution>();
   const set = (t: Pick<PrototypeTarget, "root" | "canvas">, r: Resolution) => rows.set(canvasKeyString(t), r);
-  const present = (url: string, source = "s1", frames: { id: string; title?: string }[] = []): Resolution => ({ kind: "present", url, source, error: false, frames });
+  const present = (url: string, source = "s1", frames: { id: string; title?: string }[] = []): Resolution => ({ kind: "present", url, source, error: false, frames, label: url.slice(url.lastIndexOf("/") + 1, -".html".length) });
   set(A, present("http://h/t/tok/k1/proto.html", "s1", [{ id: "phone", title: "Phone" }]));
   set(C, present("http://h/t/tok/k1/other.html"));
   set(A_WT, present("http://h/t/tok/k2/proto.html"));
@@ -148,6 +148,16 @@ describe("source changes and loss", () => {
     expect(prototypeView(step.state, w.resolve)).toMatchObject({ phase: "frame-unavailable", frames: [] });
   });
 
+  test("the view names the canvas by its label, and keeps the last one while the canvas is gone", () => {
+    const { w, state } = opened();
+    expect(prototypeView(state, w.resolve)?.canvas).toBe("proto");
+    w.set(A, w.present("http://h/t/tok/k1/renamed.html", "s2"));
+    const moved = listChanged(state, w.resolve).state;
+    expect(prototypeView(moved, w.resolve)?.canvas).toBe("renamed");
+    w.set(A, { kind: "absent" });
+    expect(prototypeView(listChanged(moved, w.resolve).state, w.resolve)?.canvas).toBe("renamed");
+  });
+
   test("the same target coming back reloads without activating", () => {
     const { w, state } = opened();
     w.set(A, { kind: "absent" });
@@ -166,7 +176,7 @@ describe("source changes and loss", () => {
 
   test("a row doan ls cannot read is a read failure, not a run", () => {
     const { w, state } = opened();
-    w.set(A, { kind: "present", url: "http://h/t/tok/k1/proto.html", source: "s9", error: true, frames: [] });
+    w.set(A, { kind: "present", url: "http://h/t/tok/k1/proto.html", source: "s9", error: true, frames: [], label: "proto" });
     const step = listChanged(state, w.resolve);
     expect(step.effects).toEqual([]);
     expect(prototypeView(step.state, w.resolve)?.phase).toBe("read-failed");
@@ -256,7 +266,7 @@ describe("Back and Forward", () => {
     const w = world();
     let s = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
     s = ready(ok(choose(s, "tablet", w.resolve)).state, "820x1180").state;
-    s = ready(ok(play(s, { target: C, size: card }, w.resolve)).state, "300x200", [{ id: "card", size: "300x200" }]).state;
+    s = ready(ok(play(s, { target: C, size: card }, w.resolve)).state, "300x200", [{ id: "card", size: "300x200", number: 1 }]).state;
     return { w, state: s };
   }
 

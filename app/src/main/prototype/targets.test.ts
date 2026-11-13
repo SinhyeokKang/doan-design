@@ -41,7 +41,7 @@ describe("identity", () => {
 describe("resolveTarget", () => {
   test("finds the row by id and reports its URL, source and static frames", () => {
     const resolved = resolveTarget(target, entries);
-    expect(resolved).toEqual({ kind: "present", url: proto.url, source: expect.any(String), error: false, frames: [{ id: "phone", title: "Phone" }] });
+    expect(resolved).toEqual({ kind: "present", url: proto.url, source: expect.any(String), error: false, frames: [{ id: "phone", title: "Phone" }], label: "proto" });
   });
 
   test("an ID-keyed canvas follows a rename", () => {

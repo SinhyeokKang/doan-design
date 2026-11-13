@@ -15,6 +15,8 @@ describe("prototype channels", () => {
       forward: "prototype:forward",
       choose: "prototype:choose",
       close: "prototype:close",
+      closed: "prototype:closed",
+      snapshot: "prototype:snapshot",
     });
     expect(PROTOTYPE_WINDOW_REQUESTS).toEqual(["prototype:read", "prototype:result", "prototype:frames", "prototype:reload", "prototype:back", "prototype:forward", "prototype:choose", "prototype:close"]);
   });
@@ -38,8 +40,8 @@ describe("sender guard", () => {
     }
   });
 
-  test("the state event is never a request", () => {
-    for (const kind of ["main", "prototype"]) for (const channel of [PROTOTYPE_CHANNELS.changed, "prototype:", "prototype:open", "prototype:evil"]) expect(senderAllowed(channel, kind)).toBe(false);
+  test("the events main sends are never requests", () => {
+    for (const kind of ["main", "prototype"]) for (const channel of [PROTOTYPE_CHANNELS.changed, PROTOTYPE_CHANNELS.closed, PROTOTYPE_CHANNELS.snapshot, "prototype:", "prototype:open", "prototype:evil"]) expect(senderAllowed(channel, kind)).toBe(false);
   });
 
   test("the prototype window gets none of the main window's channels", () => {

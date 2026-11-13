@@ -81,7 +81,7 @@ describe("prototype window requests", () => {
 });
 
 describe("parseRunReport", () => {
-  const frames = [{ id: "phone", title: "Phone", size: "390x844" }, { id: "tablet", size: "820x1180" }];
+  const frames = [{ id: "phone", title: "Phone", size: "390x844", number: 1 }, { id: "tablet", size: "820x1180", number: 3 }];
 
   test("a ready run reports its size and the canvas's marked frames", () => {
     expect(parseRunReport("prototype", { gen: 2, state: "ready", size: "390x844", frames })).toEqual({ gen: 2, state: "ready", size: { width: 390, height: 844 }, frames });
@@ -109,14 +109,20 @@ describe("parseRunReport", () => {
 
   test("refuses a frame list that is not unique, marked and within the caps", () => {
     const bad = [
-      [{ id: "", size: "390x844" }],
-      [{ id: "a", size: "390" }],
-      [{ id: "a", size: "390x844" }, { id: "a", size: "390x844" }],
-      [{ id: "a", title: 1, size: "390x844" }],
-      [{ id: "a", size: "390x844", extra: true }],
-      [{ id: "x".repeat(MAX_REPORT_STRING + 1), size: "390x844" }],
-      [{ id: "a", title: "x".repeat(MAX_REPORT_STRING + 1), size: "390x844" }],
-      Array.from({ length: MAX_REPORT_FRAMES + 1 }, (_, i) => ({ id: `f${i}`, size: "1x1" })),
+      [{ id: "", size: "390x844", number: 1 }],
+      [{ id: "a", size: "390", number: 1 }],
+      [{ id: "a", size: "390x844", number: 1 }, { id: "a", size: "390x844", number: 2 }],
+      [{ id: "a", title: 1, size: "390x844", number: 1 }],
+      [{ id: "a", size: "390x844", number: 1, extra: true }],
+      [{ id: "x".repeat(MAX_REPORT_STRING + 1), size: "390x844", number: 1 }],
+      [{ id: "a", title: "x".repeat(MAX_REPORT_STRING + 1), size: "390x844", number: 1 }],
+      Array.from({ length: MAX_REPORT_FRAMES + 1 }, (_, i) => ({ id: `f${i}`, size: "1x1", number: i + 1 })),
+      [{ id: "a", size: "390x844" }],
+      [{ id: "a", size: "390x844", number: 0 }],
+      [{ id: "a", size: "390x844", number: 1.5 }],
+      [{ id: "a", size: "390x844", number: "1" }],
+      [{ id: "a", size: "390x844", number: 2 }, { id: "b", size: "390x844", number: 2 }],
+      [{ id: "a", size: "390x844", number: 3 }, { id: "b", size: "390x844", number: 1 }],
       "phone",
     ];
     for (const list of bad) expect(parseRunReport("prototype", { gen: 2, state: "missing", frames: list })).toBeNull();
@@ -126,7 +132,7 @@ describe("parseRunReport", () => {
 
 describe("parseFramesReport", () => {
   test("the list the run sends after load", () => {
-    expect(parseFramesReport("prototype", { gen: 4, frames: [{ id: "a", size: "1x1" }] })).toEqual({ gen: 4, frames: [{ id: "a", size: "1x1" }] });
+    expect(parseFramesReport("prototype", { gen: 4, frames: [{ id: "a", size: "1x1", number: 2 }] })).toEqual({ gen: 4, frames: [{ id: "a", size: "1x1", number: 2 }] });
     expect(parseFramesReport("main", { gen: 4, frames: [] })).toBeNull();
     expect(parseFramesReport("prototype", { gen: 4 })).toBeNull();
   });
