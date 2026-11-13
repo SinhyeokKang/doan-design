@@ -1095,3 +1095,47 @@ test("a stale list read does not bring back a cleared suggestion", async () => {
   await flush();
   expect(shown()).toBe("Now tighten the footer");
 });
+
+// Quick Open's pick carries the root and the canvas rows it searched, not the view at the time of the click.
+test("a Quick Open pick opens a canvas conversation's matched row from the rows it searched, waiting or not", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "w", phase: "waiting", canvas: { path: ".doan/canvases/a.html", id: "a" } }), summary({ conversationId: "e", canvas: { path: ".doan/canvases/b.html", id: "b" } })] });
+  const h = harness([list(ROOT, [])]);
+  h.run.entriesChanged();
+  await flush();
+  const rows = [row("a"), row("b")];
+  expect(h.run.openFound(ROOT, "w", rows)).toBe("opened");
+  expect(h.host.openCanvas).toHaveBeenLastCalledWith(ROOT, rows[0], { conversationId: "w", waiting: true });
+  expect(h.run.openFound(ROOT, "e", rows)).toBe("opened");
+  expect(h.host.openCanvas).toHaveBeenLastCalledWith(ROOT, rows[1], { conversationId: "e", waiting: false });
+  expect(h.host.openOverview).not.toHaveBeenCalled();
+});
+
+test("a Quick Open pick of a project conversation asks for it on its Overview and says once it arrived whether it waits", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p" }), summary({ conversationId: "q", phase: "waiting" })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  const arrived = vi.fn();
+  expect(h.run.openFound(ROOT, "p", [], arrived)).toBe("opened");
+  expect(h.host.openOverview).toHaveBeenLastCalledWith(ROOT, expect.any(Function), expect.any(Function), "p");
+  expect(arrived).not.toHaveBeenCalled();
+  expect(h.accept()).toBe(true);
+  expect(arrived).toHaveBeenLastCalledWith(false);
+  expect(h.run.openFound(ROOT, "q", [], arrived)).toBe("opened");
+  h.accept();
+  expect(arrived).toHaveBeenLastCalledWith(true);
+});
+
+test("a Quick Open pick that can no longer be opened goes nowhere and says why", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "gone", canvas: { path: ".doan/canvases/gone.html", id: "gone" } }), summary({ conversationId: "dup", canvas: { path: ".doan/canvases/a.html", id: "a" } })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  const twin: CanvasRow = { path: ".doan/canvases/copy.html", id: "a", url: "u" };
+  expect(h.run.openFound(ROOT, "deleted", [row("a")])).toBe("deleted");
+  expect(h.run.openFound(OTHER, "dup", [row("a")])).toBe("deleted");
+  expect(h.run.openFound(ROOT, "gone", [row("a")])).toBe("missing");
+  expect(h.run.openFound(ROOT, "dup", [row("a"), twin])).toBe("duplicate");
+  expect(h.host.openCanvas).not.toHaveBeenCalled();
+  expect(h.host.openOverview).not.toHaveBeenCalled();
+});

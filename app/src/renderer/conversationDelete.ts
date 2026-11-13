@@ -18,7 +18,7 @@ export function deleteAvailability(c: Pick<ConversationSummary, "phase" | "worki
 const TITLE_CHARS = 60;
 // A title comes from the first message and can run to 32,768 code units over several lines; the alert and the toast
 // quote one line of it. Cut by code point so a surrogate pair is never split.
-function quoted(title: string): string | null {
+export function quoted(title: string): string | null {
   const chars = [...title.replace(/\s*[\r\n]+\s*/g, " ").trim()];
   if (chars.length === 0) return null;
   return `“${chars.slice(0, TITLE_CHARS).join("")}${chars.length > TITLE_CHARS ? "…" : ""}”`;

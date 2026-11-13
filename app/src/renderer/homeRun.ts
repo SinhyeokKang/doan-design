@@ -4,6 +4,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationEvent } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { PROVIDER_NAMES } from "./agentAuthView";
+import { conversationCanvasMatch } from "./canvasConversationRows";
 import { conversationWork, slotKeyOf, slotsFromList } from "./conversationList";
 import { asksPerson, mergeConversationEvents, stripState, type StripState } from "./conversationStrip";
 import { newCanvasText } from "./newCanvasText";
@@ -271,6 +272,23 @@ export class HomeRun {
     const row = this.canvasRow(root, conversationId);
     if (row) this.host.openCanvas(root, row, { conversationId, waiting: found?.phase === "waiting" || asksPerson(this.strips[conversationId]?.kind ?? "starting") });
     else this.host.openOverview(root, () => true, () => {}, conversationId);
+  }
+
+  // Quick Open's pick, with the root and canvas rows it searched rather than the view now (POSTMORTEM: producer state
+  // goes in the callback). The list is checked again first: the conversation may have gone or its canvas may no longer
+  // be exactly one row since the results were drawn; then nothing opens and App says why. `arrived` follows a project
+  // conversation's move, with whether it waits for an answer (its card takes focus then).
+  openFound(root: string, conversationId: string, rows: readonly CanvasRow[], arrived: (waiting: boolean) => void = () => {}): "opened" | "deleted" | "missing" | "duplicate" {
+    const found = this.lists.get(root)?.find(c => c.conversationId === conversationId);
+    if (!found) return "deleted";
+    const waiting = found.phase === "waiting" || asksPerson(this.strips[conversationId]?.kind ?? "starting");
+    const match = found.canvas ? conversationCanvasMatch(found.canvas, rows) : null;
+    if (match?.kind === "none") return "missing";
+    if (match?.kind === "many") return "duplicate";
+    this.personNavigated();
+    if (match) this.host.openCanvas(root, match.row, { conversationId, waiting });
+    else this.host.openOverview(root, () => { arrived(waiting); return true; }, () => {}, conversationId);
+    return "opened";
   }
 
   // main deleted it. This run keeps its own conversations whatever the list says, so
@@ -583,7 +601,7 @@ export class HomeRun {
   private canvasRow(root: string, conversationId: string): CanvasRow | undefined {
     const canvas = this.summary(conversationId)?.canvas;
     const rows = this.rows(root);
-    if (canvas) return rows.find(row => canvas.id ? row.id === canvas.id : row.path === canvas.path);
+    if (canvas) { const match = conversationCanvasMatch(canvas, rows); return match.kind === "one" ? match.row : undefined; }
     const path = this.conversations.find(item => item.conversationId === conversationId)?.canvas;
     return path ? rows.find(row => row.path === path) : undefined;
   }
