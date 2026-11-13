@@ -266,7 +266,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // last render.
   const playButton = useRef<HTMLButtonElement | null>(null);
   const playNext = useRef<PlayRequest | null>(null);
-  const focusToolbarPlay = () => { (playButton.current?.isConnected ? playButton.current : viewport.current)?.focus({ preventScroll: true }); };
   const [reroot, setReroot] = useState<(FolderFocus & { seq: number }) | null>(null);
   // `rerootSeq` counts the re-root focuses seen; Set Up keeps the count at its start so a re-root from before it is not
   // taken for its own. `locateFrom` is the root a Locate is waiting on: main reports that move as a re-root focus too,
@@ -540,7 +539,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     instance.bubblePlay = {
       onPlay: () => sendPlay(playNext.current),
       // The bubble went while it had focus: the toolbar's Play is the visible control for the same action.
-      onFocusLost: focusToolbarPlay,
+      onFocusLost: () => { (playButton.current?.isConnected ? playButton.current : viewport.current)?.focus({ preventScroll: true }); },
     };
     // The overlay covers the canvas, so its view commands do nothing meanwhile (ARCHITECTURE §7 'Problem overlay').
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace" && !overlaidRef.current) instance.command(name); });
