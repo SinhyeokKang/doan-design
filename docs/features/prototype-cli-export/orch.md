@@ -1,0 +1,41 @@
+# prototype-cli-export — orch
+
+계획 원본: [spec.md](./spec.md) · [design.md](./design.md) · [tasks.md](./tasks.md). 체인: [chain-261113-3](../chain-261113-3/chain.md) 링크 2.
+
+- 시작 hash: `a359ed91`(origin/develop, 링크 1a #189·1b #190 병합 뒤)
+- 통합 브랜치: `feat/prototype-cli-export`(lead가 만들었다), conductor worktree `prototype-cli-export-orch`
+- conductor: Claude Code(Opus). 체인 상시 권한으로 Codex 워커를 Claude 워커와 함께 쓴다. `/agent-eval`이 두 계열을 모두 돌리는 것은 AGENTS.md의 상시 예외다.
+- Codex 사용량: 링크 시작 때 주간(`window_minutes: 10080`) 31% 사용(Orca `CODEX_HOME` rollout 기준).
+
+## 결정 기록
+
+새 제품·범위 결정은 없다. spec '결정' 1–18이 정해 두었다.
+
+- conductor 판단 — 배치를 파일 소유로 넷으로 나눈다(아래 표). 근거: tasks 3–8이 CLI(Go), viewer, 앱(TS)에 걸치고, 셋의 파일이 겹치지 않는다.
+- conductor 판단 — 선행 작업 둘은 '미룬 항목'으로 넘긴다. B의 `export.go` `AssemblePrototype` 호출은 A가 통합된 뒤, C의 `runtime.ts` v6 분기는 B의 스키마 커밋이 통합된 뒤 새 Task로 보낸다. 근거: /orchestrate §0.4(워커가 다른 배치를 기다리지 않는다).
+- conductor 판단 — B는 스키마(task 3)를 첫 Task로 끝내고 `worker_done`을 보낸다. conductor가 바로 통합하고 C에 알린 뒤, B에 Go CLI를 다음 Task로 보낸다.
+- conductor 판단 — `/design-sync`(task 9)와 `/runtime-test`(task 10)는 A·B·C 통합 뒤 C 워커가 통합 브랜치를 받아 돈다. 근거: 고칠 코드가 대부분 C의 파일이다. CLI·viewer 결함은 A·B로 돌려보낸다.
+- conductor 판단 — eval(task 11의 runner·시나리오·`/agent-eval` 라운드)은 B 통합 뒤 D가 맡는다. guide(`skill.md`, `skill_test.go`)는 CLI 출력과 함께 B가 바꾼다.
+- conductor 판단 — 문서 승격(task 12)은 conductor가 문서 커밋으로 한다(/orchestrate §4 docs-freshness).
+
+## 배치
+
+| 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
+|---|---|---|---|---|---|---|
+| A | task 1(PoC), task 4·5의 `AssemblePrototype` 테스트·구현, task 6의 viewer(`prototype.html`·`.css`·`.js`, `isolate.js`)와 `exportViewer.test.ts` 고정 검사 | `.scratch/prototype-export-poc/`, `cli/internal/export/**`, `app/src/main/exportViewer.test.ts`, PoC 결과를 적는 `tasks.md` task 1·`design.md` '알려진 한계'·spec B | 없음 | Claude Opus high — 두 엔진의 격리·이동 차단은 실패하면 받는 사람에게 캔버스 전체가 드러난다 | `node .scratch/prototype-export-poc/probe.mjs` exit 0, `go test ./...`, `go vet ./...`, `npm --prefix app test` | 대기 |
+| B1 | task 3(스키마와 fixture, Go·TS v6 검증기) | `schema/app-socket.v6.schema.json`, `schema/fixtures/app-socket-v6/`, `cli/internal/formats/`, `app/src/formats/` | 없음 | Claude Opus high(B2와 같은 워커) — B2가 이어서 쓰는 v6 경계라 한 워커에 둔다 | `go test ./...`, `npm --prefix app test` | 대기 |
+| B2 | task 4·5·6의 Go 부분(`PrototypeTarget`, `openInput`·`exportInput`, `prototypeRequest`·`prototypeReply`, `run.go`·`open.go`·`prototype_rules.go`·`export.go`·`envelope.go`, `open_test.go`·`export_test.go`), task 11의 guide(`skill.md`, `skill_test.go`) | `cli/internal/canvas/`, `cli/internal/cli/` | B1. `export.go`의 `AssemblePrototype` 호출은 A 통합 뒤(미룬 항목) | Claude Opus high — 오류 코드·exit·bootstrap 계약이 많고 에이전트가 직접 읽는다 | `go test ./...`, `go vet ./...`, `npm --prefix app test` | 대기 |
+| C | task 4·5·7·8의 TS 부분(main: `requests.ts`, `cliPlay.ts`, `controller.ts`, `prototypeWindow.ts`, `runtime.ts`, `index.ts`, `ipc.ts`, `senderAllowed.ts`, `canvasExport.ts`, `cli.ts`, `fit.ts` R 104 / preload / renderer: 헤더 Export, 토스트 호스트, `view.ts`, `canvasRowMessages.ts`, `styles.css` `--pw-right`), 이어서 task 9·10 | `app/src/main/`(exportViewer.test.ts 제외), `app/src/preload/`, `app/src/renderer/`, `docs/DESIGN.md`(task 9) | `runtime.ts` v6 분기는 B1 통합 뒤(미룬 항목). task 9·10은 A·B·C 통합 뒤 | Claude Opus high — 포커스·tooltip·잠금·stale target 함정이 POSTMORTEM에 여럿 있다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`; task 9·10은 tasks.md의 명령 | 대기 |
+| D | task 11의 eval(`eval/lib/socket.ts` v6, 시나리오 X2·W8, self-test, `/agent-eval` 라운드, USABILITY-EVAL.md) | `eval/`, `docs/USABILITY-EVAL.md` | B2 통합(guide·CLI 출력) | Codex gpt-6-astra medium — 시나리오 설계에 판단이 필요하고, 체인이 허용한 Codex 혼용 몫 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios X2,W8`, `npm --prefix app run package` 후 tasks 11의 라운드 | 대기 |
+| 리뷰 | 배치별 독립 `/code-review` | 보고만 | 각 배치 완료 | A·B·C: Codex gpt-6-astra medium(다른 계열의 독립 판독), D: Claude Opus high | 보고서 | 대기 |
+
+task 2(`/design-draft`)는 이미 끝났다. task 12(승격·삭제)는 conductor가 한다. 모든 체크 항목이 한 행에 속한다.
+
+## 겹침과 순서
+
+- A, B, C는 파일이 겹치지 않아 병렬로 돈다. 요청 v6 스키마(B1)와 `AssemblePrototype`(A)만 다른 배치가 쓴다 → 위 미룬 항목.
+- D는 B2 통합 뒤 시작한다(eval self-test가 CLI를 스스로 빌드한다).
+- C의 task 9·10은 A·B·C 통합 뒤. GUI 창을 띄우기 전과 뒤에 lead에 `GUI again` / `GUI done`을 알린다.
+- 마지막: `/verify --eval`, 문서 승격, 기능 디렉터리 삭제, PR.
+
+## 진행 기록
