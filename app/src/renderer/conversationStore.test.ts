@@ -320,3 +320,44 @@ test("a capture main could not take leaves the draft with the capture notice", (
   expect(notices).toEqual(["Couldn’t capture the canvas. Try again."]);
   expect(store.drafts.get("canvas:/code/doan:a")?.attachments).toEqual([]);
 });
+
+// Claude Code may read a Send now message only as its turn stops; main then finds it in the session transcript once the
+// process is gone and writes it into that turn before the end (POSTMORTEM 2026-11-05: the rows main counts again). The
+// message stays in the thread as the history's own, and neither its sending entry nor its row comes back.
+test("a Send now message the stopped turn's transcript shows stays in the thread once, with no sending entry or row", async () => {
+  const h = harness();
+  h.store.track(A);
+  await flush();
+  const answer = deferred<void>();
+  doan.sendQueuedNow = vi.fn(() => answer.promise);
+  const sent = h.store.sendQueuedNow(A, "q1");
+  const shown = () => withSending(threadItems(h.store.thread(A)!.events, ROOT, true), h.store.sending(A)).map(item => item.kind === "user" ? `${item.key}${item.sending ? " sending" : ""}` : item.kind);
+  // Stop: main holds the end while it reads the transcript, then writes the message, answers Send now and ends the turn.
+  const message = event({ type: "user.message", text: "Use the spacing from {{1}}", anchors: [CTA] });
+  h.store.event(message);
+  answer.resolve();
+  await sent;
+  h.store.event(event({ type: "interrupted", reason: "user" }));
+  h.read([summary({ phase: "ended", working: false, queued: 0, returnedDraft: true })]);
+  expect(shown()).toEqual(["u1", `u${message.seq}`, "end"]);
+  expect(h.store.sending(A)).toEqual([]);
+  expect(h.ids()).toEqual([]);
+});
+
+// The provider refused the press earlier, so the row came back with its refusal line; the transcript later shows the
+// agent read it after all. Main took it out of the queue then, and only a read started after that drops the row.
+test("a refused Send now row the transcript later shows as read goes with the next read, and its message stays", async () => {
+  const h = harness();
+  h.store.track(A);
+  await flush();
+  doan.sendQueuedNow = vi.fn(async () => ({ error: "not_running" }));
+  await h.store.sendQueuedNow(A, "q2");
+  expect(h.ids()).toEqual(["q1", "q2", "q3"]);
+  const message = event({ type: "user.message", text: "Second", anchors: [] });
+  h.store.event(message);
+  h.store.event(event({ type: "interrupted", reason: "user" }));
+  h.read([summary({ phase: "ended", working: false, queued: 0, returnedDraft: true })]);
+  expect(h.ids()).toEqual([]);
+  expect(h.store.sending(A)).toEqual([]);
+  expect(threadItems(h.store.thread(A)!.events, ROOT, true).filter(item => item.kind === "user").map(item => item.key)).toEqual(["u1", `u${message.seq}`]);
+});

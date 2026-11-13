@@ -163,7 +163,8 @@ describe("the end of a turn that asked", () => {
     await vi.waitFor(() => expect(refreshed.store.read(id).filter(e => e.type === "user.message").map(e => e.type === "user.message" && e.text)).toEqual(["Make a checkout page", "and the cart"]));
     expect(refreshed.notices).toEqual([]);
 
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    // Date too: the judgement is due a fixed time after the turn's end, so no real millisecond may pass meanwhile.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     const timed = fixture(); const other = await timed.start();
     timed.ask(timed.key(0), b.path);
     timed.service.receive(other, { type: "turn.done" });

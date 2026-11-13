@@ -24,7 +24,7 @@ export interface Anchor {
   point?: { frameId?: string; dx: number; dy: number };
 }
 // model_unavailable: the provider has no such model for this account, so the turn ended before it did any work.
-export type FailureCode = "runtime_unsupported" | "cli_missing" | "not_logged_in" | "session_unavailable" | "session_in_use" | "process_exited" | "rate_limited" | "model_unavailable" | "unknown";
+export type FailureCode = "runtime_unsupported" | "cli_missing" | "not_logged_in" | "session_unavailable" | "session_in_use" | "process_exited" | "rate_limited" | "model_unavailable" | "prompt_unread" | "unknown";
 export interface PermissionOption { id: string; label: string; kind: "allow" | "allowAlways" | "deny" }
 export interface PermissionRequest {
   type: "permission.request"; requestId: string; tool: string; summary: string; options: PermissionOption[];
@@ -82,6 +82,8 @@ export interface ConversationBinding {
 export interface SessionKey { runtime: import("../agentAuth/types").Provider; configDir: string; sessionId: string }
 export interface Reservation { owner: string; key: SessionKey | null }
 export interface TransportState {
+  // Claude only: the uuid of the turn's own prompt until the CLI reads it (runners.ts send).
+  prompt?: string;
   terminal: boolean;
   stop: "user" | "appQuit" | null;
   messageId: string;

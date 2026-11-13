@@ -46,7 +46,7 @@ input.on('line', line => {
  call('m1', {input_tokens:2,cache_creation_input_tokens:4916,cache_read_input_tokens:30853,output_tokens:28});
  if(mode!=='done') return;
  call('sub', {input_tokens:900000}, 'tool-1');
- send({type:'result',subtype:'success',is_error:false,result:'OK',session_id:r.session_id,modelUsage});
+ send({type:'result',subtype:'success',is_error:false,result:'OK',user_message_uuids:[r.uuid],session_id:r.session_id,modelUsage});
  send({type:'prompt_suggestion',suggestion:'Next',uuid:'00000000-0000-4000-8000-0000000000a2',session_id:r.session_id});
 });
 input.on('close', () => { fs.writeFileSync(${JSON.stringify(join(root, "closed"))}, ''); setTimeout(() => process.exit(0), 20); });

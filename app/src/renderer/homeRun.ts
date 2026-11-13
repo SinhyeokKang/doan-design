@@ -43,9 +43,10 @@ export interface HomeRunHost {
   changed(): void;
 }
 // opened: the new canvas this conversation's turn made was already opened or offered; one per conversation.
-// endedAt: when this run saw the conversation's turn end (Date.now()).
+// endedAt: when this run saw the conversation's turn end (Date.now()); endRead: the list reads of its root started by
+// then, so a later read is one that can show main's judgement of that turn.
 // drew: the path of the canvas the turn made, until main binds it.
-interface Extras { atStart: string[]; checked: string[]; canvasOpens: number; toasted: string | null; opened: boolean; endedAt?: number; drew?: string }
+interface Extras { atStart: string[]; checked: string[]; canvasOpens: number; toasted: string | null; opened: boolean; endedAt?: number; endRead?: number; drew?: string }
 interface Pending { conversationId: string; root: string; moves: number; sawModal: boolean }
 export interface Removing { paths: string[]; conversations: string[]; title: string; body: string; cancel: string; confirm: string }
 
@@ -236,8 +237,10 @@ export class HomeRun {
     const turn = (this.events.get(id) ?? []).filter(event => event.seq > before);
     const state = turn.length ? stripState(this.events.get(id)!) : null;
     const ended = state !== null && !RUNNING.includes(state.kind);
-    const endedAt = ended ? (previous?.endedAt !== undefined && previous.endedAt >= sentAt ? previous.endedAt : Date.now()) : undefined;
-    this.extras.set(id, { atStart, checked: [], canvasOpens, toasted: previous?.toasted ?? null, opened: false, ...(endedAt !== undefined ? { endedAt } : {}) });
+    const kept = previous?.endedAt !== undefined && previous.endedAt >= sentAt;
+    const endedAt = ended ? (kept ? previous.endedAt : Date.now()) : undefined;
+    const endRead = ended ? (kept ? previous.endRead : this.readsStarted(root)) : undefined;
+    this.extras.set(id, { atStart, checked: [], canvasOpens, toasted: previous?.toasted ?? null, opened: false, ...(endedAt !== undefined ? { endedAt } : {}), ...(endRead !== undefined ? { endRead } : {}) });
     const phase = state?.kind ?? "starting";
     if (!this.conversations.some(item => item.conversationId === id)) {
       this.claimed.delete(id);
@@ -312,9 +315,8 @@ export class HomeRun {
     for (const conversation of this.conversations) {
       const extras = this.extras.get(conversation.conversationId);
       const listed = this.host.view().entries.find(entry => entry.path === conversation.root);
-      // While the turn runs, and for main's binding window after it ends: the folder update can land after turn.done.
-      const live = RUNNING.includes(conversation.phase) || (extras?.endedAt !== undefined && Date.now() - extras.endedAt <= BIND_GRACE_MS);
-      if (!extras || extras.opened || !live || listed?.kind !== "list") continue;
+      // While the turn runs, and until main judges it: the folder update can land after turn.done.
+      if (!extras || extras.opened || !this.binding(conversation, extras) || listed?.kind !== "list") continue;
       const rows = newCanvasCandidates(listed.canvases, extras.atStart, extras.checked);
       extras.checked.push(...rows.map(row => row.path));
       // With two or more live turns in the root (one went on after its answer), the canvas may be the other's: nothing
@@ -361,8 +363,7 @@ export class HomeRun {
       if (conversation.root !== root || extras?.drew !== canvas.path) continue;
       const summary = this.summary(conversation.conversationId);
       if (summary?.canvas) continue;
-      const live = RUNNING.includes(conversation.phase) || (extras.endedAt !== undefined && Date.now() - extras.endedAt <= BIND_GRACE_MS);
-      if (live) return conversation.conversationId;
+      if (this.binding(conversation, extras)) return conversation.conversationId;
     }
     return null;
   }
@@ -559,6 +560,15 @@ export class HomeRun {
     }
     return merged;
   }
+  // Whether main may still bind a canvas the turn made: while it runs, and after its end until main judged the
+  // promotion, which its list shows as the conversation no longer working. Only a read started after the end can show
+  // that (one started before may predate it); BIND_GRACE_MS bounds the wait should no such read come.
+  private binding(conversation: HomeConversation, extras: Extras): boolean {
+    if (RUNNING.includes(conversation.phase)) return true;
+    if (extras.endedAt === undefined || Date.now() - extras.endedAt > BIND_GRACE_MS) return false;
+    const read = extras.endRead !== undefined && this.readsApplied(conversation.root) > extras.endRead;
+    return !(read && this.summary(conversation.conversationId)?.working === false);
+  }
   private summary(conversationId: string): (ConversationSummary & { root: string }) | null {
     for (const [root, list] of this.lists) {
       const found = list.find(c => c.conversationId === conversationId);
@@ -698,7 +708,7 @@ export class HomeRun {
     this.conversations = this.conversations.map(item => item.conversationId === conversationId ? { ...item, phase: next.kind } : item);
     this.strips = { ...this.strips, [conversationId]: next };
     const extras = this.extras.get(conversationId);
-    if (extras && !RUNNING.includes(next.kind) && (!previous || RUNNING.includes(previous.kind))) extras.endedAt = Date.now();
+    if (extras && !RUNNING.includes(next.kind) && (!previous || RUNNING.includes(previous.kind))) { extras.endedAt = Date.now(); extras.endRead = this.readsStarted(conversation.root); }
     this.askToast(conversationId, conversation.root, conversation.provider, permissionToastKey(next, previous, this.viewing(conversation.root)));
     this.host.changed();
   }

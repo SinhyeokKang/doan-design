@@ -39,7 +39,7 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { scrollTarget } from "./overviewRun";
 import type { SettingsTarget } from "./settingsSections";
 import { threadItems, withSending } from "./threadItems";
-import { threadTurn } from "./turnStatus";
+import { stopBackground, threadTurn } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 
@@ -438,7 +438,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
   return <div className="doan-conv-content">
     <div className={`cp-scroll${conversationId ? "" : " end"}`}>
       {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
-        liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, store.stageOf(conversationId), root) : null} canvasListed={canvas => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row))}
+        liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, store.stageOf(conversationId), root, summary?.stopping === true) : null}
+        background={summary?.background ?? null} onStopBackground={turnId => stopBackground({ conversationId, turnId }, request => window.doan.interruptConversation(request)).then(failed => { if (failed) props.onNotice(failed); return failed === null; })} canvasListed={canvas => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row))}
         onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
         onAnswerQuestion={(requestId, answer) => window.doan.answerConversationQuestion({ conversationId, requestId, ...answer })}
         questionDraft={requestId => store.questionDraft(conversationId, requestId)} onQuestionDraft={(requestId, action) => store.editQuestion(conversationId, requestId, action)}

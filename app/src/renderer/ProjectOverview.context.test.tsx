@@ -93,6 +93,26 @@ test("the thread shows the live turn's indicator from the store's stage, and non
   expect(html()).not.toContain("ti-reply");
 });
 
+// The Overview follows the canvas panel's rules (CanvasConversationPanel test of the same name): a Stop main took hides
+// the indicator at once, and a done turn's background work shows its line until the next message enters.
+test("a taken Stop hides the indicator at once; a done turn's background work shows its line until the next message", async () => {
+  reads[A] = [at(A, 1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(A, 2, { type: "turn.started" })];
+  const list: ConversationSummary[] = [{ ...summary(A), phase: "running", working: true, stopping: true }];
+  const { run, html } = setup(list);
+  run.select(ROOT, A);
+  run.store.track(A);
+  await flush();
+  expect(html()).not.toContain("ti-reply");
+  list[0] = { ...summary(A), phase: "running", working: true };
+  expect(html()).toContain('<span class="ti-text ti-shimmer">Claude Code is working</span>');
+  run.event(at(A, 3, { type: "turn.done" }));
+  list[0] = { ...summary(A), background: { turnId: "t1" } };
+  expect(html()).toContain("Background work is still running. It stops when you send your next message or press Stop.");
+  expect(html()).toContain('aria-label="Stop background work"');
+  run.event({ ...at(A, 4, { type: "user.message", text: "Now the cart", anchors: [] }), turnId: "t2" } as ConversationEvent);
+  expect(html()).not.toContain("Background work is still running");
+});
+
 // R1 defect 2: on an existing conversation's next turn main pushes the person's message and turn.started separately;
 // the render that draws the message already has the indicator (spec condition 1).
 test("the next turn's indicator is in the render that draws the person's message", async () => {

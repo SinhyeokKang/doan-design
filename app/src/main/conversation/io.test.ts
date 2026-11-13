@@ -147,6 +147,46 @@ describe("conversation disk boundaries", () => {
     // The same records with no live process behind them block nothing.
     write(12, "x", "2.1.400"); expect(await claudeOccupancy(config, "s", async () => null)).toBe("free");
   });
+  // Claude Code 2.1.323 writes its record without procStart, and a CLI killed before its own cleanup leaves one behind
+  // (POSTMORTEM 2026-11-13). Without procStart the pid decides: no process is an ended one's record; a live pid is judged
+  // by its sessionId, so another session's record no longer refuses every resume in the profile.
+  describe("records without procStart (Claude Code 2.1.323)", () => {
+    const start = "Fri Nov 13 01:00:00 2026";
+    const record = (pid: number, sessionId: string, extra: object = {}) => ({ pid, sessionId, cwd: "/other", startedAt: 1, version: "2.1.323", kind: "interactive", entrypoint: "sdk-ts", pidDomain: "darwin", status: "idle", ...extra });
+    function profile(records: object[]) {
+      const config = temp(); mkdirSync(join(config, "sessions"));
+      for (const value of records) writeFileSync(join(config, "sessions", `${(value as { pid: number }).pid}.json`), JSON.stringify(value));
+      return config;
+    }
+    it("skips a dead record beside the target's own live record (with procStart), which still refuses", async () => {
+      const config = profile([record(20, "killed"), { ...record(21, "s"), procStart: start }]);
+      const inspect = async (pid: number) => pid === 21 ? start : null;
+      expect(await claudeOccupancy(config, "s", inspect)).toBe("occupied");
+      expect(await claudeOccupancy(config, "other", inspect)).toBe("free");
+    });
+    it("skips a dead record of the target itself", async () => {
+      expect(await claudeOccupancy(profile([record(20, "s")]), "s", async () => null)).toBe("free");
+    });
+    it("skips a live record of another session", async () => {
+      expect(await claudeOccupancy(profile([record(30, "busy-elsewhere"), record(20, "killed")]), "s", async (pid: number) => pid === 30 ? start : null)).toBe("free");
+    });
+    it("refuses a live record of the target as in use", async () => {
+      expect(await claudeOccupancy(profile([record(30, "s"), record(20, "killed")]), "s", async (pid: number) => pid === 30 ? start : null)).toBe("occupied");
+    });
+    it("still cannot verify a live record below the floor or in another shape", async () => {
+      const live = async (pid: number) => pid === 30 ? start : null;
+      expect(await claudeOccupancy(profile([record(30, "other", { version: "2.1.283" })]), "s", live)).toBe("unknown");
+      expect(await claudeOccupancy(profile([record(30, "other", { kind: 3 })]), "s", live)).toBe("unknown");
+    });
+    it("lets procStart decide when it is there: a reused pid with another start is an ended record", async () => {
+      expect(await claudeOccupancy(profile([{ ...record(30, "s"), procStart: "Mon Oct 26 12:00:00 2026" }]), "s", async () => start)).toBe("free");
+    });
+    it("cannot tell for a record of another PID domain that names the target", async () => {
+      const never = async () => { throw new Error("ps must not run for another PID domain"); };
+      expect(await claudeOccupancy(profile([record(30, "s", { pidDomain: "linux:machine-id:1" })]), "s", never)).toBe("unknown");
+      expect(await claudeOccupancy(profile([record(30, "other", { pidDomain: "linux:machine-id:1" })]), "s", never)).toBe("free");
+    });
+  });
   it("judges the Claude desktop record shape and other live kinds by the session being resumed", async () => {
     // The fields Claude desktop's bundled claude-code 2.1.321 writes; every value is fake.
     const config = temp(); const start = "Thu Nov 12 09:00:00 2026"; mkdirSync(join(config, "sessions"));
@@ -187,7 +227,9 @@ describe("conversation disk boundaries", () => {
     const inspect = async (pid: number) => pid === 30 ? start : null;
     const live = { pid: 30, sessionId: "x", cwd: "/w", kind: "interactive", version: "2.1.321", procStart: start };
     const path = join(config, "sessions", "30.json");
-    for (const value of [{ ...live, pid: 31 }, { ...live, procStart: undefined }, { ...live, pid: undefined }]) { writeFileSync(path, JSON.stringify(value)); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown"); }
+    // A missing procStart is a 2.1.323 record and is judged by its pid (the describe above); one that is there but
+    // unreadable is a shape this reader does not know.
+    for (const value of [{ ...live, pid: 31 }, { ...live, procStart: 1 }, { ...live, pid: undefined }]) { writeFileSync(path, JSON.stringify(value)); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown"); }
     writeFileSync(path, "{broken"); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
     writeFileSync(path, JSON.stringify(live)); expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
     expect(await claudeOccupancy(config, "s", async () => { throw new Error("ps failed"); })).toBe("unknown");

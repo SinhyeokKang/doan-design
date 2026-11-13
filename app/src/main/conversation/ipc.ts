@@ -176,7 +176,12 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
       if (!validId(raw.conversationId)) throw new Error("bad_request");
       switch (method) {
         case "read": return service.read(raw.conversationId);
-        case "interrupt": await service.interrupt(raw.conversationId); return undefined;
+        // turnId: the turn the Stop was pressed for (a running turn's, or a done turn's background line); a late press
+        // naming another turn does nothing.
+        case "interrupt": {
+          if (raw.turnId !== undefined && !validId(raw.turnId)) throw new Error("bad_request");
+          await service.interrupt(raw.conversationId, raw.turnId); return undefined;
+        }
         case "send": {
           const input = message(raw); if (!input) throw new Error("bad_request");
           const target = service.sendTarget(raw.conversationId);

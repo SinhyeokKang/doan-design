@@ -1123,6 +1123,8 @@ async function start(): Promise<void> {
     return new Promise((resolve) => {
       void ready.remove(roots).then((removed) => {
         if (removed.paths.length === 0) { resolve({ kind: "unavailable" }); return; }
+        // Background work a done turn left in a removed project stops without asking, as on sign-out.
+        conversations?.stopBackground(removed.paths);
         void thumbs.removed(removed.paths, before);
         resolve({ kind: "removed" });
       });

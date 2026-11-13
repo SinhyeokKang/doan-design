@@ -118,8 +118,14 @@ describe("Claude registry records", () => {
     expect(registryIdentity("4242.json", noDomain)).toEqual({ pid: 4242, procStart: start, host: true });
     expect(registryIdentity("4242.json", { ...desktop, pidDomain: "linux:machine-id:4026531836" })).toEqual({ pid: 4242, procStart: start, host: false });
   });
+  // Claude Code 2.1.323 writes no procStart: the pid alone then says whether the record's process is there.
+  it("reads a record without procStart as one whose liveness is its pid alone", () => {
+    const { procStart: _, ...noStart } = desktop;
+    expect(registryIdentity("4242.json", noStart)).toEqual({ pid: 4242, host: true });
+    expect(registryIdentity("4242.json", { ...noStart, pidDomain: "linux:machine-id:4026531836" })).toEqual({ pid: 4242, host: false });
+  });
   it("cannot tell whether a record lives when its identity is unreadable", () => {
-    for (const raw of [null, [], "x", { ...desktop, pid: 4243 }, { ...desktop, pid: "4242" }, { ...desktop, pid: undefined }, { ...desktop, procStart: undefined },
+    for (const raw of [null, [], "x", { ...desktop, pid: 4243 }, { ...desktop, pid: "4242" }, { ...desktop, pid: undefined },
       { ...desktop, procStart: 1 }, { ...desktop, procStart: "not a date" }, { ...desktop, pidDomain: null }, { ...desktop, pidDomain: 1 }, { ...desktop, pidDomain: { os: "darwin" } }]) {
       expect(registryIdentity("4242.json", raw)).toBeNull();
     }

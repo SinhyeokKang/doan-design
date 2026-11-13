@@ -220,6 +220,18 @@ describe("thread items", () => {
     expect(endView({ kind: "failed", code: "process_exited" }, "codex")).toMatchObject({ title: "Codex stopped unexpectedly", body: "It may have changed files before it stopped." });
   });
 
+  // Draft frame prompt-unread (choice 3): the message stays in the thread above the notice, so Edit and resend brings it
+  // back to the composer as for any failed turn that began with the person's message.
+  test("a message Claude Code never picked up fails with its own title, the send-again body and Edit and resend", () => {
+    expect(endView({ kind: "failed", code: "prompt_unread" }, "claude")).toEqual({ title: "Claude Code didn’t pick up your message", body: "Send it again.", tone: "error", signIn: false });
+    const out = html([{ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, parts: [{ text: "Now make the total row sticky" }], attachments: [] },
+      { kind: "end", key: "e3", seq: 3, end: { kind: "failed", code: "prompt_unread" } }]);
+    expect(out).toContain('<div class="doan-notice error thread-notice">');
+    expect(out).toContain("<b>Claude Code didn’t pick up your message</b><span>Send it again.</span>");
+    expect(out).toContain(">Edit and resend</button>");
+    expect(out).not.toContain("Sign in again");
+  });
+
   test("a crash-folded turn's end offers Edit and resend like any other end", () => {
     const out = html([{ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, parts: [{ text: "Draw it" }], attachments: [] }, { kind: "end", key: "xt1", seq: null, end: { kind: "interrupted", reason: "crashed" } }]);
     expect(out).toContain("<b>Stopped</b><span>The agent stopped before it finished.</span>");

@@ -1,0 +1,8 @@
+{
+ "cli": "2.1.322",
+ "case": "next-turn-after-stop",
+ "promptUuids": [
+  "ce0c3bbc-4c1c-468e-b5b0-e02bbde46f0c"
+ ],
+ "note": "Raw SDK frames of one PoC process with their receive time (ms since the script started); init lists, paths and account fields removed."
+}

@@ -1271,6 +1271,33 @@ describe("stopping runs for sign-out and replacement", () => {
     await m.acquire("cursor", "listing"); await m.acquire("cursor");
     expect(await m.signOut("cursor")).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
   });
+  // A conversation run whose turn ended done while its background work goes on is not a running conversation: a sign-out
+  // needs no stop for it, stops its group (stopRuns) and waits for its lease as for a list read.
+  it("a conversation run marked quiet does not need stop, and counts again once it is no longer quiet", async () => {
+    let stopRuns!: ReturnType<typeof runs>["stopRuns"];
+    const m = manager({ stopRuns: provider => stopRuns(provider) }); await m.load();
+    await signedInCursor(m, "u1");
+    const r = runs(m); stopRuns = r.stopRuns;
+    const lease = await m.acquire("cursor"); r.leases.push(lease);
+    lease.quiet!(false);
+    expect(await m.signOut("cursor")).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
+    lease.quiet!(true); lease.quiet!(true);
+    const out = started(await m.signOut("cursor"));
+    expect(r.stopRuns).toHaveBeenCalledWith("cursor");
+    const status = await next("status");
+    expect(r.leases).toEqual([]);
+    settledSet.add(status); status.finish(0);
+    expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
+  });
+  it("a quiet run released later does not count off a conversation twice", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    const quiet = await m.acquire("cursor"); quiet.quiet!(true);
+    const running = await m.acquire("cursor");
+    await quiet.release();
+    expect(await m.signOut("cursor")).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
+    await running.release();
+  });
   it("keeps a failed sign-out blocking runs and sign-ins after a restart until a sign-out succeeds", async () => {
     const m = manager(); await m.load();
     await signedInCursor(m, "u1");
