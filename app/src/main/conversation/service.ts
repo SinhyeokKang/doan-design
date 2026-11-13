@@ -6,7 +6,7 @@ import { promoteReservation, releaseReservation, reserveSession } from "./owners
 import { transportError } from "./transport";
 import { sameCanvas } from "./sessions";
 import { handoffPrompt, turnPrompt } from "./prompt";
-import { handoffDecision, handoffEligibility, handoffGuidanceFor, type HandoffDecision, type HandoffNotice, type HandoffRefusal } from "./handoff";
+import { handoffDecision, handoffEligibility, handoffGuidanceFor, handoffNoticeKind, handoffQueueOutcome, missedHandoffs, type ConversationHandoffNotice, type HandoffDecision, type HandoffRefusal } from "./handoff";
 import { messageLine } from "./messageText";
 import { requestTitleText } from "./requestLines";
 import { BIND_GRACE_MS, contestedCanvas, PROMOTION_SETTLE_MS, projectBusy, promotionDeadline, promotionTarget } from "./project";
@@ -29,7 +29,8 @@ import type { UsageWindow } from "../agentAuth/usageTypes";
 // permissionMode: one of the common ids (ipc checks it); Default is never stored.
 // A start a handoff makes, never one ipc makes: the earlier conversation, the handoff text
 // for the prompt (never read for markers) and the rule that the target has no current conversation at acceptance.
-export interface HandoffStart { origin: HandoffOrigin; requireNoCurrent: true; handoffText: string }
+// path: the request it starts, which a cancel meanwhile resolves (checkHandoffSource).
+export interface HandoffStart { origin: HandoffOrigin; requireNoCurrent: true; handoffText: string; path: string }
 // defaultEffort: as SendExtras's, the level the first turn names when its model has no effort; it is never stored.
 export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Provider; canvas?: Canvas; text: string; anchors: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: AttachmentRecord[]; defaultEffort?: string }
 export interface Prepared {
@@ -207,10 +208,18 @@ interface LimitLookup { turnId: string; provider: Provider; connectionId: string
 interface Evidence { root: string; turnId: string; snapshot: Canvas[]; edits: Set<string>; changed: Set<string>; taken: Canvas[]; endedAt?: number; exitedAt?: number; timer?: ReturnType<typeof setTimeout>; waiters: (() => void)[] }
 // A Doan-connected conversation's current turn for handoffs, in memory only. snapshot: the
 // root's listed canvases when the turn was accepted. startedBy: a handoff started it, so it cannot hand off.
-// request: the handoff it asked for. state: judging once the turn ended done and the canvas may still be listed (the
-// first folder refresh or the window's end, like a promotion); starting while the next conversation starts; resolved
-// once handoff.resolved is written. waiters: sends waiting for that, as for a project judgement.
-interface HandoffTurn { root: string; turnId: string; snapshot: Canvas[]; startedBy?: "handoff"; request?: { path: string; text: string }; state?: "judging" | "starting" | "resolved"; endedAt?: number; exitedAt?: number; timer?: ReturnType<typeof setTimeout>; waiters: (() => void)[] }
+// requests: the handoffs it asked for, in request order. state: judging once the turn ended done and a canvas may still
+// be listed (the first folder refresh or the window's end, like a promotion); starting while the decided ones start;
+// resolved once every handoff.resolved is written. waiters: sends waiting for that, as for a project judgement.
+// guided: the turn was sent with the handoff guidance. edits: the paths of its own edit activities, for missed lines.
+// source: the conversation's canvas when its starts began, which the started conversations name as their origin.
+interface HandoffTurn { root: string; turnId: string; snapshot: Canvas[]; startedBy?: "handoff"; requests: HandoffRequest[]; guided: boolean; edits: Set<string>; source?: Canvas; state?: "judging" | "starting" | "resolved"; endedAt?: number; exitedAt?: number; timer?: ReturnType<typeof setTimeout>; waiters: (() => void)[] }
+// taken while its turn runs, judging once the turn ended done, starting once every request of the turn is decided,
+// resolved once its handoff.resolved is written (or would be, after a quit). decision: its judgement, other than wait.
+interface HandoffRequest { path: string; text: string; state: "taken" | "judging" | "starting" | "resolved"; decision?: HandoffDecision; resolution?: HandoffResolution }
+// A guided turn that ended done, waiting for the handoff's deadline to write its missed lines. Kept apart from the
+// HandoffTurn, which the next send replaces: it holds neither the queue nor the working state, and outlives that send.
+interface MissedWait { id: string; root: string; snapshot: Canvas[]; edits: string[]; requested: string[]; endedAt: number; exitedAt?: number; timer?: ReturnType<typeof setTimeout> }
 // A model-list read: stopped by quit and by a stop of its provider like a run, holding its lease until its group is gone.
 interface Listing { provider: Provider; since: number; cleanup?: () => Promise<void> }
 // A queued message Send now put into a running turn (live, turnId) that the agent has not read yet. Its item stays in
@@ -250,6 +259,8 @@ export class ConversationService {
   // DOAN_HANDOFF value → conversation, for each runner process still alive; never on disk.
   private handoffKeys = new Map<string, string>();
   private handoffTurns = new Map<string, HandoffTurn>();
+  // By the guided turn's id: a conversation's next turn may end before the earlier one's wait is over.
+  private missedWaits = new Map<string, MissedWait>();
   // Each Doan connection's usage limit, in memory only (usageLimit.ts limitState); limitTimer drops a passed one.
   private limits = new Map<string, LimitEntry>();
   private limitTimer: unknown;
@@ -264,11 +275,12 @@ export class ConversationService {
   // deleted: a conversation deleted (delete), once its index entry is gone.
   // workEnded: the conversation's turn can no longer take a `doan work update` (its end, an archive or deletion, a
   // history that stopped taking writes, the app quitting), so main drops its work (conversationWork.ts).
-  // handedOff: a handoff started its target conversation (conversation:handoff, main window only).
+  // handedOff: a turn's handoffs started one or more conversations (conversation:handoff, main window only), once all of
+  // them were resolved.
   // staged: a running turn's stage changed (conversation:stage, main window only); never written to the history.
   // publish's deferNotice: a turn.failed whose notification waits until main knows the turn was not scheduled again
   // (QueueOptions.notice).
-  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent, deferNotice?: true) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}, private workEnded: (id: string) => void = () => {}, private handedOff: (notice: HandoffNotice) => void = () => {}, private staged: (signal: StageSignal) => void = () => {}) {
+  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent, deferNotice?: true) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}, private workEnded: (id: string) => void = () => {}, private handedOff: (notice: ConversationHandoffNotice) => void = () => {}, private staged: (signal: StageSignal) => void = () => {}) {
     this.drafts = queueOptions.drafts ?? new DraftStore(null);
     this.clock = queueOptions.clock ?? CLOCK;
     queueOptions.resumed?.(() => this.resumed());
@@ -340,11 +352,12 @@ export class ConversationService {
       const replaced = entries.filter(m => m.state === "current" && m.root === request.root && m.canvas && request.canvas && sameCanvas(m.canvas, request.canvas));
       // A handoff archives nothing: a current conversation that appeared since the judgement refuses it, and so does an
       // earlier conversation archived meanwhile (POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn').
-      if (handoff) { if (replaced.length) throw new Error("has_conversation"); this.checkHandoffSource(handoff.origin.conversationId); }
+      if (handoff) { if (replaced.length) throw new Error("has_conversation"); this.checkHandoffSource(handoff.origin.conversationId, handoff.path); }
       // The files may have moved while the runner was prepared and opened; the prompt and history use this check.
       const attachments = attached ? attached.recheck() : request.attachments ?? [];
+      const guided = !handoff && handoffGuidanceFor(metadata, mode(request.permissionMode));
       const prompt = handoff ? handoffPrompt(handoff.handoffText, metadata, handoff.origin.canvas)
-        : turnPrompt(request.anchors, request.text, metadata, { home: fromHome, attachments, handoff: handoffGuidanceFor(metadata, mode(request.permissionMode)) });
+        : turnPrompt(request.anchors, request.text, metadata, { home: fromHome, attachments, handoff: guided });
       if (prompt === null) throw new Error("bad_request");
       const writes: { id: string; turn: string; body: EventPayload }[] = [];
       for (const old of replaced) {
@@ -357,12 +370,9 @@ export class ConversationService {
       const saved = this.store.acceptStart([...entries.map(m => replaced.includes(m) ? { ...m, state: "archived" as const } : m), metadata], id, writes);
       live.accepted = true; this.noteTranscript(live, input, runner.sessionId);
       if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
-      if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: request.root, turnId: live.turnId, snapshot: this.snapshot(request.root), waiters: [], ...(handoff ? { startedBy: "handoff" as const } : {}) });
-      if (handoff && request.canvas) {
-        // As a promotion's write: a project turn judged later must not take this canvas over and archive this conversation.
-        for (const grounds of this.evidence.values()) if (grounds.root === request.root) grounds.taken.push(request.canvas);
-        this.moveQueue(handoff.origin.conversationId, id);
-      }
+      if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: request.root, turnId: live.turnId, snapshot: this.snapshot(request.root), requests: [], guided, edits: new Set(), waiters: [], ...(handoff ? { startedBy: "handoff" as const } : {}) });
+      // As a promotion's write: a project turn judged later must not take this canvas over and archive this conversation.
+      if (handoff && request.canvas) for (const grounds of this.evidence.values()) if (grounds.root === request.root) grounds.taken.push(request.canvas);
       for (const old of replaced) this.archive(old.conversationId);
       for (const event of saved) this.deliver(event);
       this.changed(request.root);
@@ -447,7 +457,8 @@ export class ConversationService {
       // The files may have moved while the runner was prepared and opened; the prompt and history use this check.
       const attachments = attached ? attached.recheck() : extras.attachments ?? [];
       // Home's paragraph only while the conversation has no canvas: a promoted one works on its canvas.
-      const prompt = turnPrompt(anchors, text, metadata, { home: metadata.fromHome === true && !metadata.canvas, attachments, handoff: handoffGuidanceFor(metadata, chosen) }); if (prompt === null) throw new Error("bad_request");
+      const guided = handoffGuidanceFor(metadata, chosen);
+      const prompt = turnPrompt(anchors, text, metadata, { home: metadata.fromHome === true && !metadata.canvas, attachments, handoff: guided }); if (prompt === null) throw new Error("bad_request");
       // The choice and snapshot are written before the turn's events: a failed append then leaves only a saved choice.
       // An entry without seenSeq has had all of its history seen; from now on its ends count.
       const projectTurn = project !== undefined && !metadata.canvas;
@@ -479,7 +490,7 @@ export class ConversationService {
       }
       if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       // The previous turn's handoff was resolved before this send went on (handoffWait).
-      if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: metadata.root, turnId: live.turnId, snapshot: this.snapshot(metadata.root), waiters: [] });
+      if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: metadata.root, turnId: live.turnId, snapshot: this.snapshot(metadata.root), requests: [], guided, edits: new Set(), waiters: [] });
       for (const event of live.events.splice(0)) this.receive(id, event);
       // A reused Codex server keeps the lease it opened with; this preparation's lease covered only the checks.
       if (!leased) freeLease(input);
@@ -619,13 +630,11 @@ export class ConversationService {
     const running = !!live && !!turn && live.handoffKey === request.handoff && turn.turnId === live.turnId && live.accepted && live.busy && !live.terminal &&
       !live.closed && !live.failedPersistence && !this.quitting && m.state === "current";
     const refused = handoffEligibility(request, { root: m.root, ...(m.canvas ? { canvas: m.canvas } : {}), ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}),
-      running, ...(turn?.startedBy ? { startedBy: turn.startedBy } : {}), requested: turn?.request ? [turn.request.path] : [] });
+      running, ...(turn?.startedBy ? { startedBy: turn.startedBy } : {}), requested: turn?.requests.map(r => r.path) ?? [] });
     if (refused) return refused;
-    // HandoffTurn still holds one request, so a later one for another path would replace it: refuse it as before.
-    if (turn?.request) return "already_requested";
     const text = request.text.trim(); if (!text) throw new Error("bad_request");
     this.append(id, live!.turnId, { type: "handoff.requested", canvas: { path: request.path }, text });
-    turn!.request = { path: request.path, text };
+    turn!.requests.push({ path: request.path, text, state: "taken" });
     return null;
   }
   receive(id: string, event: EventPayload): void {
@@ -647,6 +656,8 @@ export class ConversationService {
       const saved = this.append(id, live.turnId, event);
       const evidence = this.evidence.get(id);
       if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
+      const handoffTurn = this.handoffTurns.get(id);
+      if (event.type === "activity" && event.kind === "edit" && event.path && handoffTurn?.turnId === live.turnId) handoffTurn.edits.add(event.path);
       if (event.type === "permission.request" || event.type === "question.request") (live.asking ??= new Set()).add(askingKey(event));
       else if (event.type === "permission.resolved" || event.type === "question.resolved") live.asking?.delete(askingKey(event));
       if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.done = event.type === "turn.done"; live.endedAt = Date.now(); delete live.asking; delete live.stage; delete live.stopping; this.endWork(id); this.dropSteers(id); this.ended(id, live, saved); }
@@ -850,7 +861,7 @@ export class ConversationService {
     // (a sign-out cancels it). After the loop above, which handed its queue back.
     for (const [id, turn] of [...this.handoffTurns]) {
       const m = this.store.list().find(e => e.conversationId === id);
-      if (this.handoffPending(turn) && m?.owner.kind === "doan" && m.owner.provider === provider) this.resolveHandoff(id, turn, { outcome: "cancelled" });
+      if (this.handoffPending(turn) && m?.owner.kind === "doan" && m.owner.provider === provider) this.cancelHandoff(id, turn);
     }
     await Promise.all(closing);
   }
@@ -873,6 +884,8 @@ export class ConversationService {
     for (const id of [...this.evidence.keys()]) this.dropEvidence(id);
     // An unresolved handoff stays a request in the history, which the next start reads as cancelled.
     for (const id of [...this.handoffTurns.keys()]) this.dropHandoff(id);
+    for (const wait of this.missedWaits.values()) clearTimeout(wait.timer);
+    this.missedWaits.clear();
     for (const id of [...this.waits.keys(), ...this.judging.keys()]) this.cancelWait(id);
     for (const listing of this.listings) if (listing.cleanup) closing.push(listing.cleanup());
     // Before the appQuit writes: one that throws ends this loop, and the quit's failure is reported, but no
@@ -947,10 +960,10 @@ export class ConversationService {
       attached = ids.length && files ? files.reclaim(ids) : undefined;
       attachments = attached ? attached.recheck() : item.attachments;
       // The prompt a send of this message would carry, Home's paragraph and guidance included.
-      // A message steered into a handoff's first turn does not lift its limit.
-      // A turn that handed off already would only be refused again (already_requested).
+      // A message steered into a handoff's first turn does not lift its limit. A turn that asked already may still hand
+      // off to its other new canvases.
       const turn = this.handoffTurns.get(id), current = turn?.turnId === live.turnId ? turn : undefined;
-      const handoff = !current?.request && handoffGuidanceFor(m, { ...mode(m.permissionMode), ...(current?.startedBy ? { startedBy: current.startedBy } : {}) });
+      const handoff = handoffGuidanceFor(m, { ...mode(m.permissionMode), ...(current?.startedBy ? { startedBy: current.startedBy } : {}) });
       prompt = turnPrompt(item.anchors, item.text, m, { home: m.fromHome === true && !m.canvas, attachments, handoff }); if (prompt === null) throw new Error("bad_request");
     } catch (error) { this.drafts.unmarkSending(id, itemId); throw error; }
     const turnId = live.turnId, messageId = randomUUID();
@@ -1225,10 +1238,12 @@ export class ConversationService {
     if (live.holding) this.endAfterTurn(id);
     const exitedAt = live.exited ? live.exitedAt : undefined;
     const turn = this.handoffTurns.get(id);
-    if (turn?.request && turn.state === undefined && turn.turnId === live.turnId) {
-      if (type !== "turn.done") this.resolveHandoff(id, turn, { outcome: "cancelled" });
+    if (turn?.turnId === live.turnId && turn.guided && type === "turn.done") this.awaitMissed(id, turn, live.endedAt ?? Date.now(), exitedAt);
+    if (turn?.requests.length && turn.state === undefined && turn.turnId === live.turnId) {
+      if (type !== "turn.done") this.cancelHandoff(id, turn);
       else {
         turn.state = "judging"; turn.endedAt = live.endedAt ?? Date.now(); if (exitedAt !== undefined) turn.exitedAt = exitedAt;
+        for (const request of turn.requests) request.state = "judging";
         this.armHandoff(id, turn);
         // The queue waits for the judgement: it follows the work to the next conversation if one starts.
         this.judgeHandoff(id, false);
@@ -1251,10 +1266,10 @@ export class ConversationService {
       // The other turns of the root not judged yet (this one is out of the map already): running, waiting for an
       // answer, or ended within their window.
       const listed = this.snapshot(evidence.root), others = [...this.evidence.values()].filter(other => other.root === evidence.root);
-      // A handoff taken and not resolved yet may have made any canvas new to its turn, the requested one included.
-      const handoffs = [...this.handoffTurns.values()].filter(turn => turn.root === evidence.root && !!turn.request && turn.state !== "resolved");
+      // A turn with a handoff taken and not resolved yet may have made any canvas new to it, every requested one included.
+      const handoffs = [...this.handoffTurns.values()].filter(turn => turn.root === evidence.root && turn.requests.some(r => r.state !== "resolved"));
       const contested = listed.filter(row => others.some(other => !other.snapshot.some(old => sameCanvas(old, row))) ||
-        handoffs.some(turn => row.path === turn.request!.path || !turn.snapshot.some(old => sameCanvas(old, row))));
+        handoffs.some(turn => turn.requests.some(r => r.path === row.path) || !turn.snapshot.some(old => sameCanvas(old, row))));
       const turn = { root: evidence.root, edits: [...evidence.edits], changed: [...evidence.changed], taken: evidence.taken, contested };
       const target = promotionTarget(turn, listed, evidence.snapshot, canvas => this.canvasWorking(evidence.root, canvas, id));
       if (target) this.promoteTo(id, evidence, target);
@@ -1269,68 +1284,109 @@ export class ConversationService {
   }
   // Taken and waiting for its judgement or its start; a request in a running turn waits for the turn's end instead.
   private handoffPending(turn: HandoffTurn): boolean { return turn.state === "judging" || turn.state === "starting"; }
-  // settled: a folder refresh or the window's end came after the turn's end (handoff.ts handoffDecision).
+  // settled: a folder refresh or the window's end came after the turn's end (handoff.ts handoffDecision). Each request is
+  // judged on its own; none starts before all are decided, so a later refresh never judges a request that is starting.
   private judgeHandoff(id: string, settled: boolean): void {
-    const turn = this.handoffTurns.get(id); if (turn?.state !== "judging" || !turn.request) return;
+    const turn = this.handoffTurns.get(id); if (turn?.state !== "judging") return;
     const m = this.store.list().find(e => e.conversationId === id);
-    if (!m || m.state !== "current") { this.resolveHandoff(id, turn, { outcome: "cancelled" }); return; }
-    let decision: HandoffDecision;
-    try {
-      decision = handoffDecision({ done: true, path: turn.request.path, listed: this.snapshot(m.root), snapshot: turn.snapshot, ...(m.canvas ? { source: m.canvas } : {}), settled,
-        current: canvas => this.store.list().some(e => e.state === "current" && e.root === m.root && !!e.canvas && sameCanvas(e.canvas, canvas)) });
-    } catch (error) { console.error("doan: handoff judgement failed", error); decision = { kind: "refused", reason: "not_listed" }; }
-    if (decision.kind === "wait") return;
+    if (!m || m.state !== "current") { this.cancelHandoff(id, turn); return; }
+    let listed: Canvas[] | undefined;
+    for (const request of turn.requests) {
+      if (request.decision) continue;
+      let decision: HandoffDecision;
+      try {
+        listed ??= this.snapshot(m.root);
+        decision = handoffDecision({ done: true, path: request.path, listed, snapshot: turn.snapshot, ...(m.canvas ? { source: m.canvas } : {}), settled,
+          current: canvas => this.store.list().some(e => e.state === "current" && e.root === m.root && !!e.canvas && sameCanvas(e.canvas, canvas)) });
+      } catch (error) { console.error("doan: handoff judgement failed", error); decision = { kind: "refused", reason: "not_listed" }; }
+      if (decision.kind !== "wait") request.decision = decision;
+    }
+    if (turn.requests.some(request => !request.decision)) return;
     clearTimeout(turn.timer); delete turn.timer;
-    if (decision.kind === "start") { turn.state = "starting"; void this.startHandoff(id, turn, m, decision.canvas); return; }
-    this.resolveHandoff(id, turn, decision.kind === "refused" ? { outcome: "refused", reason: decision.reason } : { outcome: "cancelled" });
+    turn.state = "starting"; if (m.canvas) turn.source = m.canvas;
+    for (const request of turn.requests) request.state = "starting";
+    for (const request of turn.requests) {
+      const decision = request.decision!;
+      if (decision.kind === "refused") this.resolveHandoff(id, turn, request, { outcome: "refused", reason: decision.reason });
+      else if (decision.kind === "cancelled") this.resolveHandoff(id, turn, request, { outcome: "cancelled" });
+    }
+    if (turn.state === "starting") void this.startHandoffs(id, turn, m);
+  }
+  // The decided starts, one at a time in request order. A cancel meanwhile (a stop, a sign-out, an archive) resolved the
+  // ones left, and a quit dropped the turn: each start is checked again after the one before (POSTMORTEM 2026-10-27).
+  private async startHandoffs(id: string, turn: HandoffTurn, m: ConversationMetadata): Promise<void> {
+    for (const request of turn.requests) {
+      if (this.handoffTurns.get(id) !== turn || turn.state !== "starting") return;
+      if (request.state !== "starting" || request.decision?.kind !== "start") continue;
+      await this.startHandoff(id, turn, request, m, request.decision.canvas);
+    }
   }
   // The next conversation runs on the earlier one's provider, model, effort, Fast and permission mode as they are now.
   // It passes every check of a start; Last used is the person's choice and stays as it was.
-  private async startHandoff(id: string, turn: HandoffTurn, m: ConversationMetadata, target: Canvas): Promise<void> {
-    const request = turn.request!, origin: HandoffOrigin = { kind: "handoff", conversationId: id, canvas: m.canvas! };
+  private async startHandoff(id: string, turn: HandoffTurn, request: HandoffRequest, m: ConversationMetadata, target: Canvas): Promise<void> {
+    const origin: HandoffOrigin = { kind: "handoff", conversationId: id, canvas: m.canvas! };
     const provider = m.owner.kind === "doan" ? m.owner.provider : undefined, since = this.stops;
     let resolution: HandoffResolution;
     try {
       // The model's default level when it has no stored effort, as a queued turn's.
       const defaultEffort = m.model && !m.effort ? this.queueOptions.defaultEffort?.(m.root, m.session.runtime, m.model) : undefined;
       const { conversationId } = await this.start({ root: m.root, mode: "new", runtime: m.session.runtime, canvas: target, text: request.text, anchors: [], ...choice(m), ...fastOf(m), ...mode(m.permissionMode), ...(defaultEffort ? { defaultEffort } : {}) },
-        undefined, { origin, requireNoCurrent: true, handoffText: request.text });
+        undefined, { origin, requireNoCurrent: true, handoffText: request.text, path: request.path });
       resolution = { outcome: "started", target: { conversationId, canvas: this.store.list().find(e => e.conversationId === conversationId)?.canvas ?? target } };
     } catch (error) {
       const code = reason(error);
       // A stop of its provider meanwhile is the person's cancel, whatever the start then failed with.
       resolution = code === "handoff_cancelled" || this.stopped({ ...(provider ? { provider } : {}), since }) ? { outcome: "cancelled" } : { outcome: "refused", reason: code };
     }
-    // An archive meanwhile resolved it as cancelled already.
-    if (turn.state !== "starting" || this.handoffTurns.get(id) !== turn) return;
-    this.resolveHandoff(id, turn, resolution);
-    if (resolution.outcome !== "started") return;
-    try { this.handedOff({ root: m.root, source: { conversationId: id, canvas: origin.canvas }, target: resolution.target }); }
-    catch (error) { console.error("doan: handoff could not be announced", error); }
+    // An archive meanwhile resolved it as cancelled already, and a quit dropped the turn.
+    if (request.state !== "starting" || this.handoffTurns.get(id) !== turn) return;
+    this.resolveHandoff(id, turn, request, resolution);
   }
-  private checkHandoffSource(id: string): void {
-    const turn = this.handoffTurns.get(id), m = this.store.list().find(e => e.conversationId === id);
-    if (turn?.state !== "starting" || m?.state !== "current") throw new Error("handoff_cancelled");
+  private checkHandoffSource(id: string, path: string): void {
+    const request = this.handoffTurns.get(id)?.requests.find(r => r.path === path), m = this.store.list().find(e => e.conversationId === id);
+    if (request?.state !== "starting" || m?.state !== "current") throw new Error("handoff_cancelled");
   }
-  // Written with the requesting turn's id once the turn ended. A started handoff took the queue
-  // along (moveQueue); a refused one sends a queue held for the judgement to this conversation as after any done turn,
-  // and a cancelled one hands it back as a draft, as a stop does.
-  private resolveHandoff(id: string, turn: HandoffTurn, resolution: HandoffResolution): void {
-    clearTimeout(turn.timer); delete turn.timer; turn.state = "resolved";
+  // Every request not resolved yet is cancelled: a turn that did not end done, a stop or sign-out of its provider, an
+  // archive. Conversations already started stay.
+  private cancelHandoff(id: string, turn: HandoffTurn): void {
+    for (const request of turn.requests) if (request.state !== "resolved") this.resolveHandoff(id, turn, request, { outcome: "cancelled" });
+  }
+  // Written with the requesting turn's id and the request's path once the turn ended. The last one resolves the turn.
+  private resolveHandoff(id: string, turn: HandoffTurn, request: HandoffRequest, resolution: HandoffResolution): void {
+    request.state = "resolved"; request.resolution = resolution;
     if (!this.quitting) {
-      try { this.append(id, turn.turnId, { type: "handoff.resolved", ...resolution }); }
+      try { this.append(id, turn.turnId, { type: "handoff.resolved", canvas: { path: request.path }, ...resolution }); }
       catch (error) { console.error("doan: handoff resolution could not be saved", error); }
     }
+    if (turn.requests.every(r => r.state === "resolved")) this.settleHandoff(id, turn);
+  }
+  // Once, after the turn's last resolution. A queue held for the judgement follows a single started handoff to its
+  // conversation, goes to this conversation after refusals or several requests as after any done turn, and comes back
+  // as a draft after a cancel, as a stop hands it back (handoff.ts handoffQueueOutcome). Then one notice for the turn.
+  private settleHandoff(id: string, turn: HandoffTurn): void {
+    clearTimeout(turn.timer); delete turn.timer; turn.state = "resolved";
+    const resolutions = turn.requests.flatMap(r => r.resolution ? [r.resolution] : []);
+    const started = resolutions.flatMap(r => r.outcome === "started" ? [r.target] : []);
+    let outcome = handoffQueueOutcome(resolutions.map(r => r.outcome));
+    // A next conversation whose turn already ended (its process gone before the start was accepted) would never send it.
+    if (outcome === "move" && !this.working(started[0]!.conversationId)) outcome = "source";
     const live = this.live.get(id);
+    if (outcome === "move") this.moveQueue(id, started[0]!.conversationId);
     if (live?.holding) {
-      if (resolution.outcome === "refused") this.flush(id, live);
-      else { this.release(id, live, live.holding); if (resolution.outcome === "cancelled") this.giveBack(id, "interrupted"); }
+      if (outcome === "source") this.flush(id, live);
+      else { this.release(id, live, live.holding); if (outcome === "draft") this.giveBack(id, "interrupted"); }
     }
     for (const wake of turn.waiters.splice(0)) wake();
     this.changedOf(id);
+    const notice = turn.source ? handoffNoticeKind({ root: turn.root, source: { conversationId: id, canvas: turn.source }, started }) : null;
+    if (!notice) return;
+    try { this.handedOff(notice); }
+    catch (error) { console.error("doan: handoff could not be announced", error); }
   }
-  // Nothing will judge it: the history stopped taking writes, or the app quits.
+  // Nothing will judge it: the history stopped taking writes, it was deleted, or the app quits. Its missed lines are not
+  // written either.
   private dropHandoff(id: string): void {
+    this.dropMissed(id);
     const turn = this.handoffTurns.get(id); if (!turn) return;
     clearTimeout(turn.timer); this.handoffTurns.delete(id);
     for (const wake of turn.waiters.splice(0)) wake();
@@ -1370,7 +1426,8 @@ export class ConversationService {
       void running.runner?.close();
     }
     const turn = this.handoffTurns.get(id);
-    if (turn?.request && turn.state !== "resolved") this.resolveHandoff(id, turn, { outcome: "cancelled" });
+    if (turn && turn.state !== "resolved") this.cancelHandoff(id, turn);
+    this.dropMissed(id);
     this.dropEvidence(id);
     this.cancelWait(id);
     this.resent.delete(id);
@@ -1617,6 +1674,8 @@ export class ConversationService {
     if (evidence && evidence.turnId === live.turnId && evidence.endedAt !== undefined && evidence.exitedAt === undefined) { evidence.exitedAt = live.exitedAt ?? Date.now(); this.armJudge(id, evidence); }
     const turn = this.handoffTurns.get(id);
     if (turn && turn.turnId === live.turnId && turn.state === "judging" && turn.endedAt !== undefined && turn.exitedAt === undefined) { turn.exitedAt = live.exitedAt ?? Date.now(); this.armHandoff(id, turn); }
+    const missed = this.missedWaits.get(live.turnId);
+    if (missed?.id === id && missed.exitedAt === undefined) { missed.exitedAt = live.exitedAt ?? Date.now(); this.armMissed(live.turnId, missed); }
   }
   private deadline(endedAt: number, exitedAt?: number): number {
     return promotionDeadline({ endedAt, ...(exitedAt !== undefined ? { exitedAt } : {}), settle: PROMOTION_SETTLE_MS, grace: BIND_GRACE_MS });
@@ -1630,6 +1689,34 @@ export class ConversationService {
     clearTimeout(turn.timer);
     turn.timer = setTimeout(() => this.judgeHandoff(id, true), Math.max(0, this.deadline(turn.endedAt!, turn.exitedAt) - Date.now()));
     turn.timer.unref?.();
+  }
+  // A guided turn ended done: its missed lines are judged once, at the same deadline as its handoffs, when the canvases
+  // it wrote are listed.
+  private awaitMissed(id: string, turn: HandoffTurn, endedAt: number, exitedAt: number | undefined): void {
+    const wait: MissedWait = { id, root: turn.root, snapshot: turn.snapshot, edits: [...turn.edits], requested: turn.requests.map(r => r.path), endedAt, ...(exitedAt !== undefined ? { exitedAt } : {}) };
+    this.missedWaits.set(turn.turnId, wait);
+    this.armMissed(turn.turnId, wait);
+  }
+  private armMissed(turnId: string, wait: MissedWait): void {
+    clearTimeout(wait.timer);
+    wait.timer = setTimeout(() => this.writeMissed(turnId), Math.max(0, this.deadline(wait.endedAt, wait.exitedAt) - Date.now()));
+    wait.timer.unref?.();
+  }
+  // Checked again right before the write: an archive or a deletion meanwhile drops the wait, and store.append would
+  // recreate a deleted history. A history that stopped taking writes takes none.
+  private writeMissed(turnId: string): void {
+    const wait = this.missedWaits.get(turnId); if (!wait) return;
+    this.missedWaits.delete(turnId);
+    const m = this.store.list().find(e => e.conversationId === wait.id), live = this.live.get(wait.id);
+    if (this.quitting || !m?.canvas || m.state !== "current" || live?.failedPersistence) return;
+    try {
+      const missed = missedHandoffs({ root: wait.root, edits: wait.edits, listed: this.snapshot(wait.root), snapshot: wait.snapshot, requested: wait.requested, source: m.canvas,
+        current: canvas => this.store.list().some(e => e.state === "current" && e.root === wait.root && !!e.canvas && sameCanvas(e.canvas, canvas)) });
+      for (const canvas of missed) this.append(wait.id, turnId, { type: "handoff.missed", canvas });
+    } catch (error) { console.error("doan: missed handoffs could not be saved", error); }
+  }
+  private dropMissed(id: string): void {
+    for (const [turnId, wait] of [...this.missedWaits]) if (wait.id === id) { clearTimeout(wait.timer); this.missedWaits.delete(turnId); }
   }
   // Asks the runner to end a finished turn's process once per turn: the next send, a queue at the turn's end, or a
   // send waiting for a judgement. The runner chooses how (process.ts afterTurnCleanup).
