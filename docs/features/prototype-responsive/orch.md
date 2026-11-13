@@ -59,3 +59,4 @@
 - U를 Claude Opus high로 시작한다(base `995bd060` 이후).
 - U 완료(커밋 3개, test 11351·typecheck·lint·build, `/design-sync` 104행 차이 0, 문서화된 차이 3). 통합 `3de5c551`·`c5acaabc`·`6f88e36d`. 못 잰 것: 작업 영역 높이 823이라 406 × 952·360 × 952 타일, 상태·대화·둘째 줄 메뉴 타일 대조. U의 ⚪: Fit에서 iframe이 표시 크기(최대 99999) CSS 크기를 갖고 `.pw-panel`의 네 모서리 같은 radius clip 아래 있어 8192 CSS px를 넘으면 POSTMORTEM 2026-11-11과 같은 잘림이 생길 수 있다. R에 큰 표시(1440x9000, 9000x900) 확인을 더했다.
 - VU(Codex gpt-6-astra medium)와 R(Claude Sonnet high, `pr-r`)을 병렬로 시작했다. VU 고침이 생기면 R 증거 중 영향받는 것만 다시 본다.
+- VU 결과 🔴 0 / 🟡 2 / 🟢 1. 🟡1: Fit에서 8192 넘는 iframe이 `.pw-panel`의 네 모서리 같은 radius clip 아래에 있다(ARCHITECTURE의 불변, POSTMORTEM 2026-11-11 재발 조건). 🟡2: 취소된 Reload 누름(놓기 취소, 우클릭)이 포커스 기억을 남겨 뒤의 다른 run에서 iframe에 포커스를 준다. 🟢1: DESIGN.md Frame drawer 행의 옛 메뉴 좌표와 Tab 순서 문장. 셋 모두 U에 수정 라운드 1로 보냈다.
