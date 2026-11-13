@@ -12,9 +12,9 @@
 
 | 링크 | 문서 | 검토·초안 | 순서 이유 |
 |---|---|---|---|
-| 1a. `prototype-responsive` | [spec](../prototype-responsive/spec.md) · [design](../prototype-responsive/design.md) · [tasks](../prototype-responsive/tasks.md) | `/feature-review` 완료(`0c4f109e`). 초안 `.doan/canvases/prototype-responsive.html` 사용자 확인 완료(`98cc10e5`, tasks 2 완료) | 프로토타입 창 헤더(세 무리, 이름의 둘째 줄, 모드 토글 프리미티브)를 만든다. 형제 둘이 이 헤더 위에 올라간다 |
-| 1b. `multi-handoff` | [spec](../multi-handoff/spec.md) · [design](../multi-handoff/design.md) · [tasks](../multi-handoff/tasks.md) | `/feature-review` 완료(`7ed0b6fb`). 초안 `.doan/canvases/multi-handoff.html`(`ce926002`, `1c54f75a`) 사용자 확인 완료 | 대화 handoff의 main·renderer·CLI를 바꾼다. `prototype-conversation`이 그 대화 코드 위에 올라가므로 먼저 둔다 |
-| 2. `prototype-cli-export` | [spec](../prototype-cli-export/spec.md) · [design](../prototype-cli-export/design.md) · [tasks](../prototype-cli-export/tasks.md) | `/feature-review` 완료(`5a4d72f7`). 초안 `.doan/canvases/prototype-cli-export.html` 사용자 확인 완료(`be6b3230`, tasks 2 완료) | responsive의 헤더에 Export를 넣고, CLI 열기와 내보내기를 더한다 |
+| 1a. `prototype-responsive` | 문서는 승격 뒤 삭제(PR #189) | `/feature-review` 완료(`0c4f109e`). 초안 `.doan/canvases/prototype-responsive.html` 사용자 확인 완료(`98cc10e5`, tasks 2 완료) | 프로토타입 창 헤더(세 무리, 이름의 둘째 줄, 모드 토글 프리미티브)를 만든다. 형제 둘이 이 헤더 위에 올라간다 |
+| 1b. `multi-handoff` | 문서는 승격 뒤 삭제(PR #190) | `/feature-review` 완료(`7ed0b6fb`). 초안 `.doan/canvases/multi-handoff.html`(`ce926002`, `1c54f75a`) 사용자 확인 완료 | 대화 handoff의 main·renderer·CLI를 바꾼다. `prototype-conversation`이 그 대화 코드 위에 올라가므로 먼저 둔다 |
+| 2. `prototype-cli-export` | 문서는 승격 뒤 삭제(PR #191) | `/feature-review` 완료(`5a4d72f7`). 초안 `.doan/canvases/prototype-cli-export.html` 사용자 확인 완료(`be6b3230`, tasks 2 완료) | responsive의 헤더에 Export를 넣고, CLI 열기와 내보내기를 더한다 |
 | 3. `prototype-conversation` | [spec](../prototype-conversation/spec.md) · [design](../prototype-conversation/design.md) · [tasks](../prototype-conversation/tasks.md) | `/feature-review` 완료(`50c9512a`). 초안 `.doan/canvases/prototype-conversation.html` 사용자 확인 완료(`b2dc7e7a`, tasks 2 완료) | 가장 큰 링크다. 헤더, Export 자리, 대화 코드가 모두 들어온 뒤에 둔다 |
 
 **병렬 판단(링크 1)**: 두 design의 영향 파일을 대조했다. responsive는 `main/prototype/*`, `prototypeWindow.ts`, `preload/prototype.ts`, `renderer/prototype/*`, `CanvasTools.tsx`, `toolbarKeys.ts`, `styles.css`, `ds/controls.css`를 바꾸고, `senderAllowed.ts`·`index.ts`는 바꾸지 않는다고 적는다(design.md 35행). multi-handoff는 `main/conversation/*`(`handoff.ts`, `prompt.ts`, `service.ts`, `store.ts`, `types.ts`), `index.ts`, `project.ts`, `runtime.ts`, `App.tsx`, `ConversationThread.tsx`, `threadItems.ts`, `tokens.css`, `cli/internal/cli/handoff_rules.go`, `eval/lib/*`를 바꾼다. 겹치는 코드·테스트·초안이 없다.
@@ -59,8 +59,8 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 |---|---|---|---|---|
 | 1a. `prototype-responsive` | Claude Code · `prototype-responsive-orch` (`feat/prototype-responsive`) | 2026-11-13, `808252b4` | PR #189, 병합 `00fb6387` | 완료 |
 | 1b. `multi-handoff` | Claude Code · `multi-handoff-orch` (`feat/multi-handoff`) | 2026-11-13, `808252b4` | PR #190, 병합 `a359ed91` | 완료 |
-| 2. `prototype-cli-export` | Claude Code · `prototype-cli-export-orch` (`feat/prototype-cli-export`) | 2026-11-14, `a359ed91` | | 진행 중 |
-| 3. `prototype-conversation` | | | | 대기 |
+| 2. `prototype-cli-export` | Claude Code · `prototype-cli-export-orch` (`feat/prototype-cli-export`) | 2026-11-14, `a359ed91` | PR #191, 병합 `10d6ed84` | 완료 |
+| 3. `prototype-conversation` | Claude Code · `prototype-conversation-orch` (`feat/prototype-conversation`) | 2026-11-14, `10d6ed84` | | 진행 중 |
 
 ## 인계 기록
 
@@ -70,3 +70,4 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 - 2026-11-14 lead(develop checkout): 링크 1a를 병합했다(PR #189, `00fb6387`). worktree는 지웠고 브랜치는 남겼다. 형제 문서(cli-export, conversation)에서 지워진 responsive 문서를 가리키던 참조를 승격된 PRODUCT·ARCHITECTURE·DESIGN 절로 고쳤다. 다음 링크가 알아야 할 것(PR 본문 'For later links'): 오른쪽 무리 폭 R은 `fit.ts`의 `PROTOTYPE_HEADER_RIGHT`와 `styles.css`의 `--pw-right` 두 곳에 있고 테스트가 둘을 같게 묶는다. `.pw-right`에는 아직 토글만 있다. `prototypeCaptureRect`의 `sideColumn`은 지금 0이다. 새 iframe host나 패널 옆 열은 네 모서리를 같은 radius로 자르지 않는 불변식을 지키고 `exportViewer.test.ts`의 프로토타입 체인을 늘린다. 헤더 컨트롤은 주 버튼 `mousedown`에서 `preventDefault()`한다. 링크 1a 미확인: 실제 OS 입력·창 포커스, DPR 1, 패키지 앱, 390×844의 창 맞춤 908/952.
 - 2026-11-14 lead(develop checkout): 사용자 지시로 `rm` 금지 규칙을 없앴다. 다음 링크의 브리프에도 넣지 않는다.
 - 2026-11-14 lead(develop checkout): 링크 1b를 병합했다(PR #190, `a359ed91`). 게이트의 shard 3이 runner 문제로 로그 없이 15분 뒤 취소되어 다시 돌렸고 통과했다. worktree는 지웠고 브랜치는 남겼다. 공유 로그인 프로필은 그대로 연결되어 있다(task 9가 제자리에서 쓰고 상태 파일을 되돌렸다. 복사본은 프로필 경로에 묶인 Keychain 로그인을 잃는다). 링크 3이 알 것: `ConversationThread.tsx`(`HandoffLine` Open, missed), `threadItems.ts`(handoff key `h${turnId}:${path}`), `service.ts`(`HandoffTurn.requests`, `missedWaits`, 큐 settle·flush fence), `preload/index.ts`(`onConversationHandoff`가 `ConversationHandoffNotice`를 받음)가 바뀌었다. 링크 1b 미확인: Cursor·Antigravity·Copilot handoff, Codex의 `&&` 연결, runtime-test `codex-stay` 첫 턴 완료(probe 버그 수정 뒤 다른 두 시나리오에서만 통과), 새 Open 버튼의 hover·다크 모드. 링크 2를 시작했다.
+- 2026-11-14 lead(develop checkout): 링크 2를 병합했다(PR #191, `10d6ed84`). worktree는 지웠고 브랜치는 남겼다. 승격되어 지워진 1a·1b·2 문서를 가리키던 순서 표의 링크를 PR 번호로 바꿨다. conversation 문서에는 cli-export의 절이나 결정 번호를 가리키는 참조가 없었다. 링크 2 미확인: 406 × 952 창 맞춤, DPR 1, 네이티브 저장 시트로 실제 저장, 다크 모드, 오류 코드별 `nextSteps`(eval에서 실행되지 않음). 링크 2 도중 사용자 승인으로 `/Applications/Doan.app`을 종료했고 다시 켜지 않았다. 링크 3을 시작했다.
