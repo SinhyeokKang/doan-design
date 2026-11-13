@@ -5,7 +5,8 @@ import { connectorFacts, createAccountPrepare, createPrepare, routePrepare, wire
 import { listModels, listSkills, openRunner } from "./conversation/runners";
 import { ModelCatalog } from "./conversation/models";
 import { SkillCatalog } from "./conversation/skills";
-import { AttachmentStore, captureRequest, type AttachmentResult, type RecheckResult } from "./attachments";
+import { AttachmentStore, captureRequest, type AttachmentResult } from "./attachments";
+import { createAttachmentHandlers, type AttachmentOwner } from "./attachmentHandlers";
 import { conversationHandler, conversationMethods, queueFiles } from "./conversation/ipc";
 import { DraftStore } from "./conversation/drafts";
 import { folderRefreshes } from "./conversation/refreshes";
@@ -94,12 +95,14 @@ import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, work
 import { applyConversationWork, endConversationWork, type ConversationWork } from "./conversationWork";
 import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
 import {
-  prototypeAuthSnapshot, prototypeComposerSettings, prototypeConversationScope, prototypeEntry, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
+  prototypeAuthSnapshot, prototypeConversationScope, prototypeEntry, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
   type ConversationBroadcast, type ResumeSession, type ScopedConversation,
 } from "./prototype/conversationScope";
 import { canvasKeyString } from "./prototype/targets";
-import { parseComposerChoice, parseRevealRequest, parseShowingRequest } from "./prototype/requests";
-import { parseUiState, type UiState } from "../restore/uiState";
+import { parseComposerChoice, parseRevealRequest } from "./prototype/requests";
+import { createPrototypeShowing } from "./prototype/showing";
+import { parseUiState } from "../restore/uiState";
+import { createComposerSettings } from "./prototype/composerSettings";
 import { createPrototypeWindow } from "./prototypeWindow";
 import { answerCliPlay } from "./prototype/cliPlay";
 
@@ -260,15 +263,13 @@ const HOME: MenuInputs = { screen: "home", modal: false };
 let menuInputs: MenuInputs = HOME;
 // The prototype window has focus: the main window's own menu items go off (menuState `prototypeFocused`).
 let prototypeFocused = false;
-// The conversation the prototype window's open panel shows (prototype:showing), for notifications.
-let prototypeShowing: string | null = null;
 // The terminal session the playing canvas would resume, from main's last resumeTarget answer to the prototype window,
 // with the canvas it was for: its composer sees only that session's terminal work.
 let prototypeResume: { canvas: string; held: ResumeSession } | null = null;
 let prototypeWorkSent = "[]";
 let prototypeEntrySent: string | null = null;
-// Set once the attachment store exists: forget the attachments the prototype window held when it closes.
-let prototypeAttachmentsClosed: () => void = () => {};
+// Set once the attachment store exists: forget the draft attachments the closed prototype window still holds.
+let prototypeAttachmentsClosed: (owner: AttachmentOwner) => void = () => {};
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
 
 // Thumbnails are for the window's overview, so nothing is captured while it
@@ -336,12 +337,12 @@ function playPrototype(request: PrototypeRequest): PrototypeResponse {
 const prototype = createPrototypeWindow({
   entries: () => shell?.entries() ?? [],
   mainWindow: () => win,
-  closed: () => {
-    prototypeShowing = null;
+  closed: contents => {
+    prototypeShowing.closed();
     prototypeResume = null;
     prototypeWorkSent = "[]";
     prototypeEntrySent = null;
-    prototypeAttachmentsClosed();
+    prototypeAttachmentsClosed(`prototype:${contents}`);
     send(PROTOTYPE_CHANNELS.closed);
   },
   buddy: () => prototypeBuddy(),
@@ -354,6 +355,11 @@ const prototype = createPrototypeWindow({
     setMenu();
   },
 });
+
+// The conversation index for the prototype window's scope, once the conversation store exists.
+let indexedConversations: () => ScopedConversation[] = () => [];
+// The conversation the prototype window's open panel shows, for notifications (showing.ts).
+const prototypeShowing = createPrototypeShowing({ playing: () => prototype.controller.playing(), conversations: () => indexedConversations(), entries: () => shell?.entries() ?? [] });
 
 // The buddy a new prototype window's page starts with; the saved one once preferences are read.
 let prototypeBuddy: () => BuddyId = () => "doany";
@@ -1125,7 +1131,7 @@ async function start(): Promise<void> {
     visibility: () => ({
       focused: win !== undefined && !win.isDestroyed() && win.isFocused(), shown: windowShown, minimized: win !== undefined && !win.isDestroyed() && win.isMinimized(), appHidden,
       // The person sees that conversation in the prototype window's open panel while the window is in front.
-      prototypeShows: prototypeFocused && prototype.visible() && prototype.controller.panelOpen() ? prototypeShowing : null,
+      prototypeShows: prototypeFocused && prototype.visible() && prototype.controller.panelOpen() ? prototypeShowing.shown() : null,
     }),
     names(conversationId) {
       // An unreadable conversation index fails the conversation calls themselves, which report it; here it only
@@ -1155,6 +1161,7 @@ async function start(): Promise<void> {
   // The prototype window's scope reads the conversation index. Events stream many times a second, so their filter keeps
   // the index in memory until a list change or a binding change; a conversation it does not know reads it again.
   const indexed = (): ScopedConversation[] => { try { return conversationStore.list(); } catch { return []; } };
+  indexedConversations = indexed;
   let known: ScopedConversation[] | null = null;
   const knownFor = (id: string): ScopedConversation[] => {
     known ??= indexed();
@@ -1189,16 +1196,26 @@ async function start(): Promise<void> {
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.readListing(input, listModels));
   const skillCatalog = new SkillCatalog((root, provider) => conversationService.prepareListing(root, provider), input => conversationService.readListing(input, listSkills));
   const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries(), { models: modelCatalog, skills: skillCatalog, attachments });
+  // A returned queue's attachment ids belong to the window that took the draft (attachmentHandlers.ts).
+  const draftTaken = (taker: AttachmentOwner, reply: unknown): void => {
+    const ids = typeof reply === "object" && reply !== null && "ids" in reply && Array.isArray(reply.ids) ? reply.ids.filter((id: unknown): id is string => typeof id === "string") : [];
+    if (ids.length) attachmentHandlers.taken(taker, ids);
+  };
   // The prototype window's main frame is a second sender, kept to the playing canvas: the scope is judged against the
   // target and the index as they are when the request arrives, and its list keeps that canvas's conversations only.
   for (const method of conversationMethods) {
     ipcMain.handle(`conversation:${method}`, async (event, value: unknown) => {
       const kind = senderKind(event);
-      if (kind !== "prototype") return conversationRequest(kind === "main", method, value);
+      if (kind !== "prototype") {
+        const reply = await conversationRequest(kind === "main", method, value);
+        if (kind === "main" && method === "takeDraft") draftTaken("main", reply);
+        return reply;
+      }
       const playing = prototype.controller.playing();
       const entries = ready.entries();
       const allowed = prototypeConversationScope(method, value, playing, indexed(), entries);
       const reply = await conversationRequest(allowed, method, value, all => prototypeListRows(all, playing, entries));
+      if (allowed && method === "takeDraft") draftTaken(`prototype:${event.sender.id}`, reply);
       if (allowed && method === "resumeTarget" && playing !== null) {
         const held = typeof reply === "object" && reply !== null && "session" in reply && typeof reply.session === "string" && "runtime" in reply && typeof reply.runtime === "string"
           ? { session: reply.session, runtime: reply.runtime } : null;
@@ -1210,35 +1227,27 @@ async function start(): Promise<void> {
   }
 
   // Composer attachments, from the main window and the prototype window's panel (senderAllowed): paths the person chose,
-  // checked and kept by main; the page never names a path main did not give it. The ids issued to the prototype window
-  // are kept so its closing forgets them: its draft goes with it.
-  const prototypeAttachments = new Set<string>();
-  const issued = (kind: WindowKind, results: readonly (AttachmentResult | RecheckResult | null)[] | null): void => {
-    if (kind === "prototype") for (const result of results ?? []) if (result?.ok) prototypeAttachments.add(result.attachment.id);
-  };
-  prototypeAttachmentsClosed = () => {
-    const ids = [...prototypeAttachments];
-    prototypeAttachments.clear();
-    // The draft's chips go with the window: an unsent paste is deleted, a local file forgotten. A sent or queued one
-    // is not this draft's any more and stays: a queued message rechecks its ids when it goes out.
-    for (const id of ids) attachments.remove({ id });
-  };
-  handle("attachments:choose", [], async (_event, _value, kind): Promise<AttachmentResult[]> => {
-    // The dialog opens over the window that asked.
-    const parent = kind === "prototype" ? prototype.window() : win;
-    if (!parent || parent.isDestroyed()) return [];
-    const picked = await dialog.showOpenDialog(parent, { title: "Attach Files or Folders", properties: ["openFile", "openDirectory", "multiSelections"] });
-    const results = picked.canceled || picked.filePaths.length === 0 ? [] : attachments.addPaths({ paths: picked.filePaths.slice(0, 64) }) ?? [];
-    issued(kind, results);
-    return results;
+  // checked and kept by main; the page never names a path main did not give it. Each draft attachment belongs to the
+  // window (and window instance) that holds it (attachmentHandlers.ts).
+  const attachmentHandlers = createAttachmentHandlers(attachments, {
+    async pick(owner) {
+      // The dialog opens over the window that asked.
+      const parent = owner === "main" ? win : prototype.window();
+      if (!parent || parent.isDestroyed()) return [];
+      const picked = await dialog.showOpenDialog(parent, { title: "Attach Files or Folders", properties: ["openFile", "openDirectory", "multiSelections"] });
+      return picked.canceled ? [] : picked.filePaths;
+    },
+    alive: owner => owner === "main" || owner === `prototype:${prototype.window()?.webContents.id ?? -1}`,
   });
-  handle("attachments:add-paths", null, (_event, value: unknown, kind) => { const results = attachments.addPaths(value); issued(kind, results); return results; });
-  handle("attachments:add-pasted", null, (_event, value: unknown, kind) => { const result = attachments.addPasted(value); issued(kind, [result]); return result; });
-  handle("attachments:remove", false, (_event, value: unknown) => attachments.remove(value));
-  // A passing sent id becomes a draft attachment again, of the window that asked.
-  handle("attachments:recheck", null, (_event, value: unknown, kind) => { const results = attachments.recheck(value); issued(kind, results); return results; });
-  handle("attachments:release", false, (_event, value: unknown) => attachments.release(value));
-  handle("attachments:fromPaths", null, (_event, value: unknown, kind) => { const results = attachments.fromPaths(value); issued(kind, results); return results; });
+  prototypeAttachmentsClosed = owner => attachmentHandlers.closed(owner);
+  const owner = (event: IpcMainInvokeEvent, kind: WindowKind): AttachmentOwner => kind === "main" ? "main" : `prototype:${event.sender.id}`;
+  handle("attachments:choose", [], (event, _value, kind) => attachmentHandlers.choose(owner(event, kind)));
+  handle("attachments:add-paths", null, (event, value: unknown, kind) => attachmentHandlers.addPaths(owner(event, kind), value));
+  handle("attachments:add-pasted", null, (event, value: unknown, kind) => attachmentHandlers.addPasted(owner(event, kind), value));
+  handle("attachments:remove", false, (event, value: unknown, kind) => attachmentHandlers.remove(owner(event, kind), value));
+  handle("attachments:recheck", null, (event, value: unknown, kind) => attachmentHandlers.recheck(owner(event, kind), value));
+  handle("attachments:release", false, (event, value: unknown, kind) => attachmentHandlers.release(owner(event, kind), value));
+  handle("attachments:fromPaths", null, (event, value: unknown, kind) => attachmentHandlers.fromPaths(owner(event, kind), value));
   // The pixels the person sees in a rect of the window, read by main; the renderer names only the rect and never sends
   // image bytes.
   handle("attachments:capture", null, async (event, value: unknown): Promise<AttachmentResult | null> => {
@@ -1356,24 +1365,15 @@ async function start(): Promise<void> {
     return { x: (cursor.x - content.x) / zoom, y: (cursor.y - content.y) / zoom };
   });
   handle("ui-state:get", null, (event) => (fromWindow(event) ? store.read() : null));
-  // The main window's last save, as main parsed it: the file lags behind saves, and the prototype window's composer
-  // reads Last used from here. Undefined until the first save; the file stands in until then.
-  let savedUi: UiState | null | undefined;
-  let composerSent: string | null = null;
-  const composerSettings = async () => prototypeComposerSettings(savedUi !== undefined ? savedUi : await store.read(), preferences.current());
-  const sendComposerSettings = async () => {
-    if (prototype.window() === undefined) return;
-    const settings = await composerSettings();
-    const text = JSON.stringify(settings);
-    if (text === composerSent) return;
-    composerSent = text;
-    prototype.send(PROTOTYPE_CHANNELS.composerChanged, settings);
-  };
+  // The prototype window's composer reads Last used from the main window's saves (composerSettings.ts).
+  const composerSettings = createComposerSettings({
+    read: () => store.read(), preferences: () => preferences.current(), open: () => prototype.window() !== undefined,
+    send: settings => prototype.send(PROTOTYPE_CHANNELS.composerChanged, settings),
+  });
   handle("ui-state:save", false, (event, value: unknown) => {
     if (!fromWindow(event) || !store.save(value)) return false;
     // No root spellings: the composer settings leave out Home's last project, the one field they would change.
-    savedUi = parseUiState(JSON.stringify(value), ready.entries().map(entry => entry.path));
-    void sendComposerSettings();
+    void composerSettings.saved(parseUiState(JSON.stringify(value), ready.entries().map(entry => entry.path)));
     return true;
   });
   // The Settings page's preferences, notifications and About. Main fixes the URL, the notification
@@ -1389,16 +1389,13 @@ async function start(): Promise<void> {
     const reply = await preferences.update(value);
     // The choice in effect, which a refused or failed write leaves as it was.
     updates?.setAutoCheck(reply.snapshot.preferences.updates.autoCheck);
-    void sendComposerSettings();
+    void composerSettings.changed();
     return reply;
   });
   prototypeBuddy = () => windowBuddy(preferences.read());
   // The prototype window's conversation panel (hostRequests above). Each request was allowed for the prototype role
   // only; the parsers check the role again.
-  handle(PROTOTYPE_CHANNELS.showing, undefined, (_event, value: unknown, kind) => {
-    const request = parseShowingRequest(kind, value);
-    if (request !== null) prototypeShowing = request.conversationId;
-  });
+  handle(PROTOTYPE_CHANNELS.showing, undefined, (_event, value: unknown, kind) => { prototypeShowing.set(kind, value); });
   // A chip or a main-window-only button: the main window comes forward as for a notification's click, then decides
   // what it can show (a dialog, a page lock or first run keeps everything as it is).
   handle(PROTOTYPE_CHANNELS.reveal, undefined, (_event, value: unknown, kind) => {
@@ -1418,12 +1415,7 @@ async function start(): Promise<void> {
     return entry;
   });
   handle(PROTOTYPE_CHANNELS.work, [], (_event, value: unknown) => value === undefined ? prototypeWorkItems(workItems(workState), prototypeHeldSession()) : []);
-  handle(PROTOTYPE_CHANNELS.composer, null, async (_event, value: unknown) => {
-    if (value !== undefined) return null;
-    const settings = await composerSettings();
-    composerSent = JSON.stringify(settings);
-    return settings;
-  });
+  handle(PROTOTYPE_CHANNELS.composer, null, (_event, value: unknown) => value === undefined ? composerSettings.read() : null);
   // Last used is the main window's ui-state: it remembers the pick as its own composer's, so its next whole-file save
   // keeps it.
   handle(PROTOTYPE_CHANNELS.remember, undefined, (_event, value: unknown, kind) => {

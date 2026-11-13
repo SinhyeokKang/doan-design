@@ -21,7 +21,9 @@ function setup() {
   // What the window gives the panel on a fit with it open, and on opening it.
   let fittedPanel: number | null = null;
   let openedPanel = 280;
+  let contentWidth = 1000;
   const host: PrototypeHost = {
+    contentWidth: () => contentWidth,
     create: (size, panel) => { calls.push(panel === null ? ["create", size] : ["create", size, panel]); return panel === null ? null : fittedPanel ?? panel; },
     fit: (size, panel) => { calls.push(panel === null ? ["fit", size] : ["fit", size, panel]); return panel === null ? null : fittedPanel ?? panel; },
     openPanel: remembered => { calls.push(["openPanel", remembered]); return openedPanel; },
@@ -42,6 +44,7 @@ function setup() {
     setCapture: (next: typeof capture) => { capture = next; },
     setFittedPanel: (next: number | null) => { fittedPanel = next; },
     setOpenedPanel: (next: number) => { openedPanel = next; },
+    resize: (width: number) => { contentWidth = width; },
   };
 }
 
@@ -416,5 +419,53 @@ describe("the conversation panel", () => {
     t.controller.request(PROTOTYPE_CHANNELS.close, "prototype", undefined);
     expect(t.controller.playing()).toBeNull();
     expect(t.controller.panelOpen()).toBe(false);
+  });
+});
+
+// Main keeps an open panel's width inside the window's range as it is now, since the view and the still's side column
+// both read it; the renderer's own clamp is not enough.
+describe("an open panel's width", () => {
+  test("a change is cut to the current window: a 640 window keeps 280", () => {
+    const t = opened();
+    t.resize(640);
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true });
+    for (const width of [400, 4096]) {
+      t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true, width });
+      expect(t.views.at(-1)?.panel, String(width)).toEqual({ open: true, width: 280 });
+    }
+  });
+
+  test("a wide window takes a width up to half of it", () => {
+    const t = opened();
+    t.resize(1000);
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true });
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true, width: 450 });
+    expect(t.views.at(-1)?.panel).toEqual({ open: true, width: 450 });
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true, width: 900 });
+    expect(t.views.at(-1)?.panel).toEqual({ open: true, width: 500 });
+  });
+
+  test("a width sent before the window shrank arrives cut, and the still leaves only the column that fits out", () => {
+    const t = opened();
+    t.resize(1000);
+    t.setOpenedPanel(500);
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true });
+    t.resize(640);
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true, width: 500 });
+    expect(t.views.at(-1)?.panel).toEqual({ open: true, width: 280 });
+    t.calls.length = 0;
+    t.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 1 });
+    expect(t.calls[0]).toEqual(["capture", phone, "fit", 280]);
+  });
+
+  test("a stored width wider than the window shrunk to is not the still's side column", () => {
+    const t = opened();
+    t.resize(1000);
+    t.setOpenedPanel(500);
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true });
+    t.resize(640);
+    t.calls.length = 0;
+    t.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 1 });
+    expect(t.calls[0]).toEqual(["capture", phone, "fit", 280]);
   });
 });

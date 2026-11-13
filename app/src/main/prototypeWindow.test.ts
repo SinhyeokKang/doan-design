@@ -10,6 +10,7 @@ class FakeWindow extends EventEmitter {
   shown = true;
   minimized = false;
   webContents = Object.assign(new EventEmitter(), {
+    id: created.length + 1,
     debugger: Object.assign(new EventEmitter(), { attach: vi.fn(), sendCommand: vi.fn(async () => ({})) }),
     send: vi.fn(),
     isDestroyed: () => this.destroyed,
@@ -22,9 +23,11 @@ class FakeWindow extends EventEmitter {
   close() { this.emit("close"); this.destroy(); }
   bounds = { x: 0, y: 0, width: 406, height: 908 };
   minimum: [number, number] = [0, 0];
-  setContentBounds(bounds: { x: number; y: number; width: number; height: number }) { this.bounds = bounds; }
+  // As macOS does: bounds narrower than the minimum keep the minimum's width, and a minimum alone resizes nothing.
+  setContentBounds(bounds: { x: number; y: number; width: number; height: number }) { this.bounds = { ...bounds, width: Math.max(bounds.width, this.minimum[0]) }; }
   getContentBounds() { return this.bounds; }
-  setMinimumSize(width: number, height: number) { this.minimum = [width, height]; }
+  setMinimumSize(width: number, height: number) { this.minimum = [width, height]; order.push(`minimum ${width}`); }
+  getMinimumSize() { return this.minimum; }
   getBounds() { return this.getContentBounds(); }
   loadFile = vi.fn(async () => {});
   loadURL = vi.fn(async () => {});
@@ -34,11 +37,12 @@ class FakeWindow extends EventEmitter {
   isVisible() { return this.shown; }
 }
 const order: string[] = [];
+let workArea = { x: 0, y: 0, width: 1600, height: 1000 };
 vi.mock("electron", () => ({
   app: { isPackaged: true, show: () => order.push("app.show") },
   Menu: { buildFromTemplate: (template: unknown[]) => ({ popup: () => order.push(`menu ${template.length}`) }) },
   BrowserWindow: FakeWindow,
-  screen: { getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1600, height: 1000 } }), getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1600, height: 1000 } }) },
+  screen: { getDisplayMatching: () => ({ workArea }), getPrimaryDisplay: () => ({ workArea }) },
   session: { fromPartition: () => ({}) },
   webFrameMain: { fromId: () => undefined },
 }));
@@ -47,7 +51,7 @@ const proto = { path: ".doan/canvases/proto.html", url: "http://127.0.0.1:5123/t
 const entries: FolderEntry[] = [{ path: "/r", kind: "list", canvases: [proto], servedRev: 0 }];
 const play = { root: "/r", path: proto.path, frame: "phone", mark: "390x844" };
 
-beforeEach(() => { created.length = 0; order.length = 0; vi.resetModules(); });
+beforeEach(() => { created.length = 0; order.length = 0; workArea = { x: 0, y: 0, width: 1600, height: 1000 }; vi.resetModules(); });
 
 async function opened() {
   const { createPrototypeWindow } = await import("./prototypeWindow");
@@ -161,4 +165,24 @@ test("the text edit menu opens for the window's own page", async () => {
   const { window } = await opened();
   window.webContents.emit("context-menu", {}, { isEditable: true, editFlags: { canCut: true, canCopy: true, canPaste: true, canSelectAll: true }, selectionText: "", formControlType: "none", misspelledWord: "", dictionarySuggestions: [], frame: { parent: null }, x: 1, y: 1 });
   expect(order.some(entry => entry.startsWith("menu "))).toBe(true);
+});
+
+// A minimum above the current width does not widen the window, so the bounds go first when it rises; bounds below the
+// current minimum keep the minimum's width, so the minimum goes first when it falls.
+test("a refit into a work area narrower than 640 lowers the minimum before it narrows the window", async () => {
+  const { prototype, window } = await opened();
+  prototype.controller.request("prototype:panel", "prototype", { open: true });
+  expect(window.minimum).toEqual([640, 0]);
+  workArea = { x: 0, y: 0, width: 600, height: 1000 };
+  prototype.controller.play("main", { ...play, frame: "tablet" });
+  expect(window.bounds.width).toBe(600);
+  expect(window.minimum).toEqual([600, 0]);
+});
+
+test("opening the panel on a narrow window raises the minimum after the bounds", async () => {
+  const { prototype, window } = await opened();
+  order.length = 0;
+  prototype.controller.request("prototype:panel", "prototype", { open: true });
+  expect(window.bounds.width).toBe(640);
+  expect(order).toEqual(["minimum 640"]);
 });

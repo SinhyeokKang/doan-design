@@ -4,7 +4,7 @@
 import type { ExportReply } from "../canvasExport";
 import type { FolderEntry } from "../view";
 import type { WindowKind } from "../senderAllowed";
-import type { Rect } from "./fit";
+import { prototypePanelWidth, type Rect } from "./fit";
 import { PROTOTYPE_CHANNELS, type ExportTarget, type PrototypeMode, type PrototypeSnapshot, type PrototypeView } from "./ipc";
 import type { PrototypeSize } from "./mark";
 import type { PlayingCanvas } from "./conversationScope";
@@ -22,6 +22,8 @@ export interface PrototypeHost {
   openPanel(remembered: number | null): number;
   // The panel closed: the window keeps its size and may be 360 again.
   closePanel(): void;
+  // The window's content width now, which bounds an open panel's width.
+  contentWidth(): number;
   activate(): void;
   // Arm the injection for this run before its iframe exists.
   load(run: { gen: number; url: string; frame: string }): void;
@@ -102,7 +104,9 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
   const leavingReady = (previous: PrototypeState): Promise<Still | null> | null => {
     if (!previous.open || previous.phase !== "ready" || previous.run === null || !state.open) return null;
     if (state.gen === previous.gen && state.phase === "ready") return null;
-    return host.capture({ width: previous.run.markWidth, height: previous.run.markHeight }, previous.mode, previous.panel.open ? previous.panel.width ?? 0 : 0).catch(() => null);
+    // The window may have shrunk since the width was stored: the column on screen is the width cut to it.
+    const column = previous.panel.open && previous.panel.width !== null ? prototypePanelWidth(previous.panel.width, host.contentWidth()) : 0;
+    return host.capture({ width: previous.run.markWidth, height: previous.run.markHeight }, previous.mode, column).catch(() => null);
   };
 
   // The still goes out before the view of the state that followed, tagged with that view's gen. A kill also stops the
@@ -203,7 +207,8 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
             return undefined;
           }
           if (!request.open && state.panel.open) host.closePanel();
-          apply(transitions.setPanel(state, request));
+          // A width the renderer sent is cut to the window as it is now; it may have been sent before the window shrank.
+          apply(transitions.setPanel(state, request.width === undefined ? request : { ...request, width: prototypePanelWidth(request.width, host.contentWidth()) }));
           return undefined;
         }
         case PROTOTYPE_CHANNELS.choose: {

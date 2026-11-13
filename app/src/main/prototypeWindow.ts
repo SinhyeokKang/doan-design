@@ -28,8 +28,8 @@ export interface PrototypeWindowDeps {
   entries(): readonly FolderEntry[];
   // The main window, for the display a new window opens on and to keep its renderer out of a kill.
   mainWindow(): BrowserWindow | undefined;
-  // The prototype window closed for any reason.
-  closed(): void;
+  // The prototype window closed for any reason; `contents` is its webContents id, which named it as a sender.
+  closed(contents: number): void;
   // The same permission, device and download denials as the default session.
   denyPermissions(target: Session): void;
   // Read a root's canvas list again (Retry of a row `doan ls` could not read).
@@ -125,6 +125,15 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     return { bounds: fit.bounds, panel: fit.panel, min: fit.minimum };
   }
 
+  // macOS keeps a window at least as wide as its minimum and does not widen it for a minimum alone: a rising minimum
+  // follows the bounds, a falling one goes first so narrower bounds are not held at the old one.
+  function resize(target: BrowserWindow, bounds: Rect, minimum: number): void {
+    const [current = 0] = target.getMinimumSize();
+    if (minimum < current) target.setMinimumSize(minimum, 0);
+    target.setContentBounds(bounds);
+    if (minimum >= current) target.setMinimumSize(minimum, 0);
+  }
+
   function create(size: { width: number; height: number }, panel: number | null): number | null {
     const main = deps.mainWindow();
     const display = main !== undefined && !main.isDestroyed() ? screen.getDisplayMatching(main.getBounds()) : screen.getPrimaryDisplay();
@@ -157,6 +166,8 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     created.setContentBounds(bounds);
     injectRuns(created);
     const contents = created.webContents;
+    // Read after destroy, webContents throws, so the id is kept now.
+    const contentsId = contents.id;
     // On top of the app-wide gates (web-contents-created): the run's iframe may only be (re)loaded by the host, and
     // only to the current run's URL; a nested iframe keeps the board's rule.
     contents.on("will-frame-navigate", details => {
@@ -205,7 +216,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       armed = null;
       runs.clear();
       deps.focusChanged?.(false);
-      deps.closed();
+      deps.closed(contentsId);
     });
     const devUrl = process.env.ELECTRON_RENDERER_URL;
     const buddy = deps.buddy();
@@ -232,9 +243,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       if (target === undefined) return null;
       const area = screen.getDisplayMatching(target.getBounds()).workArea;
       const fit = fitted(size, area, panel, target.getContentBounds());
-      // Bounds first, then the minimum: a minimum alone does not widen the window (PoC on macOS).
-      target.setContentBounds(fit.bounds);
-      target.setMinimumSize(fit.min, 0);
+      resize(target, fit.bounds, fit.min);
       return fit.panel;
     },
     openPanel(remembered) {
@@ -242,14 +251,15 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       if (target === undefined) return remembered ?? PROTOTYPE_PANEL_MIN_WIDTH;
       const area = screen.getDisplayMatching(target.getBounds()).workArea;
       const open = openPanelResize(target.getContentBounds(), area, remembered);
-      // Bounds first, then the minimum: a minimum alone does not widen the window, and macOS does not move a widened
-      // window back inside the work area (PoC on macOS), so openPanelResize moves it.
-      target.setContentBounds(open.bounds);
-      target.setMinimumSize(open.minimum, 0);
+      // macOS does not move a widened window back inside the work area, so openPanelResize moves it.
+      resize(target, open.bounds, open.minimum);
       return open.panel;
     },
     closePanel() {
       live()?.setMinimumSize(PROTOTYPE_WINDOW_MIN_WIDTH, 0);
+    },
+    contentWidth() {
+      return live()?.getContentBounds().width ?? 0;
     },
     activate() {
       const target = live();

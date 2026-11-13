@@ -56,10 +56,12 @@ export function prototypePanelBounds(windowWidth: number): { min: number; max: n
   return { min, max, default: Math.min(max, Math.max(320, Math.floor(windowWidth * 0.28))) };
 }
 
-const clampPanel = (width: number, windowWidth: number): number => {
+// A panel width cut to a window's range: what main stores, shows and leaves out of a still.
+export function prototypePanelWidth(width: number, windowWidth: number): number {
   const bounds = prototypePanelBounds(windowWidth);
   return Math.min(bounds.max, Math.max(bounds.min, width));
-};
+}
+const clampPanel = prototypePanelWidth;
 
 // The window's minimum while the panel is open: 640, or the work area's width when that is narrower. macOS keeps a
 // window as wide as its minimum even past the work area, so the minimum is clamped as the width is.
