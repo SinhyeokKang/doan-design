@@ -299,6 +299,30 @@ describe("selection", () => {
       } finally { h.controller.dispose(); }
     });
 
+    it("flips above the selection when the tools leave no room below, and is held above them when neither fits", () => {
+      const { h, dims } = setup();
+      // A sideways pan redraws the marks without moving them vertically.
+      const redraw = () => h.controller.wheel({ dx: 1, dy: 0, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+      try {
+        h.select(1, { target: frameTarget("intro") });
+        // The selection is drawn at y 80, 180 tall: its bubble below would span 265 to 289.
+        expect(h.markOf("selected")?.style).toMatchObject({ top: "80px", height: "180px" });
+        expect(dims().className).toBe("dims playable");
+        h.controller.bubbleRoom = () => ({ top: 0, bottom: 250 });
+        redraw();
+        expect(dims().className).toBe("dims playable above");
+        expect(dims().style.top).toBe("");
+        h.controller.bubbleRoom = () => ({ top: 60, bottom: 250 });
+        redraw();
+        expect(dims().className).toBe("dims playable");
+        expect(dims().style.top).toBe("146px");
+        h.controller.bubbleRoom = () => ({ top: 0, bottom: 600 });
+        redraw();
+        expect(dims().className).toBe("dims playable");
+        expect(dims().style.top).toBe("");
+      } finally { h.controller.dispose(); }
+    });
+
     it("hands focus on when it goes away while focused, and not when it goes unfocused", () => {
       const { h, play, button } = setup();
       try {

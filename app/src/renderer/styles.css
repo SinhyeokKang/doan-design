@@ -92,6 +92,8 @@ code, kbd { font-family: var(--type-family); }
 /* Play prototype in the size bubble (.doan/canvases/frame-prototype.html prototype-controls): a 14px icon whose hit
    target is the 24px capsule height. The only pointer target in the overlay; its ring is drawn inside so it does not
    cover the size text. */
+/* No room below the selection (a tall frame, the floating tools): the bubble hangs above it instead. */
+.dims.above { top: auto; bottom: calc(100% + 5px); }
 .dims.playable { display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1) 0 var(--space-2); }
 .bubble-play { pointer-events: auto; color: var(--text-on-prominent); }
 .bubble-play svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }

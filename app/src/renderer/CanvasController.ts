@@ -9,6 +9,7 @@ import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGH
 import { switchTarget } from "./switchTarget";
 import { activityKey, activityKind, pushActivity, type ActivityEvent } from "./activity";
 import { canvasPlayability } from "./prototypePlay";
+import { sizeBubblePlace, type BubbleRoom } from "./sizeBubble";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
@@ -152,6 +153,10 @@ export interface AnchorTarget { id: string; doanId?: string; selector?: string; 
 export type OpenTarget = { frame: string } | { element: string };
 
 // React owns the surrounding shell; only this controller owns the board's children.
+// The size bubble as styles.css draws it: 24px tall (a caption line and 4px padding, or the xs Play button) and hung
+// 5px from the selection.
+const SIZE_BUBBLE = { height: 24, gap: 5 };
+
 export class CanvasController {
   private state = initialCanvasState();
   private entries: FolderEntry[] = [];
@@ -593,6 +598,9 @@ export class CanvasController {
   // The size bubble's Play prototype, shown while the selected frame itself can play (the toolbar Play's judgement).
   // `onFocusLost`: the button had focus and is going away, so App can hand focus to another visible control first.
   bubblePlay: { onPlay(): void; onFocusLost(): void } | null = null;
+  // The band the size bubble may sit in, in the canvas area's coordinates: from its top to the floating tools' top.
+  // Without it the whole area counts.
+  bubbleRoom: (() => BubbleRoom | null) | null = null;
   private bubble: { label: HTMLElement; button: HTMLButtonElement; shown: boolean } | null = null;
   // The bubble's Play while it is on screen, for focus to come back to when the prototype window closes.
   bubblePlayButton(): HTMLButtonElement | null { return this.bubble?.shown ? this.bubble.button : null; }
@@ -2106,16 +2114,22 @@ export class CanvasController {
     const bubble = this.bubble;
     const focused = bubble !== null && bubble.shown && document.activeElement === bubble.button;
     const play = selected !== null && this.bubblePlay !== null && canvasPlayability(this.state).enabled;
-    if (selected !== null && play) {
-      const shown = bubble ?? this.makeBubble();
-      if (!shown.shown) { size.className = "dims playable"; size.textContent = ""; size.append(shown.label, shown.button); }
-      shown.label.textContent = sizeLabel(selected);
-      shown.shown = true;
-      return;
-    }
-    if (selected !== null) { size.className = "dims"; size.textContent = sizeLabel(selected); }
-    if (bubble !== null) bubble.shown = false;
-    if (focused) this.bubblePlay?.onFocusLost();
+    if (selected !== null) {
+      if (play) {
+        const shown = bubble ?? this.makeBubble();
+        if (!shown.shown) { size.textContent = ""; size.append(shown.label, shown.button); }
+        shown.label.textContent = sizeLabel(selected);
+        shown.shown = true;
+      } else {
+        size.textContent = sizeLabel(selected);
+        if (bubble !== null) bubble.shown = false;
+      }
+      const screen = boardRectToScreen(this.view, selected);
+      const place = sizeBubblePlace(screen, SIZE_BUBBLE, this.bubbleRoom?.() ?? { top: 0, bottom: this.viewportSize().height });
+      size.className = `dims${play ? " playable" : ""}${place.kind === "above" ? " above" : ""}`;
+      size.style.top = place.kind === "inside" ? `${place.top - screen.y}px` : "";
+    } else if (bubble !== null) bubble.shown = false;
+    if (focused && !play) this.bubblePlay?.onFocusLost();
   }
 
   private makeBubble(): { label: HTMLElement; button: HTMLButtonElement; shown: boolean } {

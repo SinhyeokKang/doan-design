@@ -531,6 +531,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     instance.onPicked(result => live.current.pickEnded(result));
     instance.onCapture(rect => live.current.captured(rect));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
+    // The floating tools cover the area's bottom: the size bubble stays above them, 8px clear (sizeBubble.ts).
+    instance.bubbleRoom = () => {
+      const tools = viewport.current?.querySelector<HTMLElement>(".doan-canvas-bottom");
+      return tools ? { top: 0, bottom: tools.offsetTop - 8 } : null;
+    };
     instance.bubblePlay = {
       onPlay: () => sendPlay(playNext.current),
       // The bubble went while it had focus: the toolbar's Play is the visible control for the same action.
