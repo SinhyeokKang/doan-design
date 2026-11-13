@@ -218,6 +218,7 @@ export class CanvasRun {
       this.resolve(s);
       const shown = s.shown;
       if (shown && this.store.thread(shown)?.read === "ready") this.store.takeDraft(s.target.root, shown);
+      if (shown) this.store.readScheduled(s.target.root, shown);
     }
     this.store.syncQueues();
     this.checkSeen();

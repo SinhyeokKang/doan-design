@@ -1,3 +1,4 @@
+import type { ConversationSummary } from "../main/conversation/summary";
 import type { Slot } from "./homeConversations";
 
 // The words for a usage limit's reset time: the queue's status line, the Queue button, the failed turn's line, the
@@ -53,4 +54,15 @@ export function queueButtonHint(resetsAt: string | null, now: number, clock: Clo
 export function scheduledSlot(resetsAt: string, now: number, clock: Clock): Slot {
   const phrase = Date.parse(resetsAt) > now ? resetTimeText(resetsAt, now, clock) : null;
   return { kind: "scheduled", label: phrase ? `Queued — sends when the limit resets ${phrase}` : "Queued — sending" };
+}
+
+// While the conversation's usage limit holds or its messages wait for the reset, a send waits too: main takes no model,
+// effort, fast or permission mode with it, as with a queued message.
+export function waitsForReset(c: Pick<ConversationSummary, "limitResetsAt" | "scheduledAt"> | undefined): boolean {
+  return !!(c?.limitResetsAt || c?.scheduledAt);
+}
+
+// The failed turn's reset words, only while the limit still holds.
+export function liveReset(at: string | undefined, now: number, clock: Clock): string | null {
+  return at !== undefined && Date.parse(at) > now ? resetTimeText(at, now, clock) : null;
 }

@@ -709,10 +709,11 @@ export function issuedAttachment(key: string, record: AttachmentRecord, result: 
   return { chip: readyAttachment(key, result.attachment) };
 }
 // A refused start or send as the composers read it: attachment_missing's ids, and the replaced folders among them.
-export function sendRefusal(reply: { error: string; missing?: unknown; replaced?: unknown }): { error: string; missing?: string[]; replaced?: string[] } {
+// resetsAt: a usage-limit refusal's reset time, which the refusal line names.
+export function sendRefusal(reply: { error: string; missing?: unknown; replaced?: unknown; resetsAt?: unknown }): { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string } {
   const ids = (value: unknown) => Array.isArray(value) && value.every(id => typeof id === "string") ? value as string[] : undefined;
   const missing = ids(reply.missing), replaced = ids(reply.replaced);
-  return { error: reply.error, ...(missing ? { missing } : {}), ...(replaced ? { replaced } : {}) };
+  return { error: reply.error, ...(missing ? { missing } : {}), ...(replaced ? { replaced } : {}), ...(typeof reply.resetsAt === "string" ? { resetsAt: reply.resetsAt } : {}) };
 }
 // A send refused with attachment_missing: the named chips become problems, a replaced folder as Replaced.
 export function markRefused(attachments: readonly AttachmentDraft[], missing: readonly string[], replaced: readonly string[] | undefined): AttachmentDraft[] {

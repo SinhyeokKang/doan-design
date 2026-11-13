@@ -11,6 +11,8 @@ import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionD
 import { attachRefusal, issuedAttachment, readyAttachment, recordedAttachment, splitRequest, type AttachmentDraft } from "./homeComposer";
 import type { SendingMessage, SentFile } from "./threadItems";
 import { newerStage } from "./turnStatus";
+import { messageLine } from "../main/conversation/messageText";
+import { stripRequestLines } from "../main/conversation/requestLines";
 
 // What the Overview's main conversation and the canvas panel share: the threads
 // read and merged with live events, the composer drafts by draftKey, queued messages, returned drafts and the
@@ -65,6 +67,9 @@ export class ConversationStore {
   // Each conversation's latest stage signal, pushed or on a read's reply. Kept for a
   // conversation not read yet as its events are; the indicator uses it only for the turn and seq it names.
   private stages = new Map<string, StageSignal>();
+  // The list's schedule (its time and count) each scheduled conversation's rows were last asked for, so a list read that
+  // repeats it asks main no more and an answer for an older one is dropped.
+  private schedules = new Map<string, string>();
 
   constructor(private host: ConversationStoreHost) {}
 
@@ -144,6 +149,29 @@ export class ConversationStore {
       if (items.length < queue.items.length) this.queues.set(id, { ...queue, items });
     }
   }
+  // A scheduled conversation's rows are main's: it schedules some by itself (a turn the usage limit stopped before any
+  // work), and a reschedule moves them to a later time. Read when the list's schedule appears or changes, and put in as
+  // the whole queue. main's count dips while a scheduled send goes out and comes back on a reschedule, so the rows'
+  // read mark moves to the reads started from now (POSTMORTEM 2026-11-05).
+  readScheduled(root: string, conversationId: string): void {
+    const listed = () => {
+      const list = this.host.list(root);
+      const c = Array.isArray(list) ? list.find(item => item.conversationId === conversationId) : undefined;
+      return c?.scheduledAt ? `${c.scheduledAt}\n${c.queued}` : null;
+    };
+    const schedule = listed();
+    if (schedule === null) { this.schedules.delete(conversationId); return; }
+    if (this.schedules.get(conversationId) === schedule) return;
+    this.schedules.set(conversationId, schedule);
+    void window.doan.scheduledMessages({ conversationId }).catch(() => null).then(reply => {
+      // The answer belongs to the schedule it was asked for: a list that moved on meanwhile is read again.
+      if (listed() !== schedule) { if (this.schedules.get(conversationId) === schedule) this.schedules.delete(conversationId); return; }
+      if (!Array.isArray(reply) || this.deletedIds.has(conversationId)) return;
+      const items = reply.map((item): QueuedMessage => ({ id: item.itemId, text: messageLine(stripRequestLines(item.text), item.anchors), message: { text: item.text, anchors: item.anchors, attachments: item.attachments } }));
+      this.queues.set(conversationId, { root, items, after: this.host.readsStarted(root), turn: this.currentTurn(conversationId) });
+      this.host.changed();
+    });
+  }
   questionDraft(conversationId: string, requestId: string): QuestionDraft {
     return this.questions.get(conversationId)?.get(requestId) ?? EMPTY_QUESTION_DRAFT;
   }
@@ -179,6 +207,7 @@ export class ConversationStore {
     this.questions.delete(conversationId);
     this.stages.delete(conversationId);
     this.queues.delete(conversationId);
+    this.schedules.delete(conversationId);
     this.taking.delete(conversationId);
     this.taken.delete(conversationId);
     this.providers.delete(conversationId);

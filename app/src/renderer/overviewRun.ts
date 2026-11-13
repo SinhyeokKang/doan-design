@@ -247,6 +247,7 @@ export class OverviewRun {
       if (root === this.visible) this.toastWaiting(root, s, list);
       const shown = s.current?.conversationId;
       if (shown && this.store.thread(shown)?.read === "ready") this.store.takeDraft(root, shown);
+      if (shown) this.store.readScheduled(root, shown);
     }
     this.store.syncQueues();
     this.checkSeen();

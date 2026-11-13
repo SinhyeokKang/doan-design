@@ -2,7 +2,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
 import { deleteAvailability, type DeleteAvailability } from "./conversationDelete";
-import { conversationWork } from "./conversationList";
+import { conversationWork, scheduledOf } from "./conversationList";
 import { draftKey } from "./dockedRules";
 import type { Slot } from "./homeConversations";
 
@@ -50,7 +50,7 @@ export const UNREADABLE_CONVERSATION = "Can’t read this conversation";
 
 export function conversationLine(c: ConversationSummary, now: number, seen: ReadonlySet<string>): ConversationLine {
   return {
-    conversationId: c.conversationId, provider: c.provider, status: conversationStatus(c, seen),
+    conversationId: c.conversationId, provider: c.provider, status: conversationStatus(c, seen, scheduledOf(c, now)),
     time: shortAgo(c.lastActivityAt, now), preview: c.readError ? UNREADABLE_CONVERSATION : c.preview,
   };
 }

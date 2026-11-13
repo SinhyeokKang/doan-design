@@ -4,6 +4,7 @@ import { ArrowUpRight, ChevronDown, Info, Plus, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import { sendNowShown } from "../main/conversation/steerSupport";
+import { liveReset, localClock, waitsForReset } from "./limitReset";
 import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, Canvas } from "../main/conversation/types";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
@@ -387,11 +388,17 @@ export function CanvasConversation(props: CanvasConversationProps) {
       run.started(target, reply.conversationId, runtime, revision);
       return { ok: true };
     }
+    // A message that waits for the usage limit's reset carries no picker change; the picks stay for the next send.
+    const waits = mode.kind === "existing" && waitsForReset(summary);
     const reply = await window.doan.sendConversation({
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
-      ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
+      ...(waits ? {} : { ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}) }), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) return sendRefusal(reply);
+    if (reply && "scheduled" in reply) {
+      store.queued(root, mode.conversationId, queuedMessage(reply.scheduled.itemId, request));
+      return { ok: true, itemId: reply.scheduled.itemId };
+    }
     run.sent(target, revision, sentUnder);
     return { ok: true };
   };
@@ -451,6 +458,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
           void store.editAndResend(conversationId).then(applied => { if (applied && shown && run.stillShowing(shown)) focusField(); });
         }}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
+        limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())}
         onRetry={() => store.retryThread(conversationId)}
         onOpenCanvas={() => {}} {...(props.onOpenHandoff ? { onOpenHandoff: props.onOpenHandoff } : {})}
         onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
@@ -492,7 +500,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
         stepAside={{ waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}
         queued={conversationId ? store.queue(conversationId) : []}
-        sendNow={!!conversationId && !!provider && !archived && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
+        // Rows waiting for the usage limit's reset have no Send now: nothing runs to take them.
+        limitResetsAt={summary?.limitResetsAt ?? null} scheduledFor={summary?.scheduledAt ?? null}
+        sendNow={!!conversationId && !!provider && !archived && !summary?.scheduledAt && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}
         onSend={send} onQueue={queue}
         onStop={() => { if (conversationId) void window.doan.interruptConversation({ conversationId }).catch(console.error); }}

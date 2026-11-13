@@ -4,6 +4,7 @@ import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { slotKey, type Slot } from "./homeConversations";
+import { localClock, scheduledSlot, type Clock } from "./limitReset";
 
 export type ConversationList = ReadonlyMap<string, readonly ConversationSummary[]>;
 
@@ -22,6 +23,11 @@ export function conversationWork(c: ConversationSummary, seen: ReadonlySet<strin
   if (scheduled) return scheduled;
   // Failed and stopped turns may have changed files too, so every ending waits to be seen (2026-10-29 user).
   return c.unseen && !seen.has(c.conversationId) ? { kind: "unseen", label: "Conversation finished — unread" } : null;
+}
+
+// The scheduled slot of a conversation whose messages wait for the usage limit's reset, or null.
+export function scheduledOf(c: ConversationSummary, now = Date.now(), clock: Clock = localClock()): Slot | null {
+  return c.scheduledAt ? scheduledSlot(c.scheduledAt, now, clock) : null;
 }
 
 // A canvas row by ID first, so a moved canvas keeps its slot; a canvas without an ID matches by path.
@@ -45,7 +51,7 @@ export function slotsFromList(lists: ConversationList, seen: ReadonlySet<string>
   for (const [root, list] of lists) {
     for (const c of list) {
       if (!c.fromHome) continue;
-      const slot = conversationWork(c, seen);
+      const slot = conversationWork(c, seen, scheduledOf(c));
       if (!slot) continue;
       const key = slotKeyOf(root, c, canvases(root));
       const held = slots.get(key);
@@ -82,7 +88,8 @@ export function withTerminalSlots(conversations: ReadonlyMap<string, Slot>, work
 }
 
 // The workspace strip for one root: the Home conversation with work left (running, waiting for an answer, or an
-// unseen ending), the strongest state first and then the latest activity. null when nothing is left.
+// unseen ending), the strongest state first and then the latest activity. null when nothing is left. A scheduled
+// conversation is not work left here: the strip does not show the usage limit's queue.
 export function stripFromList(list: readonly ConversationSummary[], seen: ReadonlySet<string>): ConversationSummary | null {
   let best: { c: ConversationSummary; rank: number } | null = null;
   for (const c of list) {

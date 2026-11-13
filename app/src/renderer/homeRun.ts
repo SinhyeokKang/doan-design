@@ -1,3 +1,4 @@
+import type { ScheduledSend } from "../main/conversation/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { ConversationSummary } from "../main/conversation/summary";
@@ -5,7 +6,7 @@ import type { ConversationEvent } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { conversationCanvasMatch } from "./canvasConversationRows";
-import { conversationWork, slotKeyOf, slotsFromList } from "./conversationList";
+import { conversationWork, scheduledOf, slotKeyOf, slotsFromList } from "./conversationList";
 import { asksPerson, mergeConversationEvents, stripState, type StripState } from "./conversationStrip";
 import { newCanvasText } from "./newCanvasText";
 import { issuedAttachment, sendRefusal, splitRequest, type AttachmentDraft } from "./homeComposer";
@@ -218,7 +219,8 @@ export class HomeRun {
   // A send in an existing project conversation from the Overview: the new canvas its
   // turn makes opens as a start's does, from the canvases listed before main accepted the send and only while the
   // person opened no canvas since. An edit of a canvas already listed is not new; main's promotion handles it.
-  async send(root: string, provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[]; replaced?: string[] }> {
+  // A send main scheduled for the usage limit's reset starts no turn: its answer goes back as it is.
+  async send(root: string, provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | ScheduledSend | { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string }> {
     const listed = this.host.view().entries.find(entry => entry.path === root);
     const atStart = listed?.kind === "list" ? listed.canvases.map(row => row.path) : [];
     const canvasOpens = this.canvasOpens;
@@ -231,6 +233,7 @@ export class HomeRun {
     const stripBefore = this.strips[id];
     const reply = await window.doan.sendConversation(request).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) return sendRefusal(reply);
+    if (reply && "scheduled" in reply) return reply;
     const previous = this.extras.get(id);
     this.track(id);
     // The turn may have started, and even ended, before the reply: its end keeps main's binding window for the
@@ -410,7 +413,7 @@ export class HomeRun {
     const seen = new Set(this.seen.keys());
     let best: { c: ConversationSummary; rank: number } | null = null;
     for (const c of this.merged().get(root) ?? []) {
-      const work = c.fromHome && !c.canvas ? conversationWork(c, seen) : null;
+      const work = c.fromHome && !c.canvas ? conversationWork(c, seen, scheduledOf(c)) : null;
       if (!work) continue;
       const rank = RANK_SLOT[work.kind];
       if (!best || rank > best.rank || (rank === best.rank && c.lastActivityAt > best.c.lastActivityAt)) best = { c, rank };
