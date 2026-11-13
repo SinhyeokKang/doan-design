@@ -15,6 +15,7 @@
 - conductor 판단(C 질문) — (1) 메인 창 재생 요청은 선택한 프레임의 `layout` 표시 원문을 크기 힌트로만 보낸다. main이 공용 파서로 읽고 URL은 main이 만든다. 로드 전에 창을 맞추고, 준비 결과의 표시 크기가 다르면 한 번 다시 맞춘다. 드로어 재생은 실행이 보고한 프레임 목록의 크기를, 기록 항목은 저장한 크기를 쓴다. (2) 최소 창 폭에서의 콘텐츠 패널 폭(360에서 패널 여백을 뺀 값)보다 좁은 프레임은 창을 넓혀도 자기 폭으로 가운데 놓는다. (3) live `layout`에서 ID가 비었거나 중복된 프레임의 비활성 이유는 `Select a supported frame to play its prototype.`이다. (4) Back/Forward는 캔버스 행이 없거나 ID가 충돌하거나 루트가 등록 해제된 항목, 그리고 이 창의 그 캔버스 마지막 실행 보고에 없는 프레임을 건너뛴다. 보고가 없으면 재생하고 실행이 판정한다. 근거: spec 5·13·19의 의도 안에서 정하는 구현 세부다.
 - G 워커 판단(수용) — 프레임 아닌 요소의 무효 값은 `prototype_not_frame`만 낸다. 프레임의 빈 값은 `invalid_prototype_size`다. 같은 원문의 프레임 아닌 표시가 여럿이면 한 번만 보고한다.
 - conductor 판단(M·R 조정) — 메인 창 preload에 `playPrototype`·`onPrototypeClosed`(`prototype:closed`)를 둔다. 프로토타입 창 preload는 `window.doanPrototype`이고 `onSnapshot`(`prototype:snapshot`)을 더한다. 실패·소실로 넘어갈 때 main이 iframe 영역을 `capturePage`로 떠 보내고, 렌더러가 `blob:` 이미지로 바꿔 iframe을 없앤다. electron-vite 설정과 `prototype.html`은 M이, `app/src/renderer/prototype/`는 R이 소유한다. C의 그 밖의 계약 내 선택(경로 기반 요청, 원본 변경 신호, 로딩 중 이탈 시 kill, 창 위치)은 그대로 받는다.
+- M 워커 판단(수용) — `fit`의 디스플레이는 생성 때 메인 창의 것, 그 뒤는 프로토타입 창 자신의 것이다. 준비 결과의 크기 재맞춤은 사람이 그사이 창 크기를 바꿨어도 한다. 남은 일: 프로토타입 창 렌더러가 죽으면 빈 창으로 남고, View 메뉴(⌘R·확대)는 프로토타입 창에 포커스가 있어도 메인 창으로 간다. 리뷰에서 다룬다.
 
 ## 배치
 
@@ -23,7 +24,7 @@
 | P | tasks 1 PoC | `.scratch/poc-*`(커밋 안 함), design.md 'PoC가 먼저 정할 구현 계약' | 없음 | Opus high — 격리·내비게이션 경계와 형식 계약을 정하는 판단이 크다 | 격리 dev 앱 probe 증거, 결론별 통과/실패 기록 | 통합 `a0d25c5f` |
 | G | tasks 3 Go·fixture·가이드 | `schema/fixtures/prototype-mark/`, `cli/internal/{canvas,check}`, `cli/internal/cli/skill.md` | P | Sonnet high — 계약이 정해진 파서·검사 두 개와 가이드 한 항목 | `go test ./...`, `go vet ./...`, `node eval/run.ts --self-test` | 통합 `a9328883` |
 | C | tasks 3 TS 계약 | 새 순수 모듈(표시 파서·실행 가능 여부·창 상태·기록·요청 검증·창 맞춤·내비게이션 gate), `prototype:*` IPC·preload 타입, `senderAllowed.ts` | P (fixture 테스트는 G 뒤 지연 항목) | Opus high — 수명 경합과 sender 경계 | `npm --prefix app test`, typecheck, lint | 통합 `a3224db1`·`05f05528`·fixture 테스트 `d63fde38` |
-| M | tasks 4 main | `app/src/main/`(창·제공/주입·내비게이션·IPC·읽음 분리), `app/src/preload/`, electron-vite 설정 | C | Opus high — sandbox·sender guard·수명 경합 | `npm --prefix app test`, typecheck, lint (격리 앱 검증표는 M·R 통합 뒤 Task) | 진행 |
+| M | tasks 4 main | `app/src/main/`(창·제공/주입·내비게이션·IPC·읽음 분리), `app/src/preload/`, electron-vite 설정 | C | Opus high — sandbox·sender guard·수명 경합 | `npm --prefix app test`, typecheck, lint (격리 앱 검증표는 M·R 통합 뒤 Task) | 통합 `218e66ee`·`74f705e1`, 실제 앱 미검증 |
 | R | tasks 4 UI + `/design-sync` | `app/src/renderer/`(도구 바·버블·서랍 메타·프로토타입 창 UI), `styles.css`, DESIGN.md | C (실제 앱 확인은 M) | Opus high — 포커스·상태 오버레이·초안 일치 | `npm --prefix app test`, typecheck, lint (`/design-sync`는 M 통합 뒤 Task) | 진행 |
 | V | `/code-review` | 보고만 | M·R | Opus high — 보안 경계 리뷰 | 🔴 0 | 대기 |
 | E | tasks 5 `/agent-eval` | `docs/USABILITY-EVAL.md` | 마지막 통합 직전 | Sonnet medium — 정해진 절차 실행 | 스킬 기준 | 대기 |
