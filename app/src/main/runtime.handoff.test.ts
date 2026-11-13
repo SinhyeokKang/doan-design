@@ -72,8 +72,9 @@ test("a throwing service answers a v5 bad request without its error, and v5 star
 
 test("other versions never reach the handoff service, and an unknown version keeps the v1 refusal", async () => {
   const service = state();
-  for (const v of [1, 2, 3, 4]) await answerLine(JSON.stringify({ ...request, v }), token, service);
-  expect(await answerLine(JSON.stringify({ ...request, v: 6 }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+  for (const v of [1, 2, 3, 4, 6]) await answerLine(JSON.stringify({ ...request, v }), token, service);
+  expect(await answerLine(JSON.stringify({ ...request, v: 6 }), token, service)).toMatchObject({ v: 6, ok: false, error: { code: "bad_request" } });
+  expect(await answerLine(JSON.stringify({ ...request, v: 7 }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(await answerLine(JSON.stringify({ ...request, v: "5" }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(service.handoff).not.toHaveBeenCalled();
 });
