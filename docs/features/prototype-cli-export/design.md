@@ -182,7 +182,7 @@ Viewer JS (`exportViewer.test.ts`가 실행)
 - 스크립트가 만드는 프레임은 CLI로 열거나 내보낼 수 없다(정적 판정). 그런 프레임을 재생 중인 창의 Export는 `frame_not_found` 토스트로 끝난다.
 - 내보낸 파일에서 캔버스 스크립트의 `location` 변경과 `form.submit()`은 막지 못한다. 그러면 iframe 안 문서가 바뀌고 새로고침으로 돌아온다.
 - 내보낸 파일에서 `history.pushState`·`replaceState`에 URL을 주면 `SecurityError`를 던진다(fragment, 절대 경로, 상대 경로 모두. Chromium·WebKit, PoC). srcdoc 문서의 URL은 `about:srcdoc`인데 base는 바깥 파일 URL이라, 어떤 URL도 같은 문서 URL로 풀리지 않는다. URL 없이 부르면 동작한다. 앱 프로토타입 창은 캔버스가 로컬 서버 URL에 있으므로 동작한다. `<base href="about:srcdoc">`를 넣으면 fragment는 풀리지만 `//host/x` 외부 URL이 깨지므로 쓰지 않는다.
-- 캔버스의 click·submit handler가 `stopPropagation()`을 부르면 `window`의 bubble listener가 돌지 않아 이동을 막지 못한다. WebKit은 대상 문서를 프레임에 불러오고, Chromium은 `file:` 대상은 스스로 막지만 웹 주소는 불러온다(PoC, 웹 주소는 오프라인이라 확인하지 않았다). capture 단계에서 막으면 `defaultPrevented`를 보고 동작하는 클라이언트 라우터 링크가 깨지므로 bubble 단계를 유지한다.
+- 캔버스의 click·submit handler가 `stopPropagation()`을 부르면 `window`의 bubble listener가 돌지 않아 이동을 막지 못한다. WebKit은 대상 문서를 프레임에 불러오고, Chromium은 `file:` 대상은 스스로 막지만 웹 주소는 불러온다(PoC, 웹 주소는 `127.0.0.1` 로컬 서버로 확인했다). capture 단계에서 막으면 `defaultPrevented`를 보고 동작하는 클라이언트 라우터 링크가 깨지므로 bubble 단계를 유지한다.
 - 내보낸 파일은 앱 프로토타입 창의 Responsive 모드처럼 브라우저 viewport를 채우고(결정 5), Fit 모드는 없다. 앱의 기본인 Fit 모드(표시 크기 고정, 좁은 창에서는 비율 축소)와 다르므로, 표시 폭이 좁은 프레임도 파일에서는 창 폭으로 늘어난다. `/design-draft`에서 그림으로 보인다.
 - `fetch` 같은 요청은 막지 않는다(앱과 같다). 외부 URL은 온라인에서만 열린다(기존 Export와 같다).
 

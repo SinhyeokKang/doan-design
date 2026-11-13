@@ -15,7 +15,7 @@ spec.md '결정'(사용자 확인)을 따른다. 세 형제 기능의 구현 순
   - **결과(2026-11-14, Playwright 1.64.1의 Chromium 156.0.8078.4·WebKit 27.2, headless, `file:` URL, 오프라인)**: 두 엔진 모두 59개 검사 통과, exit 0. 손으로 만든 페이지는 `make-poc.mjs`가 `poc-canvas.html`(변환·이동된 조상, 다른 프레임 둘, 메모, data: 이미지, 600 px media query)에서 만든다.
     - (a) 통과: 캔버스 submit handler가 돈 뒤 기본 제출이 막힌다(버튼 클릭, `requestSubmit()`, `preventDefault()`하는 handler).
     - (b) 조건부 통과: 다른 문서 링크(상대, 절대 `file:`, 웹)는 막힌다. 브라우저에 맡긴 `#id` 클릭은 실패했다. WebKit은 바깥 페이지를 프레임에 다시 불러왔고 Chromium은 아무 일도 하지 않았다. 그래서 `isolate.js`가 `#` 링크를 `location.hash`로 직접 옮기고, 그 뒤 두 엔진에서 대상으로 스크롤한다(design.md '흐름' 이동 차단). `location.hash`는 문서 안에서 움직인다. `pushState`는 URL을 주면 fragment·절대 경로·상대 경로 모두 `SecurityError`를 던지고(한계, 기대값 고정), URL 없이는 동작한다.
-    - (c) 한계: 캔버스 handler가 `stopPropagation()`하면 WebKit은 링크와 submit 모두 대상을 프레임에 불러온다. Chromium은 `file:` 대상이라 스스로 막아 문서에 남는다. 엔진별 관찰값으로 기대값을 고정했다.
+    - (c) 한계: 캔버스 handler가 `stopPropagation()`하면 WebKit은 링크와 submit 모두 대상을 프레임에 불러온다. Chromium은 `file:` 대상이라 스스로 막아 문서에 남는다. 따로 `127.0.0.1` 로컬 서버를 대상으로 하면 두 엔진 모두 링크와 submit이 그 주소를 프레임에 불러오고, 같은 요소에서 `stopPropagation()`이 없으면 남는다(`web-stop.mjs`). probe는 오프라인으로 돌므로 엔진별 `file:` 관찰값으로 기대값을 고정했다.
     - (d) 통과: 프레임이 viewport 왼쪽 위에 폭 전체, 높이 이상으로 놓이고 프레임 밖에서 그려지는 요소가 없다. 두 엔진의 위치와 폭이 같다.
     - (e) 통과: 900×700에서 `innerWidth`·`innerHeight`·`100vh`가 브라우저 viewport와 같고, 420×640으로 줄이면 따라오며 `(max-width: 600px)`가 맞는다.
     - (f) 통과: JavaScript를 끄면 iframe은 상자가 없고 "Open this file in a web browser to play this prototype." 한 줄만 보인다.
