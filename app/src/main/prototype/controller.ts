@@ -9,7 +9,7 @@ import { PROTOTYPE_CHANNELS, type ExportTarget, type PrototypeMode, type Prototy
 import type { PrototypeSize } from "./mark";
 import type { PlayingCanvas } from "./conversationScope";
 import { exportTargetMatches, parseChooseRequest, parseExportRequest, parseFramesReport, parseModeRequest, parsePanelRequest, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
-import { resolveTarget, type PrototypeTarget } from "./targets";
+import { canvasKeyString, resolveTarget, type PrototypeTarget } from "./targets";
 import * as transitions from "./windowState";
 import { CLOSED, type PrototypeState, type Resolve, type Step } from "./windowState";
 
@@ -64,6 +64,9 @@ export interface PrototypeController {
   playing(): PlayingCanvas | null;
   // The conversation panel is open now.
   panelOpen(): boolean;
+  // Counts changes of the playing canvas (to another, back to an earlier one, or to none); another frame of the same
+  // canvas, a reload and the panel leave it. A report about what the panel shows holds only within one.
+  canvasGeneration(): number;
 }
 
 export function createPrototypeController(host: PrototypeHost, entries: () => readonly FolderEntry[]): PrototypeController {
@@ -77,6 +80,8 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
   // still that finishes after the kill is still the one re-sent.
   let resendFor: number | null = null;
   const resolve: Resolve = (ref, lastPath) => resolveTarget(ref, entries(), lastPath);
+  let canvasGeneration = 0;
+  const canvasOf = (current: PrototypeState): string | null => current.open ? canvasKeyString(current.target) : null;
 
   const sendView = () => {
     const view = transitions.prototypeView(state, resolve);
@@ -133,6 +138,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     if (step === null) return;
     const previous = state;
     state = step.state;
+    if (canvasOf(previous) !== canvasOf(state)) canvasGeneration++;
     if (!state.open) { latest = null; resendFor = null; }
     const still = leavingReady(previous);
     // A fit with the panel open may narrow the panel to fit the work area (prototypePanelFit); the view says so.
@@ -236,5 +242,6 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
       return state.open ? { root: state.target.root, canvas: state.target.canvas, path: state.path } : null;
     },
     panelOpen() { return state.open && state.panel.open; },
+    canvasGeneration() { return canvasGeneration; },
   };
 }

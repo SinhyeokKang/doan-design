@@ -21,8 +21,10 @@ const PLAYING_WT: PlayingCanvas = { root: "/r-wt", canvas: { id: "proto" }, path
 
 function setup() {
   let playing: PlayingCanvas | null = PLAYING;
-  const showing = createPrototypeShowing({ playing: () => playing, conversations: () => CONVERSATIONS, entries: () => ENTRIES });
-  return { showing, play: (next: PlayingCanvas | null) => { playing = next; } };
+  // The controller's count of playing-canvas changes.
+  let generation = 0;
+  const showing = createPrototypeShowing({ playing: () => playing, generation: () => generation, conversations: () => CONVERSATIONS, entries: () => ENTRIES });
+  return { showing, play: (next: PlayingCanvas | null) => { if (next !== playing) generation++; playing = next; } };
 }
 
 describe("prototype:showing", () => {
@@ -53,6 +55,16 @@ describe("prototype:showing", () => {
     play(PLAYING_WT);
     showing.set("prototype", { conversationId: "c-proto-wt" });
     expect(showing.shown()).toBe("c-proto-wt");
+  });
+
+  test("playing another canvas and coming back does not bring the earlier report back", () => {
+    const { showing, play } = setup();
+    showing.set("prototype", { conversationId: "c-proto" });
+    play(OTHER);
+    play(PLAYING);
+    expect(showing.shown()).toBeNull();
+    showing.set("prototype", { conversationId: "c-proto" });
+    expect(showing.shown()).toBe("c-proto");
   });
 
   test("the window's close drops it, and another role's report is ignored", () => {

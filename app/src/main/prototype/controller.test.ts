@@ -7,6 +7,7 @@ import type { PrototypeSize } from "./mark";
 
 const base = "http://127.0.0.1:5123/t/tok/";
 const proto: CanvasRow = { path: ".doan/canvases/proto.html", url: `${base}k1/.doan/canvases/proto.html`, id: "proto" };
+const other: CanvasRow = { path: ".doan/canvases/other.html", url: `${base}k1/.doan/canvases/other.html`, id: "other" };
 const play = { root: "/r", path: proto.path, frame: "phone", mark: "390x844" };
 const phone = { width: 390, height: 844 };
 const BOX: Rect = { x: 0, y: 28, width: 344, height: 744 };
@@ -467,5 +468,25 @@ describe("an open panel's width", () => {
     t.calls.length = 0;
     t.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 1 });
     expect(t.calls[0]).toEqual(["capture", phone, "fit", 280]);
+  });
+});
+
+// prototype:showing is valid only for the canvas it was reported for: the generation moves whenever the playing canvas
+// changes, also back to an earlier one, and stays for another frame of it or a reload.
+describe("the playing canvas's generation", () => {
+  test("moves on another canvas and back, not on another frame, a reload or the panel", () => {
+    const t = opened();
+    const first = t.controller.canvasGeneration();
+    t.controller.play("main", { ...play, frame: "tablet" });
+    t.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 2 });
+    t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true });
+    expect(t.controller.canvasGeneration()).toBe(first);
+    t.setEntries([{ path: "/r", kind: "list", canvases: [proto, other], servedRev: 0 }]);
+    t.controller.play("main", { root: "/r", path: other.path, frame: "card", mark: "300x200" });
+    expect(t.controller.canvasGeneration()).toBe(first + 1);
+    t.controller.play("main", play);
+    expect(t.controller.canvasGeneration()).toBe(first + 2);
+    t.controller.request(PROTOTYPE_CHANNELS.close, "prototype", undefined);
+    expect(t.controller.canvasGeneration()).toBe(first + 3);
   });
 });

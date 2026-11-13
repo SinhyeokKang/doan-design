@@ -1,10 +1,12 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { createAttachmentHandlers, type AttachmentOwner } from "./attachmentHandlers";
 import { AttachmentStore } from "./attachments";
-import { queueFiles } from "./conversation/ipc";
+import { conversationHandler, queueFiles } from "./conversation/ipc";
+import { ConversationService, type Prepare, type Prepared } from "./conversation/service";
+import { ConversationStore } from "./conversation/store";
 
 // The handlers index.ts registers for both windows, on a real store: each draft attachment belongs to the window that
 // holds it, so one window's close or request never takes another window's draft.
@@ -111,5 +113,71 @@ describe("a draft attachment belongs to the window that holds it", () => {
     const id = idOf(chosen);
     expect(handlers.recheck(PROTO, { ids: [id] })?.[0]).toMatchObject({ ok: true });
     expect(handlers.remove(PROTO, { id })).toBe(true);
+  });
+});
+
+// A start, send or queue carries a window's draft attachments: only its own, and once main accepted the request the ids
+// are the conversation's (the queue, a send under way), never the window's draft again until a window takes a
+// returned draft. Through the real conversation handler and store.
+describe("attachments in a conversation request", () => {
+  async function conversation() {
+    const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
+    const prepare = vi.fn<Prepare>(async () => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner }));
+    const open = vi.fn(async (_input: Prepared) => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const conversations = join(dir, "conversations");
+    mkdirSync(conversations);
+    const service = new ConversationService(new ConversationStore(conversations), prepare, open, () => {});
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { attachments: store });
+    const id = (await handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+    // The turn is running: a send goes in, a queue waits.
+    const queued = vi.spyOn(service, "queue").mockReturnValue({ itemId: "q1" });
+    const sent = vi.spyOn(service, "send").mockResolvedValue(undefined);
+    return { id, queued, sent, request: (method: "queue" | "send", raw: Record<string, unknown>) => (owner: AttachmentOwner, handlers: ReturnType<typeof setup>["handlers"]) =>
+      handlers.conversation(owner, raw, () => handle(true, method, raw)) };
+  }
+
+  test("a queued message stays sendable when its window closes while the queue goes out", async () => {
+    const { handlers, kill } = setup();
+    const { id: conversationId, request } = await conversation();
+    const id = idOf(handlers.addPaths(PROTO, { paths: [file] }));
+    expect(await request("queue", { conversationId, text: "x", attachments: [{ id }] })(PROTO, handlers)).toEqual({ itemId: "q1" });
+    // The turn ended: the service takes the queue back to send it and prepares the next turn; the window closes then.
+    const hooks = queueFiles(store).reclaim([id]);
+    kill(PROTO);
+    expect(() => hooks.recheck()).not.toThrow();
+  });
+
+  test("a window cannot queue or send another window's draft attachment, and that draft still sends", async () => {
+    const { handlers } = setup();
+    const { id: conversationId, request, queued, sent } = await conversation();
+    const id = idOf(handlers.addPaths(MAIN, { paths: [file] }));
+    expect(await request("queue", { conversationId, text: "x", attachments: [{ id }] })(PROTO, handlers)).toEqual({ error: "bad_request" });
+    expect(await request("send", { conversationId, text: "x", attachments: [{ id }] })(PROTO, handlers)).toEqual({ error: "bad_request" });
+    expect(queued).not.toHaveBeenCalled();
+    expect(store.resolve([{ id }])).toMatchObject({ ok: true });
+    expect(await request("send", { conversationId, text: "x", attachments: [{ id }] })(MAIN, handlers)).toBeUndefined();
+    expect(sent).toHaveBeenCalledOnce();
+  });
+
+  test("the prototype window cannot send an id main never gave it; the main window still can (a capture)", async () => {
+    const { handlers } = setup();
+    const { id: conversationId, request, sent } = await conversation();
+    // Issued outside the handlers, as a canvas capture or the service's reissue is.
+    const id = idOf(store.addPaths({ paths: [file] }));
+    expect(await request("send", { conversationId, text: "x", attachments: [{ id }] })(PROTO, handlers)).toEqual({ error: "bad_request" });
+    expect(handlers.recheck(PROTO, { ids: [id] })).toBeNull();
+    expect(await request("send", { conversationId, text: "x", attachments: [{ id }] })(MAIN, handlers)).toBeUndefined();
+    expect(sent).toHaveBeenCalledOnce();
+  });
+
+  test("an id the main window took back and removed is not the prototype window's to take again", async () => {
+    const { handlers } = setup();
+    const { id: conversationId, request } = await conversation();
+    const id = idOf(handlers.addPaths(PROTO, { paths: [file] }));
+    await request("queue", { conversationId, text: "x", attachments: [{ id }] })(PROTO, handlers);
+    handlers.taken(MAIN, [id]);
+    expect(handlers.recheck(MAIN, { ids: [id] })?.[0]).toMatchObject({ ok: true });
+    expect(handlers.remove(MAIN, { id })).toBe(true);
+    expect(handlers.recheck(PROTO, { ids: [id] })).toBeNull();
   });
 });

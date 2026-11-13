@@ -359,7 +359,7 @@ const prototype = createPrototypeWindow({
 // The conversation index for the prototype window's scope, once the conversation store exists.
 let indexedConversations: () => ScopedConversation[] = () => [];
 // The conversation the prototype window's open panel shows, for notifications (showing.ts).
-const prototypeShowing = createPrototypeShowing({ playing: () => prototype.controller.playing(), conversations: () => indexedConversations(), entries: () => shell?.entries() ?? [] });
+const prototypeShowing = createPrototypeShowing({ playing: () => prototype.controller.playing(), generation: () => prototype.controller.canvasGeneration(), conversations: () => indexedConversations(), entries: () => shell?.entries() ?? [] });
 
 // The buddy a new prototype window's page starts with; the saved one once preferences are read.
 let prototypeBuddy: () => BuddyId = () => "doany";
@@ -1196,6 +1196,9 @@ async function start(): Promise<void> {
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.readListing(input, listModels));
   const skillCatalog = new SkillCatalog((root, provider) => conversationService.prepareListing(root, provider), input => conversationService.readListing(input, listSkills));
   const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries(), { models: modelCatalog, skills: skillCatalog, attachments });
+  // A start, send or queue carries the sender's draft attachments, which main checks are that window's own and, once
+  // accepted, takes from its draft (attachmentHandlers.ts).
+  const carriesAttachments = (method: string): boolean => method === "start" || method === "send" || method === "queue";
   // A returned queue's attachment ids belong to the window that took the draft (attachmentHandlers.ts).
   const draftTaken = (taker: AttachmentOwner, reply: unknown): void => {
     const ids = typeof reply === "object" && reply !== null && "ids" in reply && Array.isArray(reply.ids) ? reply.ids.filter((id: unknown): id is string => typeof id === "string") : [];
@@ -1207,14 +1210,17 @@ async function start(): Promise<void> {
     ipcMain.handle(`conversation:${method}`, async (event, value: unknown) => {
       const kind = senderKind(event);
       if (kind !== "prototype") {
-        const reply = await conversationRequest(kind === "main", method, value);
+        const reply = carriesAttachments(method) && kind === "main"
+          ? await attachmentHandlers.conversation("main", value, () => conversationRequest(true, method, value))
+          : await conversationRequest(kind === "main", method, value);
         if (kind === "main" && method === "takeDraft") draftTaken("main", reply);
         return reply;
       }
       const playing = prototype.controller.playing();
       const entries = ready.entries();
       const allowed = prototypeConversationScope(method, value, playing, indexed(), entries);
-      const reply = await conversationRequest(allowed, method, value, all => prototypeListRows(all, playing, entries));
+      const run = () => conversationRequest(allowed, method, value, all => prototypeListRows(all, playing, entries));
+      const reply = allowed && carriesAttachments(method) ? await attachmentHandlers.conversation(`prototype:${event.sender.id}`, value, run) : await run();
       if (allowed && method === "takeDraft") draftTaken(`prototype:${event.sender.id}`, reply);
       if (allowed && method === "resumeTarget" && playing !== null) {
         const held = typeof reply === "object" && reply !== null && "session" in reply && typeof reply.session === "string" && "runtime" in reply && typeof reply.runtime === "string"
