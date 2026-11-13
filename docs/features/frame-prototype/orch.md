@@ -22,7 +22,7 @@
 |---|---|---|---|---|---|---|
 | P | tasks 1 PoC | `.scratch/poc-*`(커밋 안 함), design.md 'PoC가 먼저 정할 구현 계약' | 없음 | Opus high — 격리·내비게이션 경계와 형식 계약을 정하는 판단이 크다 | 격리 dev 앱 probe 증거, 결론별 통과/실패 기록 | 통합 `a0d25c5f` |
 | G | tasks 3 Go·fixture·가이드 | `schema/fixtures/prototype-mark/`, `cli/internal/{canvas,check}`, `cli/internal/cli/skill.md` | P | Sonnet high — 계약이 정해진 파서·검사 두 개와 가이드 한 항목 | `go test ./...`, `go vet ./...`, `node eval/run.ts --self-test` | 통합 `a9328883` |
-| C | tasks 3 TS 계약 | 새 순수 모듈(표시 파서·실행 가능 여부·창 상태·기록·요청 검증·창 맞춤·내비게이션 gate), `prototype:*` IPC·preload 타입, `senderAllowed.ts` | P (fixture 테스트는 G 뒤 지연 항목) | Opus high — 수명 경합과 sender 경계 | `npm --prefix app test`, typecheck, lint | 통합 `a3224db1`·`05f05528`, fixture 테스트 Task 진행 |
+| C | tasks 3 TS 계약 | 새 순수 모듈(표시 파서·실행 가능 여부·창 상태·기록·요청 검증·창 맞춤·내비게이션 gate), `prototype:*` IPC·preload 타입, `senderAllowed.ts` | P (fixture 테스트는 G 뒤 지연 항목) | Opus high — 수명 경합과 sender 경계 | `npm --prefix app test`, typecheck, lint | 통합 `a3224db1`·`05f05528`·fixture 테스트 `d63fde38` |
 | M | tasks 4 main | `app/src/main/`(창·제공/주입·내비게이션·IPC·읽음 분리), `app/src/preload/`, electron-vite 설정 | C | Opus high — sandbox·sender guard·수명 경합 | `npm --prefix app test`, typecheck, lint (격리 앱 검증표는 M·R 통합 뒤 Task) | 진행 |
 | R | tasks 4 UI + `/design-sync` | `app/src/renderer/`(도구 바·버블·서랍 메타·프로토타입 창 UI), `styles.css`, DESIGN.md | C (실제 앱 확인은 M) | Opus high — 포커스·상태 오버레이·초안 일치 | `npm --prefix app test`, typecheck, lint (`/design-sync`는 M 통합 뒤 Task) | 진행 |
 | V | `/code-review` | 보고만 | M·R | Opus high — 보안 경계 리뷰 | 🔴 0 | 대기 |
