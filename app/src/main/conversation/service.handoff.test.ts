@@ -329,6 +329,31 @@ describe("the end of a turn that asked", () => {
     expect(h.texts(target)).toHaveLength(1);
     expect(h.texts(id)).toEqual(["Make a checkout page"]);
   });
+  it("gives the queue back as the source's draft when the next conversation was deleted before the queue reached it", async () => {
+    const files = { reclaim: vi.fn((_ids: string[]) => ({ recheck: () => [], sent: () => {} })), consume: vi.fn(), discard: vi.fn(), release: vi.fn() };
+    const h = fixture({ files }); const id = await h.start();
+    h.ask(h.key(0), b.path); h.listed.push(b);
+    h.service.queue(id, { text: "and the cart", anchors: [], ids: ["file-1"] });
+    const open = h.open.getMockImplementation()!;
+    h.open.mockImplementationOnce(async (input, event, ...rest) => { const runner = await open(input, event, ...rest); event({ type: "turn.done" }); return runner; });
+    // The next conversation is accepted, ends and is deleted before the handoff's start is resolved.
+    const real = h.service.start.bind(h.service);
+    let deleted = "";
+    const spy = vi.spyOn(h.service, "start").mockImplementation(async (request, attached, handoff) => {
+      const result = await real(request, attached, handoff);
+      if (handoff) { spy.mockRestore(); deleted = result.conversationId; h.service.delete(deleted); }
+      return result;
+    });
+    h.service.receive(id, { type: "turn.done" });
+    await h.settled();
+    await vi.waitFor(() => expect(h.drafts.returned(id)).toMatchObject({ text: "and the cart" }));
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(h.drafts.returned(deleted)).toBeUndefined(); expect(h.drafts.queued(deleted)).toEqual([]);
+    expect(h.store.read(deleted)).toEqual([]);
+    expect(h.texts(id)).toEqual(["Make a checkout page"]); expect(h.drafts.queued(id)).toEqual([]);
+    // The file stays held for the source's draft, not released or consumed under the deleted id.
+    expect(files.release).not.toHaveBeenCalled(); expect(files.consume).not.toHaveBeenCalled();
+  });
   it("returns a moved queue as the draft of a next conversation archived while the queue waits for its first runner to end", async () => {
     const { h, id, target } = await endedEarly({ type: "turn.done" }, { provider: "claude" });
     // The queue went out and its send waits for the first runner's process, which never ends here.
@@ -493,11 +518,20 @@ describe("a handoff a stop, an archive, a quit or a broken history meets", () =>
     expect(resolutions(h, id)).toHaveLength(1);
     expect(h.notices).toEqual([]);
   });
-  it("never starts a cancelled turn's handoff from a later turn's request for the same path", async () => {
+  // Held in its preparation, the old start meets the check after it; held while its runner opens, the one right before
+  // acceptance.
+  it.each(["prepare", "open"] as const)("never starts a cancelled turn's handoff from a later turn's request for the same path (held in %s)", async held => {
     const h = fixture(); const id = await h.start();
     const gates: (() => void)[] = [];
-    const base = h.prepare.getMockImplementation()!;
-    h.prepare.mockImplementation(async (request, stored) => { if (request.canvas?.id === "b") await new Promise<void>(resolve => gates.push(resolve)); return base(request, stored); });
+    const base = h.prepare.getMockImplementation()!, opened = h.open.getMockImplementation()!;
+    const gate = () => new Promise<void>(resolve => gates.push(resolve));
+    h.prepare.mockImplementation(async (request, stored) => {
+      if (request.canvas?.id !== "b") return base(request, stored);
+      if (held === "prepare") await gate();
+      const prepared = await base(request, stored);
+      return { ...prepared, env: { ...prepared.env, TARGET: "b" } };
+    });
+    h.open.mockImplementation(async (input, ...rest) => { if (held === "open" && input.env.TARGET === "b") await gate(); return opened(input, ...rest); });
     h.ask(h.key(0), b.path, "/repo", "From the first turn."); h.listed.push(b);
     h.service.receive(id, { type: "turn.done" });
     await vi.waitFor(() => expect(gates).toHaveLength(1));
@@ -611,6 +645,25 @@ describe("Send now and the handoff guidance", () => {
     h.service.receive(source, { type: "turn.done" });
     await h.settled();
     expect(await steered(h, h.on(b)!.conversationId, 1)).not.toContain(HANDOFF_GUIDANCE);
+  });
+});
+
+// A queue's send goes out a tick after its flush; whatever took the queue back meanwhile (an archive, a stop) wins, and
+// the copy the flush captured is not sent.
+describe("a queue taken back before its flush sends", () => {
+  it.each([
+    // An archive by another start's acceptance; the runner it closes is gone at once here.
+    ["an archive", (h: ReturnType<typeof fixture>, id: string) => { (h.service as unknown as { archive(id: string): void }).archive(id); h.open.mock.calls[0]![2](); }],
+    ["a stop of its provider", (h: ReturnType<typeof fixture>) => { void h.service.stopRuns("codex"); }],
+  ] as const)("sends nothing after %s, and the draft holds the queue once", async (_name, take) => {
+    const h = fixture(); const id = await h.start();
+    h.service.queue(id, { text: "and the cart", anchors: [] });
+    h.service.receive(id, { type: "turn.done" });
+    take(h, id);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(h.texts(id)).toEqual(["Make a checkout page"]);
+    expect(h.drafts.returned(id)).toMatchObject({ text: "and the cart" });
+    expect(h.prepare).toHaveBeenCalledOnce();
   });
 });
 

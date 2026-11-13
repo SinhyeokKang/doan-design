@@ -1373,7 +1373,10 @@ export class ConversationService {
     clearTimeout(turn.timer); delete turn.timer; turn.state = "resolved";
     const resolutions = turn.requests.flatMap(r => r.resolution ? [r.resolution] : []);
     const started = resolutions.flatMap(r => r.outcome === "started" ? [r.target] : []);
-    const outcome = handoffQueueOutcome(resolutions.map(r => r.outcome));
+    let outcome = handoffQueueOutcome(resolutions.map(r => r.outcome));
+    // A next conversation deleted before the queue reached it takes nothing under its id: the queue comes back here as a
+    // draft, never sent.
+    if (outcome === "move" && !this.store.list().some(e => e.conversationId === started[0]!.conversationId)) outcome = "draft";
     const live = this.live.get(id);
     if (outcome === "move") { this.moveQueue(id, started[0]!.conversationId); this.queueAfterEnd(started[0]!.conversationId); }
     if (live?.holding) {
@@ -1492,6 +1495,10 @@ export class ConversationService {
     this.changedOf(id);
     // After the terminal event's own handling: the send changes this conversation's live state.
     void Promise.resolve().then(async () => {
+      // Taken back meanwhile: every path that hands the queue back as a draft (an archive, a stop) first drops this hold,
+      // so the copy captured above is not sent. A conversation no longer current gets its queue back instead.
+      if (this.live.get(id) !== live || live.holding !== hold) return;
+      if (this.store.list().find(e => e.conversationId === id)?.state !== "current") { this.giveBack(id, "interrupted"); this.release(id, live, hold); return; }
       try {
         const files = this.queueOptions.files;
         const attached = ids.length && files ? files.reclaim(ids) : undefined;
