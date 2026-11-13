@@ -89,11 +89,11 @@ code, kbd { font-family: var(--type-family); }
 .text-range > .text-rect { position: absolute; background: color-mix(in srgb, var(--affordance-accent) 30%, transparent); }
 /* The same prominent capsule as the tooltip. */
 .dims { position: absolute; top: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: var(--affordance-prominent); color: var(--text-on-prominent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); padding: var(--space-1) var(--space-2); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
+/* No room below the selection (a tall frame, the floating tools): the bubble hangs above it instead. */
+.dims.above { top: auto; bottom: calc(100% + 5px); }
 /* Play prototype in the size bubble (.doan/canvases/frame-prototype.html prototype-controls): a 14px icon whose hit
    target is the 24px capsule height. The only pointer target in the overlay; its ring is drawn inside so it does not
    cover the size text. */
-/* No room below the selection (a tall frame, the floating tools): the bubble hangs above it instead. */
-.dims.above { top: auto; bottom: calc(100% + 5px); }
 .dims.playable { display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1) 0 var(--space-2); }
 .bubble-play { pointer-events: auto; color: var(--text-on-prominent); }
 .bubble-play svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }

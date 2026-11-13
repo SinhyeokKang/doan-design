@@ -472,9 +472,10 @@ export class CanvasController {
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
     this.state.reloading = this.loading && this.state.status === null;
-    this.drawWork();
     // Play's judgement reads the tool, a pick, capture mode and the layout, which change without a selection change.
-    if (this.marks !== null) this.placeSize(this.marks.size, this.markHidden ? null : this.selectedRect);
+    // Before drawWork, so the bubble's room is read before this publish writes styles.
+    if (this.marks !== null) { const selected = this.markHidden ? null : this.selectedRect; this.placeSize(this.marks.size, selected, selected === null ? null : this.sizeBubbleRoom()); }
+    this.drawWork();
     this.syncMain();
     this.changed({ ...this.state });
     const ended = this.pickEnded;
@@ -2083,6 +2084,8 @@ export class CanvasController {
   private drawMarks(): void {
     const hover = this.markHidden || this.altHeld || this.layerShown || this.captureShown || this.textDragging ? null : this.hoverRect;
     const selected = this.markHidden ? null : this.selectedRect;
+    // Read before this draw writes any style, so it costs no forced layout.
+    const room = selected === null ? null : this.sizeBubbleRoom();
     if (this.marks === null) {
       if (hover === null && selected === null) return;
       const node = (className: string) => {
@@ -2105,12 +2108,16 @@ export class CanvasController {
     };
     place(this.marks.hover, hover);
     place(this.marks.selected, selected);
-    this.placeSize(this.marks.size, selected);
+    this.placeSize(this.marks.size, selected, room);
+  }
+
+  private sizeBubbleRoom(): BubbleRoom {
+    return this.bubbleRoom?.() ?? { top: 0, bottom: this.viewportSize().height };
   }
 
   // The size label, and Play prototype beside it while the selected frame can play. The button is the overlay's only
   // pointer target: its press and click stop at it, so they never select through to the canvas or start a board drag.
-  private placeSize(size: HTMLElement, selected: CanvasRect | null): void {
+  private placeSize(size: HTMLElement, selected: CanvasRect | null, room: BubbleRoom | null): void {
     const bubble = this.bubble;
     const focused = bubble !== null && bubble.shown && document.activeElement === bubble.button;
     const play = selected !== null && this.bubblePlay !== null && canvasPlayability(this.state).enabled;
@@ -2125,7 +2132,7 @@ export class CanvasController {
         if (bubble !== null) bubble.shown = false;
       }
       const screen = boardRectToScreen(this.view, selected);
-      const place = sizeBubblePlace(screen, SIZE_BUBBLE, this.bubbleRoom?.() ?? { top: 0, bottom: this.viewportSize().height });
+      const place = sizeBubblePlace(screen, SIZE_BUBBLE, room ?? this.sizeBubbleRoom());
       size.className = `dims${play ? " playable" : ""}${place.kind === "above" ? " above" : ""}`;
       size.style.top = place.kind === "inside" ? `${place.top - screen.y}px` : "";
     } else if (bubble !== null) bubble.shown = false;
