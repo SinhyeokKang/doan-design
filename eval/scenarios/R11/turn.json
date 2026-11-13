@@ -1,0 +1,8 @@
+{
+  "text": "Make two new mobile canvases from this screen: `profile-mobile` with {{1}}, and `billing-mobile` with {{2}}. Each should be 390 px wide and keep its frame's copy and button. Leave this canvas and all other files unchanged. Continue work on each new canvas in its own conversation: next, tune the Save button's tap target on profile-mobile and the Update card button's tap target on billing-mobile.",
+  "anchors": [
+    { "frame": { "id": "profile-form", "title": "Profile" } },
+    { "frame": { "id": "billing-form", "title": "Billing" } }
+  ],
+  "canvas": { "path": ".doan/canvases/account.html", "id": "account" }
+}

@@ -54,7 +54,7 @@ test("noHandoff fails on a command or on a request the app received, and passes 
   assert.equal(noHandoff(ctx([], [sent])).pass, false);
 });
 
-test("the fake app answers v5 in the app's order, spends the one handoff only on an accepted request, and logs token-free, hashed exchanges", async () => {
+test("the fake app answers v5 in the app's order, accepts each different path once, and logs token-free, hashed exchanges", async () => {
   const dir = mkdtempSync("/tmp/doan-handoff-test-");
   const root = join(dir, "repo");
   mkdirSync(join(root, ".doan/canvases"), { recursive: true });
@@ -77,15 +77,20 @@ test("the fake app answers v5 in the app's order, spends the one handoff only on
     assert.equal(code(await ask({ path: source })), "same_canvas");
     assert.deepEqual(await ask({}), { v: 5, ok: true, requested: true });
     assert.equal(code(await ask({})), "already_requested");
-    // already_requested comes before same_canvas, as in the app.
-    assert.equal(code(await ask({ path: source })), "already_requested");
+    assert.equal((await ask({})).error.message, "This turn already handed off to this canvas.");
+    const other = ".doan/canvases/other.html";
+    writeFileSync(join(root, other), "<p>other</p>\n");
+    assert.deepEqual(await ask({ path: other }), { v: 5, ok: true, requested: true });
+    assert.equal(code(await ask({ path: other })), "already_requested");
+    assert.equal(code(await ask({ path: source })), "same_canvas");
     // Not a v5 line at all: the v1 answer, and nothing in the handoff log.
     assert.equal((await ask({}, "not json")).error.code, "bad_request");
     const raw = readFileSync(app.handoffLog, "utf8");
     const log: HandoffExchange[] = raw.trim().split("\n").map(line => JSON.parse(line));
     // Every v5 line is logged, refused or not; the line that is not v5 at all is not.
-    assert.equal(log.length, 8);
+    assert.equal(log.length, 11);
     assert.equal(log[5]!.hashes[path], contentHash(readFileSync(join(root, path))));
+    assert.equal(log[8]!.hashes[other], contentHash(readFileSync(join(root, other))));
     assert.deepEqual(log[0]!.hashes, {});
     assert.ok(!raw.includes(runtime.token));
     assert.throws(() => readFileSync(app.workLog));
