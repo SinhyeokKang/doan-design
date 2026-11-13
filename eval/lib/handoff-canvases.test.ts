@@ -20,6 +20,9 @@ test("handoffsForCanvases rejects missing, duplicate, extra and wrong targets", 
   for (const log of [[], [request(paths[0]!)], [request(paths[0]!), request(paths[0]!)], [...paths.map(path => request(path)), request(paths[0]!)], [request(paths[0]!), request(".doan/canvases/source.html")]])
     assert.ok(failed(log).includes("handoff_each_canvas_once"));
 });
+test("handoffsForCanvases reports a missing request only as a count failure", () => {
+  for (const path of paths) assert.deepEqual(failed([request(path)]), ["handoff_each_canvas_once"]);
+});
 test("handoffsForCanvases counts accepted requests, never refused attempts or their messages", () => {
   const refused: HandoffExchange = { ...request(paths[0]!), response: { v: 5, ok: false, error: { code: "already_requested", message: "x" } }, hashes: {} };
   assert.deepEqual(failed([refused, ...paths.map(path => request(path)), refused]), []);
