@@ -34,10 +34,11 @@ test("every request goes to its prototype channel with the payload main parses",
   await api.forward();
   await api.choose("tablet");
   await api.close();
+  await api.setMode("responsive");
   expect(mocks.invoke.mock.calls).toEqual([
     [PROTOTYPE_CHANNELS.read], [PROTOTYPE_CHANNELS.result, { gen: 2, state: "timeout" }], [PROTOTYPE_CHANNELS.frames, { gen: 2, frames: [] }],
     [PROTOTYPE_CHANNELS.reload, { gen: 3 }], [PROTOTYPE_CHANNELS.back], [PROTOTYPE_CHANNELS.forward], [PROTOTYPE_CHANNELS.choose, { frame: "tablet" }],
-    [PROTOTYPE_CHANNELS.close],
+    [PROTOTYPE_CHANNELS.close], [PROTOTYPE_CHANNELS.mode, { mode: "responsive" }],
   ]);
   expect(new Set(mocks.invoke.mock.calls.map(call => call[0]))).toEqual(new Set(PROTOTYPE_WINDOW_REQUESTS));
 });
@@ -48,13 +49,13 @@ test("view and snapshot events reach their listeners until unsubscribed", () => 
   const stopViews = api.onChanged(views);
   const stopSnapshots = api.onSnapshot(snapshots);
   emitter.emit(PROTOTYPE_CHANNELS.changed, {}, null);
-  emitter.emit(PROTOTYPE_CHANNELS.snapshot, {}, { gen: 2, png: new Uint8Array([1]) });
+  emitter.emit(PROTOTYPE_CHANNELS.snapshot, {}, { gen: 2, png: new Uint8Array([1]), box: { x: 0, y: 28, width: 344, height: 744 } });
   stopViews();
   stopSnapshots();
   emitter.emit(PROTOTYPE_CHANNELS.changed, {}, null);
-  emitter.emit(PROTOTYPE_CHANNELS.snapshot, {}, { gen: 3, png: new Uint8Array([1]) });
+  emitter.emit(PROTOTYPE_CHANNELS.snapshot, {}, { gen: 3, png: new Uint8Array([1]), box: { x: 0, y: 0, width: 1, height: 1 } });
   expect(views.mock.calls).toEqual([[null]]);
-  expect(snapshots.mock.calls).toEqual([[{ gen: 2, png: new Uint8Array([1]) }]]);
+  expect(snapshots.mock.calls).toEqual([[{ gen: 2, png: new Uint8Array([1]), box: { x: 0, y: 28, width: 344, height: 744 } }]]);
 });
 
 // Both preloads name channels literally so neither imports a value the other shares.

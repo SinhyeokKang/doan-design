@@ -15,10 +15,11 @@ describe("prototype channels", () => {
       forward: "prototype:forward",
       choose: "prototype:choose",
       close: "prototype:close",
+      mode: "prototype:mode",
       closed: "prototype:closed",
       snapshot: "prototype:snapshot",
     });
-    expect(PROTOTYPE_WINDOW_REQUESTS).toEqual(["prototype:read", "prototype:result", "prototype:frames", "prototype:reload", "prototype:back", "prototype:forward", "prototype:choose", "prototype:close"]);
+    expect(PROTOTYPE_WINDOW_REQUESTS).toEqual(["prototype:read", "prototype:result", "prototype:frames", "prototype:reload", "prototype:back", "prototype:forward", "prototype:choose", "prototype:close", "prototype:mode"]);
   });
 
   test("a run that does not answer in 10 s is an init failure", () => {

@@ -1,18 +1,23 @@
 import { describe, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../view";
 import { createPrototypeController, type PrototypeHost } from "./controller";
-import { PROTOTYPE_CHANNELS, type PrototypeView } from "./ipc";
+import type { Rect } from "./fit";
+import { PROTOTYPE_CHANNELS, type PrototypeMode, type PrototypeView } from "./ipc";
+import type { PrototypeSize } from "./mark";
 
 const base = "http://127.0.0.1:5123/t/tok/";
 const proto: CanvasRow = { path: ".doan/canvases/proto.html", url: `${base}k1/.doan/canvases/proto.html`, id: "proto" };
 const play = { root: "/r", path: proto.path, frame: "phone", mark: "390x844" };
+const phone = { width: 390, height: 844 };
+const BOX: Rect = { x: 0, y: 28, width: 344, height: 744 };
 const frames = [{ id: "phone", title: "Phone", size: "390x844", number: 1 }, { id: "tablet", size: "820x1180", number: 2 }];
 
 function setup() {
   let entries: FolderEntry[] = [{ path: "/r", kind: "list", canvases: [proto], servedRev: 0 }];
   const calls: unknown[] = [];
   const views: PrototypeView[] = [];
-  let capture: (markWidth: number) => Promise<Uint8Array | null> = async () => new Uint8Array([1, 2]);
+  type Still = { png: Uint8Array; box: Rect } | null;
+  let capture: (mark: PrototypeSize, mode: PrototypeMode) => Promise<Still> = async () => ({ png: new Uint8Array([1, 2]), box: BOX });
   const host: PrototypeHost = {
     create: size => calls.push(["create", size]),
     fit: size => calls.push(["fit", size]),
@@ -22,8 +27,8 @@ function setup() {
     destroy: () => calls.push(["destroy"]),
     reread: root => calls.push(["reread", root]),
     sendView: view => { calls.push(["view", view.gen, view.phase]); views.push(view); },
-    capture: markWidth => { calls.push(["capture", markWidth]); return capture(markWidth); },
-    sendSnapshot: snapshot => calls.push(["snapshot", snapshot.gen, Array.from(snapshot.png)]),
+    capture: (mark, mode) => { calls.push(["capture", mark, mode]); return capture(mark, mode); },
+    sendSnapshot: snapshot => calls.push(["snapshot", snapshot.gen, Array.from(snapshot.png), snapshot.box]),
   };
   const controller = createPrototypeController(host, () => entries);
   return {
@@ -77,9 +82,9 @@ describe("prototype controller", () => {
   test("choosing another frame stills the ready screen before the refit, then fits, activates and loads a new run", async () => {
     const t = opened();
     t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
-    const effects = [["capture", 390], ["fit", { width: 820, height: 1180 }], ["activate"], ["load", { gen: 2, url: proto.url, frame: "tablet" }]];
+    const effects = [["capture", phone, "fit"], ["fit", { width: 820, height: 1180 }], ["activate"], ["load", { gen: 2, url: proto.url, frame: "tablet" }]];
     expect(t.calls).toEqual(effects);
-    await vi.waitFor(() => expect(t.calls).toEqual([...effects, ["snapshot", 2, [1, 2]], ["view", 2, "loading"]]));
+    await vi.waitFor(() => expect(t.calls).toEqual([...effects, ["snapshot", 2, [1, 2], BOX], ["view", 2, "loading"]]));
   });
 
   test("a reload, Retry or source change of a ready run stills it under the new run's gen", async () => {
@@ -89,8 +94,8 @@ describe("prototype controller", () => {
     ]) {
       const t = opened();
       leave(t);
-      expect(t.calls).toEqual([["capture", 390], ["load", { gen: 2, url: proto.url, frame: "phone" }]]);
-      await vi.waitFor(() => expect(t.calls.slice(2)).toEqual([["snapshot", 2, [1, 2]], ["view", 2, "loading"]]));
+      expect(t.calls).toEqual([["capture", phone, "fit"], ["load", { gen: 2, url: proto.url, frame: "phone" }]]);
+      await vi.waitFor(() => expect(t.calls.slice(2)).toEqual([["snapshot", 2, [1, 2], BOX], ["view", 2, "loading"]]));
     }
   });
 
@@ -126,20 +131,20 @@ describe("prototype controller", () => {
     const t = opened();
     t.setEntries([{ path: "/r", kind: "list", canvases: [], servedRev: 0 }]);
     t.controller.listChanged();
-    expect(t.calls).toEqual([["capture", 390]]);
-    await vi.waitFor(() => expect(t.calls).toEqual([["capture", 390], ["snapshot", 1, [1, 2]], ["view", 1, "frame-unavailable"]]));
+    expect(t.calls).toEqual([["capture", phone, "fit"]]);
+    await vi.waitFor(() => expect(t.calls).toEqual([["capture", phone, "fit"], ["snapshot", 1, [1, 2], BOX], ["view", 1, "frame-unavailable"]]));
   });
 
   test("a later view waits behind a capture, and a failed capture still sends the view", async () => {
     const t = opened();
-    let release: (png: Uint8Array | null) => void = () => {};
+    let release: (still: { png: Uint8Array; box: Rect } | null) => void = () => {};
     t.setCapture(() => new Promise(done => { release = done; }));
     t.setEntries([{ path: "/r", kind: "list", canvases: [], servedRev: 0 }]);
     t.controller.listChanged();
     t.setEntries([{ path: "/r", kind: "list", canvases: [{ ...proto, rev: 2 }], servedRev: 0 }]);
     t.controller.listChanged();
     // Leaving frame-unavailable is not leaving a ready run, so the restore takes no second still.
-    expect(t.calls).toEqual([["capture", 390], ["load", { gen: 2, url: proto.url, frame: "phone" }]]);
+    expect(t.calls).toEqual([["capture", phone, "fit"], ["load", { gen: 2, url: proto.url, frame: "phone" }]]);
     release(null);
     await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 2, "loading"]));
     expect(t.calls.some(call => Array.isArray(call) && call[0] === "snapshot")).toBe(false);
@@ -179,7 +184,7 @@ describe("prototype controller", () => {
     t.calls.length = 0;
     t.controller.request(PROTOTYPE_CHANNELS.back, "prototype", undefined);
     const effects = [["fit", { width: 390, height: 844 }], ["activate"], ["kill", 2], ["load", { gen: 3, url: proto.url, frame: "phone" }]];
-    expect(t.calls).toEqual([...effects, ["snapshot", 3, [1, 2]], ["view", 3, "loading"]]);
+    expect(t.calls).toEqual([...effects, ["snapshot", 3, [1, 2], BOX], ["view", 3, "loading"]]);
     expect(t.views.at(-1)?.previousStopped).toBe(true);
   });
 
@@ -195,7 +200,7 @@ describe("prototype controller", () => {
     u.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 3 });
     await vi.waitFor(() => expect(u.calls.at(-1)).toEqual(["view", 4, "loading"]));
     expect(t.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([]);
-    expect(u.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([["snapshot", 2, [1, 2]]]);
+    expect(u.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([["snapshot", 2, [1, 2], BOX]]);
   });
 
   test("Retry of a row doan ls could not read asks the host to read the root again", () => {
@@ -210,14 +215,14 @@ describe("prototype controller", () => {
 
   test("a still that finishes after a kill stands for the stopped screen, under the kill's gen", async () => {
     const t = opened();
-    let release: (png: Uint8Array | null) => void = () => {};
+    let release: (still: { png: Uint8Array; box: Rect } | null) => void = () => {};
     t.setCapture(() => new Promise(done => { release = done; }));
     t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
     // Back kills the tablet load before Phone's still came back.
     t.controller.request(PROTOTYPE_CHANNELS.back, "prototype", undefined);
-    release(new Uint8Array([7]));
+    release({ png: new Uint8Array([7]), box: { x: 1, y: 2, width: 3, height: 4 } });
     await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 3, "loading"]));
-    expect(t.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([["snapshot", 3, [7]]]);
+    expect(t.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([["snapshot", 3, [7], { x: 1, y: 2, width: 3, height: 4 }]]);
   });
 
   test("a still that could not be read clears the last one, so a kill never re-sends another frame's screen", async () => {
@@ -232,6 +237,53 @@ describe("prototype controller", () => {
     t.controller.request(PROTOTYPE_CHANNELS.back, "prototype", undefined);
     await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 4, "loading"]));
     expect(t.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([]);
+  });
+  test("a viewport switch sends only the new view; the mode in use, another role or a bad payload does nothing", () => {
+    const t = opened();
+    t.controller.request(PROTOTYPE_CHANNELS.mode, "prototype", { mode: "responsive" });
+    expect(t.calls).toEqual([["view", 1, "ready"]]);
+    expect(t.views.at(-1)).toMatchObject({ gen: 1, phase: "ready", mode: "responsive" });
+    t.calls.length = 0;
+    t.controller.request(PROTOTYPE_CHANNELS.mode, "prototype", { mode: "responsive" });
+    t.controller.request(PROTOTYPE_CHANNELS.mode, "main", { mode: "fit" });
+    t.controller.request(PROTOTYPE_CHANNELS.mode, "prototype", { mode: "zoom" });
+    t.controller.request(PROTOTYPE_CHANNELS.mode, "prototype", undefined);
+    expect(t.calls).toEqual([]);
+    expect(t.controller.request(PROTOTYPE_CHANNELS.read, "prototype", undefined)).toMatchObject({ mode: "responsive" });
+  });
+
+  test("a switch while loading keeps the run: no load, kill or new gen, and its result still lands", () => {
+    const t = setup();
+    t.controller.play("main", play);
+    t.calls.length = 0;
+    t.controller.request(PROTOTYPE_CHANNELS.mode, "prototype", { mode: "responsive" });
+    expect(t.calls).toEqual([["view", 1, "loading"]]);
+    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "390x844", frames });
+    expect(t.calls.at(-1)).toEqual(["view", 1, "ready"]);
+    expect(t.views.at(-1)?.mode).toBe("responsive");
+  });
+
+  test("the still is taken with the leaving run's mark and the mode it was shown in", async () => {
+    const t = setup();
+    t.controller.play("main", play);
+    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "400x700", frames });
+    t.controller.request(PROTOTYPE_CHANNELS.mode, "prototype", { mode: "responsive" });
+    t.calls.length = 0;
+    t.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 1 });
+    expect(t.calls[0]).toEqual(["capture", { width: 400, height: 700 }, "responsive"]);
+    await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 2, "loading"]));
+  });
+
+  test("a re-sent still keeps the box it was taken with, after a mode switch too", async () => {
+    const t = opened();
+    t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
+    await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 2, "loading"]));
+    t.setCapture(async () => ({ png: new Uint8Array([9]), box: { x: 0, y: 0, width: 1, height: 1 } }));
+    t.controller.request(PROTOTYPE_CHANNELS.mode, "prototype", { mode: "responsive" });
+    t.calls.length = 0;
+    t.controller.request(PROTOTYPE_CHANNELS.back, "prototype", undefined);
+    await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 3, "loading"]));
+    expect(t.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([["snapshot", 3, [1, 2], BOX]]);
   });
 });
 
