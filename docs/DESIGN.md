@@ -1902,7 +1902,7 @@ Reference: `.doan/canvases/frame-prototype.html` (frames `prototype-controls`, `
 
 ### Not verified
 
-- The read failure's scene was not reached. An unreadable canvas file that has a canvas id turned the view `read-failed` (`HTTP 404 Not Found`) and, within 300 ms, `Frame unavailable` with Close only (read in the DOM): `doan ls` lists an unreadable file without its id, so the window finds no row for the target. A known defect of the window's target lookup, not of this screen; the scene shares the start failure's markup.
+- The read failure's scene was reached in a real-app probe (an unreadable canvas file with a canvas id: "Couldn’t open this prototype" with Retry and Close) but not measured against the draft; it shares the start failure's markup.
 - Never paired: Forward enabled, Back disabled at 360, hover fills, the focus rings of Back, Reload and Close, the still image under the overlay, and three of the four unavailable reasons as visible tooltips (only the unmarked frame's was measured).
 - The bubble's room counts the floating tools only: the agent notice column at the area's top is not counted, and a picking or capture hint added to the tools is counted from the next draw.
 - A drawer with exactly one row, the short-window drawer scroll, dark mode and forced colours; fullscreen (no traffic-light space change); a prototype-window renderer reload while a run is ready.
