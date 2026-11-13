@@ -256,18 +256,20 @@ function FrameMenu({ view, onChoose }: { view: PrototypeView; onChoose(frame: st
     }
   };
 
-  const trigger = <button type="button" className="shell-search pw-name" aria-haspopup="listbox">
+  // With no marked frame the drawer holds a line of text, not a list: it is then a labelled dialog.
+  const empty = rows.length === 0;
+  const trigger = <button type="button" className="shell-search pw-name" aria-haspopup={empty ? "dialog" : "listbox"}>
     <span className="pw-name-text" ref={text}>{view.title}</span><ChevronDown className="chev" aria-hidden="true" /></button>;
   return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) setFocused(null); }}>
     <Tooltip open={cut && tip} onOpenChange={setTip}><TooltipTrigger asChild><Popover.Trigger asChild>{trigger}</Popover.Trigger></TooltipTrigger><TooltipContent>{view.title}</TooltipContent></Tooltip>
-    <Popover.Portal><Popover.Content ref={list} role={undefined} className="doan-floating doan-menu doan-frame-list pw-drawer" align="center" sideOffset={4} collisionPadding={8}
+    <Popover.Portal><Popover.Content ref={list} role={empty ? "dialog" : undefined} aria-label={empty ? drawerLabel(view) : undefined} className="doan-floating doan-menu doan-frame-list pw-drawer" align="center" sideOffset={4} collisionPadding={8}
       onOpenAutoFocus={event => {
         event.preventDefault();
         const start = focusedRowAfter(rows, null);
         move(start, true);
         requestAnimationFrame(() => { const node = start === null ? undefined : nodes.current.get(start); if (node && document.activeElement === node) move(start, true); });
       }}>
-      {rows.length === 0 ? <p className="doan-menu-head pw-drawer-empty">{EMPTY_DRAWER}</p>
+      {empty ? <p className="doan-menu-head pw-drawer-empty">{EMPTY_DRAWER}</p>
         : <div role="listbox" aria-label={drawerLabel(view)} onKeyDown={keydown}>
           {rows.map(row => <div key={row.key} role="option" aria-current={row.current ? "location" : undefined}
             tabIndex={row.key === active ? 0 : -1} title={row.name} className="doan-menu-item doan-frame-row"

@@ -39,6 +39,10 @@ describe("WindowShell header", () => {
     expect(tag(html, "pw-name")).not.toContain("title=");
   });
 
+  test("with no marked frame the name opens a dialog of one line, not a listbox", () => {
+    expect(tag(markup({ view: view({ frames: [] }) }), "pw-name")).toContain('aria-haspopup="dialog"');
+  });
+
   test("before any view only the disabled history and Reload show", () => {
     const html = markup({ view: null, layers: NO_LAYERS });
     expect(html).not.toContain("pw-name");
