@@ -88,6 +88,10 @@ export interface PrototypeView {
   phase: PrototypePhase;
   detail?: string;
   run: { url: string; markWidth: number } | null;
+  // A loading run was killed since the last ready one. The window's canvases share one renderer process, so every
+  // earlier iframe still on screen died with it: drop iframes older than `gen` and show the latest still image
+  // (re-sent under this `gen` before this view). False again once a run is ready.
+  previousStopped: boolean;
   frames: PrototypeFrame[];
   canGoBack: boolean;
   canGoForward: boolean;

@@ -194,6 +194,40 @@ describe("source changes and loss", () => {
   });
 });
 
+describe("review round 1", () => {
+  test("a kill marks the previous screen stopped until a new run is ready", () => {
+    const w = world();
+    const shown = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
+    expect(prototypeView(shown, w.resolve)?.previousStopped).toBe(false);
+    // A ready run left for another target is not killed; its iframe stays live under the new load.
+    const loadingB = ok(choose(shown, "tablet", w.resolve)).state;
+    expect(prototypeView(loadingB, w.resolve)?.previousStopped).toBe(false);
+    // Leaving the loading run kills its renderer, which the ready screen beneath it shares.
+    const toA = ok(back(loadingB, w.resolve));
+    expect(toA.effects).toContainEqual({ kind: "kill", gen: 2 });
+    expect(prototypeView(toA.state, w.resolve)?.previousStopped).toBe(true);
+    const failed = report(toA.state, { gen: toA.state.gen, state: "timeout" }).state;
+    expect(prototypeView(failed, w.resolve)?.previousStopped).toBe(true);
+    const retried = reload(failed, failed.gen).state;
+    expect(prototypeView(retried, w.resolve)?.previousStopped).toBe(true);
+    expect(prototypeView(ready(retried).state, w.resolve)?.previousStopped).toBe(false);
+  });
+
+  test("a timeout and a lost canvas while loading stop the previous screen too; a new window starts unstopped", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    expect(prototypeView(loading, w.resolve)?.previousStopped).toBe(false);
+    expect(prototypeView(report(loading, { gen: 1, state: "timeout" }).state, w.resolve)?.previousStopped).toBe(true);
+    w.set(A, { kind: "absent" });
+    const lost = listChanged(loading, w.resolve).state;
+    expect(prototypeView(lost, w.resolve)?.previousStopped).toBe(true);
+    w.set(A, w.present("http://h/t/tok/k1/proto.html", "s1", [{ id: "phone", title: "Phone" }]));
+    const closed = close(lost).state;
+    expect(prototypeView(ok(play(closed, { target: A, size: phone }, w.resolve)).state, w.resolve)?.previousStopped).toBe(false);
+  });
+
+});
+
 describe("failures, retry and stale results", () => {
   function loading() {
     const w = world();

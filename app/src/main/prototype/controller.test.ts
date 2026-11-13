@@ -170,4 +170,32 @@ describe("prototype controller", () => {
     t.controller.windowClosing();
     expect(t.calls).toEqual([["kill", 1], ["destroy"]]);
   });
+
+  test("a kill re-sends the latest still under the new view's gen, before that view", async () => {
+    const t = opened();
+    t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
+    await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 2, "loading"]));
+    t.calls.length = 0;
+    t.controller.request(PROTOTYPE_CHANNELS.back, "prototype", undefined);
+    const effects = [["fit", { width: 390, height: 844 }], ["activate"], ["kill", 2], ["load", { gen: 3, url: proto.url, frame: "phone" }]];
+    expect(t.calls).toEqual(effects);
+    await vi.waitFor(() => expect(t.calls).toEqual([...effects, ["snapshot", 3, [1, 2]], ["view", 3, "loading"]]));
+    expect(t.views.at(-1)?.previousStopped).toBe(true);
+  });
+
+  test("a kill with no still yet, or after the window closed, sends no snapshot", async () => {
+    const t = setup();
+    t.controller.play("main", play);
+    t.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 1 });
+    const u = opened();
+    u.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
+    await vi.waitFor(() => expect(u.calls.at(-1)).toEqual(["view", 2, "loading"]));
+    u.controller.request(PROTOTYPE_CHANNELS.close, "prototype", undefined);
+    u.controller.play("main", play);
+    u.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 3 });
+    await vi.waitFor(() => expect(u.calls.at(-1)).toEqual(["view", 4, "loading"]));
+    expect(t.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([]);
+    expect(u.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([["snapshot", 2, [1, 2]]]);
+  });
+
 });

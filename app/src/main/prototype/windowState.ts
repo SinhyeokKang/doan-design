@@ -47,6 +47,9 @@ export interface OpenState {
   readonly source: string | null;
   // The canvas label from the last list that had the canvas, so a lost canvas keeps its name in the view.
   readonly label: string;
+  // A kill since the last ready run: the canvases of this window share one renderer process, so the killed run took
+  // every earlier iframe still on screen with it, and only the still image can stand for the previous screen.
+  readonly previousStopped: boolean;
   // The drawer list of the target's canvas, from the current run.
   readonly frames: readonly PrototypeFrame[];
   // The last listed frame IDs per canvas seen in this window: `doan ls` has no marks, so Back/Forward know a canvas's
@@ -84,12 +87,14 @@ type Present = Extract<Resolution, { kind: "present" }>;
 function start(state: PrototypeState, target: PrototypeTarget, resolved: Present, fit: { size: PrototypeSize; create: boolean } | null, history: History<HistoryEntry>): Step {
   const effects: Effect[] = [];
   if (fit !== null) effects.push(fit.create ? { kind: "create", size: fit.size } : { kind: "fit", size: fit.size }, ...(fit.create ? [] : [{ kind: "activate" } as const]));
-  effects.push(...leaving(state));
+  const killed = leaving(state);
+  effects.push(...killed);
   const gen = state.gen + 1;
   const keepFrames = state.open && sameCanvas(state.target, target) && state.listed === "ok";
   const markWidth = fit?.size.width ?? (state.open ? state.run?.markWidth : undefined) ?? 0;
   const base = {
     open: true as const, gen, history, target, source: resolved.source, url: resolved.url, label: resolved.label,
+    previousStopped: killed.length > 0 || (state.open && state.previousStopped),
     frames: keepFrames && state.open ? state.frames : [], reports: state.open ? state.reports : {}, fitHint: fit?.size ?? null,
   };
   if (resolved.error) {
@@ -157,7 +162,8 @@ export function listChanged(state: PrototypeState, resolve: Resolve): Step {
   if (resolved.kind === "absent") {
     if (state.listed === "absent") return none(state);
     const { detail: _detail, ...rest } = state;
-    return { state: { ...rest, phase: "frame-unavailable", listed: "absent", frames: [], fitHint: null }, effects: leaving(state) };
+    const killed = leaving(state);
+    return { state: { ...rest, phase: "frame-unavailable", listed: "absent", frames: [], fitHint: null, previousStopped: killed.length > 0 || state.previousStopped }, effects: killed };
   }
   if (state.listed !== "absent" && resolved.source === state.source && resolved.error === (state.listed === "error")) return none(state);
   return start(state, state.target, resolved, null, state.history);
@@ -175,7 +181,7 @@ function current(state: OpenState, gen: number): boolean {
 
 export function report(state: PrototypeState, result: RunReport): Step {
   if (!state.open || !current(state, result.gen)) return none(state);
-  if (result.state === "timeout") return { state: { ...state, phase: "init-failed", fitHint: null }, effects: [{ kind: "kill", gen: result.gen }] };
+  if (result.state === "timeout") return { state: { ...state, phase: "init-failed", fitHint: null, previousStopped: true }, effects: [{ kind: "kill", gen: result.gen }] };
   const reports = { ...state.reports, [canvasKeyString(state.target)]: result.frames.map(frame => frame.id) };
   if (result.state !== "ready") {
     const phase = result.state === "missing" || result.state === "duplicate" ? "frame-unavailable" : "prototype-unavailable";
@@ -186,7 +192,7 @@ export function report(state: PrototypeState, result: RunReport): Step {
   const effects: Effect[] = hint !== null && (hint.width !== size.width || hint.height !== size.height) ? [{ kind: "fit", size }] : [];
   const entries = state.history.entries.map(entry => (sameTarget(entry.target, state.target) ? { ...entry, size } : entry));
   const run = state.run === null ? null : { ...state.run, markWidth: size.width };
-  return { state: { ...state, phase: "ready", run, frames: result.frames, reports, fitHint: null, history: { entries, index: state.history.index } }, effects };
+  return { state: { ...state, phase: "ready", run, frames: result.frames, reports, previousStopped: false, fitHint: null, history: { entries, index: state.history.index } }, effects };
 }
 
 export function framesReported(state: PrototypeState, gen: number, frames: PrototypeFrame[]): Step {
@@ -215,6 +221,6 @@ export function prototypeView(state: PrototypeState, resolve: Resolve): Prototyp
   const ok = usable(state, resolve);
   return {
     gen: state.gen, frame, title, canvas: resolved.kind === "present" ? resolved.label : state.label, phase: state.phase, ...(state.detail === undefined ? {} : { detail: state.detail }),
-    run: state.run, frames: [...state.frames], canGoBack: canStep(state.history, "back", ok), canGoForward: canStep(state.history, "forward", ok),
+    run: state.run, previousStopped: state.previousStopped, frames: [...state.frames], canGoBack: canStep(state.history, "back", ok), canGoForward: canStep(state.history, "forward", ok),
   };
 }
