@@ -179,8 +179,7 @@ describe("prototype controller", () => {
     t.calls.length = 0;
     t.controller.request(PROTOTYPE_CHANNELS.back, "prototype", undefined);
     const effects = [["fit", { width: 390, height: 844 }], ["activate"], ["kill", 2], ["load", { gen: 3, url: proto.url, frame: "phone" }]];
-    expect(t.calls).toEqual(effects);
-    await vi.waitFor(() => expect(t.calls).toEqual([...effects, ["snapshot", 3, [1, 2]], ["view", 3, "loading"]]));
+    expect(t.calls).toEqual([...effects, ["snapshot", 3, [1, 2]], ["view", 3, "loading"]]);
     expect(t.views.at(-1)?.previousStopped).toBe(true);
   });
 
@@ -208,4 +207,31 @@ describe("prototype controller", () => {
     t.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 1 });
     expect(t.calls).toEqual([["reread", "/r"]]);
   });
+
+  test("a still that finishes after a kill stands for the stopped screen, under the kill's gen", async () => {
+    const t = opened();
+    let release: (png: Uint8Array | null) => void = () => {};
+    t.setCapture(() => new Promise(done => { release = done; }));
+    t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
+    // Back kills the tablet load before Phone's still came back.
+    t.controller.request(PROTOTYPE_CHANNELS.back, "prototype", undefined);
+    release(new Uint8Array([7]));
+    await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 3, "loading"]));
+    expect(t.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([["snapshot", 3, [7]]]);
+  });
+
+  test("a still that could not be read clears the last one, so a kill never re-sends another frame's screen", async () => {
+    const t = opened();
+    t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
+    await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 2, "loading"]));
+    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 2, state: "ready", size: "820x1180", frames });
+    t.setCapture(async () => null);
+    t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "phone" });
+    await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 3, "loading"]));
+    t.calls.length = 0;
+    t.controller.request(PROTOTYPE_CHANNELS.back, "prototype", undefined);
+    await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 4, "loading"]));
+    expect(t.calls.filter(call => Array.isArray(call) && call[0] === "snapshot")).toEqual([]);
+  });
 });
+

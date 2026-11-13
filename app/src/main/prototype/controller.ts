@@ -42,8 +42,11 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
   let sent: string | null = null;
   // Snapshot captures are async; views queue behind them so the image always arrives before its view.
   let queue: Promise<void> | null = null;
-  // The last still sent to this window, re-sent when a kill stops the screen it stood for.
+  // The last still taken in this window, re-sent when a kill stops the screen it stood for.
   let latest: Uint8Array | null = null;
+  // The gen of a kill's view: the latest still goes out again just before that view, whenever the view is sent, so a
+  // still that finishes after the kill is still the one re-sent.
+  let resendFor: number | null = null;
   const resolve: Resolve = (ref, lastPath) => resolveTarget(ref, entries(), lastPath);
 
   const sendView = () => {
@@ -52,6 +55,10 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     const text = JSON.stringify(view);
     if (text === sent) return;
     sent = text;
+    if (resendFor === view.gen) {
+      resendFor = null;
+      if (latest !== null) host.sendSnapshot({ gen: view.gen, png: latest });
+    }
     host.sendView(view);
   };
 
@@ -74,16 +81,16 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
   // The still goes out before the view of the state that followed, tagged with that view's gen. A kill also stops the
   // earlier iframes still on screen (one renderer process), so the latest still goes out again under the new gen.
   const publish = (still: Promise<Uint8Array | null> | null, killed: boolean) => {
-    // Only when there is (or may soon be) a still: otherwise the view goes out at once.
-    if (killed && still === null && state.open && (latest !== null || queue !== null)) {
-      const gen = state.gen;
-      later(() => { if (latest !== null && state.open && state.gen === gen) host.sendSnapshot({ gen, png: latest }); });
-    }
+    if (killed && still === null && state.open) resendFor = state.gen;
     if (still !== null) {
       const gen = state.gen;
       later(async () => {
         const png = await still;
-        if (png !== null && state.open && state.gen === gen) { latest = png; host.sendSnapshot({ gen, png }); }
+        if (!state.open) return;
+        // Kept even when a later step moved the gen on: a kill right after leaving ready re-sends this still. A still
+        // that could not be read clears the last one, so another frame's screen is never re-sent in its place.
+        latest = png;
+        if (png !== null && state.gen === gen) host.sendSnapshot({ gen, png });
       });
     }
     if (queue === null) sendView();
@@ -94,7 +101,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     if (step === null) return;
     const previous = state;
     state = step.state;
-    if (!state.open) latest = null;
+    if (!state.open) { latest = null; resendFor = null; }
     const still = leavingReady(previous);
     for (const effect of step.effects) {
       switch (effect.kind) {
