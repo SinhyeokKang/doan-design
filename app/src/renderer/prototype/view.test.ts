@@ -4,7 +4,7 @@ import { covered, drawerLabel, exportAvailability, drawerRows, liveText, LOADING
 
 const frames = [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }, { id: "account", size: "390x844", number: 3 }];
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 2, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", mode: "fit", run: { url: "http://127.0.0.1/a.html", markWidth: 390, markHeight: 844 }, frames, canGoBack: false, canGoForward: false, previousStopped: false, ...over,
+  gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", mode: "fit", run: { url: "http://127.0.0.1/a.html", markWidth: 390, markHeight: 844 }, frames, canGoBack: false, canGoForward: false, previousStopped: false, ...over,
 });
 
 describe("windowTitle", () => {

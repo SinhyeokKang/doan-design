@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { PrototypeView } from "../../main/prototype/ipc";
 
@@ -27,17 +27,26 @@ vi.mock("react", async original => {
         if (!Object.is(value, hooks.states[index])) { hooks.states[index] = value; hooks.dirty = true; }
       }];
     },
+    useReducer: (reducer: (state: unknown, event: unknown) => unknown, initial: unknown) => {
+      const index = hooks.cursor++;
+      if (!(index in hooks.states)) hooks.states[index] = initial;
+      return [hooks.states[index], (event: unknown) => {
+        const value = reducer(hooks.states[index], event);
+        if (!Object.is(value, hooks.states[index])) { hooks.states[index] = value; hooks.dirty = true; }
+      }];
+    },
     useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
     useEffect: effect, useLayoutEffect: effect,
   };
 });
 const { PrototypeWindow } = await import("./PrototypeWindow");
 type Shell = import("./PrototypeWindow").ShellProps;
+type PrototypeApi = import("./PrototypeWindow").PrototypeApi;
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
 const BOX = { x: 0, y: 0, width: 390, height: 844 };
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 1, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, ...over,
+  gen: 1, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, ...over,
 });
 
 let changed: (view: PrototypeView | null) => void;
@@ -46,7 +55,8 @@ let messages: ((event: unknown) => void)[];
 let resizes: (() => void)[];
 let win: { innerWidth: number };
 let api: Record<string, ReturnType<typeof vi.fn>>;
-let doc: { title: string; activeElement: unknown; body: object };
+let doc: { title: string; activeElement: unknown; body: object; hidden: boolean; addEventListener(): void; removeEventListener(): void; querySelector(): null };
+let running: (target: { root: string; path: string; frame: string }) => void;
 let shell: Shell;
 
 function render(): Shell {
@@ -72,8 +82,13 @@ beforeEach(() => {
     onSnapshot: vi.fn((listener: typeof snapshot) => { snapshot = listener; return () => {}; }),
     reportResult: vi.fn(async () => {}), reportFrames: vi.fn(async () => {}), reload: vi.fn(async () => {}),
     back: vi.fn(async () => {}), forward: vi.fn(async () => {}), choose: vi.fn(async () => {}), close: vi.fn(async () => {}), setMode: vi.fn(async () => {}),
+    export: vi.fn(async () => ({ kind: "cancelled" })), revealExport: vi.fn(async () => {}),
+    onExportRunning: vi.fn((listener: typeof running) => { running = listener; return () => {}; }),
+    onWindowVisible: vi.fn((listener: (visible: boolean) => void) => { listener(true); return () => {}; }),
   };
-  doc = { title: "", activeElement: null, body: {} };
+  doc = { title: "", activeElement: null, body: {}, hidden: false, addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null };
+  // The toast's clock reads performance.now, which the fake timers leave alone.
+  vi.stubGlobal("performance", { now: () => Date.now() });
   vi.stubGlobal("document", doc);
   win = { innerWidth: 640,
     addEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "message") messages.push(listener); if (type === "resize") resizes.push(listener as () => void); },
@@ -362,5 +377,149 @@ describe("focus after a pointer Reload", () => {
     show(view({ gen: 3, phase: "ready" }));
     expect(next.focus).not.toHaveBeenCalled();
     expect(third.focus).not.toHaveBeenCalled();
+  });
+});
+
+// The header's Export (ARCHITECTURE §7 'Prototype window IPC'): main shows the save panel and runs the CLI; the window
+// shows "Exporting" from main's running event to the reply, and the result as a toast in this window.
+describe("Export", () => {
+  type Reply = Awaited<ReturnType<PrototypeApi["export"]>>;
+  const settle = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); return render(); };
+  const toastParts = () => {
+    const element = shell.toast as ReactElement<{ children: [ReactElement<{ children: string }>, ReactElement<{ children: ReactNode; onClick(): void }> | false | undefined] }> | null | undefined;
+    if (!element) return null;
+    const [message, action] = element.props.children;
+    return { text: message.props.children, action: action || null };
+  };
+  function pending() {
+    let answer!: (reply: Reply) => void;
+    api.export!.mockImplementationOnce(() => new Promise<Reply>(resolve => { answer = resolve; }));
+    return (reply: Reply) => answer(reply);
+  }
+  const target = { root: "/r", path: ".doan/canvases/a.html", frame: "checkout" };
+
+  test("sends the target shown at the click, once while an export is pending", () => {
+    show(view({ phase: "ready" }));
+    pending();
+    shell.onExport();
+    shell.onExport();
+    expect(api.export).toHaveBeenCalledExactlyOnceWith(target);
+  });
+
+  test("main's running event turns Export to Exporting and shows the progress toast after 1 s", async () => {
+    show(view({ phase: "ready" }));
+    const answer = pending();
+    shell.onExport();
+    expect(render().exporting).toBe(false);
+    running(target);
+    expect(render().exporting).toBe(true);
+    vi.advanceTimersByTime(999);
+    expect(render() && toastParts()).toBeNull();
+    vi.advanceTimersByTime(1);
+    expect(render() && toastParts()?.text).toBe("Exporting “Checkout”");
+    answer({ kind: "exported", external: 0, reveal: "id-1" });
+    expect((await settle()).exporting).toBe(false);
+  });
+
+  test("a running event for another export changes nothing", () => {
+    show(view({ phase: "ready" }));
+    running(target);
+    expect(render().exporting).toBe(false);
+    pending();
+    shell.onExport();
+    running({ ...target, frame: "other" });
+    expect(render().exporting).toBe(false);
+  });
+
+  test("the success toast says the file holds the whole canvas, reveals the file and goes after its time", async () => {
+    show(view({ phase: "ready" }));
+    const answer = pending();
+    shell.onExport();
+    running(target);
+    answer({ kind: "exported", external: 1, reveal: "id-1" });
+    await settle();
+    const toast = toastParts()!;
+    expect(toast.text).toBe("Exported “Checkout”. The file also contains the rest of the canvas. Parts of it load from the internet.");
+    expect(toast.action && toast.action.props.children).toBe("Show in Finder");
+    vi.advanceTimersByTime(8_000);
+    render();
+    vi.advanceTimersByTime(500);
+    expect(render() && toastParts()).toBeNull();
+  });
+
+  test("Show in Finder asks main with the reply's id", async () => {
+    show(view({ phase: "ready" }));
+    const answer = pending();
+    shell.onExport();
+    answer({ kind: "exported", external: 0, reveal: "id-7" });
+    await settle();
+    toastParts()!.action!.props.onClick();
+    render();
+    expect(api.revealExport).toHaveBeenCalledExactlyOnceWith("id-7");
+  });
+
+  test("a cancelled save panel shows nothing and frees Export", async () => {
+    show(view({ phase: "ready" }));
+    shell.onExport();
+    await settle();
+    expect(toastParts()).toBeNull();
+    expect(shell.exporting).toBe(false);
+    shell.onExport();
+    expect(api.export).toHaveBeenCalledTimes(2);
+  });
+
+  test("the result names the clicked frame even when another plays by then", async () => {
+    show(view({ phase: "ready" }));
+    const answer = pending();
+    shell.onExport();
+    running(target);
+    show(view({ gen: 2, frame: "account", title: "Account", phase: "loading" }));
+    expect(shell.exporting).toBe(true);
+    answer({ kind: "failed", reason: "notMarked" });
+    await settle();
+    expect(toastParts()?.text).toBe("Couldn’t export “Checkout”. It isn’t marked for prototyping in the canvas file. Ask your agent to mark it.");
+  });
+
+  test("a click on a frame that stopped playing gets the stale-click toast", async () => {
+    show(view({ phase: "ready" }));
+    api.export!.mockResolvedValueOnce({ kind: "refused", reason: "changed" });
+    shell.onExport();
+    await settle();
+    expect(toastParts()?.text).toBe("Couldn’t export “Checkout”. Another frame started playing first. Play “Checkout” again, then export it.");
+  });
+
+  test("a failed call reads as any other failure", async () => {
+    show(view({ phase: "ready" }));
+    api.export!.mockRejectedValueOnce(new Error("gone"));
+    shell.onExport();
+    await settle();
+    expect(toastParts()?.text).toBe("Couldn’t export “Checkout”. Try again.");
+  });
+
+  // The save panel takes focus from the page; it goes back where it was before the press (Export after a key press,
+  // the frame after a pointer press, which never moves focus), once, if it fell to the page.
+  test("focus that fell to the page during the save panel goes back where it was before the press", async () => {
+    show(view({ phase: "ready" }));
+    const before = { focus: vi.fn(), isConnected: true };
+    doc.activeElement = before;
+    const answer = pending();
+    shell.onExport();
+    doc.activeElement = doc.body;
+    running(target);
+    expect(before.focus).toHaveBeenCalledOnce();
+    doc.activeElement = doc.body;
+    answer({ kind: "cancelled" });
+    await settle();
+    expect(before.focus).toHaveBeenCalledOnce();
+  });
+
+  test("focus put elsewhere meanwhile stays there", async () => {
+    show(view({ phase: "ready" }));
+    const before = { focus: vi.fn(), isConnected: true };
+    doc.activeElement = before;
+    shell.onExport();
+    doc.activeElement = { name: "Back" };
+    await settle();
+    expect(before.focus).not.toHaveBeenCalled();
   });
 });

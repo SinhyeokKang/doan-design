@@ -322,3 +322,36 @@ describe("playFromCli", () => {
     expect(t.calls).toEqual([]);
   });
 });
+
+// `prototype:export`: the window names what it showed at the click; main exports only what still plays.
+describe("exportTarget", () => {
+  const clicked = { root: "/r", path: proto.path, frame: "phone" };
+
+  test("the view names the playing target's root and canvas path, which Export sends back", () => {
+    const t = opened();
+    expect(t.controller.request(PROTOTYPE_CHANNELS.read, "prototype", undefined)).toMatchObject({ root: "/r", path: proto.path, frame: "phone" });
+  });
+
+  test("the frame that still plays is exported", () => {
+    expect(opened().controller.exportTarget("prototype", clicked)).toEqual(clicked);
+  });
+
+  test("a click on a frame that no longer plays is refused as changed", () => {
+    const t = opened();
+    t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
+    expect(t.controller.exportTarget("prototype", clicked)).toEqual({ kind: "refused", reason: "changed" });
+  });
+
+  test("a canvas whose ID two rows now share has no exportable target", () => {
+    const t = opened();
+    t.setEntries([{ path: "/r", kind: "list", canvases: [proto, { ...proto, path: ".doan/canvases/copy.html" }], servedRev: 0 }]);
+    expect(t.controller.exportTarget("prototype", clicked)).toEqual({ kind: "refused", reason: "notListed" });
+  });
+
+  test("another sender, a malformed target or a closed window is refused before anything else", () => {
+    const t = opened();
+    expect(t.controller.exportTarget("main", clicked)).toEqual({ kind: "refused", reason: "notListed" });
+    expect(t.controller.exportTarget("prototype", { ...clicked, frame: "" })).toEqual({ kind: "refused", reason: "notListed" });
+    expect(setup().controller.exportTarget("prototype", clicked)).toEqual({ kind: "refused", reason: "notListed" });
+  });
+});
