@@ -67,12 +67,16 @@ export interface ViewportBox {
   height: number;
   // `transform: scale()` with origin 0 0; below 1 only in Fit, when the panel is smaller than the mark.
   scale: number;
+  // The scaled iframe in whole pixels, at most what it draws: the renderer clips the iframe to this box and main
+  // captures exactly it, so a fractional scale (844 x 344/390 = 744.45) leaves no sliver between the live frame and
+  // its still.
+  visibleWidth: number;
+  visibleHeight: number;
 }
 
-// The visible size of a box in whole pixels. The epsilon keeps a side scaled to exactly the panel (390 x 344/390)
-// from flooring one pixel short.
-function visible(box: ViewportBox): { width: number; height: number } {
-  return { width: Math.floor(box.width * box.scale + 1e-9), height: Math.floor(box.height * box.scale + 1e-9) };
+// The epsilon keeps a side scaled to exactly the panel (390 x 344/390) from flooring one pixel short.
+function whole(size: number, scale: number): number {
+  return Math.floor(size * scale + 1e-9);
 }
 
 // The run iframe's box in the content panel, from the panel, the run's mark and the mode only: nothing measured in
@@ -82,10 +86,10 @@ function visible(box: ViewportBox): { width: number; height: number } {
 export function prototypeViewportBox(panel: { width: number; height: number }, mark: PrototypeSize, mode: PrototypeMode): ViewportBox {
   const width = Math.max(0, Math.floor(panel.width));
   const height = Math.max(0, Math.floor(panel.height));
-  if (mode === "responsive" || mark.width <= 0 || mark.height <= 0) return { x: 0, y: 0, width, height, scale: 1 };
-  const box = { x: 0, y: 0, width: mark.width, height: mark.height, scale: Math.min(1, width / mark.width, height / mark.height) };
-  const seen = visible(box);
-  return { ...box, x: Math.floor((width - seen.width) / 2), y: Math.floor((height - seen.height) / 2) };
+  if (mode === "responsive" || mark.width <= 0 || mark.height <= 0) return { x: 0, y: 0, width, height, scale: 1, visibleWidth: width, visibleHeight: height };
+  const scale = Math.min(1, width / mark.width, height / mark.height);
+  const visibleWidth = whole(mark.width, scale), visibleHeight = whole(mark.height, scale);
+  return { x: Math.floor((width - visibleWidth) / 2), y: Math.floor((height - visibleHeight) / 2), width: mark.width, height: mark.height, scale, visibleWidth, visibleHeight };
 }
 
 // What main captures when a ready run leaves: `rect` in window content coordinates for capturePage, and `box`, the
@@ -95,7 +99,7 @@ export function prototypeCaptureRect(content: { width: number; height: number },
   const top = headerHeight(content.width);
   const panel = { width: content.width - 2 * PROTOTYPE_CHROME.side - sideColumn, height: content.height - top - PROTOTYPE_CHROME.bottom };
   const viewport = prototypeViewportBox(panel, mark, mode);
-  const box = { x: viewport.x, y: viewport.y, ...visible(viewport) };
+  const box = { x: viewport.x, y: viewport.y, width: viewport.visibleWidth, height: viewport.visibleHeight };
   if (box.width <= 0 || box.height <= 0) return null;
   return { rect: { ...box, x: PROTOTYPE_CHROME.side + box.x, y: top + box.y }, box };
 }

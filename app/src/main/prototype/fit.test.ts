@@ -91,55 +91,61 @@ describe("prototypeHeaderRows", () => {
   });
 });
 
-const visible = (box: { width: number; height: number; scale: number }) => ({ width: Math.floor(box.width * box.scale + 1e-9), height: Math.floor(box.height * box.scale + 1e-9) });
 
 describe("prototypeViewportBox", () => {
   test("Responsive fills the panel whatever the mark, a 240 frame too", () => {
-    expect(prototypeViewportBox({ width: 624, height: 844 }, { width: 390, height: 844 }, "responsive")).toEqual({ x: 0, y: 0, width: 624, height: 844, scale: 1 });
-    expect(prototypeViewportBox({ width: 344, height: 800 }, { width: 390, height: 844 }, "responsive")).toEqual({ x: 0, y: 0, width: 344, height: 800, scale: 1 });
-    expect(prototypeViewportBox({ width: 624, height: 600 }, { width: 240, height: 400 }, "responsive")).toEqual({ x: 0, y: 0, width: 624, height: 600, scale: 1 });
+    expect(prototypeViewportBox({ width: 624, height: 844 }, { width: 390, height: 844 }, "responsive")).toEqual({ x: 0, y: 0, width: 624, height: 844, scale: 1, visibleWidth: 624, visibleHeight: 844 });
+    expect(prototypeViewportBox({ width: 344, height: 800 }, { width: 390, height: 844 }, "responsive")).toEqual({ x: 0, y: 0, width: 344, height: 800, scale: 1, visibleWidth: 344, visibleHeight: 800 });
+    expect(prototypeViewportBox({ width: 624, height: 600 }, { width: 240, height: 400 }, "responsive")).toEqual({ x: 0, y: 0, width: 624, height: 600, scale: 1, visibleWidth: 624, visibleHeight: 600 });
   });
 
   test("Fit keeps the mark at 1x, centred, when the panel is larger; it never enlarges", () => {
-    expect(prototypeViewportBox({ width: 390, height: 844 }, { width: 390, height: 844 }, "fit")).toEqual({ x: 0, y: 0, width: 390, height: 844, scale: 1 });
-    expect(prototypeViewportBox({ width: 800, height: 900 }, { width: 390, height: 844 }, "fit")).toEqual({ x: 205, y: 28, width: 390, height: 844, scale: 1 });
-    expect(prototypeViewportBox({ width: 624, height: 600 }, { width: 240, height: 400 }, "fit")).toEqual({ x: 192, y: 100, width: 240, height: 400, scale: 1 });
+    expect(prototypeViewportBox({ width: 390, height: 844 }, { width: 390, height: 844 }, "fit")).toEqual({ x: 0, y: 0, width: 390, height: 844, scale: 1, visibleWidth: 390, visibleHeight: 844 });
+    expect(prototypeViewportBox({ width: 800, height: 900 }, { width: 390, height: 844 }, "fit")).toEqual({ x: 205, y: 28, width: 390, height: 844, scale: 1, visibleWidth: 390, visibleHeight: 844 });
+    expect(prototypeViewportBox({ width: 624, height: 600 }, { width: 240, height: 400 }, "fit")).toEqual({ x: 192, y: 100, width: 240, height: 400, scale: 1, visibleWidth: 240, visibleHeight: 400 });
   });
 
   test("Fit scales down by width, keeping the iframe at the mark's CSS size", () => {
     const box = prototypeViewportBox({ width: 344, height: 844 }, { width: 390, height: 844 }, "fit");
     expect(box).toMatchObject({ x: 0, y: 50, width: 390, height: 844 });
     expect(box.scale).toBeCloseTo(344 / 390, 12);
-    expect(visible(box)).toEqual({ width: 344, height: 744 });
+    expect(box).toMatchObject({ visibleWidth: 344, visibleHeight: 744 });
   });
 
   test("Fit scales down by height", () => {
     const box = prototypeViewportBox({ width: 1440, height: 450 }, { width: 1440, height: 900 }, "fit");
     expect(box).toMatchObject({ x: 360, y: 0, width: 1440, height: 900, scale: 0.5 });
-    expect(visible(box)).toEqual({ width: 720, height: 450 });
+    expect(box).toMatchObject({ visibleWidth: 720, visibleHeight: 450 });
+  });
+
+  test("a fractional scale clips the iframe to whole pixels: 390x844 in 344x800 draws 744.45 high and shows 744", () => {
+    const box = prototypeViewportBox({ width: 344, height: 800 }, { width: 390, height: 844 }, "fit");
+    expect(box.height * box.scale).toBeGreaterThan(744.4);
+    expect(box.visibleWidth).toBe(344);
+    expect(box.visibleHeight).toBe(744);
   });
 
   test("Fit scales down by the tighter of both sides", () => {
     const box = prototypeViewportBox({ width: 344, height: 800 }, { width: 390, height: 844 }, "fit");
     expect(box).toMatchObject({ x: 0, y: 28, width: 390, height: 844 });
-    expect(visible(box)).toEqual({ width: 344, height: 744 });
+    expect(box).toMatchObject({ visibleWidth: 344, visibleHeight: 744 });
     const tall = prototypeViewportBox({ width: 1000, height: 400 }, { width: 1440, height: 900 }, "fit");
     expect(tall).toMatchObject({ x: 180, y: 0, scale: 400 / 900 });
-    expect(visible(tall)).toEqual({ width: 640, height: 400 });
+    expect(tall).toMatchObject({ visibleWidth: 640, visibleHeight: 400 });
   });
 
   test("an unknown mark fills the panel in both modes", () => {
     for (const mode of ["fit", "responsive"] as const) {
       for (const mark of [{ width: 0, height: 0 }, { width: 390, height: 0 }, { width: 0, height: 844 }]) {
-        expect(prototypeViewportBox({ width: 344, height: 800 }, mark, mode)).toEqual({ x: 0, y: 0, width: 344, height: 800, scale: 1 });
+        expect(prototypeViewportBox({ width: 344, height: 800 }, mark, mode)).toEqual({ x: 0, y: 0, width: 344, height: 800, scale: 1, visibleWidth: 344, visibleHeight: 800 });
       }
     }
   });
 
   test("an unmeasured panel keeps Fit's viewport at the mark with nothing visible", () => {
-    expect(prototypeViewportBox({ width: 0, height: 0 }, { width: 390, height: 844 }, "fit")).toEqual({ x: 0, y: 0, width: 390, height: 844, scale: 0 });
-    expect(prototypeViewportBox({ width: 0, height: 0 }, { width: 390, height: 844 }, "responsive")).toEqual({ x: 0, y: 0, width: 0, height: 0, scale: 1 });
-    expect(prototypeViewportBox({ width: -8, height: 500 }, { width: 390, height: 844 }, "responsive")).toEqual({ x: 0, y: 0, width: 0, height: 500, scale: 1 });
+    expect(prototypeViewportBox({ width: 0, height: 0 }, { width: 390, height: 844 }, "fit")).toEqual({ x: 0, y: 0, width: 390, height: 844, scale: 0, visibleWidth: 0, visibleHeight: 0 });
+    expect(prototypeViewportBox({ width: 0, height: 0 }, { width: 390, height: 844 }, "responsive")).toEqual({ x: 0, y: 0, width: 0, height: 0, scale: 1, visibleWidth: 0, visibleHeight: 0 });
+    expect(prototypeViewportBox({ width: -8, height: 500 }, { width: 390, height: 844 }, "responsive")).toEqual({ x: 0, y: 0, width: 0, height: 500, scale: 1, visibleWidth: 0, visibleHeight: 500 });
   });
 
   test("positions and visible sizes are whole pixels, also for a fractional panel", () => {
@@ -147,10 +153,12 @@ describe("prototypeViewportBox", () => {
     const marks = [{ width: 390, height: 844 }, { width: 1440, height: 900 }, { width: 240, height: 400 }, { width: 5000, height: 5000 }];
     for (const panel of panels) for (const mark of marks) for (const mode of ["fit", "responsive"] as const) {
       const box = prototypeViewportBox(panel, mark, mode);
-      const seen = visible(box);
-      for (const value of [box.x, box.y, box.width, box.height, seen.width, seen.height]) expect(Number.isInteger(value), JSON.stringify({ panel, mark, mode, box })).toBe(true);
-      expect(box.x + seen.width).toBeLessThanOrEqual(panel.width);
-      expect(box.y + seen.height).toBeLessThanOrEqual(panel.height);
+      for (const value of [box.x, box.y, box.width, box.height, box.visibleWidth, box.visibleHeight]) expect(Number.isInteger(value), JSON.stringify({ panel, mark, mode, box })).toBe(true);
+      // The clip is never larger than what the scaled iframe draws, so no panel shows through at its edge.
+      expect(box.visibleWidth).toBeLessThanOrEqual(box.width * box.scale + 1e-6);
+      expect(box.visibleHeight).toBeLessThanOrEqual(box.height * box.scale + 1e-6);
+      expect(box.x + box.visibleWidth).toBeLessThanOrEqual(panel.width);
+      expect(box.y + box.visibleHeight).toBeLessThanOrEqual(panel.height);
     }
   });
 });
@@ -174,6 +182,18 @@ describe("prototypeCaptureRect", () => {
   test("a side column takes its width off the content panel", () => {
     expect(prototypeCaptureRect({ width: 1000, height: 908 }, { width: 390, height: 844 }, "fit", 300)).toEqual({ rect: { x: 155, y: 56, width: 390, height: 844 }, box: { x: 147, y: 0, width: 390, height: 844 } });
     expect(prototypeCaptureRect({ width: 1000, height: 908 }, { width: 390, height: 844 }, "responsive", 300)).toEqual({ rect: { x: 8, y: 56, width: 684, height: 844 }, box: { x: 0, y: 0, width: 684, height: 844 } });
+  });
+
+  test("captures exactly the box the renderer clips the iframe to", () => {
+    const marks = [{ width: 390, height: 844 }, { width: 1440, height: 900 }, { width: 240, height: 400 }, { width: 5000, height: 5000 }, { width: 0, height: 0 }];
+    for (const content of [{ width: 360, height: 908 }, { width: 406, height: 908 }, { width: 371, height: 777 }, { width: 1001, height: 641 }, { width: 640, height: 480 }]) {
+      for (const mark of marks) for (const mode of ["fit", "responsive"] as const) {
+        const header = prototypeHeaderRows(content.width, PROTOTYPE_HEADER_RIGHT) === 2 ? 100 : 56;
+        const viewport = prototypeViewportBox({ width: content.width - 16, height: content.height - header - 8 }, mark, mode);
+        const area = prototypeCaptureRect(content, mark, mode);
+        expect(area?.box, JSON.stringify({ content, mark, mode })).toEqual({ x: viewport.x, y: viewport.y, width: viewport.visibleWidth, height: viewport.visibleHeight });
+      }
+    }
   });
 
   test("an empty panel has nothing to capture", () => {
