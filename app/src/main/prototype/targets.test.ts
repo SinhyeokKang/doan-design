@@ -21,7 +21,7 @@ describe("identity", () => {
     expect(sameTarget(target, { root: "/r", canvas: { id: "proto" }, frame: "other" })).toBe(false);
     expect(sameTarget(target, { root: "/r-wt", canvas: { id: "proto" }, frame: "phone" })).toBe(false);
     expect(sameTarget(target, { root: "/r", canvas: { path: "proto" }, frame: "phone" })).toBe(false);
-    expect(sameCanvas(target, { root: "/r", canvas: { id: "proto" }, frame: "x" })).toBe(true);
+    expect(sameCanvas(target, { root: "/r", canvas: { id: "proto" } })).toBe(true);
     expect(sameCanvas({ root: "/r", canvas: { path: "a.html" } }, { root: "/r", canvas: { path: "a.html" } })).toBe(true);
   });
 

@@ -1,4 +1,8 @@
-export type WindowKind = "main";
+import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
+
+// `prototype` is the single-frame prototype window: its main frame drives only its own run and never reaches a main
+// window channel, so a canvas that escaped into it could not change the selection, settings or attachments.
+export type WindowKind = "main" | "prototype";
 
 const mainOnly = new Set([
   "app:home", "work:get", "deep-link:ready", "doan-open:answer",
@@ -49,9 +53,15 @@ const mainOnly = new Set([
   "canvas:trashPlan", "canvas:trash", "canvas:export", "canvas:revealExport",
   // The existing-user buddy screen; Settings is locked while it shows.
   "buddy-intro:read", "buddy-intro:close",
+  // Play prototype from the toolbar and the size bubble; prototype:changed is an event main sends the prototype window.
+  PROTOTYPE_CHANNELS.play,
 ]);
+
+const prototypeOnly: ReadonlySet<string> = new Set(PROTOTYPE_WINDOW_REQUESTS);
 
 // The caller must first identify a registered window and check its main frame.
 export function senderAllowed(channel: string, windowKind: unknown): boolean {
-  return windowKind === "main" && mainOnly.has(channel);
+  if (windowKind === "main") return mainOnly.has(channel);
+  if (windowKind === "prototype") return prototypeOnly.has(channel);
+  return false;
 }
