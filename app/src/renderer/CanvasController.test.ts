@@ -225,7 +225,8 @@ function stepAnswer(h: { current: () => { contentWindow: { postMessage: ReturnTy
 describe("selection", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  // The size bubble's Play prototype (design.md 'UI와 회귀 예방'): the frame itself, marked, in Select.
+  // The size bubble's Play prototype shows only for a frame selected as itself, carrying a valid mark, in Select: the
+  // same judgement as the toolbar's Play, so the two never disagree.
   describe("the size bubble's Play prototype", () => {
     const marked = [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }];
     const frameTarget = (id: string) => ({ rect: { x: 0, y: 0, width: 320, height: 180 }, tag: "section", frame: { id }, frameIndex: 0, path: [] });
