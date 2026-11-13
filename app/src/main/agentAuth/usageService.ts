@@ -41,6 +41,8 @@ export class UsageService {
   private readonly store = new UsageStore();
   private readonly connections = new Map<UsageProvider, string>();
   private readonly reads = new Map<UsageProvider, Read>();
+  // A turn end's read on the run's own connection, while it runs (limitWindows waits for it).
+  private readonly turnReads = new Map<UsageProvider, Promise<void>>();
   private readonly running = new Set<Promise<void>>();
   // A sign-in whose read could not start yet (its connection still settling, or the window hidden).
   private readonly signedIn = new Set<UsageProvider>();
@@ -100,14 +102,16 @@ export class UsageService {
       this.store.settle(provider, connectionId, reading); this.publish();
     })();
     this.track(done);
-    await done;
+    this.turnReads.set(provider, done);
+    try { await done; } finally { if (this.turnReads.get(provider) === done) this.turnReads.delete(provider); }
   }
 
-  // The windows the connection's latest read reported, once the reads running now ended (a turn the usage limit stopped
-  // starts one at its end); none for another connection or a read that failed (conversation/service.ts limitEnded).
+  // The windows the connection's latest read reported, once this provider's read running now ended (a turn the usage
+  // limit stopped starts one at its end); another provider's read is not waited for. None for another connection or a
+  // read that failed (conversation/service.ts limitEnded).
   async limitWindows(provider: Provider, connectionId: string): Promise<UsageWindow[]> {
     if (!shown(provider)) return [];
-    await this.settled();
+    await Promise.allSettled([this.reads.get(provider)?.done, this.turnReads.get(provider)]);
     const reading = this.connections.get(provider) === connectionId ? this.store.get(provider)?.reading : undefined;
     return reading?.status === "ok" ? reading.windows : [];
   }

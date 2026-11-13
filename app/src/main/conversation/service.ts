@@ -189,7 +189,11 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   lookup?: { steers: { messageId: string; itemId: string }[]; timer: ReturnType<typeof setTimeout>; giveBack: boolean }; unheld?: true;
   // A turn the usage limit stopped: its connection's usage is being read to learn the reset. Working until then, so its
   // queue stays and no send goes first.
-  limitLookup?: object }
+  limitLookup?: LimitLookup }
+// The usage read after a turn the usage limit stopped (limitEnded). A Stop, a stop of the provider's runs, a sign-out
+// or replacement and an archive end it (cancelLimit). since: the stops count when it began. told: its deferred failure
+// notice was delivered, which happens once unless the turn's own message goes out again.
+interface LimitLookup { turnId: string; provider: Provider; connectionId: string; since: number; saved: Extract<ConversationEvent, { type: "turn.failed" }>; told: boolean }
 // A project turn's grounds for promotion: the canvas list when the turn was accepted, the paths of its own
 // edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
 // folder refresh, or for the timer at the end of the binding window. turnId: the judged turn, for its bound marker.
@@ -774,6 +778,8 @@ export class ConversationService {
     }
     if (turnId !== undefined && current?.turnId !== turnId) return;
     this.cancelWait(id); const live = this.live.get(id);
+    // Stop while the usage read after a limited turn runs: that turn is not sent again; its queue comes back below.
+    if (live?.limitLookup) this.cancelLimit(id, live);
     // Stop while the queue waits to go out (for the judgement or the previous process) hands it back instead.
     if (live?.holding && !live.busy) { this.release(id, live, live.holding); this.giveBack(id, "interrupted"); return; }
     // A send cancelled while it waited for the judgement or the previous process leaves the queue behind it nothing
@@ -825,6 +831,7 @@ export class ConversationService {
       if (live.provider !== provider) continue;
       // A queue held for its judgement or for the previous process is the person's to send again, not this run's.
       if (live.holding && !live.busy) { this.release(id, live, live.holding); this.giveBack(id, "interrupted"); }
+      if (live.limitLookup) { this.cancelLimit(id, live); this.giveBack(id, "interrupted"); }
       if (live.accepted && live.busy && !live.terminal) this.receive(id, { type: "interrupted", reason: "user" });
       // A held end is written once the group is gone, after the steers the transcript shows.
       if (live.accepted && !live.held) { live.terminal = true; live.busy = false; delete live.stage; }
@@ -1015,14 +1022,16 @@ export class ConversationService {
   // 'Awaited conversation work outlived its current turn'): an archive, a deletion or the quit took the queue already.
   private limitEnded(id: string, live: Live, saved: Extract<ConversationEvent, { type: "turn.failed" }>, resent: { reset: number; retried: boolean } | undefined): void {
     const m = this.store.list().find(e => e.conversationId === id); if (m?.owner.kind !== "doan") return;
-    const owner = m.owner, lookup = {}, read = this.queueOptions.limitWindows!;
+    const owner = m.owner, read = this.queueOptions.limitWindows!;
+    const lookup: LimitLookup = { turnId: saved.turnId, provider: owner.provider, connectionId: owner.connectionId, since: this.stops, saved, told: false };
     live.limitLookup = lookup;
     void (async () => {
       await Promise.resolve();
       let windows: readonly UsageWindow[] = [];
       // A read that failed tells no reset: the turn then fails as before, unless Claude Code's own message names one.
       try { windows = await read(owner.provider, owner.connectionId); } catch { windows = []; }
-      if (this.quitting || this.live.get(id) !== live || live.limitLookup !== lookup) return;
+      // Whatever ended the lookup meanwhile (cancelLimit, the quit, a later turn) took the queue and the notice.
+      if (this.quitting || this.live.get(id) !== live || live.limitLookup !== lookup || live.turnId !== lookup.turnId || this.stopped(lookup)) return;
       delete live.limitLookup;
       let settled = { armed: false, again: false };
       try { settled = this.settleLimit(id, owner, saved, windows, resent); }
@@ -1030,9 +1039,21 @@ export class ConversationService {
       try { if (!settled.armed) this.giveBack(id, this.connectionOf(owner) === owner.connectionId ? "turn_failed" : "interrupted"); }
       catch (error) { console.error("doan: queued messages could not be handed back", error); }
       // A turn whose own message goes out again did not end for the person; any other failure is told as before.
-      if (!settled.again) try { this.queueOptions.notice?.(saved); } catch (error) { console.error("doan: conversation notice failed", error); }
+      if (!settled.again) this.tell(lookup);
       this.changedOf(id);
     })();
+  }
+  // Ends a running lookup: the turn is not sent again, and its failure is told. The caller hands the queue back.
+  private cancelLimit(id: string, live: Live): void {
+    const lookup = live.limitLookup; if (!lookup) return;
+    delete live.limitLookup;
+    this.tell(lookup);
+    this.changedOf(id);
+  }
+  private tell(lookup: LimitLookup): void {
+    if (lookup.told) return;
+    lookup.told = true;
+    try { this.queueOptions.notice?.(lookup.saved); } catch (error) { console.error("doan: conversation notice failed", error); }
   }
   // The reset from the usage read, else (Claude Code only) from its own limit message; the connection's limit; then
   // whether the turn's own message waits for it (autoSchedule) and whether the queue behind it does. armed: something
@@ -1042,7 +1063,7 @@ export class ConversationService {
     const now = this.clock.now(), previous = resent?.reset;
     let reset = limitResetFromUsage(windows, now, previous);
     if (reset === null && owner.provider === "claude" && saved.detail) {
-      const read = claudeResetFromDetail(saved.detail, now);
+      const read = claudeResetFromDetail(saved.detail, now, previous);
       if (read !== null && (read > now || read === previous)) reset = read;
     }
     // A sign-out or replacement meanwhile: this connection is no longer the one the person uses.
@@ -1050,7 +1071,9 @@ export class ConversationService {
     if (reset !== null && reset > now) { this.limits = limitState(this.limits, owner.connectionId, { provider: owner.provider, resetsAt: reset }, now); this.limitChanged(owner.provider); }
     const m = this.metadata(id); if (m.state !== "current") return none;
     const events = this.store.read(id).filter(e => e.turnId === saved.turnId);
-    const decision = autoSchedule({ code: saved.code, hadActivity: turnHadActivity(events), reset, ...(previous !== undefined ? { previousReset: previous } : {}), retriedSame: resent?.retried ?? false, now });
+    // A turn that also took a message by Send now holds more than one message of the person's: sending the first again
+    // would drop the other, so it fails as before (the queue behind it still waits).
+    const decision = events.filter(e => e.type === "user.message").length > 1 ? "none" : autoSchedule({ code: saved.code, hadActivity: turnHadActivity(events), reset, ...(previous !== undefined ? { previousReset: previous } : {}), retriedSame: resent?.retried ?? false, now });
     const at = decision === "retry" ? now + SEND_DELAY_MS : reset !== null && reset > now ? sendAt(reset) : null;
     if (at === null) return none;
     const again = decision !== "none" && this.requeue(id, saved.turnId, events);
@@ -1333,7 +1356,8 @@ export class ConversationService {
     this.endWork(id);
     const running = this.live.get(id);
     if (running) {
-      running.terminal = true; running.busy = false; running.closed = true; delete running.holding; delete running.project; delete running.stage; delete running.limitLookup;
+      running.terminal = true; running.busy = false; running.closed = true; delete running.holding; delete running.project; delete running.stage;
+      this.cancelLimit(id, running);
       void running.runner?.close();
     }
     const turn = this.handoffTurns.get(id);
@@ -1487,6 +1511,10 @@ export class ConversationService {
     let dropped = false;
     for (const [other, entry] of [...this.limits]) if (entry.provider === provider && other !== connectionId) { this.limits = limitState(this.limits, other, null, this.clock.now()); dropped = true; }
     for (const [id, schedule] of [...this.schedules]) if (schedule.provider === provider && schedule.connectionId !== connectionId) this.giveBack(id, "interrupted");
+    for (const [id, live] of [...this.live]) {
+      const lookup = live.limitLookup;
+      if (lookup && lookup.provider === provider && lookup.connectionId !== connectionId) { this.cancelLimit(id, live); this.giveBack(id, "interrupted"); }
+    }
     if (dropped) this.limitChanged(provider);
   }
   // Saved and announced only when it changes; Default as no key.

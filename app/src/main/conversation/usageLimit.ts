@@ -55,15 +55,15 @@ export function turnHadActivity(events: readonly EventPayload[]): boolean {
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 const RESET = /\bresets\s+(?:([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2}),?\s+(?:at\s+)?)?(\d{1,2})(?::(\d{2}))?\s*([ap]m)?\s*\(([^()\s]+)\)/i;
-// A reset named without a date that passed within this long is the one meant: a send at the reset that the limit
-// stopped again still names it.
+// A reset named without a date that passed within this long, and is the one a scheduled send went out for, is the one
+// meant: a send at the reset that the limit stopped again still names it.
 const RECENT_MS = 60 * 60_000;
 const DAY_MS = 24 * 60 * 60_000;
 // Claude Code's limit message as the fallback source of the reset (“You've hit your 5-hour limit · resets 10:10pm
 // (Asia/Seoul)”, “… resets Oct 17 at 1pm (Asia/Seoul)”), in the IANA zone it names. Without a date: the next such
-// time, unless that time passed within the hour. A date takes the year that puts it nearest to now. null when any part
-// cannot be read.
-export function claudeResetFromDetail(detail: string, now: number): number | null {
+// time, unless that time is `previous` (the reset a scheduled send went out for) and passed within the hour. A date
+// takes the year that puts it nearest to now. null when any part cannot be read.
+export function claudeResetFromDetail(detail: string, now: number, previous?: number): number | null {
   const match = RESET.exec(detail); if (!match) return null;
   const [, month, day, hourText, minuteText, meridiem, zone] = match;
   let hour = Number(hourText); const minute = minuteText === undefined ? 0 : Number(minuteText);
@@ -84,7 +84,7 @@ export function claudeResetFromDetail(detail: string, now: number): number | nul
   // The same wall time a day either side; a DST change moves it by the hour it adds or drops.
   const times = [-1, 0, 1].map(days => zonedShift(today, days, zone!, hour, minute)).filter((t): t is number => t !== null);
   const past = times.filter(t => t <= now).at(-1), next = times.find(t => t > now);
-  if (past !== undefined && now - past <= RECENT_MS) return past;
+  if (past !== undefined && past === previous && now - past <= RECENT_MS) return past;
   return next ?? null;
 }
 interface LocalDate { year: number; month: number; day: number }
