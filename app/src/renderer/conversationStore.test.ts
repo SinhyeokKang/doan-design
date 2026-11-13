@@ -465,3 +465,59 @@ test("a row without the failed turn's id leaves Edit and resend", async () => {
   expect(store.resendHidden(A)).toBe(false);
 });
 
+// Fix round 1 (independent review): the read cache follows every list read, and each read is its own request.
+describe("scheduled rows: request identity and retries", () => {
+  const AT = "2026-11-13T06:00:00.000Z";
+  const scheduled = (extra: Partial<ConversationSummary> = {}) => summary({ phase: "ended", working: false, queued: 1, scheduledAt: AT, ...extra });
+  const sent = () => summary({ phase: "running", working: true, queued: 0 });
+  function setup(first: ConversationSummary) {
+    let list: ListView = [first];
+    const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+    return { store, ids: () => store.queue(A).map(row => row.id), setList: (next: ConversationSummary[]) => { list = next; store.syncQueues(); } };
+  }
+
+  test("a schedule that went out and came back at the same time and count is read again", async () => {
+    doan.scheduledMessages = vi.fn(async () => [{ itemId: "s1", text: "First", anchors: [], attachments: [] }]);
+    const h = setup(scheduled());
+    h.store.readScheduled(ROOT, A);
+    await flush();
+    h.setList([sent()]);
+    h.setList([scheduled()]);
+    doan.scheduledMessages = vi.fn(async () => [{ itemId: "s2", text: "First again", anchors: [], attachments: [] }]);
+    h.store.readScheduled(ROOT, A);
+    await flush();
+    expect(doan.scheduledMessages).toHaveBeenCalledTimes(1);
+    expect(h.ids()).toEqual(["s2"]);
+  });
+
+  test("an older read's late answer never replaces a newer read's rows, even at the same time and count", async () => {
+    const first = deferred<unknown>();
+    doan.scheduledMessages = vi.fn(() => first.promise);
+    const h = setup(scheduled());
+    h.store.readScheduled(ROOT, A);
+    h.setList([sent()]);
+    h.setList([scheduled()]);
+    doan.scheduledMessages = vi.fn(async () => [{ itemId: "new", text: "New", anchors: [], attachments: [] }]);
+    h.store.readScheduled(ROOT, A);
+    await flush();
+    expect(h.ids()).toEqual(["new"]);
+    first.resolve([{ itemId: "old", text: "Old", anchors: [], attachments: [] }]);
+    await flush();
+    expect(h.ids()).toEqual(["new"]);
+  });
+
+  test.each([["a rejected call", () => Promise.reject(new Error("gone"))], ["an error answer", async () => ({ error: "unknown" })]] as const)(
+    "after %s the next sync reads the same schedule again", async (_name, failure) => {
+      doan.scheduledMessages = vi.fn(failure);
+      const h = setup(scheduled());
+      h.store.readScheduled(ROOT, A);
+      await flush();
+      expect(h.ids()).toEqual([]);
+      doan.scheduledMessages = vi.fn(async () => [{ itemId: "s1", text: "First", anchors: [], attachments: [] }]);
+      h.store.readScheduled(ROOT, A);
+      await flush();
+      expect(doan.scheduledMessages).toHaveBeenCalledTimes(1);
+      expect(h.ids()).toEqual(["s1"]);
+    });
+});
+

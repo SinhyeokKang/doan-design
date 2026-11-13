@@ -37,15 +37,17 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {}) {
+async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {}, picks: (support: DockedSupport) => void = () => {}) {
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
   const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   setup(run);
   await flush();
+  const support = new DockedSupport(() => {});
+  picks(support);
   const props: Props = {
-    run, support: new DockedSupport(() => {}), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY,
+    run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY,
     list, seen: new Set(), prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
     onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
     onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
@@ -69,3 +71,41 @@ test("a send main scheduled becomes a row and carries no picker change; main's s
   expect(sent).toEqual({ conversationId: "now", text: "Tighten it", anchors: [] });
   expect(store.queue("now").map(row => row.id)).toEqual(["s0", "s1"]);
 });
+
+// Fix round 1: leaving the canvas while its schedule goes out and comes back at the same time and count still reads
+// main's rows again on return; the list reads in between run while the canvas is not shown.
+test("a schedule that went out and came back while the canvas was away is read again on return", async () => {
+  const OTHER: Canvas = { path: ".doan/canvases/cart.html", id: "cart" };
+  let list: ListView = [summary("now", { queued: 1, limitResetsAt: AT, scheduledAt: AT })];
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  await flush();
+  expect(doan.scheduledMessages).toHaveBeenCalledTimes(1);
+  run.show({ root: ROOT, canvas: OTHER });
+  list = [summary("now", { phase: "running", working: true, queued: 0 })];
+  run.sync();
+  list = [summary("now", { queued: 1, limitResetsAt: AT, scheduledAt: AT })];
+  run.sync();
+  doan.scheduledMessages = vi.fn(async () => [{ itemId: "s9", text: "Again", anchors: [], attachments: [] }]);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  await flush();
+  expect(doan.scheduledMessages).toHaveBeenCalledTimes(1);
+  expect(store.queue("now").map(row => row.id)).toEqual(["s9"]);
+});
+
+test("the panel's waiting send carries no pick, and the next ordinary send still does", async () => {
+  const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
+  const choose = (support: DockedSupport) => support.pick("conversation:now", { effort: "high", fast: false, permissionMode: "acceptEdits" });
+  const limited = await panel([summary("now", { model: "opus", fast: true, limitResetsAt: AT })], () => {}, choose);
+  await (limited.composer.onSend as (request: unknown) => Promise<unknown>)({ text: "Tighten it", anchors: [], attachments: [] });
+  expect(doan.sendConversation!.mock.calls.at(-1)![0]).toEqual({ conversationId: "now", text: "Tighten it", anchors: [] });
+  doan.sendConversation = vi.fn(async () => undefined);
+  const ordinary = await panel([summary("now", { model: "opus", fast: true })], () => {}, choose);
+  await (ordinary.composer.onSend as (request: unknown) => Promise<unknown>)({ text: "Tighten it", anchors: [], attachments: [] });
+  expect(doan.sendConversation.mock.calls.at(-1)![0]).toMatchObject({ conversationId: "now", fast: false, permissionMode: "acceptEdits" });
+});
+
