@@ -60,3 +60,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 12(승격·삭제)는 conducto
 - A 리뷰 2회차(Codex): 🔴 0, 🟡 0, ⚪ 1(모든 URL이 거절되는 것은 아니다. `about:srcdoc#…`은 성공한다. 주석과 문서 표현을 좁힌다). A-fix2로 보냈다.
 - A-fix2 완료 → 통합. 주석이 페이지에 들어가므로 `TestAssemblePrototypeOutputIsPinned` digest 셋이 바뀌었다. A 배치는 리뷰 🔴·🟡 0으로 닫는다. task 9·10에서 viewer 결함이 나오면 A로 돌려보낸다.
 - D 리뷰 1회차(Opus): 🔴 0, 🟡 3(X2가 프로토타입 페이지와 캔버스 viewer를 구별하지 못한다 / X2 명령 검사가 `-o` 경로까지 요구해 export 뒤 복사하는 정당한 경로를 실패시킨다 / W8 rubric에 partial 줄이 없다), ⚪ 4. 첫 실제 라운드 전에 고쳐야 새 id 없이 넣을 수 있다. B3 통합 뒤 D-fix1로 보낸다.
+- B3 완료 → `835d5dd6`로 통합. CLI가 쓴 프로토타입 파일이 probe 57 통과(B 보고). 공백뿐인 `data-doan-title`을 그대로 쓰는 점은 B 리뷰 2회차(`ctx_83b3d8eceea2`)에서 앱의 이름 규칙과 대조한다. D-fix1(`ctx_6c937723e7e6`)을 보냈다.
