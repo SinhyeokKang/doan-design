@@ -18,8 +18,8 @@
   - 커밋 경계: 순수 함수와 테스트.
 - [x] 4. 화면 연결: `QuickOpenDialog.tsx`(탭, 아이콘, 입력란 이름, prop, `canvasDir` 분기), `homeRun.ts`(`canvasRow`가 `conversationCanvasMatch`를 쓰게 하고 미리 찾은 대상으로 여는 메서드), `App.tsx`(목록 전달, `pick` 분기, 같은 화면 판정, 토스트). `QuickOpenDialog.test.tsx`에 대화 행 렌더링, 탭 네 개, props가 바뀌었을 때(대화 삭제·보관·제목 변경) 결과가 바뀌는 것을 더한다. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
   - 커밋 경계: 화면 연결.
-- [ ] 5. `/design-sync`로 새 초안과 실제 앱의 대화 행·탭·빈 상태를 맞추고 DESIGN.md 'Quick Open'을 고친다. 검증: `node .scratch/design-sync/<screen>/measure.mjs`.
-- [ ] 6. `/runtime-test`: 격리 앱에서 다음을 확인한다. 검증: `/runtime-test` 스크린샷과 probe 결과가 아래 기대값과 같다.
+- [x] 5. `/design-sync`로 새 초안과 실제 앱의 대화 행·탭·빈 상태를 맞추고 DESIGN.md 'Quick Open'을 고친다. 검증: `node .scratch/design-sync/<screen>/measure.mjs`.
+- [x] 6. `/runtime-test`: 격리 앱에서 다음을 확인한다. 검증: `/runtime-test` 스크린샷과 probe 결과가 아래 기대값과 같다.
   - Home Quick Open에서 두 프로젝트의 대화가 각 묶음에 나온다.
   - 보관된 캔버스 대화를 고르면 그 캔버스가 열리고, 패널에 그 대화가 보이며, 포커스가 패널 composer 필드에 있고, Back으로 이전 화면에 돌아간다(방문 1개).
   - 다른 root의 프로젝트 대화를 고르면 그 Overview에 그 대화가 보이고 방문 1개가 남는다.
