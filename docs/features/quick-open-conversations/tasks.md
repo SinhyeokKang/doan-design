@@ -2,7 +2,7 @@
 
 포맷과 fixture 변경은 없다. 초안 → 순수 함수 → 화면 연결 → 문서 순서로 간다.
 
-- [ ] 1. `/design-draft`로 새 초안 `.doan/canvases/quick-open-conversations.html`을 그리고 사용자 확인을 받는다. 프레임: Conversations 탭과 입력란 새 이름, 캔버스 대화·프로젝트 대화 행(시각 포함, readError 행), All의 섞인 결과, 빈 검색어 Conversations(workspace·Home), 빈 결과 문구 네 가지, 읽기 줄, 열 수 없을 때의 토스트. 기존 `doan-search.html`은 고치지 않는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
+- [x] 1. `/design-draft`로 새 초안 `.doan/canvases/quick-open-conversations.html`을 그리고 사용자 확인을 받는다. 프레임: Conversations 탭과 입력란 새 이름, 캔버스 대화·프로젝트 대화 행(시각 포함, readError 행), All의 섞인 결과, 빈 검색어 Conversations(workspace·Home), 빈 결과 문구 네 가지, 읽기 줄, 열 수 없을 때의 토스트. 기존 `doan-search.html`은 고치지 않는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
   - 커밋 경계: 초안.
 - [ ] 2. `/tdd`: 다음을 고정하고 red를 확인한다. 검증: `npm --prefix app test`가 새 테스트에서만 실패한다.
   - `canvasConversationRows.test.ts`: `conversationCanvasMatch`의 one·many·none, id 있는 대화와 id 없는 행, 읽기 오류 행의 path 대체, 기존 `canvasConversationRows` 결과가 그대로인 것.

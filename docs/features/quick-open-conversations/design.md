@@ -98,3 +98,4 @@ type SearchResult = (CanvasTarget & ({ kind: "canvas" } | { kind: "frame"; frame
   - 열기에 실패하면 포커스는 Quick Open을 연 곳으로 돌아간다(Escape와 같다).
   - 행의 접근 이름은 시각을 풀어 쓴다(메뉴의 `ShortTime.label`과 같다).
   - 같은 점수와 근접도에서 캔버스와 프레임은 출시 규칙(색인 순서)을 따르고, 대화만 그 뒤에 둔다.
+- 초안 `.doan/canvases/quick-open-conversations.html`은 사용자가 앱에서 확인했다(2026-11-13, `b8c8c8c9`).
