@@ -37,6 +37,29 @@ describe("layersForView", () => {
     }
   });
 
+  test("a killed loading run takes the previous run with it: older iframes go and the re-sent image shows while the new run loads", () => {
+    // A ready, B loads (main captured A), B hangs, then Reload: main kills B and re-sends the image under gen 3.
+    const hung = layersForView(layersForSnapshot(after(at(1, "loading"), at(1, "ready")), { gen: 2, url: "blob:a" }, 1), at(2, "loading"));
+    expect(hung.visible).toBe(1);
+    const resent = layersForSnapshot(hung, { gen: 3, url: "blob:a3" }, 2);
+    const reloading = layersForView(resent, { ...at(3, "loading"), previousStopped: true });
+    expect(reloading).toEqual({ frames: [{ gen: 3, url: A }], visible: null, snapshot: { gen: 3, url: "blob:a3" } });
+    // The same view again changes nothing; the new run takes the screen once ready.
+    expect(layersForView(reloading, { ...at(3, "loading"), previousStopped: true })).toBe(reloading);
+    expect(layersForView(reloading, at(3, "ready"))).toEqual({ frames: [{ gen: 3, url: A }], visible: 3, snapshot: null });
+  });
+
+  test("with nothing re-sent, a stopped previous run leaves an empty panel under the overlay", () => {
+    const layers = layersForView(after(at(1, "loading"), at(1, "ready"), at(2, "loading")), { ...at(3, "loading"), previousStopped: true });
+    expect(layers).toEqual({ frames: [{ gen: 3, url: A }], visible: null, snapshot: null });
+  });
+
+  test("without previousStopped the previous run stays on screen while the next loads", () => {
+    const layers = layersForView(after(at(1, "loading"), at(1, "ready")), { ...at(2, "loading"), previousStopped: false });
+    expect(layers.visible).toBe(1);
+    expect(layers.frames.map(frame => frame.gen)).toEqual([1, 2]);
+  });
+
   test("a ready run that loses its frame gives way to the still image sent before that view", () => {
     const still = layersForSnapshot(after(at(1, "loading"), at(1, "ready")), { gen: 1, url: "blob:1" }, 1);
     expect(still.visible).toBe(1);

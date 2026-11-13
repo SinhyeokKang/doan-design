@@ -16,9 +16,12 @@ export interface HostLayers {
 
 export const NO_LAYERS: HostLayers = { frames: [], visible: null, snapshot: null };
 
-export interface LayerView { gen: number; phase: PrototypePhase; run: { url: string } | null }
+// `previousStopped`: main killed a loading run, and iframes in the prototype partition share a renderer process, so the
+// previous run on screen may have died with it. Optional until the view contract carries it.
+export interface LayerView { gen: number; phase: PrototypePhase; run: { url: string } | null; previousStopped?: boolean }
 
 // A run starts only with a `loading` view of a gen no iframe has; a failed read keeps the last run's url without one.
+// While it loads, the previous run stays on screen and live, unless main stopped it.
 // A ready run takes the screen, and older iframes and the still image go. A failed or lost state removes every iframe,
 // which stops the runs, and leaves the still image in their place (an empty panel when there is none, as after a first
 // load in a new window).
@@ -26,8 +29,10 @@ export function layersForView(layers: HostLayers, view: LayerView | null): HostL
   if (view === null) return NO_LAYERS;
   const mounted = layers.frames.some(frame => frame.gen === view.gen);
   if (view.phase === "loading") {
-    if (mounted || view.run === null) return layers;
-    return { ...layers, frames: [...layers.frames, { gen: view.gen, url: view.run.url }] };
+    const started = mounted || view.run === null ? layers : { ...layers, frames: [...layers.frames, { gen: view.gen, url: view.run.url }] };
+    // The older runs go and main's latest still image (re-sent under this gen) takes their place while this run loads.
+    if (view.previousStopped !== true || !started.frames.some(frame => frame.gen < view.gen)) return started;
+    return { ...started, frames: started.frames.filter(frame => frame.gen >= view.gen), visible: null };
   }
   if (view.phase === "ready") {
     if (!mounted) return layers;
