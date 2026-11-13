@@ -1020,7 +1020,7 @@ test("a skill ending at an anchor chip sends the same names as its field highlig
   expect(send.mock.calls[0]?.[0]).toMatchObject({ text: "Use the project skill `deploy`.\n\n/deploy{{1}}" });
 });
 
-// usage-limit-resume draft, queue-button / scheduled-rows / sending: while the conversation's Doan connection is at its
+// usage-limit-resume.html queue-button / scheduled-rows / sending: while the conversation's Doan connection is at its
 // usage limit, Send is Queue though no turn runs, and a press hands the message to main's send, which queues it for
 // the reset. The rows that wait have a status line under the list; no Send now, so Control+Enter acts as Enter.
 const IN_3H = () => new Date(Date.now() + 3 * 3_600_000).toISOString();

@@ -17,6 +17,7 @@ const { CanvasTools } = await import("../../CanvasTools");
 const { RowDelete } = await import("../../CanvasConversationList");
 const { ConversationDeleteItem } = await import("../../ConversationDeleteDialog");
 const { RowButton } = await import("../../SettingsMcpConnectors");
+const { SendButton } = await import("../../ComposerParts");
 
 const describedBy = (html: string, marker: string) => {
   const tag = html.match(new RegExp(`<(?:button|div)[^>]*${marker}[^>]*>`))?.[0];
@@ -64,4 +65,12 @@ test("an enabled control with its own aria-describedby still gets the open toolt
   }
   const html = open(<Tooltip><TooltipTrigger asChild><button type="button" aria-label="Unavailable" aria-disabled="true" aria-describedby="why">x</button></TooltipTrigger><TooltipContent>Why</TooltipContent></Tooltip>);
   expect(describedBy(html, 'aria-label="Unavailable"')).toBe("why");
+});
+
+// At the usage limit the enabled Queue button names the reset in its own sr-only description, and its tooltip says the
+// same, so the open tooltip's id would read it twice.
+test("Queue's own reset description stays alone while its tooltip is open", () => {
+  const html = open(<SendButton action="queue" enabled sending={false} onSend={noop} description={"Sends when the limit resets at 3:00\u202fPM."} tip={"Queue — sends when the limit resets at 3:00\u202fPM"} />);
+  expect(describedBy(html, 'aria-label="Queue"')).toMatch(/^[^\s]+$/);
+  expect(describedBy(html, 'aria-label="Queue"')).not.toMatch(/^radix-/);
 });

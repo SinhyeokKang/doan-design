@@ -536,7 +536,8 @@ export function SendButton({ enabled, sending, onSend, action = "send", hint, ti
   const label = SLOT_LABELS[action];
   const hintId = useId();
   const described = hint ?? description;
-  return <IconTip label={tip ?? label}><button type="button" className={`composer-send doan-icon-button${action === "stop" ? " composer-stop" : ""}${sending ? " sending" : ""}`} data-ui-variant="accent" aria-label={label} aria-busy={sending || undefined} disabled={!enabled} title={hint} aria-describedby={described ? hintId : undefined} onClick={onSend}>
+  return <IconTip label={tip ?? label}><button type="button" className={`composer-send doan-icon-button${action === "stop" ? " composer-stop" : ""}${sending ? " sending" : ""}`} data-ui-variant="accent" aria-label={label} aria-busy={sending || undefined} disabled={!enabled} title={hint} aria-describedby={described ? hintId : undefined}
+    data-own-description={description && !hint ? "" : undefined} onClick={onSend}>
     {sending ? <span className="doan-spinner" aria-hidden="true" /> : action === "stop" ? <Square fill="currentColor" stroke="none" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
     {described && <span id={hintId} className="sr-only">{described}</span>}</button></IconTip>;
 }

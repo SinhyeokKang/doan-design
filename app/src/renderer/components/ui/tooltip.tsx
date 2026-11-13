@@ -32,7 +32,8 @@ function Tooltip({
 // the tooltip is closed too) keeps that description alone: Radix adds the open content's id, which holds the same
 // reason, so it would be read twice. Between Radix's trigger and the control, the trigger's props
 // are merged into the control again by Radix's Slot (handlers, ref, class), without the added id when `own`. Any other
-// trigger keeps Radix's description. Every asChild trigger goes through this layer, unavailable or not: a control that
+// trigger keeps Radix's description, unless it marks its own as the tooltip's words (`data-own-description`: the Queue
+// button's usage-limit reset, which its tooltip repeats). Every asChild trigger goes through this layer, unavailable or not: a control that
 // turns unavailable while focused (Play prototype losing its frame's mark) must stay the same element, or React mounts
 // a new button and focus falls to the page.
 function OwnDescription({
@@ -51,7 +52,7 @@ function TooltipTrigger({
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
   const element = asChild === true && React.isValidElement<Record<string, unknown>>(children)
   const own = element
-    && (children.props["aria-disabled"] === true || children.props["aria-disabled"] === "true")
+    && (children.props["aria-disabled"] === true || children.props["aria-disabled"] === "true" || children.props["data-own-description"] !== undefined)
     && typeof children.props["aria-describedby"] === "string"
   return (
     <TooltipPrimitive.Trigger data-slot="tooltip-trigger" asChild={asChild} {...props}>

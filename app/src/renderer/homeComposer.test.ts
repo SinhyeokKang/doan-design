@@ -1035,7 +1035,7 @@ test("an open model menu keeps its first painted side until close releases the l
   expect(lockedOlderSide(null, "left")).toBeNull();
 });
 
-// A start refused by the usage limit names the reset when main knows it (usage-limit-resume draft, home-refusal).
+// A start refused by the usage limit names the reset when main knows it (usage-limit-resume.html home-refusal).
 test("a usage-limit start refusal names the reset time when it is known", () => {
   expect(startErrorView("rate_limited", "claude", "doan-design", "at 3:00\u202fPM")).toEqual({ text: "Claude Code reached a usage limit. Send again after it resets at 3:00\u202fPM.", retry: false });
   expect(startErrorView("rate_limited", "codex", "doan-design", "Thursday at 3:00\u202fPM").text).toBe("Codex reached a usage limit. Send again after it resets Thursday at 3:00\u202fPM.");

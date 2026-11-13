@@ -5,8 +5,8 @@ import type { Slot } from "./homeConversations";
 
 export interface Clock { timeZone: string; hour12: boolean }
 
-// The renderer's own time zone and hour cycle. Chromium takes the hour cycle from the app's locale, not from macOS's
-// 24-hour setting, so the two can differ until main reports that setting.
+// The renderer's own time zone and the hour cycle of its locale. Nothing here reads macOS's 24-hour setting, which the
+// reset time should follow, so the two can differ.
 export function localClock(): Clock {
   const options = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions();
   return { timeZone: options.timeZone, hour12: options.hour12 ?? true };

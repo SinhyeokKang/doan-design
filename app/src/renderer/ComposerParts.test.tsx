@@ -478,7 +478,7 @@ test("a checked older group waits for settled placement before unfolding, then r
 });
 
 // At the usage limit the Queue button keeps its name; the reset time is its sr-only description, tied by
-// aria-describedby, never a native title (usage-limit-resume draft, queue-button).
+// aria-describedby, never a native title (usage-limit-resume.html queue-button).
 test("Queue's reset description is an sr-only span inside the button, not a title", () => {
   const out = renderToStaticMarkup(<TooltipProvider><SendButton action="queue" enabled sending={false} onSend={() => {}} description={"Sends when the limit resets at 3:00\u202fPM."} tip={"Queue — sends when the limit resets at 3:00\u202fPM"} /></TooltipProvider>);
   expect(out).toMatch(/<button[^>]*aria-label="Queue"[^>]*aria-describedby="([^"]+)"[^>]*>.*<span id="\1" class="sr-only">Sends when the limit resets at 3:00\u202fPM\.<\/span><\/button>/);

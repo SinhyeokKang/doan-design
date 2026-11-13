@@ -232,7 +232,7 @@ describe("thread items", () => {
     expect(out).not.toContain("Sign in again");
   });
 
-  // usage-limit-resume draft, failed-line: only the last turn's limit end, while the connection's limit state is live,
+  // usage-limit-resume.html failed-line: only the last turn's limit end, while the connection's limit state is live,
   // says that messages sent now go out at the reset; its time wins over the time Claude's detail names.
   test("the last usage-limit end names the live reset and says messages sent now go out then", () => {
     const phrase = "at 3:00\u202fPM";

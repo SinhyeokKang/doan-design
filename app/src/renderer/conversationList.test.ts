@@ -144,7 +144,7 @@ describe("withTerminalSlots", () => {
 });
 
 // A conversation whose messages wait for the usage limit's reset: after an answer request, working and a terminal agent's
-// spinner, before an unseen ending (usage-limit-resume draft, sidebar-slot).
+// spinner, before an unseen ending (usage-limit-resume.html sidebar-slot).
 describe("the scheduled slot", () => {
   const scheduled: Slot = { kind: "scheduled", label: "Queued — sends when the limit resets at 3:00\u202fPM" };
 

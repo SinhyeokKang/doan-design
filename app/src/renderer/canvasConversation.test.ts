@@ -292,7 +292,7 @@ describe("resumeHeld", () => {
   });
 });
 
-// The canvas panel's New conversation names the usage limit's reset as the Overview's does (usage-limit-resume draft).
+// The canvas panel's New conversation names the usage limit's reset as the Overview's does (usage-limit-resume.html).
 test("a start refused by the usage limit names the reset time in the canvas panel", () => {
   const NEW: DockedMode = { kind: "new", root: "/code/acme", canvas: billing };
   expect(canvasConversationError("rate_limited", NEW, "claude", "acme-web", [], "at 3:00\u202fPM"))
