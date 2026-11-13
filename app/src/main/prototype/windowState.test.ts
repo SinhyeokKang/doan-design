@@ -561,7 +561,7 @@ describe("the run's mark height", () => {
   });
 });
 
-// The conversation panel's open state and width live in main memory for as long as the app runs (spec decision 9).
+// The conversation panel's open state and width live in main memory for as long as the app runs, never on disk.
 describe("the conversation panel", () => {
   function opened() {
     const w = world();
@@ -636,8 +636,8 @@ describe("the conversation panel", () => {
   });
 });
 
-// The conversation panel blocks its composer while the canvas row is gone or shared, and says which (spec 'composer
-// blocked'); a lost frame or a failed load keeps it usable.
+// The conversation panel blocks its composer while the canvas row is gone or shared, and says which; a lost frame or a
+// failed load keeps it usable, so the person can tell the agent the prototype does not open.
 describe("the target canvas row in the view", () => {
   test("present, being read, gone or shared by two rows", () => {
     const w = world();

@@ -14,8 +14,8 @@ const ACTIVE: WindowVisibility = { focused: true, shown: true, minimized: false,
 const BEHIND: WindowVisibility = { ...ACTIVE, focused: false };
 
 describe("notificationFor", () => {
-  // The prototype window's conversation panel (prototype-conversation): a focused, visible prototype window that shows
-  // the conversation in its open panel is where the person sees it.
+  // The prototype window's conversation panel: a focused, visible prototype window that shows the conversation in its
+  // open panel is where the person sees it.
   test("a focused prototype window showing the conversation in its open panel shows nothing for it", () => {
     for (const e of [APPROVAL, DONE, FAILED]) expect(notificationFor(e, ON, { ...BEHIND, prototypeShows: "c1" }, NAMES), e.type).toBeNull();
   });
