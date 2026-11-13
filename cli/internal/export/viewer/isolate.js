@@ -10,11 +10,12 @@
 const host = window.parent;
 const post = (state) => host.postMessage({ type: "doan-prototype", state }, "*");
 
-// A srcdoc document's URL is about:srcdoc while its base is the page's file URL, so the browser
-// refuses every pushState and replaceState URL with SecurityError (Chromium and WebKit), and a
-// router's next statement never runs. Such a call is made again without the URL: the state and the
-// entry are kept and the script goes on, though location stays the srcdoc document. Any other error,
-// and a retry that fails, still reaches the canvas.
+// A srcdoc document's URL is about:srcdoc while its base is the page's file URL, so a fragment or a
+// path given to pushState or replaceState resolves against that file URL and the browser refuses it
+// with SecurityError (Chromium and WebKit), and a router's next statement never runs. Such a call is
+// made again without the URL: the state and the entry are kept and the script goes on, though
+// location does not change. A call the browser takes (an about:srcdoc URL) keeps its own result. Any
+// other error, and a retry that fails, still reaches the canvas.
 for (const name of ["pushState", "replaceState"]) {
   const native = history[name];
   history[name] = function (...args) {
