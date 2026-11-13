@@ -472,3 +472,68 @@ describe("schedule timers", () => {
     expect(h.texts(other).at(-1)).toBe(other === first ? "first after" : "second after");
   });
 });
+
+// A Stop while a send is still being prepared (not accepted yet) cancels it: the turn is never sent, and the messages a
+// schedule or a queue was sending come back as one interrupted draft.
+describe("a Stop while a send is prepared", () => {
+  // The next prepare waits until the test lets it go on.
+  function holdPrepare(h: ReturnType<typeof fixture>) {
+    const original = h.prepare.getMockImplementation()!;
+    let go!: () => void;
+    h.prepare.mockImplementationOnce((...args) => new Promise(resolve => { go = () => { void original(...args).then(resolve); }; }));
+    return { go: () => go() };
+  }
+  it("cancels a scheduled send", async () => {
+    const h = fixture(); h.limit(RESET); const id = await h.start(); await h.limited(id, true);
+    h.service.schedule(id, { text: "scheduled", anchors: [] });
+    const held = holdPrepare(h);
+    h.clock.advance(HOUR + MIN); await drain();
+    expect(h.summary(id).working).toBe(true);
+    await h.service.interrupt(id);
+    held.go(); await drain();
+    expect(h.runs[0]!.runner.send).toHaveBeenCalledTimes(1);
+    expect(h.texts(id)).toEqual(["hello"]);
+    expect(h.drafts.returned(id)).toEqual({ text: "scheduled", anchors: [], attachments: [], reason: "interrupted" });
+    expect(h.summary(id)).toMatchObject({ working: false, queued: 0 });
+  });
+  it("cancels a queue going out after a done turn", async () => {
+    const h = fixture(); const id = await h.start();
+    h.service.queue(id, { text: "behind", anchors: [] });
+    const held = holdPrepare(h);
+    h.service.receive(id, { type: "turn.done" }); await drain();
+    await h.service.interrupt(id);
+    held.go(); await drain();
+    expect(h.runs[0]!.runner.send).toHaveBeenCalledTimes(1);
+    expect(h.texts(id)).toEqual(["hello"]);
+    expect(h.drafts.returned(id)).toEqual({ text: "behind", anchors: [], attachments: [], reason: "interrupted" });
+  });
+  it("cancels a person's send", async () => {
+    const h = fixture(); const id = await h.start();
+    h.service.receive(id, { type: "turn.done" });
+    const held = holdPrepare(h);
+    const sending = h.service.send(id, "next", []);
+    await drain();
+    await h.service.interrupt(id);
+    held.go();
+    await expect(sending).rejects.toThrow("busy");
+    expect(h.runs[0]!.runner.send).toHaveBeenCalledTimes(1);
+    expect(h.texts(id)).toEqual(["hello"]);
+    expect(h.summary(id).working).toBe(false);
+  });
+});
+
+// The scheduled conversation itself works when its time comes (here a send that reached main directly, past the
+// channel's routing): the schedule waits, and its messages go out once, after that turn.
+it("waits while the canvas conversation works when its schedule comes due", async () => {
+  const h = fixture(); h.limit(RESET); const id = await h.start(); await h.limited(id, true);
+  h.service.schedule(id, { text: "scheduled", anchors: [] });
+  await h.service.send(id, "working", []);
+  h.clock.advance(HOUR + MIN); await drain();
+  expect(h.texts(id)).toEqual(["hello", "working"]);
+  expect(h.summary(id).working).toBe(true);
+  h.service.receive(id, { type: "turn.done" }); await drain();
+  expect(h.texts(id)).toEqual(["hello", "working", "scheduled"]);
+  h.service.receive(id, { type: "turn.done" }); await drain();
+  expect(h.texts(id)).toEqual(["hello", "working", "scheduled"]);
+  expect(h.service.scheduled(id)).toEqual([]);
+});
