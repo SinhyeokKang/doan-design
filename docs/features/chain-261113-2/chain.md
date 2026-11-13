@@ -46,7 +46,7 @@ lead는 링크 1 시작 전에 아래를 사용자에게 한 번에 묻고, 승�
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1. `quick-open-conversations` | | | | 대기 |
+| 1. `quick-open-conversations` | Claude Code · `quick-open-conversations-orch` (`feat/quick-open-conversations`) | 2026-11-13 16:05, `11bf5a9d` | | 진행 중 |
 | 2. `usage-limit-resume` | | | | 대기 |
 
 ## 인계 기록
