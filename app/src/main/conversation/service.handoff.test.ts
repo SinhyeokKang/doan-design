@@ -443,7 +443,7 @@ describe("a handoff a stop, an archive, a quit or a broken history meets", () =>
     await h.service.quit();
     await expect(waiting).rejects.toThrow("busy");
     expect(h.store.read(id).some(e => e.type === "handoff.resolved")).toBe(false);
-    expect(foldConversation(h.store.read(id), id, true).handoffs[h.turnOf(id)]?.outcome).toBe("cancelled");
+    expect(foldConversation(h.store.read(id), id, true).handoffs[h.turnOf(id)]?.[0]?.outcome).toBe("cancelled");
     h.listed.push(b); h.service.refreshed("/repo", [b.path]);
     await Promise.resolve();
     expect(h.prepare).toHaveBeenCalledOnce();

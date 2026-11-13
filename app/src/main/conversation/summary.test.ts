@@ -161,6 +161,13 @@ describe("handoff events", () => {
     expect(conversationSummary({ ...canvasDoan, seenSeq: 4 }, { ok: true, events }, live).unseen).toBe(false);
     expect(conversationSummary({ ...canvasDoan, seenSeq: 3 }, { ok: true, events }, live).unseen).toBe(true);
   });
+  it("leaves a seen end seen when a missed line arrives, also after a resolution", () => {
+    const missed = { type: "handoff.missed" as const, canvas: { path: ".doan/canvases/m.html", id: "m" } };
+    expect(conversationSummary({ ...canvasDoan, seenSeq: 3 }, { ok: true, events: history(...started, { type: "turn.done" }, missed) }, live).unseen).toBe(false);
+    const events = history(...started, { type: "handoff.requested", canvas: { path: ".doan/canvases/new.html" }, text: "Continue." }, { type: "turn.done" },
+      { type: "handoff.resolved", canvas: { path: ".doan/canvases/new.html" }, outcome: "refused", reason: "not_listed" }, missed);
+    expect(conversationSummary({ ...canvasDoan, seenSeq: 4 }, { ok: true, events }, live).unseen).toBe(false);
+  });
 });
 
 

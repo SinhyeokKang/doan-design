@@ -1,8 +1,9 @@
 import { sameCanvas } from "./sessions";
 import type { QuestionOutcome } from "./question";
 import type { Canvas, ConversationBinding, ConversationEvent, TurnState } from "./types";
-// A turn's handoff: the canvas it asked for and how it ended. pending: still judged by this run.
-export interface HandoffFold { canvas: { path: string }; outcome: "pending" | "started" | "refused" | "cancelled"; target?: { conversationId: string; canvas: Canvas }; reason?: string }
+// A turn's handoff: the canvas it asked for and how it ended. pending: still judged by this run. missed: a new canvas
+// the turn edited and asked no handoff for.
+export interface HandoffFold { canvas: Canvas; outcome: "pending" | "started" | "refused" | "cancelled" | "missed"; target?: { conversationId: string; canvas: Canvas }; reason?: string }
 export type TurnAction = "send" | "output" | "permission" | "resolved" | "done" | "exit" | "interrupt";
 export function turnState(state: TurnState, action: TurnAction): { state: TurnState; error?: "busy" } {
   const running = state === "starting" || state === "streaming" || state === "waitingPermission";
@@ -30,8 +31,8 @@ export interface FoldedConversation {
   permissions: Record<string, string>;
   questions: Record<string, "pending" | QuestionOutcome>;
   messages: { id: string; text: string; done: boolean }[];
-  // By the requesting turn's id.
-  handoffs: Record<string, HandoffFold>;
+  // By the requesting turn's id, in request order, then the turn's missed canvases.
+  handoffs: Record<string, HandoffFold[]>;
 }
 export function foldConversation(input: readonly ConversationEvent[], conversationId: string, restarting = true): FoldedConversation {
   const state: FoldedConversation = { turn: "idle", turnId: null, archived: false, lastSeq: 0, interruption: null, permissions: {}, questions: {}, messages: [], handoffs: {} };
@@ -47,11 +48,14 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
   for (const event of mergeEvents(input, [], conversationId)) {
     state.lastSeq = event.seq;
     // Before the archive and turn checks: the resolution comes after the turn's end, also after an archive.
-    if (event.type === "handoff.requested") { state.handoffs[event.turnId] = { canvas: { path: event.canvas.path }, outcome: "pending" }; continue; }
+    if (event.type === "handoff.requested") { (state.handoffs[event.turnId] ??= []).push({ canvas: { path: event.canvas.path }, outcome: "pending" }); continue; }
+    if (event.type === "handoff.missed") { (state.handoffs[event.turnId] ??= []).push({ canvas: event.canvas, outcome: "missed" }); continue; }
     if (event.type === "handoff.resolved") {
-      const asked = state.handoffs[event.turnId];
-      if (asked?.outcome === "pending") state.handoffs[event.turnId] = { canvas: asked.canvas, outcome: event.outcome,
-        ...(event.outcome === "started" ? { target: event.target } : event.outcome === "refused" ? { reason: event.reason } : {}) };
+      // A line without a canvas was written when a turn could ask only once.
+      const asked = state.handoffs[event.turnId]?.filter(h => h.outcome !== "missed") ?? [];
+      const request = event.canvas ? asked.find(h => h.canvas.path === event.canvas!.path) : asked.length === 1 ? asked[0] : undefined;
+      if (request?.outcome === "pending") Object.assign(request, { outcome: event.outcome,
+        ...(event.outcome === "started" ? { target: event.target } : event.outcome === "refused" ? { reason: event.reason } : {}) });
       continue;
     }
     if (event.type === "conversation.archived") { state.archived = true; expire(); continue; }
@@ -94,7 +98,7 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
   if (restarting) {
     expire();
     // Nothing judges a handoff an earlier run left unresolved.
-    for (const handoff of Object.values(state.handoffs)) if (handoff.outcome === "pending") handoff.outcome = "cancelled";
+    for (const handoff of Object.values(state.handoffs).flat()) if (handoff.outcome === "pending") handoff.outcome = "cancelled";
     if (state.turn === "starting" || state.turn === "streaming" || state.turn === "waitingPermission") {
       state.turn = "interrupted"; state.interruption = "crashed";
     }
