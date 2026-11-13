@@ -168,6 +168,23 @@ func Run(in Input) []Finding {
 			}
 		}
 		for _, frame := range c.Frames {
+			if frame.Prototype != nil && !canvas.PrototypeSizeValid(*frame.Prototype) {
+				f := base
+				f.Code = "invalid_prototype_size"
+				f.Frame = frame.ID
+				f.Value = *frame.Prototype
+				f.Message = "data-doan-prototype=\"" + *frame.Prototype + "\" is not a size; write <width>x<height> in whole pixels from 1 to 99999 with a lowercase x, such as \"390x844\"."
+				add(f)
+			}
+		}
+		for _, v := range c.StrayPrototypes {
+			f := base
+			f.Code = "prototype_not_frame"
+			f.Value = v
+			f.Message = "data-doan-prototype=\"" + v + "\" is on an element without data-doan-frame; move it to the frame element or remove it."
+			add(f)
+		}
+		for _, frame := range c.Frames {
 			if frame.Implements == nil {
 				continue
 			}
