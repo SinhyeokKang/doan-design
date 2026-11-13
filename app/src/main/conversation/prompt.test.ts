@@ -126,11 +126,12 @@ describe("handoff", () => {
     expect(turnPrompt([], "Make a checkout page", scope)).not.toContain(HANDOFF_GUIDANCE);
     expect(turnPrompt([], "Make a checkout page", scope, { handoff: false })).not.toContain(HANDOFF_GUIDANCE);
     expect(HANDOFF_GUIDANCE).toContain("every new canvas this turn created");
-    expect(HANDOFF_GUIDANCE).toContain("once for each canvas, consecutively as your last step");
+    expect(HANDOFF_GUIDANCE).toContain("once, consecutively as your last step");
     expect(HANDOFF_GUIDANCE).toContain("asked not to hand off or to stay on this canvas");
     expect(HANDOFF_GUIDANCE).toContain(".doan/canvases/");
     // Codex's `doan` prefix rule does not match a heredoc, pipe or redirection, so the message goes in as an argument.
     expect(HANDOFF_GUIDANCE).toContain("`doan handoff <path> --message '<message>'`");
+    expect(HANDOFF_GUIDANCE).toContain("its own plain command (not joined with `&&` or `;`)");
     expect(HANDOFF_GUIDANCE).toContain("no heredoc, pipe or redirection");
     expect(HANDOFF_GUIDANCE).not.toContain("--message -");
     expect(HANDOFF_GUIDANCE).not.toContain("standard input");
