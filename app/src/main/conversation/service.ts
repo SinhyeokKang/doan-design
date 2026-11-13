@@ -1020,6 +1020,7 @@ export class ConversationService {
     void (async () => {
       await Promise.resolve();
       let windows: readonly UsageWindow[] = [];
+      // A read that failed tells no reset: the turn then fails as before, unless Claude Code's own message names one.
       try { windows = await read(owner.provider, owner.connectionId); } catch { windows = []; }
       if (this.quitting || this.live.get(id) !== live || live.limitLookup !== lookup) return;
       delete live.limitLookup;
