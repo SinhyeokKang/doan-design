@@ -217,9 +217,9 @@ func TestAssemblePrototypeOutputIsPinned(t *testing.T) {
 		proto        Proto
 		want         string
 	}{
-		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", Proto{Frame: "a", Title: `a "&" <b>`}, "5fef02994adf9d822cdf4609e35f2f25702bc46dbebd3947a6fef172142f35dd"},
-		{"bare", "<p>a & \"b\"</p>", Proto{Frame: "x</script>"}, "bff74ba7041e7f9c73258bb7f85fd34ac1f92441791fd4863346270048f6c1db"},
-		{"empty", "", Proto{Frame: "checkout", Title: "Checkout"}, "4361c36be9d4f6d34fffa71d6a27490625095e287be3aa7a098c3bec1a7da68d"},
+		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", Proto{Frame: "a", Title: `a "&" <b>`}, "e01d4b92b0d606bb59c6b80b5d984ae356f6e60e41df576bd04be1c5eceaaf5e"},
+		{"bare", "<p>a & \"b\"</p>", Proto{Frame: "x</script>"}, "139e6e51d341ee78d8c35ced895111acbb6ed2909a7e758d9285ceab0bcc27d2"},
+		{"empty", "", Proto{Frame: "checkout", Title: "Checkout"}, "a2bbd3919cabb9bbcc0e38ce8242e7299a6e3f98c81c260d72b480c1681b3ca5"},
 	} {
 		page, err := AssemblePrototype(Meta{Name: "pinned", Width: 320}, c.proto, []byte(c.canvas))
 		if err != nil {

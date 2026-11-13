@@ -10,6 +10,24 @@
 const host = window.parent;
 const post = (state) => host.postMessage({ type: "doan-prototype", state }, "*");
 
+// A srcdoc document's URL is about:srcdoc while its base is the page's file URL, so the browser
+// refuses every pushState and replaceState URL with SecurityError (Chromium and WebKit), and a
+// router's next statement never runs. Such a call is made again without the URL: the state and the
+// entry are kept and the script goes on, though location stays the srcdoc document. Any other error,
+// and a retry that fails, still reaches the canvas.
+for (const name of ["pushState", "replaceState"]) {
+  const native = history[name];
+  history[name] = function (...args) {
+    try {
+      return native.apply(this, args);
+    } catch (error) {
+      const url = args[2];
+      if (url === undefined || url === null || error?.name !== "SecurityError") throw error;
+      return native.call(this, args[0], args[1]);
+    }
+  };
+}
+
 // Only links whose written value starts with "#" stay in the document. Everything else would load
 // another document into the frame, which the recipient's browser cannot reach (the file is alone).
 function sameDocument(href) {

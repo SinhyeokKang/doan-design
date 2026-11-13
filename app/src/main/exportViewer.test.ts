@@ -1210,7 +1210,33 @@ class FakeElement {
   append(...els: FakeElement[]) { for (const el of els) { el.parentElement = this; this.children.push(el); } return this; }
 }
 
-type Listener = { type: string; fn: (event: unknown) => void; once: boolean };
+type Listener = { type: string; fn: (event: unknown) => void; once: boolean; capture: boolean };
+type ListenerOptions = boolean | { once?: boolean; capture?: boolean } | undefined;
+// The third argument as addEventListener reads it: a boolean is the capture flag.
+const listener = (type: string, fn: (event: unknown) => void, opts: ListenerOptions): Listener =>
+  ({ type, fn, once: typeof opts === "object" && !!opts.once, capture: typeof opts === "boolean" ? opts : !!opts?.capture });
+
+// A History whose methods live on the prototype, as the browser's do, and refuse a URL the way a srcdoc
+// document does (SecurityError). A state carrying `clone` fails as an uncloneable one would.
+const named = (name: string) => Object.assign(new Error(name), { name });
+class FakeHistory {
+  calls: { name: string; self: unknown; args: unknown[] }[] = [];
+  urlError: string | null = "SecurityError";
+  retryError: string | null = null;
+  state: unknown = null;
+  pushState(...args: unknown[]) { this.native("pushState", args); }
+  replaceState(...args: unknown[]) { this.native("replaceState", args); }
+  private native(name: string, args: unknown[]) {
+    this.calls.push({ name, self: this, args });
+    const state = args[0];
+    if (state !== null && typeof state === "object" && "clone" in state) throw named("DataCloneError");
+    const url = args[2];
+    if (url !== undefined && url !== null && this.urlError !== null) throw named(this.urlError);
+    if (args.length < 3 && this.retryError !== null) throw named(this.retryError);
+    this.state = state;
+  }
+}
+
 function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId = "checkout") {
   const posts: unknown[] = [];
   const windowListeners: Listener[] = [];
@@ -1220,7 +1246,7 @@ function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId
   const document = {
     readyState,
     adoptedStyleSheets: [] as unknown[],
-    addEventListener: (type: string, fn: (e: unknown) => void, opts?: { once?: boolean }) => docListeners.push({ type, fn, once: !!opts?.once }),
+    addEventListener: (type: string, fn: (e: unknown) => void, opts?: ListenerOptions) => docListeners.push(listener(type, fn, opts)),
     querySelectorAll: (selector: string) => {
       if (selector !== "[data-doan-frame]") throw new Error(`unexpected selector ${selector}`);
       return frames();
@@ -1228,18 +1254,19 @@ function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId
   };
   const window = {
     parent: { postMessage: (message: unknown, target: string) => posts.push({ message, target }) },
-    addEventListener: (type: string, fn: (e: unknown) => void, opts?: { once?: boolean }) => windowListeners.push({ type, fn, once: !!opts?.once }),
+    addEventListener: (type: string, fn: (e: unknown) => void, opts?: ListenerOptions) => windowListeners.push(listener(type, fn, opts)),
   };
+  const history = new FakeHistory();
   class CSSStyleSheet { text = ""; replaceSync(text: string) { this.text = text; } }
   runInNewContext(`(function () {\nconst FRAME = ${JSON.stringify(frameId)};\n${isolateJs}\n})();`, {
-    window, document, location, CSSStyleSheet, Element: FakeElement, Array, Set,
+    window, document, location, history, CSSStyleSheet, Element: FakeElement, Array, Set,
     setTimeout: (fn: () => void) => { timers.push(fn); return timers.length; },
   });
   const fire = (list: Listener[], type: string, event: unknown = {}) => {
     for (const l of list.filter(l => l.type === type)) l.fn(event);
   };
   return {
-    posts, location, document, timers, windowListeners,
+    posts, location, document, timers, windowListeners, history,
     contentLoaded: () => fire(docListeners, "DOMContentLoaded"),
     load: () => { fire(windowListeners, "load"); while (timers.length > 0) timers.shift()!(); },
     dispatch: (type: string, event: unknown) => fire(windowListeners, type, event),
@@ -1318,7 +1345,7 @@ describe("isolate.js reports once and keeps the canvas in its document", () => {
   test("every submit's default is stopped, after the canvas's handlers (bubble phase on window)", () => {
     const run = runIsolate(() => []);
     const submit = run.windowListeners.filter(l => l.type === "submit");
-    expect(submit).toHaveLength(1);
+    expect(submit.map(l => l.capture)).toEqual([false]);
     const event = navEvent([]);
     run.dispatch("submit", event);
     expect(event.prevented).toBe(1);
@@ -1326,7 +1353,8 @@ describe("isolate.js reports once and keeps the canvas in its document", () => {
 
   test("a link to another document does nothing; a # link moves within the document", () => {
     const run = runIsolate(() => []);
-    expect(run.windowListeners.filter(l => l.type === "click")).toHaveLength(1);
+    // Bubble phase: a capture listener would cancel the click before a router's handler sees it.
+    expect(run.windowListeners.filter(l => l.type === "click").map(l => l.capture)).toEqual([false]);
     const span = new FakeElement("SPAN");
     for (const href of ["other.html", "https://example.com/", "", "?q"]) {
       const event = navEvent([span, new FakeElement("A", { href }), new FakeElement("BODY")]);
@@ -1359,6 +1387,52 @@ describe("isolate.js reports once and keeps the canvas in its document", () => {
     const noHref = navEvent([new FakeElement("A")]);
     run.dispatch("click", noHref);
     expect(noHref.prevented).toBe(0);
+  });
+});
+
+// A srcdoc document's URL is about:srcdoc while its base is the page's file URL, so the browser refuses
+// every History URL with SecurityError (Chromium and WebKit). isolate.js keeps the state and the script.
+describe("isolate.js keeps History calls with a URL from stopping the canvas", () => {
+  const methods = ["pushState", "replaceState"] as const;
+  type Call = (this: unknown, ...args: unknown[]) => void;
+  const call = (h: FakeHistory, name: (typeof methods)[number], ...args: unknown[]) => (h[name] as Call).apply(h, args);
+
+  test.each(methods)("%s with a URL the browser refuses records the state without the URL, on the same receiver", (name) => {
+    const { history } = runIsolate(() => []);
+    expect(() => call(history, name, { step: 2 }, "", "/step-2")).not.toThrow();
+    expect(history.calls.map(c => [c.name, c.args, c.self === history])).toEqual([
+      [name, [{ step: 2 }, "", "/step-2"], true],
+      [name, [{ step: 2 }, ""], true],
+    ]);
+    expect(history.state).toEqual({ step: 2 });
+  });
+
+  test.each(methods)("%s without a URL, or with one the browser takes, is one native call", (name) => {
+    const { history } = runIsolate(() => []);
+    for (const args of [[{ a: 1 }, ""], [{ a: 2 }, "", undefined], [{ a: 3 }, "", null]]) {
+      history.calls = [];
+      call(history, name, ...args);
+      expect(history.calls.map(c => c.args)).toEqual([args]);
+    }
+    history.urlError = null;
+    history.calls = [];
+    call(history, name, { a: 4 }, "", "/x");
+    expect(history.calls.map(c => c.args)).toEqual([[{ a: 4 }, "", "/x"]]);
+  });
+
+  test.each(methods)("%s lets any other error, and a retry that fails, through", (name) => {
+    const { history } = runIsolate(() => []);
+    expect(() => call(history, name, { clone: () => 1 }, "", "/x")).toThrow(expect.objectContaining({ name: "DataCloneError" }));
+    expect(history.calls).toHaveLength(1);
+    history.calls = [];
+    history.urlError = "TypeError";
+    expect(() => call(history, name, {}, "", "/x")).toThrow(expect.objectContaining({ name: "TypeError" }));
+    expect(history.calls).toHaveLength(1);
+    history.calls = [];
+    history.urlError = "SecurityError";
+    history.retryError = "InvalidStateError";
+    expect(() => call(history, name, {}, "", "/x")).toThrow(expect.objectContaining({ name: "InvalidStateError" }));
+    expect(history.calls).toHaveLength(2);
   });
 });
 
