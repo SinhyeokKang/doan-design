@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"unicode/utf16"
+	"unicode/utf8"
 )
 
 func fixtureFiles(t *testing.T, name, validity string) []string {
@@ -57,6 +59,8 @@ func TestValidationFixtures(t *testing.T) {
 		{"app-socket-v4/response", ValidateOpenResponse},
 		{"app-socket-v5/request", ValidateHandoffRequest},
 		{"app-socket-v5/response", ValidateHandoffResponse},
+		{"app-socket-v6/request", ValidatePrototypeRequest},
+		{"app-socket-v6/response", ValidatePrototypeResponse},
 	}
 	for _, group := range groups {
 		for _, validity := range []string{"valid", "invalid"} {
@@ -211,6 +215,96 @@ func TestHandoffSocketStaysApart(t *testing.T) {
 			if other.validate(readJSON(t, file)) == nil {
 				t.Errorf("v5 %s %s validates as %s", other.kind, filepath.Base(file), other.label)
 			}
+		}
+	}
+}
+
+func TestPrototypeSocketStaysApart(t *testing.T) {
+	others := []struct {
+		kind, label, dir string
+		validate         func(any) error
+	}{
+		{"request", "v1", "app-socket/request", ValidateSocketRequest},
+		{"request", "v2", "app-socket-v2/request", ValidateOnboardingRequest},
+		{"request", "v3", "app-socket-v3/request", ValidateWorkRequest},
+		{"request", "v4", "app-socket-v4/request", ValidateOpenRequest},
+		{"request", "v5", "app-socket-v5/request", ValidateHandoffRequest},
+		{"response", "v1", "app-socket/response", ValidateSocketResponse},
+		{"response", "v2", "app-socket-v2/response", ValidateOnboardingResponse},
+		{"response", "v3", "app-socket-v3/response", ValidateWorkResponse},
+		{"response", "v4", "app-socket-v4/response", ValidateOpenResponse},
+		{"response", "v5", "app-socket-v5/response", ValidateHandoffResponse},
+	}
+	for _, other := range others {
+		v6 := ValidatePrototypeRequest
+		if other.kind == "response" {
+			v6 = ValidatePrototypeResponse
+		}
+		for _, file := range fixtureFiles(t, other.dir, "valid") {
+			if v6(readJSON(t, file)) == nil {
+				t.Errorf("%s %s %s validates as v6", other.label, other.kind, filepath.Base(file))
+			}
+		}
+		for _, file := range fixtureFiles(t, "app-socket-v6/"+other.kind, "valid") {
+			if other.validate(readJSON(t, file)) == nil {
+				t.Errorf("v6 %s %s validates as %s", other.kind, filepath.Base(file), other.label)
+			}
+		}
+	}
+}
+
+// The schema counts a frame id in code points, while the app and the injected prototype script count UTF-16 units,
+// so the boundary fixtures must sit on each side of both counts for the CLI's own UTF-16 check to be meaningful.
+func TestPrototypeFrameBoundaryFixtures(t *testing.T) {
+	cases := []struct {
+		validity, name         string
+		codePoints, utf16Units int
+	}{
+		{"valid", "frame-200.json", 200, 200},
+		{"valid", "frame-200-astral.json", 200, 400},
+		{"invalid", "frame-201.json", 201, 201},
+		{"invalid", "frame-201-astral.json", 201, 402},
+	}
+	for _, c := range cases {
+		file := filepath.Join("..", "..", "..", "schema", "fixtures", "app-socket-v6", "request", c.validity, c.name)
+		frame := readJSON(t, file).(map[string]any)["frame"].(string)
+		if got := utf8.RuneCountInString(frame); got != c.codePoints {
+			t.Errorf("%s: %d code points; want %d", c.name, got, c.codePoints)
+		}
+		if got := len(utf16.Encode([]rune(frame))); got != c.utf16Units {
+			t.Errorf("%s: %d UTF-16 units; want %d", c.name, got, c.utf16Units)
+		}
+	}
+}
+
+// The v6 mark pattern must be the convention 14 grammar that the Go parser, the app and the injected script carry.
+func TestPrototypeMarkFollowsSharedCases(t *testing.T) {
+	var cases struct {
+		Values []struct {
+			Name  string `json:"name"`
+			Value string `json:"value"`
+			Valid bool   `json:"valid"`
+		} `json:"values"`
+	}
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "schema", "fixtures", "prototype-mark", "cases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	if len(cases.Values) == 0 {
+		t.Fatal("no mark values")
+	}
+	base := readJSON(t, filepath.Join("..", "..", "..", "schema", "fixtures", "app-socket-v6", "request", "valid", "play.json")).(map[string]any)
+	for _, c := range cases.Values {
+		request := map[string]any{}
+		for key, value := range base {
+			request[key] = value
+		}
+		request["mark"] = c.Value
+		if err := ValidatePrototypeRequest(request); (err == nil) != c.Valid {
+			t.Errorf("%s (%q): validation error = %v; want valid %v", c.Name, c.Value, err, c.Valid)
 		}
 	}
 }

@@ -176,3 +176,7 @@ export type HandoffErrorCode =
   | "already_requested"
   | "same_canvas";
 export type HandoffResponse = { v: 5; ok: true; requested: true } | { v: 5; ok: false; error: { code: HandoffErrorCode; message: string } };
+
+export type PrototypeRequest = { v: 6; token: string; root: string; path: string; frame: string; mark: string };
+export type PrototypeErrorCode = "bad_request" | "bad_token" | "project_not_open" | "canvas_not_found" | "busy" | "not_ready";
+export type PrototypeResponse = { v: 6; ok: true; played: true } | { v: 6; ok: false; error: { code: PrototypeErrorCode; message: string } };
