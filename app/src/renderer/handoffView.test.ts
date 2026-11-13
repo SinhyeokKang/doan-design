@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
-import type { HandoffNotice } from "../main/conversation/handoff";
-import { HANDOFF_WAIT_MS, handoffArrival, handoffCardHead, handoffGoneText, handoffLineText, handoffMove, handoffToastText, type HandoffScreen } from "./handoffView";
+import type { HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
+import type { Canvas } from "../main/conversation/types";
+import { HANDOFF_WAIT_MS, handoffArrival, handoffCardHead, handoffGoneText, handoffLineText, handoffMove, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
 import { startErrorView } from "./homeComposer";
 
 const DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" }, CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" };
@@ -27,6 +28,28 @@ describe("handoffMove", () => {
   });
 });
 
+// Several started handoffs never move the screen: the source canvas page shows its lines, anywhere else one summary toast.
+describe("handoffMultiStep", () => {
+  const multi: HandoffMultiNotice = { root: "/w/a", source: { conversationId: "c1", canvas: DRAFTS }, targets: [
+    { conversationId: "c2", canvas: CHECKOUT }, { conversationId: "c3", canvas: { path: ".doan/canvases/payment.html", id: "payment" } }] };
+  test("nothing on the source canvas page, whatever else is on screen", () => {
+    expect(handoffMultiStep(onSource, multi)).toBe("none");
+    expect(handoffMultiStep({ ...onSource, canvas: { root: "/w/a", canvas: { path: ".doan/canvases/renamed.html", id: "drafts" } } }, multi)).toBe("none");
+    for (const patch of [{ dialog: true }, { typing: true }, { chose: true }]) expect(handoffMultiStep({ ...onSource, ...patch }, multi)).toBe("none");
+  });
+  test.each<[string, Partial<HandoffScreen>]>([
+    ["a target canvas", { canvas: { root: "/w/a", canvas: CHECKOUT } }],
+    ["the same canvas in another root", { canvas: { root: "/w/b", canvas: DRAFTS } }],
+    ["Overview, Home, Settings (no canvas page)", { canvas: null }],
+  ])("%s → one toast", (_name, patch) => {
+    expect(handoffMultiStep({ ...onSource, ...patch }, multi)).toBe("toast");
+  });
+  test("the summary toast names the source and how many canvases", () => {
+    expect(handoffToastText(multi)).toBe("drafts.html handed off to 2 canvases");
+    expect(handoffToastText({ ...multi, targets: [...multi.targets, { conversationId: "c4", canvas: { path: ".doan/canvases/receipt.html" } }] })).toBe("drafts.html handed off to 3 canvases");
+  });
+});
+
 describe("handoffArrival: the wait for the target's list read", () => {
   test("a listed target moves at once; an unlisted one waits until the limit, then toasts", () => {
     expect(HANDOFF_WAIT_MS).toBe(10_000);
@@ -42,7 +65,7 @@ describe("handoffArrival: the wait for the target's list read", () => {
 });
 
 describe("handoff copy", () => {
-  const ctx = { project: "acme-web", provider: "claude" as const, listed: () => true };
+  const ctx = { project: "acme-web", provider: "claude" as const, listed: (_canvas: Canvas) => true };
   const line = (item: Parameters<typeof handoffLineText>[0], over: Partial<typeof ctx> = {}) => handoffLineText(item, { ...ctx, ...over });
   const base = { kind: "handoff" as const, key: "ht1", canvas: { path: CHECKOUT.path } };
   test("pending, handed off and cancelled lines name the file", () => {
@@ -72,6 +95,18 @@ describe("handoff copy", () => {
     for (const code of ["not_logged_in", "busy", "session_in_use", "project_not_open", "bad_request"]) {
       expect(line({ ...base, outcome: "refused", reason: code }).text).toBe(`Didn’t hand off to checkout-flow.html. ${startErrorView(code, "claude", "acme-web").text}`);
     }
+  });
+  test("a missed canvas: the ban line with Open on that canvas, no conversation", () => {
+    const missed = { ...base, canvas: CHECKOUT, outcome: "missed" as const };
+    expect(line(missed)).toEqual({ icon: "ban", text: "Didn’t hand off to checkout-flow.html. The agent didn’t ask to.", open: { canvas: CHECKOUT } });
+  });
+  test("a missed canvas that is gone hides Open and says it is no longer in the project", () => {
+    const missed = { ...base, canvas: CHECKOUT, outcome: "missed" as const };
+    const asked: unknown[] = [];
+    expect(line(missed, { listed: canvas => { asked.push(canvas); return false; } }))
+      .toEqual({ icon: "ban", text: "Didn’t hand off to checkout-flow.html. The agent didn’t ask to. It’s no longer in acme-web.", open: null });
+    // Found by ID, as the other lines' targets are.
+    expect(asked).toEqual([CHECKOUT]);
   });
   test("the card head, the toast and the vanished target's answer", () => {
     expect(handoffCardHead(DRAFTS, "acme-web", true)).toBe("Handed off from drafts.html");

@@ -86,9 +86,11 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
       (value.attachments === undefined || (Array.isArray(value.attachments) && [...value.attachments].every(attachment)));
     case "handoff.requested": return object(value.canvas) && bounded(value.canvas.path, LIMITS.path) && bounded(value.text, LIMITS.text);
     case "handoff.resolved":
+      if (value.canvas !== undefined && !(object(value.canvas) && bounded(value.canvas.path, LIMITS.path))) return false;
       if (value.outcome === "started") return object(value.target) && bounded(value.target.conversationId, LIMITS.label) && validCanvas(value.target.canvas);
       if (value.outcome === "refused") return bounded(value.reason, LIMITS.label);
       return value.outcome === "cancelled";
+    case "handoff.missed": return validCanvas(value.canvas);
     case "message.delta": case "message.done": return str(value.messageId) && str(value.text);
     case "activity": return ["edit", "read", "command", "other"].includes(String(value.kind)) && str(value.summary) && (value.path === undefined || str(value.path)) && (value.insideDesign === undefined || typeof value.insideDesign === "boolean");
     case "permission.request": return str(value.requestId) && str(value.tool) && str(value.summary) && Array.isArray(value.options) && value.options.length > 0 && [...value.options].every(o => object(o) && str(o.id) && str(o.label) && ["allow", "allowAlways", "deny"].includes(String(o.kind)));

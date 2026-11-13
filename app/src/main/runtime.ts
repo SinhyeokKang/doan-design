@@ -118,7 +118,7 @@ const HANDOFF_MESSAGES: Record<HandoffErrorCode, string> = {
   not_canvas_conversation: "Only a canvas conversation can hand off.",
   plan_mode: "The conversation is in Plan mode.",
   handoff_turn: "A turn started by a handoff cannot hand off.",
-  already_requested: "This turn already handed off.",
+  already_requested: "This turn already handed off to this canvas.",
   same_canvas: "The canvas is the conversation's own.",
 };
 function handoffError(code: HandoffErrorCode, message = HANDOFF_MESSAGES[code]): HandoffResponse {

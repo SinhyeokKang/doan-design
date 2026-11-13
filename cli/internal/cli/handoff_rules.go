@@ -87,7 +87,7 @@ func handoffFailure(code, message string) *Error {
 		"not_canvas_conversation": {"Only a canvas conversation hands off; " + ready},
 		"plan_mode":               {"A conversation in Plan mode cannot hand off; " + ready},
 		"handoff_turn":            {"A turn started by a handoff cannot hand off again; " + ready},
-		"already_requested":       {"This turn already requested a handoff; do not run `doan handoff` again"},
+		"already_requested":       {"This turn already requested a handoff to this canvas; hand off each other new canvas once"},
 		"same_canvas":             {"Hand off only to a new canvas, not this conversation's own canvas"},
 	}[code]
 	return &Error{Code: code, Message: message, NextSteps: steps}
@@ -133,7 +133,7 @@ func handoffReply(line []byte, path string) (map[string]any, *Error) {
 			"not_canvas_conversation": "This conversation is not a canvas conversation",
 			"plan_mode":               "The conversation is in Plan mode",
 			"handoff_turn":            "This turn was started by a handoff",
-			"already_requested":       "This turn already requested a handoff",
+			"already_requested":       "This turn already requested a handoff to this canvas",
 			"same_canvas":             path + " is this conversation's own canvas",
 		}[code])
 	}

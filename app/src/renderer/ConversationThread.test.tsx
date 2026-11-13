@@ -525,20 +525,35 @@ describe("handoff lines and the handoff card", () => {
   const CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" }, DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" };
   const line = (patch: Partial<Extract<ThreadItem, { kind: "handoff" }>>): ThreadItem => ({ kind: "handoff", key: "ht1", canvas: { path: CHECKOUT.path }, outcome: "pending", ...patch });
   const marker = (icon: string, text: string, open = "") => new RegExp(`<div class="marker handoff"><span><svg[^>]*lucide-${icon}[^>]*>.*?</svg>${text}</span>${open}</div>`);
-  const OPEN = '<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open</button>';
+  // A line's Open names the canvas it opens; several lines in one turn would otherwise read as the same "Open".
+  const OPEN = (file: string) => `<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open ${file}">Open</button>`;
 
   test("pending: the forward line without an action", () => {
     expect(html([line({})])).toMatch(marker("forward", "Hands off to checkout-flow.html when this turn ends"));
   });
   test("handed off: Open, hidden with a note once the target is gone", () => {
     const started = line({ outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } });
-    expect(html([started])).toMatch(marker("forward", "Handed off to checkout-flow.html", OPEN));
+    expect(html([started])).toMatch(marker("forward", "Handed off to checkout-flow.html", OPEN("checkout-flow.html")));
     expect(html([started], { canvasListed: () => false })).toMatch(marker("forward", "Handed off to checkout-flow.html · No longer in doan-design"));
   });
   test("refused and cancelled: the ban line without Open", () => {
     expect(html([line({ outcome: "refused", reason: "not_new" })])).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. It existed before this turn started."));
     expect(html([line({ outcome: "refused", reason: "not_logged_in" })])).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. Couldn’t start with Claude Code: its sign-in has expired. Choose another agent."));
     expect(html([line({ outcome: "cancelled" })])).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. The turn didn’t finish."));
+  });
+  test("missed: the ban line with Open on that canvas, hidden with a sentence once the canvas is gone", () => {
+    const missed = line({ key: `ht1:${CHECKOUT.path}`, canvas: CHECKOUT, outcome: "missed" });
+    expect(html([missed])).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. The agent didn’t ask to.", OPEN("checkout-flow.html")));
+    expect(html([missed], { canvasListed: () => false })).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. The agent didn’t ask to. It’s no longer in doan-design."));
+  });
+  test("several lines of one turn each name their own Open", () => {
+    const PAYMENT = { path: ".doan/canvases/payment.html", id: "payment" };
+    const out = html([
+      line({ key: `ht1:${CHECKOUT.path}`, outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } }),
+      line({ key: `ht1:${PAYMENT.path}`, canvas: PAYMENT, outcome: "missed" }),
+    ]);
+    expect(out).toContain(OPEN("checkout-flow.html"));
+    expect(out).toContain(OPEN("payment.html"));
   });
   test("the card: a labelled group with its head, Open and the text as agent Markdown, a {{1}} kept as typed", () => {
     const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "Pick up **Payment**.\n\nThe person wrote “{{1}}”." };
@@ -558,6 +573,12 @@ describe("handoff lines and the handoff card", () => {
     const cardEl = HandoffCard({ entry: { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "x" }, headId: "h", project: "p", canvasListed: () => true, onOpen: (canvas, id) => opened.push([canvas, id]) });
     for (const element of [lineEl, cardEl]) (findButton(element)!.props as { onClick(): void }).onClick();
     expect(opened).toEqual([[CHECKOUT, "c2"], [DRAFTS, "c0"]]);
+  });
+  test("Open on a missed line opens that canvas without naming a conversation", () => {
+    const opened: unknown[] = [];
+    const missed = line({ canvas: CHECKOUT, outcome: "missed" }) as Extract<ThreadItem, { kind: "handoff" }>;
+    (findButton(HandoffLine({ entry: missed, project: "p", provider: "claude", canvasListed: () => true, onOpen: (canvas, id) => opened.push([canvas, id]) }))!.props as { onClick(): void }).onClick();
+    expect(opened).toEqual([[CHECKOUT, undefined]]);
   });
 });
 function findButton(node: unknown): ReactElement | null {

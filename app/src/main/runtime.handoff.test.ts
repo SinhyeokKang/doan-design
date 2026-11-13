@@ -40,6 +40,10 @@ test("each refusal of the conversation service is a v5 refusal with its code", a
   }
 });
 
+test("names a second request for the same canvas, since a turn may hand off to each new canvas once", async () => {
+  expect(valid(await answerLine(JSON.stringify(request), token, state(() => "already_requested")))).toEqual({ v: 5, ok: false, error: { code: "already_requested", message: "This turn already handed off to this canvas." } });
+});
+
 test("every shared invalid v5 request fixture is refused as a v5 bad request, and every valid one reaches the service", async () => {
   for (const name of readdirSync(join(fixtures, "invalid"))) {
     const value: unknown = JSON.parse(readFileSync(join(fixtures, "invalid", name), "utf8"));

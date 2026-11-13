@@ -70,7 +70,12 @@ export type EventPayload =
   // The turn asked for a handoff (in that turn); its resolution comes once the turn ended and was judged, with the
   // requesting turn's id, as conversation.bound does. A request a restart finds unresolved reads as cancelled.
   | { type: "handoff.requested"; canvas: { path: string }; text: string }
-  | ({ type: "handoff.resolved" } & HandoffResolution);
+  // canvas: the path of the request it resolves, since a turn may ask for several. A line written before that has none
+  // and resolves the turn's only request.
+  | ({ type: "handoff.resolved"; canvas?: { path: string } } & HandoffResolution)
+  // A new canvas the guided turn edited and asked no handoff for, with the turn's id; Doan starts nothing on it. The ID
+  // tells later whether that canvas is gone or was renamed.
+  | { type: "handoff.missed"; canvas: Canvas };
 export type ConversationEvent = EventPayload & { v: 1; conversationId: string; seq: number; turnId: string; at: string };
 // waitingPermission: waiting for the person's answer, to a permission request or a question.
 export type TurnState = "idle" | "starting" | "streaming" | "waitingPermission" | "failed" | "interrupted";

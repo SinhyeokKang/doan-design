@@ -2,7 +2,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
-import type { HandoffNotice } from "../main/conversation/handoff";
+import type { ConversationHandoffNotice, HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
 
 // App's handling of conversation:handoff. Driven with hooks as plain
 // state and a stub controller, as App.replyChips.test.tsx is.
@@ -69,6 +69,7 @@ const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
 const { CanvasConversation } = await import("./CanvasConversationPanel");
 const { initialCanvasState } = await import("./CanvasController");
+const { CanvasRun } = await import("./canvasRun");
 
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
@@ -129,7 +130,7 @@ type OpenOptions = { opened(): void; unavailable(entry: FolderEntry | undefined)
 const lastOpen = () => harness.controller!.openCanvas!.mock.lastCall as [string, CanvasRow, unknown, OpenOptions];
 const back = () => (all(tree).find(element => typeof element.type === "function" && element.type.name === "TopBar")!.props as { back: boolean }).back;
 const notice: HandoffNotice = { root: "/w/a", source: { conversationId: "c1", canvas: { path: D, id: "drafts" } }, target: { conversationId: "c2", canvas: { path: C, id: "checkout" } } };
-const handoff = (n: HandoffNotice = notice) => { listeners.handoff!(n as never); render(); };
+const handoff = (n: ConversationHandoffNotice = notice) => { listeners.handoff!(n as never); render(); };
 type Panel = { arrival: { focus: string } | null; project: string };
 const panel = () => find<Panel>(CanvasConversation)[0]?.props;
 
@@ -319,4 +320,67 @@ test("a toast's Open on a project that can no longer be read answers at once", a
   expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
   expect(harness.toast.show).toHaveBeenCalledOnce();
   expect(harness.toast.show.mock.lastCall![0]).not.toMatch(/handed off/);
+});
+
+// Several started handoffs of one turn: the screen never moves. On the source canvas page its lines are enough;
+// anywhere else one summary toast whose Open goes to the source canvas and its conversation.
+const P = ".doan/canvases/payment.html";
+const payment: CanvasRow = { path: P, id: "payment", url: "u-p", width: 600, frames: [] };
+const multi: HandoffMultiNotice = { root: "/w/a", source: { conversationId: "c1", canvas: { path: D, id: "drafts" } },
+  targets: [{ conversationId: "c2", canvas: { path: C, id: "checkout" } }, { conversationId: "c3", canvas: { path: P, id: "payment" } }] };
+
+test("several handoffs on the source canvas page neither move nor toast", async () => {
+  await onDrafts(listA([drafts, checkout, payment]));
+  clearController();
+  handoff(multi);
+  folders([listA([drafts, checkout, payment])]);
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).not.toHaveBeenCalled();
+});
+
+test("several handoffs elsewhere show one summary toast whose Open opens the source conversation", async () => {
+  await overview(listA([drafts, checkout, payment]));
+  clearController();
+  handoff(multi);
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("drafts.html handed off to 2 canvases", "Open", expect.any(Function));
+  const request = vi.spyOn(CanvasRun.prototype, "request");
+  try {
+    (harness.toast.show.mock.lastCall![2] as () => void)(); render();
+    expect(lastOpen().slice(0, 2)).toEqual(["/w/a", expect.objectContaining({ path: D })]);
+    expect(request).toHaveBeenCalledWith({ root: "/w/a", canvas: { path: D, id: "drafts" } }, "c1", null);
+  } finally { request.mockRestore(); }
+});
+
+test("several handoffs on a target canvas page still toast and stay", async () => {
+  await onDrafts(listA([drafts, checkout, payment]));
+  showCanvas(checkout); await flushAll();
+  clearController();
+  handoff(multi);
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("drafts.html handed off to 2 canvases", "Open", expect.any(Function));
+});
+
+test("the summary toast's Open after the source disappeared answers that it couldn't open", async () => {
+  await overview(listA([drafts, checkout, payment]));
+  showCanvas(drafts); await flushAll();
+  const project = panel()!.project;
+  find<{ overview(root: string): void }>(ShellSidebar)[0]!.props.overview("/w/a");
+  harness.setState!({ ...initialCanvasState() }); render(); await flushAll();
+  handoff(multi);
+  const open = harness.toast.show.mock.lastCall![2] as () => void;
+  folders([listA([checkout, payment])]);
+  clearController(); harness.toast.show.mockClear();
+  open(); render();
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(`Couldn’t open drafts.html. The canvas isn’t in ${project}.`);
+});
+
+test("a single handoff still waiting turns into its toast when a summary arrives", async () => {
+  await onDrafts(listA([drafts]));
+  clearController();
+  handoff();
+  handoff(multi);
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("drafts.html handed off to checkout-flow.html", "Open", expect.any(Function));
 });

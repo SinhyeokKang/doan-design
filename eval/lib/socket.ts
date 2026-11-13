@@ -381,7 +381,7 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   const openLog = join(o.dir, "open.jsonl");
   const handoffLog = join(o.dir, "handoff.jsonl");
   const paths = new Set<string>();
-  let handoffTaken = false;
+  const handoffTaken = new Set<string>();
   const contents = (path: string): Buffer | null => {
     const target = join(o.root, path);
     try {
@@ -434,15 +434,15 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
     if (isObj(parsed) && parsed.v === 5 && o.handoff) {
       const fail = (code: string, message: string) => ({ v: 5, ok: false, error: { code, message } });
       // The app's order for the checks this fake can reach: shape, token, project, key, then the asking turn's own state.
-      // A refused request does not use up the turn's one handoff.
+      // A refused request does not reserve its canvas path.
       const response = !validHandoffRequest(parsed) ? fail("bad_request", "The request is not an app-socket v5 request.")
         : parsed.token !== token ? fail("bad_token", "The token does not match this app.")
         : parsed.root !== o.root ? fail("project_not_open", "The project is not open in Doan.")
         : parsed.handoff !== o.handoff.key ? fail("not_app_conversation", "This is not a Doan app conversation.")
-        : handoffTaken ? fail("already_requested", "This turn already asked for a handoff.")
+        : typeof parsed.path === "string" && handoffTaken.has(parsed.path) ? fail("already_requested", "This turn already handed off to this canvas.")
         : parsed.path === o.handoff.canvas ? fail("same_canvas", "The target is the canvas this conversation works on.")
         : { v: 5, ok: true, requested: true };
-      if (response.ok) handoffTaken = true;
+      if (response.ok && typeof parsed.path === "string") handoffTaken.add(parsed.path);
       // The target's hash when the request arrived, so a check can tell a canvas written before the request from one
       // still being edited.
       const hashes: Record<string, string | null> = {};
