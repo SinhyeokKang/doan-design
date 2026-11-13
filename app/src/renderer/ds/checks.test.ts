@@ -82,6 +82,8 @@ const violetAllowed = [
   // Its working-frame variant: the travelling gradient and the breathing glow.
   ".mark.jump-highlight.working::before",
   "@keyframes doan-work-glow",
+  // Select's canvas text range: the accent at 30 % alpha over the glyphs (canvas-text-copy draft, confirmed 2026-11-13).
+  ".text-range > .text-rect",
 ];
 
 function compareAllowed(found: string[], allowed: string[]) {

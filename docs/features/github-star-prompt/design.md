@@ -14,6 +14,8 @@
   - 카드: 토스트 reducer(`toastState.ts`, 한 칸·자동 만료)를 쓰지 않는 별도 컴포넌트. 창 왼쪽 아래에 고정하고, 사이드바가 보이면 그 위·그 폭 안에 놓는다. 앱 문서 끝(토스트 요소 옆)에 두어 마지막 Tab 정류장이 되게 하고, 컨테이너는 이름 있는 `role="region"`, 문구는 나타날 때 polite live로 한 번 읽는다. Radix Popover를 쓰지 않는다(바깥 누름·포커스 이동으로 닫히지 않게).
   - 띄우기: `star:moment`를 받으면 1.2초 타이머를 돌리고, 그 사이 키·포인터 입력이 있으면 다시 센다. 시간이 차면 `starPromptMoment`로 판단해 띄우거나 이번을 건너뛴다(다음 `star:moment`를 기다린다). 카드가 떠 있거나 타이머가 도는 동안의 새 신호는 무시한다.
   - 미룸 입력: 창 보임·앞(`onWindowVisible`과 `document.hidden`, Toast의 `nativeVisible`과 같은 출처), 첫 실행(`wizard !== null || buddyIntro.open`), 모달(`topDialog()`), Radix 팝오버(`[role="dialog"]`의 열린 Radix 층)·메뉴(`[role="menu"]`), 실행 중이거나 답을 기다리는 대화(대화 목록 상태), pick·Capture area.
+  - 그림자: 카드와 토스트(`.toast`, 지금 `.doan-floating`의 `--shadow-panel`)가 새 토큰 `--shadow-floating`을 쓴다. 토큰은 초안과 함께 `tokens.css`에 더했고 DESIGN.md 'Added tokens'·'Depth'에 적었다. 토스트 변경은 이 기능의 구현에 들어간다.
+  - 모션: 카드와 토스트에 대화상자와 같은 `@starting-style` + `transition-behavior: allow-discrete` 방식으로 들어오고 나가는 transition을 둔다(spec '모션'). 토스트의 replaced는 같은 요소에서 내용만 바꿔 다시 움직이지 않게 한다. 나가는 동안 요소를 남기려면 렌더러가 닫힘을 120ms 미루거나 `display` allow-discrete를 쓴다(`/tdd`에서 정함).
   - Esc: 카드 안에서만 받는다(카드 요소의 keydown). 페이지 Esc 순서(App.tsx)와 겹치지 않는다.
   - 실패 줄: Release Notes ↗ 실패 줄 형식, 저장소 주소를 선택할 수 있는 텍스트로.
 - **CLI(Go)**, **스킬**, **가이드**, 공유 형식: 바뀌지 않는다.
@@ -72,4 +74,8 @@
 - 경로 `.doan/canvases/github-star-prompt.html`, 캔버스 id `github-star-prompt`.
 - 프레임 `card`: 첫 카드(`Star on GitHub ↗` · `Not now`), 두 번째 카드(`Star on GitHub ↗` · `Don’t ask again`), 열기 실패 줄(선택 가능한 저장소 주소), 카드 안 키보드 포커스.
 - 프레임 `placement`: 사이드바가 보일 때 Home·캔버스 페이지에서 사이드바 아래쪽 위의 카드, 사이드바를 숨겼을 때의 왼쪽 아래 카드, 오른쪽 아래 토스트가 함께 떠 있는 경우, 좁은 창(960×600).
+- 프레임 `motion`(사용자 요청, 2026-11-13): 카드와 토스트의 들어오고 나가는 모션을 반복 재생하는 데모 타일(실제 속도, 5배 느리게, 토스트, reduced motion). 반복 주기(3000ms, 15000ms)는 보드 데모 상수다.
 - 기존 셸·사이드바·토스트는 출시된 코드와 DESIGN.md에서 그대로 옮긴다.
+- 사용자가 앱에서 초안(`card`, `placement`, `motion`, 커밋 `e7377b83`까지)을 확정했다(2026-11-13). 모달에는 `--shadow-floating`과 이 모션을 적용하지 않는다(모달은 이미 12px 모션과 스크림이 있다).
+- 사용자 결정(2026-11-13): 좁은 창에서 사이드바를 숨긴 캔버스 페이지는 카드가 캔버스 도구줄 시작을 덮는다. 드문 경우이고 카드를 닫으면 풀리므로 그대로 둔다.
+- 초안(`022b292b`)이 정한 것: 카드 폭은 240px 고정(사이드바 폭과 무관, 사용자 결정 2026-11-13), 창 왼쪽·아래 16, 버튼은 위아래로 쌓아 꽉 채움(`Star on GitHub ↗` prominent, 닫기 subtle), 실패 줄은 문구와 버튼 사이, 면은 불투명 `--surface-popover`(blur 없음), z-index는 토스트와 같은 6, region 이름 `Doan on GitHub`, 문구 `Find Doan useful? It’s open source on GitHub.`(두 카드 같음), 실패 줄 `Couldn’t open GitHub in your browser. Try again, or find Doan at https://github.com/SinhyeokKang/doan-design`.
