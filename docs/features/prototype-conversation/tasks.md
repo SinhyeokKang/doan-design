@@ -1,41 +1,82 @@
 # prototype-conversation — tasks
 
+**형제 의존**: 세 prototype feature는 `prototype-responsive` → `prototype-cli-export` → `prototype-conversation` 순서로 구현하고 병합한다(직렬 체인, spec 결정 18). 이 feature는 앞의 두 feature가 develop에 넣은 모드 툴바 줄과 창 맞춤 높이 + 122, `prototypeViewportBox`, `prototypeCaptureRect`의 `sideColumn`, 프로토타입 창 토스트 호스트와 `onWindowVisible`, 헤더의 Export 버튼, `doan open --prototype` 위에 선다(design.md '형제 feature와의 의존'). 시작할 때 그 이름과 모양이 develop과 맞는지 먼저 보고, 다르면 design.md를 고친다.
+
 포맷과 fixture 변경은 없다. PoC → 초안 → 순수 함수 → 주입 리팩터 → main·preload(I/O) → UI → 문서 순서로 간다. 프롬프트·guide·CLI 출력이 바뀌지 않으므로 `/agent-eval`은 하지 않는다.
 
-- [ ] 1. PoC(`.scratch/prototype-conversation/`): 격리한 앱에서 (a) 프로토타입 창을 360·480에서 640으로 넓히고 최소폭을 640↔360으로 바꾸는 순서(`setBounds`, `setMinimumSize`)와, 작업 영역 오른쪽 끝에 붙은 창·작업 영역이 640보다 좁은 화면의 동작을 보고, (b) 프로토타입 창 페이지에 docked composer, thread, docked buddy를 가짜 호출 객체로 띄워 Radix popover, chip field 입력과 IME, 토스트, WebGL buddy, `context-menu` 리스너가 그 partition과 CSP에서 동작하는지 본다. 검증: probe 기록과 스크린샷. 실패하면 design.md를 고치고 멈춘다. 관찰(통과·실패·날짜)은 feature 문서에 적는다.
-- [ ] 2. `/design-draft`로 새 초안 `.doan/canvases/prototype-conversation.html`을 그리고 사용자 확인을 받는다. 프레임: 헤더 오른쪽 끝 [Export] [대화 버튼](닫힘·열림·답 대기 점·안 읽음 말풍선), 360/480 창에서 열어 640이 된 모습, 640 이상 창에서 열린 모습과 최대폭, 머리 없는 패널(대화 있음, 제안 프롬프트가 있는 새 대화 상태, 터미널 세션 선택, 목록 loading·error, 캔버스 막힘), docked buddy, 고정 재생 프레임 칩(보통·loading·Frame unavailable), 보낸 메시지의 맨 앞 칩, 두 창에서 같은 질문 카드, 32개 한도 거절. 기존 `frame-prototype.html`, `doan-canvas-conversation.html`은 고치지 않는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`.
+- [ ] 1. PoC(`.scratch/prototype-conversation/`, design.md 'PoC 의존'). 격리한 앱에서 다음을 본다.
+  - (가장 먼저) `autofocus`나 `focus()`를 부르는 캔버스를 프로토타입 창에서 재생하고, composer에 포커스를 두고(한국어 IME 조합 중 포함) Reload와 파일 변경으로 다시 로드할 때 포커스와 조합이 남는지. 남지 않으면 `inert`나 포커스 되돌리기 중 조합을 끊지 않는 방법을 고른다.
+  - 프로토타입 창을 360·480에서 640으로 넓히고 최소폭을 640↔360으로 바꾸는 순서(`setContentBounds`, `setMinimumSize`), 작업 영역 오른쪽 끝에 붙은 창, 작업 영역이 640보다 좁은 화면.
+  - 프로토타입 창 페이지에 docked composer, thread, docked buddy를 가짜 호출 객체로 띄워 Radix popover, chip field 입력과 IME, WebGL buddy, `context-menu` 리스너, 프로토타입 창을 부모로 둔 Attach 대화상자가 그 partition과 CSP에서 동작하는지.
+  - 검증: 명령 미정 — 사용자 확인 필요(안: `node .scratch/prototype-conversation/probe.mjs`, 스크린샷 포함). 실패하면 design.md를 고치고 멈춘다. 관찰(통과·실패·날짜)은 feature 문서에 적는다.
+- [ ] 2. `/design-draft`로 새 초안 `.doan/canvases/prototype-conversation.html`을 그리고 사용자 확인을 받는다. 기존 `frame-prototype.html`, `doan-canvas-conversation.html`과 형제 feature의 초안은 고치지 않는다. 검증: `doan check --repo . --json`, `doan ls --repo . --json`. 프레임:
+  - 헤더 오른쪽 끝 [Export] [대화 버튼]: 닫힘, 열림, 답 대기 점, 작업 중 배지, 안 읽음 말풍선.
+  - 360/480 창에서 열어 640이 된 모습, 640 이상 창에서 열린 모습과 최대폭, 작업 영역이 640보다 좁은 화면. 모드 툴바 줄이 프레임 열에만 있고 대화 열이 창 아래 8까지 내려간 모습. Fit 모드와 Responsive 모드에서 각각.
+  - 머리 없는 패널: 대화 있음, 제안 프롬프트가 있는 새 대화 상태, 터미널 세션 선택, 목록 loading, 목록 읽기 실패(오류 줄과 Retry, 막힌 composer), 캔버스 막힘. docked buddy.
+  - 고정 재생 프레임 칩(보통, loading, Frame unavailable), 보낸 메시지의 맨 앞 칩, 두 창에서 같은 질문 카드, 32개 한도 거절.
+  - main 창이 막혀 있을 때의 "Couldn’t show …" 토스트.
   - 커밋 경계: 초안.
 - [ ] 3. `/tdd`: 다음을 고정하고 red를 확인한다. 검증: `npm --prefix app test`가 새 테스트에서만 실패한다.
-  - `main/prototype/conversationScope.test.ts`: `prototypeConversationScope`의 허용·거절 메서드, 다른 캔버스·프로젝트 대화, `start`의 `new`와 그 캔버스 `resume`만, `newDesign`·`delete` 거절, target loading·lost, ID 겹침. `prototypeReceives`의 event·stage·listChanged·handoff·work 필터. `prototypeRevealRequest`의 사람 칩(대화의 캔버스로)·답 칩, 범위 밖 대화와 틀린 모양 거절.
-  - `renderer/prototype/conversation.test.ts`: `prototypeShownConversation`(현재 대화, 없음, 보관만 있음, 목록 loading·error, 캔버스 사라짐·ID 겹침), `withPlayingFrame`(맨 앞 `{{1}}`, marker 밀기, 같은 프레임 칩이 이미 있을 때 한도 계산, 32개 넘으면 거절), `playingFrameChip`(제목·id, loading의 다음 프레임, lost의 마지막 프레임).
-  - `main/prototype/fit.test.ts`: `prototypePanelBounds`, `openPanelResize`(360·480 → 640·280, 640 이상 그대로·기본폭, 작업 영역 < 640이면 작업 영역 폭·280, 작업 영역 안으로 옮김), 패널이 열린 채 Play 맞춤(마크 + chrome + 패널 폭, 최소 640).
+  - `main/prototype/conversationScope.test.ts`
+    - `prototypeConversationScope`: 허용·거절 메서드, 다른 캔버스·프로젝트 대화, root만 받는 메서드(`list`·`models`·`skills`·`forCanvas`·`resumeTarget`)의 root 일치, `start`의 `new`와 그 캔버스 `resume`만, `newDesign`·`delete` 거절, target 캔버스 행 loading·lost·ID 겹침 거절, Frame unavailable·로드 실패(run phase)는 허용. `prototypeListRows`가 target 캔버스 행만 남김.
+    - `prototypeReceives`: event·stage·listChanged·handoff 필터.
+    - `prototypeRevealRequest`: chip(대화의 캔버스로)·reply·settings·conversation, 범위 밖 대화와 틀린 모양 거절.
+    - POSTMORTEM 2026-11-01: 같은 canvas id·path를 가진 두 worktree 사이의 전환, id 없는 캔버스(path 키), 읽기 오류 행.
+  - `main/prototype/requests.test.ts`: `prototype:panel`(폭 범위), `prototype:showing`(`conversationId | null`), `prototype:reveal`(종류별 모양)의 parser.
+  - `renderer/prototype/conversation.test.ts`
+    - `prototypeShownConversation`: 현재 대화, 없음, 보관만 있음, `list_loading`, `list_error`, 캔버스 사라짐·ID 겹침.
+    - `withPlayingFrame`: 맨 앞 칩, 필드에 같은 프레임 칩이 있을 때 앵커 하나(`toMessage` 번호 재사용), 필드가 이미 같은 칩으로 시작할 때 다시 붙이지 않음, 재생 프레임까지 32개를 넘으면 거절. `playingFrameCount`.
+    - `playingFrameChip`: `frames`의 원래 제목(없으면 id), loading의 다음 프레임, lost의 마지막 프레임.
+    - `conversationButton`: 라벨, 배지 셋과 우선순위, 접근 이름.
+    - `carryPrototypeDraft`: 새 키에 초안이 없을 때만 옮김.
+  - `main/prototype/fit.test.ts`: `prototypePanelBounds`(최대 `min(50%, window − 360)`), `openPanelResize`(360·480 → 640·280, 640 이상 그대로·기본폭, 작업 영역 < 640이면 작업 영역 폭·280, 작업 영역 안으로 옮김), 패널을 연 채 Play 맞춤(폭 = 표시 + 16 + 패널, 최소 640, 높이 = 표시 + 122, 작업 영역보다 넓으면 패널이 먼저 280으로), `prototypeCaptureRect`에 대화 열 폭을 넘겼을 때 사각형이 대화 열을 빼는지.
   - `main/prototype/windowState.test.ts`: 패널 상태가 창을 닫았다 열어도 남고, 닫을 때 창 크기 effect가 없다.
   - `main/notifications.test.ts`: 포커스된 프로토타입 창이 열린 패널에 보여 주는 대화는 알림 없음, 다른 대화는 지금과 같음.
-  - `main/conversation/service.test.ts` 또는 runner 테스트: 이미 해결된 권한 요청에 `answerPermission`이 `stale`을 돌려준다(두 창의 먼저 온 답 규칙).
-- [ ] 4. `/implement`: 순수 함수를 구현한다. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
+  - `ConversationThread.test.tsx`: 권한 답이 `{error: "stale"}`이면 `unanswered`도 alert도 없고, 응답이 `permission.resolved`보다 먼저 와도 나중에 와도 같다.
+  - `renderer/revealDecision.test.ts`(이름은 구현 때 정한다): `revealDecision`의 막힘(dialog·페이지 잠금·첫 실행), 같은 캔버스 locate, 다른 캔버스 열기 후 locate, 행 없음, settings·conversation.
+- [ ] 4. `/implement`: 순수 함수를 구현하고, `answerReached`가 `stale`을 `settleQuestionSend`처럼 실패 없이 다루게 고친다. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
   - 커밋 경계: 순수 함수와 테스트.
-- [ ] 5. 주입 리팩터: `ConversationStore`, `DockedSupport`, `useProjectSkills`, `canvasRun.ts`의 resume target 읽기, `CanvasConversationPanel`이 `window.doan` 대신 `ConversationCalls`를 받게 하고, 머리 없는 본체(새 대화 상태 포함)를 꺼낸다. main 창 동작은 바뀌지 않아야 한다. 검증: `npm --prefix app test`(기존 `CanvasConversationPanel*`, `ProjectOverview*`, `conversationStore*` 테스트가 그대로 green), `npm --prefix app run typecheck`, `npm --prefix app run lint`.
+- [ ] 5. 주입 리팩터: `ConversationStore`, `DockedSupport`, `useProjectSkills`, `canvasRun.ts`의 resume target 읽기, `dockedBuddyShell.ts`, `visibleClock.ts`, `CanvasConversationPanel`(`droppedPath` 포함)이 `window.doan` 대신 호출 객체를 받게 하고, 머리 없는 본체(새 대화 상태 포함)를 꺼낸다. 토스트는 `prototype-cli-export`가 이미 주입한 것을 쓴다. main 창 동작은 바뀌지 않아야 한다. 검증: `npm --prefix app test`(기존 `CanvasConversationPanel*`, `ProjectOverview*`, `conversationStore*`, `DockedComposer*` 테스트가 그대로 green), `npm --prefix app run typecheck`, `npm --prefix app run lint`.
   - 커밋 경계: 리팩터만.
-- [ ] 6. main·preload: `senderAllowed.ts`의 프로토타입 role 채널, `index.ts`의 대화 핸들러 role 검사·이벤트 전달·알림 visibility·칩 이동(main 창 보이기와 main renderer 이벤트), `conversation/ipc.ts`의 sender 인자, 좁은 설정 읽기와 Last used 기억 채널, `prototype/ipc.ts`의 view target·패널 상태·`prototype:panel`·`prototype:showing`·`prototype:reveal`, `windowState.ts`·`controller.ts`의 패널 상태, `prototypeWindow.ts`의 창 폭·최소폭·텍스트 편집 메뉴·buddy query, `preload/prototype.ts`와 채널 이름 고정 테스트, `preload/index.ts`의 칩 이동 이벤트, `senderAllowed.test.ts`. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
+- [ ] 6. main·preload: 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
+  - `index.ts`: 직접 등록된 `conversation:*` 핸들러의 role 검사와 범위 검사, `attachments:*` 핸들러의 role 판정과 `choose` 대화상자 부모, 이벤트 전달, 알림 visibility, `reveal` 처리(main 창 보이기와 main renderer 이벤트), 프로토타입 창이 닫힐 때 그 창의 첨부 해제.
+  - `senderAllowed.ts`(+ test): prototype 집합에 composer 보조 채널(좁은 읽기들, 첨부, `shell:openLink`, 프리셋)과 세 자기 채널. `mainOnly`는 그대로.
+  - `conversation/ipc.ts`: sender 인자와 `list` 거르기.
+  - 좁은 읽기: provider 준비 상태, 이 캔버스 association 세션의 터미널 작업 여부, New conversations 기본값·Last used·buddy. Last used 선택을 main renderer로 넘기는 이벤트.
+  - `prototype/ipc.ts`의 view `target`·패널 상태와 세 채널, `PROTOTYPE_WINDOW_REQUESTS`, `requests.ts`의 parser.
+  - `windowState.ts`·`controller.ts`의 패널 상태와 캡처 인자, `prototypeWindow.ts`의 `setContentBounds`·최소폭·캡처 `sideColumn`·텍스트 편집 메뉴·buddy query.
+  - `preload/prototype.ts`(+ 채널 이름 고정 테스트): 대화 API, 세 채널, `droppedPath`. `preload/index.ts`: reveal과 Last used 이벤트.
   - 커밋 경계: main·preload.
-- [ ] 7. UI: `PrototypeConversation.tsx`(store, 구독 먼저·읽기 나중, target이 바뀔 때 갈아타기, 지운 대화 정리, `markSeen`과 `prototype:showing`, 칩 클릭 → `prototype:reveal`), `PrototypeWindow.tsx`·`WindowShell`(헤더 버튼과 배지, 대화 열, 손잡이, 토스트, buddy accent), 고정 칩, `App.tsx`의 칩 이동 처리. `prototype/WindowShell.test.tsx`, `prototype/PrototypeWindow.test.tsx`에 버튼 하나가 상태만 바꾸는지(포커스 유지), 패널을 열면 composer로, 닫으면 버튼으로 포커스가 가는지, Esc가 패널을 닫지 않는지를, App 테스트에 칩 이동이 같은 캔버스면 locate, 다른 캔버스면 열기와 이동인지를 더한다. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`.
+- [ ] 7. UI: 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`.
+  - `PrototypeConversation.tsx`: store, 구독 먼저·읽기 나중, target이 바뀔 때 갈아타기, 지운 대화 정리, 초안 옮기기, `markSeen`과 `prototype:showing`, 칩과 main 창 전용 버튼 → `prototype:reveal`, 목록 읽기 실패 줄과 Retry.
+  - `PrototypeWindow.tsx`·`WindowShell`: 헤더 대화 버튼과 배지, 프레임 열 옆 대화 열(창 아래 8까지), 손잡이, buddy accent, DOM·Tab 순서(헤더 → 모드 툴바 → 프레임 콘텐츠 → 패널).
+  - `App.tsx`: `reveal` 처리(`revealDecision`), Last used 적용.
+  - 테스트:
+    - `renderer/prototype/PrototypeConversation.test.tsx`: 초안 분리(spec '패널 내용'), 배지와 접근 이름, 돌아온 초안은 먼저 보여 준 창이 가져감, 구독이 읽기보다 먼저(target 전환 때도), 지운 대화는 `deleted()`로 정리, `window.doan` 없이 렌더됨, 목록 읽기 실패 때 composer가 막힘.
+    - `prototype/WindowShell.test.tsx`, `prototype/PrototypeWindow.test.tsx`: 대화 버튼 하나가 상태만 바꾸는지(포커스 유지), 패널을 열면 composer로, 닫으면 버튼으로 포커스가 가는지, Esc가 패널을 닫지 않는지, Tab 순서.
+    - App 테스트: 같은 캔버스 locate, 다른 캔버스 열기와 이동, 대상 없음("No longer in the canvas"), 캔버스를 찾지 못한 토스트, 첫 실행·페이지 잠금·dialog 중 "Couldn’t show …" 토스트(아무것도 취소되지 않음), 숨긴 main 창 보이기, Sign in과 Open들이 main 창의 같은 함수로 가는지.
+    - Last used: 손대지 않은 프로토타입 composer 마운트는 아무것도 기억하지 않고, Settings의 네 모양에서 다른 것을 골라도 고정값이 바뀌지 않는다(POSTMORTEM 2026-11-06 두 항목). 저장된 provider가 하나일 때 pick이 provider를 바꾼다.
   - 커밋 경계: UI.
-- [ ] 8. `/design-sync`로 초안과 실제 앱의 헤더 버튼, 패널 폭(360·480·640 이상), 머리 없는 패널의 위쪽 여백, 고정 칩, docked buddy를 맞추고 DESIGN.md 'Frame prototype'에 잰 값을 적는다. 검증: `node .scratch/design-sync/prototype-conversation/measure.mjs`.
+- [ ] 8. `/design-sync`로 초안과 실제 앱의 헤더 버튼과 배지, 패널 폭(360·480·640 이상, 최대폭), 머리 없는 패널의 위쪽 여백, 대화 열 아래 끝, 고정 칩, docked buddy를 맞추고 DESIGN.md 'Frame prototype'에 잰 값을 적는다. 검증: `node .scratch/design-sync/prototype-conversation/measure.mjs`.
 - [ ] 9. `/runtime-test`: 격리 앱에서 확인한다. 검증: `/runtime-test` 스크린샷과 probe 결과가 아래 기대값과 같다.
-  - 360과 480 창에서 Show conversation을 누르면 창이 640, 패널이 280이 되고 포커스가 composer에 있다. 640 이상 창은 크기가 그대로다. 패널을 닫아도 창 크기가 그대로다. 패널이 열린 채 드로어로 다른 프레임을 고르면 창이 마크 + 패널 폭이 된다.
+  - Responsive 모드에서 360과 480 창에서 Show conversation을 누르면 창이 640, 패널이 280, 프레임 `innerWidth`가 344가 되고 포커스가 composer에 있다. 640 이상 창은 크기가 그대로다. 패널을 닫아도 창 크기가 그대로다. 패널이 열린 채 드로어로 다른 프레임을 고르면 창이 표시 + 패널 폭, 높이 표시 + 122가 된다. Fit 모드에서는 패널을 열어도 `innerWidth`가 표시 폭으로 남고 프레임이 줄어 보인다.
+  - 실패·lost로 바뀌며 찍힌 정지 이미지에 패널 글이 없다.
   - 현재 대화가 없는 캔버스에서 보낸 첫 메시지가 그 캔버스의 현재 대화가 되고, main 창 패널에도 같은 메시지와 응답이 보인다. 보낸 메시지 맨 앞에 재생 프레임 칩이 있고, main 창에서 그 칩이 프레임을 locate한다.
   - 드로어로 프레임을 바꾸면 고정 칩이 바뀌고 다음 메시지의 칩도 새 프레임이다.
-  - 프로토타입 창의 초안이 main 창 composer에 보이지 않는다.
-  - 질문 카드를 프로토타입 창에서 답하면 main 창의 카드가 실패 문구 없이 접힌다.
-  - 프로토타입 창 thread의 칩을 누르면 main 창이 앞으로 오고(숨겨져 있었으면 보이고), 같은 캔버스면 그 대상으로 locate하며, 다른 캔버스의 답 칩이면 그 캔버스가 열린다.
-  - 프로토타입 창에 포커스를 두고 패널에 대화를 띄운 채 턴이 끝나면 알림이 오지 않고 사이드바에 안 읽음이 남지 않는다.
+  - 프로토타입 창의 초안이 main 창 composer에 보이지 않고, 프로토타입 창을 닫았다 열면 초안이 없다.
+  - 질문 카드와 권한 카드를 프로토타입 창에서 답하면 main 창의 카드가 실패 문구 없이 접힌다.
+  - 프로토타입 창 thread의 칩을 누르면 main 창이 앞으로 오고(숨겨져 있었으면 보이고), 같은 캔버스면 그 대상으로 locate하며, 다른 캔버스의 답 칩이면 그 캔버스가 열린다. main 창에 dialog를 열어 둔 채 누르면 dialog가 남고 "Couldn’t show …" 토스트가 보인다.
+  - 프로토타입 창에 포커스를 두고 패널에 대화를 띄운 채 턴이 끝나면 알림이 오지 않고 사이드바에 안 읽음이 남지 않는다. 패널을 닫은 동안 일하면 작업 중 배지가 보인다.
+  - composer에 한국어를 조합하는 중에 에이전트가 캔버스를 고쳐 다시 로드되어도 포커스와 글이 composer에 남는다.
   - composer에서 우클릭하면 텍스트 편집 메뉴가 열리고, 프레임 콘텐츠에서는 열리지 않는다.
+  - Attach 대화상자가 프로토타입 창 위에 뜨고, 붙여넣기와 드롭이 칩이 되어 함께 전송된다.
+  - docked buddy의 WebGL 컨텍스트를 잃게 한 뒤 buddy가 다시 움직인다(POSTMORTEM 2026-11-12).
   - 빌드된 앱에서 프로토타입 창이 빈 화면 없이 뜬다(POSTMORTEM 2026-10-30).
 - [ ] 10. `/code-review` → `/refactor` → `/verify`. 검증: `node .agents/skills/verify/scripts/verify.mjs`.
 - [ ] 11. 결론을 승격하고 `docs/features/prototype-conversation/`를 삭제한다. 문서마다 커밋한다. 검증: `node .agents/skills/verify/scripts/verify.mjs`(문서만 바뀌면 대상 확인).
   - PRODUCT §3 In scope 마지막 문단의 buddy 위치 문장에 프로토타입 창 대화 패널을 더한다.
-  - PRODUCT §5 item 2 'Prototype window': 헤더 버튼, 패널(머리 없음, 현재 대화, 새 대화 상태, 640 규칙·최대폭·닫기·Play 맞춤·메모리 기억), 재생 프레임 앵커, 초안과 돌아온 초안, 카드 답, 첨부, thread 칩 → main 창. "Nothing in the window reaches …"와 'Independence'를 새 경계로 다시 쓴다.
+  - PRODUCT §5 item 2 'Prototype window': 헤더 버튼과 배지, 패널(머리 없음, 현재 대화, 새 대화 상태, 목록 읽기 실패, 640 규칙·최대폭·닫기·Play 맞춤·메모리 기억), 재생 프레임 앵커, 초안의 수명과 돌아온 초안, 카드 답, 첨부, 칩과 main 창 전용 버튼 → main 창, Tab 순서, 다시 로드될 때의 포커스. "Nothing in the window reaches …"와 'Independence'를 새 경계로 다시 쓰고, 캔버스 seen 절("viewing a canvas only there does not mark it seen")은 그대로 둔다.
   - PRODUCT §5 'Text edit menu', item 2 'Conversation panel'의 Seen, item 0 'Notifications'.
-  - ARCHITECTURE §3 'Prototype window' 'Sender role'과 'Fit', §7 'Prototype window IPC', 'IPC contract', 'Renderer primitives', 'App menu'의 텍스트 편집 메뉴 항목.
-  - DESIGN.md 'Frame prototype'(8번에서 이미 고침). BACKLOG.md의 "Prototype conversation" 항목과 "The prototype window has no context menu" 항목 중 이 feature가 푼 부분(헤더와 패널)을 지운다. 프레임 콘텐츠의 메뉴는 범위 밖이므로, 남길지 사용자에게 묻는다.
+  - ARCHITECTURE §3 'Prototype window'의 'Sender role', 'Fit', 캡처, §7 'Prototype window IPC', 'IPC contract', 'Renderer primitives', 'App menu'의 텍스트 편집 메뉴 항목.
+  - DESIGN.md 'Frame prototype'(8번에서 이미 고침). BACKLOG.md의 "Prototype conversation" 항목을 지우고, "The prototype window has no context menu" 항목은 프레임 콘텐츠 부분만 남긴다.
   - 커밋 경계: 문서 승격.
