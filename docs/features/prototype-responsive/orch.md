@@ -20,7 +20,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| P | tasks 1 PoC | `.scratch/prototype-responsive/`, design.md 'PoC 의존' 아래 결과 | 없음 | Claude Opus medium — 격리 Electron에서 cross-origin sandbox iframe의 축소·포커스를 재는 조사형 작업. 판정에 판단이 든다 | `node .scratch/prototype-responsive/probe.mjs`(스크린샷) | 대기 |
+| P | tasks 1 PoC | `.scratch/prototype-responsive/`, design.md 'PoC 의존' 아래 결과 | 없음 | Claude Opus medium — 격리 Electron에서 cross-origin sandbox iframe의 축소·포커스를 재는 조사형 작업. 판정에 판단이 든다 | `node .scratch/prototype-responsive/probe.mjs`(스크린샷) | 통합 `f971b196`(1회) |
 | C | tasks 3·4(순수 함수 1–7, `ipc.ts` 타입), tasks 5(main·preload) | `app/src/main/prototype/**`(fit·ipc·requests·windowState·controller와 테스트), `app/src/main/prototypeWindow.ts`, `app/src/preload/prototype.ts`(+test), `app/src/renderer/prototype/host.ts`·`view.ts`(+test) | 없음 | Claude Opus high — 상태 기계(모드 유지, 로딩 중 전환의 gen·timeout), 캡처 사각형과 스냅숏 상자의 정수 계약 | `npm --prefix app test`, `run typecheck`, `run lint` | 대기 |
 | T | tasks 6 중 프리미티브: `moveBetweenTools` → `toolbarKeys.ts`, `.doan-toggle-group`, `.doan/ds/toggle-group.html`, DESIGN.md 'Design-system canvases' 줄 | `app/src/renderer/toolbarKeys.ts`(새), `CanvasTools.tsx`(+test), `app/src/renderer/ds/controls.css`(+test), `.doan/ds/toggle-group.html`, `docs/DESIGN.md`의 그 줄 | 없음 | Claude Sonnet high — 옮기기와 CSS 프리미티브는 정해진 값이지만 ds 캔버스는 doan 규칙을 따라 그려야 한다 | `npm --prefix app test`, `run typecheck`, `run lint`, `doan check`·`doan ls` | 대기 |
 | U | tasks 6의 나머지(헤더 오른쪽 무리·토글 연결, 이름의 둘째 줄, Reload 포인터 포커스, tooltip Esc, `ContentPanel` 상자, `overflow: clip`, 옛 함수 삭제), tasks 7 `/design-sync` | `app/src/renderer/prototype/PrototypeWindow.tsx`(+test), `WindowShell.test.tsx`, `app/src/renderer/styles.css`, `fit.ts`·`fit.test.ts`의 옛 함수 삭제, `docs/DESIGN.md` 'Frame prototype', `.scratch/design-sync/prototype-responsive/` | P 통과, C·T 통합 | Claude Opus high — 포커스·Esc·같은 요소 유지(POSTMORTEM 2026-11-13·11-07) 규칙이 많고 실제 앱 측정이 붙는다 | `npm --prefix app test`, `run typecheck`, `run lint`, `run build`, `node .scratch/design-sync/prototype-responsive/measure.mjs` | 대기 |
@@ -49,3 +49,5 @@
 - 10 → conductor
 
 ## 진행 기록
+- C 질문: IPC 필드를 필수로 더하면 소유 밖 `WindowShell.test.tsx`·`PrototypeWindow.test.tsx`·`PrototypeWindow.tsx`(snapshot box 전달)의 타입이 깨진다. 동작 변경 없는 최소 수정을 C에게 허락했다(conductor 판단 — U는 C 통합 뒤라 겹치지 않는다).
+- P 완료: Electron 45.0.0에서 (a)–(h) 모두 통과했다. (c)는 conductor도 `c-text-scaled.png`를 눈으로 확인했다. 입력은 CDP 이벤트라 OS 실제 입력은 확인하지 않았다. 구현 관찰: 프로토타입 페이지 CSP가 주입 `<style>`을 막으므로 축소 상자는 인라인 style로 준다(U 브리프에 넣는다). 증거는 conductor checkout의 `.scratch/prototype-responsive/`와 `.scratch/handoff-P.md`로 복사했다.
