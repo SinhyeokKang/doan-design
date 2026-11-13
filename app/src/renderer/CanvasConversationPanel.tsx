@@ -44,6 +44,7 @@ import { threadItems, withSending } from "./threadItems";
 import { stopBackground, threadTurn } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
+import type { PlayingFrameChip } from "./prototype/conversation";
 
 // The canvas page's conversation panel body (draft frames
 // panel-*): the conversation menu in the panel's title row, the thread and the docked composer. CanvasRun decides which
@@ -106,9 +107,15 @@ export interface CanvasConversationProps {
   work: readonly WorkItem[];
   // The page's canvas press signal, for the composer's preset lists (the app's document never sees a canvas press).
   canvasPress?: CanvasPress | undefined;
+  // The prototype window's playing frame, pinned on its composer and put first in every message.
+  playing?: PlayingFrameChip | null;
+  // The prototype window's failed list read: with no title menu to offer Retry, the thread's place holds the failure
+  // line, and Send waits, since a send could archive the current conversation nobody can see.
+  listFailed?: boolean;
 }
 
 const NEW_PLACEHOLDER = "Ask, / for presets";
+const LIST_WAIT = "You can send once Doan reads the conversations.";
 const REPLY_PLACEHOLDER = "Reply, / for presets";
 const NEW = "";
 // One empty list for a project without one, so the thread's memoized chip data keeps its identity across renders.
@@ -479,6 +486,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
+        : props.listFailed ? <div className="doan-notice error thread-notice list-error" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Couldn’t read conversations</b></span>
+          <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>
         : view.kind === "wait" || conversationId ? <Waiting /> : <>
           {newView?.listError && <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
             <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}
@@ -510,7 +519,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} context={thread ? contextRing(thread.events) : null}
-        unavailable={props.blocked} locked={props.blocked !== null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
+        unavailable={props.blocked ?? (props.listFailed ? LIST_WAIT : null)} locked={props.blocked !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         stepAside={{ waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}
         queued={conversationId ? store.queue(conversationId) : []}

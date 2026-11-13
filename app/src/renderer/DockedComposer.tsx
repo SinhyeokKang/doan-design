@@ -1,5 +1,5 @@
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
-import { Clock, Crosshair, Folder, Gauge, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
+import { Clock, Crosshair, Folder, Frame, Gauge, MessageSquareDashed, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
@@ -26,7 +26,7 @@ import type { SentFile } from "./threadItems";
 import { ANCHOR_LIMIT_TEXT } from "./canvasPicker";
 import { LOCATE_MISSING_TEXT, useLocateNote, type LocateOutcome } from "./ConversationThread";
 import {
-  followDrawerHighlight, type PresetRow, attachmentChipView, chipRemoval, markRefused, presetListView, queueAttachmentSummary, providerLogo, slashQuery, takesSuggestion, type AttachmentDraft, type ModelPickerView,
+  composeRequest, followDrawerHighlight, type PresetRow, attachmentChipView, chipRemoval, markRefused, presetListView, queueAttachmentSummary, providerLogo, slashQuery, takesSuggestion, type AttachmentDraft, type ModelPickerView,
   type PresetListReply, type PresetSummary,
 } from "./homeComposer";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -35,6 +35,7 @@ import { dockedBuddy } from "./dockedBuddyShell";
 import { localClock, queueButtonHint, queueStatusLine, resetTimeText } from "./limitReset";
 import type { PermissionPickerView } from "./permissionPicker";
 import type { SettingsTarget } from "./settingsSections";
+import { withPlayingFrame, type PlayingFrame, type PlayingFrameChip } from "./prototype/conversation";
 
 // The composer under a conversation (draft frame `docked-composer`). It has no screen
 // in this feature: its host (Overview, later the canvas panel) owns the conversation, the drafts map,
@@ -143,6 +144,16 @@ export interface DockedComposerProps {
   // the canvas panel's terminal-session choice). A queued row is the composer's own. Suggested prompts are no reason:
   // their list leaves room above the card for the buddy's body.
   stepAside?: { waiting: boolean; notice: boolean };
+  // The prototype window's playing frame: pinned first in the card's chip row, outside the field (nothing removes or
+  // undoes it), and put first in every message sent or queued, counted against the place limit.
+  playing?: PlayingFrameChip | null;
+}
+
+// The message with the playing frame's chip first (once, if the field already starts with it); null past the place
+// limit, which Send then states.
+export function playingMessage(draft: DockedDraft, skills: readonly string[], frame: PlayingFrame): { text: string; anchors: Anchor[] } | null {
+  const message = withPlayingFrame(draft.segments, frame);
+  return message && { text: composeRequest(message.text, draft.preset, skills, draft.attachments.length), anchors: message.anchors };
 }
 
 const sameDraft = (a: DockedDraft, b: DockedDraft) => sameSegments(a.segments, b.segments) && (a.preset?.id ?? null) === (b.preset?.id ?? null)
@@ -150,7 +161,7 @@ const sameDraft = (a: DockedDraft, b: DockedDraft) => sameSegments(a.segments, b
 
 // Anchor chips count like attachment and preset chips: a message with a chip becomes a box whose text and chips wrap
 // above the tools, instead of a one-line capsule that clips them in the narrow panel.
-const chipCount = (draft: DockedDraft) => draft.attachments.length + (draft.preset ? 1 : 0) + distinctTargets(draft.segments);
+const chipCount = (draft: DockedDraft, pinned: number) => pinned + draft.attachments.length + (draft.preset ? 1 : 0) + distinctTargets(draft.segments);
 
 export function DockedComposer(props: DockedComposerProps) {
   const { mode } = props;
@@ -190,7 +201,9 @@ export function DockedComposer(props: DockedComposerProps) {
   const root = useRef<HTMLDivElement | null>(null);
   const slashList = useRef<HTMLDivElement | null>(null);
   const queueRows = useRef<QueueRowsHandle | null>(null);
-  const listId = useId(), reasonId = `${listId}-reason`, noteId = `${listId}-missing`, hintId = `${listId}-suggestion`;
+  const listId = useId(), reasonId = `${listId}-reason`, noteId = `${listId}-missing`, hintId = `${listId}-suggestion`, playingId = `${listId}-playing`;
+  const playing = props.playing ?? null, pinned = playing ? 1 : 0;
+  const reserved = playing ? [{ kind: "chip" as const, anchor: { frame: playing.frame } }] : undefined;
 
   const isSending = sending.has(key);
   const held = refusals.get(key);
@@ -201,7 +214,7 @@ export function DockedComposer(props: DockedComposerProps) {
   // Chips the host added (Attach, paste, drop) make a box as typing does; the drawn shape follows the
   // rule at once and the stored one catches up below.
   const text = plainText(draft.segments);
-  const shape = composerShape(draft.shape, { empty: text === "", chips: chipCount(draft), overflows: text.includes("\n") });
+  const shape = composerShape(draft.shape, { empty: text === "", chips: chipCount(draft, pinned), overflows: text.includes("\n") });
   // A busy refusal stands in for the host's busy until the host has reported the busy conversation itself; once the
   // host's busy has shown and cleared again, the refusal no longer holds Send.
   if (props.busy && refusal?.kind === "busy") hostSawBusy.current.add(key);
@@ -214,10 +227,11 @@ export function DockedComposer(props: DockedComposerProps) {
   const limitResetsAt = props.limitResetsAt ?? null, scheduledFor = props.scheduledFor ?? null;
   const limited = limitResetsAt !== null || scheduledFor !== null;
   const now = Date.now(), clock = localClock();
-  const checked = dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, skills: matched, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed, limited });
+  const lead = playing ? playingMessage(draft, matched, playing.frame) : undefined;
+  const checked = lead === null && !isSending && !props.unavailable ? { enabled: false, reason: { text: ANCHOR_LIMIT_TEXT } } : dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, skills: matched, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed, limited });
   const availability = blocked && !isSending && !props.unavailable ? { enabled: false, reason: { text: blocked.text, ...(blocked.action ? { action: blocked.action } : {}) } }
     : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
-  const message = dockedMessage(draft, matched);
+  const message = lead ?? dockedMessage(draft, matched);
   const placeholder = composerPlaceholder({ readOnly: isSending || locked, preset: draft.preset, empty: draft.segments.length === 0, mode: mode.kind, text: props.placeholder, suggestion: props.suggestion });
   const action = composerAction(props.turn, message.text, props.queued.length, limited);
   const queueHint = action === "queue" ? queueButtonHint(limitResetsAt, now, clock) : null;
@@ -249,7 +263,7 @@ export function DockedComposer(props: DockedComposerProps) {
     props.onDrafts(drafts => {
       const current = drafts.get(at) ?? EMPTY_DRAFT, next = { ...current, ...patch };
       const nextText = plainText(next.segments);
-      const shape = composerShape(current.shape, { empty: nextText === "", chips: chipCount(next), overflows: wrapped || nextText.includes("\n") });
+      const shape = composerShape(current.shape, { empty: nextText === "", chips: chipCount(next, pinned), overflows: wrapped || nextText.includes("\n") });
       return new Map(drafts).set(at, { ...next, shape });
     });
     clearRefusal(at);
@@ -450,7 +464,9 @@ export function DockedComposer(props: DockedComposerProps) {
   // Once the usage limit's state shows, the Queue tooltip says what an earlier usage-limit refusal said.
   const notice = refusal?.kind === "notice" && !(limited && held?.code === "rate_limited") ? refusal : null;
   // Only an id drawn below; the live reason shows with an older notice rather than behind it.
-  const describedBy = [reason && !reason.noAgent ? reasonId : null, placeholder.suggestion !== null ? hintId : null].filter(Boolean).join(" ") || undefined;
+  // A locked field takes no message, so the frame it would send no longer describes it.
+  const playingShown = playing !== null && !locked;
+  const describedBy = [reason && !reason.noAgent ? reasonId : null, placeholder.suggestion !== null ? hintId : null, playingShown ? playingId : null].filter(Boolean).join(" ") || undefined;
   return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
     <QueueRows key={key} handle={queueRows} items={props.queued} homeDirectory={props.homeDirectory} sendNow={canSendNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
       onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()}
@@ -463,10 +479,11 @@ export function DockedComposer(props: DockedComposerProps) {
       <div className="docked-buddy-slot" ref={dockedBuddy.dockSlot} aria-hidden="true" data-accepts={locked ? "false" : undefined}
         data-queue={props.queued.length > 0 ? "" : undefined}
         data-waiting={props.stepAside?.waiting ? "" : undefined} data-notice={props.stepAside?.notice ? "" : undefined} data-popover={slashOpen ? "" : undefined} />
-      <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
+      <ComposerChips lead={playing && <span className="anchor-chip pw-playing" data-kind="frame" title={PLAYING_TITLE}><span className="sr-only">Frame </span><Frame aria-hidden="true" /><span>{playing.name}</span></span>}
+        attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
       <ComposerField skillNames={skillNames} key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
-        placeholder={placeholder.text} describedBy={describedBy} chipScope={props.chipScope ?? null} onAnnounce={setAnnouncement} onChipClick={props.onLocate ? locate : undefined}
+        placeholder={placeholder.text} describedBy={describedBy} chipScope={props.chipScope ?? null} {...(reserved ? { reserved } : {})} onAnnounce={setAnnouncement} onChipClick={props.onLocate ? locate : undefined}
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
         onKey={keyDown} onSteerKey={() => void steerAll()} sendNow={canSendNow} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
@@ -510,11 +527,14 @@ export function DockedComposer(props: DockedComposerProps) {
     {(limitAt === key || full) && <div className="composer-reason docked-reason" role="status"><span>{ANCHOR_LIMIT_TEXT}</span></div>}
     {noteShown && <span className="chip-missing chip-note" id={noteId} role="status" style={{ left: missingAt.left, top: missingAt.top }}>{LOCATE_MISSING_TEXT}</span>}
     {placeholder.suggestion !== null && <span className="sr-only" id={hintId}>{SUGGESTION_HINT}</span>}
+    {playingShown && <span className="sr-only" id={playingId}>{playing.description}</span>}
     <div className="sr-only" role="status">{announcement}</div>
   </div>;
 }
 
 const SUGGESTION_HINT = "Press Tab or Right Arrow to use the suggestion.";
+// The pinned chip takes no focus, so its hint is the native title alone, as the field's chips have theirs.
+const PLAYING_TITLE = "Sent with each message";
 
 export const SEND_NOW_TIP = "Add to the current turn without stopping it";
 export const SEND_NOW_REFUSED_TEXT = "Couldn’t send now. It stays queued.";

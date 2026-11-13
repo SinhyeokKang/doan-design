@@ -44,3 +44,8 @@ const BLOCKED_LINK: Record<OpenBlock, string> = {
 export function blockedLinkMessage(reason: OpenBlock): string {
   return `Couldn’t open the link. ${BLOCKED_LINK[reason]}`;
 }
+
+// The same reason without the link's sentence, for a move that opened no link (a prototype window's chip or button).
+export function blockedReason(reason: Exclude<OpenBlock, "dialog">): string {
+  return BLOCKED_LINK[reason];
+}

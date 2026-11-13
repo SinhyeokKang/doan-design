@@ -46,7 +46,7 @@ import { ArrowLeft, ArrowRight, Crosshair, Plus, Scan, Settings, LayoutGrid, Mes
 import { Home } from "./Home";
 import { ProblemOverlay } from "./ProblemOverlay";
 import { problemView, resolvedFocus, workspaceBody, type ProblemKind, type ShownOverlay } from "./problemView";
-import { LOADING_DELAY_MS } from "./ConversationThread";
+import { LOADING_DELAY_MS, LOCATE_MISSING_TEXT } from "./ConversationThread";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsPage } from "./ProjectSettingsPage";
 import { useToast } from "./Toast";
@@ -66,6 +66,8 @@ import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMultiStep, han
 import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad, type Rect } from "./canvasPicker";
 import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
+import type { PrototypeReveal } from "../main/prototype/ipc";
+import { revealDecision } from "./revealDecision";
 import { replyChipTarget } from "./replyChipTarget";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { distinctTargets } from "./anchorField";
@@ -948,8 +950,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest, conversationHandoff, handoffCheck };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest, prototypeReveal, prototypeLastUsed, conversationHandoff, handoffCheck };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -1172,6 +1174,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useEffect(() => window.doan.onQuitting(quitting => { quittingRef.current = quitting; }), []);
   // doan:// links: subscribed on mount, while main holds them until App is ready (below).
   useEffect(() => window.doan.onOpenLink(result => live.current.openLink(result)), []);
+  useEffect(() => window.doan.onPrototypeReveal(request => live.current.prototypeReveal(request)), []);
+  useEffect(() => window.doan.onPrototypeLastUsed(choice => live.current.prototypeLastUsed(choice)), []);
   // `doan open` requests: main sends them only once links are ready, and each is answered by its id.
   useEffect(() => window.doan.onOpenRequest(request => live.current.openCanvasRequest(request)), []);
   // A started handoff, and every later render's check of the one still waiting for its read.
@@ -1562,6 +1566,34 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     controller.current?.openCanvas(root, decision.row, link.kind === "frame" ? { frame: link.id } : { element: link.id }, { unavailable, opened: () => completeNavigation(root) });
     return Promise.resolve(null);
   }
+  // A chip, Sign in or an Open pressed in the prototype window: main checked it and brought this window forward. It
+  // acts as this window's own chip or button would; a dialog, a locked page or first run stays as it is, with a toast.
+  function prototypeReveal(request: PrototypeReveal) {
+    const page = openPage();
+    const step = revealDecision(request, { locked: page.locked, firstRun: page.firstRun, dialog: topDialog() !== null, onScreen: panelTargetRef.current, entries: entriesRef.current });
+    const missing = (outcome: string | null) => { if (outcome === "missing") live.current.toast.show(LOCATE_MISSING_TEXT); };
+    switch (step.kind) {
+      case "blocked": live.current.toast.showIn(topDialog(), step.text); return;
+      case "locate": void locateChip(step.anchor).then(missing); return;
+      case "open": {
+        cancelRestore();
+        const path = step.row.path;
+        controller.current?.openCanvas(step.root, step.row, { anchor: step.anchor }, { unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, path)), opened: () => completeNavigation(step.root), located: missing });
+        return;
+      }
+      case "canvas_not_found": live.current.toast.show(unavailableCanvasMessage(step.entry, step.path)); return;
+      case "reply": void replyChip(step.root, step.link).then(missing); return;
+      case "settings": openSettings({ section: "agents", provider: step.provider }); return;
+      case "conversation":
+        if (step.canvas) openConversationCanvas(step.root, step.canvas, step.conversationId, { kind: "promotion" });
+        else showShellOverview(step.root, undefined, () => askConversation(step.root, step.conversationId));
+        return;
+      case "handoff": openConversationCanvas(step.root, step.canvas, step.conversationId, { kind: "promotion" }); return;
+    }
+  }
+  // The prototype composer's pick, as this window's own composers remember theirs (Last used, and a fixed Settings
+  // default only by what was picked).
+  function prototypeLastUsed(choice: ComposerChoice) { rememberPick(choice); }
   // `doan open` moves as a link does, but answers main instead of showing a toast: a refusal changes nothing on screen,
   // and the agent tells the person why. The answer is sent once the move is decided, not when the canvas has loaded;
   // the frame result comes from the canvas's listed frames, the ones the rendered canvas reports.
