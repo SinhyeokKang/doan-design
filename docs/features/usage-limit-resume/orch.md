@@ -68,3 +68,5 @@
 - M 후속 1 완료(`d8a97c1c` → 통합 `50b640f3`). R 2부 완료(통합 `738d1cec`..`1799adf2`, test 421 files·11250 passed, typecheck 0, lint 80/80).
 - VM 결과: 🔴1(조회 중 Stop 뒤 재예약) 🟡3(재발급 kind 보존, 보관 중 알림 누락, Send now 메시지 누락) ⚪1(경합 테스트). 보고서 `.scratch/orch/review-VM.md`. M에 수정 라운드 1을 보냈다(`ctx_7a04d9288453`).
 - VR(Codex gpt-6-astra medium, `ctx_bead34a028c9`, worktree `ulr-review-renderer`)을 시작했다.
+- VR 결과: 🔴0 🟡3(숨겨진 대화의 같은 시각 재예약 뒤 행 미갱신, 늦은 응답 덮어쓰기, 읽기 실패 뒤 재시도 없음) ⚪2. 보고서 `.scratch/orch/review-VR.md`. R에 수정 라운드 1을 보냈다(`ctx_25f1e93f4fd8`).
+- 통합 `1799adf2`에서 app typecheck·lint(80/80)·test(421 files·11251 passed) 통과.
