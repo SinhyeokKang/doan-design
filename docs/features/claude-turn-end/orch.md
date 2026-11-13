@@ -25,6 +25,11 @@
 15. archive와 앱 종료에서 기록에서 찾은 Send now 메시지는 큐로 돌아가지 않기만 하고, 스레드에는 남지 않을 수 있다. spec 완료 조건 4와 design §4를 이렇게 좁혔다(사용자, R-C 판정 1).
 16. 백그라운드 그룹이 쥔 세션을 terminal continue로 고르면 기존 `session_in_use` 거부로 둔다. "elsewhere" 문구 문제는 BACKLOG에 남긴다. design §5를 이렇게 좁혔다(사용자, R-C 판정 3).
 
+17. 2.1.323의 registry 기록에 `procStart`가 없다. 그래서 즉시 SIGKILL(그리고 term 경로의 500ms SIGKILL)이 CLI의 기록 정리를 앞지르면, 남은 기록 때문에 그 프로필의 모든 resume이 `session_unavailable`로 거부된다(E F1). `procStart`가 없는 기록은 pid에 프로세스가 없으면 끝난 프로세스의 기록으로 보고 건너뛴다(사용자).
+18. `procStart`가 없는 기록이라도 pid가 살아 있으면 `sessionId`로만 판단한다. 대상 세션이 아니면 건너뛰고, 대상이면 거부한다(occupied). 2.1.323에서 같은 연결의 다른 대화가 돌고 있을 때 send가 거부되는 기존 문제(E F2, develop에도 있음)를 이 링크에서 같이 고친다(사용자).
+19. SIGTERM을 무시하는 백그라운드 작업은 줄이 사라진 뒤에도 고아로 남는다(E F3). 작업의 프로세스 그룹이 스트림에 없어 Doan이 끝낼 수 없다. BACKLOG 'Known defects'에 남긴다(conductor 판단 — 범위 밖 기능이 필요하다).
+20. 프로젝트 대화에서 판정 창 안의 send는 줄을 사람 메시지보다 약 5.6초 먼저 지운다(E F4). R-D ⚪1과 같고, PRODUCT 'Background work line'에 이미 이렇게 적었다(conductor 판단).
+
 ## batch
 
 | batch | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
@@ -33,7 +38,7 @@
 | B | tasks 8 노티스 버튼 세로 가운데 | `app/src/renderer/ds/surfaces.css`, `app/src/renderer/ds/controls.test.ts`, `.doan/canvases/claude-turn-end.html`(override 줄 삭제만), `.doan/ds/notice.html`, `docs/DESIGN.md` 'Notices'·'Conversation strip' | 없음 | Sonnet high — 규칙 한 줄과 문서의 기계적 변경이지만 실제 앱 probe 단계가 많다 | tasks 8 '확인': app test 녹색, 두 줄 Home strip의 버튼 세로 가운데·아이콘 첫 줄, 한 줄 노티스 높이 44 px | 구현 끝(`447b5a38..d5560ae3`, verify PASS, probe: 두 줄 strip 버튼 중심 차이 0 px·아이콘 첫 줄·한 줄 44 px). probe는 실제 마크업을 주입했고 대화를 만들지 않았다. 통합 `083ea685..35b88318`, 수정 1회. worktree 정리 끝(브랜치 `SinhyeokKang/cte-b` `b0296ce9` 유지) |
 | C | tasks 3–6 (+ tasks 10의 `TURN_USAGE_MS` 주석) | `app/src/main/conversation/**`(fixtures 포함), preload, 로그아웃·Restart to Update·프로젝트 Remove의 `stop_required` 계산. renderer는 `prompt_unread` 최소 항목만(결정 10) | A | Opus high — 프로세스 그룹 정리, 예약 해제 순서, 보류한 종료의 동시성. 틀리면 POSTMORTEM 2026-10-27·10-28 회귀가 다시 난다 | 각 tasks의 '확인', `node .agents/skills/verify/scripts/verify.mjs` PASS | 통합 `205afe05..ffe04bf7`, `9968ca45`, 수정 2회(`1b2351be`, `71bdf2db`). 통합 HEAD `9968ca45` verify PASS(10568건). 통합 HEAD(B+C) verify PASS(앱 테스트 386 파일·10536건). 워커와 `cte-a`는 E·R-D의 main 쪽 지적에 대비해 남긴다 |
 | D | tasks 7 스레드 UI + `/design-sync`, tasks 3의 renderer 테스트(결정 10) | renderer 스레드 UI(`backgroundLine`, `turnStatus.ts`, `homeRun.ts`, `threadItems.ts`, `ConversationThread.tsx`, `conversationStrip.ts`, 관련 CSS), `docs/DESIGN.md` 백그라운드 줄 측정값 | B 통합, C 구현 끝(결정 14) | Opus high — 포커스 이동, Stop 경합, `sending` 항목 정리(POSTMORTEM 2026-11-05)와 초안 측정 | app test 녹색, `/design-sync` 측정 통과 | 구현 끝(`fa8262a6..3a369258`, verify PASS, `/design-sync` 56/56 행 일치와 실제 앱 동작 확인 9건 통과). Home strip의 `prompt_unread`는 실제 앱에서 띄우지 못했다(단위 테스트로 고정). 통합 `70f84fd3..e3e795a8`, 수정 0회. 워커 해제. `cte-d`는 C 수정 2회차가 그 probe를 쓰므로 그 뒤 지운다 |
-| E | tasks 9 `/runtime-test` | `.scratch/`의 probe만 | C, D 통합, lead의 '[lead] screen back' | Opus medium — 정해진 probe를 실제 앱에서 재고 수치를 완료 조건과 대조한다 | probe 수치가 spec 완료 조건 1–5를 만족, 실제 상태 비교 통과 | 대기 |
+| E | tasks 9 `/runtime-test` | `.scratch/`의 probe만 | C, D 통합, lead의 '[lead] screen back' | Opus medium — 정해진 probe를 실제 앱에서 재고 수치를 완료 조건과 대조한다 | probe 수치가 spec 완료 조건 1–5를 만족, 실제 상태 비교 통과 | 1회차 실패(F1·F2, 아래). probe 3·4·5 통과, 1·2·7은 C 수정 3회차 뒤 다시 돈다 |
 | R-B · R-C · R-D | 각 batch `/code-review` | 없음(보고만) | 각 batch | R-B Sonnet medium, R-C Opus high, R-D Opus high — diff 난이도에 맞춘다 | `/code-review` 보고 | 대기 |
 | Z | tasks 10 문서 승격과 삭제 | PRODUCT, ARCHITECTURE, BACKLOG, DESIGN, DIRECTORY, `docs/features/claude-turn-end/` | 구현 통합. E에 기대는 BACKLOG 'Not verified'와 디렉터리 삭제는 E 뒤 conductor | Opus high 워커가 초안을 쓰고 conductor가 검토한다 — 승격할 규칙이 많고 코드와 대조해야 해서 conductor 맥락을 아낀다 | 문서 diff 검토, verify PASS | 승격 통합 `c9dfd8e9..56f65b47`(conductor가 diff 검토, 워커 verify PASS). 워커·`cte-z` 정리 끝. 남은 것: E에 기대는 BACKLOG 'Not verified', 디렉터리 삭제 |
 
@@ -71,3 +76,4 @@ tasks 2(`/design-draft`)는 lead 단계에서 끝났다(`8de3b646`, `6b7faccf`).
 - C 수정 2회차(`71bdf2db`): 프로젝트·캔버스 턴 끝의 큐가 나갈 때 백그라운드 줄을 세우지 않는다(테스트 2건 red → green). `service.handoff.test.ts`의 시간 의존 flake도 Date를 가짜로 바꿔 고쳤다. diff를 conductor가 직접 확인했다.
   - 격리 빌드 앱의 종료 멈춤은 develop `c0d99ed4`에서도 났다(6회 중 1회, 8초 넘음). 이 브랜치에서는 6회 모두 0.4초 안에 끝났다. 이 기능 이전부터 있던 문제라 고치지 않고 PR 본문에 남긴다.
 - 화면 중지(lead, 2026-11-13): 사용자가 화면을 끈다. '[lead] screen back' 전까지 GUI probe를 시작하지 않는다. 중지 시점에 돌던 probe(C의 종료 비교)는 끝났다. 남은 GUI 단계는 E 하나다.
+- E 1회차(Opus medium, 빌드 `c315af43`, Claude Code 2.1.323, 로그인 프로필 연결 유지): probe 3(백그라운드 세션의 2턴이 프롬프트의 답에서 끝남, meta 턴 답은 빈 result라 스레드에 안 보임), 4(기록 찾기), 5(줄: 다음 send, Stop, 앱 종료, archive 뒤 `sleep` 없음)는 통과했다. 실제 상태 비교도 통과했다(GPU 캐시 변화는 사용자의 Doan.app). probe 1·2·7은 F1로 거부되어 재지 못했다. 결정 17·18의 수정을 C 수정 3회차로 보냈다.
