@@ -22,7 +22,7 @@ const done = (): WorkExchange => ({ request: { v: 3, action: "done", root: "/rep
 
 function run(log: WorkExchange[], html = final) {
   return checks({
-    seed: () => seed, read: () => html, changedFiles: () => [path], work: () => log, open: () => [], calls: { commands: [], mcpTools: [] },
+    seed: () => seed, read: () => html, changedFiles: () => [path], work: () => log, open: () => [], prototype: () => [], calls: { commands: [], mcpTools: [] },
     doan: () => ({ code: 0, json: { result: { summary: { errors: 0 } } } }),
     run: (cmd: string, args: string[]) => sh(cmd, args, import.meta.dirname, process.env),
   } as unknown as CheckContext);
