@@ -74,3 +74,4 @@
 - R 수정 라운드 1 완료(통합 `31637c8c`..`8235e700`, test 11261 passed). VR에 재검토를 보냈다.
 - S(design-sync)를 R 워커에 새 Task로 보냈다(`ctx_c21575848ec2`). lead에 GUI again을 알렸다.
 - VM 재검토: R1·Y1·Y2·Y3 수정 확인. 새 🔴1(예약 전송 준비 중 Stop 뒤에도 전송) ⚪1. M에 수정 라운드 2를 보냈다. 보고서 `.scratch/orch/review-VM-2.md`.
+- VR 재검토: 기존 1~5 종결, 새 발견 0. 보고서 `.scratch/orch/review-VR-2.md`.
