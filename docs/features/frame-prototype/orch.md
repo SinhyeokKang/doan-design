@@ -31,6 +31,7 @@
 | R | tasks 4 UI + `/design-sync` | `app/src/renderer/`(도구 바·버블·서랍 메타·프로토타입 창 UI), `styles.css`, DESIGN.md | C (실제 앱 확인은 M) | Opus high — 포커스·상태 오버레이·초안 일치 | `npm --prefix app test`, typecheck, lint (`/design-sync`는 M 통합 뒤 Task) | 통합 `e7ca5553`…`4cf8cfe1`. `/design-sync` 86쌍·29상태 일치 또는 DESIGN.md 기록, 피드백·포커스 행 통과, 실제 ⌘R·⌘K가 콘텐츠에 닿음. `/postmortem` Task 진행 |
 | V | `/code-review` | 보고만 | M·R | Opus high — 보안 경계 리뷰 | 🔴 0 | 1회차 🔴 0 · 🟡 5 · ⚪ 6, 수정 라운드 진행(R 진행, M은 probe 뒤) |
 | E | tasks 5 `/agent-eval` | `docs/USABILITY-EVAL.md` | 마지막 통합 직전 | Sonnet high — 정해진 절차지만 실패 분류에 판단이 든다 | 스킬 기준 | 진행(전체 라운드 `frame-prototype-261113`, 시작 시 사용량 Claude 7d 32%·Codex 7d 16%) |
+| S | 사용자 요청(lead 경유): 프로토타입 표시 `/agent-eval` 시나리오 W7 | `eval/scenarios/W7/`, 시나리오를 나열하는 eval 테스트 | G·R(가이드 최종) | Opus medium — 시나리오 설계와 checker에 판단이 들지만 범위가 좁다 | `node eval/run.ts --self-test --scenarios W7`, `node --test 'eval/**/*.test.ts'`, 실제 라운드 `frame-prototype-261113-w7` | 진행. 결과 기록은 E가 `docs/USABILITY-EVAL.md`에 한다 |
 | D | tasks 6 승격·삭제 | PRODUCT·ARCHITECTURE·DESIGN, 이 디렉터리 | 전부 | conductor | 대조 | 대기 |
 
 ## 겹침과 순서
