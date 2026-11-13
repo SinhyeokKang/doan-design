@@ -1332,6 +1332,11 @@ async function start(): Promise<void> {
     stars.opened();
     return true;
   });
+  // Home's credit line: the same fixed URL, without touching the star card's state.
+  handle("repository:open", false, async (_event, value: unknown) => {
+    if (value !== undefined) return false;
+    try { await electronShell.openExternal(REPOSITORY_URL); return true; } catch { return false; }
+  });
   handle("star:dismiss", undefined, (_event, value: unknown) => { if (value === undefined) stars.dismissed(); });
   // A conversation running or waiting for an answer puts the card off.
   handle("star:busy", true, (_event, value: unknown) => {

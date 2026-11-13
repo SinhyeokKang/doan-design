@@ -55,6 +55,12 @@ test.each(star)("restricts %s to main", channel => {
   expect(senderAllowed(channel, "settings")).toBe(false);
   for (const kind of [undefined, null, "thumbnail", ""]) expect(senderAllowed(channel, kind)).toBe(false);
 });
+// Home's credit line opens main's fixed repository URL; the request carries no data.
+test("restricts repository:open to main", () => {
+  expect(senderAllowed("repository:open", "main")).toBe(true);
+  expect(senderAllowed("repository:open", "settings")).toBe(false);
+  for (const kind of [undefined, null, "thumbnail", "", "prototype"]) expect(senderAllowed("repository:open", kind)).toBe(false);
+});
 test("the star moment is not a request", () => {
   for (const channel of ["star:moment", "star:", "star:done"]) expect(senderAllowed(channel, "main")).toBe(false);
 });

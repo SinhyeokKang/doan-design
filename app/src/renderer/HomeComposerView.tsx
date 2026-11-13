@@ -34,6 +34,7 @@ import type { SettingsTarget } from "./settingsSections";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import { stageInsets } from "./stageInsets";
+import { HomeCredit } from "./HomeCredit";
 
 // Everything the composer keeps between Home visits for this run (a draft survives leaving Home, not a
 // restart). App owns the object so a visit's unmount does not lose it; reads finishing after an unmount still land.
@@ -594,6 +595,7 @@ export function HeroComposer(props: HeroComposerProps) {
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">{confirm.title}</h3><p className="doan-dialog-description">{confirm.body}</p></div></div>
       <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" autoFocus onClick={() => { setConfirm(null); queueMicrotask(focusEnd); }}>{confirm.cancel}</button><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={() => apply(confirm.request)}>{confirm.confirm}</button></div>
     </dialog>}
+    <HomeCredit />
   </HomeStage>;
 }
 

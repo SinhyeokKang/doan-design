@@ -43,6 +43,8 @@ export default defineConfig({
     },
   },
   renderer: {
+    // Home's copyright year is the build's (HomeCredit.tsx).
+    define: { __DOAN_BUILD_YEAR__: JSON.stringify(new Date().getFullYear()) },
     resolve: { alias: { "@": fileURLToPath(new URL("./src/renderer", import.meta.url)) } },
     plugins: [contentSecurityPolicy(), tailwindcss()],
     build: {

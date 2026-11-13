@@ -40,6 +40,8 @@ const mainOnly = new Set([
   "update:get", "update:check", "update:install", "update:openNotes",
   // The GitHub star card; star:moment is an event main sends, not a request.
   "star:open", "star:dismiss", "star:busy",
+  // Home's credit line opens the same fixed repository URL.
+  "repository:open",
   "setup:open-external",
   // Install and Update name a provider; main picks the command and writes the script.
   "setup:open-install",

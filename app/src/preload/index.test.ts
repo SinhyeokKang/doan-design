@@ -456,6 +456,12 @@ test("star calls use fixed channels and send no data", async () => {
   }
 });
 
+// Home's credit line: main holds the repository URL, so the request carries none.
+test("the repository link uses a fixed channel and sends no data", async () => {
+  await api.openRepository();
+  expect(mocks.invoke).toHaveBeenLastCalledWith("repository:open");
+});
+
 test("the star moment is a subscription with no first read, and it unsubscribes", () => {
   const heard = vi.fn();
   mocks.invoke.mockClear();
