@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, test, vi } from "vitest";
+import { afterAll, describe, expect, onTestFinished, test, vi } from "vitest";
 import { createStarPrompt } from "./starPromptStore";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -110,6 +110,18 @@ describe("answers", () => {
     expect(moment).not.toHaveBeenCalled();
   });
 
+  test("once ended, turns are no longer counted or written", async () => {
+    const write = vi.fn((path: string, text: string) => writeFileSync(path, text));
+    const shown = setup({ write });
+    for (let seq = 1; seq <= 20; seq++) shown.store.event(done(seq));
+    shown.store.opened();
+    write.mockClear();
+    for (let seq = 21; seq <= 30; seq++) shown.store.event(done(seq));
+    await flush();
+    expect(write).not.toHaveBeenCalled();
+    expect(json(shown.file)).toMatchObject({ turns: 20, done: true });
+  });
+
   test("a dismissal while nothing is due changes nothing", () => {
     const { file, store } = setup();
     store.event(done(1));
@@ -149,6 +161,9 @@ describe("a file Doan cannot use", () => {
   test("a write that fails stops asking for this run, with nothing said and no temporary file left", async () => {
     const file = fileIn();
     let fail = false;
+    // Nothing is said to the person, but the reason is logged once.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    onTestFinished(() => error.mockRestore());
     const write = vi.fn((path: string, text: string) => { if (fail) throw new Error("EACCES"); writeFileSync(path, text); });
     const { store, moment } = setup({ file, write });
     for (let seq = 1; seq <= 19; seq++) store.event(done(seq));
@@ -161,6 +176,7 @@ describe("a file Doan cannot use", () => {
     await flush();
     expect(moment).not.toHaveBeenCalled();
     expect(json(file)).toMatchObject({ turns: 19 });
+    expect(error).toHaveBeenCalledOnce();
   });
 
   test("the default write replaces the file through a temporary file in the same folder", async () => {

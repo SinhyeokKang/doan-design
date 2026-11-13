@@ -117,8 +117,9 @@ export function StarPrompt(props: StarPromptProps) {
       else setCard(current => current && !current.closing ? { ...current, failed: true } : current);
     });
   };
+  // Not while the browser is opening: main would record the dismissal first, then ignore the open as no longer due.
   const onDismiss = () => {
-    if (!live) return;
+    if (!live || opening.current) return;
     void window.doan.dismissStarPrompt().catch(() => {});
     close();
   };

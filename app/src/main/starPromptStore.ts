@@ -36,7 +36,9 @@ function writeAtomic(file: string, text: string): void {
 
 function readFile(file: string): string | undefined | null {
   try { return readFileSync(file, "utf8"); } catch (error) {
-    return error instanceof Error && "code" in error && error.code === "ENOENT" ? undefined : null;
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined;
+    console.error("doan: star prompt state unreadable", error);
+    return null;
   }
 }
 
@@ -50,7 +52,10 @@ export function createStarPrompt(options: StarPromptOptions): StarPromptStore {
   let state: StarPromptState | null = text === null ? null : readStarPromptState(text);
   const write = options.write ?? writeAtomic;
   const save = (next: StarPromptState) => {
-    try { write(options.file, starPromptText(next)); state = next; } catch { state = null; }
+    try { write(options.file, starPromptText(next)); state = next; } catch (error) {
+      console.error("doan: star prompt state not saved", error);
+      state = null;
+    }
   };
   // Turns that end in the same task (several conversations at once) send one moment.
   let queued = false;
@@ -62,7 +67,8 @@ export function createStarPrompt(options: StarPromptOptions): StarPromptStore {
   };
   return {
     event(event) {
-      if (state === null || event.type !== "turn.done") return;
+      // Once it has ended there is nothing left to count for.
+      if (state === null || state.done || event.type !== "turn.done") return;
       save(starPromptTurn(state, options.now()));
       if (queued || state === null || !starPromptDue(state, options.now())) return;
       queued = true;

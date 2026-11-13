@@ -1302,8 +1302,12 @@ async function start(): Promise<void> {
     return true;
   });
   handle("star:dismiss", undefined, (_event, value: unknown) => { if (value === undefined) stars.dismissed(); });
-  // A conversation running or waiting for an answer puts the card off, as it holds Restart to Update.
-  handle("star:busy", true, (_event, value: unknown) => value === undefined ? installGate(conversationService.restartHolds()).kind === "blocked" : true);
+  // A conversation running or waiting for an answer puts the card off.
+  handle("star:busy", true, (_event, value: unknown) => {
+    if (value !== undefined) return true;
+    const holds = conversationService.restartHolds();
+    return holds.liveTurns > 0 || holds.pendingAnswers > 0;
+  });
   // Copies what About last showed, so the text matches the page.
   handle("about:copy", { kind: "stale" }, async (_event, value: unknown) => value === undefined ? copy(aboutText(lastAbout ?? await readAbout(), updateService.snapshot())) : { kind: "stale" });
   handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);

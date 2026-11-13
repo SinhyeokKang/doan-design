@@ -200,6 +200,21 @@ describe("Star on GitHub ↗", () => {
     expect(doan.openStarRepository).toHaveBeenCalledTimes(3);
   });
 
+  // main would record the dismissal first and then ignore the open as no longer due, asking again someone who opened it.
+  test("the dismiss button and Esc do nothing while the browser is opening", async () => {
+    let answer: (opened: boolean) => void = () => {};
+    doan.openStarRepository!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+    const view = await shown();
+    view.onOpen();
+    render().onDismiss();
+    render().onKeyDown({ key: "Escape", defaultPrevented: false, isComposing: false, preventDefault: vi.fn(), stopPropagation: vi.fn() });
+    expect(doan.dismissStarPrompt).not.toHaveBeenCalled();
+    expect(render().card).toMatchObject({ closing: false });
+    answer(true); await flush();
+    expect(render().card).toMatchObject({ closing: true });
+    expect(doan.dismissStarPrompt).not.toHaveBeenCalled();
+  });
+
   test("a refused call is a browser that did not open", async () => {
     doan.openStarRepository!.mockRejectedValueOnce(new Error("refused"));
     (await shown()).onOpen(); await flush();
