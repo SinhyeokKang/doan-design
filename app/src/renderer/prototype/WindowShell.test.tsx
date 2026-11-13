@@ -8,7 +8,7 @@ import { NO_LAYERS, type HostLayers } from "./host";
 import { viewportStyles, WindowShell, type ShellProps } from "./PrototypeWindow";
 import { EMPTY_DRAWER } from "./view";
 import type { PrototypeView } from "../../main/prototype/ipc";
-import { prototypeViewportBox } from "../../main/prototype/fit";
+import { PROTOTYPE_HEADER_RIGHT, prototypeViewportBox } from "../../main/prototype/fit";
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
@@ -168,9 +168,6 @@ describe("the name's row", () => {
     expect(tag(markup({ width: 360, view: null, layers: NO_LAYERS }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
   });
 
-  test("the right group's width reaches the stylesheet from the same constant main fits by", () => {
-    expect(tag(markup(), 'class="pw')).toContain('style="--pw-right:68px"');
-  });
 
   test("the capsule never moves in the tree, so focus and an open menu stay on it across rows", () => {
     const isMenu = (element: El) => (element.type as { name?: string }).name === "FrameMenu";
@@ -248,7 +245,7 @@ describe("WindowShell content", () => {
   });
 
   test("switching the mode keeps every element, so the iframes are only resized, never loaded again", () => {
-    const loading = { view: view({ gen: 3, phase: "loading" }), layers: { frames: [{ gen: 2, url: A, markWidth: 390, markHeight: 844 }, { gen: 3, url: A, markWidth: 390, markHeight: 844 }], visible: 2, snapshot: null } } as const;
+    const loading: Partial<ShellProps> = { view: view({ gen: 3, phase: "loading" }), layers: { frames: [{ gen: 2, url: A, markWidth: 390, markHeight: 844 }, { gen: 3, url: A, markWidth: 390, markHeight: 844 }], visible: 2, snapshot: null } };
     expect(strip(markup({ ...loading, view: view({ gen: 3, phase: "loading", mode: "responsive" }) }))).toBe(strip(markup(loading)));
     expect(strip(markup({ view: view({ mode: "responsive" }) }))).toBe(strip(markup()));
   });
@@ -348,6 +345,11 @@ describe("prototype window styles", () => {
     expect(css).toMatch(/\.pw-name \{[^}]*right: calc\(2 \* var\(--space-2\) \+ var\(--pw-right\)\);/);
     expect(css).toMatch(/\.pw-right \{[^}]*position: absolute; top: 0; right: var\(--space-2\);[^}]*gap: var\(--space-1\);[^}]*height: var\(--size-chrome\);/);
     expect(css).not.toMatch(/519\.98px/);
+  });
+
+  // Main fits and captures the window by the same width, so the two must change together.
+  test("the stylesheet's right group is the width main fits by", () => {
+    expect(css).toContain(`:root { --pw-right: ${PROTOTYPE_HEADER_RIGHT}px; }`);
   });
 
   // A panel or clip box that only hides its overflow still scrolls to show a focused control inside a scaled frame,

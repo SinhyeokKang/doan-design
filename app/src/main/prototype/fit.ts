@@ -8,10 +8,6 @@ export const PROTOTYPE_CHROME = { header: 56, side: 8, bottom: 8 } as const;
 
 export const PROTOTYPE_WINDOW_MIN_WIDTH = 360;
 
-// The content panel's width at the minimum window. A frame narrower than this cannot be shown at a width the window
-// can reach, so it keeps its own width, centred, however wide the window becomes.
-export const PROTOTYPE_NARROW_BELOW = PROTOTYPE_WINDOW_MIN_WIDTH - 2 * PROTOTYPE_CHROME.side;
-
 // The header's right group: the Fit/Responsive toggle (2 + 32 + 32 + 2). Sibling features widen it as they add
 // Export and the conversation button; main's fit and capture and the renderer's header read the same value.
 export const PROTOTYPE_HEADER_RIGHT = 68;
@@ -41,12 +37,6 @@ export function fitPrototypeWindow(size: PrototypeSize, workArea: Rect, current?
   const x = current?.x ?? workArea.x + Math.floor((workArea.width - width) / 2);
   const y = current?.y ?? workArea.y + Math.floor((workArea.height - height) / 2);
   return { x: place(x, width, workArea.x, workArea.width), y: place(y, height, workArea.y, workArea.height), width, height };
-}
-
-// The iframe's horizontal box inside the content panel; it always takes the panel's full height.
-export function prototypeIframeBox(panelWidth: number, markWidth: number): { x: number; width: number } {
-  if (markWidth < PROTOTYPE_NARROW_BELOW) return { x: Math.floor((panelWidth - markWidth) / 2), width: markWidth };
-  return { x: 0, width: panelWidth };
 }
 
 // The header's rows from the window's content width alone, never from the panel it then sizes, so a row change
