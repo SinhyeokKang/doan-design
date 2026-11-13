@@ -544,6 +544,9 @@ describe("the conversation panel", () => {
   });
 
   test("the button and column follow main's panel state, at the width main answered", () => {
+    // A window wide enough that 300 is within the panel's range (at 640 the range is 280 only).
+    win.innerWidth = 1000;
+    resizes.forEach(resize => resize());
     expect(show(view()).conversation).toMatchObject({ open: false, button: { label: "Show conversation" } });
     expect(show(view({ panel: { open: true, width: 300 } })).conversation).toMatchObject({ open: true, width: 300, button: { label: "Hide conversation" } });
   });

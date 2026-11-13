@@ -261,8 +261,8 @@ describe("Esc over a header tooltip", () => {
   test("with the frame menu open, every header tooltip's Esc also closes the menu and puts focus on the name", () => {
     const onMenuOpen = vi.fn(), focus = vi.fn();
     const escapes = tipEscapes(tree({ menuOpen: true, onMenuOpen, name: { current: { focus } as never } }));
-    // Reload, Fit, Responsive, Export and the name.
-    expect(escapes).toHaveLength(5);
+    // Reload, Fit, Responsive, Export, the conversation button and the name.
+    expect(escapes).toHaveLength(6);
     for (const escape of escapes) {
       onMenuOpen.mockClear(); focus.mockClear();
       const event = { defaultPrevented: false, preventDefault: vi.fn() };

@@ -24,7 +24,7 @@ const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
 const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 
 type Listener<T> = (value: T) => void;
-let calls: PrototypeConversationCalls & Record<string, ReturnType<typeof vi.fn>>;
+let calls: Record<string, ReturnType<typeof vi.fn>>;
 let order: string[];
 let listChanged: Listener<{ root: string }> | null;
 let event: Listener<ConversationEvent> | null;
@@ -51,8 +51,8 @@ beforeEach(() => {
     conversationResumeTarget: vi.fn(async () => ({ available: false as const, reason: "no_record" as const })),
     scheduledMessages: vi.fn(async () => []), sendQueuedNow: vi.fn(), removeAttachment: vi.fn(async () => true), releaseAttachments: vi.fn(async () => true),
     recheckAttachments: vi.fn(), attachmentsFromPaths: vi.fn(),
-  } as never;
-  run = new PrototypeConversationRun(calls, { changed: () => {}, notice: () => {}, focused: () => focused });
+  };
+  run = new PrototypeConversationRun(calls as unknown as PrototypeConversationCalls, { changed: () => {}, notice: () => {}, focused: () => focused });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -82,10 +82,11 @@ describe("subscribe first, then read", () => {
 
   test("a switch to another canvas reads that canvas's list, still under the same subscriptions", async () => {
     await playing();
-    const subscriptions = calls.onConversationEvent.mock.calls.length;
-    run.setView(view({ path: PLAIN.path, canvasId: undefined, frame: "x", frames: [] }));
+    const subscriptions = calls.onConversationEvent!.mock.calls.length;
+    const { canvasId: _none, ...plain } = view({ path: PLAIN.path, frame: "x", frames: [] });
+    run.setView(plain);
     expect(order.at(-1)).toBe(`list:${ROOT}`);
-    expect(calls.onConversationEvent.mock.calls.length).toBe(subscriptions);
+    expect(calls.onConversationEvent!.mock.calls.length).toBe(subscriptions);
     expect(run.list()).toBe("loading");
   });
 
@@ -189,23 +190,23 @@ describe("the playing root owns its list", () => {
 
   test("a list change of the other root does not read this one", async () => {
     await playing();
-    const before = calls.listConversations.mock.calls.length;
+    const before = calls.listConversations!.mock.calls.length;
     listChanged!({ root: TWIN });
-    expect(calls.listConversations.mock.calls.length).toBe(before);
+    expect(calls.listConversations!.mock.calls.length).toBe(before);
   });
 
   test("the root's folder entry is read again when the root changes", async () => {
     await playing();
-    const before = calls.readTargetEntry.mock.calls.length;
+    const before = calls.readTargetEntry!.mock.calls.length;
     run.setView(view({ frame: "other" }));
-    expect(calls.readTargetEntry.mock.calls.length).toBe(before);
+    expect(calls.readTargetEntry!.mock.calls.length).toBe(before);
     run.setView(view({ root: TWIN }));
-    expect(calls.readTargetEntry.mock.calls.length).toBe(before + 1);
+    expect(calls.readTargetEntry!.mock.calls.length).toBe(before + 1);
   });
 
   test("an entry read for the root left behind is dropped", async () => {
     let first!: (entry: FolderEntry | null) => void;
-    calls.readTargetEntry.mockImplementationOnce(() => new Promise(resolve => { first = resolve; }));
+    calls.readTargetEntry!.mockImplementationOnce(() => new Promise(resolve => { first = resolve; }));
     run.connect();
     run.setView(view());
     run.setView(view({ root: TWIN }));
@@ -237,13 +238,13 @@ describe("what main hears", () => {
     expect(calls.setShowing).toHaveBeenLastCalledWith("c1");
     run.setView(view({ panel: { open: false, width: 280 } }));
     expect(calls.setShowing).toHaveBeenLastCalledWith(null);
-    const count = calls.setShowing.mock.calls.length;
+    const count = calls.setShowing!.mock.calls.length;
     run.setView(view({ panel: { open: false, width: 300 } }));
-    expect(calls.setShowing.mock.calls.length).toBe(count);
+    expect(calls.setShowing!.mock.calls.length).toBe(count);
   });
 
   test("an ended turn is seen only while the panel is open and the window has focus", async () => {
-    calls.readConversation.mockImplementation(async () => ({ events: [{ conversationId: "c1", seq: 4, type: "turn.ended", turnId: "t", reason: "done", at: "2026-11-01T12:00:00.000Z" }], lastSeq: 4 }));
+    calls.readConversation!.mockImplementation(async () => ({ events: [{ conversationId: "c1", seq: 4, type: "turn.ended", turnId: "t", reason: "done", at: "2026-11-01T12:00:00.000Z" }], lastSeq: 4 }));
     focused = false;
     await playing({}, [summary({ unseen: true })]);
     expect(calls.markConversationSeen).not.toHaveBeenCalled();
