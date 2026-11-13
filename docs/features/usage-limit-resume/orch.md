@@ -70,3 +70,4 @@
 - VR(Codex gpt-6-astra medium, `ctx_bead34a028c9`, worktree `ulr-review-renderer`)을 시작했다.
 - VR 결과: 🔴0 🟡3(숨겨진 대화의 같은 시각 재예약 뒤 행 미갱신, 늦은 응답 덮어쓰기, 읽기 실패 뒤 재시도 없음) ⚪2. 보고서 `.scratch/orch/review-VR.md`. R에 수정 라운드 1을 보냈다(`ctx_25f1e93f4fd8`).
 - 통합 `1799adf2`에서 app typecheck·lint(80/80)·test(421 files·11251 passed) 통과.
+- M 수정 라운드 1 완료(통합 `103f67ef`·`8f400dfc`, test 11211 passed). VM에 재검토를 보냈다.
