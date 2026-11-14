@@ -8,7 +8,8 @@ import { NO_LAYERS, type HostLayers } from "./host";
 import { viewportStyles, WindowShell, type ShellConversation, type ShellProps } from "./PrototypeWindow";
 import { EMPTY_DRAWER } from "./view";
 import type { PrototypeView } from "../../main/prototype/ipc";
-import { PROTOTYPE_HEADER_RIGHT, prototypeViewportBox } from "../../main/prototype/fit";
+import { PROTOTYPE_HEADER_RIGHT, PROTOTYPE_HEADER_RIGHT_OPEN, prototypeViewportBox } from "../../main/prototype/fit";
+import { ConversationPanel } from "../ConversationPanel";
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
@@ -538,20 +539,23 @@ describe("specificity (the test's own helper)", () => {
   });
 });
 
-describe("the conversation button and column", () => {
+describe("the conversation button and panel", () => {
   const conv = (over: Partial<ShellConversation> = {}): ShellConversation => ({
     button: { label: "Show conversation", badge: null, name: "Show conversation" }, open: false, width: 280, bounds: { min: 280, max: 280 },
     onToggle: noop, onResize: noop, preview: noop, ...over,
   });
-  const opened = conv({ open: true, button: { label: "Hide conversation", badge: null, name: "Hide conversation" } });
+  const opened = (over: Partial<ShellConversation> = {}) => conv({ open: true, title: <h2 className="phead rp-head" tabIndex={-1}><span className="pw-side-title">Checkout</span></h2>, ...over });
+  const stops = (html: string) => [...html.matchAll(/<(button|div|h2)[^>]*>/g)].map(([open]) => open)
+    .filter(open => !/ hidden=""/.test(open) && (/^<button/.test(open) && !/ disabled=""/.test(open) && !/tabindex="-1"/.test(open) || /tabindex="0"/.test(open)));
 
-  test("the button ends the right group after Export, and the column comes after the content panel", () => {
+  test("closed, the button ends the right group after Export; the panel comes before the content panel in the DOM", () => {
     const html = markup({ conversation: conv() });
-    const order = ['aria-label="Export prototype"', 'aria-label="Show conversation"', 'class="pw-panel"', "<iframe", 'class="doan-conv-column"', 'id="doan-conversation-panel"'].map(marker => html.indexOf(marker));
+    const order = ['aria-label="Export prototype"', 'aria-label="Show conversation"', 'class="doan-conv-column"', 'id="doan-conversation-panel"', 'class="pw-panel"', "<iframe"].map(marker => html.indexOf(marker));
     expect(order.every(index => index >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toMatch(/aria-label="Export prototype".*?<\/button><button type="button" class="doan-icon-button pw-conv" data-ui-placement="chrome" aria-label="Show conversation" aria-expanded="false" aria-controls="doan-conversation-panel"/);
-    expect(tag(html, 'aria-label="Show conversation"')).not.toContain("disabled");
+    expect(tag(html, "pw-conv")).not.toMatch(/disabled|hidden/);
+    expect(html).toContain("lucide-panel-right-open");
   });
 
   test("before the first view it is already usable", () => {
@@ -559,24 +563,92 @@ describe("the conversation button and column", () => {
     expect(tag(markup({ view: null, layers: NO_LAYERS }), 'aria-label="Show conversation"')).not.toContain("disabled");
   });
 
-  test("open, it is Hide conversation with PanelRightClose; the column shows at the panel's width", () => {
-    const html = markup({ conversation: opened });
-    expect(tag(html, 'aria-label="Hide conversation"')).toContain('aria-expanded="true"');
-    expect(tag(html, 'aria-label="Hide conversation"')).toContain('aria-controls="doan-conversation-panel"');
-    expect(html).toContain("lucide-panel-right-close");
-    expect(tag(markup({ conversation: conv() }), "pw-conv")).toBeTruthy();
-    expect(markup({ conversation: conv() })).toContain("lucide-panel-right-open");
-    expect(tag(html, 'class="pw')).toMatch(/data-panel="open"/);
-    expect(tag(html, 'class="pw')).toContain("--pw-panel:280px");
-    expect(tag(html, 'class="doan-conv-column"')).not.toContain("data-collapsed");
-    expect(tag(html, 'role="separator"')).toMatch(/aria-label="Resize conversation panel" aria-valuenow="280" aria-valuemin="280" aria-valuemax="280"/);
+  test("open, the header's button stays in the DOM, hidden and out of the Tab order", () => {
+    const html = markup({ conversation: opened() });
+    const button = tag(html, "pw-conv");
+    expect(button).toContain('hidden=""');
+    expect(button).toContain('aria-label="Show conversation"');
+    expect(stops(html).some(open => open.includes("pw-conv"))).toBe(false);
+    expect(stops(markup({ conversation: conv() })).some(open => open.includes("pw-conv"))).toBe(true);
   });
 
-  test("folded, the column stays in the DOM out of reach, so aria-controls resolves", () => {
+  test("open, Hide conversation is in the panel's head after the title, controlling the panel", () => {
+    const html = markup({ conversation: opened() });
+    const hide = tag(html, 'aria-label="Hide conversation"');
+    expect(hide).toMatch(/^<button type="button" class="doan-icon-button doan-panel-hide"/);
+    expect(hide).toContain('aria-expanded="true"');
+    expect(hide).toContain('aria-controls="doan-conversation-panel"');
+    expect(html).toMatch(/<div class="doan-conv-head"><h2 class="phead rp-head" tabindex="-1"><span class="pw-side-title">Checkout<\/span><\/h2><button[^>]*aria-label="Hide conversation"/);
+    expect(html).toContain("lucide-panel-right-close");
+  });
+
+  test("Hide conversation and the header's button both ask for the toggle", () => {
+    const onToggle = vi.fn();
+    const shell = tree({ conversation: opened({ onToggle }) });
+    const panel = all(shell).find(element => element.type === ConversationPanel)!;
+    (panel.props.onHide as () => void)();
+    const header = all(shell).find(element => element.type === "button" && String(element.props.className).includes("pw-conv"))!;
+    (header.props.onClick as () => void)();
+    expect(onToggle).toHaveBeenCalledTimes(2);
+    const preventDefault = vi.fn();
+    (header.props.onMouseDown as (event: unknown) => void)({ preventDefault, button: 0 });
+    expect(preventDefault).toHaveBeenCalledOnce();
+  });
+
+  test("open, the panel shows at its width with the handle; the shell hands the column ref and focusout to it", () => {
+    const column = { current: null }, onFocusOut = vi.fn();
+    const html = markup({ conversation: opened({ width: 320, bounds: { min: 280, max: 512 } }) });
+    expect(tag(html, 'class="pw')).toMatch(/data-panel="open"/);
+    expect(tag(html, 'class="pw')).toContain("--pw-panel:320px");
+    expect(tag(html, 'class="doan-conv-column"')).not.toMatch(/data-collapsed|inert/);
+    expect(tag(html, 'role="separator"')).toMatch(/aria-label="Resize conversation panel" aria-valuenow="320" aria-valuemin="280" aria-valuemax="512"/);
+    const panel = all(tree({ conversation: opened({ column, onFocusOut }) })).find(element => element.type === ConversationPanel)!;
+    expect(panel.props.columnRef).toBe(column);
+    expect(panel.props.onBlur).toBe(onFocusOut);
+  });
+
+  // Esc does not fold the panel: an Escape given to every key handler the open shell and its panel render (the
+  // tooltips' Esc included) never reaches the toggle.
+  test("Esc anywhere in the open shell does not ask for the toggle", () => {
+    const onToggle = vi.fn(), onMenuOpen = vi.fn();
+    const expand = (node: ReactNode): El[] => all(node).flatMap(element => element.type === ConversationPanel
+      ? [element, ...expand(ConversationPanel(element.props as Parameters<typeof ConversationPanel>[0]))] : [element]);
+    const elements = expand(tree({ menuOpen: true, onMenuOpen, conversation: opened({ onToggle }) }));
+    const escape = { key: "Escape", code: "Escape", target: null, currentTarget: null, preventDefault: vi.fn(), stopPropagation: vi.fn(), nativeEvent: {} };
+    let handlers = 0;
+    for (const element of elements) for (const [name, handler] of Object.entries(element.props)) {
+      if (!/^on(KeyDown|KeyUp|KeyDownCapture|EscapeKeyDown)$/.test(name) || typeof handler !== "function") continue;
+      handlers++;
+      (handler as (event: unknown) => void)(escape);
+    }
+    // The viewport toggle's roving keys and the header tooltips' Esc are there to be pressed.
+    expect(handlers).toBeGreaterThanOrEqual(2);
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
+  test("folded, the panel stays in the DOM out of reach, so aria-controls resolves", () => {
     const html = markup({ conversation: conv() });
     expect(tag(html, 'class="pw')).not.toContain("data-panel");
     expect(tag(html, 'class="doan-conv-column"')).toMatch(/data-collapsed="" inert=""/);
     expect(html).toContain('<aside class="right ov-right doan-conv-panel" id="doan-conversation-panel" role="region" aria-label="Conversation">');
+  });
+
+  // The panel's DOM comes before the frame, so the frame's own Tab stops or a focus trap in it cannot keep the panel
+  // out of reach; closed, the folded panel is inert.
+  test("open, the Tab order is the header, the handle, Hide, the thread and composer, then the frame; closed, the header then the frame", () => {
+    const body = <><div className="probe-thread" tabIndex={0} /><div className="composer-input" tabIndex={0} /></>;
+    const open = markup({ conversation: opened({ body }) });
+    const order = ['aria-label="Back"', 'aria-label="Export prototype"', 'role="separator"', 'aria-label="Hide conversation"', 'class="probe-thread"', 'class="composer-input"', "<iframe"].map(marker => open.indexOf(marker));
+    expect(order.every(index => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    const reachable = stops(open);
+    expect(reachable.at(-1)).toContain("composer-input");
+    expect(reachable.findIndex(open => open.includes('role="separator"'))).toBeGreaterThan(reachable.findIndex(open => open.includes('aria-label="Export prototype"')));
+    const closed = markup({ conversation: conv({ body }) });
+    const inert = closed.slice(closed.indexOf('class="doan-conv-column"'), closed.indexOf('class="pw-panel"'));
+    expect(tag(closed, 'class="doan-conv-column"')).toContain('inert=""');
+    expect(inert).toContain("composer-input");
+    expect(stops(closed.replace(inert, "")).at(-1)).toContain("pw-conv");
   });
 
   test("badges: the answer dot, the working spinner and the unread bubble, with their names", () => {
@@ -595,42 +667,85 @@ describe("the conversation button and column", () => {
     const isConv = (element: El) => element.type === "button" && String(element.props.className).includes("pw-conv");
     const base = path(tree({ conversation: conv() }), isConv);
     expect(base).not.toBeNull();
-    for (const over of [{ conversation: opened }, { conversation: conv({ button: { label: "Show conversation", badge: "working", name: "Show conversation, agent is working" } }) },
+    for (const over of [{ conversation: opened() }, { conversation: conv({ button: { label: "Show conversation", badge: "working", name: "Show conversation, agent is working" } }) },
       { conversation: conv({ button: { label: "Show conversation", badge: "permission", name: "Show conversation, needs your answer" } }) },
       { view: null, layers: NO_LAYERS, conversation: conv() }] as Partial<ShellProps>[]) expect(path(tree(over), isConv)).toEqual(base);
   });
 
-  test("a click toggles; a pointer press keeps focus where it was; nothing in the column closes it on Esc", () => {
-    const onToggle = vi.fn();
-    const shell = tree({ conversation: conv({ onToggle }) });
-    const element = all(shell).find(candidate => candidate.type === "button" && String(candidate.props.className).includes("pw-conv"))!;
-    (element.props.onClick as () => void)();
-    expect(onToggle).toHaveBeenCalledOnce();
-    const preventDefault = vi.fn();
-    (element.props.onMouseDown as (event: unknown) => void)({ preventDefault, button: 0 });
-    expect(preventDefault).toHaveBeenCalledOnce();
-    const column = all(tree({ conversation: opened })).find(candidate => candidate.props.className === "doan-conv-column")!;
-    expect(column.props.onKeyDown).toBeUndefined();
-  });
-
   test("the body goes inside the aside", () => {
-    const html = markup({ conversation: conv({ open: true, body: <div className="probe-body" /> }) });
-    expect(html).toMatch(/id="doan-conversation-panel"[^>]*><div class="doan-conv-body"><div class="probe-body"><\/div><\/div><\/aside>/);
+    const html = markup({ conversation: opened({ body: <div className="probe-body" /> }) });
+    expect(html).toMatch(/id="doan-conversation-panel"[^>]*>.*<div class="doan-conv-body"><div class="probe-body"><\/div><\/div><\/aside>/);
   });
 });
 
-describe("the conversation column's styles", () => {
-  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
-  test("open, the content panel keeps its start corners and the column its end corners, beside each other", () => {
-    expect(css).toMatch(/\.pw\[data-panel="open"\]\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*var\(--pw-panel\)/);
-    expect(css).toMatch(/\.pw\[data-panel="open"\]\s*>\s*\.pw-panel\s*\{[^}]*border-radius:\s*var\(--radius-container\) 0 0 var\(--radius-container\)/);
-    expect(css).toMatch(/\.pw\s*>\s*\.doan-conv-column\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*2/);
-    expect(css).toMatch(/\.pw\s+\.right\.doan-conv-panel\s*\{[^}]*border-radius:\s*0 var\(--radius-container\) var\(--radius-container\) 0/);
+// The name's row while the panel is open comes from the area left of it (L = W - P - 8) with R 104: the first row from
+// L 408. The width is the one shown, so a handle's drag preview moves the name as the commit would.
+describe("the name's row with the panel open", () => {
+  const conv = (width: number): ShellConversation => ({ button: { label: "Show conversation", badge: null, name: "Show conversation" }, open: true, width, bounds: { min: 280, max: 512 }, onToggle: noop, onResize: noop, preview: noop });
+  const row = (width: number, panel: number) => tag(markup({ width, conversation: conv(panel) }), 'class="pw');
+
+  test("L 408 keeps the first row, 407 moves the name to the second", () => {
+    expect(row(696, 280)).toMatch(/^<div class="pw"/);
+    expect(row(695, 280)).toMatch(/^<div class="pw name-row"/);
+    expect(row(736, 320)).toMatch(/^<div class="pw"/);
+    expect(row(1024, 320)).toMatch(/^<div class="pw"/);
+    expect(row(640, 280)).toMatch(/^<div class="pw name-row"/);
   });
-  test("without the head the thread and the new state start 16 below the column's top; the playing chip sits in the chip row", () => {
-    expect(css).toMatch(/\.doan-conv-panel:not\(:has\(\.doan-conv-head\)\) \.thread-scroll\s*\{[^}]*padding-top:\s*var\(--space-4\)/);
-    // The pinned chip reads at the body text size, not the 13 px the panel would give it (design-sync).
+
+  test("a handle's preview past L 408 moves the same capsule, so its focus and an open menu stay", () => {
+    expect(row(736, 320)).toMatch(/^<div class="pw"/);
+    expect(row(736, 321)).toMatch(/^<div class="pw name-row"/);
+    const isMenu = (element: El) => (element.type as { name?: string }).name === "FrameMenu";
+    const first = path(tree({ width: 736, conversation: conv(320) }), isMenu);
+    expect(first).not.toBeNull();
+    expect(path(tree({ width: 736, conversation: conv(321) }), isMenu)).toEqual(first);
+    expect(path(tree({ width: 1024 }), isMenu)).toEqual(first);
+  });
+
+  test("a window narrowed while open crosses L 408 by its own width", () => {
+    expect(row(808, 392)).toMatch(/^<div class="pw"/);
+    expect(row(807, 392)).toMatch(/^<div class="pw name-row"/);
+  });
+});
+
+describe("the conversation panel's styles", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+  const rule = (selector: string) => css.match(new RegExp(`^${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\{([^}]*)\\}`, "m"))?.[1] ?? "";
+
+  // Main fits and captures the window by the same widths, so each pair must change together.
+  test("the closed R 140 and the open R 104 are the widths main fits and captures by", () => {
+    expect(css).toContain(`:root { --pw-right: ${PROTOTYPE_HEADER_RIGHT}px; }`);
+    expect(rule('.pw[data-panel="open"]')).toContain(`--pw-right: ${PROTOTYPE_HEADER_RIGHT_OPEN}px;`);
+  });
+
+  test("open, two columns 8 apart; the header and the content panel in the first, the panel through both rows 8 below the top", () => {
+    expect(rule('.pw[data-panel="open"]')).toMatch(/grid-template-columns: minmax\(0, 1fr\) var\(--pw-panel\); column-gap: var\(--space-2\);/);
+    expect(rule('.pw[data-panel="open"] > .pw-top')).toContain("grid-column: 1;");
+    expect(rule('.pw[data-panel="open"] > .pw-panel')).toMatch(/grid-column: 1; grid-row: 2;/);
+    expect(rule(".pw > .doan-conv-column")).toMatch(/grid-column: 2; grid-row: 1 \/ -1; margin-top: var\(--space-2\);/);
+    expect(rule('.pw:not([data-panel="open"]) > .doan-conv-column')).toContain("display: none;");
+  });
+
+  test("the panel is an independent surface: four 24 corners, the panel shadow, no start edge; the head keeps 56", () => {
+    expect(rule(".pw .right.doan-conv-panel")).toBe(" border-left: 0; border-radius: var(--radius-container); box-shadow: var(--shadow-panel); ");
+    expect(css).toMatch(/^\.doan-conv-head \{[^}]*min-height: var\(--size-chrome\);/m);
+    expect(css).not.toMatch(/\.pw[^{]*\.doan-conv-head[^{]*\{[^}]*(min-height|height)/);
+    expect(css).not.toMatch(/:not\(:has\(\.doan-conv-head\)\)/);
+  });
+
+  test("the hidden header button takes no box; the head's title ends in an ellipsis; the playing chip sits in the chip row", () => {
+    expect(rule(".pw-conv[hidden]")).toContain("display: none;");
+    expect(rule(".pw-side-title")).toMatch(/min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/);
     expect(css).toMatch(/\.composer-chips\s*>\s*\.pw-playing\s*\{[^}]*font-size:\s*var\(--type-body-sm-size\)/);
     expect(css).toMatch(/\.badge-working\s*\{[^}]*position:\s*absolute/);
+  });
+
+  // The drag region is the header's (.top) only: the panel is outside it, so its head needs no no-drag of its own, and
+  // a script-written app region would not be refreshed (POSTMORTEM 2026-11-06).
+  test("no script writes -webkit-app-region on the panel head", () => {
+    for (const file of ["./PrototypeWindow.tsx", "./PrototypeConversation.tsx", "../ConversationPanel.tsx"]) {
+      expect(readFileSync(new URL(file, import.meta.url), "utf8"), file).not.toMatch(/WebkitAppRegion|app-region/i);
+    }
+    expect(css).not.toMatch(/doan-conv-(head|panel|column)[^{]*\{[^}]*app-region/);
   });
 });

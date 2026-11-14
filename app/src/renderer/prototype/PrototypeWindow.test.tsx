@@ -53,9 +53,11 @@ let changed: (view: PrototypeView | null) => void;
 let snapshot: (value: { gen: number; png: Uint8Array; box: typeof BOX }) => void;
 let messages: ((event: unknown) => void)[];
 let resizes: (() => void)[];
+// Every keydown listener the window or its document adds, so a test can press a key on the whole page.
+let keydowns: ((event: unknown) => void)[];
 let win: { innerWidth: number };
 let api: Record<string, ReturnType<typeof vi.fn>>;
-let doc: { title: string; activeElement: unknown; body: object; hidden: boolean; addEventListener(): void; removeEventListener(): void; querySelector(): null; hasFocus(): boolean };
+let doc: { title: string; activeElement: unknown; body: object; hidden: boolean; addEventListener(type: string, listener: (event: unknown) => void): void; removeEventListener(type: string, listener: (event: unknown) => void): void; querySelector(): null; hasFocus(): boolean };
 class FakeElement { isConnected = true; focus = vi.fn(); }
 let running: (target: { root: string; path: string; frame: string }) => void;
 let shell: Shell;
@@ -92,14 +94,19 @@ beforeEach(() => {
     conversationResumeTarget: vi.fn(() => new Promise(() => {})),
     ...Object.fromEntries(["onComposerSettings", "onTargetEntry", "onWorkChanged", "onConversationEvent", "onConversationStage", "onConversationListChanged", "onConversationHandoff", "onAgentAuth", "onDrawing", "onPromoted"].map(name => [name, vi.fn(() => () => {})])),
   };
-  doc = { title: "", activeElement: null, body: {}, hidden: false, addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null, hasFocus: () => true };
+  keydowns = [];
+  const keys = {
+    addEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "keydown") keydowns.push(listener); },
+    removeEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "keydown") keydowns = keydowns.filter(item => item !== listener); },
+  };
+  doc = { title: "", activeElement: null, body: {}, hidden: false, ...keys, querySelector: () => null, hasFocus: () => true };
   vi.stubGlobal("HTMLElement", FakeElement);
   // The toast's clock reads performance.now, which the fake timers leave alone.
   vi.stubGlobal("performance", { now: () => Date.now() });
   vi.stubGlobal("document", doc);
   win = { innerWidth: 640,
-    addEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "message") messages.push(listener); if (type === "resize") resizes.push(listener as () => void); },
-    removeEventListener: (type: string, listener: (event: unknown) => void) => { messages = messages.filter(item => item !== listener); resizes = resizes.filter(item => item !== listener); } } as never;
+    addEventListener: (type: string, listener: (event: unknown) => void) => { if (type === "message") messages.push(listener); if (type === "resize") resizes.push(listener as () => void); keys.addEventListener(type, listener); },
+    removeEventListener: (type: string, listener: (event: unknown) => void) => { messages = messages.filter(item => item !== listener); resizes = resizes.filter(item => item !== listener); keys.removeEventListener(type, listener); } } as never;
   vi.stubGlobal("window", win);
   let blobs = 0;
   vi.stubGlobal("URL", Object.assign(class extends URL {}, { createObjectURL: vi.fn(() => `blob:${++blobs}`), revokeObjectURL: vi.fn() }));
@@ -548,7 +555,7 @@ describe("the conversation panel", () => {
     win.innerWidth = 1000;
     resizes.forEach(resize => resize());
     expect(show(view()).conversation).toMatchObject({ open: false, button: { label: "Show conversation" } });
-    expect(show(view({ panel: { open: true, width: 300 } })).conversation).toMatchObject({ open: true, width: 300, button: { label: "Hide conversation" } });
+    expect(show(view({ panel: { open: true, width: 300 } })).conversation).toMatchObject({ open: true, width: 300, button: { label: "Show conversation" } });
   });
 
   test("opening puts focus in the composer's field; folding puts it on the button", () => {
@@ -556,16 +563,99 @@ describe("the conversation panel", () => {
     const input = field();
     conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? input : null, contains: () => false } as never;
     conversation().onToggle();
+    // Not before main's view opens the panel: until then the column is display: none and inert, so a focus() there
+    // does nothing and focus falls to the page (POSTMORTEM 2026-11-03).
+    vi.runAllTicks();
+    expect(input.focus).not.toHaveBeenCalled();
     show(view({ panel: { open: true, width: 280 } }));
     vi.runAllTicks();
     expect(input.focus).toHaveBeenCalledOnce();
     const button = field();
     conversation().buttonRef!.current = button as never;
     conversation().onToggle();
+    // Not before main's view closes it: the header's button is still hidden (display: none) until then.
+    vi.runAllTicks();
+    expect(button.focus).not.toHaveBeenCalled();
     show(view({ panel: { open: false, width: 280 } }));
     vi.runAllTicks();
     expect(button.focus).toHaveBeenCalledOnce();
     expect(input.focus).toHaveBeenCalledOnce();
+  });
+
+  // Space and Enter on the header's button are its click; Hide conversation in the panel's head is the same toggle.
+  test("opened by key it focuses the composer; Hide conversation closes it onto the header's button; Esc is no toggle", () => {
+    show(view());
+    const input = field(), button = field();
+    conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? input : null, contains: () => false } as never;
+    conversation().buttonRef!.current = button as never;
+    conversation().onToggle();
+    expect(input.focus).not.toHaveBeenCalled();
+    show(view({ panel: { open: true, width: 280 } }));
+    expect(input.focus).toHaveBeenCalledOnce();
+    expect(button.focus).not.toHaveBeenCalled();
+    // Esc pressed anywhere in the window asks main for nothing; the panel stays open.
+    api.setPanel!.mockClear();
+    const escape = { type: "keydown", key: "Escape", code: "Escape", target: input, defaultPrevented: false, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    for (const listener of [...keydowns]) listener(escape);
+    expect(api.setPanel).not.toHaveBeenCalled();
+    expect(render().conversation).toMatchObject({ open: true });
+    conversation().onToggle();
+    expect(api.setPanel).toHaveBeenLastCalledWith({ open: false });
+    expect(button.focus).not.toHaveBeenCalled();
+    show(view({ panel: { open: false, width: 280 } }));
+    expect(button.focus).toHaveBeenCalledOnce();
+  });
+
+  // Before the first view the panel has no composer: focus goes to the head's title, not the hidden header button.
+  test("opened before the first view, focus goes to the head's title, then once to the composer the view brings", () => {
+    const head = field(), input = field();
+    let composer: typeof input | null = null;
+    conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? composer : selector === ".rp-head" ? head : null, contains: () => false } as never;
+    conversation().onToggle();
+    show(view({ panel: { open: true, width: 280 } }));
+    expect(head.focus).toHaveBeenCalledOnce();
+    expect(input.focus).not.toHaveBeenCalled();
+    doc.activeElement = head;
+    composer = input;
+    show(view({ panel: { open: true, width: 280 }, phase: "ready" }));
+    expect(input.focus).toHaveBeenCalledOnce();
+    doc.activeElement = input;
+    show(view({ gen: 2, panel: { open: true, width: 280 } }));
+    expect(input.focus).toHaveBeenCalledOnce();
+  });
+
+  test("focus the person moved off the head's title before the composer came stays where it is", () => {
+    const head = field(), input = field(), elsewhere = field();
+    let composer: typeof input | null = null;
+    conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? composer : selector === ".rp-head" ? head : null, contains: () => false } as never;
+    conversation().onToggle();
+    show(view({ panel: { open: true, width: 280 } }));
+    expect(head.focus).toHaveBeenCalledOnce();
+    doc.activeElement = elsewhere;
+    composer = input;
+    show(view({ panel: { open: true, width: 280 }, phase: "ready" }));
+    expect(input.focus).not.toHaveBeenCalled();
+  });
+
+  // Main keeps the panel's state across another play, so Back and doan open --prototype leave it open with its head.
+  test("Back and a CLI play keep the panel open with its head's title", () => {
+    show(view({ panel: { open: true, width: 280 } }));
+    const title = conversation().title;
+    expect(title).toBeDefined();
+    show(view({ gen: 2, frame: "cart", title: "Cart", panel: { open: true, width: 280 } }));
+    expect(conversation()).toMatchObject({ open: true });
+    expect((conversation().title as { type: unknown }).type).toBe((title as { type: unknown }).type);
+    expect(api.setPanel).not.toHaveBeenCalled();
+  });
+
+  test("a window narrowed while open cuts the panel to that window's maximum", () => {
+    win.innerWidth = 1024;
+    resizes.forEach(resize => resize());
+    expect(show(view({ panel: { open: true, width: 512 } })).conversation).toMatchObject({ width: 512 });
+    win.innerWidth = 700;
+    resizes.forEach(resize => resize());
+    expect(render().conversation).toMatchObject({ width: 340, bounds: { min: 280, max: 340 } });
+    expect(render().width).toBe(700);
   });
 
   test("a view that arrives with the panel already open moves no focus", () => {

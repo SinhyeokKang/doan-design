@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
-  PROTOTYPE_CHROME, PROTOTYPE_HEADER_RIGHT, PROTOTYPE_NAME_MIN_WIDTH, PROTOTYPE_NAME_ROW_HEIGHT, PROTOTYPE_PANEL_MIN_WIDTH, PROTOTYPE_PANEL_WINDOW_MIN_WIDTH, PROTOTYPE_WINDOW_MIN_WIDTH,
-  fitPrototypeWindow, openPanelResize, prototypeCaptureRect, prototypeHeaderRows, prototypePanelBounds, prototypePanelFit, prototypeViewportBox,
+  PROTOTYPE_CHROME, PROTOTYPE_HEADER_RIGHT, PROTOTYPE_HEADER_RIGHT_OPEN, PROTOTYPE_NAME_MIN_WIDTH, PROTOTYPE_NAME_ROW_HEIGHT, PROTOTYPE_PANEL_GAP, PROTOTYPE_PANEL_MIN_WIDTH, PROTOTYPE_PANEL_WINDOW_MIN_WIDTH, PROTOTYPE_WINDOW_MIN_WIDTH,
+  fitPrototypeWindow, openPanelResize, prototypeCaptureRect, prototypeHeaderRows, prototypePanelBounds, prototypePanelFit, prototypeSideLayout, prototypeViewportBox,
 } from "./fit";
 
 const laptop = { x: 0, y: 25, width: 1512, height: 945 };
@@ -16,6 +16,34 @@ describe("chrome constants", () => {
     expect(PROTOTYPE_HEADER_RIGHT).toBe(140);
     expect(PROTOTYPE_NAME_MIN_WIDTH).toBe(80);
     expect(PROTOTYPE_NAME_ROW_HEIGHT).toBe(44);
+  });
+
+  test("with the panel open the conversation button leaves the right group (104), and the panel keeps 8 from the content panel", () => {
+    expect(PROTOTYPE_HEADER_RIGHT_OPEN).toBe(PROTOTYPE_HEADER_RIGHT - 32 - 4);
+    expect(PROTOTYPE_PANEL_GAP).toBe(8);
+  });
+});
+
+describe("prototypeSideLayout", () => {
+  test("closed: the window's width and R 140 decide the name's row", () => {
+    expect(prototypeSideLayout(444, null)).toEqual({ left: 444, right: 140, rows: 1 });
+    expect(prototypeSideLayout(443, null)).toEqual({ left: 443, right: 140, rows: 2 });
+    expect(prototypeSideLayout(1024, null)).toEqual({ left: 1024, right: 140, rows: 1 });
+  });
+
+  test("open: the area left of the panel (L = W - P - 8) and R 104 decide it; first row from L 408", () => {
+    expect(prototypeSideLayout(1024, 320)).toEqual({ left: 696, right: 104, rows: 1 });
+    expect(prototypeSideLayout(1024, 512)).toEqual({ left: 504, right: 104, rows: 1 });
+    expect(prototypeSideLayout(736, 320)).toEqual({ left: 408, right: 104, rows: 1 });
+    expect(prototypeSideLayout(696, 280)).toEqual({ left: 408, right: 104, rows: 1 });
+    expect(prototypeSideLayout(695, 280)).toEqual({ left: 407, right: 104, rows: 2 });
+    expect(prototypeSideLayout(640, 280)).toEqual({ left: 352, right: 104, rows: 2 });
+  });
+
+  // A work area of 600 opens the window at 600 with the panel at 280: the header's two groups overlap there, a known
+  // limit the 280 minimum is kept for.
+  test("a 600 work area keeps the panel at 280 and leaves L 312", () => {
+    expect(prototypeSideLayout(600, 280)).toEqual({ left: 312, right: 104, rows: 2 });
   });
 });
 
@@ -177,11 +205,6 @@ describe("prototypeCaptureRect", () => {
     expect(prototypeCaptureRect({ width: 360, height: 908 }, { width: 390, height: 844 }, "responsive")).toEqual({ rect: { x: 8, y: 100, width: 344, height: 800 }, box: { x: 0, y: 0, width: 344, height: 800 } });
   });
 
-  test("a side column takes its width off the content panel", () => {
-    expect(prototypeCaptureRect({ width: 1000, height: 908 }, { width: 390, height: 844 }, "fit", 300)).toEqual({ rect: { x: 155, y: 56, width: 390, height: 844 }, box: { x: 147, y: 0, width: 390, height: 844 } });
-    expect(prototypeCaptureRect({ width: 1000, height: 908 }, { width: 390, height: 844 }, "responsive", 300)).toEqual({ rect: { x: 8, y: 56, width: 684, height: 844 }, box: { x: 0, y: 0, width: 684, height: 844 } });
-  });
-
   test("captures exactly the box the renderer clips the iframe to", () => {
     const marks = [{ width: 390, height: 844 }, { width: 1440, height: 900 }, { width: 240, height: 400 }, { width: 5000, height: 5000 }, { width: 0, height: 0 }];
     for (const content of [{ width: 360, height: 908 }, { width: 406, height: 908 }, { width: 371, height: 777 }, { width: 1001, height: 641 }, { width: 640, height: 480 }]) {
@@ -253,30 +276,38 @@ describe("openPanelResize", () => {
 });
 
 describe("prototypePanelFit", () => {
-  test("with the panel open a play fits the shown size plus 16 plus the panel, and 64 for a one-row header", () => {
-    // 390 x 844 with a 300 panel: 406 + 300 = 706 wide, 844 + 64 = 908 high.
-    expect(prototypePanelFit({ width: 390, height: 844 }, laptop, 300)).toEqual({ bounds: { x: 403, y: 43, width: 706, height: 908 }, panel: 300, minimum: 640 });
+  const wide = { x: 0, y: 0, width: 1920, height: 1055 };
+
+  test("with the panel open a play fits the shown width + 24 + the panel, so the content panel is the shown width", () => {
+    // 390 + 24 + 320 = 734; L = 734 - 320 - 8 = 406 is under 408, so the name takes the second row: 844 + 64 + 44.
+    expect(prototypePanelFit({ width: 390, height: 844 }, wide, 320)).toEqual({ bounds: { x: 593, y: 51, width: 734, height: 952 }, panel: 320, minimum: 640 });
   });
 
-  test("never narrower than 640", () => {
-    expect(prototypePanelFit({ width: 200, height: 300 }, laptop, 280)).toMatchObject({ bounds: { width: 640, height: 364 }, panel: 280 });
+  test("a shown width of 392 or more keeps the name on the first row (+ 64); below it the second (+ 108)", () => {
+    expect(prototypePanelFit({ width: 392, height: 400 }, laptop, 320)).toMatchObject({ bounds: { width: 736, height: 464 }, panel: 320 });
+    expect(prototypePanelFit({ width: 391, height: 400 }, laptop, 320)).toMatchObject({ bounds: { width: 735, height: 508 }, panel: 320 });
   });
 
-  test("a fitted width that puts the name on the second row adds 108", () => {
-    // A work area of 443 clips the window there, below 444: the name is on the second row.
+  test("never narrower than 640, with the panel cut to that window's maximum", () => {
+    // 240 + 24 + 320 = 584: the window is 640, its panel at most 280, and the content panel 336 (L 352, second row).
+    expect(prototypePanelFit({ width: 240, height: 400 }, laptop, 320)).toMatchObject({ bounds: { width: 640, height: 508 }, panel: 280 });
+    expect(prototypePanelFit({ width: 200, height: 300 }, laptop, 280)).toMatchObject({ bounds: { width: 640, height: 408 }, panel: 280 });
+  });
+
+  test("a work area narrower than 640 clips the window there, with the panel at 280", () => {
     expect(prototypePanelFit({ width: 100, height: 300 }, { x: 0, y: 0, width: 443, height: 1000 }, 280)).toMatchObject({ bounds: { width: 443, height: 408 }, panel: 280, minimum: 443 });
   });
 
-  test("wider than the work area, the panel gives way first down to 280, then the frame column", () => {
-    // 1280 + 16 + 400 = 1696 > 1512: the panel takes 184 of it, down to 280 it can give only 120.
+  test("wider than the work area, the panel gives way first down to 280, then the content panel", () => {
+    // 1280 + 24 + 400 = 1704 > 1512: the panel can give only 120 of the 192, so it is 280 and the content panel 1216.
     expect(prototypePanelFit({ width: 1280, height: 800 }, laptop, 400)).toMatchObject({ bounds: { x: 0, width: 1512, height: 864 }, panel: 280 });
-    // 1000 + 16 + 600 = 1616 > 1512: the panel gives 104 and stays at 496.
-    expect(prototypePanelFit({ width: 1000, height: 800 }, laptop, 600)).toMatchObject({ bounds: { width: 1512 }, panel: 496 });
+    // 1000 + 24 + 600 = 1624 > 1512: the panel gives 112 and stays at 488, leaving the content panel its 1000.
+    expect(prototypePanelFit({ width: 1000, height: 800 }, laptop, 600)).toMatchObject({ bounds: { width: 1512 }, panel: 488 });
   });
 
   test("the panel never exceeds the fitted window's maximum", () => {
-    // 100 + 16 + 600 = 716: half of it is 358, the frame column leaves 356.
-    expect(prototypePanelFit({ width: 100, height: 300 }, laptop, 600)).toMatchObject({ bounds: { width: 716 }, panel: 356 });
+    // 100 + 24 + 600 = 724: half of it is 362, the 360 frame column leaves 364.
+    expect(prototypePanelFit({ width: 100, height: 300 }, laptop, 600)).toMatchObject({ bounds: { width: 724 }, panel: 362 });
   });
 
   test("the height stops at the work area", () => {
@@ -284,14 +315,40 @@ describe("prototypePanelFit", () => {
   });
 
   test("a replaced frame keeps the window's top-left", () => {
-    expect(prototypePanelFit({ width: 390, height: 300 }, laptop, 300, { x: 100, y: 100, width: 800, height: 600 })).toEqual({ bounds: { x: 100, y: 100, width: 706, height: 364 }, panel: 300, minimum: 640 });
+    expect(prototypePanelFit({ width: 390, height: 300 }, laptop, 300, { x: 100, y: 100, width: 800, height: 600 })).toEqual({ bounds: { x: 100, y: 100, width: 714, height: 408 }, panel: 300, minimum: 640 });
   });
 });
 
-describe("prototypeCaptureRect with the conversation column", () => {
-  test("a 640 window with a 280 panel captures the 344 frame column only", () => {
-    expect(prototypeCaptureRect({ width: 640, height: 908 }, { width: 390, height: 844 }, "responsive", 280)).toEqual({ rect: { x: 8, y: 56, width: 344, height: 844 }, box: { x: 0, y: 0, width: 344, height: 844 } });
-    // Fit scales 390 x 844 into 344 x 844: 344 x 744, centred vertically.
-    expect(prototypeCaptureRect({ width: 640, height: 908 }, { width: 390, height: 844 }, "fit", 280)).toEqual({ rect: { x: 8, y: 106, width: 344, height: 744 }, box: { x: 0, y: 50, width: 344, height: 744 } });
+describe("prototypeCaptureRect with the panel open", () => {
+  test("a 640 window with a 280 panel captures the 336 content panel under the two-row header (y100)", () => {
+    expect(prototypeCaptureRect({ width: 640, height: 908 }, { width: 390, height: 844 }, "responsive", 280)).toEqual({ rect: { x: 8, y: 100, width: 336, height: 800 }, box: { x: 0, y: 0, width: 336, height: 800 } });
+    // Fit scales 390 x 844 into 336 x 800: 336 x 727, centred vertically.
+    expect(prototypeCaptureRect({ width: 640, height: 908 }, { width: 390, height: 844 }, "fit", 280)).toEqual({ rect: { x: 8, y: 136, width: 336, height: 727 }, box: { x: 0, y: 36, width: 336, height: 727 } });
+  });
+
+  test("the panel and its 8 gap come off the content panel: L - 16 wide from x8", () => {
+    // 1000 with a 300 panel: L 692, one row; the content panel is 676 x 844.
+    expect(prototypeCaptureRect({ width: 1000, height: 908 }, { width: 390, height: 844 }, "fit", 300)).toEqual({ rect: { x: 151, y: 56, width: 390, height: 844 }, box: { x: 143, y: 0, width: 390, height: 844 } });
+    expect(prototypeCaptureRect({ width: 1000, height: 908 }, { width: 390, height: 844 }, "responsive", 300)).toEqual({ rect: { x: 8, y: 56, width: 676, height: 844 }, box: { x: 0, y: 0, width: 676, height: 844 } });
+  });
+
+  test("the rectangle stays inside the content panel and its top follows the open layout's rows", () => {
+    const marks = [{ width: 390, height: 844 }, { width: 1440, height: 900 }, { width: 240, height: 400 }, { width: 0, height: 0 }];
+    for (const [width, panel] of [[640, 280], [695, 280], [696, 280], [1024, 320], [1024, 512], [1512, 756]] as const) {
+      const { left, rows } = prototypeSideLayout(width, panel);
+      const top = rows === 2 ? 100 : 56;
+      for (const mark of marks) for (const mode of ["fit", "responsive"] as const) {
+        const label = JSON.stringify({ width, panel, mark, mode });
+        const area = prototypeCaptureRect({ width, height: 908 }, mark, mode, panel);
+        const viewport = prototypeViewportBox({ width: left - 16, height: 908 - top - 8 }, mark, mode);
+        expect(area?.box, label).toEqual({ x: viewport.x, y: viewport.y, width: viewport.visibleWidth, height: viewport.visibleHeight });
+        expect(area!.rect.x + area!.rect.width, label).toBeLessThanOrEqual(left - 8);
+        expect(area!.rect.y, label).toBeGreaterThanOrEqual(top);
+      }
+    }
+  });
+
+  test("0 is the closed window, as before", () => {
+    expect(prototypeCaptureRect({ width: 640, height: 908 }, { width: 390, height: 844 }, "responsive", 0)).toEqual(prototypeCaptureRect({ width: 640, height: 908 }, { width: 390, height: 844 }, "responsive"));
   });
 });

@@ -883,18 +883,21 @@ describe("the board iframe's ancestors never clip with four equal radii", () => 
     }
   });
 
-  // With the conversation column open beside it, the content panel and the column are one surface: the panel keeps
-  // its start corners (R 0 0 R) and the column its end ones (0 R R 0). The content still clips only its top corner and
-  // the stage only its bottom one, so no clip in the run iframe's chain has four equal radii in either state.
-  test("prototype window with the conversation column open: the content panel keeps only its start corners", () => {
-    const open = (subject: RegExp) => subjects(stylesCss).filter(rule => subject.test(rule.subject)).flatMap(rule => rule.declarations);
-    expect(stylesCss).toMatch(/\.pw\[data-panel="open"\]\s*>\s*\.pw-panel\s*\{[^}]*border-radius:\s*var\(--radius-container\) 0 0 var\(--radius-container\)/);
-    expect(stylesCss).toMatch(/\.pw\[data-panel="open"\][^{]*\.pw-stage\s*\{[^}]*border-bottom-right-radius:\s*0/);
-    expect(stylesCss).toMatch(/\.pw\s+\.right\.doan-conv-panel\s*\{[^}]*border-radius:\s*0 var\(--radius-container\) var\(--radius-container\) 0/);
-    // The column holds no part of the iframe's chain, but its own clip must not be four equal radii either.
-    for (const declaration of open(/^\.doan-conv-column$/)) expect(declaration).not.toMatch(/radius/);
-    // The content inherits the panel's top corners, so its top-right corner follows the panel to 0.
+  // With the conversation panel open the content panel stands alone again, beside an independent panel: no rule of the
+  // open layout reshapes its corners or clips, so the content still rounds only its top corners and the stage only its
+  // bottom ones, and the open shell itself clips nothing.
+  test("prototype window with the conversation panel open: the content panel keeps the shipped split clip", () => {
+    // Every rule whose selector reaches the content panel, its content or its stage through the open layout.
+    const openRules = [...stylesCss.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, selectors]) => selectors!.includes('[data-panel="open"]'));
+    expect(openRules.length).toBeGreaterThan(0);
+    for (const [, selectors, body] of openRules) {
+      if (/\.pw-(panel|content|stage)\b/.test(selectors!)) expect(body, selectors!.trim()).not.toMatch(/radius|overflow|clip|contain/);
+      if (/\.pw\[data-panel="open"\]\s*$/.test(selectors!.trim())) expect(body, selectors!.trim()).not.toMatch(/overflow|clip|contain|radius/);
+    }
+    expect(declarations(stylesCss, ".pw-panel")).toContain("border-radius: var(--radius-container)");
     expect(declarations(stylesCss, ".pw-content")).toEqual(expect.arrayContaining(["border-top-left-radius: inherit", "border-top-right-radius: inherit"]));
+    expect(declarations(stylesCss, ".pw-stage")).toEqual(expect.arrayContaining(["border-bottom-left-radius: var(--radius-container)", "border-bottom-right-radius: var(--radius-container)"]));
   });
 
   // The export's chain is read from shell.html, so a wrapper added around the iframe is checked too.

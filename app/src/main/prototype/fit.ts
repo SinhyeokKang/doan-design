@@ -9,8 +9,12 @@ export const PROTOTYPE_CHROME = { header: 56, side: 8, bottom: 8 } as const;
 export const PROTOTYPE_WINDOW_MIN_WIDTH = 360;
 
 // The header's right group: the Fit/Responsive toggle (2 + 32 + 32 + 2), then 4 and Export (32), then 4 and the
-// conversation button (32). Main's fit and capture and the renderer's header read the same value.
+// conversation button (32). Main's fit and capture and the renderer's header read the same value; styles.css mirrors it
+// as --pw-right.
 export const PROTOTYPE_HEADER_RIGHT = 140;
+// The same group while the conversation panel is open: Hide conversation is in the panel's head, so the header's button
+// and its gap leave it. styles.css mirrors it as the open layout's --pw-right.
+export const PROTOTYPE_HEADER_RIGHT_OPEN = PROTOTYPE_HEADER_RIGHT - 32 - 4;
 // The narrowest name capsule that still reads: its padding, gap and chevron leave three letters and an ellipsis.
 export const PROTOTYPE_NAME_MIN_WIDTH = 80;
 // The header's second row, where the name capsule goes when the first row cannot give it the minimum.
@@ -21,6 +25,8 @@ const NAME_OUTSIDE = 224;
 // The conversation panel: never narrower than 280, so a window with it open is at least the frame column's 360 + 280.
 export const PROTOTYPE_PANEL_MIN_WIDTH = 280;
 export const PROTOTYPE_PANEL_WINDOW_MIN_WIDTH = PROTOTYPE_WINDOW_MIN_WIDTH + PROTOTYPE_PANEL_MIN_WIDTH;
+// Between the content panel and the open conversation panel, as between the main window's surfaces.
+export const PROTOTYPE_PANEL_GAP = 8;
 
 export interface Rect {
   x: number;
@@ -37,11 +43,11 @@ function place(start: number, size: number, areaStart: number, areaSize: number)
 // keeps the window's top-left and is moved only as far as it takes to stay inside.
 export function fitPrototypeWindow(size: PrototypeSize, workArea: Rect, current?: Rect): Rect {
   const width = Math.max(PROTOTYPE_WINDOW_MIN_WIDTH, Math.min(size.width + 2 * PROTOTYPE_CHROME.side, workArea.width));
-  return placed(width, size, workArea, current);
+  return placed(width, size, headerHeight(prototypeSideLayout(width, null).rows), workArea, current);
 }
 
-function placed(width: number, size: PrototypeSize, workArea: Rect, current?: Rect): Rect {
-  const height = Math.min(size.height + headerHeight(width) + PROTOTYPE_CHROME.bottom, workArea.height);
+function placed(width: number, size: PrototypeSize, header: number, workArea: Rect, current?: Rect): Rect {
+  const height = Math.min(size.height + header + PROTOTYPE_CHROME.bottom, workArea.height);
   const x = current?.x ?? workArea.x + Math.floor((workArea.width - width) / 2);
   const y = current?.y ?? workArea.y + Math.floor((workArea.height - height) / 2);
   return { x: place(x, width, workArea.x, workArea.width), y: place(y, height, workArea.y, workArea.height), width, height };
@@ -82,25 +88,37 @@ export function openPanelResize(window: Rect, workArea: Rect, remembered: number
   return { bounds: { ...window, x: place(window.x, width, workArea.x, workArea.width), width }, panel: PROTOTYPE_PANEL_MIN_WIDTH, minimum };
 }
 
-// A new play with the panel open: the shown width + 16 + the panel (at least 640). When that is wider than the work
-// area the panel gives way first, down to 280, then the frame column. The panel never exceeds the fitted window's
-// maximum, so a frame narrower than the panel's share leaves the rest to the frame column.
+// A new play with the panel open: the shown width + 24 (8 on each side and 8 before the panel) + the panel, at least
+// 640, so the content panel is the shown width. When that is wider than the work area the panel gives way first, down
+// to 280, then the content panel. The panel never exceeds the fitted window's maximum, so a frame narrower than the
+// panel's share leaves the rest to the content panel. The name's row comes from the area left of the fitted panel.
 export function prototypePanelFit(size: PrototypeSize, workArea: Rect, panel: number, current?: Rect): { bounds: Rect; panel: number; minimum: number } {
-  const frameColumn = size.width + 2 * PROTOTYPE_CHROME.side;
+  const frameColumn = size.width + 2 * PROTOTYPE_CHROME.side + PROTOTYPE_PANEL_GAP;
   const wanted = Math.max(PROTOTYPE_PANEL_WINDOW_MIN_WIDTH, frameColumn + panel);
   const given = wanted > workArea.width ? Math.max(PROTOTYPE_PANEL_MIN_WIDTH, panel - (wanted - workArea.width)) : panel;
   const width = Math.min(workArea.width, Math.max(PROTOTYPE_PANEL_WINDOW_MIN_WIDTH, frameColumn + given));
-  return { bounds: placed(width, size, workArea, current), panel: clampPanel(given, width), minimum: panelMinimum(workArea) };
+  const fitted = clampPanel(given, width);
+  return { bounds: placed(width, size, headerHeight(prototypeSideLayout(width, fitted).rows), workArea, current), panel: fitted, minimum: panelMinimum(workArea) };
 }
 
-// The header's rows from the window's content width alone, never from the panel it then sizes, so a row change
+// The header's rows from the header's width: the window's content width while the panel is closed, the area left of
+// the open panel (L) otherwise. Both are given, never measured from the content panel they then size, so a row change
 // cannot feed back into the width that decided it.
 export function prototypeHeaderRows(width: number, right: number): 1 | 2 {
   return width - NAME_OUTSIDE - right >= PROTOTYPE_NAME_MIN_WIDTH ? 1 : 2;
 }
 
-function headerHeight(width: number): number {
-  return PROTOTYPE_CHROME.header + (prototypeHeaderRows(width, PROTOTYPE_HEADER_RIGHT) === 2 ? PROTOTYPE_NAME_ROW_HEIGHT : 0);
+// The header's geometry for a window and its conversation panel's width (null while closed): `left`, the width of the
+// area left of the panel (the whole window while closed); `right`, the header's right group; `rows`, the name's row.
+// The renderer's header, main's fit and main's capture all read it, so the three agree.
+export function prototypeSideLayout(windowWidth: number, panel: number | null): { left: number; right: number; rows: 1 | 2 } {
+  const left = panel === null ? windowWidth : windowWidth - panel - PROTOTYPE_PANEL_GAP;
+  const right = panel === null ? PROTOTYPE_HEADER_RIGHT : PROTOTYPE_HEADER_RIGHT_OPEN;
+  return { left, right, rows: prototypeHeaderRows(left, right) };
+}
+
+function headerHeight(rows: 1 | 2): number {
+  return PROTOTYPE_CHROME.header + (rows === 2 ? PROTOTYPE_NAME_ROW_HEIGHT : 0);
 }
 
 export interface ViewportBox {
@@ -138,11 +156,13 @@ export function prototypeViewportBox(panel: { width: number; height: number }, m
 
 // What main captures when a ready run leaves: `rect` in window content coordinates for capturePage, and `box`, the
 // same area relative to the content panel, which the snapshot carries so the still lands where it was taken.
-// `sideColumn` is width a column beside the panel takes from it. Null when nothing of the frame is visible.
-export function prototypeCaptureRect(content: { width: number; height: number }, mark: PrototypeSize, mode: PrototypeMode, sideColumn = 0): { rect: Rect; box: Rect } | null {
-  const top = headerHeight(content.width);
-  const panel = { width: content.width - 2 * PROTOTYPE_CHROME.side - sideColumn, height: content.height - top - PROTOTYPE_CHROME.bottom };
-  const viewport = prototypeViewportBox(panel, mark, mode);
+// `panel` is the open conversation panel's width (0 while closed): the content panel is then the area left of it, less
+// the sides. Null when nothing of the frame is visible.
+export function prototypeCaptureRect(content: { width: number; height: number }, mark: PrototypeSize, mode: PrototypeMode, panel = 0): { rect: Rect; box: Rect } | null {
+  const layout = prototypeSideLayout(content.width, panel > 0 ? panel : null);
+  const top = headerHeight(layout.rows);
+  const area = { width: layout.left - 2 * PROTOTYPE_CHROME.side, height: content.height - top - PROTOTYPE_CHROME.bottom };
+  const viewport = prototypeViewportBox(area, mark, mode);
   const box = { x: viewport.x, y: viewport.y, width: viewport.visibleWidth, height: viewport.visibleHeight };
   if (box.width <= 0 || box.height <= 0) return null;
   return { rect: { ...box, x: PROTOTYPE_CHROME.side + box.x, y: top + box.y }, box };

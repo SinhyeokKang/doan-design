@@ -4,7 +4,7 @@ import type { Anchor } from "../../main/conversation/types";
 import type { PrototypeView } from "../../main/prototype/ipc";
 import type { FieldSegment } from "../anchorField";
 import { EMPTY_DRAFT, type DockedDraft } from "../dockedRules";
-import { carryPrototypeDraft, conversationButton, playingFrameChip, playingFrameCount, prototypeShownConversation, withPlayingFrame } from "./conversation";
+import { carryPrototypeDraft, conversationButton, playingFrameChip, playingFrameCount, prototypeHeadTitle, prototypeShownConversation, withPlayingFrame } from "./conversation";
 
 const ROOT = "/w/acme";
 const CHECKOUT = { path: ".doan/canvases/checkout.html", id: "checkout" };
@@ -156,32 +156,52 @@ describe("playingFrameChip", () => {
   });
 });
 
+// The header's button shows only while the panel is closed (Hide conversation is in the panel's head), so it is
+// always Show conversation.
 describe("conversationButton", () => {
-  test("open: Hide conversation, with no badge", () => {
-    expect(conversationButton(true, summary({ phase: "waiting", working: true, unseen: true }))).toEqual({ label: "Hide conversation", badge: null, name: "Hide conversation" });
+  test("takes no open state: Show conversation with its badge whatever the panel does", () => {
+    expect(conversationButton(summary({ phase: "waiting", working: true, unseen: true }))).toEqual({ label: "Show conversation", badge: "permission", name: "Show conversation, needs your answer" });
   });
 
   test("closed with nothing to say: Show conversation", () => {
-    expect(conversationButton(false, undefined)).toEqual({ label: "Show conversation", badge: null, name: "Show conversation" });
-    expect(conversationButton(false, summary({}))).toEqual({ label: "Show conversation", badge: null, name: "Show conversation" });
+    expect(conversationButton(undefined)).toEqual({ label: "Show conversation", badge: null, name: "Show conversation" });
+    expect(conversationButton(summary({}))).toEqual({ label: "Show conversation", badge: null, name: "Show conversation" });
   });
 
   test("closed: each badge with its accessible name", () => {
-    expect(conversationButton(false, summary({ phase: "waiting" }))).toEqual({ label: "Show conversation", badge: "permission", name: "Show conversation, needs your answer" });
-    expect(conversationButton(false, summary({ phase: "running", working: true }))).toEqual({ label: "Show conversation", badge: "working", name: "Show conversation, agent is working" });
-    expect(conversationButton(false, summary({ unseen: true }))).toEqual({ label: "Show conversation", badge: "unseen", name: "Show conversation, conversation finished unread" });
+    expect(conversationButton(summary({ phase: "waiting" }))).toEqual({ label: "Show conversation", badge: "permission", name: "Show conversation, needs your answer" });
+    expect(conversationButton(summary({ phase: "running", working: true }))).toEqual({ label: "Show conversation", badge: "working", name: "Show conversation, agent is working" });
+    expect(conversationButton(summary({ unseen: true }))).toEqual({ label: "Show conversation", badge: "unseen", name: "Show conversation, conversation finished unread" });
   });
 
   test("one badge at a time: waiting before working before unread", () => {
-    expect(conversationButton(false, summary({ phase: "waiting", working: true, unseen: true }))?.badge).toBe("permission");
-    expect(conversationButton(false, summary({ phase: "running", working: true, unseen: true }))?.badge).toBe("working");
+    expect(conversationButton(summary({ phase: "waiting", working: true, unseen: true }))?.badge).toBe("permission");
+    expect(conversationButton(summary({ phase: "running", working: true, unseen: true }))?.badge).toBe("working");
     // Background work after the turn ended still works.
-    expect(conversationButton(false, summary({ phase: "ended", working: true, unseen: true }))?.badge).toBe("working");
+    expect(conversationButton(summary({ phase: "ended", working: true, unseen: true }))?.badge).toBe("working");
   });
 
   test("an ending already seen in this run, or an archived conversation, has no badge", () => {
-    expect(conversationButton(false, summary({ unseen: true }), new Set(["c1"])).badge).toBeNull();
-    expect(conversationButton(false, summary({ state: "archived", phase: "waiting" })).badge).toBeNull();
+    expect(conversationButton(summary({ unseen: true }), new Set(["c1"])).badge).toBeNull();
+    expect(conversationButton(summary({ state: "archived", phase: "waiting" })).badge).toBeNull();
+  });
+});
+
+describe("prototypeHeadTitle", () => {
+  test("the states the panel had no head for read Conversation, not a new conversation", () => {
+    expect(prototypeHeadTitle({ kind: "list_loading" }, "New conversation")).toBe("Conversation");
+    expect(prototypeHeadTitle({ kind: "list_error" }, "New conversation")).toBe("Conversation");
+    expect(prototypeHeadTitle({ kind: "blocked", reason: "gone" }, "Ideas")).toBe("Conversation");
+    expect(prototypeHeadTitle({ kind: "blocked", reason: "duplicate" }, "Ideas")).toBe("Conversation");
+  });
+
+  test("an empty title reads Conversation", () => {
+    expect(prototypeHeadTitle({ kind: "conversation", conversationId: "c1" }, "")).toBe("Conversation");
+  });
+
+  test("otherwise the title given, New conversation included", () => {
+    expect(prototypeHeadTitle({ kind: "conversation", conversationId: "c1" }, "Checkout Review details button")).toBe("Checkout Review details button");
+    expect(prototypeHeadTitle({ kind: "new" }, "New conversation")).toBe("New conversation");
   });
 });
 
