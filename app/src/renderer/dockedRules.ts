@@ -14,12 +14,10 @@ import { anotherConversation } from "./homeConversations";
 // Rules of the docked composer: the composer under a conversation in Overview and in
 // the canvas panel. Its host owns the conversation, the lists and every call to main; these functions only decide.
 
-// existing: the conversation's provider is fixed, so only its model and effort are chosen. archived: the same, and a
-// send restores it. new: the person picks the provider, and Send starts a conversation in `root`, on `canvas` from a
+// existing: the conversation's provider is fixed, so only its model and effort are chosen. new: the person picks the provider, and Send starts a conversation in `root`, on `canvas` from a
 // canvas panel. resume: Send continues the canvas's terminal session, whose provider, model and effort are its own.
 export type DockedMode =
   | { kind: "existing"; conversationId: string; provider: Provider }
-  | { kind: "archived"; conversationId: string; provider: Provider }
   | { kind: "new"; root: string; canvas?: Canvas }
   | { kind: "resume"; root: string; canvas: Canvas; provider: Provider };
 
@@ -35,15 +33,14 @@ export const EMPTY_DRAFT: DockedDraft = { segments: [], preset: null, attachment
 // The terminal session shares its canvas's new-conversation draft, so switching between the two keeps the text.
 // A canvas is keyed by its id when it has one, so a moved canvas keeps its draft.
 export function draftKey(mode: DockedMode): string {
-  if (mode.kind === "existing" || mode.kind === "archived") return `conversation:${mode.conversationId}`;
+  if (mode.kind === "existing") return `conversation:${mode.conversationId}`;
   const canvas = mode.canvas;
   if (!canvas) return `root:${mode.root}`;
   return `canvas:${JSON.stringify([mode.root, canvas.id === undefined ? "path" : "id", canvas.id ?? canvas.path])}`;
 }
 
-// Another project conversation holds the root (project_busy), or the canvas's current conversation still runs while
-// this archived one waits to be restored (restore busy). `open` is that conversation when the host knows it.
-export type DockedBusy = { kind: "project"; open: string | null } | { kind: "restore"; open: string | null };
+// Another project conversation holds the root (project_busy). `open` is that conversation when the host knows it.
+export type DockedBusy = { kind: "project"; open: string | null };
 // alert: a moved or deleted file, shown as an error notice as on Home; the other reasons are a quiet line.
 export interface DockedReason { text: string; open?: string; action?: SettingsAction; alert?: true; noAgent?: true }
 
@@ -79,7 +76,7 @@ export function composerTurn(events: readonly ConversationEvent[] | null, summar
 }
 
 // Send's state and the reason line under the card. Home's reasons (agent, length, {{ }}, checking, a moved file) are
-// shared; the docked ones are a fixed provider that cannot run, the project and restore limits, and the permission
+// shared; the docked ones are a fixed provider that cannot run, the project limit, and the permission
 // wait, which explains the line without disabling Queue.
 export function dockedAvailability(input: DockedInput): { enabled: boolean; reason: DockedReason | null } {
   const { draft, mode } = input;
@@ -100,7 +97,6 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
 
 function busyReason(busy: DockedBusy, project: string): DockedReason {
   const open = busy.open ? { open: busy.open } : {};
-  if (busy.kind === "restore") return { text: "The current conversation on this canvas is still running.", ...open };
   return { text: anotherConversation(project), ...open };
 }
 
@@ -146,7 +142,6 @@ export function carryDraft(drafts: ReadonlyMap<string, DockedDraft>, from: strin
 // resets: a usage-limit refusal's reset time as limitReset.ts words it; only a start names it.
 export function dockedRefusal(code: string, mode: DockedMode, provider: Provider, project: string, resets: string | null = null): DockedRefusal {
   if (code === "project_busy") return { kind: "busy", busy: { kind: "project", open: null } };
-  if (mode.kind === "archived" && code === "busy") return { kind: "busy", busy: { kind: "restore", open: null } };
   if (code === "canvas_not_found") return { kind: "gone" };
   if (mode.kind === "new") return { kind: "notice", text: startErrorView(code, provider, project, resets).text };
   if (mode.kind === "resume") return { kind: "notice", text: resumeRefusalText(code, provider) };
@@ -204,12 +199,12 @@ export function composerPlaceholder(input: PlaceholderInput): { text: string; su
   return { text: input.suggestion, suggestion: input.suggestion };
 }
 
-// Shown instead of the composer when an archived conversation's canvas left the project.
+// Shown instead of the composer when the conversation's canvas left the project.
 export function canvasGoneText(project: string): string {
   return `This conversation’s canvas is no longer in ${project}, so it can’t continue.`;
 }
 
-// An existing or archived conversation keeps its provider: the picker lists only that provider's models and names
+// An existing conversation keeps its provider: the picker lists only that provider's models and names
 // the model with the provider in brackets ("Model: Opus 5.5 (Claude Code)").
 export function dockedPicker(view: ModelPickerView, mode: DockedMode): ModelPickerView {
   if (mode.kind === "new") return view;

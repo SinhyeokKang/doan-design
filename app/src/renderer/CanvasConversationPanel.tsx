@@ -237,7 +237,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   useLayoutEffect(() => { if (held) run.choose("new"); }, [held]);
   const workKey = JSON.stringify(props.work);
   useEffect(() => { run.recheckResume(); }, [workKey]);
-  const mode: DockedMode = conversationId && provider ? { kind: archived ? "archived" : "existing", conversationId, provider }
+  const mode: DockedMode = conversationId && provider ? { kind: "existing", conversationId, provider }
     : view.kind === "new" ? (held ? { kind: "new", root, canvas: target.canvas } : view.mode) : { kind: "new", root, canvas: target.canvas };
   const key = draftKey(mode);
   const draft = store.drafts.get(key) ?? EMPTY_DRAFT;
@@ -277,7 +277,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   // An existing conversation's send names the shown mode only once it is known: before the list names the
   // conversation, Default would overwrite the mode it was started in.
   const sentMode = mode.kind === "new" || summary || pick.permissionMode !== undefined ? permissionMode : undefined;
-  useEffect(() => { if (mode.kind === "existing" || mode.kind === "archived") support.settlePermission(key, summary ? stored : null); }, [key, stored, summary !== undefined, pick.permissionMode]);
+  useEffect(() => { if (mode.kind === "existing") support.settlePermission(key, summary ? stored : null); }, [key, stored, summary !== undefined, pick.permissionMode]);
   const choiceTouched = Object.keys(pick).length > 0;
   // An existing conversation's stored mode is remembered only when it is picked here: a model pick alone must not
   // carry a mode (Full access included) the person chose for that conversation into new ones.
@@ -429,7 +429,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     return { ok: true };
   };
   const queue = async (request: DockedRequest): Promise<DockedOutcome> => {
-    if (mode.kind !== "existing" && mode.kind !== "archived") return { error: "not_running" };
+    if (mode.kind !== "existing") return { error: "not_running" };
     const reply = await calls.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
     if ("error" in reply) return sendRefusal(reply);
     store.queued(root, mode.conversationId, queuedMessage(reply.itemId, request));
@@ -450,16 +450,12 @@ export function CanvasConversation(props: CanvasConversationProps) {
     }
   };
   const newView = view.kind === "new" ? view : null;
-  // The canvas's current conversation still works: a new conversation, or restoring an archived one, would end its
-  // turn, so Send waits with the busy line whose Open shows it.
-  const current = listed?.find(c => c.state === "current" && c.canvas !== undefined && sameCanvas(c.canvas, target.canvas));
-  const restoreBusy = archived && current && (current.working || current.phase !== "ended") ? { kind: "restore" as const, open: current.conversationId } : null;
-  const busy = newView?.start.busy ?? restoreBusy;
+  const busy = null;
   const openConversation = (id: string) => { props.onChoose?.(); run.select(id); };
   // A refused terminal session switches to the new conversation that shares its field; a conversation another sign-in
   // owns leaves for a new one on this canvas, taking the refused draft along.
   const startNewAfterRefusal = () => {
-    if (mode.kind !== "existing" && mode.kind !== "archived") { run.choose("new"); return; }
+    if (mode.kind !== "existing") { run.choose("new"); return; }
     store.setDrafts(drafts => carryDraft(drafts, key, draftKey({ kind: "new", root, canvas: target.canvas })));
     props.onChoose?.(); run.select(null);
   };
@@ -520,7 +516,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
           // A picked level belongs to the model it was picked for (Home keeps one per provider and model).
           ...(picked !== chosen || (value ?? null) !== model ? { effort: undefined } : {}), model: value ?? undefined })}
         onPickEffort={value => support.pick(key, { effort: value })} onPickFast={on => { support.pick(key, { fast: on }); if (chosen) props.onRemember?.({ provider: chosen, model, effort, ...modelPicked, fast: on }); }}
-        permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "existing" || mode.kind === "archived" ? mode.conversationId : null, value, summary ? stored : undefined)}
+        permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "existing" ? mode.conversationId : null, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}

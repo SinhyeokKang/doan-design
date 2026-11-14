@@ -4,7 +4,9 @@ import type { Canvas, Runtime } from "../main/conversation/types";
 import type { WorkItem } from "../main/workState";
 import type { SettingsAction } from "./agentAuthView";
 import { sameCanvas } from "./canvasConversationRows";
+import { conversationWork } from "./conversationList";
 import { dockedRefusal, type DockedBusy, type DockedMode } from "./dockedRules";
+import type { Slot } from "./homeConversations";
 import { MAX_ATTACHMENTS, startErrorView } from "./homeComposer";
 import { byActivity, menuItem, type MenuItem } from "./overviewConversation";
 
@@ -13,9 +15,13 @@ import { byActivity, menuItem, type MenuItem } from "./overviewConversation";
 // functions only decide.
 
 export const DRAWING_TEXT = "A project conversation is drawing this canvas. Sending here starts a separate conversation.";
-export const PROMOTED_TEXT = "A project conversation is now current on this canvas.";
+export const PROMOTED_TEXT = "A project conversation moved to this canvas.";
 // Shown above the composer with Open on `open`.
 export interface CanvasNotice { kind: "drawing" | "promoted"; text: string; open: string }
+// The accessible name of the notice's Open.
+export function noticeOpenName(kind: CanvasNotice["kind"]): string {
+  return kind === "drawing" ? "Open the project conversation" : "Open the moved conversation";
+}
 
 export type CanvasPick =
   | { kind: "wait" }
@@ -40,6 +46,7 @@ export interface CanvasPickContext {
 
 const onCanvas = (c: ConversationSummary, canvas: Canvas) => c.canvas !== undefined && sameCanvas(c.canvas, canvas);
 
+// The single-current-conversation pick, kept only until canvasRun moves to pickShownConversation and canvasNotice.
 // Design §2 'Conversation panel': the requested conversation, else this canvas's current one, else a new conversation.
 // An archived conversation shows only when asked for. Once something shows, a list change keeps it: a promotion while
 // the panel is open is announced instead of switching.
@@ -66,19 +73,112 @@ export function pickCanvasConversation(list: readonly ConversationSummary[] | "l
   return current ? show(current, null) : { kind: "new", listError: false, notice: drawing };
 }
 
-export interface CanvasMenuItem extends MenuItem { archived: boolean; selected: boolean }
-
-// This canvas's conversations: the current one first, then by latest activity.
-export function canvasConversationMenu(list: readonly ConversationSummary[], canvas: Canvas, shown: string | null, now: number, seen: ReadonlySet<string> = new Set()): CanvasMenuItem[] {
-  const mine = list.filter(c => onCanvas(c, canvas));
-  const ordered = [...mine.filter(c => c.state === "current").sort(byActivity), ...mine.filter(c => c.state !== "current").sort(byActivity)];
-  return ordered.map(c => ({ ...menuItem(c, now, seen), archived: c.state === "archived", selected: c.conversationId === shown }));
+// The conversation that waited for an answer longest: a waiting conversation's last event is its request, so the
+// oldest activity started waiting first; main lists conversations in start order, which breaks ties.
+export function earliestWaiting(mine: readonly ConversationSummary[]): ConversationSummary | undefined {
+  let first: ConversationSummary | undefined;
+  for (const c of mine) if (c.phase === "waiting" && (first === undefined || c.lastActivityAt < first.lastActivityAt)) first = c;
+  return first;
 }
 
-// Seen only while the panel is open, the window has focus and the conversation shows; an archived one has no unseen
-// ending to mark. `end` is the shown thread's last turn seq (null: nothing ended yet), `seen` the last one marked.
+export interface ShownInput {
+  list: readonly ConversationSummary[] | "loading" | "error";
+  canvas: Canvas;
+  requested: string | null;
+  // What shows now: a conversation, null for the new conversation state, undefined before the first pick and after
+  // the shown conversation is deleted.
+  shown: string | null | undefined;
+  // The conversation last seen on this canvas on this device (ui-state); undefined until ui-state has been read.
+  remembered: string | null | undefined;
+  // The prototype window's target canvas left the project or shares its id with another.
+  blocked?: "gone" | "duplicate" | null;
+}
+export type ShownPick =
+  | { kind: "wait" }
+  // The requested conversation is not listed yet (a start's reply can overtake its list notice).
+  | { kind: "reread"; conversationId: string }
+  | { kind: "conversation"; conversationId: string }
+  // listError: the list could not be read; the composer can still start a conversation.
+  | { kind: "new"; listError: boolean }
+  | { kind: "blocked"; reason: "gone" | "duplicate" };
+
+// Which conversation a canvas panel shows, in the main window and the prototype window alike, also after a delete and
+// for a sidebar canvas row: the request, else a conversation waiting for an answer, else the one last seen here, else
+// the most recent, else the new conversation state. Whatever shows stays across list reads: re-picking on every read
+// would let each newly waiting conversation pull the panel away.
+export function pickShownConversation(input: ShownInput): ShownPick {
+  const { list, canvas, shown } = input;
+  if (input.blocked) return { kind: "blocked", reason: input.blocked };
+  if (list === "loading" || list === "error") {
+    if (typeof shown === "string") return { kind: "conversation", conversationId: shown };
+    if (shown === null) return { kind: "new", listError: list === "error" };
+    return list === "loading" ? { kind: "wait" } : { kind: "new", listError: true };
+  }
+  const mine = list.filter(c => onCanvas(c, canvas));
+  const show = (c: ConversationSummary): ShownPick => ({ kind: "conversation", conversationId: c.conversationId });
+  if (input.requested !== null) {
+    const asked = list.find(c => c.conversationId === input.requested);
+    if (!asked) return { kind: "reread", conversationId: input.requested };
+    // The panel shows only this canvas's conversations; a request for another falls back to the default.
+    if (onCanvas(asked, canvas)) return show(asked);
+  }
+  if (shown === null) return { kind: "new", listError: false };
+  const still = typeof shown === "string" ? mine.find(c => c.conversationId === shown) : undefined;
+  if (still) return show(still);
+  if (input.remembered === undefined) return { kind: "wait" };
+  const pick = earliestWaiting(mine) ?? mine.find(c => c.conversationId === input.remembered) ?? [...mine].sort(byActivity)[0];
+  return pick ? show(pick) : { kind: "new", listError: false };
+}
+
+// The conversation a sidebar canvas row's slot stands for when that slot opens the panel (an answer waited for, an
+// unseen ending), by the slot's own rule: Home conversations, the first listed of that kind. Otherwise null, and the
+// panel picks by pickShownConversation.
+export function sidebarRowRequest(list: readonly ConversationSummary[], canvas: Canvas, slot: Slot["kind"] | null, seen: ReadonlySet<string>): string | null {
+  if (slot !== "permission" && slot !== "unseen") return null;
+  return list.find(c => c.fromHome && onCanvas(c, canvas) && conversationWork(c, seen)?.kind === slot)?.conversationId ?? null;
+}
+
+export interface NoticeContext {
+  // The list read before this one: a conversation on this canvas that was a project conversation there was just promoted.
+  previous?: readonly ConversationSummary[] | null;
+  // A promotion the panel announces now. It stays while that conversation is on this canvas, because main reads the
+  // list again right after a bind and the read before it no longer shows the change; the host drops it when the
+  // person acts.
+  promoted?: string | null;
+  // A project conversation drawing this canvas before its promotion is judged, as the host knows it.
+  drawing?: string | null;
+}
+
+// The notice above the composer. A promotion joins the canvas without moving the panel, so it is announced unless the
+// panel already shows it; a drawing project conversation is announced only over the new conversation state.
+export function canvasNotice(list: readonly ConversationSummary[], canvas: Canvas, shown: string | null, context: NoticeContext = {}): CanvasNotice | null {
+  const promoted = list.find(c => onCanvas(c, canvas) && (c.conversationId === context.promoted
+    || context.previous?.some(p => p.conversationId === c.conversationId && p.canvas === undefined)));
+  if (promoted && promoted.conversationId !== shown) return { kind: "promoted", text: PROMOTED_TEXT, open: promoted.conversationId };
+  return shown === null && context.drawing ? { kind: "drawing", text: DRAWING_TEXT, open: context.drawing } : null;
+}
+
+// The title menu's order: this canvas's conversations by latest activity. While the menu is open (`frozen`, the order
+// it opened with) rows keep their places and a new conversation goes at the end, so a row never moves under the pointer.
+export function titleMenuOrder(list: readonly ConversationSummary[], canvas: Canvas, frozen: readonly string[] | null): string[] {
+  const ids = list.filter(c => onCanvas(c, canvas)).sort(byActivity).map(c => c.conversationId);
+  if (frozen === null) return ids;
+  const listed = new Set(ids), kept = frozen.filter(id => listed.has(id)), known = new Set(kept);
+  return [...kept, ...ids.filter(id => !known.has(id))];
+}
+
+export interface CanvasMenuItem extends MenuItem { selected: boolean }
+
+// This canvas's conversations in titleMenuOrder; `selected` is the one the panel shows (the pressed row).
+export function canvasConversationMenu(list: readonly ConversationSummary[], canvas: Canvas, shown: string | null, now: number, seen: ReadonlySet<string> = new Set(), frozen: readonly string[] | null = null): CanvasMenuItem[] {
+  const byId = new Map(list.map(c => [c.conversationId, c]));
+  return titleMenuOrder(list, canvas, frozen).map(id => ({ ...menuItem(byId.get(id)!, now, seen), selected: id === shown }));
+}
+
+// Seen only while the panel is open, the window has focus and the conversation shows. `end` is the shown thread's
+// last turn seq (null: nothing ended yet), `seen` the last one marked.
 export function shouldMarkSeen(panelOpen: boolean, focused: boolean, shown: string | null, summary: ConversationSummary | undefined, seq: { end: number | null; seen: number }): boolean {
-  if (!panelOpen || !focused || !summary || summary.conversationId !== shown || summary.state === "archived") return false;
+  if (!panelOpen || !focused || !summary || summary.conversationId !== shown) return false;
   return seq.end !== null && seq.end > seq.seen;
 }
 
@@ -98,19 +198,15 @@ export interface NewConversationView {
   offer: Runtime | null;
   // pending: the resume target has not answered, so Send waits rather than sending in a mode a late choice would change.
   pending: boolean;
-  // The canvas's current conversation is still working; starting another would end its turn.
-  busy: DockedBusy | null;
 }
 
 // `choice` is the person's pick between the terminal session and a new conversation; a refused terminal session's
-// "Start a new conversation" sets it to new.
-export function newConversationMode(resumeTarget: ResumeTarget | undefined, prefs: { choice?: "resume" | "new"; current?: ConversationSummary }): NewConversationView {
-  const c = prefs.current;
-  // The restore busy line reads the same: "The current conversation on this canvas is still running."
-  const busy: DockedBusy | null = c && c.state === "current" && (c.working || c.phase !== "ended") ? { kind: "restore", open: c.conversationId } : null;
-  if (resumeTarget === undefined) return { mode: "new", offer: null, pending: true, busy };
-  if ("available" in resumeTarget && resumeTarget.available) return { mode: prefs.choice ?? "resume", offer: resumeTarget.runtime, pending: false, busy };
-  return { mode: "new", offer: null, pending: false, busy };
+// "Start a new conversation" sets it to new. Another conversation working on the canvas never holds a new one: they
+// run side by side.
+export function newConversationMode(resumeTarget: ResumeTarget | undefined, prefs: { choice?: "resume" | "new" }): NewConversationView {
+  if (resumeTarget === undefined) return { mode: "new", offer: null, pending: true };
+  if ("available" in resumeTarget && resumeTarget.available) return { mode: prefs.choice ?? "resume", offer: resumeTarget.runtime, pending: false };
+  return { mode: "new", offer: null, pending: false };
 }
 
 export function canvasUnlistedText(project: string): string { return `This canvas isn’t listed in ${project}, so its conversation can’t continue.`; }

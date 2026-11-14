@@ -154,16 +154,6 @@ test("a terminal session shows the fixed Permission trigger and no picker", asyn
   expect(await panel([], () => {}, { support: support(), prefs: { permissions: { claude: "bypass" } } })).toContain('data-mode="bypass"');
 });
 
-test("restoring an archived conversation waits while the current one works, with Open", async () => {
-  const out = await panel([summary("now", { phase: "running", working: true }), summary("old", { state: "archived" })], run => {
-    run.select("old");
-    run.store.setDrafts(drafts => new Map(drafts).set("conversation:old", { segments: textSegments("Align the totals too"), preset: null, attachments: [], shape: "capsule" }));
-  });
-  expect(out).toContain("<span>The current conversation on this canvas is still running.</span>");
-  expect(out).toContain('aria-label="Open the running conversation"');
-  expect(out).toMatch(/aria-label="Send"[^>]*disabled=""/);
-});
-
 test("a canvas outside the list keeps the draft in a field that takes no input, with the reason", async () => {
   const reason = "This canvas isn’t listed in acme-web, so its conversation can’t continue.";
   const out = await panel([summary("now")], () => {}, { blocked: reason });
@@ -230,11 +220,11 @@ test("New while the list loads holds Send after the session answers, until the l
   expect(draw()).toMatch(/aria-label="Send"[^>]*disabled=""/);
   lists.set(ROOT, [summary("now", { phase: "running", working: true })]);
   run.sync();
-  // The canvas's current conversation shows by default; New again keeps the draft and shows its busy line.
+  // The running conversation shows by default; New again keeps the draft and sends beside it.
   run.select(null);
   const out = draw();
-  expect(out).toMatch(/aria-label="Send"[^>]*disabled=""/);
-  expect(out).toContain("<span>The current conversation on this canvas is still running.</span>");
+  expect(out).not.toMatch(/aria-label="Send"[^>]*disabled=""/);
+  expect(out).not.toContain("The current conversation on this canvas is still running.");
 });
 
 // BV2 6p: main reads the list again right after a bind; the notice and what shows stay.
@@ -257,7 +247,7 @@ test("a promotion while the panel is open keeps New conversation with the notice
   };
   const out = renderToStaticMarkup(<TooltipProvider><CanvasConversation {...props} /></TooltipProvider>);
   expect(canvasConversationTitle(run, list).title).toBe("New conversation");
-  expect(out).toContain("<span>A project conversation is now current on this canvas.</span>");
+  expect(out).toContain("<span>A project conversation moved to this canvas.</span>");
   expect(out).toContain('aria-label="Open the current conversation"');
 });
 

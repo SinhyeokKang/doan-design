@@ -336,9 +336,8 @@ export class CanvasRun {
     return true;
   }
   private newView(s: CanvasState, listError: boolean): CanvasView {
-    const current = this.listed(s.target.root).find(c => c.state === "current" && c.canvas !== undefined && sameTarget(c.canvas, s.target.canvas));
     const resume = s.resume;
-    const mode = newConversationMode(resume, { ...(s.choice ? { choice: s.choice } : {}), ...(current ? { current } : {}) });
+    const mode = newConversationMode(resume, { ...(s.choice ? { choice: s.choice } : {}) });
     // Until the first list read answers, nobody knows whether the canvas's current conversation still works, and a new
     // conversation would end its turn: Send waits as for the terminal session. A failed read lets a new one start.
     const start = this.host.list(s.target.root) === "loading" ? { ...mode, pending: true } : mode;

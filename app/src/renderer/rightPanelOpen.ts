@@ -1,6 +1,9 @@
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
+import { earliestWaiting } from "./canvasConversation";
+import { sameCanvas } from "./canvasConversationRows";
 import { conversationWork } from "./conversationList";
+import { byActivity } from "./overviewConversation";
 import type { Slot } from "./homeConversations";
 
 // When the canvas page's conversation panel opens, where focus goes, the Show conversation dot and the work capsule's
@@ -47,6 +50,22 @@ export function openButtonBadge(current: ConversationSummary | undefined, panelO
   if (work?.kind === "permission") return { kind: "permission", label: "Show conversation, needs your answer" };
   if (work?.kind === "unseen") return { kind: "unseen", label: "Show conversation, conversation finished unread" };
   return null;
+}
+
+export interface CanvasSignal { kind: "permission" | "working" | "unseen"; label: string; conversationId: string }
+
+// The folded main-window panel's Show conversation badge: the strongest signal across every conversation of the
+// canvas, an answer needed, then working, then an unseen ending. A schedule for the usage limit is not one. Working
+// may hide another conversation's unseen bubble; the badge names the conversation that unfolding then shows: the one
+// waiting longest, else the most recent.
+export function canvasStrongestSignal(list: readonly ConversationSummary[], canvas: Canvas, seen: ReadonlySet<string> = new Set()): CanvasSignal | null {
+  const listed = list.filter(c => !c.readError && c.canvas !== undefined && sameCanvas(c.canvas, canvas));
+  const waiting = earliestWaiting(listed), mine = [...listed].sort(byActivity);
+  if (waiting) return { kind: "permission", label: "Show conversation, needs your answer", conversationId: waiting.conversationId };
+  const working = mine.find(c => c.phase === "running" || c.working);
+  if (working) return { kind: "working", label: "Show conversation, agent is working", conversationId: working.conversationId };
+  const unseen = mine.find(c => conversationWork(c, seen)?.kind === "unseen");
+  return unseen ? { kind: "unseen", label: "Show conversation, conversation finished unread", conversationId: unseen.conversationId } : null;
 }
 
 // The work capsule stops a working turn; while the agent waits for an answer it offers Open, and stopping is the

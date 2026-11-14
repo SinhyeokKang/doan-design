@@ -293,15 +293,7 @@ test("a project conversation drawing this canvas is announced in the new convers
   h.state.drawing = P;
   h.run.show(checkout);
   h.answer([summary(P, { canvas: null, working: true, phase: "running" })]);
-  expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "drawing", text: DRAWING_TEXT, open: P }, start: { busy: null } });
-});
-
-test("while the canvas's current conversation works, the new conversation state holds Send with the busy line", () => {
-  const h = harness();
-  h.run.show(checkout);
-  h.answer([summary(A, { phase: "running", working: true })]);
-  h.run.select(null);
-  expect(h.run.view()).toMatchObject({ kind: "new", start: { busy: { kind: "restore", open: A } } });
+  expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "drawing", text: DRAWING_TEXT, open: P } });
 });
 
 test("the terminal session is asked once per visit, holds Send until it answers, and a late answer is dropped", async () => {
@@ -365,17 +357,6 @@ test("seen only while the panel is open with the window focused and the conversa
   expect(h.host.markSeen).toHaveBeenCalledWith(A, 3);
   h.run.focusChanged();
   expect(h.host.markSeen).toHaveBeenCalledTimes(1);
-});
-
-test("an archived conversation shown in the panel is never marked seen", async () => {
-  const h = harness();
-  histories.set(B, ended(B));
-  h.run.panel(true);
-  h.run.show(checkout);
-  h.answer([summary(B, { state: "archived" })]);
-  h.run.select(B);
-  await flush();
-  expect(h.host.markSeen).not.toHaveBeenCalled();
 });
 
 // Choosing New again while a start is in flight is a newer choice than that start.
@@ -445,7 +426,7 @@ test("New chosen while the list loads holds Send until the list answers; a faile
   expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: true, offer: null } });
   h.answer([summary(A, { phase: "running", working: true })]);
   h.run.select(null);
-  expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false, busy: { kind: "restore", open: A } } });
+  expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false } });
   const failed = harness();
   failed.run.show(checkout);
   failed.run.select(null);
