@@ -64,7 +64,8 @@ import { captureAvailability } from "./canvasCapture";
 import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT, sidebarRowRequest } from "./canvasConversation";
 import { canvasStrongestSignal, panelOpenFor, type CanvasSignal, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
 import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
-import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad, type Rect } from "./canvasPicker";
+import { bubbleAddAvailability, PICKER_UNAVAILABLE, pickerAvailability, targetAnchor, type CanvasLoad, type Rect } from "./canvasPicker";
+import { BubbleAdd } from "./BubbleAdd";
 import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
 import type { PrototypeReveal } from "../main/prototype/ipc";
@@ -137,6 +138,10 @@ export class FocusIntent {
   holds(): boolean { return this.live; }
   end(): void { this.live = false; window.removeEventListener("focusin", this.moved, true); }
 }
+
+// Add to message's chip while a folded panel unfolds: the composer (and canvas) it was pressed for, and the focus it
+// may still take.
+interface WaitingChip { anchor: Anchor; composer: string | null; panel: string | null; focus: FocusIntent }
 
 // Main replaces the main window's ui-state wholesale on each save, so every save carries Home's memory, and none is
 // sent before that memory was read (it would be dropped).
@@ -287,6 +292,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // last render.
   const playButton = useRef<HTMLButtonElement | null>(null);
   const playNext = useRef<PlayRequest | null>(null);
+  // The size bubble's Add to message: the controller's host it renders into (once the bubble is built), its button,
+  // the toolbar's Picker that focus goes to when the bubble goes, and the chip waiting for a folded panel to unfold.
+  const [bubbleHost, setBubbleHost] = useState<HTMLElement | null>(null);
+  const bubbleAddButton = useRef<HTMLButtonElement | null>(null);
+  const pickerButton = useRef<HTMLButtonElement | null>(null);
+  const waitingChip = useRef<WaitingChip | null>(null);
   const [reroot, setReroot] = useState<(FolderFocus & { seq: number }) | null>(null);
   // `rerootSeq` counts the re-root focuses seen; Set Up keeps the count at its start so a re-root from before it is not
   // taken for its own. `locateFrom` is the root a Locate is waiting on: main reports that move as a re-root focus too,
@@ -584,6 +595,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       onPlay: () => sendPlay(playNext.current),
       // The bubble went while it had focus: the toolbar's Play is the visible control for the same action.
       onFocusLost: () => { (playButton.current?.isConnected ? playButton.current : viewport.current)?.focus({ preventScroll: true }); },
+    };
+    instance.bubbleAdd = {
+      host: element => setBubbleHost(element),
+      onAdd: () => live.current.addToMessage(),
+      button: () => bubbleAddButton.current,
+      // The bubble went while Add to message had focus: the toolbar's Picker is the visible control that adds a chip.
+      onFocusLost: () => { (pickerButton.current?.isConnected ? pickerButton.current : viewport.current)?.focus({ preventScroll: true }); },
     };
     // The overlay covers the canvas, so its view commands do nothing meanwhile (ARCHITECTURE §7 'Problem overlay').
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace" && !overlaidRef.current) instance.command(name); });
@@ -999,8 +1017,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {}, forgetRemoved: (_paths: readonly string[]) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest, prototypeReveal, prototypeLastUsed, conversationHandoff, handoffCheck, forgetRemoved };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, addToMessage: () => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {}, forgetRemoved: (_paths: readonly string[]) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, addToMessage, captured, followMode, openLink, openCanvasRequest, prototypeReveal, prototypeLastUsed, conversationHandoff, handoffCheck, forgetRemoved };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -1033,6 +1051,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useLayoutEffect(() => {
     for (const node of document.querySelectorAll<HTMLElement>(".workspace > :is(.ov-main, .doan-overview-handle, .doan-conv-column)"))
       node.toggleAttribute("inert", overlaidRef.current || (node.matches(".doan-conv-column") && !rightPanelRef.current.open));
+  });
+  // Add to message's chip for a folded panel, once the inert above is off: a focus call before it would fail.
+  useLayoutEffect(() => {
+    const pending = waitingChip.current;
+    if (pending === null || !rightPanelRef.current.open) return;
+    waitingChip.current = null;
+    insertAdd(pending);
   });
   // The overlay just went with focus in it (focus fell to the page): it goes to the uncovered body instead (PRODUCT §5 item 3
   // 'Problem states'). After the inert above comes off, or the composer still refuses focus; ahead of the recovery focus below,
@@ -1907,6 +1932,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const composerChips = composerKey ? distinctTargets(overviewRun.current!.store.drafts.get(composerKey)?.segments ?? []) : 0;
   const pickerView = panelTarget !== null ? pickerAvailability(panelBlocked, canvasLoad, composerChips) : { enabled: false, reason: PICKER_UNAVAILABLE };
   const pickerReady = pickerView.enabled;
+  // The size bubble's Add to message makes the chip a pick of the selection would; the selection itself stays.
+  const bubbleAnchor = state.selection ? targetAnchor(state.selection) : null;
+  const bubbleAddView = bubbleAddAvailability({ capturing: state.capturing, anchor: bubbleAnchor, picker: pickerView, unlisted: panelTarget !== null && state.unlisted ? canvasUnlistedText(panelProject) : null });
   // Edit > Pick from Canvas follows the canvas toolbar's Picker: the canvas page, with the picker available (the
   // composer takes input and the canvas is loaded).
   const canvasPageShown = screen === "workspace" && !!state.open && shownOverview === null;
@@ -1958,6 +1986,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (picking) { pressedCancel(); instance.cancelPick(); return; }
     if (!pickerReady) return;
     const from = document.activeElement, field = composerLink.current?.element() ?? null;
+    // The pick clears the selection, so a bubble button it starts from (⌘L) is about to go: the field takes focus first,
+    // where a cancel leaves it, so focus never falls to the page body.
+    if (from !== null && (from === bubbleAddButton.current || from === instance.bubblePlayButton())) composerLink.current?.focus();
     // The picker, the page, the canvas and the field itself are where a pick leaves focus; anything else ends it.
     const focus = new FocusIntent(target => !target || target === from || target === document.body || target === field
       || (target instanceof Node && !!viewport.current?.contains(target)));
@@ -1972,6 +2003,29 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (overlaidRef.current) return;
     if (!picking && pickerReady && !rightPanelRef.current.open && panelOpenFor({ kind: "picker" }, null).open === true) foldPanel(true, "content");
     togglePick();
+  }
+  // The size bubble's Add to message: the selection's chip at the panel composer's caret, as a pick of it would put it,
+  // with the selection, the bubble and `doan active` left as they are. A folded panel unfolds as for the Picker; its
+  // composer stays mounted but inert until that commit, so the chip waits for it (the layout effect after the inert one).
+  function addToMessage() {
+    if (overlaidRef.current || !bubbleAddView.enabled || bubbleAnchor === null) return;
+    waitingChip.current?.focus.end();
+    waitingChip.current = null;
+    const from = document.activeElement, field = composerLink.current?.element() ?? null;
+    const focus = new FocusIntent(target => !target || target === from || target === document.body || target === field);
+    const pending: WaitingChip = { anchor: bubbleAnchor, composer: composerKey, panel: panelKey, focus };
+    if (!rightPanelRef.current.open && panelOpenFor({ kind: "picker" }, null).open === true) { waitingChip.current = pending; foldPanel(true, "content"); return; }
+    insertAdd(pending);
+  }
+  // Focus first, then the chip, for pickEnded's reason; a composing field gets the chip once the composition ends and no
+  // focus call. A chip for another canvas, another conversation or a composer that stopped taking input is dropped.
+  function insertAdd(pending: WaitingChip) {
+    const holds = pending.focus.holds();
+    pending.focus.end();
+    const link = composerLink.current;
+    if (!link || pending.panel !== panelKey || pending.composer !== canvasRun.current!.composerKey() || panelBlocked !== null) return;
+    if (holds && !link.composing()) link.focus();
+    link.insert(pending.anchor);
   }
   // The toolbar's Select and Hand cancel a pick, then switch (the controller); focus stays on the pressed tool.
   const chooseTool = (tool: CanvasState["tool"]) => {
@@ -2377,7 +2431,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, shown: canvasRun.current!.showing()?.conversationId ?? null, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
         onOpen: openRequest, onOpenSibling }}
-      picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} player={player} exporter={exporter} />
+      picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas, button: pickerButton }} capture={capture} player={player} exporter={exporter} />
+    {bubbleHost && <BubbleAdd host={bubbleHost} enabled={bubbleAddView.enabled} reason={bubbleAddView.reason} button={bubbleAddButton} onEscape={event => controller.current?.toolbarEscape(event)} />}
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={null}

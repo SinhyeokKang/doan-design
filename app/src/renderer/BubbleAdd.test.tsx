@@ -25,7 +25,7 @@ describe("BubbleAddButton", () => {
     expect(button(nodes).props["aria-describedby"]).toBeUndefined();
     expect(button(nodes).props.ref).toBe(ref);
     expect(nodes.some(node => typeof node.type !== "string" && (node.type as { displayName?: string }).displayName === "Crosshair")).toBe(true);
-    expect(text(content(nodes).props.children)).toBe("Add to message");
+    expect(text(content(nodes).props.children as ReactNode)).toBe("Add to message");
   });
 
   // aria-disabled, not disabled: the button keeps focus and its tooltip, and its reason is read while the tooltip is closed.
@@ -37,8 +37,8 @@ describe("BubbleAddButton", () => {
     const described = button(nodes).props["aria-describedby"] as string;
     const description = nodes.find(node => node.props.id === described)!;
     expect(description.props.className).toBe("sr-only");
-    expect(text(description.props.children)).toBe(reason);
-    expect(text(content(nodes).props.children)).toBe(reason);
+    expect(text(description.props.children as ReactNode)).toBe(reason);
+    expect(text(content(nodes).props.children as ReactNode)).toBe(reason);
   });
 
   // Radix opens a tooltip on its trigger's focus, so the keyboard sees the name or the reason as the pointer does.

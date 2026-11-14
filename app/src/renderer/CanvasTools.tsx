@@ -29,7 +29,8 @@ const TOOLS: readonly { tool: CanvasTool; label: string; key: string; Icon: type
 const EXPORT_REASON_ID = "canvas-export-reason";
 const PLAY_REASON_ID = "canvas-play-reason";
 const CAPTURE_REASON_ID = "canvas-capture-reason";
-export interface PickerTool { enabled: boolean; reason: string | null; onToggle(): void }
+// `button` lets App focus the Picker when the size bubble's Add to message goes away.
+export interface PickerTool { enabled: boolean; reason: string | null; onToggle(): void; button?: RefObject<HTMLButtonElement | null> }
 export interface CaptureTool { enabled: boolean; reason: string | null; onToggle(): void }
 export interface ExportTool { reason: string | null; onExport(button: HTMLElement): void }
 export interface PlayTool { reason: string | null; onPlay(): void; button?: RefObject<HTMLButtonElement | null> }
@@ -46,7 +47,7 @@ export function CanvasTools({ tool, picking, capturing, onTool, picker, capture,
         tabIndex={pressed(own) ? 0 : -1} onClick={() => onTool(own)}><Icon aria-hidden="true" /></button>
     </TooltipTrigger><TooltipContent className="has-key" onEscapeKeyDown={onEscape}>{label}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">{key}</span></TooltipContent></Tooltip>)}
     <Tooltip><TooltipTrigger asChild>
-      <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={picking} aria-label="Pick from canvas" aria-keyshortcuts="Meta+L"
+      <button ref={picker.button} type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={picking} aria-label="Pick from canvas" aria-keyshortcuts="Meta+L"
         aria-disabled={!picker.enabled || undefined} tabIndex={picking ? 0 : -1} onClick={() => { if (picker.enabled) picker.onToggle(); }}><Crosshair aria-hidden="true" /></button>
     </TooltipTrigger>{picker.enabled
       ? <TooltipContent className="has-key" onEscapeKeyDown={onEscape}>Pick from canvas<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘L</span></TooltipContent>

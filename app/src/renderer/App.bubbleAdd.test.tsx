@@ -123,6 +123,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 const find = <P,>(type: unknown) => all(tree).filter(element => element.type === type) as unknown as ReactElement<P>[];
 function folders(entries: FolderEntry[]) { listeners.folders!(entries as never); render(); }
+const clearController = () => { for (const mock of Object.values(harness.controller!)) if (vi.isMockFunction(mock)) mock.mockClear(); };
 
 
 type Panel = { open: boolean; width: number; onHide(): void; onResize(width: number | undefined): void };
@@ -178,6 +179,7 @@ test("Add to message waits for the controller's host, then renders into it with 
 
 test("a press with the panel open puts the selection's chip at the field's caret, focus first, and leaves the selection alone", async () => {
   const { link } = await bubbleWithComposer();
+  clearController();
   hook().onAdd(); render();
   expect(link.insert).toHaveBeenCalledExactlyOnceWith(ANCHOR);
   expect(link.focus).toHaveBeenCalledOnce();
