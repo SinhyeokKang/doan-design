@@ -1,25 +1,25 @@
 # new-project-folder — tasks
 
-`project-step-actions`가 develop에 병합된 뒤 최신 develop에서 시작한다. 작업 1(PoC)과 3–9는 `/ship bypass new-project-folder`로 간다. `/ship`의 범위 기준(§0)이 feature 문서가 필요한 변경을 멈추기 때문이다. 변경은 앱(main, preload, renderer) 안에만 있다. 에이전트가 읽는 글이 바뀌지 않으므로(`cli/internal/cli/skill.md:53`, `active.go:30`, `open_rules.go:82`는 "Add Project…"·"Add Projects"만 말한다) `/agent-eval`은 하지 않고, PR 본문에 그 이유를 적는다. 커밋 경계는 `/ship`을 따른다: 테스트(`test:`), 구현 하나(`feat:`), `/design-sync` 수정과 DESIGN.md, `/refactor`, 문서 승격(문서마다).
+`project-step-actions`는 develop에 병합됐다(PR #196, 0ca3828be). 작업 1(PoC)과 3–9는 `/ship bypass new-project-folder`로 간다. `/ship`의 범위 기준(§0)이 feature 문서가 필요한 변경을 멈추기 때문이다. 변경은 앱(main, preload, renderer) 안에만 있다. 에이전트가 읽는 글이 바뀌지 않으므로(`cli/internal/cli/skill.md:53`, `active.go:30`, `open_rules.go:82`는 "Add Project…"·"Add Projects"만 말한다) `/agent-eval`은 하지 않고, PR 본문에 그 이유를 적는다. 커밋 경계는 `/ship`을 따른다: 테스트(`test:`), 구현 하나(`feat:`), `/design-sync` 수정과 DESIGN.md, `/refactor`, 문서 승격(문서마다).
 
 - [ ] 1. PoC(`.scratch/new-project-folder/`, design.md 'PoC 의존'): 격리 앱(임시 userData·HOME·SHELL)에서 `dialog.showSaveDialog`를 시트로 연다.
   - 네이티브 입력으로 확인할 것: 이미 있는 폴더 이름으로 Create를 누르면 Replace를 묻는가, Replace와 Cancel이 각각 무엇을 돌려주는가; 대소문자만 다른 이름, `/`·`:`가 든 이름, `.`으로 시작하는 이름; 시트에 `title`과 `message` 중 무엇이 보이는가.
   - 함정: POSTMORTEM 2026-10-27·2026-11-13·2026-10-30(design.md). 변수 경로로 `rm`을 쓰지 않는다.
   - 검증: `node .scratch/new-project-folder/poc.mjs`가 관찰을 한 줄씩 찍고 완료 줄과 exit 0으로 끝난다. 관찰(통과·실패·날짜)이 design.md에 적혀 있다.
   - 커밋 경계: 결과를 적은 design.md 문서 커밋. 결과가 '이미 있음' 문구를 바꾸게 하면 초안 수정과 사용자 확인을 거친다.
-- [ ] 2. 초안 확인: 부작용 점검으로 고친 New folder 프레임을 사용자가 앱에서 확인한다(`project-step-actions` 작업 1과 같은 확인으로 끝낼 수 있다). 검증: 확인이 design.md '초안'에 적혀 있고, `doan check --repo . --json` 오류 0.
+- [x] 2. 초안 확인: 부작용 점검으로 고친 New folder 프레임을 사용자가 앱에서 확인한다(`project-step-actions` 작업 1과 같은 확인으로 끝낼 수 있다). 검증: 확인이 design.md '초안'에 적혀 있고, `doan check --repo . --json` 오류 0.
 - [ ] 3. `/tdd`: design.md '순수 함수' 1–5와 main·preload 채널을 고정하고 red를 확인한다.
   - `defaultProjectParent`: 등록된 프로젝트가 있을 때, 없을 때, HOME이 없을 때, HOME이 `/`일 때(`//repo`가 되지 않음). 클론 `defaultDestination`의 기존 테스트(`projectStep.test.ts`)가 가드한다.
   - `newFolderTarget`(`projects.test.ts`, 실제 임시 폴더): 만듦, 이미 있는 폴더, 이미 있는 파일, 깨진 심볼릭 링크, 대소문자만 다른 이름, 사라진 위치, 권한 거부와 읽기 전용(`chmod`, root면 건너뜀), `ENOTDIR`, `ENAMETOOLONG`, 상대 경로, 설정된 Doan 프로젝트 안(만들지 않음, 같은 이름이 있어도 `inside_project`가 먼저, 심볼릭 링크로 들어간 위치 포함).
   - `projectNotice`: 세 알림의 본문과 동작, `source: "folder"`. 파일이면 Choose another name만 있다.
   - `ProjectStep.newFolder`: 취소, 만듦 → 검사, 이미 있는 폴더 → 알림 → Use existing folder → 검사, 이미 있는 파일 → 알림, Choose another name(직전 부모)과 Change location(기본 위치), 프로젝트 안, 실패, 다른 동작 중이면 무시, 저장 창이 열린 동안 `picking()`, 기다리는 동안 세션이 끝나면 결과를 버림, 끌어 놓기 알림을 지움.
   - 포커스(`projectFocus.test.ts`): 취소하면 New folder로, 알림 안 버튼이 연 저장 창 취소는 그 버튼으로.
-  - 렌더: 카드 제목·설명, New folder가 두 쓰임새(`use="firstRun"`, 페이지)에 Choose folder 다음 `sm`으로, busy이면 비활성, 알림 동작이 각 명령에 이어짐. 카드 제목을 말하던 테스트(`Onboarding.test.tsx:236, 263`, `AddProjectsPage.test.tsx:18`)를 고친다.
+  - 렌더: 카드 제목·설명, New folder가 두 쓰임새(`use="firstRun"`, 페이지)에 Choose folder 다음 `sm`으로, busy이면 비활성, 알림 동작이 각 명령에 이어짐. 카드 제목을 말하던 테스트(`Onboarding.test.tsx:236, 266`, `AddProjectsPage.test.tsx:18`)와 `LocalFolderCard.interaction.test.tsx`의 카드 props를 고친다.
   - main(`index.test.ts`): `chooseFolder("project")`의 `properties`에 `createDirectory`(지금 `["openDirectory"]` 기대값을 고친다); `onboarding:new-folder`: 창이 아닌 보낸 쪽, 취소, 잘못된 `parent`이면 HOME, 넘기는 옵션(`createDirectory` 없음, `showsTagField: false`), 등록하지 않음, 창이 사라지면 `mkdir`하지 않음.
   - 채널: `senderAllowed.test.ts`, preload 채널 테스트. `AddProjectsPage.interaction.test.tsx` 등의 `Api`·`PageCalls`·`addPageApi` 목을 고친다.
   - 검증: `npm --prefix app test`가 새 테스트와 그 테스트를 담은 파일에서만 실패한다.
   - 커밋 경계: `test:`.
-- [ ] 4. `/implement`: 순수 함수, main 처리기와 `createDirectory`, preload, renderer 카드·알림·명령·포커스, 카드 제목을 말하는 주석(`folderDrop.ts:1`, `App.tsx:1299`, `Onboarding.tsx:350`).
+- [ ] 4. `/implement`: 순수 함수, main 처리기와 `createDirectory`, preload, renderer 카드·알림·명령·포커스, 카드 제목을 말하는 주석(`folderDrop.ts:1`, `App.tsx:1302`, `Onboarding.tsx:367`).
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`, `git diff --stat origin/develop -- schema app/src/formats cli`가 비어 있다.
   - 커밋 경계: 구현 하나(`feat:`).
 - [ ] 5. `/design-sync`: 초안의 New folder 프레임(`card-add-projects`, `card-first-run`, `save-panel`의 옵션, 네 알림, `after-create`)을 실제 앱과 맞춘다. DESIGN.md 'Add Projects page'와 'Onboarding'에 잰 값을 적고, "Open a local folder"를 말하는 줄을 고친다.
