@@ -62,7 +62,7 @@ function isText(event: ConversationEvent) { return event.type === "message.delta
 // project limit does. working also covers what the history cannot show: a turn waiting for its
 // judgement, a queue about to go out, a send waiting for the previous process. Main binds a canvas only after a turn
 // ends, so a working conversation with a canvas is a canvas one.
-const holdsRoot = (c: ConversationSummary) => c.state === "current" && c.working && !c.canvas;
+const holdsRoot = (c: ConversationSummary) => c.working && !c.canvas;
 // What keeps Home from starting another project conversation in the root: one that holds it, unless it waits for the
 // person's answer (main's projectBusy). The removal guard still counts a waiting one, which it stops first.
 export const blocksStart = (c: ConversationSummary) => holdsRoot(c) && c.phase !== "waiting";

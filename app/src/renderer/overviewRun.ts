@@ -346,7 +346,7 @@ export class OverviewRun {
     const shown = s.current?.conversationId ?? null;
     for (const c of list) {
       if (c.phase !== "waiting") { this.asked.delete(c.conversationId); continue; }
-      if (c.canvas || c.state !== "current" || c.conversationId === shown || this.asked.get(c.conversationId) === c.preview) continue;
+      if (c.canvas || c.conversationId === shown || this.asked.get(c.conversationId) === c.preview) continue;
       this.asked.set(c.conversationId, c.preview);
       this.host.toast(`${PROVIDER_NAMES[c.provider]} needs your answer in ${this.host.label(root)}.`, "Open", () => this.request(root, c.conversationId, "permission"));
     }

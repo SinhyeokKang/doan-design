@@ -8,7 +8,7 @@ import type { ListFocus } from "./ConversationDeleteDialog";
 import { focusAfterLeave, listKeyTarget } from "./listKeyboard";
 import { applyVisibility, thumbnailView, type ThumbnailState, type ThumbnailView } from "./thumbnails";
 
-// The Overview's right panel body: canvases with a current conversation.
+// The Overview's right panel body: one row per canvas conversation.
 
 export type CanvasList = readonly CanvasConversationRow[] | "loading" | "error";
 
@@ -33,8 +33,8 @@ export class RowFocusMemory {
   }
 }
 
-// What the visibility observer watches: each row's key with its canvas path. A canvas whose current conversation
-// changes keeps its path but React draws a new button for the new key, which must be observed again.
+// What the visibility observer watches: each row's key with its canvas path. Another conversation's row on the same
+// canvas keeps the path, but React draws a new button for its key, which must be observed again.
 export function observedRows(rows: readonly CanvasConversationRow[]): string {
   return rows.flatMap(item => item.row ? [`${item.key}\0${item.row.path}`] : []).join("\n");
 }
@@ -130,15 +130,16 @@ function Thumb({ view }: { view: ThumbnailView | null }) {
 function Row({ item, project, thumbnail, tabbable, open, focus, blur, children }: { item: CanvasConversationRow; project: string; thumbnail: ThumbnailView | null; tabbable: boolean; open(item: CanvasConversationRow): void; focus(): void; blur(to: EventTarget | null): void; children: ReactNode }) {
   const id = useId();
   const problem = item.problem ? canvasRowProblemText(item.problem, project) : null;
-  // A problem row is named by its canvas and described by its reason, so the reason is read once.
+  // The head is the conversation's title, and the caption line under it the canvas name (draft frame overview-rows).
+  // A problem row is named by its title and described by its canvas and reason, so the reason is read once.
   const named = problem === null ? {} : { "aria-labelledby": `${id}-name`, "aria-describedby": `${id}-why` };
   return <li className="cv-item">
     <button type="button" className="cv-row" data-key={item.key} data-path={item.row?.path} tabIndex={tabbable ? 0 : -1} aria-disabled={item.openable ? undefined : true} {...named}
       onClick={() => { if (item.openable) open(item); }} onFocus={focus} onBlur={event => blur(event.relatedTarget)}>
       <Thumb view={thumbnail} />
       <span className="cv-text">
-        {problem === null ? <><ConversationHead line={item} name={item.name} /><span className="cv-preview">{item.preview}</span></>
-          : <><b id={`${id}-name`}>{item.name}</b><small id={`${id}-why`} className={item.openable ? "note" : "err"}>{problem}</small></>}
+        {problem === null ? <><ConversationHead line={item} name={item.heading} /><small className="cv-canvas">{item.name}</small><span className="cv-preview">{item.preview}</span></>
+          : <><b id={`${id}-name`}>{item.heading}</b><small id={`${id}-why`} className={item.openable ? "cv-canvas note" : "cv-canvas err"}>{`${item.name} · ${problem}`}</small></>}
       </span>
     </button>
     {children}

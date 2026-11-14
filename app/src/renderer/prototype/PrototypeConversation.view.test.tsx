@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from "vitest";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import type { ConversationSummary } from "../../main/conversation/summary";
 import type { PrototypeView } from "../../main/prototype/ipc";
@@ -117,7 +117,7 @@ describe("the headless body in the prototype window", () => {
     await playing();
     const panel = render();
     expect((window as { doan?: unknown }).doan).toBeUndefined();
-    // This window's calls, with its sends counted so a list read never moves a draft still being sent.
+    // This window's calls, with its starts held in its canvas run so a list read never moves a draft still being sent.
     expect(panel.props.calls).toBe(run.bodyCalls);
     expect((panel.props.calls as Record<string, unknown>).listConversationSkills).toBe(calls.listConversationSkills);
     expect(panel.props.pick).toBeUndefined();
@@ -235,8 +235,8 @@ describe("Last used from the prototype composer", () => {
 // prototype-head-menu). Its trigger uses aria-disabled, never disabled, so the head keeps a focus target while the list
 // is read or the canvas is blocked.
 describe("the head's conversation menu", () => {
-  let onPicked: ReturnType<typeof vi.fn>, onDelete: ReturnType<typeof vi.fn>;
-  beforeEach(() => { onPicked = vi.fn(); onDelete = vi.fn(() => true); });
+  let onPicked: Mock<() => void>, onDelete: Mock<(target: unknown, trigger: HTMLElement | null) => boolean>;
+  beforeEach(() => { onPicked = vi.fn<() => void>(); onDelete = vi.fn((_target: unknown, _trigger: HTMLElement | null) => true); });
   function head(): El {
     for (let round = 0; round < 20; round++) {
       hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.dirty = false;

@@ -1,13 +1,18 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { DropdownMenu } from "radix-ui";
+import { ChevronDown, Plus, SquarePen } from "lucide-react";
 import type { RevealPayload } from "../../main/prototype/ipc";
 import type { FolderEntry } from "../../main/view";
-import { CanvasConversation } from "../CanvasConversationPanel";
-import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT } from "../canvasConversation";
+import { CanvasConversation, startNewConversation } from "../CanvasConversationPanel";
+import { canvasConversationMenu, canvasUnlistedText, DUPLICATE_CANVAS_TEXT, titleMenuOrder } from "../canvasConversation";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
+import { ConversationDeleteItem, type DeleteTarget } from "../ConversationDeleteDialog";
+import { ConversationHead } from "../ConversationLine";
 import type { PrototypeConversationCalls, PrototypeConversationRun } from "./conversationRun";
 
-// The prototype window's conversation panel: the canvas panel's body, under the panel shell's head, on the playing
-// canvas's current conversation. Its thread chips, Sign in and Open buttons belong to the main window: they go to main as a reveal,
-// which brings the main window forward to act there; this window waits for nothing back.
+// The prototype window's conversation panel: the canvas panel's body, under the panel shell's head, on the conversation
+// this window's own canvas run shows. Its thread chips, Sign in and Open buttons belong to the main window: they go to
+// main as a reveal, which brings the main window forward to act there; this window waits for nothing back.
 
 export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {} }: {
   run: PrototypeConversationRun; calls: PrototypeConversationCalls; now: number; onNotice?(text: string): void;
@@ -43,26 +48,71 @@ export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {
     onOpenProjectConversation={conversationId => reveal({ kind: "conversation", conversationId })}
     onOpenPromoted={conversationId => reveal({ kind: "conversation", conversationId })}
     onOpenHandoff={(canvas, conversationId) => reveal({ kind: "handoff", canvas, ...(conversationId ? { conversationId } : {}) })}
-    work={run.work()} playing={run.playing()} listFailed={run.shown().kind === "list_error"} newFromRefusal={false} />;
+    work={run.work()} playing={run.playing()} />;
 }
 
-// The panel head's title, the shell's static h2 with the text in a span, since the h2 is a flex row and only the span
-// can end in an ellipsis. The whole title is the native tooltip only while it is cut short, as the frame name's rule;
-// the span's own resize (the window, the handle's drag and keys) and a new title judge it again. Focus comes here on
-// opening when the composer is not there yet.
-export function PrototypeHeadTitle({ run }: { run: PrototypeConversationRun }) {
-  const text = run.headTitle();
-  const span = useRef<HTMLSpanElement>(null);
-  const [cut, setCut] = useState(false);
-  useLayoutEffect(() => {
-    const node = span.current;
-    if (!node) return;
-    const measure = () => setCut(node.scrollWidth > node.clientWidth);
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [text]);
-  return <h2 className="phead rp-head" tabIndex={-1} title={cut ? text : undefined}><span className="pw-side-title" ref={span}>{text}</span></h2>;
+// The menu's value for New conversation: conversation ids are never empty.
+const NEW = "";
+
+// The panel head's title as the canvas's conversation menu, the main window's menu model (New conversation, the
+// canvas's conversations with their marks, Delete), followed by the head's New conversation. While the list is read or
+// the canvas is blocked the trigger is `aria-disabled`, not `disabled`, and opens nothing: it stays focusable, so it is
+// where focus goes on opening the panel before a composer shows. While the menu is open the rows keep the order they
+// opened in and a conversation started meanwhile goes last.
+export function PrototypeHeadMenu({ run, now, onPicked, onDelete }: {
+  run: PrototypeConversationRun; now: number;
+  // A row or New conversation was chosen and the menu closed: focus goes on to the composer.
+  onPicked(): void;
+  // A row's Delete: the host asks for confirmation and returns focus to `trigger`. False when it opens no alert.
+  onDelete(target: DeleteTarget, trigger: HTMLElement | null): boolean;
+}) {
+  const shown = run.shown(), list = run.list(), target = run.target(), title = run.headTitle();
+  const unavailable = shown.kind === "list_loading" || shown.kind === "blocked";
+  // The order at opening while open (empty when nothing was listed yet), null while closed.
+  const [frozen, setFrozen] = useState<readonly string[] | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const picked = useRef(false);
+  const deleting = useRef(false);
+  // A menu the canvas became blocked under closes for good, rather than opening again by itself once it is back.
+  useEffect(() => { if (unavailable && frozen !== null) setFrozen(null); }, [unavailable, frozen]);
+  const setOpen = (open: boolean) => {
+    if (!open) { setFrozen(null); return; }
+    if (unavailable) return;
+    setFrozen(Array.isArray(list) && target ? titleMenuOrder(list, target.canvas, null) : []);
+  };
+  const current = shown.kind === "conversation" ? shown.conversationId : null;
+  const items = Array.isArray(list) && target ? canvasConversationMenu(list, target.canvas, current, now, run.seen(), frozen) : [];
+  const select = (id: string | null) => run.run.select(id);
+  const isNew = run.run.view()?.kind === "new";
+  const canvasName = run.currentView()?.canvas ?? "";
+  return <><span className="ov-title-wrap doan-conv-title">
+    <DropdownMenu.Root open={frozen !== null && !unavailable} onOpenChange={setOpen}>
+      <DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title} aria-disabled={unavailable || undefined}>
+        <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
+      <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
+        onCloseAutoFocus={event => {
+          if (deleting.current) { deleting.current = false; event.preventDefault(); return; }
+          if (!picked.current) return; picked.current = false; event.preventDefault(); onPicked();
+        }}>
+        <DropdownMenu.RadioGroup value={current ?? NEW} onValueChange={value => { picked.current = true; select(value === NEW ? null : value); }}>
+          <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${current === null ? " current" : ""}`} textValue="New conversation"><Plus aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
+          <DropdownMenu.Separator className="doan-menu-sep" />
+          <DropdownMenu.Label className="doan-menu-head">{`Conversations on ${canvasName}`}</DropdownMenu.Label>
+          {list === "error" ? <div className="conv-error" role="status"><span>Couldn’t read conversations</span>
+            <DropdownMenu.Item className="doan-menu-item" onSelect={event => { event.preventDefault(); run.retry(); }}>Retry</DropdownMenu.Item></div>
+            : <div className="conv-list">{items.map(item => <div key={item.conversationId} className="conv-row">
+              <DropdownMenu.RadioItem value={item.conversationId} textValue={item.title} className={`doan-menu-item conv-item${item.selected ? " current" : ""}`}>
+                <ConversationHead line={item} name={item.title} nameClass="t" />
+                <span className="conv-preview">{item.preview}</span>
+              </DropdownMenu.RadioItem>
+              {target && <ConversationDeleteItem conversationId={item.conversationId} title={item.title} deletable={item.deletable} onDelete={() => {
+                deleting.current = onDelete({ conversationId: item.conversationId, root: target.root, title: item.title, provider: item.provider, from: "canvas" }, trigger.current);
+              }} onEscape={() => setOpen(false)} />}
+            </div>)}</div>}
+        </DropdownMenu.RadioGroup>
+      </DropdownMenu.Content></DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  </span>
+  <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button doan-conv-new" aria-label="New conversation" aria-disabled={isNew || undefined} onClick={() => startNewConversation(current, isNew, select, onPicked)}><SquarePen aria-hidden="true" /></button></TooltipTrigger>
+    <TooltipContent>New conversation</TooltipContent></Tooltip></>;
 }

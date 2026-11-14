@@ -2,14 +2,11 @@ import type { ConversationSummary } from "../../main/conversation/summary";
 import type { Anchor, Canvas } from "../../main/conversation/types";
 import type { PrototypeView } from "../../main/prototype/ipc";
 import { distinctTargets, sameTarget, toMessage, type FieldSegment } from "../anchorField";
-import { sameCanvas } from "../canvasConversationRows";
-import type { ListView } from "../conversationStore";
-import { carryDraft, hasDraft, type DockedDraft } from "../dockedRules";
+import type { CanvasView } from "../canvasRun";
 import { openButtonBadge } from "../rightPanelOpen";
 
-// The prototype window's conversation panel: which conversation it shows, the playing frame chip every message
-// carries, the header's conversation button, the panel head's title, and the draft a new current conversation takes
-// over.
+// The prototype window's conversation panel: the states of what it shows, the playing frame chip every message
+// carries, the header's conversation button and the panel head's title.
 
 // lost: main cannot name the target's canvas row (gone, or its ID shared); the panel then takes no message.
 export interface PrototypeConversationTarget { root: string; canvas: Canvas; lost?: "gone" | "duplicate" }
@@ -20,14 +17,14 @@ export type PrototypeShown =
   | { kind: "list_error" }
   | { kind: "blocked"; reason: "gone" | "duplicate" };
 
-// Always the canvas's current conversation, never an archived one the main window may show. `list` is the target
-// root's list; a failed read shows no conversation, because a send could archive the current one.
-export function prototypeShownConversation(list: ListView, target: PrototypeConversationTarget): PrototypeShown {
+// What the window's own canvas run shows (the main window's rule, its own instance, so the two windows may show
+// different conversations), named by the states the head and the composer tell apart: nothing picked yet is the list
+// still read, and a failed first read the list error. `rowLoading`: main still reads the canvas row.
+export function prototypeShown(view: CanvasView | null, target: PrototypeConversationTarget, rowLoading = false): PrototypeShown {
   if (target.lost) return { kind: "blocked", reason: target.lost };
-  if (list === "loading") return { kind: "list_loading" };
-  if (list === "error") return { kind: "list_error" };
-  const current = list.find(c => c.state === "current" && c.canvas !== undefined && sameCanvas(c.canvas, target.canvas));
-  return current ? { kind: "conversation", conversationId: current.conversationId } : { kind: "new" };
+  if (rowLoading || view === null || view.kind === "wait") return { kind: "list_loading" };
+  if (view.kind === "new") return view.listError ? { kind: "list_error" } : { kind: "new" };
+  return { kind: "conversation", conversationId: view.conversationId };
 }
 
 export type PlayingFrame = NonNullable<Anchor["frame"]>;
@@ -76,7 +73,7 @@ export function conversationButton(current: ConversationSummary | undefined, see
   const show = "Show conversation" as const;
   const mark = openButtonBadge(current, false, seen);
   if (mark?.kind === "permission") return { label: show, badge: "permission", name: mark.label };
-  if (current?.state === "current" && !current.readError && current.working) return { label: show, badge: "working", name: `${show}, agent is working` };
+  if (current && !current.readError && current.working) return { label: show, badge: "working", name: `${show}, agent is working` };
   return mark ? { label: show, badge: "unseen", name: mark.label } : { label: show, badge: null, name: show };
 }
 
@@ -86,12 +83,4 @@ export function conversationButton(current: ConversationSummary | undefined, see
 export function prototypeHeadTitle(shown: PrototypeShown, title: string): string {
   if (shown.kind === "list_loading" || shown.kind === "list_error" || shown.kind === "blocked" || title === "") return "Conversation";
   return title;
-}
-
-// The canvas's current conversation changed (main started a new one): the draft written for the one before moves to
-// it, unless the new one has a draft already.
-export function carryPrototypeDraft(drafts: ReadonlyMap<string, DockedDraft>, from: string, to: string): ReadonlyMap<string, DockedDraft> {
-  const draft = drafts.get(from);
-  if (from === to || !hasDraft(draft)) return drafts;
-  return carryDraft(drafts, from, to);
 }
