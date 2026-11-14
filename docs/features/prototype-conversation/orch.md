@@ -93,3 +93,5 @@ task 2(`/design-draft`)는 이미 끝났다. task 10은 리뷰 행과 conductor�
 - 리뷰: U 4회차(U3 마지막 커밋, Claude Opus, `ctx_d3e3e791cde3`), 통합 전체 리뷰(task 10, Codex, `ctx_c7fba9890925`).
 - U 리뷰 4회차(Claude Opus): 🔴·🟡 0, ⚪ 3(사람이 고른 New 뒤 첫 읽기에서 기본 새 상태 표시가 다시 생긴다 — 지금은 다른 곳이 현재 대화가 있는 캔버스에 새 현재 대화를 만들 수 없어 생기지 않는다 / POSTMORTEM이 워커 브랜치 hash를 가리킨다 / main 쪽 옮기기가 빈 초안도 옮긴다). 두 결함 수정은 spec '패널 내용'과 맞고 Overview·Home은 그대로다. POSTMORTEM hash는 conductor가 통합 hash로 고쳤다.
 - 사용자 결정 — main 창 패널이 다른 곳에서 시작된 대화로 옮겨 갈 때 main의 새 대화 상태 초안도 D2와 같은 규칙으로 따라간다.
+- 통합 전체 리뷰(task 10, Codex): 🔴 1(main의 재생 캔버스와 renderer의 view가 어긋난 동안, 또는 A→B→A 뒤 늦게 끝난 옛 A 읽기의 목록을 적용해 멀쩡한 대화를 지운 것으로 보고 보내지 않은 초안을 버린다), 🟡 2(main 창의 사람이 고른 New가 목록 갱신 한 번 뒤 기본 새 상태로 바뀌어 다른 곳에서 시작된 대화로 넘어간다 — U 리뷰 4회차 ⚪1과 같다 / 합쳐진 A→B→A에서 renderer가 showing을 다시 보내지 않아 보고 있는 대화의 알림이 온다). 선정 테스트 179개, typecheck, lint, build 통과.
+- U 워커의 컨텍스트가 95%라 release하고, 같은 worktree `pcv-u`에 새 워커 UF(Claude Opus high, `ctx_5ec594cbc162`)를 띄워 🔴1·🟡2와 U 리뷰 4회차 ⚪3(빈 초안 옮기기)을 고치게 했다. batch M이 끝났으므로 main 쪽 수정도 UF가 한다.
