@@ -8,7 +8,8 @@ import { carryDraft, hasDraft, type DockedDraft } from "../dockedRules";
 import { openButtonBadge } from "../rightPanelOpen";
 
 // The prototype window's conversation panel: which conversation it shows, the playing frame chip every message
-// carries, the header's conversation button, and the draft a new current conversation takes over.
+// carries, the header's conversation button, the panel head's title, and the draft a new current conversation takes
+// over.
 
 // lost: main cannot name the target's canvas row (gone, or its ID shared); the panel then takes no message.
 export interface PrototypeConversationTarget { root: string; canvas: Canvas; lost?: "gone" | "duplicate" }
@@ -65,18 +66,26 @@ export function playingFrameChip(view: PrototypeView | null, last: PlayingFrameC
 }
 
 export type ConversationBadge = "permission" | "working" | "unseen";
-export interface ConversationButton { label: "Show conversation" | "Hide conversation"; badge: ConversationBadge | null; name: string }
+export interface ConversationButton { label: "Show conversation"; badge: ConversationBadge | null; name: string }
 
-// The header's one button for the panel. The main window's Show conversation marks (an answer waited for, an unread
-// ending) plus working: the window has no agent indicator, and the frame reloads with no visible reason while an
-// agent edits. One badge at a time: waiting, then working, then unread. `current` is the conversation the panel shows.
-export function conversationButton(open: boolean, current: ConversationSummary | undefined, seen: ReadonlySet<string> = new Set()): ConversationButton {
-  if (open) return { label: "Hide conversation", badge: null, name: "Hide conversation" };
+// The header's button for the panel, shown only while the panel is closed: Hide conversation is in the panel's head.
+// The main window's Show conversation marks (an answer waited for, an unread ending) plus working: the window has no
+// agent indicator, and the frame reloads with no visible reason while an agent edits. One badge at a time: waiting,
+// then working, then unread. `current` is the conversation the panel shows.
+export function conversationButton(current: ConversationSummary | undefined, seen: ReadonlySet<string> = new Set()): ConversationButton {
   const show = "Show conversation" as const;
   const mark = openButtonBadge(current, false, seen);
   if (mark?.kind === "permission") return { label: show, badge: "permission", name: mark.label };
   if (current?.state === "current" && !current.readError && current.working) return { label: show, badge: "working", name: `${show}, agent is working` };
   return mark ? { label: show, badge: "unseen", name: mark.label } : { label: show, badge: null, name: show };
+}
+
+// The panel head's title. The states that are not a conversation or the new conversation state (the list still read or
+// failed, the canvas gone or its ID shared) keep the panel shell's own title, as does an empty title. `title` is the
+// main window's canvasConversationTitle for the conversation shown.
+export function prototypeHeadTitle(shown: PrototypeShown, title: string): string {
+  if (shown.kind === "list_loading" || shown.kind === "list_error" || shown.kind === "blocked" || title === "") return "Conversation";
+  return title;
 }
 
 // The canvas's current conversation changed (main started a new one): the draft written for the one before moves to

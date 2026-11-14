@@ -543,7 +543,7 @@ describe("the conversation button and column", () => {
     button: { label: "Show conversation", badge: null, name: "Show conversation" }, open: false, width: 280, bounds: { min: 280, max: 280 },
     onToggle: noop, onResize: noop, preview: noop, ...over,
   });
-  const opened = conv({ open: true, button: { label: "Hide conversation", badge: null, name: "Hide conversation" } });
+  const opened = conv({ open: true });
 
   test("the button ends the right group after Export, and the column comes after the content panel", () => {
     const html = markup({ conversation: conv() });
@@ -559,11 +559,8 @@ describe("the conversation button and column", () => {
     expect(tag(markup({ view: null, layers: NO_LAYERS }), 'aria-label="Show conversation"')).not.toContain("disabled");
   });
 
-  test("open, it is Hide conversation with PanelRightClose; the column shows at the panel's width", () => {
+  test("open, the column shows at the panel's width", () => {
     const html = markup({ conversation: opened });
-    expect(tag(html, 'aria-label="Hide conversation"')).toContain('aria-expanded="true"');
-    expect(tag(html, 'aria-label="Hide conversation"')).toContain('aria-controls="doan-conversation-panel"');
-    expect(html).toContain("lucide-panel-right-close");
     expect(tag(markup({ conversation: conv() }), "pw-conv")).toBeTruthy();
     expect(markup({ conversation: conv() })).toContain("lucide-panel-right-open");
     expect(tag(html, 'class="pw')).toMatch(/data-panel="open"/);

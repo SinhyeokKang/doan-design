@@ -548,7 +548,7 @@ describe("the conversation panel", () => {
     win.innerWidth = 1000;
     resizes.forEach(resize => resize());
     expect(show(view()).conversation).toMatchObject({ open: false, button: { label: "Show conversation" } });
-    expect(show(view({ panel: { open: true, width: 300 } })).conversation).toMatchObject({ open: true, width: 300, button: { label: "Hide conversation" } });
+    expect(show(view({ panel: { open: true, width: 300 } })).conversation).toMatchObject({ open: true, width: 300, button: { label: "Show conversation" } });
   });
 
   test("opening puts focus in the composer's field; folding puts it on the button", () => {

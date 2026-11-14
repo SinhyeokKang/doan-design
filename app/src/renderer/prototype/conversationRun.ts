@@ -182,7 +182,7 @@ export class PrototypeConversationRun {
   button(): ConversationButton {
     const shown = this.shown();
     const summary = shown.kind === "conversation" && Array.isArray(this.listView) ? this.listView.find(c => c.conversationId === shown.conversationId) : undefined;
-    return conversationButton(this.view?.panel.open ?? false, summary, this.seenIds);
+    return conversationButton(summary, this.seenIds);
   }
 
   // The request names the canvas this view shows: main answers its rows only while it still plays that canvas.

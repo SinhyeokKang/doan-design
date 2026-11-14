@@ -35,7 +35,7 @@ function setup() {
     destroy: () => calls.push(["destroy"]),
     reread: root => calls.push(["reread", root]),
     sendView: view => { calls.push(["view", view.gen, view.phase]); views.push(view); },
-    capture: (mark, mode, side) => { calls.push(side === 0 ? ["capture", mark, mode] : ["capture", mark, mode, side]); return capture(mark, mode); },
+    capture: (mark, mode, panel) => { calls.push(panel === 0 ? ["capture", mark, mode] : ["capture", mark, mode, panel]); return capture(mark, mode); },
     sendSnapshot: snapshot => calls.push(["snapshot", snapshot.gen, Array.from(snapshot.png), snapshot.box]),
   };
   const controller = createPrototypeController(host, () => entries);
@@ -405,7 +405,7 @@ describe("the conversation panel", () => {
     expect(t.views.at(-1)?.panel).toEqual({ open: true, width: 280 });
   });
 
-  test("the still of a ready run leaves the open panel's column out", () => {
+  test("the still of a ready run is taken with the open panel's width P, which capture leaves out with its gap", () => {
     const t = opened();
     t.setOpenedPanel(300);
     t.controller.request(PROTOTYPE_CHANNELS.panel, "prototype", { open: true });
@@ -423,7 +423,7 @@ describe("the conversation panel", () => {
   });
 });
 
-// Main keeps an open panel's width inside the window's range as it is now, since the view and the still's side column
+// Main keeps an open panel's width inside the window's range as it is now, since the view and the still's capture
 // both read it; the renderer's own clamp is not enough.
 describe("an open panel's width", () => {
   test("a change is cut to the current window: a 640 window keeps 280", () => {
@@ -446,7 +446,7 @@ describe("an open panel's width", () => {
     expect(t.views.at(-1)?.panel).toEqual({ open: true, width: 500 });
   });
 
-  test("a width sent before the window shrank arrives cut, and the still leaves only the column that fits out", () => {
+  test("a width sent before the window shrank arrives cut, and the still is taken with the panel width that fits", () => {
     const t = opened();
     t.resize(1000);
     t.setOpenedPanel(500);
@@ -459,7 +459,7 @@ describe("an open panel's width", () => {
     expect(t.calls[0]).toEqual(["capture", phone, "fit", 280]);
   });
 
-  test("a stored width wider than the window shrunk to is not the still's side column", () => {
+  test("a stored width wider than the window shrunk to is not the panel width the still is taken with", () => {
     const t = opened();
     t.resize(1000);
     t.setOpenedPanel(500);

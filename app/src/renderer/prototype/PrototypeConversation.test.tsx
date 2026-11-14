@@ -323,11 +323,13 @@ describe("what main hears", () => {
     expect(calls.markConversationSeen).toHaveBeenCalledWith({ conversationId: "c1", seq: 4 });
   });
 
-  test("the button's badge: working while the panel is folded", async () => {
+  // The header's button is hidden while the panel is open (Hide conversation is in the panel's head), so it is Show
+  // conversation in both states and shows its badge again as soon as the panel closes.
+  test("the button's badge: working, and Show conversation whether the panel is open or folded", async () => {
     await playing({ panel: { open: false, width: null } }, [summary({ working: true, phase: "running" })]);
     expect(run.button()).toEqual({ label: "Show conversation", badge: "working", name: "Show conversation, agent is working" });
     run.setView(view({ panel: { open: true, width: 280 } }));
-    expect(run.button()).toEqual({ label: "Hide conversation", badge: null, name: "Hide conversation" });
+    expect(run.button()).toEqual({ label: "Show conversation", badge: "working", name: "Show conversation, agent is working" });
   });
 
   test("the button names an unread ending until this window marks it seen", async () => {
