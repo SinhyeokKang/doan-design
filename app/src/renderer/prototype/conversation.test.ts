@@ -3,8 +3,7 @@ import type { ConversationSummary } from "../../main/conversation/summary";
 import type { Anchor } from "../../main/conversation/types";
 import type { PrototypeView } from "../../main/prototype/ipc";
 import type { FieldSegment } from "../anchorField";
-import { EMPTY_DRAFT, type DockedDraft } from "../dockedRules";
-import { carryPrototypeDraft, conversationButton, playingFrameChip, playingFrameCount, prototypeHeadTitle, prototypeShownConversation, withPlayingFrame } from "./conversation";
+import { conversationButton, playingFrameChip, playingFrameCount, prototypeHeadTitle, prototypeShown, withPlayingFrame } from "./conversation";
 
 const ROOT = "/w/acme";
 const CHECKOUT = { path: ".doan/canvases/checkout.html", id: "checkout" };
@@ -13,47 +12,34 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   provider: "claude", fromHome: false, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "", ...patch,
 });
 
-describe("prototypeShownConversation", () => {
+// The prototype window shows what its own canvas run picks (the main window's rule, its own instance), named by the
+// states its head and composer tell apart.
+describe("prototypeShown", () => {
   const target = { root: ROOT, canvas: CHECKOUT };
+  const start = { mode: "new" as const, offer: null, pending: false };
+  const fresh = (listError: boolean) => ({ kind: "new" as const, listError, notice: null, start, resume: undefined, mode: { kind: "new" as const, root: ROOT, canvas: CHECKOUT } });
 
-  test("shows the playing canvas's current conversation", () => {
-    const list = [summary({ conversationId: "old", state: "archived" }), summary({ conversationId: "now" }), summary({ conversationId: "other", canvas: { path: ".doan/canvases/b.html", id: "b" } })];
-    expect(prototypeShownConversation(list, target)).toEqual({ kind: "conversation", conversationId: "now" });
+  test("the conversation the window's canvas run shows", () => {
+    expect(prototypeShown({ kind: "conversation", conversationId: "c2", notice: null } as never, target)).toEqual({ kind: "conversation", conversationId: "c2" });
   });
 
-  test("is the new conversation state without a current conversation, also when only archived ones exist", () => {
-    expect(prototypeShownConversation([], target)).toEqual({ kind: "new" });
-    expect(prototypeShownConversation([summary({ conversationId: "old", state: "archived" })], target)).toEqual({ kind: "new" });
-    // A project conversation has no canvas and is never the canvas's.
-    const { canvas: _none, ...project } = summary({ conversationId: "p" });
-    expect(prototypeShownConversation([project], target)).toEqual({ kind: "new" });
+  test("the new conversation state, and a failed first read as the list error", () => {
+    expect(prototypeShown(fresh(false), target)).toEqual({ kind: "new" });
+    expect(prototypeShown(fresh(true), target)).toEqual({ kind: "list_error" });
   });
 
-  test("tells a list still read from one that failed", () => {
-    expect(prototypeShownConversation("loading", target)).toEqual({ kind: "list_loading" });
-    expect(prototypeShownConversation("error", target)).toEqual({ kind: "list_error" });
+  test("nothing picked yet, before any view and while the canvas row is read, is the list still read", () => {
+    expect(prototypeShown({ kind: "wait" }, target)).toEqual({ kind: "list_loading" });
+    expect(prototypeShown(null, target)).toEqual({ kind: "list_loading" });
+    expect(prototypeShown({ kind: "conversation", conversationId: "c2", notice: null } as never, target, true)).toEqual({ kind: "list_loading" });
   });
 
-  test("is blocked while the canvas is gone or its ID is shared, whatever the list says", () => {
+  test("is blocked while the canvas is gone or its ID is shared, whatever the run shows", () => {
     for (const reason of ["gone", "duplicate"] as const) {
-      expect(prototypeShownConversation([summary({ conversationId: "now" })], { ...target, lost: reason })).toEqual({ kind: "blocked", reason });
-      expect(prototypeShownConversation("error", { ...target, lost: reason })).toEqual({ kind: "blocked", reason });
-      expect(prototypeShownConversation("loading", { ...target, lost: reason })).toEqual({ kind: "blocked", reason });
+      expect(prototypeShown({ kind: "conversation", conversationId: "c2", notice: null } as never, { ...target, lost: reason })).toEqual({ kind: "blocked", reason });
+      expect(prototypeShown(fresh(true), { ...target, lost: reason })).toEqual({ kind: "blocked", reason });
+      expect(prototypeShown({ kind: "wait" }, { ...target, lost: reason }, true)).toEqual({ kind: "blocked", reason });
     }
-  });
-
-  // POSTMORTEM 2026-11-01: canvases match as main matches them (sameCanvas), so an ID on either side matches by ID only.
-  test("matches an ID-less canvas by path, and never an ID canvas by path alone", () => {
-    const idless = { root: ROOT, canvas: { path: ".doan/canvases/sketch.html" } };
-    expect(prototypeShownConversation([summary({ conversationId: "s", canvas: { path: ".doan/canvases/sketch.html" } })], idless)).toEqual({ kind: "conversation", conversationId: "s" });
-    // Same path, but the conversation's canvas has an ID: another canvas.
-    expect(prototypeShownConversation([summary({ conversationId: "x", canvas: { path: ".doan/canvases/sketch.html", id: "sketch" } })], idless)).toEqual({ kind: "new" });
-    // A moved canvas keeps its conversation by ID.
-    expect(prototypeShownConversation([summary({ conversationId: "m", canvas: { path: ".doan/canvases/moved.html", id: "checkout" } })], target)).toEqual({ kind: "conversation", conversationId: "m" });
-  });
-
-  test("a conversation whose history main could not read still shows", () => {
-    expect(prototypeShownConversation([summary({ conversationId: "r", readError: true })], target)).toEqual({ kind: "conversation", conversationId: "r" });
   });
 });
 
@@ -181,9 +167,12 @@ describe("conversationButton", () => {
     expect(conversationButton(summary({ phase: "ended", working: true, unseen: true }))?.badge).toBe("working");
   });
 
-  test("an ending already seen in this run, or an archived conversation, has no badge", () => {
+  test("an ending already seen in this run has no badge", () => {
     expect(conversationButton(summary({ unseen: true }), new Set(["c1"])).badge).toBeNull();
-    expect(conversationButton(summary({ state: "archived", phase: "waiting" })).badge).toBeNull();
+  });
+
+  test("a conversation whose history main could not read shows no working badge", () => {
+    expect(conversationButton(summary({ phase: "running", working: true, readError: true })).badge).toBeNull();
   });
 });
 
@@ -202,32 +191,5 @@ describe("prototypeHeadTitle", () => {
   test("otherwise the title given, New conversation included", () => {
     expect(prototypeHeadTitle({ kind: "conversation", conversationId: "c1" }, "Checkout Review details button")).toBe("Checkout Review details button");
     expect(prototypeHeadTitle({ kind: "new" }, "New conversation")).toBe("New conversation");
-  });
-});
-
-describe("carryPrototypeDraft", () => {
-  const draft: DockedDraft = { ...EMPTY_DRAFT, segments: [text("half written")] };
-  const FROM = "conversation:old", TO = "conversation:new";
-
-  test("moves the draft to the new current conversation's key when that key has none", () => {
-    const moved = carryPrototypeDraft(new Map([[FROM, draft]]), FROM, TO);
-    expect(moved.get(TO)).toBe(draft);
-    expect(moved.get(FROM) ?? EMPTY_DRAFT).toEqual(EMPTY_DRAFT);
-    // An empty draft there counts as none.
-    expect(carryPrototypeDraft(new Map([[FROM, draft], [TO, EMPTY_DRAFT]]), FROM, TO).get(TO)).toBe(draft);
-  });
-
-  test("leaves both alone when the new key already has a draft", () => {
-    const waiting: DockedDraft = { ...EMPTY_DRAFT, segments: [text("mine")] };
-    const drafts = new Map([[FROM, draft], [TO, waiting]]);
-    expect(carryPrototypeDraft(drafts, FROM, TO)).toBe(drafts);
-  });
-
-  test("nothing to move: the same map", () => {
-    const drafts = new Map([[TO, EMPTY_DRAFT]]);
-    expect(carryPrototypeDraft(drafts, FROM, TO)).toBe(drafts);
-    expect(carryPrototypeDraft(new Map([[FROM, EMPTY_DRAFT]]), FROM, TO).get(TO)).toBeUndefined();
-    const same = new Map([[FROM, draft]]);
-    expect(carryPrototypeDraft(same, FROM, FROM)).toBe(same);
   });
 });

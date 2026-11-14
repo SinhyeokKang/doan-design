@@ -33,7 +33,9 @@ vi.mock("react", async original => {
   };
 });
 
-const { PrototypeConversationPanel, PrototypeHeadTitle } = await import("./PrototypeConversation");
+const { PrototypeConversationPanel, PrototypeHeadMenu } = await import("./PrototypeConversation");
+const { DropdownMenu } = await import("radix-ui");
+const { ConversationDeleteItem } = await import("../ConversationDeleteDialog");
 const { PrototypeConversationRun } = await import("./conversationRun");
 const { CanvasConversation } = await import("../CanvasConversationPanel");
 const { authStatus } = await import("../../main/agentAuth/state");
@@ -122,7 +124,9 @@ describe("the headless body in the prototype window", () => {
     expect(panel.props.composerLink).toBeUndefined();
     expect(panel.props.playing).toMatchObject({ frame: { id: "pay", title: "Pay" }, name: "Pay", description: "Frame Pay is sent with each message." });
     expect(panel.props.blocked).toBeNull();
-    expect(panel.props.listFailed).toBe(false);
+    // The main window's panel rules: a failed read holds no send, and a refusal offers a new conversation.
+    expect(panel.props.listFailed).toBeUndefined();
+    expect(panel.props.newFromRefusal).toBeUndefined();
   });
 
   test("a canvas gone or sharing its ID locks the composer with the main panel's reasons", async () => {
@@ -132,11 +136,20 @@ describe("the headless body in the prototype window", () => {
     expect(render().props.blocked).toBe("Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it.");
   });
 
-  test("a failed list read gives the body its failure line, and the composer cannot send", async () => {
+  // Spec: a failed list read no longer holds Send in this window; the failure line offers Retry.
+  test("a failed list read shows the failure line with Retry, and the composer can still send", async () => {
     calls.listConversations = vi.fn(async () => ({ error: "unknown" }));
     run = new PrototypeConversationRun(calls as never, { changed: () => { hooks.dirty = true; }, notice: () => {}, focused: () => true });
     await playing();
-    expect(render().props.listFailed).toBe(true);
+    expect(run.shown()).toEqual({ kind: "list_error" });
+    const panel = render(true) as El & { inner: ReactNode };
+    const composer = all(panel.inner).find(named("DockedComposer"))!.props as { unavailable: string | null; held: boolean };
+    expect(composer.unavailable).toBeNull();
+    expect(composer.held).toBe(false);
+    const retry = all(panel.inner).find(element => element.type === "button" && element.props.children === "Retry")!;
+    const reads = (calls.listConversations as ReturnType<typeof vi.fn>).mock.calls.length;
+    (retry.props.onClick as () => void)();
+    expect((calls.listConversations as ReturnType<typeof vi.fn>).mock.calls.length).toBe(reads + 1);
   });
 });
 
@@ -179,16 +192,14 @@ describe("main-window-only buttons go to main as reveals", () => {
   });
 });
 
-// This window cannot start a new conversation while the canvas has a current one: a refusal of that conversation
-// (another sign-in owns it) offers no "Start a new conversation" here. A terminal session's refusal still switches to
-// the new conversation it shares a field with.
+// Spec: a send to a conversation another sign-in owns offers "Start a new conversation" here too, as the main window
+// does; a new conversation no longer ends another one.
 describe("refusals in the prototype window", () => {
-  test("a refused conversation offers no new conversation; a refused terminal session still does", async () => {
+  test("a conversation refused for a sign-in mismatch offers a new conversation", async () => {
     await playing();
     const panel = render(true) as El & { inner: ReactNode };
     const composer = all(panel.inner).find(named("DockedComposer"))!.props as { refuse(code: string, provider: string, resets: string | null): Record<string, unknown> };
-    expect(composer.refuse("account_changed", "claude", null)).toMatchObject({ kind: "notice" });
-    expect(composer.refuse("account_changed", "claude", null).startNew).toBeFalsy();
+    expect(composer.refuse("account_changed", "claude", null)).toMatchObject({ kind: "notice", startNew: true });
   });
 
   test("in the new conversation state the terminal session's refusal keeps its way to a new conversation", async () => {
@@ -220,56 +231,118 @@ describe("Last used from the prototype composer", () => {
   });
 });
 
-// The head's title is one line: the whole title is the native tooltip only while the span is cut short, judged again on
-// the span's own resize (the window, the handle) and on a new title.
-describe("the panel head's title", () => {
-  let observed: (() => void) | null;
-  const span = { scrollWidth: 120, clientWidth: 200 };
+// Spec: the head's title is the canvas's conversation menu, the main window's menu model (draft frame
+// prototype-head-menu). Its trigger uses aria-disabled, never disabled, so the head keeps a focus target while the list
+// is read or the canvas is blocked.
+describe("the head's conversation menu", () => {
+  let onPicked: ReturnType<typeof vi.fn>, onDelete: ReturnType<typeof vi.fn>;
+  beforeEach(() => { onPicked = vi.fn(); onDelete = vi.fn(() => true); });
   function head(): El {
     for (let round = 0; round < 20; round++) {
       hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.dirty = false;
-      const tree = PrototypeHeadTitle({ run }) as El;
+      const tree = PrototypeHeadMenu({ run, now: Date.parse("2026-11-01T15:00:00"), onPicked, onDelete }) as El;
       const pending = hooks.pending.splice(0);
       for (const task of pending) task();
       if (!hooks.dirty && pending.length === 0) return tree;
     }
     throw new Error("did not settle");
   }
-  beforeEach(() => {
-    observed = null;
-    span.scrollWidth = 120; span.clientWidth = 200;
-    hooks.refs[0] = { current: span };
-    vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { observed = callback; } observe() {} disconnect() {} });
-  });
+  const find = (tree: El, test: (element: El) => boolean) => all(tree).find(test);
+  const trigger = (tree: El) => find(tree, element => element.type === "button" && String(element.props.className).startsWith("ov-title"))!;
+  const root = (tree: El) => find(tree, element => element.type === DropdownMenu.Root)!;
+  const rows = (tree: El) => all(tree).filter(element => element.type === DropdownMenu.RadioItem).map(element => element.props.value as string);
+  const open = () => { (root(head()).props.onOpenChange as (open: boolean) => void)(true); return head(); };
+  const at = (minute: number) => `2026-11-01T12:${String(minute).padStart(2, "0")}:00.000Z`;
 
-  test("the shell's static h2 with the title in a span, focusable by script only", async () => {
+  test("the trigger is the main window's title button with the shown conversation's title, and the head keeps New conversation", async () => {
     listed = [summary({ title: "Checkout Review details button" })];
     await playing();
     const tree = head();
-    expect(tree.type).toBe("h2");
-    expect(tree.props).toMatchObject({ className: "phead rp-head", tabIndex: -1, title: undefined });
-    const text = tree.props.children as El;
-    expect(text.props).toMatchObject({ className: "pw-side-title", children: "Checkout Review details button" });
+    expect(trigger(tree).props).toMatchObject({ type: "button", className: "ov-title doan-button", title: "Checkout Review details button" });
+    expect(trigger(tree).props.disabled).toBeUndefined();
+    expect(trigger(tree).props["aria-disabled"]).toBeUndefined();
+    expect(find(tree, element => element.type === "span" && element.props.className === "ov-title-wrap doan-conv-title")).toBeDefined();
+    const fresh = find(tree, element => element.type === "button" && element.props["aria-label"] === "New conversation")!;
+    expect(fresh.props["aria-disabled"]).toBeUndefined();
   });
 
-  test("a title cut short is the native tooltip; once it fits again it is not", async () => {
-    listed = [summary({ title: "Checkout Review details button" })];
+  test("while the list is read and while the canvas is blocked, the trigger reads Conversation, is aria-disabled and opens no menu", async () => {
+    calls.listConversations = vi.fn(() => new Promise(() => {}));
+    run = new PrototypeConversationRun(calls as never, { changed: () => { hooks.dirty = true; }, notice: () => {}, focused: () => true });
     await playing();
-    expect(head().props.title).toBeUndefined();
-    span.clientWidth = 80;
-    observed!();
-    expect(head().props.title).toBe("Checkout Review details button");
-    span.clientWidth = 200;
-    observed!();
-    expect(head().props.title).toBeUndefined();
+    for (const step of [() => {}, () => run.setView(view({ canvasRow: "gone" })), () => run.setView(view({ canvasRow: "duplicate" }))]) {
+      step();
+      const tree = open();
+      expect(trigger(tree).props).toMatchObject({ title: "Conversation", "aria-disabled": true });
+      expect(trigger(tree).props.disabled).toBeUndefined();
+      expect(find(tree, element => element.type === DropdownMenu.Trigger)!.props.disabled).toBeFalsy();
+      expect(root(tree).props.open).toBe(false);
+    }
   });
 
-  test("a new title is judged again", async () => {
-    listed = [summary({ title: "Ideas" })];
+  test("the menu: New conversation, then the canvas's conversations by recent activity, the shown one pressed, each with Delete", async () => {
+    listed = [summary({ conversationId: "older", title: "Older", lastActivityAt: at(1) }), summary({ conversationId: "newer", title: "Newer", phase: "running", working: true, lastActivityAt: at(5) }),
+      summary({ conversationId: "elsewhere", canvas: { path: ".doan/canvases/b.html", id: "b" }, lastActivityAt: at(9) })];
     await playing();
-    expect(head().props.title).toBeUndefined();
-    span.scrollWidth = 400;
-    run.setView(view({ canvasRow: "gone" }));
-    expect(head().props).toMatchObject({ title: "Conversation" });
+    run.run.select("older");
+    const tree = open();
+    expect(rows(tree)).toEqual(["", "newer", "older"]);
+    const pressed = all(tree).filter(element => element.type === DropdownMenu.RadioItem && String(element.props.className).includes(" current")).map(element => element.props.value);
+    expect(pressed).toEqual(["older"]);
+    expect(all(tree).filter(element => element.type === ConversationDeleteItem).map(element => element.props.conversationId)).toEqual(["newer", "older"]);
+    expect(find(tree, element => element.type === DropdownMenu.Content)!.props["aria-label"]).toBe("Conversations on checkout");
+  });
+
+  test("while open the order stays and a conversation started meanwhile goes last; closed, it is recent activity again", async () => {
+    let answerList!: (list: ConversationSummary[]) => void;
+    let changedList!: (change: { root: string }) => void;
+    calls.onConversationListChanged = vi.fn((listener: typeof changedList) => { changedList = listener; return () => {}; });
+    listed = [summary({ conversationId: "a", lastActivityAt: at(1) }), summary({ conversationId: "b", lastActivityAt: at(5) })];
+    run = new PrototypeConversationRun(calls as never, { changed: () => { hooks.dirty = true; }, notice: () => {}, focused: () => true });
+    await playing();
+    expect(rows(open())).toEqual(["", "b", "a"]);
+    calls.listConversations = vi.fn(() => new Promise(resolve => { answerList = resolve; }));
+    changedList({ root: ROOT });
+    answerList([summary({ conversationId: "a", lastActivityAt: at(8) }), summary({ conversationId: "b", lastActivityAt: at(5) }), summary({ conversationId: "c", lastActivityAt: at(9) })]);
+    await flush();
+    expect(rows(head())).toEqual(["", "b", "a", "c"]);
+    (root(head()).props.onOpenChange as (open: boolean) => void)(false);
+    expect(rows(head())).toEqual(["", "c", "a", "b"]);
+  });
+
+  test("a failed read: the menu's failure line with Retry, which reads again", async () => {
+    calls.listConversations = vi.fn(async () => ({ error: "unknown" }));
+    run = new PrototypeConversationRun(calls as never, { changed: () => { hooks.dirty = true; }, notice: () => {}, focused: () => true });
+    await playing();
+    const tree = open();
+    expect(root(tree).props.open).toBe(true);
+    expect(trigger(tree).props["aria-disabled"]).toBeUndefined();
+    const line = find(tree, element => element.props.className === "conv-error")!;
+    const retry = all(line).find(element => element.type === DropdownMenu.Item)!;
+    const reads = (calls.listConversations as ReturnType<typeof vi.fn>).mock.calls.length;
+    (retry.props.onSelect as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
+    expect((calls.listConversations as ReturnType<typeof vi.fn>).mock.calls.length).toBe(reads + 1);
+  });
+
+  test("choosing a row or New conversation changes what this window shows, and focus goes on once the menu closes", async () => {
+    listed = [summary({ conversationId: "a", title: "A", lastActivityAt: at(1) }), summary({ conversationId: "b", title: "B", lastActivityAt: at(5) })];
+    await playing();
+    const group = () => find(open(), element => element.type === DropdownMenu.RadioGroup)!;
+    (group().props.onValueChange as (value: string) => void)("a");
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "a" });
+    (find(head(), element => element.type === DropdownMenu.Content)!.props.onCloseAutoFocus as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
+    expect(onPicked).toHaveBeenCalledOnce();
+    (group().props.onValueChange as (value: string) => void)("");
+    expect(run.shown()).toEqual({ kind: "new" });
+    expect(head() && find(head(), element => element.type === "button" && element.props["aria-label"] === "New conversation")!.props["aria-disabled"]).toBe(true);
+  });
+
+  test("a row's Delete hands the host the conversation, from the canvas, with the trigger to return focus to", async () => {
+    listed = [summary({ conversationId: "a", title: "A", provider: "codex" })];
+    await playing();
+    const item = find(open(), element => element.type === ConversationDeleteItem)!;
+    (item.props.onDelete as () => void)();
+    expect(onDelete).toHaveBeenCalledOnce();
+    expect(onDelete.mock.calls[0]![0]).toEqual({ conversationId: "a", root: ROOT, title: "A", provider: "codex", from: "canvas" });
   });
 });

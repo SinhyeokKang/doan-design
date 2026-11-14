@@ -217,10 +217,6 @@ describe("overviewAfterListChange", () => {
     expect(overviewAfterListChange(current, { root, list: [] })).toEqual({ kind: "gone", draft: { from: "conversation:c1", to: `root:${root}` } });
   });
 
-  test("a project conversation archived without a canvas resets like a gone one", () => {
-    expect(overviewAfterListChange(current, { root, list: [summary({ conversationId: "c1", state: "archived" })] })).toMatchObject({ kind: "gone" });
-  });
-
   test("a conversation not listed yet is kept: the start reply may arrive before its list notice", () => {
     expect(overviewAfterListChange({ ...current, listed: false }, { root, list: [] })).toEqual({ kind: "keep" });
   });

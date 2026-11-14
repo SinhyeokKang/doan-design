@@ -15,8 +15,8 @@ const ROOT = "/w/acme";
 const A: Canvas = { id: "a", path: ".doan/canvases/a.html" }, B: Canvas = { id: "b", path: ".doan/canvases/b.html" };
 const ENTRIES: FolderEntry[] = [{ kind: "list", path: ROOT, servedRev: 0, canvases: [{ ...A, url: "http://x/a" }, { ...B, url: "http://x/b" }] as never }];
 const playingOf = (canvas: Canvas): PlayingCanvas => ({ root: ROOT, canvas: { id: canvas.id! }, path: canvas.path });
-const summary = (conversationId: string, canvas: Canvas, state: "current" | "archived" = "current"): ConversationSummary => ({
-  conversationId, canvas, title: conversationId, state, owner: "doan", provider: "claude", fromHome: false, phase: "ended",
+const summary = (conversationId: string, canvas: Canvas): ConversationSummary => ({
+  conversationId, canvas, title: conversationId, state: "current", owner: "doan", provider: "claude", fromHome: false, phase: "ended",
   unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "",
 });
 const view = (canvas: Canvas, gen: number): PrototypeView => ({
@@ -105,7 +105,7 @@ test.each(["before", "after"] as const)("list changes answered while main played
   listChanged({ root: ROOT });
   if (order === "before") await deliver(1);
   play(A);
-  all = [summary("old", A, "archived"), summary("new", A)];
+  all = [summary("new", A)];
   run.setView(view(A, 3));
   if (order === "after") await deliver(1);
   expect(replies).toHaveLength(3);
@@ -120,7 +120,7 @@ test("a read of the canvas from before A, B, A that answers last does not replac
   play(B);
   run.setView(view(B, 2));
   play(A);
-  all = [summary("old", A, "archived"), summary("new", A)];
+  all = [summary("new", A)];
   run.setView(view(A, 3));
   expect(replies).toHaveLength(3);
   await deliver(2);

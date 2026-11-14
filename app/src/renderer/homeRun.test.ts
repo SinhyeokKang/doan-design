@@ -384,8 +384,8 @@ test("only a project conversation waiting for an answer of those that hold the r
     ["ended, not judged yet", { phase: "ended", working: true }, true],
     ["queue about to go out", { phase: "ended", working: true, queued: 1 }, true],
     ["ended and judged", { phase: "ended", working: false }, false],
+    // Several canvas conversations may work at once; only project conversations hold the root.
     ["a canvas conversation", { phase: "running", working: true, canvas: { path: ".doan/canvases/a.html", id: "a" } }, false],
-    ["archived", { phase: "running", working: true, state: "archived" }, false],
   ];
   for (const [state, patch, blocks] of table) expect([state, blocksStart(summary(patch))]).toEqual([state, blocks]);
 });

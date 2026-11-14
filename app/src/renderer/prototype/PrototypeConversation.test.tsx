@@ -110,41 +110,40 @@ describe("subscribe first, then read", () => {
 });
 
 describe("the conversation the panel shows", () => {
-  test("the canvas's current conversation, never an archived one", async () => {
-    await playing({}, [summary({ conversationId: "old", state: "archived" }), summary({ conversationId: "now" })]);
-    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "now" });
-    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "now" });
-  });
-
-  test("no current conversation is the new conversation state", async () => {
-    await playing({}, [summary({ conversationId: "old", state: "archived" })]);
+  test("a canvas without conversations is the new conversation state", async () => {
+    await playing({}, []);
     expect(run.shown()).toEqual({ kind: "new" });
     expect(run.run.view()?.kind).toBe("new");
   });
 
-  test("a new current conversation started in the main window takes over, and the draft follows when it has none", async () => {
+  // Spec: the prototype window may show another conversation than the main window, so a conversation started
+  // elsewhere on the canvas never moves it, and the draft written here stays with the conversation it was written for.
+  test("a conversation started elsewhere never moves this window off the one it shows; its draft stays", async () => {
     await playing({}, [summary({ conversationId: "old" })]);
-    run.store.setDrafts(drafts => new Map(drafts).set("conversation:old", { segments: [{ kind: "text", text: "This button" }], preset: null, attachments: [], shape: "capsule" }));
+    const mine = { segments: [{ kind: "text" as const, text: "This button" }], preset: null, attachments: [], shape: "capsule" as const };
+    run.store.setDrafts(drafts => new Map(drafts).set("conversation:old", mine));
     listChanged!({ root: ROOT });
-    await answer(ROOT, [summary({ conversationId: "old", state: "archived" }), summary({ conversationId: "next" })]);
-    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "next" });
-    expect(run.store.drafts.get("conversation:next")?.segments).toEqual([{ kind: "text", text: "This button" }]);
+    await answer(ROOT, [summary({ conversationId: "next", lastActivityAt: "2026-11-01T12:05:00.000Z" }), summary({ conversationId: "old" })]);
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "old" });
+    expect(run.store.drafts.get("conversation:old")).toBe(mine);
+    expect(run.store.drafts.get("conversation:next")).toBeUndefined();
   });
 
-  test("the draft stays when the new current conversation already has one", async () => {
-    await playing({}, [summary({ conversationId: "old" })]);
-    const mine = { segments: [{ kind: "text" as const, text: "mine" }], preset: null, attachments: [], shape: "capsule" as const };
-    const theirs = { segments: [{ kind: "text" as const, text: "theirs" }], preset: null, attachments: [], shape: "capsule" as const };
-    run.store.setDrafts(drafts => new Map(drafts).set("conversation:old", mine).set("conversation:next", theirs));
+  test("the conversation picked in this window stays across list reads, beside others that work", async () => {
+    await playing({}, [summary({ conversationId: "next", phase: "running", working: true }), summary({ conversationId: "old" })]);
+    run.run.select("old");
     listChanged!({ root: ROOT });
-    await answer(ROOT, [summary({ conversationId: "old", state: "archived" }), summary({ conversationId: "next" })]);
-    expect(run.store.drafts.get("conversation:next")).toBe(theirs);
-    expect(run.store.drafts.get("conversation:old")).toBe(mine);
+    await answer(ROOT, [summary({ conversationId: "next", phase: "running", working: true }), summary({ conversationId: "old" })]);
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "old" });
+    run.run.select(null);
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "next", phase: "running", working: true }), summary({ conversationId: "old" }), summary({ conversationId: "third" })]);
+    expect(run.shown()).toEqual({ kind: "new" });
   });
 
   // The draft of the new conversation state may be the message this window is sending: a list naming the conversation
   // its start made can come before the start's reply, and that draft must not move into the conversation.
-  test("from the new conversation state the canvas's new current conversation shows; a draft whose start is in flight stays", async () => {
+  test("from the new conversation state nothing else chose, a conversation this window started shows; a draft whose start is in flight stays", async () => {
     await playing({}, []);
     const key = run.run.composerKey()!;
     const sending = { segments: [{ kind: "text" as const, text: "This button does nothing" }], preset: null, attachments: [], shape: "capsule" as const };
@@ -157,9 +156,9 @@ describe("the conversation the panel shows", () => {
     expect(run.store.drafts.get("conversation:started")).toBeUndefined();
   });
 
-  // A conversation main started while this window wrote in the new conversation state takes the draft along (user
-  // decision), when it has none of its own.
-  test("from the new conversation state with no start in flight, the draft follows the new current conversation", async () => {
+  // A conversation the person started in the main window while this window wrote in its own new conversation state
+  // takes the draft along (user decision), when it has none of its own.
+  test("from the new conversation state with no start in flight, the draft follows the new conversation", async () => {
     await playing({}, []);
     const key = run.run.composerKey()!;
     const writing = { segments: [{ kind: "text" as const, text: "The total is wrong" }], preset: null, attachments: [], shape: "capsule" as const };
@@ -168,18 +167,6 @@ describe("the conversation the panel shows", () => {
     await answer(ROOT, [summary({ conversationId: "from-main" })]);
     expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "from-main" });
     expect(run.store.drafts.get("conversation:from-main")).toBe(writing);
-  });
-
-  test("a previous conversation's draft whose send is in flight stays where the send will empty it", async () => {
-    await playing({}, [summary({ conversationId: "old" })]);
-    const sending = { segments: [{ kind: "text" as const, text: "Make it blue" }], preset: null, attachments: [], shape: "capsule" as const };
-    run.store.setDrafts(drafts => new Map(drafts).set("conversation:old", sending));
-    void run.bodyCalls.sendConversation({ conversationId: "old", text: "Make it blue" });
-    listChanged!({ root: ROOT });
-    await answer(ROOT, [summary({ conversationId: "old", state: "archived" }), summary({ conversationId: "next" })]);
-    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "next" });
-    expect(run.store.drafts.get("conversation:old")).toBe(sending);
-    expect(run.store.drafts.get("conversation:next")).toBeUndefined();
   });
 
   test("a conversation the main window deleted goes through the store's deleted path, and its draft moves nowhere", async () => {
@@ -245,10 +232,47 @@ describe("the conversation the panel shows", () => {
   });
 });
 
+// Spec: the head menu's Delete in this window. The store marks the conversation as being deleted before main is asked,
+// and the mark ends exactly once, as the main window's Delete does.
+describe("Delete from this window", () => {
+  test("asks main, then the store and the canvas run drop it and the panel picks again", async () => {
+    calls.deleteConversation = vi.fn(async () => undefined);
+    await playing({}, [summary({ conversationId: "gone" }), summary({ conversationId: "left", lastActivityAt: "2026-11-01T11:00:00.000Z" })]);
+    run.run.select("gone");
+    const deleted = vi.spyOn(run.store, "deleted");
+    const asked = run.deleteConversation("gone");
+    expect(run.store.deleting("gone")).toBe(true);
+    await expect(asked).resolves.toBeNull();
+    expect(calls.deleteConversation).toHaveBeenCalledExactlyOnceWith({ conversationId: "gone" });
+    expect(deleted).toHaveBeenCalledWith("gone");
+    expect(run.store.deleting("gone")).toBe(false);
+    expect(run.run.view()).not.toMatchObject({ conversationId: "gone" });
+  });
+
+  test("main's not_found counts as deleted", async () => {
+    calls.deleteConversation = vi.fn(async () => ({ error: "not_found" }));
+    await playing({}, [summary({ conversationId: "gone" })]);
+    await expect(run.deleteConversation("gone")).resolves.toBe("not_found");
+    expect(run.store.deleting("gone")).toBe(false);
+    expect(run.run.view()).not.toMatchObject({ conversationId: "gone" });
+  });
+
+  test.each([
+    ["a refusal", async () => ({ error: "busy" }), "busy"],
+    ["a failed call", async () => { throw new Error("gone away"); }, "unknown"],
+  ])("%s ends the mark and keeps the conversation shown", async (_name, reply, code) => {
+    calls.deleteConversation = vi.fn(reply);
+    await playing({}, [summary({ conversationId: "kept" })]);
+    await expect(run.deleteConversation("kept")).resolves.toBe(code);
+    expect(run.store.deleting("kept")).toBe(false);
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "kept" });
+  });
+});
+
 // The panel head's title: the main window's canvasConversationTitle for the conversation shown; the states the panel
 // had no head for (the list still read or failed, the canvas gone or its ID shared) keep the shell's "Conversation".
 describe("the panel head's title", () => {
-  test("the list's summary title of the current conversation", async () => {
+  test("the list's summary title of the conversation shown", async () => {
     await playing({}, [summary({ title: "Checkout Review details button" })]);
     expect(run.headTitle()).toBe("Checkout Review details button");
   });
@@ -266,8 +290,8 @@ describe("the panel head's title", () => {
     expect(run.headTitle()).toBe("Conversation");
   });
 
-  test("no current conversation is New conversation", async () => {
-    await playing({}, [summary({ state: "archived" })]);
+  test("the new conversation state is New conversation", async () => {
+    await playing({}, []);
     expect(run.headTitle()).toBe("New conversation");
   });
 
@@ -402,15 +426,14 @@ describe("the drawing project conversation", () => {
   });
 });
 
-// A project conversation that became the playing canvas's current conversation comes from main by id (user decision):
-// the panel moves to it as to any new current conversation, and says why, as the main window's panel does.
+// A project conversation promoted to the playing canvas comes from main by id (user decision): while the panel shows it,
+// it says why, as the main window's panel does.
 describe("the promoted conversation", () => {
   const current = (conversationId: string) => summary({ conversationId });
-  test("the panel shows it with the promotion notice, until a send under the notice or main clears it", async () => {
-    await playing({}, [current("before")]);
-    promoted!("p1");
-    listChanged!({ root: ROOT });
-    await answer(ROOT, [summary({ conversationId: "before", state: "archived" }), current("p1")]);
+  test("the panel showing it carries the promotion notice, until a send under the notice ends it", async () => {
+    calls.readPromoted!.mockResolvedValueOnce("p1");
+    await playing({}, [current("p1")]);
+    await flush();
     const shown = run.run.view();
     expect(shown).toMatchObject({ kind: "conversation", conversationId: "p1", notice: { kind: "promoted", open: "p1" } });
     // A send made under the notice ends it, as in the main window's panel.
@@ -427,7 +450,7 @@ describe("the promoted conversation", () => {
     expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "p1", notice: null });
   });
 
-  test("a promoted id that is not the current conversation shows nothing", async () => {
+  test("a promoted id that is not the conversation shown shows nothing", async () => {
     calls.readPromoted!.mockResolvedValueOnce("p1");
     await playing({}, [current("other")]);
     await flush();
