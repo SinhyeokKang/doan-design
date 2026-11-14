@@ -26,8 +26,8 @@
 | 배치 | 작업 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 | 상태 |
 |---|---|---|---|---|---|---|
 | PoC | 1 | `.scratch/canvas-concurrent-conversations/` | — | 컨덕터 | `node .scratch/canvas-concurrent-conversations/poc.mjs` exit 0 | 통과(design.md 'PoC 관찰') |
-| S | 3 | tasks.md 표의 S 행 | — | Claude Opus high — 저장 형식·저널 이전이 틀리면 사용자 대화 기록을 잃는다 | test, typecheck | 진행(`ctx_a3c2ce63eb77`, `ccc-batch-s`) |
-| R | 4 | tasks.md 표의 R 행 | S | Claude Opus high — 동시 턴, 지연 콜백 울타리, handoff | test, typecheck, lint | 대기 |
+| S | 3 | tasks.md 표의 S 행 | — | Claude Opus high — 저장 형식·저널 이전이 틀리면 사용자 대화 기록을 잃는다 | test, typecheck | 통합 `0ed2e701d`·`63988c595`·`fccfce338`(합의한 service 쪽 빨강 23건은 R에서), 리뷰 중 |
+| R | 4 | tasks.md 표의 R 행 | S | Claude Opus high — 동시 턴, 지연 콜백 울타리, handoff | test, typecheck, lint | 진행(`ctx_ffcae9facae6`, `ccc-batch-r`) |
 | F | 5 | tasks.md 표의 F 행 | R | Claude Opus medium — 순수 함수지만 순위 규칙 판단이 많다 | test, typecheck | 대기 |
 | P | 6 | tasks.md 표의 P 행 | F | Claude Opus high — `App.tsx`, 포커스, ui-state 병합 | test, typecheck, lint, build | 대기 |
 | O | 7 | tasks.md 표의 O 행 | F | Claude Opus high — 프로토타입 창 초안 옮기기 함정(POSTMORTEM) | test, typecheck, lint, build | 대기 |
@@ -46,3 +46,6 @@
 - 2026-11-14 다섯 프로바이더 통과. 관찰은 design.md 'PoC 관찰'.
 
 ## 진행 기록
+
+- S 리뷰: Codex gpt-6-astra medium(`ctx_77675bb2cb0f`, `ccc-review-s`).
+- S가 범위 밖 `io.test.ts`의 테스트 하나("recovers an interrupted replacement rollback…")를 고쳤다. 컨덕터가 허가했다.
