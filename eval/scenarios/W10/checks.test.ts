@@ -14,9 +14,9 @@ const others = [{ kind: "conversation", provider: "codex", frame: "hero", note: 
 const start = (): WorkExchange => ({ request: { v: 3, action: "start", root: "/repo", path }, response: { v: 3, ok: true, others } as WorkExchange["response"], at: new Date().toISOString(), hashes: { [path]: hash(seed) } });
 const done = (html = final): WorkExchange => ({ request: { v: 3, action: "done", root: "/repo" }, response: { v: 3, ok: true }, at: new Date().toISOString(), hashes: { [path]: hash(html) } });
 
-function run(log: WorkExchange[], html = final, changed = [path], errors = 0) {
+function run(log: WorkExchange[], html = final, changed = [path], errors = 0, calls: string[] = [], opened = 0) {
   return checks({
-    seed: () => seed, read: () => html, changedFiles: () => changed, work: () => log, calls: { commands: [], mcpTools: [] },
+    seed: () => seed, read: () => html, changedFiles: () => changed, work: () => log, calls: { commands: calls, mcpTools: [] }, open: () => Array.from({ length: opened }), prototype: () => [],
     doan: () => ({ code: errors === 0 ? 0 : 1, json: { result: { summary: { errors } } } }),
   } as unknown as CheckContext);
 }
@@ -32,7 +32,7 @@ test("W10 accepts a reformatted canvas with the same content", () => {
 });
 
 test("W10 fails an unchanged canvas", () => {
-  assert.ok(failing([start(), done(seed)], seed, []).includes("headline_updated"));
+  assert.deepEqual(failing([start(), done(seed)], seed, []), ["start_before_edit", "done_at_end", "start_path", "headline_updated", "only_canvas_changed"]);
 });
 
 test("W10 fails the wrong headline and unrelated edits", () => {
@@ -48,4 +48,9 @@ test("W10 fails changes to other files and a canvas doan check rejects", () => {
 test("W10 still needs the work signals around the edit", () => {
   assert.deepEqual(failing([done()]), ["start_before_edit", "start_path"]);
   assert.deepEqual(failing([start()]), ["done_at_end"]);
+});
+
+test("W10 fails a run that opened the canvas", () => {
+  assert.deepEqual(failing([start(), done()], final, [path], 0, ["doan open .doan/canvases/landing.html"]), ["no_doan_open"]);
+  assert.deepEqual(failing([start(), done()], final, [path], 0, [], 1), ["no_doan_open"]);
 });

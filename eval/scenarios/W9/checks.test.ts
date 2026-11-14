@@ -15,8 +15,11 @@ const exchange = (action: "start" | "update" | "done", extra: Partial<WorkExchan
   request: { v: 3, action, root: "/repo", ...(action === "done" ? {} : { path }) }, response: { v: 3, ok: true, ...(action === "done" ? {} : { others }) } as WorkExchange["response"], at: new Date().toISOString(), hashes: { [path]: hash(seed) }, ...extra,
 });
 
-function run(log: WorkExchange[], html = seed, changed: string[] = html === seed ? [] : [path]) {
-  return checks({ seed: () => seed, read: () => html, changedFiles: () => changed, work: () => log } as unknown as CheckContext);
+function run(log: WorkExchange[], html = seed, changed: string[] = html === seed ? [] : [path], calls: string[] = [], opened = 0) {
+  return checks({
+    seed: () => seed, read: () => html, changedFiles: () => changed, work: () => log,
+    calls: { commands: calls, mcpTools: [] }, open: () => Array.from({ length: opened }), prototype: () => [],
+  } as unknown as CheckContext);
 }
 const failing = (...args: Parameters<typeof run>) => run(...args).filter(c => !c.pass).map(c => c.id);
 
@@ -56,4 +59,25 @@ test("W9 fails any change to a canvas or design-system page, even with the canva
   assert.deepEqual(failing([exchange("start"), exchange("done")], seed, [".doan/canvases/other.html"]), ["canvas_unchanged"]);
   assert.deepEqual(failing([exchange("start"), exchange("done")], seed, [".doan/ds/button.html"]), ["canvas_unchanged"]);
   assert.deepEqual(failing([exchange("start"), exchange("done")], seed, ["notes.txt"]), []);
+});
+
+test("W9 fails an edit made before the first answer that carried others, even when reverted", () => {
+  // The agent edited, then ran start (the app saw the edited canvas), reverted and asked.
+  const late = exchange("start", { hashes: { [path]: hash(edited) } });
+  assert.deepEqual(failing([late, exchange("done")]), ["others_before_edit"]);
+  assert.deepEqual(failing([exchange("start", { hashes: { [path]: null } }), exchange("done")]), ["others_before_edit"]);
+  // A later exchange at the edited hash is not evidence of an earlier edit: only the first delivery counts.
+  assert.deepEqual(failing([exchange("start"), exchange("update", { hashes: { [path]: hash(edited) } }), exchange("done")]), []);
+});
+
+test("W9 needs an accepted done after the last answer that carried others", () => {
+  assert.deepEqual(failing([exchange("start"), exchange("done"), exchange("update")]), ["work_done"]);
+  assert.deepEqual(failing([exchange("start"), exchange("update"), exchange("done")]), []);
+});
+
+test("W9 fails a run that opened the canvas instead of asking", () => {
+  const ids = (calls: string[], opened: number) => failing([exchange("start"), exchange("done")], seed, [], calls, opened);
+  assert.deepEqual(ids([], 0), []);
+  assert.deepEqual(ids(["doan open .doan/canvases/landing.html"], 0), ["no_doan_open"]);
+  assert.deepEqual(ids([], 1), ["no_doan_open"]);
 });
