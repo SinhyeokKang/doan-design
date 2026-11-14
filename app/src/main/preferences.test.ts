@@ -291,3 +291,65 @@ describe("buddy", () => {
     expect(windowBuddy(parsePreferences(JSON.stringify({ ...FULL, v: 2, buddy: "popo" })))).toBe("doany");
   });
 });
+
+// The last Settings > General switch, which starts the 24-hour buddy lock (PRODUCT §5 item 0 'General').
+describe("buddyChangedAt", () => {
+  let dir: string;
+  let file: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "doan-preferences-changed-")); file = join(dir, "preferences.json"); });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+  const onDisk = () => JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+  const AT = "2026-11-14T10:15:00.123Z";
+
+  test("a valid ISO 8601 UTC time is read back with the buddy", () => {
+    expect(parsePreferences(JSON.stringify({ ...FULL, buddy: "popo", buddyChangedAt: AT }))).toEqual({ preferences: { ...FULL, buddy: "popo", buddyChangedAt: AT }, notice: null });
+  });
+
+  test("a time far in the future is read as it is; the renderer bounds the lock", () => {
+    const later = "2099-01-01T00:00:00.000Z";
+    expect(parsePreferences(JSON.stringify({ ...FULL, buddy: "popo", buddyChangedAt: later })).preferences.buddyChangedAt).toBe(later);
+  });
+
+  // Losing the time only lifts the lock, while a broken file would reset notifications and New conversation too.
+  test("an invalid time reads as no time, and the rest of the file still applies", () => {
+    for (const buddyChangedAt of ["", "yesterday", "2026-11-14", "2026-11-14T10:15:00Z", "2026-11-14T10:15:00.123+09:00", "2026-13-40T10:15:00.000Z", 1731579300123, null, true, {}, [AT]]) {
+      const read = parsePreferences(JSON.stringify({ ...FULL, buddy: "popo", buddyChangedAt }));
+      expect(read, JSON.stringify(buddyChangedAt)).toEqual({ preferences: { ...FULL, buddy: "popo" }, notice: null });
+      expect(read.preferences, JSON.stringify(buddyChangedAt)).not.toHaveProperty("buddyChangedAt");
+    }
+  });
+
+  test("a patch takes the time only with a buddy and only when it survives a round trip through Date", () => {
+    expect(parsePreferencesPatch({ buddy: "popo", buddyChangedAt: AT })).toEqual({ buddy: "popo", buddyChangedAt: AT });
+    expect(parsePreferencesPatch({ buddyChangedAt: AT })).toBeNull();
+    expect(parsePreferencesPatch({ notifications: { enabled: true }, buddyChangedAt: AT })).toBeNull();
+    for (const buddyChangedAt of ["", "2026-11-14T10:15:00Z", "2026-11-14", "2026-02-30T10:15:00.000Z", 1731579300123, null, undefined]) {
+      expect(parsePreferencesPatch({ buddy: "popo", buddyChangedAt }), String(buddyChangedAt)).toBeNull();
+    }
+  });
+
+  test("a patch without the time keeps it: first run's buddy-only pick, notifications and updates", () => {
+    const locked = { ...FULL, buddy: "popo", buddyChangedAt: AT } as never;
+    expect(mergePreferences(locked, parsePreferencesPatch({ buddy: "dori" })!)).toEqual({ ...FULL, buddy: "dori", buddyChangedAt: AT });
+    expect(mergePreferences(locked, parsePreferencesPatch({ notifications: { enabled: true } })!)).toEqual({ ...FULL, notifications: { ...FULL.notifications, enabled: true }, buddy: "popo", buddyChangedAt: AT });
+    expect(mergePreferences(locked, parsePreferencesPatch({ updates: { autoCheck: true } })!)).toEqual({ ...FULL, updates: { autoCheck: true }, buddy: "popo", buddyChangedAt: AT });
+    const later = "2026-11-15T10:15:00.000Z";
+    expect(mergePreferences(locked, parsePreferencesPatch({ buddy: "puri", buddyChangedAt: later })!)).toEqual({ ...FULL, buddy: "puri", buddyChangedAt: later });
+  });
+
+  test("the store writes the buddy and the time together and keeps the time through a notifications change", async () => {
+    writeFileSync(file, JSON.stringify(FULL));
+    const store = createPreferencesStore(file);
+    expect(await store.update({ buddy: "popo", buddyChangedAt: AT })).toEqual({ ok: true, snapshot: { preferences: { ...FULL, buddy: "popo", buddyChangedAt: AT }, notice: null } });
+    await store.update({ notifications: { approval: false } });
+    expect(onDisk()).toEqual({ ...FULL, notifications: { ...FULL.notifications, approval: false }, buddy: "popo", buddyChangedAt: AT });
+    expect(createPreferencesStore(file).read().preferences.buddyChangedAt).toBe(AT);
+  });
+
+  test("the first save after a broken file is moved aside carries the time", async () => {
+    writeFileSync(file, "{ not json");
+    const store = createPreferencesStore(file, { now: () => new Date("2026-11-14T10:15:00.123Z") });
+    expect(await store.update({ buddy: "popo", buddyChangedAt: AT })).toMatchObject({ ok: true });
+    expect(onDisk()).toEqual({ ...DEFAULT_PREFERENCES, buddy: "popo", buddyChangedAt: AT });
+  });
+});

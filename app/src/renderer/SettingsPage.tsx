@@ -56,7 +56,7 @@ export function SettingsPage({ header, sidebar, section, arrival, onState, agent
           <p className="settings-lead">{LEADS[section]}</p>
         </div><div className="settings-header-actions" ref={setActions} /></div>
         <div className="settings-sections">
-          {section === "general" && <SettingsGeneral key="general" preferences={agents.preferences} buddy={buddy} />}
+          {section === "general" && <SettingsGeneral key="general" preferences={agents.preferences} buddy={buddy} onLock={onLock} />}
           {section === "agents" && <SettingsAgents key="agents" {...agents} arrival={provider} onLock={onLock} />}
           {section === "mcp" && mcp && <SettingsMcpConnectors key="mcp" watch={mcp.watch} openAgents={mcp.openAgents} signIn={agents.signIn} onLock={onLock} actions={actions} />}
           {section === "notifications" && <SettingsNotifications key="notifications" preferences={agents.preferences} save={agents.save} />}

@@ -1249,13 +1249,36 @@ Reference: `.doan/canvases/buddy-choice.html`, frames `settings-general` and `se
 | Sidebar row | General is the first row (y 140 at 1238 × 780), lucide `SlidersHorizontal`; Settings still opens on Agents | |
 | Header | Title "General", lead "Choices that apply across Doan on this Mac."; one section "Buddy" (title at y 170.4) with the description "Shown on Home and while an agent works on a canvas. It also sets the accent color." | |
 | Group | One `.doan-settings-group` (720 × 366 at 373, 220.4) holding a radiogroup named by the section title: one row per buddy in the default order Doany, Puri, Dungdung, Popo, Dori, split by `--border-standard` hairlines (72 high, 73 with the hairline) | |
-| Row | A `.doan-preference-row` `<label>` with columns auto / 1fr / auto and a 12 gap: `card.png` 48 × 48 (`--size-control-lg`), radius `--radius-chip`, `alt=""`; name (500) over its line; first run's 16px radio at the end, on as `--affordance-prominent` with a 6px `--text-on-prominent` dot. The whole row is the hit target. Picking does not move the row and draws no accent | |
-| Focus | 2px `--border-focus` ring at offset 2 with `--radius-row` while the radio is `:focus-visible`; arrows cycle from the last row to the first (native radios) | |
+| Row | A `.doan-preference-row` `<label>` with columns auto / 1fr / auto and a 12 gap: `card.png` 48 × 48 (`--size-control-lg`), radius `--radius-chip`, `alt=""`; name (500) over its line; first run's 16px radio at the end, on as `--affordance-prominent` with a 6px `--text-on-prominent` dot. The whole row is the hit target. A click never checks the radio itself (the switch is confirmed first); the row does not move and draws no accent | |
+| Focus | 2px `--border-focus` ring at offset 2 with `--radius-row` while the radio is `:focus-visible`; arrows only move focus and go round from the last row to the first | |
 | Failure | Above the group (`.settings-notice`), under a newer or broken notice when both show: the Buddy step's sentence with an sm Retry; the rows return to the saved buddy and the category's own `.ob-live` reads the failure once. Leaving the category clears it | |
 | Newer | Rows `data-disabled`: default cursor, an off radio on `--surface-inset` with a `--border-standard` ring, the checked one `--affordance-disabled` with a `--text-disabled` dot | |
 
-- **Checked in the real app:** a pick changes Home Send, the canvas working glow, the working notice's GIF and Home's "Make <name> hop" at once, without a restart; saving a buddy keeps `notifications`, `newConversation` and `updates`; a null save reply shows the failure and Retry success focuses the checked radio; clicking the picture or the name picks.
+- **Checked in the real app:** a pick changes Home Send, the canvas working glow, the working notice's GIF and Home's "Make <name> hop" at once, without a restart; saving a buddy keeps `notifications`, `newConversation` and `updates`; a null save reply shows the failure and Retry success focuses the checked radio; clicking the picture or the name picks. (Checked before the switch was confirmed; the confirmed switch below applies them on success.)
 - **Known gap:** a save failure that answers after the category was left is shown when General opens again.
+
+#### Buddy switch and lock
+
+Reference: `.doan/canvases/buddy-change-cooldown.html`, frames `general-confirm`, `general-confirm-saving`, `general-locked`, `general-locked-minutes` and `general-failed`, at 1238 × 780. Measured by computed style beside an isolated development launch (`.scratch/design-sync/buddy-change-cooldown/measure.mjs`), with the focus states made from the keyboard: every paired element matches except the differences listed below.
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Alert | The shared compact `SettingsDialog` (`alertdialog`): title "Switch to <Name>?", description "You can’t change your buddy again for 24 hours.", Cancel (focused on open) then a prominent "Switch to <Name>" | Names the act and the buddy; the consequence is said once |
+| Busy alert | While the save is out the Switch button keeps its prominent fill and shows a 14px spinner in its label colour, with `aria-busy`; Cancel takes the DS disabled look. Both stay `aria-disabled` and focusable; Escape is handled on keydown so a repeated Escape cannot close it | Focus must not fall out of a modal alert; the pressed action reads as working, not unavailable |
+| Waiting | Rows, Home and the accent keep the saved buddy until the save answers | A confirmed switch shows only once saved |
+| Lock overlay | `.buddy-lock` over the group only (`inset: 0`, z-index 1), radius `--radius-container` − 1, padding 24 / 16, `color-mix(--surface-panel 60%, transparent)` with `--blur-sm`; opaque `--surface-panel` with no blur under reduced transparency; no border | The problem overlay's material; the group's `> * + *` hairline would draw a second line under the group's top border |
+| Overlay buddy | Home's `Buddy` at a 96 × 96 slot, 16 below to the heading; the shared `.doany:focus-visible` ring (2px `--border-focus`, offset 2, `--radius-container`) | Smaller than Home's 114 and larger than the 48px row card |
+| Countdown | `h3`, heading role 24 / 26.4, 500, `tabular-nums`, `HH:mm:ss` rounded up; centred block at most 560px with 24px inline padding and no bottom margin | Equal-width digits keep it still as it ticks |
+| Line | "Until you can change your buddy again. Your buddy stays for 24 hours after each change." body-sm in `--text-subtle`, 12 below, `text-wrap: balance` | |
+| Names | The buddy button "Make <name> hop" is described by the countdown and the line, in that order; neither has a live role | Read once when focus reaches the buddy, never every second |
+
+**Documented differences from the draft.**
+- `general-locked`: the draft's `.cool-lock` inherits the group's row hairline (1px `--border-standard` on top), which moves its content 1px down; the app draws no hairline (the person chose it).
+- Canvas context only: the draft draws the open alert inline (`position: absolute`, z-index 8) and the focus rings with static classes; the countdown text differs with the measurement time.
+
+**Checked in the real app** (`.scratch/runtime-test/buddy-cooldown/probe.mjs`): arrows move focus and go round; click, Space and Return open the alert without checking the radio; Escape and Cancel save nothing and return focus to the row; a switch saves buddy and time together, focuses the overlay buddy and changes the accent; the countdown ticks; Tab skips the inert rows; a relaunch keeps the overlay; under reduced motion the buddy is `reduced-motion`; at zero focus on the buddy moves to the checked row; a null save reply closes the alert with the notice and focus on the pressed row; Retry saves with a fresh time and focuses the buddy.
+
+**Not verified:** the still-image fallback without WebGL in this overlay (covered by Doany's tests for the shared component); a lost WebGL context leaves the overlay buddy still until General is opened again (Home's `Buddy` does not rebuild a context).
 
 ### About setup notice
 

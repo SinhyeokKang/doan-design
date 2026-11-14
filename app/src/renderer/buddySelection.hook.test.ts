@@ -1,4 +1,4 @@
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
 import type { BuddyId } from "./buddies";
 
@@ -165,4 +165,87 @@ test("after a failed save has answered, Continue goes on; a press while a save r
   expect(await waiting).toBe(false);
   await settle();
   expect(await render().settled()).toBe(true);
+});
+
+// Settings > General's switch starts the 24-hour lock (PRODUCT §5 item 0 'General'); first run and the buddy screen do
+// not.
+describe("the buddy lock", () => {
+  const H = 3_600_000;
+  const NOW = Date.parse("2026-11-14T10:00:00.000Z");
+  const AT = "2026-11-14T10:00:00.000Z";
+  const locked = (buddy: BuddyId, at: string): PreferencesSnapshot => ({ preferences: { ...DEFAULT_PREFERENCES, buddy, buddyChangedAt: at }, notice: null });
+  beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(NOW); });
+  afterEach(() => vi.useRealTimers());
+
+  test("a Settings pick sends the buddy and its change time as one patch", () => {
+    void render().select("popo", AT);
+    expect(save).toHaveBeenCalledExactlyOnceWith({ buddy: "popo", buddyChangedAt: AT });
+  });
+
+  // Draft frame general-confirm-saving: the alert waits on the saved buddy's accent.
+  test("a Settings switch shows only once it is saved; a failure keeps the saved buddy", async () => {
+    void render().select("popo", AT);
+    expect(render().shown).toBe("dori");
+    replies[0]!({ ok: true, snapshot: locked("popo", AT) });
+    await settle();
+    expect(render().shown).toBe("popo");
+    void render().select("puri", AT);
+    replies[1]!({ ok: false, reason: "write_failed", snapshot: locked("popo", AT) });
+    await settle();
+    expect(render()).toMatchObject({ shown: "popo", failure: { picked: "puri", kept: "popo", cooldown: true } });
+  });
+
+  test("first run's and the buddy screen's picks, commit and Retry send no change time", async () => {
+    void render().select("popo");
+    expect(save).toHaveBeenLastCalledWith({ buddy: "popo" });
+    replies[0]!(null);
+    await settle();
+    expect(render().failure).toEqual({ picked: "popo", kept: "dori" });
+    expect(render().failure).not.toHaveProperty("cooldown");
+    saved = snap();
+    void render().commit();
+    expect(save).toHaveBeenLastCalledWith({ buddy: "doany" });
+  });
+
+  // Retry then goes the same way: SettingsGeneral sends a fresh time only for a failure marked as a Settings switch.
+  test("a failed Settings switch says so in its failure", async () => {
+    void render().select("popo", AT);
+    replies[0]!({ ok: false, reason: "write_failed", snapshot: snap("dori") });
+    await settle();
+    expect(render().failure).toEqual({ picked: "popo", kept: "dori", cooldown: true });
+  });
+
+  test("no lock without a change time, or before the snapshot", () => {
+    expect(render().lockedUntil).toBeNull();
+    saved = null;
+    expect(render().lockedUntil).toBeNull();
+  });
+
+  test("the lock ends 24 hours after the saved change", () => {
+    saved = locked("popo", new Date(NOW - 2 * H).toISOString());
+    expect(render().lockedUntil).toBe(NOW + 22 * H);
+  });
+
+  test("a saved switch locks from the reply's change time", async () => {
+    void render().select("popo", AT);
+    replies[0]!({ ok: true, snapshot: locked("popo", AT) });
+    await settle();
+    expect(render().lockedUntil).toBe(NOW + 24 * H);
+  });
+
+  // The clock went back: one run locks at most 24 hours from when it first saw the time, however often it renders.
+  test("a change time in the future is first seen once per value: later renders keep the same end", () => {
+    saved = locked("popo", new Date(NOW + 100 * H).toISOString());
+    expect(render().lockedUntil).toBe(NOW + 24 * H);
+    vi.setSystemTime(NOW + 3 * H);
+    expect(render().lockedUntil).toBe(NOW + 24 * H);
+    // A new value is seen anew.
+    saved = locked("puri", new Date(NOW + 200 * H).toISOString());
+    expect(render().lockedUntil).toBe(NOW + 27 * H);
+  });
+
+  test("an unparsable time from IPC locks nothing", () => {
+    saved = locked("popo", "soon");
+    expect(render().lockedUntil).toBeNull();
+  });
 });
