@@ -56,10 +56,12 @@
 
 ## 툴바 Play 판단
 
-`playability`를 다음 결과 하나로 바꾼다: `{kind: "play", frame}` · `{kind: "drawer", broken?: frame}` · `{kind: "disabled", reason}`. 판단 순서와 문구는 spec 완료 조건 8의 표다.
+`playability`를 다음 결과 하나로 바꾼다: `{kind: "play", frame}` · `{kind: "drawer", broken?: frame}(`broken`은 마크가 있지만 재생할 수 없는 프레임: 마크가 틀림, id 공유, id 200 초과)` · `{kind: "disabled", reason}`. 판단 순서와 문구는 spec 완료 조건 8의 표다.
 
 - 감싼 프레임은 선택의 `SelectTarget.frameIndex`에서 `layout.frames`의 `parent`를 타고 올라가 찾는다. 1,000번째 뒤의 프레임은 `frameIndex`가 없으므로 서랍으로 간다.
 - 크기 버블 Play는 `kind === "play"`이고 고른 것이 그 프레임 자체일 때만 있다. Select와 Hand에서 그렇다.
+- **툴바 서랍의 Playing**(사용자 결정): main 창 렌더러가 프로토타입 창이 재생 중인 대상(`{root, canvas, frame}`)을 알아야 한다. main이 `controller`의 재생 대상이 바뀔 때(시작, 이동, Back·Forward, 닫힘) main 창에 push하고, 렌더러는 지금 캔버스와 같은 대상일 때만 그 행에 Playing을 둔다. 새 IPC 채널이 하나 는다(배치 W).
+- **서랍 표시 순서**(사용자 결정): `linkGroups` 결과에서 프레임 둘 이상인 묶음을 먼저(첫 프레임 순), 그 뒤에 혼자인 프레임들을 문서 순서로 한 묶음으로 보인다. 이 정렬은 서랍 행 모델(순수 함수 4)에서 한다.
 - **툴바 버튼 구조**
   - `Popover.Root`와 `Trigger`를 상태와 상관없이 항상 감싼다(POSTMORTEM 2026-11-13).
   - Radix Trigger가 자동으로 붙이는 `aria-haspopup`·`aria-expanded`·`aria-controls`는 서랍 상태가 아니면 `undefined`로 덮는다.
@@ -117,3 +119,8 @@
 - 구조 결정: 프로토타입 창의 격리(sandbox, 다른 페이지 이동 금지, partition)는 그대로다. 연결은 문서 안 클릭을 Doan이 해석하는 것이지 iframe 이동이 아니다.
 - PoC 의존: capture 리스너, `setTimeout(0)` 뒤 `defaultPrevented`, `click()`, role=button, shadow, window capture stop은 이 창의 주입 환경(CDP 주입, sandbox iframe)에서 시험한 적이 없다. 첫 작업에서 확인한다.
 - `/agent-eval`: 전체 라운드(사용자 결정). 하위 1의 `doan check` 규칙도 함께 잰다.
+
+## 확인 기록
+
+- 2026-11-15 초안 `.doan/canvases/prototype-link-play.html`을 그리고 독립 리뷰를 반영했다. 리뷰 중 사용자 결정: 서랍은 연결 없는 프레임을 끝에 모음, 툴바 서랍에 Playing 표시, 깨진 프레임 툴팁은 마크가 틀림·id 공유·id 200 초과에만.
+- 사용자 확인: 대기.
