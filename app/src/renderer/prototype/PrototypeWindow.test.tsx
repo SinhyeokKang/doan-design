@@ -597,21 +597,29 @@ describe("the conversation panel", () => {
   });
 });
 
-// Double presses before main answers: focus follows the state main ends in, never a press left behind.
+// Each press decides from the state main's view shows, so a request main never answered (or refused) cannot turn the
+// next press into the opposite one; focus moves once main's view shows what this window last asked for.
 describe("presses before main answers", () => {
-  test("open then fold before any answer: the open moves no focus, the fold puts it on the button", () => {
+  test("two presses before an answer both ask to open; the open then puts focus in the composer once", () => {
     const conversation = () => shell.conversation!;
     const input = { focus: vi.fn() }, button = { focus: vi.fn() };
     conversation().column!.current = { querySelector: () => input, contains: () => false } as never;
     conversation().buttonRef!.current = button as never;
     conversation().onToggle();
     conversation().onToggle();
-    expect(api.setPanel!.mock.calls.map(([request]) => request)).toEqual([{ open: true }, { open: false }]);
+    expect(api.setPanel!.mock.calls.map(([request]) => request)).toEqual([{ open: true }, { open: true }]);
     show(view({ panel: { open: true, width: 280 } }));
-    expect(input.focus).not.toHaveBeenCalled();
-    show(view({ panel: { open: false, width: 280 } }));
-    expect(button.focus).toHaveBeenCalledOnce();
-    expect(input.focus).not.toHaveBeenCalled();
+    expect(input.focus).toHaveBeenCalledOnce();
+    expect(button.focus).not.toHaveBeenCalled();
+  });
+
+  test("a request main never shows leaves the next press deciding from the view", () => {
+    show(view({ panel: { open: false, width: null } }));
+    shell.conversation!.onToggle();
+    // Main refused or dropped it: the view stays folded.
+    show(view({ gen: 2, panel: { open: false, width: null } }));
+    shell.conversation!.onToggle();
+    expect(api.setPanel!.mock.calls.map(([request]) => request)).toEqual([{ open: true }, { open: true }]);
   });
 });
 

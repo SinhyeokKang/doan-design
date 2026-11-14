@@ -87,8 +87,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const column = useRef<HTMLDivElement>(null);
   const convButton = useRef<HTMLButtonElement>(null);
   // The open state this window last asked main for, until main's view shows it: focus then goes to the composer or
-  // the button. A view that arrives open by itself moves nothing, and of two presses before an answer only the last
-  // one counts.
+  // the button. A view that arrives open by itself moves nothing. Each press decides from the view, not from this, so
+  // a request main never answered cannot turn the next press into the opposite one.
   const panelAsked = useRef<boolean | null>(null);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const focusGuard = useRef<ColumnFocusGuard | null>(null);
@@ -137,7 +137,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const clampPanel = (value: number) => Math.min(panelBounds.max, Math.max(panelBounds.min, value));
   const panelWidth = clampPanel(dragWidth ?? view?.panel.width ?? panelBounds.default);
   const togglePanel = () => {
-    const open = !(panelAsked.current ?? panelOpen);
+    const open = !panelOpen;
     panelAsked.current = open;
     void api.setPanel({ open });
   };

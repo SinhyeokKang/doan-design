@@ -387,3 +387,18 @@ describe("the promoted conversation", () => {
     expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "other", notice: null });
   });
 });
+
+// Main nulls the drawing for every new target, but its null can come after the view: the notice of the canvas left
+// behind must not show on the new one meanwhile.
+describe("the drawing across a switch of canvas", () => {
+  test("a new playing canvas shows no drawing notice until main reports one for it", async () => {
+    calls.readDrawing!.mockResolvedValueOnce("p1");
+    await playing({}, []);
+    await flush();
+    expect(run.run.view()).toMatchObject({ kind: "new", notice: { kind: "drawing", open: "p1" } });
+    const { canvasId: _none, ...plain } = view({ path: PLAIN.path, frame: "x", frames: [] });
+    run.setView(plain);
+    await answer(ROOT, []);
+    expect(run.run.view()).toMatchObject({ kind: "new", notice: null });
+  });
+});

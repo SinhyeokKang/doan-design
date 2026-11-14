@@ -122,6 +122,9 @@ export class PrototypeConversationRun {
       this.key = key;
       this.listView = "loading";
       this.last = null;
+      // Main nulls the drawing for every new target, but that may come after this view: the canvas left behind's
+      // drawing must not show on this one meanwhile.
+      this.drawingId = null;
     }
     this.last = playingFrameChip(view, this.last);
     // A row back from being read again (a folder reload) reads the list again: list changes meanwhile were dropped.
