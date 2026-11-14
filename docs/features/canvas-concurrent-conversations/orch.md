@@ -18,13 +18,15 @@
 - 작업 11(로그인 정리) — 컨덕터 판단: 체인 '로그인'과 리드 브리프에 따라 공유 프로필(`/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`)의 로그아웃과 삭제는 마지막 링크 병합 전에 리드가 한다. 컨덕터는 로그아웃하지 않는다. 이 링크가 따로 만든 로그인 상태(있으면)만 지우고, 그때 시작 점검 1의 확인 방법(`security find-generic-password`)을 쓴다.
 - 배치 S를 PoC와 병렬로 시작한다 — 컨덕터 판단: 보관 제거와 색인 v3는 상위 공통 결정 1·8이라 PoC 결과와 상관없이 필요하다. PoC가 실패해 범위가 바뀌면 R부터 다시 본다.
 - `/agent-eval`은 하지 않는다(spec 정한 점 16).
+- PoC 로그인 — 컨덕터 판단: 리드의 공유 프로필을 앱 밖에서 썼다. 금고 토큰은 dev 앱과 같은 Electron 바이너리의 `safeStorage`로 풀고 다시 봉인했다(design.md 'PoC 관찰'). 새 로그인은 만들지 않았다.
+- 워커 S 질문(2026-11-14) — 컨덕터 판단: (1) S 동안 `state` 타입은 `"current" | "archived"` 유니언으로 두고 C가 좁힌다. `restoreEntries`와 저널의 restore 갈래는 R이 호출을 없앤 뒤 지운다. (2) S 구현 커밋 뒤 보관·복원을 고정한 service 쪽 테스트만 빨강인 것을 받아들인다. S와 R을 함께 통합하고 R의 HEAD에서 검증한다. (3) 이전한 v2 보관 대화는 `seenSeq`를 마지막 턴 seq로 맞추는 대신 `seenSeq`를 뺀다. `seenSeq`가 없으면 모두 본 것으로 치는 기존 규칙(`store.ts:18`, `markSeen`)이 같은 결과를 내고, 색인을 읽을 때 기록을 읽지 않아도 된다.
 
 ## 배치
 
 | 배치 | 작업 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 | 상태 |
 |---|---|---|---|---|---|---|
-| PoC | 1 | `.scratch/canvas-concurrent-conversations/` | — | 컨덕터 | `node .scratch/canvas-concurrent-conversations/poc.mjs` exit 0 | 진행 |
-| S | 3 | tasks.md 표의 S 행 | — | Claude Opus high — 저장 형식·저널 이전이 틀리면 사용자 대화 기록을 잃는다 | test, typecheck | 대기 |
+| PoC | 1 | `.scratch/canvas-concurrent-conversations/` | — | 컨덕터 | `node .scratch/canvas-concurrent-conversations/poc.mjs` exit 0 | 통과(design.md 'PoC 관찰') |
+| S | 3 | tasks.md 표의 S 행 | — | Claude Opus high — 저장 형식·저널 이전이 틀리면 사용자 대화 기록을 잃는다 | test, typecheck | 진행(`ctx_a3c2ce63eb77`, `ccc-batch-s`) |
 | R | 4 | tasks.md 표의 R 행 | S | Claude Opus high — 동시 턴, 지연 콜백 울타리, handoff | test, typecheck, lint | 대기 |
 | F | 5 | tasks.md 표의 F 행 | R | Claude Opus medium — 순수 함수지만 순위 규칙 판단이 많다 | test, typecheck | 대기 |
 | P | 6 | tasks.md 표의 P 행 | F | Claude Opus high — `App.tsx`, 포커스, ui-state 병합 | test, typecheck, lint, build | 대기 |
@@ -41,6 +43,6 @@
 
 ## PoC
 
-- 로그인: 리드가 만든 공유 프로필을 쓴다. Cursor·Antigravity·Copilot 토큰은 앱 금고(`safeStorage`)에 있다.
+- 2026-11-14 다섯 프로바이더 통과. 관찰은 design.md 'PoC 관찰'.
 
 ## 진행 기록

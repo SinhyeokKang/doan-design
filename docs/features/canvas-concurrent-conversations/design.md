@@ -209,6 +209,29 @@
 - **로그인 정리**: tasks 9(컨덕터, PR 전). 로그아웃하고 프로필과 scratch HOME을 지우고 Keychain에 남은 항목이 없는지 본다. Cursor CLI 로그인은 기기 전체 Keychain에 쓴다.
 - 관찰(통과·실패·날짜)은 이 문서와 승격 커밋 메시지에 적는다.
 
+## PoC 관찰(2026-11-14)
+
+`node .scratch/canvas-concurrent-conversations/poc.mjs`가 exit 0이었다(`RESULT PASS (all five)`, 설치된 `/Applications/Doan.app` 새 실행 0).
+
+- **방법**
+  - 로그인: 위 '방법'의 프로바이더별 scratch HOME 대신, 리드가 실제 HOME의 dev 앱에서 만든 공유 프로필(`/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`)을 썼다. Claude Code는 `CLAUDE_CONFIG_DIR`, Codex는 `CODEX_HOME`의 Keychain 항목을 그대로 쓴다. Cursor·Antigravity·Copilot 토큰은 앱 금고에 있어서, dev 앱과 같은 Electron 바이너리로 돌린 도우미(`vault.cjs`, 앱 이름 `doan`의 `safeStorage`)가 `AuthManager`의 hold/drop처럼 프로바이더마다 한 번 풀고(materialize) 턴이 모두 끝난 뒤 다시 봉인하고 평문을 지웠다(absorb + scrub). 세 프로바이더 모두 토큰 갱신은 없었고 평문 파일은 남지 않았다.
+  - 프로바이더마다 한 저장소(`.doan/canvases/poc.html`가 있는 임시 git 저장소)에서 턴 넷(A·B·C·D)을 동시에 띄웠다. A–C는 저장소에 파일 하나를 쓰고 `DONE <label>`로 답한다. D는 긴 답을 쓰다가 세션이 생기고 3초 뒤 멈춘다.
+  - 실행 경로: Claude Code는 턴마다 CLI(`claude -p --output-format stream-json`, `acceptEdits`), Codex는 대화마다 `codex app-server`(keyring 인자, `thread/start` → `turn/start`, 멈춤은 `turn/interrupt`), Cursor·Antigravity·Copilot은 턴마다 ACP 서버(`initialize` → `authenticate` → `session/new` → `session/prompt`, 멈춤은 `session/cancel`). 환경은 `providerEnv` 규칙(허용 목록, 프로필 변수, Cursor·Antigravity의 추가 변수)을 따랐고, launchd 환경 대신 셸 환경을 읽었다.
+  - 건너뛴 것: Doan의 userData 울타리(fence), MCP 연결, 스킬 스텁 설치(프로필에 있는 것을 그대로 썼다), 앱의 동의·권한 카드(ACP 권한 요청은 probe가 `allow_once`로 답했다), Claude Code의 SDK 제어 채널(멈춤은 프로세스 그룹 SIGINT).
+- **결과**(마지막 실행, 겹친 시간은 A–C가 모두 돈 구간)
+
+| 프로바이더 | A–C | 겹친 시간 | D 멈춤 | 세션 | 권한 요청 |
+|---|---|---|---|---|---|
+| Claude Code | 모두 끝남 | 5.8초 | 1.1초 안에 멈춤, A–C는 그 뒤 끝남 | 넷 모두 다름 | 없음(`acceptEdits`) |
+| Codex | 모두 끝남 | 9.5초 | `interrupted`, A–C는 그 뒤 끝남 | 넷 모두 다름 | 없음(bypass 권한) |
+| Cursor | 모두 끝남 | 12.0초 | `cancelled`, A–C는 그 뒤 끝남 | 넷 모두 다름 | 2건, 모두 자기 세션 |
+| Antigravity | 모두 끝남 | 14.4초 | `cancelled`, A–C는 그 뒤 끝남 | 넷 모두 다름 | 3건, 모두 자기 세션 |
+| Copilot | 모두 끝남 | 35.5초 | `cancelled`, A–C는 그 뒤 끝남 | 넷 모두 다름 | 4건, 모두 자기 세션 |
+
+- 앞선 실행(같은 날)에서도 다섯 모두 겹친 턴을 끝까지 돌렸다.
+- **동시성과 상관없는 관찰**: Antigravity가 명령을 세션 cwd가 아닌 `<GEMINI_HOME>/antigravity-cli/skills`에서 실행해 상대 경로 파일을 그 폴더에 쓴 적이 있다. 단독 턴(`SOLO=1`) 세 번 중 한 번에서도 같았다. 그래서 마지막 실행은 프롬프트에 절대 경로를 썼다. 이 현상은 BACKLOG 후보다. 서버는 그 폴더를 프로필 안에 스스로 만든다.
+- **관찰하지 못한 것**: 사용량 한도에 걸릴 때 각 대화가 따로 보이는지(한도에 닿지 않았다). Claude Code·Codex의 대화별 권한 요청(권한을 묻지 않는 모드로 돌렸다).
+
 ## POSTMORTEM
 
 - **2026-10-27 'A rejected conversation replacement had already changed current history'**: "validate prompt and old histories first, publish a store-local undo record before appending, and use the final index rename as the commit point." 이전도 색인 rename(첫 `save`)을 커밋 지점으로 쓰고, v2 의미의 저널은 v2 색인 옆에서만 끝낸다.
