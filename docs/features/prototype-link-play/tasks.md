@@ -9,7 +9,7 @@
 상위 문서의 체크는 리드가 develop에서 한다. 배치 L·S·W·G는 워커가 `/ship bypass`로 `test:` 커밋 하나와 구현 커밋 하나를 만든다. 실제 앱 probe는 모두 격리한다: `app/runtime/` 지원(`isolatedEnv`), 임시 userData·HOME·SHELL·`DOAN_RUNTIME`, `--user-data-dir`, 앞뒤 `real-state` 비교.
 
 - [ ] 0. **`/design-draft`**(리드, develop, 체인 전): design.md와 spec이 요청하는 화면이다. 캔버스는 `.doan/canvases/prototype-link-play.html`이고 프레임은 셋이다.
-  - `drawer-groups`: 프로토타입 창 서랍의 묶음, 재생 중 묶음, 연결 없는 프레임들, 묶음 하나, 빈 서랍
+  - `drawer-groups`: 프로토타입 창 서랍의 묶음, 재생 중 묶음, 연결 없는 프레임들, 묶음 하나, 빈 서랍, main 창 헤더 서랍의 Eye 표시
   - `link-toast`: 재생할 수 없는 연결의 토스트
   - `toolbar-play`: 툴바 Play의 모든 행(읽는 중, pick, capture, 프로토타입 없음, 재생, 감싼 프레임 재생, 서랍, 깨진 마크의 서랍), 상태별 툴팁, Hand, 툴바에서 열린 서랍
   - 검증: `doan check --repo . --json`이 오류 0이고, `doan ls --repo . --json`이 세 프레임 id를 보인다. 사용자 확인이 design.md에 있다.
@@ -39,7 +39,7 @@
   - 검증: `go test ./...`(`TestSkillGuideFitsToolOutputCap`와 내용 테스트 포함), `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W9`가 `self-test PASS`와 exit 0.
   - 커밋 경계: 가이드 하나, eval 하나.
 - [ ] 5. **배치 W — 창과 툴바**(L·S 뒤, 순수 함수 4·6).
-  - 맡는 파일: `host.ts`, `PrototypeWindow.tsx`, `view.ts`, `ipc.ts`, `preload/prototype.ts`, `controller.ts`, 꺼낸 서랍 본문, `CanvasTools.tsx`, `canvasTool.ts`, `App.tsx`.
+  - 맡는 파일: `CanvasHeader.tsx`, `frameDrawer.ts`, `host.ts`, `PrototypeWindow.tsx`, `view.ts`, `ipc.ts`, `preload/prototype.ts`, `controller.ts`, 꺼낸 서랍 본문, `CanvasTools.tsx`, `canvasTool.ts`, `App.tsx`.
   - 테스트: `host.test.ts`, `controller.test.ts`, `PrototypeWindow` 테스트, `CanvasTools.test.tsx`, `App.*.test.tsx` 해당 파일.
     - 이동과 토스트, export 토스트 중 토스트 없음
     - 제목·서랍·칩이 새 프레임을 따름

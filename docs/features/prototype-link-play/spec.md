@@ -42,6 +42,9 @@
 
 ### 프레임 서랍(프로토타입 창)
 
+세 서랍(main 창 헤더, 프로토타입 창, 툴바)은 지금 있는 행을 같은 표시로 보인다(사용자 결정). 글자 "Viewing"·"Playing" 대신 14px lucide Eye 아이콘(metadata 잉크)을 두고, 그 단어는 스크린리더용 글자로 남긴다. `aria-current="location"`은 그대로다. main 창 서랍의 "Prototype" 캡션은 글자 그대로다.
+
+
 7. 프레임 서랍이 재생 가능한 프레임을 묶음별로 보인다(하위 1의 `linkGroups`).
    - 서랍은 연결된 묶음(프레임 둘 이상)을 먼저 첫 프레임의 문서 순서로 보이고, 그 뒤에 연결 없는 프레임 전부를 문서 순서로 한데 보인다(사용자 결정). 서랍 표시 규칙이고, 하위 1의 묶음 계산은 그대로다. 묶음 안의 순서는 문서 순서다.
    - 묶음마다 `role="group"`이다. 접근성 이름은 연결된 묶음이 "<첫 프레임> and N more", 연결 없는 프레임들이 "Frames without links"다.
@@ -95,7 +98,7 @@
       - 'Header'의 Back·Forward 문장과 서랍 문장("lists … in document order")
       - 'Play controls'(새 판단 표, 기존 비활성 이유 네 개, 버블 조건)
       - 'Conversation panel'의 'Playing frame'·'Independence'의 이동 경로 목록
-    - PRODUCT §5 item 3 'Frame drawer'의 "which makes the toolbar's Play prototype available"
+    - PRODUCT §5 item 3 'Frame drawer'의 "which makes the toolbar's Play prototype available"와 Viewing 표시(Eye 아이콘)
     - ARCHITECTURE §1 convention 15의 클릭 동작 문장(하위 1이 넘긴 것)
     - ARCHITECTURE §3 'Prototype window'의 `goto` 메시지, 검증, 위조 문장("A forgery can only …"에 같은 캔버스의 재생 가능한 프레임으로의 이동을 더함)
     - ARCHITECTURE §3 보드 `layout`의 `gotos`·`parent`와 한도
@@ -106,6 +109,6 @@
 - 내보내기와 내보낸 파일의 전환. 하위 3이 한다.
 - main 창 캔버스 페이지에서 연결을 표시하거나 따라가는 것.
 - 전환 애니메이션, 오버레이, 프레임 사이의 상태 전달(상위 '하지 않는 것').
-- main 창 헤더의 프레임 서랍(PRODUCT §5 item 3 'Frame drawer') 동작 변경. 그 서랍은 모든 프레임을 그대로 보인다.
+- main 창 헤더의 프레임 서랍(PRODUCT §5 item 3 'Frame drawer')의 동작 변경. 그 서랍은 모든 프레임을 그대로 보이고, 바뀌는 것은 Viewing 표시를 Eye 아이콘으로 바꾸는 것뿐이다.
 - `doan open --prototype` 변경. 지정한 프레임에서 시작하고, 그 뒤의 이동은 연결로 한다.
 - 1,000개 한도 변경.
