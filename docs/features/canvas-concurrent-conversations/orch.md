@@ -70,4 +70,5 @@
 - 남은 정리(배치 C에 넘김): `styles.css`의 고아 `.pw-side-title`과 `WindowShell.test.tsx:736-738`.
 - 배치 C 리뷰 — 컨덕터 판단: 따로 돌리지 않는다. 동작을 바꾸지 않는 기계적 정리이고(전체 12748 통과, `rg` 남은 줄 모두 이유 있음), 작업 12의 최종 리뷰가 feature 전체 diff로 함께 본다.
 - 최종 리뷰(Codex gpt-6-astra medium) 🟡3: 새 대화 상태에서 이어받기 제안 캐시를 다시 묻지 않음, 프로토타입 창 접힌 배지가 보이는 대화 하나만 봄, 프로토타입 창이 승격 안내를 놓침. 고칠 파일을 DS가 넘겨받아 DS 후속으로 고친다. 컨덕터 판단: 프로토타입 창 배지도 캔버스 전체 대화에서 고르고(spec 정한 점 5), 자기 표시 순서(점 > 스피너 > 말풍선)는 그대로 두며, 배지로 펼치면 그 대화를 보인다.
+- DS 질문 — 컨덕터 판단: 프로토타입 창의 첫 목록 읽기 실패 상태에서 머리 제목은 main 창처럼 "New conversation"이고, 머리의 New conversation은 `aria-disabled`, 메뉴의 New conversation은 눌린 행이다(보이는 상태가 새 대화 상태라서). 초안 타일과 다른 점은 DESIGN.md에 이유와 함께 적는다.
 - S가 범위 밖 `io.test.ts`의 테스트 하나("recovers an interrupted replacement rollback…")를 고쳤다. 컨덕터가 허가했다.
