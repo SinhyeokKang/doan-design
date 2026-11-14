@@ -8,7 +8,7 @@ import { textSegments } from "./anchorField";
 import { composerAction } from "./composerRules";
 import {
   canvasGoneText, composerPlaceholder, composerTurn, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
-  type PlaceholderInput,
+  type DockedBusy, type DockedMode, type PlaceholderInput,
 } from "./dockedRules";
 import { presetPlaceholder, type AttachmentDraft, type ModelPickerView, type PresetSummary } from "./homeComposer";
 
@@ -29,7 +29,6 @@ const input = (patch: Partial<DockedInput>): DockedInput => ({ skills: [], mode:
 describe("draftKey", () => {
   test("keeps drafts per conversation, and a new conversation's draft per root", () => {
     expect(draftKey(EXISTING)).toBe("conversation:c1");
-    expect(draftKey({ kind: "archived", conversationId: "c1", provider: "claude" })).toBe("conversation:c1");
     expect(draftKey({ kind: "new", root: "/code/doan" })).toBe("root:/code/doan");
     expect(draftKey({ kind: "new", root: "/code/doan" })).not.toBe(draftKey({ kind: "new", root: "/code/acme" }));
   });
@@ -89,9 +88,13 @@ describe("dockedAvailability", () => {
     // A late refusal names no conversation until the list arrives: the line has no Open.
     expect(dockedAvailability(input({ busy: { kind: "project", open: null } })).reason).toEqual({ text: "Another conversation is still running in doan-design." });
   });
-  test("restoring while the canvas's current conversation runs is refused with Open", () => {
-    expect(dockedAvailability(input({ mode: { kind: "archived", conversationId: "c1", provider: "claude" }, busy: { kind: "restore", open: "c2" } })).reason)
-      .toEqual({ text: "The current conversation on this canvas is still running.", open: "c2" });
+  test("nothing is archived any more: no archived mode and no restore busy line", () => {
+    // @ts-expect-error -- a conversation is existing or new; none is archived to restore.
+    const archived: DockedMode = { kind: "archived", conversationId: "c1", provider: "claude" };
+    // @ts-expect-error -- the only busy line left is another project conversation's.
+    const restore: DockedBusy = { kind: "restore", open: "c2" };
+    expect(archived.kind).toBe("archived");
+    expect(restore.kind).toBe("restore");
   });
   test("an empty field shows the busy line only once something is typed, as on Home", () => {
     expect(dockedAvailability(input({ draft: EMPTY_DRAFT, busy: { kind: "project", open: "c9" } })).reason).toBeNull();
@@ -103,11 +106,9 @@ describe("dockedAvailability", () => {
   });
   // Its turn ended and main still works on it (holding): a message goes to the queue, so neither limit on starting a turn
   // applies yet, and an empty field is a disabled Send with no line.
-  test("while this conversation holds after its turn, text queues past the project and restore limits", () => {
+  test("while this conversation holds after its turn, text queues past the project limit", () => {
     expect(dockedAvailability(input({ turn: "holding" }))).toEqual({ enabled: true, reason: null });
     expect(dockedAvailability(input({ turn: "holding", busy: { kind: "project", open: "c9" } }))).toEqual({ enabled: true, reason: null });
-    expect(dockedAvailability(input({ turn: "holding", mode: { kind: "archived", conversationId: "c1", provider: "claude" }, busy: { kind: "restore", open: "c2" } })))
-      .toEqual({ enabled: true, reason: null });
     expect(dockedAvailability(input({ turn: "holding", draft: EMPTY_DRAFT }))).toEqual({ enabled: false, reason: null });
   });
   test("a fixed provider that cannot run offers its fix in Settings, not another agent", () => {
@@ -137,12 +138,12 @@ describe("dockedMessage", () => {
 });
 
 describe("dockedRefusal", () => {
-  test("project_busy and a restore's busy become the busy line until the list names the conversation", () => {
+  test("project_busy becomes the busy line until the list names the conversation; a conversation's busy is a notice", () => {
     expect(dockedRefusal("project_busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "busy", busy: { kind: "project", open: null } });
-    expect(dockedRefusal("busy", { kind: "archived", conversationId: "c1", provider: "claude" }, "claude", "doan-design")).toEqual({ kind: "busy", busy: { kind: "restore", open: null } });
+    expect(dockedRefusal("busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is finishing a previous run. Try again in a moment." });
   });
   test("canvas_not_found replaces the composer with the canvas-gone line", () => {
-    expect(dockedRefusal("canvas_not_found", { kind: "archived", conversationId: "c1", provider: "claude" }, "claude", "doan-design")).toEqual({ kind: "gone" });
+    expect(dockedRefusal("canvas_not_found", EXISTING, "claude", "doan-design")).toEqual({ kind: "gone" });
     expect(canvasGoneText("doan-design")).toBe("This conversation’s canvas is no longer in doan-design, so it can’t continue.");
   });
   test("a start uses Home's start copy; a send has its own", () => {
@@ -157,14 +158,14 @@ describe("dockedRefusal", () => {
   test("a conversation of another account or an earlier sign-in says so and offers a new conversation, not Retry", () => {
     const other = "This conversation’s session belongs to another Claude Code account, so it can’t continue here. To continue it, sign out, then sign in to that account in Settings > Agents.";
     const earlier = "This conversation’s session belongs to an earlier Codex sign-in, so it can’t continue here.";
-    for (const mode of [EXISTING, { kind: "archived", conversationId: "c1", provider: "claude" } as const]) {
+    for (const mode of [EXISTING]) {
       expect(dockedRefusal("account_changed", mode, "claude", "doan-design")).toEqual({ kind: "notice", text: other, startNew: true });
       expect(dockedRefusal("sign_in_changed", mode, "codex", "doan-design")).toEqual({ kind: "notice", text: earlier, startNew: true });
     }
   });
   test("a conversation of another organization of a Claude Code account says so and offers a new conversation, not Retry", () => {
     const text = "This conversation’s session belongs to another organization of your Claude Code account, so it can’t continue here. To continue it, sign in to the organization this conversation started in.";
-    for (const mode of [EXISTING, { kind: "archived", conversationId: "c1", provider: "claude" } as const]) {
+    for (const mode of [EXISTING]) {
       expect(dockedRefusal("workspace_changed", mode, "claude", "doan-design")).toEqual({ kind: "notice", text, startNew: true });
     }
   });
@@ -228,7 +229,6 @@ describe("composerPlaceholder", () => {
     expect(placeholder({ mode: "new", text: "Ask or describe what to design, / for presets" })).toEqual({ text: "Ask or describe what to design, / for presets", suggestion: null });
     expect(placeholder({ mode: "new", text: "Ask, / for presets" })).toEqual({ text: "Ask, / for presets", suggestion: null });
     expect(placeholder({ mode: "resume", text: "Reply, / for presets" })).toEqual({ text: "Reply, / for presets", suggestion: null });
-    expect(placeholder({ mode: "archived", text: "Reply, / for presets" })).toEqual({ text: "Reply, / for presets", suggestion: null });
     expect(placeholder({ suggestion: "" })).toEqual({ text: "Reply, / for presets", suggestion: null });
   });
 });

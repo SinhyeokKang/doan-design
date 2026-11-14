@@ -18,14 +18,23 @@ const plain = row({ path: ".doan/canvases/plain.html" });
 const quiet = row({ path: ".doan/canvases/quiet.html", id: "quiet" });
 
 describe("canvasConversationRows", () => {
-  test("only canvases with a current conversation, the current conversation's latest activity first", () => {
+  test("one row per canvas conversation, several on one canvas included, the latest activity first", () => {
     const rows = canvasConversationRows([
       summary({ conversationId: "p", lastActivityAt: ago(0) }),
       summary({ conversationId: "b", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(5 * MIN) }),
-      summary({ conversationId: "old", canvas: { path: billing.path, id: "billing" }, state: "archived", lastActivityAt: ago(0) }),
+      summary({ conversationId: "b2", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(0) }),
       summary({ conversationId: "n", canvas: { path: plain.path }, lastActivityAt: ago(MIN) }),
     ], [billing, plain, quiet], NOW);
-    expect(rows.map(r => [r.conversationId, r.name])).toEqual([["n", "plain"], ["b", "billing"]]);
+    expect(rows.map(r => [r.conversationId, r.name])).toEqual([["b2", "billing"], ["n", "plain"], ["b", "billing"]]);
+  });
+
+  test("the row's heading is the conversation's title; an empty one reads Conversation", () => {
+    const rows = canvasConversationRows([
+      summary({ conversationId: "t", title: "Tighten the spacing", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(0) }),
+      summary({ conversationId: "e", title: "", canvas: { path: billing.path, id: "billing" } }),
+      summary({ conversationId: "s", title: "  \n ", canvas: { path: plain.path } }),
+    ], [billing, plain], NOW);
+    expect(rows.map(r => [r.key, r.heading, r.title])).toEqual([["t", "Tighten the spacing", "Tighten the spacing"], ["e", "Conversation", ""], ["s", "Conversation", "  \n "]]);
   });
 
   test("a row carries the canvas row, provider, status, short time and preview", () => {
@@ -33,7 +42,7 @@ describe("canvasConversationRows", () => {
     expect(only).toEqual({
       key: "b", conversationId: "b", name: "billing", canvas: { path: billing.path, id: "billing" }, row: billing,
       provider: "codex", status: { kind: "working", label: "Working" }, time: { text: "3m", label: "3 minutes ago" },
-      preview: "Editing the header", problem: null, openable: true,
+      preview: "Editing the header", problem: null, openable: true, heading: "Edit the header",
       // The row's Delete names the conversation and follows the title menu's rule.
       title: "Edit the header", deletable: { available: false, reason: "The agent is working on this conversation." },
     });
