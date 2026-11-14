@@ -37,11 +37,12 @@
 
 ## 하위 1의 범위: `prototype-link-convention`
 
-- convention 15: `data-doan-goto`의 문법(값의 형식, 빈 값, 공백, 길이 한도 200 UTF-16), 놓일 수 있는 곳(마크된 프레임 안, 프레임 자신에 다는 것, 중첩 프레임 안), `<template>` 안의 처리.
-- Go `canvas.Parse`가 연결마다 요소를 감싼 가장 안쪽 프레임과 값을 기록한다.
-- `doan check` 규칙과 심각도: 대상 프레임 없음, 대상 id 공유, 대상에 마크 없음, 마크 없는 프레임 안이나 프레임 밖의 연결, 자기 자신으로 가는 연결. 각 규칙의 이름과 메시지는 하위 1이 정한다.
-- 묶음 계산: 연결을 방향 없이 따라 마크된 프레임을 묶는다. 재생할 수 없는 대상으로 가는 연결은 묶음을 잇지 않는다. Go(export, 하위 3)와 TS(프레임 서랍, 하위 2)가 같은 결과를 내야 하므로 공유 fixture로 고정한다.
-- 공유 fixture(`schema/fixtures/` 아래)와 Go·TS 테스트, TS 파서(주입 스크립트가 같은 규칙을 따로 가짐).
+- convention 15: `data-doan-goto`의 형식(다듬지 않음, 문법 없음), 놓이는 곳(프레임 요소 자신, 중첩 프레임 안), `<template>` 안의 처리, 정적 판단과 live 판단의 차이. 클릭 동작 문장은 하위 2가 더한다.
+- Go `canvas.Parse`가 연결마다 값과 요소를 감싼 프레임 id 전부(바깥에서 안쪽 순)를 기록한다.
+- `doan check` error 넷: `goto_target_not_found`, `goto_target_shared`, `goto_target_not_prototype`, `goto_outside_prototype`. 자기 자신으로 가는 연결은 규칙에 걸리지 않는다.
+- "재생 가능한 프레임"의 정의(주입 스크립트 `list`와 같은 기준)와 묶음 계산(Go `LinkGroups`, TS `linkGroups`).
+- 공유 fixture `schema/fixtures/prototype-links/cases.json`(`placements`의 `html` → `frames`·`gotos`·`codes`·`groups`). DOM에서 연결을 모으는 TS 쪽(주입·보드 스크립트, `isolate.js`)은 하위 2·3이 이 fixture로 맞춘다.
+- PRODUCT §3 Out of scope 2에 `data-doan-goto`를 포함한다.
 - 가이드는 바꾸지 않는다(하위 2).
 
 ## 하위 2의 범위: `prototype-link-play`
@@ -62,7 +63,7 @@
 
 ## 하위 3의 범위: `prototype-link-export`
 
-- 묶음 계산(방향 무시, 재생 가능한 대상만 따라감)을 Go에 둔다. 창의 Export와 `doan export --prototype`이 같은 규칙을 쓴다.
+- 하위 1의 Go `LinkGroups`로 묶음을 얻는다. 창의 Export와 `doan export --prototype`이 같은 규칙을 쓴다.
 - `doan export --frame <id> --prototype`이 묶음을 자동으로 담는지, 플래그를 따로 두는지.
 - `isolate.js`와 `prototype.js`의 프레임 전환, hash 기록과 브라우저 Back·Forward, 대상이 재생할 수 없을 때(파일 안에는 토스트가 없음).
 - 파일 이름(`<stem>-<frame>.html` 그대로인지), 앱의 `ExportTarget` 비교.
