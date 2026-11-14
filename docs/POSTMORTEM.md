@@ -8,7 +8,7 @@
 
 ### 2026-11-14 — The prototype window dropped the drawing main had pushed for the canvas it was about to show
 
-- **Area**: `app/src/renderer/prototype/conversationRun.ts` (`setView`, the relayed drawing and promotion ids); fixed in 24870d2ef before merge (prototype-conversation batch U), after a review note had asked to clear them on a switch of canvas.
+- **Area**: `app/src/renderer/prototype/conversationRun.ts` (`setView`, the relayed drawing and promotion ids); fixed in 63e2bb0fd before merge (prototype-conversation batch U), after a review note had asked to clear them on a switch of canvas.
 - **Symptom**: a Home conversation drew a new canvas and the main window's panel showed "A project conversation is drawing this canvas", but the prototype window playing that canvas showed nothing.
 - **Root cause**: main pushes the new target's drawing as soon as the play changes, while the prototype view can wait behind the still capture. The host cleared the relayed id when the new canvas's view arrived, which by then was the new canvas's own value. A relay that carries only an id, not the target it is for, cannot be cleared by the receiver's own idea of when the target changed.
 - **Net**: caught by the real-turn `/runtime-test` probe (`probe-b.mjs`), the first run that made a drawing at all (earlier runs edited an existing canvas, which is not a drawing). Missed by the unit test that pinned the clearing: it sent the view first and main's push after, the one order where clearing is right.
@@ -16,7 +16,7 @@
 
 ### 2026-11-14 — The main window's panel never showed the conversation the prototype window's first message started
 
-- **Area**: `app/src/renderer/canvasRun.ts` (`resolve`, the new conversation state), with the prototype window as a second place that starts canvas conversations; fixed in 4c90cb536 before merge (prototype-conversation batch U).
+- **Area**: `app/src/renderer/canvasRun.ts` (`resolve`, the new conversation state), with the prototype window as a second place that starts canvas conversations; fixed in 13d3fb2be before merge (prototype-conversation batch U).
 - **Symptom**: with a canvas that had no conversation, the first message sent from the prototype window started the canvas's current conversation, but the main window's canvas panel stayed on "New conversation" with the suggested prompts. A send from it would have started a second conversation and archived the prototype window's.
 - **Root cause**: once the panel picked the new conversation state (`shown === null`), `pickCanvasConversation` keeps it on every list read, so the person's New is never overridden. The panel could not tell that New from the default it fell back to because nothing existed, and until this feature no other window could make a current conversation appear on a canvas the panel shows.
 - **Net**: caught by the real-turn `/runtime-test` probe (`.scratch/runtime-test/prototype-conversation/probe-b.mjs`) looking at the main window after the prototype window's first send. Missed by every unit test: the prototype host's tests drove only its own run, and `canvasRun.test.ts` had no case of a current conversation appearing on a canvas left in the default new state.
@@ -26,7 +26,7 @@
 
 ### 2026-11-14 — The prototype composer offered a disabled Queue instead of Stop while a turn ran with an empty field
 
-- **Area**: `app/src/renderer/DockedComposer.tsx` (`action`, `steerAllPlan`'s `draft`, with the `playing` prop); fixed in ec897843b before merge (prototype-conversation batch U, independent review).
+- **Area**: `app/src/renderer/DockedComposer.tsx` (`action`, `steerAllPlan`'s `draft`, with the `playing` prop); fixed in 5759304f1 before merge (prototype-conversation batch U, independent review).
 - **Symptom**: in the prototype window's panel, while an agent worked and the field was empty, the Send slot showed a disabled Queue rather than Stop. The composer has no shortcut that stops a turn, so the window could not stop it. Send on an idle turn behind an empty queue turned into Queue the same way, and ⌘Enter's Steer all always saw a draft.
 - **Root cause**: the slot's action read the request text, and the request starts with the pinned playing frame's marker (`{{1}}`) whatever the person typed. A chip the host adds to every message is part of what is sent but not of what the person wrote; `composerAction` takes "is there anything to send" from the text it is given and cannot tell the two apart.
 - **Net**: caught by the independent review rendering the composer with `turn: "running"` and an empty field. Missed by the batch's tests, which drew the pinned chip and checked the sent message only with `turn: "idle"`.
@@ -53,13 +53,13 @@
 
 ### 2026-11-14 — A list read moved the prototype window's first message, still being sent, into the conversation it started
 
-- **Area**: `app/src/renderer/prototype/conversationRun.ts` (`sync`, the carry of a draft to a new current conversation); fixed in 73d0cd1e8 before merge (prototype-conversation batch U).
+- **Area**: `app/src/renderer/prototype/conversationRun.ts` (`sync`, the carry of a draft to a new current conversation); fixed in c5c1b7d17 before merge (prototype-conversation batch U).
 - **Symptom**: from the new conversation state, a list read that named the conversation this window's own send had just started (main's `listChanged` can come before the start's reply, POSTMORTEM 2026-10-26) moved the new state's draft — the message being sent — under `conversation:<new id>`. The composer empties only the draft key the send left from, so the sent text would have come back in the new conversation's field.
 - **Root cause**: the carry treated every switch to a new current conversation as one the main window started, but the composer's send owns its draft key until the reply, and a move made meanwhile is invisible to it (`DockedComposer` clears `drafts.get(at)` only when it is still the draft it sent). The carry also went beyond its rule: only a previous conversation's draft follows a new current one.
 - **Net**: caught by the batch's own `/code-review` reading the carry against the start reply's ordering. Missed by the first tests, which carried only between two existing conversations and never from the new state with a send in flight.
 - **Prevention**: a move of a draft driven by a list read or an event never takes a draft whose send can be in flight (the new conversation state's while a start is pending); pin it with a test that answers the list before the start's reply. Search: `rg -n "carryDraft\(|carryPrototypeDraft\(|moveDraft\(" app/src/renderer --glob '!*.test.*'` — the Overview's `moveDraft` after a list (`overviewRun.ts` `afterList`) moves a conversation's draft to the new state on a promotion or removal, not the other way, and the two `carryDraft` calls run on the person's own Start a new conversation.
 
-- **Recurrence (2026-11-14, the same batch's independent review)**: the fix guarded only the new conversation state's draft; a conversation → conversation carry could still move a reply whose send had not been answered. The prototype host now counts its own starts, sends and queues by the draft key they left from (`PrototypeConversationRun.bodyCalls`) and carries no draft while one is in flight, from either state (fixed in ec897843b, test 'a previous conversation's draft whose send is in flight stays where the send will empty it'). The Prevention above holds for both directions: the in-flight check is per draft key, not per state.
+- **Recurrence (2026-11-14, the same batch's independent review)**: the fix guarded only the new conversation state's draft; a conversation → conversation carry could still move a reply whose send had not been answered. The prototype host now counts its own starts, sends and queues by the draft key they left from (`PrototypeConversationRun.bodyCalls`) and carries no draft while one is in flight, from either state (fixed in 5759304f1, test 'a previous conversation's draft whose send is in flight stays where the send will empty it'). The Prevention above holds for both directions: the in-flight check is per draft key, not per state.
 
 ### 2026-11-14 — An eval check that compared a prototype export only with a regenerated one accepted the canvas viewer
 
