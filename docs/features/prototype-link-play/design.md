@@ -78,7 +78,7 @@
 | 추가: "Link frames: `data-doan-goto=\"<frame id>\"` on an element inside a marked frame moves to that marked frame on click (`preventDefault()` cancels); `doan check` reports `goto_*`." | convention 14 뒤 | +200 |
 | 축소: convention 14의 "Links to another page, native form submission and new windows do nothing; hash links, `history.pushState` and submit handlers that call `preventDefault()` work." → "Other-page links, form submits and new windows do nothing; hash links and `pushState` work." | `skill.md:30` | −80 |
 | 축소: `doan open`의 refusals 목록(`frame_not_found`, `not_prototype`, `canvas_unreadable`) → 메시지가 스스로 설명하므로 뺌 | `skill.md:58` | −70 |
-| 축소: `doan export`의 "`--prototype`: plays only that frame, but holds the whole canvas; say so." → 하위 3이 바꾸는 문장이므로 "`--prototype`: holds the whole canvas; say so." | `skill.md:59` | −30 |
+| 축소: `doan export`의 "`--prototype`: plays only that frame, but holds the whole canvas; say so." → "`--prototype`: holds the whole canvas; say so." 이 줄은 필수다: 하위 3이 병합되면 "plays only that frame"이 틀리므로 이 하위가 지운다(사용자 결정). | `skill.md:59` | −30 |
 
 - 모자라면 하위 3의 export 문장 변경과 함께 다시 고른다.
 - `skill_test.go`에 가이드가 `data-doan-goto`와 네 `goto_*` 코드 이름을 담는다는 테스트를 더한다.
