@@ -92,6 +92,9 @@ const api = {
   reveal: (request: RevealPayload): Promise<void> => ipcRenderer.invoke("prototype:reveal", request),
   // The New conversations default, Last used and buddy, then each change.
   readComposerSettings: (): Promise<PrototypeComposerSettings | null> => ipcRenderer.invoke("prototype:composer"),
+  // The conversation the main window last showed on the playing canvas, or null (read only; ui-state is the main
+  // window's).
+  rememberedConversation: (): Promise<string | null> => ipcRenderer.invoke("prototype:rememberedConversation"),
   onComposerSettings: (listener: (settings: PrototypeComposerSettings) => void): (() => void) => listen("prototype:composerChanged", listener),
   // A composer pick, remembered as Last used by the main window as its own composer's.
   rememberChoice: (choice: ComposerChoice): Promise<void> => ipcRenderer.invoke("prototype:remember", choice),

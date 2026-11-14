@@ -53,6 +53,7 @@ test("every request goes to its prototype channel with the payload main parses",
   await api.readTargetEntry();
   await api.readDrawing();
   await api.readPromoted();
+  await api.rememberedConversation();
   await api.reveal({ kind: "settings" });
   expect(mocks.invoke.mock.calls).toEqual([
     [PROTOTYPE_CHANNELS.read], [PROTOTYPE_CHANNELS.result, { gen: 2, state: "timeout" }], [PROTOTYPE_CHANNELS.frames, { gen: 2, frames: [] }],
@@ -62,7 +63,7 @@ test("every request goes to its prototype channel with the payload main parses",
     [PROTOTYPE_CHANNELS.panel, { open: true, width: 300 }], [PROTOTYPE_CHANNELS.showing, { conversationId: "c1" }], [PROTOTYPE_CHANNELS.showing, { conversationId: null }],
     [PROTOTYPE_CHANNELS.reveal, { kind: "settings", provider: "claude" }], [PROTOTYPE_CHANNELS.auth], [PROTOTYPE_CHANNELS.work], [PROTOTYPE_CHANNELS.composer],
     [PROTOTYPE_CHANNELS.remember, { provider: "claude", model: "sonnet", effort: null, modelPicked: true }], [PROTOTYPE_CHANNELS.entry], [PROTOTYPE_CHANNELS.drawing], [PROTOTYPE_CHANNELS.promoted],
-    [PROTOTYPE_CHANNELS.reveal, { kind: "settings" }],
+    [PROTOTYPE_CHANNELS.rememberedConversation], [PROTOTYPE_CHANNELS.reveal, { kind: "settings" }],
   ]);
   expect(new Set(mocks.invoke.mock.calls.map(call => call[0]))).toEqual(new Set(PROTOTYPE_WINDOW_REQUESTS));
 });

@@ -1601,7 +1601,12 @@ export class ConversationService {
   // whether or not its process still runs (two conversations sending to one agent session would mix their histories).
   // A deleted conversation no longer holds it.
   private checkSessionFree(runtime: Provider, configDir: string, sessionId: string | undefined): void {
-    if (sessionId !== undefined && this.store.list().some(m => m.session.runtime === runtime && m.session.configDir === configDir && m.session.sessionId === sessionId)) throw new Error("session_in_use");
+    if (sessionId !== undefined && this.sessionHeld(runtime, configDir, sessionId)) throw new Error("session_in_use");
+  }
+  // Whether a conversation in the index holds this agent session. configDir undefined: any profile (a terminal process's
+  // occupancy names no profile; session ids are unique per agent).
+  sessionHeld(runtime: Provider, configDir: string | undefined, sessionId: string): boolean {
+    return this.store.list().some(m => m.session.runtime === runtime && (configDir === undefined || m.session.configDir === configDir) && m.session.sessionId === sessionId);
   }
   // metadata throws not_found for a conversation deleted meanwhile.
   private checkSend(id: string, live: Live): void {

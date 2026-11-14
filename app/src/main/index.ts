@@ -37,7 +37,7 @@ import { DocumentBindings } from "./document/bindings";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, powerMonitor, screen, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions, type Session } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, lstatSync, readlinkSync, realpathSync, statSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PrototypeRequest, PrototypeResponse, Selection } from "../formats/types";
@@ -96,7 +96,7 @@ import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, work
 import { applyConversationWork, endConversationWork, type ConversationWork } from "./conversationWork";
 import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
 import {
-  prototypeAuthSnapshot, prototypeConversationScope, prototypeEntry, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
+  prototypeAuthSnapshot, prototypeConversationScope, prototypeEntry, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRememberedConversation, prototypeRevealRequest, prototypeWorkItems,
   type ConversationBroadcast, type ResumeSession, type ScopedConversation,
 } from "./prototype/conversationScope";
 import { canvasKeyString } from "./prototype/targets";
@@ -905,7 +905,7 @@ async function start(): Promise<void> {
   const hostRequests: ReadonlySet<string> = new Set([
     PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
     PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember, PROTOTYPE_CHANNELS.entry,
-    PROTOTYPE_CHANNELS.drawing, PROTOTYPE_CHANNELS.promoted,
+    PROTOTYPE_CHANNELS.drawing, PROTOTYPE_CHANNELS.promoted, PROTOTYPE_CHANNELS.rememberedConversation,
   ]);
   handle(PROTOTYPE_CHANNELS.visible, null, (_event, value: unknown) => value === undefined ? { visible: prototype.visible() } : null);
   for (const channel of PROTOTYPE_WINDOW_REQUESTS) {
@@ -1467,8 +1467,12 @@ async function start(): Promise<void> {
     read: () => store.read(), preferences: () => preferences.current(), open: () => prototype.window() !== undefined,
     send: settings => prototype.send(PROTOTYPE_CHANNELS.composerChanged, settings),
   });
+  // The main window's last accepted save, as it sent it: its write to disk may still wait for the debounce, and main's
+  // own parse would drop a field it does not know yet.
+  let lastUiSave: unknown;
   handle("ui-state:save", false, (event, value: unknown) => {
     if (!fromWindow(event) || !store.save(value)) return false;
+    lastUiSave = value;
     // No root spellings: the composer settings leave out Home's last project, the one field they would change.
     void composerSettings.saved(parseUiState(JSON.stringify(value), ready.entries().map(entry => entry.path)));
     return true;
@@ -1523,6 +1527,13 @@ async function start(): Promise<void> {
   });
   handle(PROTOTYPE_CHANNELS.work, [], (_event, value: unknown) => value === undefined ? prototypeWorkItems(workItems(workState), prototypeHeldSession()) : []);
   handle(PROTOTYPE_CHANNELS.composer, null, (_event, value: unknown) => value === undefined ? composerSettings.read() : null);
+  // The main window's remembered conversation of the playing canvas: its last save in this run, else ui-state.json as
+  // the previous run left it. Only that one id leaves ui-state (conversationScope.ts prototypeRememberedConversation).
+  handle(PROTOTYPE_CHANNELS.rememberedConversation, null, async (_event, value: unknown) => {
+    if (value !== undefined) return null;
+    const saved = lastUiSave !== undefined ? lastUiSave : await readFile(join(userData, "ui-state.json"), "utf8").then(text => JSON.parse(text) as unknown, () => null);
+    return prototypeRememberedConversation(saved, prototype.controller.playing(), ready.entries());
+  });
   // Last used is the main window's ui-state: it remembers the pick as its own composer's, so its next whole-file save
   // keeps it.
   handle(PROTOTYPE_CHANNELS.remember, undefined, (_event, value: unknown, kind) => {

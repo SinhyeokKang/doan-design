@@ -205,6 +205,21 @@ export function prototypeComposerSettings(ui: UiState | null, preferences: Prefe
   return { home: kept, newConversation: preferences.newConversation, buddy: preferences.buddy ?? "doany" };
 }
 
+// ui-state's conversation ids (restore/uiState.ts CONVERSATION_ID).
+const CONVERSATION_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
+
+// The conversation the main window last showed on the playing canvas: `conversationByCanvas[root][key]` of its saved
+// ui-state, the key being the canvas's id, else its path (the renderer's draftKey rule, so a moved canvas keeps it).
+// Null while the canvas cannot be judged (its id listed twice, not listed) and for anything but a conversation id. The
+// saved value is read field by field, so an older ui-state without the field reads as nothing remembered.
+export function prototypeRememberedConversation(saved: unknown, playing: PlayingCanvas | null, entries: readonly FolderEntry[]): string | null {
+  const row = playingRow(playing, entries);
+  if (playing === null || row === null) return null;
+  const byRoot = record(record(saved)?.conversationByCanvas)?.[playing.root];
+  const id = record(byRoot)?.["id" in playing.canvas ? playing.canvas.id : row];
+  return typeof id === "string" && CONVERSATION_ID.test(id) ? id : null;
+}
+
 // The playing root's folder entry, for the panel's body: the list's health and its canvas rows (listed-canvas checks,
 // answer chips). Only that root; it carries canvas rows, not conversations.
 export function prototypeEntry(entries: readonly FolderEntry[], playing: PlayingCanvas | null): FolderEntry | null {
