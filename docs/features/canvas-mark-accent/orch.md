@@ -22,8 +22,8 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| M | 작업 2, 3 | `canvasPicker.ts`(+test), `sizeBubble.test.ts`, `CanvasController.ts`(+test), `App.tsx`(+test), `styles.css`, `ds/checks.test.ts` | — | Claude Opus high — 포커스 이동, 대기 중 넣기, 툴팁 Esc처럼 틀리면 포커스가 body로 떨어지는 판단이 많다 | `npm --prefix app test`, `typecheck`, `lint`, `build` | 진행 중 |
-| R1 | M 리뷰 | 보고만 | M | Codex gpt-6-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고서 | 대기 |
+| M | 작업 2, 3 | `canvasPicker.ts`(+test), `sizeBubble.test.ts`, `CanvasController.ts`(+test), `App.tsx`(+test), `styles.css`, `ds/checks.test.ts` | — | Claude Opus high — 포커스 이동, 대기 중 넣기, 툴팁 Esc처럼 틀리면 포커스가 body로 떨어지는 판단이 많다 | `npm --prefix app test`, `typecheck`, `lint`, `build` | 완료(`a0be42474`), 리뷰 중 |
+| R1 | M 리뷰 | 보고만 | M | Codex gpt-6-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고서 | 진행 중 |
 | S | 작업 4 `/design-sync` | M과 같음 + `docs/DESIGN.md` 측정값 | M 통합 | Claude Opus high(M 워커) — 측정 결과로 구현을 고친다 | `node .scratch/design-sync/canvas-mark-accent/measure.mjs` exit 0 | 대기 |
 | T | 작업 5 `/runtime-test` | 보고만(`.scratch/runtime-test/canvas-mark-accent/`) | S | Claude Opus high(M 워커) — 격리 probe, 실제 상태 보호 | probe exit 0과 완료 표시, 스크린샷 | 대기 |
 | R2 | 통합본 최종 리뷰 | 보고만 | S, T | Codex gpt-6-astra medium | `/code-review` 보고서 | 대기 |
@@ -35,3 +35,5 @@
 ## 진행
 
 - 2026-11-15 M 시작: Orca run `run_1e77781701e9`, dispatch `ctx_85f6a623fc52`, 워크트리 `cma-m`(브랜치 `SinhyeokKang/cma-m`, `a7741f38c`에서), Claude opus high.
+- 2026-11-15 M 완료: 커밋 `8c5f580bf` `83452cd4f` `c7dcb6ecf` `a0be42474`. 앱 테스트·typecheck·lint·build·verify.mjs 통과. 설계와 다른 점(`SIZE_BUBBLE`을 `sizeBubble.ts`로 옮김, 버블 버튼에서 pick을 시작하면 시작 전에 포커스를 컴포저 필드로 옮김, 누르기는 host의 native click이 받음)은 R1이 판단한다.
+- 2026-11-15 R1 시작: dispatch `ctx_61bd72207a4a`, `cma-m` 워크트리에서 보고만, Codex gpt-6-astra medium.
