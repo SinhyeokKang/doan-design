@@ -300,6 +300,38 @@ it("keeps the Codex server of a canvas's earlier conversation when another one s
   await h.service.send(id, "again", []);
   expect(h.open).toHaveBeenCalledTimes(2); expect(h.runners[0]?.send).toHaveBeenCalledTimes(2);
 });
+// One session is one conversation: a terminal session a conversation already holds is not resumed into another, also
+// once that conversation's process is gone and its reservation released.
+it("refuses with session_in_use a terminal session resume whose session a conversation already holds, and opens nothing", async () => {
+  const h = fixture(); const first = (await h.service.start(request)).conversationId;
+  h.service.receive(first, { type: "turn.done" }); h.exits[0]!();
+  const before = h.store.read(first);
+  await expect(h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).rejects.toThrow("session_in_use");
+  expect(h.open).toHaveBeenCalledOnce();
+  expect(h.store.list().map(m => m.conversationId)).toEqual([first]); expect(h.store.read(first)).toEqual(before);
+  // The same session under another profile is another session.
+  h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/other-profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {} });
+  await h.service.start(request);
+  expect(h.store.list()).toHaveLength(2);
+});
+it("refuses a resume whose session a conversation took while it prepared", async () => {
+  const h = fixture(); let release = () => {};
+  h.prepare.mockImplementationOnce(() => new Promise(resolve => { release = () => resolve({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {} }); }));
+  const pending = h.service.start(request);
+  await vi.waitFor(() => expect(h.prepare).toHaveBeenCalledOnce());
+  const first = (await h.service.start(request)).conversationId;
+  h.service.receive(first, { type: "turn.done" }); h.exits[0]!();
+  release();
+  await expect(pending).rejects.toThrow("session_in_use");
+  expect(h.open).toHaveBeenCalledOnce(); expect(h.store.list().map(m => m.conversationId)).toEqual([first]);
+});
+it("resumes a deleted conversation's terminal session again", async () => {
+  const h = fixture(); const first = (await h.service.start(request)).conversationId;
+  h.service.receive(first, { type: "turn.done" }); h.exits[0]!();
+  h.service.delete(first);
+  const again = (await h.service.start(request)).conversationId;
+  expect(h.store.list().map(m => m.conversationId)).toEqual([again]);
+});
 it("resumes a terminal session on a canvas whose conversation is running, which goes on", async () => {
   const h = fixture(); const running = (await h.service.start(request)).conversationId;
   h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "terminal-session", command: "/fake", env: {} });
