@@ -42,7 +42,7 @@
 
 ### 프레임 서랍(프로토타입 창)
 
-세 서랍(main 창 헤더, 프로토타입 창, 툴바)은 지금 있는 행을 같은 표시로 보인다(사용자 결정). 글자 "Viewing"·"Playing" 대신 14px lucide Eye 아이콘(metadata 잉크)을 두고, 그 단어는 스크린리더용 글자로 남긴다. `aria-current="location"`은 그대로다. main 창 서랍의 "Prototype" 캡션도 14px lucide Play 아이콘(metadata 잉크, 툴팁 "Prototype supported")과 스크린리더용 단어로 바꾼다. 둘 다 있으면 Play가 Eye 앞이다(사용자 결정).
+세 서랍(main 창 헤더, 프로토타입 창, 툴바)은 지금 있는 행을 같은 표시로 보인다(사용자 결정). 글자 "Viewing"·"Playing" 대신 14px lucide Eye 아이콘(metadata 잉크)을 두고, 그 단어는 스크린리더용 글자로 남긴다. `aria-current="location"`은 그대로다. main 창 서랍의 "Prototype" 캡션도 14px lucide Play 아이콘(metadata 잉크, 툴팁 "Prototype supported")과 스크린리더용 단어로 바꾼다. Play는 늘 행 끝에 있어 모든 행에서 같은 자리이고, Eye는 그 앞에 온다(사용자 결정).
 
 
 7. 프레임 서랍이 재생 가능한 프레임을 묶음별로 보인다(하위 1의 `linkGroups`).

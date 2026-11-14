@@ -61,7 +61,7 @@
 - 감싼 프레임은 선택의 `SelectTarget.frameIndex`에서 `layout.frames`의 `parent`를 타고 올라가 찾는다. 1,000번째 뒤의 프레임은 `frameIndex`가 없으므로 서랍으로 간다.
 - 크기 버블 Play는 `kind === "play"`이고 고른 것이 그 프레임 자체일 때만 있다. Select와 Hand에서 그렇다.
 - **툴바 서랍의 Playing**(사용자 결정): main 창 렌더러가 프로토타입 창이 재생 중인 대상(`{root, canvas, frame}`)을 알아야 한다. main이 `controller`의 재생 대상이 바뀔 때(시작, 이동, Back·Forward, 닫힘) main 창에 push하고, 렌더러는 지금 캔버스와 같은 대상일 때만 그 행에 Playing을 둔다. 새 IPC 채널이 하나 는다(배치 W).
-- **지금 있는 행 표시**(사용자 결정): 세 서랍 모두 Viewing·Playing 글자 대신 Eye 아이콘(`.doan-frame-current`, 14px, `--text-metadata`)과 sr-only 단어를 쓴다. main 창 헤더 서랍(`CanvasHeader.tsx`, `frameDrawer.ts`)도 바꾼다. 행 끝의 자리와 간격은 지금 `doan-frame-viewing` 자리와 같다. main 서랍의 Prototype 캡션(`prototype-meta`)도 14px Play 아이콘과 sr-only 단어로 바꾸고, 둘 다 있으면 Play가 Eye 앞이다.
+- **지금 있는 행 표시**(사용자 결정): 세 서랍 모두 Viewing·Playing 글자 대신 Eye 아이콘(`.doan-frame-current`, 14px, `--text-metadata`)과 sr-only 단어를 쓴다. main 창 헤더 서랍(`CanvasHeader.tsx`, `frameDrawer.ts`)도 바꾼다. 행 끝의 자리와 간격은 지금 `doan-frame-viewing` 자리와 같다. main 서랍의 Prototype 캡션(`prototype-meta`)도 14px Play 아이콘과 sr-only 단어로 바꾸고, Play는 늘 행 끝(모든 행에서 같은 자리)이고 Eye는 그 앞이다.
 - **서랍 표시 순서**(사용자 결정): `linkGroups` 결과에서 프레임 둘 이상인 묶음을 먼저(첫 프레임 순), 그 뒤에 혼자인 프레임들을 문서 순서로 한 묶음으로 보인다. 이 정렬은 서랍 행 모델(순수 함수 4)에서 한다.
 - **툴바 버튼 구조**
   - `Popover.Root`와 `Trigger`를 상태와 상관없이 항상 감싼다(POSTMORTEM 2026-11-13).
