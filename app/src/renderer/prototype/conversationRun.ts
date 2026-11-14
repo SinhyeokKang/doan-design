@@ -7,6 +7,7 @@ import { canvasConversationTitle, type ConversationCalls } from "../CanvasConver
 import { CanvasRun, canvasKey, type ResumeCalls } from "../canvasRun";
 import { ConversationStore, type ListView, type StoreCalls } from "../conversationStore";
 import { DockedSupport, type DockedSupportCalls } from "../dockedSupport";
+import { canvasStrongestSignal, type CanvasSignal } from "../rightPanelOpen";
 import type { VisibleCalls } from "../visibleClock";
 import { conversationButton, playingFrameChip, prototypeHeadTitle, prototypeShown, type ConversationButton, type PlayingFrameChip, type PrototypeConversationTarget, type PrototypeShown } from "./conversation";
 
@@ -199,10 +200,24 @@ export class PrototypeConversationRun {
   seen(): ReadonlySet<string> { return this.seenIds; }
   // The panel head's title: the main window's title for the conversation shown, or the shell's own "Conversation".
   headTitle(): string { return prototypeHeadTitle(this.shown(), canvasConversationTitle(this.run, this.listView).title); }
+  // The folded panel's button stands for the strongest signal across the playing canvas's conversations, as the main
+  // window's: its conversation's own mark, in this window's order (an answer needed, working, an unread ending), is that
+  // signal's kind.
   button(): ConversationButton {
-    const shown = this.shown();
-    const summary = shown.kind === "conversation" && Array.isArray(this.listView) ? this.listView.find(c => c.conversationId === shown.conversationId) : undefined;
+    const signal = this.signal();
+    const summary = signal && Array.isArray(this.listView) ? this.listView.find(c => c.conversationId === signal.conversationId) : undefined;
     return conversationButton(summary, this.seenIds);
+  }
+  // Show conversation with a badge opens on the conversation the badge stands for; without one the panel keeps what it
+  // showed. Called just before the window asks main to open the panel.
+  unfoldTarget(): void {
+    const target = this.target(), signal = this.signal();
+    if (!target || !signal || this.view?.panel.open) return;
+    this.run.request({ root: target.root, canvas: target.canvas }, signal.conversationId, signal.kind === "permission" ? "permission" : null);
+  }
+  private signal(): CanvasSignal | null {
+    const target = this.target();
+    return target && Array.isArray(this.listView) ? canvasStrongestSignal(this.listView, target.canvas, this.seenIds) : null;
   }
 
   // The request names the canvas this view shows: main answers its rows only while it still plays that canvas.
@@ -266,10 +281,11 @@ export class PrototypeConversationRun {
     });
   }
 
+  // The canvas run decides the notice from it with the list, so it picks again.
   private setPromoted(conversationId: string | null): void {
     if (conversationId === this.promotedId) return;
     this.promotedId = conversationId;
-    this.changed();
+    this.sync();
   }
 
   private setDrawing(conversationId: string | null): void {

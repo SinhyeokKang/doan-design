@@ -141,6 +141,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const panelWidth = clampPanel(dragWidth ?? view?.panel.width ?? panelBounds.default);
   const togglePanel = () => {
     const open = !panelOpen;
+    if (open) run.unfoldTarget();
     panelAsked.current = open;
     void api.setPanel({ open });
   };
