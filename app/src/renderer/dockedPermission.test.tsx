@@ -59,9 +59,9 @@ function overview(patch: Partial<ProjectOverviewProps> = {}) {
   const run = new OverviewRun({
     list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: () => {}, remembered: () => ({}), remember: () => {},
     markSeen: () => {}, focused: () => true, openCanvas: () => {}, toast: () => {}, label: () => "acme", changed: () => {},
-  });
+  }, window.doan);
   run.show(ROOT);
-  const support = new DockedSupport(() => {});
+  const support = new DockedSupport(() => {}, window.doan);
   support.auth = AUTH;
   const render = () => {
     const props: ProjectOverviewProps = {
@@ -81,16 +81,16 @@ function overview(patch: Partial<ProjectOverviewProps> = {}) {
 // One canvas panel whose run, support and list outlive its renders.
 async function panel(patch: Partial<CanvasConversationProps> = {}) {
   let list: ListView = [];
-  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
-  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   await flush();
-  const support = new DockedSupport(() => {});
+  const support = new DockedSupport(() => {}, window.doan);
   support.auth = AUTH;
   const render = () => {
     const props: CanvasConversationProps = {
-      run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme", entry: ENTRY,
+      calls: window.doan, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme", entry: ENTRY,
       list, seen: new Set(), prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
       onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
       onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], ...patch,

@@ -4,6 +4,7 @@ import { validCanvas, validId } from "./store";
 import { validProvider, type Provider } from "../agentAuth/types";
 import { permissionModeId, type PermissionModeId } from "./permissionMode";
 import type { ConversationService, Prepare, QueueFiles, StartAttachments, StartRequest } from "./service";
+import type { ConversationSummary } from "./summary";
 import type { ModelCatalog } from "./models";
 import type { SkillCatalog } from "./skills";
 import type { AttachmentStore } from "../attachments";
@@ -122,14 +123,17 @@ export function queueFiles(store: AttachmentStore): QueueFiles {
     },
   };
 }
+// allowed: the caller judged the sender (the main window, or the prototype window within the playing canvas's scope).
+// rows: what a sender may see of the root's list; the prototype window sees the playing canvas's conversations only.
 export function conversationHandler(service: ConversationService, prepare: Prepare, projects: () => Project[], home: { models?: ModelCatalog; skills?: SkillCatalog; attachments?: AttachmentStore } = {}) {
-  return async (allowed: boolean, method: ConversationMethod, raw: unknown): Promise<unknown> => {
+  return async (allowed: boolean, method: ConversationMethod, raw: unknown, rows?: (all: ConversationSummary[]) => ConversationSummary[]): Promise<unknown> => {
     if (!allowed || !object(raw)) return { error: "bad_request" };
     try {
       if (method === "list") {
         if (typeof raw.root !== "string" || raw.root.length > LIMITS.path) throw new Error("bad_request");
         if (!projects().some(p => p.path === raw.root)) throw new Error("project_not_open");
-        return service.list(raw.root);
+        const all = service.list(raw.root);
+        return rows ? rows(all) : all;
       }
       if (method === "models") {
         if (typeof raw.root !== "string" || raw.root.length > LIMITS.path || !validProvider(raw.runtime) || !home.models) throw new Error("bad_request");

@@ -38,7 +38,7 @@ function harness() {
   const host = {
     list: () => list, readsStarted: () => started, readsApplied: () => applied, notice: vi.fn(), changed: vi.fn(),
   };
-  const store = new ConversationStore(host);
+  const store = new ConversationStore(host, window.doan);
   store.queued(ROOT, A, { id: "q1", text: "Use the spacing from button hero-cta", message: { text: "Use the spacing from {{1}}", anchors: [CTA], attachments: [{ name: "spacing-notes.pdf", size: 86016, kind: "file", path: "/Users/ada/spacing-notes.pdf" }] } });
   store.queued(ROOT, A, { id: "q2", text: "Second" });
   store.queued(ROOT, A, { id: "q3", text: "Third" });
@@ -372,7 +372,7 @@ describe("scheduled rows", () => {
     let list: ListView = [first];
     let started = 1, applied = 1;
     const host = { list: () => list, readsStarted: () => started, readsApplied: () => applied, notice: vi.fn(), changed: vi.fn() };
-    const store = new ConversationStore(host);
+    const store = new ConversationStore(host, window.doan);
     const ids = () => store.queue(A).map(row => row.id);
     const read = (next: ConversationSummary[]) => { started++; applied = started; list = next; store.syncQueues(); };
     return { store, ids, read, setList: (next: ConversationSummary[]) => { list = next; }, startRead: () => { started++; }, applyRead: (next: ConversationSummary[]) => { applied = started; list = next; store.syncQueues(); } };
@@ -445,7 +445,7 @@ test("Edit and resend hides while the failed turn's own message waits, and retur
   history = [event({ type: "user.message", text: "Draw it", anchors: [] }), event({ type: "turn.started" }), event({ type: "turn.failed", code: "rate_limited" })];
   doan.scheduledMessages = vi.fn(async () => [{ itemId: "s1", text: "Draw it", anchors: [], attachments: [], turnId: "t1" }]);
   const list: ListView = [summary({ phase: "ended", working: false, queued: 1, scheduledAt: "2026-11-13T06:00:00.000Z" })];
-  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
   store.track(A); await flush();
   store.readScheduled(ROOT, A);
   await flush();
@@ -458,7 +458,7 @@ test("a row without the failed turn's id leaves Edit and resend", async () => {
   history = [event({ type: "user.message", text: "Draw it", anchors: [] }), event({ type: "turn.started" }), event({ type: "turn.failed", code: "rate_limited" })];
   doan.scheduledMessages = vi.fn(async () => [{ itemId: "s1", text: "Later", anchors: [], attachments: [] }]);
   const list: ListView = [summary({ phase: "ended", working: false, queued: 1, scheduledAt: "2026-11-13T06:00:00.000Z" })];
-  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
   store.track(A); await flush();
   store.readScheduled(ROOT, A);
   await flush();
@@ -472,7 +472,7 @@ describe("scheduled rows: request identity and retries", () => {
   const sent = () => summary({ phase: "running", working: true, queued: 0 });
   function setup(first: ConversationSummary) {
     let list: ListView = [first];
-    const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+    const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
     return { store, ids: () => store.queue(A).map(row => row.id), setList: (next: ConversationSummary[]) => { list = next; store.syncQueues(); } };
   }
 

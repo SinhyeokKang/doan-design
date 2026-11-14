@@ -701,3 +701,44 @@ test("Play prototype and the closed event use the prototype channels", () => {
   expect(closed).toHaveBeenCalledTimes(1);
   expect(closed.mock.calls[0]).toEqual([]);
 });
+
+// The prototype window asks the main window to show a chip's target, a Settings section or a conversation, and hands
+// over a composer pick to remember as Last used; main sends both here after its checks.
+test("prototype reveal requests and Last used picks reach their listeners until unsubscribed", () => {
+  const reveals = vi.fn();
+  const picks = vi.fn();
+  const stopReveals = api.onPrototypeReveal(reveals);
+  const stopPicks = api.onPrototypeLastUsed(picks);
+  const reveal = { kind: "chip", root: "/r", canvas: { id: "proto", path: ".doan/canvases/proto.html" }, conversationId: "c", anchor: { frame: { id: "f" } } };
+  emitter.emit("prototype:revealRequest", {}, reveal);
+  emitter.emit("prototype:lastUsed", {}, { provider: "claude", model: "sonnet", effort: null, modelPicked: true });
+  stopReveals(); stopPicks();
+  emitter.emit("prototype:revealRequest", {}, { kind: "settings", provider: "codex" });
+  emitter.emit("prototype:lastUsed", {}, { provider: "codex", model: null, effort: null });
+  expect(reveals.mock.calls).toEqual([[reveal]]);
+  expect(picks.mock.calls).toEqual([[{ provider: "claude", model: "sonnet", effort: null, modelPicked: true }]]);
+});
+
+// The prototype window's playing target, which the main window reads to say which project conversation draws it.
+test("the prototype target arrives from its pushes; the drawing conversation goes to main with its target", async () => {
+  const targets = vi.fn();
+  const stop = api.onPrototypeTarget(targets);
+  emitter.emit("prototype:target", {}, { root: "/r", canvas: { id: "proto", path: ".doan/canvases/proto.html" } });
+  emitter.emit("prototype:target", {}, null);
+  stop();
+  emitter.emit("prototype:target", {}, { root: "/r", canvas: { path: ".doan/canvases/loose.html" } });
+  expect(targets.mock.calls).toEqual([[{ root: "/r", canvas: { id: "proto", path: ".doan/canvases/proto.html" } }], [null]]);
+  mocks.invoke.mockClear();
+  await api.readPrototypeTarget();
+  await api.setPrototypeDrawing({ root: "/r", canvas: { path: ".doan/canvases/loose.html" }, generation: 2, conversationId: "p1" });
+  expect(mocks.invoke.mock.calls).toEqual([["prototype:readTarget"], ["prototype:setDrawing", { root: "/r", canvas: { path: ".doan/canvases/loose.html" }, generation: 2, conversationId: "p1" }]]);
+});
+
+// Settings without a provider ("Sign in to an agent…", "Manage agents…" in the prototype window) reaches the main window.
+test("a prototype reveal of Settings without a provider reaches its listener", () => {
+  const reveals = vi.fn();
+  const stop = api.onPrototypeReveal(reveals);
+  emitter.emit("prototype:revealRequest", {}, { kind: "settings" });
+  stop();
+  expect(reveals.mock.calls).toEqual([[{ kind: "settings" }]]);
+});

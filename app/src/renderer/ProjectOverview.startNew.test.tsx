@@ -32,11 +32,11 @@ function setup(list: ListView) {
     list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: () => {}, remembered: () => ({}), remember: () => {},
     markSeen: () => {}, focused: () => true, openCanvas: () => {}, toast: () => {}, label: () => "doan", changed: () => {},
   };
-  const run = new OverviewRun(host);
+  const run = new OverviewRun(host, window.doan);
   run.show(ROOT);
   run.select(ROOT, A);
   const props: Props = {
-    run, support: new DockedSupport(() => {}), root: ROOT, project: "doan", entry, worktrees: [entry], homeDirectory: "/code",
+    run, support: new DockedSupport(() => {}, window.doan), root: ROOT, project: "doan", entry, worktrees: [entry], homeDirectory: "/code",
     notice: null, unavailable: null, list, seen: new Set(), holder: null, prefs: {}, defaults: null, now: Date.parse("2026-10-30T00:03:00.000Z"),
     onWorktree: () => {}, onOpenCanvas: () => {}, onRetryList: () => {}, onStart: async () => ({ ok: true }), onSettings: () => {},
     onSendConversation: async () => {}, onAction: () => {}, onProjectSettings: () => {},

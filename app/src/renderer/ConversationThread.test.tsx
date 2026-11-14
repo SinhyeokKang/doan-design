@@ -502,6 +502,12 @@ test("a permission answer counts as sent only when main took it", async () => {
   expect(await answerReached(() => Promise.reject(new Error("ipc")))).toBe(false);
 });
 
+// Two windows can answer one request; main answers the later one stale. That answer was not lost: the first one won
+// and permission.resolved folds the card, so the late window shows no failure (as settleQuestionSend does).
+test("a stale permission answer counts as reached: another window answered first", async () => {
+  expect(await answerReached(async () => ({ error: "stale" }))).toBe(true);
+});
+
 // Draft frame `sending`: the message Send now has in flight, with one caption line under it.
 describe("a message Send now has in flight", () => {
   const sending: ThreadItem = { kind: "user", key: "qq1", seq: null, sending: true, anchors: [], preset: null, parts: [{ text: "Use the spacing" }], attachments: [{ name: "notes.pdf", size: 86016, kind: "file", path: "/Users/ada/notes.pdf" }] };

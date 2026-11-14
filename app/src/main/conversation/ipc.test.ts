@@ -936,3 +936,17 @@ describe("re-issuing a stopped turn's attachments", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
+// The prototype window's list: main answers only what its scope keeps of the root's conversations.
+it("answers list through the sender's row filter when one is given", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")); const prepare = vi.fn();
+  try {
+    const service = new ConversationService(new ConversationStore(dir), prepare, vi.fn(), () => {});
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }]);
+    const kept = { conversationId: "kept" } as const;
+    const rows = vi.fn(() => [kept]);
+    expect(await handle(true, "list", { root: "/repo" }, rows as never)).toEqual([kept]);
+    expect(rows).toHaveBeenCalledExactlyOnceWith([]);
+    expect(await handle(true, "list", { root: "/repo" })).toEqual([]);
+    expect(await handle(false, "list", { root: "/repo" }, rows as never)).toEqual({ error: "bad_request" });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

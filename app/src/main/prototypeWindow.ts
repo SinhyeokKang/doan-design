@@ -5,11 +5,13 @@
 // It runs in its own memory-only session, so a hung canvas renderer killed on a timeout is never shared with the
 // main window's canvas or the host page. Its debugger only injects the prototype script; it never feeds
 // DocumentBindings or the read proof, so viewing a prototype never marks a canvas read.
-import { app, BrowserWindow, screen, session, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type Session } from "electron";
+import { app, BrowserWindow, Menu, screen, session, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type Session } from "electron";
 import { fileURLToPath } from "node:url";
+import type { BuddyId } from "../renderer/buddies";
 import { childOfTopFrame, fromAppFrame } from "./canvasFrame";
+import { editMenuInput, editMenuTemplate } from "./editMenu";
 import { createPrototypeController, type PrototypeController, type PrototypeHost } from "./prototype/controller";
-import { fitPrototypeWindow, prototypeCaptureRect, PROTOTYPE_WINDOW_MIN_WIDTH } from "./prototype/fit";
+import { fitPrototypeWindow, openPanelResize, prototypeCaptureRect, prototypePanelFit, PROTOTYPE_PANEL_MIN_WIDTH, PROTOTYPE_WINDOW_MIN_WIDTH, type Rect } from "./prototype/fit";
 import { PROTOTYPE_CHANNELS } from "./prototype/ipc";
 import { prototypeFrameNavigationAllowed } from "./prototypeFrame";
 import { prototypeScriptSource } from "./prototypeScript";
@@ -26,8 +28,8 @@ export interface PrototypeWindowDeps {
   entries(): readonly FolderEntry[];
   // The main window, for the display a new window opens on and to keep its renderer out of a kill.
   mainWindow(): BrowserWindow | undefined;
-  // The prototype window closed for any reason.
-  closed(): void;
+  // The prototype window closed for any reason; `contents` is its webContents id, which named it as a sender.
+  closed(contents: number): void;
   // The same permission, device and download denials as the default session.
   denyPermissions(target: Session): void;
   // Read a root's canvas list again (Retry of a row `doan ls` could not read).
@@ -37,6 +39,12 @@ export interface PrototypeWindowDeps {
   // The whole app is hidden (⌘H). `doan open --prototype` can play while it is, and a window's show alone was not
   // seen to bring a hidden app back.
   appHidden?(): boolean;
+  // The saved buddy, in the page's query as the main window's, so the panel's first paint has its accent.
+  buddy(): BuddyId;
+  // A new view went to the window: its target may have changed (a moved row's path).
+  viewSent?(): void;
+  // The playing canvas changed, before any view of it.
+  canvasChanged?(): void;
 }
 
 export interface PrototypeWindow {
@@ -113,16 +121,34 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     try { return childOfTopFrame(webFrameMain.fromId(processId, routingId)); } catch { return false; }
   };
 
-  function create(size: { width: number; height: number }): void {
+  // With the conversation panel open the window fits the frame and the panel, and is at least 640 (360 + 280) unless
+  // the work area is narrower; closed, the frame alone and 360.
+  function fitted(size: { width: number; height: number }, area: Rect, panel: number | null, current?: Rect): { bounds: Rect; panel: number | null; min: number } {
+    if (panel === null) return { bounds: fitPrototypeWindow(size, area, current), panel: null, min: PROTOTYPE_WINDOW_MIN_WIDTH };
+    const fit = prototypePanelFit(size, area, panel, current);
+    return { bounds: fit.bounds, panel: fit.panel, min: fit.minimum };
+  }
+
+  // macOS keeps a window at least as wide as its minimum and does not widen it for a minimum alone: a rising minimum
+  // follows the bounds, a falling one goes first so narrower bounds are not held at the old one.
+  function resize(target: BrowserWindow, bounds: Rect, minimum: number): void {
+    const [current = 0] = target.getMinimumSize();
+    if (minimum < current) target.setMinimumSize(minimum, 0);
+    target.setContentBounds(bounds);
+    if (minimum >= current) target.setMinimumSize(minimum, 0);
+  }
+
+  function create(size: { width: number; height: number }, panel: number | null): number | null {
     const main = deps.mainWindow();
     const display = main !== undefined && !main.isDestroyed() ? screen.getDisplayMatching(main.getBounds()) : screen.getPrimaryDisplay();
-    const bounds = fitPrototypeWindow(size, display.workArea);
+    const fit = fitted(size, display.workArea, panel);
+    const bounds = fit.bounds;
     const created = new BrowserWindow({
       show: false,
       ...bounds,
       useContentSize: true,
       // A content-size constraint under useContentSize.
-      minWidth: PROTOTYPE_WINDOW_MIN_WIDTH,
+      minWidth: fit.min,
       // The main window's shell: the traffic lights centred on the 56px header, over the sidebar glass.
       titleBarStyle: "hiddenInset",
       trafficLightPosition: { x: 16, y: 21 },
@@ -144,6 +170,8 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     created.setContentBounds(bounds);
     injectRuns(created);
     const contents = created.webContents;
+    // Read after destroy, webContents throws, so the id is kept now.
+    const contentsId = contents.id;
     // On top of the app-wide gates (web-contents-created): the run's iframe may only be (re)loaded by the host, and
     // only to the current run's URL; a nested iframe keeps the board's rule.
     contents.on("will-frame-navigate", details => {
@@ -158,6 +186,12 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       const run = armed;
       if (isMainFrame || code < 400 || run === null || !sameUrl(url, run.url) || !directChild(processId, routingId)) return;
       controller.readFailed(run.gen, status ? `HTTP ${code} ${status}` : `HTTP ${code}`);
+    });
+    // The main window's text edit menu, for the conversation panel's composer and text. editMenuInput takes only the
+    // window's top frame, so the canvas iframe keeps having no menu. Nothing in the page handles DOM `contextmenu`.
+    contents.on("context-menu", (_event, params) => {
+      const template = editMenuTemplate(editMenuInput(params), contents);
+      if (template.length > 0) Menu.buildFromTemplate(template).popup({ window: created });
     });
     // A dead host renderer cannot show or report anything; the window goes by the normal closed path.
     contents.on("render-process-gone", () => {
@@ -186,14 +220,19 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       armed = null;
       runs.clear();
       deps.focusChanged?.(false);
-      deps.closed();
+      deps.closed(contentsId);
     });
     const devUrl = process.env.ELECTRON_RENDERER_URL;
-    if (!app.isPackaged && devUrl) void created.loadURL(new URL("prototype.html", devUrl).toString());
-    else void created.loadFile(fileURLToPath(new URL("../renderer/prototype.html", import.meta.url)));
+    const buddy = deps.buddy();
+    if (!app.isPackaged && devUrl) {
+      const url = new URL("prototype.html", devUrl);
+      url.searchParams.set("buddy", buddy);
+      void created.loadURL(url.toString());
+    } else void created.loadFile(fileURLToPath(new URL("../renderer/prototype.html", import.meta.url)), { query: { buddy } });
     unhide();
     created.show();
     created.focus();
+    return fit.panel;
   }
 
   // app.show() brings back only the windows ⌘H hid, so a main window closed before it stays closed.
@@ -203,11 +242,28 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
 
   const host: PrototypeHost = {
     create,
-    fit(size) {
+    fit(size, panel) {
       const target = live();
-      if (target === undefined) return;
+      if (target === undefined) return null;
       const area = screen.getDisplayMatching(target.getBounds()).workArea;
-      target.setContentBounds(fitPrototypeWindow(size, area, target.getContentBounds()));
+      const fit = fitted(size, area, panel, target.getContentBounds());
+      resize(target, fit.bounds, fit.min);
+      return fit.panel;
+    },
+    openPanel(remembered) {
+      const target = live();
+      if (target === undefined) return remembered ?? PROTOTYPE_PANEL_MIN_WIDTH;
+      const area = screen.getDisplayMatching(target.getBounds()).workArea;
+      const open = openPanelResize(target.getContentBounds(), area, remembered);
+      // macOS does not move a widened window back inside the work area, so openPanelResize moves it.
+      resize(target, open.bounds, open.minimum);
+      return open.panel;
+    },
+    closePanel() {
+      live()?.setMinimumSize(PROTOTYPE_WINDOW_MIN_WIDTH, 0);
+    },
+    contentWidth() {
+      return live()?.getContentBounds().width ?? 0;
     },
     activate() {
       const target = live();
@@ -247,17 +303,20 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     reread(root) { deps.reread(root); },
     sendView(view) {
       live()?.webContents.send(PROTOTYPE_CHANNELS.changed, view);
+      deps.viewSent?.();
     },
-    async capture(mark, mode) {
+    async capture(mark, mode, sideColumn) {
       const target = live();
       if (target === undefined) return null;
       const [width = 0, height = 0] = target.getContentSize();
-      // The renderer places the iframe by the same function, so the rectangle is the frame as it is on screen.
-      const area = prototypeCaptureRect({ width, height }, mark, mode);
+      // The renderer places the iframe by the same function, so the rectangle is the frame as it is on screen; the
+      // conversation column beside it stays out of the still.
+      const area = prototypeCaptureRect({ width, height }, mark, mode, sideColumn);
       if (area === null) return null;
       const image = await target.webContents.capturePage(area.rect);
       return image.isEmpty() ? null : { png: new Uint8Array(image.toPNG()), box: area.box };
     },
+    canvasChanged() { deps.canvasChanged?.(); },
     sendSnapshot(snapshot) {
       live()?.webContents.send(PROTOTYPE_CHANNELS.snapshot, snapshot);
     },

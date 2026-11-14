@@ -67,7 +67,7 @@ function harness() {
     label: root => root.split("/").at(-1)!,
     changed: vi.fn(),
   };
-  const run = new OverviewRun(host);
+  const run = new OverviewRun(host, window.doan);
   // A list read main answered: it started after every earlier one.
   const answer = (root: string, list: ConversationSummary[]) => {
     const n = (started.get(root) ?? 0) + 1;
@@ -337,7 +337,7 @@ test("a returned queue's ids are released once their chips are removed or their 
     const chips = h.run.drafts.get(`conversation:${A}`)!.attachments;
     expect(chips.map(chip => chip.status)).toEqual(["replaced", "ready", "replaced", "ready", "ready"]);
     // The Replaced folder and the ready file go from the draft; the rest stay until the conversation is deleted.
-    for (const chip of chips.slice(0, 2)) dropAttachment(chip);
+    for (const chip of chips.slice(0, 2)) dropAttachment(window.doan, chip);
     await flush();
     expect(files.recheck({ ids: queued.slice(0, 2).map(({ id }) => id) })).toEqual(queued.slice(0, 2).map(({ id }) => ({ id, ok: false, error: "not_found" })));
     h.run.deleted(A); h.run.store.deleted(A);

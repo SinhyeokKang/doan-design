@@ -8,15 +8,19 @@ export const PROTOTYPE_CHROME = { header: 56, side: 8, bottom: 8 } as const;
 
 export const PROTOTYPE_WINDOW_MIN_WIDTH = 360;
 
-// The header's right group: the Fit/Responsive toggle (2 + 32 + 32 + 2), then 4 and Export (32). The conversation
-// button widens it again; main's fit and capture and the renderer's header read the same value.
-export const PROTOTYPE_HEADER_RIGHT = 104;
+// The header's right group: the Fit/Responsive toggle (2 + 32 + 32 + 2), then 4 and Export (32), then 4 and the
+// conversation button (32). Main's fit and capture and the renderer's header read the same value.
+export const PROTOTYPE_HEADER_RIGHT = 140;
 // The narrowest name capsule that still reads: its padding, gap and chevron leave three letters and an ellipsis.
 export const PROTOTYPE_NAME_MIN_WIDTH = 80;
 // The header's second row, where the name capsule goes when the first row cannot give it the minimum.
 export const PROTOTYPE_NAME_ROW_HEIGHT = 44;
 // The first row's width outside the name: the left group's end at 192 plus 8, and 8 + 16 before the right group.
 const NAME_OUTSIDE = 224;
+
+// The conversation panel: never narrower than 280, so a window with it open is at least the frame column's 360 + 280.
+export const PROTOTYPE_PANEL_MIN_WIDTH = 280;
+export const PROTOTYPE_PANEL_WINDOW_MIN_WIDTH = PROTOTYPE_WINDOW_MIN_WIDTH + PROTOTYPE_PANEL_MIN_WIDTH;
 
 export interface Rect {
   x: number;
@@ -33,10 +37,60 @@ function place(start: number, size: number, areaStart: number, areaSize: number)
 // keeps the window's top-left and is moved only as far as it takes to stay inside.
 export function fitPrototypeWindow(size: PrototypeSize, workArea: Rect, current?: Rect): Rect {
   const width = Math.max(PROTOTYPE_WINDOW_MIN_WIDTH, Math.min(size.width + 2 * PROTOTYPE_CHROME.side, workArea.width));
+  return placed(width, size, workArea, current);
+}
+
+function placed(width: number, size: PrototypeSize, workArea: Rect, current?: Rect): Rect {
   const height = Math.min(size.height + headerHeight(width) + PROTOTYPE_CHROME.bottom, workArea.height);
   const x = current?.x ?? workArea.x + Math.floor((workArea.width - width) / 2);
   const y = current?.y ?? workArea.y + Math.floor((workArea.height - height) / 2);
   return { x: place(x, width, workArea.x, workArea.width), y: place(y, height, workArea.y, workArea.height), width, height };
+}
+
+// The canvas panel's rule (DESIGN.md 'Panel width'): at most half the window and never leaving the frame column under
+// 360; the default max(320, 28%) is cut to that. Below a 640 window the two limits cross and the panel keeps 280 with no
+// range at all, which is why the shipped panelBounds (where the maximum wins) is not used here.
+export function prototypePanelBounds(windowWidth: number): { min: number; max: number; default: number } {
+  const min = PROTOTYPE_PANEL_MIN_WIDTH;
+  const max = Math.max(min, Math.min(Math.floor(windowWidth / 2), windowWidth - PROTOTYPE_WINDOW_MIN_WIDTH));
+  return { min, max, default: Math.min(max, Math.max(320, Math.floor(windowWidth * 0.28))) };
+}
+
+// A panel width cut to a window's range: what main stores, shows and leaves out of a still.
+export function prototypePanelWidth(width: number, windowWidth: number): number {
+  const bounds = prototypePanelBounds(windowWidth);
+  return Math.min(bounds.max, Math.max(bounds.min, width));
+}
+const clampPanel = prototypePanelWidth;
+
+// The window's minimum while the panel is open: 640, or the work area's width when that is narrower. macOS keeps a
+// window as wide as its minimum even past the work area, so the minimum is clamped as the width is.
+function panelMinimum(workArea: Rect): number {
+  return Math.min(PROTOTYPE_PANEL_WINDOW_MIN_WIDTH, workArea.width);
+}
+
+// Opening the panel: a window narrower than 640 grows to exactly 640 (only to the work area's width when that is
+// narrower) with the panel at 280, moved left as far as it takes to stay inside (macOS does not move a widened window
+// back inside); a wider window keeps its bounds and the panel opens at its remembered width or the default, cut to the
+// window's range. The host sets these bounds first and the minimum after: a minimum alone does not widen the window.
+export function openPanelResize(window: Rect, workArea: Rect, remembered: number | null = null): { bounds: Rect; panel: number; minimum: number } {
+  const minimum = panelMinimum(workArea);
+  if (window.width >= PROTOTYPE_PANEL_WINDOW_MIN_WIDTH) {
+    return { bounds: window, panel: clampPanel(remembered ?? prototypePanelBounds(window.width).default, window.width), minimum };
+  }
+  const width = Math.min(PROTOTYPE_PANEL_WINDOW_MIN_WIDTH, workArea.width);
+  return { bounds: { ...window, x: place(window.x, width, workArea.x, workArea.width), width }, panel: PROTOTYPE_PANEL_MIN_WIDTH, minimum };
+}
+
+// A new play with the panel open: the shown width + 16 + the panel (at least 640). When that is wider than the work
+// area the panel gives way first, down to 280, then the frame column. The panel never exceeds the fitted window's
+// maximum, so a frame narrower than the panel's share leaves the rest to the frame column.
+export function prototypePanelFit(size: PrototypeSize, workArea: Rect, panel: number, current?: Rect): { bounds: Rect; panel: number; minimum: number } {
+  const frameColumn = size.width + 2 * PROTOTYPE_CHROME.side;
+  const wanted = Math.max(PROTOTYPE_PANEL_WINDOW_MIN_WIDTH, frameColumn + panel);
+  const given = wanted > workArea.width ? Math.max(PROTOTYPE_PANEL_MIN_WIDTH, panel - (wanted - workArea.width)) : panel;
+  const width = Math.min(workArea.width, Math.max(PROTOTYPE_PANEL_WINDOW_MIN_WIDTH, frameColumn + given));
+  return { bounds: placed(width, size, workArea, current), panel: clampPanel(given, width), minimum: panelMinimum(workArea) };
 }
 
 // The header's rows from the window's content width alone, never from the panel it then sizes, so a row change

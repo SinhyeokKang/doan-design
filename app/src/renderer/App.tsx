@@ -46,7 +46,7 @@ import { ArrowLeft, ArrowRight, Crosshair, Plus, Scan, Settings, LayoutGrid, Mes
 import { Home } from "./Home";
 import { ProblemOverlay } from "./ProblemOverlay";
 import { problemView, resolvedFocus, workspaceBody, type ProblemKind, type ShownOverlay } from "./problemView";
-import { LOADING_DELAY_MS } from "./ConversationThread";
+import { LOADING_DELAY_MS, LOCATE_MISSING_TEXT } from "./ConversationThread";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsPage } from "./ProjectSettingsPage";
 import { useToast } from "./Toast";
@@ -66,6 +66,9 @@ import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMultiStep, han
 import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad, type Rect } from "./canvasPicker";
 import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
+import type { PrototypeReveal } from "../main/prototype/ipc";
+import { REVEAL_UNSHOWN, revealDecision, revealName } from "./revealDecision";
+import type { PrototypeTargetRef } from "../main/prototype/drawing";
 import { replyChipTarget } from "./replyChipTarget";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { distinctTargets } from "./anchorField";
@@ -427,7 +430,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     notice: text => live.current.toast.show(text),
     label: root => live.current.projectLabel(root),
     changed: () => setRunTick(tick => tick + 1),
-  });
+  }, window.doan);
   // The canvas page's conversation panel; it shares the Overview's threads and drafts.
   const canvasRun = useRef<CanvasRun | null>(null);
   if (!(canvasRun.current instanceof CanvasRun)) canvasRun.current = new CanvasRun({
@@ -439,13 +442,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     focused: () => document.hasFocus(),
     drawing: (root, canvas) => homeRun.current.drawing(root, canvas),
     changed: () => setRunTick(tick => tick + 1),
-  }, overviewRun.current.store);
+  }, overviewRun.current.store, window.doan);
   // Where focus goes once the panel shows what an entry asked for; a new seq per entry.
   // The seq only grows: the panel applies an arrival once by its seq, so a later entry must never reuse one.
   const [arrival, setArrival] = useState<PanelArrival | null>(null);
   const panelArrivals = useRef(0);
   const support = useRef<DockedSupport | null>(null);
-  if (!support.current) support.current = new DockedSupport(() => setRunTick(tick => tick + 1));
+  if (!support.current) support.current = new DockedSupport(() => setRunTick(tick => tick + 1), window.doan);
   const loadedRootRef = useRef(loadedRoot); loadedRootRef.current = loadedRoot;
   const openRef = useRef(state.open); openRef.current = state.open;
   // Problem overlay (ARCHITECTURE §7): set by the render below, read by effects and listeners declared before it.
@@ -555,7 +558,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
   }, []);
   // Wall-clock text ("3m", "now", a time of day) is computed while rendering, and nothing re-renders App at rest.
-  const clock = useVisibleClock(1000);
+  const clock = useVisibleClock(1000, window.doan);
   useEffect(() => { void window.doan.homeDirectory().then(setHomeDirectory).catch(console.error); }, []);
   // First run shows when main's session has no completion record (P's v1 marker); the session is the one the CLI
   // shares, so a hidden and shown window keeps it.
@@ -948,8 +951,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest, conversationHandoff, handoffCheck };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest, prototypeReveal, prototypeLastUsed, conversationHandoff, handoffCheck };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -1172,6 +1175,24 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useEffect(() => window.doan.onQuitting(quitting => { quittingRef.current = quitting; }), []);
   // doan:// links: subscribed on mount, while main holds them until App is ready (below).
   useEffect(() => window.doan.onOpenLink(result => live.current.openLink(result)), []);
+  useEffect(() => window.doan.onPrototypeReveal(request => live.current.prototypeReveal(request)), []);
+  useEffect(() => window.doan.onPrototypeLastUsed(choice => live.current.prototypeLastUsed(choice)), []);
+  // The project conversation drawing the prototype window's canvas, which that window cannot read: this window tells
+  // main its id for every new target (main forgets it on each) and whenever it changes. Each target names its play
+  // (`generation`), which the report carries back so main can refuse one made for an earlier play of the same canvas.
+  // Subscribed first, then read.
+  const [prototypeTarget, setPrototypeTarget] = useState<{ target: PrototypeTargetRef | null }>({ target: null });
+  useEffect(() => {
+    let pushed = false;
+    const stop = window.doan.onPrototypeTarget(target => { pushed = true; setPrototypeTarget({ target }); });
+    void window.doan.readPrototypeTarget().then(target => { if (!pushed) setPrototypeTarget({ target }); }, console.error);
+    return stop;
+  }, []);
+  const prototypeDrawing = prototypeTarget.target ? homeRun.current.drawing(prototypeTarget.target.root, prototypeTarget.target.canvas) : null;
+  useEffect(() => {
+    const target = prototypeTarget.target;
+    if (target) void window.doan.setPrototypeDrawing({ ...target, conversationId: prototypeDrawing }).catch(console.error);
+  }, [prototypeTarget, prototypeDrawing]);
   // `doan open` requests: main sends them only once links are ready, and each is answered by its id.
   useEffect(() => window.doan.onOpenRequest(request => live.current.openCanvasRequest(request)), []);
   // A started handoff, and every later render's check of the one still waiting for its read.
@@ -1562,6 +1583,37 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     controller.current?.openCanvas(root, decision.row, link.kind === "frame" ? { frame: link.id } : { element: link.id }, { unavailable, opened: () => completeNavigation(root) });
     return Promise.resolve(null);
   }
+  // A chip, Sign in or an Open pressed in the prototype window: main checked it and brought this window forward. It
+  // acts as this window's own chip or button would; a dialog, a locked page or first run stays as it is, with a toast.
+  function prototypeReveal(request: PrototypeReveal) {
+    const page = openPage();
+    const step = revealDecision(request, { locked: page.locked, firstRun: page.firstRun, dialog: topDialog() !== null, onScreen: panelTargetRef.current, entries: entriesRef.current });
+    const missing = (outcome: string | null) => { if (outcome === "missing") live.current.toast.show(LOCATE_MISSING_TEXT); };
+    switch (step.kind) {
+      case "blocked": live.current.toast.showIn(topDialog(), step.text); return;
+      case "locate": void locateChip(step.anchor).then(outcome => {
+        if (outcome === "unavailable") live.current.toast.show(`Couldn’t show ${revealName(request, entriesRef.current)}. ${REVEAL_UNSHOWN}`);
+        else missing(outcome);
+      }); return;
+      case "open": {
+        cancelRestore();
+        const path = step.row.path;
+        controller.current?.openCanvas(step.root, step.row, { anchor: step.anchor }, { unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, path)), opened: () => completeNavigation(step.root), located: missing });
+        return;
+      }
+      case "canvas_not_found": live.current.toast.show(unavailableCanvasMessage(step.entry, step.path)); return;
+      case "reply": void replyChip(step.root, step.link).then(missing); return;
+      case "settings": openSettings({ section: "agents", ...(step.provider ? { provider: step.provider } : {}) }); return;
+      case "conversation":
+        if (step.canvas) openConversationCanvas(step.root, step.canvas, step.conversationId, { kind: "promotion" });
+        else showShellOverview(step.root, undefined, () => askConversation(step.root, step.conversationId));
+        return;
+      case "handoff": openConversationCanvas(step.root, step.canvas, step.conversationId, { kind: "promotion" }); return;
+    }
+  }
+  // The prototype composer's pick, as this window's own composers remember theirs (Last used, and a fixed Settings
+  // default only by what was picked).
+  function prototypeLastUsed(choice: ComposerChoice) { rememberPick(choice); }
   // `doan open` moves as a link does, but answers main instead of showing a toast: a refusal changes nothing on screen,
   // and the agent tells the person why. The answer is sent once the move is decided, not when the canvas has loaded;
   // the frame result comes from the canvas's listed frames, the ones the rendered canvas reports.
@@ -1979,7 +2031,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useEffect(() => {
     const root = shellRoot.current;
     if (!inWorkspace || !root) return;
-    dockedBuddy.start(root, () => controller.current?.personMovedAt() ?? 0);
+    dockedBuddy.start(root, () => controller.current?.personMovedAt() ?? 0, window.doan);
     return () => dockedBuddy.stop();
   }, [inWorkspace]);
   useLayoutEffect(() => { dockedBuddy.setBuddy(buddySelection.shown); }, [buddySelection.shown]);
@@ -2279,7 +2331,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
         title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={clock} seen={run.seenPending()}
           title={panelTitle.title} current={panelTitle.current} onChoose={() => controller.current?.dropPendingLocate()} onDelete={openDelete} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
-        {panelTarget && entry?.kind === "list" && <CanvasConversation run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
+        {panelTarget && entry?.kind === "list" && <CanvasConversation calls={window.doan} run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
           defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} blocked={panelBlocked} onRemember={rememberPick}
           frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}

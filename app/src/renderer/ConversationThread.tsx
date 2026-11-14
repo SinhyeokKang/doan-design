@@ -308,9 +308,11 @@ export async function answerRefusal(send: () => Promise<void | { error: string }
     return "unknown";
   }
 }
-// Whether a permission answer reached main: a refusal and a rejected call both mean it did not.
+// Whether a permission answer reached main: a refusal and a rejected call both mean it did not. A stale refusal is
+// not a failure: another window answered first (or main expired the request), and permission.resolved folds the card.
 export async function answerReached(send: () => Promise<void | { error: string }> | void): Promise<boolean> {
-  return await answerRefusal(send) === null;
+  const refusal = await answerRefusal(send);
+  return refusal === null || refusal === "stale";
 }
 // A question's answer or skip: the card stays locked until question.resolved folds it. A stale refusal means main
 // settled the request already, or will by its own expiry, so it waits without an error line; any

@@ -5,14 +5,14 @@ import { describe, expect, test, vi } from "vitest";
 import { TooltipContent, TooltipProvider } from "../components/ui/tooltip";
 import { moveBetweenTools } from "../toolbarKeys";
 import { NO_LAYERS, type HostLayers } from "./host";
-import { viewportStyles, WindowShell, type ShellProps } from "./PrototypeWindow";
+import { viewportStyles, WindowShell, type ShellConversation, type ShellProps } from "./PrototypeWindow";
 import { EMPTY_DRAWER } from "./view";
 import type { PrototypeView } from "../../main/prototype/ipc";
 import { PROTOTYPE_HEADER_RIGHT, prototypeViewportBox } from "../../main/prototype/fit";
 
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }], canGoBack: true, canGoForward: false, previousStopped: false, ...over,
+  gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }], canGoBack: true, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present", ...over,
 });
 const ready: HostLayers = { frames: [{ gen: 2, url: A, markWidth: 390, markHeight: 844 }], visible: 2, snapshot: null };
 const noop = () => {};
@@ -55,7 +55,7 @@ describe("WindowShell header", () => {
     expect(order.every(index => index >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toMatch(/<header class="top shell-top pw-top"><span class="traffic-space" aria-hidden="true"><\/span><div class="shell-history">/);
-    // The right group is the toggle, then Export (R 104).
+    // The right group is the toggle, then Export (R 140 with the conversation button).
     expect(html).toMatch(/<div class="pw-right"><div class="doan-toggle-group" role="group" aria-label="Viewport">.*?<\/div><button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Export prototype"/);
   });
 
@@ -235,10 +235,10 @@ describe("Export prototype", () => {
 });
 
 describe("the name's row", () => {
-  test("the window's width alone decides it: first row from R + 304 (408), the second below, before any view too", () => {
+  test("the window's width alone decides it: first row from R + 304 (444), the second below, before any view too", () => {
     expect(tag(markup({ width: 640 }), 'class="pw')).toMatch(/^<div class="pw"/);
-    expect(tag(markup({ width: 408 }), 'class="pw')).toMatch(/^<div class="pw"/);
-    expect(tag(markup({ width: 407 }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
+    expect(tag(markup({ width: 444 }), 'class="pw')).toMatch(/^<div class="pw"/);
+    expect(tag(markup({ width: 443 }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
     expect(tag(markup({ width: 360, view: null, layers: NO_LAYERS }), 'class="pw')).toMatch(/^<div class="pw name-row"/);
   });
 
@@ -261,8 +261,8 @@ describe("Esc over a header tooltip", () => {
   test("with the frame menu open, every header tooltip's Esc also closes the menu and puts focus on the name", () => {
     const onMenuOpen = vi.fn(), focus = vi.fn();
     const escapes = tipEscapes(tree({ menuOpen: true, onMenuOpen, name: { current: { focus } as never } }));
-    // Reload, Fit, Responsive, Export and the name.
-    expect(escapes).toHaveLength(5);
+    // Reload, Fit, Responsive, Export, the conversation button and the name.
+    expect(escapes).toHaveLength(6);
     for (const escape of escapes) {
       onMenuOpen.mockClear(); focus.mockClear();
       const event = { defaultPrevented: false, preventDefault: vi.fn() };
@@ -535,5 +535,102 @@ describe("specificity (the test's own helper)", () => {
     expect(specificity('.doan-icon-button[data-ui-placement="chrome"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled)')).toEqual([0, 5, 0]);
     expect(specificity('.pw-right > .doan-icon-button[aria-disabled="true"]:is(:hover, :active)')).toEqual([0, 4, 0]);
     expect(specificity("#a div::before:where(.x)")).toEqual([1, 0, 2]);
+  });
+});
+
+describe("the conversation button and column", () => {
+  const conv = (over: Partial<ShellConversation> = {}): ShellConversation => ({
+    button: { label: "Show conversation", badge: null, name: "Show conversation" }, open: false, width: 280, bounds: { min: 280, max: 280 },
+    onToggle: noop, onResize: noop, preview: noop, ...over,
+  });
+  const opened = conv({ open: true, button: { label: "Hide conversation", badge: null, name: "Hide conversation" } });
+
+  test("the button ends the right group after Export, and the column comes after the content panel", () => {
+    const html = markup({ conversation: conv() });
+    const order = ['aria-label="Export prototype"', 'aria-label="Show conversation"', 'class="pw-panel"', "<iframe", 'class="doan-conv-column"', 'id="doan-conversation-panel"'].map(marker => html.indexOf(marker));
+    expect(order.every(index => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(html).toMatch(/aria-label="Export prototype".*?<\/button><button type="button" class="doan-icon-button pw-conv" data-ui-placement="chrome" aria-label="Show conversation" aria-expanded="false" aria-controls="doan-conversation-panel"/);
+    expect(tag(html, 'aria-label="Show conversation"')).not.toContain("disabled");
+  });
+
+  test("before the first view it is already usable", () => {
+    expect(tag(markup({ view: null, layers: NO_LAYERS, conversation: conv() }), 'aria-label="Show conversation"')).not.toContain("disabled");
+    expect(tag(markup({ view: null, layers: NO_LAYERS }), 'aria-label="Show conversation"')).not.toContain("disabled");
+  });
+
+  test("open, it is Hide conversation with PanelRightClose; the column shows at the panel's width", () => {
+    const html = markup({ conversation: opened });
+    expect(tag(html, 'aria-label="Hide conversation"')).toContain('aria-expanded="true"');
+    expect(tag(html, 'aria-label="Hide conversation"')).toContain('aria-controls="doan-conversation-panel"');
+    expect(html).toContain("lucide-panel-right-close");
+    expect(tag(markup({ conversation: conv() }), "pw-conv")).toBeTruthy();
+    expect(markup({ conversation: conv() })).toContain("lucide-panel-right-open");
+    expect(tag(html, 'class="pw')).toMatch(/data-panel="open"/);
+    expect(tag(html, 'class="pw')).toContain("--pw-panel:280px");
+    expect(tag(html, 'class="doan-conv-column"')).not.toContain("data-collapsed");
+    expect(tag(html, 'role="separator"')).toMatch(/aria-label="Resize conversation panel" aria-valuenow="280" aria-valuemin="280" aria-valuemax="280"/);
+  });
+
+  test("folded, the column stays in the DOM out of reach, so aria-controls resolves", () => {
+    const html = markup({ conversation: conv() });
+    expect(tag(html, 'class="pw')).not.toContain("data-panel");
+    expect(tag(html, 'class="doan-conv-column"')).toMatch(/data-collapsed="" inert=""/);
+    expect(html).toContain('<aside class="right ov-right doan-conv-panel" id="doan-conversation-panel" role="region" aria-label="Conversation">');
+  });
+
+  test("badges: the answer dot, the working spinner and the unread bubble, with their names", () => {
+    const permission = markup({ conversation: conv({ button: { label: "Show conversation", badge: "permission", name: "Show conversation, needs your answer" } }) });
+    expect(tag(permission, "pw-conv")).toMatch(/aria-label="Show conversation, needs your answer"[^>]*data-badge="true"/);
+    const working = markup({ conversation: conv({ button: { label: "Show conversation", badge: "working", name: "Show conversation, agent is working" } }) });
+    expect(tag(working, "pw-conv")).toMatch(/aria-label="Show conversation, agent is working"/);
+    expect(working).toContain('<span class="badge-working" aria-hidden="true"><span class="doan-spinner"></span></span>');
+    const unseen = markup({ conversation: conv({ button: { label: "Show conversation", badge: "unseen", name: "Show conversation, conversation finished unread" } }) });
+    expect(tag(unseen, "pw-conv")).toMatch(/data-badge="unseen"/);
+    expect(unseen).toContain('class="badge-bubble"');
+  });
+
+  // POSTMORTEM 2026-11-13: a control that changes state is the same element, so focus on it survives.
+  test("one button element across folded, open, every badge and no view", () => {
+    const isConv = (element: El) => element.type === "button" && String(element.props.className).includes("pw-conv");
+    const base = path(tree({ conversation: conv() }), isConv);
+    expect(base).not.toBeNull();
+    for (const over of [{ conversation: opened }, { conversation: conv({ button: { label: "Show conversation", badge: "working", name: "Show conversation, agent is working" } }) },
+      { conversation: conv({ button: { label: "Show conversation", badge: "permission", name: "Show conversation, needs your answer" } }) },
+      { view: null, layers: NO_LAYERS, conversation: conv() }] as Partial<ShellProps>[]) expect(path(tree(over), isConv)).toEqual(base);
+  });
+
+  test("a click toggles; a pointer press keeps focus where it was; nothing in the column closes it on Esc", () => {
+    const onToggle = vi.fn();
+    const shell = tree({ conversation: conv({ onToggle }) });
+    const element = all(shell).find(candidate => candidate.type === "button" && String(candidate.props.className).includes("pw-conv"))!;
+    (element.props.onClick as () => void)();
+    expect(onToggle).toHaveBeenCalledOnce();
+    const preventDefault = vi.fn();
+    (element.props.onMouseDown as (event: unknown) => void)({ preventDefault, button: 0 });
+    expect(preventDefault).toHaveBeenCalledOnce();
+    const column = all(tree({ conversation: opened })).find(candidate => candidate.props.className === "doan-conv-column")!;
+    expect(column.props.onKeyDown).toBeUndefined();
+  });
+
+  test("the body goes inside the aside", () => {
+    const html = markup({ conversation: conv({ open: true, body: <div className="probe-body" /> }) });
+    expect(html).toMatch(/id="doan-conversation-panel"[^>]*><div class="doan-conv-body"><div class="probe-body"><\/div><\/div><\/aside>/);
+  });
+});
+
+describe("the conversation column's styles", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+  test("open, the content panel keeps its start corners and the column its end corners, beside each other", () => {
+    expect(css).toMatch(/\.pw\[data-panel="open"\]\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*var\(--pw-panel\)/);
+    expect(css).toMatch(/\.pw\[data-panel="open"\]\s*>\s*\.pw-panel\s*\{[^}]*border-radius:\s*var\(--radius-container\) 0 0 var\(--radius-container\)/);
+    expect(css).toMatch(/\.pw\s*>\s*\.doan-conv-column\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*2/);
+    expect(css).toMatch(/\.pw\s+\.right\.doan-conv-panel\s*\{[^}]*border-radius:\s*0 var\(--radius-container\) var\(--radius-container\) 0/);
+  });
+  test("without the head the thread and the new state start 16 below the column's top; the playing chip sits in the chip row", () => {
+    expect(css).toMatch(/\.doan-conv-panel:not\(:has\(\.doan-conv-head\)\) \.thread-scroll\s*\{[^}]*padding-top:\s*var\(--space-4\)/);
+    // The pinned chip reads at the body text size, not the 13 px the panel would give it (design-sync).
+    expect(css).toMatch(/\.composer-chips\s*>\s*\.pw-playing\s*\{[^}]*font-size:\s*var\(--type-body-sm-size\)/);
+    expect(css).toMatch(/\.badge-working\s*\{[^}]*position:\s*absolute/);
   });
 });

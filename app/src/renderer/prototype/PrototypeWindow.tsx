@@ -1,14 +1,23 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { Popover } from "radix-ui";
-import { ArrowLeft, ArrowRight, ChevronDown, CircleSlash, Download, Expand, FileWarning, Proportions, RotateCw, SquareDashed, TriangleAlert, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, CircleSlash, Download, Expand, FileWarning, MessageCircle, PanelRightClose, PanelRightOpen, Proportions, RotateCw, SquareDashed, TriangleAlert, type LucideIcon } from "lucide-react";
 import type { ExportReply } from "../../main/canvasExport";
 import { PROTOTYPE_LOAD_TIMEOUT_MS, type ExportTarget, type FramesMessage, type PrototypeMode, type PrototypeSnapshot, type PrototypeView, type PrototypeWindowApi, type RunMessage } from "../../main/prototype/ipc";
-import { PROTOTYPE_HEADER_RIGHT, prototypeHeaderRows, prototypeViewportBox, type Rect, type ViewportBox } from "../../main/prototype/fit";
+import { PROTOTYPE_HEADER_RIGHT, prototypeHeaderRows, prototypePanelBounds, prototypeViewportBox, type Rect, type ViewportBox } from "../../main/prototype/fit";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "../frameDrawerList";
 import { moveBetweenTools } from "../toolbarKeys";
 import { currentRun, forwardedMessage, layersForSnapshot, layersForView, NO_LAYERS, type HostLayers } from "./host";
 import { exportProgress, exportToast } from "../canvasRowMessages";
+import { CONVERSATION_PANEL_ID, ResizeHandle } from "../ConversationPanel";
+import type { PanelBounds } from "../rightPanelSize";
+import type { ConversationButton } from "./conversation";
+import { PrototypeConversationRun, type PrototypeConversationCalls } from "./conversationRun";
+import { ColumnFocusGuard } from "./focusGuard";
+import { PrototypeConversationPanel } from "./PrototypeConversation";
+import { applyBuddy } from "../buddyPaint";
+import { dockedBuddy } from "../dockedBuddyShell";
+import { useVisibleClock } from "../visibleClock";
 import { useToast } from "../Toast";
 import { CLOSE, covered, DETAILS, drawerLabel, drawerRows, EMPTY_DRAWER, exportAvailability, liveText, LOADING_LABEL, modeTooltip, RETRY, stateScene, windowTitle, type DrawerRow, type SceneIcon } from "./view";
 
@@ -17,7 +26,7 @@ import { CLOSE, covered, DETAILS, drawerLabel, drawerRows, EMPTY_DRAWER, exportA
 // sandboxed iframe in the content panel. Every decision is main's; this window draws its view, hosts the run's iframe,
 // forwards the run's reports and shows its export's toasts.
 
-export type PrototypeApi = PrototypeWindowApi & { onSnapshot(listener: (snapshot: PrototypeSnapshot) => void): () => void };
+export type PrototypeApi = PrototypeWindowApi & { onSnapshot(listener: (snapshot: PrototypeSnapshot) => void): () => void } & PrototypeConversationCalls;
 
 // The reading line waits so a quick load does not flash it in, as the shipped problem overlay's does.
 const READING_DELAY_MS = 300;
@@ -66,6 +75,24 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     if (active === null || active === document.body || !active.isConnected) previous?.focus();
   }, api.onWindowVisible);
   const toastRef = useRef(toast); toastRef.current = toast;
+  // The conversation panel's host, connected before the view effect below reads anything (subscribe, then read).
+  const [, setConversationTick] = useState(0);
+  const conversation = useRef<PrototypeConversationRun | null>(null);
+  if (conversation.current === null) conversation.current = new PrototypeConversationRun(api, {
+    changed: () => setConversationTick(tick => tick + 1), notice: text => toastRef.current.show(text), focused: () => document.hasFocus(),
+  });
+  const run = conversation.current;
+  useEffect(() => run.connect(), [run]);
+  const clock = useVisibleClock(1000, api);
+  const column = useRef<HTMLDivElement>(null);
+  const convButton = useRef<HTMLButtonElement>(null);
+  // The open state this window last asked main for, until main's view shows it: focus then goes to the composer or
+  // the button. A view that arrives open by itself moves nothing. Each press decides from the view, not from this, so
+  // a request main never answered cannot turn the next press into the opposite one.
+  const panelAsked = useRef<boolean | null>(null);
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const focusGuard = useRef<ColumnFocusGuard | null>(null);
+  focusGuard.current ??= new ColumnFocusGuard(() => performance.now());
 
   // The header's rows follow the window's content width, which main's fit and capture use too.
   useEffect(() => {
@@ -96,6 +123,44 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   useEffect(() => () => { if (snapshotUrl !== undefined) URL.revokeObjectURL(snapshotUrl); }, [snapshotUrl]);
 
   useEffect(() => { document.title = windowTitle(view); }, [view]);
+  useEffect(() => { run.setView(view); }, [run, view]);
+  useEffect(() => {
+    const focusChanged = () => run.focusChanged();
+    window.addEventListener("focus", focusChanged);
+    window.addEventListener("blur", focusChanged);
+    return () => { window.removeEventListener("focus", focusChanged); window.removeEventListener("blur", focusChanged); };
+  }, [run]);
+
+  // The panel: main's state, shown at the width main answered, cut to the handle's range for the window as it is now.
+  const panelOpen = view?.panel.open ?? false;
+  const panelBounds = prototypePanelBounds(width);
+  const clampPanel = (value: number) => Math.min(panelBounds.max, Math.max(panelBounds.min, value));
+  const panelWidth = clampPanel(dragWidth ?? view?.panel.width ?? panelBounds.default);
+  const togglePanel = () => {
+    const open = !panelOpen;
+    panelAsked.current = open;
+    void api.setPanel({ open });
+  };
+  useEffect(() => {
+    if (panelAsked.current !== panelOpen) return;
+    panelAsked.current = null;
+    if (panelOpen) column.current?.querySelector<HTMLElement>(".composer-input")?.focus();
+    else convButton.current?.focus();
+  }, [panelOpen]);
+  // The column's docked buddy, its accent and the reasons it reads (DESIGN.md 'Docked buddy').
+  const buddy = run.settings()?.buddy;
+  useEffect(() => {
+    const node = column.current;
+    if (!node || typeof matchMedia !== "function") return;
+    dockedBuddy.start(node, () => 0, api);
+    return () => dockedBuddy.stop();
+  }, [api]);
+  useLayoutEffect(() => {
+    if (buddy === undefined) return;
+    dockedBuddy.setBuddy(buddy);
+    if (document.documentElement) applyBuddy(document.documentElement, buddy);
+  }, [buddy]);
+  useLayoutEffect(() => { dockedBuddy.update({ overview: false, folded: !panelOpen, folding: false, covered: false, hint: false }); }, [panelOpen]);
 
   const gen = view?.gen ?? null;
   const phase = view?.phase ?? null;
@@ -156,6 +221,24 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     reloadFocus.current = null;
     if (document.activeElement === document.body) frames.current.get(visibleGen)?.focus();
   }, [phase, visibleGen]);
+  // A run reloaded while focus is in the conversation column gives focus back to it (focusGuard.ts): each new run's
+  // iframe is armed by where focus is as it is created, until a second after that run is ready and shown.
+  const knownFrames = useRef(new Set<number>());
+  useLayoutEffect(() => {
+    for (const frame of layers.frames) {
+      if (knownFrames.current.has(frame.gen)) continue;
+      knownFrames.current.add(frame.gen);
+      const active = document.activeElement;
+      focusGuard.current!.created(frame.gen, !!active && !!column.current?.contains(active));
+    }
+  }, [layers.frames]);
+  useEffect(() => { if (phase === "ready" && visibleGen !== null) focusGuard.current!.shown(visibleGen); }, [phase, visibleGen]);
+  // A focus that went into a cross-origin iframe shows only as a focusout with no relatedTarget; the iframe holds focus
+  // one task later.
+  const onColumnFocusOut = (event: { target: EventTarget | null; relatedTarget: EventTarget | null }) => {
+    if (!(event.target instanceof HTMLElement) || !focusGuard.current!.left(event.target, event.relatedTarget)) return;
+    setTimeout(() => focusGuard.current!.returnTo(document.activeElement, gen => frames.current.get(gen) ?? null)?.focus({ preventScroll: true }), 0);
+  };
   const onReloadPress = () => {
     const active = document.activeElement;
     pressedInFrame.current = active === null || active === document.body || [...frames.current.values()].some(frame => frame === active);
@@ -212,8 +295,31 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     width={width} menuOpen={menuOpen} content={content} heading={heading} name={name} frames={frames.current}
     onBack={() => void api.back()} onForward={() => void api.forward()} onReload={() => { if (gen !== null) void api.reload(gen); }} onReloadPress={onReloadPress} onReloadClick={onReloadClick}
     onMode={mode => void api.setMode(mode)} onMenuOpen={setMenuOpen} exporting={exporting} onExport={onExport} toast={toast.element}
-    onChoose={frame => void api.choose(frame)} onClose={() => void api.close()} onDetails={() => setDetails(open => !open)} />;
+    onChoose={frame => void api.choose(frame)} onClose={() => void api.close()} onDetails={() => setDetails(open => !open)}
+    conversation={{ button: run.button(), open: panelOpen, width: panelWidth, bounds: { min: panelBounds.min, max: panelBounds.max }, buttonRef: convButton, column,
+      body: <PrototypeConversationPanel run={run} calls={api} now={clock} onNotice={text => toastRef.current.show(text)} />,
+      onToggle: togglePanel, preview: setDragWidth, onFocusOut: onColumnFocusOut,
+      // The renderer cuts the width to the window's range; main fits the window, not the width.
+      onResize: next => { setDragWidth(null); void api.setPanel({ open: true, width: next === undefined ? panelBounds.default : clampPanel(next) }); } }} />;
 }
+
+// The conversation panel's part of the shell: the header's button, and the column beside the content panel at the
+// width main answered, with its resize handle and the panel's body.
+export interface ShellConversation {
+  button: ConversationButton;
+  open: boolean;
+  width: number;
+  bounds: PanelBounds;
+  body?: ReactNode;
+  buttonRef?: RefObject<HTMLButtonElement | null>;
+  column?: RefObject<HTMLDivElement | null>;
+  onToggle(): void;
+  onResize(width: number | undefined): void;
+  preview(width: number): void;
+  // A focusout inside the column (React's onBlur bubbles as focusout does), for the focus guard.
+  onFocusOut?(event: { target: EventTarget | null; relatedTarget: EventTarget | null }): void;
+}
+const FOLDED: ShellConversation = { button: { label: "Show conversation", badge: null, name: "Show conversation" }, open: false, width: 0, bounds: { min: 0, max: 0 }, onToggle: () => {}, onResize: () => {}, preview: () => {} };
 
 export interface ShellProps {
   view: PrototypeView | null;
@@ -232,6 +338,7 @@ export interface ShellProps {
   heading?: RefObject<HTMLHeadingElement | null>;
   name?: RefObject<HTMLButtonElement | null>;
   frames?: Map<number, HTMLIFrameElement>;
+  conversation?: ShellConversation;
   // onReload: the failure scene's Retry. The header's Reload reports its primary press and whether a pointer clicked it,
   // so only a pointer Reload hands focus back to the new run.
   onBack(): void; onForward(): void; onReload(): void; onReloadPress(): void; onReloadClick(pointer: boolean): void; onMode(mode: PrototypeMode): void; onMenuOpen(open: boolean): void;
@@ -241,7 +348,7 @@ export interface ShellProps {
 // The window's markup. Header controls come before the content in the Tab order; the state overlay covers the content
 // panel only, so they stay usable over it. Every control keeps one element tree in every state (no view yet, pressed or
 // not, either row) so a focused control or the open frame menu survives the change.
-export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, exporting, toast, content, heading, name, frames, onBack, onForward, onReload, onReloadPress, onReloadClick, onMode, onMenuOpen, onChoose, onClose, onDetails, onExport }: ShellProps) {
+export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, exporting, toast, content, heading, name, frames, conversation: conv = FOLDED, onBack, onForward, onReload, onReloadPress, onReloadClick, onMode, onMenuOpen, onChoose, onClose, onDetails, onExport }: ShellProps) {
   const scene = view === null ? null : stateScene(view);
   // Export's rule is the canvas toolbar's: disabled with no reason before the first view, otherwise aria-disabled with
   // its reason, so it keeps its Tab stop and stays the same element (and focus) through an export.
@@ -251,7 +358,9 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
   // Radix gives an Esc to the top layer only, so a header tooltip over the open frame menu would leave the menu open;
   // the tooltip closes it as that Esc would have, and focus goes back to the name.
   const tipEscape = () => { if (!menuOpen) return; onMenuOpen(false); name?.current?.focus(); };
-  return <div className={prototypeHeaderRows(width, PROTOTYPE_HEADER_RIGHT) === 2 ? "pw name-row" : "pw"}>
+  // The open column's width as a variable, so the grid and the stylesheet share one value.
+  const columns: CSSProperties & Record<"--pw-panel", string> = { "--pw-panel": `${conv.width}px` };
+  return <div className={prototypeHeaderRows(width, PROTOTYPE_HEADER_RIGHT) === 2 ? "pw name-row" : "pw"} {...(conv.open ? { "data-panel": "open", style: columns } : {})}>
     <header className="top shell-top pw-top">
       <span className="traffic-space" aria-hidden="true" />
       <div className="shell-history">
@@ -277,6 +386,17 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
             {...(exportReason !== null ? { "aria-disabled": true, "aria-describedby": EXPORT_REASON_ID } : {})}
             onMouseDown={keepFocus} onClick={() => { if (exportState.available) onExport(); }}><Download aria-hidden="true" /></button>
         </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{exportReason ?? "Export prototype"}</TooltipContent></Tooltip>
+        {/* One element in every state, before the first view too: only its label, aria-expanded and badge change
+            (POSTMORTEM 2026-11-13). The badges are in its name; the tooltip says the label only. */}
+        <Tooltip><TooltipTrigger asChild>
+          <button type="button" className="doan-icon-button pw-conv" data-ui-placement="chrome" aria-label={conv.button.name} aria-expanded={conv.open} aria-controls={CONVERSATION_PANEL_ID}
+            data-badge={conv.button.badge === null ? undefined : conv.button.badge === "permission" ? "true" : conv.button.badge} ref={conv.buttonRef}
+            onMouseDown={keepFocus} onClick={conv.onToggle}>
+            {conv.open ? <PanelRightClose aria-hidden="true" /> : <PanelRightOpen aria-hidden="true" />}
+            {conv.button.badge === "working" && <span className="badge-working" aria-hidden="true"><span className="doan-spinner" /></span>}
+            {conv.button.badge === "unseen" && <span className="badge-bubble" aria-hidden="true"><MessageCircle /></span>}
+          </button>
+        </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{conv.button.label}</TooltipContent></Tooltip>
       </div>
     </header>
     {exportReason !== null && <span className="sr-only" id={EXPORT_REASON_ID}>{exportReason}</span>}
@@ -298,6 +418,14 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
         </div>
       </div>}
     </ContentPanel>
+    {/* After the content panel in the DOM and the Tab order. Folded, it stays in the DOM out of reach, so the button's
+        aria-controls resolves. Esc does not fold it: only the button does. */}
+    <div className="doan-conv-column" ref={conv.column} data-collapsed={conv.open ? undefined : ""} inert={!conv.open} onBlur={conv.onFocusOut}>
+      {conv.open && <ResizeHandle width={conv.width} bounds={conv.bounds} onResize={conv.onResize} preview={conv.preview} />}
+      <aside className="right ov-right doan-conv-panel" id={CONVERSATION_PANEL_ID} role="region" aria-label="Conversation">
+        <div className="doan-conv-body">{conv.body}</div>
+      </aside>
+    </div>
     {toast}
     <p className="sr-only" role="status" aria-live="polite">{live}</p>
   </div>;

@@ -49,7 +49,7 @@ test("an unavailable control's open tooltip leaves its own aria-describedby alon
   expect(describedBy(button, 'aria-label="Connect Figma for Codex"')).toBe("mcp-figma-reason");
 
   // The prototype window's Export while its canvas can't be read.
-  const view = { gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "a", phase: "read-failed", mode: "fit", run: null, frames: [], canGoBack: false, canGoForward: false, previousStopped: false } as const;
+  const view = { gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "a", phase: "read-failed", mode: "fit", run: null, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present" } as const;
   const shell = open(<WindowShell view={{ ...view, frames: [] }} layers={{ frames: [], visible: null, snapshot: null }} readingShown={false} details={false} live="" width={640} menuOpen={false} exporting={false}
     onBack={noop} onForward={noop} onReload={noop} onReloadPress={noop} onReloadClick={noop} onMode={noop} onMenuOpen={noop} onChoose={noop} onClose={noop} onDetails={noop} onExport={noop} />);
   expect(describedBy(shell, 'aria-label="Export prototype"')).toBe("prototype-export-reason");
