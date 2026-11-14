@@ -9,7 +9,8 @@ export const HANDOFF_TEXT_LIMIT = 10_000;
 // After the socket's own checks (schema, token, registered root) and the key: in the order the design gives (§3).
 export type HandoffRefusal = "root_mismatch" | "not_running" | "not_canvas_conversation" | "plan_mode" | "handoff_turn" | "already_requested" | "same_canvas";
 // Why a judged handoff did not start; a refused start adds its own code instead (resolved.reason).
-export type HandoffReason = "not_listed" | "not_new" | "has_conversation" | "same_canvas";
+// An earlier build also wrote has_conversation; the renderer still words that line (handoffView.ts).
+export type HandoffReason = "not_listed" | "not_new" | "same_canvas";
 // The conversation whose key asked, as main holds it now. permissionMode: the conversation's mode now, which a plan
 // approval may have changed during the turn. running: its current turn is accepted and not over.
 // startedBy: that turn was a handoff's first. requested: the paths of that turn's handoffs taken already.
@@ -27,8 +28,8 @@ export function handoffEligibility(ask: { root: string; path: string }, asker: H
 }
 // done: the asking turn ended done. listed: the root's canvas rows now. snapshot: the rows when the turn was accepted.
 // source: the asking conversation's canvas. settled: a folder refresh or the binding window passed since the turn's end.
-// current: whether a canvas has a current conversation now.
-export interface HandoffJudgement { done: boolean; path: string; listed: readonly Canvas[]; snapshot: readonly Canvas[]; source?: Canvas; settled: boolean; current(canvas: Canvas): boolean }
+// A canvas's own conversations do not count: a handoff adds one beside them.
+export interface HandoffJudgement { done: boolean; path: string; listed: readonly Canvas[]; snapshot: readonly Canvas[]; source?: Canvas; settled: boolean }
 export type HandoffDecision = { kind: "start"; canvas: Canvas } | { kind: "refused"; reason: HandoffReason } | { kind: "cancelled" } | { kind: "wait" };
 export function handoffDecision(input: HandoffJudgement): HandoffDecision {
   if (!input.done) return { kind: "cancelled" };
@@ -39,7 +40,6 @@ export function handoffDecision(input: HandoffJudgement): HandoffDecision {
   if (input.source && sameCanvas(input.source, row)) return { kind: "refused", reason: "same_canvas" };
   // A path that held a canvas at the start counts as existing too: a handoff goes only to a new canvas (ARCHITECTURE §7 'Handoff').
   if (input.snapshot.some(old => sameCanvas(old, row) || old.path === row.path)) return { kind: "refused", reason: "not_new" };
-  if (input.current(row)) return { kind: "refused", reason: "has_conversation" };
   return { kind: "start", canvas: row.id === undefined ? { path: row.path } : { path: row.path, id: row.id } };
 }
 // The same condition the key is given on (a Doan-connected runner, service.ts openRunner), plus a canvas conversation's
@@ -50,17 +50,17 @@ export function handoffGuidanceFor(metadata: { owner: { kind: string }; canvas?:
 }
 // edits: the paths of the turn's own edit activities, as the provider reported them. requested: the paths the turn
 // asked handoffs for, whatever their outcome. The rest as in HandoffJudgement.
-export interface MissedInput { root: string; edits: readonly string[]; listed: readonly Canvas[]; snapshot: readonly Canvas[]; requested: readonly string[]; source: Canvas; current(canvas: Canvas): boolean }
+export interface MissedInput { root: string; edits: readonly string[]; listed: readonly Canvas[]; snapshot: readonly Canvas[]; requested: readonly string[]; source: Canvas }
 // The new canvases a guided turn edited and asked no handoff for, in edit order: each is one the turn could have handed
 // off to by handoffDecision's rules. A file made by a shell command has no edit path, so it is never named.
 export function missedHandoffs(input: MissedInput): Canvas[] {
   const rows = input.listed.filter(row => input.listed.filter(other => other.path === row.path || (row.id !== undefined && other.id === row.id)).length === 1);
   return canvasesAt(input.root, input.edits, rows, input.snapshot).filter(row => !sameCanvas(input.source, row) &&
-    !input.snapshot.some(old => sameCanvas(old, row) || old.path === row.path) && !input.requested.includes(row.path) && !input.current(row));
+    !input.snapshot.some(old => sameCanvas(old, row) || old.path === row.path) && !input.requested.includes(row.path));
 }
 // Where a handoff turn's queued messages go once every request resolved. move: to the one started conversation. With
 // several requests the messages may be meant for any canvas, so they go to the source, or back to the draft when a
-// cancel (a Stop, a sign-out, an archive) means they must not be sent now.
+// cancel (a Stop, a sign-out) means they must not be sent now.
 export function handoffQueueOutcome(outcomes: readonly HandoffResolution["outcome"][]): "move" | "source" | "draft" {
   if (outcomes.length === 1) return outcomes[0] === "started" ? "move" : outcomes[0] === "refused" ? "source" : "draft";
   return outcomes.includes("cancelled") ? "draft" : "source";

@@ -1,11 +1,9 @@
 import type { ConversationSummary } from "../main/conversation/summary";
-import type { ConversationError } from "../main/conversation/ipc";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { ConversationWork } from "../main/conversationWork";
-import { PROVIDER_NAMES } from "./agentAuthView";
-import { agentPresence, type AgentPresence } from "./agentPresence";
+import { boardPresence, type AgentPresence, type BoardPresence } from "./agentPresence";
 import type { CanvasState, CanvasWorkTarget } from "./CanvasController";
 import type { CanvasFrameRect, LayoutMessage } from "./canvasMessage";
 import { groupProjects } from "./homeCards";
@@ -14,7 +12,7 @@ import { followTurnKey } from "./workFollow";
 // The agent indicator on the board.
 
 // The canvas the indicator reads, with its project root: the open canvas while its project is a listed one and the page
-// is a listed canvas. Loading, failed and no-width canvases count (Stop is needed while the HTML is broken); an unlisted
+// is a listed canvas. Loading, failed and no-width canvases count (the notice still says what works on it while the HTML is broken); an unlisted
 // page or a project problem has none. The root is part of the identity: worktrees of one repository share canvas ids
 // and paths.
 export interface WorkingCanvas { root: string; canvas: Canvas }
@@ -23,7 +21,7 @@ export function workingCanvas(open: CanvasState["open"], unlisted: boolean, entr
   return { root: open.folder, canvas: open.row.id ? { path: open.canvas, id: open.row.id } : { path: open.canvas } };
 }
 
-// HomeRun's list state for the root: a list still loading or failed is a failed read to agentPresence.
+// HomeRun's list state for the root: a list still loading or failed is a failed read to boardPresence.
 export function listForPresence(state: readonly ConversationSummary[] | "loading" | "error" | undefined): readonly ConversationSummary[] | null {
   return Array.isArray(state) ? state : null;
 }
@@ -33,12 +31,13 @@ export function listForPresence(state: readonly ConversationSummary[] | "loading
 // an answer, so the marker stays still.
 export interface PickedWork { source: string; key: string; touched: number; frame?: string; note?: string; waiting: boolean }
 
-// The canvas's own working or waiting conversation decides alone, with its content on this canvas or none. Otherwise
-// the last update on this root and path wins among project conversations, conversations bound to another canvas
-// and terminal sessions. A twin path in another worktree never counts (POSTMORTEM 2026-11-01).
+// The followed conversation (the board's, boardPresence) decides alone, with its content on this canvas or none: another
+// conversation's update never moves the screen. Otherwise the last update on this root and path wins among project
+// conversations, conversations bound to another canvas and terminal sessions. A twin path in another worktree never
+// counts (POSTMORTEM 2026-11-01).
 // Work content comes from `doan work update`: a terminal session's items carry it with
 // main's turn id; an app conversation's (`ConversationWork`) lives apart from them so it is never counted as terminal work.
-export function pickWork(target: WorkingCanvas | null, presence: AgentPresence | null, conversations: readonly ConversationWork[], terminal: readonly WorkItem[]): PickedWork | null {
+export function pickWork(target: WorkingCanvas | null, presence: Pick<AgentPresence, "conversationId" | "kind"> | null, conversations: readonly ConversationWork[], terminal: readonly WorkItem[]): PickedWork | null {
   if (!target) return null;
   const on = (item: { root: string; path: string }) => item.root === target.root && item.path === target.canvas.path;
   const content = (item: { frame?: string; note?: string }) => ({ ...(item.frame === undefined ? {} : { frame: item.frame }), ...(item.note === undefined ? {} : { note: item.note }) });
@@ -90,23 +89,20 @@ export function workFrameRect(layout: Pick<LayoutMessage, "frames"> | null, id: 
 }
 
 // presence null: no app conversation of this canvas works on it; a terminal session, a project conversation or a
-// conversation bound to another canvas does (`doan work`), so there is nothing to Stop.
-export type CanvasAgentState = { root: string; presence: AgentPresence; provider: string } | { root: string; presence: null; terminal: true };
+// conversation bound to another canvas does (`doan work`).
+export type CanvasAgentState = { root: string; presence: BoardPresence } | { root: string; presence: null; terminal: true };
 
-// agentPresence with the provider's display name, which the Stop failure toast names. A failed read keeps the previous
-// presence, and with it the provider, only within the same project: a twin canvas in another worktree (same id or
-// path) must never show, or Stop, the first project's conversation. Without an app conversation working or
-// waiting on it, a terminal session's `doan work` on the canvas (`work`, root + path) shows the terminal variant, so
-// the indicator stays when the app turn ends and the terminal session goes on. Another conversation's `update` naming
-// this canvas (`conversations`) shows the same variant.
-export function canvasAgent(list: readonly ConversationSummary[] | null, target: WorkingCanvas | null, previous: CanvasAgentState | null, work: readonly WorkItem[], conversations: readonly ConversationWork[] = []): CanvasAgentState | null {
+// boardPresence for the open canvas. `shown` is the conversation the panel shows, or would show once unfolded. A failed
+// read keeps the previous presence only within the same project: a twin canvas in another worktree (same id or path)
+// must never show the first project's conversation. Without an app conversation working or waiting on it, a terminal
+// session's `doan work` on the canvas (`work`, root + path) shows the terminal variant, so the indicator stays when the
+// app turn ends and the terminal session goes on. Another conversation's `update` naming this canvas (`conversations`)
+// shows the same variant.
+export function canvasAgent(list: readonly ConversationSummary[] | null, target: WorkingCanvas | null, previous: CanvasAgentState | null, work: readonly WorkItem[], conversations: readonly ConversationWork[] = [], shown: string | null = null): CanvasAgentState | null {
   if (!target) return null;
-  const kept = previous?.root === target.root ? previous : null;
-  const presence = agentPresence(list, target.canvas, kept?.presence ?? null);
-  if (presence) {
-    const listed = list?.find(c => c.conversationId === presence.conversationId);
-    return { root: target.root, presence, provider: listed ? PROVIDER_NAMES[listed.provider] : kept?.presence ? kept.provider : "" };
-  }
+  const kept = previous?.root === target.root && previous.presence ? previous : null;
+  const presence = boardPresence({ list, root: target.root, canvas: target.canvas, shown, previous: kept?.presence ?? null });
+  if (presence) return { root: target.root, presence };
   const on = (item: { root: string; path: string }) => item.root === target.root && item.path === target.canvas.path;
   return work.some(on) || conversations.some(on) ? { root: target.root, presence: null, terminal: true } : null;
 }
@@ -137,43 +133,21 @@ export interface AgentNoticeView {
   status: string;
   // The dot stops while the agent waits for an answer.
   steady: boolean;
-  // null: a terminal session, which the app cannot stop.
-  action: { kind: "stop"; label: "Stop" | "Stopping"; disabled: boolean } | { kind: "open"; label: "Open"; name: "Open the request" } | null;
+  // Open while the agent waits for an answer; null while it works. The board has no Stop (user decision): with several
+  // conversations on a canvas a Stop there was ambiguous, so stopping is the composer's, tied to one conversation.
+  action: { kind: "open"; label: "Open"; name: "Open the request" } | null;
 }
 
-// `stopping` is the conversation whose Stop was pressed and whose turn has not ended yet. `terminal`: a terminal session
-// works on the canvas; it shows only without an app presence, with the same words and no button.
+// `terminal`: a terminal session works on the canvas; it shows only without an app presence, with the same words.
 // `content` is the picked work's frame and note, with the frame's title as last found (its id before a layout names it):
 // the note as written, else "Working on <title>", else the fixed words. Waiting overrides it: the person
 // has to act.
-export function agentNoticeView(presence: AgentPresence | null, stopping: string | null, terminal: boolean, content: { frame?: string; title?: string; note?: string } | null = null): AgentNoticeView | null {
+export function agentNoticeView(presence: AgentPresence | null, terminal: boolean, content: { frame?: string; title?: string; note?: string } | null = null): AgentNoticeView | null {
   if (!presence && !terminal) return null;
   // A fixed name, not the provider's (dogfooding): the panel beside the board already says which agent this is.
   if (presence?.kind === "waiting") return { text: "Agent needs your answer", status: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } };
   const name = content?.frame === undefined ? undefined : content.title ?? content.frame;
   const text = content?.note ?? (name === undefined ? "Agent is working" : `Working on ${name}`);
   const status = content?.note !== undefined && name !== undefined ? `${content.note} — ${name}` : text;
-  if (!presence) return { text, status, steady: false, action: null };
-  const held = stopping === presence.conversationId;
-  return { text, status, steady: false, action: { kind: "stop", label: held ? "Stopping" : "Stop", disabled: held } };
-}
-
-// "Stopping" lasts until the list shows the turn ended (no presence) or another conversation takes the canvas.
-export function settleStopping(stopping: string | null, presence: AgentPresence | null): string | null {
-  return stopping !== null && presence?.conversationId === stopping ? stopping : null;
-}
-
-export function stopFailedText(provider: string): string {
-  return `Couldn’t stop ${provider}. Try again.`;
-}
-
-// Stop without a confirmation. interruptConversation answers a ConversationError instead of rejecting; either way a
-// failure comes back as the toast's text, null when main took the stop.
-export async function stopTurn(conversationId: string, provider: string, interrupt: (request: { conversationId: string }) => Promise<void | ConversationError>): Promise<string | null> {
-  try {
-    const reply = await interrupt({ conversationId });
-    return reply && "error" in reply ? stopFailedText(provider) : null;
-  } catch {
-    return stopFailedText(provider);
-  }
+  return { text, status, steady: false, action: null };
 }

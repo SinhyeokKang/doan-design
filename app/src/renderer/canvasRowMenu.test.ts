@@ -1,10 +1,11 @@
 import { describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { WorkItem } from "../main/workState";
+import { trashBusy } from "../main/canvasTrash";
 import { canvasExportReason, trashBlock } from "./canvasRowMenu";
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: false,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "claude", fromHome: false,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "Done",
   canvas: { path: ".doan/canvases/billing.html", id: "billing" }, ...patch,
 });
@@ -26,13 +27,30 @@ describe("trashBlock", () => {
   test("a conversation main still counts as working (preparing, a queue about to go out) blocks it, as main does", () => {
     expect(trashBlock(target, [summary({ working: true })], [], none)).toBe("conversation");
     expect(trashBlock(target, [summary({ working: true, readError: true })], [], none)).toBe("conversation");
-    expect(trashBlock(target, [summary({ working: true, state: "archived" })], [], none)).toBeNull();
     expect(trashBlock(target, [summary({ working: true, canvas: { path: target.path, id: "other" } })], [], none)).toBeNull();
   });
 
-  test("an unseen ending or an archived conversation does not block it", () => {
+  test("an unseen ending does not block it", () => {
     expect(trashBlock(target, [summary({ unseen: true })], [], none)).toBeNull();
-    expect(trashBlock(target, [summary({ phase: "running", state: "archived" })], [], none)).toBeNull();
+  });
+
+  test("any one of the canvas's conversations working, preparing or waiting blocks it, not only the first", () => {
+    const idle = summary({ conversationId: "idle" });
+    expect(trashBlock(target, [idle, summary({ conversationId: "r", phase: "running" })], [], none)).toBe("conversation");
+    expect(trashBlock(target, [idle, summary({ conversationId: "p", working: true })], [], none)).toBe("conversation");
+    expect(trashBlock(target, [idle, summary({ conversationId: "w", phase: "waiting" })], [], none)).toBe("conversation");
+  });
+
+  test("counts the same conversations as main's trashBusy, so an enabled item is never refused as busy", () => {
+    const cases: Partial<ConversationSummary>[] = [
+      {}, { phase: "running" }, { phase: "waiting" }, { working: true }, { unseen: true }, { working: true, readError: true }, { readError: true },
+      { queued: 2, scheduledAt: "2026-11-01T13:00:00.000Z" }, { phase: "running", canvas: { path: target.path, id: "other" } },
+      { phase: "running", canvas: { path: ".doan/canvases/moved.html", id: "billing" } },
+    ];
+    for (const patch of cases) {
+      const list = [summary({ conversationId: "idle" }), summary({ conversationId: "x", ...patch })];
+      expect(trashBlock(target, list, [], none) === "conversation", JSON.stringify(patch)).toBe(trashBusy(target, list, [], []));
+    }
   });
 
   test("conversations match by id when either side has one, else by path", () => {

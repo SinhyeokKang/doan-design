@@ -24,7 +24,7 @@ const ROOT = "/code/doan";
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
 const entry = { kind: "list", path: ROOT, servedRev: 0, canvases: [], git: { branch: "main", common: "/code/doan/.git" } } as unknown as FolderEntry;
 const AT = new Date(Date.now() + 3_600_000).toISOString();
-const summary: ConversationSummary = { conversationId: A, title: "Checkout copy", state: "current", owner: "doan", provider: "claude",
+const summary: ConversationSummary = { conversationId: A, title: "Checkout copy", owner: "doan", provider: "claude",
   fromHome: true, phase: "ended", unseen: false, queued: 1, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p",
   limitResetsAt: AT, scheduledAt: AT, permissionMode: "acceptEdits" };
 const authState: AuthState = { provider: "claude", generation: 1, verified: true, expired: false, connection: { provider: "claude", connectionId: "c", profile: "claude", account: { id: "a", workspace: "org", email: "ada@example.com" } }, attempt: null, error: null, phase: "connected" };

@@ -155,7 +155,7 @@ test("the store reads a thread and takes a returned draft through the call objec
 // The prototype window routes main-window-only buttons to its host; the promotion notice's Open is one of them.
 test("the promotion notice's Open goes to the host's callback when it gives one", async () => {
   const calls = fakeCalls();
-  const summary = (canvas?: Canvas) => ({ conversationId: "p1", ...(canvas ? { canvas } : {}), title: "Ideas", state: "current", owner: "doan", provider: "claude", fromHome: false,
+  const summary = (canvas?: Canvas) => ({ conversationId: "p1", ...(canvas ? { canvas, startedBy: "promotion" as const } : {}), title: "Ideas", owner: "doan", provider: "claude", fromHome: false,
     phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }) as const;
   let list: ListView = [summary()];
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
@@ -175,7 +175,7 @@ test("the promotion notice's Open goes to the host's callback when it gives one"
     if (Array.isArray(node)) { for (const child of node) { const found = open(child); if (found) return found; } return null; }
     if (!node || typeof node !== "object" || !("props" in node)) return null;
     const element = node as { props: { children?: ReactNode; "aria-label"?: string; onClick?(): void } };
-    if (element.props["aria-label"] === "Open the current conversation") return element.props as { onClick(): void };
+    if (element.props["aria-label"] === "Open the moved conversation") return element.props as { onClick(): void };
     return open(element.props.children);
   };
   open(tree)!.onClick();
@@ -186,7 +186,7 @@ test("the promotion notice's Open goes to the host's callback when it gives one"
 
 // An existing conversation's composer: its send, queue and attachment paths, still without window.doan.
 async function existing(calls: ReturnType<typeof fakeCalls>) {
-  const list: ListView = [{ conversationId: "c1", canvas: CANVAS, title: "Ideas", state: "current", owner: "doan", provider: "claude", fromHome: false,
+  const list: ListView = [{ conversationId: "c1", canvas: CANVAS, title: "Ideas", owner: "doan", provider: "claude", fromHome: false,
     phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }];
   const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
   const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, calls);

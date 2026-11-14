@@ -15,7 +15,7 @@ const NOW = Date.parse("2026-11-01T12:00:00.000Z");
 const MIN = 60_000;
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: ago(MIN), preview: "Done", ...patch,
 });
 const row = (patch: Partial<CanvasRow> & { path: string }): CanvasRow => ({ url: `doan://${patch.path}`, width: 1280, ...patch });
@@ -58,14 +58,30 @@ describe("canvas conversation list", () => {
     expect(panel).toContain('<aside class="right native-scroll ov-right" role="region" aria-label="Canvas conversations"><h2 class="phead rp-head" tabindex="-1">Canvas conversations</h2><ul class="rp-list" role="list">');
   });
 
-  test("a row draws the provider logo, canvas name, status mark, short time and preview", () => {
+  // Draft frame overview-rows: the head is the conversation's title, the caption line under it the canvas name.
+  test("a row draws the provider logo, conversation title, status mark, short time, canvas caption and preview", () => {
     const b = item(html, "b");
     expect(b).toContain('alt="Codex"');
-    expect(b).toContain("<b>billing</b>");
+    expect(b).toContain("<b>Ask about the header</b>");
     expect(b).toContain('aria-label="Needs your answer"');
     expect(b).toContain('<span aria-hidden="true">now</span><span class="sr-only">Just now</span>');
-    expect(b).toContain('<span class="cv-preview">Needs your answer: Run doan check</span>');
+    expect(b).toMatch(/<\/span><small class="cv-canvas">billing<\/small><span class="cv-preview">Needs your answer: Run doan check<\/span>/);
     expect(item(html, "r")).toContain('<span aria-hidden="true">3m</span><span class="sr-only">3 minutes ago</span>');
+  });
+
+  test("each conversation of one canvas is its own row with its own title; an empty title reads Conversation", () => {
+    const three = render(canvasConversationRows([
+      summary({ conversationId: "x1", title: "Tighten the checkout summary spacing", phase: "running", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(0) }),
+      summary({ conversationId: "x2", title: "Add an empty state", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(2 * MIN) }),
+      summary({ conversationId: "x3", title: "  ", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(3 * MIN) }),
+    ], [billing], NOW));
+    expect(three.match(/class="cv-row"/g)).toHaveLength(3);
+    expect(item(three, "x1")).toContain("<b>Tighten the checkout summary spacing</b>");
+    expect(item(three, "x2")).toContain("<b>Add an empty state</b>");
+    expect(item(three, "x3")).toContain("<b>Conversation</b>");
+    for (const key of ["x1", "x2", "x3"]) expect(item(three, key)).toContain('<small class="cv-canvas">billing</small>');
+    expect(three.indexOf('data-key="x1"')).toBeLessThan(three.indexOf('data-key="x2"'));
+    expect(three.indexOf('data-key="x2"')).toBeLessThan(three.indexOf('data-key="x3"'));
   });
 
   test("one Tab stop: the first row (with its Delete), the others reached with the arrow keys", () => {
@@ -92,21 +108,22 @@ describe("canvas conversation list", () => {
   });
 
   test("a deleted canvas and a shared id are disabled, their reason the description", () => {
+    // Draft frame overview-rows: the head is the conversation's title; the caption line carries the canvas name and
+    // the reason.
     for (const [key, name, reason] of [["g", "invoice", "No longer in acme-web"], ["t", "tax", "2 canvases use this ID — run doan check"]] as const) {
       const li = item(html, key);
       expect(li).toContain('aria-disabled="true"');
       const why = /aria-describedby="([^"]+)"/.exec(li)![1]!;
-      expect(li).toContain(`<small id="${why}" class="err">${reason}</small>`);
+      expect(li).toContain(`<small id="${why}" class="cv-canvas err">${name} · ${reason}</small>`);
       const label = /aria-labelledby="([^"]+)"/.exec(li)![1]!;
-      expect(li).toContain(`<b id="${label}">${name}</b>`);
+      expect(li).toContain(`<b id="${label}">Draw it</b>`);
     }
   });
 
   test("an unreadable canvas opens, with the sidebar's sentence", () => {
     const li = item(html, "l");
     expect(li).not.toContain("aria-disabled");
-    expect(li).toContain("Can&#x27;t read this canvas — run doan check</small>");
-    expect(li).toContain('class="note"');
+    expect(li).toContain('class="cv-canvas note">legacy · Can&#x27;t read this canvas — run doan check</small>');
   });
 
   // Draft frames cv-delete, cv-special: the title menu's Delete on every row.
@@ -208,7 +225,7 @@ describe("RowFocusMemory", () => {
   });
 });
 
-// A canvas whose current conversation changes keeps its path but gets a new button to observe.
+// Another conversation's row on the same canvas keeps the path but is a new button to observe.
 describe("observedRows", () => {
   test("changes when a row's conversation changes on the same canvas", () => {
     const [first] = canvasConversationRows([summary({ conversationId: "c1", canvas: { path: billing.path, id: "billing" } })], [billing], NOW);

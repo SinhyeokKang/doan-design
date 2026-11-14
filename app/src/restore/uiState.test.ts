@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { parseUiState, UI_STATE_MAX_BYTES, withoutRoots } from "./uiState";
+import { conversationCanvasKey, parseUiState, UI_STATE_MAX_BYTES, withoutRoots } from "./uiState";
 
 const saved = ["/repo/a", "/repo/b"];
 const view = { scale: 1, x: 10, y: -20 };
@@ -321,6 +321,56 @@ test("removing roots forgets their entries and leaves the others", () => {
   expect(withoutRoots(memory, ["/repo/a", "/repo/unknown"])).toEqual({ "/repo/b": ID_B });
   expect(withoutRoots(memory, [])).toEqual(memory);
   expect(memory).toEqual({ "/repo/a": ID_A, "/repo/b": ID_B });
+});
+
+// The canvas conversation last seen on each canvas on this device: per saved root, by the canvas's id, else its path.
+test("keeps the last canvas conversation per saved root and canvas", () => {
+  const value = { "/repo/a": { checkout: ID_A, ".doan/canvases/cart.html": ID_B }, "/repo/b": { checkout: ID_B } };
+  expect(parse({ screen: "home", conversationByCanvas: value })?.conversationByCanvas).toEqual(value);
+});
+
+test("a file without conversationByCanvas has none", () => {
+  expect(parse({ screen: "home" })).not.toHaveProperty("conversationByCanvas");
+});
+
+test("conversationByCanvas drops invalid ids, empty keys and malformed roots one by one", () => {
+  const state = parse({ screen: "home", conversationByCanvas: { "/repo/a": { checkout: "not-an-id", cart: ID_B, "": ID_A }, "/repo/b": [ID_A] } });
+  expect(state?.conversationByCanvas).toEqual({ "/repo/a": { cart: ID_B } });
+  for (const bad of [42, null, "", ID_A.toUpperCase(), ["x"], { id: ID_A }]) {
+    expect(parse({ screen: "home", conversationByCanvas: { "/repo/a": { checkout: bad } } })?.conversationByCanvas).toEqual({});
+  }
+  // A malformed field costs nothing else.
+  const broken = parse({ screen: "workspace", root: "/repo/a", expanded: {}, lastByRoot: {}, conversationByRoot: { "/repo/a": ID_A }, conversationByCanvas: [ID_A] });
+  expect(broken).not.toHaveProperty("conversationByCanvas");
+  expect(broken?.conversationByRoot).toEqual({ "/repo/a": ID_A });
+});
+
+test("conversationByCanvas never keeps a root outside the saved list", () => {
+  expect(parse({ screen: "home", conversationByCanvas: { "/repo/a": { checkout: ID_A }, "/repo/gone": { checkout: ID_B } } }, ["/repo/a"])?.conversationByCanvas).toEqual({ "/repo/a": { checkout: ID_A } });
+  expect(withoutRoots({ "/repo/a": { checkout: ID_A }, "/repo/b": { cart: ID_B } }, ["/repo/a"])).toEqual({ "/repo/b": { cart: ID_B } });
+});
+
+test("conversationByCanvas kept under an alias root moves to its real path; the real path's own canvases win", () => {
+  const alias = "/alias/repo", real = "/real/repo";
+  const text = JSON.stringify({ screen: "home", expanded: {}, lastByRoot: {}, conversationByCanvas: { [alias]: { checkout: ID_A }, [real]: { cart: ID_B } } });
+  expect(parseUiState(text, [real], new Map([[alias, real]]))?.conversationByCanvas).toEqual({ [real]: { checkout: ID_A, cart: ID_B } });
+  const only = JSON.stringify({ screen: "home", expanded: {}, lastByRoot: {}, conversationByCanvas: { [alias]: { checkout: ID_A } } });
+  expect(parseUiState(only, [real], new Map([[alias, real]]))?.conversationByCanvas).toEqual({ [real]: { checkout: ID_A } });
+});
+
+// Per canvas, as for the other root-keyed fields' entries: the real path's canvases win, the alias fills only the ones
+// the real path lacks.
+test("conversationByCanvas under both spellings merges per canvas, the real path's entries winning", () => {
+  const alias = "/alias/repo", real = "/real/repo";
+  const text = JSON.stringify({ screen: "home", expanded: {}, lastByRoot: {}, conversationByCanvas: { [alias]: { checkout: ID_A, cart: ID_A }, [real]: { cart: ID_B } } });
+  expect(parseUiState(text, [real], new Map([[alias, real]]))?.conversationByCanvas).toEqual({ [real]: { checkout: ID_A, cart: ID_B } });
+});
+
+// The draftKey rule: a moved canvas keeps its id, so it keeps the conversation it remembered.
+test("a canvas is keyed by its id, else its path", () => {
+  expect(conversationCanvasKey({ path: ".doan/canvases/checkout.html", id: "checkout" })).toBe("checkout");
+  expect(conversationCanvasKey({ path: ".doan/canvases/pay/checkout.html", id: "checkout" })).toBe("checkout");
+  expect(conversationCanvasKey({ path: ".doan/canvases/cart.html" })).toBe(".doan/canvases/cart.html");
 });
 
 test("reads the right panel's open flag and width", () => {

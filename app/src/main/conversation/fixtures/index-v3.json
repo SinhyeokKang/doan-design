@@ -1,0 +1,36 @@
+{
+  "v": 3,
+  "conversations": [
+    {
+      "conversationId": "legacy-1",
+      "root": "/repo",
+      "canvas": { "path": ".doan/canvases/a.html", "id": "a" },
+      "title": "Legacy",
+      "seenSeq": 4,
+      "owner": { "kind": "legacy-external" },
+      "session": { "runtime": "claude", "origin": "resumed", "sessionId": "session-1", "configDir": "/profiles/claude", "cwd": "/repo" }
+    },
+    {
+      "conversationId": "doan-1",
+      "root": "/repo",
+      "canvas": { "path": ".doan/canvases/a.html", "id": "a" },
+      "title": "Second on the same canvas",
+      "seenSeq": 0,
+      "owner": { "kind": "doan", "provider": "cursor", "connectionId": "conn-cursor-1", "accountId": "acct-cursor-1", "workspaceId": "team-1", "profile": "cursor" },
+      "session": { "runtime": "cursor", "origin": "new", "sessionId": "session-3", "configDir": "/profiles/cursor", "cwd": "/repo" }
+    },
+    {
+      "conversationId": "home-1",
+      "root": "/repo",
+      "title": "From Home",
+      "model": "opus",
+      "effort": "high",
+      "fast": true,
+      "permissionMode": "plan",
+      "fromHome": true,
+      "canvasesAtStart": [{ "path": ".doan/canvases/a.html", "id": "a" }],
+      "owner": { "kind": "doan", "provider": "claude", "connectionId": "conn-claude-1", "accountId": "acct-claude-1", "workspaceId": null, "profile": "claude" },
+      "session": { "runtime": "claude", "origin": "newDesign", "sessionId": "session-2", "configDir": "/profiles/claude", "cwd": "/repo" }
+    }
+  ]
+}

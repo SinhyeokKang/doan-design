@@ -384,8 +384,8 @@ test("only a project conversation waiting for an answer of those that hold the r
     ["ended, not judged yet", { phase: "ended", working: true }, true],
     ["queue about to go out", { phase: "ended", working: true, queued: 1 }, true],
     ["ended and judged", { phase: "ended", working: false }, false],
+    // Several canvas conversations may work at once; only project conversations hold the root.
     ["a canvas conversation", { phase: "running", working: true, canvas: { path: ".doan/canvases/a.html", id: "a" } }, false],
-    ["archived", { phase: "running", working: true, state: "archived" }, false],
   ];
   for (const [state, patch, blocks] of table) expect([state, blocksStart(summary(patch))]).toEqual([state, blocks]);
 });
@@ -414,7 +414,7 @@ test("a new canvas in a root with two live project turns neither opens nor toast
 // What survives a reload comes from main's list.
 // working follows the phase unless a test sets it: main also works after a turn ended (judgement, exit wait).
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "",
   working: patch.phase !== undefined && patch.phase !== "ended", ...patch,
 });

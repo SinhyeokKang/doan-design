@@ -124,6 +124,5 @@ export function overviewAfterListChange(current: OverviewCurrent, change: { root
   const draft = { from: draftKey({ kind: "existing", conversationId: id, provider: "claude" }), to: draftKey({ kind: "new", root: current.root }) };
   const c = change.list.find(item => item.conversationId === id);
   if (!c) return current.listed ? { kind: "gone", draft } : { kind: "keep" };
-  if (c.canvas) return { kind: "promoted", conversationId: id, title: c.title, canvas: c.canvas, draft };
-  return c.state === "archived" ? { kind: "gone", draft } : { kind: "keep" };
+  return c.canvas ? { kind: "promoted", conversationId: id, title: c.title, canvas: c.canvas, draft } : { kind: "keep" };
 }

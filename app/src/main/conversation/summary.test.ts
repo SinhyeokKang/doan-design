@@ -6,11 +6,10 @@ const at = (seq: number) => `2026-10-31T00:00:${String(seq).padStart(2, "0")}.00
 function history(...payloads: (EventPayload | [EventPayload, string])[]): ConversationEvent[] {
   return payloads.map((p, i) => { const [body, turnId] = Array.isArray(p) ? p : [p, "t1"]; return { ...body, v: 1, conversationId: "c", seq: i + 1, turnId, at: at(i + 1) }; });
 }
-const doan: ConversationMetadata = { conversationId: "c", root: "/repo", title: "Make a pricing page", state: "current", model: "opus", effort: "high", fromHome: true, seenSeq: 0,
+const doan: ConversationMetadata = { conversationId: "c", root: "/repo", title: "Make a pricing page", model: "opus", effort: "high", fromHome: true, seenSeq: 0,
   owner: { kind: "doan", provider: "claude", connectionId: "conn", accountId: "acct", workspaceId: "org", profile: "claude" },
   session: { runtime: "claude", origin: "newDesign", sessionId: "s", configDir: "/profiles/claude", cwd: "/repo" } };
-const legacy: ConversationMetadata = { conversationId: "c", root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, title: "Fix the header", state: "archived",
-  owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/home/.codex", cwd: "/repo" } };
+const legacy: ConversationMetadata = { conversationId: "c", root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, title: "Fix the header", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/home/.codex", cwd: "/repo" } };
 const started: EventPayload[] = [{ type: "user.message", text: "Make a pricing page", anchors: [] }, { type: "turn.started" }];
 const permission: EventPayload = { type: "permission.request", requestId: "r", tool: "Bash", summary: "Run npm test", options: [{ id: "allow", label: "Allow", kind: "allow" }] };
 const live = { live: true, queued: 0, working: false };
@@ -18,12 +17,12 @@ const restarted = { live: false, queued: 0, working: false };
 describe("conversationSummary", () => {
   it("summarizes a doan conversation without leaking account details", () => {
     const s = conversationSummary(doan, { ok: true, events: history(...started, { type: "message.done", messageId: "m", text: "Done." }, { type: "turn.done" }) }, { live: true, queued: 2, working: true });
-    expect(s).toEqual({ conversationId: "c", title: "Make a pricing page", state: "current", owner: "doan", provider: "claude", model: "opus", effort: "high", fromHome: true,
+    expect(s).toEqual({ conversationId: "c", title: "Make a pricing page", owner: "doan", provider: "claude", model: "opus", effort: "high", fromHome: true,
       phase: "ended", unseen: true, queued: 2, working: true, lastActivityAt: at(4), preview: "Done." });
   });
   it("includes a legacy external conversation with its canvas and no choice", () => {
     const s = conversationSummary(legacy, { ok: true, events: history(...started, { type: "turn.done" }) }, restarted);
-    expect(s).toMatchObject({ owner: "legacy-external", provider: "codex", canvas: { path: ".doan/canvases/a.html", id: "a" }, state: "archived", fromHome: false, phase: "ended" });
+    expect(s).toMatchObject({ owner: "legacy-external", provider: "codex", canvas: { path: ".doan/canvases/a.html", id: "a" }, fromHome: false, phase: "ended" });
     expect(s).not.toHaveProperty("model");
   });
   it("carries the conversation's chosen permission mode, and none for Default", () => {
@@ -39,6 +38,16 @@ describe("conversationSummary", () => {
     expect(conversationSummary(doan, { ok: true, events: history(...started, asked) }, live).phase).toBe("waiting");
     expect(conversationSummary(doan, { ok: true, events: history(...started, asked, { type: "question.resolved", requestId: "q", outcome: "answered" }) }, live).phase).toBe("running");
     expect(conversationSummary(doan, { ok: true, events: history(...started, asked) }, restarted).phase).toBe("ended");
+  });
+  it("says since when it waits: the earliest request still unanswered, unmoved by later output or a partial answer", () => {
+    const second: EventPayload = { ...permission, requestId: "r2", summary: "Run npm run lint" };
+    const output: EventPayload = { type: "activity", kind: "read", summary: "Read a.html" };
+    // seq 3 is the first request.
+    expect(conversationSummary(doan, { ok: true, events: history(...started, permission, output) }, live)).toMatchObject({ phase: "waiting", waitingSince: at(3), lastActivityAt: at(4) });
+    expect(conversationSummary(doan, { ok: true, events: history(...started, permission, second, { type: "permission.resolved", requestId: "r", optionId: "allow" }) }, live))
+      .toMatchObject({ phase: "waiting", waitingSince: at(4) });
+    expect(conversationSummary(doan, { ok: true, events: history(...started, { type: "activity", kind: "read", summary: "Read a.html" }) }, live)).not.toHaveProperty("waitingSince");
+    expect(conversationSummary(doan, { ok: true, events: history(...started, permission) }, restarted)).not.toHaveProperty("waitingSince");
   });
   it("folds an unfinished turn after a restart into an unseen end", () => {
     const s = conversationSummary(doan, { ok: true, events: history(...started, permission) }, restarted);
@@ -59,9 +68,27 @@ describe("conversationSummary", () => {
     expect(conversationSummary({ ...doan, seenSeq: 3 }, { ok: true, events: bound }, restarted).unseen).toBe(false);
     expect(conversationSummary({ ...doan, seenSeq: 2 }, { ok: true, events: bound }, restarted).unseen).toBe(true);
   });
-  it("never counts an archived conversation as unseen, even one replaced while it ran", () => {
+  // Nothing is archived any more: an end counts by the seen marker alone. A conversation an earlier build archived lost
+  // its marker when the index was migrated (store.ts), so the interruption recorded at the archive is seen.
+  it("counts an end by the seen marker alone", () => {
     const replaced = history(...started, { type: "interrupted", reason: "user" }, { type: "conversation.archived" });
-    expect(conversationSummary({ ...doan, state: "archived", seenSeq: 0 }, { ok: true, events: replaced }, restarted).unseen).toBe(false);
+    const { seenSeq: _seen, ...migrated } = doan;
+    expect(conversationSummary(migrated, { ok: true, events: replaced }, restarted).unseen).toBe(false);
+    expect(conversationSummary({ ...doan, seenSeq: 0 }, { ok: true, events: replaced }, restarted).unseen).toBe(true);
+  });
+  // A new conversation the person started (main window or prototype window) may take over an empty panel; one a handoff
+  // or a promotion made never does, so the summary says who started it.
+  it("says a handoff or a promotion started the conversation, and nothing for the person's own", () => {
+    const origin = { kind: "handoff" as const, conversationId: "source", canvas: { path: ".doan/canvases/s.html", id: "s" } };
+    const handedOff = history({ type: "user.message", text: "Continue here.", anchors: [], origin }, { type: "turn.started" });
+    expect(conversationSummary(legacy, { ok: true, events: history(...started) }, live)).not.toHaveProperty("startedBy");
+    expect(conversationSummary(doan, { ok: true, events: history(...started) }, live)).not.toHaveProperty("startedBy");
+    expect(conversationSummary({ ...doan, canvas: { path: ".doan/canvases/b.html", id: "b" }, session: { ...doan.session, origin: "new" } }, { ok: true, events: handedOff }, live).startedBy).toBe("handoff");
+    const promoted = { ...doan, canvas: { path: ".doan/canvases/b.html", id: "b" } };
+    expect(conversationSummary(promoted, { ok: true, events: history(...started, { type: "turn.done" }, { type: "conversation.bound", canvas: { path: ".doan/canvases/b.html", id: "b" } }) }, live).startedBy).toBe("promotion");
+    // The promotion is in the index; whether a handoff started it is only in the unreadable history.
+    expect(conversationSummary(promoted, { ok: false }, live).startedBy).toBe("promotion");
+    expect(conversationSummary(legacy, { ok: false }, live)).not.toHaveProperty("startedBy");
   });
   it("returns only a read error for an unreadable history", () => {
     expect(conversationSummary(doan, { ok: false }, live)).toMatchObject({ conversationId: "c", readError: true, phase: "ended", unseen: false, preview: "", lastActivityAt: "" });
@@ -108,11 +135,10 @@ describe("conversationSummary", () => {
 describe("suggestion and returned draft", () => {
   const ended = { ok: true as const, events: history(...started, { type: "message.done", messageId: "m", text: "Done." }, { type: "turn.done" }) };
   const shown = { ...live, returned: false, suggestion: "Run the tests" };
-  it("carries the suggestion only for a current, ended conversation that is not working, has nothing queued and no returned draft", () => {
+  it("carries the suggestion only for an ended conversation that is not working, has nothing queued and no returned draft", () => {
     expect(conversationSummary(doan, ended, shown)).toMatchObject({ suggestion: "Run the tests" });
     expect(conversationSummary(doan, ended, shown)).not.toHaveProperty("returnedDraft");
     const hidden: [string, ReturnType<typeof conversationSummary>][] = [
-      ["archived", conversationSummary({ ...doan, state: "archived" }, ended, shown)],
       ["running", conversationSummary(doan, { ok: true, events: history(...started, { type: "activity", kind: "read", summary: "Read a.html" }) }, shown)],
       ["waiting", conversationSummary(doan, { ok: true, events: history(...started, permission) }, shown)],
       ["working", conversationSummary(doan, ended, { ...shown, working: true })],

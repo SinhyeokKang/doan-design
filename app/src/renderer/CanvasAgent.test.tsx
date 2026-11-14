@@ -11,12 +11,12 @@ import { TooltipProvider } from "./components/ui/tooltip";
 // from main's conversation list for the open canvas.
 const canvas = { path: ".doan/canvases/billing.html", id: "billing" };
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "codex", fromHome: true,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "codex", fromHome: true,
   phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "",
   canvas, ...patch,
 });
 const markup = (list: readonly ConversationSummary[] | "loading" | "error" | undefined, over: Partial<Parameters<typeof CanvasAgent>[0]> = {}) =>
-  renderToStaticMarkup(<TooltipProvider><CanvasAgent list={list} canvas={{ root: "/w/a", canvas }} buddy="doany" running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()} {...over} /></TooltipProvider>);
+  renderToStaticMarkup(<TooltipProvider><CanvasAgent list={list} shown="c1" canvas={{ root: "/w/a", canvas }} buddy="doany" running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} {...over} /></TooltipProvider>);
 // The working notice's visible line (aria-hidden, the text and its caret) and its measuring node.
 const LINE = (text: string, caret = '<span class="doan-agent-caret"></span>') => `<span class="doan-agent-line" aria-hidden="true" data-state="closed" data-slot="tooltip-trigger"><span class="doan-agent-row"><span class="doan-agent-text">${text}</span>${caret}</span></span>`;
 const MEASURE = '<span class="doan-agent-measure" aria-hidden="true"></span>';
@@ -41,47 +41,39 @@ const tag = (html: string, pattern: string) => html.match(new RegExp(`<[a-z0-9]+
 
 describe("CanvasAgent", () => {
   test("a hidden workspace keeps Doany on the first frame, as the dot field pauses, in every notice", () => {
-    expect(markup([summary({})], { running: false })).toContain('<div class="doan-agent">' + ARTIST_STILL);
+    expect(markup([summary({})], { running: false })).toContain('<div class="doan-agent doan-agent-terminal">' + ARTIST_STILL);
     const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
     expect(markup([], { work, running: false })).toContain('<div class="doan-agent doan-agent-terminal">' + ARTIST_STILL);
   });
 
-  test("working: the edge glow with the dot field, and the notice with Doany painting, the label and Stop", () => {
+  // The board has no Stop (user decision): with several conversations on a canvas it was ambiguous, so stopping is the
+  // composer's, tied to one conversation. Working shows the terminal notice's button-less capsule.
+  test("working: the edge glow with the dot field, and the notice with Doany painting and the label, no button", () => {
     const html = markup([summary({})]);
     const glow = tag(html, 'class="doan-agent-glow"');
     expect(glow).toContain('aria-hidden="true"');
     expect(html).toMatch(/<div class="doan-agent-glow"[^>]*><canvas class="doan-agent-dots"><\/canvas><\/div>/);
     expect(html).toContain('class="doan-canvas-top"');
-    expect(tag(html, 'class="doan-agent"')).toBeTruthy();
-    expect(html).toContain('<div class="doan-agent">' + ARTIST);
+    expect(html).toContain('<div class="doan-agent doan-agent-terminal">' + ARTIST + LINE("Agent is working") + MEASURE + '<span class="sr-only" role="status">Agent is working</span></div>');
     expect(html).not.toContain("doan-agent-dot\"");
-    // Only the wording is the live region: the button's name is not announced with it.
-    expect(html).toContain('<span class="sr-only" role="status">Agent is working</span>');
     expect(html.match(/role="status"/g)).toHaveLength(1);
-    const stop = tag(html, 'class="doan-button doan-agent-action"');
-    expect(stop).toMatch(/^<button/);
-    // The notice's first size: a 32px action with body-sm wording (dogfooding found the 40px one too large).
-    expect(stop).toContain('data-ui-size="sm"');
-    expect(stop).not.toContain("disabled");
-    // The composer's Stop glyph, a filled square, leads the word.
-    const glyph = html.match(/<button[^>]*doan-agent-action[^>]*>(<svg[^>]*>).*?<\/svg>Stop<\/button>/)?.[1] ?? "";
-    expect(glyph).toContain("lucide-square");
-    expect(glyph).toContain('fill="currentColor"');
+    expect(html).not.toContain("<button");
   });
 
-  test("waiting: Doany still on the first frame, 'needs your answer' and Open named for the request; no Stop", () => {
+  test("waiting: Doany still on the first frame, 'needs your answer' and Open named for the request", () => {
     const html = markup([summary({ phase: "waiting" })]);
     expect(html).toContain('<div class="doan-agent">' + ARTIST_STILL);
     expect(html).toContain("Agent needs your answer");
     expect(tag(html, 'aria-label="Open the request"')).toMatch(/^<button/);
     // Open has no glyph.
     expect(html).toMatch(/aria-label="Open the request">Open<\/button>/);
-    expect(html).not.toMatch(/>Stop</);
+    // The notice's first size: a 32px action with body-sm wording (dogfooding found the 40px one too large).
+    expect(tag(html, 'aria-label="Open the request"')).toContain('data-ui-size="sm"');
   });
 
   test("nothing shows for an ended turn, another canvas's or a project conversation", () => {
     const { canvas: _c, ...project } = summary({});
-    for (const list of [[summary({ phase: "ended" })], [summary({ canvas: { path: ".doan/canvases/other.html", id: "other" } })], [project]]) {
+    for (const list of [[summary({ phase: "ended", working: false })], [summary({ canvas: { path: ".doan/canvases/other.html", id: "other" } })], [project]]) {
       expect(markup(list)).toBe(COLUMN);
     }
   });
@@ -107,10 +99,10 @@ describe("CanvasAgent", () => {
     expect(markup([], { work: [{ ...work[0]!, root: "/w/b" }] })).toBe(COLUMN);
   });
 
-  test("an app conversation on the canvas keeps its Stop over a terminal session", () => {
-    const html = markup([summary({})], { work: [{ touched: 0, turn: "none:t", session: null, provider: null, root: "/w/a", path: canvas.path }] });
+  test("an app conversation waiting on the canvas keeps its Open over a terminal session", () => {
+    const html = markup([summary({ phase: "waiting" })], { work: [{ touched: 0, turn: "none:t", session: null, provider: null, root: "/w/a", path: canvas.path }] });
     expect(html).toContain('<div class="doan-agent">');
-    expect(html).toMatch(/>Stop<\/button>/);
+    expect(html).toContain('aria-label="Open the request">Open</button>');
   });
 
   // DESIGN 'Terminal work in another worktree' (draft frame sibling-notice): another worktree of this project works on this
@@ -147,13 +139,13 @@ describe("CanvasAgent", () => {
       const own = markup([], { work: [...there, { ...there[0]!, root: "/w/a" }], entries: entries("feat/x") });
       expect(own).toContain('<div class="doan-agent doan-agent-terminal">');
       expect(own).not.toContain("doan-agent-sibling");
-      const app = markup([summary({})], { work: there, entries: entries("feat/x") });
-      expect(app).toMatch(/>Stop<\/button>/);
+      const app = markup([summary({ phase: "waiting" })], { work: there, entries: entries("feat/x") });
+      expect(app).toContain('aria-label="Open the request">Open</button>');
       expect(app).not.toContain("doan-agent-sibling");
     });
     test("the canvas notices still follow it in the column", () => {
       const notice = <div className="doan-notice doan-panel" role="status">x</div>;
-      const html = renderToStaticMarkup(<TooltipProvider><CanvasAgent list={[]} canvas={{ root: "/w/a", canvas }} buddy="doany" running={true} work={there} entries={entries("feat/x")} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent></TooltipProvider>);
+      const html = renderToStaticMarkup(<TooltipProvider><CanvasAgent list={[]} canvas={{ root: "/w/a", canvas }} buddy="doany" running={true} work={there} entries={entries("feat/x")} onOpen={vi.fn()} onOpenSibling={vi.fn()}>{notice}</CanvasAgent></TooltipProvider>);
       expect(html.indexOf("doan-agent-sibling")).toBeGreaterThan(-1);
       expect(html.indexOf("doan-agent-sibling")).toBeLessThan(html.indexOf('class="doan-notice doan-panel"'));
     });
@@ -173,11 +165,11 @@ describe("CanvasAgent", () => {
 
   test("the canvas notices come after the agent notice in the column, and alone when no indicator shows", () => {
     const notice = <div className="doan-notice doan-panel" role="status">The selection is no longer in the canvas.</div>;
-    const html = renderToStaticMarkup(<TooltipProvider><CanvasAgent list={[summary({})]} canvas={{ root: "/w/a", canvas }} buddy="doany" running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent></TooltipProvider>);
-    expect(html.indexOf('class="doan-agent"')).toBeGreaterThan(-1);
-    expect(html.indexOf('class="doan-agent"')).toBeLessThan(html.indexOf('class="doan-notice doan-panel"'));
+    const html = renderToStaticMarkup(<TooltipProvider><CanvasAgent list={[summary({})]} canvas={{ root: "/w/a", canvas }} buddy="doany" running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()}>{notice}</CanvasAgent></TooltipProvider>);
+    expect(html.indexOf('class="doan-agent doan-agent-terminal"')).toBeGreaterThan(-1);
+    expect(html.indexOf('class="doan-agent doan-agent-terminal"')).toBeLessThan(html.indexOf('class="doan-notice doan-panel"'));
     expect(html.match(/class="doan-canvas-top"/g)).toHaveLength(1);
-    const alone = renderToStaticMarkup(<CanvasAgent list={undefined} canvas={null} buddy="doany" running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent>);
+    const alone = renderToStaticMarkup(<CanvasAgent list={undefined} canvas={null} buddy="doany" running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()}>{notice}</CanvasAgent>);
     expect(alone).toBe(`<div class="doan-canvas-top">${renderToStaticMarkup(notice)}</div>`);
   });
 });
@@ -199,8 +191,8 @@ test("the tools are larger and both overlays sit further from the board's edges"
   // Select and Hand (one mapped button), the Picker, Capture area, Play prototype and Export.
   expect(tools.match(/className="doan-icon-button doan-canvas-tool" data-ui-size="md"/g)).toHaveLength(5);
   const agent = readFileSync(new URL("./CanvasAgent.tsx", import.meta.url), "utf8");
-  // Stop, the request's Open and the other worktree's Open.
-  expect(agent.match(/doan-agent-action" data-ui-size="sm"/g)).toHaveLength(3);
+  // The request's Open and the other worktree's Open.
+  expect(agent.match(/doan-agent-action" data-ui-size="sm"/g)).toHaveLength(2);
   expect(css).toMatch(/\.doan-agent-text \{[^}]*font-size: var\(--type-body-sm-size\);/);
 });
 
@@ -256,7 +248,7 @@ describe("the working notice's words", () => {
     expect(markup([], { work: term({ frame: "plans" }), frames: [{ id: "plans", title: "Plans", x: 0, y: 0, width: 1, height: 1 }] })).toContain(LINE("Working on Plans"));
     expect(markup([], { work: term({ frame: "plans" }) })).toContain(LINE("Working on plans"));
   });
-  test("a project conversation naming this canvas: the glow and the notice without Stop", () => {
+  test("a project conversation naming this canvas: the glow and the notice without a button", () => {
     const html = markup([], { conversationWork: [{ conversationId: "p1", root: "/w/a", path: canvas.path, note: "Drawing", touched: 3, turnId: "u1" }] });
     expect(html).toContain("doan-agent-glow");
     expect(html).toContain('<div class="doan-agent doan-agent-terminal">');
@@ -265,10 +257,10 @@ describe("the working notice's words", () => {
     // Another worktree's conversation on the same path shows nothing here.
     expect(markup([], { conversationWork: [{ conversationId: "p1", root: "/w/b", path: canvas.path, touched: 3, turnId: "u1" }] })).toBe(COLUMN);
   });
-  test("the canvas's own conversation keeps Stop with its note", () => {
+  test("the canvas's own conversation shows its note with no button", () => {
     const html = markup([summary({})], { conversationWork: [{ conversationId: "c1", root: "/w/a", path: canvas.path, note: "Drawing", touched: 3, turnId: "u1" }] });
     expect(html).toContain(LINE("Drawing"));
-    expect(html).toMatch(/>Stop<\/button>/);
+    expect(html).not.toContain("<button");
   });
   test("waiting: 'Agent needs your answer' and no caret", () => {
     const html = markup([summary({ phase: "waiting" })], { conversationWork: [{ conversationId: "c1", root: "/w/a", path: canvas.path, note: "Drawing", touched: 3, turnId: "u1" }] });
@@ -371,7 +363,7 @@ describe("NoticeTyping", () => {
 // is only on a frame change.
 test("the caret blinks in two steps once a second, not while typing or under reduced motion, and is CanvasText in forced colours", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toMatch(/\.doan-agent-caret \{[^}]*width: calc\(var\(--space-1\) \/ 2\); height: var\(--type-body-sm-size\); background: currentColor; animation: doan-agent-blink 1s step-end infinite;/);
+  expect(css).toMatch(/\.doan-agent-caret \{[^}]*width: 1\.5px; height: var\(--type-body-sm-size\); background: currentColor; animation: doan-agent-blink 1s step-end infinite;/);
   expect(css).toMatch(/\.doan-agent-row \{[^}]*gap: calc\(var\(--space-1\) \/ 2\);/);
   expect(css).toContain(".doan-agent-caret[data-typing] { animation: none; }");
   expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^}]*\.doan-agent-caret \{ animation: none; \}/);
@@ -427,7 +419,7 @@ describe("Doany the artist", () => {
   test("each variant shows its own GIF while working and its own first frame while waiting or under reduced motion", () => {
     for (const variant of Object.keys(VARIANTS) as Variant[]) {
       vi.spyOn(Math, "random").mockReturnValue(PICK[variant]);
-      expect(markup([summary({})])).toContain('<div class="doan-agent">' + artist(variant, false));
+      expect(markup([summary({})])).toContain('<div class="doan-agent doan-agent-terminal">' + artist(variant, false));
       expect(markup([summary({ phase: "waiting" })])).toContain('<div class="doan-agent">' + artist(variant, true));
       const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
       expect(markup([], { work, running: false })).toContain('<div class="doan-agent doan-agent-terminal">' + artist(variant, true));
@@ -440,7 +432,7 @@ describe("Doany the artist", () => {
       for (const [variant, gifName, pngName] of [["painting", "artist.gif", "artist-rest.png"], ["typing", "artist-typing.gif", "artist-typing-rest.png"], ["reading", "artist-reading.gif", "artist-reading-rest.png"]] as const) {
         random.mockReturnValue(PICK[variant]);
         const friend = (still: boolean) => `<span class="doan-agent-artist" aria-hidden="true"><picture><source srcSet="buddies/${id}/${pngName}" media="(prefers-reduced-motion: reduce)"/><img src="buddies/${id}/${still ? pngName : gifName}" alt=""/></picture></span>`;
-        expect(markup([summary({})], { buddy: id })).toContain('<div class="doan-agent">' + friend(false));
+        expect(markup([summary({})], { buddy: id })).toContain('<div class="doan-agent doan-agent-terminal">' + friend(false));
         expect(markup([summary({ phase: "waiting" })], { buddy: id })).toContain('<div class="doan-agent">' + friend(true));
       }
     }

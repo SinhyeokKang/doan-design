@@ -173,16 +173,18 @@ describe("threadItems", () => {
     expect(threadItems(events, ROOT, true).map(i => i.kind)).toEqual(["user", "activity", "noReply"]);
   });
 
-  test("promotion, archive and restore markers", () => {
+  // Conversations are no longer archived; an earlier build's archive and restore lines draw nothing, the rest of the
+  // history around them draws as before.
+  test("a promotion marker, and nothing for an earlier build's archive and restore lines", () => {
     seq = 0;
     const events: ConversationEvent[] = [...turn("t1"), ev("t1", { type: "turn.done" }),
       ev("t1", { type: "conversation.bound", canvas: { path: ".doan/canvases/s.html", id: "s" } }),
       ev("t1", { type: "conversation.archived" }), ev("t1", { type: "conversation.restored" })];
-    expect(threadItems(events, ROOT, true).filter(i => i.kind === "marker")).toEqual([
+    const items = threadItems(events, ROOT, true);
+    expect(items.filter(i => i.kind === "marker")).toEqual([
       { kind: "marker", key: "k4", seq: 4, marker: "bound", canvas: { path: ".doan/canvases/s.html", id: "s" } },
-      { kind: "marker", key: "k5", seq: 5, marker: "archived", canvas: null },
-      { kind: "marker", key: "k6", seq: 6, marker: "restored", canvas: null },
     ]);
+    expect(items.map(i => i.kind)).toEqual(["user", "noReply", "marker"]);
   });
 });
 
@@ -478,7 +480,7 @@ describe("threadItems handoff", () => {
     const events = [...asked(), ev("t1", { type: "interrupted", reason: "user" }), ev("t1", { type: "conversation.archived" }), ev("t1", { type: "handoff.resolved", outcome: "cancelled" })];
     const items = threadItems(events, ROOT, false);
     expect(items.filter(i => i.kind === "handoff")).toEqual([expect.objectContaining({ key: `ht1:${CHECKOUT}`, outcome: "cancelled" })]);
-    expect(items.at(-1)).toMatchObject({ kind: "marker", marker: "archived" });
+    expect(items.some(i => i.kind === "marker")).toBe(false);
   });
 
   test("a done turn waiting for its judgement stays pending while main holds it, and reads as cancelled once nothing does", () => {
@@ -569,10 +571,10 @@ describe("threadItems handoff", () => {
     expect(threadItems(plain, ROOT, true).map(i => i.kind)).toEqual(["user", "agent", "handoff", "user"]);
   });
 
-  test("a missed line comes before a later archive marker of its turn", () => {
+  test("a missed line written after an earlier build's archive line still follows its turn", () => {
     seq = 0;
     const events = [...turn("t1"), reply("t1"), ev("t1", { type: "turn.done" }), ev("t1", { type: "conversation.archived" }), ev("t1", { type: "handoff.missed", canvas: { path: PAYMENT, id: "payment" } })];
-    expect(threadItems(events, ROOT, false).map(i => i.kind)).toEqual(["user", "agent", "handoff", "marker"]);
+    expect(threadItems(events, ROOT, false).map(i => i.kind)).toEqual(["user", "agent", "handoff"]);
   });
 
   test("the receiving conversation's first message is the handoff card with its text as written", () => {

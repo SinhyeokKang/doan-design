@@ -6,15 +6,18 @@ import { DRAWING_TEXT, PROMOTED_TEXT } from "./canvasConversation";
 import { ConversationStore, type ListView } from "./conversationStore";
 
 // The canvas panel's conversation, driven without a DOM. The host stands in for App
-// and HomeRun (list reads and their counts, seen marks, focus and the drawing project conversation).
+// and HomeRun (list reads and their counts, seen marks, focus, the drawing project conversation and ui-state's
+// conversation last seen on each canvas), or for the prototype window's host, which only reads that memory.
 
 const ROOT = "/code/doan";
-const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", P = "aaaaaaaa-0000-4000-8000-000000000003";
+const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", P = "aaaaaaaa-0000-4000-8000-000000000003", D = "aaaaaaaa-0000-4000-8000-000000000004";
+// Later activity sorts first (byActivity).
+const at = (minute: number) => `2026-10-30T00:${String(minute).padStart(2, "0")}:00.000Z`;
 const CHECKOUT: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
 const CART: Canvas = { path: ".doan/canvases/cart.html", id: "cart" };
 // canvas: null is a project conversation (no canvas); checkout's by default.
 const summary = (conversationId: string, { canvas = CHECKOUT, ...extra }: Partial<Omit<ConversationSummary, "canvas">> & { canvas?: Canvas | null } = {}): ConversationSummary => ({
-  conversationId, title: `Title ${conversationId.slice(-1)}`, state: "current", owner: "doan", provider: "claude", fromHome: false, ...(canvas ? { canvas } : {}),
+  conversationId, title: `Title ${conversationId.slice(-1)}`, owner: "doan", provider: "claude", fromHome: false, ...(canvas ? { canvas } : {}),
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...extra,
 });
 let seq = 0;
@@ -41,10 +44,13 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function harness() {
+// `prototype`: the prototype window's host, with main's relayed promotion and no memory writes (it only reads).
+function harness({ prototype = false }: { prototype?: boolean } = {}) {
   const lists = new Map<string, ListView>();
   const started = new Map<string, number>(), applied = new Map<string, number>();
-  const state = { focused: true, drawing: null as string | null };
+  // remembered: ui-state's conversation for checkout (undefined until ui-state was read).
+  const state = { focused: true, drawing: null as string | null, promoted: null as string | null, remembered: null as string | null | undefined };
+  const remember = vi.fn<(root: string, canvas: Canvas, conversationId: string) => void>();
   const host: CanvasRunHost = {
     list: root => lists.get(root) ?? "loading",
     readsStarted: root => started.get(root) ?? 0,
@@ -53,6 +59,8 @@ function harness() {
     markSeen: vi.fn(),
     focused: () => state.focused,
     drawing: () => state.drawing,
+    remembered: (_root, canvas) => canvas.id === CHECKOUT.id ? state.remembered : state.remembered === undefined ? undefined : null,
+    ...(prototype ? { promoted: () => state.promoted } : { remember }),
     changed: vi.fn(),
   };
   const store = new ConversationStore({ list: host.list, readsStarted: host.readsStarted, readsApplied: host.readsApplied, notice: vi.fn(), changed: vi.fn() }, window.doan);
@@ -64,36 +72,91 @@ function harness() {
     lists.set(ROOT, list);
     run.sync();
   };
-  return { run, host, state, store, answer };
+  return { run, host, state, store, answer, remember };
 }
 const checkout = { root: ROOT, canvas: CHECKOUT }, cart = { root: ROOT, canvas: CART };
+const writing = (text: string) => ({ segments: [{ kind: "text" as const, text }], preset: null, attachments: [], shape: "capsule" as const });
 
-test("the canvas's current conversation shows; another canvas's or a project conversation never does", () => {
+test("the canvas's most recent conversation shows; another canvas's or a project conversation never does", () => {
   const h = harness();
   h.run.show(checkout);
   expect(h.run.view()).toEqual({ kind: "wait" });
-  h.answer([summary(P, { canvas: null }), summary(B, { canvas: CART }), summary(A)]);
-  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: A, archived: false, notice: null });
+  h.answer([summary(P, { canvas: null, lastActivityAt: at(9) }), summary(B, { canvas: CART }), summary(D, { lastActivityAt: at(1) }), summary(A, { lastActivityAt: at(2) })]);
+  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: A, notice: null });
   h.run.show(cart);
-  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: B, archived: false, notice: null });
+  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: B, notice: null });
 });
 
-test("without a current conversation the canvas shows the new conversation state, and its draft is the canvas's", () => {
+test("a canvas without conversations shows the new conversation state, and its draft is the canvas's", () => {
   const h = harness();
   h.run.show(checkout);
-  h.answer([summary(A, { state: "archived" })]);
+  h.answer([summary(B, { canvas: CART })]);
   expect(h.run.view()).toMatchObject({ kind: "new", listError: false, mode: { kind: "new", root: ROOT, canvas: CHECKOUT } });
   expect(h.run.composerKey()).toBe(canvasKey(checkout));
   expect(canvasKey(checkout)).not.toBe(canvasKey(cart));
 });
 
-test("an archived conversation shows only when chosen, and reads as archived", () => {
+test("the person's choice shows any of the canvas's conversations, and the view carries no archived flag", () => {
   const h = harness();
   h.run.show(checkout);
-  h.answer([summary(A), summary(B, { state: "archived" })]);
+  h.answer([summary(A, { lastActivityAt: at(2) }), summary(B, { lastActivityAt: at(1) })]);
   h.run.select(B);
-  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: B, archived: true, notice: null });
+  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: B, notice: null });
   expect(h.run.composerKey()).toBe(`conversation:${B}`);
+});
+
+// The shared pick: request > waiting for an answer (the earliest waiting) > last seen here on this device > most recent > new.
+test("with nothing shown yet: a conversation waiting for an answer, else the one last seen here, else the most recent", () => {
+  const waits = harness();
+  waits.state.remembered = A;
+  waits.run.show(checkout);
+  waits.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { phase: "waiting", lastActivityAt: at(3), waitingSince: at(3) }), summary(D, { phase: "waiting", lastActivityAt: at(2), waitingSince: at(2) })]);
+  expect(waits.run.view()).toMatchObject({ kind: "conversation", conversationId: D });
+
+  const seen = harness();
+  seen.state.remembered = B;
+  seen.run.show(checkout);
+  seen.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
+  expect(seen.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
+
+  // A remembered conversation that is not on this canvas (deleted, moved) is ignored.
+  const stale = harness();
+  stale.state.remembered = P;
+  stale.run.show(checkout);
+  stale.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) }), summary(P, { canvas: CART })]);
+  expect(stale.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+});
+
+// POSTMORTEM 2026-11-01 ui-state: nothing is decided from the memory before the startup read settled.
+test("the first pick waits for ui-state's read; a canvas that already shows something keeps it meanwhile", () => {
+  const h = harness();
+  h.state.remembered = undefined;
+  h.run.show(checkout);
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
+  expect(h.run.view()).toEqual({ kind: "wait" });
+  h.state.remembered = B;
+  h.run.sync();
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
+  // A request does not wait for the memory.
+  const asked = harness();
+  asked.state.remembered = undefined;
+  asked.run.request(checkout, A, null);
+  asked.run.show(checkout);
+  asked.answer([summary(A), summary(B)]);
+  expect(asked.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+});
+
+// Re-picking on every read would let each newly waiting conversation pull the panel away.
+test("what shows stays across list reads, also when another conversation starts waiting or working", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { phase: "waiting", lastActivityAt: at(6) }), summary(D, { phase: "running", working: true, lastActivityAt: at(7) })]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+  // A read in flight or a failed read keeps it too.
+  h.answer("error");
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
 });
 
 test("a requested conversation shows when the canvas opens; one not listed yet is read again first", () => {
@@ -102,11 +165,22 @@ test("a requested conversation shows when the canvas opens; one not listed yet i
   h.run.request(checkout, B, "permission");
   h.run.show(checkout);
   expect(h.host.reread).toHaveBeenCalledTimes(1);
-  h.answer([summary(A, { state: "archived" }), summary(B, { phase: "waiting" })]);
+  h.answer([summary(A), summary(B, { phase: "waiting" })]);
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
   expect(h.run.scrollRequest(B)?.to).toBe("permission");
   h.run.takeScroll(B);
   expect(h.run.scrollRequest(B)).toBeNull();
+});
+
+test("a request that arrives while the list is read waits for it rather than being dropped", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
+  h.answer("loading");
+  h.run.request(checkout, B, null);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
 });
 
 test("a request for another canvas's conversation falls back to this canvas's default", () => {
@@ -117,7 +191,7 @@ test("a request for another canvas's conversation falls back to this canvas's de
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
 });
 
-test("a failed list read shows the new conversation state with Retry; the next read picks the current conversation", () => {
+test("a failed list read shows the new conversation state with Retry; the next read picks a conversation", () => {
   const h = harness();
   h.run.show(checkout);
   h.answer("error");
@@ -132,7 +206,7 @@ test("a failed list read shows the new conversation state with Retry; the next r
 test("a start reply that lands after the person chose another conversation, or another canvas opened, leaves that choice", () => {
   const h = harness();
   h.run.show(checkout);
-  h.answer([summary(A, { state: "archived" })]);
+  h.answer([summary(A)]);
   const revision = h.run.revision();
   h.run.select(A);
   h.run.started(checkout, B, "codex", revision);
@@ -156,35 +230,38 @@ test("a start reply that lands after the person chose another conversation, or a
 test("canvas A, then B, then A keeps what A showed", () => {
   const h = harness();
   h.run.show(checkout);
-  h.answer([summary(A), summary(B, { state: "archived" }), summary(P, { canvas: CART })]);
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) }), summary(P, { canvas: CART })]);
   h.run.select(B);
   h.run.show(cart);
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: P });
   h.run.show(checkout);
-  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B, archived: true });
+  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: B, notice: null });
 });
 
 test("a canvas moved under the same ID keeps what it showed", () => {
   const h = harness();
   h.run.show(checkout);
-  h.answer([summary(A), summary(B, { state: "archived" })]);
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
   h.run.select(B);
   h.run.show({ root: ROOT, canvas: { path: ".doan/canvases/pay/checkout.html", id: "checkout" } });
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
 });
 
+// A promoted project conversation carries startedBy "promotion" (main's summary).
+const promoted = (patch: Parameters<typeof summary>[1] = {}) => summary(P, { startedBy: "promotion", ...patch });
+
 test("opened right after a promotion the promoted conversation shows; promoted while the panel is open it is announced", () => {
   const opened = harness();
   opened.answer([summary(P, { canvas: null })]);
-  opened.answer([summary(P)]);
+  opened.answer([promoted()]);
   opened.run.show(checkout);
-  expect(opened.run.view()).toEqual({ kind: "conversation", conversationId: P, archived: false, notice: null });
+  expect(opened.run.view()).toEqual({ kind: "conversation", conversationId: P, notice: null });
 
   const open = harness();
   open.run.show(checkout);
   open.answer([summary(P, { canvas: null })]);
   expect(open.run.view()).toMatchObject({ kind: "new", notice: null });
-  open.answer([summary(P)]);
+  open.answer([promoted()]);
   expect(open.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", text: PROMOTED_TEXT, open: P } });
 });
 
@@ -193,25 +270,25 @@ test("an announced promotion stays over later list reads until the person acts; 
   const promote = (shown: "new" | "conversation") => {
     const h = harness();
     h.run.show(checkout);
-    h.answer([summary(A, { state: "archived" }), summary(P, { canvas: null })]);
-    if (shown === "conversation") h.run.select(A);
-    h.answer([summary(A, { state: "archived" }), summary(P)]);
-    h.answer([summary(A, { state: "archived" }), summary(P)]);
-    h.answer([summary(A, { state: "archived" }), summary(P, { lastActivityAt: "2026-10-30T00:01:00.000Z" })]);
+    h.answer([summary(A), summary(P, { canvas: null })]);
+    h.run.select(shown === "conversation" ? A : null);
+    h.answer([summary(A), promoted()]);
+    h.answer([summary(A), promoted()]);
+    h.answer([summary(A), promoted({ lastActivityAt: "2026-10-30T00:01:00.000Z" })]);
     return h;
   };
   const notice = { kind: "promoted" as const, text: PROMOTED_TEXT, open: P };
-  const reread = (h: ReturnType<typeof harness>) => h.answer([summary(A, { state: "archived" }), summary(P)]);
+  const reread = (h: ReturnType<typeof harness>) => h.answer([summary(A), promoted()]);
 
   const kept = promote("new");
   expect(kept.run.view()).toMatchObject({ kind: "new", notice });
-  expect(promote("conversation").run.view()).toEqual({ kind: "conversation", conversationId: A, archived: true, notice });
+  expect(promote("conversation").run.view()).toEqual({ kind: "conversation", conversationId: A, notice });
 
   // Open (the panel's select of the promoted conversation), the menu and New end it.
   const opened = promote("new");
   opened.run.select(P);
   reread(opened);
-  expect(opened.run.view()).toEqual({ kind: "conversation", conversationId: P, archived: false, notice: null });
+  expect(opened.run.view()).toEqual({ kind: "conversation", conversationId: P, notice: null });
   const fresh = promote("conversation");
   fresh.run.select(null);
   reread(fresh);
@@ -229,8 +306,8 @@ test("an announced promotion stays over later list reads until the person acts; 
   const late = promote("conversation");
   const revision = late.run.revision();
   late.run.select(A);
-  late.answer([summary(A, { state: "archived" }), summary(P, { canvas: null })]);
-  late.answer([summary(A, { state: "archived" }), summary(P)]);
+  late.answer([summary(A), summary(P, { canvas: null })]);
+  late.answer([summary(A), promoted()]);
   late.run.sent(checkout, revision, notice);
   expect(late.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice });
 
@@ -245,15 +322,15 @@ test("an announced promotion stays over later list reads until the person acts; 
   const once = harness();
   once.run.show(checkout);
   once.answer([summary(P, { canvas: null })]);
-  once.answer([summary(P)]);
+  once.answer([promoted()]);
   expect(once.run.view()).toMatchObject({ kind: "new", notice });
   once.run.show(cart);
   once.run.show(checkout);
   expect(once.run.view()).toMatchObject({ kind: "new", notice: null });
-  // Once the promoted conversation is no longer current here, nothing is announced.
-  const replaced = promote("conversation");
-  replaced.answer([summary(A, { state: "archived" }), summary(P, { state: "archived" }), summary(B)]);
-  expect(replaced.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice: null });
+  // Once the promoted conversation is no longer on this canvas, nothing is announced.
+  const moved = promote("conversation");
+  moved.answer([summary(A), promoted({ canvas: CART })]);
+  expect(moved.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice: null });
 });
 
 // Revisions count per canvas, so a send reply from the canvas left behind can carry the same number.
@@ -265,8 +342,8 @@ test("a send reply from another canvas leaves this canvas's promotion notice", (
   h.run.show(cart);
   h.answer([summary(A), summary(P, { canvas: null })]);
   expect(h.run.revision()).toBe(revision);
-  h.answer([summary(A), summary(P, { canvas: CART })]);
-  h.answer([summary(A), summary(P, { canvas: CART })]);
+  h.answer([summary(A), promoted({ canvas: CART })]);
+  h.answer([summary(A), promoted({ canvas: CART })]);
   const notice = { kind: "promoted" as const, text: PROMOTED_TEXT, open: P };
   expect(h.run.view()).toMatchObject({ kind: "new", notice });
   h.run.sent(checkout, revision, notice);
@@ -279,9 +356,9 @@ test("a send reply from another canvas leaves this canvas's promotion notice", (
   const sentAt = back.run.revision();
   back.run.show(cart);
   back.run.show(checkout);
-  back.answer([summary(A, { state: "archived" }), summary(P)]);
-  back.answer([summary(A, { state: "archived" }), summary(P)]);
-  expect(back.run.view()).toEqual({ kind: "conversation", conversationId: A, archived: true, notice });
+  back.answer([summary(A), promoted()]);
+  back.answer([summary(A), promoted()]);
+  expect(back.run.view()).toEqual({ kind: "conversation", conversationId: A, notice });
   back.run.sent(checkout, sentAt, null);
   expect(back.run.view()).toMatchObject({ notice });
   back.run.sent(checkout, sentAt, { kind: "promoted", text: PROMOTED_TEXT, open: B });
@@ -293,15 +370,7 @@ test("a project conversation drawing this canvas is announced in the new convers
   h.state.drawing = P;
   h.run.show(checkout);
   h.answer([summary(P, { canvas: null, working: true, phase: "running" })]);
-  expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "drawing", text: DRAWING_TEXT, open: P }, start: { busy: null } });
-});
-
-test("while the canvas's current conversation works, the new conversation state holds Send with the busy line", () => {
-  const h = harness();
-  h.run.show(checkout);
-  h.answer([summary(A, { phase: "running", working: true })]);
-  h.run.select(null);
-  expect(h.run.view()).toMatchObject({ kind: "new", start: { busy: { kind: "restore", open: A } } });
+  expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "drawing", text: DRAWING_TEXT, open: P } });
 });
 
 test("the terminal session is asked once per visit, holds Send until it answers, and a late answer is dropped", async () => {
@@ -341,6 +410,48 @@ test("a terminal session answer that lands after the person left the canvas is d
   expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: true, offer: null } });
 });
 
+// One session is one conversation (main answers no_record for a session a conversation holds): the target is asked
+// again when the new conversation state comes back and when a list change adds or drops a conversation, in both windows.
+for (const prototype of [false, true]) {
+  test(`after a resume, New asks again and offers no held session; the holder's deletion offers it back (${prototype ? "prototype" : "main"} window)`, async () => {
+    const h = harness({ prototype });
+    h.run.show(checkout);
+    h.answer([]);
+    resume[0]!.resolve({ available: true, runtime: "claude", lastCheckAt: "x", session: "S" });
+    await flush();
+    expect(h.run.view()).toMatchObject({ kind: "new", start: { mode: "resume", offer: "claude" } });
+    h.run.started(checkout, A, "claude", h.run.revision());
+    h.answer([summary(A)]);
+    h.run.select(null);
+    expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(2);
+    expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: true } });
+    resume[1]!.resolve({ available: false, reason: "no_record" });
+    await flush();
+    expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false, offer: null, mode: "new" } });
+    // A read naming the same conversations asks nothing more.
+    h.answer([summary(A)]);
+    expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(2);
+    h.answer([]);
+    expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(3);
+    resume[2]!.resolve({ available: true, runtime: "claude", lastCheckAt: "x", session: "S" });
+    await flush();
+    expect(h.run.view()).toMatchObject({ kind: "new", start: { mode: "resume", offer: "claude" } });
+  });
+}
+
+test("a list change while this panel's start is in flight asks nothing, so the sent mode stays", async () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([]);
+  resume[0]!.resolve({ available: true, runtime: "claude", lastCheckAt: "x", session: "S" });
+  await flush();
+  const done = h.run.startSending(checkout);
+  h.answer([summary(B, { canvas: CART })]);
+  expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(1);
+  expect(h.run.view()).toMatchObject({ kind: "new", start: { mode: "resume", offer: "claude" } });
+  done();
+});
+
 test("a failed resume target read starts a new conversation rather than holding Send", async () => {
   const h = harness();
   h.run.show(checkout);
@@ -367,15 +478,29 @@ test("seen only while the panel is open with the window focused and the conversa
   expect(h.host.markSeen).toHaveBeenCalledTimes(1);
 });
 
-test("an archived conversation shown in the panel is never marked seen", async () => {
+// The memory is written only under PRODUCT's Seen condition, never for what a folded panel or an unfocused window holds.
+test("the conversation last seen on the canvas is remembered only while it is seen", async () => {
   const h = harness();
-  histories.set(B, ended(B));
-  h.run.panel(true);
   h.run.show(checkout);
-  h.answer([summary(B, { state: "archived" })]);
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
+  expect(h.remember).not.toHaveBeenCalled();
+  h.state.focused = false;
+  h.run.panel(true);
+  expect(h.remember).not.toHaveBeenCalled();
+  h.state.focused = true;
+  h.run.focusChanged();
+  expect(h.remember).toHaveBeenLastCalledWith(ROOT, CHECKOUT, A);
   h.run.select(B);
-  await flush();
-  expect(h.host.markSeen).not.toHaveBeenCalled();
+  expect(h.remember).toHaveBeenLastCalledWith(ROOT, CHECKOUT, B);
+  // The new conversation state and a start not listed yet are not remembered.
+  const calls = h.remember.mock.calls.length;
+  h.run.select(null);
+  h.run.started(checkout, D, "claude", h.run.revision());
+  expect(h.remember).toHaveBeenCalledTimes(calls);
+  // Folded: nothing.
+  h.run.panel(false);
+  h.run.select(A);
+  expect(h.remember).toHaveBeenCalledTimes(calls);
 });
 
 // Choosing New again while a start is in flight is a newer choice than that start.
@@ -397,14 +522,14 @@ test("a started conversation stays shown through list reads that do not name it 
   h.run.started(checkout, A, "codex", h.run.revision());
   h.run.sync();
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
-  // An older read with another current conversation on the canvas does not take it over either.
+  // An older read with another conversation on the canvas does not take it over either.
   h.answer([summary(B)]);
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
-  h.answer([summary(B, { state: "archived" }), summary(A)]);
+  h.answer([summary(B), summary(A)]);
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
   // Confirmed: from now on the list's own rules apply again.
   h.run.select(null);
-  h.answer([summary(B, { state: "archived" }), summary(A)]);
+  h.answer([summary(B), summary(A)]);
   expect(h.run.view()).toMatchObject({ kind: "new" });
 });
 
@@ -414,7 +539,6 @@ test("a list naming the started conversation before its reply keeps it once the 
   h.answer([]);
   const revision = h.run.revision();
   h.answer([summary(A)]);
-  // The list already picked A as the canvas's current; the start reply for it changes nothing.
   h.run.started(checkout, A, "codex", revision);
   h.answer([summary(A)]);
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
@@ -435,68 +559,73 @@ test("what shows is identified by canvas, conversation and revision", () => {
   expect(h.run.stillShowing(shown!)).toBe(false);
 });
 
-// New chosen while the first list read loads stays held after the session answers.
-test("New chosen while the list loads holds Send until the list answers; a failed read lets a new one start", async () => {
+// The wait held a new conversation back so it could not end the turn of a current conversation not listed yet; a new
+// conversation now runs beside the others. The terminal session's own wait stays.
+test("New chosen while the list loads sends once the terminal session answers, without waiting for the list", async () => {
   const h = harness();
   h.run.show(checkout);
   h.run.select(null);
+  expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: true } });
   resume[0]!.resolve({ available: false, reason: "no_record" });
   await flush();
-  expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: true, offer: null } });
+  expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false, offer: null } });
   h.answer([summary(A, { phase: "running", working: true })]);
-  h.run.select(null);
-  expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false, busy: { kind: "restore", open: A } } });
-  const failed = harness();
-  failed.run.show(checkout);
-  failed.run.select(null);
-  resume[1]!.resolve({ available: false, reason: "no_record" });
-  failed.answer("error");
-  await flush();
-  expect(failed.run.view()).toMatchObject({ kind: "new", listError: true, start: { pending: false } });
+  expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false } });
 });
 
 // The state after a conversation is deleted. App marks the conversation
 // deleting before conversation:delete, then on success calls each run's deleted and the store's.
 const confirmDelete = (h: ReturnType<typeof harness>, id: string) => { h.run.deleted(id); h.store.deleted(id); };
 
-test("deleting the canvas's current conversation shows the new conversation state; an archived one is not picked", () => {
+test("deleting the shown conversation shows the next one by the shared rule; with none left, the new conversation state", () => {
   const h = harness();
   h.run.show(checkout);
-  h.answer([summary(A), summary(B, { state: "archived" })]);
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) }), summary(P, { canvas: CART, lastActivityAt: at(9) })]);
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
   const revision = h.run.revision();
   h.store.startDelete(A);
   confirmDelete(h, A);
-  expect(h.run.view()).toMatchObject({ kind: "new", listError: false });
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
   expect(h.run.revision()).toBeGreaterThan(revision);
+  expect(h.run.composerKey()).toBe(`conversation:${B}`);
+  h.store.startDelete(B);
+  confirmDelete(h, B);
+  expect(h.run.view()).toMatchObject({ kind: "new", listError: false });
   expect(h.run.composerKey()).toBe(canvasKey(checkout));
-  // The canvas has no current conversation now; the archived one stays archived and unpicked.
-  h.answer([summary(B, { state: "archived" })]);
-  expect(h.run.view()).toMatchObject({ kind: "new" });
+  // Until the next read, the lists already read still name both: neither comes back.
+  h.run.sync();
   h.run.show(cart);
   h.run.show(checkout);
   expect(h.run.view()).toMatchObject({ kind: "new" });
 });
 
-test("a list that drops the shown conversation before the delete reply does not switch to another one", () => {
+test("after deleting the shown conversation, one waiting for an answer comes before the one last seen", () => {
+  const h = harness();
+  h.state.remembered = A;
+  h.run.show(checkout);
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) }), summary(D, { phase: "waiting", lastActivityAt: at(2) })]);
+  h.run.select(B);
+  confirmDelete(h, B);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: D });
+});
+
+test("a list that drops the shown conversation before the delete reply holds it until the delete is confirmed", () => {
   const h = harness();
   h.run.show(checkout);
-  h.answer([summary(A), summary(B, { state: "archived" })]);
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
   h.run.select(B);
   h.store.startDelete(B);
   h.answer([summary(A)]);
-  // Held while the delete is pending, rather than falling back to the current conversation.
+  // Held while the delete is pending, rather than falling back to another conversation.
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
   confirmDelete(h, B);
-  expect(h.run.view()).toMatchObject({ kind: "new" });
-  h.answer([summary(A)]);
-  expect(h.run.view()).toMatchObject({ kind: "new" });
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
 });
 
 test("a refused delete releases the hold, so the next list read picks as before", () => {
   const h = harness();
   h.run.show(checkout);
-  h.answer([summary(A), summary(B, { state: "archived" })]);
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
   h.run.select(B);
   h.store.startDelete(B);
   h.store.cancelDelete(B);
@@ -505,7 +634,7 @@ test("a refused delete releases the hold, so the next list read picks as before"
   // A list held while the delete was pending applies at the sync after the refusal.
   const held = harness();
   held.run.show(checkout);
-  held.answer([summary(A), summary(B, { state: "archived" })]);
+  held.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
   held.run.select(B);
   held.store.startDelete(B);
   held.answer([summary(A)]);
@@ -514,7 +643,7 @@ test("a refused delete releases the hold, so the next list read picks as before"
   expect(held.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
 });
 
-test("a start or send reply sent before the delete does not replace the new conversation state", () => {
+test("a start or send reply sent before the delete does not replace what shows after it", () => {
   const h = harness();
   h.run.show(checkout);
   h.answer([summary(A)]);
@@ -527,10 +656,9 @@ test("a start or send reply sent before the delete does not replace the new conv
 test("every canvas state holding the deleted conversation is cleared: a duplicated ID and a request still waiting", () => {
   const h = harness();
   const copy = { root: ROOT, canvas: { path: ".doan/canvases/checkout-copy.html", id: "checkout" } };
-  const D = "aaaaaaaa-0000-4000-8000-000000000004";
   h.run.show(checkout);
-  h.answer([summary(A), summary(B, { canvas: CART }), summary(D, { canvas: CART, state: "archived" })]);
-  // An entry asked cart for its archived D before cart opened; it waits in cart's state.
+  h.answer([summary(A), summary(B, { canvas: CART, lastActivityAt: at(5) }), summary(D, { canvas: CART, lastActivityAt: at(1) })]);
+  // An entry asked cart for D before cart opened; it waits in cart's state.
   h.run.request(cart, D, null);
   h.store.startDelete(A);
   confirmDelete(h, A);
@@ -561,7 +689,7 @@ test("a promotion notice for the deleted conversation goes, and the list compari
   const h = harness();
   h.run.show(checkout);
   h.answer([summary(P, { canvas: null })]);
-  h.answer([summary(P)]);
+  h.answer([promoted()]);
   expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", open: P } });
   confirmDelete(h, P);
   expect(h.run.view()).toMatchObject({ kind: "new", notice: null });
@@ -580,7 +708,7 @@ test("other canvases and conversations keep what they show", () => {
   h.answer([summary(A), summary(B, { canvas: CART })]);
   const revision = h.run.revision();
   confirmDelete(h, A);
-  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: B, archived: false, notice: null });
+  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: B, notice: null });
   expect(h.run.revision()).toBe(revision);
 });
 
@@ -589,7 +717,6 @@ test("a canvas that opens before the next list read does not pick the deleted co
   const h = harness();
   h.run.show(checkout);
   h.answer([summary(A), summary(B, { canvas: CART })]);
-  // An entry asked cart for its current conversation before cart opened.
   h.run.request(cart, B, null);
   confirmDelete(h, B);
   h.run.show(cart);
@@ -598,59 +725,92 @@ test("a canvas that opens before the next list read does not pick the deleted co
   expect(doan.readConversation).not.toHaveBeenCalledWith({ conversationId: B });
 });
 
-// A conversation the canvas gets from elsewhere (the prototype window's first send, which makes it the canvas's
-// current one) shows in the panel when its new conversation state was only the default: nothing was there.
-test("the default new conversation state moves to a current conversation started elsewhere, with its draft", () => {
-  const h = harness();
+// POSTMORTEM 2026-11-14 'The main window's panel never showed…': the default new state (nothing existed) gives way to
+// a conversation the person newly started (in this window or another), the person's New does not; a handoff's or a
+// promotion's conversation moves no screen and takes no draft. CanvasRun runs in the main window and in the
+// prototype window, each from its own state.
+for (const prototype of [false, true]) {
+  const where = prototype ? "the prototype window" : "the main window";
+
+  test(`${where}: the default new conversation state moves to a conversation the person started elsewhere, with its draft`, () => {
+    const h = harness({ prototype });
+    h.run.show(checkout);
+    h.answer([]);
+    expect(h.run.view()).toMatchObject({ kind: "new" });
+    const draft = writing("the total");
+    h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), draft));
+    h.answer([summary(A)]);
+    expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice: null });
+    expect(h.store.drafts.get(`conversation:${A}`)).toBe(draft);
+  });
+
+  test(`${where}: of two conversations started at once the most recent shows`, () => {
+    const h = harness({ prototype });
+    h.run.show(checkout);
+    h.answer([]);
+    h.answer([summary(A, { lastActivityAt: at(1) }), summary(B, { lastActivityAt: at(3) })]);
+    expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
+  });
+
+  test(`${where}: a handoff's or a promotion's new conversation moves nothing and takes no draft`, () => {
+    for (const startedBy of ["handoff", "promotion"] as const) {
+      const h = harness({ prototype });
+      h.run.show(checkout);
+      h.answer([]);
+      const draft = writing("keep me");
+      h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), draft));
+      h.answer([summary(A, { startedBy })]);
+      expect(h.run.view()).toMatchObject({ kind: "new" });
+      expect(h.store.drafts.get(canvasKey(checkout))).toBe(draft);
+      expect(h.store.drafts.has(`conversation:${A}`)).toBe(false);
+      // A person's start after it still moves the default state.
+      h.answer([summary(A, { startedBy, lastActivityAt: at(1) }), summary(B, { lastActivityAt: at(2) })]);
+      expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
+    }
+  });
+
+  // POSTMORTEM 2026-11-14 'A list read moved the prototype window's first message…': never a draft whose send can be in flight.
+  test(`${where}: its draft stays while this panel's own start is in flight`, () => {
+    const h = harness({ prototype });
+    h.run.show(checkout);
+    h.answer([]);
+    const sending = writing("make it blue");
+    h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), sending));
+    const done = h.run.startSending(checkout);
+    h.answer([summary(A)]);
+    expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+    expect(h.store.drafts.get(canvasKey(checkout))).toBe(sending);
+    expect(h.store.drafts.get(`conversation:${A}`)).toBeUndefined();
+    done();
+  });
+
+  test(`${where}: New chosen over an existing conversation stays the new conversation state when another starts`, () => {
+    const h = harness({ prototype });
+    h.run.show(checkout);
+    h.answer([summary(A)]);
+    h.run.select(null);
+    // An unchanged read between the choice and the change (POSTMORTEM 2026-11-14 recurrence).
+    h.answer([summary(A)]);
+    const draft = writing("a new idea");
+    h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), draft));
+    h.answer([summary(A), summary(B, { lastActivityAt: at(9) })]);
+    expect(h.run.view()).toMatchObject({ kind: "new" });
+    expect(h.store.drafts.get(canvasKey(checkout))).toBe(draft);
+    expect(h.store.drafts.get(`conversation:${B}`)).toBeUndefined();
+  });
+}
+
+test("the prototype window's host never writes the memory, and reads it like the main window", () => {
+  const h = harness({ prototype: true });
+  h.state.remembered = B;
   h.run.show(checkout);
-  h.answer([]);
-  expect(h.run.view()).toMatchObject({ kind: "new" });
-  const writing = { segments: [{ kind: "text" as const, text: "the total" }], preset: null, attachments: [], shape: "capsule" as const };
-  h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), writing));
-  h.answer([summary(A)]);
-  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice: null });
-  expect(h.store.drafts.get(`conversation:${A}`)).toBe(writing);
+  h.run.panel(true);
+  h.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { lastActivityAt: at(1) })]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
+  expect(h.host.remember).toBeUndefined();
 });
 
-test("its draft stays while this panel's own start is in flight", () => {
-  const h = harness();
-  h.run.show(checkout);
-  h.answer([]);
-  const sending = { segments: [{ kind: "text" as const, text: "make it blue" }], preset: null, attachments: [], shape: "capsule" as const };
-  h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), sending));
-  const done = h.run.startSending(checkout);
-  h.answer([summary(A)]);
-  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
-  expect(h.store.drafts.get(canvasKey(checkout))).toBe(sending);
-  expect(h.store.drafts.get(`conversation:${A}`)).toBeUndefined();
-  done();
-});
-
-test("New chosen over an existing conversation stays the new conversation state when another becomes current", () => {
-  const h = harness();
-  h.run.show(checkout);
-  h.answer([summary(A)]);
-  h.run.select(null);
-  h.answer([summary(A, { state: "archived" }), summary(B)]);
-  expect(h.run.view()).toMatchObject({ kind: "new" });
-});
-
-// A list read that changes nothing must not turn the person's New into the default new state.
-test("New chosen over an existing conversation keeps its draft and stays after an unchanged read", () => {
-  const h = harness();
-  h.run.show(checkout);
-  h.answer([summary(A)]);
-  h.run.select(null);
-  const writing = { segments: [{ kind: "text" as const, text: "a new idea" }], preset: null, attachments: [], shape: "capsule" as const };
-  h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), writing));
-  h.answer([summary(A)]);
-  h.answer([summary(A, { state: "archived" }), summary(B)]);
-  expect(h.run.view()).toMatchObject({ kind: "new" });
-  expect(h.store.drafts.get(canvasKey(checkout))).toBe(writing);
-  expect(h.store.drafts.get(`conversation:${B}`)).toBeUndefined();
-});
-
-test("an empty new state draft is not carried to a current conversation started elsewhere", () => {
+test("an empty new state draft is not carried to a conversation started elsewhere", () => {
   const h = harness();
   h.run.show(checkout);
   h.answer([]);
@@ -664,7 +824,7 @@ test("a promotion while the panel shows the default new state is still announced
   const h = harness();
   h.run.show(checkout);
   h.answer([summary(P, { canvas: null })]);
-  h.answer([summary(P)]);
+  h.answer([promoted()]);
   expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", open: P } });
 });
 
@@ -676,4 +836,17 @@ test("a canvas opened after its list was read still moves to a conversation star
   expect(h.run.view()).toMatchObject({ kind: "new" });
   h.answer([summary(A)]);
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+});
+
+// After a delete leaves the default new state, a conversation listed before it does not take the panel back.
+test("the new state a delete leaves follows only a conversation that appears after it", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A, { canvas: CART }), summary(B)]);
+  confirmDelete(h, B);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  h.answer([summary(A, { canvas: CART })]);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  h.answer([summary(A, { canvas: CART }), summary(D)]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: D });
 });

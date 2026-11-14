@@ -6,7 +6,7 @@ import { DELETE_TOOLTIP, deleteAvailability, deleteDialogView, deleteItemLabel, 
 // refusal toast.
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Ideas", state: "current", owner: "doan", provider: "claude", fromHome: true,
+  conversationId: "c1", title: "Ideas", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch,
 });
 const WAITING = "The agent is waiting for your answer.";
@@ -22,7 +22,6 @@ describe("deleteAvailability", () => {
     // A project turn waiting for its judgement, a queue about to go out, a send waiting for the previous process.
     ["working after its turn ended", { phase: "ended", working: true }, { available: false, reason: WORKING }],
     ["ended", {}, { available: true }],
-    ["archived", { state: "archived" }, { available: true }],
     // An unreadable conversation can still go, so deleting is a way out of it.
     ["unreadable", { readError: true, lastActivityAt: "" }, { available: true }],
     ["with a returned draft", { returnedDraft: true }, { available: true }],

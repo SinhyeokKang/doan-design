@@ -4832,6 +4832,66 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // The followed conversation's work item can go a moment before the list moves the board to another conversation, so the
+  // pick is briefly empty at the switch (canvas-concurrent-conversations runtime test). The frame the new source named
+  // while it was not followed must still not move the view, now or once the rest is over.
+  it("a switch to another source across a moment with no work still changes the marker only", () => {
+    const h = rested();
+    try {
+      const keys = ["terminal:t1", "conversation:p1:u1"];
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro", {}, keys);
+      vi.advanceTimersByTime(5000);
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys });
+      setWork(h, "far", { source: "conversation:p1", key: "conversation:p1:u1" }, keys);
+      expect(h.controller.currentView()).toEqual(fitView);
+      vi.advanceTimersByTime(10_000);
+      expect(h.controller.currentView()).toEqual(fitView);
+      // The new source's next frame is followed as usual.
+      const before = top(h);
+      setWork(h, "farther", { source: "conversation:p1", key: "conversation:p1:u1" }, keys);
+      expect(top(h)).not.toBe(before);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the same source back after a moment with no work follows its next frame", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      vi.advanceTimersByTime(5000);
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: ["terminal:t1"] });
+      setWork(h, "far");
+      expect(h.controller.currentView()).not.toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  // A turn that ends with nothing left working on the canvas ends that source's story: a later, separate turn is followed
+  // from its first frame, whichever source it is (the open canvas keeps a target with no work and no turn keys then).
+  it("after every work turn on the canvas ended, another source's first frame is followed", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      vi.advanceTimersByTime(5000);
+      setWork(h, "far", { source: "conversation:p2", key: "conversation:p2:u1" }, ["conversation:p2:u1"]);
+      expect(h.controller.currentView()).not.toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("after every work turn on the canvas ended, the same source's next turn is followed from its first frame", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      vi.advanceTimersByTime(5000);
+      setWork(h, "far", { key: "terminal:t2" }, ["terminal:t2"]);
+      expect(h.controller.currentView()).not.toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
   const personMoves: [string, (h: H) => void][] = [
     ["a wheel pan", h => h.controller.wheel({ dx: 0, dy: 10, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 })],
     ["a pinch or ⌘-wheel zoom", h => h.controller.wheel({ dx: 0, dy: -10, ctrl: true, meta: false, deltaMode: 0 }, { x: 0, y: 0 })],

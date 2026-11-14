@@ -18,7 +18,7 @@ import { useProjectSkills, type SkillsCalls } from "./useProjectSkills";
 import { AlertIcon } from "./AlertIcon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { textSegments } from "./anchorField";
-import { canvasConversationError, canvasConversationMenu, resumeHeld } from "./canvasConversation";
+import { canvasConversationError, canvasConversationMenu, noticeOpenName, resumeHeld, titleMenuOrder } from "./canvasConversation";
 import { sameCanvas } from "./canvasConversationRows";
 import type { CanvasRun, CanvasTarget, CanvasView, ResumeReply } from "./canvasRun";
 import { focusFieldEnd } from "./chipField";
@@ -109,17 +109,9 @@ export interface CanvasConversationProps {
   canvasPress?: CanvasPress | undefined;
   // The prototype window's playing frame, pinned on its composer and put first in every message.
   playing?: PlayingFrameChip | null;
-  // The prototype window's failed list read: with no title menu to offer Retry, the thread's place holds the failure
-  // line, and Send waits, since a send could archive the current conversation nobody can see.
-  listFailed?: boolean;
-  // False in the prototype window, which cannot start a new conversation while the canvas has a current one: a refused
-  // conversation offers no "Start a new conversation" there. A refused terminal session still switches to the new
-  // conversation it shares a field with.
-  newFromRefusal?: boolean;
 }
 
 const NEW_PLACEHOLDER = "Ask, / for presets";
-const LIST_WAIT = "You can send once Doan reads the conversations.";
 const REPLY_PLACEHOLDER = "Reply, / for presets";
 const NEW = "";
 // One empty list for a project without one, so the thread's memoized chip data keeps its identity across renders.
@@ -167,14 +159,18 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
   onDelete?(target: DeleteTarget, trigger: HTMLElement | null): boolean;
 }) {
   const target = run.target();
-  const items = Array.isArray(list) && target ? canvasConversationMenu(list, target.canvas, current, now, seen) : [];
+  // Controlled, so a Delete tooltip's Escape closes the menu too.
+  const [menuOpen, setMenuOpen] = useState(false);
+  // The order drawn last while the menu is open: rows keep their places, and a conversation that appears goes at the
+  // end (titleMenuOrder) and keeps that place on later updates, so a row never moves under the pointer.
+  const frozen = useRef<string[] | null>(null);
+  frozen.current = menuOpen && Array.isArray(list) && target ? titleMenuOrder(list, target.canvas, frozen.current) : menuOpen ? frozen.current : null;
+  const items = Array.isArray(list) && target ? canvasConversationMenu(list, target.canvas, current, now, seen, frozen.current) : [];
   const picked = useRef(false);
   // The trigger focus returns to after a Delete's confirmation; `deleting` keeps the closing menu from taking focus back
   // while the alert opens.
   const trigger = useRef<HTMLButtonElement | null>(null);
   const deleting = useRef(false);
-  // Controlled, so a Delete tooltip's Escape closes the menu too.
-  const [menuOpen, setMenuOpen] = useState(false);
   const select = (id: string | null) => { onChoose?.(); run.select(id); };
   const isNew = run.view()?.kind === "new";
   const startNew = () => startNewConversation(current, isNew, select, onPicked);
@@ -230,14 +226,13 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const summary = conversationId ? listed?.find(c => c.conversationId === conversationId) : undefined;
   const thread = conversationId ? store.thread(conversationId) : null;
   const provider: Provider | null = conversationId ? summary?.provider ?? store.providerOf(conversationId) : null;
-  const archived = view.kind === "conversation" && view.archived;
   // The terminal session still works in a terminal: its choice waits and a new conversation is the mode. A chosen
   // resume becomes new for good (the layout effect below), so it never comes back under a draft when the session ends.
   const held = view.kind === "new" && resumeHeld(view.resume, props.work);
   useLayoutEffect(() => { if (held) run.choose("new"); }, [held]);
   const workKey = JSON.stringify(props.work);
   useEffect(() => { run.recheckResume(); }, [workKey]);
-  const mode: DockedMode = conversationId && provider ? { kind: archived ? "archived" : "existing", conversationId, provider }
+  const mode: DockedMode = conversationId && provider ? { kind: "existing", conversationId, provider }
     : view.kind === "new" ? (held ? { kind: "new", root, canvas: target.canvas } : view.mode) : { kind: "new", root, canvas: target.canvas };
   const key = draftKey(mode);
   const draft = store.drafts.get(key) ?? EMPTY_DRAFT;
@@ -277,7 +272,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   // An existing conversation's send names the shown mode only once it is known: before the list names the
   // conversation, Default would overwrite the mode it was started in.
   const sentMode = mode.kind === "new" || summary || pick.permissionMode !== undefined ? permissionMode : undefined;
-  useEffect(() => { if (mode.kind === "existing" || mode.kind === "archived") support.settlePermission(key, summary ? stored : null); }, [key, stored, summary !== undefined, pick.permissionMode]);
+  useEffect(() => { if (mode.kind === "existing") support.settlePermission(key, summary ? stored : null); }, [key, stored, summary !== undefined, pick.permissionMode]);
   const choiceTouched = Object.keys(pick).length > 0;
   // An existing conversation's stored mode is remembered only when it is picked here: a model pick alone must not
   // carry a mode (Full access included) the person chose for that conversation into new ones.
@@ -389,7 +384,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     });
   };
 
-  // Send, start, resume, restore and queue. Every reply carries the panel's revision from when it was sent, so a reply
+  // Send, start, resume and queue. Every reply carries the panel's revision from when it was sent, so a reply
   // that lands after the person chose something else, or after another canvas opened, leaves that choice alone
   // (POSTMORTEM 2026-10-26 late replies).
   const changedModel = pick.model !== undefined || pick.effort !== undefined;
@@ -429,7 +424,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     return { ok: true };
   };
   const queue = async (request: DockedRequest): Promise<DockedOutcome> => {
-    if (mode.kind !== "existing" && mode.kind !== "archived") return { error: "not_running" };
+    if (mode.kind !== "existing") return { error: "not_running" };
     const reply = await calls.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
     if ("error" in reply) return sendRefusal(reply);
     store.queued(root, mode.conversationId, queuedMessage(reply.itemId, request));
@@ -442,24 +437,18 @@ export function CanvasConversation(props: CanvasConversationProps) {
       case "busy": return { kind: "busy", busy: error.busy };
       case "blocked": return { kind: "blocked", text: error.text, ...(error.action ? { action: error.action } : {}) };
       case "notice": {
-        const startNew = error.startNew && (props.newFromRefusal !== false || mode.kind === "new" || mode.kind === "resume");
-        return { kind: "notice", text: error.text, ...(error.retry ? { retry: true } : {}), ...(startNew ? { startNew: true } : {}) };
+        return { kind: "notice", text: error.text, ...(error.retry ? { retry: true } : {}), ...(error.startNew ? { startNew: true } : {}) };
       }
       // attachments and resend never reach here: the composer marks moved files and resends not_running itself.
       default: return { kind: "notice", text: "Couldn’t send your message. Try again." };
     }
   };
   const newView = view.kind === "new" ? view : null;
-  // The canvas's current conversation still works: a new conversation, or restoring an archived one, would end its
-  // turn, so Send waits with the busy line whose Open shows it.
-  const current = listed?.find(c => c.state === "current" && c.canvas !== undefined && sameCanvas(c.canvas, target.canvas));
-  const restoreBusy = archived && current && (current.working || current.phase !== "ended") ? { kind: "restore" as const, open: current.conversationId } : null;
-  const busy = newView?.start.busy ?? restoreBusy;
   const openConversation = (id: string) => { props.onChoose?.(); run.select(id); };
   // A refused terminal session switches to the new conversation that shares its field; a conversation another sign-in
   // owns leaves for a new one on this canvas, taking the refused draft along.
   const startNewAfterRefusal = () => {
-    if (mode.kind !== "existing" && mode.kind !== "archived") { run.choose("new"); return; }
+    if (mode.kind !== "existing") { run.choose("new"); return; }
     store.setDrafts(drafts => carryDraft(drafts, key, draftKey({ kind: "new", root, canvas: target.canvas })));
     props.onChoose?.(); run.select(null);
   };
@@ -494,8 +483,6 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
-        : props.listFailed ? <div className="doan-notice error thread-notice list-error" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Couldn’t read conversations</b></span>
-          <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>
         : view.kind === "wait" || conversationId ? <Waiting /> : <>
           {newView?.listError && <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
             <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}
@@ -507,7 +494,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         </>}
       {notice && <div className="doan-notice thread-notice" role="status"><Info className="doan-alert-icon" aria-hidden="true" /><span className="strip-text selectable"><span>{notice.text}</span></span>
         <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel"
-          aria-label={notice.kind === "drawing" ? "Open the project conversation" : "Open the current conversation"}
+          aria-label={noticeOpenName(notice.kind)}
           onClick={() => notice.kind === "drawing" ? props.onOpenProjectConversation(notice.open) : (props.onOpenPromoted ?? openConversation)(notice.open)}>Open</button></span></div>}
     </div>
     <div className="cp-foot">
@@ -520,20 +507,20 @@ export function CanvasConversation(props: CanvasConversationProps) {
           // A picked level belongs to the model it was picked for (Home keeps one per provider and model).
           ...(picked !== chosen || (value ?? null) !== model ? { effort: undefined } : {}), model: value ?? undefined })}
         onPickEffort={value => support.pick(key, { effort: value })} onPickFast={on => { support.pick(key, { fast: on }); if (chosen) props.onRemember?.({ provider: chosen, model, effort, ...modelPicked, fast: on }); }}
-        permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "existing" || mode.kind === "archived" ? mode.conversationId : null, value, summary ? stored : undefined)}
+        permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "existing" ? mode.conversationId : null, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} context={thread ? contextRing(thread.events) : null}
-        unavailable={props.blocked ?? (props.listFailed ? LIST_WAIT : null)} locked={props.blocked !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={null} canvasGone={false} context={thread ? contextRing(thread.events) : null}
+        unavailable={props.blocked} locked={props.blocked !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         stepAside={{ waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}
         queued={conversationId ? store.queue(conversationId) : []}
         // Rows waiting for the usage limit's reset have no Send now: nothing runs to take them.
         limitResetsAt={summary?.limitResetsAt ?? null} scheduledFor={summary?.scheduledAt ?? null}
-        sendNow={!!conversationId && !!provider && !archived && !summary?.scheduledAt && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
+        sendNow={!!conversationId && !!provider && !summary?.scheduledAt && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}
         onSend={send} onQueue={queue}
         onStop={() => { if (conversationId) void calls.interruptConversation({ conversationId }).catch(console.error); }}

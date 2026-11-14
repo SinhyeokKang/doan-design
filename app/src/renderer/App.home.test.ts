@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { mergeConversationMemory, savedUiState, wizardCloseFocus } from "./App";
+import { mergeCanvasMemory, mergeConversationMemory, savedUiState, wizardCloseFocus } from "./App";
 import { removalConfirm, restoreRequest, type LastRequest } from "./homeConversations";
 
 // App's own helpers; the send, move, binding, toast and removal wiring is in homeRun.test.ts.
@@ -48,6 +48,23 @@ test("a late ui-state read never brings back memory cleared by New or a removed 
   expect(mergeConversationMemory(saved, now, new Set(["/a", "/b", "/c"]))).toEqual(now);
   expect(mergeConversationMemory(saved, {}, new Set())).toEqual(saved);
   expect(mergeConversationMemory(undefined, now, new Set(["/c"]))).toEqual(now);
+});
+
+// The canvas conversation last seen on each canvas (ui-state conversationByCanvas), saved top-level like the Overview's.
+test("every save carries the canvas conversation memory, and an empty one is left out", () => {
+  const conversationByCanvas = { "/code/doan": { checkout: "aaaaaaaa-0000-4000-8000-000000000001" } };
+  expect(savedUiState({ ...base, home: {}, conversationByCanvas })).toMatchObject({ conversationByCanvas });
+  expect(savedUiState({ ...base, home: {}, conversationByCanvas: {} })).not.toHaveProperty("conversationByCanvas");
+});
+
+// POSTMORTEM 2026-11-01: the startup read merges under what was seen before it, per canvas; a root removed before it goes.
+test("a late ui-state read keeps the canvas memory seen before it, per canvas, and never brings back a removed root", () => {
+  const id = (n: number) => `aaaaaaaa-0000-4000-8000-00000000000${n}`;
+  const saved = { "/a": { x: id(1), y: id(2) }, "/b": { x: id(3) } };
+  const now = { "/a": { x: id(4) } };
+  expect(mergeCanvasMemory(saved, now, new Set(["/b"]))).toEqual({ "/a": { x: id(4), y: id(2) } });
+  expect(mergeCanvasMemory(undefined, now, new Set())).toEqual(now);
+  expect(mergeCanvasMemory(saved, {}, new Set())).toEqual(saved);
 });
 
 // the canvas page's conversation panel is saved with every save. App sends no save before

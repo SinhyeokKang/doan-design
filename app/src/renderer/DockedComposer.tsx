@@ -62,7 +62,7 @@ export type DockedOutcome = { ok: true; itemId?: string } | { error: string; mis
 export interface DockedComposerProps {
   mode: DockedMode;
   project: string; homeDirectory: string | null;
-  // The host's placeholder: a reply, a new conversation in the project, or restoring an archived conversation. A
+  // The host's placeholder: a reply or a new conversation in the project. A
   // preset's line and the suggestion stand in for it by composerPlaceholder.
   placeholder: string;
   // The conversation's next-input suggestion from the host's latest list read;
@@ -90,10 +90,10 @@ export interface DockedComposerProps {
   // Attachments are main's: the host chooses or adds them and writes the chips into the draft; a removed chip's id is
   // handed back so the host can tell main.
   onAttach(): void; onFiles(files: File[], pasted: boolean): void; onAttachmentRemoved(attachment: AttachmentDraft): void;
-  // This conversation's turn. `busy`: another conversation holds the root or this canvas (from the host's list).
+  // This conversation's turn. `busy`: another conversation holds the root (from the host's list).
   turn: ComposerTurn;
   busy: DockedBusy | null;
-  // An archived conversation whose canvas left the project cannot continue.
+  // A conversation whose canvas left the project cannot continue.
   canvasGone: boolean;
   // Why Send waits for the host's project (it turned into a problem while open); the thread stays readable.
   unavailable?: string | null;
@@ -123,7 +123,7 @@ export interface DockedComposerProps {
   // Main's answer once the agent read the message, or an error when it stays queued. The host takes the row out of the
   // queue at the call and puts it back on an error; turnRuns: the turn still ran or waited when the error came.
   onSendQueuedNow?(id: string): Promise<void | { error: string; turnRuns?: boolean }>;
-  // Send in an existing conversation, a restore in an archived one, a start in new-conversation mode.
+  // Send in an existing conversation, a start in new-conversation mode.
   onSend(request: DockedRequest): Promise<DockedOutcome>;
   onQueue(request: DockedRequest): Promise<DockedOutcome>;
   onStop(): void;

@@ -31,6 +31,7 @@ describe("prototype channels", () => {
       workChanged: "prototype:workChanged",
       composer: "prototype:composer",
       composerChanged: "prototype:composerChanged",
+      rememberedConversation: "prototype:rememberedConversation",
       remember: "prototype:remember",
       entry: "prototype:entry",
       entryChanged: "prototype:entryChanged",
@@ -46,7 +47,8 @@ describe("prototype channels", () => {
     });
     expect(PROTOTYPE_WINDOW_REQUESTS).toEqual(["prototype:read", "prototype:result", "prototype:frames", "prototype:reload", "prototype:back", "prototype:forward", "prototype:choose", "prototype:close", "prototype:mode",
       "prototype:export", "prototype:revealExport", "prototype:visible", "prototype:panel", "prototype:showing", "prototype:reveal",
-      "prototype:auth", "prototype:work", "prototype:composer", "prototype:remember", "prototype:entry", "prototype:drawing", "prototype:promoted"]);
+      "prototype:auth", "prototype:work", "prototype:composer", "prototype:remember", "prototype:entry", "prototype:drawing", "prototype:promoted",
+      "prototype:rememberedConversation"]);
   });
 
   test("a run that does not answer in 10 s is an init failure", () => {

@@ -99,8 +99,8 @@ test("another project conversation running blocks Send with Open named for the r
   expect(html).toMatch(/<span>Another conversation is still running in doan-design\.<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-label="Open the running conversation">Open<\/button>/);
 });
 
-test("an archived conversation whose canvas is gone shows the line instead of the composer", () => {
-  const html = render({ mode: { kind: "archived", conversationId: "c1", provider: "claude" }, canvasGone: true });
+test("a conversation whose canvas is gone shows the line instead of the composer", () => {
+  const html = render({ mode: { kind: "existing", conversationId: "c1", provider: "claude" }, canvasGone: true });
   expect(html).not.toContain("composer-input");
   expect(html).toContain('<div class="canvas-gone" role="status">');
   expect(html).toContain("This conversation’s canvas is no longer in doan-design, so it can’t continue.");
@@ -299,9 +299,9 @@ test("the ring takes the danger band from 70% of the unrounded ratio and fills a
   expect(over).toContain('stroke-dasharray="100 100"');
 });
 
-test("an archived conversation whose canvas is gone has no ring", () => {
-  expect(render({ mode: { kind: "archived", conversationId: "c1", provider: "claude" }, canvasGone: true, context: CONTEXT })).not.toContain("context-ring");
-  expect(render({ mode: { kind: "archived", conversationId: "c1", provider: "claude" }, context: CONTEXT })).toContain("context-ring");
+test("a conversation whose canvas is gone has no ring", () => {
+  expect(render({ mode: { kind: "existing", conversationId: "c1", provider: "claude" }, canvasGone: true, context: CONTEXT })).not.toContain("context-ring");
+  expect(render({ mode: { kind: "existing", conversationId: "c1", provider: "claude" }, context: CONTEXT })).toContain("context-ring");
 });
 
 // every tray control 2px apart, and the ring 4px after the last picker (tray gap 2 +

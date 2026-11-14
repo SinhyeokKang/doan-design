@@ -129,7 +129,7 @@ function folders(entries: FolderEntry[]) { listeners.folders!(entries as never);
 
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
 const at = (seq: number, payload: Record<string, unknown>): ConversationEvent => ({ v: 1, conversationId: A, seq, turnId: "t1", at: "2026-11-06T10:00:00Z", ...payload } as ConversationEvent);
-const summary: ConversationSummary = { conversationId: A, title: "Checkout copy", state: "current", owner: "doan", provider: "claude", fromHome: true,
+const summary: ConversationSummary = { conversationId: A, title: "Checkout copy", owner: "doan", provider: "claude", fromHome: true,
   phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-06T10:00:00.000Z", preview: "p" };
 const flushAll = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); render(); };
 // The Overview App shows, drawn with React's own hooks.

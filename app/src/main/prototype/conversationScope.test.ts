@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { ConversationEvent, StageSignal } from "../conversation/types";
 import type { CanvasRow, FolderEntry } from "../view";
 import {
-  PROTOTYPE_CONVERSATION_METHODS, prototypeAuthSnapshot, prototypeComposerSettings, prototypeEntry, prototypeConversationScope, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
+  PROTOTYPE_CONVERSATION_METHODS, prototypeAuthSnapshot, prototypeRememberedConversation, prototypeComposerSettings, prototypeEntry, prototypeConversationScope, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
   type PlayingCanvas, type ScopedConversation,
 } from "./conversationScope";
 import type { WorkItem } from "../workState";
@@ -42,10 +42,10 @@ describe("prototypeConversationScope", () => {
   const allowed = (method: string, payload: unknown, playing: PlayingCanvas | null = PLAYING, entries = ENTRIES) =>
     prototypeConversationScope(method, payload, playing, CONVERSATIONS, entries);
 
-  test("the allowed methods are the panel's; delete and newDesign are not among them", () => {
-    expect([...PROTOTYPE_CONVERSATION_METHODS].sort()).toEqual([...BY_ID, ...ROOT_ONLY, "list", "forCanvas", "resumeTarget", "start"].sort());
-    expect(allowed("delete", { conversationId: "c-proto" })).toBe(false);
+  test("the allowed methods are the panel's, delete included; newDesign and forCanvas are not among them", () => {
+    expect([...PROTOTYPE_CONVERSATION_METHODS].sort()).toEqual([...BY_ID, ...ROOT_ONLY, "list", "resumeTarget", "start", "delete"].sort());
     expect(allowed("start", { root: "/r", mode: "newDesign", text: "x", runtime: "claude" })).toBe(false);
+    expect(allowed("forCanvas", { root: "/r", canvas: { id: "proto", path: PROTO } })).toBe(false);
     for (const method of ["", "toString", "__proto__", "deleteAll"]) expect(allowed(method, { conversationId: "c-proto" }), method).toBe(false);
   });
 
@@ -65,8 +65,15 @@ describe("prototypeConversationScope", () => {
     }
   });
 
-  test("list, forCanvas and resumeTarget name the playing canvas in the playing root only", () => {
-    for (const method of ["list", "forCanvas", "resumeTarget"]) {
+  // The window's head menu deletes a conversation of the canvas it plays, never another canvas's or a project one.
+  test("delete reaches only a conversation of the playing canvas in the playing root", () => {
+    expect(allowed("delete", { conversationId: "c-proto" })).toBe(true);
+    for (const id of ["c-other", "c-project", "c-proto-wt", "missing"]) expect(allowed("delete", { conversationId: id }), id).toBe(false);
+    expect(allowed("delete", { conversationId: "c-proto" }, null)).toBe(false);
+  });
+
+  test("list and resumeTarget name the playing canvas in the playing root only", () => {
+    for (const method of ["list", "resumeTarget"]) {
       expect(allowed(method, { root: "/r", canvas: { id: "proto", path: PROTO } }), method).toBe(true);
       expect(allowed(method, { root: "/r", canvas: { id: "other", path: OTHER } }), method).toBe(false);
       expect(allowed(method, { root: "/r-wt", canvas: { id: "proto", path: PROTO } }), method).toBe(false);
@@ -123,8 +130,8 @@ describe("prototypeConversationScope", () => {
       expect(allowed("read", { conversationId: "c-loose" }, PLAYING_LOOSE)).toBe(true);
       expect(allowed("read", { conversationId: "c-loose-wt" }, PLAYING_LOOSE)).toBe(false);
       expect(allowed("read", { conversationId: "c-proto" }, PLAYING_LOOSE)).toBe(false);
-      expect(allowed("forCanvas", { root: "/r", canvas: { path: LOOSE } }, PLAYING_LOOSE)).toBe(true);
-      expect(allowed("forCanvas", { root: "/r-wt", canvas: { path: LOOSE } }, PLAYING_LOOSE)).toBe(false);
+      expect(allowed("list", { root: "/r", canvas: { path: LOOSE } }, PLAYING_LOOSE)).toBe(true);
+      expect(allowed("list", { root: "/r-wt", canvas: { path: LOOSE } }, PLAYING_LOOSE)).toBe(false);
     });
 
     test("a row doan ls could not read is no match for an ID-keyed conversation, in either worktree", () => {
@@ -295,5 +302,29 @@ describe("prototypeEntry", () => {
   test("nothing while nothing plays or the root is not registered", () => {
     expect(prototypeEntry(ENTRIES, null)).toBeNull();
     expect(prototypeEntry([ENTRIES[1]!], PLAYING)).toBeNull();
+  });
+});
+
+// The conversation the main window last showed on the playing canvas (ui-state conversationByCanvas, keyed by root and
+// by the canvas's id, else its path). The window only reads it, and reads nothing else of ui-state.
+describe("prototypeRememberedConversation", () => {
+  const A = "0a1b2c3d-0000-4000-8000-000000000001", B = "0a1b2c3d-0000-4000-8000-000000000002";
+  const saved = { expanded: ["/r"], conversationByRoot: { "/r": B }, conversationByCanvas: { "/r": { proto: A, [LOOSE]: B, other: B }, "/r-wt": { proto: B } } };
+  test("names the remembered conversation of the playing canvas, by id or by path, in the playing root only", () => {
+    expect(prototypeRememberedConversation(saved, PLAYING, ENTRIES)).toBe(A);
+    expect(prototypeRememberedConversation(saved, PLAYING_LOOSE, ENTRIES)).toBe(B);
+    expect(prototypeRememberedConversation(saved, PLAYING_WT, ENTRIES)).toBe(B);
+  });
+  test("is null when nothing plays, nothing is remembered or the value is not a conversation id", () => {
+    expect(prototypeRememberedConversation(saved, null, ENTRIES)).toBeNull();
+    for (const value of [null, undefined, "x", [], {}, { conversationByCanvas: [] }, { conversationByCanvas: { "/r": "x" } }, { conversationByCanvas: { "/r": { proto: "not-an-id" } } },
+      { conversationByCanvas: { "/r": { proto: A.toUpperCase() } } }, { conversationByCanvas: { "/r": { proto: 7 } } }, { conversationByCanvas: { "/other": { proto: A } } }])
+      expect(prototypeRememberedConversation(value, PLAYING, ENTRIES), JSON.stringify(value)).toBeNull();
+  });
+  test("is null for a canvas whose id is listed twice, a canvas not listed and a root not listed", () => {
+    const twice: FolderEntry[] = [list("/r", [row(PROTO, { id: "proto" }), row(".doan/canvases/copy.html", { id: "proto" })])];
+    expect(prototypeRememberedConversation(saved, PLAYING, twice)).toBeNull();
+    expect(prototypeRememberedConversation(saved, PLAYING, [list("/r", [row(OTHER, { id: "other" })])])).toBeNull();
+    expect(prototypeRememberedConversation(saved, PLAYING, [])).toBeNull();
   });
 });

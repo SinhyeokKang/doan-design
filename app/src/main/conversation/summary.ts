@@ -5,22 +5,30 @@ import type { PermissionModeId } from "./permissionMode";
 import type { Canvas, ConversationEvent } from "./types";
 // One row of a project's conversation list (conversation:list). The renderer imports this type only.
 export interface ConversationSummary {
-  conversationId: string; canvas?: Canvas; title: string; state: "current" | "archived";
+  conversationId: string; canvas?: Canvas; title: string;
   // permissionMode: the conversation's chosen mode, absent for Default; it also changes after a Claude plan approval.
   owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; fast?: true; permissionMode?: PermissionModeId; fromHome: boolean;
   // waiting: an unanswered permission request or question. ended also covers a turn a restart folded as crashed.
   phase: "running" | "waiting" | "ended"; unseen: boolean; queued: number; lastActivityAt: string; preview: string;
+  // ISO: while waiting, when the earliest request still unanswered was made. Output during the wait and an answer to
+  // another request move lastActivityAt, not this, so the conversation that waited longest stays first.
+  waitingSince?: string;
   // main is still working on it, whatever the history says: preparing, running or waiting for an answer, a project turn
   // waiting for its judgement, a queue about to go out, or a send waiting for the previous process. A project
   // conversation that works holds its root (project_busy).
   working: boolean;
   // The history could not be read (corrupt, over the size limit, or a line from a newer build); only this row fails.
   readError?: true;
+  // What started this canvas conversation when the person did not: a handoff (its first message names the earlier
+  // conversation) or a promotion (a project conversation moved to the canvas). The renderer lets only a conversation
+  // the person started take over an empty panel. A handoff's start is in the history alone, so an unreadable one reads
+  // as the person's.
+  startedBy?: "handoff" | "promotion";
   // Queued messages came back as a draft (conversation:takeDraft) after a failed or stopped turn, a refused queued
   // send or a restart.
   returnedDraft?: true;
   // Claude Code's suggestion for the next message, kept in main memory only. Present only while the composer would show
-  // it: a current conversation whose turn ended, not working, with nothing queued and no returned draft.
+  // it: a conversation whose turn ended, not working, with nothing queued and no returned draft.
   suggestion?: string;
   // Background work the done turn turnId started still runs (memory only); stopping: its Stop was pressed.
   background?: { turnId: string; stopping?: true };
@@ -43,30 +51,37 @@ const COMMAND = "Running a command";
 // limitResetsAt and scheduledAt: the usage-limit facts main holds in memory (service.ts list).
 export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean; returned?: boolean; suggestion?: string; background?: { turnId: string; stopping?: true }; stopping?: true; limitResetsAt?: string; scheduledAt?: string }): ConversationSummary {
   const base = {
-    conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title, state: m.state,
+    conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title,
     owner: m.owner.kind, provider: m.session.runtime, ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}),
     ...(m.fast ? { fast: true as const } : {}), ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}), fromHome: m.fromHome === true, queued: live.queued, working: live.working,
     ...(live.returned ? { returnedDraft: true as const } : {}),
     ...(live.background ? { background: live.background } : {}), ...(live.stopping ? { stopping: true as const } : {}),
     ...(live.limitResetsAt ? { limitResetsAt: live.limitResetsAt } : {}), ...(live.scheduledAt ? { scheduledAt: live.scheduledAt } : {}),
   };
-  if (!read.ok) return { ...base, phase: "ended", unseen: false, lastActivityAt: "", preview: "", readError: true };
+  // A canvas conversation whose session began as a project one (newDesign) got its canvas by a promotion.
+  const promoted = m.canvas !== undefined && m.session.origin === "newDesign" ? { startedBy: "promotion" as const } : {};
+  if (!read.ok) return { ...base, ...promoted, phase: "ended", unseen: false, lastActivityAt: "", preview: "", readError: true };
+  const first = read.events.find(e => e.type === "user.message");
+  const startedBy = first?.type === "user.message" && first.origin?.kind === "handoff" ? { startedBy: "handoff" as const } : promoted;
   const events = read.events, folded = foldConversation(events, m.conversationId, !live.live);
   const phase = folded.turn === "waitingPermission" ? "waiting" : folded.turn === "starting" || folded.turn === "streaming" ? "running" : "ended";
-  // Markers of binding, archiving and restoring are not something to see: they would mark a seen end unseen again. A
+  // Markers of binding, and an earlier build's archiving and restoring, are not something to see: they would mark a seen end unseen again. A
   // handoff's resolution and a missed handoff's line also come after the turn's end, often while the person is moved to
   // the next conversation.
   const lastTurnSeq = [...events].reverse().find(e => !e.type.startsWith("conversation.") && e.type !== "handoff.resolved" && e.type !== "handoff.missed")?.seq ?? 0;
-  const unseen = phase === "ended" && m.state === "current" && m.seenSeq !== undefined && lastTurnSeq > m.seenSeq;
+  const unseen = phase === "ended" && m.seenSeq !== undefined && lastTurnSeq > m.seenSeq;
   // A queue or a returned draft is what the composer offers next, so a suggestion never competes with them.
-  const suggested = live.suggestion && m.state === "current" && phase === "ended" && !live.working && live.queued === 0 && !live.returned ? { suggestion: live.suggestion } : {};
-  return { ...base, phase, unseen, lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded, folded.turnId, folded.messages), ...suggested };
+  const since = phase === "waiting" ? events.find(e => pendingRequest(e, folded)) : undefined;
+  const suggested = live.suggestion && phase === "ended" && !live.working && live.queued === 0 && !live.returned ? { suggestion: live.suggestion } : {};
+  return { ...base, ...startedBy, phase, unseen, ...(since ? { waitingSince: since.at } : {}), lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded, folded.turnId, folded.messages), ...suggested };
+}
+function pendingRequest(e: ConversationEvent, open: Pick<FoldedConversation, "permissions" | "questions">): boolean {
+  return (e.type === "permission.request" && open.permissions[e.requestId] === "pending") || (e.type === "question.request" && open.questions[e.requestId] === "pending");
 }
 function preview(events: readonly ConversationEvent[], phase: ConversationSummary["phase"], open: Pick<FoldedConversation, "permissions" | "questions">, turnId: string | null, messages: { text: string }[]): string {
   if (phase === "waiting") {
     // The newest unanswered request, whatever its kind; a question reads as its first question.
-    const pending = [...events].reverse().find(e => (e.type === "permission.request" && open.permissions[e.requestId] === "pending") ||
-      (e.type === "question.request" && open.questions[e.requestId] === "pending"));
+    const pending = [...events].reverse().find(e => pendingRequest(e, open));
     if (pending?.type === "permission.request") return cap(`Needs your answer: ${pending.summary}`);
     if (pending?.type === "question.request") return cap(`Needs your answer: ${pending.questions[0]!.question}`);
   }

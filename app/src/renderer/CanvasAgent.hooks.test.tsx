@@ -4,8 +4,8 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
 import type { DotCanvas, DotFieldMessage, DotFieldSize } from "./dotField";
 
-// The indicator's wiring, run with hooks as plain state (the App tests' no-DOM style): the Stop callback's
-// failure recovery, and the dot field's pauses and cleanup.
+// The indicator's wiring, run with hooks as plain state (the App tests' no-DOM style): which conversation the notice
+// follows, its button, and the dot field's pauses and cleanup.
 const hooks = vi.hoisted(() => ({
   states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
   pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
@@ -57,98 +57,64 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   return [node, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
 }
 const button = (tree: ReactNode) => all(tree).find(element => element.type === "button");
-// The button's words without its icon or spinner.
-const label = (tree: ReactNode) => { const children = button(tree)?.props.children; return [children].flat().filter(child => typeof child === "string").join(""); };
-// What leads the words: the filled square on Stop, the spinner on "Stopping" (the draft's 'agent-working' and
-// 'agent-waiting' frames; the square is the composer's Stop glyph).
-// Both are hidden from assistive tech, so the button's name stays its words.
-const lead = (tree: ReactNode) => { const first = all(button(tree)?.props.children as ReactNode)[0]; if (first && first.props["aria-hidden"] !== "true" && first.props["aria-hidden"] !== true) return "announced"; return first?.props.className === "doan-spinner" ? "spinner" : first ? "icon" : null; };
+// The button's words.
+const label = (tree: ReactNode) => String(button(tree)?.props.children ?? "");
 // The indicator itself (its glow and notice); the top column stays for the canvas notices.
-const shown = (tree: ReactNode) => all(tree).some(element => element.props.className === "doan-agent");
+const shown = (tree: ReactNode) => all(tree).some(element => typeof element.props.className === "string" && /^doan-agent( |$)/.test(element.props.className));
 
 const canvas = { path: ".doan/canvases/billing.html", id: "billing" };
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "codex", fromHome: true,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "codex", fromHome: true,
   phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "", canvas, ...patch,
 });
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("CanvasAgent Stop", () => {
-  let reply: (value: unknown) => void;
-  let interrupt: ReturnType<typeof vi.fn>;
-  const onStopFailed = vi.fn();
-  const agent = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work: [], entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed });
-  beforeEach(() => {
-    reset(); onStopFailed.mockClear();
-    interrupt = vi.fn(() => new Promise(resolve => { reply = resolve; }));
-    vi.stubGlobal("window", { doan: { interruptConversation: interrupt } });
+// The notice follows one conversation of the canvas and has no Stop (user decision): stopping is the composer's, tied to
+// one conversation. While the followed conversation works the notice shows no button; while it waits, Open goes to it.
+describe("CanvasAgent follows one conversation", () => {
+  const onOpen = vi.fn();
+  const agent = (list: readonly ConversationSummary[], shown: string | null, work: readonly { touched: number; turn: string; session: string; provider: "claude"; root: string; path: string }[] = []) => () => CanvasAgent({ list, shown, canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work, entries: [], onOpen, onOpenSibling: vi.fn() });
+  beforeEach(() => { reset(); onOpen.mockClear(); });
+
+  test("working shows the notice with no button, whichever conversation it follows", () => {
+    const list = [summary({ conversationId: "c1", title: "Tighten the summary" }), summary({ conversationId: "c2", title: "Add an empty state" })];
+    let tree = render(agent(list, "c1"));
+    expect(shown(tree)).toBe(true);
+    expect(button(tree)).toBeUndefined();
+    reset();
+    tree = render(agent(list, "c9"));
+    expect(button(tree)).toBeUndefined();
+    // The next working conversation after the followed one ends: still the notice, still no button.
+    tree = render(agent([summary({ conversationId: "c1", phase: "ended", working: false }), summary({ conversationId: "c2" })], "c9"));
+    expect(shown(tree)).toBe(true);
+    expect(button(tree)).toBeUndefined();
   });
 
-  test("a ConversationError brings back an enabled Stop and shows the toast", async () => {
-    let tree = render(agent([summary({})]));
-    expect(label(tree)).toBe("Stop");
-    expect(lead(tree)).toBe("icon");
-    (button(tree)!.props.onClick as () => void)();
-    tree = render(agent([summary({})]));
-    expect(label(tree)).toBe("Stopping");
-    expect(lead(tree)).toBe("spinner");
-    expect(button(tree)!.props["aria-disabled"]).toBe(true);
-    // "Stopping" ignores another press.
-    (button(tree)!.props.onClick as () => void)();
-    expect(interrupt).toHaveBeenCalledTimes(1);
-    expect(interrupt).toHaveBeenCalledWith({ conversationId: "c1" });
-    reply({ error: "not_found" }); await flush();
-    tree = render(agent([summary({})]));
-    expect(label(tree)).toBe("Stop");
-    expect(button(tree)!.props["aria-disabled"]).toBeUndefined();
-    expect(onStopFailed).toHaveBeenCalledWith("Couldn’t stop Codex. Try again.");
+  test("the waiting notice's Open goes to the followed conversation", () => {
+    const tree = render(agent([summary({ conversationId: "c1" }), summary({ conversationId: "c2", phase: "waiting" })], "c1"));
+    // The shown conversation works, so the notice follows it, not the waiting one.
+    expect(button(tree)).toBeUndefined();
+    reset();
+    const waiting = render(agent([summary({ conversationId: "c1", phase: "ended", working: false }), summary({ conversationId: "c2", phase: "waiting" })], "c1"));
+    expect(label(waiting)).toBe("Open");
+    (button(waiting)!.props.onClick as () => void)();
+    expect(onOpen).toHaveBeenCalledWith("c2");
   });
 
-  test("a rejected interrupt recovers the same way", async () => {
-    let tree = render(agent([summary({})]));
-    (button(tree)!.props.onClick as () => void)();
-    tree = render(agent([summary({})]));
-    expect(label(tree)).toBe("Stopping");
-    // Resolving with a rejected promise makes the pending interrupt reject instead of answering an error.
-    reply(Promise.reject(new Error("gone"))); await flush();
-    tree = render(agent([summary({})]));
-    expect(label(tree)).toBe("Stop");
-    expect(onStopFailed).toHaveBeenCalledWith("Couldn’t stop Codex. Try again.");
-  });
-
-  test("an accepted stop holds 'Stopping' until the list shows the turn ended, and no toast", async () => {
-    let tree = render(agent([summary({})]));
-    (button(tree)!.props.onClick as () => void)();
-    reply(undefined); await flush();
-    tree = render(agent([summary({})]));
-    expect(label(tree)).toBe("Stopping");
-    tree = render(agent([summary({ phase: "ended" })]));
-    expect(shown(tree)).toBe(false);
-    expect(onStopFailed).not.toHaveBeenCalled();
-    // A later turn of the same conversation starts with Stop again.
-    tree = render(agent([summary({})]));
-    expect(label(tree)).toBe("Stop");
-  });
-
-  // The app turn ends while a terminal session still works on the canvas.
-  test("after a Stop, the notice stays for a terminal session left on the canvas, without its button", async () => {
+  test("when the app turn ends and a terminal session is left on the canvas, the notice stays", () => {
     const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path }];
-    const withWork = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work, entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed });
-    let tree = render(withWork([summary({})]));
-    (button(tree)!.props.onClick as () => void)();
-    reply(undefined); await flush();
-    tree = render(withWork([summary({ phase: "ended" })]));
+    render(agent([summary({})], "c1", work));
+    const tree = render(agent([summary({ phase: "ended", working: false })], "c1", work));
     expect(all(tree).some(element => element.props.className === "doan-agent doan-agent-terminal")).toBe(true);
     expect(button(tree)).toBeUndefined();
-    tree = render(agent([summary({ phase: "ended" })]));
-    expect(shown(tree)).toBe(false);
+    expect(shown(render(agent([summary({ phase: "ended", working: false })], "c1")))).toBe(false);
   });
 
   test("a twin canvas in another project shows nothing from the first while its list is unread", () => {
-    render(agent([summary({})]));
-    const tree = render(() => CanvasAgent({ list: "error", canvas: { root: "/w/b", canvas }, buddy: "doany" as const, running: true, work: [], entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed }));
+    render(agent([summary({})], "c1"));
+    const tree = render(() => CanvasAgent({ list: "error", canvas: { root: "/w/b", canvas }, buddy: "doany" as const, running: true, work: [], entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn() }));
     expect(shown(tree)).toBe(false);
   });
 });
@@ -167,7 +133,7 @@ describe("CanvasAgent another worktree", () => {
   beforeEach(reset);
   test("Open opens that worktree, and the tooltip carries the full sentence", () => {
     const onOpenSibling = vi.fn(), onOpen = vi.fn();
-    const tree = render(() => CanvasAgent({ list: [], canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work, entries, onOpen, onOpenSibling, onStopFailed: vi.fn() }));
+    const tree = render(() => CanvasAgent({ list: [], canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work, entries, onOpen, onOpenSibling }));
     expect(button(tree)?.props["aria-label"]).toBe(`Open this canvas in ${LONG}`);
     expect(label(tree)).toBe("Open");
     (button(tree)!.props.onClick as () => void)();
@@ -179,13 +145,13 @@ describe("CanvasAgent another worktree", () => {
   // design-sync (draft frame sibling-notice, tile 'sibling-long'): the tooltip opened above the notice (Radix's default
   // side), and a two-line sentence crossed the board's top edge; the draft puts it 4px under the capsule.
   test("the tooltip opens under the notice, clear of the capsule", () => {
-    const tree = render(() => CanvasAgent({ list: [], canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work, entries, onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed: vi.fn() }));
+    const tree = render(() => CanvasAgent({ list: [], canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work, entries, onOpen: vi.fn(), onOpenSibling: vi.fn() }));
     const tip = all(tree).find(element => element.type === TooltipContent);
     expect(tip?.props.side).toBe("bottom");
     expect(tip?.props.sideOffset).toBe(14);
   });
   test("the notice goes when the session ends", () => {
-    const props = { list: [] as ConversationSummary[], canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, entries, onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed: vi.fn() };
+    const props = { list: [] as ConversationSummary[], canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, entries, onOpen: vi.fn(), onOpenSibling: vi.fn() };
     expect(button(render(() => CanvasAgent({ ...props, work })))).toBeDefined();
     expect(button(render(() => CanvasAgent({ ...props, work: [] })))).toBeUndefined();
   });
@@ -395,7 +361,7 @@ describe("CanvasAgent work for the controller", () => {
   test("tells the picked work and its turn keys when they change, and the canvas with no work", () => {
     reset();
     const onWork = vi.fn();
-    const props = { list: [] as ConversationSummary[], canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed: vi.fn(), onWork };
+    const props = { list: [] as ConversationSummary[], canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onWork };
     render(() => CanvasAgent({ ...props, work: [] }));
     expect(onWork).toHaveBeenLastCalledWith({ root: "/w/a", path: canvas.path, work: null, keys: [] });
     render(() => CanvasAgent({ ...props, work: [term] }));
@@ -409,7 +375,7 @@ describe("CanvasAgent work for the controller", () => {
   test("a project conversation's work reaches the controller too", () => {
     reset();
     const onWork = vi.fn();
-    render(() => CanvasAgent({ list: [], canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work: [], entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed: vi.fn(), onWork,
+    render(() => CanvasAgent({ list: [], canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work: [], entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onWork,
       conversationWork: [{ conversationId: "p1", root: "/w/a", path: canvas.path, frame: "hero", touched: 3, turnId: "u1" }] }));
     expect(onWork).toHaveBeenLastCalledWith({ root: "/w/a", path: canvas.path, work: { source: "conversation:p1", key: "conversation:p1:u1", frame: "hero", waiting: false }, keys: ["conversation:p1:u1"] });
   });

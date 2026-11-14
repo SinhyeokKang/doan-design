@@ -270,7 +270,7 @@ test("a waiting toast Open is dropped by a later move of the person's", async ()
 });
 
 test("typing in the source composer, a draft or an IME composition, keeps the screen and shows the toast", async () => {
-  const summary = { conversationId: "c1", title: "Split", state: "current", owner: "doan", provider: "claude", fromHome: false, canvas: { path: D, id: "drafts" },
+  const summary = { conversationId: "c1", title: "Split", owner: "doan", provider: "claude", fromHome: false, canvas: { path: D, id: "drafts" },
     phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" };
   for (const how of ["composing", "draft"] as const) {
     reset();

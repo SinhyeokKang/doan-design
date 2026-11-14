@@ -5,7 +5,7 @@ import { canvasLabel, rowProblem } from "./canvasTree";
 import { deleteAvailability, type DeleteAvailability } from "./conversationDelete";
 import { conversationLine, type ConversationLine } from "./overviewConversation";
 
-// The Overview's right panel: canvases with a current conversation.
+// The Overview's right panel: one row per canvas conversation.
 
 export type CanvasRowProblem = { kind: "gone" } | { kind: "duplicate"; count: number } | { kind: "unreadable"; sentence: string };
 
@@ -16,6 +16,8 @@ export interface CanvasConversationRow extends ConversationLine {
   problem: CanvasRowProblem | null; openable: boolean;
   // The row's Delete: the conversation's title names it, as in the title menu.
   title: string; deletable: DeleteAvailability;
+  // The row's head: the title on one line, "Conversation" when it has none.
+  heading: string;
 }
 
 // main's rule (`main/conversation/sessions.ts`), restated because the renderer must not import main's modules
@@ -36,15 +38,15 @@ export function conversationCanvasMatch(canvas: Canvas, canvasRows: readonly Can
   return matches.length === 1 ? { kind: "one", row: matches[0]! } : matches.length > 1 ? { kind: "many", rows: matches } : { kind: "none" };
 }
 
-// Ordered by the current conversation's latest activity, then canvas path. A gone canvas stays only while its
+// Ordered by the conversation's latest activity, then canvas path. A gone canvas stays only while its
 // conversation has work left (running, waiting, an unseen ending), the same rule as its status.
 export function canvasConversationRows(list: readonly ConversationSummary[], canvasRows: readonly CanvasRow[], now: number, seen: ReadonlySet<string> = new Set()): CanvasConversationRow[] {
   const rows: CanvasConversationRow[] = [];
   for (const c of list) {
-    if (!c.canvas || c.state !== "current") continue;
+    if (!c.canvas) continue;
     const line = conversationLine(c, now, seen);
     const match = conversationCanvasMatch(c.canvas, canvasRows);
-    const base = { ...line, key: c.conversationId, canvas: c.canvas, title: c.title, deletable: deleteAvailability(c) };
+    const base = { ...line, key: c.conversationId, canvas: c.canvas, title: c.title, deletable: deleteAvailability(c), heading: c.title.replace(/\s+/g, " ").trim() || "Conversation" };
     if (match.kind === "one") {
       const row = match.row;
       // Only the canvas file's own read error makes the row unreadable.

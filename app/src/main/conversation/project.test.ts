@@ -48,72 +48,67 @@ describe("projectBusy", () => {
 describe("promotionTarget", () => {
   const root = "/private/tmp/repo";
   const a: Canvas = { path: ".doan/canvases/a.html", id: "a" }, b: Canvas = { path: ".doan/canvases/b.html", id: "b" }, c: Canvas = { path: ".doan/canvases/c.html", id: "c" };
-  const idle = () => false;
   const turn = (edits: string[], changed: string[], taken: Canvas[] = [], contested: Canvas[] = []) => ({ root, edits, changed, taken, contested });
   it("binds exactly one new canvas and prefers it over an edited one", () => {
-    expect(promotionTarget(turn([], []), [a, b], [a], idle)).toEqual(b);
-    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html", ".doan/canvases/b.html"]), [a, b], [a], idle)).toEqual(b);
+    expect(promotionTarget(turn([], []), [a, b], [a])).toEqual(b);
+    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html", ".doan/canvases/b.html"]), [a, b], [a])).toEqual(b);
   });
   it("stays a project conversation with two new canvases", () => {
-    expect(promotionTarget(turn([], []), [a, b, c], [a], idle)).toBeNull();
+    expect(promotionTarget(turn([], []), [a, b, c], [a])).toBeNull();
   });
   it("promotes to the one existing canvas both an edit and a file change point at", () => {
-    expect(promotionTarget(turn([".doan/canvases/a.html", "./.doan/canvases/a.html"], [".doan/canvases/a.html"]), [a, b], [a, b], idle)).toEqual(a);
+    expect(promotionTarget(turn([".doan/canvases/a.html", "./.doan/canvases/a.html"], [".doan/canvases/a.html"]), [a, b], [a, b])).toEqual(a);
   });
   it("needs both evidences: a refused edit without a file change and a change without an edit do not promote", () => {
-    expect(promotionTarget(turn([".doan/canvases/a.html"], []), [a, b], [a, b], idle)).toBeNull();
-    expect(promotionTarget(turn([], [".doan/canvases/a.html"]), [a, b], [a, b], idle)).toBeNull();
+    expect(promotionTarget(turn([".doan/canvases/a.html"], []), [a, b], [a, b])).toBeNull();
+    expect(promotionTarget(turn([], [".doan/canvases/a.html"]), [a, b], [a, b])).toBeNull();
   });
   it("stays with two edited canvases", () => {
-    expect(promotionTarget(turn([".doan/canvases/a.html", ".doan/canvases/b.html"], [".doan/canvases/a.html", ".doan/canvases/b.html"]), [a, b], [a, b], idle)).toBeNull();
+    expect(promotionTarget(turn([".doan/canvases/a.html", ".doan/canvases/b.html"], [".doan/canvases/a.html", ".doan/canvases/b.html"]), [a, b], [a, b])).toBeNull();
   });
   it("ignores files that are not listed canvases", () => {
-    expect(promotionTarget(turn(["src/app.ts", ".doan/canvases/a.html"], ["src/app.ts", ".doan/canvases/a.html"]), [a, b], [a, b], idle)).toEqual(a);
-    expect(promotionTarget(turn([".doan/assets/x.png"], [".doan/assets/x.png"]), [a], [a], idle)).toBeNull();
+    expect(promotionTarget(turn(["src/app.ts", ".doan/canvases/a.html"], ["src/app.ts", ".doan/canvases/a.html"]), [a, b], [a, b])).toEqual(a);
+    expect(promotionTarget(turn([".doan/assets/x.png"], [".doan/assets/x.png"]), [a], [a])).toBeNull();
   });
   it("reads absolute, aliased, dotted and outside paths against the root", () => {
     const changed = [".doan/canvases/a.html"];
-    expect(promotionTarget(turn([`${root}/.doan/canvases/a.html`], changed), [a], [a], idle)).toEqual(a);
-    expect(promotionTarget(turn(["/tmp/repo/.doan/canvases/a.html"], changed), [a], [a], idle)).toEqual(a);
-    expect(promotionTarget(turn([".doan/x/../canvases/a.html"], changed), [a], [a], idle)).toEqual(a);
-    expect(promotionTarget(turn(["../repo/.doan/canvases/a.html"], changed), [a], [a], idle)).toEqual(a);
-    expect(promotionTarget(turn(["../other/.doan/canvases/a.html"], changed), [a], [a], idle)).toBeNull();
-    expect(promotionTarget(turn(["/private/tmp/repo-worktree/.doan/canvases/a.html"], changed), [a], [a], idle)).toBeNull();
+    expect(promotionTarget(turn([`${root}/.doan/canvases/a.html`], changed), [a], [a])).toEqual(a);
+    expect(promotionTarget(turn(["/tmp/repo/.doan/canvases/a.html"], changed), [a], [a])).toEqual(a);
+    expect(promotionTarget(turn([".doan/x/../canvases/a.html"], changed), [a], [a])).toEqual(a);
+    expect(promotionTarget(turn(["../repo/.doan/canvases/a.html"], changed), [a], [a])).toEqual(a);
+    expect(promotionTarget(turn(["../other/.doan/canvases/a.html"], changed), [a], [a])).toBeNull();
+    expect(promotionTarget(turn(["/private/tmp/repo-worktree/.doan/canvases/a.html"], changed), [a], [a])).toBeNull();
   });
   it("follows a canvas moved during the turn by its ID", () => {
     const moved: Canvas = { path: ".doan/canvases/renamed.html", id: "a" };
-    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/renamed.html"]), [moved, b], [a, b], idle)).toEqual(moved);
+    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/renamed.html"]), [moved, b], [a, b])).toEqual(moved);
   });
   it("does not guess which canvas an edit hit when two canvases swapped paths during the turn", () => {
     const swappedA: Canvas = { path: ".doan/canvases/b.html", id: "a" }, swappedB: Canvas = { path: ".doan/canvases/a.html", id: "b" };
-    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html", ".doan/canvases/b.html"]), [swappedA, swappedB], [a, b], idle)).toBeNull();
+    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html", ".doan/canvases/b.html"]), [swappedA, swappedB], [a, b])).toBeNull();
   });
   it("does not hand an edit of a moved canvas to another canvas that took its old path", () => {
     const moved: Canvas = { path: ".doan/canvases/renamed.html", id: "a" }, taken: Canvas = { path: ".doan/canvases/a.html", id: "b" };
-    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/renamed.html"]), [moved, taken], [a, b], idle)).toBeNull();
+    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/renamed.html"]), [moved, taken], [a, b])).toBeNull();
   });
   it("leaves out rows that share an ID and canvases deleted during the turn", () => {
     const twin: Canvas = { path: ".doan/canvases/twin.html", id: "a" };
-    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"]), [a, twin, b], [a, b], idle)).toBeNull();
-    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"]), [b], [a, b], idle)).toBeNull();
-  });
-  it("does not promote onto a canvas whose current conversation is working", () => {
-    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"]), [a], [a], canvas => canvas.id === "a")).toBeNull();
-    expect(promotionTarget(turn([], []), [a, b], [a], canvas => canvas.id === "b")).toBeNull();
+    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"]), [a, twin, b], [a, b])).toBeNull();
+    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"]), [b], [a, b])).toBeNull();
   });
   // Turns of one root may overlap once a waiting turn gets its answer.
   it("leaves out a canvas bound to another conversation after the snapshot, new or existing", () => {
-    expect(promotionTarget(turn([], [], [b]), [a, b], [a], idle)).toBeNull();
-    expect(promotionTarget(turn([], [], [b]), [a, b, c], [a], idle)).toEqual(c);
-    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"], [a]), [a, b], [a, b], idle)).toBeNull();
-    expect(promotionTarget(turn([".doan/canvases/a.html", ".doan/canvases/b.html"], [".doan/canvases/a.html", ".doan/canvases/b.html"], [a]), [a, b], [a, b], idle)).toEqual(b);
+    expect(promotionTarget(turn([], [], [b]), [a, b], [a])).toBeNull();
+    expect(promotionTarget(turn([], [], [b]), [a, b, c], [a])).toEqual(c);
+    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"], [a]), [a, b], [a, b])).toBeNull();
+    expect(promotionTarget(turn([".doan/canvases/a.html", ".doan/canvases/b.html"], [".doan/canvases/a.html", ".doan/canvases/b.html"], [a]), [a, b], [a, b])).toEqual(b);
   });
   it("does not promote to a new canvas another turn not judged yet could have made, as with two new canvases", () => {
-    expect(promotionTarget(turn([], [], [], [b]), [a, b], [a], idle)).toBeNull();
+    expect(promotionTarget(turn([], [], [], [b]), [a, b], [a])).toBeNull();
     // Not even to an edited existing canvas: a new canvas wins over edits, and it is not this turn's to take.
-    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"], [], [b]), [a, b], [a], idle)).toBeNull();
+    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"], [], [b]), [a, b], [a])).toBeNull();
     // A contested canvas that is not new to this turn is judged by the edit rule as before.
-    expect(promotionTarget(turn([".doan/canvases/b.html"], [".doan/canvases/b.html"], [], [b]), [a, b], [a, b], idle)).toEqual(b);
+    expect(promotionTarget(turn([".doan/canvases/b.html"], [".doan/canvases/b.html"], [], [b]), [a, b], [a, b])).toEqual(b);
   });
   it("names the one new canvas a judgement leaves to another unjudged turn, and none left for another reason", () => {
     expect(contestedCanvas(turn([], [], [], [b]), [a, b], [a])).toEqual(b);
@@ -122,10 +117,10 @@ describe("promotionTarget", () => {
     expect(contestedCanvas(turn([], [], [b], [b]), [a, b], [a])).toBeNull();
   });
   it("judges a turn that overlapped nothing as before", () => {
-    expect(promotionTarget(turn([], [], [], []), [a, b], [a], idle)).toEqual(b);
+    expect(promotionTarget(turn([], [], [], []), [a, b], [a])).toEqual(b);
   });
   it("applies the same rule to a failed or stopped turn, and promotes nothing without a turn from this run", () => {
-    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"]), [a], [a], idle)).toEqual(a);
-    expect(promotionTarget(null, [a, b], [a], idle)).toBeNull();
+    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"]), [a], [a])).toEqual(a);
+    expect(promotionTarget(null, [a, b], [a])).toBeNull();
   });
 });

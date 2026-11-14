@@ -57,6 +57,9 @@ export interface UiState {
   // The project conversation last shown in each root's Overview. Top-level, not in
   // `shellProjects`: those entries are rebuilt per group on every save and would drop it.
   conversationByRoot?: Record<string, string>;
+  // The canvas conversation last seen on each canvas of a root (PRODUCT's Seen), by conversationCanvasKey. Written only
+  // by the main window: main replaces this file on every save, so a second writer would overwrite the first.
+  conversationByCanvas?: Record<string, Record<string, string>>;
   // The canvas page's conversation panel, one per device. A missing `width` is the
   // window-relative default, which only the renderer can compute.
   rightPanel?: { open: boolean; width?: number };
@@ -131,6 +134,11 @@ export function parseUiState(text: string, savedRoots: readonly string[], spelli
     state.shellProjects = Object.fromEntries(projects);
   }
   if (isRecord(value["conversationByRoot"])) state.conversationByRoot = entries(value["conversationByRoot"], saved, (item) => (typeof item === "string" && CONVERSATION_ID.test(item) ? item : undefined));
+  if (isRecord(value["conversationByCanvas"])) state.conversationByCanvas = entries(value["conversationByCanvas"], saved, (item) => {
+    if (!isRecord(item)) return undefined;
+    const kept = Object.entries(item).filter((entry): entry is [string, string] => entry[0] !== "" && typeof entry[1] === "string" && CONVERSATION_ID.test(entry[1]));
+    return kept.length ? Object.fromEntries(kept) : undefined;
+  });
   const rightPanel = parseRightPanel(value["rightPanel"]);
   if (rightPanel !== undefined) state.rightPanel = rightPanel;
   const overviewWidth = isRecord(value["overviewPanel"]) ? value["overviewPanel"]["width"] : undefined;
@@ -154,9 +162,9 @@ export function parseUiState(text: string, savedRoots: readonly string[], spelli
 }
 
 // Rewrites every root this file keys or names (the open place, `expanded`, `lastByRoot`, `shellProjects` keys, roots
-// and selection, `conversationByRoot`, `home.lastRoot`) from each spelling in `aliases` to the one it maps to, on the
+// and selection, `conversationByRoot`, `conversationByCanvas`, `home.lastRoot`) from each spelling in `aliases` to the one it maps to, on the
 // raw value so parseUiState still validates the result. Where both spellings hold a value the target's wins, per map
-// key and per `shellProjects` field; the other fills only what the target lacks.
+// key, per `shellProjects` field and per `conversationByCanvas` canvas; the other fills only what the target lacks.
 export function renameUiRoots(value: Record<string, unknown>, aliases: ReadonlyMap<string, string>): Record<string, unknown> {
   const real = (root: unknown) => typeof root === "string" ? aliases.get(root) ?? root : root;
   const rekey = (map: unknown, merge: (kept: unknown, alias: unknown) => unknown = kept => kept): unknown => {
@@ -177,6 +185,8 @@ export function renameUiRoots(value: Record<string, unknown>, aliases: ReadonlyM
   const next: Record<string, unknown> = { ...value, root: real(value["root"]) };
   if (!("root" in value)) delete next["root"];
   for (const key of ["expanded", "lastByRoot", "conversationByRoot"]) if (key in value) next[key] = rekey(value[key]);
+  // Per canvas, like `shellProjects` per field: a canvas only the alias remembered keeps its conversation.
+  if ("conversationByCanvas" in value) next["conversationByCanvas"] = rekey(value["conversationByCanvas"], (kept, alias) => isRecord(kept) && isRecord(alias) ? { ...alias, ...kept } : kept);
   if (isRecord(value["shellProjects"])) {
     const projects = Object.fromEntries(Object.entries(value["shellProjects"]).map(([key, item]) => [key, project(item)]));
     next["shellProjects"] = rekey(projects, (kept, alias) => isRecord(kept) && isRecord(alias) ? { ...alias, ...kept } : kept);
@@ -264,6 +274,12 @@ function entries<T>(value: unknown, saved: ReadonlySet<string>, read: (item: unk
     if (parsed !== undefined) kept.push([root, parsed]);
   }
   return Object.fromEntries(kept);
+}
+
+// A canvas's key in conversationByCanvas: its id, else its path (the draft key's rule), so a canvas moved under the same
+// id keeps the conversation it remembered.
+export function conversationCanvasKey(canvas: { path: string; id?: string }): string {
+  return canvas.id ?? canvas.path;
 }
 
 // A per-root map without the removed roots, so a removed project keeps no memory until the next read prunes it.

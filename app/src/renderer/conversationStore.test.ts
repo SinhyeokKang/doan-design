@@ -10,7 +10,7 @@ import { threadItems, withSending } from "./threadItems";
 const ROOT = "/code/doan", A = "aaaaaaaa-0000-4000-8000-000000000001";
 const CTA: Anchor = { element: { doanId: "hero-cta", selector: "[data-doan-id=\"hero-cta\"]" } };
 const summary = (extra: Partial<ConversationSummary> = {}): ConversationSummary => ({
-  conversationId: A, title: "T", state: "current", owner: "doan", provider: "claude", fromHome: true,
+  conversationId: A, title: "T", owner: "doan", provider: "claude", fromHome: true,
   phase: "running", unseen: false, queued: 3, working: true, lastActivityAt: "2026-11-05T00:00:00.000Z", preview: "p", ...extra,
 });
 let seq = 0;

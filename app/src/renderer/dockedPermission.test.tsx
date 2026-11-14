@@ -29,7 +29,7 @@ const CANVAS: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
 const ENTRY: FolderEntry = { path: ROOT, kind: "list", servedRev: 0, canvases: [{ path: CANVAS.path, id: "checkout", url: "u" }] };
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
 const summary = (patch: Partial<ConversationSummary> = {}): ConversationSummary => ({
-  conversationId: A, title: "Payment copy", state: "current", owner: "doan", provider: "claude", fromHome: false,
+  conversationId: A, title: "Payment copy", owner: "doan", provider: "claude", fromHome: false,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch,
 });
 function connected(provider: Provider) {

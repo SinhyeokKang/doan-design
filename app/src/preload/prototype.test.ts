@@ -53,6 +53,7 @@ test("every request goes to its prototype channel with the payload main parses",
   await api.readTargetEntry();
   await api.readDrawing();
   await api.readPromoted();
+  await api.rememberedConversation();
   await api.reveal({ kind: "settings" });
   expect(mocks.invoke.mock.calls).toEqual([
     [PROTOTYPE_CHANNELS.read], [PROTOTYPE_CHANNELS.result, { gen: 2, state: "timeout" }], [PROTOTYPE_CHANNELS.frames, { gen: 2, frames: [] }],
@@ -62,7 +63,7 @@ test("every request goes to its prototype channel with the payload main parses",
     [PROTOTYPE_CHANNELS.panel, { open: true, width: 300 }], [PROTOTYPE_CHANNELS.showing, { conversationId: "c1" }], [PROTOTYPE_CHANNELS.showing, { conversationId: null }],
     [PROTOTYPE_CHANNELS.reveal, { kind: "settings", provider: "claude" }], [PROTOTYPE_CHANNELS.auth], [PROTOTYPE_CHANNELS.work], [PROTOTYPE_CHANNELS.composer],
     [PROTOTYPE_CHANNELS.remember, { provider: "claude", model: "sonnet", effort: null, modelPicked: true }], [PROTOTYPE_CHANNELS.entry], [PROTOTYPE_CHANNELS.drawing], [PROTOTYPE_CHANNELS.promoted],
-    [PROTOTYPE_CHANNELS.reveal, { kind: "settings" }],
+    [PROTOTYPE_CHANNELS.rememberedConversation], [PROTOTYPE_CHANNELS.reveal, { kind: "settings" }],
   ]);
   expect(new Set(mocks.invoke.mock.calls.map(call => call[0]))).toEqual(new Set(PROTOTYPE_WINDOW_REQUESTS));
 });
@@ -120,12 +121,23 @@ test("window visibility comes from main's first answer, then its pushes; a push 
   await vi.waitFor(() => expect(first.mock.calls).toEqual([[true]]));
 });
 
+test("reads the main window's remembered conversation of the playing canvas through its own channel", async () => {
+  mocks.invoke.mockClear();
+  mocks.invoke.mockResolvedValueOnce("0a1b2c3d-0000-4000-8000-000000000001");
+  expect(await api.rememberedConversation()).toBe("0a1b2c3d-0000-4000-8000-000000000001");
+  expect(mocks.invoke.mock.calls).toEqual([["prototype:rememberedConversation"]]);
+});
+
+test("has no conversationForCanvas, which main no longer answers", () => {
+  expect(api).not.toHaveProperty("conversationForCanvas");
+});
+
 // The panel's body runs on either preload: the calls it shares with the main window keep their names, signatures,
 // channels and payloads, so the renderer passes either one as its calls object.
 const canvas = { id: "proto", path: ".doan/canvases/proto.html" };
 const SHARED_CALLS: [SharedWithMain, (api: Pick<DoanApi, SharedWithMain>) => Promise<unknown>][] = [
   ["conversationResumeTarget", a => a.conversationResumeTarget({ root: "/r", canvas })],
-  ["conversationForCanvas", a => a.conversationForCanvas({ root: "/r", canvas })],
+  ["deleteConversation", a => a.deleteConversation({ conversationId: "c" })],
   ["startConversation", a => a.startConversation({ root: "/r", mode: "new", runtime: "claude", canvas, text: "hi", attachments: [{ id: "a" }] })],
   ["sendConversation", a => a.sendConversation({ conversationId: "c", text: "{{1}} x", anchors: [{ frame: { id: "f" } }], model: "opus" })],
   ["scheduledMessages", a => a.scheduledMessages({ conversationId: "c" })],
@@ -182,7 +194,7 @@ test("the calls shared with the main window go to the same channels with the sam
   expect(fromPrototype).toEqual(fromMain);
   expect(fromPrototype.length).toBe(SHARED_CALLS.length);
   // Nothing the panel calls goes to a channel main closes to this window.
-  for (const [channel] of fromPrototype) expect(["conversation:delete", "attachments:capture", "agent-auth:read", "preferences:read", "work:get"]).not.toContain(channel);
+  for (const [channel] of fromPrototype) expect(["attachments:capture", "agent-auth:read", "preferences:read", "work:get"]).not.toContain(channel);
 });
 
 // Main answers this window's list only for the canvas the request names, so a view that trails main's play is told so
@@ -211,8 +223,8 @@ test("a dropped item's path, null for a file the page made", () => {
   expect(api.droppedPath({} as File)).toBeNull();
 });
 
-test("the panel never reaches the main window's delete, capture, full account or settings reads", () => {
-  for (const name of ["deleteConversation", "captureCanvas", "readAgentAuth", "readPreferences", "writePreferences", "selectCanvas"]) expect(api, name).not.toHaveProperty(name);
+test("the panel never reaches the main window's capture, full account or settings reads", () => {
+  for (const name of ["captureCanvas", "readAgentAuth", "readPreferences", "writePreferences", "selectCanvas"]) expect(api, name).not.toHaveProperty(name);
 });
 
 // The narrow reads: provider readiness without the account's email, the terminal work of the canvas's session, and

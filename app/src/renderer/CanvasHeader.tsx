@@ -10,7 +10,7 @@ import { menuCloseFocus, menuCloseNow } from "./canvasFocus";
 import { zoomControlView, type ZoomControlView } from "./zoomControl";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
-import type { OpenBadge } from "./rightPanelOpen";
+import type { CanvasSignal } from "./rightPanelOpen";
 
 // The canvas page's header above the board: canvas / frame drawer on the left,
 // the zoom controller and Reload on the right. It reuses the Overview header box (.ov-head), so the two headers line up.
@@ -21,7 +21,7 @@ import type { OpenBadge } from "./rightPanelOpen";
 // `view`: the zoom and current frame, which change without an App render; `state` may hold older ones.
 export function CanvasHeader({ state, view, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel }: {
   state: CanvasState; view: CanvasViewStore; canvasKey?: string | null; command(name: ViewCommand): void; zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
-  fallbackFocus?: () => void; panel?: { open: boolean; show(): void; badge?: OpenBadge | null };
+  fallbackFocus?: () => void; panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null };
 }) {
   const shown = useSyncExternalStore(view.subscribe, view.get, view.get);
   const board = { layout: state.layout, currentFrame: shown.currentFrame, status: state.status, unlisted: state.unlisted };
@@ -36,7 +36,9 @@ export function CanvasHeader({ state, view, canvasKey = null, command, zoomTo, s
       <IconTip label="Reload canvas ⌘R"><button type="button" className="doan-icon-button" aria-label="Reload canvas" disabled={!state.open} onClick={() => command("reload")}><RotateCw aria-hidden="true" /></button></IconTip>
       {panel && !panel.open && <><span className="doan-canvas-head-sep" aria-hidden="true" />
         <IconTip label="Show conversation"><button type="button" className="doan-icon-button doan-panel-show" aria-label={panel.badge?.label ?? "Show conversation"} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}
-          data-badge={panel.badge ? (panel.badge.kind === "unseen" ? "unseen" : "true") : undefined} onClick={panel.show}><PanelRightOpen aria-hidden="true" />{panel.badge?.kind === "unseen" && <span className="badge-bubble" aria-hidden="true"><MessageCircle /></span>}</button></IconTip></>}
+          data-badge={panel.badge ? (panel.badge.kind === "permission" ? "true" : panel.badge.kind) : undefined} onClick={panel.show}><PanelRightOpen aria-hidden="true" />{panel.badge?.kind === "unseen" && <span className="badge-bubble" aria-hidden="true"><MessageCircle /></span>}
+          {/* The prototype window's working spinner, reused (draft canvas-concurrent-conversations frame badge). */}
+          {panel.badge?.kind === "working" && <span className="badge-working" aria-hidden="true"><span className="doan-spinner" /></span>}</button></IconTip></>}
     </div>
   </header>;
 }
