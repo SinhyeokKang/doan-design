@@ -1977,7 +1977,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The pick's start: the composer field it will put the chip in, where focus was, and whether focus may go back.
   // `pressed`: the pick ends because the person pressed a control (the Picker, Pick, ⌘L, Select or Hand), which keeps
   // focus where that press left it.
-  const pickIntent = useRef<{ field: HTMLElement | null; from: Element | null; focus: FocusIntent; pressed?: boolean } | null>(null);
+  // `bubble`: the pick started from a size bubble button, which the pick's clear of the selection takes away.
+  const pickIntent = useRef<{ field: HTMLElement | null; from: Element | null; focus: FocusIntent; pressed?: boolean; bubble: boolean } | null>(null);
   // The shown composer's field, which the panel's composer registers (DockedFieldLink).
   const composerLink = useRef<DockedFieldLink | null>(null);
   const togglePick = () => {
@@ -1986,14 +1987,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (picking) { pressedCancel(); instance.cancelPick(); return; }
     if (!pickerReady) return;
     const from = document.activeElement, field = composerLink.current?.element() ?? null;
-    // The pick clears the selection, so a bubble button it starts from (⌘L) is about to go: the field takes focus first,
-    // where a cancel leaves it, so focus never falls to the page body.
-    if (from !== null && (from === bubbleAddButton.current || from === instance.bubblePlayButton())) composerLink.current?.focus();
+    const bubble = from !== null && (from === bubbleAddButton.current || from === instance.bubblePlayButton());
     // The picker, the page, the canvas and the field itself are where a pick leaves focus; anything else ends it.
     const focus = new FocusIntent(target => !target || target === from || target === document.body || target === field
       || (target instanceof Node && !!viewport.current?.contains(target)));
     pickIntent.current?.focus.end();
-    pickIntent.current = { field, from, focus };
+    pickIntent.current = { field, from, focus, bubble };
     if (!instance.pick()) { focus.end(); pickIntent.current = null; }
   };
   const pressedCancel = () => { if (pickIntent.current) pickIntent.current.pressed = true; };
@@ -2048,8 +2047,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       // A cancel by a press leaves focus on what was pressed. Esc and the other cancels go back to where focus was
       // before the pick, or the field when that was the page itself (spec 3: never the page body), but only from where
       // the pick left focus: focus the person moved meanwhile, such as into the field, stays.
+      if (!returns || intent.pressed) return;
+      // A pick from a size bubble button cleared the selection and took the button with it (Add to message hidden, Play
+      // removed), so focus waited on the toolbar where the bubble handed it: the field is where it goes back to. The
+      // cancel comes after the commit that unfolded a folded panel, so the field takes focus.
+      if (intent.bubble) { link.focus(); return; }
       const left = !active || active === document.body || active === intent.from || (active instanceof Node && !!viewport.current?.contains(active));
-      if (!returns || intent.pressed || !left) return;
+      if (!left) return;
       const from = intent.from;
       if (from instanceof HTMLElement && from !== document.body && from.isConnected) from.focus({ preventScroll: true });
       else link.focus();

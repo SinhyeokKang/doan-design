@@ -429,6 +429,7 @@ export class CanvasController {
   };
 
   dispose(): void {
+    this.dropBubbleReturn();
     clearTimeout(this.workSlideTimer);
     clearTimeout(this.followTimer);
     this.pickListener = null;
@@ -613,8 +614,9 @@ export class CanvasController {
   // to message. The host is never moved or rebuilt, so a focused Add to message stays the same element.
   private bubble: { play: HTMLButtonElement | null; label: HTMLElement; host: HTMLElement; playShown: boolean } | null = null;
   // A reload hid the bubble while one of its buttons had focus, and App's onFocusLost put focus on `holder`: once the
-  // selection is found again, focus comes back to the same button if it is still there.
-  private bubbleReturn: { button: "play" | "add"; holder: Element | null } | null = null;
+  // selection is found again, focus comes back to the same button if it never left the holder meanwhile. Any focus move
+  // elsewhere ends the wait for good, even one that comes back to the holder (ARCHITECTURE §3, as `FocusIntent`).
+  private bubbleReturn: { button: "play" | "add"; holder: Element | null; moved: (event: FocusEvent) => void } | null = null;
   // The bubble's Play while it is on screen, for focus to come back to when the prototype window closes.
   bubblePlayButton(): HTMLButtonElement | null { return this.bubble?.playShown ? this.bubble.play : null; }
   currentView(): View { return { ...this.view }; }
@@ -2164,18 +2166,31 @@ export class CanvasController {
     const bubble = this.bubble!;
     if (!shown) {
       // Gone for good (not a reload's wait): nothing to come back to.
-      if (had === null) { if (this.reanchor === null) this.bubbleReturn = null; return; }
+      if (had === null) { if (this.reanchor === null) this.dropBubbleReturn(); return; }
       (had === "play" ? this.bubblePlay : this.bubbleAdd)?.onFocusLost();
+      this.dropBubbleReturn();
       // Hidden while a reload looks for the same selection: focus may come back to this button.
-      this.bubbleReturn = this.reanchor !== null ? { button: had, holder: document.activeElement } : null;
+      if (this.reanchor !== null) this.awaitBubbleReturn(had, document.activeElement);
       return;
     }
     if (had === "play" && !bubble.playShown) this.bubbleAdd?.button()?.focus({ preventScroll: true });
     const back = this.reanchor === null ? this.bubbleReturn : null;
     if (back === null) return;
-    this.bubbleReturn = null;
+    this.dropBubbleReturn();
     if (document.activeElement !== back.holder) return;
     (back.button === "play" && bubble.playShown ? bubble.play : this.bubbleAdd?.button())?.focus({ preventScroll: true });
+  }
+
+  private awaitBubbleReturn(button: "play" | "add", holder: Element | null): void {
+    const moved = (event: FocusEvent) => { if (event.target !== holder) this.dropBubbleReturn(); };
+    window.addEventListener("focusin", moved, true);
+    this.bubbleReturn = { button, holder, moved };
+  }
+
+  private dropBubbleReturn(): void {
+    if (this.bubbleReturn === null) return;
+    window.removeEventListener("focusin", this.bubbleReturn.moved, true);
+    this.bubbleReturn = null;
   }
 
   private makeBubble(size: HTMLElement): NonNullable<CanvasController["bubble"]> {
