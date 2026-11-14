@@ -171,28 +171,38 @@ describe("deleteFocus", () => {
   });
 });
 
-// POSTMORTEM 2026-11-06: a line that moves under the pointer turns a second press into a different pick.
+// POSTMORTEM 2026-11-06: a line that moves under the pointer turns a second press into a different pick. Spec 정한 점 10
+// holds the list only when it was shown unfolded and the pointer pressed a canvas row below it.
 describe("listPlace", () => {
   const order = ["/w/a", `${ROOT}\n${A.path}`, `${ROOT}\n${B.path}`, `${ROOT}\n${PLAIN.path}`];
   const a = order[1]!, b = order[2]!, plain = order[3]!;
 
-  test("with the pointer outside the sidebar the list sits under the viewed canvas", () => {
-    expect(listPlace(a, b, order, false)).toBe(b);
-    expect(listPlace(null, a, order, false)).toBe(a);
-    expect(listPlace(a, null, order, false)).toBeNull();
+  test("with no press in the sidebar the list follows the viewed canvas", () => {
+    expect(listPlace(a, b, order, null)).toBe(b);
+    expect(listPlace(null, a, order, null)).toBe(a);
+    expect(listPlace(a, null, order, null)).toBeNull();
   });
 
-  test("after a press on a canvas row below, the list stays where it was while the pointer is in the sidebar", () => {
-    expect(listPlace(a, b, order, true)).toBe(a);
-    expect(listPlace(a, plain, order, true)).toBe(a);
+  test("after a press on a canvas row below a shown list, the list stays where it was", () => {
+    expect(listPlace(a, b, order, b)).toBe(a);
+    expect(listPlace(a, plain, order, plain)).toBe(a);
+  });
+
+  test("with no list shown (folded, or fewer than two conversations) a press below follows at once", () => {
+    expect(listPlace(null, b, order, b)).toBe(b);
+  });
+
+  test("a viewed canvas the pointer did not press (keyboard, Back, a pointer only resting) follows at once", () => {
+    expect(listPlace(a, b, order, null)).toBe(b);
+    expect(listPlace(a, b, order, plain)).toBe(b);
   });
 
   test("a row above, or leaving the canvas page, moves nothing under the pointer, so the list follows at once", () => {
-    expect(listPlace(b, a, order, true)).toBe(a);
-    expect(listPlace(b, null, order, true)).toBeNull();
+    expect(listPlace(b, a, order, a)).toBe(a);
+    expect(listPlace(b, null, order, null)).toBeNull();
   });
 
   test("a held place whose row left the tree gives way", () => {
-    expect(listPlace(a, b, order.filter(key => key !== a), true)).toBe(b);
+    expect(listPlace(a, b, order.filter(key => key !== a), b)).toBe(b);
   });
 });

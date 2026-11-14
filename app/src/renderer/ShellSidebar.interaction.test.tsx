@@ -776,11 +776,13 @@ describe("the viewed canvas's conversation list", () => {
   });
 
   describe("held order and place", () => {
+    const openSpy = vi.fn();
+    beforeEach(() => openSpy.mockClear());
     const render = (props: ReturnType<typeof conversations>, canvas = CHECKOUT) => {
       hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0;
       const { props: base } = fixture();
       base.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: [{ path: CHECKOUT, url: "c" }, { path: PRICING, url: "p" }] };
-      return elements(ShellSidebar({ ...base, canvas, conversations: props } as never));
+      return elements(ShellSidebar({ ...base, open: openSpy, canvas, conversations: props } as never));
     };
     const titles = (rendered: Record<string, unknown>[]) => rendered.filter(item => item.className === "shell-conv-row row").map(item => item["aria-label"]);
     const group = (rendered: Record<string, unknown>[]) => rendered.find(item => item.className === "shell-conv-list")!;
@@ -813,22 +815,128 @@ describe("the viewed canvas's conversation list", () => {
       expect(titles(rendered)).toEqual(["Title c3", "Title c1", "Title c2"]);
     });
 
+    const canvasRowOf = (rendered: Record<string, unknown>[], name: string) => rendered.find(item => item.role === "treeitem" && item["aria-label"] === name)!;
+    const press = (rendered: Record<string, unknown>[], name: string) => (canvasRowOf(rendered, name).onClick as () => void)();
+    const treeLabels = (rendered: Record<string, unknown>[]) => rendered.filter(item => item.role === "treeitem").map(item => item["aria-label"]);
+    const both = (props: ReturnType<typeof conversations>, checkout: number) => props.setList([
+      ...[conversation("c1", 1), conversation("c2", 5)].slice(0, checkout),
+      conversation("b1", 1, { canvas: { path: PRICING } }), conversation("b2", 2, { canvas: { path: PRICING } })]);
+
     it("after a press on a canvas row below, the list stays under the previous canvas until the pointer leaves the sidebar", () => {
       hooks.stable = true;
       const props = conversations();
-      props.setList([conversation("c1", 1), conversation("c2", 5), conversation("b1", 1, { canvas: { path: PRICING } }), conversation("b2", 2, { canvas: { path: PRICING } })]);
+      both(props, 2);
       let rendered = render(props);
       expect(titles(rendered)).toEqual(["Title c1", "Title c2"]);
       (aside(rendered).onPointerEnter as () => void)();
+      rendered = render(props);
+      press(rendered, "pricing");
       rendered = render(props, PRICING);
       expect(titles(rendered)).toEqual(["Title c1", "Title c2"]);
-      const keys = rendered.filter(item => item.role === "treeitem").map(item => item["aria-label"]);
+      const keys = treeLabels(rendered);
       expect(keys.indexOf("Title c1")).toBe(keys.indexOf("checkout") + 1);
       (aside(rendered).onPointerLeave as () => void)();
       rendered = render(props, PRICING);
       expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
-      const moved = rendered.filter(item => item.role === "treeitem").map(item => item["aria-label"]);
+      const moved = treeLabels(rendered);
       expect(moved.indexOf("Title b1")).toBe(moved.indexOf("pricing") + 1);
+    });
+
+    // Review R2: App decides a canvas row press from what that row shows, so the sidebar says whether its list shows there.
+    it("a canvas row press tells App whether that row's list shows: the held row yes, the viewed row below it no", () => {
+      hooks.stable = true;
+      const props = conversations();
+      both(props, 2);
+      let rendered = render(props);
+      press(rendered, "checkout");
+      (aside(rendered).onPointerEnter as () => void)();
+      rendered = render(props);
+      press(rendered, "pricing");
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title c1", "Title c2"]);
+      press(rendered, "pricing");
+      press(rendered, "checkout");
+      const target = {};
+      (canvasRowOf(rendered, "checkout").onKeyDown as (event: unknown) => void)({ key: "Enter", target, currentTarget: target, preventDefault: () => {}, metaKey: false, ctrlKey: false, altKey: false });
+      const calls = openSpy.mock.calls.map(call => [(call[1] as { path: string }).path, call[2]]);
+      expect(calls).toEqual([[CHECKOUT, true], [PRICING, undefined], [PRICING, undefined], [CHECKOUT, true], [CHECKOUT, true]]);
+    });
+
+    // Review R3: a list replaced by another canvas's sends no blur or pointerleave, so its hold must not pass to the new one.
+    it.each([["focus", "onFocus"], ["pointer", "onPointerEnter"]])("a hold by %s in one canvas's list does not freeze the next canvas's list", (_name, handler) => {
+      hooks.stable = true;
+      const props = conversations();
+      both(props, 2);
+      let rendered = render(props);
+      (group(rendered)[handler] as () => void)();
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
+      props.setList([conversation("c1", 1), conversation("c2", 5), conversation("b1", 3, { canvas: { path: PRICING } }), conversation("b2", 0, { canvas: { path: PRICING } })]);
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title b2", "Title b1"]);
+    });
+
+    it("a hold entered in the new list freezes it", () => {
+      hooks.stable = true;
+      const props = conversations();
+      both(props, 2);
+      let rendered = render(props, PRICING);
+      (group(rendered).onFocus as () => void)();
+      rendered = render(props, PRICING);
+      props.setList([conversation("c1", 1), conversation("c2", 5), conversation("b1", 3, { canvas: { path: PRICING } }), conversation("b2", 0, { canvas: { path: PRICING } })]);
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
+    });
+
+    it("a press below from a canvas with one conversation shows the new list at once", () => {
+      hooks.stable = true;
+      const props = conversations();
+      both(props, 1);
+      let rendered = render(props);
+      expect(titles(rendered)).toEqual([]);
+      (aside(rendered).onPointerEnter as () => void)();
+      rendered = render(props);
+      press(rendered, "pricing");
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
+      expect(canvasRowOf(rendered, "pricing")["aria-expanded"]).toBe(true);
+    });
+
+    it("a press below while the list is folded moves the chevron to the new canvas at once", () => {
+      hooks.stable = true;
+      const props = conversations({ folded: true });
+      both(props, 2);
+      let rendered = render(props);
+      expect(canvasRowOf(rendered, "checkout")["aria-expanded"]).toBe(false);
+      (aside(rendered).onPointerEnter as () => void)();
+      rendered = render(props);
+      press(rendered, "pricing");
+      rendered = render(props, PRICING);
+      expect(canvasRowOf(rendered, "pricing")["aria-expanded"]).toBe(false);
+      expect(canvasRowOf(rendered, "checkout")["aria-expanded"]).toBeUndefined();
+    });
+
+    it("a keyboard move to a canvas below follows at once, even with the pointer resting in the sidebar", () => {
+      hooks.stable = true;
+      const props = conversations();
+      both(props, 2);
+      let rendered = render(props);
+      (aside(rendered).onPointerEnter as () => void)();
+      rendered = render(props);
+      const target = {};
+      (canvasRowOf(rendered, "pricing").onKeyDown as (event: unknown) => void)({ key: "Enter", target, currentTarget: target, preventDefault: () => {}, metaKey: false, ctrlKey: false, altKey: false });
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
+    });
+
+    it("a viewed canvas that changes with no press (Back, a link) follows at once while the pointer rests in the sidebar", () => {
+      hooks.stable = true;
+      const props = conversations();
+      both(props, 2);
+      let rendered = render(props);
+      (aside(rendered).onPointerEnter as () => void)();
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
     });
   });
 });

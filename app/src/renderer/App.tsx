@@ -105,7 +105,6 @@ import { KeyedConversationStrip } from "./ConversationStripView";
 import { stripView } from "./conversationStrip";
 import { slotKey } from "./homeConversations";
 import { withTerminalSlots } from "./conversationList";
-import { viewedCanvasConversations } from "./sidebarConversations";
 import { readStateToast, shownIntent, sidebarSlots } from "./canvasNotice";
 import { HomeRun } from "./homeRun";
 import { SettingsPage, type SettingsArrival } from "./SettingsPage";
@@ -793,22 +792,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // answer or has an unseen ending shows that slot's conversation; working or no mark keeps the panel as is, and the
   // panel picks by its shared rule (pickShownConversation). The slot is the one the row shows, so a terminal spinner over
   // an unseen ending keeps the panel.
-  // While the viewed canvas's conversation list shows under its row, the row carries no conversation signal, so its
-  // press keeps the panel as an empty slot would.
-  function openSidebarCanvas(root: string, row: CanvasRow, cursor?: number) {
-    const slot = sidebarListShown(root, row.path) ? null : shownSlots().get(canvasSlotKey(root, row.path)) ?? null;
+  // `listed`: the sidebar shows the canvas's conversation list under this row, so the row carries no conversation
+  // signal and its press keeps the panel as an empty slot would.
+  function openSidebarCanvas(root: string, row: CanvasRow, cursor?: number, listed = false) {
+    const slot = listed ? null : shownSlots().get(canvasSlotKey(root, row.path)) ?? null;
     const open = panelOpenFor({ kind: "sidebarRow" }, slot?.kind ?? null);
     const list = homeRun.current.listState(root);
     const target = { path: row.path, ...(row.id ? { id: row.id } : {}) };
     const requested = open.open === true && Array.isArray(list) ? sidebarRowRequest(list, target, slot?.kind ?? null, homeRun.current.seenPending()) : null;
     if (requested) openCanvasConversation(root, row, requested, { kind: "sidebarRow" }, slot?.kind ?? null);
     else openShellCanvas(root, row, cursor);
-  }
-  function sidebarListShown(root: string, path: string): boolean {
-    if (conversationsFolded || shownCanvas?.root !== root || shownCanvas.path !== path) return false;
-    const listed = entriesRef.current.find(entry => entry.path === root);
-    const rows = listed?.kind === "list" ? listed.canvases : [];
-    return viewedCanvasConversations(homeRun.current.listState(root), root, path, rows, homeRun.current.seenPending(), Date.now()).length > 0;
   }
   // A sidebar conversation row: the panel shows that conversation and unfolds, focusing its waiting request, else the
   // composer, as a notification's Open does (PRODUCT §5 item 2 'Opening'). On the canvas already shown it adds no visit.
@@ -2332,7 +2325,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const shellSlots = sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas);
   const sidebarId = (home: boolean) => home ? "doan-page-sidebar" : "doan-workspace-sidebar";
-  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
+  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={(root, row, listed) => openSidebarCanvas(root, row, undefined, listed)} overview={showShellOverview} action={action} remove={remove}
     projectSettings={root => openProjectSettings(root)}
     canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash }}
     home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection, mcp: mcpShown !== false } } : {})}

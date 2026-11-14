@@ -43,7 +43,9 @@ interface Props {
   // Opens or closes a project's group; allowed while the page is locked, as project disclosure is.
   toggleGroup(key: string, group: GroupId): void;
   worktree(root: string): void;
-  open(root: string, row: CanvasRow): void;
+  // `listed`: the row's conversation list shows under it, so the row carries no conversation signal and its press must
+  // act as an empty slot's. Only the sidebar knows where the list shows (it can hold it under a previous canvas).
+  open(root: string, row: CanvasRow, listed?: boolean): void;
   overview(root: string): void;
   action(action: RowAction, root: string): void;
   remove(roots: string[]): Promise<void>;
@@ -229,9 +231,12 @@ export function ShellSidebar(props: Props) {
   // The conversation list's place and order. While the pointer or focus is in the list its rows hold their order; after a
   // press on a canvas row below, the list holds its place until the pointer leaves the sidebar (POSTMORTEM 2026-11-06).
   const [sidebarPointer, setSidebarPointer] = useState(false);
-  const [listPointer, setListPointer] = useState(false);
-  const [listFocus, setListFocus] = useState(false);
+  // Each hold names the canvas row whose list the pointer or focus is in, so it never passes to another canvas's list.
+  const [listPointer, setListPointer] = useState<string | null>(null);
+  const [listFocus, setListFocus] = useState<string | null>(null);
+  // Where an unfolded list showed last, and the canvas row the pointer pressed while it stays in the sidebar.
   const placed = useRef<string | null>(null);
+  const pressedRow = useRef<string | null>(null);
   const drawn = useRef<string[] | null>(null);
   const rows: { key: string; parent?: string; canvas?: boolean; conversation?: boolean; name: string; activate(): void; right(): void; left(): void }[] = [];
   // Each listed canvas row on screen, for the conversation list placed under one of them.
@@ -308,25 +313,29 @@ export function ShellSidebar(props: Props) {
           else if (action === "firstConversation") focus(listFirst);
           else if (action === "head") focus(head);
         };
-        rows.push({ key, parent: head, canvas: true, name: row.path.split("/").at(-1)!.replace(/\.html$/, ""), activate: () => props.open(entry!.path, row), right: () => step("ArrowRight"), left: () => step("ArrowLeft") });
+        rows.push({ key, parent: head, canvas: true, name: row.path.split("/").at(-1)!.replace(/\.html$/, ""), activate: () => openCanvasRow(entry!.path, row, key), right: () => step("ArrowRight"), left: () => step("ArrowLeft") });
       }
     }
   }
   const conversations = props.conversations;
   const viewedKey = conversations && !props.home && !props.unlisted && loaded && canvas !== undefined && canvasRows.has(`${loaded}\n${canvas}`) ? `${loaded}\n${canvas}` : null;
-  const at = conversations ? listPlace(placed.current, viewedKey, rows.map(row => row.key), sidebarPointer) : null;
-  placed.current = at;
+  const at = conversations ? listPlace(placed.current, viewedKey, rows.map(row => row.key), sidebarPointer ? pressedRow.current : null) : null;
   const placedRow = at === null ? undefined : canvasRows.get(at);
-  const holding = listPointer || listFocus;
+  const holding = at !== null && (listPointer === at || listFocus === at);
   const listItems: SidebarConversation[] = conversations && placedRow
     ? viewedCanvasConversations(conversations.list(placedRow.root), placedRow.root, placedRow.row.path, placedRow.canvases, conversations.seen, conversations.now, holding ? drawn.current : null) : [];
   drawn.current = listItems.length ? listItems.map(c => c.conversationId) : null;
   if (at !== null && canvasDisclosure(true, listItems.length)) listAt = at;
   const listShown = listAt !== null && !conversations?.folded;
-  // A list that left (folded, emptied, moved off the canvas) takes no pointerleave or blur with it.
-  if (!listShown && (listPointer || listFocus)) { setListPointer(false); setListFocus(false); }
+  placed.current = listShown ? listAt : null;
+  // A list that left (folded, emptied, moved to another canvas) takes no pointerleave or blur with it.
+  const owner = listShown ? listAt : null;
+  if (listPointer !== null && listPointer !== owner) setListPointer(null);
+  if (listFocus !== null && listFocus !== owner) setListFocus(null);
   const conversationKeys = placedRow && listShown ? listItems.map(c => conversationRowKey(placedRow.root, placedRow.row.path, c.conversationId)) : [];
   listFirst = conversationKeys[0];
+  // Read at press time, when the list's place is settled; `listed` goes only to a row whose list shows.
+  function openCanvasRow(root: string, row: CanvasRow, key: string) { if (key === listAt && listShown) props.open(root, row, true); else props.open(root, row); }
   const openConversation = (c: SidebarConversation) => { if (!props.locked && placedRow) conversations?.open(placedRow.root, placedRow.row, c.conversationId); };
   if (listAt !== null && conversationKeys.length) {
     const canvasKey = listAt;
@@ -394,7 +403,7 @@ export function ShellSidebar(props: Props) {
       {reason && <span className="sr-only" id={reasonId}>{reason}</span>}
     </div>;
   };
-  return withHandle(<aside className="side shell-side" id={props.id} ref={host} aria-label="Projects" onPointerEnter={() => setSidebarPointer(true)} onPointerLeave={() => setSidebarPointer(false)}>
+  return withHandle(<aside className="side shell-side" id={props.id} ref={host} aria-label="Projects" onPointerEnter={() => setSidebarPointer(true)} onPointerLeave={() => { pressedRow.current = null; setSidebarPointer(false); }}>
     <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
     <button type="button" className="shell-home-row row" aria-current={props.homeCurrent ? "page" : undefined} aria-disabled={locked} onClick={() => props.goHome?.()}><House aria-hidden="true" /><span>Home</span></button>
     <div className="shell-projects doan-scroll">
@@ -466,7 +475,7 @@ export function ShellSidebar(props: Props) {
                   // the list's rows carry. The chevron never takes focus, so it cannot drop it to the page when it goes.
                   const here = key === listAt, folded = !!conversations?.folded;
                   const slot = here && conversations ? canvasRowMark(props.slots ?? new Map(), conversations.bare, key, !folded) : props.slots?.get(slotKey(entry.path, row.path));
-                  return <Fragment key={key}><div><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem ? descriptionId : undefined} aria-label={name} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} aria-expanded={here ? !folded : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}>
+                  return <Fragment key={key}><div><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem ? descriptionId : undefined} aria-label={name} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} aria-expanded={here ? !folded : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => { pressedRow.current = key; openCanvasRow(entry.path, row, key); }}>
                     {here ? <span className="shell-lead canvas-lead"><Icon className="canvas-icon" aria-hidden="true" /><button type="button" className="shell-disclosure" aria-label={`${folded ? "Expand" : "Collapse"} ${name}`} tabIndex={-1}
                       onMouseDown={event => event.preventDefault()} onClick={event => { event.stopPropagation(); conversations?.fold(!folded); }}><ChevronDown aria-hidden="true" /></button></span> : <Icon aria-hidden="true" />}
                     <span>{name}</span><SlotMark slot={slot} />
@@ -475,8 +484,8 @@ export function ShellSidebar(props: Props) {
                       current: () => { const listed = live.current.cards.flatMap(item => item.rows).find(item => item.path === entry.path); return listed?.kind === "list" ? listed.canvases.find(item => item.path === row.path) : undefined; },
                       lostFocus: () => focus(canvasMenuFocus.current) })}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre className="selectable">{detail}</pre>}</>}</ErrorDetails></div>}</div>
                     {/* The list is the canvas row's sibling, so the row's own focus rules and press never reach it. */}
-                    {here && listShown && <div role="group" className="shell-conv-list" aria-label="Conversations" onPointerEnter={() => setListPointer(true)} onPointerLeave={() => setListPointer(false)}
-                      onFocus={() => setListFocus(true)} onBlur={event => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget)) setListFocus(false); }}>{listItems.map(conversationRow)}</div>}
+                    {here && listShown && <div role="group" className="shell-conv-list" aria-label="Conversations" onPointerEnter={() => setListPointer(key)} onPointerLeave={() => setListPointer(null)}
+                      onFocus={() => setListFocus(key)} onBlur={event => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget)) setListFocus(null); }}>{listItems.map(conversationRow)}</div>}
                   </Fragment>;
                 }) : <p className="shell-empty">{group.empty}</p>}</div>}
               </div>;

@@ -482,7 +482,7 @@ test("a Canvas conversations deletion whose next row also left sends focus to th
 // sidebar-canvas-conversations: the viewed canvas's conversation rows in the sidebar.
 type SidebarTarget = { conversationId: string; root: string; title: string; provider: string; from: "sidebar"; after: string; canvasRow: string };
 type SidebarConversations = { shown: string | null; folded: boolean; fold(folded: boolean): void; open(root: string, row: CanvasRow, conversationId: string): void; remove(target: SidebarTarget, trash: unknown): void };
-const sidebarConversations = () => find<{ conversations: SidebarConversations; open(root: string, row: CanvasRow): void }>(ShellSidebar)[0]!.props;
+const sidebarConversations = () => find<{ conversations: SidebarConversations; open(root: string, row: CanvasRow, listed?: boolean): void }>(ShellSidebar)[0]!.props;
 const ROW_KEY = `/w/a\n${rowA.path}`;
 const conversationKey = (conversationId: string) => `${ROW_KEY}\n${conversationId}`;
 const treeItem = (key: string) => `.shell-side [role="treeitem"][data-key="${key}"]`;
@@ -578,14 +578,22 @@ test("a conversation row unfolds the panel on that conversation without a move, 
   expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
 });
 
+// The sidebar says whether the pressed row's list shows (review R2): App follows what the row shows, not its own guess.
 test("with the list unfolded the viewed canvas row's press keeps the panel; folded, its slot opens the conversation it stands for", async () => {
   await openCanvasFolded([onCanvas("c1", { lastActivityAt: "2026-11-01T00:02:00.000Z" }), onCanvas("c2", { unseen: true })]);
-  sidebarConversations().open("/w/a", rowA); render(); await flushAll();
+  sidebarConversations().open("/w/a", rowA, true); render(); await flushAll();
   expect(panelOpen()).toBe(false);
   expect(sidebarConversations().conversations.shown).toBe("c1");
   sidebarConversations().conversations.fold(true); render();
   sidebarConversations().open("/w/a", rowA); render(); await flushAll();
   // A conversation started in the canvas panel answers the row's slot (sidebarRowRequest's scope is the slot's).
+  expect(panelOpen()).toBe(true);
+  expect(sidebarConversations().conversations.shown).toBe("c2");
+});
+
+test("a canvas row whose list shows elsewhere (held above it) uses its own slot, though it is the viewed canvas", async () => {
+  await openCanvasFolded([onCanvas("c1", { lastActivityAt: "2026-11-01T00:02:00.000Z" }), onCanvas("c2", { unseen: true })]);
+  sidebarConversations().open("/w/a", rowA, false); render(); await flushAll();
   expect(panelOpen()).toBe(true);
   expect(sidebarConversations().conversations.shown).toBe("c2");
 });

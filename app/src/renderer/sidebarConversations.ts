@@ -73,11 +73,13 @@ export function deleteFocus(rowKeys: readonly string[], lost: string, canvasRow:
   return rowKeys[index + 1] ?? rowKeys[index - 1] ?? canvasRow;
 }
 
-// The canvas row the list sits under. A press on a canvas row below would move that row up by the list's height under
-// the pointer (POSTMORTEM 2026-11-06), so the list stays where it was until the pointer leaves the sidebar. A row
-// above moves nothing under the pointer; `order` is the tree's keys, and a held row that left it gives way.
-export function listPlace(previous: string | null, next: string | null, order: readonly string[], pointerInside: boolean): string | null {
-  if (!pointerInside || previous === null || next === null || previous === next) return next;
-  const was = order.indexOf(previous), now = order.indexOf(next);
-  return was >= 0 && now > was ? previous : next;
+// The canvas row the list sits under. A press on a canvas row below an unfolded list would move that row up by the
+// list's height under the pointer (POSTMORTEM 2026-11-06), so the list stays where it was until the pointer leaves the
+// sidebar. `shownAt`: where an unfolded list showed (null when folded or with fewer than two conversations, which moves
+// nothing); `pressed`: the canvas row the pointer pressed while it is still in the sidebar. A keyboard move, Back or a
+// row above moves nothing under the pointer; `order` is the tree's keys, and a held row that left it gives way.
+export function listPlace(shownAt: string | null, next: string | null, order: readonly string[], pressed: string | null): string | null {
+  if (shownAt === null || next === null || shownAt === next || pressed !== next) return next;
+  const was = order.indexOf(shownAt), now = order.indexOf(next);
+  return was >= 0 && now > was ? shownAt : next;
 }
