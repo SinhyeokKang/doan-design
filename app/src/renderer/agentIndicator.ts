@@ -1,10 +1,8 @@
 import type { ConversationSummary } from "../main/conversation/summary";
-import type { ConversationError } from "../main/conversation/ipc";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { ConversationWork } from "../main/conversationWork";
-import { PROVIDER_NAMES } from "./agentAuthView";
 import { boardPresence, type AgentPresence, type BoardPresence } from "./agentPresence";
 import type { CanvasState, CanvasWorkTarget } from "./CanvasController";
 import type { CanvasFrameRect, LayoutMessage } from "./canvasMessage";
@@ -14,7 +12,7 @@ import { followTurnKey } from "./workFollow";
 // The agent indicator on the board.
 
 // The canvas the indicator reads, with its project root: the open canvas while its project is a listed one and the page
-// is a listed canvas. Loading, failed and no-width canvases count (Stop is needed while the HTML is broken); an unlisted
+// is a listed canvas. Loading, failed and no-width canvases count (the notice still says what works on it while the HTML is broken); an unlisted
 // page or a project problem has none. The root is part of the identity: worktrees of one repository share canvas ids
 // and paths.
 export interface WorkingCanvas { root: string; canvas: Canvas }
@@ -91,14 +89,12 @@ export function workFrameRect(layout: Pick<LayoutMessage, "frames"> | null, id: 
 }
 
 // presence null: no app conversation of this canvas works on it; a terminal session, a project conversation or a
-// conversation bound to another canvas does (`doan work`), so there is nothing to Stop. `title` is the followed
-// conversation's, for the name of a Stop that does not stop the shown conversation.
-export type CanvasAgentState = { root: string; presence: BoardPresence; provider: string; title: string } | { root: string; presence: null; terminal: true };
+// conversation bound to another canvas does (`doan work`).
+export type CanvasAgentState = { root: string; presence: BoardPresence } | { root: string; presence: null; terminal: true };
 
-// boardPresence with the provider's display name, which the Stop failure toast names, and the title. `shown` is the
-// conversation the panel shows, or would show once unfolded. A failed read keeps the previous presence, and with it
-// the provider and title, only within the same project: a twin canvas in another worktree (same id or path) must never
-// show, or Stop, the first project's conversation. Without an app conversation working or waiting on it, a terminal
+// boardPresence for the open canvas. `shown` is the conversation the panel shows, or would show once unfolded. A failed
+// read keeps the previous presence only within the same project: a twin canvas in another worktree (same id or path)
+// must never show the first project's conversation. Without an app conversation working or waiting on it, a terminal
 // session's `doan work` on the canvas (`work`, root + path) shows the terminal variant, so the indicator stays when the
 // app turn ends and the terminal session goes on. Another conversation's `update` naming this canvas (`conversations`)
 // shows the same variant.
@@ -106,11 +102,7 @@ export function canvasAgent(list: readonly ConversationSummary[] | null, target:
   if (!target) return null;
   const kept = previous?.root === target.root && previous.presence ? previous : null;
   const presence = boardPresence({ list, root: target.root, canvas: target.canvas, shown, previous: kept?.presence ?? null });
-  if (presence) {
-    const listed = list?.find(c => c.conversationId === presence.conversationId);
-    const same = kept?.presence.conversationId === presence.conversationId ? kept : null;
-    return { root: target.root, presence, provider: listed ? PROVIDER_NAMES[listed.provider] : same?.provider ?? "", title: listed ? listed.title : same?.title ?? "" };
-  }
+  if (presence) return { root: target.root, presence };
   const on = (item: { root: string; path: string }) => item.root === target.root && item.path === target.canvas.path;
   return work.some(on) || conversations.some(on) ? { root: target.root, presence: null, terminal: true } : null;
 }
@@ -141,44 +133,21 @@ export interface AgentNoticeView {
   status: string;
   // The dot stops while the agent waits for an answer.
   steady: boolean;
-  // null: a terminal session, which the app cannot stop. `stopping`: Stop was pressed and the turn has not ended (its
-  // spinner); `disabled` also covers the short hold after the followed conversation changed.
-  action: { kind: "stop"; label: string; disabled: boolean; stopping: boolean } | { kind: "open"; label: "Open"; name: "Open the request" } | null;
+  // Open while the agent waits for an answer; null while it works. The board has no Stop (user decision): with several
+  // conversations on a canvas a Stop there was ambiguous, so stopping is the composer's, tied to one conversation.
+  action: { kind: "open"; label: "Open"; name: "Open the request" } | null;
 }
 
-// `stopping` is the conversation whose Stop was pressed and whose turn has not ended yet. `terminal`: a terminal session
-// works on the canvas; it shows only without an app presence, with the same words and no button.
+// `terminal`: a terminal session works on the canvas; it shows only without an app presence, with the same words.
 // `content` is the picked work's frame and note, with the frame's title as last found (its id before a layout names it):
 // the note as written, else "Working on <title>", else the fixed words. Waiting overrides it: the person
-// has to act. `stop`: Stop's words (stopName) and whether the hold after a change of the followed conversation runs.
-export function agentNoticeView(presence: AgentPresence | null, stopping: string | null, terminal: boolean, content: { frame?: string; title?: string; note?: string } | null = null, stop: { name: string; held: boolean } = { name: "Stop", held: false }): AgentNoticeView | null {
+// has to act.
+export function agentNoticeView(presence: AgentPresence | null, terminal: boolean, content: { frame?: string; title?: string; note?: string } | null = null): AgentNoticeView | null {
   if (!presence && !terminal) return null;
   // A fixed name, not the provider's (dogfooding): the panel beside the board already says which agent this is.
   if (presence?.kind === "waiting") return { text: "Agent needs your answer", status: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } };
   const name = content?.frame === undefined ? undefined : content.title ?? content.frame;
   const text = content?.note ?? (name === undefined ? "Agent is working" : `Working on ${name}`);
   const status = content?.note !== undefined && name !== undefined ? `${content.note} — ${name}` : text;
-  if (!presence) return { text, status, steady: false, action: null };
-  const held = stopping === presence.conversationId;
-  return { text, status, steady: false, action: { kind: "stop", label: held ? "Stopping" : stop.name, disabled: held || stop.held, stopping: held } };
-}
-
-// "Stopping" lasts until the list shows the turn ended (no presence) or the board follows another conversation.
-export function settleStopping(stopping: string | null, presence: AgentPresence | null): string | null {
-  return stopping !== null && presence?.conversationId === stopping ? stopping : null;
-}
-
-export function stopFailedText(provider: string): string {
-  return `Couldn’t stop ${provider}. Try again.`;
-}
-
-// Stop without a confirmation. interruptConversation answers a ConversationError instead of rejecting; either way a
-// failure comes back as the toast's text, null when main took the stop.
-export async function stopTurn(conversationId: string, provider: string, interrupt: (request: { conversationId: string }) => Promise<void | ConversationError>): Promise<string | null> {
-  try {
-    const reply = await interrupt({ conversationId });
-    return reply && "error" in reply ? stopFailedText(provider) : null;
-  } catch {
-    return stopFailedText(provider);
-  }
+  return { text, status, steady: false, action: null };
 }

@@ -2356,7 +2356,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: showPanel, badge: panelBadge }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, shown: canvasRun.current!.showing()?.conversationId ?? null, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
-        onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
+        onOpen: openRequest, onOpenSibling }}
       picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} player={player} exporter={exporter} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
@@ -2452,7 +2452,7 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
 }
 
 type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; shown: string | null; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
-  conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(conversationId: string): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
+  conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(conversationId: string): void; onOpenSibling(root: string): void };
 
 function sendPlay(request: PlayRequest | null): void {
   if (request !== null) prototypeMainCalls().playPrototype(request);

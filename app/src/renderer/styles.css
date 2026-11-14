@@ -1642,18 +1642,15 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    height (4 + 32 + 4): the picking hint ends in a key and the terminal notice has no button (terminal-agent-activity
    user decision D2, draft terminal-notice). */
 .doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; min-height: var(--size-control); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
-/* A terminal session's notice has no button to end on: an even inline inset (draft terminal-notice). */
+/* A notice with no button to end on (a terminal session, or an app conversation working: stopping is the composer's,
+   tied to one conversation): an even inline inset (draft terminal-notice). */
 .doan-agent.doan-agent-terminal { padding: var(--space-1) var(--space-4); }
 .doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* The shared hover and pressed fills are light grey (doan-button rules weigh 0,4,0) and would put white text on near
-   white; these weigh more and stay on the dark material. "Stopping" keeps focus (aria-disabled) but takes no fill. */
+   white; these weigh more and stay on the dark material. */
 .doan-agent .doan-button.doan-agent-action { flex: none; background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); color: var(--text-on-prominent); }
 @media (hover: hover) and (pointer: fine) { .doan-agent .doan-button.doan-agent-action:hover:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 26%, transparent); } }
 .doan-agent .doan-button.doan-agent-action:active:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 34%, transparent); }
-.doan-agent .doan-button.doan-agent-action[aria-disabled="true"] { color: color-mix(in srgb, var(--text-on-prominent) 60%, transparent); cursor: default; }
-.doan-agent-action svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-/* Stop naming another conversation (draft canvas-concurrent-conversations, board-notice): the quoted title ellipsizes. */
-.doan-agent .stop-label { min-width: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* One accent dot that grows and shrinks, with a ring spreading from it in step; still while the agent waits. */
 /* Doany the artist (.doan/canvases/doany-artist.html): a 32px window in the 40px card, 8px from its start. */
 .doan-agent:has(> .doan-agent-artist) { padding-left: var(--space-2); }
@@ -1664,7 +1661,9 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    after it. The measuring node takes the text's type and no room. */
 .doan-agent-line { display: grid; grid-template-columns: minmax(0, max-content); min-width: 0; }
 .doan-agent-row { grid-area: 1 / 1; display: flex; align-items: center; gap: calc(var(--space-1) / 2); min-width: 0; }
-.doan-agent-caret { flex: none; width: calc(var(--space-1) / 2); height: var(--type-body-sm-size); background: currentColor; animation: doan-agent-blink 1s step-end infinite; }
+/* 1.5px, between the hairline and the 2px step of the spacing scale: a user decision for a lighter caret in the
+   capsule (no token holds it). The thread's streaming caret keeps its own width. */
+.doan-agent-caret { flex: none; width: 1.5px; height: var(--type-body-sm-size); background: currentColor; animation: doan-agent-blink 1s step-end infinite; }
 .doan-agent-caret[data-typing] { animation: none; }
 @keyframes doan-agent-blink { 50% { opacity: 0; } }
 .doan-agent-measure { position: absolute; top: 0; left: 0; visibility: hidden; pointer-events: none; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
