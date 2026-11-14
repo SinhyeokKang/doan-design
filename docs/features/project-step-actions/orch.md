@@ -35,9 +35,9 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | A | tasks 2(`/tdd`), 3(`/implement`), 4(`/design-sync`), 5(`/runtime-test`) | `app/src/renderer/**`, `docs/DESIGN.md`, `.scratch/` | 없음 | Claude Opus high — 동의 토큰·포커스·알림 자리 규칙이 얽혀 판단이 많고, 틀리면 보여 주지 않은 계획에 동의하는 회귀가 난다 | tasks 2–5의 검증 줄 | 완료 — `ctx_959255317537`, 워크트리 `psa-a`(브랜치 `SinhyeokKang/psa-a`, 기준 `89a27111e`). 커밋 `4c12c0cf1` test, `d8e535260` feat, `92886cc0b` docs(DESIGN). test·typecheck·lint·build 통과, measure PASS(구현 결함 0), probe PASS 23 |
-| R | tasks 6 `/code-review`(보고만) | 없음(읽기) | A | Codex gpt-6-astra medium — 판단 위주 교차 리뷰 | 보고서 | 진행 중 — `ctx_4bd8911eaef1`, `psa-a`에서 |
+| R | tasks 6 `/code-review`(보고만) | 없음(읽기) | A | Codex gpt-6-astra medium — 판단 위주 교차 리뷰 | 보고서 | 완료 — 🔴 0, 🟡 1(R1: 클론 취소 뒤 폴더 검사 실패가 취소 알림에 가려지고 Add project가 꺼짐). 앱 실행 없이 정적 검토, 관련 테스트 192개·typecheck 재실행 |
 | D | `/design-sync` 6단계 독립 리뷰 + Doan preset 점검(보고만) | 없음(읽기) | A | Claude Opus medium — design-sync는 같은 런타임 리뷰를 요구하고, 표와 스크린샷 대조라 판단은 중간 | 보고서 | 완료 — 🔴 0, 🟡 4, ⚪ 5. 앱·초안을 띄우지 않고 기존 스크린샷과 소스로 봤다(포커스 링·Tab 순서 미확인). preset critique·audit·clarify |
-| A' | tasks 6 `/refactor`, 영향받은 4·5번 재확인, tasks 7 승격(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG). 피처 디렉터리 삭제는 컨덕터(orch.md 충돌 방지) | A와 같음 + `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md` | R, D | Claude Opus high(A 워커 이어서) | 🔴 0, tasks 7 검증 줄 | 대기 |
+| A' | tasks 6 `/refactor`, 영향받은 4·5번 재확인, tasks 7 승격(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG). 피처 디렉터리 삭제는 컨덕터(orch.md 충돌 방지) | A와 같음 + `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md` | R, D | Claude Opus high(A 워커 이어서) | 🔴 0, tasks 7 검증 줄 | 진행 중 — 후속 Task `ctx_d4cf897178dc`: R1과 D 🟡2·3 `/refactor`, 초안 타일 정렬(D10), probe 재확인, 승격 |
 | 컨덕터 | 통합(cherry-pick), tasks 8 `/verify`, push, PR | `orch.md` | A' | — | `verify.mjs` PASS | 대기 |
 
 - 파일 겹침: 모든 배치가 같은 파일을 고치므로 병렬은 없다. A → R·D(읽기만, 병렬) → A' → 통합 순.
