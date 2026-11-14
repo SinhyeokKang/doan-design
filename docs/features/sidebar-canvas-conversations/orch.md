@@ -26,7 +26,7 @@
 |---|---|---|---|---|---|---|
 | A | 작업 2, 3, 4 | `docs/features/sidebar-canvas-conversations/design.md`(인용 맞추기), `app/src/renderer/`(`ShellSidebar.tsx`, `conversationList.ts`, `homeRun.ts`, `canvasNotice.ts`, `App.tsx`, `ConversationDeleteDialog.tsx`, `conversationDelete.ts`, `styles.css`, 새 순수 함수 파일과 테스트), `app/src/restore/uiState.ts`와 테스트 | 없음 | Claude Opus high — 로빙 포커스 복구, 순서 멈춤, ui-state 첫 읽기 병합처럼 틀리면 회귀가 나는 판단이 많다 | 작업 3: 새 테스트만 red. 작업 4: `npm --prefix app test`·`typecheck`·`lint`·`build` | 통합 `36f5278af`·`6fbec639d`·`06df30066`·`130007f3d` |
 | A-DS | 작업 5 | A의 파일 중 스타일·마크업 수정, `docs/DESIGN.md` 사이드바 절, `.scratch/design-sync/sidebar-canvas-conversations/` | A 통합 | Claude Opus high(A와 같은 워커, 후속 Task) — 자기 구현을 아는 워커가 고친다 | `node .scratch/design-sync/sidebar-canvas-conversations/measure.mjs` 차이 0 또는 문서화된 차이 | 통합 `076910033`·`d05ecfc4d` |
-| A-RT | 작업 6 | `.scratch/runtime-test/sidebar-canvas-conversations/`(코드 수정 없음) | A-DS 통합 | Claude Opus high(같은 워커, 후속 Task) — 가짜 IPC 응답과 포커스·순서 확인이 까다롭다 | `node .scratch/runtime-test/sidebar-canvas-conversations/probe.mjs` 완료 줄, exit 0 | 진행 |
+| A-RT | 작업 6 | `.scratch/runtime-test/sidebar-canvas-conversations/`(코드 수정 없음) | A-DS 통합 | Claude Opus high(같은 워커, 후속 Task) — 가짜 IPC 응답과 포커스·순서 확인이 까다롭다 | `node .scratch/runtime-test/sidebar-canvas-conversations/probe.mjs` 완료 줄, exit 0 | 1회차 31/32, 재실행 대기 |
 | R | 작업 7 리뷰 | 없음(보고서만) | A 통합(A-DS와 병렬) | Codex `gpt-6-astra` medium — 다른 계열의 독립 리뷰 | 보고서 🔴 0 | A 범위 1회차 끝: 🔴0 🟡3 🟢1 |
 | A-FIX | 작업 7 `/refactor` | A의 파일 | R | A와 같은 워커 | 리뷰 지적 해결, 영향받은 작업 6 항목 재확인 | 1회차 통합 `fff759b67` |
 | C | 작업 8, 9 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/DESIGN.md`(필요하면), feature 디렉터리 삭제 | 모든 배치 | 컨덕터 — 문서 승격과 최종 `/verify` | tasks 8의 grep 검증, `verify.mjs` PASS | 대기 |
@@ -58,3 +58,5 @@
 - R 2회차(2026-11-15): 🔴 0, 🟡 1, 사용자 결정 0. R2·R3 해결, R1 일부 해결. hover 채움과 DESIGN.md 문단은 허용. 보고서 `.scratch/review-R2.md`.
   - R2-1: 포인터로 누른 캔버스 기록(`pressedRow`)이 포인터가 사이드바를 떠날 때만 지워져, 뒤의 키보드·Back/Forward 이동이 그 기록을 다시 써 목록을 이전 캔버스에 붙잡는다.
   - 컨덕터 판단 — A-RT가 끝난 뒤 A에게 수정 Task로 보낸다.
+- A-RT 1회차(2026-11-15): probe exit 1, 32개 중 31개 통과. 실패 9h: 셰브론에 포커스가 있을 때 대화가 2개에서 1개가 되어 셰브론이 사라지면 포커스가 `body`로 떨어진다(프로그램·보조기기 포커스로만 닿는다). 9e: 대화 행에 포커스가 있을 때 `doan open`으로 다른 캔버스를 열면 포커스가 헤더의 Hide sidebar로 간다(`body`는 아니다). 실제 상태 그대로. 인계 `.scratch/handoff-A-RT.md`.
+- A-FIX2 시작: R2-1과 9h를 고치고, 9e는 출시된 동작(일반 캔버스 행에서 `doan open`)과 비교해 같으면 두고 다르면 `recoveryKey` 규칙으로 맞춘다. 그 뒤 probe를 R2-1 확인을 더해 다시 돈다.
