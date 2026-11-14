@@ -28,16 +28,17 @@ export interface ScopedConversation {
   canvas?: Canvas;
 }
 
-// Every conversation method the panel's thread, composer and new conversation state call. delete and newDesign are not
-// here: the window has no conversation menu and starts only the playing canvas's conversation.
+// Every conversation method the panel's thread, composer, new conversation state and head menu call. delete reaches a
+// conversation of the playing canvas only, as every by-id method does; newDesign is not here: the window starts only
+// conversations of the playing canvas.
 export const PROTOTYPE_CONVERSATION_METHODS: ReadonlySet<string> = new Set([
-  "read", "list", "forCanvas", "resumeTarget", "start", "send", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "interrupt",
-  "answerPermission", "answerQuestion", "markSeen", "models", "skills", "setPermissionMode", "scheduled",
+  "read", "list", "resumeTarget", "start", "send", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "interrupt",
+  "answerPermission", "answerQuestion", "markSeen", "models", "skills", "setPermissionMode", "scheduled", "delete",
 ]);
 const ROOT_ONLY: ReadonlySet<string> = new Set(["models", "skills"]);
 // A list names its canvas too: the window's view can trail main's play, and rows of the canvas playing now must not be
 // taken for the conversations of the one it still shows (prototypeListElsewhere).
-const BY_CANVAS: ReadonlySet<string> = new Set(["list", "forCanvas", "resumeTarget", "start"]);
+const BY_CANVAS: ReadonlySet<string> = new Set(["list", "resumeTarget", "start"]);
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;

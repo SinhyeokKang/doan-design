@@ -118,7 +118,6 @@ const api = {
   },
   answerOpenRequest: (answer: OpenAnswer): Promise<void> => ipcRenderer.invoke("doan-open:answer", answer),
   conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string; session?: string } | { available: false; reason: "no_record" | UnavailableReason; runtime?: Runtime; session?: string } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
-  conversationForCanvas: (request: { root: string; canvas: Canvas }): Promise<ReturnType<ConversationService["forCanvas"]> | ConversationError> => ipcRenderer.invoke("conversation:forCanvas", request),
   // newDesign takes `text`. model and effort only from the list listConversationModels
   // returned in this run for that root and runtime; permissionMode one of the common ids (resume takes none); attachments by the ids the attachment calls returned. A moved or
   // deleted attachment refuses the start with attachment_missing and its ids in `missing`.
@@ -128,8 +127,7 @@ const api = {
   // the model ("default" clears the stored mode); fast only when this run's list says that model has Fast; attachments
   // by ids as for a start. A legacy external conversation takes none of them,
   // and no request names a provider. project_busy: another conversation of this project without a canvas is working.
-  // A send to an archived conversation restores it: busy while the canvas's current conversation works,
-  // canvas_not_found when its canvas is gone or its ID is listed twice.
+  // canvas_not_found: the conversation's canvas is gone or its ID is listed twice.
   // While the conversation's usage limit holds, or it is scheduled (list row limitResetsAt or scheduledAt), main keeps
   // the message as a queued item and answers { scheduled }; such a send takes no model, effort, fast or permissionMode
   // (bad_request), as a queue does. rate_limited carries resetsAt when main knows it.
@@ -163,7 +161,7 @@ const api = {
   // agent's own session files stay. busy while it works or the app quits; not_found when it is already gone; unknown
   // when the index cannot be read, and then nothing is deleted. A success is announced with onConversationListChanged.
   deleteConversation: (request: { conversationId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:delete", request),
-  // One summary per conversation main keeps for this project, current and archived; a row whose history cannot be
+  // One summary per conversation main keeps for this project, several per canvas; a row whose history cannot be
   // read carries readError. Read it again on onConversationListChanged, in whatever order the reply and change arrive.
   // working: main still works on it (preparing, running, waiting for an answer, judging its turn, about to send its
   // queue, waiting for its previous process); a project conversation that works holds its root. phase is the history's.

@@ -215,8 +215,8 @@ test("a dropped item's path, null for a file the page made", () => {
   expect(api.droppedPath({} as File)).toBeNull();
 });
 
-test("the panel never reaches the main window's delete, capture, full account or settings reads", () => {
-  for (const name of ["deleteConversation", "captureCanvas", "readAgentAuth", "readPreferences", "writePreferences", "selectCanvas"]) expect(api, name).not.toHaveProperty(name);
+test("the panel never reaches the main window's capture, full account or settings reads", () => {
+  for (const name of ["captureCanvas", "readAgentAuth", "readPreferences", "writePreferences", "selectCanvas"]) expect(api, name).not.toHaveProperty(name);
 });
 
 // The narrow reads: provider readiness without the account's email, the terminal work of the canvas's session, and

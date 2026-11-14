@@ -17,6 +17,11 @@ export interface ConversationSummary {
   working: boolean;
   // The history could not be read (corrupt, over the size limit, or a line from a newer build); only this row fails.
   readError?: true;
+  // What started this canvas conversation when the person did not: a handoff (its first message names the earlier
+  // conversation) or a promotion (a project conversation moved to the canvas). The renderer lets only a conversation
+  // the person started take over an empty panel. A handoff's start is in the history alone, so an unreadable one reads
+  // as the person's.
+  startedBy?: "handoff" | "promotion";
   // Queued messages came back as a draft (conversation:takeDraft) after a failed or stopped turn, a refused queued
   // send or a restart.
   returnedDraft?: true;
@@ -51,7 +56,11 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
     ...(live.background ? { background: live.background } : {}), ...(live.stopping ? { stopping: true as const } : {}),
     ...(live.limitResetsAt ? { limitResetsAt: live.limitResetsAt } : {}), ...(live.scheduledAt ? { scheduledAt: live.scheduledAt } : {}),
   };
-  if (!read.ok) return { ...base, phase: "ended", unseen: false, lastActivityAt: "", preview: "", readError: true };
+  // A canvas conversation whose session began as a project one (newDesign) got its canvas by a promotion.
+  const promoted = m.canvas !== undefined && m.session.origin === "newDesign" ? { startedBy: "promotion" as const } : {};
+  if (!read.ok) return { ...base, ...promoted, phase: "ended", unseen: false, lastActivityAt: "", preview: "", readError: true };
+  const first = read.events.find(e => e.type === "user.message");
+  const startedBy = first?.type === "user.message" && first.origin?.kind === "handoff" ? { startedBy: "handoff" as const } : promoted;
   const events = read.events, folded = foldConversation(events, m.conversationId, !live.live);
   const phase = folded.turn === "waitingPermission" ? "waiting" : folded.turn === "starting" || folded.turn === "streaming" ? "running" : "ended";
   // Markers of binding, and an earlier build's archiving and restoring, are not something to see: they would mark a seen end unseen again. A
@@ -61,7 +70,7 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
   const unseen = phase === "ended" && m.seenSeq !== undefined && lastTurnSeq > m.seenSeq;
   // A queue or a returned draft is what the composer offers next, so a suggestion never competes with them.
   const suggested = live.suggestion && phase === "ended" && !live.working && live.queued === 0 && !live.returned ? { suggestion: live.suggestion } : {};
-  return { ...base, phase, unseen, lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded, folded.turnId, folded.messages), ...suggested };
+  return { ...base, ...startedBy, phase, unseen, lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded, folded.turnId, folded.messages), ...suggested };
 }
 function preview(events: readonly ConversationEvent[], phase: ConversationSummary["phase"], open: Pick<FoldedConversation, "permissions" | "questions">, turnId: string | null, messages: { text: string }[]): string {
   if (phase === "waiting") {

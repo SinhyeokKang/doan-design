@@ -38,13 +38,14 @@ export function projectBusy(live: ReadonlyMap<string, ProjectTurn>, root: string
 // an overlapping turn judged earlier left as contested (contestedCanvas).
 // contested: canvases new to another turn of the root not judged yet, which that turn may have made instead.
 export interface PromotionTurn { root: string; edits: readonly string[]; changed: readonly string[]; taken: readonly Canvas[]; contested: readonly Canvas[] }
-// The canvas a finished project turn makes its conversation current on, or null to stay a project conversation.
+// The canvas a finished project turn moves its conversation to, beside the conversations already there, or null to stay
+// a project conversation.
 // A canvas that is new since the turn's snapshot wins; without one, an existing canvas qualifies only when the
 // conversation's own edit and an observed file change both point at it, since a person's terminal agent or another
 // conversation may change the same file and an edit activity is reported even for a refused edit. A new canvas another
 // unjudged turn could have made is unknown to be this turn's, as with two new canvases.
-// busy: whether the canvas's current conversation is working. turn null: no turn of this run to judge.
-export function promotionTarget(turn: PromotionTurn | null, listed: readonly Canvas[], snapshot: readonly Canvas[], busy: (canvas: Canvas) => boolean): Canvas | null {
+// turn null: no turn of this run to judge.
+export function promotionTarget(turn: PromotionTurn | null, listed: readonly Canvas[], snapshot: readonly Canvas[]): Canvas | null {
   if (!turn) return null;
   const { rows, created } = candidates(turn, listed, snapshot);
   let target: Canvas | undefined;
@@ -54,7 +55,7 @@ export function promotionTarget(turn: PromotionTurn | null, listed: readonly Can
     const both = edited.filter(row => changed.some(other => sameCanvas(row, other)));
     target = both.length === 1 ? both[0] : undefined;
   }
-  return target && !busy(target) ? target : null;
+  return target ?? null;
 }
 // The one new canvas a judgement leaves because another unjudged turn could have made it, or null. Which turn drew it is
 // unknown, so the other turns that contest it must not take it either (spec 4: as with two new canvases).

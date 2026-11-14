@@ -10,7 +10,7 @@ import type { SkillCatalog } from "./skills";
 import type { AttachmentStore } from "../attachments";
 import { QUESTION_LIMITS, type QuestionAnswerInput } from "./question";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
-export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "skills", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode", "delete", "scheduled"] as const;
+export const conversationMethods = ["resumeTarget", "start", "send", "interrupt", "answerPermission", "answerQuestion", "read", "models", "skills", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode", "delete", "scheduled"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
 // attachment_missing names the attachments that were moved, deleted or forgotten since they were added; replaced, the
 // ones among them that are folders now leading to another folder. resetsAt (ISO): with rate_limited, when the usage
@@ -146,7 +146,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         if (!projects().some(p => p.path === raw.root)) throw new Error("project_not_open");
         return await home.skills.skills(raw.root, raw.provider);
       }
-      if (["start", "resumeTarget", "forCanvas"].includes(method)) {
+      if (["start", "resumeTarget"].includes(method)) {
         if (typeof raw.root !== "string" || raw.root.length > LIMITS.path) throw new Error("bad_request");
         const project = projects().find(p => p.path === raw.root); if (!project) throw new Error("project_not_open");
         const canvas = raw.canvas;
@@ -154,7 +154,6 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           if (!validCanvas(canvas)) throw new Error("bad_request");
           if (!project.canvases?.some(c => c.path === canvas.path && c.id === canvas.id)) throw new Error("canvas_not_found");
         } else if (canvas !== undefined) throw new Error("bad_request");
-        if (method === "forCanvas" && validCanvas(canvas)) return service.forCanvas(raw.root, canvas);
         const input = message(raw);
         if (method === "resumeTarget") {
           try { const ready = await prepare({ root: raw.root, mode: "resume", ...(validCanvas(canvas) ? { canvas } : {}), text: "", anchors: [] }); return { available: true, runtime: ready.runtime, lastCheckAt: ready.lastCheckAt ?? "", ...(ready.sessionId ? { session: ready.sessionId } : {}) }; }

@@ -153,15 +153,6 @@ function event(value: unknown, id: string, seq: number): value is ConversationEv
   return object(value) && value.v === 1 && value.conversationId === id && value.seq === seq && validId(value.turnId) &&
     typeof value.at === "string" && Number.isFinite(Date.parse(value.at)) && payload(value);
 }
-// A restore: the archived target becomes its canvas's current conversation and the current one is archived. Null when
-// the target is not an archived canvas conversation.
-export function restoreEntries(entries: readonly ConversationMetadata[], id: string): { entries: ConversationMetadata[]; replaced: string[] } | null {
-  const target = entries.find(m => m.conversationId === id);
-  if (!target || target.state !== "archived" || !target.canvas) return null;
-  const canvas = target.canvas;
-  const replaced = entries.filter(m => m.state === "current" && m.root === target.root && m.canvas && sameCanvas(m.canvas, canvas)).map(m => m.conversationId);
-  return { entries: entries.map(m => m === target ? { ...m, state: "current" } : replaced.includes(m.conversationId) ? { ...m, state: "archived" } : m), replaced };
-}
 // A deletion: every other entry stays as it was, so an archived conversation of the same canvas is not made current.
 // Null when the index does not hold the conversation.
 export function deleteEntries(entries: readonly ConversationMetadata[], id: string): ConversationMetadata[] | null {
@@ -283,12 +274,15 @@ export class ConversationStore {
   acceptStart(entries: ConversationMetadata[], id: string, writes: JournalWrite[]): ConversationEvent[] {
     return this.acceptChange({ kind: "start", id }, entries, writes);
   }
-  // Binding, promotion and restore change conversations already in the index, so their logs are cut back to their
-  // prefixes instead of removed; each kind has its own test of whether the new index holds it.
+  // Binding and promotion change a conversation already in the index, so its log is cut back to its prefix instead of
+  // removed; each kind has its own test of whether the new index holds it. A change touches its own conversation only:
+  // the archiving kinds (restore, a non-empty replaced, a start writing to another history) are an earlier build's,
+  // which only recovery reads.
   acceptChange(change: JournalChange, entries: ConversationMetadata[], writes: JournalWrite[]): ConversationEvent[] {
     this.recover();
     const currentIndex = this.readIndex();
     const touched = [...new Set(writes.map(w => w.id))];
+    if (change.kind === "restore" || (change.kind !== "start" && change.replaced.length) || touched.some(id => id !== change.id)) throw new Error("Invalid change targets");
     if (!validChange(change) || !touched.every(validId) ||
         (change.kind !== "start" && !sameIds(touched, [change.id, ...change.replaced]))) throw new Error("Invalid change targets");
     const others = touched.filter(id => id !== change.id);

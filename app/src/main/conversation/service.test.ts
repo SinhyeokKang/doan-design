@@ -1870,12 +1870,13 @@ describe("send now", () => {
   });
   it("keeps the steered message on its turn when another conversation starts on the same canvas meanwhile", async () => {
     const h = homeFixture();
-    const { id, calls, read } = await running(h);
+    const { id, calls } = await running(h);
     const queued = h.service.queue(id, { text: "two", anchors: [] });
     const sent = h.service.sendNow(id, queued.itemId);
     calls[0]!.accept();
     await h.service.start(canvasStart);
-    read(calls[0]!.messageId);
+    // The read comes through this conversation's own runner, not the one the other start opened.
+    h.open.mock.calls[0]![0].steerConsumed!(calls[0]!.messageId);
     expect(await answer(sent)).toBe("ok");
     expect(userMessages(h, id)).toHaveLength(2);
     expect(h.service.takeDraft(id)).toBeNull();

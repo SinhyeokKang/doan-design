@@ -1258,7 +1258,7 @@ async function start(): Promise<void> {
   // plays there (prototypeReceives).
   const broadcast = (message: ConversationBroadcast): void => {
     send(message.channel, message.value);
-    if (message.channel === "conversation:listChanged" || (message.channel === "conversation:event" && ["conversation.bound", "conversation.archived", "conversation.restored"].includes(message.value.type))) known = null;
+    if (message.channel === "conversation:listChanged" || (message.channel === "conversation:event" && message.value.type === "conversation.bound")) known = null;
     if (prototype.window() === undefined) return;
     const list = message.channel === "conversation:event" || message.channel === "conversation:stage" ? knownFor(message.value.conversationId) : known ?? [];
     if (prototypeReceives(message, prototype.controller.playing(), list)) prototype.send(message.channel, message.value);
