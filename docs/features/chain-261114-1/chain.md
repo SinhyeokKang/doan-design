@@ -9,7 +9,7 @@
 
 직렬이다. 두 링크가 같은 코드를 고친다(`app/src/renderer/Onboarding.tsx`, `projectStep.ts`, `AddProjectsPage.tsx`, `app/src/main/index.ts`, 그 테스트들, 그리고 초안 `.doan/canvases/new-project-folder.html`).
 
-1. **project-step-actions** — [spec](../project-step-actions/spec.md) · [design](../project-step-actions/design.md) · [tasks](../project-step-actions/tasks.md)
+1. **project-step-actions** — 병합됨(PR #196, 0ca3828be). 문서는 승격되어 삭제됐다(PRODUCT §5 items 0·1, ARCHITECTURE §7 'Settings IPC', DESIGN.md).
    - 리뷰: new-project-folder의 `/feature-review`와 그 뒤 부작용 점검(2026-11-14)에서 나온 결정으로 만든 feature다. 따로 `/feature-review`를 돌리지 않았다(시작 점검 1).
    - 초안: 공유 초안의 `card-busy`, `shipped-notices-*` 다섯 프레임과 모든 프레임의 하단 줄·버튼 크기·알림 모양. 사용자가 2026-11-14 시각적으로 확인했다.
    - 먼저 가는 이유: 출시된 Project 단계(알림 자리·모양, 하단 'Add project', 버튼 크기)를 바꾸고, 링크 2가 그 위에 New folder를 더한다. 출시 알림 회귀가 New folder diff에 섞이지 않게 PR을 나눈다.
@@ -46,9 +46,10 @@
 
 | 링크 | 세션·워크트리 | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| project-step-actions | `project-step-actions-orch` (feat/project-step-actions), Claude 컨덕터 | 2026-11-14, bb4447737 | — | 진행 |
-| new-project-folder | — | — | — | 대기 |
+| project-step-actions | `project-step-actions-orch` (feat/project-step-actions), Claude 컨덕터 | 2026-11-14, bb4447737 | PR #196, 0ca3828be | 병합 |
+| new-project-folder | `new-project-folder-orch` (feat/new-project-folder), Claude 컨덕터 | 2026-11-14, 0ca3828be 이후 | — | 진행 |
 
 ## 인계 기록
 
 - 2026-11-14 리드 세션: 체인 파일을 썼다. 사용자가 시작 점검 1–4를 그대로 승인했다. 링크 1은 초안과 두 문서의 대조가 끝나 커밋된 뒤 시작한다.
+- 2026-11-14 리드 세션: 링크 1을 병합했다(PR #196, 0ca3828be). 링크 2가 알아야 할 것은 PR #196 본문 'For link 2'에 있다(공유 초안은 `shipped-notices-choose` 안만 바뀜, select 단계 실패의 자리, 알림 API, 컨덕터 판단). 링크 2를 시작했다.
