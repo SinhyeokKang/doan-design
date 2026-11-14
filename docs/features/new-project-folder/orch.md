@@ -36,3 +36,5 @@
 
 | 배치 | Run·Task·Dispatch | 워크트리 | 통합 해시 | 라운드 |
 |---|---|---|---|---|
+| P | run_6648828fe5bb · task_638787e4ebbb · ctx_6ec6ae0a9668 | `npf-poc` (5fa5a713a 기준) | — | 1 진행 |
+| B | run_6648828fe5bb · task_4387308aad57 · ctx_d3f8c9e2289b | `npf-impl` (5fa5a713a 기준) | — | 1 진행 |
