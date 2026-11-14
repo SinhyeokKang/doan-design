@@ -2535,7 +2535,7 @@ describe("conversation work", () => {
   it("a turn is running from its acceptance to its end, and the next one only once it is accepted", async () => {
     const h = fixture(); const id = (await h.service.start(request)).conversationId;
     const first = h.service.liveTurns().get(id);
-    expect(first).toEqual({ root: "/repo", turnId: expect.any(String), running: true });
+    expect(first).toEqual({ root: "/repo", turnId: expect.any(String), running: true, provider: "codex", canvas: { path: ".doan/canvases/a.html" } });
     h.service.receive(id, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
     expect(h.service.liveTurns().get(id)?.running).toBe(true);
     h.service.receive(id, { type: "turn.done" });
@@ -2549,6 +2549,19 @@ describe("conversation work", () => {
     const second = h.service.liveTurns().get(id);
     expect(second).toMatchObject({ root: "/repo", running: true });
     expect(second?.turnId).not.toBe(first?.turnId);
+  });
+  // `doan work` answers name other sessions on a canvas by kind and provider: a legacy external conversation's provider
+  // is its session runtime, a doan-owned one's its owner's provider, and the bound canvas comes with the turn.
+  it("a turn carries its conversation's provider and bound canvas", async () => {
+    const legacy = fixture(); const external = (await legacy.service.start(request)).conversationId;
+    expect(legacy.store.list()[0]).toMatchObject({ owner: { kind: "legacy-external" }, session: { runtime: "codex" } });
+    expect(legacy.service.liveTurns().get(external)).toMatchObject({ provider: "codex", canvas: { path: ".doan/canvases/a.html" } });
+    const h = homeFixture(); const id = (await h.service.start(homeRequest)).conversationId;
+    const unbound = h.service.liveTurns().get(id);
+    expect(unbound).toMatchObject({ root: "/repo", running: true, provider: "claude" });
+    expect(unbound).not.toHaveProperty("canvas");
+    h.store.save(h.store.list().map(m => ({ ...m, canvas: { path: ".doan/canvases/b.html", id: "b" } })));
+    expect(h.service.liveTurns().get(id)).toEqual({ ...unbound, canvas: { path: ".doan/canvases/b.html", id: "b" } });
   });
   // Restart to Update asks on every conversation event, so this reads memory only.
   it("restartHolds counts running turns and the answers they wait for, from acceptance to the end", async () => {
