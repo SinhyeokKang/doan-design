@@ -83,3 +83,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 10은 리뷰 행과 conductor�
 - 사용자 결정 — 다시 로그인한 뒤 실제 턴 항목을 확인한다. lead에 다시 로그인을 요청했고, U는 그동안 그 프로필을 열지 않고 기다린다.
 - U3 중 커밋된 것(`e9798a79..17bb1317`) → `f0624432..b30c47c3`로 통합(U 브랜치와 앱·DESIGN·POSTMORTEM 내용이 같다). U는 실제 턴 항목을 위해 재로그인을 기다린다. 못 본 것(U 보고): 실제 macOS 한국어 입력기(CDP 조합만), 640보다 좁은 실제 작업 영역(넓은 프레임 Play로 대신), 붙여넣기·드롭 칩 전송(실제 턴 필요). `/design-sync`의 독립 리뷰를 U가 하지 않아 U 리뷰어에 코드 리뷰와 함께 보냈다(`ctx_b0e805921d88`).
 - lead 확인: 공유 프로필의 두 로그인은 유효했다(다시 로그인하지 않음). Doan의 "sign-in has expired" 문구는 `not_logged_in` 코드로 `unverified` 등도 포함한다. 원인 후보는 probe의 userData 경로가 정확히 그 프로필이 아니었거나(Codex keyring이 경로에 묶임), 계정 확인이 끝나기 전에 시작한 것이다. U에 정확한 경로로 다시 돌리고, 상태를 되돌릴 때 인증 파일은 되돌리지 말라고 전했다.
+- U의 재시도도 거절됐다(main 로그: `auth.acquire`의 "the connection could not be held"). 원인은 conductor 브리프였다: 실제 턴 probe를 임시 HOME으로 돌리게 했는데, 체인 '로그인'은 실제 HOME(Keychain)을 쓰라고 정했다. U에 실제 HOME으로 다시 돌리게 했다(DOAN_RUNTIME·저장소는 임시, 실제 Doan userData와 `~/.claude`·`~/.codex` 설정의 지문을 전후로 비교).
