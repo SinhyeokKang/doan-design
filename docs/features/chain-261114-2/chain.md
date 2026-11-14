@@ -8,7 +8,7 @@
 
 ## 순서
 
-링크 1 다음에 링크 2와 3을 병렬 그룹으로 돌린다.
+링크 1 다음에 링크 2와 3을 병렬 그룹으로 돌린다. 링크 4는 링크 2가 병합된 뒤 시작하고, 링크 3이 아직 돌고 있으면 링크 3과 병렬로 돈다.
 
 1. **canvas-concurrent-conversations** — [spec](../canvas-concurrent-conversations/spec.md) · [design](../canvas-concurrent-conversations/design.md) · [tasks](../canvas-concurrent-conversations/tasks.md)
    - 리뷰: `/feature-review`를 반영했다(1c19a168d). 초안 `.doan/canvases/canvas-concurrent-conversations.html`은 독립 리뷰를 거쳐 사용자가 확인했다(739280338).
@@ -19,7 +19,14 @@
 3. **canvas-edit-awareness** — [spec](../canvas-edit-awareness/spec.md) · [design](../canvas-edit-awareness/design.md) · [tasks](../canvas-edit-awareness/tasks.md)
    - 리뷰: 반영했다(b0273cfb6). 화면이 없어 초안은 없다. `/agent-eval`(W9, W10)이 필요하다.
 
+4. **canvas-mark-accent** — [spec](../canvas-mark-accent/spec.md) · [design](../canvas-mark-accent/design.md) · [tasks](../canvas-mark-accent/tasks.md)
+   - 리뷰: `/feature-review`를 반영했다(dc068b7c3). 초안 `.doan/canvases/canvas-mark-accent.html`은 독립 리뷰를 거쳐 사용자가 확인했다(2b70d6770).
+   - 링크 2 뒤인 이유: Add to message는 링크 1이 바꾸는 패널·컴포저의 대화 모델 위에 얹히고, 링크 2와 `App.tsx`·`styles.css`를 함께 고친다.
+   - `/orchestrate`로 돈다(사용자 확인). 작업 1(초안)은 끝났다.
+
 **병렬 그룹 2·3의 겹침 확인**: 링크 2는 렌더러(`ShellSidebar.tsx`, `conversationList.ts`, `canvasNotice.ts`, `uiState.ts`, `App.tsx`, `homeRun.ts`, `conversationDelete.ts`, `styles.css`)와 초안을 고친다. 링크 3은 CLI(`cli/internal/cli/work*.go`, `skill.md`), 스키마(`schema/app-socket.v3.schema.json`과 fixture), main(`runtime.ts`, `workState.ts`, `conversationWork.ts`, 새 `workOthers.ts`, `index.ts`), `eval/`을 고친다. 겹치는 코드·테스트·초안 파일이 없다. 두 PR은 링크 순서(2 → 3)로 병합하고, 경합은 `/ship` 'Lead' 4단계를 따른다.
+
+**링크 3·4의 겹침 확인**: 링크 4는 렌더러(`styles.css`, `CanvasController.ts`, `sizeBubble.ts`, `App.tsx`, `canvasPicker.ts`, `ds/checks.test.ts`)와 문서만 고친다. 링크 3이 고치는 CLI, 스키마, main, `eval/`과 겹치지 않는다. 링크 3과 4가 함께 돌면 링크 순서(3 → 4)로 병합한다.
 
 ## 시작 점검
 
@@ -37,7 +44,7 @@
 ## 상시 권한
 
 - 리드는 각 링크의 PR을 리뷰와 `gate`가 통과하면 링크 순서대로 develop에 병합하고 다음 링크를 시작한다.
-- 컨덕터는 Claude다. **모델 경계**: 사용자가 2026-11-14 세 링크 모두에 Codex 워커를 허가했다. 컨덕터는 링크를 시작할 때와 배치를 나눌 때 Codex의 남은 사용량을 확인하고, 각 링크의 `orch.md`에 쓴 범위를 적는다.
+- 컨덕터는 Claude다. **모델 경계**: 사용자가 2026-11-14 네 링크 모두에 Codex 워커를 허가했다(링크 4는 추가할 때 따로 허가). 컨덕터는 링크를 시작할 때와 배치를 나눌 때 Codex의 남은 사용량을 확인하고, 각 링크의 `orch.md`에 쓴 범위를 적는다.
 
 ## 로그인
 
@@ -54,7 +61,8 @@
 ## 운영 메모
 
 - 워커 대기 루프는 `/orchestrate` §2를 따른다.
-- `/agent-eval`: 링크 1·2는 해당하지 않는다(에이전트가 보는 문구 변화 없음, 각 spec에 사용자 승인과 이유). 링크 3은 필요하다.
+- `/agent-eval`: 링크 1·2·4는 해당하지 않는다(에이전트가 보는 문구 변화 없음, 각 spec에 이유). 링크 3은 필요하다.
+- 링크 4는 실제 로그인이 필요 없다(probe는 격리한 앱과 가짜 대화로 한다).
 
 ## 링크 상태
 
@@ -63,8 +71,10 @@
 | canvas-concurrent-conversations | Claude 컨덕터 · `canvas-concurrent-conversations-orch` | 2026-11-14 | — | 진행 중 |
 | sidebar-canvas-conversations | — | — | — | 대기 |
 | canvas-edit-awareness | — | — | — | 대기 |
+| canvas-mark-accent | — | — | — | 대기 |
 
 ## 인계 기록
 
 - 2026-11-14 리드 세션: 체인 파일을 썼다. 사용자가 시작 점검 1–4를 승인하고 세 링크 모두에 Codex 워커를 허가했다. 체인 시작은 사용자가 새 리드 세션에 맡겼다. 이 세션은 시작하지 않는다. 로그인('로그인')은 아직 만들지 않았다. 새 리드가 링크 1을 시작하기 전에 만든다.
 - 2026-11-14 새 리드 세션: dev 앱(실제 HOME, 설치된 `doan`을 `PATH`에서 뺌)에서 사용자가 다섯 프로바이더에 로그인했다. 로그인된 userData는 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`이다. 그동안 설치된 Doan.app이 새로 뜨지 않았다. 링크 1 컨덕터를 시작했다.
+- 2026-11-14 새 리드 세션: 사용자가 canvas-mark-accent를 링크 4로 체인에 넣고, 링크 4에도 Codex 워커를 허가했다. 시작 점검 1–3과 상시 권한(링크 순서 병합)을 같은 조건으로 적용한다.
