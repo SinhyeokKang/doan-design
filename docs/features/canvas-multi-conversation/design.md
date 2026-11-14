@@ -57,6 +57,12 @@
 - 폭(180–360 px), 긴 제목, 키보드(로빙 포커스, ←/→), 행 밀림.
 - 초안: 사이드바.
 
+## 하위 3의 범위 — `canvas-edit-awareness`
+
+- 에이전트가 같은 캔버스를 고치는 다른 세션이 있는지 알게 한다. 편집 전에 부르는 `doan work start`와 프레임마다 부르는 `doan work update`의 답에 "이 캔버스에서 작업 중인 다른 세션"(터미널 세션과 앱 대화, 종류와 프로바이더 정도)을 싣는다. 앱은 이미 안다(`workState.ts`, `conversationWork.ts`, 턴별 작업 상태).
+- guide 규칙: 다른 세션이 있고 사람이 캔버스 편집을 시키면, 편집을 시작하기 전에 사람에게 한 번 확인한다. Doan이 막지 않는다(공통 결정 3과 맞는다). 앱이 꺼져 있거나 답이 없으면 묻지 않고 지금처럼 진행한다.
+- 소켓 v3 답, CLI 출력, guide가 바뀌므로 `/agent-eval`이 필요하다. 하위 1이 병합된 뒤에 시작한다(동시 대화가 가능해져야 의미가 있다).
+
 ## 형식 변경
 
 - `conversations/index.json` v2 → v3(TS만 읽음, `schema/` 밖). fixture `app/src/main/conversation/fixtures/`에 v3와 v2→v3 이전 사례를 더한다. CLI 형식과 소켓은 바뀌지 않는다.
