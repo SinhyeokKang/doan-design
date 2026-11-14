@@ -733,3 +733,12 @@ test("the prototype target arrives from its pushes; the drawing conversation goe
   await api.setPrototypeDrawing({ root: "/r", canvas: { path: ".doan/canvases/loose.html" }, conversationId: "p1" });
   expect(mocks.invoke.mock.calls).toEqual([["prototype:readTarget"], ["prototype:setDrawing", { root: "/r", canvas: { path: ".doan/canvases/loose.html" }, conversationId: "p1" }]]);
 });
+
+// Settings without a provider ("Sign in to an agent…", "Manage agents…" in the prototype window) reaches the main window.
+test("a prototype reveal of Settings without a provider reaches its listener", () => {
+  const reveals = vi.fn();
+  const stop = api.onPrototypeReveal(reveals);
+  emitter.emit("prototype:revealRequest", {}, { kind: "settings" });
+  stop();
+  expect(reveals.mock.calls).toEqual([[{ kind: "settings" }]]);
+});

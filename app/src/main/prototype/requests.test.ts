@@ -274,6 +274,10 @@ describe("parseRevealRequest", () => {
   test("Sign in names a provider", () => {
     expect(parseRevealRequest("prototype", { kind: "settings", provider: "claude" })).toEqual({ kind: "settings", provider: "claude" });
     expect(parseRevealRequest("prototype", { kind: "settings", provider: "gpt" })).toBeNull();
+    // "Sign in to an agent…" and "Manage agents…" name no provider: Settings > Agents opens at its top.
+    expect(parseRevealRequest("prototype", { kind: "settings" })).toEqual({ kind: "settings" });
+    expect(parseRevealRequest("prototype", { kind: "settings", provider: undefined })).toBeNull();
+    expect(parseRevealRequest("prototype", { kind: "settings", section: "agents" })).toBeNull();
   });
   test("an Open names a conversation, or a handoff's canvas with or without its conversation", () => {
     expect(parseRevealRequest("prototype", { kind: "conversation", conversationId: "c-1" })).toEqual({ kind: "conversation", conversationId: "c-1" });

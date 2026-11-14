@@ -202,6 +202,8 @@ describe("prototypeRevealRequest", () => {
 
   test("Sign in opens the provider's Settings", () => {
     expect(reveal({ kind: "settings", provider: "codex" })).toEqual({ kind: "settings", provider: "codex" });
+    expect(reveal({ kind: "settings" })).toEqual({ kind: "settings" });
+    expect(reveal({ kind: "settings" }, null)).toEqual({ kind: "settings" });
   });
 
   test("an Open names a conversation of the playing root: the drawing project conversation or a canvas's", () => {

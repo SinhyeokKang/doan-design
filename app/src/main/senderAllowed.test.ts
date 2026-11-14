@@ -185,7 +185,9 @@ test("the drawing relay's requests belong to their windows and its events are no
     expect(senderAllowed(channel, "main"), channel).toBe(true);
     expect(senderAllowed(channel, "prototype"), channel).toBe(false);
   }
-  expect(senderAllowed(PROTOTYPE_CHANNELS.drawing, "prototype")).toBe(true);
-  expect(senderAllowed(PROTOTYPE_CHANNELS.drawing, "main")).toBe(false);
-  for (const kind of ["main", "prototype"]) for (const channel of [PROTOTYPE_CHANNELS.target, PROTOTYPE_CHANNELS.drawingChanged]) expect(senderAllowed(channel, kind), `${channel} ${kind}`).toBe(false);
+  for (const channel of [PROTOTYPE_CHANNELS.drawing, PROTOTYPE_CHANNELS.promoted]) {
+    expect(senderAllowed(channel, "prototype"), channel).toBe(true);
+    expect(senderAllowed(channel, "main"), channel).toBe(false);
+  }
+  for (const kind of ["main", "prototype"]) for (const channel of [PROTOTYPE_CHANNELS.target, PROTOTYPE_CHANNELS.drawingChanged, PROTOTYPE_CHANNELS.promotedChanged]) expect(senderAllowed(channel, kind), `${channel} ${kind}`).toBe(false);
 });
