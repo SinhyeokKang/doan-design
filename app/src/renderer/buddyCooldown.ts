@@ -8,9 +8,10 @@ export function cooldownEnd(changedAt: number, seenAt: number): number {
   return Math.min(changedAt, seenAt) + COOLDOWN_MS;
 }
 
-// The time left, or null once the lock is over.
+// The time left, or null once the lock is over. A clock set back during the run would read more than 24 hours; it
+// holds at 24 until the clock catches up.
 export function cooldownRemaining(end: number, now: number): number | null {
-  return now < end ? end - now : null;
+  return now < end ? Math.min(end - now, COOLDOWN_MS) : null;
 }
 
 const two = (value: number) => String(value).padStart(2, "0");

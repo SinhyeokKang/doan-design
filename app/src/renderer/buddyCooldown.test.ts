@@ -27,6 +27,11 @@ test("cooldownRemaining: the time left, and null at exactly 24 hours and after",
   expect(cooldownRemaining(end, end + 1)).toBeNull();
 });
 
+// The clock went back during the run: the time left never reads more than 24 hours.
+test("cooldownRemaining: never more than 24 hours", () => {
+  expect(cooldownRemaining(T + 24 * H, T - 2 * H)).toBe(24 * H);
+});
+
 test("cooldownClock: whole seconds rounded up, as HH:mm:ss", () => {
   expect(cooldownClock(24 * H)).toBe("24:00:00");
   expect(cooldownClock(24 * H - 19_000)).toBe("23:59:41");

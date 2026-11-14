@@ -212,6 +212,34 @@ describe("asking before a switch", () => {
     expect(buddyFocus()).toHaveBeenCalled();
   });
 
+  // Main does not enforce the lock: a second switch confirmed while Retry's save was out would land inside the lock
+  // that save starts.
+  test("while a Retry save is out the rows open nothing", async () => {
+    let answer!: (saved: boolean) => void;
+    const failed = selection({ failure: { picked: "popo", kept: "doany", cooldown: true }, select: vi.fn(() => new Promise<boolean>(resolve => { answer = resolve; })) });
+    render(failed); effects();
+    (button("Retry").props.onClick as () => void)();
+    click("dori");
+    render(failed);
+    expect(dialog()).toBeUndefined();
+    expect(onLock).not.toHaveBeenCalledWith(true);
+    answer(false);
+    await settle();
+    click("dori");
+    render(failed);
+    expect(dialog()).toBeDefined();
+  });
+
+  test("leaving the category with the alert open releases the page lock", () => {
+    const buddy = selection();
+    render(buddy); effects();
+    click("popo");
+    render(buddy); effects();
+    expect(onLock).toHaveBeenLastCalledWith(true);
+    for (const effect of hooks.effects) effect?.cleanup?.();
+    expect(onLock).toHaveBeenLastCalledWith(false);
+  });
+
   test("the current buddy's row opens nothing", () => {
     const buddy = selection({ shown: "puri" });
     render(buddy); effects();

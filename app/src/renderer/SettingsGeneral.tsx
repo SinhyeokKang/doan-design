@@ -23,8 +23,14 @@ export function SettingsGeneral({ preferences, buddy, onLock }: { preferences: P
   // The selection object is new on every render; the latest dismiss is the one to call on leaving.
   const dismiss = useRef(buddy.dismiss);
   dismiss.current = buddy.dismiss;
-  useEffect(() => () => dismiss.current(), []);
   const [asking, setAsking] = useState<{ id: BuddyId; pending: boolean } | null>(null);
+  // Leaving with the alert open must not leave the page locked, as Agents and MCP Connectors release theirs.
+  const release = useRef(() => {});
+  release.current = () => { if (asking) onLock(false); };
+  useEffect(() => () => { dismiss.current(); release.current(); }, []);
+  // A Retry save out: main does not enforce the lock, so a second switch confirmed now could land inside the lock that
+  // save starts.
+  const retrying = useRef(false);
   // Bumped to redraw the countdown; the time itself is read on each render, so a late timer still shows the right one.
   const [, setTick] = useState(0);
   // Where focus goes once the alert has closed: the buddy over the lock (once the lock is drawn) or the row pressed.
@@ -59,7 +65,7 @@ export function SettingsGeneral({ preferences, buddy, onLock }: { preferences: P
   });
 
   const request = (id: BuddyId) => {
-    if (asking || locked) return;
+    if (asking || locked || retrying.current) return;
     setAsking({ id, pending: false });
     onLock(true);
   };
@@ -77,7 +83,9 @@ export function SettingsGeneral({ preferences, buddy, onLock }: { preferences: P
   // Retry saves the confirmed pick again without asking; a Settings switch sends a fresh change time.
   const retry = (failed: BuddyFailure) => {
     const saving = failed.cooldown ? buddy.select(failed.picked, new Date().toISOString()) : buddy.select(failed.picked);
+    retrying.current = true;
     void saving.then(saved => {
+      retrying.current = false;
       if (!saved) return;
       if (failed.cooldown) landing.current = "lock";
       else requestAnimationFrame(() => focusChecked(document.querySelector(ROWS)));
