@@ -3,7 +3,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import { canvasStrongestSignal, capsuleAction, openButtonBadge, panelOpenFor } from "./rightPanelOpen";
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", canvas: { path: ".doan/canvases/billing.html", id: "billing" }, title: "Ideas", state: "current", owner: "doan",
+  conversationId: "c1", canvas: { path: ".doan/canvases/billing.html", id: "billing" }, title: "Ideas", owner: "doan",
   provider: "claude", fromHome: false, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "", ...patch,
 });
 
@@ -40,11 +40,10 @@ describe("openButtonBadge", () => {
     expect(openButtonBadge(summary({ unseen: true }), false)).toEqual({ kind: "unseen", label: "Show conversation, conversation finished unread" });
   });
 
-  test("no dot while working, once seen, with the panel open, or for an archived conversation alone", () => {
+  test("no dot while working, once seen, with the panel open, or without a readable conversation", () => {
     expect(openButtonBadge(summary({ phase: "running" }), false)).toBeNull();
     expect(openButtonBadge(summary({ unseen: true }), false, new Set(["c1"]))).toBeNull();
     expect(openButtonBadge(summary({ phase: "waiting" }), true)).toBeNull();
-    expect(openButtonBadge(summary({ state: "archived", unseen: true }), false)).toBeNull();
     expect(openButtonBadge(undefined, false)).toBeNull();
     expect(openButtonBadge(summary({ readError: true, phase: "waiting" }), false)).toBeNull();
   });

@@ -577,7 +577,7 @@ export class HomeRun {
       const at = list.findIndex(s => s.conversationId === c.conversationId);
       // A turn the events say runs is worked on whatever the lagging list says; after it, main says when work ends.
       if (at !== -1) list[at] = { ...list[at]!, phase, working: list[at]!.working || phase !== "ended" };
-      else list.push({ conversationId: c.conversationId, title: "", state: "current", owner: "doan", provider: c.provider, fromHome: true, phase, unseen: false, queued: 0, working: phase !== "ended", lastActivityAt: this.events.get(c.conversationId)?.at(-1)?.at ?? "", preview: "" });
+      else list.push({ conversationId: c.conversationId, title: "", owner: "doan", provider: c.provider, fromHome: true, phase, unseen: false, queued: 0, working: phase !== "ended", lastActivityAt: this.events.get(c.conversationId)?.at(-1)?.at ?? "", preview: "" });
       merged.set(c.root, list);
     }
     return merged;

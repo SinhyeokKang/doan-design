@@ -384,7 +384,7 @@ describe("conversation list, seen marker and send extras", () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
     try {
       const h = sendFixture(dir);
-      h.store.save([{ conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
+      h.store.save([{ conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
       await h.handle(true, "models", { root: "/repo", runtime: "claude" });
       for (const extra of [{ model: "sonnet" }, { attachments: [{ id: "a" }] }, { permissionMode: "plan" }]) expect(await h.handle(true, "send", { conversationId: "legacy", text: "y", ...extra })).toEqual({ error: "bad_request" });
       h.send.mockRejectedValueOnce(new Error("project_busy"));
@@ -396,7 +396,7 @@ describe("conversation list, seen marker and send extras", () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
     try {
       const h = sendFixture(dir);
-      h.store.save([{ conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
+      h.store.save([{ conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
       for (const code of ["account_changed", "workspace_changed", "sign_in_changed"]) {
         h.send.mockRejectedValueOnce(new Error(code));
         expect(await h.handle(true, "send", { conversationId: "legacy", text: "y" })).toEqual({ error: code });
@@ -460,7 +460,7 @@ describe("queue channels", () => {
       expect(h.service.list("/repo")[0]).toMatchObject({ permissionMode: "plan" });
       expect(await h.handle(true, "setPermissionMode", { conversationId: id, permissionMode: "default" })).toBeUndefined();
       expect(h.service.list("/repo")[0]).not.toHaveProperty("permissionMode");
-      h.store.save([...h.store.list(), { conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
+      h.store.save([...h.store.list(), { conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
       expect(await h.handle(true, "setPermissionMode", { conversationId: "legacy", permissionMode: "plan" })).toEqual({ error: "bad_request" });
       expect(await h.handle(true, "setPermissionMode", { conversationId: "legacy", permissionMode: "default" })).toEqual({ error: "bad_request" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -809,7 +809,7 @@ describe("fast through the channels", () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
     try {
       const h = fixture(dir, FAST, "codex"); await listed(h, "codex");
-      h.store.save([...h.store.list(), { conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
+      h.store.save([...h.store.list(), { conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
       for (const fast of [true, false]) expect(await h.handle(true, "send", { conversationId: "legacy", text: "y", fast })).toEqual({ error: "bad_request" });
       h.send.mockRestore();
       const id = await h.started();

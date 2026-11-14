@@ -170,7 +170,7 @@ describe("a send while the limit holds", () => {
       expect(h.limitWindows).not.toHaveBeenCalled();
     }
     const h = fixture(); h.limit(RESET); const id = await h.start(); await h.limited(id, true);
-    h.store.save([...h.store.list(), { conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/b.html", id: "b" }, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
+    h.store.save([...h.store.list(), { conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/b.html", id: "b" }, title: "t", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
     expect(h.service.scheduling("legacy")).toBe(false);
     expect(h.summary("legacy")).not.toHaveProperty("limitResetsAt");
     await expect(h.service.start({ root: "/repo", mode: "newDesign", runtime: "codex", text: "x", anchors: [] })).rejects.toMatchObject({ message: "rate_limited", resetsAt: iso(RESET) });

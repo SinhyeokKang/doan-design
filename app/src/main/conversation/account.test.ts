@@ -258,7 +258,7 @@ it("resumes a Codex conversation with a stable account ID and releases the extra
 
 it("keeps legacy external entries and resumed associations on the external profile", async () => {
   const h = harness("codex");
-  const legacy: ConversationMetadata = { conversationId: "legacy-1", root: h.root, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: CODEX_SESSION, configDir: "/external", cwd: h.root } };
+  const legacy: ConversationMetadata = { conversationId: "legacy-1", root: h.root, title: "t", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: CODEX_SESSION, configDir: "/external", cwd: h.root } };
   await h.prepare({ root: h.root, mode: "resume", text: "x", anchors: [] }, legacy);
   await h.prepare({ root: h.root, mode: "resume", text: "x", anchors: [] });
   expect(h.external).toHaveBeenCalledTimes(2); expect(h.external.mock.calls[0]).toEqual([expect.anything(), legacy.session]);
@@ -357,7 +357,7 @@ it("stops only the provider's doan-account runs for a sign-out, as a user interr
   expect(h.auth.leases.open).toBe(1);
   h.exits[0]!(); await Promise.resolve();
   expect(h.auth.leases.open).toBe(0);
-  expect(h.store.list().map(m => m.state)).toEqual(["current"]);
+  expect(h.store.list()).toHaveLength(1);
 });
 
 it("stops a run spawned after its provider's runs were stopped, so the sign-out's drain completes", async () => {

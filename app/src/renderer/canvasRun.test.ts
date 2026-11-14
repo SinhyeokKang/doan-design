@@ -17,7 +17,7 @@ const CHECKOUT: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" 
 const CART: Canvas = { path: ".doan/canvases/cart.html", id: "cart" };
 // canvas: null is a project conversation (no canvas); checkout's by default.
 const summary = (conversationId: string, { canvas = CHECKOUT, ...extra }: Partial<Omit<ConversationSummary, "canvas">> & { canvas?: Canvas | null } = {}): ConversationSummary => ({
-  conversationId, title: `Title ${conversationId.slice(-1)}`, state: "current", owner: "doan", provider: "claude", fromHome: false, ...(canvas ? { canvas } : {}),
+  conversationId, title: `Title ${conversationId.slice(-1)}`, owner: "doan", provider: "claude", fromHome: false, ...(canvas ? { canvas } : {}),
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...extra,
 });
 let seq = 0;

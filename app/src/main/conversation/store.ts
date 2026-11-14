@@ -16,10 +16,9 @@ export type ExternalSession = SessionBinding<Runtime>;
 // turn was accepted, so a project conversation binds only to a canvas that appeared after that; fromHome marks a
 // newDesign started from Home, whose turns carry Home's fixed paragraph (entries without it never do). seenSeq is the
 // last seq the person has seen; an entry without it counts as seen, so an upgrade does not light up every conversation.
-// permissionMode is the conversation's chosen mode; Default is stored as no key. state is no longer stored (index v3):
-// every conversation reads as "current" until the field leaves the type.
+// permissionMode is the conversation's chosen mode; Default is stored as no key.
 interface MetadataBase {
-  conversationId: string; root: string; canvas?: Canvas; title: string; state: "current" | "archived";
+  conversationId: string; root: string; canvas?: Canvas; title: string;
   model?: string; effort?: string; fast?: true; permissionMode?: Exclude<PermissionModeId, "default">; canvasesAtStart?: Canvas[]; fromHome?: true; seenSeq?: number;
 }
 // Legacy-external conversations keep the shared two-runtime session; doan-owned ones run on an app provider.
@@ -58,7 +57,7 @@ function metadata(value: unknown, version: IndexVersion): value is ConversationM
   if (version === 1) return external;
   return validOwner(value.owner) && (value.owner.kind === "legacy-external" ? external : s.runtime === value.owner.provider);
 }
-function validEntries(entries: readonly unknown[], version: IndexVersion): entries is ConversationMetadata[] {
+function validEntries(entries: readonly unknown[], version: IndexVersion): entries is (ConversationMetadata & { state?: unknown })[] {
   return entries.every(m => metadata(m, version)) && new Set(entries.map(m => (m as ConversationMetadata).conversationId)).size === entries.length;
 }
 export type IndexRead = { ok: true; entries: ConversationMetadata[] } | { ok: false; code: "corrupt" | "unknown_version" | "invalid" };
@@ -79,11 +78,13 @@ function parseIndexFile(text: string): IndexFile {
   if (version !== 1 && version !== 2 && version !== 3) return { ok: false, code: "unknown_version" };
   if (!Array.isArray(raw.conversations) || !validEntries(raw.conversations, version)) return { ok: false, code: "invalid" };
   const archived = new Set(version === 3 ? [] : raw.conversations.filter(m => m.state === "archived").map(m => m.conversationId));
-  const entries = raw.conversations.map(storedMode).map((m): ConversationMetadata => {
-    const owned = version === 1 ? { ...m, owner: { kind: "legacy-external" } } as ConversationMetadata : m;
-    if (!archived.has(m.conversationId)) return { ...owned, state: "current" };
+  const entries = raw.conversations.map((m): ConversationMetadata => {
+    const { state: _state, ...rawEntry } = m;
+    const entry = storedMode(rawEntry);
+    const owned = version === 1 ? { ...entry, owner: { kind: "legacy-external" } } as ConversationMetadata : entry;
+    if (!archived.has(m.conversationId)) return owned;
     const { seenSeq: _seen, ...rest } = owned;
-    return { ...rest, state: "current" };
+    return rest;
   });
   return { ok: true, version, entries, archived };
 }
@@ -189,26 +190,26 @@ function validChange(change: JournalChange): boolean {
   return Array.isArray(change.replaced) && change.replaced.every(validId) && !change.replaced.includes(change.id) && new Set(change.replaced).size === change.replaced.length;
 }
 // Whether an index holds the change, does not hold it yet, or neither (a damaged or foreign record). others: every
-// touched conversation besides the target, all current before the change and archived by it. stateOf: each entry's
-// state, which only an earlier build's archiving change reads.
-function changeState(change: JournalChange, others: readonly string[], index: readonly ConversationMetadata[], stateOf = (m: ConversationMetadata) => m.state): "committed" | "uncommitted" | null {
+// touched conversation besides the target, all current before the change and archived by it. wasArchived reads only
+// an earlier build's v1 or v2 index; migrated entries carry no state.
+function changeState(change: JournalChange, others: readonly string[], index: readonly ConversationMetadata[], wasArchived = (_m: ConversationMetadata) => false): "committed" | "uncommitted" | null {
   const find = (id: string) => index.find(m => m.conversationId === id);
-  const state = (id: string) => { const m = find(id); return m && stateOf(m); };
-  const all = (wanted: "current" | "archived") => others.every(id => state(id) === wanted);
-  const target = find(change.id), targetState = target && stateOf(target);
+  const state = (id: string) => { const m = find(id); return m && wasArchived(m); };
+  const all = (wanted: boolean) => others.every(id => state(id) === wanted);
+  const target = find(change.id), targetState = target && wasArchived(target);
   switch (change.kind) {
     case "start":
       if (index.some(m => m.conversationId !== change.id && m.conversationId.toLowerCase() === change.id.toLowerCase())) return null;
-      if (!target) return all("current") ? "uncommitted" : null;
-      return targetState === "current" && all("archived") ? "committed" : null;
+      if (!target) return all(false) ? "uncommitted" : null;
+      return targetState === false && all(true) ? "committed" : null;
     case "bind": case "promote":
-      if (!target || targetState !== "current") return null;
-      if (!target.canvas) return all("current") ? "uncommitted" : null;
-      return sameCanvas(target.canvas, change.canvas) && all("archived") ? "committed" : null;
+      if (!target || targetState !== false) return null;
+      if (!target.canvas) return all(false) ? "uncommitted" : null;
+      return sameCanvas(target.canvas, change.canvas) && all(true) ? "committed" : null;
     case "restore":
       if (!target) return null;
-      if (targetState === "archived") return all("current") ? "uncommitted" : null;
-      return all("archived") ? "committed" : null;
+      if (targetState === true) return all(false) ? "uncommitted" : null;
+      return all(true) ? "committed" : null;
   }
 }
 // A journal without a version predates the kinds and is always a start.
@@ -257,11 +258,10 @@ export class ConversationStore {
   }
   save(entries: readonly ConversationMetadata[]): void {
     if (!this.accepting) this.recover();
-    const stored = entries.map(({ state: _state, ...rest }) => rest);
-    if (!validEntries(stored, 3)) throw new Error("Invalid conversation index");
+    if (!validEntries(entries, 3)) throw new Error("Invalid conversation index");
     // A future or damaged index is kept for diagnosis instead of being replaced.
     this.readIndex();
-    this.replace("index", JSON.stringify({ v: 3, conversations: stored }));
+    this.replace("index", JSON.stringify({ v: 3, conversations: entries }));
   }
   // <name>.json written whole: a temporary file, then the rename.
   private replace(name: string, text: string): void {
@@ -373,7 +373,7 @@ export class ConversationStore {
     // journal is read against the migrated index, where nothing is archived.
     const earlier = journal.kind === "restore" || others.length > 0;
     if (earlier && index.version === 3) throw new Error(`Invalid ${journal.kind} recovery record`);
-    const state = changeState(journal, others, index.entries, earlier ? m => index.archived.has(m.conversationId) ? "archived" : "current" : undefined);
+    const state = changeState(journal, others, index.entries, earlier ? m => index.archived.has(m.conversationId) : undefined);
     if (!state) throw new Error(`Invalid ${journal.kind} recovery record`);
     if (state === "uncommitted") {
       const identities = new Set(journal.previous.map(old => `${old.dev}:${old.ino}`));

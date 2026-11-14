@@ -88,12 +88,9 @@ describe("dockedAvailability", () => {
     // A late refusal names no conversation until the list arrives: the line has no Open.
     expect(dockedAvailability(input({ busy: { kind: "project", open: null } })).reason).toEqual({ text: "Another conversation is still running in doan-design." });
   });
-  test("nothing is archived any more: no archived mode and no restore busy line", () => {
-    // @ts-expect-error -- a conversation is existing or new; none is archived to restore.
-    const archived: DockedMode = { kind: "archived", conversationId: "c1", provider: "claude" };
+  test("has no restore busy line", () => {
     // @ts-expect-error -- the only busy line left is another project conversation's.
     const restore: DockedBusy = { kind: "restore", open: "c2" };
-    expect(archived.kind).toBe("archived");
     expect(restore.kind).toBe("restore");
   });
   test("an empty field shows the busy line only once something is typed, as on Home", () => {

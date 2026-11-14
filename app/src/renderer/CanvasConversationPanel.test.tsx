@@ -25,7 +25,7 @@ const ROOT = "/w/acme";
 const CANVAS: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
 const ENTRY: FolderEntry = { path: ROOT, kind: "list", servedRev: 0, canvases: [{ path: CANVAS.path, id: "checkout", url: "u" }] };
 const summary = (conversationId: string, extra: Partial<ConversationSummary> = {}): ConversationSummary => ({
-  conversationId, title: "Payment copy", state: "current", owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
+  conversationId, title: "Payment copy", owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...extra,
 });
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));

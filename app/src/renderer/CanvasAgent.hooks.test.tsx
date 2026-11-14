@@ -69,7 +69,7 @@ const shown = (tree: ReactNode) => all(tree).some(element => element.props.class
 
 const canvas = { path: ".doan/canvases/billing.html", id: "billing" };
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "codex", fromHome: true,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "codex", fromHome: true,
   phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "", canvas, ...patch,
 });
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };

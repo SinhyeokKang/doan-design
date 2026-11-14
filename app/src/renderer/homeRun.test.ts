@@ -414,7 +414,7 @@ test("a new canvas in a root with two live project turns neither opens nor toast
 // What survives a reload comes from main's list.
 // working follows the phase unless a test sets it: main also works after a turn ended (judgement, exit wait).
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "",
   working: patch.phase !== undefined && patch.phase !== "ended", ...patch,
 });

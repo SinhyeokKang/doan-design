@@ -26,7 +26,7 @@ function setup() {
   const store = new ConversationStore(root), directory = join(root, "conversations");
   return { root, store, path: (id: string) => join(directory, id + ".jsonl"), index: join(directory, "index.json"), journal: join(directory, "start-undo.json") };
 }
-function meta(id: string): ConversationMetadata { return { conversationId: id, root: "/repo", title: id, canvas: { path: ".doan/canvases/a.html" }, state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "new", sessionId: id, configDir: "/profile", cwd: "/repo" } }; }
+function meta(id: string): ConversationMetadata { return { conversationId: id, root: "/repo", title: id, canvas: { path: ".doan/canvases/a.html" }, owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "new", sessionId: id, configDir: "/profile", cwd: "/repo" } }; }
 it("checks serialized UTF-8 bytes before append, allowing the exact read boundary", () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-27T00:00:00Z"));
   const f = setup(); f.store.append("old", "t", { type: "turn.done" });
@@ -88,7 +88,7 @@ it("rejects a second start on a canvas whose first events cross the bound, leavi
   await expect(service.start({ ...request, text: "x".repeat(bytes.length + 1) })).rejects.toThrow("File exceeds limit");
   expect(readFileSync(f.path(old))).toEqual(bytes); expect(readFileSync(f.index)).toEqual(index); expect(published).toHaveLength(count);
   expect(existsSync(f.journal)).toBe(false);
-  expect(service.list("/repo").map(c => [c.conversationId, c.state])).toEqual([[old, "current"]]);
+  expect(service.list("/repo").map(c => c.conversationId)).toEqual([old]);
 });
 it("rolls back earlier staged writes when a later initial event exceeds the bound", () => {
   const f = setup(); f.store.save([meta("old")]); f.store.append("old", "t", { type: "turn.done" });
@@ -102,7 +102,7 @@ it("rolls back earlier staged writes when a later initial event exceeds the boun
 });
 
 // An earlier build's start journal pins the histories it archived; it is only ever found beside that build's v2 index.
-const v2Index = (entries: ConversationMetadata[]) => JSON.stringify({ v: 2, conversations: entries });
+const v2Index = (entries: (ConversationMetadata & { state?: string })[]) => JSON.stringify({ v: 2, conversations: entries.map(m => ({ state: "current", ...m })) });
 function recoveryFixture() {
   const f = setup(); writeFileSync(f.index, v2Index([meta("old"), meta("other")]));
   const previous = ["old", "other"].map(id => {
@@ -191,7 +191,7 @@ describe("typed undo journal", () => {
   type Write = { id: string; turn: string; body: import("./types").EventPayload };
   type Case = { change: JournalChange; entries: (e: ConversationMetadata[]) => ConversationMetadata[]; writes: Write[] };
   const logs = (f: ReturnType<typeof setup>) => ["old", "proj", "arch", "new"].map(id => existsSync(f.path(id)) ? readFileSync(f.path(id)) : null);
-  const current = (entries: ConversationMetadata[]) => entries.map(m => ({ ...m, state: "current" as const }));
+  const current = (entries: (ConversationMetadata & { state?: string })[]) => entries.map(({ state: _state, ...m }) => m);
   // old on canvas a, a project conversation without a canvas, and arch, which an earlier build archived from canvas a.
   function changeFixture(disk: "v2" | "v3") {
     const f = setup();
@@ -285,7 +285,7 @@ describe("typed undo journal", () => {
 
   // An earlier build's journal, of each kind it wrote, with its archive and restore meanings: it is settled by those
   // meanings against the v2 index beside it.
-  const earlier: Record<"start" | "bind" | "promote" | "restore", Case> = {
+  const earlier: Record<"start" | "bind" | "promote" | "restore", Omit<Case, "entries"> & { entries: (e: (ConversationMetadata & { state?: string })[]) => (ConversationMetadata & { state?: string })[] }> = {
     start: { change: { kind: "start", id: "new" }, entries: e => [...e.map(m => m.conversationId === "old" ? { ...m, state: "archived" as const } : m), { ...meta("new"), canvas: a }],
       writes: [{ id: "old", turn: "t", body: { type: "conversation.archived" } }, { id: "new", turn: "n", body: { type: "user.message", text: "hi", anchors: [] } }, { id: "new", turn: "n", body: { type: "turn.started" } }] },
     bind: cases.bind,
@@ -359,7 +359,7 @@ it("lists a conversation archived in a v2 index as seen, and its end after a lat
   writeFileSync(f.index, v2Index([{ ...meta("arch"), state: "archived", seenSeq: 0 }, { ...meta("cur"), seenSeq: 3 }]));
   let session = 0;
   const service = new ConversationService(new ConversationStore(f.root), async (_request, stored) => ({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, ...(stored ? { sessionId: stored.session.sessionId } : {}) }), async input => ({ sessionId: input.sessionId ?? `s${++session}`, send: async () => {}, answer: () => false, stop: async () => {}, close: async () => {} }), () => {});
-  expect(service.list("/repo").map(c => [c.conversationId, c.state, c.phase, c.unseen])).toEqual([["arch", "current", "ended", false], ["cur", "current", "ended", false]]);
+  expect(service.list("/repo").map(c => [c.conversationId, c.phase, c.unseen])).toEqual([["arch", "ended", false], ["cur", "ended", false]]);
   await service.send("arch", "again", []);
   service.receive("arch", { type: "turn.done" });
   expect(service.list("/repo").find(c => c.conversationId === "arch")).toMatchObject({ phase: "ended", unseen: true });

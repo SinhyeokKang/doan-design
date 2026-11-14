@@ -23,7 +23,6 @@ describe("conversation recovery and event merge", () => {
   });
   it("keeps resolved decisions across an earlier build's archive line and a restart", () => {
     const state = foldConversation([event(1, { type: "turn.started" }), event(2, permission), event(3, { type: "permission.resolved", requestId: "r", optionId: "deny" }), event(4, { type: "turn.done" }), event(5, { type: "conversation.archived" })], "a", true);
-    expect(state).not.toHaveProperty("archived");
     expect(state).toMatchObject({ turn: "idle", lastSeq: 5 });
     expect(state.permissions.r).toBe("deny");
   });
@@ -76,7 +75,7 @@ describe("conversation recovery and event merge", () => {
     expect(state.turn).toBe("starting");
   });
   it("binds only the first same-root canvas", () => {
-    const binding: ConversationBinding = { conversationId: "a", root: "/repo", origin: "newDesign", state: "current" };
+    const binding: ConversationBinding = { conversationId: "a", root: "/repo", origin: "newDesign" };
     const canvas = { id: "home", path: ".doan/canvases/a.html" };
     expect(bindFirstCanvas(binding, "/other", canvas)).toEqual(binding);
     const bound = bindFirstCanvas(binding, "/repo", canvas);
@@ -154,7 +153,6 @@ describe("an earlier build's archive and restore lines", () => {
       event(5, { type: "conversation.restored" }, "turn-2"), event(6, { type: "user.message", text: "again", anchors: [] }, "turn-2"),
       event(7, { type: "turn.started" }, "turn-2"), event(8, { type: "message.delta", messageId: "m", text: "back" }, "turn-2"),
     ], "a", false);
-    expect(state).not.toHaveProperty("archived");
     expect(state.turn).toBe("streaming");
     expect(state.lastSeq).toBe(8);
     // A turn's events after its end were fenced before and still are.

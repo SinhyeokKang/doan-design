@@ -107,5 +107,5 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
   return state;
 }
 export function bindFirstCanvas(binding: ConversationBinding, root: string, canvas: Canvas): ConversationBinding {
-  return binding.origin === "newDesign" && binding.state === "current" && !binding.canvas && binding.root === root ? { ...binding, canvas } : binding;
+  return binding.origin === "newDesign" && !binding.canvas && binding.root === root ? { ...binding, canvas } : binding;
 }

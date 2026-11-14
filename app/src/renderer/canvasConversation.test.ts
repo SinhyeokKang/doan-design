@@ -13,11 +13,11 @@ const NOW = Date.parse("2026-11-01T12:00:00.000Z");
 const at = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString();
 const billing = { path: ".doan/canvases/billing.html", id: "billing" };
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", canvas: billing, title: "Ideas", state: "current", owner: "doan", provider: "claude", fromHome: false,
+  conversationId: "c1", canvas: billing, title: "Ideas", owner: "doan", provider: "claude", fromHome: false,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: at(60), preview: "Last reply", ...patch,
 });
 const current = summary({ conversationId: "cur", lastActivityAt: at(30) });
-const archived = summary({ conversationId: "old", state: "archived", lastActivityAt: at(5) });
+const archived = summary({ conversationId: "old", lastActivityAt: at(5) });
 const other = summary({ conversationId: "elsewhere", canvas: { path: ".doan/canvases/home.html", id: "home" } });
 const { canvas: _bound, ...project } = summary({ conversationId: "proj" });
 const LIST = [archived, current, other, project];
@@ -29,7 +29,6 @@ describe("canvasConversationMenu", () => {
     const items = canvasConversationMenu([older, current, recent, other, project], billing, "older", NOW);
     expect(items.map(i => [i.conversationId, i.selected])).toEqual([["recent", false], ["cur", false], ["older", true]]);
     expect(items[1]).toMatchObject({ title: "Ideas", provider: "claude", preview: "Last reply", time: { text: "30m" }, readError: false });
-    expect(items[0]).not.toHaveProperty("archived");
   });
 
   test("while the menu is open its order stays as opened, and a new conversation is added at the end", () => {

@@ -13,7 +13,7 @@ const ROOT = "/w/acme", TWIN = "/w/acme-feature";
 const CHECKOUT = { path: ".doan/canvases/checkout.html", id: "checkout" };
 const PLAIN = { path: ".doan/canvases/plain.html" };
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", canvas: CHECKOUT, title: "Ideas", state: "current", owner: "doan",
+  conversationId: "c1", canvas: CHECKOUT, title: "Ideas", owner: "doan",
   provider: "claude", fromHome: false, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "", ...patch,
 });
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({

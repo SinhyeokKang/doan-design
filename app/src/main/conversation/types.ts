@@ -83,7 +83,7 @@ export type ConversationEvent = EventPayload & { v: 1; conversationId: string; s
 export type TurnState = "idle" | "starting" | "streaming" | "waitingPermission" | "failed" | "interrupted";
 export interface ConversationBinding {
   conversationId: string; root: string; canvas?: Canvas;
-  origin: "resumed" | "new" | "newDesign"; state: "current" | "archived";
+  origin: "resumed" | "new" | "newDesign";
 }
 // runtime is an app provider here: reservations cover doan-account sessions of every provider.
 export interface SessionKey { runtime: import("../agentAuth/types").Provider; configDir: string; sessionId: string }

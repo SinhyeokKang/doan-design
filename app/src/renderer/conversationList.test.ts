@@ -7,7 +7,7 @@ import { slotKey, type Slot } from "./homeConversations";
 import { projectSlot } from "./ShellSidebar";
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch,
 });
 const rows = new Map([["/r/doan", [{ path: ".doan/canvases/a.html", id: "a" }, { path: ".doan/canvases/plain.html" }]]]);

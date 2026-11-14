@@ -5,7 +5,7 @@ import { trashBusy } from "../main/canvasTrash";
 import { canvasExportReason, trashBlock } from "./canvasRowMenu";
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: false,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "claude", fromHome: false,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "Done",
   canvas: { path: ".doan/canvases/billing.html", id: "billing" }, ...patch,
 });

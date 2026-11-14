@@ -3,7 +3,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import { boardPresence, type BoardInput } from "./agentPresence";
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "Done",
   canvas: { path: ".doan/canvases/billing.html", id: "billing" }, ...patch,
 });

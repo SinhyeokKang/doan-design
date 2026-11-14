@@ -22,7 +22,7 @@ vi.mock("./DockedComposer", async original => ({
 const ROOT = "/code/doan";
 const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "bbbbbbbb-0000-4000-8000-000000000002";
 const entry = { kind: "list", path: ROOT, servedRev: 0, canvases: [], git: { branch: "main", common: "/code/doan/.git" } } as unknown as FolderEntry;
-const summary = (conversationId: string): ConversationSummary => ({ conversationId, title: "Checkout copy", state: "current", owner: "doan", provider: "claude",
+const summary = (conversationId: string): ConversationSummary => ({ conversationId, title: "Checkout copy", owner: "doan", provider: "claude",
   fromHome: true, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p" });
 const at = (conversationId: string, seq: number, payload: Record<string, unknown>): ConversationEvent => ({ v: 1, conversationId, seq, turnId: "t1", at: "2026-10-30T00:00:00Z", ...payload } as ConversationEvent);
 const history = (conversationId: string, used: number | null) => [at(conversationId, 1, { type: "user.message", text: "Draw the checkout", anchors: [] }), at(conversationId, 2, { type: "turn.started" }),

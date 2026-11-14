@@ -139,7 +139,7 @@ describe("the end of a turn that asked", () => {
     h.service.receive(id, { type: "turn.done" });
     await h.settled();
     const target = h.on(b)!;
-    expect(target).toMatchObject({ root: "/repo", canvas: b, state: "current", model: "gpt-x", effort: "high", permissionMode: "bypass", session: { runtime: "codex" }, title: "The person wants a checkout flow. Keep {{1}} literal." });
+    expect(target).toMatchObject({ root: "/repo", canvas: b, model: "gpt-x", effort: "high", permissionMode: "bypass", session: { runtime: "codex" }, title: "The person wants a checkout flow. Keep {{1}} literal." });
     expect(h.open.mock.calls[1]![0]).toMatchObject({ model: "gpt-x", effort: "high", permissionMode: "bypass" });
     expect(h.store.read(target.conversationId).slice(0, 2)).toMatchObject([
       { type: "user.message", text, anchors: [], origin: { kind: "handoff", conversationId: id, canvas: a } }, { type: "turn.started" }]);
@@ -147,7 +147,7 @@ describe("the end of a turn that asked", () => {
     expect(data).toEqual({ context: { root: "/repo", canvas: b, from: a }, handoffText: text });
     expect(h.prompt(1)).not.toContain(HANDOFF_GUIDANCE);
     expect(h.last(id)).toMatchObject({ type: "handoff.resolved", outcome: "started", target: { conversationId: target.conversationId, canvas: b }, turnId: requestedIn, conversationId: id });
-    expect(h.entry(id)).toMatchObject({ state: "current", canvas: a });
+    expect(h.entry(id)).toMatchObject({ canvas: a });
     expect(h.notices).toEqual([{ root: "/repo", source: { conversationId: id, canvas: a }, target: { conversationId: target.conversationId, canvas: b } }]);
   });
   it("waits for the folder refresh when the canvas is not listed yet, and holds the conversation working until then", async () => {
@@ -564,7 +564,6 @@ describe("a handoff a stop, a quit or a broken history meets", () => {
     h.open.mock.calls[0]![2]();
     h.listed.splice(h.listed.indexOf(b), 1);
     await h.service.send(id, "again", []);
-    expect(h.entry(id).state).toBe("current");
     const key = h.open.mock.calls.filter(call => call[0].env.DOAN_CONVERSATION_ID === id).at(-1)![0].env.DOAN_HANDOFF;
     h.listed.push(b);
     expect(h.ask(key, b.path, "/repo", "From the second turn.")).toBeNull();
@@ -763,7 +762,7 @@ describe("a turn that asks for several canvases", () => {
     await Promise.resolve(); await Promise.resolve();
     expect(h.prepare).toHaveBeenCalledTimes(3);
     expect(outcomes(h, id)).toEqual([[b.path, "started", undefined], [c.path, "started", undefined]]);
-    expect(h.store.list().filter(m => m.state === "current")).toHaveLength(3);
+    expect(h.store.list()).toHaveLength(3);
   });
   it("refuses both of two new canvases that share an ID, and sends the queue to the source", async () => {
     const h = fixture(); const id = await h.start();

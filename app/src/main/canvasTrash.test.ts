@@ -54,7 +54,7 @@ describe("trashTarget", () => {
 describe("trashBusy", () => {
   const target = { root: "/repo", path: ".doan/canvases/a.html", id: "a" };
   const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-    conversationId: "c1", title: "t", state: "current", owner: "doan", provider: "claude", fromHome: false, phase: "ended", unseen: false,
+    conversationId: "c1", title: "t", owner: "doan", provider: "claude", fromHome: false, phase: "ended", unseen: false,
     queued: 0, working: false, lastActivityAt: "", preview: "", canvas: { path: target.path, id: "a" }, ...patch,
   });
   const work = (root: string, path = target.path): WorkItem => ({ root, path, session: null, provider: null, touched: 0, turn: "none:t" });
@@ -73,8 +73,6 @@ describe("trashBusy", () => {
     expect(trashBusy(target, [summary({ conversationId: "c2", phase: "waiting" }), ended], [], [])).toBe(true);
     expect(trashBusy(target, [ended, summary({ conversationId: "c2", working: true })], [], [])).toBe(true);
     expect(trashBusy(target, [ended, summary({ conversationId: "c2", unseen: true })], [], [])).toBe(false);
-    // An earlier build's archived conversation is an ordinary one now.
-    expect(trashBusy(target, [summary({ phase: "running", state: "archived" })], [], [])).toBe(true);
   });
 
   test("conversations match by id when either side has one, else by path", () => {

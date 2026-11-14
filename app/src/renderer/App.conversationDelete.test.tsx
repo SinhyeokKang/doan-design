@@ -144,7 +144,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 const find = <P,>(type: unknown) => all(tree).filter(element => element.type === type) as unknown as ReactElement<P>[];
 const flushAll = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); render(); };
-const summary = (conversationId: string, patch: Record<string, unknown> = {}) => ({ conversationId, title: `Title ${conversationId}`, state: "current", owner: "doan", provider: "claude",
+const summary = (conversationId: string, patch: Record<string, unknown> = {}) => ({ conversationId, title: `Title ${conversationId}`, owner: "doan", provider: "claude",
   fromHome: true, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch });
 const onCanvas = (conversationId: string, patch: Record<string, unknown> = {}) => summary(conversationId, { canvas: { path: rowA.path, id: "a" }, fromHome: false, ...patch });
 type Target = { conversationId: string; root: string; title: string; provider: string; from: "overview" | "canvas" };

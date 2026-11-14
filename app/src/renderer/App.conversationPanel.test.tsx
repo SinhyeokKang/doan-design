@@ -225,7 +225,7 @@ test("no save is sent before the initial ui-state read, even after an early send
 // POSTMORTEM 2026-11-01: a Fast switch and a Fast turned off are Home memory like any pick, so neither
 // sends a save while the startup read is held; the first save after it carries them.
 test("no save is sent before the initial ui-state read after a Fast switch or a Fast turned off", async () => {
-  doan.listConversations!.mockImplementation(async () => [{ conversationId: "c1", title: "", state: "current", owner: "doan", provider: "codex", fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false }]);
+  doan.listConversations!.mockImplementation(async () => [{ conversationId: "c1", title: "", owner: "doan", provider: "codex", fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false }]);
   render(); folders([listed("/w/a")]); await Promise.resolve(); await Promise.resolve(); render();
   const home = () => find<{ onRemember(choice: unknown): void }>(Home)[0]!.props;
   home().onRemember({ provider: "claude", model: null, effort: null, fast: true }); render();
@@ -239,7 +239,7 @@ test("no save is sent before the initial ui-state read after a Fast switch or a 
 
 // Fast changed before the startup read lands only for the provider it
 // changed; the read keeps every other provider's Fast, an auto-off seen first still holds, and a later switch on wins.
-const summaryOf = (conversationId: string, provider: string) => ({ conversationId, title: "", state: "current", owner: "doan", provider, fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false });
+const summaryOf = (conversationId: string, provider: string) => ({ conversationId, title: "", owner: "doan", provider, fromHome: false, phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-06T00:00:00Z", preview: "", working: false });
 const fastOff = (conversationId: string) => listeners.conversation!({ v: 1, conversationId, seq: 4, turnId: "t1", at: "2026-11-06T00:00:00Z", type: "fast.unused", reason: "plan", turnedOff: true } as never);
 const savedFast = () => (saved() as { home?: { fast?: unknown } }).home?.fast;
 async function fastBeforeRead(steps: (home: { onRemember(choice: unknown): void }) => void, read: unknown) {
@@ -436,7 +436,7 @@ test("a project problem gives the indicator no canvas; the canvas page runs it, 
 });
 
 // the canvas page's panel holds the open canvas's conversation; entries unfold it.
-const rowSummary = (patch: Record<string, unknown> = {}) => ({ conversationId: "c1", canvas: { path: rowA.path, id: "a" }, title: "Payment copy", state: "current", owner: "doan", provider: "claude",
+const rowSummary = (patch: Record<string, unknown> = {}) => ({ conversationId: "c1", canvas: { path: rowA.path, id: "a" }, title: "Payment copy", owner: "doan", provider: "claude",
   fromHome: false, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch });
 type Conversation = { target: { root: string; canvas: { path: string; id?: string } }; arrival: { focus: string; seq: number } | null; blocked: string | null };
 const conversation = () => find<Conversation>(CanvasConversation)[0]?.props;

@@ -284,7 +284,7 @@ test("the results box clips only the block axis so the list's scrollbar is not c
 const NOW = Date.parse("2026-11-13T12:00:00.000Z");
 const MIN = 60_000;
 const talk = (conversationId: string, patch: Partial<ConversationSummary> = {}): ConversationSummary => ({
-  conversationId, title: conversationId, state: "current", owner: "doan", provider: "claude", fromHome: false,
+  conversationId, title: conversationId, owner: "doan", provider: "claude", fromHome: false,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: new Date(NOW - 12 * MIN).toISOString(), preview: "", ...patch,
 });
 const conversationRows = (list: readonly FolderEntry[], conversations: ConversationLists, query: string, currentRoot: string | null) =>
@@ -319,12 +319,11 @@ test("Home finds both projects' conversations by a part of their titles, each in
   ]);
 });
 
-test("the results follow the conversation lists: a deleted conversation goes, an archived one stays, a renamed one matches its new title", () => {
+test("the results follow the conversation lists: a deleted conversation goes, a renamed one matches its new title", () => {
   const before: ConversationLists = new Map([["/code/acme-web", [talk("keep", { title: "Checkout copy" }), talk("drop", { title: "Checkout audit" })]]]);
   const titles = (lists: ConversationLists, query: string) => conversationRows(entries, lists, query, "/code/acme-web").flatMap(group => group.rows).map(result => result.kind === "conversation" ? result.title : result.kind);
   expect(titles(before, "checkout")).toEqual(["Checkout copy", "Checkout audit"]);
   expect(titles(new Map([["/code/acme-web", [talk("keep", { title: "Checkout copy" })]]]), "checkout")).toEqual(["Checkout copy"]);
-  expect(titles(new Map([["/code/acme-web", [talk("keep", { title: "Checkout copy", state: "archived" }), talk("drop", { title: "Checkout audit" })]]]), "checkout")).toEqual(["Checkout copy", "Checkout audit"]);
   const renamed: ConversationLists = new Map([["/code/acme-web", [talk("keep", { title: "Pricing copy" }), talk("drop", { title: "Checkout audit" })]]]);
   expect(titles(renamed, "checkout")).toEqual(["Checkout audit"]);
   expect(titles(renamed, "pricing")).toEqual(["Pricing copy"]);

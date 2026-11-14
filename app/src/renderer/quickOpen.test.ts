@@ -574,7 +574,7 @@ const NOW = Date.parse("2026-11-13T12:00:00.000Z");
 const MIN = 60_000;
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
 function talk(conversationId: string, patch: Partial<ConversationSummary> = {}): ConversationSummary {
-  return { conversationId, title: conversationId, state: "current", owner: "doan", provider: "claude", fromHome: false,
+  return { conversationId, title: conversationId, owner: "doan", provider: "claude", fromHome: false,
     phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: ago(MIN), preview: "", ...patch };
 }
 const rowsIn = (entries: readonly SearchFolder[]) => (root: string) => {
@@ -604,15 +604,15 @@ describe("quick open conversation index", () => {
     expect(duplicated).toEqual([]);
   });
 
-  it("indexes project, archived, legacy external and unreadable conversations alike", () => {
+  it("indexes project, canvas, legacy external and unreadable conversations alike", () => {
     const entries = [folder("/repo", [billing])];
     const index = conversationEntries(listsOf({ "/repo": [
       talk("project", { title: "Checkout flow" }),
-      talk("archived", { state: "archived", canvas: { path: billing.path, id: "billing" } }),
+      talk("older", { canvas: { path: billing.path, id: "billing" } }),
       talk("legacy", { owner: "legacy-external" }),
       talk("unreadable", { readError: true, lastActivityAt: "", preview: "" }),
     ] }), rowsIn(entries));
-    expect(index.map(entry => entry.conversationId)).toEqual(["project", "archived", "legacy", "unreadable"]);
+    expect(index.map(entry => entry.conversationId)).toEqual(["project", "older", "legacy", "unreadable"]);
     expect(index[0]).toEqual({ kind: "conversation", root: "/repo", conversationId: "project", title: "Checkout flow", lastActivityAt: ago(MIN), fields: ["checkout flow"] });
     expect(index[3]).toMatchObject({ lastActivityAt: "" });
   });

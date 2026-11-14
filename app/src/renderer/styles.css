@@ -1926,6 +1926,5 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    gone, in the effect that runs once main's view has closed the panel. */
 .pw-conv[hidden] { display: none; }
 /* The head's title is one line, cut with an ellipsis (.ov-title span's rule): the h2 itself is a flex row. */
-.pw-side-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The playing frame chip: the frame chip's look, first in the card's chip row, as tall as a chip in the field. */
 .composer-chips > .pw-playing { font-size: var(--type-body-sm-size); line-height: var(--type-label-line-height); margin-inline: 0; }

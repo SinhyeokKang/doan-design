@@ -7,7 +7,7 @@ const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const SEC = 1000, MIN = 60 * SEC, HOUR = 60 * MIN, DAY = 24 * HOUR;
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Ideas", state: "current", owner: "doan", provider: "claude", fromHome: true,
+  conversationId: "c1", title: "Ideas", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: ago(HOUR), preview: "Last reply", ...patch,
 });
 const canvas = { path: ".doan/canvases/billing.html", id: "billing" };
@@ -66,8 +66,6 @@ describe("pickOverviewConversation", () => {
   test("a requested canvas conversation opens its canvas", () => {
     const bound = summary({ conversationId: "bound", canvas });
     expect(pickOverviewConversation([...list, bound], undefined, "bound")).toEqual({ kind: "canvas", conversationId: "bound", canvas });
-    const archived = summary({ conversationId: "archived", canvas, state: "archived" });
-    expect(pickOverviewConversation([archived], undefined, "archived")).toEqual({ kind: "canvas", conversationId: "archived", canvas });
   });
 
   test("the remembered project conversation comes next", () => {
@@ -196,11 +194,6 @@ describe("overviewAfterListChange", () => {
   test("a promotion carries no seen seq, unseen or not: the host decides from its own thread", () => {
     const list = [summary({ conversationId: "c1", canvas, unseen: true })];
     expect(overviewAfterListChange(current, { root, list })).toEqual(overviewAfterListChange(current, { root, list: [{ ...list[0]!, unseen: false }] }));
-  });
-
-  test("a promoted conversation that was archived meanwhile is still a promotion", () => {
-    const list = [summary({ conversationId: "c1", canvas, state: "archived" })];
-    expect(overviewAfterListChange(current, { root, list })).toMatchObject({ kind: "promoted" });
   });
 
   test("another root's notice changes nothing", () => {

@@ -45,7 +45,7 @@ export interface OpenBadge { kind: "permission" | "unseen"; label: string }
 // The dot on a folded panel's Show conversation, from the sidebar slot's own rule so the two agree. Working has none:
 // the canvas indicator shows it. `current` is the canvas's current conversation.
 export function openButtonBadge(current: ConversationSummary | undefined, panelOpen: boolean, seen: ReadonlySet<string> = new Set()): OpenBadge | null {
-  if (panelOpen || !current || current.state !== "current") return null;
+  if (panelOpen || !current) return null;
   const work = conversationWork(current, seen);
   if (work?.kind === "permission") return { kind: "permission", label: "Show conversation, needs your answer" };
   if (work?.kind === "unseen") return { kind: "unseen", label: "Show conversation, conversation finished unread" };

@@ -36,7 +36,7 @@ describe("conversation disk boundaries", () => {
   });
   it("persists ordered validated events and rejects traversal, links and corrupt event shapes", () => {
     const root = temp(); const store = new ConversationStore(root);
-    const metadata = { conversationId: "conversation-1", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "Title", state: "current" as const, owner: { kind: "legacy-external" as const }, session: { runtime: "claude" as const, origin: "new" as const, sessionId: "session-1", cwd: "/repo", configDir: "/profile" } };
+    const metadata = { conversationId: "conversation-1", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "Title", owner: { kind: "legacy-external" as const }, session: { runtime: "claude" as const, origin: "new" as const, sessionId: "session-1", cwd: "/repo", configDir: "/profile" } };
     store.save([metadata]);
     expect(store.append(metadata.conversationId, "turn-1", { type: "turn.started" }).seq).toBe(1);
     expect(store.append(metadata.conversationId, "turn-1", { type: "message.delta", messageId: "m", text: "hello" }).seq).toBe(2);
@@ -79,7 +79,7 @@ describe("conversation disk boundaries", () => {
       reads(request([full, { ...q, id: "1" }, { ...q, id: "2" }, { ...q, id: "3" }]));
       reads(request([{ ...q, header: "", options: [] }]));
       const root = temp(); const store = new ConversationStore(root);
-      store.save([{ conversationId: "c", root: "/repo", title: "T", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "claude", origin: "new", sessionId: "s", cwd: "/repo", configDir: "/profile" } }]);
+      store.save([{ conversationId: "c", root: "/repo", title: "T", owner: { kind: "legacy-external" }, session: { runtime: "claude", origin: "new", sessionId: "s", cwd: "/repo", configDir: "/profile" } }]);
       store.append("c", "t", { type: "turn.started" });
       expect(store.append("c", "t", { type: "question.request", requestId: "q", questions: [q] }).seq).toBe(2);
       expect(store.append("c", "t", { type: "question.resolved", requestId: "q", outcome: "answered", answers: { "0": { selected: ["Red"], other: "and blue" } } }).seq).toBe(3);
@@ -364,7 +364,7 @@ it("keeps seq consistent when a regular log is replaced before the append open",
 // A bind cuts the bound conversation's history back to its prefix when it fails; that cut is the rollback interrupted here.
 it("recovers an interrupted rollback on restart before exposing history", () => {
   const root = temp(); const store = new ConversationStore(root);
-  const old = { conversationId: "old", root: "/repo", title: "old", state: "current" as const, owner: { kind: "legacy-external" as const }, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
+  const old = { conversationId: "old", root: "/repo", title: "old", owner: { kind: "legacy-external" as const }, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
   const canvas = { path: ".doan/canvases/a.html", id: "a" };
   store.save([old]); store.append("old", "t", { type: "turn.done" }); const before = store.read("old");
   const append = store.append.bind(store);
@@ -381,7 +381,7 @@ it("recovers an interrupted rollback on restart before exposing history", () => 
 });
 it("keeps a committed replacement when recovery finds the committed index", () => {
   const root = temp(); const store = new ConversationStore(root);
-  const entry = { conversationId: "new", root: "/repo", title: "new", state: "current" as const, owner: { kind: "legacy-external" as const }, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
+  const entry = { conversationId: "new", root: "/repo", title: "new", owner: { kind: "legacy-external" as const }, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
   store.append("new", "t", { type: "turn.started" }); store.save([entry]);
   writeFileSync(join(root, "conversations", "start-undo.json"), JSON.stringify({ id: "new", previous: [] }));
   const restarted = new ConversationStore(root); expect(restarted.list()).toEqual([entry]); expect(restarted.read("new")).toHaveLength(1);

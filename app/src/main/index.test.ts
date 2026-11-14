@@ -1867,7 +1867,7 @@ describe("canvas trash on main's grounds", () => {
     return dir;
   };
   const row = { path, id: "a", url: "http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html" };
-  const summary = (patch: object) => ({ conversationId: "c1", title: "t", state: "current", owner: "doan", provider: "claude", fromHome: false, phase: "ended",
+  const summary = (patch: object) => ({ conversationId: "c1", title: "t", owner: "doan", provider: "claude", fromHome: false, phase: "ended",
     unseen: false, queued: 0, working: false, lastActivityAt: "", preview: "", canvas: { path, id: "a" }, ...patch });
   function service() {
     const s = mocks.conversationService;
@@ -2623,7 +2623,7 @@ describe("settings page", () => {
   });
 
   describe("notifications", () => {
-    const CONVERSATION = { conversationId: "c1", root: ROOT, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "new", sessionId: "s", configDir: "/c", cwd: ROOT } };
+    const CONVERSATION = { conversationId: "c1", root: ROOT, title: "t", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "new", sessionId: "s", configDir: "/c", cwd: ROOT } };
     const turnDone = { v: 1, conversationId: "c1", seq: 2, turnId: "t1", at: "2026-10-30T10:00:00.000Z", type: "turn.done" };
     function publish(event: unknown) {
       if (!mocks.publishConversation) throw new Error("no conversation publisher");

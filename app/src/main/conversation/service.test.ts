@@ -110,7 +110,7 @@ it("does not log a start whose new session ID collides with another owner", asyn
   const h = fixture(); h.prepare.mockResolvedValue({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} });
   const first = await h.service.start({ ...request, mode: "new", runtime: "codex" });
   await expect(h.service.start({ ...request, mode: "new", runtime: "codex" })).rejects.toThrow("session_in_use");
-  expect(h.store.list()).toHaveLength(1); expect(h.store.list()[0]?.state).toBe("current");
+  expect(h.store.list()).toHaveLength(1);
   expect(h.store.read(first.conversationId).map(e => e.type)).toEqual(["user.message", "turn.started"]);
   expect(h.runners[1]?.close).toHaveBeenCalledOnce();
 });
@@ -638,7 +638,7 @@ it("never adds Home's paragraph to an entry without the Home mark", async () => 
 
 // The project's conversation list and the seen marker.
 describe("conversation list", () => {
-  const legacyEntry = (id: string) => ({ conversationId: id, root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: id, state: "current" as const, owner: { kind: "legacy-external" as const },
+  const legacyEntry = (id: string) => ({ conversationId: id, root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: id, owner: { kind: "legacy-external" as const },
     session: { runtime: "codex" as const, origin: "resumed" as const, sessionId: id, configDir: "/home/.codex", cwd: "/repo" } });
   it("lists a root's conversations as summaries and nothing for a root without any", async () => {
     const h = homeFixture();
@@ -821,9 +821,7 @@ describe("project conversation limit", () => {
       h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []);
       expect(canvasOf(h, b).canvas).toBeUndefined();
       h.service.receive(a, { type: "permission.resolved", requestId: "r", optionId: "deny" }); h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []);
-      expect(canvasOf(h, a)).toMatchObject({ state: "current" });
       expect(canvasOf(h, a).canvas).toBeUndefined();
-      expect(canvasOf(h, b)).toMatchObject({ state: "current" });
       expect(canvasOf(h, b).canvas).toBeUndefined();
     });
     it("binds neither conversation to a new canvas the turn judged first had to leave to an unjudged one (reverse)", async () => {
@@ -867,7 +865,7 @@ describe("project conversation limit", () => {
       h.service.refreshed("/repo", [existing.path]);
       h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []);
       expect(canvasOf(h, a).canvas).toBeUndefined();
-      expect(canvasOf(h, b)).toMatchObject({ canvas: existing, state: "current" });
+      expect(canvasOf(h, b)).toMatchObject({ canvas: existing });
     });
     it("never moves a later judged turn onto a canvas new to it that another conversation was promoted to after its snapshot", async () => {
       const h = homeFixture([existing]);
@@ -882,7 +880,7 @@ describe("project conversation limit", () => {
       expect(canvasOf(h, b).canvas).toEqual(x);
       h.service.receive(a, answered("r")); h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []);
       expect(canvasOf(h, a).canvas).toBeUndefined();
-      expect(canvasOf(h, b)).toMatchObject({ canvas: x, state: "current" });
+      expect(canvasOf(h, b)).toMatchObject({ canvas: x });
     });
   });
   it("hands an ended turn's queue back as a draft when another turn of the root runs (project_busy)", async () => {
@@ -1040,8 +1038,8 @@ describe("promotion", () => {
     h.service.receive(project, { type: "turn.done" });
     h.changes.length = 0;
     h.service.refreshed("/repo", []);
-    expect(entry(h, project)).toMatchObject({ canvas: a, state: "current" });
-    expect(entry(h, current)).toMatchObject({ canvas: a, state: "current" });
+    expect(entry(h, project)).toMatchObject({ canvas: a });
+    expect(entry(h, current)).toMatchObject({ canvas: a });
     expect(h.store.read(current).at(-1)).toMatchObject({ type: "turn.done" });
     expect(h.store.read(project).at(-1)).toMatchObject({ type: "conversation.bound", canvas: a });
     expect(h.runners[0]!.close).not.toHaveBeenCalled();
@@ -1053,7 +1051,7 @@ describe("promotion", () => {
     h.service.refreshed("/repo", [b.path]);
     h.service.receive(project, { type: "turn.done" });
     h.service.refreshed("/repo", []);
-    expect(entry(h, project).canvas).toBeUndefined(); expect(entry(h, current).state).toBe("current");
+    expect(entry(h, project).canvas).toBeUndefined();
   });
   it("promotes to a canvas whose conversation is working, which goes on running", async () => {
     const h = homeFixture([a]); const { current, project } = await withCurrent(h, false);
@@ -1085,13 +1083,12 @@ describe("promotion", () => {
     h.service.refreshed("/repo", [a.path, ".doan/canvases/new.html"]);
     h.service.receive(project, { type: "turn.done" }); h.service.refreshed("/repo", []);
     expect(entry(h, project).canvas).toEqual({ path: ".doan/canvases/new.html", id: "new" });
-    expect(entry(h, current).state).toBe("current");
   });
   it("still promotes a failed turn whose edit really changed the canvas", async () => {
     const h = homeFixture([a]); const { current, project } = await withCurrent(h);
     h.service.receive(project, edit(a.path)); h.service.refreshed("/repo", [a.path]);
     h.service.receive(project, { type: "turn.failed", code: "rate_limited" }); h.service.refreshed("/repo", []);
-    expect(entry(h, project).canvas).toEqual(a); expect(entry(h, current).state).toBe("current");
+    expect(entry(h, project).canvas).toEqual(a);
     expect(h.store.read(current).at(-1)).toMatchObject({ type: "turn.done" });
   });
   it("leaves the index and both histories unchanged, also after a restart, when the promotion cannot be saved", async () => {
@@ -1150,7 +1147,7 @@ describe("promotion", () => {
     // During T2, which edits nothing, someone else changes a.html.
     h.service.refreshed("/repo", [a.path]);
     h.service.receive(project, { type: "turn.done" }); h.service.refreshed("/repo", []);
-    expect(entry(h, project).canvas).toBeUndefined(); expect(entry(h, current).state).toBe("current");
+    expect(entry(h, project).canvas).toBeUndefined();
   });
 });
 

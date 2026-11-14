@@ -344,7 +344,7 @@ export class ConversationService {
       const fromHome = request.mode === "newDesign";
       // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen. The title leaves out the
       // fixed preset and skill lines, which would otherwise fill the sidebar; a preset-only request is titled by the preset.
-      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: messageLine(requestTitleText(request.text), request.anchors), state: "current" as const,
+      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: messageLine(requestTitleText(request.text), request.anchors),
         ...choice(request), ...fastOf(request), ...mode(request.permissionMode), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.snapshot(request.root) } : {}), seenSeq: 0 };
       const runtime = input.runtime;
       // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.

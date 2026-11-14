@@ -16,7 +16,7 @@ const A: Canvas = { id: "a", path: ".doan/canvases/a.html" }, B: Canvas = { id: 
 const ENTRIES: FolderEntry[] = [{ kind: "list", path: ROOT, servedRev: 0, canvases: [{ ...A, url: "http://x/a" }, { ...B, url: "http://x/b" }] as never }];
 const playingOf = (canvas: Canvas): PlayingCanvas => ({ root: ROOT, canvas: { id: canvas.id! }, path: canvas.path });
 const summary = (conversationId: string, canvas: Canvas): ConversationSummary => ({
-  conversationId, canvas, title: conversationId, state: "current", owner: "doan", provider: "claude", fromHome: false, phase: "ended",
+  conversationId, canvas, title: conversationId, owner: "doan", provider: "claude", fromHome: false, phase: "ended",
   unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "",
 });
 const view = (canvas: Canvas, gen: number): PrototypeView => ({

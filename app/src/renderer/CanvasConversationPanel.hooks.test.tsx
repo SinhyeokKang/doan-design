@@ -198,7 +198,7 @@ test("the panel hands the page's canvas press signal to its composer", async () 
 test("a handoff arrival waits for the receiving canvas and conversation, then is applied once", async () => {
   const DRAFTS: Canvas = { path: ".doan/canvases/drafts.html", id: "drafts" };
   const entry: FolderEntry = { path: ROOT, kind: "list", servedRev: 0, canvases: [{ path: DRAFTS.path, id: "drafts", url: "d" }, { path: CANVAS.path, id: "checkout", url: "u" }] };
-  const row = (conversationId: string, canvas: Canvas) => ({ conversationId, title: "t", state: "current", owner: "doan", provider: "claude", fromHome: false, canvas,
+  const row = (conversationId: string, canvas: Canvas) => ({ conversationId, title: "t", owner: "doan", provider: "claude", fromHome: false, canvas,
     phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" });
   const list = [row("c-src", DRAFTS), row("c-recv", CANVAS)] as never[];
   const card = { v: 1, conversationId: "c-recv", seq: 1, turnId: "r1", at: "2026-11-01T00:00:00Z", type: "user.message", text: "Continue.", anchors: [], origin: { kind: "handoff", conversationId: "c-src", canvas: DRAFTS } };
@@ -277,7 +277,7 @@ test("a new conversation started from the panel sends the Fast it shows and reme
 // The title menu lists every conversation of the canvas by latest activity, the shown one pressed;
 // while it is open the order holds and a conversation that appears goes at the end.
 test("the title menu keeps the order it opened with while open; a new conversation joins at the end", () => {
-  const summary = (conversationId: string, lastActivityAt: string) => ({ conversationId, title: conversationId, state: "current", owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
+  const summary = (conversationId: string, lastActivityAt: string) => ({ conversationId, title: conversationId, owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
     phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt, preview: "" }) as const;
   let list: import("./conversationStore").ListView = [summary("a", "2026-11-01T00:01:00.000Z"), summary("b", "2026-11-01T00:02:00.000Z")];
   const calls = { ...window.doan, readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null) } as unknown as typeof window.doan;
@@ -314,7 +314,7 @@ test("the title menu keeps the order it opened with while open; a new conversati
 // Conversations that appear while the menu is open keep the places they were drawn at: a later, more recent one goes
 // after them, and their own activity moves nothing (B and its Delete must not move under the pointer).
 test("rows added while the title menu is open keep their places across later list updates", () => {
-  const summary = (conversationId: string, lastActivityAt: string) => ({ conversationId, title: conversationId, state: "current", owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
+  const summary = (conversationId: string, lastActivityAt: string) => ({ conversationId, title: conversationId, owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
     phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt, preview: "" }) as const;
   let list: import("./conversationStore").ListView = [summary("a", "2026-11-01T00:01:00.000Z")];
   const calls = { ...window.doan, readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null) } as unknown as typeof window.doan;

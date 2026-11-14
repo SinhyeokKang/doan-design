@@ -5,7 +5,7 @@ import { followNewConversation } from "./newConversationFollow";
 const billing = { path: ".doan/canvases/billing.html", id: "billing" };
 const at = (minute: number) => `2026-11-01T12:${String(minute).padStart(2, "0")}:00.000Z`;
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", canvas: billing, title: "Ideas", state: "current", owner: "doan", provider: "claude", fromHome: false,
+  conversationId: "c1", canvas: billing, title: "Ideas", owner: "doan", provider: "claude", fromHome: false,
   phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: at(0), preview: "", ...patch,
 });
 const old = summary({ conversationId: "old", phase: "ended", working: false });

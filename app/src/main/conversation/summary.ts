@@ -5,8 +5,7 @@ import type { PermissionModeId } from "./permissionMode";
 import type { Canvas, ConversationEvent } from "./types";
 // One row of a project's conversation list (conversation:list). The renderer imports this type only.
 export interface ConversationSummary {
-  // state: always "current"; nothing is archived any more, and the field is left only until its readers are gone.
-  conversationId: string; canvas?: Canvas; title: string; state: "current" | "archived";
+  conversationId: string; canvas?: Canvas; title: string;
   // permissionMode: the conversation's chosen mode, absent for Default; it also changes after a Claude plan approval.
   owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; fast?: true; permissionMode?: PermissionModeId; fromHome: boolean;
   // waiting: an unanswered permission request or question. ended also covers a turn a restart folded as crashed.
@@ -52,7 +51,7 @@ const COMMAND = "Running a command";
 // limitResetsAt and scheduledAt: the usage-limit facts main holds in memory (service.ts list).
 export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean; returned?: boolean; suggestion?: string; background?: { turnId: string; stopping?: true }; stopping?: true; limitResetsAt?: string; scheduledAt?: string }): ConversationSummary {
   const base = {
-    conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title, state: "current" as const,
+    conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title,
     owner: m.owner.kind, provider: m.session.runtime, ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}),
     ...(m.fast ? { fast: true as const } : {}), ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}), fromHome: m.fromHome === true, queued: live.queued, working: live.working,
     ...(live.returned ? { returnedDraft: true as const } : {}),

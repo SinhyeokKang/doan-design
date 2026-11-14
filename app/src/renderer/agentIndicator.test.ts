@@ -12,7 +12,7 @@ const row: CanvasRow = { path: ".doan/canvases/billing.html", id: "billing", url
 const opened = { folder: "/w/a", canvas: row.path, row };
 const listed: FolderEntry = { path: "/w/a", kind: "list", servedRev: 0, canvases: [row] };
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "codex", fromHome: true,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "codex", fromHome: true,
   phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "",
   canvas: { path: row.path, id: "billing" }, ...patch,
 });

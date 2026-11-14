@@ -151,9 +151,9 @@ test("clicking the test notification only shows the window", () => {
 test("names a conversation by its provider, its project as Home names it, and the worktree's branch", () => {
   const session = { origin: "new" as const, sessionId: "s", configDir: "/c", cwd: "/w" };
   const conversations = [
-    { conversationId: "c1", root: "/src/acme-web-wt", title: "t", state: "current", owner: { kind: "doan", provider: "copilot", connectionId: "x", accountId: null, workspaceId: null, profile: "p" }, session: { ...session, runtime: "copilot" } },
-    { conversationId: "c2", root: "/src/acme-web", title: "t", state: "current", owner: { kind: "legacy-external" }, session: { ...session, runtime: "claude" } },
-    { conversationId: "c3", root: "/gone/site", title: "t", state: "current", owner: { kind: "legacy-external" }, session: { ...session, runtime: "codex" } },
+    { conversationId: "c1", root: "/src/acme-web-wt", title: "t", owner: { kind: "doan", provider: "copilot", connectionId: "x", accountId: null, workspaceId: null, profile: "p" }, session: { ...session, runtime: "copilot" } },
+    { conversationId: "c2", root: "/src/acme-web", title: "t", owner: { kind: "legacy-external" }, session: { ...session, runtime: "claude" } },
+    { conversationId: "c3", root: "/gone/site", title: "t", owner: { kind: "legacy-external" }, session: { ...session, runtime: "codex" } },
   ] as ConversationMetadata[];
   const git = { common: "/src/acme-web/.git", main: "/src/acme-web", worktrees: ["/src/acme-web", "/src/acme-web-wt"] };
   const entries = [
