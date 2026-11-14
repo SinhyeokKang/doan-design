@@ -348,7 +348,8 @@ describe("Delete from this window", () => {
 });
 
 // The panel head's title: the main window's canvasConversationTitle for the conversation shown; the states the panel
-// had no head for (the list still read or failed, the canvas gone or its ID shared) keep the shell's "Conversation".
+// had no head for (the list still read, the canvas gone or its ID shared) keep the shell's "Conversation"; a list never
+// read is the new conversation state and reads "New conversation", as in the main window.
 describe("the panel head's title", () => {
   test("the list's summary title of the conversation shown", async () => {
     await playing({}, [summary({ title: "Checkout Review details button" })]);
@@ -373,13 +374,13 @@ describe("the panel head's title", () => {
     expect(run.headTitle()).toBe("New conversation");
   });
 
-  test("before any view, while the list is read and after it failed, Conversation", async () => {
+  test("before any view and while the list is read, Conversation; after the first read failed, New conversation", async () => {
     expect(run.headTitle()).toBe("Conversation");
     run.connect();
     run.setView(view());
     expect(run.headTitle()).toBe("Conversation");
     await answer(ROOT, { error: "unknown" } as never);
-    expect(run.headTitle()).toBe("Conversation");
+    expect(run.headTitle()).toBe("New conversation");
   });
 
   test("a canvas gone or sharing its ID while open turns the title to Conversation", async () => {

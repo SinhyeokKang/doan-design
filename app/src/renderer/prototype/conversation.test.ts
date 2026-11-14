@@ -179,9 +179,14 @@ describe("conversationButton", () => {
 describe("prototypeHeadTitle", () => {
   test("the states the panel had no head for read Conversation, not a new conversation", () => {
     expect(prototypeHeadTitle({ kind: "list_loading" }, "New conversation")).toBe("Conversation");
-    expect(prototypeHeadTitle({ kind: "list_error" }, "New conversation")).toBe("Conversation");
     expect(prototypeHeadTitle({ kind: "blocked", reason: "gone" }, "Ideas")).toBe("Conversation");
     expect(prototypeHeadTitle({ kind: "blocked", reason: "duplicate" }, "Ideas")).toBe("Conversation");
+  });
+
+  // A list never read is the new conversation state (the head's New is aria-disabled and New conversation is the
+  // pressed menu row), so the head names it as the main window does.
+  test("a failed first list read reads New conversation, as the main window", () => {
+    expect(prototypeHeadTitle({ kind: "list_error" }, "New conversation")).toBe("New conversation");
   });
 
   test("an empty title reads Conversation", () => {
