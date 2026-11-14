@@ -764,6 +764,65 @@ describe("the viewed canvas's conversation list", () => {
     expect(t.props.open).not.toHaveBeenCalled();
   });
 
+  // Runtime probe 9h: the chevron sits inside its canvas row, which stays, so row recovery never sees it go; with focus on
+  // it, its unmount (the canvas left with one conversation) must hand focus to the canvas row, not the page body
+  // (design '포커스'; POSTMORTEM 2026-11-03).
+  it("a chevron that unmounts while it holds focus hands focus to its canvas row", async () => {
+    const props = conversations();
+    const t = tree(props);
+    const rendered = elements(ShellSidebar({ ...t.props, canvas: CHECKOUT, conversations: props } as never));
+    const chevron = rendered.find(item => item["aria-label"] === "Collapse checkout")!;
+    const canvasRow = rendered.find(item => item.role === "treeitem" && item["aria-label"] === "checkout")!;
+    const body = {}, chevronNode = { isConnected: true }, rowNode = { focus: vi.fn(), contains: () => false, isConnected: true };
+    vi.stubGlobal("document", { activeElement: chevronNode, body });
+    try {
+      (canvasRow.ref as (node: unknown) => void)(rowNode);
+      expect(typeof chevron.ref).toBe("function");
+      (chevron.ref as (node: unknown) => void)(chevronNode);
+      (chevron.ref as (node: unknown) => void)(null);
+      (document as unknown as { activeElement: unknown }).activeElement = body;
+      await Promise.resolve();
+      expect(rowNode.focus).toHaveBeenCalledOnce();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  // A re-render hands the chevron a new ref callback (the old one gets null first); a chevron still focused and on the
+  // page keeps its focus.
+  it("a re-render while the chevron holds focus leaves focus on it", async () => {
+    const props = conversations();
+    const t = tree(props);
+    const rendered = elements(ShellSidebar({ ...t.props, canvas: CHECKOUT, conversations: props } as never));
+    const chevron = rendered.find(item => item["aria-label"] === "Collapse checkout")!;
+    const canvasRow = rendered.find(item => item.role === "treeitem" && item["aria-label"] === "checkout")!;
+    const chevronNode = { isConnected: true }, rowNode = { focus: vi.fn(), contains: () => false, isConnected: true };
+    vi.stubGlobal("document", { activeElement: chevronNode, body: {} });
+    try {
+      (canvasRow.ref as (node: unknown) => void)(rowNode);
+      (chevron.ref as (node: unknown) => void)(chevronNode);
+      (chevron.ref as (node: unknown) => void)(null);
+      (chevron.ref as (node: unknown) => void)(chevronNode);
+      await Promise.resolve();
+      expect(rowNode.focus).not.toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it("a chevron that unmounts without focus moves nothing", async () => {
+    const props = conversations();
+    const t = tree(props);
+    const rendered = elements(ShellSidebar({ ...t.props, canvas: CHECKOUT, conversations: props } as never));
+    const chevron = rendered.find(item => item["aria-label"] === "Collapse checkout")!;
+    const canvasRow = rendered.find(item => item.role === "treeitem" && item["aria-label"] === "checkout")!;
+    const elsewhere = { isConnected: true }, chevronNode = { isConnected: true }, rowNode = { focus: vi.fn(), contains: () => false, isConnected: true };
+    vi.stubGlobal("document", { activeElement: elsewhere, body: {} });
+    try {
+      (canvasRow.ref as (node: unknown) => void)(rowNode);
+      (chevron.ref as (node: unknown) => void)(chevronNode);
+      (chevron.ref as (node: unknown) => void)(null);
+      await Promise.resolve();
+      expect(rowNode.focus).not.toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it("a locked page leaves the conversation rows and their Delete doing nothing", () => {
     const props = conversations();
     const t = groupsFixture(undefined, ["canvases/checkout", "canvases/pricing"], { canvas: CHECKOUT, conversations: props, locked: true });
@@ -884,6 +943,42 @@ describe("the viewed canvas's conversation list", () => {
       (group(rendered).onFocus as () => void)();
       rendered = render(props, PRICING);
       props.setList([conversation("c1", 1), conversation("c2", 5), conversation("b1", 3, { canvas: { path: PRICING } }), conversation("b2", 0, { canvas: { path: PRICING } })]);
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
+    });
+
+    // Review R2-1: a held press belongs to the one move it caused; a later keyboard move or Back/Forward to the same
+    // canvas must not reuse it.
+    it("after a held press, keyboard moves back and to the pressed canvas again end with the list under it", () => {
+      hooks.stable = true;
+      const props = conversations();
+      both(props, 2);
+      let rendered = render(props);
+      (aside(rendered).onPointerEnter as () => void)();
+      rendered = render(props);
+      press(rendered, "pricing");
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title c1", "Title c2"]);
+      const enter = (name: string) => { const target = {}; (canvasRowOf(rendered, name).onKeyDown as (event: unknown) => void)({ key: "Enter", target, currentTarget: target, preventDefault: () => {}, metaKey: false, ctrlKey: false, altKey: false }); };
+      enter("checkout");
+      rendered = render(props, CHECKOUT);
+      expect(titles(rendered)).toEqual(["Title c1", "Title c2"]);
+      enter("pricing");
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
+    });
+
+    it("after a held press, Back then Forward to the pressed canvas end with the list under it", () => {
+      hooks.stable = true;
+      const props = conversations();
+      both(props, 2);
+      let rendered = render(props);
+      (aside(rendered).onPointerEnter as () => void)();
+      rendered = render(props);
+      press(rendered, "pricing");
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title c1", "Title c2"]);
+      rendered = render(props, CHECKOUT);
       rendered = render(props, PRICING);
       expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
     });

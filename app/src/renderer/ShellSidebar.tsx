@@ -226,6 +226,7 @@ export function ShellSidebar(props: Props) {
   const previousRows = useRef<TreeRow[]>([]);
   const previousProjects = useRef<string[]>([]);
   const elements = useRef(new Map<string, HTMLElement>());
+  const chevrons = useRef(new Map<string, HTMLElement>());
   const buffer = useRef({ text: "", at: 0 });
   const live = useRef(props); live.current = props;
   // The conversation list's place and order. While the pointer or focus is in the list its rows hold their order; after a
@@ -236,7 +237,9 @@ export function ShellSidebar(props: Props) {
   const [listFocus, setListFocus] = useState<string | null>(null);
   // Where an unfolded list showed last, and the canvas row the pointer pressed while it stays in the sidebar.
   const placed = useRef<string | null>(null);
-  const pressedRow = useRef<string | null>(null);
+  // `arrived`: the press's move reached its canvas; leaving that canvas (keyboard, Back/Forward) ends the press, so a
+  // later move to the same canvas never reuses it.
+  const pressedRow = useRef<{ key: string; arrived: boolean } | null>(null);
   const drawn = useRef<string[] | null>(null);
   const rows: { key: string; parent?: string; canvas?: boolean; conversation?: boolean; name: string; activate(): void; right(): void; left(): void }[] = [];
   // Each listed canvas row on screen, for the conversation list placed under one of them.
@@ -313,13 +316,16 @@ export function ShellSidebar(props: Props) {
           else if (action === "firstConversation") focus(listFirst);
           else if (action === "head") focus(head);
         };
-        rows.push({ key, parent: head, canvas: true, name: row.path.split("/").at(-1)!.replace(/\.html$/, ""), activate: () => openCanvasRow(entry!.path, row, key), right: () => step("ArrowRight"), left: () => step("ArrowLeft") });
+        rows.push({ key, parent: head, canvas: true, name: row.path.split("/").at(-1)!.replace(/\.html$/, ""), activate: () => { pressedRow.current = null; openCanvasRow(entry!.path, row, key); }, right: () => step("ArrowRight"), left: () => step("ArrowLeft") });
       }
     }
   }
   const conversations = props.conversations;
   const viewedKey = conversations && !props.home && !props.unlisted && loaded && canvas !== undefined && canvasRows.has(`${loaded}\n${canvas}`) ? `${loaded}\n${canvas}` : null;
-  const at = conversations ? listPlace(placed.current, viewedKey, rows.map(row => row.key), sidebarPointer ? pressedRow.current : null) : null;
+  const press = pressedRow.current;
+  if (press && viewedKey === press.key) press.arrived = true;
+  else if (press?.arrived) pressedRow.current = null;
+  const at = conversations ? listPlace(placed.current, viewedKey, rows.map(row => row.key), sidebarPointer ? pressedRow.current?.key ?? null : null) : null;
   const placedRow = at === null ? undefined : canvasRows.get(at);
   const holding = at !== null && (listPointer === at || listFocus === at);
   const listItems: SidebarConversation[] = conversations && placedRow
@@ -362,6 +368,20 @@ export function ShellSidebar(props: Props) {
     previousRows.current = rows.map(row => ({ key: row.key, ...(row.parent !== undefined ? { parent: row.parent } : {}), ...(row.canvas ? { canvas: true } : {}), ...(row.conversation ? { conversation: true } : {}) }));
     previousProjects.current = cards.map(card => card.key);
   });
+  // The chevron sits inside its canvas row, which stays when the chevron goes (the canvas left with one conversation), so
+  // the row recovery above never sees it; with focus on it, focus would fall to the page body (POSTMORTEM 2026-11-03).
+  // Checked after the commit, once the node is gone, and only when nothing else took focus.
+  const chevronRef = (key: string) => (node: HTMLButtonElement | null) => {
+    if (node) { chevrons.current.set(key, node); return; }
+    const gone = chevrons.current.get(key);
+    chevrons.current.delete(key);
+    if (!gone || gone !== document.activeElement) return;
+    queueMicrotask(() => {
+      const now = document.activeElement;
+      // A re-render replaces the ref callback too (null, then the same node): a chevron still on the page keeps focus.
+      if (!now || now === document.body || !now.isConnected) elements.current.get(key)?.focus();
+    });
+  };
   const rowRef = (key: string) => (node: HTMLDivElement | null) => {
     if (node) elements.current.set(key, node);
     else { if (elements.current.get(key)?.contains(document.activeElement)) ownedFocus.current = key; elements.current.delete(key); }
@@ -475,8 +495,8 @@ export function ShellSidebar(props: Props) {
                   // the list's rows carry. The chevron never takes focus, so it cannot drop it to the page when it goes.
                   const here = key === listAt, folded = !!conversations?.folded;
                   const slot = here && conversations ? canvasRowMark(props.slots ?? new Map(), conversations.bare, key, !folded) : props.slots?.get(slotKey(entry.path, row.path));
-                  return <Fragment key={key}><div><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem ? descriptionId : undefined} aria-label={name} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} aria-expanded={here ? !folded : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => { pressedRow.current = key; openCanvasRow(entry.path, row, key); }}>
-                    {here ? <span className="shell-lead canvas-lead"><Icon className="canvas-icon" aria-hidden="true" /><button type="button" className="shell-disclosure" aria-label={`${folded ? "Expand" : "Collapse"} ${name}`} tabIndex={-1}
+                  return <Fragment key={key}><div><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem ? descriptionId : undefined} aria-label={name} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} aria-expanded={here ? !folded : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => { pressedRow.current = { key, arrived: false }; openCanvasRow(entry.path, row, key); }}>
+                    {here ? <span className="shell-lead canvas-lead"><Icon className="canvas-icon" aria-hidden="true" /><button ref={chevronRef(key)} type="button" className="shell-disclosure" aria-label={`${folded ? "Expand" : "Collapse"} ${name}`} tabIndex={-1}
                       onMouseDown={event => event.preventDefault()} onClick={event => { event.stopPropagation(); conversations?.fold(!folded); }}><ChevronDown aria-hidden="true" /></button></span> : <Icon aria-hidden="true" />}
                     <span>{name}</span><SlotMark slot={slot} />
                     {canvasRowMenu({ menu: props.canvasMenu, root: entry.path, row, name, reasonId: descriptionId, open: menu?.kind === "canvas" && menu.key === key, locked: !!locked, tabIndex: active === key ? 0 : -1,
