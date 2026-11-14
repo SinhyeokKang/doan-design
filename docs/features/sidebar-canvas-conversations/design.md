@@ -94,3 +94,8 @@ develop `7fdcd1dbf` 기준. 하위 1(`canvas-concurrent-conversations`)이 병�
 - **2026-11-01 'A ui-state save sent before the startup read could replace every remembered field'**: "a client of a replace-semantics store sends nothing until its first read has settled, and merges what it read before the first save." 새 `sidebar.conversationsFolded`도 이 경로로 저장한다.
 - **2026-10-25 'Removing the remembered row removed a card from keyboard navigation'**: "derive roving focus from the current item set, including remove and re-root transitions." 대화 행이 지워지고 목록이 접힐 때.
 - **2026-11-06 'Unfolding older models moved the line under the pointer, so a second press picked a model'**: 포인터 아래 행이 움직이면 두 번째 누름이 다른 것을 고른다. 정한 점 4(순서 멈춤)와 10(아래 캔버스 행을 누른 뒤 목록 유지)이 이 규칙을 따른다.
+
+## 초안 확인
+
+- 2026-11-14 사용자가 앱에서 `.doan/canvases/sidebar-canvas-conversations.html`의 9개 프레임을 확인했다. 독립 초안 리뷰(🔴 2건)를 반영한 판이다. 확인 중 보는 대화 행에 체크를 더했다(spec '보는 대화 표시'). 들여쓰기는 58 px를 유지한다(180 px에서 제목 약 72 px).
+
