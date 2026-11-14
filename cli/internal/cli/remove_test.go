@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -122,11 +123,14 @@ func TestRemoveSendsTheV7RequestAndReturnsTheGroup(t *testing.T) {
 	if err := formats.ValidateRemoveRequest(req); err != nil {
 		t.Fatal(err)
 	}
-	// From a subfolder of the project the discovered root is sent, not the subfolder.
+	// Without --repo the search starts at the working directory and goes up; the discovered root is sent.
 	putFile(t, root, "src/a.txt", "x")
 	app.replies <- removedReply("repo", root)
-	if _, exit := runRemove(t, filepath.Join(root, "src")); exit != 0 {
-		t.Fatal(exit)
+	ctx := Context{Start: filepath.Join(root, "src"), Now: time.Now, RuntimePath: os.Getenv("DOAN_RUNTIME"), Dial: func(socket string, deadline time.Time) (net.Conn, error) {
+		return (&net.Dialer{Deadline: deadline}).Dial("unix", socket)
+	}}
+	if _, failure := Remove(ctx, Flags{}, nil); failure != nil {
+		t.Fatal(failure)
 	}
 	if req := app.request(t); req["root"] != root {
 		t.Fatal(req)
@@ -197,8 +201,7 @@ func TestRemoveProblemRootsPointToTheApp(t *testing.T) {
 	putFile(t, broken, ".doan/config.json", `{`)
 	for root, code := range map[string]string{notSetUp: "repo_not_found", broken: "invalid_config"} {
 		failure := removeCode(t, root, code)
-		steps := strings.Join(stringsOf(failure["nextSteps"]), "\n")
-		if strings.Contains(steps, "doan init") || !reflect.DeepEqual(stringsOf(failure["nextSteps"]), []string{"If Doan lists this folder as Not set up or Config error, ask the user to use Remove from Doan in the app; do not run `doan init` here"}) {
+		if steps := stringsOf(failure["nextSteps"]); !reflect.DeepEqual(steps, []string{"If Doan lists this folder as Not set up or Config error, ask the user to use Remove from Doan in the app; do not run `doan init` here"}) {
 			t.Errorf("%s: %q", code, steps)
 		}
 	}

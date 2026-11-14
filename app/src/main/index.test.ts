@@ -1272,6 +1272,8 @@ describe("removing from the CLI", () => {
   type RemoveState = { remove(request: { v: 7; token: string; root: string }): Promise<unknown> };
   const remove = (root: string) => (runtimeState() as unknown as RemoveState).remove({ v: 7, token: TOKEN, root });
   const removedEvents = () => window().webContents.send.mock.calls.filter(([channel]) => channel === "folders:removed").map(([, value]) => value as unknown);
+  beforeAll(() => { launchCompletion = COMPLETE; });
+  afterAll(() => { launchCompletion = { kind: "missing" }; });
   beforeEach(async () => {
     mocks.shell.entries.mockReturnValue(entries);
     mocks.shell.remove.mockImplementation(async (paths: string[]) => ({ paths }));
@@ -1336,6 +1338,15 @@ describe("removing from the CLI", () => {
     expect(await remove(APP)).toMatchObject({ v: 7, ok: false, error: { code: "busy", message: "Doan is still loading this project. Try again shortly." } });
     expect(mocks.shell.remove).not.toHaveBeenCalled();
   });
+});
+
+// The default launch here has no completion record, so first run is open.
+test("doan remove during first run answers busy and removes nothing", async () => {
+  mocks.shell.entries.mockReturnValue(entries);
+  await invoke("deep-link:ready", window().webContents, null);
+  const state = runtimeState() as unknown as { remove(request: { v: 7; token: string; root: string }): Promise<unknown> };
+  expect(await state.remove({ v: 7, token: "t", root: APP })).toMatchObject({ v: 7, ok: false, error: { code: "busy", message: "Finish Doan's first run, then try again." } });
+  expect(mocks.shell.remove).not.toHaveBeenCalled();
 });
 
 describe("locate and reveal", () => {

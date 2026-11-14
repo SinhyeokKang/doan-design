@@ -180,3 +180,7 @@ export type HandoffResponse = { v: 5; ok: true; requested: true } | { v: 5; ok: 
 export type PrototypeRequest = { v: 6; token: string; root: string; path: string; frame: string; mark: string };
 export type PrototypeErrorCode = "bad_request" | "bad_token" | "project_not_open" | "canvas_not_found" | "busy" | "not_ready";
 export type PrototypeResponse = { v: 6; ok: true; played: true } | { v: 6; ok: false; error: { code: PrototypeErrorCode; message: string } };
+
+export type RemoveRequest = { v: 7; token: string; root: string };
+export type RemoveErrorCode = "bad_request" | "bad_token" | "project_not_open" | "busy" | "conversation_running";
+export type RemoveResponse = { v: 7; ok: true; removed: true; project: string; roots: string[] } | { v: 7; ok: false; error: { code: RemoveErrorCode; message: string } };

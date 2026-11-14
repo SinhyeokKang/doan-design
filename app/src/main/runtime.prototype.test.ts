@@ -19,7 +19,7 @@ const state = (playPrototype: RuntimeState["playPrototype"] = () => played) => (
   isOpen: vi.fn((value: string) => value === root), selection: vi.fn(() => null), work: vi.fn(), conversationWork: vi.fn(),
   onboarding: vi.fn(async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } })),
   open: vi.fn(async (): Promise<OpenResponse> => ({ v: 4, ok: true, opened: true, frame: "none" })),
-  handoff: vi.fn(() => null), playPrototype: vi.fn(playPrototype),
+  handoff: vi.fn(() => null), playPrototype: vi.fn(playPrototype), remove: async () => ({ v: 7 as const, ok: false as const, error: { code: "bad_request" as const, message: "unused" } }),
   roots: () => [root], readRoot: vi.fn(async (): Promise<FolderState> => ({ kind: "uninitialized" })), adopt: vi.fn(),
 });
 afterEach(() => { vi.restoreAllMocks(); });

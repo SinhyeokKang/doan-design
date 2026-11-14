@@ -25,7 +25,7 @@ const input = (patch: Partial<CliRemoveInput> = {}): CliRemoveInput => ({
 });
 const refusal = (patch: Partial<CliRemoveInput>) => {
   const decision = cliRemoveDecision(input(patch));
-  if (decision.kind !== "refuse") throw new Error(`removed: ${JSON.stringify(decision)}`);
+  if (decision.kind !== "refuse" || decision.response.ok) throw new Error(`removed: ${JSON.stringify(decision)}`);
   expect(validateRemoveResponse(decision.response)).toBe(true);
   return decision.response;
 };
@@ -87,7 +87,7 @@ describe("refusals change nothing", () => {
     expect(refusal({ menu: { screen: "settings", modal: false, locked: true, projectSettings: true } }).error).toEqual({ code: "busy", message: openBlockedMessage("project_settings") });
     expect(openBlockedMessage("add_projects")).toBe("The Add Projects page in Doan is in the middle of a task. Finish or cancel it, then try again.");
     // An unlocked page does not block.
-    expect(cliRemoveDecision(input({ menu: { screen: "addProjects", modal: false, choose: true } })).kind).toBe("remove");
+    expect(cliRemoveDecision(input({ menu: { screen: "addProjects", modal: false } })).kind).toBe("remove");
     expect(cliRemoveDecision(input({ menu: { screen: "settings", modal: false, projectSettings: true } })).kind).toBe("remove");
   });
 
@@ -102,13 +102,15 @@ describe("refusals change nothing", () => {
     expect(cliRemoveDecision(input({ liveTurns: new Map([["done", turn("/w/app", false)], ["elsewhere", turn("/w/other")]]) })).kind).toBe("remove");
   });
 
-  test("the checks run in order: registration, loading, first run, dialog, locked page, conversations", () => {
+  // What the person must finish comes before loading: the renderer reports ready only after first run and the buddy
+  // screen, and a locked Add Projects page is itself reading the root it sets up (found by the runtime probe).
+  test("the checks run in order: registration, first run, dialog, locked page, loading, conversations", () => {
     const all: Partial<CliRemoveInput> = { ready: false, firstRun: true, menu: { screen: "settings", modal: true, locked: true }, liveTurns: new Map([["c", turn("/w/app")]]) };
     expect(refusal({ ...all, root: "/w/nowhere" }).error.code).toBe("project_not_open");
-    expect(refusal(all).error.message).toBe("Doan is still loading this project. Try again shortly.");
-    expect(refusal({ ...all, ready: true }).error.message).toBe("Finish Doan's first run, then try again.");
-    expect(refusal({ ...all, ready: true, firstRun: false }).error.message).toBe("A dialog is open in Doan. Close it, then try again.");
-    expect(refusal({ ...all, ready: true, firstRun: false, menu: { screen: "settings", modal: false, locked: true } }).error.message).toBe(openBlockedMessage("settings"));
+    expect(refusal(all).error.message).toBe("Finish Doan's first run, then try again.");
+    expect(refusal({ ...all, firstRun: false }).error.message).toBe("A dialog is open in Doan. Close it, then try again.");
+    expect(refusal({ ...all, firstRun: false, menu: { screen: "settings", modal: false, locked: true } }).error.message).toBe(openBlockedMessage("settings"));
+    expect(refusal({ ...all, firstRun: false, menu: { screen: "home", modal: false } }).error.message).toBe("Doan is still loading this project. Try again shortly.");
     expect(refusal({ ...all, ready: true, firstRun: false, menu: { screen: "home", modal: false } }).error.code).toBe("conversation_running");
   });
 });

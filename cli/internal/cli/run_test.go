@@ -224,6 +224,7 @@ func TestHelpUsageAndHumanError(t *testing.T) {
 		t.Fatal(&out, &errout)
 	}
 }
+
 // doan remove is in help only, with the line that says when an agent may run it; the guide and stub do not name it.
 func TestHelpListsRemoveForTheUserOnly(t *testing.T) {
 	usage := result(t, t.TempDir(), 0, "help")["usage"].(string)

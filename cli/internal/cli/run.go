@@ -89,6 +89,8 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   open <canvas path> [--frame <id> [--prototype]]
   handoff <canvas path> --message <text|->
       (Doan app conversations only)
+  remove
+      (removes this project from Doan's list; files stay. Only when the user asks)
   export <canvas path> [--frame <id> --prototype] -o <file> [--force]
   onboarding start
   onboarding status --session <id> [--operation <id>]
@@ -129,7 +131,7 @@ func findRepository(ctx Context, f Flags) (repo.Repository, *Error, string) {
 	return r, nil, ""
 }
 
-// runtimePath is resolved only for active, work, open, handoff and onboarding, so a bad DOAN_RUNTIME cannot break file-only commands.
+// runtimePath is resolved only for active, work, open, handoff, remove and onboarding, so a bad DOAN_RUNTIME cannot break file-only commands.
 // An e2e or dev app started with --user-data-dir writes runtime.json there, and this variable points the CLI at it.
 func runtimePath() (string, *Error) {
 	if p := os.Getenv("DOAN_RUNTIME"); p != "" {
@@ -300,6 +302,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 						ctx.Input = reader
 						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
 							o, failure = Handoff(ctx, f, pos[1:])
+						}
+					case "remove":
+						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
+							o, failure = Remove(ctx, f, pos[1:])
 						}
 					case "export":
 						o, failure = Export(ctx, f, pos[1:])

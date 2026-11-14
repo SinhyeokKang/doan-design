@@ -6,6 +6,7 @@ import { useBuddyIntroLock } from "./buddyIntroLock";
 import type { BuddyPaint } from "./buddyPaint";
 import type { BuddyId } from "./buddies";
 import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, shownFolders, type Visit } from "./shellNavigation";
+import { afterRemoved, type RemovedState } from "./afterRemoved";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
@@ -294,6 +295,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const navigationIntent = useRef(0);
   const entriesRef = useRef(entries); entriesRef.current = entries;
   const shellRef = useRef(shellProjects); shellRef.current = shellProjects;
+  const expandedRef = useRef(expanded); expandedRef.current = expanded;
   // Why the open canvas was closed (its ID now shared by another canvas), shown on its project's Overview until another
   // canvas opens or the Overview is left, so the person learns why the canvas page went away.
   const [overviewNotice, setOverviewNotice] = useState<{ root: string; text: string } | null>(null);
@@ -951,8 +953,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest, prototypeReveal, prototypeLastUsed, conversationHandoff, handoffCheck };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {}, forgetRemoved: (_paths: readonly string[]) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest, prototypeReveal, prototypeLastUsed, conversationHandoff, handoffCheck, forgetRemoved };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -1197,6 +1199,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useEffect(() => window.doan.onOpenRequest(request => live.current.openCanvasRequest(request)), []);
   // A started handoff, and every later render's check of the one still waiting for its read.
   useEffect(() => window.doan.onConversationHandoff(notice => live.current.conversationHandoff(notice)), []);
+  useEffect(() => window.doan.onFoldersRemoved(paths => live.current.forgetRemoved(paths)), []);
   useEffect(() => { live.current.handoffCheck(); });
   // Ready once the launch restore is applied (or cancelled) and the first folders are in, so a link's canvas opens over
   // the restored screen (ARCHITECTURE §7 'Deep links').
@@ -1318,19 +1321,18 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   async function removeNow(paths: string[]) {
     cancelRestore();
     const result = await window.doan.removeProjects(paths);
-    if (result.kind === "removed") {
-      setShellProjects(previous => Object.fromEntries(Object.entries(previous).flatMap(([key, project]) => {
-        const roots = project.roots.filter(root => !paths.includes(root));
-        return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}), ...(project.groups ? { groups: project.groups } : {}) }]] : [];
-      })));
-      setExpanded(previous => Object.fromEntries(Object.entries(previous).filter(([root]) => !paths.includes(root))));
-      for (const root of paths) controller.current?.remember(root, null);
-      forgetConversations(paths);
-      const previous = historyRef.current;
-      const before = previous.visits.slice(0, previous.cursor + 1).filter(visit => !paths.includes(visit.root));
-      const nextHistory = { visits: previous.visits.filter(visit => !paths.includes(visit.root)), cursor: before.length - 1 };
-      historyRef.current = nextHistory; setHistory(nextHistory);
-    }
+    if (result.kind === "removed") forgetRemoved(paths);
+  }
+  // What the window forgets about roots it or `doan remove` (folders:removed) took out of the list. Going Home is the
+  // entries effect's, as for any vanished root. A second pass for the same roots sets no state, so the CLI's event for
+  // roots this window's own Remove already tidied changes nothing.
+  function forgetRemoved(paths: readonly string[]) {
+    const current: RemovedState = { shellProjects: shellRef.current, expanded: expandedRef.current, history: historyRef.current };
+    const next = afterRemoved(current, paths);
+    setShellProjects(next.shellProjects); setExpanded(next.expanded);
+    if (next.history !== current.history) { historyRef.current = next.history; setHistory(next.history); }
+    for (const root of paths) controller.current?.remember(root, null);
+    if (paths.some(root => root in conversationByRoot.current)) forgetConversations(paths);
   }
   // The dialog asks main for its plan before it can be
   // confirmed. A busy plan keeps it open with its working line; any other refusal closes it with that refusal's toast.
@@ -1979,12 +1981,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   });
   useEffect(() => {
     // The Project Settings page enables the menu as Settings does (no canvas items, no New Conversation), so main's
-    // menu state needs no screen of its own.
+    // menu state needs no screen of its own; its flag only names the page in `doan remove`'s busy sentence.
     // Under the overlay the workspace has no canvas or Overview items: they would act on what it covers (ARCHITECTURE §7 'Problem overlay').
     void window.doan.setMenuState({ screen: onPage ? "addProjects" : onSettings || onProjectSettings ? "settings" : screen === "home" ? "home" : state.open && !overlaid ? "canvas" : "workspace", modal,
       ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null && !overlaid ? { overview: true } : {}),
-      ...(menuPicker && !overlaid ? { pickerAvailable: true } : {}), ...(sidebarHidden ? { sidebarHidden: true } : {}) });
-  }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuPicker, sidebarHidden, overlaid]);
+      ...(menuPicker && !overlaid ? { pickerAvailable: true } : {}), ...(sidebarHidden ? { sidebarHidden: true } : {}), ...(onProjectSettings ? { projectSettings: true } : {}) });
+  }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuPicker, sidebarHidden, overlaid, onProjectSettings]);
   // A covered Overview's thread is not seen (PRODUCT §5 item 3 'Problem states').
   useLayoutEffect(() => { overviewRun.current!.show(overlaid ? null : shownOverview); }, [shownOverview, overlaid]);
   // The window's focus decides whether the shown conversation is seen; the focus listener is the
