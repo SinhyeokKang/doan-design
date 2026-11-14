@@ -80,3 +80,13 @@ test("past the place limit with the playing frame, Send waits with the shipped l
   expect(markup).toContain("A message can point at up to 32 places. Remove one to add another.");
   expect(markup).toMatch(/aria-label="Send"[^>]*disabled=""|disabled=""[^>]*aria-label="Send"/);
 });
+
+// The pinned chip goes with the message, but it is not the person's message: an empty field while a turn runs still
+// offers Stop, the only way to stop the turn from this composer.
+test("an empty field offers Stop while a turn runs, and Send (not Queue) on an empty queue", () => {
+  const running = html({ turn: "running" });
+  expect(running).toContain("composer-stop");
+  expect(running).not.toContain('aria-label="Queue"');
+  const typed = html({ turn: "running" }, { segments: [{ kind: "text", text: "Also the back link" }] });
+  expect(typed).toContain('aria-label="Queue"');
+});

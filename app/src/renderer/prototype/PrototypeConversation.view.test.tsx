@@ -170,6 +170,31 @@ describe("main-window-only buttons go to main as reveals", () => {
   });
 });
 
+// This window cannot start a new conversation while the canvas has a current one: a refusal of that conversation
+// (another sign-in owns it) offers no "Start a new conversation" here. A terminal session's refusal still switches to
+// the new conversation it shares a field with.
+describe("refusals in the prototype window", () => {
+  test("a refused conversation offers no new conversation; a refused terminal session still does", async () => {
+    await playing();
+    const panel = render(true) as El & { inner: ReactNode };
+    const composer = all(panel.inner).find(named("DockedComposer"))!.props as { refuse(code: string, provider: string, resets: string | null): Record<string, unknown> };
+    expect(composer.refuse("account_changed", "claude", null)).toMatchObject({ kind: "notice" });
+    expect(composer.refuse("account_changed", "claude", null).startNew).toBeFalsy();
+  });
+
+  test("in the new conversation state the terminal session's refusal keeps its way to a new conversation", async () => {
+    listed = [];
+    calls.conversationResumeTarget = vi.fn(async () => ({ available: true, runtime: "claude", lastCheckAt: "2026-11-01T12:00:00.000Z", session: "s1" }));
+    run = new PrototypeConversationRun(calls as never, { changed: () => { hooks.dirty = true; }, notice: () => {}, focused: () => true });
+    await playing();
+    await flush();
+    const panel = render(true) as El & { inner: ReactNode };
+    const composer = all(panel.inner).find(named("DockedComposer"))!.props as { mode: { kind: string }; refuse(code: string, provider: string, resets: string | null): Record<string, unknown> };
+    expect(composer.mode.kind).toBe("resume");
+    expect(composer.refuse("session_unavailable", "claude", null)).toMatchObject({ kind: "notice", startNew: true });
+  });
+});
+
 // POSTMORTEM 2026-11-06: an untouched composer remembers nothing; a pick is Last used, through the main window.
 describe("Last used from the prototype composer", () => {
   test("an untouched mount remembers nothing; a pick goes to main as the choice", async () => {

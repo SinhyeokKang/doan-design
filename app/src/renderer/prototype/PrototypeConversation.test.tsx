@@ -30,11 +30,12 @@ let listChanged: Listener<{ root: string }> | null;
 let event: Listener<ConversationEvent> | null;
 let lists: Map<string, (reply: ConversationSummary[] | { error: string }) => void>;
 let focused: boolean;
+let drawing: Listener<string | null> | null;
 let run: PrototypeConversationRun;
 
 beforeEach(() => {
   vi.stubGlobal("window", {});
-  order = []; listChanged = null; event = null; lists = new Map(); focused = true;
+  order = []; listChanged = null; event = null; drawing = null; lists = new Map(); focused = true;
   const on = (name: string, keep?: (listener: never) => void) => vi.fn((listener: never) => { order.push(`on:${name}`); keep?.(listener); return () => {}; });
   calls = {
     onConversationEvent: on("event", listener => { event = listener; }),
@@ -51,6 +52,10 @@ beforeEach(() => {
     conversationResumeTarget: vi.fn(async () => ({ available: false as const, reason: "no_record" as const })),
     scheduledMessages: vi.fn(async () => []), sendQueuedNow: vi.fn(), removeAttachment: vi.fn(async () => true), releaseAttachments: vi.fn(async () => true),
     recheckAttachments: vi.fn(), attachmentsFromPaths: vi.fn(),
+    // The body's sends: pending until a test answers them.
+    startConversation: vi.fn(() => new Promise(() => {})), sendConversation: vi.fn(() => new Promise(() => {})), queueConversation: vi.fn(() => new Promise(() => {})),
+    onDrawing: on("drawing", listener => { drawing = listener; }),
+    readDrawing: vi.fn(async () => { order.push("drawing"); return null; }),
   };
   run = new PrototypeConversationRun(calls as unknown as PrototypeConversationCalls, { changed: () => {}, notice: () => {}, focused: () => focused });
 });
@@ -75,7 +80,8 @@ describe("subscribe first, then read", () => {
     run.setView(view());
     const first = order.indexOf(`list:${ROOT}`);
     expect(first).toBeGreaterThan(-1);
-    for (const name of ["on:event", "on:stage", "on:listChanged", "on:work", "on:entry", "on:settings"]) expect(order.indexOf(name), name).toBeLessThan(first);
+    for (const name of ["on:event", "on:stage", "on:listChanged", "on:work", "on:entry", "on:settings", "on:drawing"]) expect(order.indexOf(name), name).toBeLessThan(first);
+    expect(order.indexOf("on:drawing")).toBeLessThan(order.indexOf("drawing"));
     expect(order.indexOf("on:work")).toBeLessThan(order.indexOf("getWork"));
     expect(order.indexOf("on:entry")).toBeLessThan(order.indexOf("entry"));
   });
@@ -134,16 +140,42 @@ describe("the conversation the panel shows", () => {
 
   // The draft of the new conversation state may be the message this window is sending: a list naming the conversation
   // its start made can come before the start's reply, and that draft must not move into the conversation.
-  test("from the new conversation state the canvas's new current conversation shows, and the new state's draft stays", async () => {
+  test("from the new conversation state the canvas's new current conversation shows; a draft whose start is in flight stays", async () => {
     await playing({}, []);
     const key = run.run.composerKey()!;
     const sending = { segments: [{ kind: "text" as const, text: "This button does nothing" }], preset: null, attachments: [], shape: "capsule" as const };
     run.store.setDrafts(drafts => new Map(drafts).set(key, sending));
+    void run.bodyCalls.startConversation({ root: ROOT, mode: "new", runtime: "claude", canvas: CHECKOUT, text: "This button does nothing" });
     listChanged!({ root: ROOT });
     await answer(ROOT, [summary({ conversationId: "started" })]);
     expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "started" });
     expect(run.store.drafts.get(key)).toBe(sending);
     expect(run.store.drafts.get("conversation:started")).toBeUndefined();
+  });
+
+  // A conversation main started while this window wrote in the new conversation state takes the draft along (user
+  // decision), when it has none of its own.
+  test("from the new conversation state with no start in flight, the draft follows the new current conversation", async () => {
+    await playing({}, []);
+    const key = run.run.composerKey()!;
+    const writing = { segments: [{ kind: "text" as const, text: "The total is wrong" }], preset: null, attachments: [], shape: "capsule" as const };
+    run.store.setDrafts(drafts => new Map(drafts).set(key, writing));
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "from-main" })]);
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "from-main" });
+    expect(run.store.drafts.get("conversation:from-main")).toBe(writing);
+  });
+
+  test("a previous conversation's draft whose send is in flight stays where the send will empty it", async () => {
+    await playing({}, [summary({ conversationId: "old" })]);
+    const sending = { segments: [{ kind: "text" as const, text: "Make it blue" }], preset: null, attachments: [], shape: "capsule" as const };
+    run.store.setDrafts(drafts => new Map(drafts).set("conversation:old", sending));
+    void run.bodyCalls.sendConversation({ conversationId: "old", text: "Make it blue" });
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "old", state: "archived" }), summary({ conversationId: "next" })]);
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "next" });
+    expect(run.store.drafts.get("conversation:old")).toBe(sending);
+    expect(run.store.drafts.get("conversation:next")).toBeUndefined();
   });
 
   test("a conversation the main window deleted goes through the store's deleted path, and its draft moves nowhere", async () => {
@@ -163,6 +195,26 @@ describe("the conversation the panel shows", () => {
     await flush();
     expect(calls.takeConversationDraft).toHaveBeenCalledWith({ conversationId: "c1" });
     expect(run.store.drafts.get("conversation:c1")?.segments).toEqual([{ kind: "text", text: "Returned" }]);
+  });
+
+  // A returned queue goes to the window the person looks at: this one only while its panel is open (user decision);
+  // folded, the main window's store takes it.
+  test("a returned queue is not taken while the panel is folded; opening the panel takes it", async () => {
+    await playing({ panel: { open: false, width: null } }, [summary({ conversationId: "c1", returnedDraft: true })]);
+    await flush();
+    expect(calls.takeConversationDraft).not.toHaveBeenCalled();
+    run.setView(view({ panel: { open: true, width: 280 } }));
+    await flush();
+    expect(calls.takeConversationDraft).toHaveBeenCalledWith({ conversationId: "c1" });
+  });
+
+  test("a canvas row read again while the folder reloads reads the list again once it is back", async () => {
+    await playing();
+    const before = calls.listConversations!.mock.calls.length;
+    run.setView(view({ canvasRow: "loading" }));
+    listChanged!({ root: ROOT });
+    run.setView(view({ canvasRow: "present" }));
+    expect(calls.listConversations!.mock.calls.length).toBe(before + 1);
   });
 
   test("a failed read is the list error, and Retry reads again", async () => {
@@ -281,5 +333,20 @@ describe("what main hears", () => {
 
   test("before any view the button is Show conversation with no badge", () => {
     expect(run.button()).toEqual({ label: "Show conversation", badge: null, name: "Show conversation" });
+  });
+});
+
+// The project conversation drawing the playing canvas comes from the main window by id only (user decision): the new
+// conversation state shows its notice, whose Open goes to the main window.
+describe("the drawing project conversation", () => {
+  test("its notice shows in the new conversation state, and goes when main says nothing draws", async () => {
+    calls.readDrawing!.mockResolvedValueOnce("p1");
+    await playing({}, []);
+    await flush();
+    expect(run.run.view()).toMatchObject({ kind: "new", notice: { kind: "drawing", open: "p1" } });
+    drawing!(null);
+    expect(run.run.view()).toMatchObject({ kind: "new", notice: null });
+    drawing!("p2");
+    expect(run.run.view()).toMatchObject({ kind: "new", notice: { kind: "drawing", open: "p2" } });
   });
 });

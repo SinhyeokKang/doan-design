@@ -107,4 +107,10 @@ describe("the name a held request's toast gives", () => {
     expect(revealName({ kind: "conversation", root: ROOT, conversationId: "c" }, [])).toBe("the conversation");
     expect(revealName({ kind: "handoff", root: ROOT, canvas: { path: ".doan/canvases/checkout.html" } }, [])).toBe("checkout");
   });
+
+  test("a handoff's canvas by the name the sidebar gives its row now, when the root lists it", () => {
+    const moved: CanvasRow = { path: ".doan/canvases/flows/pay-step.html", id: "checkout", url: "u-m" };
+    expect(revealName({ kind: "handoff", root: ROOT, canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } }, [list(ROOT, [moved])])).toBe("pay-step");
+    expect(revealName({ kind: "handoff", root: OTHER, canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } }, [list(ROOT, [moved])])).toBe("checkout");
+  });
 });

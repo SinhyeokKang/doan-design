@@ -596,3 +596,71 @@ describe("the conversation panel", () => {
     expect(show(view({ panel: { open: true, width: 280 } })).conversation).toMatchObject({ width: 280, bounds: { min: 280, max: 280 } });
   });
 });
+
+// Double presses before main answers: focus follows the state main ends in, never a press left behind.
+describe("presses before main answers", () => {
+  test("open then fold before any answer: the open moves no focus, the fold puts it on the button", () => {
+    const conversation = () => shell.conversation!;
+    const input = { focus: vi.fn() }, button = { focus: vi.fn() };
+    conversation().column!.current = { querySelector: () => input, contains: () => false } as never;
+    conversation().buttonRef!.current = button as never;
+    conversation().onToggle();
+    conversation().onToggle();
+    expect(api.setPanel!.mock.calls.map(([request]) => request)).toEqual([{ open: true }, { open: false }]);
+    show(view({ panel: { open: true, width: 280 } }));
+    expect(input.focus).not.toHaveBeenCalled();
+    show(view({ panel: { open: false, width: 280 } }));
+    expect(button.focus).toHaveBeenCalledOnce();
+    expect(input.focus).not.toHaveBeenCalled();
+  });
+});
+
+// The guard's wiring (focusGuard.ts holds its rule): armed by where focus is when a run's iframe is created, fed by
+// the column's focusout, ended a second after that run shows.
+describe("the conversation column's focus guard", () => {
+  const conversation = () => shell.conversation!;
+  function setUp(focusInColumn: boolean) {
+    const field = new FakeElement(), frame = { focus: vi.fn(), contentWindow: {} };
+    conversation().column!.current = { contains: (node: unknown) => node === field, querySelector: () => null } as never;
+    doc.activeElement = focusInColumn ? field : doc.body;
+    show(view({ gen: 2 }));
+    shell.frames!.set(2, frame as never);
+    return { field, frame };
+  }
+  const leave = (field: FakeElement, frame: unknown) => {
+    conversation().onFocusOut!({ target: field, relatedTarget: null } as never);
+    doc.activeElement = frame;
+    vi.advanceTimersByTime(0);
+  };
+
+  test("a run created while focus was in the column gives focus back when its frame takes it", () => {
+    const { field, frame } = setUp(true);
+    leave(field, frame);
+    expect(field.focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+  });
+
+  test("a run created while focus was elsewhere is left alone", () => {
+    const { field, frame } = setUp(false);
+    leave(field, frame);
+    expect(field.focus).not.toHaveBeenCalled();
+  });
+
+  test("a second after the run is ready and shown, the frame keeps the focus it takes", () => {
+    const { field, frame } = setUp(true);
+    show(view({ gen: 2, phase: "ready" }));
+    vi.advanceTimersByTime(999);
+    leave(field, frame);
+    expect(field.focus).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(1);
+    leave(field, frame);
+    expect(field.focus).toHaveBeenCalledOnce();
+  });
+
+  test("focus moving to another element of the page is not the frame's", () => {
+    const { field } = setUp(true);
+    conversation().onFocusOut!({ target: field, relatedTarget: new FakeElement() } as never);
+    vi.advanceTimersByTime(0);
+    expect(field.focus).not.toHaveBeenCalled();
+  });
+});
+

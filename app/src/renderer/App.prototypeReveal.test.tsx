@@ -91,7 +91,7 @@ function reset() {
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), readConversation: vi.fn(async () => ({ error: "not_found" })), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
-    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), answerOpenRequest: vi.fn(async () => {}), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"),
+    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), answerOpenRequest: vi.fn(async () => {}), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => prefs), savePreferences: vi.fn(async () => null),
@@ -177,6 +177,14 @@ test("a chip whose target is gone says so in the main window", async () => {
   harness.controller!.locate!.mockImplementation((_anchor: unknown, settle: (outcome: string) => void) => { settle("missing"); return true; });
   await reveal({ kind: "chip", root: "/w/a", canvas: { path: D, id: "drafts" }, conversationId: "c1", anchor: { frame: { id: "gone" } } });
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("No longer in the canvas");
+});
+
+// The main window's own chips are unavailable then (locateDisabled); this one came from elsewhere, so it says why.
+test("a chip into the canvas on screen that cannot be shown now says so instead of nothing", async () => {
+  await onDrafts();
+  harness.controller!.locate!.mockReturnValue(false);
+  await reveal({ kind: "chip", root: "/w/a", canvas: { path: D, id: "drafts" }, conversationId: "c1", anchor: { frame: { id: "editor", title: "Editor" } } });
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("Couldn’t show Editor. The canvas can’t be shown right now.");
 });
 
 test("a chip into another canvas opens it as a deep link does, then locates the anchor there", async () => {
@@ -289,5 +297,26 @@ describe("Last used from the prototype composer", () => {
     await flushAll();
     const saved = doan.saveUiState!.mock.calls.at(-1)?.[0] as { home?: { lastProvider?: string } } | undefined;
     expect(saved?.home?.lastProvider).toBe("claude");
+  });
+});
+
+// The project conversation drawing the prototype window's canvas reaches that window by id (user decision): this window
+// subscribes to the playing target first, then reads it, and reports the drawing for every target and each change.
+describe("the drawing relay", () => {
+  const target = { root: "/w/a", canvas: { path: C, id: "checkout" } };
+  test("subscribe first, then read the target, then report what draws it (nothing here)", async () => {
+    doan.readPrototypeTarget!.mockImplementation(async () => target);
+    await overview();
+    expect(doan.onPrototypeTarget!.mock.invocationCallOrder[0]).toBeLessThan(doan.readPrototypeTarget!.mock.invocationCallOrder[0]!);
+    expect(doan.setPrototypeDrawing).toHaveBeenLastCalledWith({ ...target, conversationId: null });
+  });
+
+  test("every new target is reported again, even the same canvas coming back", async () => {
+    await overview();
+    doan.setPrototypeDrawing!.mockClear();
+    listeners.prototypeTarget!(target as never); await flushAll();
+    listeners.prototypeTarget!(null as never); await flushAll();
+    listeners.prototypeTarget!(target as never); await flushAll();
+    expect(doan.setPrototypeDrawing!.mock.calls.map(([report]) => report)).toEqual([{ ...target, conversationId: null }, { ...target, conversationId: null }]);
   });
 });
