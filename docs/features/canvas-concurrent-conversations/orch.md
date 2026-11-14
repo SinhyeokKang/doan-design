@@ -26,9 +26,9 @@
 | 배치 | 작업 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 | 상태 |
 |---|---|---|---|---|---|---|
 | PoC | 1 | `.scratch/canvas-concurrent-conversations/` | — | 컨덕터 | `node .scratch/canvas-concurrent-conversations/poc.mjs` exit 0 | 통과(design.md 'PoC 관찰') |
-| S | 3 | tasks.md 표의 S 행 | — | Claude Opus high — 저장 형식·저널 이전이 틀리면 사용자 대화 기록을 잃는다 | test, typecheck | 통합 `0ed2e701d`·`63988c595`·`fccfce338`(합의한 service 쪽 빨강 23건은 R에서), 리뷰 중 |
-| R | 4 | tasks.md 표의 R 행 | S | Claude Opus high — 동시 턴, 지연 콜백 울타리, handoff | test, typecheck, lint | 진행(`ctx_ffcae9facae6`, `ccc-batch-r`) |
-| F | 5 | tasks.md 표의 F 행 | R | Claude Opus medium — 순수 함수지만 순위 규칙 판단이 많다 | test, typecheck | 대기 |
+| S | 3 | tasks.md 표의 S 행 | — | Claude Opus high — 저장 형식·저널 이전이 틀리면 사용자 대화 기록을 잃는다 | test, typecheck | 통합 `0ed2e701d`·`63988c595`·`fccfce338`, 리뷰 🔴0 🟡0, 워크트리 정리 |
+| R | 4 | tasks.md 표의 R 행 | S | Claude Opus high — 동시 턴, 지연 콜백 울타리, handoff | test, typecheck, lint | 통합 `21455c8b0`·`7ddaf91ce`, 리뷰 중 |
+| F | 5 | tasks.md 표의 F 행 | R | Claude Opus medium — 순수 함수지만 순위 규칙 판단이 많다 | test, typecheck | 진행(`ctx_485ef6877f1c`, `ccc-batch-f`) |
 | P | 6 | tasks.md 표의 P 행 | F | Claude Opus high — `App.tsx`, 포커스, ui-state 병합 | test, typecheck, lint, build | 대기 |
 | O | 7 | tasks.md 표의 O 행 | F | Claude Opus high — 프로토타입 창 초안 옮기기 함정(POSTMORTEM) | test, typecheck, lint, build | 대기 |
 | C | 8 | 모든 `state` 읽기와 테스트 | P, O | Codex Sol medium — 기계적 정리 | tasks.md 8의 `rg`, test, typecheck, lint, build | 대기 |
@@ -48,4 +48,7 @@
 ## 진행 기록
 
 - S 리뷰: Codex gpt-6-astra medium(`ctx_77675bb2cb0f`, `ccc-review-s`).
+- R 리뷰: Claude Opus high(`ctx_90c3e649f0a6`, `ccc-review-r`). R 통합 HEAD `7ddaf91ce`에서 `/verify`.
+- 워커 R 질문 — 컨덕터 판단: spec 정한 점 12의 프로토타입 창 Delete를 위해 R이 프로토타입 역할에 삭제(그 창이 띄운 캔버스의 대화만)를 열고 `preload/prototype.ts`에 `deleteConversation`을 더한다.
+- R이 `summary.ts`(S 파일)에 `startedBy?: "handoff" | "promotion"`을 더했다(브리프가 허용).
 - S가 범위 밖 `io.test.ts`의 테스트 하나("recovers an interrupted replacement rollback…")를 고쳤다. 컨덕터가 허가했다.
