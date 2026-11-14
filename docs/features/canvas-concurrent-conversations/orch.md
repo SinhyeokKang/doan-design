@@ -29,8 +29,8 @@
 | S | 3 | tasks.md 표의 S 행 | — | Claude Opus high — 저장 형식·저널 이전이 틀리면 사용자 대화 기록을 잃는다 | test, typecheck | 통합 `0ed2e701d`·`63988c595`·`fccfce338`, 리뷰 🔴0 🟡0, 워크트리 정리 |
 | R | 4 | tasks.md 표의 R 행 | S | Claude Opus high — 동시 턴, 지연 콜백 울타리, handoff | test, typecheck, lint | 통합 `21455c8b0`·`7ddaf91ce`, 리뷰 🔴0 🟡0, 후속 `a1e4e3c37`–`0d129ac73`(세션 하나는 대화 하나, 프로토타입 `rememberedConversation`; 컨덕터가 diff 확인), 워크트리 정리 |
 | F | 5 | tasks.md 표의 F 행 | R | Claude Opus medium — 순수 함수지만 순위 규칙 판단이 많다 | test, typecheck | 통합 `c895927dc`·`dd7296ec8`, 고침 `cdfdba433`·`83a3c87a0`(리뷰 🟡3 해소, 컨덕터가 diff 확인), 워크트리 정리 |
-| P | 6 | tasks.md 표의 P 행 | F | Claude Opus high — `App.tsx`, 포커스, ui-state 병합 | test, typecheck, lint, build | 진행(`ctx_5834c9faff5f`, `ccc-batch-p`) |
-| O | 7 | tasks.md 표의 O 행 | F | Claude Opus high — 프로토타입 창 초안 옮기기 함정(POSTMORTEM) | test, typecheck, lint, build | 통합 `07ce9ffd8`·`0a4552fd1`, 리뷰 중(Codex gpt-6-astra medium), `remembered` 연결은 P 뒤 후속 |
+| P | 6 | tasks.md 표의 P 행 | F | Claude Opus high — `App.tsx`, 포커스, ui-state 병합 | test, typecheck, lint, build | 통합 `7fb333eb9`·`707e12db3`·`cd651da79`(충돌 2곳 컨덕터가 풂) + 통합 커밋 `eeb576604`, 리뷰 중(Claude Opus high), 후속(메뉴 순서·죽은 코드) |
+| O | 7 | tasks.md 표의 O 행 | F | Claude Opus high — 프로토타입 창 초안 옮기기 함정(POSTMORTEM) | test, typecheck, lint, build | 통합 `07ce9ffd8`·`0a4552fd1`, 리뷰 🔴0 🟡1(열린 메뉴의 고정 순서), 후속(메뉴 순서·`remembered` 연결·재확인) |
 | C | 8 | 모든 `state` 읽기와 테스트 | P, O | Codex Sol medium — 기계적 정리 | tasks.md 8의 `rg`, test, typecheck, lint, build | 대기 |
 | DS | 9 | P·O 렌더러 파일, DESIGN.md | C | Claude Opus high — 실제 앱 측정과 수정 | measure.mjs | 대기 |
 | RT | 10 | `.scratch/runtime-test/` | DS | 컨덕터 | probe.mjs exit 0 | 대기 |
@@ -62,4 +62,6 @@
 - R이 `main/prototype/ipc.ts`·`ipc.test.ts`를 고쳤다(새 채널, 컨덕터 허가).
 - O의 초안과 다른 점: 프로토타입 창의 첫 목록 읽기 실패는 초안 타일의 한 줄 경고 대신 main 창의 새 대화 상태 알림("Couldn’t read conversations", Retry)을 보이고 Send를 막지 않는다. `/design-sync`에서 초안과 맞춰 본다.
 - P 질문 — 컨덕터 판단: O 파일의 두 프로토타입 테스트는 O가 고친다(O가 빈 목록으로 이미 고쳤다).
+- P 통합: `canvasConversation.ts`·`.test.ts`에서 P의 옛 함수 삭제와 F 고침이 겹쳐 컨덕터가 풀었다. P의 고르기 테스트 fixture는 F 고침(`waitingSince`)보다 먼저 쓰여 통합 커밋 `eeb576604`으로 맞췄다. 그 HEAD에서 typecheck 통과, 전체 테스트 12739 중 그 한 건만 실패였고 고친 뒤 통과.
+- O 리뷰 🟡1(열린 메뉴에 붙은 행이 다시 정렬됨)은 P의 main 창 제목 메뉴에도 같다. P·O 후속으로 각자 고친다.
 - S가 범위 밖 `io.test.ts`의 테스트 하나("recovers an interrupted replacement rollback…")를 고쳤다. 컨덕터가 허가했다.
