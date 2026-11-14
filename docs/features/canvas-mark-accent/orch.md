@@ -24,9 +24,9 @@
 |---|---|---|---|---|---|---|
 | M | 작업 2, 3 | `canvasPicker.ts`(+test), `sizeBubble.test.ts`, `CanvasController.ts`(+test), `App.tsx`(+test), `styles.css`, `ds/checks.test.ts` | — | Claude Opus high — 포커스 이동, 대기 중 넣기, 툴팁 Esc처럼 틀리면 포커스가 body로 떨어지는 판단이 많다 | `npm --prefix app test`, `typecheck`, `lint`, `build` | 통합(`7579948ea`…`b84fb0ebb`) |
 | R1 | M 리뷰 | 보고만 | M | Codex gpt-6-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고서 | 완료(2회차 🔴0 🟡0) |
-| S | 작업 4 `/design-sync` | M과 같음 + `docs/DESIGN.md` 측정값 | M 통합 | Claude Opus high(M 워커) — 측정 결과로 구현을 고친다 | `node .scratch/design-sync/canvas-mark-accent/measure.mjs` exit 0 | 진행 중 |
-| T | 작업 5 `/runtime-test` | 보고만(`.scratch/runtime-test/canvas-mark-accent/`) | S | Claude Opus high(M 워커) — 격리 probe, 실제 상태 보호 | probe exit 0과 완료 표시, 스크린샷 | 대기 |
-| R2 | 통합본 최종 리뷰 | 보고만 | S, T | Codex gpt-6-astra medium | `/code-review` 보고서 | 대기 |
+| S | 작업 4 `/design-sync` | M과 같음 + `docs/DESIGN.md` 측정값 | M 통합 | Claude Opus high(M 워커) — 측정 결과로 구현을 고친다 | `node .scratch/design-sync/canvas-mark-accent/measure.mjs` exit 0 | 통합(`bc8b35d8f`, `3364845b9`) |
+| T | 작업 5 `/runtime-test` | 보고만(`.scratch/runtime-test/canvas-mark-accent/`) | S | Claude Opus high(M 워커) — 격리 probe, 실제 상태 보호 | probe exit 0과 완료 표시, 스크린샷 | 통합(`b854ec890`…`2245380fb`) |
+| R2 | 통합본 최종 리뷰 | 보고만 | S, T | Codex gpt-6-astra medium | `/code-review` 보고서 | 진행 중 |
 | D | 작업 6 승격 | `docs/PRODUCT.md`, `docs/DESIGN.md`, `docs/ARCHITECTURE.md`, feature 디렉터리 삭제 | R2 | 컨덕터 | tasks.md 작업 6 검증 | 대기 |
 
 - 작업 1은 리드가 끝냈다. tasks.md의 체크 항목 2–6이 모두 위 행 하나씩에 있다.
@@ -45,3 +45,7 @@
 - 2026-11-15 M 통합: 커밋 여섯 개를 `7579948ea`…`b84fb0ebb`로 cherry-pick했다. 통합 HEAD의 `app/` 트리가 워커가 verify.mjs를 통과한 `567818d00`과 같다(`git diff --stat 567818d00 HEAD -- app`가 비었음). 그래서 통합 시점 `/verify`는 그 결과로 갈음하고, 최종 `/verify`는 S·T를 통합한 뒤 돌린다.
 - 컨덕터 판단 — DESIGN.md는 작업 4의 측정 커밋에서 워커가 작업 6 목록의 DESIGN.md 행까지 함께 고친다. 측정한 사람이 행을 쓰는 편이 정확하고, 컨덕터는 PRODUCT·ARCHITECTURE를 쓰고 작업 6 검증을 돌린다.
 - 2026-11-15 S·T 시작: follow-up dispatch `ctx_985ee844ee5d`(M 워커, 작업 4 다음 작업 5).
+- 2026-11-15 S 완료: `/design-sync` 다섯 프레임 215행, 차이 0, 편차 4(툴팁 간격·중심이 반 장치 픽셀 안, 작업 중 표시의 그라디언트·빛 번짐은 초안 메모 9대로 그대로). 구현 수정은 없고 주석 하나를 고쳤다. DESIGN.md는 작업 6 목록까지 고쳤다. 워커 안에서 Claude 독립 리뷰 두 번.
+- 2026-11-15 T 완료: probe 34/34 통과, 관찰 19. 1x에서 선이 1px로 내림되는데 margin이 −1.5px라 한쪽에 틈, 다른 쪽에 요소 픽셀 덮임이 있었다. `/refactor`로 고쳤다(`@media (resolution < 2dppx)`에서 선 1px, margin −1px, 버블 간격 1px 기준). 실제 상태 그대로, `/Applications/Doan.app` 새 프로세스 없음. 남은 관찰: 마우스를 버튼 밖에서 뗀 뒤 키보드 포커스를 주면 Add 툴팁은 열리고 Zoom in은 열리지 않는다(명세는 충족, R2가 판단).
+- 2026-11-15 S·T 통합: `bc8b35d8f`…`2245380fb`. R2 시작: dispatch `ctx_14c08817598f`, Codex gpt-6-astra medium, 전체 diff 최종 리뷰.
+- 2026-11-15 승격(D 일부): PRODUCT `67a10469a`, ARCHITECTURE `f8c582773`. BACKLOG와 feature 디렉터리 삭제는 R2 뒤에 한다.
