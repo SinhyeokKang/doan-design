@@ -86,11 +86,11 @@ export function pickShownConversation(input: ShownInput): ShownPick {
 }
 
 // The conversation a sidebar canvas row's slot stands for when that slot opens the panel (an answer waited for, an
-// unseen ending), by the slot's own rule: Home conversations, the first listed of that kind. Otherwise null, and the
-// panel picks by pickShownConversation.
+// unseen ending), by the slot's own rule (conversationList's slotsFromList): any conversation bound to the canvas, the
+// first listed of that kind. Otherwise null, and the panel picks by pickShownConversation.
 export function sidebarRowRequest(list: readonly ConversationSummary[], canvas: Canvas, slot: Slot["kind"] | null, seen: ReadonlySet<string>): string | null {
   if (slot !== "permission" && slot !== "unseen") return null;
-  return list.find(c => c.fromHome && onCanvas(c, canvas) && conversationWork(c, seen)?.kind === slot)?.conversationId ?? null;
+  return list.find(c => onCanvas(c, canvas) && conversationWork(c, seen)?.kind === slot)?.conversationId ?? null;
 }
 
 export interface NoticeContext {

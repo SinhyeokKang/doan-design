@@ -403,6 +403,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const sidebarHiddenRef = useRef(sidebarHidden); sidebarHiddenRef.current = sidebarHidden;
   const sidebarHiddenTouched = useRef(false);
+  // The viewed canvas's conversation list under its sidebar row, folded for every canvas at once and remembered with the
+  // sidebar's other values; a fold before the read wins.
+  const [conversationsFolded, setConversationsFolded] = useState(false);
+  const conversationsFoldTouched = useRef(false);
   // Focus was in the sidebar (or one of its menus) when it was hidden: the header's Show sidebar button takes it.
   const sidebarFocus = useRef(false);
   // Only a toggle animates the shells' first column; the startup read and a resize do not.
@@ -676,6 +680,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       if (active && state?.overviewPanel && !overviewTouched.current) setOverviewSaved(state.overviewPanel.width);
       if (active && state?.sidebar && !sidebarTouched.current) setSidebarSaved(state.sidebar.width);
       if (active && state?.sidebar?.hidden && !sidebarHiddenTouched.current) setSidebarHidden(true);
+      if (active && state?.sidebar?.conversationsFolded && !conversationsFoldTouched.current) setConversationsFolded(true);
       // The controller keeps a tool the person chose before this read.
       if (active && state?.canvasTool) controller.current?.restoreTool(state.canvasTool);
       if (active && !restoreCancelled.current) setRestore({ state, started: performance.now() });
@@ -726,13 +731,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   };
   // A page is never restored; a restart opens the screen it came from. Settings keeps only its last category.
   const savedScreen = screen === "addProjects" || screen === "settings" || screen === "projectSettings" ? page.origin.screen : screen;
-  const sidebarState = sidebarSaved === undefined && !sidebarHidden ? undefined
-    : { ...(sidebarSaved === undefined ? {} : { width: sidebarSaved }), ...(sidebarHidden ? { hidden: true as const } : {}) };
+  const sidebarState = sidebarSaved === undefined && !sidebarHidden && !conversationsFolded ? undefined
+    : { ...(sidebarSaved === undefined ? {} : { width: sidebarSaved }), ...(sidebarHidden ? { hidden: true as const } : {}), ...(conversationsFolded ? { conversationsFolded: true as const } : {}) };
   const overviewPanelState = overviewSaved === undefined ? undefined : { width: overviewSaved };
   const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, overviewPanel: overviewPanelState, sidebar: sidebarState, canvasTool: state.tool });
   persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, overviewPanel: overviewPanelState, sidebar: sidebarState, canvasTool: state.tool };
   // At commit, so a change already on screen has been sent.
-  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, overviewSaved, sidebarSaved, sidebarHidden, state.tool]);
+  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, overviewSaved, sidebarSaved, sidebarHidden, conversationsFolded, state.tool]);
   const completeNavigation = (root: string, cursor?: number) => {
     const visit = controller.current?.destination(root);
     if (!visit || !entriesRef.current.some(entry => entry.path === root)) return;
@@ -787,14 +792,23 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // answer or has an unseen ending shows that slot's conversation; working or no mark keeps the panel as is, and the
   // panel picks by its shared rule (pickShownConversation). The slot is the one the row shows, so a terminal spinner over
   // an unseen ending keeps the panel.
-  function openSidebarCanvas(root: string, row: CanvasRow, cursor?: number) {
-    const slot = shownSlots().get(canvasSlotKey(root, row.path)) ?? null;
+  // `listed`: the sidebar shows the canvas's conversation list under this row, so the row carries no conversation
+  // signal and its press keeps the panel as an empty slot would.
+  function openSidebarCanvas(root: string, row: CanvasRow, cursor?: number, listed = false) {
+    const slot = listed ? null : shownSlots().get(canvasSlotKey(root, row.path)) ?? null;
     const open = panelOpenFor({ kind: "sidebarRow" }, slot?.kind ?? null);
     const list = homeRun.current.listState(root);
     const target = { path: row.path, ...(row.id ? { id: row.id } : {}) };
     const requested = open.open === true && Array.isArray(list) ? sidebarRowRequest(list, target, slot?.kind ?? null, homeRun.current.seenPending()) : null;
     if (requested) openCanvasConversation(root, row, requested, { kind: "sidebarRow" }, slot?.kind ?? null);
     else openShellCanvas(root, row, cursor);
+  }
+  // A sidebar conversation row: the panel shows that conversation and unfolds, focusing its waiting request, else the
+  // composer, as a notification's Open does (PRODUCT §5 item 2 'Opening'). On the canvas already shown it adds no visit.
+  function openSidebarConversation(root: string, row: CanvasRow, conversationId: string) {
+    const list = homeRun.current.listState(root);
+    const waiting = Array.isArray(list) && list.some(c => c.conversationId === conversationId && c.phase === "waiting");
+    openCanvasConversation(root, row, conversationId, { kind: "notification", permission: waiting });
   }
   // An entry to one of a canvas's conversations: the canvas opens with that
   // conversation asked for in its panel, and the panel unfolds when the trigger opens it.
@@ -1446,6 +1460,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
             : { field: false, selector: ".ov-right .rp-head" };
           // The canvas panel moves on to the next conversation (or the new state) under the title menu button, which takes
           // focus (draft frame delete-shown).
+          // A sidebar Delete's row comes first even for the shown conversation: focus stays in the list it was pressed in.
+          else if (target.from === "sidebar") afterDelete.current = { field: false, selector: sidebarRow(target.after), fallback: sidebarRow(target.canvasRow) };
           else if (shown) afterDelete.current = from === "overview" ? { field: true, selector: ".workspace .ov-main .composer-input" } : { field: false, selector: ".doan-conv-panel .doan-conv-title .ov-title" };
         } finally { store.deleted(conversationId); }
       } else { store.cancelDelete(conversationId); overviewRuns.sync(); canvasRuns.sync(); }
@@ -1455,6 +1471,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       if (code !== null && !quitting()) live.current.toast.show(deleteRefusalText(code, title));
     }
   }
+  function sidebarRow(key: string): string { return `.shell-side [role="treeitem"][data-key="${CSS.escape(key)}"]`; }
   // What keeps Move to Trash unavailable, for the menu and the open dialog alike (main judges again).
   function trashWorking(root: string, row: CanvasRow) {
     const list = homeRun.current.listState(root);
@@ -2308,11 +2325,14 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const shellSlots = sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas);
   const sidebarId = (home: boolean) => home ? "doan-page-sidebar" : "doan-workspace-sidebar";
-  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
+  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={(root, row, listed) => openSidebarCanvas(root, row, undefined, listed)} overview={showShellOverview} action={action} remove={remove}
     projectSettings={root => openProjectSettings(root)}
     canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash }}
     home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection, mcp: mcpShown !== false } } : {})}
-    resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }} />;
+    resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }}
+    conversations={{ list: root => run.listState(root), shown: canvasRun.current!.showing()?.conversationId ?? null, seen: run.seenPending(), now: clock, folded: conversationsFolded,
+      bare: sidebarSlots(withTerminalSlots(new Map(), work, entries), entries, shownCanvas), fold: folded => { conversationsFoldTouched.current = true; setConversationsFolded(folded); },
+      open: openSidebarConversation, remove: openDelete }} />;
   // The Project Settings page sits under the Projects tab (page null) but leaves like the other pages.
   const anyPage = onPage || onSettings || onProjectSettings;
   const sidebarToggle = sidebarToggleView(sidebarHidden, shellSlots);

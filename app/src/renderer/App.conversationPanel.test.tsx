@@ -641,6 +641,9 @@ test("a sidebar canvas row with an unseen ending shows that conversation, not th
   doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", fromHome: true, lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2", fromHome: true, unseen: true })]);
   await openCanvas(FOLDED);
   expect(shownId()).toBe("c1");
+  // With two conversations the sidebar lists them under the row and the row itself carries no signal; folded, the row
+  // shows the strongest one again and its press follows it.
+  find<{ conversations: { fold(folded: boolean): void } }>(ShellSidebar)[0]!.props.conversations.fold(true); render();
   find<{ open(root: string, row: CanvasRow): void }>(ShellSidebar)[0]!.props.open("/w/a", rowA); await flushAll();
   expect(panel()?.open).toBe(true);
   expect(shownId()).toBe("c2");

@@ -168,6 +168,46 @@ test("the hidden state is saved beside the width only after the startup read; a 
   expect(saved()?.sidebar).toEqual({ hidden: true });
 });
 
+// The viewed canvas's conversation list fold: one value per device, saved beside the width and the hidden flag through
+// the same startup-read merge (POSTMORTEM 2026-11-01).
+type Conversations = { folded: boolean; fold(folded: boolean): void };
+const conversations = () => sidebars()[0]!.props.conversations as Conversations;
+const resize = () => sidebars()[0]!.props.resize as { onResize(width: number | undefined): void };
+
+test("the conversation list's fold is saved beside the width only after the startup read; a fold before it wins", async () => {
+  render();
+  folders([{ path: "/w/a", kind: "list", servedRev: 0, canvases: [screen] }]);
+  expect(conversations().folded).toBe(false);
+  conversations().fold(true); render();
+  expect(conversations().folded).toBe(true);
+  expect(doan.saveUiState).not.toHaveBeenCalled();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, sidebar: { width: 260, hidden: true } }); await Promise.resolve(); await Promise.resolve(); render();
+  expect(saved()?.sidebar).toEqual({ width: 260, hidden: true, conversationsFolded: true });
+  toggle();
+  expect(conversations().folded).toBe(true);
+  conversations().fold(false); render();
+  expect(saved()?.sidebar).toEqual({ width: 260 });
+});
+
+test("a saved fold is restored, and the width saves without dropping it", async () => {
+  await start({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, sidebar: { conversationsFolded: true } });
+  expect(conversations().folded).toBe(true);
+  resize().onResize(300); render();
+  expect(saved()?.sidebar).toEqual({ width: 300, conversationsFolded: true });
+  toggle();
+  expect(saved()?.sidebar).toEqual({ width: 300, hidden: true, conversationsFolded: true });
+});
+
+test("hidden, the button counts a conversation started in a canvas panel", async () => {
+  doan.listConversations!.mockResolvedValue([{ conversationId: "panel", canvas: { path: screen.path, id: "checkout" }, title: "t", owner: "doan", provider: "claude", fromHome: false,
+    phase: "waiting", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }]);
+  await start();
+  for (let i = 0; i < 6; i++) await Promise.resolve();
+  render();
+  toggle();
+  expect(bars()[0]!.sidebar.view).toEqual({ label: "Show sidebar, needs your answer", icon: "show", badge: "permission" });
+});
+
 test("hidden, the button names the sidebar's most urgent signal: a terminal agent's work", async () => {
   await start();
   const work: WorkItem = { touched: 0, turn: "none:t", session: "s1", provider: "codex", root: "/w/a", path: screen.path };
