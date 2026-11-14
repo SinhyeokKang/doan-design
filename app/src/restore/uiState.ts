@@ -164,7 +164,7 @@ export function parseUiState(text: string, savedRoots: readonly string[], spelli
 // Rewrites every root this file keys or names (the open place, `expanded`, `lastByRoot`, `shellProjects` keys, roots
 // and selection, `conversationByRoot`, `conversationByCanvas`, `home.lastRoot`) from each spelling in `aliases` to the one it maps to, on the
 // raw value so parseUiState still validates the result. Where both spellings hold a value the target's wins, per map
-// key and per `shellProjects` field; the other fills only what the target lacks.
+// key, per `shellProjects` field and per `conversationByCanvas` canvas; the other fills only what the target lacks.
 export function renameUiRoots(value: Record<string, unknown>, aliases: ReadonlyMap<string, string>): Record<string, unknown> {
   const real = (root: unknown) => typeof root === "string" ? aliases.get(root) ?? root : root;
   const rekey = (map: unknown, merge: (kept: unknown, alias: unknown) => unknown = kept => kept): unknown => {
@@ -184,7 +184,9 @@ export function renameUiRoots(value: Record<string, unknown>, aliases: ReadonlyM
   };
   const next: Record<string, unknown> = { ...value, root: real(value["root"]) };
   if (!("root" in value)) delete next["root"];
-  for (const key of ["expanded", "lastByRoot", "conversationByRoot", "conversationByCanvas"]) if (key in value) next[key] = rekey(value[key]);
+  for (const key of ["expanded", "lastByRoot", "conversationByRoot"]) if (key in value) next[key] = rekey(value[key]);
+  // Per canvas, like `shellProjects` per field: a canvas only the alias remembered keeps its conversation.
+  if ("conversationByCanvas" in value) next["conversationByCanvas"] = rekey(value["conversationByCanvas"], (kept, alias) => isRecord(kept) && isRecord(alias) ? { ...alias, ...kept } : kept);
   if (isRecord(value["shellProjects"])) {
     const projects = Object.fromEntries(Object.entries(value["shellProjects"]).map(([key, item]) => [key, project(item)]));
     next["shellProjects"] = rekey(projects, (kept, alias) => isRecord(kept) && isRecord(alias) ? { ...alias, ...kept } : kept);
