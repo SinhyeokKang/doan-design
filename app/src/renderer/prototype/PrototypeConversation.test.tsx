@@ -245,6 +245,51 @@ describe("the conversation the panel shows", () => {
   });
 });
 
+// The panel head's title: the main window's canvasConversationTitle for the conversation shown; the states the panel
+// had no head for (the list still read or failed, the canvas gone or its ID shared) keep the shell's "Conversation".
+describe("the panel head's title", () => {
+  test("the list's summary title of the current conversation", async () => {
+    await playing({}, [summary({ title: "Checkout Review details button" })]);
+    expect(run.headTitle()).toBe("Checkout Review details button");
+  });
+
+  test("before a list names it, the first message's line", async () => {
+    run.connect();
+    run.setView(view());
+    event!({ conversationId: "c1", seq: 1, type: "user.message", text: "Make the pay button larger", anchors: [], at: "2026-11-01T12:00:00.000Z" } as never);
+    await answer(ROOT, [summary({ title: "" })]);
+    expect(run.headTitle()).toBe("Make the pay button larger");
+  });
+
+  test("an empty title with no message read yet is Conversation", async () => {
+    await playing({}, [summary({ title: "" })]);
+    expect(run.headTitle()).toBe("Conversation");
+  });
+
+  test("no current conversation is New conversation", async () => {
+    await playing({}, [summary({ state: "archived" })]);
+    expect(run.headTitle()).toBe("New conversation");
+  });
+
+  test("before any view, while the list is read and after it failed, Conversation", async () => {
+    expect(run.headTitle()).toBe("Conversation");
+    run.connect();
+    run.setView(view());
+    expect(run.headTitle()).toBe("Conversation");
+    await answer(ROOT, { error: "unknown" } as never);
+    expect(run.headTitle()).toBe("Conversation");
+  });
+
+  test("a canvas gone or sharing its ID while open turns the title to Conversation", async () => {
+    await playing({}, [summary({ title: "Ideas" })]);
+    expect(run.headTitle()).toBe("Ideas");
+    run.setView(view({ canvasRow: "gone" }));
+    expect(run.headTitle()).toBe("Conversation");
+    run.setView(view({ canvasRow: "duplicate" }));
+    expect(run.headTitle()).toBe("Conversation");
+  });
+});
+
 // POSTMORTEM 2026-11-01: two worktrees share a canvas id and path.
 describe("the playing root owns its list", () => {
   test("a late read for the root left behind never applies to the other worktree's canvas", async () => {

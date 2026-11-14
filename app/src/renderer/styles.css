@@ -1841,7 +1841,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    .traffic-space and .shell-history, so Back sits at x88 as in the main header; the frame name reuses .shell-search.
    --pw-right is the header's right group, fit.ts PROTOTYPE_HEADER_RIGHT: main fits and captures the window by it. */
 :root { --pw-right: 140px; }
-/* The open conversation column's width: the window sets it on .pw from main's panel state; this is the panel minimum. */
+/* The open conversation panel's width: the window sets it on .pw from main's panel state; this is the panel minimum. */
 :root { --pw-panel: 280px; }
 .pw { position: absolute; inset: 0; display: grid; grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); }
 /* The name's second row, when the first leaves it less than 80 (the renderer sets it from the window's width, as main
@@ -1888,19 +1888,24 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    spinner, on the unread bubble's place and ring, so it adds no accent place. */
 .badge-working { position: absolute; top: var(--space-half); right: var(--space-half); display: grid; place-items: center; width: var(--size-icon-sm); height: var(--size-icon-sm); border-radius: 50%; background: var(--surface-panel); box-shadow: 0 0 0 var(--space-half) var(--surface-panel); pointer-events: none; }
 .badge-working .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-/* The conversation column beside the content panel, from under the header to 8 above the window's bottom. The two are
-   one surface: the content panel keeps its start corners, the column its end ones, and the column's shipped 1 px start
-   edge divides them. Neither clips with four equal radii (exportViewer.test.ts). Folded, the column leaves the grid but
-   stays in the DOM for the button's aria-controls. */
-.pw[data-panel="open"] { grid-template-columns: minmax(0, 1fr) var(--pw-panel); }
-.pw[data-panel="open"] > .pw-panel { border-radius: var(--radius-container) 0 0 var(--radius-container); }
-.pw[data-panel="open"] .pw-stage { border-bottom-right-radius: 0; }
-.pw > .doan-conv-column { grid-column: 2; grid-row: 2; position: relative; display: flex; min-width: 0; min-height: 0; }
+/* The conversation panel (prototype-conversation-panel draft): an independent surface on the window's right, the grid's
+   second column through both rows, 8 below the window's top, 8 from its end and bottom (the .pw padding) and 8 from the
+   content panel. The header and the content panel share the first column, so the header ends 8 before the panel and
+   only it drags the window. While open the header's conversation button leaves the right group: --pw-right is then
+   fit.ts PROTOTYPE_HEADER_RIGHT_OPEN. The content panel keeps its shipped corners and split clip (exportViewer.test.ts).
+   Folded, the column leaves the grid but stays in the DOM for the button's aria-controls. The head keeps the shipped
+   56 of .doan-conv-head, as the canvas page's and the Overview's panels do. */
+.pw[data-panel="open"] { --pw-right: 104px; grid-template-columns: minmax(0, 1fr) var(--pw-panel); column-gap: var(--space-2); }
+.pw[data-panel="open"] > .pw-top { grid-column: 1; }
+.pw[data-panel="open"] > .pw-panel { grid-column: 1; grid-row: 2; }
+.pw > .doan-conv-column { grid-column: 2; grid-row: 1 / -1; margin-top: var(--space-2); position: relative; display: flex; min-width: 0; min-height: 0; }
 .pw:not([data-panel="open"]) > .doan-conv-column { display: none; }
-.pw .right.doan-conv-panel { border-radius: 0 var(--radius-container) var(--radius-container) 0; box-shadow: var(--shadow-panel); }
-/* Without the head the thread and the panel's own lines start 16 below the column's top, its side inset. */
-.doan-conv-panel:not(:has(.doan-conv-head)) .thread-scroll { padding-top: var(--space-4); }
-.doan-conv-panel:not(:has(.doan-conv-head)) .cp-scroll:not(:has(> .conversation-thread)) { padding-top: var(--space-4); }
+.pw .right.doan-conv-panel { border-left: 0; border-radius: var(--radius-container); box-shadow: var(--shadow-panel); }
+/* The header's button stays one element while the panel is open, without a box or a Tab stop, so R is 104 and focus
+   can come back to it on close. */
+.pw-conv[hidden] { display: none; }
+/* The head's title is one line, cut with an ellipsis (.ov-title span's rule): the h2 itself is a flex row. */
+.pw-side-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The playing frame chip: the frame chip's look, first in the card's chip row, as tall as a chip in the field. */
 .composer-chips > .pw-playing { font-size: var(--type-body-sm-size); line-height: var(--type-label-line-height); margin-inline: 0; }
 .cp-scroll > .list-error { margin-bottom: var(--space-2); }

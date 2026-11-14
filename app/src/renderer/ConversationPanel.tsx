@@ -22,7 +22,7 @@ export function dragPanel(start: number, startX: number, x: number, bounds: Pane
 // host that reads focus inside it (the prototype window's composer focus, focus guard and docked buddy).
 export function ConversationPanel({ open, width, bounds, onHide, onResize, preview, title, children, columnRef, onBlur }: {
   open: boolean; width: number; bounds: PanelBounds; onHide(): void; onResize(width: number | undefined): void; preview(width: number): void;
-  title?: ReactNode; children?: ReactNode; columnRef?: Ref<HTMLDivElement>; onBlur?(event: FocusEvent<HTMLDivElement>): void;
+  title?: ReactNode; children?: ReactNode; columnRef?: Ref<HTMLDivElement> | undefined; onBlur?: ((event: FocusEvent<HTMLDivElement>) => void) | undefined;
 }) {
   return <div className="doan-conv-column" ref={columnRef} data-collapsed={open ? undefined : ""} inert={!open} onBlur={onBlur}>
     <ResizeHandle width={width} bounds={bounds} onResize={onResize} preview={preview} />

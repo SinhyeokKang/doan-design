@@ -3,12 +3,12 @@ import type { PrototypeComposerSettings, PrototypeView, PrototypeWindowApi } fro
 import type { FolderEntry } from "../../main/view";
 import type { WorkItem } from "../../main/workState";
 import type { DoanApi } from "../../preload";
-import type { ConversationCalls } from "../CanvasConversationPanel";
+import { canvasConversationTitle, type ConversationCalls } from "../CanvasConversationPanel";
 import { CanvasRun, canvasKey, type ResumeCalls } from "../canvasRun";
 import { ConversationStore, type ListView, type StoreCalls } from "../conversationStore";
 import { DockedSupport, type DockedSupportCalls } from "../dockedSupport";
 import type { VisibleCalls } from "../visibleClock";
-import { carryPrototypeDraft, conversationButton, playingFrameChip, prototypeShownConversation, type ConversationButton, type PlayingFrameChip, type PrototypeConversationTarget, type PrototypeShown } from "./conversation";
+import { carryPrototypeDraft, conversationButton, playingFrameChip, prototypeHeadTitle, prototypeShownConversation, type ConversationButton, type PlayingFrameChip, type PrototypeConversationTarget, type PrototypeShown } from "./conversation";
 
 // The prototype window's conversation host without a DOM. It keeps this window's own store (so its drafts, question
 // picks and attachment chips are its own), reads the playing canvas's conversations (main answers only that canvas's
@@ -179,6 +179,8 @@ export class PrototypeConversationRun {
   work(): readonly WorkItem[] { return this.workItems; }
   settings(): PrototypeComposerSettings | null { return this.settingsValue; }
   seen(): ReadonlySet<string> { return this.seenIds; }
+  // The panel head's title: the main window's title for the conversation shown, or the shell's own "Conversation".
+  headTitle(): string { return prototypeHeadTitle(this.shown(), canvasConversationTitle(this.run, this.listView).title); }
   button(): ConversationButton {
     const shown = this.shown();
     const summary = shown.kind === "conversation" && Array.isArray(this.listView) ? this.listView.find(c => c.conversationId === shown.conversationId) : undefined;

@@ -1,20 +1,20 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { Popover } from "radix-ui";
-import { ArrowLeft, ArrowRight, ChevronDown, CircleSlash, Download, Expand, FileWarning, MessageCircle, PanelRightClose, PanelRightOpen, Proportions, RotateCw, SquareDashed, TriangleAlert, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronDown, CircleSlash, Download, Expand, FileWarning, MessageCircle, PanelRightOpen, Proportions, RotateCw, SquareDashed, TriangleAlert, type LucideIcon } from "lucide-react";
 import type { ExportReply } from "../../main/canvasExport";
 import { PROTOTYPE_LOAD_TIMEOUT_MS, type ExportTarget, type FramesMessage, type PrototypeMode, type PrototypeSnapshot, type PrototypeView, type PrototypeWindowApi, type RunMessage } from "../../main/prototype/ipc";
-import { PROTOTYPE_HEADER_RIGHT, prototypeHeaderRows, prototypePanelBounds, prototypeViewportBox, type Rect, type ViewportBox } from "../../main/prototype/fit";
+import { prototypePanelBounds, prototypeSideLayout, prototypeViewportBox, type Rect, type ViewportBox } from "../../main/prototype/fit";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "../frameDrawerList";
 import { moveBetweenTools } from "../toolbarKeys";
 import { currentRun, forwardedMessage, layersForSnapshot, layersForView, NO_LAYERS, type HostLayers } from "./host";
 import { exportProgress, exportToast } from "../canvasRowMessages";
-import { CONVERSATION_PANEL_ID, ResizeHandle } from "../ConversationPanel";
+import { CONVERSATION_PANEL_ID, ConversationPanel } from "../ConversationPanel";
 import type { PanelBounds } from "../rightPanelSize";
 import type { ConversationButton } from "./conversation";
 import { PrototypeConversationRun, type PrototypeConversationCalls } from "./conversationRun";
 import { ColumnFocusGuard } from "./focusGuard";
-import { PrototypeConversationPanel } from "./PrototypeConversation";
+import { PrototypeConversationPanel, PrototypeHeadTitle } from "./PrototypeConversation";
 import { applyBuddy } from "../buddyPaint";
 import { dockedBuddy } from "../dockedBuddyShell";
 import { useVisibleClock } from "../visibleClock";
@@ -141,12 +141,32 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     panelAsked.current = open;
     void api.setPanel({ open });
   };
+  // Opening puts focus in the composer, or on the head's title before the first view, when there is no composer yet: the
+  // header's button it was on is hidden now. Closing puts it on that button, which has its box again by this effect.
+  // A composer blocked while open keeps focus itself (readOnly), so nothing moves then.
+  const headFallback = useRef(false);
+  const composer = () => column.current?.querySelector<HTMLElement>(".composer-input") ?? null;
+  const headTitle = () => column.current?.querySelector<HTMLElement>(".rp-head") ?? null;
   useEffect(() => {
+    if (!panelOpen) headFallback.current = false;
     if (panelAsked.current !== panelOpen) return;
     panelAsked.current = null;
-    if (panelOpen) column.current?.querySelector<HTMLElement>(".composer-input")?.focus();
-    else convButton.current?.focus();
+    if (!panelOpen) { convButton.current?.focus(); return; }
+    const field = composer();
+    if (field) { field.focus(); return; }
+    headFallback.current = true;
+    headTitle()?.focus();
   }, [panelOpen]);
+  // Once the first view brings the composer, focus left on the head's title moves to it, once; focus the person put
+  // elsewhere meanwhile stays.
+  useEffect(() => {
+    if (!headFallback.current) return;
+    const field = composer();
+    if (!field) return;
+    headFallback.current = false;
+    const head = headTitle();
+    if (head !== null && document.activeElement === head) field.focus();
+  });
   // The column's docked buddy, its accent and the reasons it reads (DESIGN.md 'Docked buddy').
   const buddy = run.settings()?.buddy;
   useEffect(() => {
@@ -297,19 +317,22 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     onMode={mode => void api.setMode(mode)} onMenuOpen={setMenuOpen} exporting={exporting} onExport={onExport} toast={toast.element}
     onChoose={frame => void api.choose(frame)} onClose={() => void api.close()} onDetails={() => setDetails(open => !open)}
     conversation={{ button: run.button(), open: panelOpen, width: panelWidth, bounds: { min: panelBounds.min, max: panelBounds.max }, buttonRef: convButton, column,
+      title: <PrototypeHeadTitle run={run} />,
       body: <PrototypeConversationPanel run={run} calls={api} now={clock} onNotice={text => toastRef.current.show(text)} />,
       onToggle: togglePanel, preview: setDragWidth, onFocusOut: onColumnFocusOut,
       // The renderer cuts the width to the window's range; main fits the window, not the width.
       onResize: next => { setDragWidth(null); void api.setPanel({ open: true, width: next === undefined ? panelBounds.default : clampPanel(next) }); } }} />;
 }
 
-// The conversation panel's part of the shell: the header's button, and the column beside the content panel at the
-// width main answered, with its resize handle and the panel's body.
+// The conversation panel's part of the shell: the header's Show conversation, and the independent panel on the window's
+// right at the width main answered (the drag's preview width while a drag goes on), with its resize handle, its head's
+// title and Hide conversation, and its body.
 export interface ShellConversation {
   button: ConversationButton;
   open: boolean;
   width: number;
   bounds: PanelBounds;
+  title?: ReactNode;
   body?: ReactNode;
   buttonRef?: RefObject<HTMLButtonElement | null>;
   column?: RefObject<HTMLDivElement | null>;
@@ -327,12 +350,12 @@ export interface ShellProps {
   readingShown: boolean;
   details: boolean;
   live: string;
-  // The window's content width, which alone decides whether the name takes the header's second row.
+  // The window's content width; with the panel's width it decides whether the name takes the header's second row.
   width: number;
   menuOpen: boolean;
   // From main's running event to its reply: Export is unavailable as "Exporting".
   exporting: boolean;
-  // The toast host: one per window, bottom right over the content panel, after everything else in the Tab order.
+  // The toast host: one per window, at its bottom right, after everything else in the Tab order.
   toast?: ReactNode;
   content?: RefObject<HTMLDivElement | null>;
   heading?: RefObject<HTMLHeadingElement | null>;
@@ -345,9 +368,10 @@ export interface ShellProps {
   onChoose(frame: string): void; onClose(): void; onDetails(): void; onExport(): void;
 }
 
-// The window's markup. Header controls come before the content in the Tab order; the state overlay covers the content
-// panel only, so they stay usable over it. Every control keeps one element tree in every state (no view yet, pressed or
-// not, either row) so a focused control or the open frame menu survives the change.
+// The window's markup. Header controls come before the content in the Tab order, and the open conversation panel between
+// them, so neither the frame's Tab stops nor a focus trap in it keeps the panel out of reach; the state overlay covers
+// the content panel only, so they stay usable over it. Every control keeps one element tree in every state (no view
+// yet, pressed or not, either row) so a focused control or the open frame menu survives the change.
 export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, exporting, toast, content, heading, name, frames, conversation: conv = FOLDED, onBack, onForward, onReload, onReloadPress, onReloadClick, onMode, onMenuOpen, onChoose, onClose, onDetails, onExport }: ShellProps) {
   const scene = view === null ? null : stateScene(view);
   // Export's rule is the canvas toolbar's: disabled with no reason before the first view, otherwise aria-disabled with
@@ -358,9 +382,12 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
   // Radix gives an Esc to the top layer only, so a header tooltip over the open frame menu would leave the menu open;
   // the tooltip closes it as that Esc would have, and focus goes back to the name.
   const tipEscape = () => { if (!menuOpen) return; onMenuOpen(false); name?.current?.focus(); };
-  // The open column's width as a variable, so the grid and the stylesheet share one value.
+  // The open panel's width as a variable, so the grid and the stylesheet share one value.
   const columns: CSSProperties & Record<"--pw-panel", string> = { "--pw-panel": `${conv.width}px` };
-  return <div className={prototypeHeaderRows(width, PROTOTYPE_HEADER_RIGHT) === 2 ? "pw name-row" : "pw"} {...(conv.open ? { "data-panel": "open", style: columns } : {})}>
+  // The name's row from the header's own width, given rather than measured: the window's while the panel is closed, the
+  // area left of it while open (main fits and captures by the same rule).
+  const rows = prototypeSideLayout(width, conv.open ? conv.width : null).rows;
+  return <div className={rows === 2 ? "pw name-row" : "pw"} {...(conv.open ? { "data-panel": "open", style: columns } : {})}>
     <header className="top shell-top pw-top">
       <span className="traffic-space" aria-hidden="true" />
       <div className="shell-history">
@@ -386,13 +413,15 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
             {...(exportReason !== null ? { "aria-disabled": true, "aria-describedby": EXPORT_REASON_ID } : {})}
             onMouseDown={keepFocus} onClick={() => { if (exportState.available) onExport(); }}><Download aria-hidden="true" /></button>
         </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{exportReason ?? "Export prototype"}</TooltipContent></Tooltip>
-        {/* One element in every state, before the first view too: only its label, aria-expanded and badge change
-            (POSTMORTEM 2026-11-13). The badges are in its name; the tooltip says the label only. */}
+        {/* One element in every state, before the first view too: only its name and badge change (POSTMORTEM
+            2026-11-13). While the panel is open it is hidden (no box, no Tab stop), since Hide conversation is in the
+            panel's head; closing shows it again and focus comes back to it. The badges are in its name; the tooltip
+            says the label only. */}
         <Tooltip><TooltipTrigger asChild>
-          <button type="button" className="doan-icon-button pw-conv" data-ui-placement="chrome" aria-label={conv.button.name} aria-expanded={conv.open} aria-controls={CONVERSATION_PANEL_ID}
-            data-badge={conv.button.badge === null ? undefined : conv.button.badge === "permission" ? "true" : conv.button.badge} ref={conv.buttonRef}
+          <button type="button" className="doan-icon-button pw-conv" data-ui-placement="chrome" aria-label={conv.button.name} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}
+            data-badge={conv.button.badge === null ? undefined : conv.button.badge === "permission" ? "true" : conv.button.badge} ref={conv.buttonRef} hidden={conv.open}
             onMouseDown={keepFocus} onClick={conv.onToggle}>
-            {conv.open ? <PanelRightClose aria-hidden="true" /> : <PanelRightOpen aria-hidden="true" />}
+            <PanelRightOpen aria-hidden="true" />
             {conv.button.badge === "working" && <span className="badge-working" aria-hidden="true"><span className="doan-spinner" /></span>}
             {conv.button.badge === "unseen" && <span className="badge-bubble" aria-hidden="true"><MessageCircle /></span>}
           </button>
@@ -400,6 +429,10 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
       </div>
     </header>
     {exportReason !== null && <span className="sr-only" id={EXPORT_REASON_ID}>{exportReason}</span>}
+    {/* Before the content panel in the DOM and the Tab order; the grid places it on the right. Folded, it stays in the
+        DOM out of reach, so the button's aria-controls resolves. Esc does not fold it: only Hide conversation does. */}
+    <ConversationPanel open={conv.open} width={conv.width} bounds={conv.bounds} onHide={conv.onToggle} onResize={conv.onResize} preview={conv.preview}
+      title={conv.title} columnRef={conv.column} onBlur={conv.onFocusOut}>{conv.body}</ConversationPanel>
     <ContentPanel view={view} layers={layers} covered={coveredNow} content={content} frames={frames}>
       {view?.phase === "loading" && readingShown && <div className="problem-overlay reading"><p className="problem-reading"><span className="doan-spinner" aria-hidden="true" />{LOADING_LABEL}</p></div>}
       {scene !== null && <div className="problem-overlay">
@@ -418,14 +451,6 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
         </div>
       </div>}
     </ContentPanel>
-    {/* After the content panel in the DOM and the Tab order. Folded, it stays in the DOM out of reach, so the button's
-        aria-controls resolves. Esc does not fold it: only the button does. */}
-    <div className="doan-conv-column" ref={conv.column} data-collapsed={conv.open ? undefined : ""} inert={!conv.open} onBlur={conv.onFocusOut}>
-      {conv.open && <ResizeHandle width={conv.width} bounds={conv.bounds} onResize={conv.onResize} preview={conv.preview} />}
-      <aside className="right ov-right doan-conv-panel" id={CONVERSATION_PANEL_ID} role="region" aria-label="Conversation">
-        <div className="doan-conv-body">{conv.body}</div>
-      </aside>
-    </div>
     {toast}
     <p className="sr-only" role="status" aria-live="polite">{live}</p>
   </div>;

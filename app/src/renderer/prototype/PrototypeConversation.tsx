@@ -1,11 +1,12 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import type { RevealPayload } from "../../main/prototype/ipc";
 import type { FolderEntry } from "../../main/view";
 import { CanvasConversation } from "../CanvasConversationPanel";
 import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT } from "../canvasConversation";
 import type { PrototypeConversationCalls, PrototypeConversationRun } from "./conversationRun";
 
-// The prototype window's conversation panel: the canvas panel's headless body on the playing canvas's current
-// conversation. Its thread chips, Sign in and Open buttons belong to the main window: they go to main as a reveal,
+// The prototype window's conversation panel: the canvas panel's body, under the panel shell's head, on the playing
+// canvas's current conversation. Its thread chips, Sign in and Open buttons belong to the main window: they go to main as a reveal,
 // which brings the main window forward to act there; this window waits for nothing back.
 
 export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {} }: {
@@ -43,4 +44,25 @@ export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {
     onOpenPromoted={conversationId => reveal({ kind: "conversation", conversationId })}
     onOpenHandoff={(canvas, conversationId) => reveal({ kind: "handoff", canvas, ...(conversationId ? { conversationId } : {}) })}
     work={run.work()} playing={run.playing()} listFailed={run.shown().kind === "list_error"} newFromRefusal={false} />;
+}
+
+// The panel head's title, the shell's static h2 with the text in a span, since the h2 is a flex row and only the span
+// can end in an ellipsis. The whole title is the native tooltip only while it is cut short, as the frame name's rule;
+// the span's own resize (the window, the handle's drag and keys) and a new title judge it again. Focus comes here on
+// opening when the composer is not there yet.
+export function PrototypeHeadTitle({ run }: { run: PrototypeConversationRun }) {
+  const text = run.headTitle();
+  const span = useRef<HTMLSpanElement>(null);
+  const [cut, setCut] = useState(false);
+  useLayoutEffect(() => {
+    const node = span.current;
+    if (!node) return;
+    const measure = () => setCut(node.scrollWidth > node.clientWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [text]);
+  return <h2 className="phead rp-head" tabIndex={-1} title={cut ? text : undefined}><span className="pw-side-title" ref={span}>{text}</span></h2>;
 }

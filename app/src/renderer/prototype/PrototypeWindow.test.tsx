@@ -568,6 +568,75 @@ describe("the conversation panel", () => {
     expect(input.focus).toHaveBeenCalledOnce();
   });
 
+  // Space and Enter on the header's button are its click; Hide conversation in the panel's head is the same toggle.
+  test("opened by key it focuses the composer; Hide conversation closes it onto the header's button; Esc is no toggle", () => {
+    show(view());
+    const input = field(), button = field();
+    conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? input : null, contains: () => false } as never;
+    conversation().buttonRef!.current = button as never;
+    conversation().onToggle();
+    show(view({ panel: { open: true, width: 280 } }));
+    expect(input.focus).toHaveBeenCalledOnce();
+    expect(button.focus).not.toHaveBeenCalled();
+    expect(Object.keys(conversation()).some(key => /key/i.test(key))).toBe(false);
+    conversation().onToggle();
+    expect(api.setPanel).toHaveBeenLastCalledWith({ open: false });
+    show(view({ panel: { open: false, width: 280 } }));
+    expect(button.focus).toHaveBeenCalledOnce();
+  });
+
+  // Before the first view the panel has no composer: focus goes to the head's title, not the hidden header button.
+  test("opened before the first view, focus goes to the head's title, then once to the composer the view brings", () => {
+    const head = field(), input = field();
+    let composer: typeof input | null = null;
+    conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? composer : selector === ".rp-head" ? head : null, contains: () => false } as never;
+    conversation().onToggle();
+    show(view({ panel: { open: true, width: 280 } }));
+    expect(head.focus).toHaveBeenCalledOnce();
+    expect(input.focus).not.toHaveBeenCalled();
+    doc.activeElement = head;
+    composer = input;
+    show(view({ panel: { open: true, width: 280 }, phase: "ready" }));
+    expect(input.focus).toHaveBeenCalledOnce();
+    doc.activeElement = input;
+    show(view({ gen: 2, panel: { open: true, width: 280 } }));
+    expect(input.focus).toHaveBeenCalledOnce();
+  });
+
+  test("focus the person moved off the head's title before the composer came stays where it is", () => {
+    const head = field(), input = field(), elsewhere = field();
+    let composer: typeof input | null = null;
+    conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? composer : selector === ".rp-head" ? head : null, contains: () => false } as never;
+    conversation().onToggle();
+    show(view({ panel: { open: true, width: 280 } }));
+    expect(head.focus).toHaveBeenCalledOnce();
+    doc.activeElement = elsewhere;
+    composer = input;
+    show(view({ panel: { open: true, width: 280 }, phase: "ready" }));
+    expect(input.focus).not.toHaveBeenCalled();
+  });
+
+  // Main keeps the panel's state across another play, so Back and doan open --prototype leave it open with its head.
+  test("Back and a CLI play keep the panel open with its head's title", () => {
+    show(view({ panel: { open: true, width: 280 } }));
+    const title = conversation().title;
+    expect(title).toBeDefined();
+    show(view({ gen: 2, frame: "cart", title: "Cart", panel: { open: true, width: 280 } }));
+    expect(conversation()).toMatchObject({ open: true });
+    expect((conversation().title as { type: unknown }).type).toBe((title as { type: unknown }).type);
+    expect(api.setPanel).not.toHaveBeenCalled();
+  });
+
+  test("a window narrowed while open cuts the panel to that window's maximum", () => {
+    win.innerWidth = 1024;
+    resizes.forEach(resize => resize());
+    expect(show(view({ panel: { open: true, width: 512 } })).conversation).toMatchObject({ width: 512 });
+    win.innerWidth = 700;
+    resizes.forEach(resize => resize());
+    expect(render().conversation).toMatchObject({ width: 340, bounds: { min: 280, max: 340 } });
+    expect(render().width).toBe(700);
+  });
+
   test("a view that arrives with the panel already open moves no focus", () => {
     const input = field();
     conversation().column!.current = { querySelector: () => input, contains: () => false } as never;

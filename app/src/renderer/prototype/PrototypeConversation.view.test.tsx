@@ -33,7 +33,7 @@ vi.mock("react", async original => {
   };
 });
 
-const { PrototypeConversationPanel } = await import("./PrototypeConversation");
+const { PrototypeConversationPanel, PrototypeHeadTitle } = await import("./PrototypeConversation");
 const { PrototypeConversationRun } = await import("./conversationRun");
 const { CanvasConversation } = await import("../CanvasConversationPanel");
 const { authStatus } = await import("../../main/agentAuth/state");
@@ -217,5 +217,59 @@ describe("Last used from the prototype composer", () => {
     expect(calls.rememberChoice).toHaveBeenCalledOnce();
     expect((calls.rememberChoice as ReturnType<typeof vi.fn>).mock.calls[0]![0]).toMatchObject({ provider: "claude", permissionMode: "plan" });
     expect((calls.rememberChoice as ReturnType<typeof vi.fn>).mock.calls[0]![0]).not.toHaveProperty("modelPicked");
+  });
+});
+
+// The head's title is one line: the whole title is the native tooltip only while the span is cut short, judged again on
+// the span's own resize (the window, the handle) and on a new title.
+describe("the panel head's title", () => {
+  let observed: (() => void) | null;
+  const span = { scrollWidth: 120, clientWidth: 200 };
+  function head(): El {
+    for (let round = 0; round < 20; round++) {
+      hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.dirty = false;
+      const tree = PrototypeHeadTitle({ run }) as El;
+      const pending = hooks.pending.splice(0);
+      for (const task of pending) task();
+      if (!hooks.dirty && pending.length === 0) return tree;
+    }
+    throw new Error("did not settle");
+  }
+  beforeEach(() => {
+    observed = null;
+    span.scrollWidth = 120; span.clientWidth = 200;
+    hooks.refs[0] = { current: span };
+    vi.stubGlobal("ResizeObserver", class { constructor(callback: () => void) { observed = callback; } observe() {} disconnect() {} });
+  });
+
+  test("the shell's static h2 with the title in a span, focusable by script only", async () => {
+    listed = [summary({ title: "Checkout Review details button" })];
+    await playing();
+    const tree = head();
+    expect(tree.type).toBe("h2");
+    expect(tree.props).toMatchObject({ className: "phead rp-head", tabIndex: -1, title: undefined });
+    const text = tree.props.children as El;
+    expect(text.props).toMatchObject({ className: "pw-side-title", children: "Checkout Review details button" });
+  });
+
+  test("a title cut short is the native tooltip; once it fits again it is not", async () => {
+    listed = [summary({ title: "Checkout Review details button" })];
+    await playing();
+    expect(head().props.title).toBeUndefined();
+    span.clientWidth = 80;
+    observed!();
+    expect(head().props.title).toBe("Checkout Review details button");
+    span.clientWidth = 200;
+    observed!();
+    expect(head().props.title).toBeUndefined();
+  });
+
+  test("a new title is judged again", async () => {
+    listed = [summary({ title: "Ideas" })];
+    await playing();
+    expect(head().props.title).toBeUndefined();
+    span.scrollWidth = 400;
+    run.setView(view({ canvasRow: "gone" }));
+    expect(head().props).toMatchObject({ title: "Conversation" });
   });
 });
