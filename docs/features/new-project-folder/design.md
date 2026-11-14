@@ -105,12 +105,21 @@ renderer ProjectStep.newFolder(parent)          (picking·choosing = true, dropN
 
 ## PoC 의존
 
-- **macOS 저장 창과 이미 있는 이름**: 하나만 확인한다.
-  - 이미 있는 폴더 이름으로 Create를 누르면 NSSavePanel이 Replace를 묻는가. Replace를 누르면 어떤 경로가 돌아오는가.
-  - 대소문자만 다른 이름, `/`·`:`가 든 이름, `.`으로 시작하는 이름은 어떻게 되는가.
+- **macOS 저장 창과 이미 있는 이름**: 2026-11-14 PoC(작업 1)로 확인했다. 통과.
+  - 환경: Electron 45.0.0, macOS 26.6.2, 한국어 로케일. 임시 userData·HOME·SHELL·`DOAN_RUNTIME`으로 띄운 scratch main(`.scratch/new-project-folder/poc.mjs`)이 BrowserWindow에 `dialog.showSaveDialog(window, {message, buttonLabel: "Create", nameFieldLabel: "Name:", defaultPath: <디렉터리>, showsTagField: false})`를 시트로 열었다. 입력은 `orca computer`의 전면 네이티브 입력(글자 입력, Return, 버튼 클릭)이다. 실행 전후 실제 상태 지문, 수정 키(⌥ 등) 상태, 잠금 화면, `lsof`를 확인했다.
+  - 이미 있는 폴더 이름 + Create: macOS가 Replace를 묻는다("‘Existing’ 파일이 이미 존재합니다. 대치하겠습니까?", "‘parent’ 폴더에 동일한 이름의 파일이나 폴더가 이미 존재합니다. 대치하면 현재 내용을 덮어씁니다.", 버튼 취소·대치). Replace를 누르면 `{canceled: false, filePath: <부모>/Existing}`가 돌아오고, 이 경로는 실제 경로로 바뀌어 있었다(`/tmp/...`가 아니라 `/private/tmp/...`). Electron은 아무것도 지우지 않았고 폴더는 그대로였다.
+  - 같은 질문에서 Cancel을 누르면 아무것도 돌아오지 않고 저장 창이 입력한 이름 그대로 남는다. 그 뒤 저장 창의 Cancel은 `{canceled: true, filePath: ""}`다.
+  - 이미 있는 파일 이름도 같은 질문을 띄우고, Replace는 그 경로를 돌려준다. 그래서 폴더가 아닌 항목 알림도 Replace 다음에 뜬다.
+  - 대소문자만 다른 이름(`existing`, 디스크에는 `Existing`): 같은 질문이 디스크의 이름(‘Existing’)으로 뜨고, Replace는 입력한 대소문자(`<부모>/existing`)를 돌려준다.
+  - `/`가 든 이름(`a/b`): 질문 없이 `<부모>/a:b`가 돌아온다(Finder는 이 이름을 `a/b`로 보인다).
+  - `:`가 든 이름: 저장 창이 이름 칸의 `:`를 `-`로 바꾼다. 질문은 없다. 입력 도구가 칸의 값이 보낸 글자와 다르면 다시 입력하므로 칸에는 `a--b`가 남았고, 돌아온 경로도 `<부모>/a--b`였다. 키를 한 번 누를 때 `a-b`가 되는지는 확인하지 못했다(`press-key`가 `:`를 받지 않는다). 어느 쪽이든 `:`는 경로에 들어오지 않는다.
+  - `.`으로 시작하는 이름(`.hidden`): macOS가 묻는다("마침표 ‘.’으로 시작하는 이름을 사용하겠습니까?", "마침표로 시작하는 파일은 Finder에서 가려집니다.", 버튼 취소·‘.’ 사용). ‘.’ 사용은 `<부모>/.hidden`을, 취소는 저장 창으로 돌아간다.
+  - 새 이름은 질문 없이 그 경로를 돌려준다. 저장 창은 어떤 경우에도 폴더를 만들지 않았다(실행 뒤 부모에는 `Existing`과 `afile`만 있다).
   - Electron 문서에 따르면 `showOverwriteConfirmation`은 Linux 전용이다(타입 정의에는 표시가 없고, 여기서 확인하지 않았다).
-  - 재귀 없는 `mkdir`는 창이 무엇을 돌려주든 덮어쓰지 않는다. 그래서 이 PoC는 알림 문구가 Replace 다음 순서를 견디는지만 확인한다.
-- **시트**: 따로 확인하지 않는다. 첫 실행은 main 창 안의 `<dialog>`(`Onboarding.tsx`)이고, Choose folder가 이미 같은 창에 시트를 붙인다.
+  - 재귀 없는 `mkdir`는 창이 무엇을 돌려주든 덮어쓰지 않는다.
+- **알림 문구**: '초안'의 이미 있음 문구 둘은 바꾸지 않아도 된다. macOS 질문이 "대치하면 현재 내용을 덮어씁니다"라고 말한 뒤 Doan 알림이 "Doan didn’t replace it"이라고 바로잡으므로, Replace 다음 순서에서 맞게 읽힌다. 질문에서 Cancel을 누르면 저장 창으로 돌아가므로 알림은 뜨지 않는다. 대소문자만 다를 때 저장 창이 돌려주는 이름은 입력한 쪽이고 macOS 질문은 디스크의 이름을 보인다. 알림의 “<name>”에 어느 쪽을 넣을지는 이 PoC가 정하지 않는다.
+- **시트**: 시트에는 `message`가 보이고 `title`은 보이지 않는다(접근성 트리의 시트 노드 이름에만 들어간다). 안내 문장을 `message`에 두는 '세부 규칙'이 맞다.
+- **이름 칸**: `defaultPath`에 디렉터리만 주어도 이름 칸은 비지 않는다. macOS 기본 이름("무제", 영어 로케일이면 "Untitled")이 선택된 채 열리므로, 입력하면 그 이름을 덮어쓴다. 실패: '세부 규칙'의 "이름 칸을 비운다", 초안 `save-panel`의 "empty at first", 작업 6의 "이름 칸이 비어 있다"가 이 관찰과 다르다. 고치는 일은 이 PoC 밖이다.
 
 ## POSTMORTEM에서 가져온 것
 
