@@ -68,7 +68,7 @@ export function PrototypeHeadMenu({ run, now, onPicked, onDelete }: {
 }) {
   const shown = run.shown(), list = run.list(), target = run.target(), title = run.headTitle();
   const unavailable = shown.kind === "list_loading" || shown.kind === "blocked";
-  // The order at opening while open (empty when nothing was listed yet), null while closed.
+  // The rows' order as drawn while open (at opening, then each row added at the end), null while closed.
   const [frozen, setFrozen] = useState<readonly string[] | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const picked = useRef(false);
@@ -80,8 +80,13 @@ export function PrototypeHeadMenu({ run, now, onPicked, onDelete }: {
     if (unavailable) return;
     setFrozen(Array.isArray(list) && target ? titleMenuOrder(list, target.canvas, null) : []);
   };
+  // What this list draws, kept as the order to hold: titleMenuOrder sorts by activity whatever the order does not
+  // name, so a row added while open would move again at the next read unless its place is kept too. Kept during the
+  // render (React's state adjusted while rendering), so no frame draws the rows in another order first.
+  const drawn = frozen !== null && Array.isArray(list) && target ? titleMenuOrder(list, target.canvas, frozen) : frozen;
+  if (frozen !== null && drawn !== null && drawn.join("\n") !== frozen.join("\n")) setFrozen(drawn);
   const current = shown.kind === "conversation" ? shown.conversationId : null;
-  const items = Array.isArray(list) && target ? canvasConversationMenu(list, target.canvas, current, now, run.seen(), frozen) : [];
+  const items = Array.isArray(list) && target ? canvasConversationMenu(list, target.canvas, current, now, run.seen(), drawn) : [];
   const select = (id: string | null) => run.run.select(id);
   const isNew = run.run.view()?.kind === "new";
   const canvasName = run.currentView()?.canvas ?? "";
