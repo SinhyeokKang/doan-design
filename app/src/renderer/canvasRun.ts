@@ -4,7 +4,7 @@ import type { Canvas, Runtime } from "../main/conversation/types";
 import type { DoanApi } from "../preload";
 import { newConversationMode, pickCanvasConversation, PROMOTED_TEXT, shouldMarkSeen, type CanvasNotice, type NewConversationView, type ResumeTarget } from "./canvasConversation";
 import type { ConversationStore, ListView } from "./conversationStore";
-import { carryDraft, draftKey, type DockedMode } from "./dockedRules";
+import { carryDraft, draftKey, hasDraft, type DockedMode } from "./dockedRules";
 import { endSeq, type ScrollTo } from "./overviewRun";
 
 // The canvas page's conversation panel: which
@@ -316,7 +316,9 @@ export class CanvasRun {
     if (pick.kind === "new" && pick.listError) { if (s.resume === undefined && s.ask === 0) this.askResume(s); return; }
     if (pick.kind === "wait" || pick.kind === "reread") return;
     s.notice = pick.notice;
-    if (pick.kind !== "conversation") s.defaultNew = this.listedIds(s.target.root);
+    // The person's New (select(null) leaves shown null without defaultNew) stays theirs across reads; only the default
+    // new state takes the list's ids again.
+    if (pick.kind !== "conversation" && (s.shown !== null || s.defaultNew)) s.defaultNew = this.listedIds(s.target.root);
     this.setShown(s, pick.kind === "conversation" ? pick.conversationId : null);
   }
   // A current conversation that newly appeared on a canvas showing only the default new state shows, with the new
@@ -327,7 +329,7 @@ export class CanvasRun {
     const current = list.find(c => c.state === "current" && c.canvas !== undefined && sameTarget(c.canvas, s.target.canvas));
     if (!current || known.has(current.conversationId) || this.store.deleting(current.conversationId)) return false;
     const key = canvasKey(s.target);
-    if (!this.starting.has(key)) this.store.setDrafts(drafts => carryDraft(drafts, key, `conversation:${current.conversationId}`));
+    if (!this.starting.has(key)) this.store.setDrafts(drafts => (hasDraft(drafts.get(key)) ? carryDraft(drafts, key, `conversation:${current.conversationId}`) : drafts));
     delete s.defaultNew;
     s.notice = null;
     this.setShown(s, current.conversationId);

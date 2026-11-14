@@ -4,7 +4,7 @@ import type { PrototypeView } from "../../main/prototype/ipc";
 import { distinctTargets, sameTarget, toMessage, type FieldSegment } from "../anchorField";
 import { sameCanvas } from "../canvasConversationRows";
 import type { ListView } from "../conversationStore";
-import { carryDraft, type DockedDraft } from "../dockedRules";
+import { carryDraft, hasDraft, type DockedDraft } from "../dockedRules";
 import { openButtonBadge } from "../rightPanelOpen";
 
 // The prototype window's conversation panel: which conversation it shows, the playing frame chip every message
@@ -83,7 +83,6 @@ export function conversationButton(open: boolean, current: ConversationSummary |
 // it, unless the new one has a draft already.
 export function carryPrototypeDraft(drafts: ReadonlyMap<string, DockedDraft>, from: string, to: string): ReadonlyMap<string, DockedDraft> {
   const draft = drafts.get(from);
-  if (from === to || !draft || !hasDraft(draft)) return drafts;
+  if (from === to || !hasDraft(draft)) return drafts;
   return carryDraft(drafts, from, to);
 }
-const hasDraft = (draft: DockedDraft) => draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0;
