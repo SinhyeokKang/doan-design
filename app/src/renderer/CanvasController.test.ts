@@ -4866,6 +4866,32 @@ describe("following the working frame", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // A turn that ends with nothing left working on the canvas ends that source's story: a later, separate turn is followed
+  // from its first frame, whichever source it is (the open canvas keeps a target with no work and no turn keys then).
+  it("after every work turn on the canvas ended, another source's first frame is followed", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      vi.advanceTimersByTime(5000);
+      setWork(h, "far", { source: "conversation:p2", key: "conversation:p2:u1" }, ["conversation:p2:u1"]);
+      expect(h.controller.currentView()).not.toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("after every work turn on the canvas ended, the same source's next turn is followed from its first frame", () => {
+    const h = rested();
+    try {
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      setWork(h, "intro");
+      h.controller.setWork({ root: "/repo", path: h.row.path, work: null, keys: [] });
+      vi.advanceTimersByTime(5000);
+      setWork(h, "far", { key: "terminal:t2" }, ["terminal:t2"]);
+      expect(h.controller.currentView()).not.toEqual(fitView);
+    } finally { h.controller.dispose(); }
+  });
+
   const personMoves: [string, (h: H) => void][] = [
     ["a wheel pan", h => h.controller.wheel({ dx: 0, dy: 10, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 })],
     ["a pinch or ⌘-wheel zoom", h => h.controller.wheel({ dx: 0, dy: -10, ctrl: true, meta: false, deltaMode: 0 }, { x: 0, y: 0 })],
