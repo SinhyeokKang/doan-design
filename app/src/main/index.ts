@@ -1433,6 +1433,8 @@ async function start(): Promise<void> {
   // The prototype window's conversation panel (hostRequests above). Each request was allowed for the prototype role
   // only; the parsers check the role again.
   handle(PROTOTYPE_CHANNELS.showing, undefined, (_event, value: unknown, kind) => { prototypeShowing.set(kind, value); });
+  // The drawing project conversation: the target read and the report are the main window's requests (mainOnly), the
+  // id read the prototype window's (drawing.ts checks the role again).
   handle(PROTOTYPE_CHANNELS.readTarget, null, (_event, value: unknown) => value === undefined ? prototypeTargetRef(prototype.controller.playing()) : null);
   handle(PROTOTYPE_CHANNELS.setDrawing, false, (_event, value: unknown, kind) => {
     const taken = prototypeDrawing.set(kind, value);
