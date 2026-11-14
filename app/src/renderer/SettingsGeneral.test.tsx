@@ -117,7 +117,7 @@ describe("asking before a switch", () => {
     click("popo");
     render(buddy);
     (button("Cancel").props.onClick as () => void)();
-    render(buddy);
+    render(buddy); effects();
     expect(dialog()).toBeUndefined();
     expect(buddy.select).not.toHaveBeenCalled();
     expect(onLock).toHaveBeenLastCalledWith(false);
@@ -132,7 +132,7 @@ describe("asking before a switch", () => {
     const escape = { preventDefault: vi.fn() };
     (dialog()!.props.onCancel as (event: unknown) => void)(escape);
     expect(escape.preventDefault).toHaveBeenCalled();
-    render(buddy);
+    render(buddy); effects();
     expect(dialog()).toBeUndefined();
     expect(onLock).toHaveBeenLastCalledWith(false);
     expect(rowFocus("dori")).toHaveBeenCalled();
@@ -190,6 +190,8 @@ describe("asking before a switch", () => {
     render(buddy);
     (button("Switch to Popo").props.onClick as () => void)();
     await settle();
+    // The alert is still drawn, modal, until the next render: focus moved now would not land (runtime probe).
+    expect(rowFocus("popo")).toBeUndefined();
     const failed = selection({ failure: { picked: "popo", kept: "doany", cooldown: true } });
     render(failed); effects();
     expect(dialog()).toBeUndefined();

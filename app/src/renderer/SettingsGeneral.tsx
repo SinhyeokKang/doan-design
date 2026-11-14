@@ -13,8 +13,6 @@ const ROWS = ".settings-panel .buddy-rows";
 const LOCK = ".settings-panel .buddy-lock";
 const TIME_ID = "settings-buddy-time", RULE_ID = "settings-buddy-rule";
 
-const focusRow = (id: BuddyId) => requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`${ROWS} input[value="${id}"]`)?.focus());
-
 // Settings > General (.doan/canvases/buddy-choice.html 'settings-general', .doan/canvases/buddy-change-cooldown.html):
 // today one Buddy group. Another buddy's row opens an alert first, and the switch saves with its change time through
 // App's buddy selection, so Home, the working notice and the accent follow without a restart. While the alert is open
@@ -29,21 +27,26 @@ export function SettingsGeneral({ preferences, buddy, onLock }: { preferences: P
   const [asking, setAsking] = useState<{ id: BuddyId; pending: boolean } | null>(null);
   // Bumped to redraw the countdown; the time itself is read on each render, so a late timer still shows the right one.
   const [, setTick] = useState(0);
-  // Focus moves to the buddy once the overlay it waits for is drawn.
-  const landOnLock = useRef(false);
+  // Where focus goes once the alert has closed: the buddy over the lock (once the lock is drawn) or the row pressed.
+  // Explicitly, or it would fall to <body> with the alert (POSTMORTEM 2026-11-03).
+  const landing = useRef<"lock" | BuddyId | null>(null);
   // Focus was on the buddy when the lock ran out, so it goes to the checked row rather than falling to <body>.
   const leftLock = useRef(false);
   const off = buddyChoiceOff(preferences);
   const remaining = off || buddy.lockedUntil === null ? null : cooldownRemaining(buddy.lockedUntil, Date.now());
   const locked = remaining !== null;
 
-  // The saved snapshot and the closed alert can land in separate renders; focus waits for both, as the page behind a
-  // modal alert cannot take it.
+  // The saved snapshot and the closed alert can land in separate renders, in either order, so this runs after every
+  // render and moves focus once both are in: the page behind a modal alert cannot take it.
   const settled = asking === null;
   useEffect(() => {
-    if (locked && settled && landOnLock.current) { landOnLock.current = false; document.querySelector<HTMLButtonElement>(`${LOCK} .doany`)?.focus(); }
+    const target = landing.current;
+    if (settled && target !== null && (target !== "lock" || locked)) {
+      landing.current = null;
+      document.querySelector<HTMLElement>(target === "lock" ? `${LOCK} .doany` : `${ROWS} input[value="${target}"]`)?.focus();
+    }
     if (!locked && leftLock.current) { leftLock.current = false; focusChecked(document.querySelector(ROWS)); }
-  }, [locked, settled]);
+  });
   // A redraw on each second boundary, and at once when the window shows or takes focus: a timer can wake late after
   // sleep. A hidden window still redraws on its timer; nothing reads it until it shows.
   useEffect(() => {
@@ -63,12 +66,12 @@ export function SettingsGeneral({ preferences, buddy, onLock }: { preferences: P
   const answer = (allow: boolean) => {
     if (!asking || asking.pending) return;
     const { id } = asking;
-    if (!allow) { setAsking(null); onLock(false); focusRow(id); return; }
+    if (!allow) { landing.current = id; setAsking(null); onLock(false); return; }
     setAsking({ id, pending: true });
     void buddy.select(id, new Date().toISOString()).then(saved => {
+      landing.current = saved ? "lock" : id;
       setAsking(null);
       onLock(false);
-      if (saved) landOnLock.current = true; else focusRow(id);
     });
   };
   // Retry saves the confirmed pick again without asking; a Settings switch sends a fresh change time.
@@ -76,7 +79,7 @@ export function SettingsGeneral({ preferences, buddy, onLock }: { preferences: P
     const saving = failed.cooldown ? buddy.select(failed.picked, new Date().toISOString()) : buddy.select(failed.picked);
     void saving.then(saved => {
       if (!saved) return;
-      if (failed.cooldown) landOnLock.current = true;
+      if (failed.cooldown) landing.current = "lock";
       else requestAnimationFrame(() => focusChecked(document.querySelector(ROWS)));
     });
   };
