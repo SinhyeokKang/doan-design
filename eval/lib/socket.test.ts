@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { connect } from "node:net";
 import { join } from "node:path";
@@ -320,4 +320,61 @@ test("the fake initialize adds only the missing .gitattributes lines, like doan 
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("a bad workOthers stops the fake app at start", async () => {
+  for (const workOthers of [[], [{ provider: "codex" }], [{ kind: "conversation", id: "c1" }], [{ kind: "terminal", provider: "gemini" }], Array.from({ length: 9 }, () => ({ kind: "terminal" })), "codex"]) {
+    const dir = mkdtempSync("/tmp/doan-eval-test-");
+    try {
+      // A fake app that starts anyway must not outlive the test.
+      await assert.rejects(startFakeApp({ dir, root: "/r", selection: null, workOthers } as never).then(async app => { await app.close(); }), /before it was ready/, JSON.stringify(workOthers));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test("with workOthers the v3 start and update answers carry them and done and errors do not", async () => {
+  const dir = mkdtempSync("/tmp/doan-eval-test-");
+  const root = join(dir, "repo");
+  const path = ".doan/canvases/a.html";
+  mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  writeFileSync(join(root, path), "seed");
+  const workOthers = [{ kind: "conversation", provider: "codex", frame: "hero", note: "Rewriting the headline" }, { kind: "terminal" }];
+  const app = await startFakeApp({ dir, root, selection: null, workOthers });
+  try {
+    const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
+    const request = async (args: Record<string, unknown>) => new Promise<unknown>((resolve, reject) => {
+      const socket = connect(runtime.socket);
+      let reply = "";
+      socket.on("error", reject).on("data", bytes => { reply += bytes; }).on("end", () => resolve(JSON.parse(reply)));
+      socket.end(JSON.stringify({ v: 3, token: runtime.token, root, ...args }) + "\n");
+    });
+    assert.deepEqual(await request({ action: "start", path }), { v: 3, ok: true, others: workOthers });
+    assert.deepEqual(await request({ action: "update", path, frame: "a", note: "Drawing a" }), { v: 3, ok: true, others: workOthers });
+    assert.deepEqual(await request({ action: "done" }), { v: 3, ok: true });
+    const refused = await request({ action: "start", path, token: "wrong" }) as { ok: boolean; others?: unknown };
+    assert.equal(refused.ok, false);
+    assert.ok(!("others" in refused));
+    // The log keeps each response as answered, so a check can see whether others was delivered.
+    const log = readFileSync(app.workLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    assert.deepEqual(log.map(entry => entry.response.others), [workOthers, workOthers, undefined, undefined]);
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("without workOthers the v3 answers carry no others", async () => {
+  const dir = mkdtempSync("/tmp/doan-eval-test-");
+  const root = join(dir, "repo");
+  mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  const app = await startFakeApp({ dir, root, selection: null });
+  try {
+    const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
+    const reply = await new Promise<unknown>((resolve, reject) => {
+      const socket = connect(runtime.socket);
+      let data = "";
+      socket.on("error", reject).on("data", bytes => { data += bytes; }).on("end", () => resolve(JSON.parse(data)));
+      socket.end(JSON.stringify({ v: 3, token: runtime.token, root, action: "start", path: ".doan/canvases/a.html" }) + "\n");
+    });
+    assert.deepEqual(reply, { v: 3, ok: true });
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
 });

@@ -1,0 +1,2 @@
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "doan work start .doan/canvases/landing.html --repo '{{repo}}' --json"}}]}}
+{"type": "result", "result": "Another session is working on the Hero section frame. Should I go ahead and change the headline?"}

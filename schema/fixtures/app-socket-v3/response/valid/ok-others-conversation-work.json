@@ -1,0 +1,12 @@
+{
+  "v": 3,
+  "ok": true,
+  "others": [
+    {
+      "kind": "conversation",
+      "provider": "antigravity",
+      "frame": "hero",
+      "note": "Tightening spacing"
+    }
+  ]
+}

@@ -101,14 +101,117 @@ func TestReadWorkResponse(t *testing.T) {
 		{`{"v":1,"ok":false,"error":{"code":"bad_request","message":"old"}}`, false},
 		{`{"v":2,"ok":true}`, false}, {`{"v":3,"ok":true,"extra":1}`, false}, {`{"v":3,"ok":true} {}`, false}, {`null`, false}, {`broken`, false},
 	} {
-		if got := readWorkResponse([]byte(tt.line)); got != tt.want {
-			t.Fatalf("%s: %v", tt.line, got)
+		if got, others := readWorkResponse([]byte(tt.line)); got != tt.want || others != nil {
+			t.Fatalf("%s: %v %v", tt.line, got, others)
 		}
 	}
 	for _, code := range []string{"bad_request", "bad_token", "project_not_open"} {
-		if readWorkResponse([]byte(`{"v":3,"ok":false,"error":{"code":"` + code + `","message":"no"}}`)) {
+		if got, others := readWorkResponse([]byte(`{"v":3,"ok":false,"error":{"code":"` + code + `","message":"no"}}`)); got || others != nil {
 			t.Fatal(code)
 		}
+	}
+}
+
+// A reply delivers only when it passes the v3 schema, so others never comes from a reply the CLI rejects.
+func TestReadWorkResponseOthers(t *testing.T) {
+	delivered, others := readWorkResponse([]byte(`{"v":3,"ok":true,"others":[{"kind":"conversation","provider":"codex","frame":"hero","note":"Tightening spacing"},{"kind":"terminal"},{"kind":"terminal","provider":"claude"}]}`))
+	want := []workOther{{Kind: "conversation", Provider: "codex", Frame: "hero", Note: "Tightening spacing"}, {Kind: "terminal"}, {Kind: "terminal", Provider: "claude"}}
+	if !delivered || !reflect.DeepEqual(others, want) {
+		t.Fatalf("%v %#v", delivered, others)
+	}
+	nine := `{"v":3,"ok":true,"others":[` + strings.TrimSuffix(strings.Repeat(`{"kind":"terminal"},`, 9), ",") + `]}`
+	for _, line := range []string{
+		`{"v":3,"ok":true,"others":[]}`,
+		nine,
+		`{"v":3,"ok":true,"others":[{"kind":"terminal","session":"s"}]}`,
+		`{"v":3,"ok":true,"others":[{"kind":"robot"}]}`,
+		`{"v":3,"ok":true,"others":[{"provider":"claude"}]}`,
+		`{"v":3,"ok":true,"others":[{"kind":"terminal","note":"a\nb"}]}`,
+		`{"v":3,"ok":false,"error":{"code":"bad_request","message":"no"},"others":[{"kind":"terminal"}]}`,
+	} {
+		if delivered, others := readWorkResponse([]byte(line)); delivered || others != nil {
+			t.Fatalf("%s: %v %v", line, delivered, others)
+		}
+	}
+	for _, dir := range []string{"valid", "invalid"} {
+		entries, err := os.ReadDir(filepath.Join("..", "..", "..", "schema", "fixtures", "app-socket-v3", "response", dir))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range entries {
+			data, err := os.ReadFile(filepath.Join("..", "..", "..", "schema", "fixtures", "app-socket-v3", "response", dir, entry.Name()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var compact bytes.Buffer
+			if err := json.Compact(&compact, data); err != nil {
+				t.Fatal(err)
+			}
+			var value map[string]any
+			_ = json.Unmarshal(data, &value)
+			delivered, others := readWorkResponse(compact.Bytes())
+			want := dir == "valid" && value["ok"] == true
+			if delivered != want || (!want && others != nil) {
+				t.Fatalf("%s/%s: %v %v", dir, entry.Name(), delivered, others)
+			}
+			if raw, ok := value["others"].([]any); want && ok && len(others) != len(raw) {
+				t.Fatalf("%s: %d others, want %d", entry.Name(), len(others), len(raw))
+			}
+		}
+	}
+}
+
+// start and update carry others only when the app listed some; done never carries it.
+func TestWorkResultOthers(t *testing.T) {
+	root := realPath(t, initialized(t))
+	withOthers := `{"v":3,"ok":true,"others":[{"kind":"terminal","provider":"claude","frame":"hero","note":"Tightening spacing"},{"kind":"conversation","provider":"codex"}]}`
+	others := []workOther{{Kind: "terminal", Provider: "claude", Frame: "hero", Note: "Tightening spacing"}, {Kind: "conversation", Provider: "codex"}}
+	for _, tt := range []struct {
+		name, line string
+		args       []string
+		want       map[string]any
+	}{
+		{"start with others", withOthers, []string{"start", ".doan/canvases/x.html"}, map[string]any{"delivered": true, "others": others}},
+		{"update with others", withOthers, []string{"update", ".doan/canvases/x.html"}, map[string]any{"delivered": true, "others": others}},
+		{"start without others", `{"v":3,"ok":true}`, []string{"start", ".doan/canvases/x.html"}, map[string]any{"delivered": true}},
+		{"empty others", `{"v":3,"ok":true,"others":[]}`, []string{"start", ".doan/canvases/x.html"}, map[string]any{"delivered": false}},
+		{"done ignores others", withOthers, []string{"done", ".doan/canvases/x.html"}, map[string]any{"delivered": true, "links": []string{canvasLink(root, ".doan/canvases/x.html")}, "skipped": []string{}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &fakeApp{requests: make(chan map[string]any, 1), respond: reply(tt.line)}
+			ctx := activeContext(t, root, app.dial(t))
+			ctx.WorkProvider, ctx.WorkSession = "claude", "s"
+			out, e := Work(ctx, Flags{Repo: root}, tt.args)
+			if e != nil || !reflect.DeepEqual(out.Result, tt.want) {
+				t.Fatalf("%v %#v", e, out.Result)
+			}
+			if out.Text != "" {
+				t.Fatalf("text %q replaces the result JSON", out.Text)
+			}
+			var stdout, stderr bytes.Buffer
+			if code := emit(out, e, true, &stdout, &stderr); code != 0 || stderr.Len() != 0 {
+				t.Fatalf("exit %d %s", code, &stderr)
+			}
+		})
+	}
+}
+
+// Without --json the result JSON is still printed, with others inside; no new text line is added.
+func TestWorkTextModeShowsOthers(t *testing.T) {
+	root := realPath(t, initialized(t))
+	app := &fakeApp{requests: make(chan map[string]any, 1), respond: reply(`{"v":3,"ok":true,"others":[{"kind":"conversation","provider":"codex","frame":"hero","note":"Tightening spacing"}]}`)}
+	out, e := Work(activeContext(t, root, app.dial(t)), Flags{Repo: root}, []string{"start", ".doan/canvases/x.html"})
+	var stdout, stderr bytes.Buffer
+	if code := emit(out, e, false, &stdout, &stderr); code != 0 || stderr.Len() != 0 {
+		t.Fatalf("exit %d %s", code, &stderr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("%v: %s", err, &stdout)
+	}
+	want := map[string]any{"delivered": true, "others": []any{map[string]any{"kind": "conversation", "provider": "codex", "frame": "hero", "note": "Tightening spacing"}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("%s", &stdout)
 	}
 }
 
@@ -232,6 +335,25 @@ func TestWorkResponseLineCap(t *testing.T) {
 			out, e := Work(activeContext(t, root, app.dial(t)), Flags{Repo: root}, []string{"done"})
 			assertWork(t, out, e, length <= maxResponseLine)
 		})
+	}
+}
+
+// Eight others at the longest frame and note, every code point an escaped surrogate pair, is the largest
+// reply the schema allows; it must still fit the shared response line cap.
+func TestWorkResponseOthersFitLineCap(t *testing.T) {
+	root := realPath(t, initialized(t))
+	escaped := func(n int) string { return strings.Repeat(`\ud83c\udfa8`, n) }
+	element := `{"kind":"conversation","provider":"antigravity","frame":"` + escaped(200) + `","note":"` + escaped(120) + `"}`
+	line := `{"v":3,"ok":true,"others":[` + strings.TrimSuffix(strings.Repeat(element+",", 8), ",") + `]}`
+	if len(line)+1 > maxResponseLine {
+		t.Fatalf("largest reply is %d bytes, cap %d", len(line)+1, maxResponseLine)
+	}
+	app := &fakeApp{requests: make(chan map[string]any, 1), respond: reply(line)}
+	out, e := Work(activeContext(t, root, app.dial(t)), Flags{Repo: root}, []string{"start", ".doan/canvases/x.html"})
+	assertWork(t, out, e, true)
+	others, _ := out.Result.(map[string]any)["others"].([]workOther)
+	if len(others) != 8 || others[7].Frame != strings.Repeat("🎨", 200) || others[7].Note != strings.Repeat("🎨", 120) {
+		t.Fatalf("%d others", len(others))
 	}
 }
 

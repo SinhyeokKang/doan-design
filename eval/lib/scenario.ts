@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, normalize } from "node:path";
-import { onboardingApp, type OnboardingScript } from "./socket.ts";
+import { onboardingApp, validWorkResponse, type OnboardingScript } from "./socket.ts";
 
 export interface Scenario {
   id: string;
@@ -20,6 +20,8 @@ export interface Scenario {
   // Stands for a Doan canvas conversation on `canvas`: the agent's environment carries DOAN_HANDOFF and the fake app
   // answers app-socket v5 for it.
   handoff: { canvas: string } | null;
+  // The `others` the fake app puts on app-socket v3 start and update answers: the other sessions on the canvas.
+  workOthers: Record<string, unknown>[] | null;
 }
 
 export interface LoadedScenario extends Scenario {
@@ -32,7 +34,7 @@ export interface LoadedScenario extends Scenario {
 }
 
 const FOCUS = ["write", "active", "implement", "understand", "onboarding", "preset"];
-const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "shellCli", "git", "worktree", "onboarding", "handoff"];
+const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "shellCli", "git", "worktree", "onboarding", "handoff", "workOthers"];
 // The v5 schema's path pattern.
 const HANDOFF_CANVAS = /^\.doan\/canvases\/[^/]+\.html$/;
 // The first worktree is on main (init.defaultBranch in workspace.ts).
@@ -80,9 +82,11 @@ export function parseScenarioJson(value: unknown, dirName: string): Scenario {
     const canvas = (handoff as { canvas?: unknown }).canvas;
     if (keys.length !== 1 || keys[0] !== "canvas" || typeof canvas !== "string" || !HANDOFF_CANVAS.test(canvas)) fail(dirName, "handoff must be null or { canvas: \".doan/canvases/<name>.html\" }");
   }
+  const workOthers = v.workOthers ?? null;
+  if (workOthers !== null && !validWorkResponse({ v: 3, ok: true, others: workOthers })) fail(dirName, "workOthers must be null or an others array that matches the app-socket v3 response");
   const timeoutSec = v.timeoutSec ?? 900;
   if (!Number.isInteger(timeoutSec) || (timeoutSec as number) < 1) fail(dirName, "timeoutSec must be a positive whole number");
-  return { shellCli, git, worktree: worktree as Scenario["worktree"], onboarding: onboarding as Scenario["onboarding"], handoff: handoff as Scenario["handoff"], id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
+  return { shellCli, git, worktree: worktree as Scenario["worktree"], onboarding: onboarding as Scenario["onboarding"], handoff: handoff as Scenario["handoff"], workOthers: workOthers as Scenario["workOthers"], id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
 }
 
 export function renderPrompt(template: string, repo: string): string {

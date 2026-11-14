@@ -8,7 +8,7 @@ export type Check = { id: string; pass: boolean; detail: string };
 
 export interface WorkExchange {
   request: { v: 3; action: "start" | "update" | "done"; root: string; path?: string; frame?: string; note?: string; session?: string; provider?: "claude" | "codex"; conversation?: string };
-  response: { v: 3; ok: boolean; error?: { code: string; message: string } };
+  response: { v: 3; ok: boolean; error?: { code: string; message: string }; others?: { kind: string; provider?: string; frame?: string; note?: string }[] };
   at: string;
   hashes: Record<string, string | null>;
   // The requested canvas's text when an accepted update arrived (null when unreadable), so a check can tell

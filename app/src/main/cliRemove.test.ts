@@ -18,7 +18,7 @@ const FIX = listed("/w/app-fix", { git: git("fix") });
 const AUTO: FolderEntry = { ...listed("/w/.wt/app-auto", { git: git("auto") }), autoRegistered: true };
 const OTHER = listed("/w/other", { git: { common: "/w/other/.git", main: "/w/other", branch: "main", worktrees: ["/w/other"] } });
 const ENTRIES = [MAIN, OTHER, FIX, AUTO];
-const turn = (root: string, running = true): LiveTurn => ({ root, turnId: `t-${root}`, running });
+const turn = (root: string, running = true): LiveTurn => ({ root, turnId: `t-${root}`, running, provider: "claude" });
 
 const input = (patch: Partial<CliRemoveInput> = {}): CliRemoveInput => ({
   root: "/w/app-fix", entries: ENTRIES, ready: true, firstRun: false, menu: { screen: "home", modal: false }, liveTurns: new Map(), ...patch,

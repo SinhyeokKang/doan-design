@@ -369,9 +369,11 @@ function hasFrame(root: string, path: string, frame: string): boolean {
 }
 
 export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; openLog: string; handoffLog: string; prototypeLog: string; close(): Promise<void> }
+// workOthers: the other sessions the fake reports on v3 start and update answers; without it the fake is an older app
+// whose answers carry no `others`.
 // handoff: the conversation the fake stands for. `key` is the DOAN_HANDOFF value its environment carries and `canvas` the
 // canvas it works on; without it the fake is an older app that does not know v5.
-interface FakeAppOptions { dir: string; root: string; selection: Obj | null; onboarding?: OnboardingScript | null; handoff?: { key: string; canvas: string } | null }
+interface FakeAppOptions { dir: string; root: string; selection: Obj | null; onboarding?: OnboardingScript | null; workOthers?: Obj[] | null; handoff?: { key: string; canvas: string } | null }
 
 // The manifest initializeRepo keeps beside the runtime file.
 export const APP_WRITES = "app-writes.json";
@@ -379,6 +381,7 @@ export const APP_WRITES = "app-writes.json";
 // `dir` must be short: macOS sun_path is 104 bytes.
 export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   if (o.selection !== null && !validResponse({ v: 1, ok: true, result: { selection: o.selection } })) throw new Error("selection does not match app-socket v1");
+  if (o.workOthers && !validWorkResponse({ v: 3, ok: true, others: o.workOthers })) throw new Error("workOthers does not match app-socket v3");
   const token = randomBytes(32).toString("hex");
   const socketPath = join(o.dir, "app.sock");
   const runtimePath = join(o.dir, "runtime.json");
@@ -410,7 +413,9 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
       const fail = (code: string, message: string) => ({ v: 3, ok: false, error: { code, message } });
       const response = !validWorkRequest(parsed) ? fail("bad_request", "The request is not an app-socket v3 request.")
         : parsed.token !== token ? fail("bad_token", "The token does not match this app.")
-        : parsed.root !== o.root ? fail("project_not_open", "The project is not open in Doan.") : { v: 3, ok: true };
+        : parsed.root !== o.root ? fail("project_not_open", "The project is not open in Doan.")
+        // The app answers others only on start and update, never on done or an error.
+        : o.workOthers && parsed.action !== "done" ? { v: 3, ok: true, others: o.workOthers } : { v: 3, ok: true };
       const hashes: Record<string, string | null> = {};
       if (response.ok) {
         if (typeof parsed.path === "string") paths.add(parsed.path);

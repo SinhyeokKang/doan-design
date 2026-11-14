@@ -4,7 +4,7 @@ import { parseScenarioJson, renderPrompt, selectIds } from "./scenario.ts";
 
 test("scenario.json is read with its defaults", () => {
   assert.deepEqual(parseScenarioJson({ id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null }, "W1"),
-    { id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null, timeoutSec: 900, shellCli: true, git: true, worktree: null, onboarding: null, handoff: null });
+    { id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null, timeoutSec: 900, shellCli: true, git: true, worktree: null, onboarding: null, handoff: null, workOthers: null });
   assert.equal(parseScenarioJson({ id: "R2", title: "t", focus: "active", init: null, selection: "selection.json", timeoutSec: 60 }, "R2").timeoutSec, 60);
 });
 
@@ -68,6 +68,17 @@ test("handoff is null or the canvas the conversation works on", () => {
   assert.deepEqual(parseScenarioJson({ ...value, handoff: { canvas: ".doan/canvases/account.html" } }, "R10").handoff, { canvas: ".doan/canvases/account.html" });
   for (const handoff of ["account", {}, { canvas: "" }, { canvas: "account.html" }, { canvas: ".doan/ds/button.html" }, { canvas: ".doan/canvases/a/b.html" }, { canvas: ".doan/canvases/a.html", key: "x" }, [{ canvas: ".doan/canvases/a.html" }]])
     assert.throws(() => parseScenarioJson({ ...value, handoff }, "R10"), Error, JSON.stringify(handoff));
+});
+
+test("workOthers is null or the others array the fake app reports in v3 answers", () => {
+  const value = { id: "W9", title: "t", focus: "write", init: null, selection: null };
+  const other = { kind: "conversation", provider: "codex", frame: "hero", note: "Rewriting the headline" };
+  assert.equal(parseScenarioJson(value, "W9").workOthers, null);
+  assert.equal(parseScenarioJson({ ...value, workOthers: null }, "W9").workOthers, null);
+  assert.deepEqual(parseScenarioJson({ ...value, workOthers: [other] }, "W9").workOthers, [other]);
+  assert.deepEqual(parseScenarioJson({ ...value, workOthers: [{ kind: "terminal" }] }, "W9").workOthers, [{ kind: "terminal" }]);
+  for (const workOthers of ["codex", {}, [], [{}], [{ provider: "codex" }], [{ kind: "app" }], [{ kind: "terminal", id: "t1" }], [{ kind: "terminal", provider: "gemini" }], [{ kind: "terminal", note: "" }], [{ kind: "terminal", note: "a\nb" }], Array.from({ length: 9 }, () => ({ kind: "terminal" }))])
+    assert.throws(() => parseScenarioJson({ ...value, workOthers }, "W9"), Error, JSON.stringify(workOthers));
 });
 
 test("git defaults to true, accepts only a boolean, and cannot be false with a worktree", () => {

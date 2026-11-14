@@ -94,6 +94,7 @@ import { linkTarget } from "./openLink";
 import { openLinkQueue, openRequests, resolveOpenLink } from "./deepLinks";
 import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, workItemsChanged, type WorkState } from "./workState";
 import { applyConversationWork, endConversationWork, type ConversationWork } from "./conversationWork";
+import { othersOnCanvas } from "./workOthers";
 import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
 import {
   prototypeAuthSnapshot, prototypeConversationScope, prototypeEntry, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRememberedConversation, prototypeRevealRequest, prototypeWorkItems,
@@ -980,6 +981,8 @@ async function start(): Promise<void> {
     work(request) { updateWork(applyWork(workState, request, Date.now())); },
     // Before the conversation service exists no turn runs, so every update is dropped.
     conversationWork(request) { updateConversationWork(applyConversationWork(conversationWork, request, conversations?.liveTurns() ?? new Map(), Date.now())); },
+    workOthers: request => request.action === "done" ? []
+      : othersOnCanvas({ request, now: Date.now(), work: workItems(workState), conversationWork, liveTurns: conversations?.liveTurns() ?? new Map() }),
     roots: () => ready.entries().map(entry => entry.path),
     // Only runLs's default 10 s timeout applies, not the answer deadline: a start past it still registers
     // (runtime.ts AUTO_REGISTER_WAIT_MS).

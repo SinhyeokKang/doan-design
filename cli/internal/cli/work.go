@@ -51,40 +51,48 @@ func Work(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	id := workIdentity{provider: ctx.WorkProvider, session: ctx.WorkSession, conversation: ctx.WorkConversation, app: ctx.AppConversation}
 	if request, send := workRequest(action, r.Root, path, frame, note, id); send {
-		result["delivered"] = sendWork(ctx, request)
+		delivered, others := sendWork(ctx, request)
+		result["delivered"] = delivered
+		// done ends this session's work, so who else is on the file no longer matters to the agent.
+		if action != "done" && len(others) > 0 {
+			result["others"] = others
+		}
 	}
 	return Outcome{Result: result}, nil
 }
 
 // Activity is best effort; app failures never block canvas editing or link output.
-func sendWork(ctx Context, request map[string]any) bool {
+func sendWork(ctx Context, request map[string]any) (bool, []workOther) {
 	data, ok := readRuntimeBytes(ctx.RuntimePath)
 	if !ok {
-		return false
+		return false, nil
 	}
 	rt, code := readRuntime(data)
 	if code != "" {
-		return false
+		return false, nil
 	}
 	deadline := ctx.Now().Add(activeTimeout)
 	conn, err := ctx.Dial(rt.Socket, deadline)
 	if err != nil {
-		return false
+		return false, nil
 	}
 	defer conn.Close()
 	if conn.SetDeadline(deadline) != nil {
-		return false
+		return false, nil
 	}
 	request["token"] = rt.Token
 	data, err = json.Marshal(request)
 	if err != nil {
-		return false
+		return false, nil
 	}
 	data = append(data, '\n')
 	n, err := conn.Write(data)
 	if err != nil || n != len(data) {
-		return false
+		return false, nil
 	}
 	line, failure := readLine(conn)
-	return failure == nil && len(line) <= maxResponseLine && readWorkResponse(line)
+	if failure != nil || len(line) > maxResponseLine {
+		return false, nil
+	}
+	return readWorkResponse(line)
 }

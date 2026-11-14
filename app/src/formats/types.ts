@@ -155,7 +155,9 @@ export type WorkRequest = { v: 3; token: string; root: string } &
     | (WorkSession & ({ action: "start"; path: string } | { action: "done"; path?: never }))
     | ({ action: "update"; path: string; frame?: string; note?: string } & (WorkSession | { conversation: string; session?: never; provider?: never }))
   );
-export type WorkResponse = { v: 3; ok: true } | { v: 3; ok: false; error: { code: "bad_request" | "bad_token" | "project_not_open"; message: string } };
+export type WorkOtherProvider = "claude" | "codex" | "cursor" | "antigravity" | "copilot";
+export type WorkOther = { kind: "terminal" | "conversation"; provider?: WorkOtherProvider; frame?: string; note?: string };
+export type WorkResponse = { v: 3; ok: true; others?: WorkOther[] } | { v: 3; ok: false; error: { code: "bad_request" | "bad_token" | "project_not_open"; message: string } };
 
 export type OpenRequest = { v: 4; token: string; root: string; path: string; frame?: string };
 export type OpenFrameResult = "found" | "missing" | "none";
