@@ -9,7 +9,7 @@ import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGH
 import { switchTarget } from "./switchTarget";
 import { activityKey, activityKind, pushActivity, type ActivityEvent } from "./activity";
 import { canvasPlayability } from "./prototypePlay";
-import { sizeBubblePlace, type BubbleRoom } from "./sizeBubble";
+import { SIZE_BUBBLE, sizeBubblePlace, type BubbleRoom } from "./sizeBubble";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
@@ -154,10 +154,6 @@ export interface AnchorTarget { id: string; doanId?: string; selector?: string; 
 export type OpenTarget = { frame: string } | { element: string } | { anchor: Anchor };
 
 // React owns the surrounding shell; only this controller owns the board's children.
-// The size bubble as styles.css draws it: 24px tall (a caption line and 4px padding, or the xs Play button) and hung
-// 5px from the selection.
-const SIZE_BUBBLE = { height: 24, gap: 5 };
-
 export class CanvasController {
   private state = initialCanvasState();
   private entries: FolderEntry[] = [];
