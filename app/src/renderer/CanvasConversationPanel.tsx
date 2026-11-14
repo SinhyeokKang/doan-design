@@ -112,6 +112,10 @@ export interface CanvasConversationProps {
   // The prototype window's failed list read: with no title menu to offer Retry, the thread's place holds the failure
   // line, and Send waits, since a send could archive the current conversation nobody can see.
   listFailed?: boolean;
+  // False in the prototype window, which cannot start a new conversation while the canvas has a current one: a refused
+  // conversation offers no "Start a new conversation" there. A refused terminal session still switches to the new
+  // conversation it shares a field with.
+  newFromRefusal?: boolean;
 }
 
 const NEW_PLACEHOLDER = "Ask, / for presets";
@@ -436,7 +440,10 @@ export function CanvasConversation(props: CanvasConversationProps) {
     switch (error.kind) {
       case "busy": return { kind: "busy", busy: error.busy };
       case "blocked": return { kind: "blocked", text: error.text, ...(error.action ? { action: error.action } : {}) };
-      case "notice": return { kind: "notice", text: error.text, ...(error.retry ? { retry: true } : {}), ...(error.startNew ? { startNew: true } : {}) };
+      case "notice": {
+        const startNew = error.startNew && (props.newFromRefusal !== false || mode.kind === "new" || mode.kind === "resume");
+        return { kind: "notice", text: error.text, ...(error.retry ? { retry: true } : {}), ...(startNew ? { startNew: true } : {}) };
+      }
       // attachments and resend never reach here: the composer marks moved files and resends not_running itself.
       default: return { kind: "notice", text: "Couldn’t send your message. Try again." };
     }

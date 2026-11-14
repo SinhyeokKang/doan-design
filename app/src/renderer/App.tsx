@@ -67,7 +67,8 @@ import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad, type Rect } fr
 import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
 import type { PrototypeReveal } from "../main/prototype/ipc";
-import { revealDecision } from "./revealDecision";
+import { REVEAL_UNSHOWN, revealDecision, revealName } from "./revealDecision";
+import type { PrototypeTargetRef } from "../main/prototype/drawing";
 import { replyChipTarget } from "./replyChipTarget";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { distinctTargets } from "./anchorField";
@@ -1176,6 +1177,20 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useEffect(() => window.doan.onOpenLink(result => live.current.openLink(result)), []);
   useEffect(() => window.doan.onPrototypeReveal(request => live.current.prototypeReveal(request)), []);
   useEffect(() => window.doan.onPrototypeLastUsed(choice => live.current.prototypeLastUsed(choice)), []);
+  // The project conversation drawing the prototype window's canvas, which that window cannot read: this window tells
+  // main its id for every new target (main forgets it on each) and whenever it changes. Subscribed first, then read.
+  const [prototypeTarget, setPrototypeTarget] = useState<{ target: PrototypeTargetRef | null }>({ target: null });
+  useEffect(() => {
+    let pushed = false;
+    const stop = window.doan.onPrototypeTarget(target => { pushed = true; setPrototypeTarget({ target }); });
+    void window.doan.readPrototypeTarget().then(target => { if (!pushed) setPrototypeTarget({ target }); }, console.error);
+    return stop;
+  }, []);
+  const prototypeDrawing = prototypeTarget.target ? homeRun.current.drawing(prototypeTarget.target.root, prototypeTarget.target.canvas) : null;
+  useEffect(() => {
+    const target = prototypeTarget.target;
+    if (target) void window.doan.setPrototypeDrawing({ ...target, conversationId: prototypeDrawing }).catch(console.error);
+  }, [prototypeTarget, prototypeDrawing]);
   // `doan open` requests: main sends them only once links are ready, and each is answered by its id.
   useEffect(() => window.doan.onOpenRequest(request => live.current.openCanvasRequest(request)), []);
   // A started handoff, and every later render's check of the one still waiting for its read.
@@ -1574,7 +1589,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const missing = (outcome: string | null) => { if (outcome === "missing") live.current.toast.show(LOCATE_MISSING_TEXT); };
     switch (step.kind) {
       case "blocked": live.current.toast.showIn(topDialog(), step.text); return;
-      case "locate": void locateChip(step.anchor).then(missing); return;
+      case "locate": void locateChip(step.anchor).then(outcome => {
+        if (outcome === "unavailable") live.current.toast.show(`Couldn’t show ${revealName(request, entriesRef.current)}. ${REVEAL_UNSHOWN}`);
+        else missing(outcome);
+      }); return;
       case "open": {
         cancelRestore();
         const path = step.row.path;

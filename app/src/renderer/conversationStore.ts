@@ -44,6 +44,9 @@ export interface ConversationStoreHost {
   // A notice about a draft main gave back (a queue with more files than a message takes).
   notice(text: string): void;
   changed(): void;
+  // False while this store's window should leave a returned queue to the other window (the prototype window's folded
+  // panel: nobody would see it there).
+  takesDrafts?(): boolean;
 }
 
 export class ConversationStore {
@@ -360,6 +363,7 @@ export class ConversationStore {
   // Queued messages main handed back after a failed or stopped turn come into the conversation's draft once, while
   // the conversation shows (`root` is the root whose list names it).
   takeDraft(root: string, conversationId: string): void {
+    if (this.host.takesDrafts?.() === false) return;
     const list = this.host.list(root);
     const c = Array.isArray(list) ? list.find(item => item.conversationId === conversationId) : undefined;
     if (!c?.returnedDraft || this.taking.has(conversationId)) return;

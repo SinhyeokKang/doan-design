@@ -86,8 +86,10 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const clock = useVisibleClock(1000, api);
   const column = useRef<HTMLDivElement>(null);
   const convButton = useRef<HTMLButtonElement>(null);
-  // Where focus goes once main answers this window's own open or fold; a view that arrives open moves nothing.
-  const panelFocus = useRef<"composer" | "button" | null>(null);
+  // The open state this window last asked main for, until main's view shows it: focus then goes to the composer or
+  // the button. A view that arrives open by itself moves nothing, and of two presses before an answer only the last
+  // one counts.
+  const panelAsked = useRef<boolean | null>(null);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const focusGuard = useRef<ColumnFocusGuard | null>(null);
   focusGuard.current ??= new ColumnFocusGuard(() => performance.now());
@@ -135,14 +137,14 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const clampPanel = (value: number) => Math.min(panelBounds.max, Math.max(panelBounds.min, value));
   const panelWidth = clampPanel(dragWidth ?? view?.panel.width ?? panelBounds.default);
   const togglePanel = () => {
-    panelFocus.current = panelOpen ? "button" : "composer";
-    void api.setPanel({ open: !panelOpen });
+    const open = !(panelAsked.current ?? panelOpen);
+    panelAsked.current = open;
+    void api.setPanel({ open });
   };
   useEffect(() => {
-    const target = panelFocus.current;
-    if (target === null || (target === "composer") !== panelOpen) return;
-    panelFocus.current = null;
-    if (target === "composer") column.current?.querySelector<HTMLElement>(".composer-input")?.focus();
+    if (panelAsked.current !== panelOpen) return;
+    panelAsked.current = null;
+    if (panelOpen) column.current?.querySelector<HTMLElement>(".composer-input")?.focus();
     else convButton.current?.focus();
   }, [panelOpen]);
   // The column's docked buddy, its accent and the reasons it reads (DESIGN.md 'Docked buddy').
@@ -226,23 +228,17 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     for (const frame of layers.frames) {
       if (knownFrames.current.has(frame.gen)) continue;
       knownFrames.current.add(frame.gen);
-      const element = frames.current.get(frame.gen), active = document.activeElement;
-      if (element) focusGuard.current!.created(frame.gen, element, !!active && !!column.current?.contains(active));
+      const active = document.activeElement;
+      focusGuard.current!.created(frame.gen, !!active && !!column.current?.contains(active));
     }
   }, [layers.frames]);
   useEffect(() => { if (phase === "ready" && visibleGen !== null) focusGuard.current!.shown(visibleGen); }, [phase, visibleGen]);
-  useEffect(() => {
-    const node = column.current;
-    if (!node) return;
-    // A focus that went into a cross-origin iframe shows only as a focusout with no relatedTarget; the iframe holds
-    // focus one task later.
-    const left = (event: FocusEvent) => {
-      if (!(event.target instanceof HTMLElement) || !focusGuard.current!.left(event.target, event.relatedTarget)) return;
-      setTimeout(() => focusGuard.current!.returnTo(document.activeElement)?.focus({ preventScroll: true }), 0);
-    };
-    node.addEventListener("focusout", left);
-    return () => node.removeEventListener("focusout", left);
-  }, []);
+  // A focus that went into a cross-origin iframe shows only as a focusout with no relatedTarget; the iframe holds focus
+  // one task later.
+  const onColumnFocusOut = (event: { target: EventTarget | null; relatedTarget: EventTarget | null }) => {
+    if (!(event.target instanceof HTMLElement) || !focusGuard.current!.left(event.target, event.relatedTarget)) return;
+    setTimeout(() => focusGuard.current!.returnTo(document.activeElement, gen => frames.current.get(gen) ?? null)?.focus({ preventScroll: true }), 0);
+  };
   const onReloadPress = () => {
     const active = document.activeElement;
     pressedInFrame.current = active === null || active === document.body || [...frames.current.values()].some(frame => frame === active);
@@ -302,7 +298,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     onChoose={frame => void api.choose(frame)} onClose={() => void api.close()} onDetails={() => setDetails(open => !open)}
     conversation={{ button: run.button(), open: panelOpen, width: panelWidth, bounds: { min: panelBounds.min, max: panelBounds.max }, buttonRef: convButton, column,
       body: <PrototypeConversationPanel run={run} calls={api} now={clock} onNotice={text => toastRef.current.show(text)} />,
-      onToggle: togglePanel, preview: setDragWidth,
+      onToggle: togglePanel, preview: setDragWidth, onFocusOut: onColumnFocusOut,
       // The renderer cuts the width to the window's range; main fits the window, not the width.
       onResize: next => { setDragWidth(null); void api.setPanel({ open: true, width: next === undefined ? panelBounds.default : clampPanel(next) }); } }} />;
 }
@@ -320,6 +316,8 @@ export interface ShellConversation {
   onToggle(): void;
   onResize(width: number | undefined): void;
   preview(width: number): void;
+  // A focusout inside the column (React's onBlur bubbles as focusout does), for the focus guard.
+  onFocusOut?(event: { target: EventTarget | null; relatedTarget: EventTarget | null }): void;
 }
 const FOLDED: ShellConversation = { button: { label: "Show conversation", badge: null, name: "Show conversation" }, open: false, width: 0, bounds: { min: 0, max: 0 }, onToggle: () => {}, onResize: () => {}, preview: () => {} };
 
@@ -422,7 +420,7 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
     </ContentPanel>
     {/* After the content panel in the DOM and the Tab order. Folded, it stays in the DOM out of reach, so the button's
         aria-controls resolves. Esc does not fold it: only the button does. */}
-    <div className="doan-conv-column" ref={conv.column} data-collapsed={conv.open ? undefined : ""} inert={!conv.open}>
+    <div className="doan-conv-column" ref={conv.column} data-collapsed={conv.open ? undefined : ""} inert={!conv.open} onBlur={conv.onFocusOut}>
       {conv.open && <ResizeHandle width={conv.width} bounds={conv.bounds} onResize={conv.onResize} preview={conv.preview} />}
       <aside className="right ov-right doan-conv-panel" id={CONVERSATION_PANEL_ID} role="region" aria-label="Conversation">
         <div className="doan-conv-body">{conv.body}</div>

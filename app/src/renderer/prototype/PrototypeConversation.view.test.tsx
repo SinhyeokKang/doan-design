@@ -71,7 +71,7 @@ beforeEach(() => {
   listed = [summary()];
   const off = () => vi.fn(() => () => {});
   calls = {
-    onConversationEvent: off(), onConversationStage: off(), onConversationListChanged: off(), onWorkChanged: off(), onTargetEntry: off(), onComposerSettings: off(), onAgentAuth: off(), onWindowVisible: off(),
+    onConversationEvent: off(), onConversationStage: off(), onConversationListChanged: off(), onWorkChanged: off(), onTargetEntry: off(), onComposerSettings: off(), onAgentAuth: off(), onWindowVisible: off(), onDrawing: off(), readDrawing: vi.fn(async () => null),
     listConversations: vi.fn(async () => listed), getWork: vi.fn(async () => []), readTargetEntry: vi.fn(async () => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [{ ...CHECKOUT, url: "u" }] })),
     readComposerSettings: vi.fn(async () => ({ home: null, newConversation: null, buddy: "doany" })),
     readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), markConversationSeen: vi.fn(async () => {}),
@@ -115,7 +115,9 @@ describe("the headless body in the prototype window", () => {
     await playing();
     const panel = render();
     expect((window as { doan?: unknown }).doan).toBeUndefined();
-    expect(panel.props.calls).toBe(calls);
+    // This window's calls, with its sends counted so a list read never moves a draft still being sent.
+    expect(panel.props.calls).toBe(run.bodyCalls);
+    expect((panel.props.calls as Record<string, unknown>).listConversationSkills).toBe(calls.listConversationSkills);
     expect(panel.props.pick).toBeUndefined();
     expect(panel.props.composerLink).toBeUndefined();
     expect(panel.props.playing).toMatchObject({ frame: { id: "pay", title: "Pay" }, name: "Pay", description: "Frame Pay is sent with each message." });

@@ -21,7 +21,7 @@ export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {
   const reveal = (request: RevealPayload) => { void calls.reveal(request).catch(console.error); };
   // A chip names the conversation it was sent in; in the new conversation state there is none for main to check.
   const shownId = () => { const shown = run.run.view(); return shown?.kind === "conversation" ? shown.conversationId : null; };
-  return <CanvasConversation calls={calls} run={run.run} support={run.support} target={target} canvasName={view.canvas} project={project}
+  return <CanvasConversation calls={run.bodyCalls} run={run.run} support={run.support} target={target} canvasName={view.canvas} project={project}
     entry={entry} list={run.list()} seen={run.seen()} prefs={settings?.home ?? null} defaults={settings ? settings.newConversation : undefined}
     onRemember={choice => { void calls.rememberChoice(choice).catch(console.error); }}
     now={now} blocked={blocked} frames={view.frames} locateDisabled={false} arrival={null} onArrived={() => {}}
@@ -42,5 +42,5 @@ export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {
     onOpenProjectConversation={conversationId => reveal({ kind: "conversation", conversationId })}
     onOpenPromoted={conversationId => reveal({ kind: "conversation", conversationId })}
     onOpenHandoff={(canvas, conversationId) => reveal({ kind: "handoff", canvas, ...(conversationId ? { conversationId } : {}) })}
-    work={run.work()} playing={run.playing()} listFailed={run.shown().kind === "list_error"} />;
+    work={run.work()} playing={run.playing()} listFailed={run.shown().kind === "list_error"} newFromRefusal={false} />;
 }

@@ -231,9 +231,12 @@ export function DockedComposer(props: DockedComposerProps) {
   const checked = lead === null && !isSending && !props.unavailable ? { enabled: false, reason: { text: ANCHOR_LIMIT_TEXT } } : dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, skills: matched, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed, limited });
   const availability = blocked && !isSending && !props.unavailable ? { enabled: false, reason: { text: blocked.text, ...(blocked.action ? { action: blocked.action } : {}) } }
     : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
-  const message = lead ?? dockedMessage(draft, matched);
+  // The person's own message decides Stop, Queue and Send: the pinned frame goes with every request but is not
+  // something typed, so an empty field while a turn runs still offers Stop.
+  const own = dockedMessage(draft, matched);
+  const message = lead ?? own;
   const placeholder = composerPlaceholder({ readOnly: isSending || locked, preset: draft.preset, empty: draft.segments.length === 0, mode: mode.kind, text: props.placeholder, suggestion: props.suggestion });
-  const action = composerAction(props.turn, message.text, props.queued.length, limited);
+  const action = composerAction(props.turn, own.text, props.queued.length, limited);
   const queueHint = action === "queue" ? queueButtonHint(limitResetsAt, now, clock) : null;
   const scheduleLine = scheduledFor !== null ? queueStatusLine(scheduledFor, now, clock) : null;
   useEffect(() => {
@@ -406,7 +409,7 @@ export function DockedComposer(props: DockedComposerProps) {
     return outcome;
   };
   const steerAll = async () => {
-    const plan = steerAllPlan({ sendNow: canSendNow, rows: props.queued.length, draft: message.text.trim() !== "" });
+    const plan = steerAllPlan({ sendNow: canSendNow, rows: props.queued.length, draft: own.text.trim() !== "" });
     if (plan === "enter") { await send(); return; }
     if (plan === "none") return;
     if (plan.rows) queueRows.current?.sendAll();

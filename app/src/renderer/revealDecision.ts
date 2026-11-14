@@ -3,11 +3,13 @@ import type { Anchor, Canvas } from "../main/conversation/types";
 import type { PrototypeReveal } from "../main/prototype/ipc";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { sameCanvas } from "./canvasConversationRows";
+import { canvasLabel } from "./canvasTree";
 import { blockedReason, type LockedPage } from "./openDecision";
 
 // What the main window does with a chip, Sign in or Open pressed in the prototype window, after main checked it and
-// brought this window forward (spec: the main window acts as its own chips and buttons do). Unlike a link, nothing is
-// cancelled: a dialog, a locked page or first run keeps everything as it is and only says why.
+// brought this window forward: what this window's own chip or button would do. Unlike a link, nothing is cancelled: the
+// person pressed something in another window, so a dialog, a locked page or first run here keeps what it holds, and a
+// toast says why.
 
 export interface RevealState {
   locked: LockedPage | null;
@@ -30,6 +32,9 @@ export type RevealStep =
 
 // The deep link's dialog reason says the dialog did not close; here none was asked to.
 export const REVEAL_DIALOG = "A dialog is open. Finish or cancel it, then try again.";
+// A chip into the canvas on screen while it cannot be located (still drawing, or a problem shows): the main window's
+// own chips are unavailable then, but this one was pressed elsewhere, so it says why.
+export const REVEAL_UNSHOWN = "The canvas can’t be shown right now.";
 
 export function revealDecision(request: PrototypeReveal, state: RevealState): RevealStep {
   const reason = state.locked ? blockedReason(state.locked) : state.firstRun ? blockedReason("first_run") : state.dialog ? REVEAL_DIALOG : null;
@@ -57,6 +62,11 @@ export function revealName(request: PrototypeReveal, entries: readonly FolderEnt
     }
     case "settings": return "Settings";
     case "conversation": return "the conversation";
-    case "handoff": return request.canvas.path.split("/").at(-1)!.replace(/\.html$/, "");
+    // The row's name now, as the sidebar shows it (a moved canvas keeps its id); the notice's path without one.
+    case "handoff": {
+      const entry = entries.find(candidate => candidate.path === request.root);
+      const row = entry?.kind === "list" ? entry.canvases.find(candidate => sameCanvas(request.canvas, candidate)) : undefined;
+      return row ? canvasLabel(row) : request.canvas.path.split("/").at(-1)!.replace(/\.html$/, "");
+    }
   }
 }

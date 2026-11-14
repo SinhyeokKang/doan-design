@@ -88,9 +88,9 @@ beforeEach(() => {
     onWindowVisible: vi.fn((listener: (visible: boolean) => void) => { listener(true); return () => {}; }),
     // The conversation panel's calls; the panel itself has its own tests (PrototypeConversation*.test.tsx).
     setPanel: vi.fn(async () => {}), setShowing: vi.fn(async () => {}), reveal: vi.fn(async () => {}), rememberChoice: vi.fn(async () => {}),
-    readComposerSettings: vi.fn(async () => null), readTargetEntry: vi.fn(async () => null), getWork: vi.fn(async () => []), listConversations: vi.fn(() => new Promise(() => {})),
+    readComposerSettings: vi.fn(async () => null), readTargetEntry: vi.fn(async () => null), readDrawing: vi.fn(async () => null), getWork: vi.fn(async () => []), listConversations: vi.fn(() => new Promise(() => {})),
     conversationResumeTarget: vi.fn(() => new Promise(() => {})),
-    ...Object.fromEntries(["onComposerSettings", "onTargetEntry", "onWorkChanged", "onConversationEvent", "onConversationStage", "onConversationListChanged", "onConversationHandoff", "onAgentAuth"].map(name => [name, vi.fn(() => () => {})])),
+    ...Object.fromEntries(["onComposerSettings", "onTargetEntry", "onWorkChanged", "onConversationEvent", "onConversationStage", "onConversationListChanged", "onConversationHandoff", "onAgentAuth", "onDrawing"].map(name => [name, vi.fn(() => () => {})])),
   };
   doc = { title: "", activeElement: null, body: {}, hidden: false, addEventListener: () => {}, removeEventListener: () => {}, querySelector: () => null, hasFocus: () => true };
   vi.stubGlobal("HTMLElement", FakeElement);
