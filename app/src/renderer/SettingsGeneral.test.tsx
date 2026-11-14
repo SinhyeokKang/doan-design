@@ -78,7 +78,7 @@ const snapshot = (notice: PreferencesSnapshot["notice"] = null): PreferencesSnap
 const selection = (patch: Partial<BuddySelection> = {}): BuddySelection => ({ shown: "doany", failure: null, lockedUntil: null, select: vi.fn(async () => true), settled: async () => true, commit: vi.fn(async () => true), dismiss: vi.fn(), ...patch });
 
 let nodes: ReactElement<Record<string, unknown>>[];
-let onLock: ReturnType<typeof vi.fn>;
+let onLock: ReturnType<typeof vi.fn<(locked: boolean) => void>>;
 function render(buddy: BuddySelection, preferences: PreferencesSnapshot | null = snapshot()) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0;
   nodes = all(SettingsGeneral({ preferences, buddy, onLock }));
@@ -94,7 +94,7 @@ const lock = () => nodes.find(element => element.props.className === "buddy-lock
 const rowFocus = (id: string) => focused[`.settings-panel .buddy-rows input[value="${id}"]`];
 const buddyFocus = () => focused[".settings-panel .buddy-lock .doany"];
 
-beforeEach(() => { onLock = vi.fn(); });
+beforeEach(() => { onLock = vi.fn<(locked: boolean) => void>(); });
 
 describe("asking before a switch", () => {
   test("another buddy's row opens the alert; the rows keep the saved buddy and nothing saves; the page locks", () => {
@@ -154,6 +154,9 @@ describe("asking before a switch", () => {
     expect(button("Cancel").props["aria-disabled"]).toBe(true);
     (button("Cancel").props.onClick as () => void)();
     (dialog()!.props.onCancel as (event: unknown) => void)({ preventDefault: vi.fn() });
+    const escape = { key: "Escape", nativeEvent: { isComposing: false }, preventDefault: vi.fn() };
+    (dialog()!.props.onKeyDown as (event: unknown) => void)(escape);
+    expect(escape.preventDefault).toHaveBeenCalled();
     (verb.props.onClick as () => void)();
     click("dori");
     render(buddy);
@@ -193,7 +196,7 @@ describe("asking before a switch", () => {
     expect(onLock).toHaveBeenLastCalledWith(false);
     expect(lock()).toBeUndefined();
     expect(rowFocus("popo")).toHaveBeenCalled();
-    expect(nodes.find(element => element.props.id === "settings-buddy-error")!.props.children).toBe("Couldn’t switch to Popo. Doany is still your buddy.");
+    expect(nodes.find(element => element.type === "span" && element.props.id === "settings-buddy-error")!.props.children).toBe("Couldn’t switch to Popo. Doany is still your buddy.");
     vi.setSystemTime(NOW + 60_000);
     (button("Retry").props.onClick as () => void)();
     expect(failed.select).toHaveBeenCalledExactlyOnceWith("popo", "2026-11-14T10:01:00.000Z");
@@ -324,10 +327,10 @@ describe("SettingsDialog", () => {
     hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0;
     const tree = all(SettingsDialog({ title: "Share x?", description: "d", verb: "Share", answer }));
     hooks.refs[0]!.current = { close, showModal: vi.fn() };
-    (tree.find(element => element.type === "button" && element.props.children === "Share")!.props.onClick as () => void)();
+    (tree.find(element => element.type === "button" && words(element.props.children) === "Share")!.props.onClick as () => void)();
     expect(close).toHaveBeenCalled();
     expect(answer).toHaveBeenCalledWith(true);
-    const cancel = tree.find(element => element.type === "button" && element.props.children === "Cancel")!;
+    const cancel = tree.find(element => element.type === "button" && words(element.props.children) === "Cancel")!;
     expect(cancel.props["aria-disabled"]).toBeUndefined();
   });
 

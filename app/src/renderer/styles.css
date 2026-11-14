@@ -344,6 +344,19 @@ code, kbd { font-family: var(--type-family); }
 .buddy-row[data-disabled] .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
 .buddy-row[data-disabled]:has(input:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
 .buddy-row[data-disabled]:has(input:checked) .ob-radio::before { background: var(--text-disabled); }
+/* The 24-hour lock (buddy-change-cooldown draft): the problem overlay's material over the group only, its corners
+   following the group's, with the current buddy at a 96 px slot (Home: 114) over the problem scene's heading and line.
+   No actions follow, so the heading keeps no bottom margin. The group's row hairline is not the overlay's. */
+.doan-settings-group.buddy-locked { position: relative; }
+.buddy-lock { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-6) var(--space-4); border: 0; border-radius: calc(var(--radius-container) - 1px); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+@media (prefers-reduced-transparency: reduce) { .buddy-lock { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
+.buddy-lock .doany { margin-bottom: var(--space-4); }
+.buddy-lock .ob-heading { max-width: 560px; padding-inline: var(--space-6); margin-bottom: 0; }
+/* The countdown ticks every second; equal-width digits keep it from shifting. */
+.buddy-lock .ob-heading h3 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); font-variant-numeric: tabular-nums; }
+.buddy-lock .ob-heading p { text-wrap: balance; }
+/* A busy confirmation's verb: the small spinner in the label's colour (as the problem overlay's busy action). */
+.doan-dialog-actions .doan-button > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
 /* Shared settings-style group: a hairline container whose rows are split by hairlines. */
 .ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
 .ob-card > :first-child { border-top: 0; }

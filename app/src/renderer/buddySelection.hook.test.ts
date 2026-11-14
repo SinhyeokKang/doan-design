@@ -182,6 +182,19 @@ describe("the buddy lock", () => {
     expect(save).toHaveBeenCalledExactlyOnceWith({ buddy: "popo", buddyChangedAt: AT });
   });
 
+  // Draft frame general-confirm-saving: the alert waits on the saved buddy's accent.
+  test("a Settings switch shows only once it is saved; a failure keeps the saved buddy", async () => {
+    void render().select("popo", AT);
+    expect(render().shown).toBe("dori");
+    replies[0]!({ ok: true, snapshot: locked("popo", AT) });
+    await settle();
+    expect(render().shown).toBe("popo");
+    void render().select("puri", AT);
+    replies[1]!({ ok: false, reason: "write_failed", snapshot: locked("popo", AT) });
+    await settle();
+    expect(render()).toMatchObject({ shown: "popo", failure: { picked: "puri", kept: "popo", cooldown: true } });
+  });
+
   test("first run's and the buddy screen's picks, commit and Retry send no change time", async () => {
     void render().select("popo");
     expect(save).toHaveBeenLastCalledWith({ buddy: "popo" });
