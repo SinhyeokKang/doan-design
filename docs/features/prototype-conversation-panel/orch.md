@@ -10,6 +10,7 @@
 - 지휘자 판단 — 시작 전에 사용자에게 새로 물을 것은 없다. spec 결정 1–16이 범위를 정했고, 사용자 확인이 남은 것은 tasks 4의 초안 확인뿐이다. 근거: spec '결정', tasks 4.
 - 지휘자 판단 — PoC(tasks 2)와 `/runtime-test`(tasks 10)의 네이티브 입력은 design.md 'PoC 의존'대로 computer-use로 준다. 두 배치가 화면을 함께 쓰지 않도록 GUI 확인은 한 번에 한 워커만 한다.
 - 지휘자 판단 — 실제 턴이 필요한 확인은 main checkout의 `.scratch/provider-profile`(링크 3이 쓴 공유 프로필)을 제자리에서 쓴다. 근거: tasks 10, design.md 'PoC 의존'.
+- 지휘자 판단 (A 질문) — develop에서는 목록을 읽는 중·읽기 실패에도 composer가 그려지고 포커스를 받는다(`CanvasConversationPanel.tsx:514`). composer가 없는 것은 창이 첫 view를 받기 전뿐이다(`PrototypeConversation.tsx:14`). 결정 11은 그대로 두고 "받을 수 없는" 상황을 '창이 첫 view를 받기 전'으로 고친다. 막힌 composer도 포커스를 받으므로(`ComposerParts.tsx:163`, readOnly만 바뀜) design.md '포커스'의 조건대로 포커스를 옮기지 않는다. 근거: 사용자 결정의 내용은 바뀌지 않고 전제 사실만 develop에 맞춘다.
 - 지휘자 판단 — tasks 11의 `/verify`와 tasks 12의 승격은 지휘자가 통합 HEAD에서 한다(orchestrate §4·§5).
 
 ## 배치
