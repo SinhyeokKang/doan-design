@@ -17,8 +17,8 @@ import { carryPrototypeDraft, conversationButton, playingFrameChip, prototypeSho
 
 // Everything the panel calls: `window.doanPrototype`'s members of the same names as `window.doan`'s, and its own.
 export type PrototypeConversationCalls = ConversationCalls & StoreCalls & DockedSupportCalls & ResumeCalls & VisibleCalls
-  & Pick<DoanApi, "listConversations" | "markConversationSeen" | "onConversationEvent" | "onConversationStage" | "onConversationListChanged" | "getWork" | "onWorkChanged">
-  & Pick<PrototypeWindowApi, "setShowing" | "reveal" | "rememberChoice" | "readComposerSettings" | "onComposerSettings" | "readTargetEntry" | "onTargetEntry" | "readDrawing" | "onDrawing" | "readPromoted" | "onPromoted">;
+  & Pick<DoanApi, "markConversationSeen" | "onConversationEvent" | "onConversationStage" | "onConversationListChanged" | "getWork" | "onWorkChanged">
+  & Pick<PrototypeWindowApi, "listConversations" | "setShowing" | "reveal" | "rememberChoice" | "readComposerSettings" | "onComposerSettings" | "readTargetEntry" | "onTargetEntry" | "readDrawing" | "onDrawing" | "readPromoted" | "onPromoted">;
 
 export interface PrototypeRunHost {
   changed(): void;
@@ -36,10 +36,17 @@ export class PrototypeConversationRun {
   private inFlight = new Map<string, number>();
   private view: PrototypeView | null = null;
   // The playing canvas whose list is held: main answers a list with that canvas's rows only, so a switch of canvas
-  // (or root, worktrees sharing ids and paths) starts over, and a read for a canvas left behind never applies.
+  // (or root, worktrees sharing ids and paths) starts over.
   private key: string | null = null;
+  // Moves with every switch of canvas: only a read made since the last switch applies. A read from an earlier play of
+  // the same canvas (A, B, A) can answer after a newer one, and its older list would drop what the newer one named.
+  private epoch = 0;
   private listView: ListView = "loading";
-  private reading: { key: string; again: boolean } | null = null;
+  private reading: { epoch: number; views: number; again: boolean } | null = null;
+  private views = 0;
+  // Main answered a read with "not_playing": it plays a canvas this window has no view of yet, so list changes went
+  // unread. The next view reads again, even of this same canvas (A, B, A coalesced into one view of A).
+  private missed = false;
   private reads = 0;
   private applied = 0;
   private last: PlayingFrameChip | null = null;
@@ -47,8 +54,9 @@ export class PrototypeConversationRun {
   private entryReads = 0;
   private workItems: readonly WorkItem[] = [];
   private settingsValue: PrototypeComposerSettings | null = null;
-  // What main last heard the open panel shows, with the target it was sent under (undefined: nothing sent yet).
-  private showing: { id: string | null; key: string | null } | undefined = undefined;
+  // What main last heard the open panel shows, with the target and the view's run it was sent under (undefined:
+  // nothing sent yet).
+  private showing: { id: string | null; key: string | null; gen: number | null } | undefined = undefined;
   // Conversations this window marked seen, until a list read says so too.
   private seenIds = new Set<string>();
   // The project conversation drawing the playing canvas, by id only: main relays it from the main window, which reads
@@ -119,6 +127,7 @@ export class PrototypeConversationRun {
   setView(view: PrototypeView | null): void {
     const before = this.view;
     this.view = view;
+    this.views++;
     if (view === null) { this.run.show(null); this.changed(); return; }
     // The push covers only folder list changes: another root is read here.
     if (before?.root !== view.root) this.readEntry();
@@ -127,6 +136,8 @@ export class PrototypeConversationRun {
     if (key !== this.key) {
       const switched = this.key !== null;
       this.key = key;
+      this.epoch++;
+      this.missed = false;
       this.listView = "loading";
       this.last = null;
       // The relayed drawing and promotion belong to a target. Main nulls them for every new target and may push the new
@@ -138,7 +149,7 @@ export class PrototypeConversationRun {
     this.last = playingFrameChip(view, this.last);
     // A row back from being read again (a folder reload) reads the list again: list changes meanwhile were dropped.
     const back = before !== null && before.canvasRow !== "present";
-    if (view.canvasRow === "present" && (this.listView === "loading" || back) && this.reading?.key !== key) this.read();
+    if (view.canvasRow === "present" && (((this.listView === "loading" || back) && this.reading?.epoch !== this.epoch) || this.missed)) this.read();
     this.run.show(target);
     this.run.panel(view.panel.open);
     // Opening the panel takes the returned queue it left to the main window while folded, if that one has not.
@@ -174,17 +185,23 @@ export class PrototypeConversationRun {
     return conversationButton(this.view?.panel.open ?? false, summary, this.seenIds);
   }
 
+  // The request names the canvas this view shows: main answers its rows only while it still plays that canvas.
   private read(): void {
-    const view = this.view, key = this.key;
-    if (!view || key === null) return;
-    if (this.reading?.key === key) { this.reading.again = true; return; }
+    const target = this.target();
+    if (!target || this.key === null) return;
+    const epoch = this.epoch;
+    if (this.reading?.epoch === epoch) { this.reading.again = true; return; }
     const n = ++this.reads;
-    const reading = { key, again: false };
+    const reading = { epoch, views: this.views, again: false };
     this.reading = reading;
-    void this.calls.listConversations({ root: view.root }).catch(() => ({ error: "unknown" })).then(reply => {
+    this.missed = false;
+    void this.calls.listConversations({ root: target.root, canvas: target.canvas }).catch(() => ({ error: "unknown" })).then(reply => {
       if (this.reading === reading) this.reading = null;
-      if (this.key !== key) return;
+      if (this.epoch !== epoch) return;
       if (Array.isArray(reply)) this.apply(reply, n);
+      // Not a failure, and no answer for this canvas: the view of what main plays reads again, or, when it came while
+      // this read was out, a read now does.
+      else if (reply.error === "not_playing") { if (reading.views !== this.views) reading.again = true; else this.missed = true; }
       // A failed read after a good one keeps the list it had; only a canvas never read shows the failure.
       else if (!Array.isArray(this.listView)) this.listView = "error";
       if (reading.again) this.read();
@@ -253,12 +270,14 @@ export class PrototypeConversationRun {
   }
 
   // Main hears which conversation the open panel shows, for its notifications; it knows the window's focus itself.
-  // Main keeps it only for a conversation of the playing canvas, so a new target sends it again.
+  // Main keeps it only until the playing canvas changes, even back to the same canvas, so every new run sends it again:
+  // a play of another canvas always loads a new run, and views coalesced from A, B, A keep the key but not the gen.
   private changed(): void {
     const view = this.run.view();
     const id = this.view?.panel.open && view?.kind === "conversation" ? view.conversationId : null;
-    if (this.showing === undefined || this.showing.id !== id || this.showing.key !== this.key) {
-      this.showing = { id, key: this.key };
+    const gen = this.view?.gen ?? null;
+    if (this.showing === undefined || this.showing.id !== id || this.showing.key !== this.key || this.showing.gen !== gen) {
+      this.showing = { id, key: this.key, gen };
       void this.calls.setShowing(id).catch(console.error);
     }
     this.host.changed();

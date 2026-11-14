@@ -34,8 +34,10 @@ export const PROTOTYPE_CONVERSATION_METHODS: ReadonlySet<string> = new Set([
   "read", "list", "forCanvas", "resumeTarget", "start", "send", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "interrupt",
   "answerPermission", "answerQuestion", "markSeen", "models", "skills", "setPermissionMode", "scheduled",
 ]);
-const ROOT_ONLY: ReadonlySet<string> = new Set(["list", "models", "skills"]);
-const BY_CANVAS: ReadonlySet<string> = new Set(["forCanvas", "resumeTarget", "start"]);
+const ROOT_ONLY: ReadonlySet<string> = new Set(["models", "skills"]);
+// A list names its canvas too: the window's view can trail main's play, and rows of the canvas playing now must not be
+// taken for the conversations of the one it still shows (prototypeListElsewhere).
+const BY_CANVAS: ReadonlySet<string> = new Set(["list", "forCanvas", "resumeTarget", "start"]);
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -88,6 +90,17 @@ export function prototypeConversationScope(method: string, payload: unknown, pla
     return typeof request.root === "string" && canvas !== null && onPlayingCanvas(canvas, request.root, playing, row, entries);
   }
   return conversationInScope(request.conversationId, playing, row, conversations, entries) !== null;
+}
+
+// Whether a list request names a canvas other than the one playing (or nothing plays). The window's view waits behind
+// the still capture, so it asks for the canvas it still shows: main answers "not_playing", which the window neither shows
+// as a failure nor reads as that canvas's conversations being gone, and the view of the new target reads again. A
+// malformed request, or one for the playing canvas refused while its row cannot be judged, is not this.
+export function prototypeListElsewhere(payload: unknown, playing: PlayingCanvas | null): boolean {
+  const request = record(payload);
+  const canvas = canvasValue(request?.canvas);
+  if (request === null || typeof request.root !== "string" || canvas === null) return false;
+  return playing === null || !onPlayingKey(canvas, request.root, playing);
 }
 
 // `list` answers the root's every conversation; the prototype role gets the playing canvas's only.

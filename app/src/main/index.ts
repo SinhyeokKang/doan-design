@@ -95,7 +95,7 @@ import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, work
 import { applyConversationWork, endConversationWork, type ConversationWork } from "./conversationWork";
 import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
 import {
-  prototypeAuthSnapshot, prototypeConversationScope, prototypeEntry, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
+  prototypeAuthSnapshot, prototypeConversationScope, prototypeEntry, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
   type ConversationBroadcast, type ResumeSession, type ScopedConversation,
 } from "./prototype/conversationScope";
 import { canvasKeyString } from "./prototype/targets";
@@ -1242,7 +1242,9 @@ async function start(): Promise<void> {
       const playing = prototype.controller.playing();
       const entries = ready.entries();
       const allowed = prototypeConversationScope(method, value, playing, indexed(), entries);
-      const run = () => conversationRequest(allowed, method, value, all => prototypeListRows(all, playing, entries));
+      const run = () => !allowed && method === "list" && prototypeListElsewhere(value, playing)
+        ? Promise.resolve({ error: "not_playing" })
+        : conversationRequest(allowed, method, value, all => prototypeListRows(all, playing, entries));
       const reply = allowed && carriesAttachments(method) ? await attachmentHandlers.conversation(`prototype:${event.sender.id}`, value, run) : await run();
       if (allowed && method === "takeDraft") draftTaken(`prototype:${event.sender.id}`, reply);
       if (allowed && method === "resumeTarget" && playing !== null) {

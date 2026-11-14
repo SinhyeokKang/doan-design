@@ -95,6 +95,25 @@ test("a list read while main already plays another canvas keeps the conversation
   expect(run.store.drafts.get("conversation:ca")).toEqual(draft("keep me"));
 });
 
+// While main played B, list changes on A were answered "not_playing": the view of A again reads them, in either order
+// of that answer and the view.
+test.each(["before", "after"] as const)("list changes answered while main played another canvas are read again with the next view (answer %s the view)", async order => {
+  all = [summary("old", A)];
+  run.setView(view(A, 1));
+  await deliver(0);
+  play(B);
+  listChanged({ root: ROOT });
+  if (order === "before") await deliver(1);
+  play(A);
+  all = [summary("old", A, "archived"), summary("new", A)];
+  run.setView(view(A, 3));
+  if (order === "after") await deliver(1);
+  expect(replies).toHaveLength(3);
+  expect(replies[2]!.payload).toEqual({ root: ROOT, canvas: A });
+  await deliver(2);
+  expect(run.shown()).toEqual({ kind: "conversation", conversationId: "new" });
+});
+
 test("a read of the canvas from before A, B, A that answers last does not replace the newer list or drop its draft", async () => {
   all = [summary("old", A)];
   run.setView(view(A, 1));

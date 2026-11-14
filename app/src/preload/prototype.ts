@@ -29,7 +29,7 @@ import type { DoanApi } from "./index";
 // readiness without the account's identity, and only the terminal work of the session the playing canvas would resume.
 export type SharedWithMain =
   | "conversationResumeTarget" | "conversationForCanvas" | "startConversation" | "sendConversation" | "scheduledMessages" | "queueConversation"
-  | "setConversationPermissionMode" | "removeQueuedMessage" | "sendQueuedNow" | "takeConversationDraft" | "listConversations" | "markConversationSeen"
+  | "setConversationPermissionMode" | "removeQueuedMessage" | "sendQueuedNow" | "takeConversationDraft" | "markConversationSeen"
   | "onConversationListChanged" | "onConversationHandoff" | "openLink" | "interruptConversation" | "answerConversationPermission"
   | "answerConversationQuestion" | "readConversation" | "listConversationModels" | "listConversationSkills"
   | "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "removeAttachment" | "recheckAttachments" | "attachmentsFromPaths" | "releaseAttachments"
@@ -138,8 +138,8 @@ const api = {
   removeQueuedMessage: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:removeQueued", request),
   sendQueuedNow: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:sendQueuedNow", request),
   takeConversationDraft: (request: { conversationId: string }): Promise<TakenDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
-  // The playing canvas's conversations only.
-  listConversations: (request: { root: string }): Promise<ConversationSummary[] | ConversationError> => ipcRenderer.invoke("conversation:list", request),
+  // The named canvas's conversations, while it plays.
+  listConversations: (request: { root: string; canvas: Canvas }): Promise<ConversationSummary[] | ConversationError> => ipcRenderer.invoke("conversation:list", request),
   markConversationSeen: (request: { conversationId: string; seq: number }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:markSeen", request),
   onConversationListChanged: (listener: (change: { root: string }) => void): (() => void) => listen("conversation:listChanged", listener),
   onConversationHandoff: (listener: (notice: ConversationHandoffNotice) => void): (() => void) => listen("conversation:handoff", listener),

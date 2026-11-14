@@ -3,7 +3,9 @@ import type { BuddyId } from "../../renderer/buddies";
 import type { ComposerChoice } from "../../renderer/rememberChoice";
 import type { Provider } from "../agentAuth/types";
 import type { ExportReply } from "../canvasExport";
+import type { ConversationError } from "../conversation/ipc";
 import type { ReplyAnchor } from "../conversation/replyAnchor";
+import type { ConversationSummary } from "../conversation/summary";
 import type { Anchor, Canvas } from "../conversation/types";
 import type { NewConversationPreference } from "../preferences";
 import type { FolderEntry } from "../view";
@@ -267,4 +269,7 @@ export interface PrototypeWindowApi {
   // promotion notice, whose Open reveals it in the main window.
   readPromoted(): Promise<string | null>;
   onPromoted(listener: (conversationId: string | null) => void): () => void;
+  // The main window's `conversation:list`, naming the canvas the window shows: main answers its rows only while it
+  // plays that canvas, else `{error: "not_playing"}` (the view of the new target follows).
+  listConversations(request: { root: string; canvas: Canvas }): Promise<ConversationSummary[] | ConversationError>;
 }
