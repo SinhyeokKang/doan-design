@@ -70,7 +70,7 @@
 |---|---|---|---|---|
 | canvas-concurrent-conversations | Claude 컨덕터 · `canvas-concurrent-conversations-orch`(제거함) | 2026-11-14 | #199 · 0743a39e5 | 병합 |
 | sidebar-canvas-conversations | Claude 컨덕터 · `sidebar-canvas-conversations-orch`(제거함) | 2026-11-15 | #201 · 2e74bf489 | 병합 |
-| canvas-edit-awareness | Claude 컨덕터 · `canvas-edit-awareness-orch` | 2026-11-15 | #200 | origin/develop 병합 요청 |
+| canvas-edit-awareness | Claude 컨덕터 · `canvas-edit-awareness-orch`(제거함) | 2026-11-15 | #200 · f0af3f1a3 | 병합 |
 | canvas-mark-accent | Claude 컨덕터 · `canvas-mark-accent-orch` | 2026-11-15 | — | 진행 중 |
 
 ## 인계 기록
@@ -81,3 +81,4 @@
 - 2026-11-15 리드 세션: 링크 1을 병합했다(#199, 0743a39e5). 링크 2·3이 알아야 할 것은 PR 본문 'For links 2 and 3'에 있다. 앱 안의 Cursor·Antigravity·Copilot 턴과 프로토타입 창의 실제 턴은 확인하지 않았다. 공유 프로필은 로그아웃하지 않았다. 링크 진행 중 사용자 결정: 보드 알림 Stop 제거, 알림 커서 1.5px, 접힌 패널의 보드는 패널의 선택을 따름. 사용자가 `chain-261115-1`을 다른 리드에게 맡겼다. 이 세션은 이 체인을 마무리하고 릴리스를 준비한다.
 - 2026-11-15 리드 세션: 링크 2·3 컨덕터를 병렬로 시작했다.
 - 2026-11-15 리드 세션: 링크 2를 병합했다(#201, 2e74bf489). 링크 3(#200)은 리뷰를 마쳤고, 공유 문서가 겹쳐 origin/develop 병합을 요청했다. 링크 4 컨덕터를 시작했다.
+- 2026-11-15 리드 세션: 링크 3을 병합했다(#200, f0af3f1a3). 가이드는 21,585 / 21,600 B(15 B 남음)이고 감축 내역은 #200 본문에 있다. 앱 대화 쪽은 실제 턴으로 확인하지 않았다.
