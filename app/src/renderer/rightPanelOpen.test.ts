@@ -68,8 +68,11 @@ describe("canvasStrongestSignal", () => {
   });
 
   test("names the conversation it stands for: the first to wait, else the latest activity", () => {
-    const w1 = summary({ conversationId: "w1", phase: "waiting", lastActivityAt: at(5) }), w2 = summary({ conversationId: "w2", phase: "waiting", lastActivityAt: at(2) });
+    const w1 = summary({ conversationId: "w1", phase: "waiting", waitingSince: at(5), lastActivityAt: at(5) }), w2 = summary({ conversationId: "w2", phase: "waiting", waitingSince: at(2), lastActivityAt: at(2) });
     expect(canvasStrongestSignal([w1, w2], billing)?.conversationId).toBe("w2");
+    // Output that came while w1 kept waiting moves its activity, not its place.
+    const s1 = summary({ conversationId: "s1", phase: "waiting", waitingSince: at(1), lastActivityAt: at(9) }), s2 = summary({ conversationId: "s2", phase: "waiting", waitingSince: at(3), lastActivityAt: at(3) });
+    expect(canvasStrongestSignal([s2, s1], billing)?.conversationId).toBe("s1");
     const r1 = summary({ conversationId: "r1", phase: "running", lastActivityAt: at(2) }), r2 = summary({ conversationId: "r2", phase: "running", lastActivityAt: at(5) });
     expect(canvasStrongestSignal([r1, r2], billing)?.conversationId).toBe("r2");
     const u1 = summary({ conversationId: "u1", unseen: true, lastActivityAt: at(2) }), u2 = summary({ conversationId: "u2", unseen: true, lastActivityAt: at(5) });

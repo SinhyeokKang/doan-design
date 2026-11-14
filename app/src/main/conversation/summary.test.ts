@@ -40,6 +40,16 @@ describe("conversationSummary", () => {
     expect(conversationSummary(doan, { ok: true, events: history(...started, asked, { type: "question.resolved", requestId: "q", outcome: "answered" }) }, live).phase).toBe("running");
     expect(conversationSummary(doan, { ok: true, events: history(...started, asked) }, restarted).phase).toBe("ended");
   });
+  it("says since when it waits: the earliest request still unanswered, unmoved by later output or a partial answer", () => {
+    const second: EventPayload = { ...permission, requestId: "r2", summary: "Run npm run lint" };
+    const output: EventPayload = { type: "activity", kind: "read", summary: "Read a.html" };
+    // seq 3 is the first request.
+    expect(conversationSummary(doan, { ok: true, events: history(...started, permission, output) }, live)).toMatchObject({ phase: "waiting", waitingSince: at(3), lastActivityAt: at(4) });
+    expect(conversationSummary(doan, { ok: true, events: history(...started, permission, second, { type: "permission.resolved", requestId: "r", optionId: "allow" }) }, live))
+      .toMatchObject({ phase: "waiting", waitingSince: at(4) });
+    expect(conversationSummary(doan, { ok: true, events: history(...started, { type: "activity", kind: "read", summary: "Read a.html" }) }, live)).not.toHaveProperty("waitingSince");
+    expect(conversationSummary(doan, { ok: true, events: history(...started, permission) }, restarted)).not.toHaveProperty("waitingSince");
+  });
   it("folds an unfinished turn after a restart into an unseen end", () => {
     const s = conversationSummary(doan, { ok: true, events: history(...started, permission) }, restarted);
     expect(s).toMatchObject({ phase: "ended", unseen: true });

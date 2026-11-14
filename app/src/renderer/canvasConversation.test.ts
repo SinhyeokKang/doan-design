@@ -3,7 +3,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { WorkItem } from "../main/workState";
 import {
   canvasConversationError, canvasConversationMenu, canvasNotice, DRAWING_TEXT, DUPLICATE_CANVAS_TEXT, newConversationMode, noticeOpenName, pickCanvasConversation,
-  pickShownConversation, PROMOTED_TEXT, resumeHeld, shouldMarkSeen, sidebarRowRequest, titleMenuOrder, type ShownInput,
+  earliestWaiting, pickShownConversation, PROMOTED_TEXT, resumeHeld, shouldMarkSeen, sidebarRowRequest, titleMenuOrder, type ShownInput,
 } from "./canvasConversation";
 import { dockedRefusal, type DockedMode } from "./dockedRules";
 import { startErrorView } from "./homeComposer";
@@ -329,10 +329,17 @@ describe("pickShownConversation", () => {
   });
 
   test("of several waiting, the one that started waiting first", () => {
-    const w1 = summary({ conversationId: "w1", phase: "waiting", lastActivityAt: at(3) });
-    const w2 = summary({ conversationId: "w2", phase: "waiting", lastActivityAt: at(8) });
-    const w3 = summary({ conversationId: "w3", phase: "waiting", lastActivityAt: at(8) });
+    const w1 = summary({ conversationId: "w1", phase: "waiting", waitingSince: at(3), lastActivityAt: at(3) });
+    const w2 = summary({ conversationId: "w2", phase: "waiting", waitingSince: at(8), lastActivityAt: at(8) });
+    const w3 = summary({ conversationId: "w3", phase: "waiting", waitingSince: at(8), lastActivityAt: at(8) });
     expect(pick({ list: [w1, w3, w2, a] })).toEqual({ kind: "conversation", conversationId: "w3" });
+  });
+
+  test("of several waiting, the order main says they started waiting in, whatever output came later", () => {
+    const w1 = summary({ conversationId: "w1", phase: "waiting", waitingSince: at(9), lastActivityAt: at(0) });
+    const w2 = summary({ conversationId: "w2", phase: "waiting", waitingSince: at(5), lastActivityAt: at(5) });
+    expect(pick({ list: [w2, w1, a] })).toEqual({ kind: "conversation", conversationId: "w1" });
+    expect(earliestWaiting([w2, { ...w1, waitingSince: at(5) }])?.conversationId).toBe("w2");
   });
 
   test("the remembered conversation, else the most recent activity", () => {

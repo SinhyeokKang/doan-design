@@ -38,4 +38,9 @@ describe("followNewConversation", () => {
     expect(followNewConversation(KNOWN, [project], billing)).toBeNull();
     expect(followNewConversation(KNOWN, [summary({ conversationId: "gone" })], billing, id => id === "gone")).toBeNull();
   });
+
+  test("a conversation whose history could not be read is not followed: who started it is unknown", () => {
+    expect(followNewConversation(KNOWN, [old, summary({ conversationId: "unread", readError: true, phase: "ended", lastActivityAt: "" })], billing)).toBeNull();
+    expect(followNewConversation(KNOWN, [summary({ conversationId: "unread", readError: true, lastActivityAt: "" }), summary({ conversationId: "mine" })], billing)).toBe("mine");
+  });
 });

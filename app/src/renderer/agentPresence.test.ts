@@ -164,6 +164,12 @@ describe("boardPresence", () => {
     expect(board({ list: [a, { ...b, phase: "waiting" }, { ...c, phase: "running" }], shown: "a", previous: first })?.conversationId).toBe("b");
   });
 
+  test("a followed conversation whose rank changes is picked again: answered, it no longer outranks one started earlier", () => {
+    const first = board({ list: [a, { ...b, phase: "running" }, { ...c, phase: "waiting" }], shown: "a" });
+    expect(first?.conversationId).toBe("c");
+    expect(board({ list: [a, { ...b, phase: "running" }, { ...c, phase: "running" }], shown: "a", previous: first })).toMatchObject({ conversationId: "b", kind: "working" });
+  });
+
   test("main's working flag between a turn's end and the queue's next turn keeps the notice from blinking", () => {
     const first = board({ list: [a, { ...b, phase: "running" }], shown: "a" });
     expect(board({ list: [a, { ...b, phase: "ended", working: true }], shown: "a", previous: first })).toMatchObject({ conversationId: "b", kind: "working" });
