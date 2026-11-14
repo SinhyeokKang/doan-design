@@ -32,10 +32,10 @@
 | P | 6 | tasks.md 표의 P 행 | F | Claude Opus high — `App.tsx`, 포커스, ui-state 병합 | test, typecheck, lint, build | 통합 `7fb333eb9`·`707e12db3`·`cd651da79`(충돌 2곳 컨덕터가 풂) + 통합 커밋 `eeb576604`, 후속 `4ffeddd01`–`2f701274a`(메뉴 순서·죽은 props), 리뷰 🔴0 🟡0 ⚪4, 후속 2 `cd1ddea9f`·`11cd1fabe`(⚪2·⚪3), 워크트리 정리 |
 | O | 7 | tasks.md 표의 O 행 | F | Claude Opus high — 프로토타입 창 초안 옮기기 함정(POSTMORTEM) | test, typecheck, lint, build | 통합 `07ce9ffd8`·`0a4552fd1`, 리뷰 🔴0 🟡1, 후속 `d36b764e7`·`4c7f40fcf`(메뉴 순서, 프로토타입 `remembered` 연결; 컨덕터가 diff 확인), 워크트리 정리 |
 | C | 8 | 모든 `state` 읽기와 테스트 | P, O | Codex Sol medium — 기계적 정리 | tasks.md 8의 `rg`, test, typecheck, lint, build | 통합 `4c31850b6`, 워크트리 정리 |
-| DS | 9 | P·O 렌더러 파일, DESIGN.md | C | Claude Opus high — 실제 앱 측정과 수정 | measure.mjs | 진행(`ctx_5ae544d5ad76`, `ccc-design-sync`) |
-| RT | 10 | `.scratch/runtime-test/` | DS | 컨덕터 | probe.mjs exit 0 | 대기 |
+| DS | 9 | P·O 렌더러 파일, DESIGN.md | C | Claude Opus high — 실제 앱 측정과 수정 | measure.mjs | 통합 `3c23f2260`–`3512b5d24`(368행, 미분류 0, 문서화한 차이 35; 최종 리뷰 🟡3 고침 포함), 워크트리는 RT 뒤 정리 |
+| RT | 10 | `.scratch/runtime-test/` | DS | Claude Opus high 워커(컨덕터 판단: probe 작성과 실행을 맡기고 증거는 컨덕터가 본다) | probe.mjs exit 0 | 진행(`ctx_46ffd9df4af7`, `ccc-runtime-test`) |
 | 리뷰 | 12 | 보고서만 | 각 배치 | S·F·O: Codex Astra medium, R·P: Claude Opus high, C: 최종 리뷰에 포함, 최종: Codex Astra medium | 🔴 0 | 최종 리뷰 🔴0 🟡3 → DS 워커가 고침 |
-| 승격 | 13 | PRODUCT·ARCHITECTURE·DESIGN·BACKLOG, fixtures/README | RT | 컨덕터 | tasks.md 13 | 대기 |
+| 승격 | 13 | PRODUCT·ARCHITECTURE·DESIGN·BACKLOG, fixtures/README | RT | 컨덕터 | tasks.md 13 | PRODUCT `89049c3f8`, ARCHITECTURE `4bdb9bcce`, BACKLOG `57fd12c6c`, fixtures `ae3c130bf`, DESIGN은 DS `3512b5d24`; RT 뒤 보완 |
 | verify | 14 | — | 승격 | 컨덕터 | verify.mjs PASS | 대기 |
 
 - 겹침: P와 O는 파일이 겹치지 않아 병렬이다. 나머지는 직렬이다. C는 P·O가 끝난 뒤 모든 테스트 파일을 만진다.
