@@ -391,7 +391,7 @@ test("tells the controller whether the canvas page is the one shown", async () =
 
 // the agent notice's Open unfolds the panel and moves focus into it; a Stop
 // failure is the shared toast; a page without a listed canvas gives the indicator no canvas.
-type Agent = { canvas: unknown; running: boolean; list: unknown; shown: string | null; onOpen(conversationId: string): void; onStopFailed(text: string): void };
+type Agent = { canvas: unknown; running: boolean; list: unknown; shown: string | null; onOpen(conversationId: string): void };
 const agent = () => (pane() as unknown as { agent: Agent } | undefined)?.agent;
 function focusable() {
   const focus = vi.fn();
@@ -420,10 +420,10 @@ test("Open with the panel already open only moves focus to the panel", async () 
   expect(doan.saveUiState!.mock.calls.length).toBe(before);
 });
 
-test("a Stop failure is shown in the shared toast", async () => {
+// The board has no Stop (user decision), so the indicator is handed no Stop failure callback.
+test("the board indicator is handed no Stop failure callback", async () => {
   await canvasPage();
-  agent()!.onStopFailed("Couldn’t stop Codex. Try again.");
-  expect(harness.toast.show).toHaveBeenCalledWith("Couldn’t stop Codex. Try again.");
+  expect(agent()).not.toHaveProperty("onStopFailed");
 });
 
 test("a project problem gives the indicator no canvas; the canvas page runs it, the Overview does not", async () => {
