@@ -22,9 +22,9 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| M | 작업 2, 3 | `canvasPicker.ts`(+test), `sizeBubble.test.ts`, `CanvasController.ts`(+test), `App.tsx`(+test), `styles.css`, `ds/checks.test.ts` | — | Claude Opus high — 포커스 이동, 대기 중 넣기, 툴팁 Esc처럼 틀리면 포커스가 body로 떨어지는 판단이 많다 | `npm --prefix app test`, `typecheck`, `lint`, `build` | 완료(`a0be42474`), 리뷰 중 |
-| R1 | M 리뷰 | 보고만 | M | Codex gpt-6-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고서 | 진행 중 |
-| S | 작업 4 `/design-sync` | M과 같음 + `docs/DESIGN.md` 측정값 | M 통합 | Claude Opus high(M 워커) — 측정 결과로 구현을 고친다 | `node .scratch/design-sync/canvas-mark-accent/measure.mjs` exit 0 | 대기 |
+| M | 작업 2, 3 | `canvasPicker.ts`(+test), `sizeBubble.test.ts`, `CanvasController.ts`(+test), `App.tsx`(+test), `styles.css`, `ds/checks.test.ts` | — | Claude Opus high — 포커스 이동, 대기 중 넣기, 툴팁 Esc처럼 틀리면 포커스가 body로 떨어지는 판단이 많다 | `npm --prefix app test`, `typecheck`, `lint`, `build` | 통합(`7579948ea`…`b84fb0ebb`) |
+| R1 | M 리뷰 | 보고만 | M | Codex gpt-6-astra medium — 다른 계열의 독립 판단 | `/code-review` 보고서 | 완료(2회차 🔴0 🟡0) |
+| S | 작업 4 `/design-sync` | M과 같음 + `docs/DESIGN.md` 측정값 | M 통합 | Claude Opus high(M 워커) — 측정 결과로 구현을 고친다 | `node .scratch/design-sync/canvas-mark-accent/measure.mjs` exit 0 | 진행 중 |
 | T | 작업 5 `/runtime-test` | 보고만(`.scratch/runtime-test/canvas-mark-accent/`) | S | Claude Opus high(M 워커) — 격리 probe, 실제 상태 보호 | probe exit 0과 완료 표시, 스크린샷 | 대기 |
 | R2 | 통합본 최종 리뷰 | 보고만 | S, T | Codex gpt-6-astra medium | `/code-review` 보고서 | 대기 |
 | D | 작업 6 승격 | `docs/PRODUCT.md`, `docs/DESIGN.md`, `docs/ARCHITECTURE.md`, feature 디렉터리 삭제 | R2 | 컨덕터 | tasks.md 작업 6 검증 | 대기 |
@@ -41,3 +41,7 @@
 - 2026-11-15 M 수정 1회차 시작: follow-up dispatch `ctx_a455e02da563`.
 - 2026-11-15 M 수정 1회차 완료: `b5c7bbf6a`(test) `567818d00`(fix). 버블 버튼에서 시작한 pick을 취소하면 패널이 접혀 있었든 열려 있었든 컴포저 필드로 간다. pick 전에 필드에 주던 포커스는 없앴다. reload 복귀는 다른 곳의 `focusin`이 한 번이라도 있으면 영영 포기한다. verify.mjs 통과.
 - 2026-11-15 R1 2회차: 기존 Codex 세션에 follow-up을 보냈지만 Codex 업데이트 화면에 막혀 시작하지 못했다(`ctx_185a3a84d978` 해제). 같은 모델로 새로 시작했다(`ctx_3450fb074fc0`).
+- 2026-11-15 R1 2회차: 🔴0 🟡0 ⚪1(실제 앱에서 확인할 pick 포커스 경우들). 이 경우들을 작업 5 probe에 넣었다.
+- 2026-11-15 M 통합: 커밋 여섯 개를 `7579948ea`…`b84fb0ebb`로 cherry-pick했다. 통합 HEAD의 `app/` 트리가 워커가 verify.mjs를 통과한 `567818d00`과 같다(`git diff --stat 567818d00 HEAD -- app`가 비었음). 그래서 통합 시점 `/verify`는 그 결과로 갈음하고, 최종 `/verify`는 S·T를 통합한 뒤 돌린다.
+- 컨덕터 판단 — DESIGN.md는 작업 4의 측정 커밋에서 워커가 작업 6 목록의 DESIGN.md 행까지 함께 고친다. 측정한 사람이 행을 쓰는 편이 정확하고, 컨덕터는 PRODUCT·ARCHITECTURE를 쓰고 작업 6 검증을 돌린다.
+- 2026-11-15 S·T 시작: follow-up dispatch `ctx_985ee844ee5d`(M 워커, 작업 4 다음 작업 5).
