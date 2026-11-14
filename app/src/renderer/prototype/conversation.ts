@@ -77,10 +77,11 @@ export function conversationButton(current: ConversationSummary | undefined, see
   return mark ? { label: show, badge: "unseen", name: mark.label } : { label: show, badge: null, name: show };
 }
 
-// The panel head's title. The states that are not a conversation or the new conversation state (the list still read or
-// failed, the canvas gone or its ID shared) keep the panel shell's own title, as does an empty title. `title` is the
-// main window's canvasConversationTitle for the conversation shown.
+// The panel head's title. The states that are not a conversation or the new conversation state (the list still read,
+// the canvas gone or its ID shared) keep the panel shell's own title, as does an empty title. A list never read is the
+// new conversation state (its head New is unavailable and New conversation is the pressed menu row), so it is named so,
+// as in the main window. `title` is the main window's canvasConversationTitle for the conversation shown.
 export function prototypeHeadTitle(shown: PrototypeShown, title: string): string {
-  if (shown.kind === "list_loading" || shown.kind === "list_error" || shown.kind === "blocked" || title === "") return "Conversation";
+  if (shown.kind === "list_loading" || shown.kind === "blocked" || title === "") return "Conversation";
   return title;
 }
