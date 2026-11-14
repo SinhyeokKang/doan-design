@@ -8,6 +8,14 @@ import type { ProjectInitResult } from "../shell";
 import { readGitRemotes } from "./gitConfig";
 import { canonicalFolder, cloneDestination, leftoverPresent, cloneProject, confirmProject, destinationState, inspectPath, inspectUrl, newFolderTarget, plannedChanges, registerClone, selectProject, type ProjectDeps } from "./projects";
 
+// newFolderTarget's mkdir can be intercepted to stage what happens between its lstat and mkdir; otherwise the real one.
+const fsHook = vi.hoisted(() => ({ mkdir: null as null | ((path: string) => Promise<void>) }));
+vi.mock("node:fs/promises", async original => {
+  const real = await original<typeof import("node:fs/promises")>();
+  return { ...real, mkdir: ((path: string, options?: unknown) => fsHook.mkdir && options === undefined ? fsHook.mkdir(path) : real.mkdir(path, options as never)) as typeof real.mkdir };
+});
+afterEach(() => { fsHook.mkdir = null; });
+
 // Remote checks read .git/config; a git process here would run the repository's fsmonitor, hooks and filters.
 vi.mock("node:child_process", () => ({ spawn: () => { throw new Error("git must not run"); }, execFile: () => { throw new Error("git must not run"); } }));
 
@@ -559,5 +567,45 @@ describe("newFolderTarget", () => {
     symlinkSync(join(project, "designs"), alias);
     expect(await newFolderTarget(join(alias, "landing-page"), deps().deps)).toEqual({ kind: "inside_project", path: join(project, "designs", "landing-page"), project: "studio" });
     expect(readdirSync(join(project, "designs"))).toEqual([]);
+  });
+});
+
+describe("newFolderTarget around mkdir", () => {
+  const fail = (code: string) => async () => { throw Object.assign(new Error(code), { code }); };
+  it("reads a name made between its check and mkdir as existing, a folder only when it can tell", async () => {
+    const parent = temp();
+    fsHook.mkdir = async path => { mkdirSync(path); fsHook.mkdir = null; await fail("EEXIST")(); };
+    expect(await newFolderTarget(join(parent, "raced"), deps().deps)).toEqual({ kind: "exists", path: join(parent, "raced"), directory: true });
+    fsHook.mkdir = async path => { writeFileSync(path, ""); await fail("EEXIST")(); };
+    expect(await newFolderTarget(join(parent, "raced-file"), deps().deps)).toEqual({ kind: "exists", path: join(parent, "raced-file"), directory: false });
+    // EEXIST, but the name cannot be read again: it is not offered as a folder to use.
+    fsHook.mkdir = fail("EEXIST");
+    expect(await newFolderTarget(join(parent, "unreadable"), deps().deps)).toEqual({ kind: "exists", path: join(parent, "unreadable"), directory: false });
+  });
+
+  it("fails on a read-only volume or a refused mkdir, never reading it as existing", async () => {
+    const parent = temp();
+    for (const code of ["EROFS", "EPERM", "EACCES"]) {
+      fsHook.mkdir = fail(code);
+      expect(await newFolderTarget(join(parent, "studio"), deps().deps), code).toEqual({ kind: "failed", path: join(parent, "studio") });
+    }
+    expect(readdirSync(parent)).toEqual([]);
+  });
+
+  // The step that asked can go while the location is checked (its CLI read takes up to 10 s): nothing is made then.
+  it("makes nothing once the request is no longer wanted, also when that happens while the location is read", async () => {
+    const parent = temp();
+    let wanted = true;
+    let release: () => void = () => {};
+    const d = deps();
+    d.deps.ls.mockImplementationOnce(async target => { await new Promise<void>(resolve => { release = resolve; }); return cliLs(target); });
+    const answer = newFolderTarget(join(parent, "studio"), d.deps, () => wanted);
+    await vi.waitFor(() => expect(d.deps.ls).toHaveBeenCalledOnce());
+    wanted = false;
+    release();
+    expect(await answer).toEqual({ kind: "cancelled" });
+    expect(readdirSync(parent)).toEqual([]);
+    // Still wanted: made as before.
+    expect(await newFolderTarget(join(parent, "studio"), deps().deps, () => true)).toEqual({ kind: "created", path: join(parent, "studio") });
   });
 });

@@ -22,7 +22,8 @@ function harness(projects: string[] = [], home: string | null = "/Users/ada", ma
     cancelOnboardingOperation: vi.fn(async (_r: unknown) => next("cancel")),
     completeOnboarding: vi.fn(async (_r: unknown) => next("complete")),
     chooseOnboardingFolder: vi.fn(async (_p: "project" | "destination"): Promise<string | null> => null),
-    newOnboardingFolder: vi.fn(async (_parent: string): Promise<NewFolder> => ({ kind: "cancelled" })),
+    newOnboardingFolder: vi.fn(async (_parent: string, _token: string): Promise<NewFolder> => ({ kind: "cancelled" })),
+    cancelOnboardingFolder: vi.fn(async (_token: string) => true),
   };
   let ids = 0, revision = 0;
   const completed = vi.fn();
@@ -793,7 +794,8 @@ function pageHarness() {
     cloneAddPageProject: vi.fn(async (_r: unknown) => next("clone")),
     cancelAddPageOperation: vi.fn(async (_r: unknown) => next("cancel")),
     chooseOnboardingFolder: vi.fn(async (_p: "project" | "destination"): Promise<string | null> => null),
-    newOnboardingFolder: vi.fn(async (_parent: string): Promise<NewFolder> => ({ kind: "cancelled" })),
+    newOnboardingFolder: vi.fn(async (_parent: string, _token: string): Promise<NewFolder> => ({ kind: "cancelled" })),
+    cancelOnboardingFolder: vi.fn(async (_token: string) => true),
   };
   let ids = 0, revision = 0;
   const completed = vi.fn(), changed = vi.fn();
@@ -1189,7 +1191,7 @@ describe("New folder", () => {
     h.api.newOnboardingFolder.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
     const opening = h.session.newFolder();
     await flush();
-    expect(h.api.newOnboardingFolder).toHaveBeenCalledWith("/Users/ada/code");
+    expect(h.api.newOnboardingFolder).toHaveBeenCalledWith("/Users/ada/code", expect.any(String));
     // The panel is open: the step is busy, focus belongs to New folder.
     expect(h.session.picking()).toBe(true);
     expect(h.session.busy()).toBe(true);
@@ -1200,7 +1202,7 @@ describe("New folder", () => {
     expect(h.api.inspectOnboardingProject).not.toHaveBeenCalled();
     const g = harness([], "/Users/ada");
     await g.session.newFolder();
-    expect(g.api.newOnboardingFolder).toHaveBeenCalledWith("/Users/ada");
+    expect(g.api.newOnboardingFolder).toHaveBeenCalledWith("/Users/ada", expect.any(String));
   });
 
   test("a created folder is checked as a chosen one would be and goes to its setup panel", async () => {
@@ -1229,7 +1231,7 @@ describe("New folder", () => {
     expect(h.session.state).toMatchObject({ phase: { kind: "choose" }, error: { code: "folder_exists", path: "/Volumes/work/landing-page", directory: true, source: "folder" } });
     expect(projectNoticeSlot(h.session.state)).toBe("card");
     await h.session.chooseAnotherName();
-    expect(h.api.newOnboardingFolder).toHaveBeenLastCalledWith("/Volumes/work");
+    expect(h.api.newOnboardingFolder).toHaveBeenLastCalledWith("/Volumes/work", expect.any(String));
     // That panel was cancelled: the notice stays as it was.
     expect(h.session.state.error).toMatchObject({ code: "folder_exists" });
     h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/Volumes/work/landing-page"]]) })));
@@ -1255,10 +1257,10 @@ describe("New folder", () => {
     expect(h.session.state).toMatchObject({ phase: { kind: "choose" }, error: { code: "folder_inside_project", path: "/Users/ada/code/studio/designs/landing-page", project: "studio", source: "folder" } });
     h.api.newOnboardingFolder.mockResolvedValueOnce({ kind: "failed", path: "/Volumes/Archive/landing-page" });
     await h.session.newFolderElsewhere();
-    expect(h.api.newOnboardingFolder).toHaveBeenLastCalledWith("/Users/ada/code");
+    expect(h.api.newOnboardingFolder).toHaveBeenLastCalledWith("/Users/ada/code", expect.any(String));
     expect(h.session.state).toMatchObject({ phase: { kind: "choose" }, error: { code: "folder_create_failed", path: "/Volumes/Archive/landing-page", source: "folder" } });
     await h.session.newFolderElsewhere();
-    expect(h.api.newOnboardingFolder).toHaveBeenLastCalledWith("/Users/ada/code");
+    expect(h.api.newOnboardingFolder).toHaveBeenLastCalledWith("/Users/ada/code", expect.any(String));
     expect(h.api.inspectOnboardingProject).not.toHaveBeenCalled();
   });
 
@@ -1275,6 +1277,35 @@ describe("New folder", () => {
     h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/Users/ada/b", [".doan/config.json"]]]) })));
     await h.session.chooseAnotherName();
     expect(h.session.state).toMatchObject({ phase: { kind: "setup", path: "/Users/ada/b" }, error: null });
+  });
+
+  // A step that goes while its panel is open (the page left, first run closed) cancels its request, so main makes nothing
+  // when Create returns; a request already answered is not cancelled.
+  test("a session disposed while its save panel is open cancels that request by its token, on the page and in first run", async () => {
+    for (const make of [harness, pageHarness] as const) {
+      const h = make();
+      const api = "api" in h ? h.api : h.doan;
+      let answer: (result: NewFolder) => void = () => {};
+      api.newOnboardingFolder.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+      const opening = h.session.newFolder();
+      await flush();
+      const token = api.newOnboardingFolder.mock.calls[0]![1];
+      expect(typeof token).toBe("string");
+      expect(api.cancelOnboardingFolder).not.toHaveBeenCalled();
+      h.session.dispose();
+      expect(api.cancelOnboardingFolder).toHaveBeenCalledExactlyOnceWith(token);
+      answer({ kind: "cancelled" });
+      await opening;
+    }
+    const done = harness();
+    done.api.newOnboardingFolder.mockResolvedValueOnce({ kind: "exists", path: "/Users/ada/a", directory: true });
+    await done.session.newFolder();
+    done.api.newOnboardingFolder.mockResolvedValueOnce({ kind: "exists", path: "/Users/ada/a", directory: true });
+    await done.session.chooseAnotherName();
+    // Each opening has its own token.
+    expect(done.api.newOnboardingFolder.mock.calls[0]![1]).not.toBe(done.api.newOnboardingFolder.mock.calls[1]![1]);
+    done.session.dispose();
+    expect(done.api.cancelOnboardingFolder).not.toHaveBeenCalled();
   });
 
   test("does not start while another action runs, drops a result the ended session waited for, and clears the drop notice", async () => {

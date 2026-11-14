@@ -28,7 +28,7 @@ beforeEach(() => {
     readAddPage: vi.fn(() => new Promise(resolve => { readPage = resolve; })), onAddPageSession: vi.fn(() => () => {}),
     inspectAddPageProject: vi.fn(), selectAddPageProject: vi.fn(() => new Promise(() => {})), cloneAddPageProject: vi.fn(), cancelAddPageOperation: vi.fn(),
     chooseOnboardingFolder: vi.fn(async () => null),
-    newOnboardingFolder: vi.fn(async () => ({ kind: "cancelled" })),
+    newOnboardingFolder: vi.fn(async () => ({ kind: "cancelled" })), cancelOnboardingFolder: vi.fn(async () => true),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.stubGlobal("document", { activeElement: null, body: {} });
@@ -116,16 +116,16 @@ test("the page wires New folder and its notice's actions to its session", async 
   screen.props.on.newFolder!();
   expect(page.onState).toHaveBeenLastCalledWith({ locked: false, choose: false });
   await flush();
-  expect(doan.newOnboardingFolder).toHaveBeenCalledWith("/Users/ada/code");
+  expect(doan.newOnboardingFolder).toHaveBeenCalledWith("/Users/ada/code", expect.any(String));
   expect(page.onState).toHaveBeenLastCalledWith({ locked: false, choose: true });
   screen = render(page)!;
   screen.props.on.chooseAnotherName!();
   await flush();
-  expect(doan.newOnboardingFolder).toHaveBeenLastCalledWith("/Volumes/work");
+  expect(doan.newOnboardingFolder).toHaveBeenLastCalledWith("/Volumes/work", expect.any(String));
   screen = render(page)!;
   screen.props.on.newFolderElsewhere!();
   await flush();
-  expect(doan.newOnboardingFolder).toHaveBeenLastCalledWith("/Users/ada/code");
+  expect(doan.newOnboardingFolder).toHaveBeenLastCalledWith("/Users/ada/code", expect.any(String));
   doan.inspectAddPageProject!.mockResolvedValueOnce(op("project_inspect", { inspection: { inspectionId: "i1", candidates: [{ path: "/Volumes/work/landing-page", changes: [] }] } }));
   screen = render(page)!;
   screen.props.on.useExistingFolder!();

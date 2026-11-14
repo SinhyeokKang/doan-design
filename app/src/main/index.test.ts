@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
@@ -2027,36 +2027,83 @@ describe("main-window setup and settings", () => {
     const options = (defaultPath: unknown) => ({ message: "Name your new project folder and choose where to create it.", buttonLabel: "Create", nameFieldLabel: "Name:", defaultPath, showsTagField: false });
     // Once only: implementations outlive vi.clearAllMocks into later tests.
     mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: true, filePath: "" });
-    expect(await invoke("onboarding:new-folder", contents, null, { parent })).toEqual({ kind: "cancelled" });
+    expect(await invoke("onboarding:new-folder", contents, null, { parent, token: "t1" })).toEqual({ kind: "cancelled" });
     // No createDirectory: a New Folder made in this panel would move it inside, and Create would nest the project.
     expect(mocks.dialog.showSaveDialog).toHaveBeenLastCalledWith(window(), options(parent));
     for (const bad of ["code", "/no/such/doan-folder", join(parent, "file")]) {
       if (bad.endsWith("file")) writeFileSync(bad, "");
       mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: true, filePath: "" });
-      await invoke("onboarding:new-folder", contents, null, { parent: bad });
+      await invoke("onboarding:new-folder", contents, null, { parent: bad, token: `t-${bad}` });
       expect(mocks.dialog.showSaveDialog, bad).toHaveBeenLastCalledWith(window(), options(home));
     }
     expect(mocks.projects.newFolderTarget).not.toHaveBeenCalled();
     mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: false, filePath: join(parent, "landing-page") }).mockResolvedValueOnce({ canceled: false, filePath: join(parent, "landing-page") });
     mocks.projects.newFolderTarget.mockResolvedValueOnce({ kind: "exists", path: join(parent, "landing-page"), directory: true });
-    expect(await invoke("onboarding:new-folder", contents, null, { parent })).toEqual({ kind: "exists", path: join(parent, "landing-page"), directory: true });
-    expect(mocks.projects.newFolderTarget).toHaveBeenLastCalledWith(join(parent, "landing-page"), expect.objectContaining({ ls: expect.any(Function) }));
+    expect(await invoke("onboarding:new-folder", contents, null, { parent, token: "t1" })).toEqual({ kind: "exists", path: join(parent, "landing-page"), directory: true });
+    expect(mocks.projects.newFolderTarget).toHaveBeenLastCalledWith(join(parent, "landing-page"), expect.objectContaining({ ls: expect.any(Function) }), expect.any(Function));
     mocks.projects.newFolderTarget.mockResolvedValueOnce({ kind: "created", path: join(parent, "landing-page") });
-    expect(await invoke("onboarding:new-folder", contents, null, { parent })).toEqual({ kind: "created", path: join(parent, "landing-page") });
+    expect(await invoke("onboarding:new-folder", contents, null, { parent, token: "t1" })).toEqual({ kind: "created", path: join(parent, "landing-page") });
     expect(mocks.flow.add).not.toHaveBeenCalled();
   });
 
   test("New folder refuses other senders and malformed requests, and makes nothing once the window is gone", async () => {
     const contents = window().webContents;
-    for (const bad of [undefined, "/Users", { parent: 1 }, { parent: "/Users", name: "x" }, null]) {
+    for (const bad of [undefined, "/Users", { parent: 1, token: "t" }, { parent: "/Users", token: "t", name: "x" }, { parent: "/Users" }, { parent: "/Users", token: 1 }, { parent: "/Users", token: "" }, null]) {
       expect(await invoke("onboarding:new-folder", contents, null, bad), JSON.stringify(bad)).toEqual({ kind: "cancelled" });
     }
-    expect(await invoke("onboarding:new-folder", contents, {}, { parent: "/Users" })).toEqual({ kind: "cancelled" });
-    expect(await invoke("onboarding:new-folder", {}, null, { parent: "/Users" })).toEqual({ kind: "cancelled" });
+    expect(await invoke("onboarding:new-folder", contents, {}, { parent: "/Users", token: "t" })).toEqual({ kind: "cancelled" });
+    expect(await invoke("onboarding:new-folder", {}, null, { parent: "/Users", token: "t" })).toEqual({ kind: "cancelled" });
     expect(mocks.dialog.showSaveDialog).not.toHaveBeenCalled();
     mocks.dialog.showSaveDialog.mockImplementationOnce(async () => { window().destroyed = true; return { canceled: false, filePath: "/Users/studio" }; });
-    expect(await invoke("onboarding:new-folder", contents, null, { parent: "/Users" })).toEqual({ kind: "cancelled" });
+    expect(await invoke("onboarding:new-folder", contents, null, { parent: "/Users", token: "t" })).toEqual({ kind: "cancelled" });
     expect(mocks.projects.newFolderTarget).not.toHaveBeenCalled();
+  });
+
+  // The Project step's screen can go (the page left, first run closed) while the window stays: a Create that returns
+  // after its request was cancelled makes nothing (spec: the step that asked is gone).
+  test("New folder: a request cancelled while its panel is open makes nothing, and a live one still creates", async () => {
+    const contents = window().webContents;
+    const parent = realpathSync(mkdtempSync(join(tmpdir(), "doan-new-folder-")));
+    onTestFinished(() => rmSync(parent, { recursive: true, force: true }));
+    const held = () => { let answer: (path: string) => void = () => {}; mocks.dialog.showSaveDialog.mockImplementationOnce(() => new Promise(resolve => { answer = path => resolve({ canceled: false, filePath: path }); })); return (path: string) => answer(path); };
+    const create = held();
+    const request = invoke("onboarding:new-folder", contents, null, { parent, token: "page-1" }) as Promise<unknown>;
+    await vi.waitFor(() => expect(mocks.dialog.showSaveDialog).toHaveBeenCalledOnce());
+    expect(await invoke("onboarding:new-folder-cancel", contents, null, { token: "page-1" })).toBe(true);
+    create(join(parent, "landing-page"));
+    expect(await request).toEqual({ kind: "cancelled" });
+    expect(mocks.projects.newFolderTarget).not.toHaveBeenCalled();
+    expect(existsSync(join(parent, "landing-page"))).toBe(false);
+    // A new page's request is not touched by the old token's cancel, and its still-wanted check stays true.
+    const again = held();
+    const live = invoke("onboarding:new-folder", contents, null, { parent, token: "page-2" }) as Promise<unknown>;
+    await vi.waitFor(() => expect(mocks.dialog.showSaveDialog).toHaveBeenCalledTimes(2));
+    expect(await invoke("onboarding:new-folder-cancel", contents, null, { token: "page-1" })).toBe(false);
+    let stillWanted: boolean | null = null;
+    mocks.projects.newFolderTarget.mockImplementationOnce(async (_path: string, _deps: unknown, wanted: () => boolean) => { stillWanted = wanted(); return { kind: "created", path: join(parent, "studio") }; });
+    again(join(parent, "studio"));
+    expect(await live).toEqual({ kind: "created", path: join(parent, "studio") });
+    expect(stillWanted).toBe(true);
+  });
+
+  // newFolderTarget awaits the location's checks before mkdir; a cancel meanwhile must still stop it.
+  test("New folder: the still-wanted check passed to newFolderTarget turns false on cancel, and the request is cleared after it answers", async () => {
+    const contents = window().webContents;
+    let wanted: () => boolean = () => true;
+    let finish: (value: unknown) => void = () => {};
+    mocks.projects.newFolderTarget.mockImplementationOnce((_path: string, _deps: unknown, still: () => boolean) => { wanted = still; return new Promise(resolve => { finish = resolve; }); });
+    mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: false, filePath: "/Users/studio" });
+    const request = invoke("onboarding:new-folder", contents, null, { parent: "/Users", token: "t-ls" }) as Promise<unknown>;
+    await vi.waitFor(() => expect(mocks.projects.newFolderTarget).toHaveBeenCalledOnce());
+    expect(wanted()).toBe(true);
+    expect(await invoke("onboarding:new-folder-cancel", contents, null, { token: "t-ls" })).toBe(true);
+    expect(wanted()).toBe(false);
+    finish({ kind: "cancelled" });
+    expect(await request).toEqual({ kind: "cancelled" });
+    // Answered: the token is gone, and only the window's own frame may cancel at all.
+    expect(await invoke("onboarding:new-folder-cancel", contents, null, { token: "t-ls" })).toBe(false);
+    for (const bad of [undefined, "t-ls", { token: 1 }, { token: "t", more: 1 }]) expect(await invoke("onboarding:new-folder-cancel", contents, null, bad)).toBe(false);
+    expect(await invoke("onboarding:new-folder-cancel", contents, {}, { token: "x" })).toBe(false);
   });
 });
 
