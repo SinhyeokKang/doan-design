@@ -264,7 +264,7 @@ func TestHandoffFailureSteps(t *testing.T) {
 		"not_app_conversation": {"Doan app", "canvas conversation", "open the new canvas"},
 		"root_mismatch":        {"without --repo"},
 		"canvas_not_found":     {"`doan ls`"},
-		"already_requested":    {"do not run `doan handoff` again"},
+		"already_requested":    {"This turn already requested a handoff to this canvas; hand off each other new canvas once"},
 	} {
 		steps := strings.Join(handoffFailure(code, "m").NextSteps, "\n")
 		for _, word := range words {
@@ -277,5 +277,12 @@ func TestHandoffFailureSteps(t *testing.T) {
 		if len(handoffFailure(code, "m").NextSteps) == 0 {
 			t.Errorf("%s: no nextSteps", code)
 		}
+	}
+}
+
+func TestHandoffDuplicateCanvasMessage(t *testing.T) {
+	_, failure := handoffReply(handoffFixture(t, "valid", "error-already-requested.json"), ".doan/canvases/checkout.html")
+	if failure == nil || failure.Message != "This turn already requested a handoff to this canvas" {
+		t.Fatalf("unexpected duplicate canvas message: %v", failure)
 	}
 }

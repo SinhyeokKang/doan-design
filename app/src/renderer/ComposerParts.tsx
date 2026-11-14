@@ -69,12 +69,15 @@ export function useComposerDrop(options: { blocked: () => boolean; onFiles(files
 
 // Attachment and preset chips. `removeButtons` holds each ×, in chip order, for the focus move after a removal.
 export function ComposerChips(props: {
+  // A chip that is not the draft's, drawn first (the prototype window's playing frame).
+  lead?: ReactNode;
   attachments: readonly AttachmentDraft[]; preset: PresetSummary | null; thumbnails: Readonly<Record<string, string>>; homeDirectory: string | null;
   disabled: boolean; removeButtons: MutableRefObject<(HTMLButtonElement | null)[]>; onRemove(index: number): void;
 }) {
   const { attachments, preset } = props;
-  if (attachments.length === 0 && !preset) return null;
+  if (attachments.length === 0 && !preset && !props.lead) return null;
   return <div className="composer-chips">
+    {props.lead}
     {attachments.map((a, index) => {
       const view = attachmentChipView(a, props.homeDirectory), url = props.thumbnails[a.key];
       const chip = <span className={`attach-chip${view.thumbnail && url ? " image" : ""}${view.problem ? " problem" : ""}`}>
@@ -114,6 +117,8 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
   skillNames?: ReadonlySet<string>;
   // The canvas the field's chips belong to (its canvas panel sets it); null, the default, takes no chips.
   chipScope?: string | null;
+  // Chips sent with every message from outside the field, counted against its place limit.
+  reserved?: readonly FieldSegment[];
   // The `/` preset list while it is open: the field is its combobox.
   combobox: ComboboxProps | null;
   onKey(event: KeyboardEvent<HTMLDivElement>): boolean; onSubmit(): void; onSteerKey?(): void;
@@ -138,6 +143,7 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
       onInput: () => latest.current.onInput?.(),
       onAnnounce: text => latest.current.onAnnounce?.(text),
       scope: () => latest.current.chipScope ?? null,
+      reserved: () => latest.current.reserved ?? [],
       skillNames: () => latest.current.skillNames ?? new Set(),
       onChipClick: (anchor, chip) => latest.current.onChipClick?.(anchor, chip),
     }, latest.current.value, latest.current.draftKey);

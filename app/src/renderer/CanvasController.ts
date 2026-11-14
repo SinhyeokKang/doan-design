@@ -150,7 +150,8 @@ function reloadKind(before: CanvasRow, after: CanvasRow): ActivityEvent["kind"] 
 export interface AnchorTarget { id: string; doanId?: string; selector?: string; frame?: string }
 // Where openCanvas moves once the canvas shows: a frame (Quick Open, a deep link, `doan open`, a reply chip) or an
 // element by its doan id (a reply chip).
-export type OpenTarget = { frame: string } | { element: string };
+// anchor: a person's chip from the prototype window, located once the canvas has laid out, its outcome to `located`.
+export type OpenTarget = { frame: string } | { element: string } | { anchor: Anchor };
 
 // React owns the surrounding shell; only this controller owns the board's children.
 // The size bubble as styles.css draws it: 24px tall (a caption line and 4px padding, or the xs Play button) and hung
@@ -180,7 +181,7 @@ export class CanvasController {
   // A reply chip's element, located after the first layout. It lives as
   // pendingFrame does and also carries the root and canvas it was asked for: worktrees share canvas ids and paths
   // (POSTMORTEM 2026-11-01), so only that canvas's first layout takes it. A missing target ends silently.
-  private pendingLocate: { folder: string; path: string; doanId: string } | null = null;
+  private pendingLocate: { folder: string; path: string; anchor: Anchor; located?: (result: LocateResult) => void } | null = null;
   private jumpRect: CanvasRect | null = null;
   private jumpKind: "rect" | "point" = "rect";
   private jumpMark: HTMLElement | null = null;
@@ -740,9 +741,10 @@ export class CanvasController {
 
   // `opened`: told once the canvas is the open one. A frame or element target replaces any earlier one still waiting
   // for the first layout: the last request wins.
-  openCanvas(folder: string, row: CanvasRow, to?: OpenTarget, target?: { index?: number; found?: (found: boolean) => void; unavailable?: (entry: FolderEntry | undefined) => void; opened?: () => void }): void {
+  openCanvas(folder: string, row: CanvasRow, to?: OpenTarget, target?: { index?: number; found?: (found: boolean) => void; unavailable?: (entry: FolderEntry | undefined) => void; opened?: () => void; located?: (result: LocateResult) => void }): void {
     const frameId = to && "frame" in to ? to.frame : undefined;
-    const element = to && "element" in to ? to.element : undefined;
+    const element: Anchor | undefined = to && "element" in to ? { element: { doanId: to.element } } : to && "anchor" in to ? to.anchor : undefined;
+    const located = target?.located ? { located: target.located } : {};
     if (this.state.open?.folder === folder && this.state.shown === row.path) {
       this.cancelWorkspaceOpen();
       target?.opened?.();
@@ -756,7 +758,7 @@ export class CanvasController {
       }
       if (element !== undefined) {
         this.pendingFrame = null;
-        this.pendingLocate = { folder, path: row.path, doanId: element };
+        this.pendingLocate = { folder, path: row.path, anchor: element, ...located };
         if (!this.loading) this.locatePending();
       }
       return;
@@ -769,7 +771,7 @@ export class CanvasController {
       const opening = current() ?? row;
       this.openCanvasNow(folder, opening);
       this.pendingFrame = frameId === undefined ? null : { id: frameId, ...target };
-      this.pendingLocate = element === undefined ? null : { folder, path: opening.path, doanId: element };
+      this.pendingLocate = element === undefined ? null : { folder, path: opening.path, anchor: element, ...located };
       if (this.state.status === "noWidth") { this.pendingFrame?.found?.(false); this.pendingFrame = null; this.pendingLocate = null; }
       target?.opened?.();
     }, () => {
@@ -787,7 +789,7 @@ export class CanvasController {
     const pending = this.pendingLocate, open = this.state.open;
     this.pendingLocate = null;
     if (pending === null || open?.folder !== pending.folder || open.canvas !== pending.path) return;
-    this.locate({ element: { doanId: pending.doanId } }, () => {});
+    this.locate(pending.anchor, pending.located ?? (() => {}));
   }
 
   private openCanvasNow(folder: string, row: CanvasRow): void {

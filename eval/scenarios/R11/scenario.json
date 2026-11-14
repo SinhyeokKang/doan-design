@@ -1,0 +1,9 @@
+{
+  "id": "R11",
+  "title": "Create two new canvases in an app-sent turn and hand off to each",
+  "focus": "write",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 900,
+  "handoff": { "canvas": ".doan/canvases/account.html" }
+}

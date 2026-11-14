@@ -21,8 +21,8 @@ func (refusingLoader) Load(url string) (any, error) {
 var validators = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 	compiler := jsonschema.NewCompiler()
 	compiler.UseLoader(refusingLoader{})
-	files := []string{"config.v1", "cli-envelope.v1", "runtime.v1", "app-socket.v1", "app-socket.v2", "app-socket.v3", "app-socket.v4", "app-socket.v5", "sessions.v1"}
-	// Register every file before compiling any: app-socket v3 $refs v4 by its absolute $id.
+	files := []string{"config.v1", "cli-envelope.v1", "runtime.v1", "app-socket.v1", "app-socket.v2", "app-socket.v3", "app-socket.v4", "app-socket.v5", "app-socket.v6", "sessions.v1"}
+	// Register every file before compiling any: app-socket v3 and v6 $ref v4 by its absolute $id.
 	for _, name := range files {
 		filename := name + ".schema.json"
 		data, err := schema.Files.ReadFile(filename)
@@ -53,6 +53,8 @@ var validators = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 		"open-response":       schemaBase + "app-socket.v4.schema.json#/$defs/response",
 		"handoff-request":     schemaBase + "app-socket.v5.schema.json#/$defs/request",
 		"handoff-response":    schemaBase + "app-socket.v5.schema.json#/$defs/response",
+		"prototype-request":   schemaBase + "app-socket.v6.schema.json#/$defs/request",
+		"prototype-response":  schemaBase + "app-socket.v6.schema.json#/$defs/response",
 	}
 	compiled := make(map[string]*jsonschema.Schema, len(targets))
 	for name, url := range targets {
@@ -91,5 +93,8 @@ func ValidateOpenResponse(value any) error { return validate("open-response", va
 
 func ValidateHandoffRequest(value any) error  { return validate("handoff-request", value) }
 func ValidateHandoffResponse(value any) error { return validate("handoff-response", value) }
+
+func ValidatePrototypeRequest(value any) error  { return validate("prototype-request", value) }
+func ValidatePrototypeResponse(value any) error { return validate("prototype-response", value) }
 
 func ValidateSessionRecord(value any) error { return validate("sessions", value) }

@@ -7,7 +7,7 @@ Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in
 
 > **The draft is the source of truth only for a screen's initial implementation**. Once that implementation is integrated on develop (not when it is released), the code and `docs/DESIGN.md` are the source of truth. A new draft for an implemented screen is a change request (`/feature` or ordinary work), not a rerun of this loop.
 >
-> **Exception — redesign children**: when a child of a parent feature (AGENTS.md 'Terms') draws a new draft file for a screen already on develop, that new draft is the source of truth for the redesigned screen until the child's branch is merged, and this loop runs against it. The old draft stays untouched as history.
+> **Exception — redesign features**: when a redesign feature (AGENTS.md 'Workflow' `/design-draft`: a child of a parent feature, or a standalone follow-up) draws a new draft file for a screen already on develop, that new draft is the source of truth for the redesigned screen until the feature's branch is merged, and this loop runs against it. The old draft stays untouched as history.
 
 Why the loop exists: in malmoi (2026-09-13) a modal fixed to the pixel in its draft was implemented with 29 deviations while 3,000 unit tests were green. Values that are right but rendered wrong are invisible to unit tests.
 
@@ -22,9 +22,9 @@ Why the loop exists: in malmoi (2026-09-13) a modal fixed to the pixel in its dr
 
 - A screen is being implemented for the first time and its draft canvas is in `.doan/canvases/`: build the comparison table before or during the implementation and loop until the first implementation reaches develop.
 - The draft changed during that initial implementation.
-- A redesign child is implementing its new draft for a screen already on develop (see the exception above).
+- A redesign feature is implementing its new draft for a screen already on develop (see the exception above).
 
-**Not for**: screens without a draft, and screens already on develop (even if a draft remains) unless a redesign child drew a new draft for them. For those, `docs/DESIGN.md` and the code are the reference; check the window with `/runtime-test`.
+**Not for**: screens without a draft, and screens already on develop (even if a draft remains) unless a redesign feature drew a new draft for them. For those, `docs/DESIGN.md` and the code are the reference; check the window with `/runtime-test`.
 
 ## Prerequisites (stop if any fails)
 
@@ -108,6 +108,6 @@ Commands: <each with result>
 ## Prohibited
 
 - Do not edit the draft canvas to match the implementation.
-- Do not run this loop on a screen that is already on develop, except against a redesign child's new draft.
+- Do not run this loop on a screen that is already on develop, except against a redesign feature's new draft.
 - Do not report a row as matching from a screenshot.
 - Do not push or merge.

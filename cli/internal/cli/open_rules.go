@@ -22,15 +22,19 @@ type openTarget struct {
 	frame      *string
 }
 
-// openInput takes the positional arguments and every --frame given; --frame may appear once.
-func openInput(args, frames []string) (string, *string, *Error) {
+// openInput takes the positional arguments and every --frame given; --frame may appear once, and --prototype
+// needs it.
+func openInput(args, frames []string, prototype bool) (string, *string, *Error) {
 	if len(args) != 1 {
-		return "", nil, usageError("Expected open <canvas path> [--frame <id>]")
+		return "", nil, usageError("Expected open <canvas path> [--frame <id> [--prototype]]")
 	}
 	if len(frames) > 1 {
 		return "", nil, usageError("open takes one --frame")
 	}
 	if len(frames) == 0 {
+		if prototype {
+			return "", nil, usageError("--prototype needs --frame <id>")
+		}
 		return args[0], nil, nil
 	}
 	if failure := checkFrame(frames[0]); failure != nil {

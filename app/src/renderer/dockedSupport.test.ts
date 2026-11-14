@@ -9,7 +9,7 @@ const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 test("an existing conversation's mode pick is stored at once and shows until the summary reports it", async () => {
   const set = vi.fn(async () => undefined);
   vi.stubGlobal("window", { doan: { setConversationPermissionMode: set } });
-  const support = new DockedSupport(() => {});
+  const support = new DockedSupport(() => {}, window.doan);
   support.pickPermission("conversation:c1", "c1", "bypass");
   expect(set).toHaveBeenCalledWith({ conversationId: "c1", permissionMode: "bypass" });
   await flush();
@@ -23,7 +23,7 @@ test("an existing conversation's mode pick is stored at once and shows until the
 test("a refused pick goes back to the stored mode; a new conversation's pick calls nothing", async () => {
   const set = vi.fn(async () => ({ error: "bad_request" }));
   vi.stubGlobal("window", { doan: { setConversationPermissionMode: set } });
-  const support = new DockedSupport(() => {});
+  const support = new DockedSupport(() => {}, window.doan);
   support.pickPermission("conversation:c1", "c1", "plan");
   await flush();
   expect(support.picks["conversation:c1"]).toEqual({});
@@ -36,7 +36,7 @@ test("a refused pick goes back to the stored mode; a new conversation's pick cal
 // (a plan approval the list read caught only at its end), the pick is dropped and the stored mode shows.
 test("a pending pick is dropped when the stored mode changes from the one it was made from", async () => {
   vi.stubGlobal("window", { doan: { setConversationPermissionMode: vi.fn(async () => undefined) } });
-  const support = new DockedSupport(() => {});
+  const support = new DockedSupport(() => {}, window.doan);
   support.pickPermission("conversation:c1", "c1", "acceptEdits", "plan");
   await flush();
   support.settlePermission("conversation:c1", "plan");
@@ -48,7 +48,7 @@ test("a pending pick is dropped when the stored mode changes from the one it was
 // a conversation started here shows the mode it was started in until its summary arrives; the summary then
 // speaks, whatever it says. It is no pick of the person's: it is not sent or remembered.
 test("a just-started conversation's mode shows until its summary arrives", () => {
-  const support = new DockedSupport(() => {});
+  const support = new DockedSupport(() => {}, { designSkills: { list: vi.fn(), get: vi.fn() }, listConversationModels: vi.fn(), setConversationPermissionMode: vi.fn() });
   support.startedIn("conversation:c1", "bypass");
   expect(support.started["conversation:c1"]).toBe("bypass");
   expect(support.picks["conversation:c1"]).toBeUndefined();
@@ -65,7 +65,7 @@ test("a provider's list is read again for its new connection, and the previous c
   const snapshot = (generation: number) => ({ revision: generation, providers: [authStatus({ provider: "codex", generation, verified: true, expired: false, connection: { provider: "codex", connectionId: `c${generation}`, profile: "codex", account: { id: null, workspace: null, email: "ada@example.com" } }, attempt: null, error: null, phase: "connected" }, { cli: "found", version: "supported", tools: "ready" }, generation)] });
   const list = vi.fn().mockResolvedValueOnce({ models: [{ id: "gpt-old", label: "GPT Old", default: true }] }).mockResolvedValueOnce({ models: [{ id: "gpt-new", label: "GPT New", default: true }] });
   vi.stubGlobal("window", { doan: { listConversationModels: list } });
-  const support = new DockedSupport(() => {});
+  const support = new DockedSupport(() => {}, window.doan);
   support.setAuth(snapshot(1));
   support.readModels("/r", "codex");
   await flush();

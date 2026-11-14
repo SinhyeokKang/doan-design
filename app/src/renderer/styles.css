@@ -1836,24 +1836,78 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .problem-detail { width: 100%; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; text-align: start; }
 .problem-reading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 
-/* The prototype window (.doan/canvases/frame-prototype.html prototype-window, prototype-states): the main window's
-   shell without a sidebar. The header reuses .top.shell-top, .traffic-space and .shell-history, so Back sits at x88
-   as in the main header; the frame name reuses .shell-search. */
+/* The prototype window (.doan/canvases/frame-prototype.html prototype-window, prototype-states; the header and the
+   frame box from prototype-responsive.html): the main window's shell without a sidebar. The header reuses .top.shell-top,
+   .traffic-space and .shell-history, so Back sits at x88 as in the main header; the frame name reuses .shell-search.
+   --pw-right is the header's right group, fit.ts PROTOTYPE_HEADER_RIGHT: main fits and captures the window by it. */
+:root { --pw-right: 140px; }
+/* The open conversation panel's width: the window sets it on .pw from main's panel state; this is the panel minimum. */
+:root { --pw-panel: 280px; }
 .pw { position: absolute; inset: 0; display: grid; grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); }
+/* The name's second row, when the first leaves it less than 80 (the renderer sets it from the window's width, as main
+   does): 36 for the capsule and 8 under it. Both groups stay in the first row. */
+.pw.name-row { grid-template-rows: calc(var(--size-chrome) + 36px + var(--space-2)) minmax(0, 1fr); }
+.pw-top { align-items: flex-start; }
+.pw-top > .shell-history { height: var(--size-chrome); align-items: center; }
 /* Against the header, which starts 8px inside the window: its 8px padding, the traffic lights, three 32px buttons and
-   their gaps, then 8px. The same space stays free on the right so the name is centred in the window. */
-.pw-name { position: absolute; top: calc((var(--size-chrome) - 36px) / 2); left: calc(var(--space-2) + 72px + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-2)); right: calc(var(--space-2) + 72px + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-2)); width: auto; justify-content: center; }
+   their gaps, then 8px; on the right, 8px before the right group, which sits 16px in from the window's edge. The name is
+   centred between the groups. */
+.pw-name { position: absolute; top: calc((var(--size-chrome) - 36px) / 2); left: calc(var(--space-2) + 72px + 3 * var(--size-control-sm) + 2 * var(--space-1) + var(--space-2)); right: calc(2 * var(--space-2) + var(--pw-right)); width: auto; justify-content: center; }
+.pw.name-row .pw-name { top: var(--size-chrome); left: var(--space-2); right: var(--space-2); }
 .pw-name[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
 .pw-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pw-name .chev { flex: none; color: var(--text-metadata); }
-/* Narrower than two reserves and a usable name: the right reserve gives way to the 16px header inset. */
-@media (max-width: 519.98px) { .pw-name { right: var(--space-2); } }
-.pw-panel { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
-.pw-content { position: absolute; inset: 0; }
-.pw-frame, .pw-snapshot { position: absolute; top: 0; left: 0; display: block; width: 100%; height: 100%; border: 0; }
+.pw-right { position: absolute; top: 0; right: var(--space-2); display: flex; align-items: center; gap: var(--space-1); height: var(--size-chrome); }
+/* Export unavailable with a reason is aria-disabled, so it keeps its Tab stop; the :disabled rules of ds/controls.css
+   miss it. It takes their ink and cursor itself, and no chrome fill under the pointer or while pressed. The shared
+   pressed rule weighs (0,5,0), since its :is() counts [aria-haspopup][aria-expanded], so this one is scoped by .pw and
+   .pw-top to (0,6,0) to outweigh it rather than rely on coming later. */
+.pw-right > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: not-allowed; }
+.pw .pw-top > .pw-right > .doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+/* The panel paints its rounded corners without clipping; the content clips its top corners and the stage inside it its
+   bottom ones. No ancestor of the cross-origin run iframe may clip with four equal radii: Chromium then draws it only
+   within 8192 CSS px of its origin at DPR 2 (ARCHITECTURE §3 'Canvas view', POSTMORTEM 2026-11-11), and a Fit frame
+   keeps its marked size, however large. Clips, not hidden overflows: those scroll to show a focused control in a scaled
+   frame and move it off its box. */
+.pw-panel { position: relative; min-width: 0; min-height: 0; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+.pw-content { position: absolute; inset: 0; overflow: clip; border-top-left-radius: inherit; border-top-right-radius: inherit; }
+.pw-stage { position: absolute; inset: 0; overflow: clip; border-bottom-left-radius: var(--radius-container); border-bottom-right-radius: var(--radius-container); }
+/* Fit: around the frame the panel shows the canvas board's ground, and the frame box keeps the panel's fill and edge. */
+.pw-content[data-mode="fit"] > .pw-stage { background: var(--surface-inset); }
+.pw-box { position: absolute; overflow: clip; background: var(--surface-panel); }
+.pw-content[data-mode="fit"] .pw-box { box-shadow: var(--shadow-panel); }
+.pw-frame { position: absolute; top: 0; left: 0; display: block; border: 0; transform-origin: 0 0; }
+.pw-snapshot { display: block; width: 100%; height: 100%; }
 /* The problem overlay over the content panel only, so the header stays usable. */
-.pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+.pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; border-radius: inherit; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
 @media (prefers-reduced-transparency: reduce) { .pw-panel > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 /* Standard ink, so the body holds over a dark frame under the 60% overlay. */
 .pw-panel .problem-heading p { color: var(--text-standard); }
 .pw-drawer-empty { white-space: normal; padding-bottom: var(--space-2); }
+/* The conversation button's working badge (prototype-conversation draft): the sidebar's working mark, a 14 px neutral
+   spinner, on the unread bubble's place and ring, so it adds no accent place. */
+.badge-working { position: absolute; top: var(--space-half); right: var(--space-half); display: grid; place-items: center; width: var(--size-icon-sm); height: var(--size-icon-sm); border-radius: 50%; background: var(--surface-panel); box-shadow: 0 0 0 var(--space-half) var(--surface-panel); pointer-events: none; }
+.badge-working .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* The conversation panel (.doan/canvases/prototype-conversation-panel.html): an independent surface on the window's
+   right, the grid's second column through both rows, 8 below the window's top, 8 from its end and bottom (the .pw
+   padding) and 8 from the content panel. The header and the content panel share the first column, so the header ends 8 before the panel and
+   only it drags the window. While open the header's conversation button leaves the right group: --pw-right is then
+   fit.ts PROTOTYPE_HEADER_RIGHT_OPEN. The content panel keeps its shipped corners and split clip (exportViewer.test.ts).
+   Folded, the column leaves the grid but stays in the DOM for the button's aria-controls. The head keeps the shipped
+   56 of .doan-conv-head, as the canvas page's and the Overview's panels do. */
+.pw[data-panel="open"] { --pw-right: 104px; grid-template-columns: minmax(0, 1fr) var(--pw-panel); column-gap: var(--space-2); }
+.pw[data-panel="open"] > .pw-top { grid-column: 1; }
+.pw[data-panel="open"] > .pw-panel { grid-column: 1; grid-row: 2; }
+.pw > .doan-conv-column { grid-column: 2; grid-row: 1 / -1; margin-top: var(--space-2); position: relative; display: flex; min-width: 0; min-height: 0; }
+.pw:not([data-panel="open"]) > .doan-conv-column { display: none; }
+.pw .right.doan-conv-panel { border-left: 0; border-radius: var(--radius-container); box-shadow: var(--shadow-panel); }
+/* The header's button stays one element while the panel is open, so focus has a place to come back to on close. A
+   deliberate exception to hiding focus targets only visually (POSTMORTEM 2026-11-03): while open it must have no Tab
+   stop and no box, or R is no longer 104, so it cannot be visually hidden. Focus is given back only after `hidden` is
+   gone, in the effect that runs once main's view has closed the panel. */
+.pw-conv[hidden] { display: none; }
+/* The head's title is one line, cut with an ellipsis (.ov-title span's rule): the h2 itself is a flex row. */
+.pw-side-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The playing frame chip: the frame chip's look, first in the card's chip row, as tall as a chip in the field. */
+.composer-chips > .pw-playing { font-size: var(--type-body-sm-size); line-height: var(--type-label-line-height); margin-inline: 0; }
+.cp-scroll > .list-error { margin-bottom: var(--space-2); }

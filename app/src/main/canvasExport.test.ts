@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
-import { createCanvasExport, exportName, interpretExport } from "./canvasExport";
+import { createCanvasExport, createPrototypeExport, exportName, interpretExport, prototypeExportName, type ExportTarget } from "./canvasExport";
 import type { CliRun } from "./folderState";
+import type { WindowKind } from "./senderAllowed";
 import type { CanvasRow, FolderEntry } from "./view";
 
 const ok = (result: unknown): CliRun => ({ exitCode: 0, timedOut: false, stdout: JSON.stringify({ v: 1, ok: true, result }), stderr: "" });
@@ -13,6 +14,21 @@ describe("exportName", () => {
     expect(exportName(".doan/canvases/a.html")).toBe("a.html");
     expect(exportName(".doan/canvases/sub/Pricing Page.HTML")).toBe("Pricing Page.html");
     expect(exportName(".doan/ds/tokens.html")).toBe("tokens.html");
+  });
+});
+
+describe("prototypeExportName", () => {
+  test("suggests the canvas stem and the frame id", () => {
+    expect(prototypeExportName(".doan/canvases/flows.html", "checkout")).toBe("flows-checkout.html");
+    expect(prototypeExportName(".doan/canvases/sub/Pricing Page.HTML", "Hero 1")).toBe("Pricing Page-Hero 1.html");
+  });
+
+  test("a slash, a colon or a control character in the frame id becomes a hyphen", () => {
+    expect(prototypeExportName(".doan/canvases/a.html", "step/1:a\u0000b\u001fc\u007fd")).toBe("a-step-1-a-b-c-d.html");
+  });
+
+  test("a file named only .html gives the frame id alone", () => {
+    expect(prototypeExportName(".doan/canvases/.html", "checkout")).toBe("checkout.html");
   });
 });
 
@@ -49,6 +65,20 @@ describe("interpretExport", () => {
     // Any case, as the CLI compares it: on a case-insensitive disk `.DOAN` is the same directory.
     for (const output of ["/repo/.DOAN/a.html", "/repo/.Doan/out/a.html"]) expect(interpretExport(fail("usage_error", "-o must not be inside .doan"), output)).toEqual({ kind: "failed", reason: "insideDoan" });
     expect(interpretExport(fail("usage_error", "no such directory"), "/repo/.DOAN.d/a.html")).toEqual({ kind: "failed", reason: "failed" });
+  });
+
+  // `doan export --frame <id> --prototype`'s static frame judgement.
+  test("a frame the file does not hold, or holds unmarked, has its own reason", () => {
+    expect(interpretExport(fail("frame_not_found", "No frame checkout"), OUT, true)).toEqual({ kind: "failed", reason: "notFound" });
+    expect(interpretExport(fail("not_prototype", "Not marked"), OUT, true)).toEqual({ kind: "failed", reason: "notMarked" });
+  });
+
+  test("a prototype export counts only with the CLI's prototype result", () => {
+    expect(interpretExport(ok(result({ prototype: true, external: ["https://cdn.example/x.css"] })), OUT, true)).toEqual({ kind: "exported", external: 1 });
+    expect(interpretExport(ok(result()), OUT, true)).toEqual({ kind: "failed", reason: "failed" });
+    expect(interpretExport(ok(result({ prototype: "yes" })), OUT, true)).toEqual({ kind: "failed", reason: "failed" });
+    // The canvas export does not look at it.
+    expect(interpretExport(ok(result({ prototype: true })), OUT)).toEqual({ kind: "exported", external: 0 });
   });
 
   test("anything else is a plain failure: other codes, no CLI, a crash, a timeout, output that is not an envelope", () => {
@@ -189,5 +219,91 @@ describe("createCanvasExport", () => {
     expect(h.reveal).not.toHaveBeenCalled();
     h.exporter.reveal(ids[16]);
     expect(h.reveal).toHaveBeenCalledExactlyOnceWith("/Users/me/Desktop/a16.html");
+  });
+});
+
+// The prototype window's Export: a second instance with its own lock and Show in Finder ids, one export per window.
+describe("createPrototypeExport", () => {
+  const target: ExportTarget = { root: "/repo", path: ".doan/canvases/flows.html", frame: "checkout" };
+  const done = (patch: object = {}) => ok(result({ prototype: true, ...patch }));
+  function harness() {
+    const choose = vi.fn(async (_name: string): Promise<string | null> => OUT);
+    const run = vi.fn(async (_target: ExportTarget, _output: string): Promise<CliRun> => done());
+    const reveal = vi.fn();
+    const running = vi.fn();
+    const targetOf = vi.fn((_kind: WindowKind, value: unknown): ExportTarget | { kind: "refused"; reason: "notListed" | "changed" } => value as ExportTarget);
+    return { choose, run, reveal, running, targetOf, exporter: createPrototypeExport({ target: targetOf, choose, running, run, reveal }) };
+  }
+
+  test("asks for <stem>-<frame>.html and runs the CLI on the clicked frame, telling the window it runs in between", async () => {
+    const h = harness();
+    expect(await h.exporter.export("prototype", target)).toEqual({ kind: "exported", external: 0, reveal: expect.any(String) });
+    expect(h.targetOf).toHaveBeenCalledExactlyOnceWith("prototype", target);
+    expect(h.choose).toHaveBeenCalledExactlyOnceWith("flows-checkout.html");
+    expect(h.running).toHaveBeenCalledExactlyOnceWith(target);
+    expect(h.run).toHaveBeenCalledExactlyOnceWith(target, OUT);
+    expect(h.running.mock.invocationCallOrder[0]!).toBeGreaterThan(h.choose.mock.invocationCallOrder[0]!);
+    expect(h.running.mock.invocationCallOrder[0]!).toBeLessThan(h.run.mock.invocationCallOrder[0]!);
+  });
+
+  test("a stale or unlisted target is refused before any panel", async () => {
+    const h = harness();
+    h.targetOf.mockReturnValueOnce({ kind: "refused", reason: "changed" }).mockReturnValueOnce({ kind: "refused", reason: "notListed" });
+    expect(await h.exporter.export("prototype", target)).toEqual({ kind: "refused", reason: "changed" });
+    expect(await h.exporter.export("prototype", target)).toEqual({ kind: "refused", reason: "notListed" });
+    expect(h.choose).not.toHaveBeenCalled();
+    expect(h.running).not.toHaveBeenCalled();
+  });
+
+  test("one export at a time: another frame is refused while the first runs, then exports", async () => {
+    const h = harness();
+    let finish!: (run: CliRun) => void;
+    h.run.mockImplementationOnce(() => new Promise<CliRun>(resolve => { finish = resolve; }));
+    const first = h.exporter.export("prototype", target);
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    expect(await h.exporter.export("prototype", { ...target, frame: "tablet" })).toEqual({ kind: "refused", reason: "exporting" });
+    finish(done());
+    expect(await first).toMatchObject({ kind: "exported" });
+    expect(await h.exporter.export("prototype", { ...target, frame: "tablet" })).toMatchObject({ kind: "exported" });
+  });
+
+  // The window may close while the CLI runs: nothing here waits on it, so the file is still written and the lock freed.
+  test("the CLI runs to its end whatever the window does, and the lock is freed after", async () => {
+    const h = harness();
+    let finish!: (run: CliRun) => void;
+    h.run.mockImplementationOnce(() => new Promise<CliRun>(resolve => { finish = resolve; }));
+    const first = h.exporter.export("prototype", target);
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    finish(done({ external: ["https://cdn.example/a.css"] }));
+    expect(await first).toEqual({ kind: "exported", external: 1, reveal: expect.any(String) });
+    expect(await h.exporter.export("prototype", target)).toMatchObject({ kind: "exported" });
+  });
+
+  test("reads the frame refusals, and a result without prototype: true is no prototype file", async () => {
+    const h = harness();
+    h.run.mockResolvedValueOnce(fail("frame_not_found", "x")).mockResolvedValueOnce(fail("not_prototype", "x")).mockResolvedValueOnce(ok(result()));
+    expect(await h.exporter.export("prototype", target)).toEqual({ kind: "failed", reason: "notFound" });
+    expect(await h.exporter.export("prototype", target)).toEqual({ kind: "failed", reason: "notMarked" });
+    expect(await h.exporter.export("prototype", target)).toEqual({ kind: "failed", reason: "failed" });
+  });
+
+  test("a cancelled panel runs nothing", async () => {
+    const h = harness();
+    h.choose.mockResolvedValueOnce(null);
+    expect(await h.exporter.export("prototype", target)).toEqual({ kind: "cancelled" });
+    expect(h.running).not.toHaveBeenCalled();
+    expect(h.run).not.toHaveBeenCalled();
+  });
+
+  test("Show in Finder reveals only a file this instance wrote", async () => {
+    const h = harness();
+    const canvas = createCanvasExport({ entries: () => [], choose: async () => null, running: vi.fn(), run: async () => ok(result()), reveal: h.reveal });
+    const reply = await h.exporter.export("prototype", target);
+    if (reply.kind !== "exported") throw new Error("not exported");
+    canvas.reveal(reply.reveal);
+    for (const forged of [OUT, null, "x"]) h.exporter.reveal(forged);
+    expect(h.reveal).not.toHaveBeenCalled();
+    h.exporter.reveal(reply.reveal);
+    expect(h.reveal).toHaveBeenCalledExactlyOnceWith(OUT);
   });
 });

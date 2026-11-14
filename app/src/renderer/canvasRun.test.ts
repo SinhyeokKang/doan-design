@@ -55,8 +55,8 @@ function harness() {
     drawing: () => state.drawing,
     changed: vi.fn(),
   };
-  const store = new ConversationStore({ list: host.list, readsStarted: host.readsStarted, readsApplied: host.readsApplied, notice: vi.fn(), changed: vi.fn() });
-  const run = new CanvasRun(host, store);
+  const store = new ConversationStore({ list: host.list, readsStarted: host.readsStarted, readsApplied: host.readsApplied, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun(host, store, window.doan);
   const answer = (list: ListView) => {
     const n = (started.get(ROOT) ?? 0) + 1;
     started.set(ROOT, n);
@@ -596,4 +596,84 @@ test("a canvas that opens before the next list read does not pick the deleted co
   expect(h.run.view()).toMatchObject({ kind: "new" });
   await flush();
   expect(doan.readConversation).not.toHaveBeenCalledWith({ conversationId: B });
+});
+
+// A conversation the canvas gets from elsewhere (the prototype window's first send, which makes it the canvas's
+// current one) shows in the panel when its new conversation state was only the default: nothing was there.
+test("the default new conversation state moves to a current conversation started elsewhere, with its draft", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([]);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  const writing = { segments: [{ kind: "text" as const, text: "the total" }], preset: null, attachments: [], shape: "capsule" as const };
+  h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), writing));
+  h.answer([summary(A)]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice: null });
+  expect(h.store.drafts.get(`conversation:${A}`)).toBe(writing);
+});
+
+test("its draft stays while this panel's own start is in flight", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([]);
+  const sending = { segments: [{ kind: "text" as const, text: "make it blue" }], preset: null, attachments: [], shape: "capsule" as const };
+  h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), sending));
+  const done = h.run.startSending(checkout);
+  h.answer([summary(A)]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+  expect(h.store.drafts.get(canvasKey(checkout))).toBe(sending);
+  expect(h.store.drafts.get(`conversation:${A}`)).toBeUndefined();
+  done();
+});
+
+test("New chosen over an existing conversation stays the new conversation state when another becomes current", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A)]);
+  h.run.select(null);
+  h.answer([summary(A, { state: "archived" }), summary(B)]);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+});
+
+// A list read that changes nothing must not turn the person's New into the default new state.
+test("New chosen over an existing conversation keeps its draft and stays after an unchanged read", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A)]);
+  h.run.select(null);
+  const writing = { segments: [{ kind: "text" as const, text: "a new idea" }], preset: null, attachments: [], shape: "capsule" as const };
+  h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), writing));
+  h.answer([summary(A)]);
+  h.answer([summary(A, { state: "archived" }), summary(B)]);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  expect(h.store.drafts.get(canvasKey(checkout))).toBe(writing);
+  expect(h.store.drafts.get(`conversation:${B}`)).toBeUndefined();
+});
+
+test("an empty new state draft is not carried to a current conversation started elsewhere", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([]);
+  h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), { segments: [], preset: null, attachments: [], shape: "box" }));
+  h.answer([summary(A)]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+  expect(h.store.drafts.has(`conversation:${A}`)).toBe(false);
+});
+
+test("a promotion while the panel shows the default new state is still announced, not shown", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(P, { canvas: null })]);
+  h.answer([summary(P)]);
+  expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", open: P } });
+});
+
+// In the app the root's list is read before the canvas opens: the canvas's state has no list of its own yet.
+test("a canvas opened after its list was read still moves to a conversation started elsewhere", () => {
+  const h = harness();
+  h.answer([]);
+  h.run.show(checkout);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  h.answer([summary(A)]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
 });

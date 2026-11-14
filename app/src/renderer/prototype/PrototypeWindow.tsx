@@ -1,35 +1,105 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { Popover } from "radix-ui";
-import { ArrowLeft, ArrowRight, ChevronDown, CircleSlash, FileWarning, RotateCw, SquareDashed, TriangleAlert, type LucideIcon } from "lucide-react";
-import { PROTOTYPE_LOAD_TIMEOUT_MS, type FramesMessage, type PrototypeSnapshot, type PrototypeView, type PrototypeWindowApi, type RunMessage } from "../../main/prototype/ipc";
-import { prototypeIframeBox } from "../../main/prototype/fit";
+import { ArrowLeft, ArrowRight, ChevronDown, CircleSlash, Download, Expand, FileWarning, MessageCircle, PanelRightOpen, Proportions, RotateCw, SquareDashed, TriangleAlert, type LucideIcon } from "lucide-react";
+import type { ExportReply } from "../../main/canvasExport";
+import { PROTOTYPE_LOAD_TIMEOUT_MS, type ExportTarget, type FramesMessage, type PrototypeMode, type PrototypeSnapshot, type PrototypeView, type PrototypeWindowApi, type RunMessage } from "../../main/prototype/ipc";
+import { prototypePanelBounds, prototypeSideLayout, prototypeViewportBox, type Rect, type ViewportBox } from "../../main/prototype/fit";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "../frameDrawerList";
+import { moveBetweenTools } from "../toolbarKeys";
 import { currentRun, forwardedMessage, layersForSnapshot, layersForView, NO_LAYERS, type HostLayers } from "./host";
-import { CLOSE, covered, DETAILS, drawerLabel, drawerRows, EMPTY_DRAWER, liveText, LOADING_LABEL, RETRY, stateScene, windowTitle, type DrawerRow, type SceneIcon } from "./view";
+import { exportProgress, exportToast } from "../canvasRowMessages";
+import { CONVERSATION_PANEL_ID, ConversationPanel } from "../ConversationPanel";
+import type { PanelBounds } from "../rightPanelSize";
+import type { ConversationButton } from "./conversation";
+import { PrototypeConversationRun, type PrototypeConversationCalls } from "./conversationRun";
+import { ColumnFocusGuard } from "./focusGuard";
+import { PrototypeConversationPanel, PrototypeHeadTitle } from "./PrototypeConversation";
+import { applyBuddy } from "../buddyPaint";
+import { dockedBuddy } from "../dockedBuddyShell";
+import { useVisibleClock } from "../visibleClock";
+import { useToast } from "../Toast";
+import { CLOSE, covered, DETAILS, drawerLabel, drawerRows, EMPTY_DRAWER, exportAvailability, liveText, LOADING_LABEL, modeTooltip, RETRY, stateScene, windowTitle, type DrawerRow, type SceneIcon } from "./view";
 
 // The prototype window (PRODUCT §3 Show, one frame): the main window's shell without a sidebar, a header of Back,
-// Forward, Reload and the playing frame's name, and the frame's own document in a sandboxed iframe in the content
-// panel. Every decision is main's; this window draws its view, hosts the run's iframe and forwards the run's reports.
+// Forward and Reload, the playing frame's name, the Fit/Responsive toggle and Export, and the frame's own document in a
+// sandboxed iframe in the content panel. Every decision is main's; this window draws its view, hosts the run's iframe,
+// forwards the run's reports and shows its export's toasts.
 
-export type PrototypeApi = PrototypeWindowApi & { onSnapshot(listener: (snapshot: PrototypeSnapshot) => void): () => void };
+export type PrototypeApi = PrototypeWindowApi & { onSnapshot(listener: (snapshot: PrototypeSnapshot) => void): () => void } & PrototypeConversationCalls;
 
 // The reading line waits so a quick load does not flash it in, as the shipped problem overlay's does.
 const READING_DELAY_MS = 300;
 const SCENE_HEADING_ID = "prototype-state-heading", SCENE_LINE_ID = "prototype-state-line";
+// Export's sr-only reason while it is unavailable: Radix links the tooltip only while it is open.
+const EXPORT_REASON_ID = "prototype-export-reason";
+// As the canvas row's Export: a quick export shows only its result.
+const EXPORT_PROGRESS_DELAY_MS = 1000;
 // The empty drawer's sentence as the name button's description: focus stays on the button when that drawer opens.
 const EMPTY_DRAWER_ID = "prototype-drawer-empty";
 const ICONS: Record<SceneIcon, LucideIcon> = { read: FileWarning, init: TriangleAlert, frame: SquareDashed, support: CircleSlash };
+const MODES: { mode: PrototypeMode; label: string; icon: LucideIcon }[] = [{ mode: "fit", label: "Fit", icon: Proportions }, { mode: "responsive", label: "Responsive", icon: Expand }];
+// A pointer press on a header control keeps focus where it was (usually in the frame), so keys keep reaching the frame.
+const keepFocus = (event: { preventDefault(): void }) => event.preventDefault();
+const sameTarget = (a: ExportTarget, b: ExportTarget) => a.root === b.root && a.path === b.path && a.frame === b.frame;
+
+// An export from the click to main's reply. `before`: where focus was at the click (Export after a key press; the frame
+// or wherever it was after a pointer press, which never moves it), given back once if the save panel left it on the page.
+interface ExportRun {
+  target: ExportTarget;
+  title: string;
+  before: HTMLElement | null;
+  timer?: ReturnType<typeof setTimeout>;
+}
 
 export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const [view, setView] = useState<PrototypeView | null>(null);
   const [layers, setLayers] = useState<HostLayers>(NO_LAYERS);
   const [readingGen, setReadingGen] = useState<number | null>(null);
   const [details, setDetails] = useState(false);
+  const [width, setWidth] = useState(() => window.innerWidth);
+  const [menuOpen, setMenuOpen] = useState(false);
   const viewRef = useRef(view); viewRef.current = view;
   const frames = useRef(new Map<number, HTMLIFrameElement>());
   const content = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const name = useRef<HTMLButtonElement>(null);
+  // Whether focus was in the frame or on the page at the last primary press on Reload (null: no press since the last
+  // click), and the gen a pointer Reload then left (null otherwise).
+  const pressedInFrame = useRef<boolean | null>(null);
+  const reloadFocus = useRef<number | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const exportRun = useRef<ExportRun | null>(null);
+  const toast = useToast(previous => {
+    const active = document.activeElement;
+    if (active === null || active === document.body || !active.isConnected) previous?.focus();
+  }, api.onWindowVisible);
+  const toastRef = useRef(toast); toastRef.current = toast;
+  // The conversation panel's host, connected before the view effect below reads anything (subscribe, then read).
+  const [, setConversationTick] = useState(0);
+  const conversation = useRef<PrototypeConversationRun | null>(null);
+  if (conversation.current === null) conversation.current = new PrototypeConversationRun(api, {
+    changed: () => setConversationTick(tick => tick + 1), notice: text => toastRef.current.show(text), focused: () => document.hasFocus(),
+  });
+  const run = conversation.current;
+  useEffect(() => run.connect(), [run]);
+  const clock = useVisibleClock(1000, api);
+  const column = useRef<HTMLDivElement>(null);
+  const convButton = useRef<HTMLButtonElement>(null);
+  // The open state this window last asked main for, until main's view shows it: focus then goes to the composer or
+  // the button. A view that arrives open by itself moves nothing. Each press decides from the view, not from this, so
+  // a request main never answered cannot turn the next press into the opposite one.
+  const panelAsked = useRef<boolean | null>(null);
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const focusGuard = useRef<ColumnFocusGuard | null>(null);
+  focusGuard.current ??= new ColumnFocusGuard(() => performance.now());
+
+  // The header's rows follow the window's content width, which main's fit and capture use too.
+  useEffect(() => {
+    const resize = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
 
   useEffect(() => {
     let changed = false;
@@ -38,10 +108,10 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     return stop;
   }, [api]);
 
-  useEffect(() => api.onSnapshot(({ gen, png }) => {
+  useEffect(() => api.onSnapshot(({ gen, png, box }) => {
     const url = URL.createObjectURL(new Blob([png as Uint8Array<ArrayBuffer>], { type: "image/png" }));
     setLayers(previous => {
-      const next = layersForSnapshot(previous, { gen, url }, viewRef.current?.gen ?? null);
+      const next = layersForSnapshot(previous, { gen, url, box }, viewRef.current?.gen ?? null);
       if (next === previous) URL.revokeObjectURL(url);
       return next;
     });
@@ -53,6 +123,64 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   useEffect(() => () => { if (snapshotUrl !== undefined) URL.revokeObjectURL(snapshotUrl); }, [snapshotUrl]);
 
   useEffect(() => { document.title = windowTitle(view); }, [view]);
+  useEffect(() => { run.setView(view); }, [run, view]);
+  useEffect(() => {
+    const focusChanged = () => run.focusChanged();
+    window.addEventListener("focus", focusChanged);
+    window.addEventListener("blur", focusChanged);
+    return () => { window.removeEventListener("focus", focusChanged); window.removeEventListener("blur", focusChanged); };
+  }, [run]);
+
+  // The panel: main's state, shown at the width main answered, cut to the handle's range for the window as it is now.
+  const panelOpen = view?.panel.open ?? false;
+  const panelBounds = prototypePanelBounds(width);
+  const clampPanel = (value: number) => Math.min(panelBounds.max, Math.max(panelBounds.min, value));
+  const panelWidth = clampPanel(dragWidth ?? view?.panel.width ?? panelBounds.default);
+  const togglePanel = () => {
+    const open = !panelOpen;
+    panelAsked.current = open;
+    void api.setPanel({ open });
+  };
+  // Opening puts focus in the composer, or on the head's title before the first view, when there is no composer yet: the
+  // header's button it was on is hidden now. Closing puts it on that button, which has its box again by this effect.
+  // A composer blocked while open keeps focus itself (readOnly), so nothing moves then.
+  const headFallback = useRef(false);
+  const composer = () => column.current?.querySelector<HTMLElement>(".composer-input") ?? null;
+  const headTitle = () => column.current?.querySelector<HTMLElement>(".rp-head") ?? null;
+  useEffect(() => {
+    if (!panelOpen) headFallback.current = false;
+    if (panelAsked.current !== panelOpen) return;
+    panelAsked.current = null;
+    if (!panelOpen) { convButton.current?.focus(); return; }
+    const field = composer();
+    if (field) { field.focus(); return; }
+    headFallback.current = true;
+    headTitle()?.focus();
+  }, [panelOpen]);
+  // Once the first view brings the composer, focus left on the head's title moves to it, once; focus the person put
+  // elsewhere meanwhile stays.
+  useEffect(() => {
+    if (!headFallback.current) return;
+    const field = composer();
+    if (!field) return;
+    headFallback.current = false;
+    const head = headTitle();
+    if (head !== null && document.activeElement === head) field.focus();
+  });
+  // The column's docked buddy, its accent and the reasons it reads (DESIGN.md 'Docked buddy').
+  const buddy = run.settings()?.buddy;
+  useEffect(() => {
+    const node = column.current;
+    if (!node || typeof matchMedia !== "function") return;
+    dockedBuddy.start(node, () => 0, api);
+    return () => dockedBuddy.stop();
+  }, [api]);
+  useLayoutEffect(() => {
+    if (buddy === undefined) return;
+    dockedBuddy.setBuddy(buddy);
+    if (document.documentElement) applyBuddy(document.documentElement, buddy);
+  }, [buddy]);
+  useLayoutEffect(() => { dockedBuddy.update({ overview: false, folded: !panelOpen, folding: false, covered: false, hint: false }); }, [panelOpen]);
 
   const gen = view?.gen ?? null;
   const phase = view?.phase ?? null;
@@ -101,12 +229,120 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     if (sceneKey !== null && focusWasInside.current) heading.current?.focus({ preventScroll: true });
   }, [sceneKey]);
 
+  // A pointer Reload replaces the iframe; the old one goes inert while the new one loads, so focus that was in the frame
+  // falls to the page. The new run takes it back once ready, unless the person put focus elsewhere meanwhile. A failure
+  // or lost state forgets the press: its scene takes focus by the rule above.
+  const visibleGen = layers.visible;
+  useEffect(() => {
+    const pressed = reloadFocus.current;
+    if (pressed === null || phase === null || phase === "loading") return;
+    if (phase !== "ready") { reloadFocus.current = null; return; }
+    if (visibleGen === null || visibleGen <= pressed) return;
+    reloadFocus.current = null;
+    if (document.activeElement === document.body) frames.current.get(visibleGen)?.focus();
+  }, [phase, visibleGen]);
+  // A run reloaded while focus is in the conversation column gives focus back to it (focusGuard.ts): each new run's
+  // iframe is armed by where focus is as it is created, until a second after that run is ready and shown.
+  const knownFrames = useRef(new Set<number>());
+  useLayoutEffect(() => {
+    for (const frame of layers.frames) {
+      if (knownFrames.current.has(frame.gen)) continue;
+      knownFrames.current.add(frame.gen);
+      const active = document.activeElement;
+      focusGuard.current!.created(frame.gen, !!active && !!column.current?.contains(active));
+    }
+  }, [layers.frames]);
+  useEffect(() => { if (phase === "ready" && visibleGen !== null) focusGuard.current!.shown(visibleGen); }, [phase, visibleGen]);
+  // A focus that went into a cross-origin iframe shows only as a focusout with no relatedTarget; the iframe holds focus
+  // one task later.
+  const onColumnFocusOut = (event: { target: EventTarget | null; relatedTarget: EventTarget | null }) => {
+    if (!(event.target instanceof HTMLElement) || !focusGuard.current!.left(event.target, event.relatedTarget)) return;
+    setTimeout(() => focusGuard.current!.returnTo(document.activeElement, gen => frames.current.get(gen) ?? null)?.focus({ preventScroll: true }), 0);
+  };
+  const onReloadPress = () => {
+    const active = document.activeElement;
+    pressedInFrame.current = active === null || active === document.body || [...frames.current.values()].some(frame => frame === active);
+  };
+  // Only a pointer click arms the return: a press released off the button sends no click, and a key's click (detail 0)
+  // after such a press must not inherit it.
+  const onReloadClick = (pointer: boolean) => {
+    if (gen === null) return;
+    reloadFocus.current = pointer && pressedInFrame.current === true ? gen : null;
+    pressedInFrame.current = null;
+    void api.reload(gen);
+  };
+
+  // The save panel is a sheet of this window: focus that fell to the page while it was open goes back once, when main
+  // reports the run or answers (POSTMORTEM 2026-11-03: never leave focus on the page body).
+  const returnExportFocus = (run: ExportRun) => {
+    const before = run.before;
+    run.before = null;
+    const active = document.activeElement;
+    if (before !== null && (active === null || active === document.body) && before.isConnected) before.focus({ preventScroll: true });
+  };
+  useEffect(() => api.onExportRunning(target => {
+    const run = exportRun.current;
+    if (run === null || !sameTarget(run.target, target)) return;
+    setExporting(true);
+    returnExportFocus(run);
+    clearTimeout(run.timer);
+    run.timer = setTimeout(() => toastRef.current.show(exportProgress(run.title)), EXPORT_PROGRESS_DELAY_MS);
+  }), [api]);
+  useEffect(() => () => clearTimeout(exportRun.current?.timer), []);
+  // The frame and title at the click: main exports it only if it still plays, and the result names it even if another
+  // frame plays by then.
+  const onExport = () => {
+    if (view === null || exportRun.current !== null) return;
+    const active = document.activeElement;
+    const run: ExportRun = { target: { root: view.root, path: view.path, frame: view.frame }, title: view.title, before: active instanceof HTMLElement ? active : null };
+    exportRun.current = run;
+    const done = (reply: ExportReply) => {
+      clearTimeout(run.timer);
+      if (exportRun.current === run) exportRun.current = null;
+      setExporting(false);
+      returnExportFocus(run);
+      const result = exportToast(run.title, reply, true);
+      if (result === null) return;
+      const reveal = result.reveal;
+      if (reveal !== undefined) toastRef.current.show(result.text, "Show in Finder", () => { void api.revealExport(reveal).catch(console.error); });
+      else toastRef.current.show(result.text);
+    };
+    api.export(run.target).then(done, () => done({ kind: "failed", reason: "failed" }));
+  };
+
   const readingShown = phase === "loading" && readingGen === gen;
   return <WindowShell view={view} layers={layers} readingShown={readingShown} details={details} live={liveText(view, readingShown)}
-    content={content} heading={heading} frames={frames.current}
-    onBack={() => void api.back()} onForward={() => void api.forward()} onReload={() => { if (gen !== null) void api.reload(gen); }}
-    onChoose={frame => void api.choose(frame)} onClose={() => void api.close()} onDetails={() => setDetails(open => !open)} />;
+    width={width} menuOpen={menuOpen} content={content} heading={heading} name={name} frames={frames.current}
+    onBack={() => void api.back()} onForward={() => void api.forward()} onReload={() => { if (gen !== null) void api.reload(gen); }} onReloadPress={onReloadPress} onReloadClick={onReloadClick}
+    onMode={mode => void api.setMode(mode)} onMenuOpen={setMenuOpen} exporting={exporting} onExport={onExport} toast={toast.element}
+    onChoose={frame => void api.choose(frame)} onClose={() => void api.close()} onDetails={() => setDetails(open => !open)}
+    conversation={{ button: run.button(), open: panelOpen, width: panelWidth, bounds: { min: panelBounds.min, max: panelBounds.max }, buttonRef: convButton, column,
+      title: <PrototypeHeadTitle run={run} />,
+      body: <PrototypeConversationPanel run={run} calls={api} now={clock} onNotice={text => toastRef.current.show(text)} />,
+      onToggle: togglePanel, preview: setDragWidth, onFocusOut: onColumnFocusOut,
+      // The renderer cuts the width to the window's range; main fits the window, not the width.
+      onResize: next => { setDragWidth(null); void api.setPanel({ open: true, width: next === undefined ? panelBounds.default : clampPanel(next) }); } }} />;
 }
+
+// The conversation panel's part of the shell: the header's Show conversation, and the independent panel on the window's
+// right at the width main answered (the drag's preview width while a drag goes on), with its resize handle, its head's
+// title and Hide conversation, and its body.
+export interface ShellConversation {
+  button: ConversationButton;
+  open: boolean;
+  width: number;
+  bounds: PanelBounds;
+  title?: ReactNode;
+  body?: ReactNode;
+  buttonRef?: RefObject<HTMLButtonElement | null>;
+  column?: RefObject<HTMLDivElement | null>;
+  onToggle(): void;
+  onResize(width: number | undefined): void;
+  preview(width: number): void;
+  // A focusout inside the column (React's onBlur bubbles as focusout does), for the focus guard.
+  onFocusOut?(event: { target: EventTarget | null; relatedTarget: EventTarget | null }): void;
+}
+const FOLDED: ShellConversation = { button: { label: "Show conversation", badge: null, name: "Show conversation" }, open: false, width: 0, bounds: { min: 0, max: 0 }, onToggle: () => {}, onResize: () => {}, preview: () => {} };
 
 export interface ShellProps {
   view: PrototypeView | null;
@@ -114,27 +350,89 @@ export interface ShellProps {
   readingShown: boolean;
   details: boolean;
   live: string;
+  // The window's content width; with the panel's width it decides whether the name takes the header's second row.
+  width: number;
+  menuOpen: boolean;
+  // From main's running event to its reply: Export is unavailable as "Exporting".
+  exporting: boolean;
+  // The toast host: one per window, at its bottom right, after everything else in the Tab order.
+  toast?: ReactNode;
   content?: RefObject<HTMLDivElement | null>;
   heading?: RefObject<HTMLHeadingElement | null>;
+  name?: RefObject<HTMLButtonElement | null>;
   frames?: Map<number, HTMLIFrameElement>;
-  onBack(): void; onForward(): void; onReload(): void; onChoose(frame: string): void; onClose(): void; onDetails(): void;
+  conversation?: ShellConversation;
+  // onReload: the failure scene's Retry. The header's Reload reports its primary press and whether a pointer clicked it,
+  // so only a pointer Reload hands focus back to the new run.
+  onBack(): void; onForward(): void; onReload(): void; onReloadPress(): void; onReloadClick(pointer: boolean): void; onMode(mode: PrototypeMode): void; onMenuOpen(open: boolean): void;
+  onChoose(frame: string): void; onClose(): void; onDetails(): void; onExport(): void;
 }
 
-// The window's markup. Header controls come before the content in the Tab order; the state overlay covers the content
-// panel only, so they stay usable over it.
-export function WindowShell({ view, layers, readingShown, details, live, content, heading, frames, onBack, onForward, onReload, onChoose, onClose, onDetails }: ShellProps) {
+// The window's markup. Header controls come before the content in the Tab order, and the open conversation panel between
+// them, so neither the frame's Tab stops nor a focus trap in it keeps the panel out of reach; the state overlay covers
+// the content panel only, so they stay usable over it. Every control keeps one element tree in every state (no view
+// yet, pressed or not, either row) so a focused control or the open frame menu survives the change.
+export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, exporting, toast, content, heading, name, frames, conversation: conv = FOLDED, onBack, onForward, onReload, onReloadPress, onReloadClick, onMode, onMenuOpen, onChoose, onClose, onDetails, onExport }: ShellProps) {
   const scene = view === null ? null : stateScene(view);
+  // Export's rule is the canvas toolbar's: disabled with no reason before the first view, otherwise aria-disabled with
+  // its reason, so it keeps its Tab stop and stays the same element (and focus) through an export.
+  const exportState = exportAvailability(view, exporting);
+  const exportReason = exportState.available ? null : exportState.reason;
   const coveredNow = view !== null && covered(view.phase);
-  return <div className="pw">
+  // Radix gives an Esc to the top layer only, so a header tooltip over the open frame menu would leave the menu open;
+  // the tooltip closes it as that Esc would have, and focus goes back to the name.
+  const tipEscape = () => { if (!menuOpen) return; onMenuOpen(false); name?.current?.focus(); };
+  // The open panel's width as a variable, so the grid and the stylesheet share one value.
+  const columns: CSSProperties & Record<"--pw-panel", string> = { "--pw-panel": `${conv.width}px` };
+  // The name's row from the header's own width, given rather than measured: the window's while the panel is closed, the
+  // area left of it while open (main fits and captures by the same rule).
+  const rows = prototypeSideLayout(width, conv.open ? conv.width : null).rows;
+  return <div className={rows === 2 ? "pw name-row" : "pw"} {...(conv.open ? { "data-panel": "open", style: columns } : {})}>
     <header className="top shell-top pw-top">
       <span className="traffic-space" aria-hidden="true" />
       <div className="shell-history">
         <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!view?.canGoBack} onClick={onBack}><ArrowLeft aria-hidden="true" /></button>
         <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!view?.canGoForward} onClick={onForward}><ArrowRight aria-hidden="true" /></button>
-        <IconTip label="Reload prototype"><button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Reload prototype" disabled={view === null} onClick={onReload}><RotateCw aria-hidden="true" /></button></IconTip>
+        <Tooltip><TooltipTrigger asChild>
+          <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Reload prototype" disabled={view === null} onMouseDown={event => { keepFocus(event); if (event.button === 0) onReloadPress(); }} onClick={event => onReloadClick(event.detail > 0)}><RotateCw aria-hidden="true" /></button>
+        </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>Reload prototype</TooltipContent></Tooltip>
       </div>
-      {view !== null && <FrameMenu view={view} onChoose={onChoose} />}
+      {view !== null && <FrameMenu view={view} open={menuOpen} onOpenChange={onMenuOpen} trigger={name} onTipEscape={tipEscape} onChoose={onChoose} />}
+      <div className="pw-right">
+        <div className="doan-toggle-group" role="group" aria-label="Viewport" onKeyDown={moveBetweenTools}>
+          {MODES.map(({ mode, label, icon: Icon }) => {
+            const pressed = view?.mode === mode;
+            return <Tooltip key={mode}><TooltipTrigger asChild>
+              <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label={label} aria-pressed={pressed} tabIndex={pressed ? 0 : -1} disabled={view === null}
+                onMouseDown={keepFocus} onClick={() => { if (!pressed) onMode(mode); }}><Icon aria-hidden="true" /></button>
+            </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{modeTooltip(mode, view?.run)}</TooltipContent></Tooltip>;
+          })}
+        </div>
+        <Tooltip><TooltipTrigger asChild>
+          <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Export prototype" disabled={view === null}
+            {...(exportReason !== null ? { "aria-disabled": true, "aria-describedby": EXPORT_REASON_ID } : {})}
+            onMouseDown={keepFocus} onClick={() => { if (exportState.available) onExport(); }}><Download aria-hidden="true" /></button>
+        </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{exportReason ?? "Export prototype"}</TooltipContent></Tooltip>
+        {/* One element in every state, before the first view too: only its name and badge change (POSTMORTEM
+            2026-11-13). While the panel is open it is hidden (no box, no Tab stop), since Hide conversation is in the
+            panel's head; closing shows it again and focus comes back to it. The badges are in its name; the tooltip
+            says the label only. */}
+        <Tooltip><TooltipTrigger asChild>
+          <button type="button" className="doan-icon-button pw-conv" data-ui-placement="chrome" aria-label={conv.button.name} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}
+            data-badge={conv.button.badge === null ? undefined : conv.button.badge === "permission" ? "true" : conv.button.badge} ref={conv.buttonRef} hidden={conv.open}
+            onMouseDown={keepFocus} onClick={conv.onToggle}>
+            <PanelRightOpen aria-hidden="true" />
+            {conv.button.badge === "working" && <span className="badge-working" aria-hidden="true"><span className="doan-spinner" /></span>}
+            {conv.button.badge === "unseen" && <span className="badge-bubble" aria-hidden="true"><MessageCircle /></span>}
+          </button>
+        </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>{conv.button.label}</TooltipContent></Tooltip>
+      </div>
     </header>
+    {exportReason !== null && <span className="sr-only" id={EXPORT_REASON_ID}>{exportReason}</span>}
+    {/* Before the content panel in the DOM and the Tab order; the grid places it on the right. Folded, it stays in the
+        DOM out of reach, so the button's aria-controls resolves. Esc does not fold it: only Hide conversation does. */}
+    <ConversationPanel open={conv.open} width={conv.width} bounds={conv.bounds} onHide={conv.onToggle} onResize={conv.onResize} preview={conv.preview}
+      title={conv.title} columnRef={conv.column} onBlur={conv.onFocusOut}>{conv.body}</ConversationPanel>
     <ContentPanel view={view} layers={layers} covered={coveredNow} content={content} frames={frames}>
       {view?.phase === "loading" && readingShown && <div className="problem-overlay reading"><p className="problem-reading"><span className="doan-spinner" aria-hidden="true" />{LOADING_LABEL}</p></div>}
       {scene !== null && <div className="problem-overlay">
@@ -153,6 +451,7 @@ export function WindowShell({ view, layers, readingShown, details, live, content
         </div>
       </div>}
     </ContentPanel>
+    {toast}
     <p className="sr-only" role="status" aria-live="polite">{live}</p>
   </div>;
 }
@@ -162,44 +461,58 @@ function SceneIcon({ icon }: { icon: SceneIcon }) {
   return <Icon className="problem-icon" aria-hidden="true" />;
 }
 
-function IconTip({ label, children }: { label: string; children: ReactElement }) {
-  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
+function clipStyle(rect: Rect) {
+  return { left: rect.x, top: rect.y, width: rect.width, height: rect.height };
+}
+
+// The run iframe at its viewport size, scaled from its top-left, inside a box of the whole-pixel visible size that
+// main's capture takes too. Inline styles: the prototype page's CSP blocks injected style elements.
+export function viewportStyles(box: ViewportBox) {
+  return {
+    clip: clipStyle({ x: box.x, y: box.y, width: box.visibleWidth, height: box.visibleHeight }),
+    frame: { width: box.width, height: box.height, transform: `scale(${box.scale})` },
+  };
 }
 
 // The content panel: the run's iframes (a new element per run; one loading stays hidden under the previous screen
-// until it is ready) or, with no run on screen, main's still image; inert while anything but a ready run shows, then
-// the state overlay.
+// until it is ready) or, with no run on screen, main's still image at the box main took it from; inert while anything
+// but a ready run shows, then the state overlay. A mode change only restyles the same elements, so the run is resized,
+// never loaded again.
 function ContentPanel({ view, layers, covered, content, frames, children }: { view: PrototypeView | null; layers: HostLayers; covered: boolean; content?: RefObject<HTMLDivElement | null> | undefined; frames?: Map<number, HTMLIFrameElement> | undefined; children: ReactNode }) {
   const panel = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
+  const [size, setSize] = useState({ width: 0, height: 0 });
   useLayoutEffect(() => {
     const node = panel.current;
     if (!node) return;
-    setWidth(node.clientWidth);
+    const measure = () => setSize(previous => (previous.width === node.clientWidth && previous.height === node.clientHeight ? previous : { width: node.clientWidth, height: node.clientHeight }));
+    measure();
     if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => setWidth(node.clientWidth));
+    const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  const markWidth = view?.run?.markWidth ?? 0;
-  const box = markWidth > 0 && width > 0 ? prototypeIframeBox(width, markWidth) : { x: 0, width: null };
-  // The still image is the iframe's area, so it takes the iframe's box.
-  const place = { left: box.x, ...(box.width === null ? {} : { width: box.width }) };
+  const mode = view?.mode;
   return <div className="pw-panel" ref={panel}>
-    <div className="pw-content" ref={content} inert={covered}>
-      {layers.snapshot && layers.visible === null && <img className="pw-snapshot" src={layers.snapshot.url} alt="" style={place} />}
-      {layers.frames.map(frame => <iframe key={frame.gen} className="pw-frame" src={frame.url} sandbox="allow-scripts allow-forms" title={view?.title ?? "Prototype"}
-        ref={node => { if (!frames) return; if (node) frames.set(frame.gen, node); else frames.delete(frame.gen); }}
-        style={{ ...place, visibility: layers.visible === frame.gen ? "visible" : "hidden" }} />)}
+    <div className="pw-content" ref={content} inert={covered} data-mode={mode}>
+      <div className="pw-stage">
+        {layers.snapshot && layers.visible === null && <div className="pw-box" style={clipStyle(layers.snapshot.box)}><img className="pw-snapshot" src={layers.snapshot.url} alt="" /></div>}
+        {layers.frames.map(frame => {
+          const styles = viewportStyles(prototypeViewportBox(size, { width: frame.markWidth, height: frame.markHeight }, mode ?? "fit"));
+          return <div key={frame.gen} className="pw-box" style={{ ...styles.clip, visibility: layers.visible === frame.gen ? "visible" : "hidden" }}>
+            <iframe className="pw-frame" src={frame.url} sandbox="allow-scripts allow-forms" title={view?.title ?? "Prototype"}
+              ref={node => { if (!frames) return; if (node) frames.set(frame.gen, node); else frames.delete(frame.gen); }} style={styles.frame} />
+          </div>;
+        })}
+      </div>
     </div>
     {children}
   </div>;
 }
 
-// The frame name, centred in the window, opens this canvas's marked frames. It names the whole title in the shared
-// Tooltip only while the name is cut short.
-function FrameMenu({ view, onChoose }: { view: PrototypeView; onChoose(frame: string): void }) {
-  const [open, setOpen] = useState(false);
+// The frame name, centred between the header's groups, opens this canvas's marked frames. It names the whole title in
+// the shared Tooltip only while the name is cut short. The shell holds the menu's open state, which its other header
+// tooltips close on Esc too.
+function FrameMenu({ view, open, onOpenChange, trigger: triggerRef, onTipEscape, onChoose }: { view: PrototypeView; open: boolean; onOpenChange(open: boolean): void; trigger?: RefObject<HTMLButtonElement | null> | undefined; onTipEscape(): void; onChoose(frame: string): void }) {
   const [focused, setFocused] = useState<string | null>(null);
   const [cut, setCut] = useState(false);
   const [tip, setTip] = useState(false);
@@ -240,7 +553,7 @@ function FrameMenu({ view, onChoose }: { view: PrototypeView; onChoose(frame: st
     if (next !== focused) move(next);
   });
 
-  const pick = (row: DrawerRow) => { setOpen(false); onChoose(row.id); };
+  const pick = (row: DrawerRow) => { onOpenChange(false); onChoose(row.id); };
   const keydown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Tab") { event.preventDefault(); return; }
     if (event.key === "Enter" || event.key === " ") {
@@ -260,10 +573,10 @@ function FrameMenu({ view, onChoose }: { view: PrototypeView; onChoose(frame: st
 
   // With no marked frame the drawer holds a line of text, not a list: it is then a labelled dialog.
   const empty = rows.length === 0;
-  const trigger = <button type="button" className="shell-search pw-name" aria-haspopup={empty ? "dialog" : "listbox"}>
+  const trigger = <button type="button" className="shell-search pw-name" ref={triggerRef} aria-haspopup={empty ? "dialog" : "listbox"}>
     <span className="pw-name-text" ref={text}>{view.title}</span><ChevronDown className="chev" aria-hidden="true" /></button>;
-  return <><Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) setFocused(null); }}>
-    <Tooltip open={cut && tip} onOpenChange={setTip}><TooltipTrigger asChild><Popover.Trigger asChild {...(empty ? { "aria-describedby": EMPTY_DRAWER_ID } : {})}>{trigger}</Popover.Trigger></TooltipTrigger><TooltipContent>{view.title}</TooltipContent></Tooltip>
+  return <><Popover.Root open={open} onOpenChange={next => { onOpenChange(next); if (next) setFocused(null); }}>
+    <Tooltip open={cut && tip} onOpenChange={setTip}><TooltipTrigger asChild><Popover.Trigger asChild {...(empty ? { "aria-describedby": EMPTY_DRAWER_ID } : {})}>{trigger}</Popover.Trigger></TooltipTrigger><TooltipContent onEscapeKeyDown={onTipEscape}>{view.title}</TooltipContent></Tooltip>
     <Popover.Portal><Popover.Content ref={list} role={empty ? "dialog" : undefined} aria-label={empty ? drawerLabel(view) : undefined} className="doan-floating doan-menu doan-frame-list pw-drawer" align="center" sideOffset={4} collisionPadding={8}
       onOpenAutoFocus={event => {
         event.preventDefault();

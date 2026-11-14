@@ -1,6 +1,7 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
+import type { DoanApi } from "../preload";
 import { draftKey } from "./dockedRules";
 import type { ModelsState, PresetListReply } from "./homeComposer";
 
@@ -21,6 +22,10 @@ export function generationOf(auth: AuthSnapshot | null | undefined, provider: Pr
   return auth?.providers.find(status => status.provider === provider)?.generation ?? 0;
 }
 
+// What it reads from main: `window.doan` in the main window, the same members of `window.doanPrototype` in the prototype
+// window.
+export type DockedSupportCalls = Pick<DoanApi, "designSkills" | "listConversationModels" | "setConversationPermissionMode">;
+
 export class DockedSupport {
   auth: AuthSnapshot | null | undefined = undefined;
   presets: PresetListReply | undefined = undefined;
@@ -32,14 +37,14 @@ export class DockedSupport {
   // Object URLs of image chips by attachment key.
   thumbnails: Record<string, string> = {};
 
-  constructor(private changed: () => void) {}
+  constructor(private changed: () => void, private calls: DockedSupportCalls) {}
 
   setAuth(snapshot: AuthSnapshot): void { this.auth = snapshot; this.changed(); }
   // A failure is read again when the presets popover opens.
   readPresets(): void {
     this.presets = undefined;
     this.changed();
-    void window.doan.designSkills.list().catch(() => undefined).then(reply => {
+    void this.calls.designSkills.list().catch(() => undefined).then(reply => {
       this.presets = reply ?? { v: 1, ok: false, error: { code: "cli_error", reason: "failed", message: "" } } as PresetListReply;
       this.changed();
     });
@@ -49,7 +54,7 @@ export class DockedSupport {
     if (this.models[key] !== undefined) return;
     this.models = { ...this.models, [key]: "loading" };
     this.changed();
-    void window.doan.listConversationModels({ root, runtime: provider }).catch(() => ({ error: "unknown" })).then(reply => {
+    void this.calls.listConversationModels({ root, runtime: provider }).catch(() => ({ error: "unknown" })).then(reply => {
       this.models = { ...this.models, [key]: reply };
       this.changed();
     });
@@ -68,7 +73,7 @@ export class DockedSupport {
   pickPermission(key: string, conversationId: string | null, mode: PermissionModeId, from?: PermissionModeId): void {
     this.pick(key, { permissionMode: mode, permissionFrom: from });
     if (!conversationId) return;
-    void window.doan.setConversationPermissionMode({ conversationId, permissionMode: mode }).catch(() => ({ error: "unknown" })).then(reply => {
+    void this.calls.setConversationPermissionMode({ conversationId, permissionMode: mode }).catch(() => ({ error: "unknown" })).then(reply => {
       if (reply && "error" in reply && this.picks[key]?.permissionMode === mode) this.pick(key, { permissionMode: undefined, permissionFrom: undefined });
     });
   }

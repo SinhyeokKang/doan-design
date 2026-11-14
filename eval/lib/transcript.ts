@@ -9,7 +9,7 @@ export function scriptTokens(source: string): string[] {
 export function doanPositionals(words: string[]): string[] | undefined {
   if (!/^(?:.*\/)?doan$/.test(words[0] ?? "")) return undefined;
   const values = ["repo", "token-css", "add-serve", "remove-serve", "frame", "message", "o"];
-  const booleans = ["json", "clear-token-css", "force"];
+  const booleans = ["json", "clear-token-css", "force", "prototype"];
   const positionals: string[] = [];
   for (let i = 1; i < words.length; i++) {
     const word = words[i];

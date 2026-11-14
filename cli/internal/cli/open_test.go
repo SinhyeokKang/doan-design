@@ -38,7 +38,7 @@ func TestOpenInput(t *testing.T) {
 		{"spaces and slashes", []string{".doan/canvases/a.html"}, []string{"hero section/1"}, true},
 		{"no frame", []string{".doan/canvases/a.html"}, nil, true},
 	} {
-		canvas, frame, failure := openInput(tt.args, tt.frames)
+		canvas, frame, failure := openInput(tt.args, tt.frames, false)
 		if tt.ok {
 			if failure != nil || canvas != tt.args[0] || (len(tt.frames) == 0) != (frame == nil) || (frame != nil && *frame != tt.frames[0]) {
 				t.Errorf("%s: %q %v %v", tt.name, canvas, frame, failure)
@@ -47,6 +47,27 @@ func TestOpenInput(t *testing.T) {
 		}
 		if failure == nil || failure.Code != "usage_error" || ExitCode(failure.Code) != 2 {
 			t.Errorf("%s: accepted: %q %v", tt.name, canvas, failure)
+		}
+	}
+}
+
+func TestOpenInputPrototype(t *testing.T) {
+	canvasPath := []string{".doan/canvases/a.html"}
+	if arg, frame, failure := openInput(canvasPath, []string{"hero"}, true); failure != nil || arg != canvasPath[0] || frame == nil || *frame != "hero" {
+		t.Fatal(arg, frame, failure)
+	}
+	for _, tt := range []struct {
+		name   string
+		frames []string
+		want   string
+	}{
+		{"prototype without a frame", nil, "--prototype needs --frame <id>"},
+		{"prototype with an empty frame", []string{""}, "--frame"},
+		{"prototype with two frames", []string{"a", "b"}, "one --frame"},
+	} {
+		_, _, failure := openInput(canvasPath, tt.frames, true)
+		if failure == nil || failure.Code != "usage_error" || !strings.Contains(failure.Message, tt.want) {
+			t.Errorf("%s: %v", tt.name, failure)
 		}
 	}
 }
@@ -751,7 +772,7 @@ func TestOpenNeverPrintsTheTokenOrRuntimePath(t *testing.T) {
 
 func TestHelpListsOpen(t *testing.T) {
 	var out, errout bytes.Buffer
-	if code := Run([]string{"help"}, strings.NewReader(""), &out, &errout); code != 0 || !strings.Contains(out.String(), "  open <canvas path> [--frame <id>]\n") {
+	if code := Run([]string{"help"}, strings.NewReader(""), &out, &errout); code != 0 || !strings.Contains(out.String(), "  open <canvas path> [--frame <id> [--prototype]]\n") {
 		t.Fatal(code, out.String())
 	}
 }
@@ -818,5 +839,242 @@ func TestBootstrapSlowFirstAnswerIsFinal(t *testing.T) {
 	_, failure := bootstrap(h.ctx, false, openFailure, script.attempt)
 	if failure == nil || failure.Code != "app_not_running" || script.calls != 1 || len(h.launches) != 0 || h.elapsed != 0 {
 		t.Fatal(failure, script.calls, h.launches, h.elapsed)
+	}
+}
+
+const prototypeCanvasHead = `<head><meta name="doan:canvas" content="proto"><meta name="doan:width" content="800"></head><body>`
+
+// prototypeProject holds a canvas with one frame for each static judgment, an unparsable one and an oversized one.
+func prototypeProject(t *testing.T) string {
+	t.Helper()
+	root := realPath(t, initialized(t))
+	putFile(t, root, ".doan/canvases/proto.html", prototypeCanvasHead+
+		`<div data-doan-frame="checkout" data-doan-title="Checkout" data-doan-prototype="390x844"></div>`+
+		`<div data-doan-frame="plain"></div>`+
+		`<div data-doan-frame="padded" data-doan-prototype="390x844 "></div>`+
+		`<div data-doan-frame="twice" data-doan-prototype="390x844"></div><div data-doan-frame="twice"></div>`+
+		`<div data-doan-frame="`+strings.Repeat("\U0001F98A", 200)+`" data-doan-prototype="390x844"></div>`+
+		`<template><div data-doan-frame="kept" data-doan-prototype="390x844"></div></template>`+
+		`</body>`)
+	// Playing needs no board width, so a canvas without doan:width still plays.
+	putFile(t, root, ".doan/ds/nowidth.html", `<head><meta name="doan:canvas" content="nowidth"></head><body><div data-doan-frame="card" data-doan-prototype="320x200"></div></body>`)
+	putFile(t, root, ".doan/canvases/deep.html", validCanvas+strings.Repeat("<div>", 600))
+	sparse(t, root, ".doan/canvases/huge.html", 50<<20+1)
+	return root
+}
+
+// openPrototype runs `doan open --frame <frame> --prototype` against the harness's fake clock and launcher.
+func (h *launchHarness) openPrototype(root string, args []string, frames ...string) (Outcome, *Error) {
+	ctx := h.ctx
+	ctx.Start = root
+	return Open(ctx, Flags{Repo: root, Frames: frames, Prototype: true, Given: map[string]bool{"prototype": true}}, args)
+}
+
+func playedApp(t *testing.T, dir string) *onboardingApp {
+	return startOnboardingApp(t, dir, func(map[string]any) string { return `{"v":6,"ok":true,"played":true}` })
+}
+
+func TestOpenPrototypeSendsTheV6Request(t *testing.T) {
+	root := prototypeProject(t)
+	for _, tt := range []struct {
+		name, arg, frame, path, mark string
+	}{
+		{"marked frame", ".doan/canvases/proto.html", "checkout", ".doan/canvases/proto.html", "390x844"},
+		{"absolute path, ds canvas without a width", filepath.Join(root, ".doan/ds/nowidth.html"), "card", ".doan/ds/nowidth.html", "320x200"},
+	} {
+		h := newLaunchHarness(t)
+		app := playedApp(t, h.dir)
+		o, failure := h.openPrototype(root, []string{tt.arg}, tt.frame)
+		if failure != nil {
+			t.Fatalf("%s: %v", tt.name, failure)
+		}
+		if !reflect.DeepEqual(o.Result, map[string]any{"opened": true, "frame": "found", "prototype": true}) {
+			t.Errorf("%s: %v", tt.name, o.Result)
+		}
+		if want := "Playing " + tt.frame + " from " + tt.path + " in Doan’s prototype window"; o.Text != want {
+			t.Errorf("%s: text %q", tt.name, o.Text)
+		}
+		want := map[string]any{"v": float64(6), "token": testToken, "root": root, "path": tt.path, "frame": tt.frame, "mark": tt.mark}
+		if got := app.received(); len(got) != 1 || !reflect.DeepEqual(got[0], want) {
+			t.Errorf("%s: wire %v", tt.name, got)
+		}
+		if len(h.launches) != 0 || h.elapsed != 0 {
+			t.Errorf("%s: %v %v", tt.name, h.launches, h.elapsed)
+		}
+	}
+}
+
+// The frame is judged from the file before the app is asked, so these never reach the socket or launch the app.
+func TestOpenPrototypeRefusesWithoutAskingTheApp(t *testing.T) {
+	root := prototypeProject(t)
+	for _, tt := range []struct {
+		name, arg string
+		frames    []string
+		code      string
+	}{
+		{"no frame", ".doan/canvases/proto.html", nil, "usage_error"},
+		{"no such canvas", ".doan/canvases/missing.html", []string{"checkout"}, "canvas_not_found"},
+		{"no such frame", ".doan/canvases/proto.html", []string{"nope"}, "frame_not_found"},
+		{"frame only inside a template", ".doan/canvases/proto.html", []string{"kept"}, "frame_not_found"},
+		{"shared frame id", ".doan/canvases/proto.html", []string{"twice"}, "frame_not_found"},
+		{"id over 200 UTF-16 units", ".doan/canvases/proto.html", []string{strings.Repeat("\U0001F98A", 200)}, "frame_not_found"},
+		{"unmarked frame", ".doan/canvases/proto.html", []string{"plain"}, "not_prototype"},
+		{"mark outside the grammar", ".doan/canvases/proto.html", []string{"padded"}, "not_prototype"},
+		{"unparsable canvas", ".doan/canvases/deep.html", []string{"main"}, "canvas_unreadable"},
+		{"canvas over 50 MiB", ".doan/canvases/huge.html", []string{"main"}, "canvas_unreadable"},
+	} {
+		h := newLaunchHarness(t)
+		app := playedApp(t, h.dir)
+		_, failure := h.openPrototype(root, []string{tt.arg}, tt.frames...)
+		if failure == nil || failure.Code != tt.code || ExitCode(failure.Code) != 2 {
+			t.Errorf("%s: %v", tt.name, failure)
+			continue
+		}
+		if len(failure.NextSteps) == 0 {
+			t.Errorf("%s: no nextSteps", tt.name)
+		}
+		if len(app.received()) != 0 || len(h.launches) != 0 {
+			t.Errorf("%s asked the app: %v %v", tt.name, app.received(), h.launches)
+		}
+	}
+	h := newLaunchHarness(t)
+	_, failure := h.openPrototype(root, []string{".doan/canvases/deep.html"}, "main")
+	if !strings.Contains(strings.Join(failure.NextSteps, "\n"), "doan check") {
+		t.Errorf("canvas_unreadable: %v", failure.NextSteps)
+	}
+}
+
+func TestOpenPrototypeAppRefusals(t *testing.T) {
+	root := prototypeProject(t)
+	for _, tt := range []struct {
+		reply, code, in string
+		exit            int
+	}{
+		{`{"v":6,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "project_not_open", `"` + filepath.Base(root) + `"`, 3},
+		{`{"v":6,"ok":false,"error":{"code":"canvas_not_found","message":"m"}}`, "canvas_not_found", ".doan/canvases/proto.html", 2},
+		{`{"v":6,"ok":false,"error":{"code":"busy","message":"Finish Doan’s first run, then try again."}}`, "busy", "Finish Doan’s first run", 5},
+		{`{"v":6,"ok":false,"error":{"code":"bad_request","message":"m"}}`, "internal_error", "malformed", 1},
+		// An app from before v6 answers with its v1 bad_request; that is a version mismatch, never a launch.
+		{`{"v":1,"ok":false,"error":{"code":"bad_request","message":"m"}}`, "app_protocol_mismatch", "another protocol", 3},
+		{`{"v":6,"ok":true,"played":true,"token":"` + testToken + `"}`, "internal_error", "app-socket v6", 1},
+	} {
+		h := newLaunchHarness(t)
+		app := startOnboardingApp(t, h.dir, func(map[string]any) string { return tt.reply })
+		_, failure := h.openPrototype(root, []string{".doan/canvases/proto.html"}, "checkout")
+		if failure == nil || failure.Code != tt.code || ExitCode(failure.Code) != tt.exit || !strings.Contains(failure.Message, tt.in) {
+			t.Errorf("%s: %v", tt.code, failure)
+		}
+		if len(app.received()) != 1 || len(h.launches) != 0 || h.elapsed != 0 {
+			t.Errorf("%s: %d requests, %v, %v", tt.code, len(app.received()), h.launches, h.elapsed)
+		}
+	}
+}
+
+func TestOpenPrototypeBootstrap(t *testing.T) {
+	root := prototypeProject(t)
+	args := []string{".doan/canvases/proto.html"}
+
+	// No runtime: the bundled CLI opens its app in front once and plays when the app answers.
+	h := newLaunchHarness(t)
+	var app *onboardingApp
+	h.onSleep = func(n int) {
+		if n == 3 {
+			app = playedApp(t, h.dir)
+		}
+	}
+	if o, failure := h.openPrototype(root, args, "checkout"); failure != nil || o.Result.(map[string]any)["prototype"] != true {
+		t.Fatal(o, failure)
+	}
+	if len(h.launches) != 1 || len(h.backgrounds) != 1 || h.backgrounds[0] || len(app.received()) != 1 {
+		t.Fatal(h.launches, h.backgrounds, app.received())
+	}
+
+	// A stale token means the runtime outlived its app: with DOAN_RUNTIME set it is app_not_running, never a launch.
+	h = newLaunchHarness(t)
+	h.ctx.RuntimeExplicit = true
+	startOnboardingApp(t, h.dir, func(map[string]any) string { return `{"v":6,"ok":false,"error":{"code":"bad_token","message":"m"}}` })
+	if _, failure := h.openPrototype(root, args, "checkout"); failure == nil || failure.Code != "app_not_running" || len(h.launches) != 0 {
+		t.Fatal(failure, h.launches)
+	}
+
+	// An explicit runtime with no app: app_not_running without a launch.
+	h = newLaunchHarness(t)
+	h.ctx.RuntimeExplicit = true
+	if _, failure := h.openPrototype(root, args, "checkout"); failure == nil || failure.Code != "app_not_running" || len(h.launches) != 0 || h.elapsed != 0 {
+		t.Fatal(failure, h.launches, h.elapsed)
+	}
+
+	// A running app that stays not_ready up to the limit is busy.
+	h = newLaunchHarness(t)
+	startOnboardingApp(t, h.dir, func(map[string]any) string { return `{"v":6,"ok":false,"error":{"code":"not_ready","message":"m"}}` })
+	if _, failure := h.openPrototype(root, args, "checkout"); failure == nil || failure.Code != "busy" || ExitCode(failure.Code) != 5 || len(h.launches) != 0 || h.elapsed < 15*time.Second {
+		t.Fatal(failure, h.launches, h.elapsed)
+	}
+
+	// not_ready, then played: the request is sent again.
+	h = newLaunchHarness(t)
+	var mu sync.Mutex
+	calls := 0
+	app = startOnboardingApp(t, h.dir, func(map[string]any) string {
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+		if calls < 3 {
+			return `{"v":6,"ok":false,"error":{"code":"not_ready","message":"m"}}`
+		}
+		return `{"v":6,"ok":true,"played":true}`
+	})
+	if _, failure := h.openPrototype(root, args, "checkout"); failure != nil || len(app.received()) != 3 {
+		t.Fatal(failure, len(app.received()))
+	}
+}
+
+func TestRunOpenPrototype(t *testing.T) {
+	root := prototypeProject(t)
+	app := playedApp(t, shortTempDir(t))
+	code, out, errout := runOpen(t, app.runtime, ".doan/canvases/proto.html", "--frame", "checkout", "--prototype", "--repo", root)
+	if code != 0 || out != "Playing checkout from .doan/canvases/proto.html in Doan’s prototype window\n" || errout != "" {
+		t.Fatal(code, out, errout)
+	}
+	code, out, _ = runOpen(t, app.runtime, "--prototype", ".doan/canvases/proto.html", "--frame=checkout", "--repo", root, "--json")
+	var envelope map[string]any
+	if json.Unmarshal([]byte(out), &envelope) != nil || code != 0 || !reflect.DeepEqual(envelope["result"], map[string]any{"opened": true, "frame": "found", "prototype": true}) {
+		t.Fatal(code, out)
+	}
+	for _, args := range [][]string{
+		{".doan/canvases/proto.html", "--prototype"},
+		{".doan/canvases/proto.html", "--frame", "plain", "--prototype"},
+		{".doan/canvases/proto.html", "--frame", "nope", "--prototype"},
+	} {
+		code, out, _ := runOpen(t, app.runtime, append(args, "--repo", root, "--json")...)
+		if code != 2 {
+			t.Errorf("%v: exit %d %s", args, code, out)
+		}
+	}
+	if got := app.received(); len(got) != 2 {
+		t.Fatalf("the app was asked %d times", len(got))
+	}
+	// Set but empty DOAN_RUNTIME is explicit: nothing is launched. HOME is a temporary one so the default runtime
+	// path cannot reach a Doan running on this machine.
+	t.Setenv("HOME", t.TempDir())
+	if code, out, _ := runOpen(t, "", ".doan/canvases/proto.html", "--frame", "checkout", "--prototype", "--repo", root, "--json"); code != 3 || !strings.Contains(out, `"app_not_running"`) {
+		t.Fatal(code, out)
+	}
+	// --prototype belongs to open and export.
+	var stdout, stderr bytes.Buffer
+	if code := Run([]string{"ls", "--prototype", "--repo", root, "--json"}, strings.NewReader(""), &stdout, &stderr); code != 2 || !strings.Contains(stdout.String(), "--prototype") {
+		t.Fatal(code, stdout.String())
+	}
+}
+
+func TestHelpListsPrototypeFlags(t *testing.T) {
+	var out, errout bytes.Buffer
+	if code := Run([]string{"help"}, strings.NewReader(""), &out, &errout); code != 0 {
+		t.Fatal(code)
+	}
+	for _, line := range []string{"  open <canvas path> [--frame <id> [--prototype]]\n", "  export <canvas path> [--frame <id> --prototype] -o <file> [--force]\n"} {
+		if !strings.Contains(out.String(), line) {
+			t.Errorf("help lacks %q", line)
+		}
 	}
 }

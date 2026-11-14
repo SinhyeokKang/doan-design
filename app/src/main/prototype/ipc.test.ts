@@ -15,10 +15,38 @@ describe("prototype channels", () => {
       forward: "prototype:forward",
       choose: "prototype:choose",
       close: "prototype:close",
+      mode: "prototype:mode",
       closed: "prototype:closed",
       snapshot: "prototype:snapshot",
+      export: "prototype:export",
+      revealExport: "prototype:revealExport",
+      exportRunning: "prototype:exportRunning",
+      visible: "prototype:visible",
+      panel: "prototype:panel",
+      showing: "prototype:showing",
+      reveal: "prototype:reveal",
+      auth: "prototype:auth",
+      authChanged: "prototype:authChanged",
+      work: "prototype:work",
+      workChanged: "prototype:workChanged",
+      composer: "prototype:composer",
+      composerChanged: "prototype:composerChanged",
+      remember: "prototype:remember",
+      entry: "prototype:entry",
+      entryChanged: "prototype:entryChanged",
+      revealRequest: "prototype:revealRequest",
+      lastUsed: "prototype:lastUsed",
+      target: "prototype:target",
+      readTarget: "prototype:readTarget",
+      setDrawing: "prototype:setDrawing",
+      drawing: "prototype:drawing",
+      drawingChanged: "prototype:drawingChanged",
+      promoted: "prototype:promoted",
+      promotedChanged: "prototype:promotedChanged",
     });
-    expect(PROTOTYPE_WINDOW_REQUESTS).toEqual(["prototype:read", "prototype:result", "prototype:frames", "prototype:reload", "prototype:back", "prototype:forward", "prototype:choose", "prototype:close"]);
+    expect(PROTOTYPE_WINDOW_REQUESTS).toEqual(["prototype:read", "prototype:result", "prototype:frames", "prototype:reload", "prototype:back", "prototype:forward", "prototype:choose", "prototype:close", "prototype:mode",
+      "prototype:export", "prototype:revealExport", "prototype:visible", "prototype:panel", "prototype:showing", "prototype:reveal",
+      "prototype:auth", "prototype:work", "prototype:composer", "prototype:remember", "prototype:entry", "prototype:drawing", "prototype:promoted"]);
   });
 
   test("a run that does not answer in 10 s is an init failure", () => {
@@ -41,11 +69,21 @@ describe("sender guard", () => {
   });
 
   test("the events main sends are never requests", () => {
-    for (const kind of ["main", "prototype"]) for (const channel of [PROTOTYPE_CHANNELS.changed, PROTOTYPE_CHANNELS.closed, PROTOTYPE_CHANNELS.snapshot, "prototype:", "prototype:open", "prototype:evil"]) expect(senderAllowed(channel, kind)).toBe(false);
+    for (const kind of ["main", "prototype"]) for (const channel of [PROTOTYPE_CHANNELS.changed, PROTOTYPE_CHANNELS.closed, PROTOTYPE_CHANNELS.snapshot, PROTOTYPE_CHANNELS.exportRunning, "prototype:", "prototype:open", "prototype:evil"]) expect(senderAllowed(channel, kind)).toBe(false);
   });
 
-  test("the prototype window gets none of the main window's channels", () => {
-    for (const channel of ["selection:set", "ui-state:get", "ui-state:save", "preferences:read", "attachments:add-pasted", "read-state:showing", "folders:get", "shell:openLink", "canvas:export", "toString", "__proto__"]) {
+  // The window's Export and its Show in Finder are its own; the main window's canvas export stays main-only.
+  test("only the prototype window may export its frame or reveal that file", () => {
+    for (const channel of [PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible]) {
+      expect(senderAllowed(channel, "prototype"), channel).toBe(true);
+      expect(senderAllowed(channel, "main"), channel).toBe(false);
+    }
+    for (const channel of ["canvas:export", "canvas:revealExport", "window:visible"]) expect(senderAllowed(channel, "prototype"), channel).toBe(false);
+  });
+
+  // Its conversation panel's composer channels are the only main-window channels it shares (senderAllowed.test.ts).
+  test("the prototype window gets none of the main window's own channels", () => {
+    for (const channel of ["selection:set", "ui-state:get", "ui-state:save", "preferences:read", "attachments:capture", "read-state:showing", "folders:get", "canvas:export", "toString", "__proto__"]) {
       expect(senderAllowed(channel, "prototype"), channel).toBe(false);
     }
   });

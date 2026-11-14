@@ -357,9 +357,11 @@ func TestSkillGuideOpenCommand(t *testing.T) {
 		}
 	}
 	for _, required := range []string{
-		"- `doan open <canvas path> [--frame <id>] --json`",
+		"- `doan open <canvas path> [--frame <id> [--prototype]] --json`",
 		"`.doan/canvases/*.html` or `.doan/ds/*.html`",
 		"it only navigates",
+		"`--prototype` plays that marked frame alone in its window (`prototype: true`)",
+		"refusals: `frame_not_found`, `not_prototype`, `canvas_unreadable`",
 		"Returns `{opened, frame}` where `frame` is `found`, `missing` (no such frame; say only the canvas opened) or `none`",
 		"On failure: `canvas_not_found`",
 		"`project_not_open` (name the folder; they add it with Add Project…, then ask again)",
@@ -386,10 +388,12 @@ func TestSkillGuideExportCommand(t *testing.T) {
 		t.Fatalf("want one doan export line, got %d", len(command))
 	}
 	for _, required := range []string{
-		"- `doan export <canvas path> -o PATH --json`",
+		"- `doan export <canvas path> [--frame <id> --prototype] -o PATH --json`",
 		"only if asked",
 		"PATH theirs, not in `.doan/`",
 		"Say `external` needs internet, `links` break",
+		// The prototype file hides the other frames and notes but still carries them; the person must know before sending it.
+		"`--prototype`: plays only that frame, but holds the whole canvas; say so.",
 	} {
 		if !strings.Contains(command[0], required) {
 			t.Errorf("doan export guidance is missing: %s", required)

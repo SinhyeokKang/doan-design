@@ -1,4 +1,4 @@
-import type { PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
+import type { PrototypeMode, PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
 
 // What the prototype window draws from main's view: the window title, the state scene over the content panel, the
 // live region's line and the frame drawer's rows. Pure, so every state's copy and rule is tested without a window.
@@ -56,6 +56,13 @@ export function covered(phase: PrototypePhase): boolean {
   return phase !== "ready";
 }
 
+// The viewport toggle's tooltips. Fit names the frame's size and that it fits to the window, so it does not read as
+// resizing the window to that size; a mark not known yet leaves the size out.
+export function modeTooltip(mode: PrototypeMode, run: { markWidth: number; markHeight: number } | null | undefined): string {
+  if (mode === "responsive") return "Responsive";
+  return run != null && run.markWidth > 0 && run.markHeight > 0 ? `Fit ${run.markWidth} × ${run.markHeight} to the window` : "Fit to the window";
+}
+
 export interface DrawerRow {
   key: string;
   id: string;
@@ -71,4 +78,21 @@ export function drawerRows(view: Pick<PrototypeView, "frames" | "frame">): Drawe
 
 export function drawerLabel(view: Pick<PrototypeView, "canvas">): string {
   return `Prototype frames in ${view.canvas}`;
+}
+
+// The header's Export. Available while the frame plays, loads or failed to start (the CLI reads the file, not the run);
+// otherwise unavailable with the canvas toolbar's reason, and with none before the first view, as the header's other
+// controls. An export under way holds it for its whole run.
+export type ExportAvailability = { available: true } | { available: false; reason: string | null };
+
+export function exportAvailability(view: Pick<PrototypeView, "phase"> | null, exporting: boolean): ExportAvailability {
+  if (view === null) return { available: false, reason: null };
+  if (exporting) return { available: false, reason: "Exporting" };
+  switch (view.phase) {
+    case "read-failed": return { available: false, reason: "Can’t read this canvas." };
+    // "prototype", not "frame": a prototype-unavailable frame is still there.
+    case "frame-unavailable":
+    case "prototype-unavailable": return { available: false, reason: "Export isn’t available while this prototype can’t play." };
+    default: return { available: true };
+  }
 }

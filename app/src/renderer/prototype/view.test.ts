@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
 import type { PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
-import { covered, drawerLabel, drawerRows, liveText, LOADING_LABEL, stateScene, TIMEOUT_DETAIL, windowTitle } from "./view";
+import { covered, drawerLabel, exportAvailability, drawerRows, liveText, LOADING_LABEL, modeTooltip, stateScene, TIMEOUT_DETAIL, windowTitle } from "./view";
 
 const frames = [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }, { id: "account", size: "390x844", number: 3 }];
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 2, frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", run: { url: "http://127.0.0.1/a.html", markWidth: 390 }, frames, canGoBack: false, canGoForward: false, previousStopped: false, ...over,
+  gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", mode: "fit", run: { url: "http://127.0.0.1/a.html", markWidth: 390, markHeight: 844 }, frames, canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present", ...over,
 });
 
 describe("windowTitle", () => {
@@ -69,5 +69,47 @@ describe("drawerRows", () => {
 
   test("names the list after the canvas", () => {
     expect(drawerLabel(view())).toBe("Prototype frames in Checkout flow");
+  });
+});
+
+describe("modeTooltip", () => {
+  test("Fit names the playing frame's mark and that it fits to the window", () => {
+    expect(modeTooltip("fit", { markWidth: 390, markHeight: 844 })).toBe("Fit 390 × 844 to the window");
+    expect(modeTooltip("fit", { markWidth: 1440, markHeight: 900 })).toBe("Fit 1440 × 900 to the window");
+  });
+
+  test("Fit without a known mark says only that it fits to the window", () => {
+    for (const run of [null, undefined, { markWidth: 0, markHeight: 0 }, { markWidth: 390, markHeight: 0 }, { markWidth: 0, markHeight: 844 }]) {
+      expect(modeTooltip("fit", run), JSON.stringify(run)).toBe("Fit to the window");
+    }
+  });
+
+  test("Responsive is its name alone", () => {
+    expect(modeTooltip("responsive", { markWidth: 390, markHeight: 844 })).toBe("Responsive");
+    expect(modeTooltip("responsive", null)).toBe("Responsive");
+  });
+});
+
+// The header's Export: available while the frame plays, loads or failed to start; otherwise the canvas toolbar's rule.
+describe("exportAvailability", () => {
+  test("is available while ready, loading or after a start failure", () => {
+    for (const phase of ["ready", "loading", "init-failed"] as const) expect(exportAvailability(view({ phase }), false), phase).toEqual({ available: true });
+  });
+
+  test("before the first view it is off with no reason", () => {
+    expect(exportAvailability(null, false)).toEqual({ available: false, reason: null });
+  });
+
+  test("names the reason it is unavailable", () => {
+    expect(exportAvailability(view({ phase: "read-failed" }), false)).toEqual({ available: false, reason: "Can’t read this canvas." });
+    for (const phase of ["frame-unavailable", "prototype-unavailable"] as const) {
+      expect(exportAvailability(view({ phase }), false), phase).toEqual({ available: false, reason: "Export isn’t available while this prototype can’t play." });
+    }
+  });
+
+  test("an export under way wins over every phase", () => {
+    for (const phase of ["ready", "loading", "init-failed", "read-failed", "frame-unavailable", "prototype-unavailable"] as const) {
+      expect(exportAvailability(view({ phase }), true), phase).toEqual({ available: false, reason: "Exporting" });
+    }
   });
 });

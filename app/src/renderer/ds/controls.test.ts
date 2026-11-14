@@ -274,3 +274,19 @@ test("the capture snapshot hides app marks with opacity alone", () => {
 test("tooltips never take pointer events", () => {
   expect(rule(read("./surfaces.css"), ".doan-tooltip")).toContain("pointer-events: none;");
 });
+
+// A toggle group wraps chrome icon buttons in one track. The raised item must beat the chrome :active rule
+// (0,5,0), or the pointer press would swap the raised panel fill for the pressed backdrop.
+test("a toggle group is a 2px track on the hover backdrop, its pressed item raised on the panel fill above the chrome states", () => {
+  const css = read("./controls.css");
+  expect(rule(css, ".doan-toggle-group")).toBe("display: flex;\n  padding: var(--space-half);\n  border-radius: var(--radius-chip);\n  background: var(--affordance-backdrop-hover);");
+  const tokens = read("../tokens.css");
+  for (const [name, value] of [["--space-half", "2px"], ["--radius-chip", "12px"], ["--radius-toolbar-icon", "10px"]]) expect(tokens).toContain(`${name}: ${value};`);
+  expect(rule(css, '.doan-toggle-group .doan-icon-button[aria-pressed="false"]:not(:disabled)')).toBe("color: var(--text-subtle);");
+  const pressed = '.doan-toggle-group[role="group"] .doan-icon-button[data-ui-placement="chrome"][aria-pressed="true"]:not(:disabled)';
+  expect(rule(css, pressed)).toBe("background: var(--surface-panel); box-shadow: var(--shadow-panel); color: var(--text-standard);");
+  // 0,6,0 against the chrome :active rule's 0,5,0, and after it, so hover and press keep the raised fill.
+  expect(css.indexOf(pressed)).toBeGreaterThan(css.indexOf('.doan-icon-button[data-ui-placement="chrome"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }'));
+  // The unpressed ink skips a disabled item, whose ink the shared disabled rule sets at lower weight.
+  expect(css.indexOf(':is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) { background: var(--affordance-disabled)')).toBeGreaterThan(-1);
+});

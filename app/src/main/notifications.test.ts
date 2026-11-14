@@ -14,6 +14,18 @@ const ACTIVE: WindowVisibility = { focused: true, shown: true, minimized: false,
 const BEHIND: WindowVisibility = { ...ACTIVE, focused: false };
 
 describe("notificationFor", () => {
+  // The prototype window's conversation panel: a focused, visible prototype window that shows the conversation in its
+  // open panel is where the person sees it.
+  test("a focused prototype window showing the conversation in its open panel shows nothing for it", () => {
+    for (const e of [APPROVAL, DONE, FAILED]) expect(notificationFor(e, ON, { ...BEHIND, prototypeShows: "c1" }, NAMES), e.type).toBeNull();
+  });
+
+  test("another conversation notifies as before while the prototype window shows one", () => {
+    const other = { ...DONE, conversationId: "c2" };
+    expect(notificationFor(other, ON, { ...BEHIND, prototypeShows: "c1" }, NAMES)).toEqual({ kind: "finished", title: "Codex finished", body: "acme-web · main", target: { conversationId: "c2", root: "/repo" } });
+    expect(notificationFor(DONE, ON, { ...BEHIND, prototypeShows: null }, NAMES)).not.toBeNull();
+  });
+
   test("names the provider in the title and the project and branch in the body, never the request", () => {
     expect(notificationFor(APPROVAL, ON, BEHIND, NAMES)).toEqual({ kind: "approval", title: "Codex needs your approval", body: "acme-web · main", target: { conversationId: "c1", root: "/repo" }, requestId: "r1" });
     expect(notificationFor(DONE, ON, BEHIND, NAMES)).toEqual({ kind: "finished", title: "Codex finished", body: "acme-web · main", target: { conversationId: "c1", root: "/repo" } });

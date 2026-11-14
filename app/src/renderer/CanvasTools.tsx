@@ -1,16 +1,9 @@
-import type { KeyboardEvent, RefObject } from "react";
+import type { RefObject } from "react";
 import { Crosshair, Download, Hand, MousePointer2, Play, Scan } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import type { CanvasTool } from "./canvasTool";
 import { dockedBuddy } from "./dockedBuddyShell";
-
-// ←/→ walk the tools; Tab stops on the toolbar once, so tools added later keep the page's Tab order.
-function moveBetweenTools(event: KeyboardEvent<HTMLDivElement>): void {
-  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-  const tools = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
-  const next = tools[tools.indexOf(document.activeElement as HTMLButtonElement) + (event.key === "ArrowRight" ? 1 : -1)];
-  if (next) { event.preventDefault(); next.focus(); }
-}
+import { moveBetweenTools } from "./toolbarKeys";
 
 const TOOLS: readonly { tool: CanvasTool; label: string; key: string; Icon: typeof Hand }[] = [
   { tool: "select", label: "Select", key: "V", Icon: MousePointer2 },

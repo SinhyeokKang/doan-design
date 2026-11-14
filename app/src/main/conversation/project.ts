@@ -72,7 +72,7 @@ function candidates(turn: PromotionTurn, listed: readonly Canvas[], snapshot: re
 // where it is listed now. A path that held one canvas at the turn's start and another now names neither: the edit
 // may have come before or after the move, and no promotion is the safe failure. Paths outside the root (another
 // worktree included) name nothing.
-function canvasesAt(root: string, paths: readonly string[], rows: readonly Canvas[], snapshot: readonly Canvas[]): Canvas[] {
+export function canvasesAt(root: string, paths: readonly string[], rows: readonly Canvas[], snapshot: readonly Canvas[]): Canvas[] {
   const found: Canvas[] = [];
   for (const path of paths) {
     const relative = inside(root, path); if (relative === null) continue;

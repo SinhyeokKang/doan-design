@@ -1,0 +1,11 @@
+[
+  [
+    "handoff",
+    ".doan/canvases/profile-mobile.html",
+    "--message",
+    "Request: make separate 390 px Profile and Billing canvases and continue on each, leaving Account unchanged. Done: profile-mobile has the Profile frame and its original copy. Left: tune the Save button tap target.",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import type { HandoffRequest, OnboardingResponse, OpenResponse } from "../formats/types";
+import type { HandoffRequest, OnboardingResponse, OpenResponse, PrototypeResponse } from "../formats/types";
 import { validateHandoffResponse } from "../formats/validate";
 import { answerLine, type RuntimeState } from "./runtime";
 import type { FolderState } from "./folderState";
@@ -15,7 +15,7 @@ const state = (handoff: RuntimeState["handoff"] = () => null) => ({
   isOpen: vi.fn((value: string) => value === root), selection: vi.fn(() => null), work: vi.fn(), conversationWork: vi.fn(),
   onboarding: vi.fn(async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } })),
   open: vi.fn(async (): Promise<OpenResponse> => ({ v: 4, ok: true, opened: true, frame: "none" })),
-  handoff: vi.fn(handoff),
+  handoff: vi.fn(handoff), playPrototype: vi.fn((): PrototypeResponse => ({ v: 6, ok: false, error: { code: "not_ready", message: "unused" } })),
   roots: () => [root], readRoot: vi.fn(async (): Promise<FolderState> => ({ kind: "uninitialized" })), adopt: vi.fn(),
 });
 afterEach(() => { vi.restoreAllMocks(); });
@@ -38,6 +38,10 @@ test("each refusal of the conversation service is a v5 refusal with its code", a
     const answer = valid(await answerLine(JSON.stringify(request), token, state(() => code)));
     expect(answer, code).toEqual({ v: 5, ok: false, error: { code, message: expect.any(String) } });
   }
+});
+
+test("names a second request for the same canvas, since a turn may hand off to each new canvas once", async () => {
+  expect(valid(await answerLine(JSON.stringify(request), token, state(() => "already_requested")))).toEqual({ v: 5, ok: false, error: { code: "already_requested", message: "This turn already handed off to this canvas." } });
 });
 
 test("every shared invalid v5 request fixture is refused as a v5 bad request, and every valid one reaches the service", async () => {
@@ -67,8 +71,9 @@ test("a throwing service answers a v5 bad request without its error, and v5 star
 
 test("other versions never reach the handoff service, and an unknown version keeps the v1 refusal", async () => {
   const service = state();
-  for (const v of [1, 2, 3, 4]) await answerLine(JSON.stringify({ ...request, v }), token, service);
-  expect(await answerLine(JSON.stringify({ ...request, v: 6 }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+  for (const v of [1, 2, 3, 4, 6]) await answerLine(JSON.stringify({ ...request, v }), token, service);
+  expect(await answerLine(JSON.stringify({ ...request, v: 6 }), token, service)).toMatchObject({ v: 6, ok: false, error: { code: "bad_request" } });
+  expect(await answerLine(JSON.stringify({ ...request, v: 7 }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(await answerLine(JSON.stringify({ ...request, v: "5" }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(service.handoff).not.toHaveBeenCalled();
 });

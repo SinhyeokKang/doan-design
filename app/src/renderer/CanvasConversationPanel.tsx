@@ -12,8 +12,9 @@ import { messageLine, type FrameName } from "../main/conversation/messageText";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { HomeMemory } from "../restore/uiState";
+import type { DoanApi } from "../preload";
 import { requestTitleText, stripRequestLines } from "../main/conversation/requestLines";
-import { useProjectSkills } from "./useProjectSkills";
+import { useProjectSkills, type SkillsCalls } from "./useProjectSkills";
 import { AlertIcon } from "./AlertIcon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { textSegments } from "./anchorField";
@@ -43,13 +44,22 @@ import { threadItems, withSending } from "./threadItems";
 import { stopBackground, threadTurn } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
+import type { PlayingFrameChip } from "./prototype/conversation";
 
 // The canvas page's conversation panel body (draft frames
 // panel-*): the conversation menu in the panel's title row, the thread and the docked composer. CanvasRun decides which
 // conversation shows; this component draws it and makes the calls to main the thread and composer ask for, as the
-// Overview's does (ProjectOverview).
+// Overview's does (ProjectOverview). The body has no head: the main window's panel puts its title menu, New
+// conversation and Hide above it, and the prototype window shows it bare.
+
+// The body's calls to main: `window.doan` in the main window, the same members of `window.doanPrototype` in the
+// prototype window, which has no `window.doan`.
+export type ConversationCalls = SkillsCalls & Pick<DoanApi, "onAgentAuth" | "startConversation" | "sendConversation" | "queueConversation" |
+  "removeQueuedMessage" | "interruptConversation" | "answerConversationPermission" | "answerConversationQuestion" | "openLink" |
+  "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "droppedPath" | "removeAttachment" | "releaseAttachments">;
 
 export interface CanvasConversationProps {
+  calls: ConversationCalls;
   run: CanvasRun;
   support: DockedSupport;
   target: CanvasTarget;
@@ -81,27 +91,39 @@ export interface CanvasConversationProps {
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
   // The person chose what the panel shows (a conversation, New, a notice's Open).
   onChoose?(): void;
-  // The composer's Pick from canvas, and the page's way into its field (pick results).
-  pick: DockedPicker;
-  composerLink: MutableRefObject<DockedFieldLink | null>;
+  // The composer's Pick from canvas, and the page's way into its field (pick results); a host without a board has neither.
+  pick?: DockedPicker;
+  composerLink?: MutableRefObject<DockedFieldLink | null>;
+  // Sign in and the composer's settings actions.
   onSettings(target: SettingsTarget): void;
   onNotice(text: string): void;
   // The drawing project conversation's Open: its root's Overview shows it.
   onOpenProjectConversation(conversationId: string): void;
-  // A handoff line's or card's Open: that canvas of this root with its panel on that conversation.
-  onOpenHandoff?(canvas: Canvas, conversationId: string): void;
+  // The promotion notice's Open. Without it the panel shows that conversation itself.
+  onOpenPromoted?(conversationId: string): void;
+  // A handoff line's or card's Open: that canvas of this root with its panel on that conversation, or the canvas alone.
+  onOpenHandoff?(canvas: Canvas, conversationId?: string): void;
   // The canvases terminal sessions work on: the terminal session choice waits while its session is among them.
   work: readonly WorkItem[];
   // The page's canvas press signal, for the composer's preset lists (the app's document never sees a canvas press).
   canvasPress?: CanvasPress | undefined;
+  // The prototype window's playing frame, pinned on its composer and put first in every message.
+  playing?: PlayingFrameChip | null;
+  // The prototype window's failed list read: with no title menu to offer Retry, the thread's place holds the failure
+  // line, and Send waits, since a send could archive the current conversation nobody can see.
+  listFailed?: boolean;
+  // False in the prototype window, which cannot start a new conversation while the canvas has a current one: a refused
+  // conversation offers no "Start a new conversation" there. A refused terminal session still switches to the new
+  // conversation it shares a field with.
+  newFromRefusal?: boolean;
 }
 
 const NEW_PLACEHOLDER = "Ask, / for presets";
+const LIST_WAIT = "You can send once Doan reads the conversations.";
 const REPLY_PLACEHOLDER = "Reply, / for presets";
 const NEW = "";
 // One empty list for a project without one, so the thread's memoized chip data keeps its identity across renders.
 const NO_ROWS: readonly CanvasRow[] = [];
-const focusField = () => queueMicrotask(() => focusFieldEnd(document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")));
 // steerPhaseOf lives with the store, which also reads it when main answers Send now; exported here for its importers.
 export { steerPhaseOf };
 // Whether the shown composer refuses attachments (Attach, paste, drop, and the toolbar's Capture area): it continues a
@@ -199,7 +221,7 @@ export function canvasConversationTitle(run: CanvasRun, list: ListView): { title
 }
 
 export function CanvasConversation(props: CanvasConversationProps) {
-  const { run, support, target, project, list } = props;
+  const { calls, run, support, target, project, list } = props;
   const store = run.store;
   const root = target.root;
   const listed = Array.isArray(list) ? list : null;
@@ -224,7 +246,10 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const fixed = composerFixed(view, list, props.work);
 
   useEffect(() => { if (!support.presets?.ok) support.readPresets(); }, []);
-  useEffect(() => window.doan.onAgentAuth(snapshot => support.setAuth(snapshot)), []);
+  useEffect(() => calls.onAgentAuth(snapshot => support.setAuth(snapshot)), []);
+  // The body's own composer: the panel around it differs by window.
+  const body = useRef<HTMLDivElement | null>(null);
+  const focusField = () => queueMicrotask(() => focusFieldEnd(body.current?.querySelector<HTMLElement>(".composer-input") ?? null));
 
   // The composer's agent, model and effort, as the Overview's: a new conversation picks as Home does; an existing one
   // keeps its provider and starts from its own model.
@@ -263,7 +288,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   // A new connection of the provider has a list of its own to read.
   const generation = chosen ? generationOf(auth, chosen) : 0;
-  const projectSkills = useProjectSkills(root, chosen, conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle", generation);
+  const projectSkills = useProjectSkills(calls, root, chosen, conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle", generation);
   useEffect(() => { if (healthy && chosen && ready && !fixed) support.readModels(root, chosen); }, [root, healthy, chosen, ready, fixed, generation]);
 
   const presets = support.presets?.ok ? support.presets.result.presets : [];
@@ -335,18 +360,18 @@ export function CanvasConversation(props: CanvasConversationProps) {
     if (!accepted.length) return;
     const keys = accepted.map(() => crypto.randomUUID());
     addChips(at, accepted.map((file, i) => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size })));
-    void window.doan.addAttachmentFiles(accepted).catch(() => null).then(async results => {
+    void calls.addAttachmentFiles(accepted).catch(() => null).then(async results => {
       if (!results) { settle(keys, keys.map(() => null)); return; }
       // A copied screenshot has no path on disk; it attaches as a pasted image instead. A Finder item main no longer
       // finds keeps main's answer: a folder named x.png has File.type image/png too.
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
-        if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/") || window.doan.droppedPath(file) !== null) return result;
+        if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/") || calls.droppedPath(file) !== null) return result;
         if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
         // A page-made image whose bytes can't be read settles with the rest of its batch.
         const bytes = await file.arrayBuffer().catch(() => null);
         if (!bytes) return result;
-        return window.doan.addPastedImage(bytes).catch(() => null);
+        return calls.addPastedImage(bytes).catch(() => null);
       }));
       settle(keys, final);
     });
@@ -354,9 +379,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const chooseFiles = () => {
     if (fixed) return;
     const at = key;
-    void window.doan.chooseAttachments().catch(() => []).then(results => {
+    void calls.chooseAttachments().catch(() => []).then(results => {
       const { chosen: chosenFiles, release, notices } = chosenAttachments((store.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, results);
-      for (const id of release) void window.doan.removeAttachment(id);
+      for (const id of release) void calls.removeAttachment(id);
       const keys = chosenFiles.map(() => crypto.randomUUID());
       addChips(at, chosenFiles.map((result, i) => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" })));
       settle(keys, chosenFiles);
@@ -379,7 +404,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
         ? { root, mode: "resume" as const, canvas: target.canvas, text: request.text, anchors: [...request.anchors] }
         : { root, mode: "new" as const, runtime, canvas: target.canvas, text: request.text, anchors: [...request.anchors],
           ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(picker.effort?.fast?.on ? { fast: true } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}) };
-      const reply = await window.doan.startConversation(start).catch(() => ({ error: "unknown" }));
+      const sending = run.startSending(target);
+      const reply = await calls.startConversation(start).catch(() => ({ error: "unknown" })).finally(sending);
       if ("error" in reply) return sendRefusal(reply);
       // Home's and the Overview's starts are remembered by App's run host; this one starts here.
       if (mode.kind === "new") props.onRemember?.({ provider: runtime, model: model ?? null, effort: model ? effort : null, ...modelPicked, ...(permissionMode ? { permissionMode } : {}) });
@@ -390,7 +416,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     }
     // A message that waits for the usage limit's reset carries no picker change; the picks stay for the next send.
     const waits = mode.kind === "existing" && waitsForReset(summary);
-    const reply = await window.doan.sendConversation({
+    const reply = await calls.sendConversation({
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
       ...(waits ? {} : { ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...changedFast, ...(sentMode ? { permissionMode: sentMode } : {}) }), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
@@ -404,7 +430,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   };
   const queue = async (request: DockedRequest): Promise<DockedOutcome> => {
     if (mode.kind !== "existing" && mode.kind !== "archived") return { error: "not_running" };
-    const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
+    const reply = await calls.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
     if ("error" in reply) return sendRefusal(reply);
     store.queued(root, mode.conversationId, queuedMessage(reply.itemId, request));
     return { ok: true, itemId: reply.itemId };
@@ -415,7 +441,10 @@ export function CanvasConversation(props: CanvasConversationProps) {
     switch (error.kind) {
       case "busy": return { kind: "busy", busy: error.busy };
       case "blocked": return { kind: "blocked", text: error.text, ...(error.action ? { action: error.action } : {}) };
-      case "notice": return { kind: "notice", text: error.text, ...(error.retry ? { retry: true } : {}), ...(error.startNew ? { startNew: true } : {}) };
+      case "notice": {
+        const startNew = error.startNew && (props.newFromRefusal !== false || mode.kind === "new" || mode.kind === "resume");
+        return { kind: "notice", text: error.text, ...(error.retry ? { retry: true } : {}), ...(startNew ? { startNew: true } : {}) };
+      }
       // attachments and resend never reach here: the composer marks moved files and resends not_running itself.
       default: return { kind: "notice", text: "Couldn’t send your message. Try again." };
     }
@@ -442,16 +471,16 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const offer = newView?.start.offer ?? (held && newView?.resume && "runtime" in newView.resume ? newView.resume.runtime ?? null : null);
   const resume = offer ? newView : null;
 
-  return <div className="doan-conv-content">
+  return <div className="doan-conv-content" ref={body}>
     <div className={`cp-scroll${conversationId ? "" : " end"}`}>
       {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} turn={thread && Array.isArray(items) ? threadTurn(thread.events, items, live, store.stageOf(conversationId), root, summary?.stopping === true) : null}
-        background={summary?.background ?? null} onStopBackground={turnId => stopBackground({ conversationId, turnId }, request => window.doan.interruptConversation(request)).then(failed => { if (failed) props.onNotice(failed); return failed === null; })} canvasListed={canvas => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row))}
-        onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
-        onAnswerQuestion={(requestId, answer) => window.doan.answerConversationQuestion({ conversationId, requestId, ...answer })}
+        background={summary?.background ?? null} onStopBackground={turnId => stopBackground({ conversationId, turnId }, request => calls.interruptConversation(request)).then(failed => { if (failed) props.onNotice(failed); return failed === null; })} canvasListed={canvas => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row))}
+        onAnswer={(requestId, optionId) => calls.answerConversationPermission({ conversationId, requestId, optionId })}
+        onAnswerQuestion={(requestId, answer) => calls.answerConversationQuestion({ conversationId, requestId, ...answer })}
         questionDraft={requestId => store.questionDraft(conversationId, requestId)} onQuestionDraft={(requestId, action) => store.editQuestion(conversationId, requestId, action)}
         onFocusComposer={focusField}
-        onStop={() => void window.doan.interruptConversation({ conversationId }).catch(console.error)}
+        onStop={() => void calls.interruptConversation({ conversationId }).catch(console.error)}
         onEditAndResend={() => {
           // Focus follows only while the same canvas still shows the same conversation as when it was asked for.
           const shown = run.showing();
@@ -461,10 +490,12 @@ export function CanvasConversation(props: CanvasConversationProps) {
         limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={store.resendHidden(conversationId)}
         onRetry={() => store.retryThread(conversationId)}
         onOpenCanvas={() => {}} {...(props.onOpenHandoff ? { onOpenHandoff: props.onOpenHandoff } : {})}
-        onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
+        onOpenLink={url => void calls.openLink(url).catch(console.error)}
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
+        : props.listFailed ? <div className="doan-notice error thread-notice list-error" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Couldn’t read conversations</b></span>
+          <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>
         : view.kind === "wait" || conversationId ? <Waiting /> : <>
           {newView?.listError && <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
             <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}
@@ -477,11 +508,11 @@ export function CanvasConversation(props: CanvasConversationProps) {
       {notice && <div className="doan-notice thread-notice" role="status"><Info className="doan-alert-icon" aria-hidden="true" /><span className="strip-text selectable"><span>{notice.text}</span></span>
         <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel"
           aria-label={notice.kind === "drawing" ? "Open the project conversation" : "Open the current conversation"}
-          onClick={() => notice.kind === "drawing" ? props.onOpenProjectConversation(notice.open) : openConversation(notice.open)}>Open</button></span></div>}
+          onClick={() => notice.kind === "drawing" ? props.onOpenProjectConversation(notice.open) : (props.onOpenPromoted ?? openConversation)(notice.open)}>Open</button></span></div>}
     </div>
     <div className="cp-foot">
       <DockedComposer skills={projectSkills.skills} onSkillsWanted={projectSkills.read} mode={mode} project={project} homeDirectory={null} placeholder={placeholder} suggestion={summary ? summary.suggestion ?? null : undefined} chipScope={canvasScope(target)}
-        pick={props.pick} link={props.composerLink} onLocate={props.onLocate} canvasPress={props.canvasPress}
+        {...(props.pick ? { pick: props.pick } : {})} {...(props.composerLink ? { link: props.composerLink } : {})} onLocate={props.onLocate} canvasPress={props.canvasPress}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy && !fixed) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
@@ -494,9 +525,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
-        onAttachmentRemoved={dropAttachment}
+        onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} context={thread ? contextRing(thread.events) : null}
-        unavailable={props.blocked} locked={props.blocked !== null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
+        unavailable={props.blocked ?? (props.listFailed ? LIST_WAIT : null)} locked={props.blocked !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         stepAside={{ waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}
         queued={conversationId ? store.queue(conversationId) : []}
@@ -505,10 +536,10 @@ export function CanvasConversation(props: CanvasConversationProps) {
         sendNow={!!conversationId && !!provider && !archived && !summary?.scheduledAt && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
         onSendQueuedNow={itemId => conversationId ? store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}
         onSend={send} onQueue={queue}
-        onStop={() => { if (conversationId) void window.doan.interruptConversation({ conversationId }).catch(console.error); }}
+        onStop={() => { if (conversationId) void calls.interruptConversation({ conversationId }).catch(console.error); }}
         onRemoveQueued={async itemId => {
           if (!conversationId) return false;
-          const reply = await window.doan.removeQueuedMessage({ conversationId, itemId }).catch(error => { console.error(error); return { error: "unknown" }; });
+          const reply = await calls.removeQueuedMessage({ conversationId, itemId }).catch(error => { console.error(error); return { error: "unknown" }; });
           if (reply && "error" in reply) return false;
           store.unqueued(conversationId, itemId);
           return true;

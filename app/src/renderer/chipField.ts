@@ -28,6 +28,9 @@ export interface ChipFieldHooks {
   // The canvas this field's chips belong to; null takes no chips, so a chip clipboard pastes as the chips' names.
   scope(): string | null;
   skillNames?(): ReadonlySet<string>;
+  // Chips every message carries from outside the field (the prototype window's playing frame): the place limit counts
+  // them with the field's own.
+  reserved?(): readonly FieldSegment[];
   // A click on a chip, after the caret moved right after it: its host locates the chip on the canvas and may place a
   // note by the chip's node (its attributes are not read back, so a describing id on it changes no segment).
   onChipClick?(anchor: Anchor, chip: HTMLElement): void;
@@ -175,12 +178,14 @@ export class ChipField {
     const [start, end] = ordered(this.readSelection());
     const waiting = this.pending.map(a => ({ kind: "chip" as const, anchor: a }));
     const { segments: after } = spliceUnits(this.segments, start, end, [...waiting, { kind: "chip", anchor }]);
-    if (distinctTargets(after) > LIMITS.anchors) return "limit";
+    if (distinctTargets([...this.reservedChips(), ...after]) > LIMITS.anchors) return "limit";
     if (this.composingNow) { this.pending.push(anchor); return "pending"; }
     this.replace(start, end, [{ kind: "chip", anchor }], "chip");
     this.hooks.onAnnounce(`Added ${chipLabel(anchor).label}`);
     return "inserted";
   }
+
+  private reservedChips(): readonly FieldSegment[] { return this.hooks.reserved?.() ?? []; }
 
   // Text put in at the selection as one undo step of its own, the caret after it (a docked suggestion taken with →).
   insertText(text: string): void {
@@ -501,7 +506,7 @@ export class ChipField {
     const custom = data.getData(CLIPBOARD_TYPE), scope = this.hooks.scope();
     let inserted = custom && scope !== null ? readFieldClipboard(custom, scope) : null;
     // Counted on the result of replacing the selection, as for an inserted chip.
-    if (inserted && distinctTargets(spliceUnits(this.segments, start, end, inserted).segments) > LIMITS.anchors) inserted = null;
+    if (inserted && distinctTargets([...this.reservedChips(), ...spliceUnits(this.segments, start, end, inserted).segments]) > LIMITS.anchors) inserted = null;
     inserted ??= normalize([{ kind: "text", text: data.getData("text/plain").replace(/\r\n?/g, "\n") }]);
     this.replace(start, end, inserted, "paste");
   }

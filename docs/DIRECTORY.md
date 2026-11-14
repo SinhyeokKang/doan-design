@@ -42,7 +42,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
   - `document/`: canvas document evidence and the shared object guard.
   - `mcpConnectors/`: MCP connectors for Claude Code and Codex — the server list and pending-logout files, the provider MCP commands (Claude's sign-in in a pty), status and logout rules, the Codex startup and approval rules, IPC, and provider-output `fixtures/`.
   - `onboarding/`: first run and the session shared with the Add Projects page, clone, the skill stub `SKILL.md`, and completion-record and earlier-stub `fixtures/`.
-  - `prototype/`: the prototype window's Electron-free contract — the mark, playability, window fit, targets, request validation, the lifecycle transitions and their controller, history and the IPC types — which the renderer also imports.
+  - `prototype/`: the prototype window's Electron-free contract — the mark, playability, window fit, targets, request validation, the lifecycle transitions and their controller, history and the IPC types, and the prototype window's conversation scope and the relays and reports it shares with main — which the renderer also imports.
   - `serve/`: the local canvas server.
   - `update/`: in-app updates — pure eligibility, schedule, state, error and view rules the renderer shares, and the electron-updater service (only `app/src/main/update/service.ts` drives the updater).
 - `app/src/preload/`: the main window's `window.doan` API and the prototype window's `window.doanPrototype`.

@@ -1,0 +1,9 @@
+{
+  "id": "X2",
+  "title": "Send a marked frame as a prototype file",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": null
+}

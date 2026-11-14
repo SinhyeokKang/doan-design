@@ -30,7 +30,7 @@ afterEach(() => vi.unstubAllGlobals());
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 async function render(turn: ComposerTurn) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
-  useProjectSkills("/code/doan", "claude", turn);
+  useProjectSkills(window.doan, "/code/doan", "claude", turn);
   for (const run of hooks.pending) run();
   await settle();
 }

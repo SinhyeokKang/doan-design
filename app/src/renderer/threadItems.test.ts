@@ -455,7 +455,7 @@ describe("threadItems handoff", () => {
   test("a request draws a pending line at its place while the turn runs", () => {
     const items = threadItems(asked(), ROOT, true);
     expect(items.map(i => i.kind)).toEqual(["user", "activity", "handoff", "agent"]);
-    expect(items[2]).toEqual({ kind: "handoff", key: "ht1", canvas: { path: CHECKOUT }, outcome: "pending" });
+    expect(items[2]).toEqual({ kind: "handoff", key: `ht1:${CHECKOUT}`, canvas: { path: CHECKOUT }, outcome: "pending" });
   });
 
   test("a start replaces the pending line in place: one line, none added at the turn's end", () => {
@@ -463,12 +463,12 @@ describe("threadItems handoff", () => {
     const events = [...asked(), ev("t1", { type: "turn.done" }), ev("t1", { type: "handoff.resolved", outcome: "started", target })];
     const items = threadItems(events, ROOT, false);
     expect(items.map(i => i.kind)).toEqual(["user", "activity", "handoff", "agent"]);
-    expect(items[2]).toEqual({ kind: "handoff", key: "ht1", canvas: { path: CHECKOUT }, outcome: "started", target });
+    expect(items[2]).toEqual({ kind: "handoff", key: `ht1:${CHECKOUT}`, canvas: { path: CHECKOUT }, outcome: "started", target });
   });
 
   test("a refusal keeps its reason, a cancel follows the turn's own end notice", () => {
     const refused = threadItems([...asked(), ev("t1", { type: "turn.done" }), ev("t1", { type: "handoff.resolved", outcome: "refused", reason: "not_new" })], ROOT, false);
-    expect(refused.filter(i => i.kind === "handoff")).toEqual([{ kind: "handoff", key: "ht1", canvas: { path: CHECKOUT }, outcome: "refused", reason: "not_new" }]);
+    expect(refused.filter(i => i.kind === "handoff")).toEqual([{ kind: "handoff", key: `ht1:${CHECKOUT}`, canvas: { path: CHECKOUT }, outcome: "refused", reason: "not_new" }]);
     const stopped = threadItems([...asked(), ev("t1", { type: "interrupted", reason: "user" }), ev("t1", { type: "handoff.resolved", outcome: "cancelled" })], ROOT, false);
     expect(stopped.map(i => i.kind)).toEqual(["user", "activity", "handoff", "agent", "end"]);
     expect(stopped[2]).toMatchObject({ outcome: "cancelled" });
@@ -477,7 +477,7 @@ describe("threadItems handoff", () => {
   test("a resolution after an archive marker still settles the request's line", () => {
     const events = [...asked(), ev("t1", { type: "interrupted", reason: "user" }), ev("t1", { type: "conversation.archived" }), ev("t1", { type: "handoff.resolved", outcome: "cancelled" })];
     const items = threadItems(events, ROOT, false);
-    expect(items.filter(i => i.kind === "handoff")).toEqual([expect.objectContaining({ key: "ht1", outcome: "cancelled" })]);
+    expect(items.filter(i => i.kind === "handoff")).toEqual([expect.objectContaining({ key: `ht1:${CHECKOUT}`, outcome: "cancelled" })]);
     expect(items.at(-1)).toMatchObject({ kind: "marker", marker: "archived" });
   });
 
@@ -485,6 +485,94 @@ describe("threadItems handoff", () => {
     const events = [...asked(), ev("t1", { type: "turn.done" })];
     expect(threadItems(events, ROOT, true)[2]).toMatchObject({ outcome: "pending" });
     expect(threadItems(events, ROOT, false)[2]).toMatchObject({ outcome: "cancelled" });
+  });
+
+  // Several requests of one turn: a line each, keyed by the turn and the requested path.
+  const PAYMENT = ".doan/canvases/payment.html", RECEIPT = ".doan/canvases/receipt.html";
+  const ask = (turnId: string, path: string) => ev(turnId, { type: "handoff.requested", canvas: { path }, text: `Continue ${path}.` });
+  const resolve = (turnId: string, payload: Record<string, unknown>) => ev(turnId, { type: "handoff.resolved", ...payload });
+  const handoffLines = (items: ThreadItem[]) => items.filter(i => i.kind === "handoff");
+
+  test("two requests of one turn draw two lines, each at its own place and keyed by its path", () => {
+    seq = 0;
+    const events = [...turn("t1"), ask("t1", CHECKOUT), ev("t1", { type: "activity", kind: "edit", path: PAYMENT, summary: "Edit" }), ask("t1", PAYMENT), reply("t1")];
+    const items = threadItems(events, ROOT, true);
+    expect(items.map(i => i.kind)).toEqual(["user", "handoff", "activity", "handoff", "agent"]);
+    expect(handoffLines(items)).toEqual([
+      { kind: "handoff", key: `ht1:${CHECKOUT}`, canvas: { path: CHECKOUT }, outcome: "pending" },
+      { kind: "handoff", key: `ht1:${PAYMENT}`, canvas: { path: PAYMENT }, outcome: "pending" },
+    ]);
+  });
+
+  test("each resolution settles the line of its own path, in any order, with mixed outcomes", () => {
+    seq = 0;
+    const target = { conversationId: "c2", canvas: { path: PAYMENT, id: "payment" } };
+    const events = [...turn("t1"), ask("t1", CHECKOUT), ask("t1", PAYMENT), ask("t1", RECEIPT), reply("t1"), ev("t1", { type: "turn.done" }),
+      resolve("t1", { canvas: { path: PAYMENT }, outcome: "started", target }),
+      resolve("t1", { canvas: { path: CHECKOUT }, outcome: "refused", reason: "has_conversation" }),
+      resolve("t1", { canvas: { path: RECEIPT }, outcome: "cancelled" })];
+    expect(handoffLines(threadItems(events, ROOT, false))).toEqual([
+      { kind: "handoff", key: `ht1:${CHECKOUT}`, canvas: { path: CHECKOUT }, outcome: "refused", reason: "has_conversation" },
+      { kind: "handoff", key: `ht1:${PAYMENT}`, canvas: { path: PAYMENT }, outcome: "started", target },
+      { kind: "handoff", key: `ht1:${RECEIPT}`, canvas: { path: RECEIPT }, outcome: "cancelled" },
+    ]);
+  });
+
+  test("a resolution without a path settles the turn's only line, and no line of a turn with several", () => {
+    const single = threadItems([...asked(), ev("t1", { type: "turn.done" }), resolve("t1", { outcome: "refused", reason: "not_new" })], ROOT, true);
+    expect(handoffLines(single)).toEqual([expect.objectContaining({ key: `ht1:${CHECKOUT}`, outcome: "refused", reason: "not_new" })]);
+    seq = 0;
+    const several = threadItems([...turn("t1"), ask("t1", CHECKOUT), ask("t1", PAYMENT), ev("t1", { type: "turn.done" }), resolve("t1", { outcome: "refused", reason: "not_new" })], ROOT, true);
+    expect(handoffLines(several).map(line => line.outcome)).toEqual(["pending", "pending"]);
+  });
+
+  test("a resolution for a path the turn did not request settles nothing", () => {
+    const items = threadItems([...asked(), ev("t1", { type: "turn.done" }), resolve("t1", { canvas: { path: PAYMENT }, outcome: "cancelled" })], ROOT, true);
+    expect(handoffLines(items)).toEqual([expect.objectContaining({ key: `ht1:${CHECKOUT}`, outcome: "pending" })]);
+  });
+
+  test("a second request for the same path in one turn draws no second line", () => {
+    seq = 0;
+    const items = threadItems([...turn("t1"), ask("t1", CHECKOUT), ask("t1", CHECKOUT)], ROOT, true);
+    expect(handoffLines(items)).toHaveLength(1);
+  });
+
+  // Read with live false: a missed line is no pending request, so nothing turns it into a cancel.
+  test("a missed canvas is a line after the turn's last handoff line, with its canvas ID", () => {
+    seq = 0;
+    const missed = { path: RECEIPT, id: "receipt" };
+    const events = [...turn("t1"), ask("t1", CHECKOUT), ask("t1", PAYMENT), reply("t1"), ev("t1", { type: "turn.done" }),
+      ev("t1", { type: "handoff.missed", canvas: missed })];
+    const items = threadItems(events, ROOT, false);
+    expect(items.map(i => i.kind)).toEqual(["user", "handoff", "handoff", "handoff", "agent"]);
+    expect(items[3]).toEqual({ kind: "handoff", key: `ht1:${RECEIPT}`, canvas: missed, outcome: "missed" });
+  });
+
+  test("missed canvases of a turn without a request sit at the turn's end, in arrival order", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "edit", path: PAYMENT, summary: "Edit" }), reply("t1"), ev("t1", { type: "turn.done" }),
+      ev("t1", { type: "handoff.missed", canvas: { path: PAYMENT, id: "payment" } }), ev("t1", { type: "handoff.missed", canvas: { path: RECEIPT, id: "receipt" } })];
+    const items = threadItems(events, ROOT, false);
+    expect(items.map(i => i.kind)).toEqual(["user", "activity", "agent", "handoff", "handoff"]);
+    expect(handoffLines(items).map(line => [line.key, line.outcome])).toEqual([[`ht1:${PAYMENT}`, "missed"], [`ht1:${RECEIPT}`, "missed"]]);
+  });
+
+  test("a missed line that arrives after the next message is still drawn in its own turn", () => {
+    seq = 0;
+    const events = [...turn("t1"), ask("t1", CHECKOUT), reply("t1"), ev("t1", { type: "turn.done" }), ...turn("t2", "Next"),
+      ev("t1", { type: "handoff.missed", canvas: { path: PAYMENT, id: "payment" } }), ev("t2", { type: "message.done", messageId: "m1", text: "Sure." })];
+    const items = threadItems(events, ROOT, true);
+    expect(items.map(i => i.kind === "handoff" ? `${i.kind}:${i.outcome}` : i.kind)).toEqual(["user", "handoff:pending", "handoff:missed", "agent", "user", "agent"]);
+    // Without a handoff line it goes after the turn's last item, ahead of the next message.
+    seq = 0;
+    const plain = [...turn("t1"), reply("t1"), ev("t1", { type: "turn.done" }), ...turn("t2", "Next"), ev("t1", { type: "handoff.missed", canvas: { path: PAYMENT, id: "payment" } })];
+    expect(threadItems(plain, ROOT, true).map(i => i.kind)).toEqual(["user", "agent", "handoff", "user"]);
+  });
+
+  test("a missed line comes before a later archive marker of its turn", () => {
+    seq = 0;
+    const events = [...turn("t1"), reply("t1"), ev("t1", { type: "turn.done" }), ev("t1", { type: "conversation.archived" }), ev("t1", { type: "handoff.missed", canvas: { path: PAYMENT, id: "payment" } })];
+    expect(threadItems(events, ROOT, false).map(i => i.kind)).toEqual(["user", "agent", "handoff", "marker"]);
   });
 
   test("the receiving conversation's first message is the handoff card with its text as written", () => {

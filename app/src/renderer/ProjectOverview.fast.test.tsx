@@ -44,10 +44,10 @@ function render(list: ListView, current: string | null, patch: Partial<ProjectOv
     list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: () => {}, remembered: () => ({}), remember: () => {},
     markSeen: () => {}, focused: () => true, openCanvas: () => {}, toast: () => {}, label: () => "doan", changed: () => {},
   };
-  const run = new OverviewRun(host);
+  const run = new OverviewRun(host, window.doan);
   run.show(ROOT);
   run.select(ROOT, current);
-  const support = new DockedSupport(() => {});
+  const support = new DockedSupport(() => {}, window.doan);
   support.auth = AUTH;
   support.presets = { v: 1, ok: true, result: { version: "1", presets: [] } };
   support.models = { [modelsKey(ROOT, "claude", 1)]: { models: [OPUS, SONNET] } };

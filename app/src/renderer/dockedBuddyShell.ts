@@ -8,6 +8,7 @@
 // another step could change nothing (time stopped, or dockedNeedsTime false) and wakes on an input change: a slot
 // attribute, a portalled popper, a resize, visibility, focus, reduced motion, a push from App or an event. While it
 // runs on its own it advances at most about 60 frames a second, so a 120 Hz display does not double the cost.
+import type { VisibleCalls } from "./visibleClock";
 import { EYE_TEXTURE, buddy as registry, type BuddyId } from "./buddies";
 import { canvasSize } from "./doanyMotion";
 import {
@@ -126,7 +127,7 @@ interface Rig { id: BuddyId; still: HTMLImageElement; canvas: HTMLCanvasElement;
 
 interface Live {
   state: DockedState; ground: HTMLElement; shadow: HTMLElement; host: HTMLElement; rig: Rig;
-  container: HTMLElement; personMovedAt: () => number;
+  container: HTMLElement; personMovedAt: () => number; calls: VisibleCalls;
   raf: number; out: DockedFrame | null; intersecting: boolean; events: DockedEvent[]; activityAt: number; personAt: number;
   // nativeVisible: the window is shown (document.hidden stays false while it is closed with the app running or the
   // app is hidden; POSTMORTEM 2026-10-25). urgent: an input changed since the last advanced frame. advancedAt: that
@@ -198,7 +199,8 @@ export class DockedBuddyShell {
 
   // container: a stable element whose visibility gates time (not a slot, which folds and leaves). personMovedAt: the
   // last view move or selection change, in Date.now() ms (the canvas page's following rest).
-  start(container: HTMLElement, personMovedAt: () => number) {
+  // `calls`: `window.doan`, or the prototype window's visibility event of the same name.
+  start(container: HTMLElement, personMovedAt: () => number, calls: VisibleCalls) {
     if (this.live) return;
     const ground = element("span", "docked-buddy"), shadow = element("span", "docked-buddy-shadow"), clip = element("span", "docked-buddy-window"), host = element("span", "docked-buddy-host");
     ground.setAttribute("aria-hidden", "true");
@@ -208,7 +210,7 @@ export class DockedBuddyShell {
     // A portalled popper comes or goes as a child of body; the slash popover by the slot's popover attribute.
     const refloat = () => { live.floating = null; this.wake(); };
     const live: Live = {
-      state: createDockedState(this.id, Math.random), ground, shadow, host, rig: null as unknown as Rig, container, personMovedAt,
+      state: createDockedState(this.id, Math.random), ground, shadow, host, rig: null as unknown as Rig, container, personMovedAt, calls,
       raf: 0, out: null, intersecting: true, events: [], activityAt: 0, personAt: 0, floating: null,
       nativeVisible: true, urgent: true, advancedAt: -Infinity, written: { host: "", shadow: "", opacity: "" }, rebuilt: true, retries: 0, retry: 0,
       slotSizes: new ResizeObserver(wake), slotAttributes: new MutationObserver(refloat), portals: new MutationObserver(refloat),
@@ -290,7 +292,7 @@ export class DockedBuddyShell {
     document.addEventListener("visibilitychange", wake);
     window.addEventListener("focus", wake); window.addEventListener("blur", wake);
     live.reduced.addEventListener("change", wake);
-    const native = window.doan.onWindowVisible(visible => { live.nativeVisible = visible; this.wake(); });
+    const native = live.calls.onWindowVisible(visible => { live.nativeVisible = visible; this.wake(); });
     return () => {
       native();
       document.removeEventListener("pointermove", move);

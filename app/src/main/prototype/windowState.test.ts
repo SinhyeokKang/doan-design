@@ -3,7 +3,7 @@ import type { PrototypeFrame } from "./ipc";
 import type { CanvasRow } from "../view";
 import { canvasKeyString, resolveTarget, type PrototypeTarget, type Resolution } from "./targets";
 import {
-  CLOSED, back, choose, close, forward, framesReported, listChanged, play, prototypeView, readFailed, reload, report, type PrototypeState, type Resolve, type Step,
+  CLOSED, back, choose, close, forward, framesReported, listChanged, play, prototypeView, readFailed, reload, report, setMode, setPanel, type PrototypeState, type Resolve, type Step,
 } from "./windowState";
 
 const A: PrototypeTarget = { root: "/r", canvas: { id: "proto" }, frame: "phone" };
@@ -452,5 +452,209 @@ describe("close", () => {
     }
     expect(back(CLOSED, w.resolve)).toBeNull();
     expect(choose(CLOSED, "phone", w.resolve)).toBeNull();
+  });
+});
+
+describe("viewport mode", () => {
+  function opened() {
+    const w = world();
+    const state = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
+    return { w, state };
+  }
+
+  test("starts at Fit, closed or open", () => {
+    const w = world();
+    expect(CLOSED.mode).toBe("fit");
+    expect(prototypeView(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state, w.resolve)?.mode).toBe("fit");
+  });
+
+  test("a switch changes only the mode, with no effect", () => {
+    const { w, state } = opened();
+    const step = setMode(state, "responsive");
+    expect(step.effects).toEqual([]);
+    expect(step.state).toEqual({ ...state, mode: "responsive" });
+    expect(prototypeView(step.state, w.resolve)).toEqual({ ...prototypeView(state, w.resolve), mode: "responsive" });
+  });
+
+  test("the mode already in use changes nothing, so no view goes out", () => {
+    const { state } = opened();
+    const step = setMode(state, "fit");
+    expect(step.state).toBe(state);
+    expect(step.effects).toEqual([]);
+    const responsive = setMode(state, "responsive").state;
+    expect(setMode(responsive, "responsive").state).toBe(responsive);
+  });
+
+  test("a switch while loading keeps the run's gen and kills nothing", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    const step = setMode(loading, "responsive");
+    expect(step.effects).toEqual([]);
+    expect(step.state.gen).toBe(loading.gen);
+    expect(step.state.open && step.state.phase).toBe("loading");
+    // The run's own result still lands on it.
+    expect(prototypeView(ready(step.state).state, w.resolve)).toMatchObject({ gen: 1, phase: "ready", mode: "responsive" });
+  });
+
+  test("Reload, Retry, plays, the drawer, Back and Forward keep the mode", () => {
+    const { w, state } = opened();
+    const responsive = setMode(state, "responsive").state;
+    const reloaded = reload(responsive, responsive.gen).state;
+    expect(reloaded.mode).toBe("responsive");
+    const failed = report(reloaded, { gen: reloaded.gen, state: "timeout" }).state;
+    expect(reload(failed, failed.gen).state.mode).toBe("responsive");
+    const chosen = ready(ok(choose(responsive, "tablet", w.resolve)).state, "820x1180").state;
+    expect(chosen.mode).toBe("responsive");
+    const backed = ok(back(chosen, w.resolve)).state;
+    expect(backed.mode).toBe("responsive");
+    expect(ok(forward(ready(backed).state, w.resolve)).state.mode).toBe("responsive");
+    expect(ok(play(responsive, { target: C, size: card }, w.resolve)).state.mode).toBe("responsive");
+  });
+
+  test("a source change, a lost canvas, a read failure and a restore keep the mode", () => {
+    const { w, state } = opened();
+    const responsive = setMode(state, "responsive").state;
+    w.set(A, w.present("http://h/t/tok/k1/proto.html", "s2"));
+    const changed = listChanged(responsive, w.resolve).state;
+    expect(changed.mode).toBe("responsive");
+    expect(readFailed(changed, changed.gen, "HTTP 500").state.mode).toBe("responsive");
+    w.set(A, { kind: "absent" });
+    const lost = listChanged(changed, w.resolve).state;
+    expect(lost.mode).toBe("responsive");
+    w.set(A, w.present("http://h/t/tok/k1/proto.html", "s3"));
+    expect(listChanged(lost, w.resolve).state.mode).toBe("responsive");
+  });
+
+  test("closing keeps the mode, and the next window opens in it", () => {
+    const { w, state } = opened();
+    const closed = close(setMode(state, "responsive").state).state;
+    expect(closed).toEqual({ open: false, gen: state.gen, history: { entries: [], index: -1 }, mode: "responsive", panel: { open: false, width: null } });
+    const reopened = ok(play(closed, { target: A, size: phone }, w.resolve)).state;
+    expect(prototypeView(reopened, w.resolve)?.mode).toBe("responsive");
+  });
+});
+
+describe("the run's mark height", () => {
+  test("a play carries the mark's width and height, and the ready size replaces both", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    expect(prototypeView(loading, w.resolve)?.run).toEqual({ url: "http://h/t/tok/k1/proto.html", markWidth: 390, markHeight: 844 });
+    expect(prototypeView(ready(loading, "400x700").state, w.resolve)?.run).toEqual({ url: "http://h/t/tok/k1/proto.html", markWidth: 400, markHeight: 700 });
+  });
+
+  test("a reload keeps the last ready size; the drawer uses the chosen frame's mark", () => {
+    const w = world();
+    const shown = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state, "400x700").state;
+    expect(prototypeView(reload(shown, shown.gen).state, w.resolve)?.run).toMatchObject({ markWidth: 400, markHeight: 700 });
+    expect(prototypeView(ok(choose(shown, "tablet", w.resolve)).state, w.resolve)?.run).toMatchObject({ markWidth: 820, markHeight: 1180 });
+  });
+
+  test("a run started with no known size has a zero mark until it is ready", () => {
+    const w = world();
+    w.set(A, { kind: "present", url: "http://h/t/tok/k1/proto.html", source: "s9", error: true, frames: [], label: "proto", path: ".doan/canvases/proto.html" });
+    const failed = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    expect(prototypeView(failed, w.resolve)?.run).toBeNull();
+    w.set(A, w.present("http://h/t/tok/k1/proto.html", "s9"));
+    const restored = listChanged(failed, w.resolve).state;
+    expect(prototypeView(restored, w.resolve)?.run).toEqual({ url: "http://h/t/tok/k1/proto.html", markWidth: 0, markHeight: 0 });
+    expect(prototypeView(ready(restored).state, w.resolve)?.run).toMatchObject({ markWidth: 390, markHeight: 844 });
+  });
+});
+
+// The conversation panel's open state and width live in main memory for as long as the app runs, never on disk.
+describe("the conversation panel", () => {
+  function opened() {
+    const w = world();
+    const state = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
+    return { w, state };
+  }
+
+  test("starts closed with no width, and the view says so with the target canvas's ID", () => {
+    const { w, state } = opened();
+    expect(CLOSED.panel).toEqual({ open: false, width: null });
+    expect(prototypeView(state, w.resolve)).toMatchObject({ canvasId: "proto", panel: { open: false, width: null } });
+  });
+
+  test("an ID-less canvas has no canvas ID in the view", () => {
+    const w = world();
+    const loose: PrototypeTarget = { root: "/r", canvas: { path: "loose.html" }, frame: "phone" };
+    w.set(loose, w.present("http://h/t/tok/k1/loose.html"));
+    const view = prototypeView(ok(play(CLOSED, { target: loose, size: phone }, w.resolve)).state, w.resolve);
+    expect(view).not.toHaveProperty("canvasId");
+    expect(view).toMatchObject({ root: "/r", path: "loose.html" });
+  });
+
+  test("opening, resizing and closing change only the panel state, with no window effect", () => {
+    const { w, state } = opened();
+    const open = setPanel(state, { open: true, width: 280 });
+    expect(open.effects).toEqual([]);
+    expect(open.state).toEqual({ ...state, panel: { open: true, width: 280 } });
+    const wider = setPanel(open.state, { open: true, width: 360 });
+    expect(wider.effects).toEqual([]);
+    const shut = setPanel(wider.state, { open: false });
+    expect(shut.effects).toEqual([]);
+    expect(shut.state.panel).toEqual({ open: false, width: 360 });
+    expect(prototypeView(shut.state, w.resolve)?.panel).toEqual({ open: false, width: 360 });
+    // The run is untouched: same gen, phase and frame.
+    expect(shut.state).toEqual({ ...state, panel: { open: false, width: 360 } });
+  });
+
+  test("a request that changes nothing leaves the state as it is, so no view goes out", () => {
+    const { state } = opened();
+    const open = setPanel(state, { open: true, width: 300 }).state;
+    expect(setPanel(open, { open: true, width: 300 }).state).toBe(open);
+    expect(setPanel(open, { open: true }).state).toBe(open);
+  });
+
+  test("closing the window keeps the panel state, and the next window opens with it", () => {
+    const { w, state } = opened();
+    const open = setPanel(state, { open: true, width: 320 }).state;
+    const closed = close(open);
+    expect(closed.effects).toEqual([{ kind: "destroy" }]);
+    expect(closed.state.panel).toEqual({ open: true, width: 320 });
+    const reopened = ok(play(closed.state, { target: A, size: phone }, w.resolve)).state;
+    expect(prototypeView(reopened, w.resolve)?.panel).toEqual({ open: true, width: 320 });
+  });
+
+  test("plays, the drawer, Back and Forward, reloads and a lost canvas keep the panel", () => {
+    const { w, state } = opened();
+    const open = setPanel(state, { open: true, width: 300 }).state;
+    const chosen = ready(ok(choose(open, "tablet", w.resolve)).state, "820x1180").state;
+    expect(chosen.panel).toEqual({ open: true, width: 300 });
+    expect(ok(back(chosen, w.resolve)).state.panel).toEqual({ open: true, width: 300 });
+    expect(reload(open, open.gen).state.panel).toEqual({ open: true, width: 300 });
+    expect(ok(play(open, { target: C, size: card }, w.resolve)).state.panel).toEqual({ open: true, width: 300 });
+    w.set(A, { kind: "absent" });
+    expect(listChanged(open, w.resolve).state.panel).toEqual({ open: true, width: 300 });
+  });
+
+  test("the panel works before the first view too, and on a closed window it does nothing", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    expect(setPanel(loading, { open: true, width: 280 }).state.panel).toEqual({ open: true, width: 280 });
+    expect(setPanel(CLOSED, { open: true, width: 280 })).toEqual({ state: CLOSED, effects: [] });
+  });
+});
+
+// The conversation panel blocks its composer while the canvas row is gone or shared, and says which; a lost frame or a
+// failed load keeps it usable, so the person can tell the agent the prototype does not open.
+describe("the target canvas row in the view", () => {
+  test("present, being read, gone or shared by two rows", () => {
+    const w = world();
+    const state = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
+    expect(prototypeView(state, w.resolve)?.canvasRow).toBe("present");
+    w.set(A, { kind: "unknown" });
+    expect(prototypeView(state, w.resolve)?.canvasRow).toBe("loading");
+    w.set(A, { kind: "absent" });
+    expect(prototypeView(state, w.resolve)?.canvasRow).toBe("gone");
+    w.set(A, { kind: "absent", duplicate: true });
+    expect(prototypeView(state, w.resolve)?.canvasRow).toBe("duplicate");
+  });
+
+  test("a frame the run lost leaves the row present", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    const lost = report(loading, { gen: loading.gen, state: "missing", frames: [] }).state;
+    expect(prototypeView(lost, w.resolve)).toMatchObject({ phase: "frame-unavailable", canvasRow: "present" });
   });
 });

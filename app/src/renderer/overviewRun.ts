@@ -3,7 +3,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
 import type { Canvas, ConversationEvent } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
-import { ConversationStore, type ListView, type QueuedMessage, type Thread } from "./conversationStore";
+import { ConversationStore, type ListView, type QueuedMessage, type StoreCalls, type Thread } from "./conversationStore";
 import type { DockedDraft } from "./dockedRules";
 import { overviewAfterListChange, pickOverviewConversation, type DraftMove } from "./overviewConversation";
 import { waitsForPerson, type SendingMessage, type ThreadItem } from "./threadItems";
@@ -92,11 +92,12 @@ export class OverviewRun {
   private scroll: { conversationId: string; to: ScrollTo; seq: number } | null = null;
   private scrolls = 0;
 
-  constructor(private host: OverviewRunHost) {
+  // `calls` go to the store it shares with the canvas panel's run.
+  constructor(private host: OverviewRunHost, calls: StoreCalls) {
     this.store = new ConversationStore({
       list: root => host.list(root), readsStarted: root => host.readsStarted(root), readsApplied: root => host.readsApplied(root),
       notice: text => host.notice?.(text), changed: () => host.changed(),
-    });
+    }, calls);
     this.store.subscribe((conversationId, change) => {
       this.markPromotion(conversationId);
       this.checkSeen();

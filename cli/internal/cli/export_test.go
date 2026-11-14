@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"io/fs"
 	"net/url"
@@ -589,7 +590,7 @@ func TestExportExitCodesAndUsage(t *testing.T) {
 		}
 	}
 	usage := result(t, t.TempDir(), 0, "help")["usage"].(string)
-	if !strings.Contains(usage, "export <canvas path> -o <file> [--force]") {
+	if !strings.Contains(usage, "export <canvas path> [--frame <id> --prototype] -o <file> [--force]") {
 		t.Fatal(usage)
 	}
 	if result(t, t.TempDir(), 0, "export", "--help")["usage"] == nil {
@@ -815,4 +816,255 @@ func TestExportNextStepsStayWithinTheGuide(t *testing.T) {
 	if !strings.Contains(exists, "Ask the user") || !strings.Contains(exists, "only if the user agreed") {
 		t.Errorf("destination_exists next steps: %s", exists)
 	}
+}
+
+// prototypeExportSeed adds canvases for the prototype export to the export seed.
+func prototypeExportSeed(t *testing.T) string {
+	t.Helper()
+	root := exporttest.Seed(t)
+	exporttest.Put(t, root, ".doan/canvases/proto.html", `<!doctype html><html><head><meta name="doan:canvas" content="proto"><meta name="doan:width" content="800"></head><body>`+
+		`<div data-doan-frame="checkout" data-doan-title="Checkout" data-doan-prototype="390x844"></div>`+
+		`<div data-doan-frame="plain"></div>`+
+		`<div data-doan-frame="padded" data-doan-prototype="390x844 "></div>`+
+		`<div data-doan-frame="twice" data-doan-prototype="390x844"></div><div data-doan-frame="twice"></div>`+
+		`<div data-doan-frame="`+strings.Repeat("\U0001F98A", 200)+`" data-doan-prototype="390x844"></div>`+
+		`<div data-doan-frame="bare &amp; <raw>" data-doan-prototype="320x480"></div>`+
+		`</body></html>`)
+	// A marked frame in a canvas whose references export refuses.
+	exporttest.Put(t, root, ".doan/canvases/proto-refused.html", `<!doctype html><html><head><meta name="doan:canvas" content="proto-refused"><meta name="doan:width" content="800"></head><body>`+
+		`<div data-doan-frame="checkout" data-doan-prototype="390x844"><img src="../../src/hero.png"></div></body></html>`)
+	exporttest.Put(t, root, ".doan/canvases/deep.html", validCanvas+strings.Repeat("<div>", 600))
+	// A marked frame in a canvas with no board width.
+	exporttest.Put(t, root, ".doan/canvases/proto-nowidth.html", `<!doctype html><html><head><meta name="doan:canvas" content="proto-nowidth"></head><body>`+
+		`<div data-doan-frame="checkout" data-doan-prototype="390x844"></div></body></html>`)
+	return root
+}
+
+func TestExportPrototypeReportsPrototype(t *testing.T) {
+	root := prototypeExportSeed(t)
+	out := filepath.Join(exportOutput(t), "proto-checkout.html")
+	got := exportRun(t, root, 0, ".doan/canvases/proto.html", "--frame", "checkout", "--prototype", "-o", out)
+	page, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{
+		"path":      ".doan/canvases/proto.html",
+		"output":    out,
+		"bytes":     float64(len(page)),
+		"frames":    float64(7),
+		"external":  []any{},
+		"links":     []any{},
+		"prototype": true,
+	}
+	if !reflect.DeepEqual(got["result"], want) {
+		t.Fatalf("result\n got %v\nwant %v", got["result"], want)
+	}
+	var stdout, stderr bytes.Buffer
+	plain := filepath.Join(exportOutput(t), "x.html")
+	if code := Run([]string{"export", ".doan/canvases/proto.html", "--prototype", "--frame", "checkout", "-o", plain, "--repo", root}, strings.NewReader(""), &stdout, &stderr); code != 0 || stderr.Len() != 0 {
+		t.Fatal(code, &stdout, &stderr)
+	}
+	if !strings.HasPrefix(stdout.String(), "Exported .doan/canvases/proto.html frame checkout to "+plain+" (") {
+		t.Fatalf("stdout %q", &stdout)
+	}
+}
+
+// Without --prototype the result keeps its shape: no prototype key.
+func TestExportWithoutPrototypeHasNoPrototypeKey(t *testing.T) {
+	root := prototypeExportSeed(t)
+	got := exportRun(t, root, 0, ".doan/canvases/proto.html", "-o", filepath.Join(exportOutput(t), "x.html"))
+	if _, ok := got["result"].(map[string]any)["prototype"]; ok {
+		t.Fatal(got["result"])
+	}
+}
+
+func TestExportPrototypeFlagPairing(t *testing.T) {
+	root := prototypeExportSeed(t)
+	dir := exportOutput(t)
+	out := filepath.Join(dir, "x.html")
+	for _, args := range [][]string{
+		{".doan/canvases/proto.html", "--frame", "checkout", "-o", out},
+		{".doan/canvases/proto.html", "--prototype", "-o", out},
+		{".doan/canvases/proto.html", "--frame", "checkout", "--frame", "plain", "--prototype", "-o", out},
+		{".doan/canvases/proto.html", "--frame", "", "--prototype", "-o", out},
+		{".doan/canvases/proto.html", "--frame", "checkout", "--prototype"},
+	} {
+		exportFailure(t, root, "usage_error", args...)
+	}
+	noOutputFiles(t, dir)
+}
+
+func TestExportPrototypeFrameRefusals(t *testing.T) {
+	root := prototypeExportSeed(t)
+	for _, tt := range []struct {
+		name, frame, code string
+	}{
+		{"no such frame", "nope", "frame_not_found"},
+		{"shared frame id", "twice", "frame_not_found"},
+		{"id over 200 UTF-16 units", strings.Repeat("\U0001F98A", 200), "frame_not_found"},
+		{"unmarked frame", "plain", "not_prototype"},
+		{"mark outside the grammar", "padded", "not_prototype"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := exportOutput(t)
+			e := exportFailure(t, root, tt.code, ".doan/canvases/proto.html", "--frame", tt.frame, "--prototype", "-o", filepath.Join(dir, "x.html"))
+			if ExitCode(tt.code) != 2 || !strings.Contains(e.Message, ".doan/canvases/proto.html") {
+				t.Fatalf("exit %d message %q", ExitCode(tt.code), e.Message)
+			}
+			noOutputFiles(t, dir)
+		})
+	}
+}
+
+// The frame is judged after the canvas checks and before references, size and output.
+func TestExportPrototypeRefusalOrder(t *testing.T) {
+	root := prototypeExportSeed(t)
+	sparse(t, root, ".doan/canvases/proto-huge.html", 50<<20+1)
+	dir := exportOutput(t)
+	existing := filepath.Join(dir, "exists.html")
+	if err := os.WriteFile(existing, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fresh := filepath.Join(dir, "x.html")
+	for _, tt := range []struct {
+		name, canvas, frame, output, code string
+	}{
+		// The canvas is checked first: an unreadable canvas stays export_refused, as without --prototype.
+		{"canvas without a width", ".doan/canvases/proto-nowidth.html", "nope", fresh, "export_refused"},
+		{"unparsable canvas", ".doan/canvases/deep.html", "nope", fresh, "export_refused"},
+		{"canvas over the size limit", ".doan/canvases/proto-huge.html", "nope", fresh, "export_too_large"},
+		{"missing canvas", ".doan/canvases/missing.html", "nope", fresh, "canvas_not_found"},
+		// Then the frame, before the references, the size of what it includes and the output.
+		{"refused references", ".doan/canvases/proto-refused.html", "nope", fresh, "frame_not_found"},
+		{"existing output", ".doan/canvases/proto.html", "plain", existing, "not_prototype"},
+		{"refused references, marked frame", ".doan/canvases/proto-refused.html", "checkout", fresh, "export_refused"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			exportFailure(t, root, tt.code, tt.canvas, "--frame", tt.frame, "--prototype", "-o", tt.output)
+		})
+	}
+	if data, err := os.ReadFile(existing); err != nil || string(data) != "keep" {
+		t.Fatal(string(data), err)
+	}
+	if _, err := os.Stat(fresh); !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+}
+
+type prototypePage struct{ title, frameTitle, sandbox, srcdoc string }
+
+// parsePrototypePage reads the outer page `doan export --prototype` writes: its tab title and the one iframe.
+func parsePrototypePage(t *testing.T, page []byte) prototypePage {
+	t.Helper()
+	doc, err := html.Parse(bytes.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var p prototypePage
+	frames := 0
+	var visit func(*html.Node)
+	visit = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			switch n.Data {
+			case "iframe":
+				frames++
+				for _, a := range n.Attr {
+					switch a.Key {
+					case "srcdoc":
+						p.srcdoc = a.Val
+					case "title":
+						p.frameTitle = a.Val
+					case "sandbox":
+						p.sandbox = a.Val
+					}
+				}
+			case "script":
+				for _, a := range n.Attr {
+					if a.Key == "id" && a.Val == "doan-meta" {
+						t.Fatal("the prototype file is the canvas viewer page")
+					}
+				}
+			case "title":
+				if p.title == "" && n.FirstChild != nil {
+					p.title = n.FirstChild.Data
+				}
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			visit(c)
+		}
+	}
+	visit(doc)
+	if frames != 1 {
+		t.Fatalf("%d iframes", frames)
+	}
+	return p
+}
+
+func TestExportPrototypeWritesThePrototypePage(t *testing.T) {
+	root := prototypeExportSeed(t)
+	for _, tt := range []struct {
+		name, frameArg, frame, label string
+	}{
+		{"titled frame", "checkout", "checkout", "Checkout"},
+		// A frame without data-doan-title is named by its id; the id's markup characters stay text.
+		{"untitled frame", "bare & <raw>", "bare & <raw>", "bare & <raw>"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			out := filepath.Join(exportOutput(t), "p.html")
+			exportRun(t, root, 0, ".doan/canvases/proto.html", "--frame", tt.frameArg, "--prototype", "-o", out)
+			data, err := os.ReadFile(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			page := parsePrototypePage(t, data)
+			if page.title != tt.label+" — Prototype" || page.frameTitle != tt.label {
+				t.Fatalf("title %q, iframe title %q", page.title, page.frameTitle)
+			}
+			if page.sandbox != "allow-scripts allow-forms" {
+				t.Fatalf("sandbox %q", page.sandbox)
+			}
+			frame, _ := json.Marshal(tt.frame)
+			if !strings.Contains(page.srcdoc, "const FRAME = "+string(frame)+";") {
+				t.Fatalf("srcdoc does not name frame %s", frame)
+			}
+			// The whole canvas is in the file: the other frames are hidden by the page, not removed.
+			if !strings.Contains(page.srcdoc, `data-doan-frame="plain"`) {
+				t.Fatal("the srcdoc lost the rest of the canvas")
+			}
+		})
+	}
+}
+
+// The app's Export runs the CLI with --frame=<id>, so the attached form must reach the same page.
+func TestExportPrototypeFrameFlagWithEquals(t *testing.T) {
+	root := prototypeExportSeed(t)
+	out := filepath.Join(exportOutput(t), "p.html")
+	got := exportRun(t, root, 0, ".doan/canvases/proto.html", "--frame=checkout", "--prototype", "-o", out)
+	if got["result"].(map[string]any)["prototype"] != true {
+		t.Fatal(got)
+	}
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page := parsePrototypePage(t, data); page.title != "Checkout — Prototype" {
+		t.Fatal(page.title)
+	}
+}
+
+// The assembled prototype page is checked against the size limit like the canvas page.
+func TestExportPrototypeTooLargeAfterEncoding(t *testing.T) {
+	root := exporttest.Seed(t)
+	if err := os.WriteFile(filepath.Join(root, ".doan/assets/blob.bin"), bytes.Repeat([]byte{0}, 40<<20), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exporttest.Put(t, root, ".doan/canvases/blob.html", `<!doctype html><html><head><meta name="doan:canvas" content="blob"><meta name="doan:width" content="800"></head><body><div data-doan-frame="a" data-doan-prototype="390x844"><img src="../assets/blob.bin"></div></body></html>`)
+	dir := exportOutput(t)
+	e := exportFailure(t, root, "export_too_large", ".doan/canvases/blob.html", "--frame", "a", "--prototype", "-o", filepath.Join(dir, "x.html"))
+	if got := appLines(e.Message); len(got) == 0 || got[0] != ".doan/assets/blob.bin" {
+		t.Fatalf("lines %q in %q", got, e.Message)
+	}
+	noOutputFiles(t, dir)
 }

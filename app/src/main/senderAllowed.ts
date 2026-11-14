@@ -1,7 +1,9 @@
 import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
 
-// `prototype` is the single-frame prototype window: its main frame drives only its own run and never reaches a main
-// window channel, so a canvas that escaped into it could not change the selection, settings or attachments.
+// `prototype` is the single-frame prototype window: its main frame drives its own run and its conversation panel. It
+// reaches the main window's state only through the composer channels below (attachments are its own ids), conversation
+// requests main scopes to the playing canvas (index.ts), and its own narrow reads; a canvas that escaped into it could
+// not change the selection, settings or another conversation.
 export type WindowKind = "main" | "prototype";
 
 const mainOnly = new Set([
@@ -57,9 +59,19 @@ const mainOnly = new Set([
   "buddy-intro:read", "buddy-intro:close",
   // Play prototype from the toolbar and the size bubble; prototype:changed is an event main sends the prototype window.
   PROTOTYPE_CHANNELS.play,
+  // The prototype window's playing target, and the project conversation the main window says draws it.
+  PROTOTYPE_CHANNELS.readTarget, PROTOTYPE_CHANNELS.setDrawing,
 ]);
 
-const prototypeOnly: ReadonlySet<string> = new Set(PROTOTYPE_WINDOW_REQUESTS);
+// The panel's composer: preset reads, its own attachments (no capture: the window has no board) and agent reply links.
+// The main window's own set is not widened for it.
+const prototypeComposer = [
+  "design-skills:list", "design-skills:get",
+  "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release", "attachments:fromPaths",
+  "shell:openLink",
+];
+
+const prototypeOnly: ReadonlySet<string> = new Set([...PROTOTYPE_WINDOW_REQUESTS, ...prototypeComposer]);
 
 // The caller must first identify a registered window and check its main frame.
 export function senderAllowed(channel: string, windowKind: unknown): boolean {

@@ -4,12 +4,15 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/SinhyeokKang/doan-design/cli/internal/canvas"
+	"github.com/SinhyeokKang/doan-design/cli/internal/export"
 )
 
 // Open asks the running Doan to open a canvas, and a frame in it. It is the one command besides
 // `onboarding start` that may open the app, through the same bootstrap.
 func Open(ctx Context, f Flags, args []string) (Outcome, *Error) {
-	arg, frame, failure := openInput(args, f.Frames)
+	arg, frame, failure := openInput(args, f.Frames, f.Prototype)
 	if failure != nil {
 		return Outcome{}, failure
 	}
@@ -22,10 +25,14 @@ func Open(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		return Outcome{}, usageError(err.Error())
 	}
 	// workTarget accepts a canvas that does not exist yet (work start); opening one has nothing to show.
-	if _, err := os.Stat(filepath.Join(r.Root, filepath.FromSlash(resolved))); os.IsNotExist(err) {
+	stored, err := os.Stat(filepath.Join(r.Root, filepath.FromSlash(resolved)))
+	if os.IsNotExist(err) {
 		return Outcome{}, openFailure("canvas_not_found", "No canvas at "+resolved)
 	} else if err != nil {
 		return Outcome{}, internal(err)
+	}
+	if f.Prototype {
+		return openPrototype(ctx, r.Root, resolved, stored.Size(), *frame)
 	}
 	request, failure := openRequest(r.Root, resolved, frame)
 	if failure != nil {
@@ -36,13 +43,56 @@ func Open(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		return callOpen(ctx, request, target, deadline)
 	})
 	if failure != nil {
-		if failure.Code == "not_ready" {
-			// The app answered in time but never finished starting; the asker can only try again later.
-			return Outcome{}, &Error{Code: "busy", Message: "Doan is still opening", NextSteps: []string{"Tell the user Doan is still opening and ask them to ask again in a moment"}}
-		}
-		return Outcome{}, failure
+		return Outcome{}, stillOpening(failure)
 	}
 	return Outcome{Result: reply, Text: openText(resolved, frame, reply["frame"].(string))}, nil
+}
+
+// openPrototype judges the frame from the file before asking the app, so a frame that cannot play never reaches
+// it, then plays it over v6. The board width is not read: playing does not need it.
+func openPrototype(ctx Context, root, resolved string, size int64, frame string) (Outcome, *Error) {
+	if size > export.MaxBytes {
+		return Outcome{}, prototypeFailure("canvas_unreadable", "The canvas "+resolved+" is over "+export.FormatSize(export.MaxBytes))
+	}
+	src, err := export.ReadFile(root, resolved)
+	if os.IsNotExist(err) {
+		return Outcome{}, openFailure("canvas_not_found", "No canvas at "+resolved)
+	} else if err != nil {
+		return Outcome{}, prototypeFailure("canvas_unreadable", "Doan could not read the canvas "+resolved)
+	}
+	model, err := canvas.Parse(resolved, src)
+	if err != nil {
+		return Outcome{}, prototypeFailure("canvas_unreadable", "Doan could not parse the canvas "+resolved)
+	}
+	played, refusal := canvas.PrototypeTarget(model, frame)
+	if refusal != canvas.PrototypeOK {
+		return Outcome{}, prototypeFrameFailure(refusal, frame, resolved)
+	}
+	request, failure := prototypeRequest(root, resolved, played.ID, played.Size)
+	if failure != nil {
+		return Outcome{}, failure
+	}
+	target := prototypeTarget{root: root, path: resolved, frame: frame}
+	reply, failure := bootstrap(ctx, false, prototypeFailure, func(deadline time.Time) (map[string]any, *Error, bool) {
+		line, token, failure, launchable := exchange(ctx, request, deadline, prototypeFailure)
+		if failure != nil {
+			return nil, failure, launchable
+		}
+		return prototypeReply(line, target, []string{token, ctx.RuntimePath})
+	})
+	if failure != nil {
+		return Outcome{}, stillOpening(failure)
+	}
+	return Outcome{Result: reply, Text: "Playing " + frame + " from " + resolved + " in Doan’s prototype window"}, nil
+}
+
+// stillOpening turns a not_ready that outlasted the bootstrap into busy: the app answered in time but never
+// finished starting, so the asker can only try again later.
+func stillOpening(failure *Error) *Error {
+	if failure.Code == "not_ready" {
+		return &Error{Code: "busy", Message: "Doan is still opening", NextSteps: []string{"Tell the user Doan is still opening and ask them to ask again in a moment"}}
+	}
+	return failure
 }
 
 // callOpen sends one v4 request and returns the validated reply; launchable is as for callOnboarding.

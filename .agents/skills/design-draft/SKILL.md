@@ -16,9 +16,9 @@ Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in
 
 - After `/feature-review`, before `/tdd`: the review settles the list of visible states, and `/design-sync` compares only the states the draft draws. Drawn earlier, the draft is redrawn.
 - For screens whose first implementation is not integrated on develop yet.
-- For a redesign child of a parent feature (AGENTS.md 'Terms') whose `design.md` requests a new draft file for a screen already on develop.
+- For a redesign feature (a child of a parent feature, AGENTS.md 'Terms', or a standalone follow-up) whose `design.md` requests a new draft file for a screen already on develop.
 
-**Not for**: restyling a screen already on develop outside a redesign child. Once a screen's first implementation is integrated on develop (not when it is released), the code and `docs/DESIGN.md` are the reference; a new look for it is a change request through `/feature`, which may make it a redesign child.
+**Not for**: restyling a screen already on develop outside a redesign feature. Once a screen's first implementation is integrated on develop (not when it is released), the code and `docs/DESIGN.md` are the reference; a new look for it is a change request through `/feature`, which may make it a redesign feature.
 
 ## Prerequisites (stop if any fails)
 
@@ -52,7 +52,7 @@ Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 
 - **`data-doan-implements` points only to files that exist now.** A path to a file the feature will create is an `implements_not_found` error.
 - **Tokens first** (docs/DESIGN.md 'Adopted rules'): link `../../app/src/renderer/tokens.css` by a relative path and write every app value a token covers as that token — color, type roles (size, line height and tracking together), spacing, radius, control/icon size, shadow, motion. A literal is allowed only when no token has the value and the value is needed; list each one in the report as a component constant or a new token. A new token that follows the rules in docs/DESIGN.md 'Tokens first' may be added to `app/src/renderer/tokens.css` in the same change (the one exception to 'Do not edit app code' below: add tokens only, never change an existing token's value), and recorded in docs/DESIGN.md. Never pick an approximate token without asking the user. Before handing over, scan the draft's CSS for literals that have an exact token and replace them; a replacement must leave the computed value unchanged. Colors of example screens the human reviews inside the draft (the mock canvas on the board) come from `.doan/assets/mock.css`. No hex, `rgb(` or `oklch(` anywhere else. Follow the theme in DESIGN.md 'Design system' and the feature documents: light only, using the role variables in `tokens.css`, never the legacy aliases kept for old drafts.
 - **No coloured edge stripes**: never mark a message, notice, card or row with a coloured or thick left/start border. Errors use an icon plus danger text or a status block; notices use an inset fill. A 1px neutral divider between panes is fine.
-- **Shipped screens are copied, not redesigned** — except the screen a redesign child is redesigning, which is drawn as its feature documents ask. Any other screen already on develop (header, sidebar, Home, Settings) is drawn as the code and `docs/DESIGN.md` have it; put any change you would make into the report as a change request instead of drawing it.
+- **Shipped screens are copied, not redesigned** — except the screen a redesign feature is redesigning, which is drawn as its feature documents ask. Any other screen already on develop (header, sidebar, Home, Settings) is drawn as the code and `docs/DESIGN.md` have it; put any change you would make into the report as a change request instead of drawing it.
 - **Every requested state gets a frame or a labelled tile**, with the real English copy from the design document (no placeholder text). Long values, empty values and error states are drawn, not described.
 - **Mark what is not in code** (agent rule B) the way existing drafts do, and say in the header which frames are new.
 - **Header**: one intro block — scope, which frames `/design-sync` will compare, what is copied from shipped screens, and references with their source and whether they were checked or recalled from memory (AGENTS.md 'Leave evidence for references').
@@ -100,7 +100,7 @@ Next: user review in the app → --revise or confirmed
 ## Prohibited
 
 - Do not edit app code, tests or other features' documents, except adding a rule-following token to `tokens.css` (see 'Tokens first').
-- Do not edit the draft of a screen already on develop (e.g. `.doan/canvases/doan-canvas.html`); that is a change request. A redesign child writes a new file instead.
+- Do not edit the draft of a screen already on develop (e.g. `.doan/canvases/doan-canvas.html`); that is a change request. A redesign feature writes a new file instead.
 - Do not add canvas conventions or test-only attributes.
 - Do not draw a decision that is not in the feature documents, PRODUCT or ARCHITECTURE; ask instead.
 - Do not merge, and do not push a `<type>/<slug>` branch ('Commit').

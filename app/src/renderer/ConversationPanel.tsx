@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type PointerEvent, type ReactElement, type ReactNode, type Ref } from "react";
 import { PanelRightClose } from "lucide-react";
 import { nudgePanel, type PanelBounds } from "./rightPanelSize";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -18,12 +18,13 @@ export function dragPanel(start: number, startX: number, x: number, bounds: Pane
 // canvas shown the shell keeps its own title and empty line. While folded the column stays in the DOM, out of the Tab
 // order, so the open button's aria-controls resolves.
 // `width` is the width shown; `onResize` commits a width (undefined: the window-relative default) and `preview` shows
-// one while a drag is still going, without a commit.
-export function ConversationPanel({ open, width, bounds, onHide, onResize, preview, title, children }: {
+// one while a drag is still going, without a commit. `columnRef` and `onBlur` reach the column element itself, for a
+// host that reads focus inside it (the prototype window's composer focus, focus guard and docked buddy).
+export function ConversationPanel({ open, width, bounds, onHide, onResize, preview, title, children, columnRef, onBlur }: {
   open: boolean; width: number; bounds: PanelBounds; onHide(): void; onResize(width: number | undefined): void; preview(width: number): void;
-  title?: ReactNode; children?: ReactNode;
+  title?: ReactNode; children?: ReactNode; columnRef?: Ref<HTMLDivElement> | undefined; onBlur?: ((event: FocusEvent<HTMLDivElement>) => void) | undefined;
 }) {
-  return <div className="doan-conv-column" data-collapsed={open ? undefined : ""} inert={!open}>
+  return <div className="doan-conv-column" ref={columnRef} data-collapsed={open ? undefined : ""} inert={!open} onBlur={onBlur}>
     <ResizeHandle width={width} bounds={bounds} onResize={onResize} preview={preview} />
     <aside className="right ov-right doan-conv-panel" id={CONVERSATION_PANEL_ID} role="region" aria-label="Conversation">
       <div className="doan-conv-head">

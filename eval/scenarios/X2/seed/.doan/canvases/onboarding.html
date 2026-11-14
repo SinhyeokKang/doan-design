@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="onboarding">
+  <meta name="doan:width" content="2400">
+  <title>Onboarding</title>
+  <link rel="stylesheet" href="../assets/tokens.css">
+  <style>
+    body { font-family: system-ui, sans-serif; color: var(--color-text); background: var(--color-surface); display: flex; align-items: flex-start; gap: var(--space-4); }
+    [data-doan-frame] { box-sizing: border-box; padding: var(--space-4); border-radius: var(--radius); display: flex; flex-direction: column; gap: var(--space-4); }
+    .desktop { width: 1280px; height: 800px; }
+    .phone { width: 390px; height: 844px; }
+    label { display: flex; flex-direction: column; gap: 4px; }
+    button { background: var(--color-primary); color: var(--color-surface); padding: var(--space-4); border: 0; border-radius: var(--radius); }
+  </style>
+</head>
+<body>
+<p>Design proposal — these screens are not implemented in code.</p>
+<section class="desktop" data-doan-frame="welcome-desktop" data-doan-title="Welcome (desktop)">
+<h1 data-doan-id="welcome-heading">Welcome to Acme</h1>
+<p data-doan-id="welcome-copy">Plan your week with your team in one place.</p>
+<button data-doan-id="welcome-action" type="button">Create an account</button>
+</section>
+<section class="desktop" data-doan-frame="signup-desktop" data-doan-title="Sign up (desktop)">
+<h1 data-doan-id="signup-desktop-heading">Create your account</h1>
+<label>Email <input data-doan-id="signup-desktop-email" type="email"></label>
+<label>Password <input data-doan-id="signup-desktop-password" type="password"></label>
+<button data-doan-id="signup-desktop-action" type="button">Sign up</button>
+</section>
+<section class="phone" data-doan-frame="signup-phone" data-doan-title="Sign up (phone)" data-doan-prototype="390x844">
+<div data-doan-id="signup-phone-body">
+<h1 data-doan-id="signup-phone-heading">Create your account</h1>
+<label>Email <input data-doan-id="signup-phone-email" type="email"></label>
+<label>Password <input data-doan-id="signup-phone-password" type="password"></label>
+<button data-doan-id="signup-phone-action" type="button">Sign up</button>
+</div>
+</section>
+</body>
+</html>

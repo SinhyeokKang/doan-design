@@ -132,6 +132,10 @@ export function dockedMessage(draft: DockedDraft, skills: readonly string[] = []
 // the reason line; a notice may offer Retry or, for a terminal session, "Start a new conversation".
 export type DockedRefusal = { kind: "busy"; busy: DockedBusy } | { kind: "gone" } | { kind: "notice"; text: string; retry?: boolean; startNew?: boolean }
   | { kind: "blocked"; text: string; action?: SettingsAction };
+// A draft with anything in it: text, a preset or an attachment.
+export function hasDraft(draft: DockedDraft | undefined): draft is DockedDraft {
+  return draft !== undefined && (draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0);
+}
 // "Start a new conversation" from a refused conversation carries the refused draft into the new conversation's field,
 // as a refused terminal session's does (the two share that field); a draft already waiting there stays.
 export function carryDraft(drafts: ReadonlyMap<string, DockedDraft>, from: string, to: string): ReadonlyMap<string, DockedDraft> {

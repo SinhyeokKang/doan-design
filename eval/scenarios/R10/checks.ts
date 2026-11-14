@@ -14,7 +14,7 @@ const checks: Checks = ctx => {
   // source canvas must stay as it was, so the only change is that one file.
   const made = changed.filter(path => CANVAS.test(path) && ctx.seed(path) === null);
   const target = made.length === 1 && changed.length === 1 ? made[0]! : null;
-  // The app takes one handoff per turn and a refusal does not spend it, so what counts is the accepted request: an agent
+  // This task asks for one new canvas, so what counts is one accepted request: an agent
   // that is refused once and then asks correctly still handed off once. The refused ones stay in the detail.
   const requests = ctx.handoff();
   const accepted = requests.filter(e => e.response.ok);

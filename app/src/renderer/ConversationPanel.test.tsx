@@ -49,6 +49,18 @@ describe("ConversationPanel", () => {
     expect(markup().match(/^<div[^>]*>/)?.[0]).not.toMatch(/inert|data-collapsed/);
   });
 
+  // The prototype window's focus guard, composer focus query and docked buddy read the column element itself.
+  it("puts the optional columnRef and onBlur on the column, and leaves them off without them", () => {
+    const columnRef = { current: null }, onBlur = vi.fn();
+    const column = ConversationPanel(props({ columnRef, onBlur })) as ReactElement<Record<string, unknown>>;
+    expect(column.props.className).toBe("doan-conv-column");
+    expect(column.props.ref).toBe(columnRef);
+    expect(column.props.onBlur).toBe(onBlur);
+    const bare = ConversationPanel(props()) as ReactElement<Record<string, unknown>>;
+    expect(bare.props.ref).toBeUndefined();
+    expect(bare.props.onBlur).toBeUndefined();
+  });
+
   it("closes with the close button", () => {
     const onHide = vi.fn();
     const close = buttons(<ConversationPanel {...props({ onHide })} />).find(button => button.props["aria-label"] === "Hide conversation");

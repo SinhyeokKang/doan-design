@@ -22,7 +22,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 function harness() {
   const host = { list: () => [], readsStarted: () => 0, readsApplied: () => 0, notice: vi.fn(), changed: vi.fn() };
-  return { store: new ConversationStore(host), host };
+  return { store: new ConversationStore(host, window.doan), host };
 }
 
 test("keeps the higher rev within a turn, so a read reply that comes after a newer push never overwrites it", async () => {
