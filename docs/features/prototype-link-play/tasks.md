@@ -8,7 +8,7 @@
 
 상위 문서의 체크는 리드가 develop에서 한다. 배치 L·S·W·G는 워커가 `/ship bypass`로 `test:` 커밋 하나와 구현 커밋 하나를 만든다. 실제 앱 probe는 모두 격리한다: `app/runtime/` 지원(`isolatedEnv`), 임시 userData·HOME·SHELL·`DOAN_RUNTIME`, `--user-data-dir`, 앞뒤 `real-state` 비교.
 
-- [ ] 0. **`/design-draft`**(리드, develop, 체인 전): design.md와 spec이 요청하는 화면이다. 캔버스는 `.doan/canvases/prototype-link-play.html`이고 프레임은 셋이다.
+- [x] 0. **`/design-draft`**(리드, develop, 체인 전): design.md와 spec이 요청하는 화면이다. 캔버스는 `.doan/canvases/prototype-link-play.html`이고 프레임은 셋이다.
   - `drawer-groups`: 프로토타입 창 서랍의 묶음, 재생 중 묶음, 연결 없는 프레임들, 묶음 하나, 빈 서랍, main 창 헤더 서랍의 Eye 표시
   - `link-toast`: 재생할 수 없는 연결의 토스트
   - `toolbar-play`: 툴바 Play의 모든 행(읽는 중, pick, capture, 프로토타입 없음, 재생, 감싼 프레임 재생, 서랍, 깨진 마크의 서랍), 상태별 툴팁, Hand, 툴바에서 열린 서랍
