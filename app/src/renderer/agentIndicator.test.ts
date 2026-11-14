@@ -62,7 +62,7 @@ describe("canvasAgent", () => {
   });
   test("the turn's end clears it", () => {
     const previous = canvasAgent([summary({})], target, null, []);
-    expect(canvasAgent([summary({ phase: "ended" })], target, previous, [])).toBeNull();
+    expect(canvasAgent([summary({ phase: "ended", working: false })], target, previous, [])).toBeNull();
   });
   test("another canvas's conversation shows nothing", () => {
     expect(canvasAgent([summary({ canvas: { path: ".doan/canvases/other.html", id: "other" } })], target, null, [])).toBeNull();

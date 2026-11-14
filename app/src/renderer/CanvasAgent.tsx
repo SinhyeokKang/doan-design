@@ -11,8 +11,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import type { DotFieldMessage, DotFieldSize } from "./dotField";
 import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedText } from "./noticeTyping";
 import { pickArtist, type BuddyId } from "./buddies";
+import { nextStopHold, stopHeld, stopName, type StopHold } from "./stopTarget";
 
-// The agent indicator on the board while this canvas's current conversation works or waits (PRODUCT §5 item 2 'Agent indicator',
+// The agent indicator on the board while one of this canvas's conversations works or waits (PRODUCT §5 item 2 'Agent indicator',
 // .doan/canvases/doan-canvas.html 'agent-working', 'agent-waiting'). The glow and the dot field take
 // no pointer input; the notice floats at the board's top centre with one button. Reference: ego lite's agent tab as the
 // user described it (2026-11-01); its values live in a native view and were not read.
@@ -29,20 +30,37 @@ import { pickArtist, type BuddyId } from "./buddies";
 // another canvas, shows the indicator without Stop); `frames` is the open document's layout, for the frame's title.
 // `onWork` gets the open canvas's work for the controller's marker and following, once per change. `buddy` is the
 // chosen buddy, whose painter the notice shows.
-export function CanvasAgent({ list, canvas, buddy, running, work, conversationWork = [], frames = null, entries, onOpen, onOpenSibling, onStopFailed, onWork, children }: {
-  list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[];
+// canvas-concurrent-conversations (draft frames board-notice, board-stop): the notice follows one conversation of the
+// canvas, the one the panel shows (`shown`, also while folded) while it works or waits, else another; Stop names one
+// that is not the shown one, and a change of the followed conversation holds Stop for a moment. Open gets the followed
+// conversation.
+export function CanvasAgent({ list, shown = null, canvas, buddy, running, work, conversationWork = [], frames = null, entries, onOpen, onOpenSibling, onStopFailed, onWork, children }: {
+  list: readonly ConversationSummary[] | "loading" | "error" | undefined; shown?: string | null; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[];
   conversationWork?: readonly ConversationWork[]; frames?: readonly CanvasFrameRect[] | null;
-  entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void;
+  entries: readonly FolderEntry[]; onOpen(conversationId: string): void; onOpenSibling(root: string): void; onStopFailed(text: string): void;
   onWork?(target: CanvasWorkTarget | null): void; children?: ReactNode;
 }) {
-  // The last answer, kept across a failed list read (agentPresence).
+  // The last answer, kept across a failed list read (boardPresence).
   const previous = useRef<CanvasAgentState | null>(null);
-  const agent = canvasAgent(listForPresence(list), canvas, previous.current, work, conversationWork);
+  const agent = canvasAgent(listForPresence(list), canvas, previous.current, work, conversationWork, shown);
   previous.current = agent;
   const presence = agent?.presence ?? null;
   const [stopping, setStopping] = useState<string | null>(null);
   const held = settleStopping(stopping, presence);
   useEffect(() => { if (stopping !== null && held === null) setStopping(null); }, [stopping, held]);
+  // A change from one followed conversation to another holds Stop (stopTarget.ts); a render after the hold ends lifts it.
+  const hold = useRef<StopHold | null>(null);
+  const now = Date.now();
+  hold.current = nextStopHold(hold.current, presence?.kind === "working" ? presence.conversationId : null, now);
+  const holding = stopHeld(hold.current, now);
+  const [, setLifted] = useState(0);
+  const until = hold.current.until;
+  useEffect(() => {
+    if (!holding) return;
+    const timer = setTimeout(() => setLifted(n => n + 1), until - Date.now());
+    return () => clearTimeout(timer);
+  }, [holding, until]);
+  const stopLabel = agent?.presence ? { name: stopName(agent.title, agent.presence.conversationId === shown), held: holding } : undefined;
   const picked = agent ? pickWork(canvas, presence, conversationWork, work) : null;
   const target = canvasWorkTarget(canvas, picked, conversationWork, work);
   const targetKey = JSON.stringify(target);
@@ -53,7 +71,7 @@ export function CanvasAgent({ list, canvas, buddy, running, work, conversationWo
   const named = workFrameTitle(title.current, canvas, picked, frames);
   title.current = named.cache;
   const name = named.title;
-  const view = agentNoticeView(presence, held, agent !== null && agent.presence === null, picked && { ...picked, ...(name === undefined ? {} : { title: name }) });
+  const view = agentNoticeView(presence, held, agent !== null && agent.presence === null, picked && { ...picked, ...(name === undefined ? {} : { title: name }) }, stopLabel);
   const moment: NoticeMoment = {
     canvas: canvas && `${canvas.root}\0${canvas.canvas.path}`, visible: running,
     content: picked ? `${picked.source}@${picked.touched}` : presence ? `presence:${presence.conversationId}` : null, waiting: presence?.kind === "waiting",
@@ -83,8 +101,10 @@ export function CanvasAgent({ list, canvas, buddy, running, work, conversationWo
           // aria-disabled, not disabled: "Stopping" keeps focus.
           // The composer's Stop glyph; "Stopping" spins in its place.
           ? <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-disabled={action.disabled || undefined} onClick={stop}>
-            {action.disabled ? <span className="doan-spinner" aria-hidden="true" /> : <Square fill="currentColor" stroke="none" aria-hidden="true" />}{action.label}</button>
-          : <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={action.name} onClick={onOpen}>{action.label}</button>}
+            {action.stopping ? <span className="doan-spinner" aria-hidden="true" /> : <Square fill="currentColor" stroke="none" aria-hidden="true" />}
+            {/* Another conversation's quoted title ellipsizes inside the pill (draft frame board-notice). */}
+            {action.label === "Stop" || action.label === "Stopping" ? action.label : <span className="stop-label">{action.label}</span>}</button>
+          : <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={action.name} onClick={() => { if (presence) onOpen(presence.conversationId); }}>{action.label}</button>}
       </div>}
       {/* The text ellipsizes a long label; its tooltip and Open's name carry it whole. The tooltip opens below: the
           notice sits near the board's top edge, and above it a two-line sentence crossed into the canvas header.

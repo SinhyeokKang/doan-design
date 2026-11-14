@@ -61,8 +61,8 @@ import { CanvasConversations } from "./RightPanel";
 import { CanvasRun, type CanvasTarget } from "./canvasRun";
 import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, composerFixed, settleChips } from "./CanvasConversationPanel";
 import { captureAvailability } from "./canvasCapture";
-import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT } from "./canvasConversation";
-import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
+import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT, sidebarRowRequest } from "./canvasConversation";
+import { canvasStrongestSignal, panelOpenFor, type CanvasSignal, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
 import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
 import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad, type Rect } from "./canvasPicker";
 import type { DockedFieldLink } from "./DockedComposer";
@@ -92,7 +92,7 @@ import { QuickOpen } from "./QuickOpenDialog";
 import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, sameShownConversation, unavailableCanvasMessage, type ConversationLists, type SearchResult, type ShownConversation } from "./quickOpen";
 import { blockedLinkMessage, decideOpen, type OpenPage } from "./openDecision";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
-import { withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
+import { conversationCanvasKey, withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
 import { attachmentLimit, defaultProject, type AttachmentDraft } from "./homeComposer";
 import { OverviewRun } from "./overviewRun";
@@ -145,21 +145,31 @@ function withGroups(project: ShellProject, change: (groups: ShellProject["groups
   const { groups, ...rest } = project, next = change(groups);
   return next ? { ...rest, groups: next } : rest;
 }
-export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; rightPanel?: UiState["rightPanel"]; overviewPanel?: UiState["overviewPanel"]; sidebar?: UiState["sidebar"]; canvasTool?: CanvasState["tool"] }): UiState | null {
+export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; conversationByCanvas?: Record<string, Record<string, string>> | null; rightPanel?: UiState["rightPanel"]; overviewPanel?: UiState["overviewPanel"]; sidebar?: UiState["sidebar"]; canvasTool?: CanvasState["tool"] }): UiState | null {
   const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel, overviewPanel, sidebar, canvasTool } = input;
   const conversationByRoot = input.conversationByRoot && Object.keys(input.conversationByRoot).length ? input.conversationByRoot : undefined;
+  const conversationByCanvas = input.conversationByCanvas && Object.keys(input.conversationByCanvas).length ? input.conversationByCanvas : undefined;
   if (home === null) return null;
   const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
   const canvasId = canvas ? open?.row.id : undefined;
   // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
   const lastByRoot = { ...input.memory, ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(rightPanel ? { rightPanel } : {}), ...(overviewPanel ? { overviewPanel } : {}), ...(sidebar ? { sidebar } : {}), ...(canvasTool === "hand" ? { canvasTool } : {}) };
+  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(conversationByCanvas ? { conversationByCanvas } : {}), ...(rightPanel ? { rightPanel } : {}), ...(overviewPanel ? { overviewPanel } : {}), ...(sidebar ? { sidebar } : {}), ...(canvasTool === "hand" ? { canvasTool } : {}) };
 }
 
 // The start's ui-state read under what the run wrote before it: a root the run set, cleared (New) or
 // removed keeps the run's word, so a late read never brings back a cleared memory.
 export function mergeConversationMemory(saved: Readonly<Record<string, string>> | undefined, current: Readonly<Record<string, string>>, touched: ReadonlySet<string>): Record<string, string> {
   return { ...Object.fromEntries(Object.entries(saved ?? {}).filter(([root]) => !touched.has(root))), ...current };
+}
+
+// The same for the canvas memory (ui-state conversationByCanvas), per canvas: a canvas seen before the read keeps the
+// run's word, and a root removed before it keeps none of the read memory.
+export function mergeCanvasMemory(saved: Readonly<Record<string, Readonly<Record<string, string>>>> | undefined, current: Readonly<Record<string, Readonly<Record<string, string>>>>, removed: ReadonlySet<string>): Record<string, Record<string, string>> {
+  const merged: Record<string, Record<string, string>> = {};
+  for (const [root, canvases] of Object.entries(saved ?? {})) if (!removed.has(root)) merged[root] = { ...canvases };
+  for (const [root, canvases] of Object.entries(current)) merged[root] = { ...merged[root], ...canvases };
+  return merged;
 }
 
 // First run's project handoff puts focus in the Home composer, ahead of the focus held before the wizard (§4.9).
@@ -362,6 +372,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const fastOffPending = useRef(new Map<string, number>());
   // Roots the run wrote, cleared or removed before that read.
   const memoryTouched = useRef(new Set<string>());
+  // The canvas conversation last seen on each canvas (ui-state conversationByCanvas): CanvasRun writes it on Seen from
+  // the start and reads it only once ui-state was read (memoryRead), merged under what it wrote before.
+  const conversationByCanvas = useRef<Record<string, Record<string, string>>>({});
+  // Roots removed before that read: the read's memory for them is dropped by the merge.
+  const canvasMemoryRemoved = useRef(new Set<string>());
+  // A canvas whose id another listed canvas shares has no memory: neither of the two can tell it is the one meant.
+  const sharedCanvasId = (root: string, canvas: Canvas) => {
+    const listed = entriesRef.current.find(entry => entry.path === root);
+    return canvas.id !== undefined && listed?.kind === "list" && listed.canvases.filter(row => row.id === canvas.id).length > 1;
+  };
   const [memoryTick, setMemoryTick] = useState(0);
   // The canvas page's conversation panel: open state and width on this device. A change the
   // person made before the ui-state read wins over the read value.
@@ -443,6 +463,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     markSeen: (id, seq) => homeRun.current.markSeenThrough(id, seq),
     focused: () => document.hasFocus(),
     drawing: (root, canvas) => homeRun.current.drawing(root, canvas),
+    remembered: (root, canvas) => !memoryRead.current ? undefined : sharedCanvasId(root, canvas) ? null : conversationByCanvas.current[root]?.[conversationCanvasKey(canvas)] ?? null,
+    remember: (root, canvas, conversationId) => {
+      const key = conversationCanvasKey(canvas), current = conversationByCanvas.current;
+      if (sharedCanvasId(root, canvas) || current[root]?.[key] === conversationId) return;
+      conversationByCanvas.current = { ...current, [root]: { ...current[root], [key]: conversationId } }; setMemoryTick(tick => tick + 1);
+    },
     changed: () => setRunTick(tick => tick + 1),
   }, overviewRun.current.store, window.doan);
   // Where focus goes once the panel shows what an entry asked for; a new seq per entry.
@@ -640,7 +666,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         return { ...state?.home, ...previous, ...(fast ? { fast } : {}) };
       });
       // The same for the Overview's memory: a conversation shown before the read keeps its newer entry.
-      if (active) { conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current); memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); }
+      if (active) {
+        conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current);
+        conversationByCanvas.current = mergeCanvasMemory(state?.conversationByCanvas, conversationByCanvas.current, canvasMemoryRemoved.current);
+        memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); canvasRun.current?.sync();
+      }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
       if (active && state?.rightPanel && !panelTouched.current) setRightPanelState(state.rightPanel);
       if (active && state?.overviewPanel && !overviewTouched.current) setOverviewSaved(state.overviewPanel.width);
@@ -691,7 +721,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (restore !== "done" || !memoryRead.current) return;
     const instance = controller.current;
     if (!instance) return;
-    const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory(), conversationByRoot: conversationByRoot.current });
+    const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory(), conversationByRoot: conversationByRoot.current, conversationByCanvas: conversationByCanvas.current });
     if (state) void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);
   };
   // A page is never restored; a restart opens the screen it came from. Settings keeps only its last category.
@@ -754,15 +784,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The conversation slots with the terminal sessions' spinners over them, as the sidebar shows them.
   const shownSlots = () => withTerminalSlots(homeRun.current.slots(), work, entriesRef.current);
   // A sidebar canvas row: its slot decides whether the panel unfolds. A row that needs an
-  // answer or has an unseen ending shows the canvas's current conversation; working or no mark keeps the panel as is.
-  // The slot is the one the row shows, so a terminal spinner over an unseen ending keeps the panel.
+  // answer or has an unseen ending shows that slot's conversation; working or no mark keeps the panel as is, and the
+  // panel picks by its shared rule (spec decided point 9). The slot is the one the row shows, so a terminal spinner over
+  // an unseen ending keeps the panel.
   function openSidebarCanvas(root: string, row: CanvasRow, cursor?: number) {
     const slot = shownSlots().get(canvasSlotKey(root, row.path)) ?? null;
     const open = panelOpenFor({ kind: "sidebarRow" }, slot?.kind ?? null);
     const list = homeRun.current.listState(root);
     const target = { path: row.path, ...(row.id ? { id: row.id } : {}) };
-    const current = open.open === true && Array.isArray(list) ? list.find(c => c.state === "current" && c.canvas !== undefined && sameCanvas(c.canvas, target)) : undefined;
-    if (current) openCanvasConversation(root, row, current.conversationId, { kind: "sidebarRow" }, slot?.kind ?? null);
+    const requested = open.open === true && Array.isArray(list) ? sidebarRowRequest(list, target, slot?.kind ?? null, homeRun.current.seenPending()) : null;
+    if (requested) openCanvasConversation(root, row, requested, { kind: "sidebarRow" }, slot?.kind ?? null);
     else openShellCanvas(root, row, cursor);
   }
   // An entry to one of a canvas's conversations: the canvas opens with that
@@ -816,8 +847,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     }
   }
   function forgetConversations(roots: readonly string[]) {
-    if (!memoryRead.current) for (const root of roots) memoryTouched.current.add(root);
-    conversationByRoot.current = withoutRoots(conversationByRoot.current, roots); setMemoryTick(tick => tick + 1);
+    if (!memoryRead.current) for (const root of roots) { memoryTouched.current.add(root); canvasMemoryRemoved.current.add(root); }
+    conversationByRoot.current = withoutRoots(conversationByRoot.current, roots);
+    conversationByCanvas.current = withoutRoots(conversationByCanvas.current, roots); setMemoryTick(tick => tick + 1);
     overviewRun.current?.forgetRoots(roots);
   }
   const cards = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
@@ -1334,7 +1366,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     for (const root of paths) controller.current?.remember(root, null);
     // Only while something is left to forget, so a second pass bumps no memory tick and saves nothing: before ui-state
     // is read every removal is marked (memoryTouched), and after it a root's conversation memory or Overview draft.
-    if (!memoryRead.current || paths.some(root => root in conversationByRoot.current || overviewRun.current?.drafts.has(`root:${root}`))) forgetConversations(paths);
+    if (!memoryRead.current || paths.some(root => root in conversationByRoot.current || root in conversationByCanvas.current || overviewRun.current?.drafts.has(`root:${root}`))) forgetConversations(paths);
   }
   // The dialog asks main for its plan before it can be
   // confirmed. A busy plan keeps it open with its working line; any other refusal closes it with that refusal's toast.
@@ -1412,7 +1444,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           if (target.from === "canvasList") afterDelete.current = target.after.kind === "row"
             ? { field: false, selector: `.ov-right .cv-row[data-key="${CSS.escape(target.after.key)}"]`, fallback: ".ov-right .rp-head" }
             : { field: false, selector: ".ov-right .rp-head" };
-          else if (shown) afterDelete.current = { field: true, selector: from === "overview" ? ".workspace .ov-main .composer-input" : ".doan-conv-panel .composer-input" };
+          // The canvas panel moves on to the next conversation (or the new state) under the title menu button, which takes
+          // focus (spec decided point 8, draft frame delete-shown).
+          else if (shown) afterDelete.current = from === "overview" ? { field: true, selector: ".workspace .ov-main .composer-input" } : { field: false, selector: ".doan-conv-panel .doan-conv-title .ov-title" };
         } finally { store.deleted(conversationId); }
       } else { store.cancelDelete(conversationId); overviewRuns.sync(); canvasRuns.sync(); }
     } catch (error) { console.error(error); }
@@ -1840,8 +1874,17 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const duplicated = panelCanvas?.row.id !== undefined && entry?.kind === "list" && entry.canvases.filter(row => row.id === panelCanvas.row.id).length > 1;
   const panelProject = panelTarget ? cards.find(card => card.rows.some(row => row.path === panelTarget.root))?.name ?? projectNames(entries.map(entry => entry.path)).get(panelTarget.root) ?? panelTarget.root : "";
   const panelBlocked = !panelTarget ? null : state.unlisted ? canvasUnlistedText(panelProject) : duplicated ? DUPLICATE_CANVAS_TEXT : null;
-  const panelCurrent = panelTarget && Array.isArray(panelList) ? panelList.find(c => c.state === "current" && c.canvas !== undefined && sameCanvas(c.canvas, panelTarget.canvas)) : undefined;
-  const panelBadge = openButtonBadge(panelCurrent, rightPanel.open, homeRun.current.seenPending());
+  // The folded panel's badge: the strongest signal across the canvas's conversations (spec decided point 5).
+  const panelBadge = panelTarget && Array.isArray(panelList) && !rightPanel.open ? canvasStrongestSignal(panelList, panelTarget.canvas, homeRun.current.seenPending()) : null;
+  // Show conversation: with a badge the panel unfolds on the conversation it stands for, focus on its request when it
+  // waits for an answer; without one it unfolds on what it showed.
+  const showPanel = () => {
+    const target = panelTargetRef.current;
+    if (!target || !panelBadge) { foldPanel(true); return; }
+    const waits = panelBadge.kind === "permission";
+    canvasRun.current!.request(target, panelBadge.conversationId, waits ? "permission" : null);
+    if (waits) revealPanel("permission"); else foldPanel(true);
+  };
   const canvasLoad: CanvasLoad = state.unlisted ? "unlisted" : state.status === null && state.layout ? "loaded" : state.status === "failed" ? "failed" : state.status === "noWidth" ? "noWidth" : "loading";
   const composerKey = canvasRun.current!.composerKey();
   const composerChips = composerKey ? distinctTargets(overviewRun.current!.store.drafts.get(composerKey)?.segments ?? []) : 0;
@@ -2128,12 +2171,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     controller.current?.cancelPick();
     openNotice({ root, path: state.open.canvas });
   };
-  // The work capsule's Open while the agent waits for an answer: the panel shows that conversation, scrolled
+  // The work capsule's Open while the agent waits for an answer: the panel shows the followed conversation, scrolled
   // to its request with focus on the first choice.
-  const openRequest = () => {
+  const openRequest = (conversationId: string) => {
     const target = panelTargetRef.current;
     const list = target ? homeRun.current.listState(target.root) : null;
-    const waiting = target && Array.isArray(list) ? list.find(c => c.state === "current" && c.phase === "waiting" && c.canvas && sameCanvas(c.canvas, target.canvas)) : undefined;
+    const waiting = target && Array.isArray(list) ? list.find(c => c.conversationId === conversationId && c.phase === "waiting" && c.canvas && sameCanvas(c.canvas, target.canvas)) : undefined;
     if (!target || !waiting) { if (rightPanel.open) focusPanel(); else foldPanel(true, "panel"); return; }
     canvasRun.current!.request(target, waiting.conversationId, "permission");
     revealPanel(panelOpenFor({ kind: "capsule" }, null).open === true ? "permission" : "composer");
@@ -2310,8 +2353,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {sidebar(false)}
     {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} view={canvasView.current} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
-      zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
-      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
+      zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: showPanel, badge: panelBadge }}
+      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, shown: canvasRun.current!.showing()?.conversationId ?? null, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
         onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
       picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} player={player} exporter={exporter} />
@@ -2408,8 +2451,8 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
   </header>;
 }
 
-type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
-  conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
+type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; shown: string | null; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
+  conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(conversationId: string): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
 function sendPlay(request: PlayRequest | null): void {
   if (request !== null) prototypeMainCalls().playPrototype(request);
@@ -2419,7 +2462,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
   state: CanvasState; view: CanvasViewStore; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
-  zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: OpenBadge | null }; agent: AgentProps;
+  zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: CanvasSignal | null }; agent: AgentProps;
   picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; player: PlayTool; exporter: ExportTool;
 }) {
   const panel = useRef<HTMLDivElement>(null);

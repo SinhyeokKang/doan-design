@@ -280,8 +280,9 @@ test("the title menu keeps the order it opened with while open; a new conversati
   const summary = (conversationId: string, lastActivityAt: string) => ({ conversationId, title: conversationId, state: "current", owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
     phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt, preview: "" }) as const;
   let list: import("./conversationStore").ListView = [summary("a", "2026-11-01T00:01:00.000Z"), summary("b", "2026-11-01T00:02:00.000Z")];
-  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, remembered: () => null, changed: vi.fn() }, store, window.doan);
+  const calls = { ...window.doan, readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null) } as unknown as typeof window.doan;
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, remembered: () => null, changed: vi.fn() }, store, calls);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   run.select("a");

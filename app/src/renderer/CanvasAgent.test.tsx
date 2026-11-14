@@ -81,7 +81,7 @@ describe("CanvasAgent", () => {
 
   test("nothing shows for an ended turn, another canvas's or a project conversation", () => {
     const { canvas: _c, ...project } = summary({});
-    for (const list of [[summary({ phase: "ended" })], [summary({ canvas: { path: ".doan/canvases/other.html", id: "other" } })], [project]]) {
+    for (const list of [[summary({ phase: "ended", working: false })], [summary({ canvas: { path: ".doan/canvases/other.html", id: "other" } })], [project]]) {
       expect(markup(list)).toBe(COLUMN);
     }
   });

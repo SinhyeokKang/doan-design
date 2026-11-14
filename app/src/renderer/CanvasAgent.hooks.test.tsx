@@ -58,7 +58,8 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 const button = (tree: ReactNode) => all(tree).find(element => element.type === "button");
 // The button's words without its icon or spinner.
-const label = (tree: ReactNode) => { const children = button(tree)?.props.children; return [children].flat().filter(child => typeof child === "string").join(""); };
+// A Stop naming another conversation holds its words in the ellipsizing span.
+const label = (tree: ReactNode) => { const children = button(tree)?.props.children; return [children].flat().map(child => typeof child === "string" ? child : isValidElement<{ className?: string; children?: unknown }>(child) && child.props.className === "stop-label" ? String(child.props.children) : "").join(""); };
 // What leads the words: the filled square on Stop, the spinner on "Stopping" (the draft's 'agent-working' and
 // 'agent-waiting' frames; the square is the composer's Stop glyph).
 // Both are hidden from assistive tech, so the button's name stays its words.
@@ -124,7 +125,7 @@ describe("CanvasAgent Stop", () => {
     reply(undefined); await flush();
     tree = render(agent([summary({})]));
     expect(label(tree)).toBe("Stopping");
-    tree = render(agent([summary({ phase: "ended" })]));
+    tree = render(agent([summary({ phase: "ended", working: false })]));
     expect(shown(tree)).toBe(false);
     expect(onStopFailed).not.toHaveBeenCalled();
     // A later turn of the same conversation starts with Stop again.
@@ -139,10 +140,10 @@ describe("CanvasAgent Stop", () => {
     let tree = render(withWork([summary({})]));
     (button(tree)!.props.onClick as () => void)();
     reply(undefined); await flush();
-    tree = render(withWork([summary({ phase: "ended" })]));
+    tree = render(withWork([summary({ phase: "ended", working: false })]));
     expect(all(tree).some(element => element.props.className === "doan-agent doan-agent-terminal")).toBe(true);
     expect(button(tree)).toBeUndefined();
-    tree = render(agent([summary({ phase: "ended" })]));
+    tree = render(agent([summary({ phase: "ended", working: false })]));
     expect(shown(tree)).toBe(false);
   });
 

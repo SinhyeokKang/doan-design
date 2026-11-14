@@ -1652,6 +1652,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-agent .doan-button.doan-agent-action:active:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 34%, transparent); }
 .doan-agent .doan-button.doan-agent-action[aria-disabled="true"] { color: color-mix(in srgb, var(--text-on-prominent) 60%, transparent); cursor: default; }
 .doan-agent-action svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* Stop naming another conversation (draft canvas-concurrent-conversations, board-notice): the quoted title ellipsizes. */
+.doan-agent .stop-label { min-width: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* One accent dot that grows and shrinks, with a ring spreading from it in step; still while the agent waits. */
 /* Doany the artist (.doan/canvases/doany-artist.html): a 32px window in the 40px card, 8px from its start. */
 .doan-agent:has(> .doan-agent-artist) { padding-left: var(--space-2); }

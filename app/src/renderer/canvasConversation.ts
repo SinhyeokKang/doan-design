@@ -23,55 +23,7 @@ export function noticeOpenName(kind: CanvasNotice["kind"]): string {
   return kind === "drawing" ? "Open the project conversation" : "Open the moved conversation";
 }
 
-export type CanvasPick =
-  | { kind: "wait" }
-  // The requested conversation is not listed yet (a start's reply can overtake its list notice).
-  | { kind: "reread"; conversationId: string }
-  | { kind: "conversation"; conversationId: string; archived: boolean; notice: CanvasNotice | null }
-  // listError: the list could not be read; the header still reads New conversation and the composer can start one.
-  | { kind: "new"; listError: boolean; notice: CanvasNotice | null };
-
-export interface CanvasPickContext {
-  // What the panel shows now: a conversation, null for the new conversation state, undefined before the first pick.
-  shown?: string | null;
-  // The list read before this one: a current conversation that was a project conversation there was just promoted.
-  previous?: readonly ConversationSummary[] | null;
-  // A promotion the panel announces now. It stays while that conversation is still current here, because main reads
-  // the list again right after a bind and the read before it no longer shows the change; the host drops it when the
-  // person acts.
-  promoted?: string | null;
-  // A project conversation drawing this canvas before its promotion is judged, as the host knows it.
-  drawing?: string | null;
-}
-
 const onCanvas = (c: ConversationSummary, canvas: Canvas) => c.canvas !== undefined && sameCanvas(c.canvas, canvas);
-
-// The single-current-conversation pick, kept only until canvasRun moves to pickShownConversation and canvasNotice.
-// Design §2 'Conversation panel': the requested conversation, else this canvas's current one, else a new conversation.
-// An archived conversation shows only when asked for. Once something shows, a list change keeps it: a promotion while
-// the panel is open is announced instead of switching.
-export function pickCanvasConversation(list: readonly ConversationSummary[] | "loading" | "error", canvas: Canvas, requested: string | null, context: CanvasPickContext = {}): CanvasPick {
-  if (list === "loading") return { kind: "wait" };
-  if (list === "error") return { kind: "new", listError: true, notice: null };
-  const mine = list.filter(c => onCanvas(c, canvas));
-  const show = (c: ConversationSummary, notice: CanvasNotice | null): CanvasPick => ({ kind: "conversation", conversationId: c.conversationId, archived: c.state === "archived", notice });
-  if (requested !== null) {
-    const asked = list.find(c => c.conversationId === requested);
-    if (!asked) return { kind: "reread", conversationId: requested };
-    // The panel shows only the open canvas's conversations; a request for another canvas falls back to the default.
-    if (onCanvas(asked, canvas)) return show(asked, null);
-  }
-  const current = mine.find(c => c.state === "current");
-  const promoted = current && (current.conversationId === context.promoted || context.previous?.some(c => c.conversationId === current.conversationId && c.canvas === undefined))
-    ? { kind: "promoted" as const, text: PROMOTED_TEXT, open: current.conversationId } : null;
-  const drawing = context.drawing ? { kind: "drawing" as const, text: DRAWING_TEXT, open: context.drawing } : null;
-  if (context.shown === null) return { kind: "new", listError: false, notice: promoted ?? drawing };
-  if (context.shown !== undefined) {
-    const still = mine.find(c => c.conversationId === context.shown);
-    if (still) return show(still, promoted && promoted.open !== still.conversationId ? promoted : null);
-  }
-  return current ? show(current, null) : { kind: "new", listError: false, notice: drawing };
-}
 
 // The conversation that waited for an answer longest, by main's waitingSince; main lists conversations in start order,
 // which breaks ties. One without waitingSince comes after those with it.

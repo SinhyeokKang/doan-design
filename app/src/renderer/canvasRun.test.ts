@@ -248,7 +248,7 @@ test("a canvas moved under the same ID keeps what it showed", () => {
 });
 
 // A promoted project conversation carries startedBy "promotion" (main's summary).
-const promoted = (patch: Partial<Omit<ConversationSummary, "canvas">> = {}) => summary(P, { startedBy: "promotion", ...patch });
+const promoted = (patch: Parameters<typeof summary>[1] = {}) => summary(P, { startedBy: "promotion", ...patch });
 
 test("opened right after a promotion the promoted conversation shows; promoted while the panel is open it is announced", () => {
   const opened = harness();
