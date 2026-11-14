@@ -81,3 +81,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 10은 리뷰 행과 conductor�
 - M 리뷰 5회차(Codex): 4회차 🟡1·⚪1 해결, 새 결함 없음, ⚪ 1(App 테스트의 그리기 중계 fixture에 세대가 없다)은 U에 보냈다. M 배치 완료. M 워커를 release하고 worktree `pcv-m`를 지웠다(브랜치 `SinhyeokKang/pcv-m` `ec57d744` 유지, feat과 내용 차이 없음을 `git diff`로 확인). handoff와 리뷰 보고서는 conductor `.scratch/`에 있다.
 - U3 중간 보고: Part A(승격 알림, provider 없는 Settings)와 리뷰 ⚪ 커밋, `/design-sync` 26/26 행 일치(고정 칩 14 px 하나 고침), 에이전트 없는 probe 22/22 통과. 공유 로그인 프로필의 Claude Code·Codex 로그인이 둘 다 만료되어 실제 턴 항목은 돌지 못했다.
 - 사용자 결정 — 다시 로그인한 뒤 실제 턴 항목을 확인한다. lead에 다시 로그인을 요청했고, U는 그동안 그 프로필을 열지 않고 기다린다.
+- U3 중 커밋된 것(`e9798a79..17bb1317`) → `f0624432..b30c47c3`로 통합(U 브랜치와 앱·DESIGN·POSTMORTEM 내용이 같다). U는 실제 턴 항목을 위해 재로그인을 기다린다. 못 본 것(U 보고): 실제 macOS 한국어 입력기(CDP 조합만), 640보다 좁은 실제 작업 영역(넓은 프레임 Play로 대신), 붙여넣기·드롭 칩 전송(실제 턴 필요). `/design-sync`의 독립 리뷰를 U가 하지 않아 U 리뷰어에 코드 리뷰와 함께 보냈다(`ctx_b0e805921d88`).
