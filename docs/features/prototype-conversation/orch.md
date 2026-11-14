@@ -75,3 +75,4 @@ task 2(`/design-draft`)는 이미 끝났다. task 10은 리뷰 행과 conductor�
 - `shell.test.ts` "setting up the same folder again…"는 이 feature 전 커밋 `10d6ed84`에서도 두 번 다 실패했다(14.6초에 실패 한 번, 20초 시간 초과 한 번). 실제 Go CLI와 git을 부르는 기존 테스트의 문제이고 이 feature의 회귀가 아니다. PR 본문에 적는다.
 - U3(`ctx_594e04e4cad1`): 승격 알림과 provider 없는 Settings의 renderer 쪽, 이어서 task 8(`/design-sync`)과 task 9(`/runtime-test`). lead에 `GUI again`을 알렸다. 실제 턴은 공유 로그인 프로필을 제자리에서 쓰고 상태 파일을 백업·복원한다.
 - 리뷰: U 2회차(Claude Opus, `ctx_ca925c1496cd`), M 4회차(M3+M4, Codex, `ctx_a314b63e3802`).
+- M 리뷰 4회차(M3+M4, Codex): 🟡 1(캡처 중에 A→B→A가 합쳐지면 main이 target이 같다며 target push를 건너뛰어 main 창이 그리기 중 id를 다시 보고하지 않고, 알림이 사라진 채 남는다), ⚪ 1(보고에 세대가 없어 이전 A의 보고를 새 A의 것으로 받는다). 프로젝트 대화 내용이 프로토타입 창에 가는 경로는 없었다. 전체 test는 부하(load average 39–103) 속에서 20건 실패, 단독 재실행 뒤 7건 남음(`cli.test.ts` 1, `shell.test.ts` 2, `doanyRender.test.ts` 4). 원인은 확정하지 못했다. 워커가 쉴 때 base와 비교한다. 🟡1과 ⚪1을 M5로 보냈다(세대 왕복 때문에 `App.tsx`의 중계 effect도 M이 고친다, conductor 판단).
