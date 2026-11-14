@@ -74,7 +74,7 @@ beforeEach(() => {
   const off = () => vi.fn(() => () => {});
   calls = {
     onConversationEvent: off(), onConversationStage: off(), onConversationListChanged: off(), onWorkChanged: off(), onTargetEntry: off(), onComposerSettings: off(), onAgentAuth: off(), onWindowVisible: off(), onDrawing: off(), readDrawing: vi.fn(async () => null), onPromoted: off(), readPromoted: vi.fn(async () => null),
-    listConversations: vi.fn(async () => listed), getWork: vi.fn(async () => []), readTargetEntry: vi.fn(async () => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [{ ...CHECKOUT, url: "u" }] })),
+    listConversations: vi.fn(async () => listed), getWork: vi.fn(async () => []), rememberedConversation: vi.fn(async () => null), readTargetEntry: vi.fn(async () => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [{ ...CHECKOUT, url: "u" }] })),
     readComposerSettings: vi.fn(async () => ({ home: null, newConversation: null, buddy: "doany" })),
     readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), markConversationSeen: vi.fn(async () => {}),
     setShowing: vi.fn(async () => {}), reveal: vi.fn(async () => {}), rememberChoice: vi.fn(async () => {}),
@@ -308,6 +308,32 @@ describe("the head's conversation menu", () => {
     expect(rows(head())).toEqual(["", "b", "a", "c"]);
     (root(head()).props.onOpenChange as (open: boolean) => void)(false);
     expect(rows(head())).toEqual(["", "c", "a", "b"]);
+  });
+
+  // Review: rows added while the menu is open keep the place they were drawn at, also when later reads change their
+  // activity; only closing sorts again.
+  test("rows added one after another while open keep their drawn order", async () => {
+    let answerList!: (list: ConversationSummary[]) => void;
+    let changedList!: (change: { root: string }) => void;
+    calls.onConversationListChanged = vi.fn((listener: typeof changedList) => { changedList = listener; return () => {}; });
+    listed = [summary({ conversationId: "a", lastActivityAt: at(1) })];
+    run = new PrototypeConversationRun(calls as never, { changed: () => { hooks.dirty = true; }, notice: () => {}, focused: () => true });
+    await playing();
+    expect(rows(open())).toEqual(["", "a"]);
+    calls.listConversations = vi.fn(() => new Promise(resolve => { answerList = resolve; }));
+    const steps: [ConversationSummary[], string[]][] = [
+      [[summary({ conversationId: "a", lastActivityAt: at(1) }), summary({ conversationId: "b", lastActivityAt: at(5) })], ["", "a", "b"]],
+      [[summary({ conversationId: "a", lastActivityAt: at(1) }), summary({ conversationId: "b", lastActivityAt: at(5) }), summary({ conversationId: "c", lastActivityAt: at(9) })], ["", "a", "b", "c"]],
+      [[summary({ conversationId: "a", lastActivityAt: at(1) }), summary({ conversationId: "b", lastActivityAt: at(12) }), summary({ conversationId: "c", lastActivityAt: at(9) })], ["", "a", "b", "c"]],
+    ];
+    for (const [next, order] of steps) {
+      changedList({ root: ROOT });
+      answerList(next);
+      await flush();
+      expect(rows(head())).toEqual(order);
+    }
+    (root(head()).props.onOpenChange as (open: boolean) => void)(false);
+    expect(rows(head())).toEqual(["", "b", "c", "a"]);
   });
 
   test("a failed read: the menu's failure line with Retry, which reads again", async () => {

@@ -59,6 +59,7 @@ beforeEach(() => {
     readDrawing: vi.fn(async () => { order.push("drawing"); return null; }),
     onPromoted: on("promoted", listener => { promoted = listener; }),
     readPromoted: vi.fn(async () => { order.push("promoted"); return null; }),
+    rememberedConversation: vi.fn(async () => null),
   };
   run = new PrototypeConversationRun(calls as unknown as PrototypeConversationCalls, { changed: () => {}, notice: () => {}, focused: () => focused });
 });
@@ -169,6 +170,22 @@ describe("the conversation the panel shows", () => {
     expect(run.store.drafts.get("conversation:from-main")).toBe(writing);
   });
 
+  // The canvas run's rules, the main window's: a conversation a handoff or a promotion started is not the person's,
+  // so it never moves this window off its own new conversation state.
+  test("from its own new conversation state, a conversation a handoff or a promotion started does not move this window", async () => {
+    await playing({}, []);
+    for (const startedBy of ["handoff", "promotion"] as const) {
+      listChanged!({ root: ROOT });
+      await answer(ROOT, [summary({ conversationId: `by-${startedBy}`, startedBy })]);
+      expect(run.shown()).toEqual({ kind: "new" });
+    }
+  });
+
+  test("the first pick: a conversation waiting for an answer, else the most recent", async () => {
+    await playing({}, [summary({ conversationId: "recent", lastActivityAt: "2026-11-01T12:09:00.000Z" }), summary({ conversationId: "asks", phase: "waiting", lastActivityAt: "2026-11-01T12:01:00.000Z" })]);
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "asks" });
+  });
+
   test("a conversation the main window deleted goes through the store's deleted path, and its draft moves nowhere", async () => {
     await playing({}, [summary({ conversationId: "gone" })]);
     run.store.setDrafts(drafts => new Map(drafts).set("conversation:gone", { segments: [{ kind: "text", text: "lost" }], preset: null, attachments: [], shape: "capsule" }));
@@ -232,6 +249,67 @@ describe("the conversation the panel shows", () => {
   });
 });
 
+// The conversation last seen on the playing canvas on this device: main reads it from ui-state for the canvas this
+// window plays (the main window is ui-state's only writer). Until the read settles the first pick waits; a failed read
+// counts as none; a read for a canvas left behind never answers for the next one.
+describe("the remembered conversation", () => {
+  const two = [summary({ conversationId: "recent", lastActivityAt: "2026-11-01T12:09:00.000Z" }), summary({ conversationId: "seen", lastActivityAt: "2026-11-01T12:01:00.000Z" })];
+  function pendingReads() {
+    const reads: { resolve(id: string | null): void; reject(error: unknown): void }[] = [];
+    calls.rememberedConversation = vi.fn(() => new Promise<string | null>((resolve, reject) => reads.push({ resolve, reject })));
+    return reads;
+  }
+
+  test("the first pick waits for it, then shows it", async () => {
+    const reads = pendingReads();
+    await playing({}, two);
+    expect(calls.rememberedConversation).toHaveBeenCalledOnce();
+    expect(run.shown()).toEqual({ kind: "list_loading" });
+    reads[0]!.resolve("seen");
+    await flush();
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "seen" });
+  });
+
+  test("none remembered: the most recent", async () => {
+    const reads = pendingReads();
+    await playing({}, two);
+    reads[0]!.resolve(null);
+    await flush();
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "recent" });
+  });
+
+  test("a failed read counts as none", async () => {
+    const reads = pendingReads();
+    await playing({}, two);
+    reads[0]!.reject(new Error("gone away"));
+    await flush();
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "recent" });
+  });
+
+  test("read once per played canvas: another view of the same canvas reads nothing again", async () => {
+    await playing({}, two);
+    run.setView(view({ gen: 2, frame: "cart" }));
+    expect(calls.rememberedConversation).toHaveBeenCalledOnce();
+  });
+
+  test("a switch of canvas reads again, and the answer for the canvas left behind is never used", async () => {
+    const reads = pendingReads();
+    run.connect();
+    run.setView(view());
+    const { canvasId: _none, ...plain } = view({ path: PLAIN.path, frame: "x", frames: [] });
+    run.setView(plain);
+    expect(calls.rememberedConversation).toHaveBeenCalledTimes(2);
+    const onPlain = [summary({ conversationId: "older", canvas: PLAIN, lastActivityAt: "2026-11-01T12:01:00.000Z" }), summary({ conversationId: "newer", canvas: PLAIN, lastActivityAt: "2026-11-01T12:09:00.000Z" })];
+    // The read of the first canvas answers late, naming a conversation the new canvas also lists.
+    reads[0]!.resolve("older");
+    await answer(ROOT, onPlain);
+    expect(run.shown()).toEqual({ kind: "list_loading" });
+    reads[1]!.resolve(null);
+    await flush();
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "newer" });
+  });
+});
+
 // Spec: the head menu's Delete in this window. The store marks the conversation as being deleted before main is asked,
 // and the mark ends exactly once, as the main window's Delete does.
 describe("Delete from this window", () => {
@@ -246,7 +324,7 @@ describe("Delete from this window", () => {
     expect(calls.deleteConversation).toHaveBeenCalledExactlyOnceWith({ conversationId: "gone" });
     expect(deleted).toHaveBeenCalledWith("gone");
     expect(run.store.deleting("gone")).toBe(false);
-    expect(run.run.view()).not.toMatchObject({ conversationId: "gone" });
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "left" });
   });
 
   test("main's not_found counts as deleted", async () => {
