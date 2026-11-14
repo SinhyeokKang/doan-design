@@ -416,3 +416,31 @@ describe("the promotion across a switch of canvas", () => {
     expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "p1", notice: null });
   });
 });
+
+// Main pushes the new target's drawing as soon as the play changes, and the view can come after it (views wait behind
+// the still capture): the switch of canvas must not drop what main already said about the new one.
+describe("the drawing pushed before the view of the new canvas", () => {
+  test("a drawing main pushed for the new canvas before its view still shows there", async () => {
+    await playing({}, [summary({})]);
+    drawing!("p9");
+    calls.readDrawing!.mockResolvedValueOnce("p9");
+    const { canvasId: _none, ...plain } = view({ path: PLAIN.path, frame: "x", frames: [] });
+    run.setView(plain);
+    await answer(ROOT, []);
+    await flush();
+    expect(run.run.view()).toMatchObject({ kind: "new", notice: { kind: "drawing", open: "p9" } });
+  });
+
+  test("a read answered after a newer push keeps the push", async () => {
+    await playing({}, []);
+    let late!: (id: string | null) => void;
+    calls.readDrawing!.mockImplementationOnce(() => new Promise(resolve => { late = resolve; }));
+    const { canvasId: _none, ...plain } = view({ path: PLAIN.path, frame: "x", frames: [] });
+    run.setView(plain);
+    await answer(ROOT, []);
+    drawing!("p2");
+    late("p1");
+    await flush();
+    expect(run.run.view()).toMatchObject({ kind: "new", notice: { kind: "drawing", open: "p2" } });
+  });
+});
