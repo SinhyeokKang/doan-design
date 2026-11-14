@@ -231,6 +231,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-local-option { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); padding: var(--space-6); }
 .ob-local-option p { margin-top: var(--space-1); color: var(--text-subtle); }
 .ob-local-option strong, .ob-setup > strong { font-weight: var(--type-weight-medium); }
+.ob-local-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .ob-folder-icon { width: var(--size-control); height: var(--size-control); display: grid; place-items: center; border-radius: var(--radius-chip); background: var(--surface-inset); }
 .ob-folder-icon svg { width: 20px; height: 20px; }
 .ob-divider { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-6) 0; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }

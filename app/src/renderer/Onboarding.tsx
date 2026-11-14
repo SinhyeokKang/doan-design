@@ -267,7 +267,7 @@ export function ProjectChoice({ paths, choice, home, pick, name }: {
 }
 
 const GIT_INIT_ID = "ob-setup-git-init";
-type ProjectAction = "chooseFolder" | "chooseExisting" | "edit" | "retry" | "changeLocation" | "useExisting" | "backToAgents";
+type ProjectAction = "chooseFolder" | "chooseExisting" | "edit" | "retry" | "changeLocation" | "useExisting" | "backToAgents" | "chooseAnotherName" | "useExistingFolder" | "newFolderElsewhere";
 // status: a state, not a failure (a cancelled clone); it has no error tone and is announced politely.
 interface ProjectNotice { title?: string; body: string; detail?: string; note?: string; status?: true; actions: { command: ProjectAction; label: string }[] }
 const action = (command: ProjectAction, label: string) => ({ command, label });
@@ -276,7 +276,8 @@ const action = (command: ProjectAction, label: string) => ({ command, label });
 // insideProject: the name of the doan project a clone destination sits in (main refuses it as path_unavailable).
 // folder: the chosen folder a mismatch is about; on the clone screen "This folder" would read as the destination.
 // detail: main's window-only account of the failure (the CLI's message for project_unreadable).
-export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null, detail: string | null = null): ProjectNotice {
+// home: shortens the location New folder's existing name is in; directory: that name is a folder, so it can be used.
+export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null, detail: string | null = null, home: string | null = null, directory = true): ProjectNotice {
   // Every folder chosen from a URL screen is checked against that repository.
   const choose: ProjectAction = fromUrl ? "chooseExisting" : "chooseFolder";
   // A clone that landed and whose setup or storage then failed is told in main's own words (they say the clone stayed),
@@ -309,6 +310,18 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
     // A setup that could not remove the .git it created names it in main's words; a clone's leftovers keep the default.
     case "cleanup_failed": if (destination === null && message !== undefined) return { body: message, actions: [action(choose, "Choose another folder"), action("retry", "Retry")] };
       return { body: message ?? "Something changed while Doan was checking. Try again.", actions: [action("retry", "Retry")] };
+    // New folder's notices (draft new-project-folder.html). "Doan didn’t replace it" stays true after macOS's own
+    // Replace prompt: main never replaces anything. Change location reopens at the default location, not the one that
+    // failed.
+    case "folder_exists": {
+      const name = folder !== null ? nameOf(folder) : "";
+      const where = shown(folder !== null ? folder.replace(/\/+$/, "").split("/").slice(0, -1).join("/") || "/" : "", home);
+      return directory
+        ? { body: `A folder named “${name}” already exists in ${where}. Doan didn’t replace it. Choose another name or use the existing folder.`, actions: [action("chooseAnotherName", "Choose another name"), action("useExistingFolder", "Use existing folder")] }
+        : { body: `An item named “${name}” already exists in ${where} and isn’t a folder. Doan didn’t replace it. Choose another name.`, actions: [action("chooseAnotherName", "Choose another name")] };
+    }
+    case "folder_inside_project": return { body: `This location is inside the Doan project ${insideProject ?? ""}. Choose a location outside it.`, actions: [action("newFolderElsewhere", "Change location")] };
+    case "folder_create_failed": return { body: "Couldn’t create this folder. Check folder access, then choose another location.", ...(folder !== null ? { detail: folder } : {}), actions: [action("newFolderElsewhere", "Change location")] };
     case "completion_save_failed": return { body: "Your project is ready, but setup completion couldn’t be saved. Retry to finish.", actions: [] };
     case "completion_unsupported_version": return { title: "Setup was saved by a newer version of Doan", body: "Open this project with that version, or update Doan.", actions: [] };
     case "no_ready_agent": { const notice = noAgentReadyNotice(null)!; return { body: notice.body!, ...(notice.note ? { note: notice.note } : {}), actions: [action("backToAgents", "Back to agents")] }; }
@@ -364,9 +377,9 @@ export interface ProjectDrop {
   started(): void;
   dropped(items: { isDirectory: boolean; path: string }[]): void;
 }
-// The 'Open a local folder' card takes a dropped folder on the page and in first run.
-// A drop elsewhere is the window's, which only refuses it.
-export function LocalFolderCard({ busy, choose, drop }: { busy: boolean; choose: () => void; drop?: ProjectDrop }) {
+// The 'Use a folder on your Mac' card takes a dropped folder on the page and in first run.
+// A drop elsewhere is the window's, which only refuses it. New folder follows Choose folder, in Tab order too.
+export function LocalFolderCard({ busy, choose, newFolder, drop }: { busy: boolean; choose: () => void; newFolder: () => void; drop?: ProjectDrop }) {
   const [dropping, setDropping] = useState(false);
   const depth = useRef(0);
   // A drop outside the card or a window that loses focus ends the drag without a leave on the card.
@@ -405,8 +418,11 @@ export function LocalFolderCard({ busy, choose, drop }: { busy: boolean; choose:
   return <div className="doan-panel ob-local-option" {...handlers}>
     {dropping && <div className="drop-target"><span className="sr-only" role="status">Drop to add this folder</span></div>}
     <span className="ob-folder-icon"><Folder aria-hidden="true" /></span>
-    <div><strong>Open a local folder</strong><p>Use a project that’s already on your Mac.</p></div>
-    <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={choose}>Choose folder</button>
+    <div><strong>Use a folder on your Mac</strong><p>Choose a project folder you already have, or create a new one.</p></div>
+    <div className="ob-local-actions">
+      <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={choose}>Choose folder</button>
+      <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} data-new-folder="" onClick={newFolder}>New folder</button>
+    </div>
   </div>;
 }
 
@@ -425,7 +441,8 @@ interface ScopeNode { querySelector(selector: string): FocusTarget | null }
 // that closed on the same screen with no new failure, the URL field when it was asked for, else projectFocusTarget's,
 // else the heading. A failure after the sheet goes to its notice. A sheet opened from a notice's own button returns
 // to it while that notice stays (opened.error is the failure on screen when the sheet opened); if the button went
-// with its notice, the choose screen's place is the card's Choose folder.
+// with its notice, the choose screen's place is the card's button that leads there: New folder for New folder's
+// notices, else Choose folder.
 // null: the person holds focus somewhere usable, which is never moved.
 export function projectFocusNode(input: {
   opened: { node: FocusTarget; phase: string; error: ProjectStepState["error"] } | null; asked: boolean; root: ScopeNode | null; active: FocusTarget | null; body: unknown;
@@ -437,7 +454,8 @@ export function projectFocusNode(input: {
   if (opened && !input.busy && opened.phase === state.phase.kind) {
     if (state.error === null || state.error === opened.error) {
       if (opened.node.isConnected && !opened.node.matches(":disabled")) return opened.node;
-      const card = state.phase.kind === "choose" ? root?.querySelector(".ob-local-option button:not(:disabled)") : null;
+      const fromNewFolder = opened.error?.code === "folder_exists" || opened.error?.code === "folder_inside_project" || opened.error?.code === "folder_create_failed";
+      const card = state.phase.kind === "choose" ? root?.querySelector(fromNewFolder ? ".ob-local-option [data-new-folder]:not(:disabled)" : ".ob-local-option button:not(:disabled)") : null;
       if (card) return card;
     } else {
       // A new failure is the answer to the person's action, even where the wait parked focus on the heading.
@@ -510,6 +528,7 @@ export interface ProjectScreenProps {
     pickListed(path: string): void; useListed(): void; pickCandidate(path: string): void; select(): void; setUp(inspectionId: string): void;
     changeDestination(): void; useExisting(): void; clone(): void; cancelClone(): void; complete(): void; retry(): void;
     setStorage(storage: StorageChoice): void;
+    newFolder(): void; chooseAnotherName(): void; useExistingFolder(): void; newFolderElsewhere(): void;
   };
 }
 // One screen per phase (draft frames project, project-local, repository-found, repository-clone, repository-error and
@@ -523,14 +542,15 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
   const run = (command: ProjectAction) => {
     if (command === "chooseFolder") on.chooseFolder(); else if (command === "chooseExisting") on.chooseExisting(); else if (command === "edit") on.edit();
     else if (command === "retry") on.retry(); else if (command === "changeLocation") on.changeDestination();
-    else if (command === "useExisting") on.useExisting(); else on.backToAgents();
+    else if (command === "useExisting") on.useExisting(); else if (command === "chooseAnotherName") on.chooseAnotherName();
+    else if (command === "useExistingFolder") on.useExistingFolder(); else if (command === "newFolderElsewhere") on.newFolderElsewhere(); else on.backToAgents();
   };
   // The Project states 'No agent is ready' tile: shown as soon as no provider is ready, not only after a refused save.
   const fromUrl = p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" || ((p.kind === "candidates" || p.kind === "setup") && p.url !== null);
   // A clone destination under a registered project is what main refuses as path_unavailable on the clone screen.
   const container = p.kind === "clone" && destination !== null ? projects.find(root => destination.startsWith(`${root.replace(/\/+$/, "")}/`)) ?? null : null;
   const code = projectNoticeCode(use, state, agentReady);
-  const notice = code === null ? null : code === error?.code ? projectNotice(code, error.message, destination, fromUrl, container && nameOf(container), error.path ?? null, error.detail ?? null) : projectNotice(code, undefined, null);
+  const notice = code === null ? null : code === error?.code ? projectNotice(code, error.message, destination, fromUrl, error.project ?? (container && nameOf(container)), error.path ?? null, error.detail ?? null, home, error.directory ?? true) : projectNotice(code, undefined, null);
   // A notice's recovery actions and the screen's own never repeat; the notice keeps its copy. Use existing folder
   // already answers 'Already have this repository?'.
   const offered = new Set(notice?.actions.map(button => button.command) ?? []);
@@ -565,7 +585,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <ProjectChoice paths={projects} choice={state.listChoice} home={home} pick={on.pickListed} name="Your projects" />
         <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy || state.listChoice === null} onClick={on.useListed}>Use this folder</button></div>
       </div>}
-      <LocalFolderCard busy={busy} choose={on.chooseFolder} {...(drop ? { drop } : {})} />
+      <LocalFolderCard busy={busy} choose={on.chooseFolder} newFolder={on.newFolder} {...(drop ? { drop } : {})} />
       {drop?.notice ? <div className={panel ? "doan-notice error doan-panel ob-project-notice ob-drop-notice" : "doan-notice error ob-project-notice ob-drop-notice"} role="alert" tabIndex={-1}><AlertIcon /><span className="ob-notice-text selectable">{drop.notice}</span></div>
         : slot === "card" && notice && <ProjectNoticeView panel={panel} notice={notice} run={run} />}
       <div className="ob-divider"><span>or use GitHub</span></div>
@@ -834,6 +854,8 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
         pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), setStorage: storage => keepFocus(() => p.setStorage(storage)), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),
         changeDestination: () => openPicker(() => void p.changeDestination()), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
         complete: () => void p.complete(), retry: () => void p.retry(),
+        newFolder: () => openPicker(() => void p.newFolder()), chooseAnotherName: () => openPicker(() => void p.chooseAnotherName()),
+        useExistingFolder: () => void p.useExistingFolder(), newFolderElsewhere: () => openPicker(() => void p.newFolderElsewhere()),
       }} />}
     </SceneScroll>
   </dialog>;

@@ -24,7 +24,7 @@ import type {
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { Selection } from "../formats/types";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
-import type { FolderPurpose, LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, TokenCssChoice, ViewCommand } from "../main/index";
+import type { FolderPurpose, LocateResult, NewFolderResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, TokenCssChoice, ViewCommand } from "../main/index";
 import type { ExternalTarget, SettingsPageTarget, SettingsSection } from "../main/settings";
 import type { InstallResult } from "../main/installCommand";
 import type { ConfigChoice, ConfigKind, ConfigReply } from "../main/configBridge";
@@ -345,6 +345,9 @@ const api = {
   // The Project step's folder picker: a path only, null when cancelled. The session inspects and registers it.
   // The Add Projects page uses it too; it belongs to no session.
   chooseOnboardingFolder: (purpose: FolderPurpose): Promise<string | null> => ipcRenderer.invoke("onboarding:choose-folder", purpose),
+  // New folder on the Project step: parent is only where the save panel opens. Main makes the folder at the panel's
+  // path and answers what happened; the session inspects a created folder like a chosen one.
+  newOnboardingFolder: (parent: string): Promise<NewFolderResult> => ipcRenderer.invoke("onboarding:new-folder", { parent }),
   // The Add Projects page's project session: the onboarding session's project calls and DTOs on channels of its own,
   // with no agents, completion or CLI. Without a request the read answers the current state and its sessionId;
   // with one it is the session's status (session_stale for another session).
