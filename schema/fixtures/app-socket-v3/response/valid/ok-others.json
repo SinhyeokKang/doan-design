@@ -1,0 +1,23 @@
+{
+  "v": 3,
+  "ok": true,
+  "others": [
+    {
+      "kind": "terminal"
+    },
+    {
+      "kind": "terminal",
+      "provider": "claude"
+    },
+    {
+      "kind": "conversation",
+      "provider": "codex",
+      "frame": "hero",
+      "note": "Tightening spacing"
+    },
+    {
+      "kind": "conversation",
+      "provider": "cursor"
+    }
+  ]
+}
