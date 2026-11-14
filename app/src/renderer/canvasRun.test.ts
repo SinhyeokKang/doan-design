@@ -110,7 +110,7 @@ test("with nothing shown yet: a conversation waiting for an answer, else the one
   const waits = harness();
   waits.state.remembered = A;
   waits.run.show(checkout);
-  waits.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { phase: "waiting", lastActivityAt: at(3) }), summary(D, { phase: "waiting", lastActivityAt: at(2) })]);
+  waits.answer([summary(A, { lastActivityAt: at(5) }), summary(B, { phase: "waiting", lastActivityAt: at(3), waitingSince: at(3) }), summary(D, { phase: "waiting", lastActivityAt: at(2), waitingSince: at(2) })]);
   expect(waits.run.view()).toMatchObject({ kind: "conversation", conversationId: D });
 
   const seen = harness();
