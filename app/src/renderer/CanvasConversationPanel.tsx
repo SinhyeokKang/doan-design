@@ -167,10 +167,10 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
   const target = run.target();
   // Controlled, so a Delete tooltip's Escape closes the menu too.
   const [menuOpen, setMenuOpen] = useState(false);
-  // The order the menu opened with: rows keep their places while it is open, and a conversation that appears goes at
-  // the end (titleMenuOrder), so a row never moves under the pointer. Taken at the first render after it opens.
+  // The order drawn last while the menu is open: rows keep their places, and a conversation that appears goes at the
+  // end (titleMenuOrder) and keeps that place on later updates, so a row never moves under the pointer.
   const frozen = useRef<string[] | null>(null);
-  frozen.current = !menuOpen ? null : frozen.current ?? (Array.isArray(list) && target ? titleMenuOrder(list, target.canvas, null) : null);
+  frozen.current = menuOpen && Array.isArray(list) && target ? titleMenuOrder(list, target.canvas, frozen.current) : menuOpen ? frozen.current : null;
   const items = Array.isArray(list) && target ? canvasConversationMenu(list, target.canvas, current, now, seen, frozen.current) : [];
   const picked = useRef(false);
   // The trigger focus returns to after a Delete's confirmation; `deleting` keeps the closing menu from taking focus back
