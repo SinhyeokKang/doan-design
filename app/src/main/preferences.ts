@@ -14,12 +14,13 @@ export interface NotificationPreferences { enabled: boolean; approval: boolean; 
 export interface NewConversationPreference { provider: Provider; model?: string; effort?: string; permissionMode?: Exclude<PermissionModeId, "default"> }
 // autoCheck off stops only the automatic update checks; a manual check and the install at quit still run.
 export interface UpdatePreferences { autoCheck: boolean }
-// buddy: no key means no buddy was ever chosen, and Doany shows.
-export interface Preferences { v: 1; notifications: NotificationPreferences; newConversation: NewConversationPreference | null; updates: UpdatePreferences; buddy?: BuddyId }
+// buddy: no key means no buddy was ever chosen, and Doany shows. buddyChangedAt: when Settings > General last switched
+// the buddy, an ISO 8601 UTC time; the renderer locks the choice for 24 hours from it.
+export interface Preferences { v: 1; notifications: NotificationPreferences; newConversation: NewConversationPreference | null; updates: UpdatePreferences; buddy?: BuddyId; buddyChangedAt?: string }
 // broken: unreadable, so defaults apply until a change moves it aside. newer: a later Doan wrote it; never touched.
 export type PreferencesNotice = "broken" | "newer" | null;
 export interface PreferencesSnapshot { preferences: Preferences; notice: PreferencesNotice }
-export interface PreferencesPatch { notifications?: Partial<NotificationPreferences>; newConversation?: NewConversationPreference | null; updates?: UpdatePreferences; buddy?: BuddyId }
+export interface PreferencesPatch { notifications?: Partial<NotificationPreferences>; newConversation?: NewConversationPreference | null; updates?: UpdatePreferences; buddy?: BuddyId; buddyChangedAt?: string }
 // The snapshot is what applies after the reply: on a refusal or failure, the last saved choices.
 export type PreferencesWriteReply = { ok: true; snapshot: PreferencesSnapshot } | { ok: false; reason: "invalid" | "newer" | "write_failed"; snapshot: PreferencesSnapshot };
 
@@ -31,6 +32,12 @@ const MAX_ID = 256;
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const id = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= MAX_ID;
+// Exactly what toISOString writes, so a read time is the one written.
+const isoTime = (value: unknown): value is string => {
+  if (typeof value !== "string") return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime()) && date.toISOString() === value;
+};
 
 function notifications(value: unknown, base: NotificationPreferences, partial: boolean): Partial<NotificationPreferences> | null {
   if (!record(value)) return null;
@@ -71,7 +78,8 @@ function newConversation(value: unknown, exact: boolean): NewConversationPrefere
 
 // null text: no file. Unknown fields are ignored and a known field left out takes its default; a known field with
 // a wrong value makes the whole file broken rather than half-applied. Like a permission mode, a buddy this build cannot
-// read is that field only: a later build may add buddies. buddyKey: the file had the key at all, an unknown id
+// read is that field only: a later build may add buddies. So is a buddy change time: losing it only lifts the buddy lock,
+// while a broken file would reset notifications and New conversation too. buddyKey: the file had the key at all, an unknown id
 // included, which is what decides whether the buddy screen opens for someone who finished first run.
 export function parsePreferencesFile(text: string | null): { snapshot: PreferencesSnapshot; buddyKey: boolean } {
   const read = (snapshot: PreferencesSnapshot, buddyKey = false) => ({ snapshot, buddyKey });
@@ -85,7 +93,7 @@ export function parsePreferencesFile(text: string | null): { snapshot: Preferenc
   const choice = value.newConversation === undefined ? null : newConversation(value.newConversation, false);
   const update = value.updates === undefined ? DEFAULT_PREFERENCES.updates : updates(value.updates, false);
   if (switches === null || choice === undefined || update === null) return broken;
-  const preferences: Preferences = { v: 1, notifications: switches as NotificationPreferences, newConversation: choice, updates: update, ...(knownBuddyId(value.buddy) ? { buddy: value.buddy } : {}) };
+  const preferences: Preferences = { v: 1, notifications: switches as NotificationPreferences, newConversation: choice, updates: update, ...(knownBuddyId(value.buddy) ? { buddy: value.buddy } : {}), ...(isoTime(value.buddyChangedAt) ? { buddyChangedAt: value.buddyChangedAt } : {}) };
   return read({ preferences, notice: null }, "buddy" in value);
 }
 
@@ -97,7 +105,7 @@ export function windowBuddy(snapshot: PreferencesSnapshot): BuddyId { return sna
 export function parsePreferencesPatch(value: unknown): PreferencesPatch | null {
   if (!record(value)) return null;
   const keys = Object.keys(value);
-  if (keys.length === 0 || keys.some(key => key !== "notifications" && key !== "newConversation" && key !== "updates" && key !== "buddy")) return null;
+  if (keys.length === 0 || keys.some(key => key !== "notifications" && key !== "newConversation" && key !== "updates" && key !== "buddy" && key !== "buddyChangedAt")) return null;
   const patch: PreferencesPatch = {};
   if ("notifications" in value) {
     const switches = notifications(value.notifications, DEFAULT_PREFERENCES.notifications, true);
@@ -118,17 +126,25 @@ export function parsePreferencesPatch(value: unknown): PreferencesPatch | null {
     if (!knownBuddyId(value.buddy)) return null;
     patch.buddy = value.buddy;
   }
+  // Only Settings > General's switch sends a time, always with the buddy it switched to.
+  if ("buddyChangedAt" in value) {
+    if (patch.buddy === undefined || !isoTime(value.buddyChangedAt)) return null;
+    patch.buddyChangedAt = value.buddyChangedAt;
+  }
   return patch;
 }
 
 export function mergePreferences(current: Preferences, patch: PreferencesPatch): Preferences {
   const buddy = patch.buddy ?? current.buddy;
+  // A pick without a time (first run, the buddy screen) keeps the lock that is running.
+  const buddyChangedAt = patch.buddyChangedAt ?? current.buddyChangedAt;
   return {
     v: 1,
     notifications: { ...current.notifications, ...patch.notifications },
     newConversation: patch.newConversation === undefined ? current.newConversation : patch.newConversation,
     updates: patch.updates ?? current.updates,
     ...(buddy ? { buddy } : {}),
+    ...(buddyChangedAt ? { buddyChangedAt } : {}),
   };
 }
 

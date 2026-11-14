@@ -41,7 +41,7 @@
 - [ ] 6. **배치 P — 캔버스 패널·보드·배지·사이드바 클릭·ui-state**(F 뒤, O와 병렬).
   - 테스트(`CanvasConversationPanel.test.tsx`, `canvasRun.test.ts`, `CanvasAgent.test.tsx`, `agentIndicator.test.ts`, `App.*.test.tsx`의 해당 파일, `uiState.test.ts`, `DockedComposer.test.tsx`)
     - 보관 보기·복원이 없다. 목록을 읽는 동안에도 새 대화를 보낸다. 삭제 뒤 다음 대화와 제목 메뉴 버튼 포커스.
-    - "+N" 버튼(Tab, 이름, 툴팁, 누를 때 대상, 순환, 접힌 패널 펼침, 같은 요소, 사라질 때 Stop으로 포커스). Stop 이름과 잠깐 비활성. 대기 알림 Open.
+    - Stop 이름과 잠깐 비활성, 대상이 바뀌어도 같은 요소. 대기 알림 Open. 보드에 다른 대화의 수가 없음.
     - 배지(작업 중 포함)와 배지로 펼치면 그 대화. 사이드바 캔버스 행 클릭.
     - `conversationByCanvas`: 검증, `renameUiRoots`, 첫 읽기 전 저장 없음과 병합, 'Seen'에서만 씀, 옮긴 캔버스.
     - 터미널 세션 이어받기 제안이 그 세션을 쥔 대화가 있으면 숨는다.
@@ -63,7 +63,7 @@
   - 커밋 경계: `/design-sync` 수정과 DESIGN.md.
 - [ ] 10. **`/runtime-test`**(컨덕터): 격리 앱(임시 userData·HOME·SHELL·`DOAN_RUNTIME`)에서 확인한다. 실제 턴은 작업 1의 프로바이더 로그인을 앱이 쓰는 프로필로 다시 만들어야 한다. 그 프로필의 절대 경로를 orch.md에 적고 실행 내내 재사용한다. 설치된 앱 안전 조치는 작업 1과 같다.
   - 한 캔버스에서 A 작업 중에 B를 보내면 둘 다 끝까지 돈다(Claude Code와 Codex. 나머지 셋은 PoC 근거이고 BACKLOG에 적는다).
-  - 보드: 따르는 대화, "+N"(답 대기 포함)을 누르면 그 대화, Stop 한 대화만과 잠깐 비활성, 작업 메모와 Following.
+  - 보드: 따르는 대화, 다른 대화의 수 없음, Stop 한 대화만과 잠깐 비활성, 작업 메모와 Following.
   - 접힌 패널 배지와 배지로 펼치기. 제목 메뉴(눌린 행, 열린 동안 고정). Overview 행. 사이드바 캔버스 행 클릭.
   - 프로토타입 창 대화 메뉴, 새 대화, Retry. 보던 대화 삭제 뒤.
   - 업데이트 전 v2 색인(보관 대화 포함)을 둔 userData로 시작하면 보관 대화가 본 것인 보통 대화로 보이고, 첫 저장 뒤 v3다.

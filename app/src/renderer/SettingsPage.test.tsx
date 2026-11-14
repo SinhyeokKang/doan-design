@@ -55,7 +55,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 const words = (node: unknown): string => Array.isArray(node) ? node.map(words).join("") : typeof node === "string" ? node : isValidElement<Record<string, unknown>>(node) ? words(node.props.children) : "";
 type PageProps = Parameters<typeof SettingsPage>[0];
 const agents = { signIn: {} as never, preferences: null, save: vi.fn(), project: null } satisfies PageProps["agents"];
-const buddy: PageProps["buddy"] = { shown: "doany", failure: null, select: vi.fn(async () => true), settled: async () => true, commit: async () => true, dismiss: vi.fn() };
+const buddy: PageProps["buddy"] = { shown: "doany", failure: null, lockedUntil: null, select: vi.fn(async () => true), settled: async () => true, commit: async () => true, dismiss: vi.fn() };
 let tree: ReactNode;
 function render(props: Partial<PageProps> = {}) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
@@ -123,7 +123,7 @@ describe("Settings > General", () => {
   }
   const radios = (nodes: ReturnType<typeof general>) => nodes.filter(element => element.type === "input");
 
-  test("one Buddy group of rows named by its title, the saved buddy checked; a pick saves through App's selection", () => {
+  test("one Buddy group of rows named by its title, the saved buddy checked; a pick asks before it saves", () => {
     const select = vi.fn(async () => true);
     const nodes = general({ shown: "popo", select });
     const title = nodes.find(element => element.type === "h2")!;
@@ -133,8 +133,8 @@ describe("Settings > General", () => {
     expect(group.props["aria-labelledby"]).toBe("settings-general-buddy");
     expect(radios(nodes).find(radio => radio.props.checked)!.props.value).toBe("popo");
     expect(radios(nodes).every(radio => radio.props.disabled === false)).toBe(true);
-    (radios(nodes)[4]!.props.onChange as () => void)();
-    expect(select).toHaveBeenCalledWith("dori");
+    (radios(nodes)[4]!.props.onClick as (event: unknown) => void)({ preventDefault: vi.fn() });
+    expect(select).not.toHaveBeenCalled();
     expect(nodes.some(element => String(element.props.className ?? "").includes("doan-notice"))).toBe(false);
   });
 
@@ -172,6 +172,17 @@ describe("Settings > General", () => {
     cleanup?.();
     expect(dismiss).toHaveBeenCalled();
   });
+});
+
+// The buddy switch's alert locks the page like Agents' and MCP Connectors' confirmations.
+test("General's lock reaches App", () => {
+  const onState = vi.fn();
+  render({ section: "general", onState });
+  const body = all(tree).find(element => element.type === SettingsGeneral)!;
+  (body.props.onLock as (locked: boolean) => void)(true);
+  expect(onState).toHaveBeenLastCalledWith({ locked: true });
+  (body.props.onLock as (locked: boolean) => void)(false);
+  expect(onState).toHaveBeenLastCalledWith({ locked: false });
 });
 
 test("Agents' lock reaches App", () => {
