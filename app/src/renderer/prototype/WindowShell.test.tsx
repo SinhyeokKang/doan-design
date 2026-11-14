@@ -605,8 +605,25 @@ describe("the conversation button and panel", () => {
     const panel = all(tree({ conversation: opened({ column, onFocusOut }) })).find(element => element.type === ConversationPanel)!;
     expect(panel.props.columnRef).toBe(column);
     expect(panel.props.onBlur).toBe(onFocusOut);
-    // Esc does not fold it: neither the shell nor the panel takes a key on the column.
-    expect(panel.props.onKeyDown).toBeUndefined();
+  });
+
+  // Esc does not fold the panel: an Escape given to every key handler the open shell and its panel render (the
+  // tooltips' Esc included) never reaches the toggle.
+  test("Esc anywhere in the open shell does not ask for the toggle", () => {
+    const onToggle = vi.fn(), onMenuOpen = vi.fn();
+    const expand = (node: ReactNode): El[] => all(node).flatMap(element => element.type === ConversationPanel
+      ? [element, ...expand(ConversationPanel(element.props as Parameters<typeof ConversationPanel>[0]))] : [element]);
+    const elements = expand(tree({ menuOpen: true, onMenuOpen, conversation: opened({ onToggle }) }));
+    const escape = { key: "Escape", code: "Escape", target: null, currentTarget: null, preventDefault: vi.fn(), stopPropagation: vi.fn(), nativeEvent: {} };
+    let handlers = 0;
+    for (const element of elements) for (const [name, handler] of Object.entries(element.props)) {
+      if (!/^on(KeyDown|KeyUp|KeyDownCapture|EscapeKeyDown)$/.test(name) || typeof handler !== "function") continue;
+      handlers++;
+      (handler as (event: unknown) => void)(escape);
+    }
+    // The viewport toggle's roving keys and the header tooltips' Esc are there to be pressed.
+    expect(handlers).toBeGreaterThanOrEqual(2);
+    expect(onToggle).not.toHaveBeenCalled();
   });
 
   test("folded, the panel stays in the DOM out of reach, so aria-controls resolves", () => {
