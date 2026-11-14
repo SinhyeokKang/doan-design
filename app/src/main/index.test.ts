@@ -119,7 +119,7 @@ const mocks = await vi.hoisted(async () => {
     readFolder: vi.fn(),
     nativeTheme: { themeSource: "system" },
     // Folder work the Add Projects page and onboarding share; each delegates to the real module unless a test says otherwise.
-    projects: { canonicalFolder: vi.fn(), inspectPath: vi.fn(), selectProject: vi.fn(), cloneDestination: vi.fn(), cloneProject: vi.fn() },
+    projects: { canonicalFolder: vi.fn(), inspectPath: vi.fn(), selectProject: vi.fn(), cloneDestination: vi.fn(), cloneProject: vi.fn(), newFolderTarget: vi.fn() },
     probeShell: vi.fn(),
     runAgentSetup: vi.fn(), osascriptAdmin: vi.fn(),
   };
@@ -2007,7 +2007,8 @@ describe("main-window setup and settings", () => {
     expect(await invoke("onboarding:choose-folder", contents, null, "project")).toBeNull();
     mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/picked"] });
     expect(await invoke("onboarding:choose-folder", contents, null, "project")).toBe("/picked");
-    expect(mocks.dialog.showOpenDialog).toHaveBeenLastCalledWith(window(), expect.objectContaining({ properties: ["openDirectory"] }));
+    // macOS's own New Folder button in Choose folder's panel, as in Choose Where to Clone.
+    expect(mocks.dialog.showOpenDialog).toHaveBeenLastCalledWith(window(), expect.objectContaining({ properties: ["openDirectory", "createDirectory"] }));
     expect(await invoke("onboarding:choose-folder", contents, null, "destination")).toBe("/picked");
     expect(mocks.dialog.showOpenDialog).toHaveBeenLastCalledWith(window(), expect.objectContaining({ properties: ["openDirectory", "createDirectory"] }));
     expect(mocks.flow.add).not.toHaveBeenCalled();
@@ -2015,6 +2016,47 @@ describe("main-window setup and settings", () => {
     for (const purpose of [undefined, "other", 1]) expect(await invoke("onboarding:choose-folder", contents, null, purpose)).toBeNull();
     expect(await invoke("onboarding:choose-folder", contents, {}, "project")).toBeNull();
     expect(mocks.dialog.showOpenDialog).not.toHaveBeenCalled();
+  });
+
+  // New folder: main opens the save panel on the window and makes the folder; the renderer's parent only places the panel.
+  test("New folder opens the save panel at the given parent, else HOME, and answers the judged path without registering", async () => {
+    const contents = window().webContents;
+    const home = await invoke("app:home", contents, null);
+    const parent = realpathSync(mkdtempSync(join(tmpdir(), "doan-new-folder-")));
+    onTestFinished(() => rmSync(parent, { recursive: true, force: true }));
+    const options = (defaultPath: unknown) => ({ message: "Name your new project folder and choose where to create it.", buttonLabel: "Create", nameFieldLabel: "Name:", defaultPath, showsTagField: false });
+    // Once only: implementations outlive vi.clearAllMocks into later tests.
+    mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: true, filePath: "" });
+    expect(await invoke("onboarding:new-folder", contents, null, { parent })).toEqual({ kind: "cancelled" });
+    // No createDirectory: a New Folder made in this panel would move it inside, and Create would nest the project.
+    expect(mocks.dialog.showSaveDialog).toHaveBeenLastCalledWith(window(), options(parent));
+    for (const bad of ["code", "/no/such/doan-folder", join(parent, "file")]) {
+      if (bad.endsWith("file")) writeFileSync(bad, "");
+      mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: true, filePath: "" });
+      await invoke("onboarding:new-folder", contents, null, { parent: bad });
+      expect(mocks.dialog.showSaveDialog, bad).toHaveBeenLastCalledWith(window(), options(home));
+    }
+    expect(mocks.projects.newFolderTarget).not.toHaveBeenCalled();
+    mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: false, filePath: join(parent, "landing-page") }).mockResolvedValueOnce({ canceled: false, filePath: join(parent, "landing-page") });
+    mocks.projects.newFolderTarget.mockResolvedValueOnce({ kind: "exists", path: join(parent, "landing-page"), directory: true });
+    expect(await invoke("onboarding:new-folder", contents, null, { parent })).toEqual({ kind: "exists", path: join(parent, "landing-page"), directory: true });
+    expect(mocks.projects.newFolderTarget).toHaveBeenLastCalledWith(join(parent, "landing-page"), expect.objectContaining({ ls: expect.any(Function) }));
+    mocks.projects.newFolderTarget.mockResolvedValueOnce({ kind: "created", path: join(parent, "landing-page") });
+    expect(await invoke("onboarding:new-folder", contents, null, { parent })).toEqual({ kind: "created", path: join(parent, "landing-page") });
+    expect(mocks.flow.add).not.toHaveBeenCalled();
+  });
+
+  test("New folder refuses other senders and malformed requests, and makes nothing once the window is gone", async () => {
+    const contents = window().webContents;
+    for (const bad of [undefined, "/Users", { parent: 1 }, { parent: "/Users", name: "x" }, null]) {
+      expect(await invoke("onboarding:new-folder", contents, null, bad), JSON.stringify(bad)).toEqual({ kind: "cancelled" });
+    }
+    expect(await invoke("onboarding:new-folder", contents, {}, { parent: "/Users" })).toEqual({ kind: "cancelled" });
+    expect(await invoke("onboarding:new-folder", {}, null, { parent: "/Users" })).toEqual({ kind: "cancelled" });
+    expect(mocks.dialog.showSaveDialog).not.toHaveBeenCalled();
+    mocks.dialog.showSaveDialog.mockImplementationOnce(async () => { window().destroyed = true; return { canceled: false, filePath: "/Users/studio" }; });
+    expect(await invoke("onboarding:new-folder", contents, null, { parent: "/Users" })).toEqual({ kind: "cancelled" });
+    expect(mocks.projects.newFolderTarget).not.toHaveBeenCalled();
   });
 });
 

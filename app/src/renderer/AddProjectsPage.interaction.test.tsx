@@ -28,6 +28,7 @@ beforeEach(() => {
     readAddPage: vi.fn(() => new Promise(resolve => { readPage = resolve; })), onAddPageSession: vi.fn(() => () => {}),
     inspectAddPageProject: vi.fn(), selectAddPageProject: vi.fn(() => new Promise(() => {})), cloneAddPageProject: vi.fn(), cancelAddPageOperation: vi.fn(),
     chooseOnboardingFolder: vi.fn(async () => null),
+    newOnboardingFolder: vi.fn(async () => ({ kind: "cancelled" })),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.stubGlobal("document", { activeElement: null, body: {} });
@@ -102,4 +103,32 @@ test("a page opened without ⌘O does not run Choose folder by itself", async ()
   readPage(status("p1")); await flush();
   render(page);
   expect(doan.chooseOnboardingFolder).not.toHaveBeenCalled();
+});
+
+// New folder on the page: the save panel opens at the default location through the page's session, and its notice's
+// actions reach the same session.
+test("the page wires New folder and its notice's actions to its session", async () => {
+  const page = props({ projects: ["/Users/ada/code/doan"] });
+  render(page);
+  readPage(status("p1")); await flush();
+  let screen = render(page)!;
+  doan.newOnboardingFolder!.mockResolvedValueOnce({ kind: "exists", path: "/Volumes/work/landing-page", directory: true });
+  screen.props.on.newFolder!();
+  expect(page.onState).toHaveBeenLastCalledWith({ locked: false, choose: false });
+  await flush();
+  expect(doan.newOnboardingFolder).toHaveBeenCalledWith("/Users/ada/code");
+  expect(page.onState).toHaveBeenLastCalledWith({ locked: false, choose: true });
+  screen = render(page)!;
+  screen.props.on.chooseAnotherName!();
+  await flush();
+  expect(doan.newOnboardingFolder).toHaveBeenLastCalledWith("/Volumes/work");
+  screen = render(page)!;
+  screen.props.on.newFolderElsewhere!();
+  await flush();
+  expect(doan.newOnboardingFolder).toHaveBeenLastCalledWith("/Users/ada/code");
+  doan.inspectAddPageProject!.mockResolvedValueOnce(op("project_inspect", { inspection: { inspectionId: "i1", candidates: [{ path: "/Volumes/work/landing-page", changes: [] }] } }));
+  screen = render(page)!;
+  screen.props.on.useExistingFolder!();
+  await flush();
+  expect(doan.inspectAddPageProject).toHaveBeenLastCalledWith(expect.objectContaining({ path: "/Volumes/work/landing-page" }));
 });
