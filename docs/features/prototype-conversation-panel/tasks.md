@@ -9,7 +9,7 @@
 - [x] 2. PoC(`.scratch/prototype-conversation-panel/`, design.md 'PoC 의존'): develop 앱을 격리해 띄우고(제품 코드는 바꾸지 않는다) Playwright `_electron` evaluate로 열린 배치 CSS를 주입한다. computer-use의 네이티브 입력으로 본다: 패널을 열고 닫을 때와 손잡이로 폭을 바꿀 때 드래그 영역이 헤더 폭을 따르는지(패널 머리의 Hide와 제목은 클릭되고 창이 끌리지 않음, 왼쪽 헤더 빈 곳은 끌림, 닫은 뒤 헤더 오른쪽이 다시 끌림), 위쪽 28 px 안에서 손잡이를 끌고 두 번 누를 때 손잡이가 받고(두 번 누르면 기본 폭) 창이 확대되지 않는지. 관찰(통과·실패·날짜)은 이 feature 문서에 적는다. 검증: `node .scratch/prototype-conversation-panel/poc-drag.mjs`가 완료 줄을 찍고 exit 0이며, 네이티브 입력 결과가 기록되어 있다.
   - 커밋 경계: 실패하면 해결책을 고르고 design.md를 고친 문서 커밋 후 멈춘다(통과하면 관찰만 1번과 함께 적는다).
 - [x] 3. 초안 `.doan/canvases/prototype-conversation-panel.html`(frames `open-1024`, `open-640`, `open-from-360`, `name-rows`, `panel-titles`, `focus-close`, `compare`). 사용자 확인 완료(8cd00821e).
-- [ ] 4. `/design-draft`로 초안을 결정에 맞춘다. 링크 3의 초안은 고치지 않는다.
+- [x] 4. `/design-draft`로 초안을 결정에 맞춘다. 링크 3의 초안은 고치지 않는다.
   - 배너 "EXPERIMENT DRAFT · prototype-conversation-panel · NOT IN CODE · no feature documents"와 "No /design-sync applies until a feature adopts this draft"를 이 feature가 채택한 초안으로 바꾼다(spec 결정 14). 프레임의 "Experiment, not in code" 캡션 칩 8개도 바꾼다.
   - `open-1024` 캡션의 오른쪽 무리 끝 "x592"를 L − 16 = x680(토글 x576 시작)으로 고친다.
   - 패널 머리를 출시된 56으로 고치고(spec 결정 16) Hide y20–52, 제목 가운데 y36으로 캡션을 고친다. 머리를 줄여 헤더 줄에 맞춘다는 캡션 문장을 지운다.

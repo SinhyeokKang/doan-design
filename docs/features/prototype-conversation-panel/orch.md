@@ -17,9 +17,9 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| A | tasks 1, 2 | `docs/features/prototype-conversation-panel/{design,spec,tasks}.md`, `.scratch/prototype-conversation-panel/` | 없음 | Opus high — develop 코드와 문서 대조, 네이티브 입력 PoC 판정이 틀리면 UI 배치 전체가 흔들린다 | 대조표 모든 행, `node .scratch/prototype-conversation-panel/poc-drag.mjs` exit 0, 네이티브 입력 결과 기록 | 대기 |
-| B | tasks 4 | `.doan/canvases/prototype-conversation-panel.html` | 없음 | Opus medium — 캡션·타일 수정이 대부분이지만 숫자와 출시된 머리 모양을 정확히 옮겨야 한다 | `doan check`, `doan ls`, 지휘자 리뷰, 사용자 앱 확인 | 대기 |
-| C | tasks 5, 6, 7, 8 | `app/src/main/prototype/fit.ts`·`controller.ts`, `app/src/main/prototypeWindow.ts`, `app/src/main/exportViewer.test.ts`, `app/src/renderer/ConversationPanel.tsx`, `app/src/renderer/prototype/*`, `app/src/renderer/styles.css` (+ 각 테스트) | A 통합 | Opus high — 격자 배치, 포커스 이동, 맞춤 기하, clip 불변식이 얽혀 있다 | `npm --prefix app test`, `typecheck`, `lint`, `build` | 대기 |
+| A | tasks 1, 2 | `docs/features/prototype-conversation-panel/{design,spec,tasks}.md`, `.scratch/prototype-conversation-panel/` | 없음 | Opus high — develop 코드와 문서 대조, 네이티브 입력 PoC 판정이 틀리면 UI 배치 전체가 흔들린다 | 대조표 모든 행, `node .scratch/prototype-conversation-panel/poc-drag.mjs` exit 0, 네이티브 입력 결과 기록 | 통합 a4220d3b3, 31b17aa8d. PoC 12/12 통과 |
+| B | tasks 4 | `.doan/canvases/prototype-conversation-panel.html` | 없음 | Opus medium — 캡션·타일 수정이 대부분이지만 숫자와 출시된 머리 모양을 정확히 옮겨야 한다 | `doan check`, `doan ls`, 지휘자 리뷰, 사용자 앱 확인 | 통합 1124bda4e, 2a0d74bf8. 수정 1회. 사용자 확정 |
+| C | tasks 5, 6, 7, 8 | `app/src/main/prototype/fit.ts`·`controller.ts`, `app/src/main/prototypeWindow.ts`, `app/src/main/exportViewer.test.ts`, `app/src/renderer/ConversationPanel.tsx`, `app/src/renderer/prototype/*`, `app/src/renderer/styles.css` (+ 각 테스트) | A 통합 | Opus high — 격자 배치, 포커스 이동, 맞춤 기하, clip 불변식이 얽혀 있다 | `npm --prefix app test`, `typecheck`, `lint`, `build` | 진행 중 |
 | C2 | tasks 9, 10 | C와 같은 파일, `docs/DESIGN.md`, `.scratch/design-sync/prototype-conversation-panel/`, `.scratch/runtime-test/prototype-conversation-panel/` | C 통합, B 사용자 확인 | Opus high (C 워커에 이어서) — 실제 앱 측정과 네이티브 입력 판정 | `measure.mjs` 차이 0 또는 문서화된 차이, `probe.mjs` exit 0 | 대기 |
 | R | tasks 11 리뷰 | 보고만 | C2 통합 | Opus high — 독립 `/code-review` | 🔴 0 | 대기 |
 | 지휘자 | tasks 11 `/verify`, tasks 12 승격 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, 이 디렉터리 삭제 | R 🔴 0 | — | `verify.mjs`, tasks 12의 grep | 대기 |
@@ -34,4 +34,6 @@
 
 ## 리뷰·검증 기록
 
-(진행하며 적는다)
+- B 초안 리뷰(독립 Claude 리뷰어, Playwright 렌더 측정): 🔴 0, 🟡 2(닫힌 상태 이름 범위 라벨 3개가 렌더와 다름, 8cd00821e부터 있던 오류), 🟢 3(`aria-controls` 없음, `data-panel="side"` 이름, DOM 순서). 지휘자 확인: `focus-close`의 머리 제목 포커스 타일이 '목록 읽는 중'을 전제로 그려져 A의 대조 결과와 다름. 6건을 B에 보냈고 88babb91b에서 모두 고쳤다. 지휘자가 고친 라벨과 타일을 다시 확인했다. 남긴 점: 첫 view 전 타일의 콘텐츠 패널에 프레임이 보이는 것은 포커스 링을 보이기 위한 그림이므로 그대로 둔다.
+- 사용자 확인: 이 워크트리 폴더를 설치된 Doan에 프로젝트로 추가하고(지휘자가 computer-use로 추가), `focus-close`와 `panel-titles`를 강조해 보였다. 사용자가 두 프레임을 받고 초안을 구현 기준으로 확정했다.
+- A PoC(2026-11-14, `orca computer` 네이티브 입력): 12/12 통과. 설계 수정 없음. 근거는 design.md 'PoC 의존'의 관찰.
