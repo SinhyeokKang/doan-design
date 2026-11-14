@@ -144,6 +144,29 @@ develop aa22f31e1에서 대조했다. 경로는 `app/src/`를 뺀 것이다.
 - 실패하면 해결책(예: 패널 머리에 CSS 고정 `no-drag`, 헤더 요소의 inline 스타일 갱신)을 고르고 design.md를 고친 뒤 진행한다.
 - 실제 턴이 필요한 확인(`/runtime-test`)은 링크 3처럼 공유 provider 프로필을 제자리에서 쓰고, 인증 파일을 뺀 상태를 백업했다가 되돌린다.
 
+### 관찰 (2026-11-14, tasks 2)
+
+결과: 12개 확인이 모두 통과했다. 해결책이 필요 없으므로 이 문서의 설계는 바뀌지 않는다.
+
+방법: `.scratch/prototype-conversation-panel/poc-drag.mjs`가 develop aa22f31e1 앱 빌드를 Playwright `_electron`으로 띄웠다. 격리에는 `app/runtime/environment.ts` `isolatedEnv`(임시 userData·HOME·가짜 SHELL·`CLAUDE_CONFIG_DIR`·`CODEX_HOME`·`DOAN_RUNTIME`)와 `go build`한 임시 CLI를 썼다. 임시 저장소를 `folders.json`에 등록하고 `preferences.json`에 buddy 키를 둔 뒤, `doan open … --prototype`으로 1008 × 600 프레임을 재생해 창을 1024 × 680에 놓았다. 패널은 실제 헤더 버튼으로 열었다. 프로토타입 페이지의 CSP가 `<style>` 요소를 막으므로, 열린 배치 CSS는 constructed stylesheet(`document.adoptedStyleSheets`)로 넣었다. 머리(`.doan-conv-head` 안의 `h2.phead.rp-head`와 Hide 버튼)는 DOM에 직접 넣었고, Hide는 실제 헤더 버튼을 눌러 패널을 닫는다. 손잡이는 develop의 `ResizeHandle` 그대로다. 주입 후 기하는 헤더 x8–688(680), 오른쪽 무리 x576–680, 패널 x696 y8 320 × 664, 머리 y8–64, Hide x976–1008 y20–52, 손잡이 x692–700 y8부터다(`shots/01-open-injected.png`). 판정 입력은 모두 `orca computer click/drag … --restore-window`(앞으로 가져온 창에 주는 네이티브 포인터)이고, 창이 움직였는지는 main의 `getBounds()`로 보았다. CDP 입력은 쓰지 않았다.
+
+| 확인 | 결과 |
+|---|---|
+| 머리 제목을 네이티브로 끌기와 누르기(736, 36): 창이 움직이지 않고, 클릭이 `isTrusted`로 제목에 닿음 | 통과 |
+| Hide를 네이티브로 끌기(992, 36): 창이 움직이지 않음 | 통과 |
+| 패널 위 8 간격(816, 4)과 패널 본체(816, 208)를 끌기: 창이 움직이지 않음 | 통과 |
+| 열린 동안 왼쪽 헤더의 빈 곳(400, 50)을 끌기: 창이 움직임 | 통과 |
+| 위쪽 28 px 안에서 손잡이를 끌기(696, 18에서 왼쪽으로 80): 패널 320 → 392, 창 bounds 그대로 | 통과 |
+| 손잡이로 넓힌 뒤, 열 때는 헤더였다가 이제 패널이 덮은 곳(654, 50)을 끌기: 창이 움직이지 않음. 왼쪽 헤더는 여전히 끌림 | 통과 |
+| 위쪽 28 px 안에서 손잡이를 두 번 누르기(624, 18): 패널이 기본 폭 320으로 돌아가고, 창 bounds가 그대로이며 `isMaximized()`가 false(macOS 확대 없음) | 통과 |
+| 손잡이로 좁힌 뒤(320 → 293), 기본 폭에서는 패널이던 헤더의 새 오른쪽 끝(705, 50)을 끌기: 창이 움직임 | 통과 |
+| Hide를 네이티브로 누르기(992, 36): 클릭이 `isTrusted`로 닿고 패널이 닫힘 | 통과 |
+| 닫은 뒤, 열린 동안 패널 머리였던 헤더 오른쪽(756, 50)을 끌기: 창이 움직임 | 통과 |
+
+- Electron 45는 열고 닫을 때와 손잡이로 폭을 바꿀 때, 레이아웃 폭이 바뀐 `.top`의 드래그 영역을 갱신했다. 패널은 `.top` 밖에 있어 드래그 영역이 아니므로, 패널 머리에 CSS 고정 `no-drag`를 둘 필요가 없다.
+- hiddenInset 창의 위쪽 28 px 안이라도, 드래그 영역이 아닌 손잡이에서는 macOS가 두 번 누르기를 창 확대로 가로채지 않았다.
+- 한계: 머리는 셸 컴포넌트가 아니라 주입한 DOM이다. `.top` 밖에 있다는 조건이 같으므로 판정은 실제 구현에도 해당하지만, 실제 구현의 확인은 tasks 10이 한다. 같은 날 앞선 두 실행은 판정에서 뺐다. 하나는 `<style>`이 CSP에 막혀 배치가 적용되지 않았고, 다른 하나는 Orca가 `window_not_focused`로 입력을 거절해 멈췄다. 스크립트는 이제 배치가 적용되지 않으면 중단하고, 그 오류에는 한 번 다시 시도한다.
+
 ## POSTMORTEM에서 가져온 함정
 
 - **2026-11-11 'Large canvases were cut off for good under a rounded four-corner clip'(Recurrence 2026-11-14, `.pw-panel`)**: "no ancestor of a cross-origin canvas iframe clips with four equal non-zero radii … a change that adds a cross-origin iframe host, or lets an iframe grow past its panel, adds that chain to the structural test." 열린 배치는 `.pw` 격자 규칙을 바꾸므로, 콘텐츠 패널이 출시된 나눈 clip으로 돌아가는지와 `.pw[data-panel="open"]`가 자르지 않는지를 `exportViewer.test.ts`에 둔다. 대화 패널의 네 모서리 24는 iframe 조상이 아니므로 허용된다.
