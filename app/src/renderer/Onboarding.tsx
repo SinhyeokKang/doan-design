@@ -647,7 +647,8 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         {/* The page's locked header and sidebar, and first run's disabled Back and steps, do not say why by themselves. */}
         <p className="ob-fine">Stay on this page until the clone finishes, or cancel it.</p>
       </> : p.kind === "cloneCancelled" ? <>
-        <ProjectNoticeView panel={panel} notice={cancelledNotice(use)} run={run} />
+        {/* A folder chosen from here can fail its check; that failure is what the screen now says. */}
+        <ProjectNoticeView panel={panel} notice={notice ?? cancelledNotice(use)} run={run} />
         {smallActions(["Edit repository URL", "edit"])}
       </> : <>
         {notice && <ProjectNoticeView panel={panel} notice={notice} run={run} />}

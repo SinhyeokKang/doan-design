@@ -1137,3 +1137,22 @@ test("first run still selects a set-up folder at once", async () => {
   expect(h.api.selectOnboardingProject).toHaveBeenCalledTimes(1);
   expect(phase(h)).toEqual({ kind: "ready", root: "/code/app" });
 });
+
+// The session side of a cancelled clone's Choose local folder: the folder is checked against the URL, and a failure
+// stays on the cancelled screen with its own error.
+test("Choose local folder after a cancelled clone keeps that screen and records the folder's failure", async () => {
+  const h = pageHarness();
+  h.session.setUrl("https://github.com/acme/studio");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([]) })));
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([], "/Users/ada/studio") })));
+  await h.session.findRepository();
+  h.queue.clone!.push(ok(op("project_clone", { state: "cancelled" })));
+  await h.session.clone();
+  expect(h.session.state.phase.kind).toBe("cloneCancelled");
+  h.doan.chooseOnboardingFolder.mockResolvedValueOnce("/code/other");
+  h.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "remote_mismatch", message: "m" } })));
+  await h.session.chooseExisting();
+  expect(h.doan.inspectAddPageProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/other", url: "https://github.com/acme/studio" });
+  expect(h.session.state).toMatchObject({ phase: { kind: "cloneCancelled" }, error: { code: "remote_mismatch", path: "/code/other", source: "folder" } });
+  expect(projectFooter("addPage", h.session.state, { busy: false, agentReady: true })!.primary).toMatchObject({ action: "clone", disabled: true });
+});

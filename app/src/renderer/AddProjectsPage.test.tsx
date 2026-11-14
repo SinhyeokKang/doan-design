@@ -252,3 +252,28 @@ test("focus: lost focus on a page step never lands on Add project", () => {
   const candidates: ProjectStepState = { ...base, phase: { kind: "candidates", inspectionId: "i", url: null, candidates: [{ path: "/w/a", changes: [] }], choice: "/w/a" } };
   expect(projectFocusNode({ opened: null, asked: false, root: scene as never, active: null, body: body as never, heading: heading as never, state: candidates, agentReady: true, busy: false })).toBe(heading);
 });
+
+// A folder chosen from a cancelled clone's notice can fail its check; the failure replaces the cancelled status and
+// takes its place: an alert with its own recoveries, focused, and Add project off while it shows.
+test("after a cancelled clone, a chosen folder's failure shows its own alert instead of the cancelled status", () => {
+  const url = "https://github.com/acme/tokens";
+  const cancelled = { kind: "cloneCancelled", url, destination: "/Users/ada/code/tokens" } as const;
+  const mismatch = page({ url, phase: cancelled, error: { code: "remote_mismatch", path: "/Users/ada/code/other", source: "folder" } });
+  expect(mismatch).toMatch(/<div class="doan-notice error stacked ob-project-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">other belongs to a different repository\.<\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Edit repository URL<\/button><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Choose another folder<\/button><\/div><\/div>/);
+  expect(mismatch).not.toContain("Cloning was cancelled");
+  expect(mismatch).not.toContain('role="status"');
+  // Edit repository URL is the notice's, so the screen does not repeat it.
+  expect(mismatch.split(">Edit repository URL</button>").length - 1).toBe(1);
+  expect(mismatch).toMatch(/data-ui-variant="prominent" disabled="" data-consent="">Add project<svg/);
+  const gone = page({ url, phase: cancelled, error: { code: "project_unavailable", source: "folder" } });
+  expect(gone).toMatch(/role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">This folder is no longer available\. Choose it again or select another folder\.<\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Choose folder<\/button><\/div>/);
+  expect(gone).not.toContain("Cloning was cancelled");
+});
+
+test("focus: a failure after a sheet opened from the cancelled clone's notice goes to the new alert", () => {
+  const opener = node(), heading = node(), alert = node(), action = node();
+  const scene = root({ 'role="alert"': alert, "button:not(:disabled)": action });
+  const cancelled = { kind: "cloneCancelled", url: "u", destination: "/d" } as const;
+  expect(projectFocusNode({ opened: { node: opener as never, phase: "cloneCancelled", error: null }, asked: false, root: scene as never, active: heading as never, body: body as never,
+    heading: heading as never, state: { ...base, phase: cancelled, error: { code: "remote_mismatch", source: "folder" } }, agentReady: true, busy: false })).toBe(alert);
+});

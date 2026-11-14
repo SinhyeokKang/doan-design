@@ -775,3 +775,10 @@ test("the notice's text, actions and second line, the stacked layout's design-sy
   expect(css).toContain(".ob-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }");
   expect(css).not.toMatch(/\.ob-recovery|\.ob-notice-detail/);
 });
+
+test("first run: after a cancelled clone, a chosen folder's failure shows its own alert instead of the cancelled status", () => {
+  const url = "https://github.com/acme/studio";
+  const html = screen({ url, phase: { kind: "cloneCancelled", url, destination: "/Users/ada/code/studio" }, error: { code: "remote_mismatch", path: "/Users/ada/code/other", source: "folder" } });
+  expect(html).toMatch(/<div class="doan-notice error doan-panel stacked ob-project-notice" role="alert" tabindex="-1">.*?other belongs to a different repository\.<\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Edit repository URL<\/button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder<\/button><\/div><\/div>/);
+  expect(html).not.toContain("Cloning was cancelled");
+});
