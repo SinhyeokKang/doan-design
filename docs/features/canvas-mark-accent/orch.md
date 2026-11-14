@@ -39,3 +39,5 @@
 - 2026-11-15 R1 시작: dispatch `ctx_61bd72207a4a`, `cma-m` 워크트리에서 보고만, Codex gpt-6-astra medium.
 - 2026-11-15 R1 완료: 🔴0 🟡2 🟢2(보고서 `cma-m/.scratch/review-R1.md`, `.scratch/review-R1.md`로 복사). 🟡1 접힌 패널에서 버블 버튼으로 시작한 pick을 취소하면 포커스가 컴포저가 아닌 툴바 Picker에 남는다. 🟡2 reload 중 포커스가 다른 곳을 거쳐 원래 자리로 돌아오면 버블이 포커스를 다시 가져간다. 사용자 결정은 필요 없다(design.md '포커스'대로 고친다).
 - 2026-11-15 M 수정 1회차 시작: follow-up dispatch `ctx_a455e02da563`.
+- 2026-11-15 M 수정 1회차 완료: `b5c7bbf6a`(test) `567818d00`(fix). 버블 버튼에서 시작한 pick을 취소하면 패널이 접혀 있었든 열려 있었든 컴포저 필드로 간다. pick 전에 필드에 주던 포커스는 없앴다. reload 복귀는 다른 곳의 `focusin`이 한 번이라도 있으면 영영 포기한다. verify.mjs 통과.
+- 2026-11-15 R1 2회차: 기존 Codex 세션에 follow-up을 보냈지만 Codex 업데이트 화면에 막혀 시작하지 못했다(`ctx_185a3a84d978` 해제). 같은 모델로 새로 시작했다(`ctx_3450fb074fc0`).
