@@ -350,12 +350,20 @@ test("conversationByCanvas never keeps a root outside the saved list", () => {
   expect(withoutRoots({ "/repo/a": { checkout: ID_A }, "/repo/b": { cart: ID_B } }, ["/repo/a"])).toEqual({ "/repo/b": { cart: ID_B } });
 });
 
-test("conversationByCanvas kept under an alias root moves to its real path; the real path's own wins", () => {
+test("conversationByCanvas kept under an alias root moves to its real path; the real path's own canvases win", () => {
   const alias = "/alias/repo", real = "/real/repo";
   const text = JSON.stringify({ screen: "home", expanded: {}, lastByRoot: {}, conversationByCanvas: { [alias]: { checkout: ID_A }, [real]: { cart: ID_B } } });
-  expect(parseUiState(text, [real], new Map([[alias, real]]))?.conversationByCanvas).toEqual({ [real]: { cart: ID_B } });
+  expect(parseUiState(text, [real], new Map([[alias, real]]))?.conversationByCanvas).toEqual({ [real]: { checkout: ID_A, cart: ID_B } });
   const only = JSON.stringify({ screen: "home", expanded: {}, lastByRoot: {}, conversationByCanvas: { [alias]: { checkout: ID_A } } });
   expect(parseUiState(only, [real], new Map([[alias, real]]))?.conversationByCanvas).toEqual({ [real]: { checkout: ID_A } });
+});
+
+// Per canvas, as for the other root-keyed fields' entries: the real path's canvases win, the alias fills only the ones
+// the real path lacks.
+test("conversationByCanvas under both spellings merges per canvas, the real path's entries winning", () => {
+  const alias = "/alias/repo", real = "/real/repo";
+  const text = JSON.stringify({ screen: "home", expanded: {}, lastByRoot: {}, conversationByCanvas: { [alias]: { checkout: ID_A, cart: ID_A }, [real]: { cart: ID_B } } });
+  expect(parseUiState(text, [real], new Map([[alias, real]]))?.conversationByCanvas).toEqual({ [real]: { checkout: ID_A, cart: ID_B } });
 });
 
 // The draftKey rule: a moved canvas keeps its id, so it keeps the conversation it remembered.

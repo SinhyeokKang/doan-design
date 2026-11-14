@@ -78,6 +78,7 @@ const { Home } = await import("./Home");
 const { CanvasConversation } = await import("./CanvasConversationPanel");
 const { CanvasConversations } = await import("./RightPanel");
 const { initialCanvasState } = await import("./CanvasController");
+const { canvasAgent, listForPresence } = await import("./agentIndicator");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
@@ -559,6 +560,19 @@ test("the board's indicator gets the conversation the panel shows, also while it
   expect(agent()?.shown).toBeNull();
 });
 
+// While the panel is folded the board follows the conversation the panel picked, not the badge's: the notice stays on
+// one conversation whichever way the panel is unfolded later.
+test("folded, the board follows the picked working conversation while the badge names another waiting one", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", phase: "running", working: true, lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2", phase: "waiting", working: true })]);
+  await openCanvas(FOLDED);
+  selectShown("c1");
+  expect(panel()?.open).toBe(false);
+  expect(badge()).toMatchObject({ kind: "permission", conversationId: "c2" });
+  const props = agent() as unknown as { list: Parameters<typeof listForPresence>[0]; canvas: Parameters<typeof canvasAgent>[1]; shown: string | null };
+  expect(props.shown).toBe("c1");
+  expect(canvasAgent(listForPresence(props.list), props.canvas, null, [], [], props.shown)?.presence).toMatchObject({ conversationId: "c1", kind: "working" });
+});
+
 test("the capsule's Open shows the followed waiting conversation, unfolds the panel and sends focus to its first choice", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2", phase: "waiting", working: true })]);
   await openCanvas(FOLDED);
@@ -576,6 +590,26 @@ test("the panel opens on the conversation last seen on the canvas, and what is s
   expect(shownId()).toBe("c2");
   selectShown("c1");
   expect((saved() as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c1", other: "c9" } });
+});
+
+// POSTMORTEM 2026-11-01: a conversation seen before the startup ui-state read sends no save; the first save after the
+// read carries the read memory with the newly seen conversation laid over it, per canvas.
+test("a conversation seen before the ui-state read sends no save, and the first save merges it into the read memory", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2" })]);
+  render(); folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, message: "", layout: { frames: [], width: 800 } });
+  render(); await flushAll();
+  // Before the read nothing is picked; a request (a notification's Open) shows c2, and the open, focused panel sees it.
+  (conversation() as unknown as { run: { request(target: unknown, id: string, scroll: null): void } }).run.request({ root: "/w/a", canvas: { path: rowA.path, id: "a" } }, "c2", null);
+  await flushAll();
+  expect(panel()?.open).toBe(true);
+  expect(shownId()).toBe("c2");
+  expect(doan.saveUiState).not.toHaveBeenCalled();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, conversationByCanvas: { "/w/a": { a: "c1", other: "c9" }, "/w/b": { x: "c8" } } });
+  await Promise.resolve(); await Promise.resolve(); render();
+  expect(doan.saveUiState).toHaveBeenCalled();
+  expect((doan.saveUiState!.mock.calls[0]![0] as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c2", other: "c9" }, "/w/b": { x: "c8" } });
 });
 
 test("a canvas whose ID another canvas shares neither reads nor writes the memory", async () => {
