@@ -55,16 +55,16 @@
 
 - 워커 대기 루프는 `/orchestrate` §2를 따른다.
 - `/agent-eval`: 링크 1·2는 해당하지 않는다(에이전트가 보는 문구 변화 없음, 각 spec에 사용자 승인과 이유). 링크 3은 필요하다.
-- `chain-261114-1`의 링크 2(`new-project-folder`)와 `buddy-change-cooldown`이 아직 열려 있다. 겹치는 파일은 나중에 병합되는 쪽이 `origin/develop`을 병합해 푼다.
 
 ## 링크 상태
 
 | 링크 | 세션·워크트리 | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| canvas-concurrent-conversations | — | — | — | 대기 |
+| canvas-concurrent-conversations | Claude 컨덕터 · `canvas-concurrent-conversations-orch` | 2026-11-14 | — | 진행 중 |
 | sidebar-canvas-conversations | — | — | — | 대기 |
 | canvas-edit-awareness | — | — | — | 대기 |
 
 ## 인계 기록
 
 - 2026-11-14 리드 세션: 체인 파일을 썼다. 사용자가 시작 점검 1–4를 승인하고 세 링크 모두에 Codex 워커를 허가했다. 체인 시작은 사용자가 새 리드 세션에 맡겼다. 이 세션은 시작하지 않는다. 로그인('로그인')은 아직 만들지 않았다. 새 리드가 링크 1을 시작하기 전에 만든다.
+- 2026-11-14 새 리드 세션: dev 앱(실제 HOME, 설치된 `doan`을 `PATH`에서 뺌)에서 사용자가 다섯 프로바이더에 로그인했다. 로그인된 userData는 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`이다. 그동안 설치된 Doan.app이 새로 뜨지 않았다. 링크 1 컨덕터를 시작했다.
