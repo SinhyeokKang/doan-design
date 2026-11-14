@@ -1888,9 +1888,9 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    spinner, on the unread bubble's place and ring, so it adds no accent place. */
 .badge-working { position: absolute; top: var(--space-half); right: var(--space-half); display: grid; place-items: center; width: var(--size-icon-sm); height: var(--size-icon-sm); border-radius: 50%; background: var(--surface-panel); box-shadow: 0 0 0 var(--space-half) var(--surface-panel); pointer-events: none; }
 .badge-working .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-/* The conversation panel (prototype-conversation-panel draft): an independent surface on the window's right, the grid's
-   second column through both rows, 8 below the window's top, 8 from its end and bottom (the .pw padding) and 8 from the
-   content panel. The header and the content panel share the first column, so the header ends 8 before the panel and
+/* The conversation panel (.doan/canvases/prototype-conversation-panel.html): an independent surface on the window's
+   right, the grid's second column through both rows, 8 below the window's top, 8 from its end and bottom (the .pw
+   padding) and 8 from the content panel. The header and the content panel share the first column, so the header ends 8 before the panel and
    only it drags the window. While open the header's conversation button leaves the right group: --pw-right is then
    fit.ts PROTOTYPE_HEADER_RIGHT_OPEN. The content panel keeps its shipped corners and split clip (exportViewer.test.ts).
    Folded, the column leaves the grid but stays in the DOM for the button's aria-controls. The head keeps the shipped
@@ -1901,8 +1901,10 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .pw > .doan-conv-column { grid-column: 2; grid-row: 1 / -1; margin-top: var(--space-2); position: relative; display: flex; min-width: 0; min-height: 0; }
 .pw:not([data-panel="open"]) > .doan-conv-column { display: none; }
 .pw .right.doan-conv-panel { border-left: 0; border-radius: var(--radius-container); box-shadow: var(--shadow-panel); }
-/* The header's button stays one element while the panel is open, without a box or a Tab stop, so R is 104 and focus
-   can come back to it on close. */
+/* The header's button stays one element while the panel is open, so focus has a place to come back to on close. A
+   deliberate exception to hiding focus targets only visually (POSTMORTEM 2026-11-03): while open it must have no Tab
+   stop and no box, or R is no longer 104, so it cannot be visually hidden. Focus is given back only after `hidden` is
+   gone, in the effect that runs once main's view has closed the panel. */
 .pw-conv[hidden] { display: none; }
 /* The head's title is one line, cut with an ellipsis (.ov-title span's rule): the h2 itself is a flex row. */
 .pw-side-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
