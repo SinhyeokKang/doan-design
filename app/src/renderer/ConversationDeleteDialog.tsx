@@ -8,10 +8,11 @@ import type { DockedDraft } from "./dockedRules";
 
 // What a Delete hands the host: the conversation, and where it came from. From a title menu, the shown conversation's
 // deletion moves focus to that screen's composer. From the Overview's Canvas conversations list (`canvasList`), focus
-// goes to `after`, which the list computed before the alert took focus from it.
+// goes to `after`, which the list computed before the alert took focus from it. From the sidebar's conversation list,
+// focus goes to the tree row `after`, else `canvasRow` when that row left too, even for the shown conversation.
 export type ListFocus = { kind: "row"; key: string } | { kind: "title" };
 export type DeleteTarget = { conversationId: string; root: string; title: string; provider: Provider }
-  & ({ from: "overview" | "canvas" } | { from: "canvasList"; after: ListFocus });
+  & ({ from: "overview" | "canvas" } | { from: "canvasList"; after: ListFocus } | { from: "sidebar"; after: string; canvasRow: string });
 
 // A title menu row's Delete (draft frames row-button, row-unavailable): a menu item
 // beside the row's radio item, not inside it, so pressing it never picks the row and the arrow keys reach it after its

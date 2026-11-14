@@ -615,6 +615,28 @@ body:has(.shell-top) { background: transparent; }
 .shell-group-count { flex: none; font-variant-numeric: tabular-nums; }
 .shell-side .shell-group-head[aria-disabled="true"] :is(svg, .shell-group-count) { color: var(--text-disabled); }
 .shell-side .shell-group .shell-canvas-row { padding-left: calc(10px + var(--size-icon) + var(--space-2)); }
+/* The viewed canvas row with two or more conversations (sidebar-canvas-conversations draft): its icon sits in the 16px
+   lead spot and the chevron takes it on hover or keyboard focus, as on the project row. :focus-visible, not
+   :focus-within (POSTMORTEM 2026-11-06). The lead keeps its overflow so the chevron's hit area is not clipped. */
+.shell-canvas-row > .shell-lead { overflow: visible; }
+.shell-canvas-row[aria-expanded]:is(:hover, :focus-visible, :has(:focus-visible)) .shell-disclosure { visibility: visible; }
+.shell-canvas-row[aria-expanded]:is(:hover, :focus-visible, :has(:focus-visible)) .canvas-lead > .canvas-icon { visibility: hidden; }
+.shell-canvas-row[aria-expanded="false"] .shell-disclosure svg { transform: rotate(-90deg); }
+/* Conversation rows: a tree level below the canvas row, the title starting under the canvas name (10 + 16 + 8 + 16 + 8). */
+.shell-side .shell-conv-row { position: relative; padding-left: calc(10px + 2 * (var(--size-icon) + var(--space-2))); padding-right: 10px; letter-spacing: var(--type-body-sm-letter-spacing); }
+/* The conversation the panel shows carries a decorative check in the indent gutter under the canvas icon column, so the
+   title keeps its width; aria-current="true" carries the state. */
+.shell-conv-check { position: absolute; left: calc(10px + var(--size-icon) + var(--space-2)); top: 50%; display: grid; place-items: center; width: var(--size-icon); height: var(--size-icon); transform: translateY(-50%); }
+.shell-conv-check svg { width: var(--size-icon); height: var(--size-icon); }
+.shell-conv-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-conv-row > .shell-more { margin-left: auto; }
+/* Delete follows the canvas row menu button's rule: hidden visually at rest, never display: none or visibility: hidden,
+   since it takes focus back from the alert (POSTMORTEM 2026-11-03); on hover or focus it covers the status mark, whose
+   state the row still reads through its description. */
+.shell-conv-row:not(:hover, :focus-visible, :has(:focus-visible)) > .shell-more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.shell-side .shell-conv-row:is(:hover, :focus-visible, :has(:focus-visible)) { padding-right: 0; }
+.shell-conv-row:is(:hover, :focus-visible, :has(:focus-visible)) > .row-slot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.shell-side .shell-conv-row.row > .shell-more.doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 /* An empty group is a dashed box under its head, starting where its canvas rows' icons do. */
 .shell-group .shell-empty { margin: var(--space-half) 10px var(--space-2) 34px; padding: var(--space-3); border: 1px dashed var(--border-standard); border-radius: var(--radius-chip); text-align: center; }
 .shell-group .shell-canvas-error { padding-left: calc(32px + var(--size-icon) + var(--space-2)); }
