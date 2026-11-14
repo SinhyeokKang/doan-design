@@ -30,7 +30,7 @@
 | R | 4 | tasks.md 표의 R 행 | S | Claude Opus high — 동시 턴, 지연 콜백 울타리, handoff | test, typecheck, lint | 통합 `21455c8b0`·`7ddaf91ce`, 리뷰 🔴0 🟡0, 후속 `a1e4e3c37`–`0d129ac73`(세션 하나는 대화 하나, 프로토타입 `rememberedConversation`; 컨덕터가 diff 확인), 워크트리 정리 |
 | F | 5 | tasks.md 표의 F 행 | R | Claude Opus medium — 순수 함수지만 순위 규칙 판단이 많다 | test, typecheck | 통합 `c895927dc`·`dd7296ec8`, 고침 `cdfdba433`·`83a3c87a0`(리뷰 🟡3 해소, 컨덕터가 diff 확인), 워크트리 정리 |
 | P | 6 | tasks.md 표의 P 행 | F | Claude Opus high — `App.tsx`, 포커스, ui-state 병합 | test, typecheck, lint, build | 진행(`ctx_5834c9faff5f`, `ccc-batch-p`) |
-| O | 7 | tasks.md 표의 O 행 | F | Claude Opus high — 프로토타입 창 초안 옮기기 함정(POSTMORTEM) | test, typecheck, lint, build | 진행(`ctx_2cb661736ee3`, `ccc-batch-o`) |
+| O | 7 | tasks.md 표의 O 행 | F | Claude Opus high — 프로토타입 창 초안 옮기기 함정(POSTMORTEM) | test, typecheck, lint, build | 통합 `07ce9ffd8`·`0a4552fd1`, 리뷰 중(Codex gpt-6-astra medium), `remembered` 연결은 P 뒤 후속 |
 | C | 8 | 모든 `state` 읽기와 테스트 | P, O | Codex Sol medium — 기계적 정리 | tasks.md 8의 `rg`, test, typecheck, lint, build | 대기 |
 | DS | 9 | P·O 렌더러 파일, DESIGN.md | C | Claude Opus high — 실제 앱 측정과 수정 | measure.mjs | 대기 |
 | RT | 10 | `.scratch/runtime-test/` | DS | 컨덕터 | probe.mjs exit 0 | 대기 |
@@ -60,4 +60,6 @@
 - F 리뷰 🟡3: 대기 순서를 마지막 활동 시각으로 잼, 순위가 바뀌어도 이전 대상을 유지함, 기록을 못 읽은 handoff 대화를 따라감. F 고침 1회차에서 `summary.ts`에 `waitingSince`를 더한다(컨덕터 허가).
 - 워커 O 질문 — 컨덕터 판단: (1) 프로토타입 창의 대화 고르기 덮어쓰기를 지우고 창마다 자기 `CanvasRun`이 고르고 따라간다. P의 `canvasRun` 테스트가 두 창 모두를 고정한다. (2) 프로토타입 창의 `remembered`는 R이 읽기 전용 preload 호출 `rememberedConversation()`을 더한 뒤 O 후속 작업으로 잇는다.
 - R이 `main/prototype/ipc.ts`·`ipc.test.ts`를 고쳤다(새 채널, 컨덕터 허가).
+- O의 초안과 다른 점: 프로토타입 창의 첫 목록 읽기 실패는 초안 타일의 한 줄 경고 대신 main 창의 새 대화 상태 알림("Couldn’t read conversations", Retry)을 보이고 Send를 막지 않는다. `/design-sync`에서 초안과 맞춰 본다.
+- P 질문 — 컨덕터 판단: O 파일의 두 프로토타입 테스트는 O가 고친다(O가 빈 목록으로 이미 고쳤다).
 - S가 범위 밖 `io.test.ts`의 테스트 하나("recovers an interrupted replacement rollback…")를 고쳤다. 컨덕터가 허가했다.
