@@ -36,8 +36,8 @@ export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {
       if (conversationId !== null) reveal({ kind: "reply", conversationId, link });
       return null;
     }}
-    // Sign in names its provider; a settings action without one has nowhere in Settings > Agents to go.
-    onSettings={settingsTarget => { if (settingsTarget.provider) reveal({ kind: "settings", provider: settingsTarget.provider }); }}
+    // Sign in names its provider; "Sign in to an agent…" and "Manage agents…" open Settings > Agents at its top.
+    onSettings={settingsTarget => reveal({ kind: "settings", ...(settingsTarget.provider ? { provider: settingsTarget.provider } : {}) })}
     onNotice={onNotice}
     onOpenProjectConversation={conversationId => reveal({ kind: "conversation", conversationId })}
     onOpenPromoted={conversationId => reveal({ kind: "conversation", conversationId })}

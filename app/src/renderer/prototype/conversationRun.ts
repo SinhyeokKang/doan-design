@@ -18,7 +18,7 @@ import { carryPrototypeDraft, conversationButton, playingFrameChip, prototypeSho
 // Everything the panel calls: `window.doanPrototype`'s members of the same names as `window.doan`'s, and its own.
 export type PrototypeConversationCalls = ConversationCalls & StoreCalls & DockedSupportCalls & ResumeCalls & VisibleCalls
   & Pick<DoanApi, "listConversations" | "markConversationSeen" | "onConversationEvent" | "onConversationStage" | "onConversationListChanged" | "getWork" | "onWorkChanged">
-  & Pick<PrototypeWindowApi, "setShowing" | "reveal" | "rememberChoice" | "readComposerSettings" | "onComposerSettings" | "readTargetEntry" | "onTargetEntry" | "readDrawing" | "onDrawing">;
+  & Pick<PrototypeWindowApi, "setShowing" | "reveal" | "rememberChoice" | "readComposerSettings" | "onComposerSettings" | "readTargetEntry" | "onTargetEntry" | "readDrawing" | "onDrawing" | "readPromoted" | "onPromoted">;
 
 export interface PrototypeRunHost {
   changed(): void;
@@ -55,6 +55,9 @@ export class PrototypeConversationRun {
   // project conversations this window cannot.
   private drawingId: string | null = null;
   private drawingPushed = false;
+  // The project conversation main saw become the playing canvas's current one, by id, likewise relayed.
+  private promotedId: string | null = null;
+  private promotedPushed = false;
 
   constructor(private readonly calls: PrototypeConversationCalls, private readonly host: PrototypeRunHost) {
     const list = (root: string): ListView => (this.view?.root === root ? this.listView : "loading");
@@ -66,6 +69,7 @@ export class PrototypeConversationRun {
       markSeen: (conversationId, seq) => { this.seenIds.add(conversationId); void calls.markConversationSeen({ conversationId, seq }).catch(console.error); },
       focused: () => host.focused(),
       drawing: root => (this.view?.root === root ? this.drawingId : null),
+      promoted: root => (this.view?.root === root ? this.promotedId : null),
       changed: () => this.changed(),
     }, this.store, calls);
     this.support = new DockedSupport(() => host.changed(), calls);
@@ -97,8 +101,10 @@ export class PrototypeConversationRun {
       this.calls.onTargetEntry(entry => { if (entry === null || entry.path === this.view?.root) { this.entryValue = entry; this.host.changed(); } }),
       this.calls.onComposerSettings(settings => { this.settingsValue = settings; this.host.changed(); }),
       this.calls.onDrawing(conversationId => { this.drawingPushed = true; this.setDrawing(conversationId); }),
+      this.calls.onPromoted(conversationId => { this.promotedPushed = true; this.setPromoted(conversationId); }),
     ];
     void this.calls.readDrawing().then(conversationId => { if (!this.drawingPushed) this.setDrawing(conversationId); }, console.error);
+    void this.calls.readPromoted().then(conversationId => { if (!this.promotedPushed) this.setPromoted(conversationId); }, console.error);
     void this.calls.getWork().then(items => { this.workItems = items; this.host.changed(); }, console.error);
     void this.calls.readComposerSettings().then(settings => { if (settings && !this.settingsValue) { this.settingsValue = settings; this.host.changed(); } }, console.error);
     return () => { for (const off of offs) off(); };
@@ -201,6 +207,12 @@ export class PrototypeConversationRun {
       if (from !== null && !this.inFlight.has(from)) this.store.setDrafts(drafts => carryPrototypeDraft(drafts, from, to));
       this.run.select(shown.conversationId);
     }
+    this.changed();
+  }
+
+  private setPromoted(conversationId: string | null): void {
+    if (conversationId === this.promotedId) return;
+    this.promotedId = conversationId;
     this.changed();
   }
 

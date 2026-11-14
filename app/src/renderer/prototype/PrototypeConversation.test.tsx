@@ -367,7 +367,7 @@ describe("the promoted conversation", () => {
     const shown = run.run.view();
     expect(shown).toMatchObject({ kind: "conversation", conversationId: "p1", notice: { kind: "promoted", open: "p1" } });
     // A send made under the notice ends it, as in the main window's panel.
-    run.run.sent(run.run.target()!, run.run.revision(), shown!.kind === "conversation" ? shown.notice : null);
+    run.run.sent(run.run.target()!, run.run.revision(), shown?.kind === "conversation" ? shown.notice : null);
     expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "p1", notice: null });
   });
 

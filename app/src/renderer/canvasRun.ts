@@ -2,7 +2,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas, Runtime } from "../main/conversation/types";
 import type { DoanApi } from "../preload";
-import { newConversationMode, pickCanvasConversation, shouldMarkSeen, type CanvasNotice, type NewConversationView, type ResumeTarget } from "./canvasConversation";
+import { newConversationMode, pickCanvasConversation, PROMOTED_TEXT, shouldMarkSeen, type CanvasNotice, type NewConversationView, type ResumeTarget } from "./canvasConversation";
 import type { ConversationStore, ListView } from "./conversationStore";
 import { draftKey, type DockedMode } from "./dockedRules";
 import { endSeq, type ScrollTo } from "./overviewRun";
@@ -22,6 +22,9 @@ export interface CanvasRunHost {
   focused(): boolean;
   // A project conversation whose turn drew this canvas and whose promotion is not judged yet (HomeRun's).
   drawing(root: string, canvas: Canvas): string | null;
+  // A project conversation main says became this canvas's current one (the prototype window, which cannot see the
+  // project's rows a promotion is judged from). The main window judges promotions from its own lists and has none.
+  promoted?(root: string, canvas: Canvas): string | null;
   changed(): void;
 }
 
@@ -72,6 +75,8 @@ export class CanvasRun {
   private scroll: { conversationId: string; to: ScrollTo; seq: number } | null = null;
   private scrolls = 0;
   private resumeAsks = 0;
+  // The relayed promotion a send was made under, so its notice ends as a notice of the panel's own does.
+  private promotedSent: string | null = null;
 
   constructor(private host: CanvasRunHost, readonly store: ConversationStore, private calls: ResumeCalls) {
     store.subscribe((conversationId, change) => {
@@ -111,7 +116,12 @@ export class CanvasRun {
     if (s.shown === undefined) return this.host.list(s.target.root) === "error" ? this.newView(s, true) : { kind: "wait" };
     if (s.shown === null) return this.newView(s, this.host.list(s.target.root) === "error");
     const listed = this.listed(s.target.root).find(c => c.conversationId === s.shown);
-    return { kind: "conversation", conversationId: s.shown, archived: listed?.state === "archived", notice: s.notice };
+    return { kind: "conversation", conversationId: s.shown, archived: listed?.state === "archived", notice: s.notice ?? this.relayedPromotion(s) };
+  }
+  // The relayed promotion's notice, while the panel shows that conversation and nothing was sent under it.
+  private relayedPromotion(s: CanvasState): CanvasNotice | null {
+    const id = this.host.promoted?.(s.target.root, s.target.canvas) ?? null;
+    return id !== null && id === s.shown && id !== this.promotedSent ? { kind: "promoted", text: PROMOTED_TEXT, open: id } : null;
   }
   revision(): number { return this.shownState()?.revision ?? 0; }
   // The draft key of the composer the panel shows: its conversation's, else the canvas's new conversation's.
@@ -189,6 +199,7 @@ export class CanvasRun {
   sent(target: CanvasTarget, revision: number, notice: CanvasNotice | null): void {
     const s = this.canvases.get(canvasKey(target));
     if (s && notice && s.revision === revision && s.notice?.kind === notice.kind && s.notice.open === notice.open) s.notice = null;
+    if (s && notice?.kind === "promoted" && s.revision === revision && s.notice === null) this.promotedSent = notice.open;
     this.host.changed();
   }
 
