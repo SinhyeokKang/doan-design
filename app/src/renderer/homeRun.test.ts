@@ -598,6 +598,21 @@ test("visiting the project row leaves project conversations unseen and marks onl
   expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
 });
 
+// A canvas-panel conversation's slot moves to the project row too once its canvas leaves (sidebar-canvas-conversations
+// decision 7), so the project row's visit must clear it as it clears a Home one's.
+test("visiting the project row marks a canvas-panel conversation's ending seen once its canvas left", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "panel", unseen: true, fromHome: false, canvas: { path: ".doan/canvases/gone.html", id: "gone" } })] });
+  doan.readConversation!.mockResolvedValue({ events: [event("x", { type: "turn.done" })], lastSeq: 5, turn: "idle" });
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  await flush(); await flush();
+  h.run.visit([ROOT]);
+  await flush(); await flush();
+  expect(doan.markConversationSeen).toHaveBeenCalledWith({ conversationId: "panel", seq: 5 });
+  expect(h.run.slots().size).toBe(0);
+});
+
 test("the Overview's seen marks go through the run: a later seq waits for one still pending and then follows it", async () => {
   lists({ [ROOT]: [summary({ conversationId: "p", unseen: true })] });
   const h = harness();

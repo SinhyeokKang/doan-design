@@ -69,8 +69,8 @@
 | 링크 | 세션·워크트리 | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | canvas-concurrent-conversations | Claude 컨덕터 · `canvas-concurrent-conversations-orch`(제거함) | 2026-11-14 | #199 · 0743a39e5 | 병합 |
-| sidebar-canvas-conversations | — | — | — | 대기 |
-| canvas-edit-awareness | — | — | — | 대기 |
+| sidebar-canvas-conversations | Claude 컨덕터 · `sidebar-canvas-conversations-orch` | 2026-11-15 | — | 진행 중 |
+| canvas-edit-awareness | Claude 컨덕터 · `canvas-edit-awareness-orch` | 2026-11-15 | — | 진행 중 |
 | canvas-mark-accent | — | — | — | 대기 |
 
 ## 인계 기록
@@ -79,3 +79,4 @@
 - 2026-11-14 새 리드 세션: dev 앱(실제 HOME, 설치된 `doan`을 `PATH`에서 뺌)에서 사용자가 다섯 프로바이더에 로그인했다. 로그인된 userData는 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`이다. 그동안 설치된 Doan.app이 새로 뜨지 않았다. 링크 1 컨덕터를 시작했다.
 - 2026-11-14 새 리드 세션: 사용자가 canvas-mark-accent를 링크 4로 체인에 넣고, 링크 4에도 Codex 워커를 허가했다. 시작 점검 1–3과 상시 권한(링크 순서 병합)을 같은 조건으로 적용한다.
 - 2026-11-15 리드 세션: 링크 1을 병합했다(#199, 0743a39e5). 링크 2·3이 알아야 할 것은 PR 본문 'For links 2 and 3'에 있다. 앱 안의 Cursor·Antigravity·Copilot 턴과 프로토타입 창의 실제 턴은 확인하지 않았다. 공유 프로필은 로그아웃하지 않았다. 링크 진행 중 사용자 결정: 보드 알림 Stop 제거, 알림 커서 1.5px, 접힌 패널의 보드는 패널의 선택을 따름. 사용자가 `chain-261115-1`을 다른 리드에게 맡겼다. 이 세션은 이 체인을 마무리하고 릴리스를 준비한다.
+- 2026-11-15 리드 세션: 링크 2·3 컨덕터를 병렬로 시작했다.

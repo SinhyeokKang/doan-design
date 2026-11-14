@@ -1,6 +1,7 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu } from "radix-ui";
 import { Bell, Bot, Check, ChevronDown, CircleMinus, Clock, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, MessageCircle, PanelsTopLeft, Plug, Search, Settings, SlidersHorizontal, SwatchBook, Trash2 } from "lucide-react";
+import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, ROW_ACTION_ICONS as icons, ROW_ACTION_LABELS as labels, type HomeCard, type RowAction } from "./homeCards";
@@ -20,6 +21,9 @@ import { LOADING_DELAY_MS } from "./ConversationThread";
 import { sidebarSlot, type RowSlot } from "./problemView";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { countDescription, headArrow, sidebarGroups, visibleItems, type GroupId, type SidebarGroup, type SidebarItem } from "./sidebarGroups";
+import { DELETE_TOOLTIP, deleteItemLabel } from "./conversationDelete";
+import type { DeleteTarget } from "./ConversationDeleteDialog";
+import { canvasArrow, canvasDisclosure, canvasRowMark, conversationArrow, conversationRowKey, deleteFocus, listPlace, viewedCanvasConversations, type SidebarConversation } from "./sidebarConversations";
 
 interface Props {
   // What the header's sidebar button points at with aria-controls.
@@ -39,7 +43,9 @@ interface Props {
   // Opens or closes a project's group; allowed while the page is locked, as project disclosure is.
   toggleGroup(key: string, group: GroupId): void;
   worktree(root: string): void;
-  open(root: string, row: CanvasRow): void;
+  // `listed`: the row's conversation list shows under it, so the row carries no conversation signal and its press must
+  // act as an empty slot's. Only the sidebar knows where the list shows (it can hold it under a previous canvas).
+  open(root: string, row: CanvasRow, listed?: boolean): void;
   overview(root: string): void;
   action(action: RowAction, root: string): void;
   remove(roots: string[]): Promise<void>;
@@ -64,6 +70,24 @@ interface Props {
   // mcp: MCP Connectors is listed only while Claude Code or Codex is signed in.
   settings?: { section: SettingsSection; select(section: SettingsSection): void; mcp?: boolean };
   canvasMenu: CanvasMenu;
+  // The viewed canvas's conversations under its row (PRODUCT §5 item 1).
+  conversations?: SidebarConversations;
+}
+// What the viewed canvas's conversation list needs from App. `shown`: the conversation the canvas panel shows, or would
+// show when unfolded; null in its new conversation state. `bare`: the sidebar slots without conversation states (terminal
+// spinners, canvas notices), for the canvas row while its list carries the conversation signals. `folded` is one value
+// for every canvas on this device. `remove` opens the title menu's Delete alert; `after` is the tree key focus goes to
+// once it deletes, computed here before the alert takes focus.
+export interface SidebarConversations {
+  list(root: string): readonly ConversationSummary[] | "loading" | "error";
+  shown: string | null;
+  seen: ReadonlySet<string>;
+  now: number;
+  folded: boolean;
+  bare: ReadonlyMap<string, Slot>;
+  fold(folded: boolean): void;
+  open(root: string, row: CanvasRow, conversationId: string): void;
+  remove(target: Extract<DeleteTarget, { from: "sidebar" }>, trash: HTMLElement | null): void;
 }
 // A canvas row's menu. `blocked`: an agent works on the canvas (trashBlock),
 // so Move to Trash is unavailable; `exporting`: that canvas's export is running. `trash` gets the row's button, where
@@ -76,7 +100,8 @@ export interface CanvasMenu {
 }
 // One open menu at a time; a canvas menu's key is its row's `root\npath`.
 export type OpenMenu = { kind: "project" | "canvas"; key: string };
-export interface TreeRow { key: string; parent?: string; canvas?: boolean }
+// `canvas` and `conversation` rows hand a lost focus to their siblings, then their parent (recoveryKey).
+export interface TreeRow { key: string; parent?: string; canvas?: boolean; conversation?: boolean }
 // The menu a list change or a lock closes, by kind: the project menu's root left its card, the canvas menu's row left
 // the tree or the page locked (POSTMORTEM 2026-11-01: a popup whose trigger turns unavailable closes its own state).
 // A canvas menu is never judged by the project rule, which would close it as soon as it opened.
@@ -86,13 +111,14 @@ export function staleMenu(menu: OpenMenu | null, cards: readonly HomeCard[], men
   return false;
 }
 // Where focus goes when the focused row leaves the tree. A canvas row hands it to the next row of its group, else the
-// previous one, else the group's head, so a removed canvas row's focus stays in its group.
+// previous one, else the group's head, so a removed canvas row's focus stays in its group. A conversation row does the
+// same within its list, else goes to its canvas row (a folded list, a canvas left with one conversation).
 // Any other row: the row now at its place.
 export function recoveryKey(previous: readonly TreeRow[], current: readonly TreeRow[], lost: string): string | undefined {
   const index = previous.findIndex(row => row.key === lost);
   const parent = previous[index]?.parent;
   const kept = (row: TreeRow) => row.parent === parent && current.some(item => item.key === row.key);
-  if (previous[index]?.canvas && parent !== undefined) {
+  if ((previous[index]?.canvas || previous[index]?.conversation) && parent !== undefined) {
     const target = previous.slice(index + 1).find(kept) ?? previous.slice(0, index).reverse().find(kept);
     if (target) return target.key;
     if (current.some(row => row.key === parent)) return parent;
@@ -112,11 +138,12 @@ export function projectSlot(slots: ReadonlyMap<string, Slot>, roots: readonly st
   }
   return best;
 }
-function SlotMark({ slot }: { slot: Slot | undefined }) {
+// `described`: a conversation row names its state through its own description, so the mark is decorative.
+function SlotMark({ slot, described = false }: { slot: Slot | undefined; described?: boolean }) {
   if (!slot) return null;
   // A canvas notice is the accent dot; an unread finished conversation is a speech bubble, so the two never read alike.
   const cls = slot.kind === "canvas" ? "unseen" : slot.kind === "unseen" ? "ended" : slot.kind;
-  return <span className={`row-slot ${cls}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : slot.kind === "scheduled" ? <Clock aria-hidden="true" /> : slot.kind === "unseen" ? <MessageCircle aria-hidden="true" /> : <i />}</span>;
+  return <span className={`row-slot ${cls}`} {...(described ? { "aria-hidden": true } : { role: "img", "aria-label": slot.label })}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : slot.kind === "scheduled" ? <Clock aria-hidden="true" /> : slot.kind === "unseen" ? <MessageCircle aria-hidden="true" /> : <i />}</span>;
 }
 // A project row's slot: a problem icon or the reading spinner, which are hidden from assistive technology and named by
 // the row's own description instead (PRODUCT §5 item 1), or a conversation state as on a canvas row.
@@ -199,9 +226,26 @@ export function ShellSidebar(props: Props) {
   const previousRows = useRef<TreeRow[]>([]);
   const previousProjects = useRef<string[]>([]);
   const elements = useRef(new Map<string, HTMLElement>());
+  const chevrons = useRef(new Map<string, HTMLElement>());
   const buffer = useRef({ text: "", at: 0 });
   const live = useRef(props); live.current = props;
-  const rows: { key: string; parent?: string; canvas?: boolean; name: string; activate(): void; right(): void; left(): void }[] = [];
+  // The conversation list's place and order. While the pointer or focus is in the list its rows hold their order; after a
+  // press on a canvas row below, the list holds its place until the pointer leaves the sidebar (POSTMORTEM 2026-11-06).
+  const [sidebarPointer, setSidebarPointer] = useState(false);
+  // Each hold names the canvas row whose list the pointer or focus is in, so it never passes to another canvas's list.
+  const [listPointer, setListPointer] = useState<string | null>(null);
+  const [listFocus, setListFocus] = useState<string | null>(null);
+  // Where an unfolded list showed last, and the canvas row the pointer pressed while it stays in the sidebar.
+  const placed = useRef<string | null>(null);
+  // `arrived`: the press's move reached its canvas; leaving that canvas (keyboard, Back/Forward) ends the press, so a
+  // later move to the same canvas never reuses it.
+  const pressedRow = useRef<{ key: string; arrived: boolean } | null>(null);
+  const drawn = useRef<string[] | null>(null);
+  const rows: { key: string; parent?: string; canvas?: boolean; conversation?: boolean; name: string; activate(): void; right(): void; left(): void }[] = [];
+  // Each listed canvas row on screen, for the conversation list placed under one of them.
+  const canvasRows = new Map<string, { root: string; row: CanvasRow; canvases: readonly CanvasRow[] }>();
+  // Set once the rows are built: the canvas row the list sits under, whether it has a list, and the list's first row.
+  let listAt: string | null = null, listFirst: string | undefined;
   // Each listed, expanded project's groups and visible rows, built once for both the keyboard order and the render.
   // `mark`: what the slot shows; `state`: the root's own problem or reading state, which describes the row even while a
   // conversation state wins the slot.
@@ -264,9 +308,47 @@ export function ShellSidebar(props: Props) {
         rows.push({ key: head, parent: card.key, name: group.label, activate: () => props.toggleGroup(card.key, group.id), right: () => step("ArrowRight"), left: () => step("ArrowLeft") });
       } else {
         const row = item.row;
-        rows.push({ key: `${root}\n${row.path}`, parent: head, canvas: true, name: row.path.split("/").at(-1)!.replace(/\.html$/, ""), activate: () => props.open(entry!.path, row), right: () => {}, left: () => focus(head) });
+        const key = `${root}\n${row.path}`;
+        if (entry!.kind === "list") canvasRows.set(key, { root: entry!.path, row, canvases: entry!.canvases });
+        const step = (arrow: "ArrowLeft" | "ArrowRight") => {
+          const action = canvasArrow(key === listAt, !!props.conversations?.folded, arrow);
+          if (action === "unfold" || action === "fold") props.conversations?.fold(action === "fold");
+          else if (action === "firstConversation") focus(listFirst);
+          else if (action === "head") focus(head);
+        };
+        rows.push({ key, parent: head, canvas: true, name: row.path.split("/").at(-1)!.replace(/\.html$/, ""), activate: () => { pressedRow.current = null; openCanvasRow(entry!.path, row, key); }, right: () => step("ArrowRight"), left: () => step("ArrowLeft") });
       }
     }
+  }
+  const conversations = props.conversations;
+  const viewedKey = conversations && !props.home && !props.unlisted && loaded && canvas !== undefined && canvasRows.has(`${loaded}\n${canvas}`) ? `${loaded}\n${canvas}` : null;
+  const press = pressedRow.current;
+  if (press && viewedKey === press.key) press.arrived = true;
+  else if (press?.arrived) pressedRow.current = null;
+  const at = conversations ? listPlace(placed.current, viewedKey, rows.map(row => row.key), sidebarPointer ? pressedRow.current?.key ?? null : null) : null;
+  const placedRow = at === null ? undefined : canvasRows.get(at);
+  const holding = at !== null && (listPointer === at || listFocus === at);
+  const listItems: SidebarConversation[] = conversations && placedRow
+    ? viewedCanvasConversations(conversations.list(placedRow.root), placedRow.root, placedRow.row.path, placedRow.canvases, conversations.seen, conversations.now, holding ? drawn.current : null) : [];
+  drawn.current = listItems.length ? listItems.map(c => c.conversationId) : null;
+  if (at !== null && canvasDisclosure(true, listItems.length)) listAt = at;
+  const listShown = listAt !== null && !conversations?.folded;
+  placed.current = listShown ? listAt : null;
+  // A list that left (folded, emptied, moved to another canvas) takes no pointerleave or blur with it.
+  const owner = listShown ? listAt : null;
+  if (listPointer !== null && listPointer !== owner) setListPointer(null);
+  if (listFocus !== null && listFocus !== owner) setListFocus(null);
+  const conversationKeys = placedRow && listShown ? listItems.map(c => conversationRowKey(placedRow.root, placedRow.row.path, c.conversationId)) : [];
+  listFirst = conversationKeys[0];
+  // Read at press time, when the list's place is settled; `listed` goes only to a row whose list shows.
+  function openCanvasRow(root: string, row: CanvasRow, key: string) { if (key === listAt && listShown) props.open(root, row, true); else props.open(root, row); }
+  const openConversation = (c: SidebarConversation) => { if (!props.locked && placedRow) conversations?.open(placedRow.root, placedRow.row, c.conversationId); };
+  if (listAt !== null && conversationKeys.length) {
+    const canvasKey = listAt;
+    const arrow = (key: "ArrowLeft" | "ArrowRight") => { if (conversationArrow(key) === "canvas") focus(canvasKey); };
+    rows.splice(rows.findIndex(row => row.key === canvasKey) + 1, 0, ...listItems.map((c, index) => ({
+      key: conversationKeys[index]!, parent: canvasKey, conversation: true, name: c.heading, activate: () => openConversation(c), right: () => arrow("ArrowRight"), left: () => arrow("ArrowLeft"),
+    })));
   }
   // Before the recovery below, which moves `previousRows` on: the place the vanished row had is read from them.
   useLayoutEffect(() => {
@@ -283,9 +365,23 @@ export function ShellSidebar(props: Props) {
       ownedFocus.current = null;
     }
     if (lost && rows.some(row => row.key === lost)) ownedFocus.current = null;
-    previousRows.current = rows.map(row => ({ key: row.key, ...(row.parent !== undefined ? { parent: row.parent } : {}), ...(row.canvas ? { canvas: true } : {}) }));
+    previousRows.current = rows.map(row => ({ key: row.key, ...(row.parent !== undefined ? { parent: row.parent } : {}), ...(row.canvas ? { canvas: true } : {}), ...(row.conversation ? { conversation: true } : {}) }));
     previousProjects.current = cards.map(card => card.key);
   });
+  // The chevron sits inside its canvas row, which stays when the chevron goes (the canvas left with one conversation), so
+  // the row recovery above never sees it; with focus on it, focus would fall to the page body (POSTMORTEM 2026-11-03).
+  // Checked after the commit, once the node is gone, and only when nothing else took focus.
+  const chevronRef = (key: string) => (node: HTMLButtonElement | null) => {
+    if (node) { chevrons.current.set(key, node); return; }
+    const gone = chevrons.current.get(key);
+    chevrons.current.delete(key);
+    if (!gone || gone !== document.activeElement) return;
+    queueMicrotask(() => {
+      const now = document.activeElement;
+      // A re-render replaces the ref callback too (null, then the same node): a chevron still on the page keeps focus.
+      if (!now || now === document.body || !now.isConnected) elements.current.get(key)?.focus();
+    });
+  };
   const rowRef = (key: string) => (node: HTMLDivElement | null) => {
     if (node) elements.current.set(key, node);
     else { if (elements.current.get(key)?.contains(document.activeElement)) ownedFocus.current = key; elements.current.delete(key); }
@@ -307,7 +403,27 @@ export function ShellSidebar(props: Props) {
       </div>
     </aside>);
   }
-  return withHandle(<aside className="side shell-side" id={props.id} ref={host} aria-label="Projects">
+  // A conversation row: the panel shows it on press. Its Delete sits on the row's tab stop only, as the canvas row menu
+  // button does, and is hidden visually at rest (POSTMORTEM 2026-11-03); an unavailable one stays reachable and reads why.
+  const conversationRow = (c: SidebarConversation, index: number) => {
+    const key = conversationKeys[index]!, stateId = `${descriptionPrefix}-conv-${c.conversationId}`, reasonId = `${stateId}-reason`;
+    const reason = c.deletable.available ? null : c.deletable.reason, current = c.conversationId === conversations?.shown;
+    return <div key={key} ref={rowRef(key)} className="shell-conv-row row" role="treeitem" aria-level={4} aria-label={c.heading} aria-describedby={c.slot ? stateId : undefined} aria-current={current ? "true" : undefined}
+      aria-disabled={locked} tabIndex={active === key ? 0 : -1} data-key={key} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => openConversation(c)}>
+      {current && <span className="shell-conv-check" aria-hidden="true"><Check aria-hidden="true" /></span>}
+      <span className="shell-conv-title">{c.heading}</span>
+      <SlotMark slot={c.slot ?? undefined} described />
+      {c.slot && <span className="sr-only" id={stateId}>{c.slot.label}</span>}
+      <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button shell-more conv-trash" aria-label={deleteItemLabel(c.title)} tabIndex={active === key ? 0 : -1}
+        aria-disabled={reason || locked ? true : undefined} aria-describedby={reason ? reasonId : undefined} onKeyDown={event => event.stopPropagation()} onClick={event => {
+          event.stopPropagation();
+          if (reason || props.locked || !placedRow || listAt === null) return;
+          conversations?.remove({ conversationId: c.conversationId, root: placedRow.root, title: c.title, provider: c.provider, from: "sidebar", after: deleteFocus(conversationKeys, key, listAt), canvasRow: listAt }, event.currentTarget);
+        }}><Trash2 aria-hidden="true" /></button></TooltipTrigger><TooltipContent>{reason ?? DELETE_TOOLTIP}</TooltipContent></Tooltip>
+      {reason && <span className="sr-only" id={reasonId}>{reason}</span>}
+    </div>;
+  };
+  return withHandle(<aside className="side shell-side" id={props.id} ref={host} aria-label="Projects" onPointerEnter={() => setSidebarPointer(true)} onPointerLeave={() => { pressedRow.current = null; setSidebarPointer(false); }}>
     <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
     <button type="button" className="shell-home-row row" aria-current={props.homeCurrent ? "page" : undefined} aria-disabled={locked} onClick={() => props.goHome?.()}><House aria-hidden="true" /><span>Home</span></button>
     <div className="shell-projects doan-scroll">
@@ -374,11 +490,23 @@ export function ShellSidebar(props: Props) {
                 {group.open && <div role="group">{group.rows.length ? group.rows.map((row, canvasIndex) => {
                   const descriptionId = `${countId}-${canvasIndex}`;
                   const key = `${entry.path}\n${row.path}`, problem = rowProblem(row), name = canvasStem(row.path);
-                  return <div key={key}><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem ? descriptionId : undefined} aria-label={name} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}><Icon aria-hidden="true" /><span>{name}</span><SlotMark slot={props.slots?.get(slotKey(entry.path, row.path))} />
+                  // The canvas row the conversation list sits under: its icon gives way to the chevron on hover or
+                  // keyboard focus (as the project row's thumbnail does), and its slot drops the conversation signals
+                  // the list's rows carry. The chevron never takes focus, so it cannot drop it to the page when it goes.
+                  const here = key === listAt, folded = !!conversations?.folded;
+                  const slot = here && conversations ? canvasRowMark(props.slots ?? new Map(), conversations.bare, key, !folded) : props.slots?.get(slotKey(entry.path, row.path));
+                  return <Fragment key={key}><div><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem ? descriptionId : undefined} aria-label={name} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} aria-expanded={here ? !folded : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => { pressedRow.current = { key, arrived: false }; openCanvasRow(entry.path, row, key); }}>
+                    {here ? <span className="shell-lead canvas-lead"><Icon className="canvas-icon" aria-hidden="true" /><button ref={chevronRef(key)} type="button" className="shell-disclosure" aria-label={`${folded ? "Expand" : "Collapse"} ${name}`} tabIndex={-1}
+                      onMouseDown={event => event.preventDefault()} onClick={event => { event.stopPropagation(); conversations?.fold(!folded); }}><ChevronDown aria-hidden="true" /></button></span> : <Icon aria-hidden="true" />}
+                    <span>{name}</span><SlotMark slot={slot} />
                     {canvasRowMenu({ menu: props.canvasMenu, root: entry.path, row, name, reasonId: descriptionId, open: menu?.kind === "canvas" && menu.key === key, locked: !!locked, tabIndex: active === key ? 0 : -1,
                       setOpen: open => setMenu(open ? { kind: "canvas", key } : null), rowNode: () => elements.current.get(key),
                       current: () => { const listed = live.current.cards.flatMap(item => item.rows).find(item => item.path === entry.path); return listed?.kind === "list" ? listed.canvases.find(item => item.path === row.path) : undefined; },
-                      lostFocus: () => focus(canvasMenuFocus.current) })}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre className="selectable">{detail}</pre>}</>}</ErrorDetails></div>}</div>;
+                      lostFocus: () => focus(canvasMenuFocus.current) })}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre className="selectable">{detail}</pre>}</>}</ErrorDetails></div>}</div>
+                    {/* The list is the canvas row's sibling, so the row's own focus rules and press never reach it. */}
+                    {here && listShown && <div role="group" className="shell-conv-list" aria-label="Conversations" onPointerEnter={() => setListPointer(key)} onPointerLeave={() => setListPointer(null)}
+                      onFocus={() => setListFocus(key)} onBlur={event => { if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget)) setListFocus(null); }}>{listItems.map(conversationRow)}</div>}
+                  </Fragment>;
                 }) : <p className="shell-empty">{group.empty}</p>}</div>}
               </div>;
             })}

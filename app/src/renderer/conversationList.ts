@@ -43,14 +43,15 @@ export function slotKeyOf(root: string, c: ConversationSummary, rows: readonly C
   return slotKey(root, row?.path);
 }
 
-// The sidebar slots from main's list: the strongest state on each row, keyed like homeConversations' slotKey. Only Home
-// conversations count, as before the list existed. A conversation whose canvas is no longer listed shows on its
-// project row. `canvases` gives each root's listed canvas rows.
+// The sidebar slots from main's list: the strongest state on each row, keyed like homeConversations' slotKey. Every
+// conversation bound to a canvas counts, whatever started it (PRODUCT §5 item 1); of the project conversations only Home
+// ones do. A conversation whose canvas is no longer listed shows on its project row. `canvases` gives each root's
+// listed canvas rows.
 export function slotsFromList(lists: ConversationList, seen: ReadonlySet<string>, canvases: (root: string) => readonly Canvas[]): Map<string, Slot> {
   const slots = new Map<string, Slot>();
   for (const [root, list] of lists) {
     for (const c of list) {
-      if (!c.fromHome) continue;
+      if (!c.fromHome && !c.canvas) continue;
       const slot = conversationWork(c, seen, scheduledOf(c));
       if (!slot) continue;
       const key = slotKeyOf(root, c, canvases(root));

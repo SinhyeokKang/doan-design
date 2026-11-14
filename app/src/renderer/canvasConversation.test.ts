@@ -333,12 +333,20 @@ describe("sidebarRowRequest", () => {
     expect(sidebarRowRequest(list, billing, null, SEEN)).toBeNull();
   });
 
-  test("the slot's own rule: the first listed of its kind, Home conversations only, a seen ending not unseen", () => {
-    const list = [home({ conversationId: "u1", unseen: true }), home({ conversationId: "u2", unseen: true, lastActivityAt: at(0) }), summary({ conversationId: "x", phase: "waiting" })];
+  test("the slot's own rule: the first listed of its kind, a seen ending not unseen", () => {
+    const list = [home({ conversationId: "u1", unseen: true }), home({ conversationId: "u2", unseen: true, lastActivityAt: at(0) })];
     expect(sidebarRowRequest(list, billing, "unseen", SEEN)).toBe("u1");
     expect(sidebarRowRequest(list, billing, "unseen", new Set(["u1"]))).toBe("u2");
     expect(sidebarRowRequest(list, billing, "permission", SEEN)).toBeNull();
     expect(sidebarRowRequest(list, { path: ".doan/canvases/home.html", id: "home" }, "unseen", SEEN)).toBeNull();
+  });
+
+  // The canvas row's slot counts every conversation bound to the canvas, panel-started ones included, so the row's
+  // press opens the conversation whose signal it shows.
+  test("a conversation started in the canvas panel answers its row's slot too", () => {
+    const list = [summary({ conversationId: "x", phase: "waiting" }), summary({ conversationId: "y", unseen: true }), home({ conversationId: "h", phase: "waiting" })];
+    expect(sidebarRowRequest(list, billing, "permission", SEEN)).toBe("x");
+    expect(sidebarRowRequest(list, billing, "unseen", SEEN)).toBe("y");
   });
 });
 

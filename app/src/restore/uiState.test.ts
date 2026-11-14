@@ -458,6 +458,23 @@ test("reads the sidebar's hidden flag beside its width; only true is kept", () =
   expect(parse(first)).toEqual(first);
 });
 
+// The viewed canvas's conversation list is folded or unfolded for every canvas on this device; only folded is stored,
+// and each sidebar field is read on its own so a bad one drops alone.
+test("reads the sidebar's conversationsFolded flag beside its width and hidden flag; only true is kept", () => {
+  expect(parse({ screen: "home", sidebar: { conversationsFolded: true } })?.sidebar).toEqual({ conversationsFolded: true });
+  expect(parse({ screen: "home", sidebar: { width: 260, hidden: true, conversationsFolded: true } })?.sidebar).toEqual({ width: 260, hidden: true, conversationsFolded: true });
+  expect(parse({ screen: "home", sidebar: { width: 260, conversationsFolded: false } })?.sidebar).toEqual({ width: 260 });
+  expect(parse({ screen: "home", sidebar: { width: 260, conversationsFolded: "yes" } })?.sidebar).toEqual({ width: 260 });
+  expect(parse({ screen: "home", sidebar: { width: "260", conversationsFolded: true } })?.sidebar).toEqual({ conversationsFolded: true });
+  for (const sidebar of [{ conversationsFolded: false }, { conversationsFolded: 1 }, { conversationsFolded: null }]) {
+    const state = parse({ screen: "workspace", root: "/repo/a", expanded: {}, lastByRoot: {}, sidebar });
+    expect(state).not.toHaveProperty("sidebar");
+    expect(state?.root).toBe("/repo/a");
+  }
+  const first = parse({ screen: "home", sidebar: { width: 300, conversationsFolded: true } });
+  expect(parse(first)).toEqual(first);
+});
+
 // A root saved through a symlink is read as its real path, and the memory kept under the
 // alias moves with it instead of being dropped as a removed project's. Per field the real path's value wins.
 test("memory kept under an alias root moves to its real path; the real path's own wins per field", () => {

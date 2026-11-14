@@ -66,9 +66,10 @@ export interface UiState {
   // The Overview's canvas conversations panel, apart from the canvas panel's. Missing is
   // its default.
   overviewPanel?: { width: number };
-  // The shell sidebar, one per device: its width (missing is the default; the renderer clamps a kept width) and whether
-  // it is hidden (only `true` is stored). Each is read on its own; with neither the field is left out.
-  sidebar?: { width?: number; hidden?: true };
+  // The shell sidebar, one per device: its width (missing is the default; the renderer clamps a kept width), whether
+  // it is hidden and whether the viewed canvas's conversation list is folded (only `true` is stored for either). Each is
+  // read on its own; with none the field is left out.
+  sidebar?: { width?: number; hidden?: true; conversationsFolded?: true };
   // The canvas tool last chosen on this device. Only Hand is stored; a missing
   // field is Select.
   canvasTool?: "hand";
@@ -144,8 +145,8 @@ export function parseUiState(text: string, savedRoots: readonly string[], spelli
   const overviewWidth = isRecord(value["overviewPanel"]) ? value["overviewPanel"]["width"] : undefined;
   if (savedWidth(overviewWidth)) state.overviewPanel = { width: overviewWidth };
   if (isRecord(value["sidebar"])) {
-    const width = value["sidebar"]["width"], hidden = value["sidebar"]["hidden"] === true;
-    if (savedWidth(width) || hidden) state.sidebar = { ...(savedWidth(width) ? { width } : {}), ...(hidden ? { hidden: true } : {}) };
+    const width = value["sidebar"]["width"], hidden = value["sidebar"]["hidden"] === true, folded = value["sidebar"]["conversationsFolded"] === true;
+    if (savedWidth(width) || hidden || folded) state.sidebar = { ...(savedWidth(width) ? { width } : {}), ...(hidden ? { hidden: true } : {}), ...(folded ? { conversationsFolded: true } : {}) };
   }
   if (value["canvasTool"] === "hand") state.canvasTool = "hand";
   if (isRecord(value["home"])) state.home = parseHome(value["home"], saved);

@@ -371,7 +371,7 @@ export class HomeRun {
   visit(keys: readonly string[]): void {
     for (const [root, list] of this.lists) {
       for (const c of list) {
-        if (!c.fromHome || !c.canvas || c.phase !== "ended" || !c.unseen || this.seen.has(c.conversationId)) continue;
+        if (!c.canvas || c.phase !== "ended" || !c.unseen || this.seen.has(c.conversationId)) continue;
         const key = slotKeyOf(root, c, this.rows(root));
         if (key === slotKey(root) && keys.includes(key)) this.markSeen(c.conversationId);
       }
