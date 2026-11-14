@@ -59,7 +59,7 @@ fields; the version stays 2.
 
 `index-v3.json` and `index-v2-archived.json` (2026-11-14, canvas-concurrent-conversations) are synthetic. v3 drops
 the `state` field, because nothing is archived any more: `index-v3.json` holds two conversations of one canvas and a
-Home conversation with every optional field. `index-v2-archived.json` is what an earlier build left: a canvas
+Home conversation with every other optional field (`seenSeq` is on the canvas conversations). `index-v2-archived.json` is what an earlier build left: a canvas
 conversation archived while it ran (`seenSeq: 0`), the current conversation that replaced it, and an archived entry
 without `seenSeq`. Reading it in memory gives every entry the v3 shape, and an archived entry loses `seenSeq` so its
 recorded interruption is not an unseen end.
