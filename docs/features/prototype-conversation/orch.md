@@ -79,3 +79,5 @@ task 2(`/design-draft`)는 이미 끝났다. task 10은 리뷰 행과 conductor�
 - U 리뷰 2회차(Claude Opus): 1회차 항목과 D1–D3 해결, 🔴·🟡 0, ⚪ 4(요청이 view에 반영되지 않으면 대화 버튼이 반대로 요청한다 / 그리기 id를 root로만 걸러 다른 캔버스로 Play한 직후 앞 캔버스의 알림이 잠깐 보인다 / App 중계의 그리기 변경 경로가 시험되지 않았다 / 손대지 않은 파일의 test 실패). ⚪1·2를 U에 보냈고 ⚪3은 task 9에서 본다.
 - M5 완료(`be8544a0`, `ec57d744`) → `f59412d0`, `7e444104`로 통합. 재생 캔버스가 바뀔 때마다 controller가 host에 알리고(`canvasChanged`), target push에 세대를 싣고 그리기 보고가 그 세대를 되돌려야 한다. 회귀 셋이 red 뒤 green(M 보고: typecheck, lint, 관련 테스트 842개). M 리뷰 5회차를 보냈고, U에 M5 통합을 알렸다.
 - M 리뷰 5회차(Codex): 4회차 🟡1·⚪1 해결, 새 결함 없음, ⚪ 1(App 테스트의 그리기 중계 fixture에 세대가 없다)은 U에 보냈다. M 배치 완료. M 워커를 release하고 worktree `pcv-m`를 지웠다(브랜치 `SinhyeokKang/pcv-m` `ec57d744` 유지, feat과 내용 차이 없음을 `git diff`로 확인). handoff와 리뷰 보고서는 conductor `.scratch/`에 있다.
+- U3 중간 보고: Part A(승격 알림, provider 없는 Settings)와 리뷰 ⚪ 커밋, `/design-sync` 26/26 행 일치(고정 칩 14 px 하나 고침), 에이전트 없는 probe 22/22 통과. 공유 로그인 프로필의 Claude Code·Codex 로그인이 둘 다 만료되어 실제 턴 항목은 돌지 못했다.
+- 사용자 결정 — 다시 로그인한 뒤 실제 턴 항목을 확인한다. lead에 다시 로그인을 요청했고, U는 그동안 그 프로필을 열지 않고 기다린다.
