@@ -21,9 +21,13 @@
 
 ## 배치
 
+- Orca Run: `run_22242497f776`
+- D6 리드 정정(2026-11-14): 워커 브리프에서 변수 경로 `rm` 금지 줄을 뺐다. Orca 워커에는 해당하지 않는다.
+
+
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A | tasks 2(`/tdd`), 3(`/implement`), 4(`/design-sync`), 5(`/runtime-test`) | `app/src/renderer/**`, `docs/DESIGN.md`, `.scratch/` | 없음 | Claude Opus high — 동의 토큰·포커스·알림 자리 규칙이 얽혀 판단이 많고, 틀리면 보여 주지 않은 계획에 동의하는 회귀가 난다 | tasks 2–5의 검증 줄 | 대기 |
+| A | tasks 2(`/tdd`), 3(`/implement`), 4(`/design-sync`), 5(`/runtime-test`) | `app/src/renderer/**`, `docs/DESIGN.md`, `.scratch/` | 없음 | Claude Opus high — 동의 토큰·포커스·알림 자리 규칙이 얽혀 판단이 많고, 틀리면 보여 주지 않은 계획에 동의하는 회귀가 난다 | tasks 2–5의 검증 줄 | 진행 중 — `ctx_959255317537`, 워크트리 `psa-a`(브랜치 `SinhyeokKang/psa-a`, 기준 `89a27111e`) |
 | R | tasks 6 `/code-review`(보고만) | 없음(읽기) | A | Codex gpt-6-astra medium — 판단 위주 교차 리뷰 | 보고서 | 대기 |
 | A' | tasks 6 `/refactor`, 영향받은 5번 재확인, tasks 7 승격(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG, 피처 디렉터리 삭제) | A와 같음 + `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/project-step-actions/` | R | Claude Opus high(A 워커 이어서) | 🔴 0, tasks 7 검증 줄 | 대기 |
 | 컨덕터 | 통합(cherry-pick), tasks 8 `/verify`, push, PR | `orch.md` | A' | — | `verify.mjs` PASS | 대기 |
