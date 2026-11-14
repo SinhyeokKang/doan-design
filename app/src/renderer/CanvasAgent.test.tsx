@@ -64,7 +64,9 @@ describe("CanvasAgent", () => {
     expect(stop).toContain('data-ui-size="sm"');
     expect(stop).not.toContain("disabled");
     // The composer's Stop glyph, a filled square, leads the word.
-    const glyph = html.match(/<button[^>]*doan-agent-action[^>]*>(<svg[^>]*>).*?<\/svg>Stop<\/button>/)?.[1] ?? "";
+    // The word sits in the one label element every Stop has (draft frames board-notice, board-stop), so a quoted title
+    // ellipsizes in it and the label keeps its node when the followed conversation changes.
+    const glyph = html.match(/<button[^>]*doan-agent-action[^>]*>(<svg[^>]*>).*?<\/svg><span class="stop-label">Stop<\/span><\/button>/)?.[1] ?? "";
     expect(glyph).toContain("lucide-square");
     expect(glyph).toContain('fill="currentColor"');
   });
@@ -110,7 +112,7 @@ describe("CanvasAgent", () => {
   test("an app conversation on the canvas keeps its Stop over a terminal session", () => {
     const html = markup([summary({})], { work: [{ touched: 0, turn: "none:t", session: null, provider: null, root: "/w/a", path: canvas.path }] });
     expect(html).toContain('<div class="doan-agent">');
-    expect(html).toMatch(/>Stop<\/button>/);
+    expect(html).toMatch(/>Stop<\/span><\/button>/);
   });
 
   // DESIGN 'Terminal work in another worktree' (draft frame sibling-notice): another worktree of this project works on this
@@ -148,7 +150,7 @@ describe("CanvasAgent", () => {
       expect(own).toContain('<div class="doan-agent doan-agent-terminal">');
       expect(own).not.toContain("doan-agent-sibling");
       const app = markup([summary({})], { work: there, entries: entries("feat/x") });
-      expect(app).toMatch(/>Stop<\/button>/);
+      expect(app).toMatch(/>Stop<\/span><\/button>/);
       expect(app).not.toContain("doan-agent-sibling");
     });
     test("the canvas notices still follow it in the column", () => {
@@ -268,7 +270,7 @@ describe("the working notice's words", () => {
   test("the canvas's own conversation keeps Stop with its note", () => {
     const html = markup([summary({})], { conversationWork: [{ conversationId: "c1", root: "/w/a", path: canvas.path, note: "Drawing", touched: 3, turnId: "u1" }] });
     expect(html).toContain(LINE("Drawing"));
-    expect(html).toMatch(/>Stop<\/button>/);
+    expect(html).toMatch(/>Stop<\/span><\/button>/);
   });
   test("waiting: 'Agent needs your answer' and no caret", () => {
     const html = markup([summary({ phase: "waiting" })], { conversationWork: [{ conversationId: "c1", root: "/w/a", path: canvas.path, note: "Drawing", touched: 3, turnId: "u1" }] });

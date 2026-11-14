@@ -102,8 +102,9 @@ export function CanvasAgent({ list, shown = null, canvas, buddy, running, work, 
           // The composer's Stop glyph; "Stopping" spins in its place.
           ? <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-disabled={action.disabled || undefined} onClick={stop}>
             {action.stopping ? <span className="doan-spinner" aria-hidden="true" /> : <Square fill="currentColor" stroke="none" aria-hidden="true" />}
-            {/* Another conversation's quoted title ellipsizes inside the pill (draft frame board-notice). */}
-            {action.label === "Stop" || action.label === "Stopping" ? action.label : <span className="stop-label">{action.label}</span>}</button>
+            {/* One label element for every Stop, so another conversation's quoted title ellipsizes inside the pill and
+                the label keeps its node when the followed conversation changes. */}
+            <span className="stop-label">{action.label}</span></button>
           : <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={action.name} onClick={() => { if (presence) onOpen(presence.conversationId); }}>{action.label}</button>}
       </div>}
       {/* The text ellipsizes a long label; its tooltip and Open's name carry it whole. The tooltip opens below: the
