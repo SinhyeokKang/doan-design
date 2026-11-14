@@ -2086,6 +2086,29 @@ describe("main-window setup and settings", () => {
     expect(stillWanted).toBe(true);
   });
 
+  // A reloaded or crashed renderer cannot cancel its own request (its step never disposed): main drops the window's
+  // pending requests then, whatever the original event's frame still reports, and a request from the new renderer
+  // is not removed when the old one answers.
+  test.each(["did-navigate", "render-process-gone"])("New folder: a %s with the panel open makes nothing on the late Create, and leaves the new renderer's request", async (event) => {
+    const contents = window().webContents;
+    const held = () => { let answer: (path: string) => void = () => {}; mocks.dialog.showSaveDialog.mockImplementationOnce(() => new Promise(resolve => { answer = path => resolve({ canceled: false, filePath: path }); })); return (path: string) => answer(path); };
+    const late = held();
+    const old = invoke("onboarding:new-folder", contents, null, { parent: "/Users", token: "before-reload" }) as Promise<unknown>;
+    await vi.waitFor(() => expect(mocks.dialog.showSaveDialog).toHaveBeenCalledOnce());
+    contents.emit(event, {}, {});
+    const fresh = held();
+    const next = invoke("onboarding:new-folder", contents, null, { parent: "/Users", token: "after-reload" }) as Promise<unknown>;
+    await vi.waitFor(() => expect(mocks.dialog.showSaveDialog).toHaveBeenCalledTimes(2));
+    late("/Users/left-behind");
+    expect(await old).toEqual({ kind: "cancelled" });
+    expect(mocks.projects.newFolderTarget).not.toHaveBeenCalled();
+    let stillWanted: boolean | null = null;
+    mocks.projects.newFolderTarget.mockImplementationOnce(async (_path: string, _deps: unknown, wanted: () => boolean) => { stillWanted = wanted(); return { kind: "created", path: "/Users/studio" }; });
+    fresh("/Users/studio");
+    expect(await next).toEqual({ kind: "created", path: "/Users/studio" });
+    expect(stillWanted).toBe(true);
+  });
+
   // newFolderTarget awaits the location's checks before mkdir; a cancel meanwhile must still stop it.
   test("New folder: the still-wanted check passed to newFolderTarget turns false on cancel, and the request is cleared after it answers", async () => {
     const contents = window().webContents;
