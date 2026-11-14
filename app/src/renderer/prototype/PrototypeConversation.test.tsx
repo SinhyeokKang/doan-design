@@ -31,11 +31,12 @@ let event: Listener<ConversationEvent> | null;
 let lists: Map<string, (reply: ConversationSummary[] | { error: string }) => void>;
 let focused: boolean;
 let drawing: Listener<string | null> | null;
+let promoted: Listener<string | null> | null;
 let run: PrototypeConversationRun;
 
 beforeEach(() => {
   vi.stubGlobal("window", {});
-  order = []; listChanged = null; event = null; drawing = null; lists = new Map(); focused = true;
+  order = []; listChanged = null; event = null; drawing = null; promoted = null; lists = new Map(); focused = true;
   const on = (name: string, keep?: (listener: never) => void) => vi.fn((listener: never) => { order.push(`on:${name}`); keep?.(listener); return () => {}; });
   calls = {
     onConversationEvent: on("event", listener => { event = listener; }),
@@ -56,6 +57,8 @@ beforeEach(() => {
     startConversation: vi.fn(() => new Promise(() => {})), sendConversation: vi.fn(() => new Promise(() => {})), queueConversation: vi.fn(() => new Promise(() => {})),
     onDrawing: on("drawing", listener => { drawing = listener; }),
     readDrawing: vi.fn(async () => { order.push("drawing"); return null; }),
+    onPromoted: on("promoted", listener => { promoted = listener; }),
+    readPromoted: vi.fn(async () => { order.push("promoted"); return null; }),
   };
   run = new PrototypeConversationRun(calls as unknown as PrototypeConversationCalls, { changed: () => {}, notice: () => {}, focused: () => focused });
 });
@@ -82,6 +85,7 @@ describe("subscribe first, then read", () => {
     expect(first).toBeGreaterThan(-1);
     for (const name of ["on:event", "on:stage", "on:listChanged", "on:work", "on:entry", "on:settings", "on:drawing"]) expect(order.indexOf(name), name).toBeLessThan(first);
     expect(order.indexOf("on:drawing")).toBeLessThan(order.indexOf("drawing"));
+    expect(order.indexOf("on:promoted")).toBeLessThan(order.indexOf("promoted"));
     expect(order.indexOf("on:work")).toBeLessThan(order.indexOf("getWork"));
     expect(order.indexOf("on:entry")).toBeLessThan(order.indexOf("entry"));
   });
@@ -348,5 +352,38 @@ describe("the drawing project conversation", () => {
     expect(run.run.view()).toMatchObject({ kind: "new", notice: null });
     drawing!("p2");
     expect(run.run.view()).toMatchObject({ kind: "new", notice: { kind: "drawing", open: "p2" } });
+  });
+});
+
+// A project conversation that became the playing canvas's current conversation comes from main by id (user decision):
+// the panel moves to it as to any new current conversation, and says why, as the main window's panel does.
+describe("the promoted conversation", () => {
+  const current = (conversationId: string) => summary({ conversationId });
+  test("the panel shows it with the promotion notice, until a send under the notice or main clears it", async () => {
+    await playing({}, [current("before")]);
+    promoted!("p1");
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "before", state: "archived" }), current("p1")]);
+    const shown = run.run.view();
+    expect(shown).toMatchObject({ kind: "conversation", conversationId: "p1", notice: { kind: "promoted", open: "p1" } });
+    // A send made under the notice ends it, as in the main window's panel.
+    run.run.sent(run.run.target()!, run.run.revision(), shown!.kind === "conversation" ? shown.notice : null);
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "p1", notice: null });
+  });
+
+  test("main's null (another canvas plays, or nothing was promoted) shows no notice", async () => {
+    calls.readPromoted!.mockResolvedValueOnce("p1");
+    await playing({}, [current("p1")]);
+    await flush();
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "p1", notice: { kind: "promoted", open: "p1" } });
+    promoted!(null);
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "p1", notice: null });
+  });
+
+  test("a promoted id that is not the current conversation shows nothing", async () => {
+    calls.readPromoted!.mockResolvedValueOnce("p1");
+    await playing({}, [current("other")]);
+    await flush();
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "other", notice: null });
   });
 });

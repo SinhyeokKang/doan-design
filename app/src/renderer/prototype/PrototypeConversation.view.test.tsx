@@ -71,7 +71,7 @@ beforeEach(() => {
   listed = [summary()];
   const off = () => vi.fn(() => () => {});
   calls = {
-    onConversationEvent: off(), onConversationStage: off(), onConversationListChanged: off(), onWorkChanged: off(), onTargetEntry: off(), onComposerSettings: off(), onAgentAuth: off(), onWindowVisible: off(), onDrawing: off(), readDrawing: vi.fn(async () => null),
+    onConversationEvent: off(), onConversationStage: off(), onConversationListChanged: off(), onWorkChanged: off(), onTargetEntry: off(), onComposerSettings: off(), onAgentAuth: off(), onWindowVisible: off(), onDrawing: off(), readDrawing: vi.fn(async () => null), onPromoted: off(), readPromoted: vi.fn(async () => null),
     listConversations: vi.fn(async () => listed), getWork: vi.fn(async () => []), readTargetEntry: vi.fn(async () => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [{ ...CHECKOUT, url: "u" }] })),
     readComposerSettings: vi.fn(async () => ({ home: null, newConversation: null, buddy: "doany" })),
     readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), markConversationSeen: vi.fn(async () => {}),
@@ -162,6 +162,13 @@ describe("main-window-only buttons go to main as reveals", () => {
       { kind: "conversation", conversationId: "c2" },
       { kind: "handoff", canvas: CHECKOUT, conversationId: "c3" },
     ]);
+  });
+
+  // "Sign in to an agent…" and "Manage agents…" name no provider: Settings > Agents opens at its top.
+  test("a Settings action without a provider still goes to the main window", async () => {
+    await playing();
+    props(render()).onSettings!({ section: "agents" } as never);
+    expect(calls.reveal).toHaveBeenCalledExactlyOnceWith({ kind: "settings" });
   });
 
   test("a chip in the new conversation state's field has no conversation to name, so nothing moves", async () => {
