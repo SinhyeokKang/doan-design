@@ -2,7 +2,7 @@
 
 `/ship` 하나로 진행한다. draft는 그 전에 develop에서 그린다. commit 경계는 `/ship` 순서(`test:` → `feat:` → `refactor:`)를 따른다.
 
-1. **draft** — `/design-draft`로 새 파일 `.doan/canvases/buddy-change-cooldown.html`을 그린다. frame은 확인 dialog, 저장 중 dialog, 잠금 overlay(23시간), 잠금 overlay(1시간 미만), 저장 실패 notice다. 버디 크기와 dialog·남은 시간 문구를 clarify preset으로 확정한다. `buddy-choice.html`은 고치지 않는다.
+1. **draft** — `/design-draft`로 새 파일 `.doan/canvases/buddy-change-cooldown.html`을 그린다. frame은 확인 dialog, 저장 중 dialog, 잠금 overlay(`23:59:41`), 잠금 overlay(1시간 미만, `00:42:17`), 저장 실패 notice다. 버디 크기와 dialog·남은 시간 문구를 clarify preset으로 확정한다. `buddy-choice.html`은 고치지 않는다.
    - 검증: `doan check --repo .`가 통과하고, `doan ls --repo . --json`의 frame 목록이 위 다섯 상태와 같다. 사용자가 앱에서 draft를 확인했다.
    - ⟶ commit (develop, draft만)
 2. **테스트 먼저 (`/tdd`)** — 아래 3–7의 테스트를 쓰고 red를 확인한다.
@@ -17,8 +17,8 @@
 4. **잠금 계산** — `buddyCooldown.ts`. 테스트 이름에 경계를 적는다.
    - `cooldownEnd`: 미래 `changedAt`은 `seenAt`부터 24시간이다.
    - `cooldownRemaining`: 정확히 24시간 뒤에는 null이다.
-   - `cooldownText`: 24시간·1시간·59분 30초("1 hour")·1분·단수와 복수.
-   - `nextRefresh`: 정각 시간 경계, 분 경계, 끝 시각.
+   - `cooldownClock`: 정확히 24시간은 `24:00:00`, 1001 ms는 `00:00:02`, 1000 ms와 999 ms는 `00:00:01`, 59분 59.5초는 `01:00:00`.
+   - `nextTick`: 초 경계 직전·직후, 끝 시각.
    - 검증: `npm --prefix app test -- buddyCooldown`이 위 경우를 통과한다.
 5. **행 키 처리** — `rowFocusTarget`과 `BuddyRows`.
    - 화살표 키는 포커스만 옮기고 순환한다. 키를 누른 뒤 `document.activeElement`가 다음 행이다. 저장도 `request`도 일어나지 않는다.
@@ -38,7 +38,7 @@
    - 진행 중에는 Cancel·Escape·행이 동작하지 않는다.
    - 성공하면 dialog가 닫히고 overlay가 보이며, 포커스가 overlay 버디로 가고, 행이 `inert`다.
    - 실패하면 notice와 Retry가 보이고 포커스가 누른 행으로 간다. Retry가 성공하면 포커스가 overlay 버디로 간다.
-   - 남은 시간 줄이 버디 버튼의 `aria-describedby`이고 live role이 없다.
+   - 제목과 본문이 이 순서로 버디 버튼의 `aria-describedby`이고 live role이 없다.
    - 가짜 시계로 만료시키면 overlay가 사라지고 포커스가 checked 행으로 간다.
    - `visibilitychange` 때 다시 계산한다.
    - 다시 마운트하면 잠금이 유지되고, 닫힌 채 만료된 뒤 다시 마운트하면 overlay가 없다.
@@ -64,7 +64,7 @@
     - PRODUCT item 1 'Buddy': Settings > General에서는 확인 뒤에 바뀐다.
     - ARCHITECTURE §7 'Settings IPC' 'Preferences': `buddyChangedAt`과 읽기 예외, 그 이유.
     - ARCHITECTURE 'First-run onboarding' Buddy step 문단: Settings pick만 변경 시각을 보낸다.
-    - DESIGN.md: overlay 버디 크기, 남은 시간 줄, Problem overlay 재질 공유, dialog 진행 상태의 측정값.
+    - DESIGN.md: overlay 버디 크기, 제목·본문, Problem overlay 재질 공유, dialog 진행 상태의 측정값.
     - `docs/features/buddy-change-cooldown/`을 지운다.
     - 검증:
       - `rg -n "buddyChangedAt" docs/ARCHITECTURE.md`와 `rg -n "24 hours" docs/PRODUCT.md`에 새 규칙이 나온다.
