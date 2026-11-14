@@ -33,8 +33,8 @@ export interface PrototypeHost {
   reread(root: string): void;
   sendView(view: PrototypeView): void;
   // The run's visible area as PNG bytes with where it sat in the content panel, or null when it cannot be read.
-  // `sideColumn` is the conversation column's width (its handle included), which the still must leave out.
-  capture(mark: PrototypeSize, mode: PrototypeMode, sideColumn: number): Promise<Still | null>;
+  // `panel` is the open conversation panel's width P (0 while closed): the still leaves the panel and its gap out.
+  capture(mark: PrototypeSize, mode: PrototypeMode, panel: number): Promise<Still | null>;
   sendSnapshot(snapshot: PrototypeSnapshot): void;
   // The playing canvas changed (canvasGeneration moved), told at once: a view may wait behind a still capture, and
   // two changes it coalesces (A → B → A) would otherwise reach nobody.
@@ -112,9 +112,9 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
   const leavingReady = (previous: PrototypeState): Promise<Still | null> | null => {
     if (!previous.open || previous.phase !== "ready" || previous.run === null || !state.open) return null;
     if (state.gen === previous.gen && state.phase === "ready") return null;
-    // The window may have shrunk since the width was stored: the column on screen is the width cut to it.
-    const column = previous.panel.open && previous.panel.width !== null ? prototypePanelWidth(previous.panel.width, host.contentWidth()) : 0;
-    return host.capture({ width: previous.run.markWidth, height: previous.run.markHeight }, previous.mode, column).catch(() => null);
+    // The window may have shrunk since the width was stored: the panel on screen is the width cut to it.
+    const panel = previous.panel.open && previous.panel.width !== null ? prototypePanelWidth(previous.panel.width, host.contentWidth()) : 0;
+    return host.capture({ width: previous.run.markWidth, height: previous.run.markHeight }, previous.mode, panel).catch(() => null);
   };
 
   // The still goes out before the view of the state that followed, tagged with that view's gen. A kill also stops the

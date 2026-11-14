@@ -305,13 +305,13 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       live()?.webContents.send(PROTOTYPE_CHANNELS.changed, view);
       deps.viewSent?.();
     },
-    async capture(mark, mode, sideColumn) {
+    async capture(mark, mode, panel) {
       const target = live();
       if (target === undefined) return null;
       const [width = 0, height = 0] = target.getContentSize();
-      // The renderer places the iframe by the same function, so the rectangle is the frame as it is on screen; the
-      // conversation column beside it stays out of the still.
-      const area = prototypeCaptureRect({ width, height }, mark, mode, sideColumn);
+      // The renderer places the iframe by the same function, so the rectangle is the frame as it is on screen; the open
+      // conversation panel and its gap stay out of the still.
+      const area = prototypeCaptureRect({ width, height }, mark, mode, panel);
       if (area === null) return null;
       const image = await target.webContents.capturePage(area.rect);
       return image.isEmpty() ? null : { png: new Uint8Array(image.toPNG()), box: area.box };
