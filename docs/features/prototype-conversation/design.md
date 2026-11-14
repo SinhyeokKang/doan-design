@@ -77,7 +77,8 @@
 
 - 프로토타입 창의 target은 (root, canvas key, frame)이다(ARCHITECTURE §3 'Target and run').
 - 대화 id를 받는 요청은 그 대화가 같은 root에 있고, 대화의 캔버스가 target 캔버스와 같은 행으로 맞을 때만 허용한다. 판정은 main 쪽 `resolveListedCanvas`와 같은 규칙(정확히 하나의 목록 행)을 쓴다.
-- root만 받는 메서드(`list`, `models`, `skills`, `forCanvas`, `resumeTarget`)는 root가 target root와 같아야 허용한다. `list`의 답은 target 캔버스 행의 대화만 남긴다(서비스의 `list`는 root의 대화 전체를 돌려준다).
+- root만 받는 메서드(`models`, `skills`, `forCanvas`, `resumeTarget`)는 root가 target root와 같아야 허용한다.
+- `list`는 프로토타입 창이 보여 주는 캔버스(root와 canvas)를 함께 싣고, 그 캔버스가 target 캔버스일 때만 허용한다. 답은 target 캔버스 행의 대화만 남긴다(서비스의 `list`는 root의 대화 전체를 돌려준다). 다른 캔버스를 이름 대면 `{error: "not_playing"}`으로 답한다. view는 정지 화면 캡처 뒤로 밀려 main의 Play보다 늦게 오므로, 창이 아직 앞 캔버스를 보여 주는 동안 지금 재생 중인 캔버스의 목록을 받아 앞 캔버스의 대화가 지워진 것으로 읽지 않게 하기 위해서다. 창은 이 답을 실패로 보이지 않고 다음 view에서 다시 읽는다. 또 캔버스를 바꿀 때마다 읽기 세대를 올려, A→B→A 앞의 A 읽기가 늦게 끝나도 적용하지 않는다.
 - "target loading·lost"는 ARCHITECTURE §3 'Target and run'의 캔버스 행 판정이다(목록을 읽는 중, 행이 사라짐, ID 겹침, 등록되지 않은 root). 이때는 거절한다(추측하지 않는다). run phase가 아니므로, 행이 살아 있는 한 Frame unavailable, Prototype unavailable, 로드 실패 상태에서도 허용한다.
 - target이 바뀌는 순간(다른 캔버스의 Play, Back/Forward)과 늦게 도착한 요청 사이의 경합은 main이 요청 시점의 target으로 판정해서 끊는다. 프로토타입 창의 store는 view의 target이 바뀌면 그 캔버스의 대화로 갈아탄다.
 - 이것으로 지키는 것: 캔버스 iframe에는 여전히 preload가 없고(§3 'Sender role'), 프로토타입 창 main frame이 무엇을 하든 재생 중인 캔버스의 대화 밖으로는 못 나간다. 프로젝트 대화, 다른 캔버스의 대화, 대화 삭제, 계정 email, 설정 쓰기(Last used 하나 빼고)는 닿지 않는다.
@@ -155,7 +156,7 @@
 
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 
-1. `prototypeConversationScope(method, payload, target, conversations, entries)` (`main/prototype/conversationScope.ts`) — 프로토타입 role의 대화 요청이 허용되는지. 허용 메서드 목록, 대화 id 요청의 root·캔버스 맞춤, root만 받는 요청의 root 일치, `start`는 target 캔버스의 `new`와 그 캔버스 association의 `resume`만, `newDesign`·`delete` 거절, target 캔버스 행 판정(loading·lost·ID 겹침) 거절, run phase는 보지 않음. `list` 답 거르기(`prototypeListRows`)도 같은 파일에 둔다.
+1. `prototypeConversationScope(method, payload, target, conversations, entries)` (`main/prototype/conversationScope.ts`) — 프로토타입 role의 대화 요청이 허용되는지. 허용 메서드 목록, 대화 id 요청의 root·캔버스 맞춤, root만 받는 요청의 root 일치, `start`는 target 캔버스의 `new`와 그 캔버스 association의 `resume`만, `newDesign`·`delete` 거절, target 캔버스 행 판정(loading·lost·ID 겹침) 거절, run phase는 보지 않음. `list` 답 거르기(`prototypeListRows`)와 다른 캔버스를 이름 댄 `list` 판정(`prototypeListElsewhere`)도 같은 파일에 둔다.
 2. `prototypeReceives(message, target, conversations)` (같은 파일) — `conversation:event`, `stage`, `listChanged`, `handoff`를 프로토타입 창에 보낼지. 이벤트·stage·handoff는 대화의 캔버스로, `listChanged`는 root로 판정한다. target이 없으면 보내지 않는다.
 3. `prototypeRevealRequest(payload, target, conversations)` (같은 파일) — `prototype:reveal` 검사와 main renderer에 보낼 요청 만들기. 종류별(chip, reply, settings, conversation) 모양, 범위 밖 대화 거절, 사람 칩의 캔버스 결정.
 4. `prototypeShownConversation(list, target)` (`renderer/prototype/conversation.ts`) — 그 캔버스의 현재 대화 id, 새 대화 상태, `list_loading`, `list_error`, 막힘(캔버스 사라짐·ID 겹침)을 구분한다. 캔버스 맞춤은 `canvasConversationRows.ts`의 `sameCanvas` 규칙을 그대로 쓴다.
