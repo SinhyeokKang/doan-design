@@ -645,7 +645,7 @@ Reference: `.doan/canvases/doan-project.html` (nine frames: `overview-thread`, `
 ### Not verified
 
 - Right-panel rows in Working or Needs your answer (see 'Running canvas row'). The same status marks were measured in conversation-menu items.
-- Docked composer with preset chips and no text, Sending, blocked by another project conversation (running), and the archived modes; the bubble's preset line; an expired permission; the promoted, archived and restored markers (canvas conversations, shown on the canvas page); Jump to latest; the 300 ms loading line; the action rows of a failed or sign-in notice that is not the latest end (only the latest end offers actions).
+- Docked composer with preset chips and no text, Sending, and blocked by another project conversation (running); the bubble's preset line; an expired permission; the promoted marker (canvas conversations, shown on the canvas page); Jump to latest; the 300 ms loading line; the action rows of a failed or sign-in notice that is not the latest end (only the latest end offers actions).
 - Keyboard focus rings, reduced transparency, forced colours and dark mode.
 - A real conversation's long title in the Overview header (a DOM-injected title was measured); the switch from a shown conversation to a new one through the header button is unit-tested only.
 
