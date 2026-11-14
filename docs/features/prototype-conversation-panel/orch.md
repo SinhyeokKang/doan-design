@@ -37,3 +37,4 @@
 - B 초안 리뷰(독립 Claude 리뷰어, Playwright 렌더 측정): 🔴 0, 🟡 2(닫힌 상태 이름 범위 라벨 3개가 렌더와 다름, 8cd00821e부터 있던 오류), 🟢 3(`aria-controls` 없음, `data-panel="side"` 이름, DOM 순서). 지휘자 확인: `focus-close`의 머리 제목 포커스 타일이 '목록 읽는 중'을 전제로 그려져 A의 대조 결과와 다름. 6건을 B에 보냈고 88babb91b에서 모두 고쳤다. 지휘자가 고친 라벨과 타일을 다시 확인했다. 남긴 점: 첫 view 전 타일의 콘텐츠 패널에 프레임이 보이는 것은 포커스 링을 보이기 위한 그림이므로 그대로 둔다.
 - 사용자 확인: 이 워크트리 폴더를 설치된 Doan에 프로젝트로 추가하고(지휘자가 computer-use로 추가), `focus-close`와 `panel-titles`를 강조해 보였다. 사용자가 두 프레임을 받고 초안을 구현 기준으로 확정했다.
 - A PoC(2026-11-14, `orca computer` 네이티브 입력): 12/12 통과. 설계 수정 없음. 근거는 design.md 'PoC 의존'의 관찰.
+- R 리뷰(tasks 5–8, aa22f31e1..d81ebcf65): 🔴 0, 🟡 1(열고 닫을 때 포커스가 main의 view 뒤에만 간다는 순서를 테스트가 고정하지 않음), 🟢 3(styles.css 주석의 slug를 초안 경로로, `.pw-conv[hidden]`의 POSTMORTEM 2026-11-03 예외를 주석에, "Esc는 접지 않는다" 검사가 실제로 아무것도 확인하지 않음). 지휘자 판단: 넷 다 고친다. C가 tasks 9·10을 마친 뒤 C에게 보낸다. 보고서는 `.scratch/evidence/review-R.md`.
