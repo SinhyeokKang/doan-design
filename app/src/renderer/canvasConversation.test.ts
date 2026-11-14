@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { WorkItem } from "../main/workState";
 import {
-  canvasConversationError, canvasConversationMenu, canvasNotice, DRAWING_TEXT, DUPLICATE_CANVAS_TEXT, newConversationMode, noticeOpenName, pickCanvasConversation,
+  canvasConversationError, canvasConversationMenu, canvasNotice, DRAWING_TEXT, DUPLICATE_CANVAS_TEXT, newConversationMode, noticeOpenName,
   earliestWaiting, pickShownConversation, PROMOTED_TEXT, resumeHeld, shouldMarkSeen, sidebarRowRequest, titleMenuOrder, type ShownInput,
 } from "./canvasConversation";
 import { dockedRefusal, type DockedMode } from "./dockedRules";
@@ -21,75 +21,6 @@ const archived = summary({ conversationId: "old", state: "archived", lastActivit
 const other = summary({ conversationId: "elsewhere", canvas: { path: ".doan/canvases/home.html", id: "home" } });
 const { canvas: _bound, ...project } = summary({ conversationId: "proj" });
 const LIST = [archived, current, other, project];
-
-describe("pickCanvasConversation", () => {
-  test("waits for the first list read", () => {
-    expect(pickCanvasConversation("loading", billing, null)).toEqual({ kind: "wait" });
-  });
-
-  test("a failed list read shows a new conversation the composer can still start", () => {
-    expect(pickCanvasConversation("error", billing, null)).toEqual({ kind: "new", listError: true, notice: null });
-  });
-
-  test("the requested conversation first, an archived one included", () => {
-    expect(pickCanvasConversation(LIST, billing, "old")).toEqual({ kind: "conversation", conversationId: "old", archived: true, notice: null });
-    expect(pickCanvasConversation(LIST, billing, "cur", { shown: "old" })).toMatchObject({ conversationId: "cur", archived: false });
-  });
-
-  test("a requested conversation not listed yet is read again; one of another canvas falls back", () => {
-    expect(pickCanvasConversation(LIST, billing, "late")).toEqual({ kind: "reread", conversationId: "late" });
-    expect(pickCanvasConversation(LIST, billing, "elsewhere")).toMatchObject({ kind: "conversation", conversationId: "cur" });
-  });
-
-  test("the current conversation, else a new one; an archived one is never the default", () => {
-    expect(pickCanvasConversation(LIST, billing, null)).toEqual({ kind: "conversation", conversationId: "cur", archived: false, notice: null });
-    expect(pickCanvasConversation([archived, other], billing, null)).toEqual({ kind: "new", listError: false, notice: null });
-    expect(pickCanvasConversation([], billing, null)).toEqual({ kind: "new", listError: false, notice: null });
-  });
-
-  test("a moved canvas keeps its conversations by id", () => {
-    const moved = { path: ".doan/canvases/pay/billing.html", id: "billing" };
-    expect(pickCanvasConversation(LIST, moved, null)).toMatchObject({ kind: "conversation", conversationId: "cur" });
-  });
-
-  test("what shows stays shown across list changes", () => {
-    expect(pickCanvasConversation(LIST, billing, null, { shown: "old" })).toMatchObject({ conversationId: "old", archived: true });
-    expect(pickCanvasConversation(LIST, billing, null, { shown: null })).toEqual({ kind: "new", listError: false, notice: null });
-    // Gone from this canvas: back to the default.
-    expect(pickCanvasConversation(LIST, billing, null, { shown: "deleted" })).toMatchObject({ conversationId: "cur" });
-  });
-
-  test("a promotion while the panel is open keeps what shows and announces the promoted conversation", () => {
-    const promoted = summary({ conversationId: "proj", lastActivityAt: at(1) });
-    const before = [archived, project], after = [{ ...archived }, promoted];
-    const notice = { kind: "promoted", text: PROMOTED_TEXT, open: "proj" };
-    expect(pickCanvasConversation(after, billing, null, { shown: null, previous: before })).toEqual({ kind: "new", listError: false, notice });
-    expect(pickCanvasConversation(after, billing, null, { shown: "old", previous: before })).toEqual({ kind: "conversation", conversationId: "old", archived: true, notice });
-    // A conversation this panel started was never a project conversation: no notice.
-    expect(pickCanvasConversation([current], billing, null, { shown: null, previous: [] })).toEqual({ kind: "new", listError: false, notice: null });
-    // Before anything shows, the promoted conversation is simply the current one.
-    expect(pickCanvasConversation(after, billing, null, { previous: before })).toEqual({ kind: "conversation", conversationId: "proj", archived: false, notice: null });
-  });
-
-  test("an announced promotion stays while its conversation is still current here", () => {
-    const promoted = summary({ conversationId: "proj", lastActivityAt: at(1) });
-    const after = [archived, promoted];
-    const notice = { kind: "promoted", text: PROMOTED_TEXT, open: "proj" };
-    // The read after the bind no longer differs from the one before it.
-    expect(pickCanvasConversation(after, billing, null, { shown: null, previous: after, promoted: "proj" })).toEqual({ kind: "new", listError: false, notice });
-    expect(pickCanvasConversation(after, billing, null, { shown: "old", previous: after, promoted: "proj" })).toEqual({ kind: "conversation", conversationId: "old", archived: true, notice });
-    expect(pickCanvasConversation([archived, { ...promoted, state: "archived" }, current], billing, null, { shown: "old", previous: after, promoted: "proj" }))
-      .toEqual({ kind: "conversation", conversationId: "old", archived: true, notice: null });
-    expect(pickCanvasConversation(after, billing, null, { shown: "proj", previous: after, promoted: "proj" })).toEqual({ kind: "conversation", conversationId: "proj", archived: false, notice: null });
-  });
-
-  test("a project conversation drawing this canvas is announced over the new conversation", () => {
-    const notice = { kind: "drawing", text: DRAWING_TEXT, open: "proj" };
-    expect(pickCanvasConversation([project], billing, null, { drawing: "proj" })).toEqual({ kind: "new", listError: false, notice });
-    expect(pickCanvasConversation(LIST, billing, null, { shown: null, drawing: "proj" })).toEqual({ kind: "new", listError: false, notice });
-    expect(pickCanvasConversation(LIST, billing, null, { drawing: "proj" })).toMatchObject({ conversationId: "cur", notice: null });
-  });
-});
 
 describe("canvasConversationMenu", () => {
   test("this canvas's conversations by latest activity, the shown one selected; none is pinned first", () => {

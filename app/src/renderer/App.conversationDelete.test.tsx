@@ -89,10 +89,13 @@ let doan: Record<string, ReturnType<typeof vi.fn>>;
 let tree: ReactNode;
 let calls: string[];
 const FIELDS: Record<string, { field: string }> = { ".workspace .ov-main .composer-input": { field: "overview" }, ".doan-conv-panel .composer-input": { field: "canvas" } };
+// The canvas panel's title menu trigger, where focus goes after the shown conversation is deleted (draft frame delete-shown).
+const TITLE_TRIGGER = ".doan-conv-panel .doan-conv-title .ov-title";
 
 function reset() {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   listeners = {}; calls = []; focused.calls.length = 0;
+  FIELDS[TITLE_TRIGGER] = { field: "title", focus: vi.fn() } as never;
   harness.toast.show.mockClear(); harness.toast.setModal.mockClear();
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
   doan = {
@@ -167,8 +170,8 @@ async function openOverview(list: unknown[] = [summary("c1"), summary("c2")]) {
   await flushAll();
   expect(overview()!.run.view("/w/a")).toEqual({ kind: "conversation", conversationId: "c1" });
 }
-// The canvas page on a, its panel showing c1 (current on a), with archived c2.
-async function openCanvasPanel(list: unknown[] = [onCanvas("c1"), onCanvas("c2", { state: "archived" })]) {
+// The canvas page on a, its panel showing c1 (the most recent on a), with c2 also on a.
+async function openCanvasPanel(list: unknown[] = [onCanvas("c1", { lastActivityAt: "2026-11-01T00:02:00.000Z" }), onCanvas("c2")]) {
   doan.listConversations!.mockResolvedValue(list);
   render();
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: true, width: 400 } }); await flushAll();
@@ -286,17 +289,29 @@ test("not_found cleans up as a deletion and says it was already deleted", async 
   expect(focused.calls).toEqual([FIELDS[".workspace .ov-main .composer-input"]]);
 });
 
-test("deleting the canvas's current conversation from its Title menu shows the new conversation state, not the archived one, and focuses the panel's composer", async () => {
+// spec decided point 8: the next conversation by the shared rule, else the new conversation state; focus on the title menu button.
+test("deleting the shown conversation from its Title menu shows the next one and focuses the title menu button", async () => {
   await openCanvasPanel();
   doan.deleteConversation = vi.fn(async () => undefined);
   ask(target("c1", "canvas"));
   dialog()!.confirm(); await flushAll();
-  expect(title()!.run.view()).toMatchObject({ kind: "new" });
-  doan.listConversations!.mockResolvedValue([onCanvas("c2", { state: "archived" })]);
+  expect(title()!.run.view()).toMatchObject({ kind: "conversation", conversationId: "c2" });
+  doan.listConversations!.mockResolvedValue([onCanvas("c2")]);
   listeners.conversationList!({ root: "/w/a" } as never); await flushAll();
-  expect(title()!.run.view()).toMatchObject({ kind: "new" });
+  expect(title()!.run.view()).toMatchObject({ kind: "conversation", conversationId: "c2" });
   expect(harness.toast.show).not.toHaveBeenCalled();
-  expect(focused.calls).toEqual([FIELDS[".doan-conv-panel .composer-input"]]);
+  expect(focused.calls).toEqual([]);
+  expect((FIELDS[TITLE_TRIGGER] as unknown as { focus: ReturnType<typeof vi.fn> }).focus).toHaveBeenCalledOnce();
+});
+
+test("deleting the last conversation of the canvas leaves the new conversation state, focus on the title menu button", async () => {
+  await openCanvasPanel([onCanvas("c1")]);
+  doan.deleteConversation = vi.fn(async () => undefined);
+  ask(target("c1", "canvas"));
+  dialog()!.confirm(); await flushAll();
+  expect(title()!.run.view()).toMatchObject({ kind: "new" });
+  expect(focused.calls).toEqual([]);
+  expect((FIELDS[TITLE_TRIGGER] as unknown as { focus: ReturnType<typeof vi.fn> }).focus).toHaveBeenCalledOnce();
 });
 
 // PRODUCT item 3 'Deep links': a busy dialog refuses its cancel. Cancelling here would stop nothing, and a second

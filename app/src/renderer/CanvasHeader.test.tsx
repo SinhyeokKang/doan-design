@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { OpenBadge } from "./rightPanelOpen";
+import type { CanvasSignal } from "./rightPanelOpen";
 import { describe, expect, it, vi } from "vitest";
 import type { CanvasRow } from "../main/view";
 import type { LayoutMessage } from "./canvasMessage";
@@ -15,7 +15,7 @@ const frames = ["Cart", "Shipping", "Payment"].map((title, index) => ({ id: titl
 const layout = (over: Partial<LayoutMessage> = {}): LayoutMessage => ({ type: "layout", href: row.url, height: 2700, viewport: 2700, frames, truncated: false, ...over });
 const opened = (over: Partial<CanvasState> = {}): CanvasState => ({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, message: "", hasFrame: true, layout: layout(), currentFrame: 2, zoom: 64, scale: 0.64, ...over });
 
-const html = (state: CanvasState, panel?: { open: boolean; show(): void; badge?: OpenBadge | null }, view: CanvasViewFields = canvasViewFields(state)) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={state} view={new CanvasViewStore(view)} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} /> as ReactElement}</TooltipProvider>);
+const html = (state: CanvasState, panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null }, view: CanvasViewFields = canvasViewFields(state)) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={state} view={new CanvasViewStore(view)} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} /> as ReactElement}</TooltipProvider>);
 const button = (markup: string, label: string) => markup.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? "";
 
 describe("CanvasHeader", () => {
@@ -156,5 +156,14 @@ describe("CanvasHeader", () => {
     expect(markup).toMatch(/<span class="badge-bubble"[^>]*><svg[^>]*lucide-message-circle/);
     expect(html(opened(), { open: false, show: vi.fn(), badge: { kind: "permission", label: "x" } })).not.toContain("badge-bubble");
     expect(button(html(opened(), { open: false, show: vi.fn(), badge: null }), "Show conversation")).not.toContain("data-badge");
+  });
+
+  // Draft canvas-concurrent-conversations frame badge: the prototype window's working spinner, new to the main window.
+  it("puts the working spinner on the folded panel's open button while a conversation of the canvas works", () => {
+    const markup = html(opened(), { open: false, show: vi.fn(), badge: { kind: "working", label: "Show conversation, agent is working" } });
+    const working = button(markup, "Show conversation, agent is working");
+    expect(working).toContain('data-badge="working"');
+    expect(markup).toMatch(/aria-label="Show conversation, agent is working"[^>]*>(?:(?!<\/button>).)*<span class="badge-working" aria-hidden="true"><span class="doan-spinner"><\/span><\/span><\/button>/);
+    expect(markup).not.toContain("badge-bubble");
   });
 });

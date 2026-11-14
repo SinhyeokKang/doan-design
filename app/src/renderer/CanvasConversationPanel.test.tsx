@@ -200,13 +200,13 @@ test("a queued message keeps its request for the thread", () => {
   expect(queuedMessage("q2", { text: "Again", anchors: [], attachments: [] })).toEqual({ id: "q2", text: "Again", message: { text: "Again", anchors: [], attachments: [] } });
 });
 
-// ⌘N while the first list read is still loading, with the terminal session answering first, must
-// not open Send before the list says whether the canvas's current conversation runs.
-test("New while the list loads holds Send after the session answers, until the list shows the running current", async () => {
+// A new conversation runs beside the others, so ⌘N while the first list read is still loading sends once the terminal
+// session answered; nothing waits for the list (design 'Remove the wait to send a new conversation while the list reads').
+test("New while the list loads sends once the session answers, and again beside a running conversation", async () => {
   resume = { available: false, reason: "no_record" };
   const lists = new Map<string, ListView>([[ROOT, "loading"]]);
   const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
-  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, remembered: () => null, changed: vi.fn() }, store, window.doan);
   const support = new DockedSupport(() => {}, window.doan);
   support.setAuth({ revision: 1, providers: [connected("claude")] });
   run.show({ root: ROOT, canvas: CANVAS });
@@ -217,14 +217,15 @@ test("New while the list loads holds Send after the session answers, until the l
     list={lists.get(ROOT)!} seen={new Set()} prefs={null} defaults={null} now={Date.parse("2026-11-01T15:00:00")} blocked={null} frames={[]} locateDisabled={false} arrival={null}
     onArrived={vi.fn()} onLocate={vi.fn(async () => "shown" as const)} pick={PICK} composerLink={{ current: null }} onSettings={vi.fn()} onNotice={vi.fn()} onOpenProjectConversation={vi.fn()} work={[]} /> as ReactElement}</TooltipProvider>);
   expect(run.view()).toMatchObject({ kind: "new" });
-  expect(draw()).toMatch(/aria-label="Send"[^>]*disabled=""/);
+  expect(draw()).not.toMatch(/aria-label="Send"[^>]*disabled=""/);
   lists.set(ROOT, [summary("now", { phase: "running", working: true })]);
   run.sync();
-  // The running conversation shows by default; New again keeps the draft and sends beside it.
-  run.select(null);
+  // The person's New stays; the draft sends beside the running conversation.
   const out = draw();
+  expect(run.view()).toMatchObject({ kind: "new" });
   expect(out).not.toMatch(/aria-label="Send"[^>]*disabled=""/);
   expect(out).not.toContain("The current conversation on this canvas is still running.");
+  expect(out).not.toContain("You can send once Doan reads the conversations.");
 });
 
 // BV2 6p: main reads the list again right after a bind; the notice and what shows stay.
@@ -235,9 +236,9 @@ test("a promotion while the panel is open keeps New conversation with the notice
   const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
-  list = [summary("proj")];
+  list = [summary("proj", { startedBy: "promotion" })];
   run.sync();
-  list = [summary("proj", { lastActivityAt: "2026-11-01T00:01:00.000Z" })];
+  list = [summary("proj", { startedBy: "promotion", lastActivityAt: "2026-11-01T00:01:00.000Z" })];
   run.sync();
   await flush();
   const props: CanvasConversationProps = {
@@ -248,7 +249,8 @@ test("a promotion while the panel is open keeps New conversation with the notice
   const out = renderToStaticMarkup(<TooltipProvider><CanvasConversation {...props} /></TooltipProvider>);
   expect(canvasConversationTitle(run, list).title).toBe("New conversation");
   expect(out).toContain("<span>A project conversation moved to this canvas.</span>");
-  expect(out).toContain('aria-label="Open the current conversation"');
+  expect(out).toContain('aria-label="Open the moved conversation"');
+  expect(out).not.toContain("current conversation");
 });
 
 // Dogfooding: New conversation as an icon button in the panel header, after the title menu (so left of Hide conversation).
@@ -311,7 +313,7 @@ test("the shown conversation's suggestion stands in for the reply placeholder, w
 });
 
 // The panel reads the shown conversation's last context.usage from its thread.
-test("the shown conversation's last recorded context value reaches the composer's ring; archived ones keep theirs", async () => {
+test("the shown conversation's last recorded context value reaches the composer's ring, whichever conversation shows", async () => {
   const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
   const at = (conversationId: string, seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId, seq, turnId: "t", at: "2026-11-01T00:00:00Z", ...payload }) as ConversationEvent;
   const history = (conversationId: string, used: number) => [at(conversationId, 1, { type: "user.message", text: "hi", anchors: [] }), at(conversationId, 2, { type: "turn.started" }),
@@ -324,7 +326,7 @@ test("the shown conversation's last recorded context value reaches the composer'
   // panel() flushes after setup, so the read has settled before the draw.
   const shown = (list: ListView, id: string, setup: (run: CanvasRun) => void = () => {}) => panel(list, run => { setup(run); run.store.track(id); });
   expect(ring(await shown([summary("now")], "now"))).toBe("Context window 42% used · last turn");
-  expect(ring(await shown([summary("now"), summary("old", { state: "archived" })], "old", run => run.select("old")))).toBe("Context window 75% used · last turn");
+  expect(ring(await shown([summary("now"), summary("old")], "old", run => run.select("old")))).toBe("Context window 75% used · last turn");
   expect(ring(await shown([summary("bare")], "bare"))).toBeNull();
   // A live event moves the ring. (The panel reads the thread itself, so its missing-thread case is the Overview test's.)
   expect(ring(await shown([summary("now")], "now", run => run.store.event(at("now", 9, { type: "context.usage", used: 160_000, size: 200_000 }))))).toBe("Context window 80% used · last turn");

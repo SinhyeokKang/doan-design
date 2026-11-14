@@ -79,7 +79,7 @@ describe("CanvasAgent Stop", () => {
   let reply: (value: unknown) => void;
   let interrupt: ReturnType<typeof vi.fn>;
   const onStopFailed = vi.fn();
-  const agent = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work: [], entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed });
+  const agent = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, shown: "c1", canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work: [], entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed });
   beforeEach(() => {
     reset(); onStopFailed.mockClear();
     interrupt = vi.fn(() => new Promise(resolve => { reply = resolve; }));
@@ -135,7 +135,7 @@ describe("CanvasAgent Stop", () => {
   // The app turn ends while a terminal session still works on the canvas.
   test("after a Stop, the notice stays for a terminal session left on the canvas, without its button", async () => {
     const work = [{ touched: 0, turn: "none:t", session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path }];
-    const withWork = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work, entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed });
+    const withWork = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, shown: "c1", canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work, entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed });
     let tree = render(withWork([summary({})]));
     (button(tree)!.props.onClick as () => void)();
     reply(undefined); await flush();
@@ -150,6 +150,76 @@ describe("CanvasAgent Stop", () => {
     render(agent([summary({})]));
     const tree = render(() => CanvasAgent({ list: "error", canvas: { root: "/w/b", canvas }, buddy: "doany" as const, running: true, work: [], entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed }));
     expect(shown(tree)).toBe(false);
+  });
+});
+
+// spec decided points 1 and 3: the notice and Stop follow one conversation; a change of it holds Stop for about a
+// second (STOP_HOLD_MS) on the same element (POSTMORTEM 2026-11-13 'A toolbar control that turned unavailable…').
+describe("CanvasAgent follows one conversation", () => {
+  let interrupt: ReturnType<typeof vi.fn>;
+  const onOpen = vi.fn();
+  const agent = (list: readonly ConversationSummary[], shown: string | null) => () => CanvasAgent({ list, shown, canvas: { root: "/w/a", canvas }, buddy: "doany" as const, running: true, work: [], entries: [], onOpen, onOpenSibling: vi.fn(), onStopFailed: vi.fn() });
+  const position = (tree: ReactNode) => all(tree).findIndex(element => element.type === "button");
+  beforeEach(() => {
+    reset(); onOpen.mockClear();
+    vi.useFakeTimers({ now: 1_000_000 });
+    interrupt = vi.fn(async () => undefined);
+    vi.stubGlobal("window", { doan: { interruptConversation: interrupt } });
+  });
+  afterEach(() => vi.useRealTimers());
+
+  test("Stop of the shown conversation reads Stop; another conversation's names it, quoted", () => {
+    const list = [summary({ conversationId: "c1", title: "Tighten the summary" }), summary({ conversationId: "c2", title: "Add an empty state" })];
+    expect(label(render(agent(list, "c1")))).toBe("Stop");
+    reset();
+    expect(label(render(agent(list, "c9")))).toBe("Stop “Tighten the summary”");
+    reset();
+    expect(label(render(agent([summary({ conversationId: "c2", title: "" })], null)))).toBe("Stop");
+  });
+
+  test("Stop stops only the followed conversation; the next one keeps the same element, held for about a second", async () => {
+    const both = [summary({ conversationId: "c1", title: "First" }), summary({ conversationId: "c2", title: "Second" })];
+    let tree = render(agent(both, null));
+    expect(label(tree)).toBe("Stop “First”");
+    const at = position(tree);
+    (button(tree)!.props.onClick as () => void)();
+    await flush();
+    expect(interrupt).toHaveBeenCalledTimes(1);
+    expect(interrupt).toHaveBeenCalledWith({ conversationId: "c1" });
+    const next = [summary({ conversationId: "c1", phase: "ended", working: false }), summary({ conversationId: "c2", title: "Second" })];
+    tree = render(agent(next, null));
+    expect(label(tree)).toBe("Stop “Second”");
+    expect(position(tree)).toBe(at);
+    expect(button(tree)!.props["aria-disabled"]).toBe(true);
+    expect(lead(tree)).toBe("icon");
+    // A second click meant for the first conversation stops nothing.
+    (button(tree)!.props.onClick as () => void)();
+    expect(interrupt).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(999);
+    tree = render(agent(next, null));
+    expect(button(tree)!.props["aria-disabled"]).toBe(true);
+    vi.advanceTimersByTime(1);
+    tree = render(agent(next, null));
+    expect(button(tree)!.props["aria-disabled"]).toBeUndefined();
+    (button(tree)!.props.onClick as () => void)();
+    expect(interrupt).toHaveBeenLastCalledWith({ conversationId: "c2" });
+  });
+
+  test("a notice that newly appears has no hold", () => {
+    let tree = render(agent([], null));
+    expect(button(tree)).toBeUndefined();
+    tree = render(agent([summary({ conversationId: "c2" })], null));
+    expect(button(tree)!.props["aria-disabled"]).toBeUndefined();
+  });
+
+  test("the waiting notice's Open goes to the followed conversation", () => {
+    const tree = render(agent([summary({ conversationId: "c1" }), summary({ conversationId: "c2", phase: "waiting" })], "c1"));
+    // The shown conversation works, so the notice follows it, not the waiting one.
+    expect(label(tree)).toBe("Stop");
+    reset();
+    const waiting = render(agent([summary({ conversationId: "c1", phase: "ended", working: false }), summary({ conversationId: "c2", phase: "waiting" })], "c1"));
+    (button(waiting)!.props.onClick as () => void)();
+    expect(onOpen).toHaveBeenCalledWith("c2");
   });
 });
 

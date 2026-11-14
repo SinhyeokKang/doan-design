@@ -16,7 +16,7 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   canvas, ...patch,
 });
 const markup = (list: readonly ConversationSummary[] | "loading" | "error" | undefined, over: Partial<Parameters<typeof CanvasAgent>[0]> = {}) =>
-  renderToStaticMarkup(<TooltipProvider><CanvasAgent list={list} canvas={{ root: "/w/a", canvas }} buddy="doany" running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()} {...over} /></TooltipProvider>);
+  renderToStaticMarkup(<TooltipProvider><CanvasAgent list={list} shown="c1" canvas={{ root: "/w/a", canvas }} buddy="doany" running={true} work={[]} entries={[]} onOpen={vi.fn()} onOpenSibling={vi.fn()} onStopFailed={vi.fn()} {...over} /></TooltipProvider>);
 // The working notice's visible line (aria-hidden, the text and its caret) and its measuring node.
 const LINE = (text: string, caret = '<span class="doan-agent-caret"></span>') => `<span class="doan-agent-line" aria-hidden="true" data-state="closed" data-slot="tooltip-trigger"><span class="doan-agent-row"><span class="doan-agent-text">${text}</span>${caret}</span></span>`;
 const MEASURE = '<span class="doan-agent-measure" aria-hidden="true"></span>';

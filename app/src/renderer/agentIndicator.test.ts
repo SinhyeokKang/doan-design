@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
-import type { AgentPresence } from "./agentPresence";
+import type { BoardPresence } from "./agentPresence";
 import { agentNoticeView, canvasAgent, listForPresence, canvasWorkTarget, pickWork, workFrameTitle, settleStopping, siblingWork, stopFailedText, stopTurn, workFrameRect, workingCanvas } from "./agentIndicator";
 import type { ConversationWork } from "../main/conversationWork";
 
@@ -16,8 +16,8 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T12:00:00.000Z", preview: "",
   canvas: { path: row.path, id: "billing" }, ...patch,
 });
-const working: AgentPresence = { conversationId: "c1", kind: "working", label: "Codex is working", canvas: { path: row.path, id: "billing" } };
-const waiting: AgentPresence = { ...working, kind: "waiting", label: "Codex needs your answer" };
+const working: BoardPresence = { root: "/w/a", conversationId: "c1", kind: "working", label: "Codex is working", canvas: { path: row.path, id: "billing" } };
+const waiting: BoardPresence = { ...working, kind: "waiting", label: "Codex needs your answer" };
 
 describe("workingCanvas", () => {
   test("a read canvas shows the indicator in every state: normal, loading, failed, no width; the target names its project", () => {
@@ -54,7 +54,7 @@ describe("listForPresence", () => {
 describe("canvasAgent", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
   test("carries the provider's display name for the Stop failure toast", () => {
-    expect(canvasAgent([summary({})], target, null, [])).toEqual({ root: "/w/a", presence: working, provider: "Codex" });
+    expect(canvasAgent([summary({})], target, null, [])).toEqual({ root: "/w/a", presence: working, provider: "Codex", title: "Draw it" });
   });
   test("a failed read keeps the previous presence and its provider", () => {
     const previous = canvasAgent([summary({})], target, null, []);
@@ -75,6 +75,23 @@ describe("canvasAgent", () => {
     const previous = canvasAgent([summary({})], target, null, []);
     expect(canvasAgent([summary({})], null, previous, [])).toBeNull();
     expect(canvasAgent(null, null, previous, [])).toBeNull();
+  });
+  // spec decided point 1: the shown conversation while it works or waits, else another waiting, else another working.
+  test("follows the conversation the panel shows while it works, else another one waiting before another working", () => {
+    const list = [summary({ conversationId: "c1", title: "First" }), summary({ conversationId: "c2", title: "Second", phase: "waiting" }), summary({ conversationId: "c3", title: "Third" })];
+    expect(canvasAgent(list, target, null, [], [], "c3")).toMatchObject({ presence: { conversationId: "c3", kind: "working" }, title: "Third" });
+    expect(canvasAgent(list, target, null, [], [], null)).toMatchObject({ presence: { conversationId: "c2", kind: "waiting" }, title: "Second" });
+    const idle = [summary({ conversationId: "c0", phase: "ended", working: false }), summary({ conversationId: "c1", title: "First" }), summary({ conversationId: "c3", title: "Third" })];
+    expect(canvasAgent(idle, target, null, [], [], "c0")).toMatchObject({ presence: { conversationId: "c1", kind: "working" }, title: "First" });
+  });
+  test("keeps following the same conversation while it holds its rank, also when another starts working", () => {
+    const first = canvasAgent([summary({ conversationId: "c2" })], target, null, [], [], null);
+    const next = canvasAgent([summary({ conversationId: "c1" }), summary({ conversationId: "c2" })], target, first, [], [], null);
+    expect(next?.presence?.conversationId).toBe("c2");
+  });
+  test("a kept presence keeps its title across a failed read", () => {
+    const previous = canvasAgent([summary({ title: "Draw it" })], target, null, []);
+    expect(canvasAgent(null, target, previous, [])).toMatchObject({ provider: "Codex", title: "Draw it" });
   });
   // worktrees of one repository share canvas ids and paths, so a kept presence must not cross roots. Opening
   // B's twin canvas while B's list is still loading or failed must not offer A's Stop.
@@ -125,7 +142,7 @@ describe("canvasAgent with terminal sessions", () => {
     expect(canvasAgent(listForPresence("loading"), target, null, [work("/w/a")])).toEqual(terminal("/w/a"));
   });
   test("an app conversation working or waiting on the same canvas wins, with its Stop or Open", () => {
-    expect(canvasAgent([summary({})], target, null, [work("/w/a")])).toEqual({ root: "/w/a", presence: working, provider: "Codex" });
+    expect(canvasAgent([summary({})], target, null, [work("/w/a")])).toEqual({ root: "/w/a", presence: working, provider: "Codex", title: "Draw it" });
     expect(canvasAgent([summary({ phase: "waiting" })], target, null, [work("/w/a")])?.presence).toEqual(waiting);
   });
   test("when the app turn ends and the terminal session remains, the indicator stays and only Stop goes", () => {
@@ -211,13 +228,21 @@ describe("agentNoticeView", () => {
     expect(agentNoticeView(null, null, false)).toBeNull();
   });
   test("working: the moving dot, the label and Stop", () => {
-    expect(agentNoticeView(working, null, false)).toEqual({ text: "Agent is working", status: "Agent is working", steady: false, action: { kind: "stop", label: "Stop", disabled: false } });
+    expect(agentNoticeView(working, null, false)).toEqual({ text: "Agent is working", status: "Agent is working", steady: false, action: { kind: "stop", label: "Stop", disabled: false, stopping: false } });
   });
   test("after Stop: 'Stopping', unavailable but still focusable", () => {
-    expect(agentNoticeView(working, "c1", false)?.action).toEqual({ kind: "stop", label: "Stopping", disabled: true });
+    expect(agentNoticeView(working, "c1", false)?.action).toEqual({ kind: "stop", label: "Stopping", disabled: true, stopping: true });
   });
   test("a Stop pressed for another conversation does not hold this one", () => {
-    expect(agentNoticeView(working, "c0", false)?.action).toEqual({ kind: "stop", label: "Stop", disabled: false });
+    expect(agentNoticeView(working, "c0", false)?.action).toEqual({ kind: "stop", label: "Stop", disabled: false, stopping: false });
+  });
+  // spec decided point 3: another conversation's Stop names it; a change of the followed conversation holds Stop.
+  test("Stop takes the name it is given, and a hold makes it unavailable without the Stopping spinner", () => {
+    expect(agentNoticeView(working, null, false, null, { name: "Stop “Add an empty state”", held: false })?.action).toEqual({ kind: "stop", label: "Stop “Add an empty state”", disabled: false, stopping: false });
+    expect(agentNoticeView(working, null, false, null, { name: "Stop “Add an empty state”", held: true })?.action).toEqual({ kind: "stop", label: "Stop “Add an empty state”", disabled: true, stopping: false });
+    expect(agentNoticeView(working, "c1", false, null, { name: "Stop “Add an empty state”", held: true })?.action).toEqual({ kind: "stop", label: "Stopping", disabled: true, stopping: true });
+    // Waiting keeps Open.
+    expect(agentNoticeView(waiting, null, false, null, { name: "Stop “x”", held: true })?.action?.kind).toBe("open");
   });
   test("waiting: a still dot and Open, named for the request; no Stop", () => {
     expect(agentNoticeView(waiting, null, false)).toEqual({ text: "Agent needs your answer", status: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } });
@@ -270,6 +295,11 @@ describe("work content on the open canvas", () => {
     });
     test("the canvas's own conversation without content on this canvas shows no content, not the terminal's", () => {
       expect(pickWork(target, working, [conv({ conversationId: "c1", path: ".doan/canvases/other.html" })], [term({ frame: "a" })])).toBeNull();
+    });
+    // spec decided point 4: another conversation's `doan work update` on this canvas moves nothing.
+    test("only the followed conversation's content counts, however recent another conversation's update is", () => {
+      const own = conv({ conversationId: "c1", frame: "plans", touched: 5 }), other = conv({ conversationId: "c2", frame: "other", touched: 50 });
+      expect(pickWork(target, { conversationId: "c1", kind: "working" }, [other, own], [])).toMatchObject({ source: "conversation:c1", frame: "plans" });
     });
     test("waiting keeps the content, marked waiting: the marker stays and stops moving", () => {
       expect(pickWork(target, waiting, [conv({ conversationId: "c1", frame: "plans" })], [])).toMatchObject({ frame: "plans", waiting: true });
@@ -324,7 +354,7 @@ describe("work content on the open canvas", () => {
       expect(agentNoticeView(null, null, true, {})).toMatchObject({ text: "Agent is working", status: "Agent is working" });
     });
     test("the canvas's own conversation keeps Stop with the content's words", () => {
-      expect(agentNoticeView(working, null, false, { note: "Drawing" })).toEqual({ text: "Drawing", status: "Drawing", steady: false, action: { kind: "stop", label: "Stop", disabled: false } });
+      expect(agentNoticeView(working, null, false, { note: "Drawing" })).toEqual({ text: "Drawing", status: "Drawing", steady: false, action: { kind: "stop", label: "Stop", disabled: false, stopping: false } });
     });
     test("waiting: 'Agent needs your answer' over any content, with a still dot", () => {
       expect(agentNoticeView(waiting, null, false, { note: "Drawing", frame: "plans", title: "Plans" })).toEqual({

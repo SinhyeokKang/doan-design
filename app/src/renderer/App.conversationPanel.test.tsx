@@ -390,7 +390,7 @@ test("tells the controller whether the canvas page is the one shown", async () =
 
 // the agent notice's Open unfolds the panel and moves focus into it; a Stop
 // failure is the shared toast; a page without a listed canvas gives the indicator no canvas.
-type Agent = { canvas: unknown; running: boolean; list: unknown; onOpen(): void; onStopFailed(text: string): void };
+type Agent = { canvas: unknown; running: boolean; list: unknown; shown: string | null; onOpen(conversationId: string): void; onStopFailed(text: string): void };
 const agent = () => (pane() as unknown as { agent: Agent } | undefined)?.agent;
 function focusable() {
   const focus = vi.fn();
@@ -402,7 +402,7 @@ function focusable() {
 test("Open unfolds a folded panel and moves focus to the panel, not to its close button", async () => {
   await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
   const { focus, querySelector } = focusable();
-  agent()!.onOpen(); render();
+  agent()!.onOpen("c9"); render();
   expect(panel()?.open).toBe(true);
   expect(saved()?.rightPanel).toEqual({ open: true, width: 400 });
   expect(focus).toHaveBeenCalledTimes(1);
@@ -413,7 +413,7 @@ test("Open with the panel already open only moves focus to the panel", async () 
   await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: true, width: 400 } });
   const { focus } = focusable();
   const before = doan.saveUiState!.mock.calls.length;
-  agent()!.onOpen(); render();
+  agent()!.onOpen("c9"); render();
   expect(panel()?.open).toBe(true);
   expect(focus).toHaveBeenCalledTimes(1);
   expect(doan.saveUiState!.mock.calls.length).toBe(before);
@@ -507,20 +507,89 @@ test("an Overview row opens its canvas with that conversation and unfolds the pa
   expect(conversation()?.arrival).toMatchObject({ focus: "composer" });
 });
 
-test("a folded panel's open button carries the news dot while the canvas's conversation waits", async () => {
+const badge = () => (pane() as unknown as { conversation: { badge: unknown } }).conversation.badge;
+const shownId = () => { const view = (conversation() as unknown as { run: { view(): { kind: string; conversationId?: string } | null } }).run.view(); return view?.kind === "conversation" ? view.conversationId : null; };
+const selectShown = (id: string | null) => { (conversation() as unknown as { run: { select(id: string | null): void } }).run.select(id); render(); };
+const FOLDED = { screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } };
+
+test("a folded panel's open button carries the news dot while a conversation of the canvas waits", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ phase: "waiting", working: true })]);
-  await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
-  expect((pane() as unknown as { conversation: { badge: unknown } }).conversation.badge).toEqual({ kind: "permission", label: "Show conversation, needs your answer" });
+  await openCanvas(FOLDED);
+  expect(badge()).toEqual({ kind: "permission", label: "Show conversation, needs your answer", conversationId: "c1" });
   pane()!.conversation.show(); render();
-  expect((pane() as unknown as { conversation: { badge: unknown } }).conversation.badge).toBeNull();
+  expect(badge()).toBeNull();
 });
 
-test("the capsule's Open shows the waiting conversation, unfolds the panel and sends focus to its first choice", async () => {
-  doan.listConversations!.mockResolvedValue([rowSummary({ phase: "waiting", working: true })]);
-  await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
-  agent()!.onOpen(); render();
+// spec decided point 5: the strongest signal across every conversation of the canvas, working included.
+test("the badge shows the strongest signal across the canvas's conversations: working over another's unseen ending", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", unseen: true, lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2", phase: "running", working: true })]);
+  await openCanvas(FOLDED);
+  expect(badge()).toEqual({ kind: "working", label: "Show conversation, agent is working", conversationId: "c2" });
+});
+
+test("unfolding from the badged button shows the conversation the badge stands for, focus on its request", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2", phase: "waiting", working: true })]);
+  await openCanvas(FOLDED);
+  selectShown("c1");
+  expect(shownId()).toBe("c1");
+  expect(badge()).toMatchObject({ kind: "permission", conversationId: "c2" });
+  pane()!.conversation.show(); await flushAll();
   expect(panel()?.open).toBe(true);
+  expect(shownId()).toBe("c2");
   expect(conversation()?.arrival).toMatchObject({ focus: "permission" });
+});
+
+test("unfolding without a badge keeps what the panel showed", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2" })]);
+  await openCanvas(FOLDED);
+  selectShown("c2");
+  expect(badge()).toBeNull();
+  pane()!.conversation.show(); await flushAll();
+  expect(shownId()).toBe("c2");
+});
+
+// spec decided points 1 and 3: the board follows what the panel shows, or would show once unfolded.
+test("the board's indicator gets the conversation the panel shows, also while it is folded", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2" })]);
+  await openCanvas(FOLDED);
+  expect(agent()?.shown).toBe("c1");
+  selectShown("c2");
+  expect(agent()?.shown).toBe("c2");
+  selectShown(null);
+  expect(agent()?.shown).toBeNull();
+});
+
+test("the capsule's Open shows the followed waiting conversation, unfolds the panel and sends focus to its first choice", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2", phase: "waiting", working: true })]);
+  await openCanvas(FOLDED);
+  selectShown("c1");
+  agent()!.onOpen("c2"); await flushAll();
+  expect(panel()?.open).toBe(true);
+  expect(shownId()).toBe("c2");
+  expect(conversation()?.arrival).toMatchObject({ focus: "permission" });
+});
+
+// design 'the conversation last seen on that canvas on this device': ui-state's conversationByCanvas.
+test("the panel opens on the conversation last seen on the canvas, and what is seen there is saved", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2" })]);
+  await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, conversationByCanvas: { "/w/a": { a: "c2", other: "c9" } } });
+  expect(shownId()).toBe("c2");
+  selectShown("c1");
+  expect((saved() as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c1", other: "c9" } });
+});
+
+test("a canvas whose ID another canvas shares neither reads nor writes the memory", async () => {
+  const twin: CanvasRow = { path: ".doan/canvases/a-copy.html", id: "a", url: "u-a2" };
+  doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2" })]);
+  render();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, conversationByCanvas: { "/w/a": { a: "c2" } } }); await Promise.resolve(); await Promise.resolve(); render();
+  folders([{ path: "/w/a", kind: "list", servedRev: 0, canvases: [rowA, twin] }]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, message: "", layout: { frames: [], width: 800 } });
+  render(); await flushAll();
+  expect(shownId()).toBe("c1");
+  selectShown("c2"); selectShown("c1");
+  expect((saved() as { conversationByCanvas?: unknown }).conversationByCanvas).toEqual({ "/w/a": { a: "c2" } });
 });
 
 test("a sidebar canvas row unfolds the panel only when its slot needs an answer or has an unseen ending", async () => {
@@ -533,6 +602,16 @@ test("a sidebar canvas row unfolds the panel only when its slot needs an answer 
 
 // the row shows the terminal spinner over the app's unseen ending (withTerminalSlots), so its click decides with
 // that working slot and keeps the panel as it was.
+// spec decided point 9: a slot that unfolds the panel names its conversation; otherwise the shared rule picks.
+test("a sidebar canvas row with an unseen ending shows that conversation, not the most recent one", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", fromHome: true, lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2", fromHome: true, unseen: true })]);
+  await openCanvas(FOLDED);
+  expect(shownId()).toBe("c1");
+  find<{ open(root: string, row: CanvasRow): void }>(ShellSidebar)[0]!.props.open("/w/a", rowA); await flushAll();
+  expect(panel()?.open).toBe(true);
+  expect(shownId()).toBe("c2");
+});
+
 test("a sidebar canvas row whose terminal spinner covers an unseen ending keeps a folded panel folded", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ fromHome: true, unseen: true })]);
   await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
@@ -946,7 +1025,7 @@ test("a release after the composer turned to a terminal session takes no snapsho
 });
 
 test("a release after the panel switched to a legacy external conversation takes no snapshot and gives Attach's reason", async () => {
-  doan.listConversations!.mockResolvedValue([rowSummary(), rowSummary({ conversationId: "c2", owner: "legacy-external", state: "archived" })]);
+  doan.listConversations!.mockResolvedValue([rowSummary(), rowSummary({ conversationId: "c2", owner: "legacy-external" })]);
   await canvasWithComposer();
   await flushAll();
   expect(panelRun().composerKey()).toBe("conversation:c1");
@@ -978,7 +1057,7 @@ test("a release after another canvas took the same ID takes no snapshot and give
 test("a late answer after the panel switched conversation or the canvas page left settles its chip without unfolding", async () => {
   for (const leave of ["conversation", "home"] as const) {
     reset();
-    doan.listConversations!.mockResolvedValue([rowSummary(), rowSummary({ conversationId: "c2", state: "archived" })]);
+    doan.listConversations!.mockResolvedValue([rowSummary(), rowSummary({ conversationId: "c2" })]);
     await canvasWithComposer({ panel: false });
     await flushAll();
     const store = panelRun().store, at = panelRun().composerKey()!;
