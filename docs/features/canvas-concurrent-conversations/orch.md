@@ -33,7 +33,7 @@
 | O | 7 | tasks.md 표의 O 행 | F | Claude Opus high — 프로토타입 창 초안 옮기기 함정(POSTMORTEM) | test, typecheck, lint, build | 통합 `07ce9ffd8`·`0a4552fd1`, 리뷰 🔴0 🟡1, 후속 `d36b764e7`·`4c7f40fcf`(메뉴 순서, 프로토타입 `remembered` 연결; 컨덕터가 diff 확인), 워크트리 정리 |
 | C | 8 | 모든 `state` 읽기와 테스트 | P, O | Codex Sol medium — 기계적 정리 | tasks.md 8의 `rg`, test, typecheck, lint, build | 통합 `4c31850b6`, 워크트리 정리 |
 | DS | 9 | P·O 렌더러 파일, DESIGN.md | C | Claude Opus high — 실제 앱 측정과 수정 | measure.mjs | 통합 `3c23f2260`–`3512b5d24`(368행, 미분류 0, 문서화한 차이 35; 최종 리뷰 🟡3 고침 포함), 워크트리는 RT 뒤 정리 |
-| RT | 10 | `.scratch/runtime-test/` | DS | Claude Opus high 워커(컨덕터 판단: probe 작성과 실행을 맡기고 증거는 컨덕터가 본다) | probe.mjs exit 0 | 진행(`ctx_46ffd9df4af7`, `ccc-runtime-test`) |
+| RT | 10 | `.scratch/runtime-test/` | DS | Claude Opus high 워커(컨덕터 판단: probe 작성과 실행을 맡기고 증거는 컨덕터가 본다) | probe.mjs exit 0 | 1부(격리) 33/33 exit 0; 2부(실제 Claude Code·Codex) 동시 턴·둘 다 작업 중·보드 따르기·composer Stop·handoff 통과(마지막 실행 exit 1은 probe 식 오류, 데이터는 통과); 결함 후보 1건(아래) → DS 수정 뒤 `--only follow` 재확인; 워크트리 정리 |
 | 리뷰 | 12 | 보고서만 | 각 배치 | S·F·O: Codex Astra medium, R·P: Claude Opus high, C: 최종 리뷰에 포함, 최종: Codex Astra medium | 🔴 0 | 최종 리뷰 🔴0 🟡3 → DS 워커가 고침 |
 | 승격 | 13 | PRODUCT·ARCHITECTURE·DESIGN·BACKLOG, fixtures/README | RT | 컨덕터 | tasks.md 13 | PRODUCT `89049c3f8`, ARCHITECTURE `4bdb9bcce`, BACKLOG `57fd12c6c`, fixtures `ae3c130bf`, DESIGN은 DS `3512b5d24`; RT 뒤 보완 |
 | verify | 14 | — | 승격 | 컨덕터 | verify.mjs PASS | 대기 |
@@ -73,4 +73,6 @@
 - DS 질문 — 컨덕터 판단: 프로토타입 창의 첫 목록 읽기 실패 상태에서 머리 제목은 main 창처럼 "New conversation"이고, 머리의 New conversation은 `aria-disabled`, 메뉴의 New conversation은 눌린 행이다(보이는 상태가 새 대화 상태라서). 초안 타일과 다른 점은 DESIGN.md에 이유와 함께 적는다.
 - **사용자 결정(2026-11-15, 리드가 전함)**: 보드 작업 안내 캡슐의 Stop을 뺀다. "Agent is working" 알림은 Stop 없이 보이고, 멈추기는 그 대화의 composer Stop에서만 한다. Stop 대상 전환, 약 1초 비활성, "Stop <제목>"은 없어진다. 대기 알림의 Open은 남고, 접힌 패널을 펼치는 버튼은 더하지 않는다. spec 정한 점 1–3·완료 조건, design.md 순수 함수 11·초안 요청, tasks.md 6·10을 고쳤다. 코드·초안(`board-notice`, `board-stop`)·DESIGN.md는 DS 후속(`ctx_0453b1c8e850`)이 고친다. RT에는 보드 Stop 확인을 빼라고 알렸다. PRODUCT는 코드가 들어온 뒤 고친다.
 - **사용자 결정(2026-11-15, 리드가 전함)**: 보드 작업 안내 캡슐의 깜빡이는 커서(`.doan-agent-caret`)를 2px에서 1.5px로 얇게 한다. 대화 스레드의 스트리밍 커서는 그대로다. DS 후속에 더했다(앱 CSS, 이 feature의 초안, DESIGN.md). 다른 초안은 리드가 develop에서 고친다.
+- RT 결함 후보: 따르던 대화의 턴이 끝나 보드가 다른 대화로 넘어갈 때, 화면이 그 대화가 따르지 않던 동안 이름 붙인 프레임으로 넘어간다(실제 턴 3번 중 2번, 가짜 IPC로 항상 재현). PRODUCT 'Following'과 spec 정한 점 4 위반. DS가 `CanvasController.setWork`를 넘겨받아 고친다.
+- RT가 하지 않은 것: Cursor·Antigravity·Copilot의 앱 안 턴(PoC 근거뿐, BACKLOG), 실제 턴의 프로토타입 창, 다크 모드, 두 번째 이후 목록 읽기 실패의 Retry. 공유 프로필 `conversations/`에 이번 실행의 대화 30개(지운 임시 루트)가 남았다. 프로필 삭제는 리드 몫이다.
 - S가 범위 밖 `io.test.ts`의 테스트 하나("recovers an interrupted replacement rollback…")를 고쳤다. 컨덕터가 허가했다.
