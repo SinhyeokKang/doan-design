@@ -11,6 +11,9 @@ export interface ConversationSummary {
   owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; fast?: true; permissionMode?: PermissionModeId; fromHome: boolean;
   // waiting: an unanswered permission request or question. ended also covers a turn a restart folded as crashed.
   phase: "running" | "waiting" | "ended"; unseen: boolean; queued: number; lastActivityAt: string; preview: string;
+  // ISO: while waiting, when the earliest request still unanswered was made. Output during the wait and an answer to
+  // another request move lastActivityAt, not this, so the conversation that waited longest stays first.
+  waitingSince?: string;
   // main is still working on it, whatever the history says: preparing, running or waiting for an answer, a project turn
   // waiting for its judgement, a queue about to go out, or a send waiting for the previous process. A project
   // conversation that works holds its root (project_busy).
@@ -69,14 +72,17 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
   const lastTurnSeq = [...events].reverse().find(e => !e.type.startsWith("conversation.") && e.type !== "handoff.resolved" && e.type !== "handoff.missed")?.seq ?? 0;
   const unseen = phase === "ended" && m.seenSeq !== undefined && lastTurnSeq > m.seenSeq;
   // A queue or a returned draft is what the composer offers next, so a suggestion never competes with them.
+  const since = phase === "waiting" ? events.find(e => pendingRequest(e, folded)) : undefined;
   const suggested = live.suggestion && phase === "ended" && !live.working && live.queued === 0 && !live.returned ? { suggestion: live.suggestion } : {};
-  return { ...base, ...startedBy, phase, unseen, lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded, folded.turnId, folded.messages), ...suggested };
+  return { ...base, ...startedBy, phase, unseen, ...(since ? { waitingSince: since.at } : {}), lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded, folded.turnId, folded.messages), ...suggested };
+}
+function pendingRequest(e: ConversationEvent, open: Pick<FoldedConversation, "permissions" | "questions">): boolean {
+  return (e.type === "permission.request" && open.permissions[e.requestId] === "pending") || (e.type === "question.request" && open.questions[e.requestId] === "pending");
 }
 function preview(events: readonly ConversationEvent[], phase: ConversationSummary["phase"], open: Pick<FoldedConversation, "permissions" | "questions">, turnId: string | null, messages: { text: string }[]): string {
   if (phase === "waiting") {
     // The newest unanswered request, whatever its kind; a question reads as its first question.
-    const pending = [...events].reverse().find(e => (e.type === "permission.request" && open.permissions[e.requestId] === "pending") ||
-      (e.type === "question.request" && open.questions[e.requestId] === "pending"));
+    const pending = [...events].reverse().find(e => pendingRequest(e, open));
     if (pending?.type === "permission.request") return cap(`Needs your answer: ${pending.summary}`);
     if (pending?.type === "question.request") return cap(`Needs your answer: ${pending.questions[0]!.question}`);
   }

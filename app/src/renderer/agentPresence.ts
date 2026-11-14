@@ -71,7 +71,8 @@ export function boardPresence(input: BoardInput): BoardPresence | null {
   if (own) return present(own);
   const rank = ranked.some(item => item.kind === "waiting") ? "waiting" : "working";
   const candidates = ranked.filter(item => item.kind === rank);
-  const held = kept && candidates.find(item => item.c.conversationId === kept.conversationId);
+  // Kept only while it holds the rank it was followed with: one answered and working again is picked anew.
+  const held = kept?.kind === rank ? candidates.find(item => item.c.conversationId === kept.conversationId) : undefined;
   const pick = held ?? candidates[0];
   return pick ? present(pick) : null;
 }

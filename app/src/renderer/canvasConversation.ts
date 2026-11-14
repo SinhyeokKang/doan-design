@@ -73,11 +73,14 @@ export function pickCanvasConversation(list: readonly ConversationSummary[] | "l
   return current ? show(current, null) : { kind: "new", listError: false, notice: drawing };
 }
 
-// The conversation that waited for an answer longest: a waiting conversation's last event is its request, so the
-// oldest activity started waiting first; main lists conversations in start order, which breaks ties.
+// The conversation that waited for an answer longest, by main's waitingSince; main lists conversations in start order,
+// which breaks ties. One without waitingSince comes after those with it.
 export function earliestWaiting(mine: readonly ConversationSummary[]): ConversationSummary | undefined {
   let first: ConversationSummary | undefined;
-  for (const c of mine) if (c.phase === "waiting" && (first === undefined || c.lastActivityAt < first.lastActivityAt)) first = c;
+  for (const c of mine) {
+    if (c.phase !== "waiting") continue;
+    if (first === undefined || (c.waitingSince !== undefined && (first.waitingSince === undefined || c.waitingSince < first.waitingSince))) first = c;
+  }
   return first;
 }
 
