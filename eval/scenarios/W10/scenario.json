@@ -1,0 +1,11 @@
+{
+  "id": "W10",
+  "title": "Another session is editing the canvas: go ahead when told to",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "workOthers": [
+    { "kind": "conversation", "provider": "codex", "frame": "hero", "note": "Rewriting the hero headline" }
+  ]
+}

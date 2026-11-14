@@ -191,8 +191,16 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   // A turn the usage limit stopped: its connection's usage is being read to learn the reset. Working until then, so its
   // queue stays and no send goes first.
   limitLookup?: LimitLookup;
+  // The accepted turn's conversation as liveTurns reports it, kept here so `doan work` replies read no index on main's
+  // loop inside the CLI's 2 s deadline. A conversation's root never changes; every save of a new canvas (promoteTo,
+  // refreshCanvas) updates it here too, since a running turn keeps this entry across a send refused as busy.
+  turnOf?: TurnOf;
   // A Stop came while this send was prepared, before acceptance: the send is refused at its next check and never runs.
   cancelled?: true }
+interface TurnOf { root: string; provider: Provider; canvas?: Canvas }
+function turnOf(m: ConversationMetadata): TurnOf {
+  return { root: m.root, provider: m.owner.kind === "doan" ? m.owner.provider : m.session.runtime, ...(m.canvas ? { canvas: m.canvas } : {}) };
+}
 // The usage read after a turn the usage limit stopped (limitEnded). A Stop, a stop of the provider's runs, a sign-out
 // or replacement and a deletion end it (cancelLimit). since: the stops count when it began. told: its deferred failure
 // notice was delivered, which happens once unless the turn's own message goes out again.
@@ -365,7 +373,7 @@ export class ConversationService {
       const writes: JournalWrite[] = [{ id, turn: live.turnId, body: { type: "user.message", text: request.text, anchors: request.anchors, ...(attachments.length ? { attachments } : {}), ...(handoff ? { origin: handoff.origin } : {}) } }, { id, turn: live.turnId, body: { type: "turn.started" } }];
       attached?.sent();
       const saved = this.store.acceptStart([...entries, metadata], id, writes);
-      live.accepted = true; this.noteTranscript(live, input, runner.sessionId);
+      live.accepted = true; live.turnOf = turnOf(metadata); this.noteTranscript(live, input, runner.sessionId);
       if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: request.root, turnId: live.turnId, snapshot: this.snapshot(request.root), requests: [], guided, edits: new Set(), waiters: [], ...(handoff ? { startedBy: "handoff" as const } : {}) });
       // As a promotion's write: the asking turn made this canvas, so a project turn judged later is not promoted to it.
@@ -461,7 +469,7 @@ export class ConversationService {
       // One write: a turn.started refused by validation, the size limit or a failed open or read must not leave the
       // message, which would read as a turn that runs. A short write is not rolled back (no journal here).
       for (const event of this.store.appendAll(id, live.turnId, [message, { type: "turn.started" }])) this.deliver(event);
-      this.changedOf(id); live.accepted = true; this.suggestions.delete(id); this.noteTranscript(live, input, live.runner.sessionId);
+      this.changedOf(id); live.accepted = true; live.turnOf = turnOf(updated); this.suggestions.delete(id); this.noteTranscript(live, input, live.runner.sessionId);
       if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       // The previous turn's handoff was resolved before this send went on (handoffWait).
       if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: metadata.root, turnId: live.turnId, snapshot: this.snapshot(metadata.root), requests: [], guided, edits: new Set(), waiters: [] });
@@ -654,11 +662,10 @@ export class ConversationService {
   // its terminal event, a history that stopped taking writes, or the quit. A send being prepared is not
   // running yet, so a previous turn's late update is dropped until the next turn is accepted.
   liveTurns(): ReadonlyMap<string, LiveTurn> {
-    const roots = new Map(this.store.list().map(m => [m.conversationId, m.root]));
     const turns = new Map<string, LiveTurn>();
     for (const [id, live] of this.live) {
-      const root = roots.get(id); if (root === undefined) continue;
-      turns.set(id, { root, turnId: live.turnId, running: !this.quitting && live.accepted && live.busy && !live.terminal && !live.closed && !live.failedPersistence });
+      if (!live.turnOf) continue;
+      turns.set(id, { ...live.turnOf, turnId: live.turnId, running: !this.quitting && live.accepted && live.busy && !live.terminal && !live.closed && !live.failedPersistence });
     }
     return turns;
   }
@@ -1163,6 +1170,8 @@ export class ConversationService {
     this.closeRun(id);
     this.dropHandoff(id);
     this.store.delete(id);
+    // Its live entry stays for the exit callback, but the conversation no longer has a turn.
+    const live = this.live.get(id); if (live) delete live.turnOf;
     this.disarm(id); this.resent.delete(id);
     this.drafts.discard(id);
     const held = this.returnedHeld.get(id); this.returnedHeld.delete(id);
@@ -1377,6 +1386,7 @@ export class ConversationService {
     const saved = this.store.acceptChange({ kind, id, canvas: target, replaced: [] }, entries.map(m => m.conversationId === id ? { ...m, canvas: target } : m), writes);
     // One turn's grounds name one canvas: an overlapping turn judged later is not promoted to the same one.
     for (const [other, grounds] of this.evidence) if (other !== id && grounds.root === me.root) grounds.taken.push(target);
+    const turn = this.live.get(id)?.turnOf; if (turn) turn.canvas = target;
     for (const event of saved) this.deliver(event);
     this.changed(me.root);
   }
@@ -1513,6 +1523,8 @@ export class ConversationService {
     if (!metadata.canvas.id || canvas.id !== metadata.canvas.id) throw new Error("canvas_not_found");
     const refreshed = { ...metadata, canvas };
     this.store.save(this.store.list().map(m => m.conversationId === metadata.conversationId ? refreshed : m));
+    // Before submit's busy check: a running turn keeps working on the moved file.
+    const turn = this.live.get(metadata.conversationId)?.turnOf; if (turn) turn.canvas = canvas;
     this.changed(metadata.root);
     return refreshed;
   }

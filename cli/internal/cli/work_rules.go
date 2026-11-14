@@ -116,12 +116,27 @@ func workSession(claude, thread, legacy string) (provider, id string) {
 	return provider, id
 }
 
-func readWorkResponse(line []byte) bool {
+// workOther describes another session on the same canvas file. It has no id or handle field by
+// design: the app describes other sessions, it does not let agents track them.
+type workOther struct {
+	Kind     string `json:"kind"`
+	Provider string `json:"provider,omitempty"`
+	Frame    string `json:"frame,omitempty"`
+	Note     string `json:"note,omitempty"`
+}
+
+// readWorkResponse reports whether the app accepted the signal and which other sessions it listed.
+// others is read only from a reply that passes the v3 schema, so a reply the CLI rejects lists nobody.
+func readWorkResponse(line []byte) (bool, []workOther) {
 	var value any
-	if json.Unmarshal(line, &value) != nil || formats.ValidateWorkResponse(value) != nil {
-		return false
+	if json.Unmarshal(line, &value) != nil || formats.ValidateWorkResponse(value) != nil || value.(map[string]any)["ok"] != true {
+		return false, nil
 	}
-	return value.(map[string]any)["ok"] == true
+	var reply struct{ Others []workOther }
+	if json.Unmarshal(line, &reply) != nil {
+		return false, nil
+	}
+	return true, reply.Others
 }
 
 func canvasLink(root, path string) string {

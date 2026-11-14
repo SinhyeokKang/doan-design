@@ -10,6 +10,7 @@ import { SkillCatalog } from "./skills";
 import type { Canvas, ConversationEvent } from "./types";
 import { storedAnswers } from "./transport";
 import { foldConversation } from "./state";
+import { othersOnCanvas } from "../workOthers";
 const paths: string[] = []; afterEach(() => { vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
@@ -2535,7 +2536,7 @@ describe("conversation work", () => {
   it("a turn is running from its acceptance to its end, and the next one only once it is accepted", async () => {
     const h = fixture(); const id = (await h.service.start(request)).conversationId;
     const first = h.service.liveTurns().get(id);
-    expect(first).toEqual({ root: "/repo", turnId: expect.any(String), running: true });
+    expect(first).toEqual({ root: "/repo", turnId: expect.any(String), running: true, provider: "codex", canvas: { path: ".doan/canvases/a.html" } });
     h.service.receive(id, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
     expect(h.service.liveTurns().get(id)?.running).toBe(true);
     h.service.receive(id, { type: "turn.done" });
@@ -2549,6 +2550,48 @@ describe("conversation work", () => {
     const second = h.service.liveTurns().get(id);
     expect(second).toMatchObject({ root: "/repo", running: true });
     expect(second?.turnId).not.toBe(first?.turnId);
+  });
+  // `doan work` answers name other sessions on a canvas by kind and provider: a legacy external conversation's provider
+  // is its session runtime, a doan-owned one's its owner's provider, and the bound canvas comes with the turn.
+  // Answered inside the CLI's 2 s deadline on main's loop, so this reads memory only, never the index.
+  it("a turn carries its conversation's provider and bound canvas without reading the index", async () => {
+    const legacy = fixture(); const external = (await legacy.service.start(request)).conversationId;
+    expect(legacy.store.list()[0]).toMatchObject({ owner: { kind: "legacy-external" }, session: { runtime: "codex" } });
+    const h = homeFixture(); const id = (await h.service.start(homeRequest)).conversationId;
+    const read = (store: ConversationStore) => vi.spyOn(store, "list").mockImplementation(() => { throw new Error("Invalid conversation index"); });
+    const reads = [read(legacy.store), read(h.store)];
+    expect(legacy.service.liveTurns().get(external)).toEqual({ root: "/repo", turnId: expect.any(String), running: true, provider: "codex", canvas: { path: ".doan/canvases/a.html" } });
+    const unbound = h.service.liveTurns().get(id);
+    expect(unbound).toEqual({ root: "/repo", turnId: expect.any(String), running: true, provider: "claude" });
+    for (const spy of reads) { expect(spy).not.toHaveBeenCalled(); spy.mockRestore(); }
+  });
+  it("a turn's bound canvas follows the conversation's binding, and a deleted conversation has no turn", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(homeRequest)).conversationId;
+    h.listed.push({ path: ".doan/canvases/new.html", id: "new" });
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    h.service.refreshed("/repo", []);
+    expect(h.store.list()[0]!.canvas).toEqual({ path: ".doan/canvases/new.html", id: "new" });
+    expect(h.service.liveTurns().get(id)).toMatchObject({ running: false, provider: "claude", canvas: { path: ".doan/canvases/new.html", id: "new" } });
+    await h.service.send(id, "again", []);
+    expect(h.service.liveTurns().get(id)).toMatchObject({ running: true, canvas: { path: ".doan/canvases/new.html", id: "new" } });
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2](); h.service.delete(id);
+    expect(h.service.liveTurns().has(id)).toBe(false);
+  });
+  // A send refused as busy still saves the moved path first (refreshCanvas before the busy check), so the running turn
+  // must follow it: the moved file lists the conversation and the old path no longer does.
+  it("a running turn's canvas follows a move a refused send saved", async () => {
+    const h = fixture();
+    let listed = { id: "a", path: ".doan/canvases/a.html" };
+    const service = new ConversationService(h.store, h.prepare, h.open, () => {}, (_root, canvas) => canvas ? listed : undefined);
+    const id = (await service.start({ ...request, canvas: listed })).conversationId;
+    listed = { id: "a", path: ".doan/canvases/moved.html" };
+    await expect(service.send(id, "while running", [])).rejects.toThrow("busy");
+    expect(h.store.list()[0]!.canvas).toEqual(listed);
+    expect(service.liveTurns().get(id)).toMatchObject({ running: true, canvas: listed });
+    const others = (path: string) => othersOnCanvas({ request: { v: 3, token: "t", root: "/repo", action: "start", path }, now: Date.now(), work: [], conversationWork: [], liveTurns: service.liveTurns() });
+    expect(others(listed.path)).toEqual([{ kind: "conversation", provider: "codex" }]);
+    expect(others(".doan/canvases/a.html")).toEqual([]);
   });
   // Restart to Update asks on every conversation event, so this reads memory only.
   it("restartHolds counts running turns and the answers they wait for, from acceptance to the end", async () => {

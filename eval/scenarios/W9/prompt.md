@@ -1,0 +1,1 @@
+In this repository, change the headline of the Hero section in `.doan/canvases/landing.html` from "Design faster" to "Design together". Keep the canvas, frame and element ids and the rest of the design unchanged.
