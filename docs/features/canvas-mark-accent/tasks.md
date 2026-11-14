@@ -2,7 +2,7 @@
 
 `/ship` 하나로 간다. 작업 1은 리드가 develop에서 끝낸다(초안과 사용자 확인).
 
-- [ ] 1. **`/design-draft`**(리드, develop): design.md '초안 요청'. 검증: `doan check --repo . --json`이 오류 0, `doan ls --repo . --json`이 `canvas-mark-accent`의 프레임 ID 다섯 개(`marks`, `bubble`, `jump`, `buddies`, `backgrounds`)를 보인다. 사용자의 앱 확인이 design.md '확인 기록'에 있다.
+- [x] 1. **`/design-draft`**(리드, develop): design.md '초안 요청'. 검증: `doan check --repo . --json`이 오류 0, `doan ls --repo . --json`이 `canvas-mark-accent`의 프레임 ID 다섯 개(`marks`, `bubble`, `jump`, `buddies`, `backgrounds`)를 보인다. 사용자의 앱 확인이 design.md '확인 기록'에 있다.
   - 커밋 경계: 초안.
 - [ ] 2. **순수 함수**(design.md '순수 함수' 1–3).
   - 테스트: 버블 구성(선택 없음, Play 없음·있음, picker 불가 이유), 표시 박스와 `sizeBubblePlace`의 바깥 가장자리 기준(아래·안쪽·위), 버블과 Pick이 같은 앵커를 낸다.
