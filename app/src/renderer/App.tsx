@@ -1601,7 +1601,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       }
       case "canvas_not_found": live.current.toast.show(unavailableCanvasMessage(step.entry, step.path)); return;
       case "reply": void replyChip(step.root, step.link).then(missing); return;
-      case "settings": openSettings({ section: "agents", provider: step.provider }); return;
+      case "settings": openSettings({ section: "agents", ...(step.provider ? { provider: step.provider } : {}) }); return;
       case "conversation":
         if (step.canvas) openConversationCanvas(step.root, step.canvas, step.conversationId, { kind: "promotion" });
         else showShellOverview(step.root, undefined, () => askConversation(step.root, step.conversationId));
