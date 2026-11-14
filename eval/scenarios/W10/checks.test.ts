@@ -27,7 +27,8 @@ test("W10 passes an edited headline with start and done around it", () => {
 });
 
 test("W10 accepts a reformatted canvas with the same content", () => {
-  assert.deepEqual(failing([start(), done()], final.replace("</h1>\n<p", "</h1>\n\n  <p")), []);
+  const reformatted = final.replace("</h1>\n<p", "</h1>\n\n  <p");
+  assert.deepEqual(failing([start(), done(reformatted)], reformatted), []);
 });
 
 test("W10 fails an unchanged canvas", () => {
