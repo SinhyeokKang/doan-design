@@ -101,7 +101,8 @@ import {
 import { canvasKeyString } from "./prototype/targets";
 import { parseComposerChoice, parseRevealRequest } from "./prototype/requests";
 import { createPrototypeShowing } from "./prototype/showing";
-import { createPrototypeDrawing, prototypeTargetRef } from "./prototype/drawing";
+import { createPrototypeDrawing } from "./prototype/drawing";
+import { createTargetRelay } from "./prototype/targetRelay";
 import { createPrototypePromoted } from "./prototype/promoted";
 import { parseUiState } from "../restore/uiState";
 import { createComposerSettings } from "./prototype/composerSettings";
@@ -348,10 +349,11 @@ const prototype = createPrototypeWindow({
     prototypeEntrySent = null;
     prototypeAttachmentsClosed(`prototype:${contents}`);
     send(PROTOTYPE_CHANNELS.closed);
-    prototypeTargetChanged();
+    prototypeRelay.changed();
   },
   buddy: () => prototypeBuddy(),
-  viewSent: () => prototypeTargetChanged(),
+  viewSent: () => prototypeRelay.changed(),
+  canvasChanged: () => prototypeRelay.changed(),
   denyPermissions,
   reread: root => shell?.reread([root]),
   appHidden: () => appHidden,
@@ -371,38 +373,14 @@ const prototypeShowing = createPrototypeShowing({ playing: () => prototype.contr
 const prototypeDrawing = createPrototypeDrawing({ playing: () => prototype.controller.playing(), generation: () => prototype.controller.canvasGeneration(), conversations: () => indexedConversations() });
 // A project conversation promoted to the playing canvas's conversation, from main's own events (promoted.ts).
 const prototypePromoted = createPrototypePromoted({ playing: () => prototype.controller.playing(), generation: () => prototype.controller.canvasGeneration() });
-let prototypeTargetSent = "null";
-let prototypeDrawingSent = "null";
-let prototypePromotedSent = "null";
-
-function sendPrototypePromoted(): void {
-  const conversationId = prototypePromoted.current();
-  const text = JSON.stringify(conversationId);
-  if (text === prototypePromotedSent || prototype.window() === undefined) return;
-  prototypePromotedSent = text;
-  prototype.send(PROTOTYPE_CHANNELS.promotedChanged, { conversationId });
-}
-
-function sendPrototypeDrawing(): void {
-  const conversationId = prototypeDrawing.current();
-  const text = JSON.stringify(conversationId);
-  if (text === prototypeDrawingSent || prototype.window() === undefined) return;
-  prototypeDrawingSent = text;
-  prototype.send(PROTOTYPE_CHANNELS.drawingChanged, { conversationId });
-}
-
-// After every view and the window's close: the main window learns a new target, and the prototype window loses a
-// drawing conversation that belonged to the canvas it played before.
-function prototypeTargetChanged(): void {
-  const target = prototypeTargetRef(prototype.controller.playing());
-  const text = JSON.stringify(target);
-  if (text !== prototypeTargetSent) {
-    prototypeTargetSent = text;
-    send(PROTOTYPE_CHANNELS.target, target);
-  }
-  if (prototype.window() === undefined) { prototypeDrawingSent = "null"; prototypePromotedSent = "null"; }
-  else { sendPrototypeDrawing(); sendPrototypePromoted(); }
-}
+// The target push to the main window and the id relays to the prototype window (targetRelay.ts).
+const prototypeRelay = createTargetRelay({
+  playing: () => prototype.controller.playing(), generation: () => prototype.controller.canvasGeneration(), open: () => prototype.window() !== undefined,
+  drawing: () => prototypeDrawing.current(), promoted: () => prototypePromoted.current(),
+  sendTarget: target => send(PROTOTYPE_CHANNELS.target, target),
+  sendDrawing: conversationId => prototype.send(PROTOTYPE_CHANNELS.drawingChanged, { conversationId }),
+  sendPromoted: conversationId => prototype.send(PROTOTYPE_CHANNELS.promotedChanged, { conversationId }),
+});
 
 // The buddy a new prototype window's page starts with; the saved one once preferences are read.
 let prototypeBuddy: () => BuddyId = () => "doany";
@@ -1220,7 +1198,7 @@ async function start(): Promise<void> {
     if (prototype.window() === undefined) return;
     const list = message.channel === "conversation:event" || message.channel === "conversation:stage" ? knownFor(message.value.conversationId) : known ?? [];
     if (prototypeReceives(message, prototype.controller.playing(), list)) prototype.send(message.channel, message.value);
-    if (message.channel === "conversation:event" && prototypePromoted.event(message.value, list)) sendPrototypePromoted();
+    if (message.channel === "conversation:event" && prototypePromoted.event(message.value, list)) prototypeRelay.promoted();
   };
   const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, (event, deferNotice) => { broadcast({ channel: "conversation:event", value: event }); if (!deferNotice) notify.event(event); updates?.conversationsChanged(); starPrompt?.event(event); }, (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
@@ -1449,24 +1427,14 @@ async function start(): Promise<void> {
   handle(PROTOTYPE_CHANNELS.showing, undefined, (_event, value: unknown, kind) => { prototypeShowing.set(kind, value); });
   // The drawing project conversation: the target read and the report are the main window's requests (mainOnly), the
   // id read the prototype window's (drawing.ts checks the role again).
-  handle(PROTOTYPE_CHANNELS.readTarget, null, (_event, value: unknown) => value === undefined ? prototypeTargetRef(prototype.controller.playing()) : null);
+  handle(PROTOTYPE_CHANNELS.readTarget, null, (_event, value: unknown) => value === undefined ? prototypeRelay.target() : null);
   handle(PROTOTYPE_CHANNELS.setDrawing, false, (_event, value: unknown, kind) => {
     const taken = prototypeDrawing.set(kind, value);
-    if (taken) sendPrototypeDrawing();
+    if (taken) prototypeRelay.drawing();
     return taken;
   });
-  handle(PROTOTYPE_CHANNELS.promoted, null, (_event, value: unknown) => {
-    if (value !== undefined) return null;
-    const conversationId = prototypePromoted.current();
-    prototypePromotedSent = JSON.stringify(conversationId);
-    return conversationId;
-  });
-  handle(PROTOTYPE_CHANNELS.drawing, null, (_event, value: unknown) => {
-    if (value !== undefined) return null;
-    const conversationId = prototypeDrawing.current();
-    prototypeDrawingSent = JSON.stringify(conversationId);
-    return conversationId;
-  });
+  handle(PROTOTYPE_CHANNELS.promoted, null, (_event, value: unknown) => value === undefined ? prototypeRelay.readPromoted() : null);
+  handle(PROTOTYPE_CHANNELS.drawing, null, (_event, value: unknown) => value === undefined ? prototypeRelay.readDrawing() : null);
   // A chip or a main-window-only button: the main window comes forward as for a notification's click, then decides
   // what it can show (a dialog, a page lock or first run keeps everything as it is).
   handle(PROTOTYPE_CHANNELS.reveal, undefined, (_event, value: unknown, kind) => {

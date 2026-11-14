@@ -8,14 +8,17 @@ import type { WindowKind } from "../senderAllowed";
 import type { PlayingCanvas, ScopedConversation } from "./conversationScope";
 
 // The playing canvas as the main window names a canvas: its root, its row's last listed path and its ID when it has one.
+// `generation` names this play of it (the controller's canvasGeneration): a report carries it back, so one made for an
+// earlier play of the same canvas (A → B → A) is refused.
 export interface PrototypeTargetRef {
   root: string;
   canvas: { path: string; id?: string };
+  generation: number;
 }
 
-export function prototypeTargetRef(playing: PlayingCanvas | null): PrototypeTargetRef | null {
+export function prototypeTargetRef(playing: PlayingCanvas | null, generation: number): PrototypeTargetRef | null {
   if (playing === null) return null;
-  return { root: playing.root, canvas: { ...("id" in playing.canvas ? { id: playing.canvas.id } : {}), path: playing.path } };
+  return { root: playing.root, canvas: { ...("id" in playing.canvas ? { id: playing.canvas.id } : {}), path: playing.path }, generation };
 }
 
 // `prototype:setDrawing`, from the main window.
@@ -30,12 +33,13 @@ function exactly(value: unknown, keys: readonly string[]): Record<string, unknow
 }
 
 function parseDrawingReport(value: unknown): DrawingReport | null {
-  const report = exactly(value, ["root", "canvas", "conversationId"]);
-  if (report === null || typeof report.root !== "string" || (report.conversationId !== null && !validAuthId(report.conversationId))) return null;
+  const report = exactly(value, ["root", "canvas", "generation", "conversationId"]);
+  const generation = report?.generation;
+  if (report === null || typeof report.root !== "string" || typeof generation !== "number" || !Number.isSafeInteger(generation) || (report.conversationId !== null && !validAuthId(report.conversationId))) return null;
   const raw = report.canvas;
   const canvas = typeof raw === "object" && raw !== null ? exactly(raw, "id" in raw ? ["path", "id"] : ["path"]) : null;
   if (canvas === null || typeof canvas.path !== "string" || (canvas.id !== undefined && typeof canvas.id !== "string")) return null;
-  return { root: report.root, canvas: { path: canvas.path, ...(typeof canvas.id === "string" ? { id: canvas.id } : {}) }, conversationId: report.conversationId };
+  return { root: report.root, canvas: { path: canvas.path, ...(typeof canvas.id === "string" ? { id: canvas.id } : {}) }, generation, conversationId: report.conversationId };
 }
 
 // The playing canvas's key with its root: an ID-keyed canvas by its ID (its path may have moved), an ID-less one by its
@@ -59,7 +63,7 @@ export function createPrototypeDrawing(deps: DrawingDeps) {
     set(kind: unknown, value: unknown): boolean {
       const report = kind === ("main" satisfies WindowKind) ? parseDrawingReport(value) : null;
       const playing = deps.playing();
-      if (report === null || playing === null || !isPlaying(report, playing)) return false;
+      if (report === null || playing === null || report.generation !== deps.generation() || !isPlaying(report, playing)) return false;
       const id = report.conversationId;
       if (id === null) { drawing = null; return true; }
       const project = deps.conversations().some(conversation => conversation.conversationId === id && conversation.root === playing.root && conversation.canvas === undefined);

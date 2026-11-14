@@ -41,8 +41,10 @@ export interface PrototypeWindowDeps {
   appHidden?(): boolean;
   // The saved buddy, in the page's query as the main window's, so the panel's first paint has its accent.
   buddy(): BuddyId;
-  // A new view went to the window: its target may have changed.
+  // A new view went to the window: its target may have changed (a moved row's path).
   viewSent?(): void;
+  // The playing canvas changed, before any view of it.
+  canvasChanged?(): void;
 }
 
 export interface PrototypeWindow {
@@ -314,6 +316,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       const image = await target.webContents.capturePage(area.rect);
       return image.isEmpty() ? null : { png: new Uint8Array(image.toPNG()), box: area.box };
     },
+    canvasChanged() { deps.canvasChanged?.(); },
     sendSnapshot(snapshot) {
       live()?.webContents.send(PROTOTYPE_CHANNELS.snapshot, snapshot);
     },

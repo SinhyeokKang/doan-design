@@ -36,6 +36,9 @@ export interface PrototypeHost {
   // `sideColumn` is the conversation column's width (its handle included), which the still must leave out.
   capture(mark: PrototypeSize, mode: PrototypeMode, sideColumn: number): Promise<Still | null>;
   sendSnapshot(snapshot: PrototypeSnapshot): void;
+  // The playing canvas changed (canvasGeneration moved), told at once: a view may wait behind a still capture, and
+  // two changes it coalesces (A → B → A) would otherwise reach nobody.
+  canvasChanged?(): void;
 }
 
 export interface Still {
@@ -138,7 +141,8 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     if (step === null) return;
     const previous = state;
     state = step.state;
-    if (canvasOf(previous) !== canvasOf(state)) canvasGeneration++;
+    const canvasMoved = canvasOf(previous) !== canvasOf(state);
+    if (canvasMoved) canvasGeneration++;
     if (!state.open) { latest = null; resendFor = null; }
     const still = leavingReady(previous);
     // A fit with the panel open may narrow the panel to fit the work area (prototypePanelFit); the view says so.
@@ -158,6 +162,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
       }
     }
     publish(still, step.effects.some(effect => effect.kind === "kill"));
+    if (canvasMoved) host.canvasChanged?.();
   };
 
   return {

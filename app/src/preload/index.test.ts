@@ -730,8 +730,8 @@ test("the prototype target arrives from its pushes; the drawing conversation goe
   expect(targets.mock.calls).toEqual([[{ root: "/r", canvas: { id: "proto", path: ".doan/canvases/proto.html" } }], [null]]);
   mocks.invoke.mockClear();
   await api.readPrototypeTarget();
-  await api.setPrototypeDrawing({ root: "/r", canvas: { path: ".doan/canvases/loose.html" }, conversationId: "p1" });
-  expect(mocks.invoke.mock.calls).toEqual([["prototype:readTarget"], ["prototype:setDrawing", { root: "/r", canvas: { path: ".doan/canvases/loose.html" }, conversationId: "p1" }]]);
+  await api.setPrototypeDrawing({ root: "/r", canvas: { path: ".doan/canvases/loose.html" }, generation: 2, conversationId: "p1" });
+  expect(mocks.invoke.mock.calls).toEqual([["prototype:readTarget"], ["prototype:setDrawing", { root: "/r", canvas: { path: ".doan/canvases/loose.html" }, generation: 2, conversationId: "p1" }]]);
 });
 
 // Settings without a provider ("Sign in to an agent…", "Manage agents…" in the prototype window) reaches the main window.

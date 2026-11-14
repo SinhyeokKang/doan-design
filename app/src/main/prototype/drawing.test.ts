@@ -15,20 +15,21 @@ const CONVERSATIONS: ScopedConversation[] = [
 const A: PlayingCanvas = { root: "/r", canvas: { id: "proto" }, path: PROTO };
 const B: PlayingCanvas = { root: "/r", canvas: { path: LOOSE }, path: LOOSE };
 const A_WT: PlayingCanvas = { root: "/r-wt", canvas: { id: "proto" }, path: PROTO };
-const forA = { root: "/r", canvas: { id: "proto", path: PROTO } };
+// A report for the first play of A (generation 0).
+const forA = { root: "/r", canvas: { id: "proto", path: PROTO }, generation: 0 };
 
 function setup(start: PlayingCanvas | null = A) {
   let playing = start;
   let generation = 0;
   const drawing = createPrototypeDrawing({ playing: () => playing, generation: () => generation, conversations: () => CONVERSATIONS });
-  return { drawing, play: (next: PlayingCanvas | null) => { if (next !== playing) generation++; playing = next; } };
+  return { drawing, play: (next: PlayingCanvas | null) => { if (next !== playing) generation++; playing = next; }, generation: () => generation };
 }
 
 describe("prototypeTargetRef", () => {
   test("the playing canvas as the main window names it: root, path and the ID when it has one", () => {
-    expect(prototypeTargetRef(A)).toEqual({ root: "/r", canvas: { id: "proto", path: PROTO } });
-    expect(prototypeTargetRef(B)).toEqual({ root: "/r", canvas: { path: LOOSE } });
-    expect(prototypeTargetRef(null)).toBeNull();
+    expect(prototypeTargetRef(A, 3)).toEqual({ root: "/r", canvas: { id: "proto", path: PROTO }, generation: 3 });
+    expect(prototypeTargetRef(B, 0)).toEqual({ root: "/r", canvas: { path: LOOSE }, generation: 0 });
+    expect(prototypeTargetRef(null, 4)).toBeNull();
   });
 });
 
@@ -50,12 +51,12 @@ describe("the relayed drawing conversation", () => {
 
   test("another root or another canvas is refused, the same canvas in another worktree too", () => {
     const { drawing } = setup();
-    expect(drawing.set("main", { root: "/r-wt", canvas: { id: "proto", path: PROTO }, conversationId: "p-project-wt" })).toBe(false);
-    expect(drawing.set("main", { root: "/r", canvas: { path: LOOSE }, conversationId: "p-project" })).toBe(false);
+    expect(drawing.set("main", { root: "/r-wt", canvas: { id: "proto", path: PROTO }, generation: 0, conversationId: "p-project-wt" })).toBe(false);
+    expect(drawing.set("main", { root: "/r", canvas: { path: LOOSE }, generation: 0, conversationId: "p-project" })).toBe(false);
     expect(drawing.set("main", { ...forA, conversationId: "p-project-wt" })).toBe(false);
     expect(drawing.current()).toBeNull();
     const wt = setup(A_WT).drawing;
-    expect(wt.set("main", { root: "/r-wt", canvas: { id: "proto", path: PROTO }, conversationId: "p-project-wt" })).toBe(true);
+    expect(wt.set("main", { root: "/r-wt", canvas: { id: "proto", path: PROTO }, generation: 0, conversationId: "p-project-wt" })).toBe(true);
   });
 
   test("a canvas conversation or an unknown one is not a drawing project conversation", () => {
@@ -66,18 +67,20 @@ describe("the relayed drawing conversation", () => {
 
   test("an ID-less canvas is named by its path", () => {
     const { drawing } = setup(B);
-    expect(drawing.set("main", { root: "/r", canvas: { path: LOOSE }, conversationId: "p-project" })).toBe(true);
-    expect(drawing.set("main", { root: "/r", canvas: { path: LOOSE, id: "loose" }, conversationId: "p-project" })).toBe(false);
+    expect(drawing.set("main", { root: "/r", canvas: { path: LOOSE }, generation: 0, conversationId: "p-project" })).toBe(true);
+    expect(drawing.set("main", { root: "/r", canvas: { path: LOOSE, id: "loose" }, generation: 0, conversationId: "p-project" })).toBe(false);
   });
 
-  test("a change of the playing canvas clears it, also on the way back, until the main window says again", () => {
-    const { drawing, play } = setup();
+  test("a change of the playing canvas clears it, also on the way back, until the main window says again for this play", () => {
+    const { drawing, play, generation } = setup();
     drawing.set("main", { ...forA, conversationId: "p-project" });
     play(B);
     expect(drawing.current()).toBeNull();
     play(A);
     expect(drawing.current()).toBeNull();
-    drawing.set("main", { ...forA, conversationId: "p-project" });
+    // The report made for the first play of A is not one for this play.
+    expect(drawing.set("main", { ...forA, conversationId: "p-project" })).toBe(false);
+    expect(drawing.set("main", { ...forA, generation: generation(), conversationId: "p-project" })).toBe(true);
     expect(drawing.current()).toBe("p-project");
   });
 
@@ -98,7 +101,7 @@ describe("the relayed drawing conversation", () => {
 
   test("a malformed report is refused", () => {
     const { drawing } = setup();
-    for (const value of [undefined, null, {}, { ...forA }, { ...forA, conversationId: 3 }, { ...forA, conversationId: "bad id" }, { root: "/r", canvas: "proto", conversationId: null }, { ...forA, conversationId: null, extra: 1 }]) {
+    for (const value of [undefined, null, {}, { ...forA }, { ...forA, conversationId: 3 }, { ...forA, conversationId: "bad id" }, { root: "/r", canvas: "proto", generation: 0, conversationId: null }, { ...forA, generation: "0", conversationId: null }, { root: "/r", canvas: { id: "proto", path: PROTO }, conversationId: null }, { ...forA, conversationId: null, extra: 1 }]) {
       expect(drawing.set("main", value), JSON.stringify(value)).toBe(false);
     }
   });

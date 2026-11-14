@@ -1178,7 +1178,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useEffect(() => window.doan.onPrototypeReveal(request => live.current.prototypeReveal(request)), []);
   useEffect(() => window.doan.onPrototypeLastUsed(choice => live.current.prototypeLastUsed(choice)), []);
   // The project conversation drawing the prototype window's canvas, which that window cannot read: this window tells
-  // main its id for every new target (main forgets it on each) and whenever it changes. Subscribed first, then read.
+  // main its id for every new target (main forgets it on each) and whenever it changes. Each target names its play
+  // (`generation`), which the report carries back so main can refuse one made for an earlier play of the same canvas.
+  // Subscribed first, then read.
   const [prototypeTarget, setPrototypeTarget] = useState<{ target: PrototypeTargetRef | null }>({ target: null });
   useEffect(() => {
     let pushed = false;
