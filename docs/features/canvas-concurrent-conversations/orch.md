@@ -28,9 +28,9 @@
 | PoC | 1 | `.scratch/canvas-concurrent-conversations/` | — | 컨덕터 | `node .scratch/canvas-concurrent-conversations/poc.mjs` exit 0 | 통과(design.md 'PoC 관찰') |
 | S | 3 | tasks.md 표의 S 행 | — | Claude Opus high — 저장 형식·저널 이전이 틀리면 사용자 대화 기록을 잃는다 | test, typecheck | 통합 `0ed2e701d`·`63988c595`·`fccfce338`, 리뷰 🔴0 🟡0, 워크트리 정리 |
 | R | 4 | tasks.md 표의 R 행 | S | Claude Opus high — 동시 턴, 지연 콜백 울타리, handoff | test, typecheck, lint | 통합 `21455c8b0`·`7ddaf91ce`, 리뷰 중 |
-| F | 5 | tasks.md 표의 F 행 | R | Claude Opus medium — 순수 함수지만 순위 규칙 판단이 많다 | test, typecheck | 진행(`ctx_485ef6877f1c`, `ccc-batch-f`) |
-| P | 6 | tasks.md 표의 P 행 | F | Claude Opus high — `App.tsx`, 포커스, ui-state 병합 | test, typecheck, lint, build | 대기 |
-| O | 7 | tasks.md 표의 O 행 | F | Claude Opus high — 프로토타입 창 초안 옮기기 함정(POSTMORTEM) | test, typecheck, lint, build | 대기 |
+| F | 5 | tasks.md 표의 F 행 | R | Claude Opus medium — 순수 함수지만 순위 규칙 판단이 많다 | test, typecheck | 통합 `c895927dc`·`dd7296ec8`, 리뷰 중 |
+| P | 6 | tasks.md 표의 P 행 | F | Claude Opus high — `App.tsx`, 포커스, ui-state 병합 | test, typecheck, lint, build | 진행(`ctx_5834c9faff5f`, `ccc-batch-p`) |
+| O | 7 | tasks.md 표의 O 행 | F | Claude Opus high — 프로토타입 창 초안 옮기기 함정(POSTMORTEM) | test, typecheck, lint, build | 진행(`ctx_2cb661736ee3`, `ccc-batch-o`) |
 | C | 8 | 모든 `state` 읽기와 테스트 | P, O | Codex Sol medium — 기계적 정리 | tasks.md 8의 `rg`, test, typecheck, lint, build | 대기 |
 | DS | 9 | P·O 렌더러 파일, DESIGN.md | C | Claude Opus high — 실제 앱 측정과 수정 | measure.mjs | 대기 |
 | RT | 10 | `.scratch/runtime-test/` | DS | 컨덕터 | probe.mjs exit 0 | 대기 |
@@ -54,4 +54,7 @@
 - 워커 F 질문 — 컨덕터 판단: F가 P 파일 `CanvasConversationPanel.tsx`·`canvasRun.ts`에서 보관·복원 갈래만 지운다(P는 F 뒤에 돌아 겹치지 않는다).
 - R 리뷰 🔴0 🟡0 ⚪4. 리뷰어의 사용자 결정 후보(세션 하나는 대화 하나를 main도 강제할지) — 컨덕터 판단: spec 정한 점 11이 이미 정한 규칙이라, main도 기존 `session_in_use` 거부로 막는다(새 코드·문구 없음). R에 후속 작업으로 보냈다. ⚪1(`homeConversations.ts:97`의 `forCanvas` 주석)은 O에, ⚪3·⚪4는 그대로 둔다.
 - R 통합 HEAD `7ddaf91ce`의 `/verify`: verify-tests·runtime-support·go test·go vet·typecheck·lint 통과, app-test에서 `cli.test.ts` "Include in Git, then Keep out of Git…"와 `shell.test.ts` "setting up the same folder again…"가 부하 중 시간 초과로 실패(F·R 워커 테스트와 겹침, load 14). 두 파일만 다시 돌리면 116 통과. build는 돌지 않았다. 마지막 `/verify`에서 다시 본다.
+- F 리뷰: Codex gpt-6-astra medium(`ctx_bc872a6e22ed`, `ccc-review-f`).
+- 컨덕터 판단: spec 정한 점 11의 이어받기 제안 숨기기는 대화 요약에 세션 ID가 없어 렌더러가 판단할 수 없다. R 후속으로 main의 `resumeTarget`이 그 세션을 쥔 삭제되지 않은 대화가 있으면 기록이 없을 때와 같은 답을 하게 했다. P는 렌더러를 고치지 않는다.
+- F가 P 파일(`CanvasConversationPanel.tsx`, `canvasRun.ts`, P 테스트 9건)에서 보관·복원 갈래만 지웠다(컨덕터 허가).
 - S가 범위 밖 `io.test.ts`의 테스트 하나("recovers an interrupted replacement rollback…")를 고쳤다. 컨덕터가 허가했다.
