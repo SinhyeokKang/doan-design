@@ -195,8 +195,9 @@ export class CanvasController {
   private workSlideTimer: ReturnType<typeof setTimeout> | undefined;
   // The canvas the last setWork described: a change is entering it.
   private workCanvas: string | null = null;
-  // The last work source shown on that canvas, kept across a pick with no work: the followed conversation's work can go a
-  // moment before the board moves to another conversation, and that switch is still a change of source.
+  // The last work source shown on that canvas, kept across a pick with no work while a work turn is still on it: the
+  // followed conversation's work can go a moment before the board moves to another conversation, and that switch is still
+  // a change of source.
   private workSource: string | null = null;
   // Per canvas (root + path), renderer memory only; leaving and coming back in the same work turn keeps it.
   private followMemory = new Map<string, FollowMemory>();
@@ -1843,7 +1844,9 @@ export class CanvasController {
     // Another source winning names a frame the board must not swing to, whether that frame exists yet or the document
     // is reloading: counted as followed here, not when the frame is next evaluated.
     const sourceChanged = previous !== null && next !== null && previous !== next.source;
-    if (entered) this.workSource = null;
+    // Entering another canvas, or no work turn left on this one, ends the story: a later turn is followed from its first
+    // frame, whichever source it is.
+    if (entered || (next === null && (target?.keys.length ?? 0) === 0)) this.workSource = null;
     if (next) this.workSource = next.source;
     if (target && key) {
       let memory = followStopped(this.followMemory.get(key) ?? EMPTY_FOLLOW, target.keys, false);
