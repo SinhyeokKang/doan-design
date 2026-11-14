@@ -402,3 +402,17 @@ describe("the drawing across a switch of canvas", () => {
     expect(run.run.view()).toMatchObject({ kind: "new", notice: null });
   });
 });
+
+// Main nulls the promotion for every new target too; the canvas left behind's must not show on the new one meanwhile.
+describe("the promotion across a switch of canvas", () => {
+  test("a new playing canvas shows no promotion notice from the canvas left behind", async () => {
+    calls.readPromoted!.mockResolvedValueOnce("p1");
+    await playing({}, [summary({ conversationId: "p1" })]);
+    await flush();
+    expect(run.run.view()).toMatchObject({ notice: { kind: "promoted", open: "p1" } });
+    const { canvasId: _none, ...plain } = view({ path: PLAIN.path, frame: "x", frames: [] });
+    run.setView(plain);
+    await answer(ROOT, [summary({ conversationId: "p1", canvas: PLAIN })]);
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "p1", notice: null });
+  });
+});
