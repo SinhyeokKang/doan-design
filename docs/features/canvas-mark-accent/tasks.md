@@ -1,6 +1,6 @@
 # canvas-mark-accent — tasks
 
-`/ship` 하나로 간다. 작업 1은 리드가 develop에서 끝냈다(초안과 사용자 확인).
+체인 `chain-261114-2`의 링크 4로 `/orchestrate`가 돈다. 작업 2·3은 워커 배치이고, 워커마다 `/ship bypass`로 `test:` 커밋 하나와 구현 커밋 하나를 만든다. 작업 1은 리드가 develop에서 끝냈다(초안과 사용자 확인).
 
 - [x] 1. **`/design-draft`**(리드, develop): design.md '초안 요청'. 검증: `doan check --repo . --json`이 오류 0, `doan ls --repo . --json`이 `canvas-mark-accent`의 프레임 ID 다섯 개(`marks`, `bubble`, `jump`, `buddies`, `backgrounds`)를 보인다. 사용자의 앱 확인이 design.md '확인 기록'에 있다.
   - 커밋 경계: 초안.
