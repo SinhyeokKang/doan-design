@@ -1902,5 +1902,5 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-conv-panel:not(:has(.doan-conv-head)) .thread-scroll { padding-top: var(--space-4); }
 .doan-conv-panel:not(:has(.doan-conv-head)) .cp-scroll:not(:has(> .conversation-thread)) { padding-top: var(--space-4); }
 /* The playing frame chip: the frame chip's look, first in the card's chip row, as tall as a chip in the field. */
-.composer-chips > .pw-playing { line-height: var(--type-label-line-height); margin-inline: 0; }
+.composer-chips > .pw-playing { font-size: var(--type-body-sm-size); line-height: var(--type-label-line-height); margin-inline: 0; }
 .cp-scroll > .list-error { margin-bottom: var(--space-2); }

@@ -629,7 +629,8 @@ describe("the conversation column's styles", () => {
   });
   test("without the head the thread and the new state start 16 below the column's top; the playing chip sits in the chip row", () => {
     expect(css).toMatch(/\.doan-conv-panel:not\(:has\(\.doan-conv-head\)\) \.thread-scroll\s*\{[^}]*padding-top:\s*var\(--space-4\)/);
-    expect(css).toMatch(/\.composer-chips\s*>\s*\.pw-playing\s*\{/);
+    // The pinned chip reads at the body text size, not the 13 px the panel would give it (design-sync).
+    expect(css).toMatch(/\.composer-chips\s*>\s*\.pw-playing\s*\{[^}]*font-size:\s*var\(--type-body-sm-size\)/);
     expect(css).toMatch(/\.badge-working\s*\{[^}]*position:\s*absolute/);
   });
 });
