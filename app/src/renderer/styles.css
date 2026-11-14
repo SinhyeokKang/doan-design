@@ -97,9 +97,9 @@ code, kbd { font-family: var(--type-family); }
 .dims { position: absolute; top: calc(100% + 1.5px + 5px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1) 0 var(--space-2); background: var(--affordance-accent); color: var(--text-on-accent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
 /* No room below the selection (a tall frame, the floating tools): the bubble hangs above it instead. */
 .dims.above { top: auto; bottom: calc(100% + 1.5px + 5px); }
-/* After the rules it overrides. Below 2x Chromium floors the 1.5px line to 1 device pixel but keeps a fractional
-   margin, which would leave a pixel gap on one side and put the line over the element's last pixel on the other: the
-   box grows by the 1px drawn, and the bubble's distance from the line follows. */
+/* After the rules it overrides. On a 1x macOS display Chromium draws the 1.5px line 1 device pixel wide but keeps the
+   -1.5px margin, which left a pixel gap on one side and the line over the element's last pixel on the other (checked
+   in the app at 1x): the box grows by the 1px drawn, and the bubble's distance from the line follows. */
 @media (resolution < 2dppx) {
   .mark { border-width: 1px; }
   .mark:not(.jump-point) { margin: -1px; }
