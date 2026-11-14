@@ -192,7 +192,8 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   // queue stays and no send goes first.
   limitLookup?: LimitLookup;
   // The accepted turn's conversation as liveTurns reports it, kept here so `doan work` replies read no index on main's
-  // loop inside the CLI's 2 s deadline. A conversation's root never changes; its canvas changes only by promoteTo.
+  // loop inside the CLI's 2 s deadline. A conversation's root never changes; every save of a new canvas (promoteTo,
+  // refreshCanvas) updates it here too, since a running turn keeps this entry across a send refused as busy.
   turnOf?: TurnOf;
   // A Stop came while this send was prepared, before acceptance: the send is refused at its next check and never runs.
   cancelled?: true }
@@ -1522,6 +1523,8 @@ export class ConversationService {
     if (!metadata.canvas.id || canvas.id !== metadata.canvas.id) throw new Error("canvas_not_found");
     const refreshed = { ...metadata, canvas };
     this.store.save(this.store.list().map(m => m.conversationId === metadata.conversationId ? refreshed : m));
+    // Before submit's busy check: a running turn keeps working on the moved file.
+    const turn = this.live.get(metadata.conversationId)?.turnOf; if (turn) turn.canvas = canvas;
     this.changed(metadata.root);
     return refreshed;
   }
