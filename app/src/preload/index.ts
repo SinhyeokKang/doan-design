@@ -346,8 +346,10 @@ const api = {
   // The Add Projects page uses it too; it belongs to no session.
   chooseOnboardingFolder: (purpose: FolderPurpose): Promise<string | null> => ipcRenderer.invoke("onboarding:choose-folder", purpose),
   // New folder on the Project step: parent is only where the save panel opens. Main makes the folder at the panel's
-  // path and answers what happened; the session inspects a created folder like a chosen one.
-  newOnboardingFolder: (parent: string): Promise<NewFolderResult> => ipcRenderer.invoke("onboarding:new-folder", { parent }),
+  // path and answers what happened; the session inspects a created folder like a chosen one. token names the request,
+  // which the step cancels when it goes before the panel answers, so nothing is made then.
+  newOnboardingFolder: (parent: string, token: string): Promise<NewFolderResult> => ipcRenderer.invoke("onboarding:new-folder", { parent, token }),
+  cancelOnboardingFolder: (token: string): Promise<boolean> => ipcRenderer.invoke("onboarding:new-folder-cancel", { token }),
   // The Add Projects page's project session: the onboarding session's project calls and DTOs on channels of its own,
   // with no agents, completion or CLI. Without a request the read answers the current state and its sessionId;
   // with one it is the session's status (session_stale for another session).

@@ -15,7 +15,7 @@ const mainOnly = new Set([
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",
   "onboarding:choose-folder", "folders:get",
   // New folder on the Project step: the save panel and the folder main makes.
-  "onboarding:new-folder",
+  "onboarding:new-folder", "onboarding:new-folder-cancel",
   // The canvas page says which canvas it shows, and the read-state toast's Retry.
   "read-state:showing", "read-state:retry",
   "window:visible",

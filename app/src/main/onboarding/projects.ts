@@ -79,11 +79,14 @@ export async function cloneDestination(path: string, deps: ProjectDeps): Promise
 // comes first, registered or not, as for a clone: the folder would be read as that project. An existing name, even a
 // broken link, is reported and never replaced (macOS may already have asked to replace it); mkdir is not recursive, so
 // nothing is nested either. Only EEXIST from mkdir reads as existing; every other error is a folder that cannot be made.
+// wanted: whether the step that asked is still there. It is read again right before mkdir, since the location's checks
+// (a CLI read of up to 10 s) leave time for the step to go; then nothing is made.
 export type NewFolderTarget =
+  | { kind: "cancelled" }
   | { kind: "created" | "failed"; path: string }
   | { kind: "exists"; path: string; directory: boolean }
   | { kind: "inside_project"; path: string; project: string };
-export async function newFolderTarget(path: string, deps: Pick<ProjectDeps, "ls">): Promise<NewFolderTarget> {
+export async function newFolderTarget(path: string, deps: Pick<ProjectDeps, "ls">, wanted: () => boolean = () => true): Promise<NewFolderTarget> {
   if (!isAbsolute(path)) return { kind: "failed", path };
   const parent = await canonicalFolder(dirname(path));
   if (parent === null) return { kind: "failed", path };
@@ -91,6 +94,7 @@ export async function newFolderTarget(path: string, deps: Pick<ProjectDeps, "ls"
   const state = await deps.ls({ cwd: parent });
   if (state.kind === "list") return { kind: "inside_project", path: target, project: basename(state.root) };
   try { return { kind: "exists", path: target, directory: (await lstat(target)).isDirectory() }; } catch { /* absent, or unreadable: mkdir decides */ }
+  if (!wanted()) return { kind: "cancelled" };
   try {
     await mkdir(target);
     return { kind: "created", path: target };

@@ -136,8 +136,13 @@ export type LocateResult = { kind: "located"; root: string } | { kind: "refused"
 // The onboarding Project step's folder picker: a path only. Inspection, registration and setup go through the
 // onboarding session, so picking a folder changes nothing.
 export type FolderPurpose = "project" | "destination";
-// New folder's answer: the panel was cancelled (or the window went), else newFolderTarget's judgment of its path.
-export type NewFolderResult = { kind: "cancelled" } | NewFolderTarget;
+// New folder's answer: newFolderTarget's judgment of the panel's path, or cancelled when the panel was, or the step or
+// window that asked went first.
+export type NewFolderResult = NewFolderTarget;
+// New folder requests in flight, by the token the Project step gave, with the frame that sent it. The step cancels its
+// own when it goes (the page left, first run closed) while the window stays, so a Create that returns later makes
+// nothing.
+const folderRequests = new Map<string, number>();
 
 // The window only ever shows the bundled UI; canvases live in a sandboxed
 // iframe whose navigation stays on the local server. Anything else a page tries
@@ -693,6 +698,7 @@ function createWindow(buddy: BuddyId): BrowserWindow {
     void agentAuth?.ownerClosed(owner);
     cancelPendingHide();
     if (win === window) win = undefined;
+    folderRequests.clear();
   });
   return window;
 }
@@ -1133,20 +1139,31 @@ async function start(): Promise<void> {
       },
     }, commit, storage),
   };
-  // New folder on the Project step. The renderer names only where the save panel opens; the folder's path comes from
-  // the panel and main makes it, so no path the renderer sends is created. It registers nothing: the new folder is
-  // inspected like a chosen one. No createDirectory: a New Folder made in this panel would move it inside, and Create
-  // would nest the project there.
+  // New folder on the Project step. The renderer names only where the save panel opens and a token for the request;
+  // the folder's path comes from the panel and main makes it, so no path the renderer sends is created. It registers
+  // nothing: the new folder is inspected like a chosen one. No createDirectory: a New Folder made in this panel would
+  // move it inside, and Create would nest the project there.
   const cancelled: NewFolderResult = { kind: "cancelled" };
   handle("onboarding:new-folder", cancelled, async (event, value: unknown): Promise<NewFolderResult> => {
     const window = win;
-    if (!fromWindow(event) || !window || typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("parent" in value) || typeof value.parent !== "string") return cancelled;
-    const at = isAbsolute(value.parent) && isFolder(value.parent) ? value.parent : realHomeDirectory();
-    showWindow(window);
-    const picked = await dialog.showSaveDialog(window, { message: "Name your new project folder and choose where to create it.", buttonLabel: "Create", nameFieldLabel: "Name:", defaultPath: at, showsTagField: false });
-    // The window may have gone while the panel was open; then nothing is made.
-    if (picked.canceled || !picked.filePath || !fromWindow(event)) return cancelled;
-    return newFolderTarget(picked.filePath, projectDeps);
+    if (!fromWindow(event) || !window || typeof value !== "object" || value === null || Object.keys(value).length !== 2 || !("parent" in value) || typeof value.parent !== "string"
+      || !("token" in value) || typeof value.token !== "string" || value.token === "" || value.token.length > 200 || folderRequests.has(value.token)) return cancelled;
+    const token = value.token;
+    folderRequests.set(token, event.sender.id);
+    try {
+      const at = isAbsolute(value.parent) && isFolder(value.parent) ? value.parent : realHomeDirectory();
+      showWindow(window);
+      const picked = await dialog.showSaveDialog(window, { message: "Name your new project folder and choose where to create it.", buttonLabel: "Create", nameFieldLabel: "Name:", defaultPath: at, showsTagField: false });
+      // The step that asked, or the window, may have gone while the panel was open or while the location is checked.
+      const wanted = () => folderRequests.has(token) && fromWindow(event);
+      if (picked.canceled || !picked.filePath || !wanted()) return cancelled;
+      return await newFolderTarget(picked.filePath, projectDeps, wanted);
+    } finally { folderRequests.delete(token); }
+  });
+  // true: that request was still open and now makes nothing. Only the frame that sent it may cancel it.
+  handle("onboarding:new-folder-cancel", false, (event, value: unknown) => {
+    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("token" in value) || typeof value.token !== "string") return false;
+    return folderRequests.get(value.token) === event.sender.id && folderRequests.delete(value.token);
   });
   const onboardingService = new OnboardingService({
     auth: authIpc ?? null,

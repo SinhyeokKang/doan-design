@@ -21,9 +21,10 @@ interface Api {
   cancelOnboardingOperation(request: Request<"cancelOnboardingOperation">): Promise<OnboardingResponse | AddPageResponse>;
   completeOnboarding(request: Request<"completeOnboarding">): Promise<OnboardingResponse | AddPageResponse>;
   chooseOnboardingFolder(purpose: "project" | "destination"): Promise<string | null>;
-  newOnboardingFolder(parent: string): Promise<NewFolderResult>;
+  newOnboardingFolder(parent: string, token: string): Promise<NewFolderResult>;
+  cancelOnboardingFolder(token: string): Promise<boolean>;
 }
-type PageCalls = Pick<DoanApi, "readAddPage" | "onAddPageSession" | "inspectAddPageProject" | "selectAddPageProject" | "cloneAddPageProject" | "cancelAddPageOperation" | "chooseOnboardingFolder" | "newOnboardingFolder">;
+type PageCalls = Pick<DoanApi, "readAddPage" | "onAddPageSession" | "inspectAddPageProject" | "selectAddPageProject" | "cloneAddPageProject" | "cancelAddPageOperation" | "chooseOnboardingFolder" | "newOnboardingFolder" | "cancelOnboardingFolder">;
 export function addPageApi(doan: PageCalls): Api {
   return {
     readOnboardingSession: request => doan.readAddPage(request),
@@ -35,7 +36,8 @@ export function addPageApi(doan: PageCalls): Api {
     // The page has no completion record; a registered project is handed over at once (`use`).
     completeOnboarding: () => Promise.reject(new Error("The Add Projects page has no completion")),
     chooseOnboardingFolder: purpose => doan.chooseOnboardingFolder(purpose),
-    newOnboardingFolder: parent => doan.newOnboardingFolder(parent),
+    newOnboardingFolder: (parent, token) => doan.newOnboardingFolder(parent, token),
+    cancelOnboardingFolder: token => doan.cancelOnboardingFolder(token),
   };
 }
 export interface ProjectStepDeps {
@@ -141,6 +143,8 @@ export class ProjectStepSession {
   }
   dispose(): void {
     this.live = false;
+    // The step is going with its save panel open: main makes nothing when Create returns.
+    if (this.folderRequest !== null) { void this.deps.api.cancelOnboardingFolder(this.folderRequest).catch(() => false); this.folderRequest = null; }
     for (const stop of this.stops.splice(0)) stop();
     this.waiting.clear();
   }
@@ -279,10 +283,16 @@ export class ProjectStepSession {
     try { return await this.deps.api.chooseOnboardingFolder(purpose).catch(() => null); } finally { this.choosing = false; }
   }
   // A cancelled panel changes nothing, a notice it opened from included. Its answer is dropped once the step is gone.
+  private folderRequest: string | null = null;
   private async createFolder(at: string): Promise<void> {
     let made: NewFolderResult;
+    const token = this.deps.requestId();
+    this.folderRequest = token;
     this.choosing = true;
-    try { made = await this.deps.api.newOnboardingFolder(at).catch((): NewFolderResult => ({ kind: "cancelled" })); } finally { this.choosing = false; }
+    try { made = await this.deps.api.newOnboardingFolder(at, token).catch((): NewFolderResult => ({ kind: "cancelled" })); } finally {
+      this.choosing = false;
+      if (this.folderRequest === token) this.folderRequest = null;
+    }
     if (!this.live || made.kind === "cancelled") return;
     if (made.kind === "created") { await this.inspectPath(made.path); return; }
     // The notice sits under the card, in the drop notice's slot, which it takes over.
