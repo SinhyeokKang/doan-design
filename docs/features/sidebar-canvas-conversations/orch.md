@@ -25,7 +25,7 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | A | 작업 2, 3, 4 | `docs/features/sidebar-canvas-conversations/design.md`(인용 맞추기), `app/src/renderer/`(`ShellSidebar.tsx`, `conversationList.ts`, `homeRun.ts`, `canvasNotice.ts`, `App.tsx`, `ConversationDeleteDialog.tsx`, `conversationDelete.ts`, `styles.css`, 새 순수 함수 파일과 테스트), `app/src/restore/uiState.ts`와 테스트 | 없음 | Claude Opus high — 로빙 포커스 복구, 순서 멈춤, ui-state 첫 읽기 병합처럼 틀리면 회귀가 나는 판단이 많다 | 작업 3: 새 테스트만 red. 작업 4: `npm --prefix app test`·`typecheck`·`lint`·`build` | 통합 `36f5278af`·`6fbec639d`·`06df30066`·`130007f3d` |
-| A-DS | 작업 5 | A의 파일 중 스타일·마크업 수정, `docs/DESIGN.md` 사이드바 절, `.scratch/design-sync/sidebar-canvas-conversations/` | A 통합 | Claude Opus high(A와 같은 워커, 후속 Task) — 자기 구현을 아는 워커가 고친다 | `node .scratch/design-sync/sidebar-canvas-conversations/measure.mjs` 차이 0 또는 문서화된 차이 | 진행 |
+| A-DS | 작업 5 | A의 파일 중 스타일·마크업 수정, `docs/DESIGN.md` 사이드바 절, `.scratch/design-sync/sidebar-canvas-conversations/` | A 통합 | Claude Opus high(A와 같은 워커, 후속 Task) — 자기 구현을 아는 워커가 고친다 | `node .scratch/design-sync/sidebar-canvas-conversations/measure.mjs` 차이 0 또는 문서화된 차이 | 통합 `076910033`·`d05ecfc4d` |
 | A-RT | 작업 6 | `.scratch/runtime-test/sidebar-canvas-conversations/`(코드 수정 없음) | A-DS 통합 | Claude Opus high(같은 워커, 후속 Task) — 가짜 IPC 응답과 포커스·순서 확인이 까다롭다 | `node .scratch/runtime-test/sidebar-canvas-conversations/probe.mjs` 완료 줄, exit 0 | 대기 |
 | R | 작업 7 리뷰 | 없음(보고서만) | A 통합(A-DS와 병렬) | Codex `gpt-6-astra` medium — 다른 계열의 독립 리뷰 | 보고서 🔴 0 | A 범위 1회차 끝: 🔴0 🟡3 🟢1 |
 | A-FIX | 작업 7 `/refactor` | A의 파일 | R | A와 같은 워커 | 리뷰 지적 해결, 영향받은 작업 6 항목 재확인 | 대기 |
@@ -49,3 +49,6 @@
   - R3: 목록이 다른 캔버스로 바로 옮겨 가면 이전 목록의 포커스·포인터 고정 상태가 남아 새 목록의 순서를 멈춘다.
   - R4(🟢): 포커스 복구·DOM 유지가 단위 테스트로는 증명되지 않는다. A-RT probe 항목에 넣는다.
   - 컨덕터 판단 — R1–R3는 A-DS가 끝난 뒤 A에게 수정 Task로 보낸다(작업 중인 워커에게 일을 쌓지 않는다). 수정분과 A-DS 수정분은 R이 다시 리뷰한다.
+- A-DS 완료(2026-11-15): `measure.mjs` exit 0, 418행, 차이 0, 문서화된 차이 4행(24시간제 문구 3행 — DESIGN.md 'Usage-limit queue', 열린 툴팁의 Radix 설명 1행 — DESIGN.md 기존 문서화 차이). 수정 1건(보는 대화 행의 hover 채움 6%→10%). 게이트 4개 exit 0, 실제 상태 그대로(설치 앱의 ui-state.json 제외). 인계는 `.scratch/handoff-A-DS.md`.
+  - 컨덕터 판단 — 보는 대화 행의 hover 채움은 초안대로 둔다. 근거: 이 초안이 병합 전까지 기준이고, spec '보는 대화 표시'는 쉬는 상태만 정한다.
+  - 컨덕터 판단 — A-FIX1(R1–R3)을 작업 6보다 먼저 한다. probe가 고친 코드를 확인하게 하기 위해서다.
