@@ -31,8 +31,8 @@
 | F | 5 | tasks.md 표의 F 행 | R | Claude Opus medium — 순수 함수지만 순위 규칙 판단이 많다 | test, typecheck | 통합 `c895927dc`·`dd7296ec8`, 고침 `cdfdba433`·`83a3c87a0`(리뷰 🟡3 해소, 컨덕터가 diff 확인), 워크트리 정리 |
 | P | 6 | tasks.md 표의 P 행 | F | Claude Opus high — `App.tsx`, 포커스, ui-state 병합 | test, typecheck, lint, build | 통합 `7fb333eb9`·`707e12db3`·`cd651da79`(충돌 2곳 컨덕터가 풂) + 통합 커밋 `eeb576604`, 후속 `4ffeddd01`–`2f701274a`(메뉴 순서·죽은 props), 리뷰 🔴0 🟡0 ⚪4, 후속 2 `cd1ddea9f`·`11cd1fabe`(⚪2·⚪3), 워크트리 정리 |
 | O | 7 | tasks.md 표의 O 행 | F | Claude Opus high — 프로토타입 창 초안 옮기기 함정(POSTMORTEM) | test, typecheck, lint, build | 통합 `07ce9ffd8`·`0a4552fd1`, 리뷰 🔴0 🟡1, 후속 `d36b764e7`·`4c7f40fcf`(메뉴 순서, 프로토타입 `remembered` 연결; 컨덕터가 diff 확인), 워크트리 정리 |
-| C | 8 | 모든 `state` 읽기와 테스트 | P, O | Codex Sol medium — 기계적 정리 | tasks.md 8의 `rg`, test, typecheck, lint, build | 진행(`ctx_23199fb454f8`, `ccc-batch-c`, gpt-6.1-sol medium) |
-| DS | 9 | P·O 렌더러 파일, DESIGN.md | C | Claude Opus high — 실제 앱 측정과 수정 | measure.mjs | 대기 |
+| C | 8 | 모든 `state` 읽기와 테스트 | P, O | Codex Sol medium — 기계적 정리 | tasks.md 8의 `rg`, test, typecheck, lint, build | 통합 `4c31850b6`, 워크트리 정리 |
+| DS | 9 | P·O 렌더러 파일, DESIGN.md | C | Claude Opus high — 실제 앱 측정과 수정 | measure.mjs | 진행(`ctx_5ae544d5ad76`, `ccc-design-sync`) |
 | RT | 10 | `.scratch/runtime-test/` | DS | 컨덕터 | probe.mjs exit 0 | 대기 |
 | 리뷰 | 12 | 보고서만 | 각 배치 | S·F·O: Codex Astra medium, R·P·C: Claude Opus high, 최종: Codex Astra medium | 🔴 0 | 대기 |
 | 승격 | 13 | PRODUCT·ARCHITECTURE·DESIGN·BACKLOG, fixtures/README | RT | 컨덕터 | tasks.md 13 | 대기 |
@@ -68,4 +68,5 @@
 - P 리뷰 ⚪ — 컨덕터 판단: ⚪1(`conversationByCanvas`가 루트를 지울 때만 줄어 800개쯤 캔버스에서 ui-state 저장 전체가 64 KiB를 넘을 수 있음)은 BACKLOG에 적는다. ⚪2(읽기 전 Seen App 테스트)·⚪3(`renameUiRoots` 캔버스 단위 병합)은 P 후속 2로 고친다. ⚪4(사람이 바꿀 때도 Stop이 잠깐 비활성)는 그대로 둔다.
 - P가 표에 없는 `CanvasHeader.tsx`를 가져갔다(작업 중 배지).
 - 남은 정리(배치 C에 넘김): `styles.css`의 고아 `.pw-side-title`과 `WindowShell.test.tsx:736-738`.
+- 배치 C 리뷰 — 컨덕터 판단: 따로 돌리지 않는다. 동작을 바꾸지 않는 기계적 정리이고(전체 12748 통과, `rg` 남은 줄 모두 이유 있음), 작업 12의 최종 리뷰가 feature 전체 diff로 함께 본다.
 - S가 범위 밖 `io.test.ts`의 테스트 하나("recovers an interrupted replacement rollback…")를 고쳤다. 컨덕터가 허가했다.
