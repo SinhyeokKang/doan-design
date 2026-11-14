@@ -439,3 +439,138 @@ test("a scheduled conversation's slot is the clock with its label", () => {
   const out = renderToStaticMarkup(<ShellSidebar {...props} home slots={new Map([["/a\n.doan/canvases/a.html", { kind: "scheduled" as const, label }]])} />);
   expect(out).toMatch(new RegExp(`<span>a</span><span class="row-slot scheduled" role="img" aria-label="${label}"><svg[^>]*lucide-clock`));
 });
+
+// sidebar-canvas-conversations: the viewed canvas's conversations under its row (draft
+// .doan/canvases/sidebar-canvas-conversations.html).
+describe("the viewed canvas's conversation list", () => {
+  const A = { path: ".doan/canvases/checkout.html", id: "checkout", url: "u-a" }, B = { path: ".doan/canvases/billing.html", id: "billing", url: "u-b" };
+  const listedEntry: FolderEntry = { path: "/w", kind: "list", servedRev: 0, canvases: [A, B] };
+  const NOW = Date.parse("2026-11-14T12:00:00.000Z");
+  const conversation = (conversationId: string, patch: Record<string, unknown> = {}) => ({ conversationId, canvas: { path: A.path, id: "checkout" }, title: `Title ${conversationId}`, owner: "doan" as const, provider: "claude" as const,
+    fromHome: false, phase: "ended" as const, unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-14T11:00:00.000Z", preview: "", ...patch });
+  type Options = { list?: unknown; shown?: string | null; folded?: boolean; canvas?: string; home?: boolean; locked?: boolean; slots?: Map<string, Slot>; bare?: Map<string, Slot> };
+  function markup({ list = [conversation("c1", { lastActivityAt: "2026-11-14T11:59:00.000Z" }), conversation("c2", { phase: "running", working: true })], shown = "c1", folded = false, canvas = A.path, home = false, locked = false, slots, bare = new Map() }: Options = {}) {
+    return renderToStaticMarkup(<TooltipProvider><ShellSidebar cards={[{ key: "w", name: "demo", rows: [listedEntry] }]} projects={{ w: { roots: ["/w"], selectedRoot: "/w", expanded: true } }} loaded="/w" canvas={canvas} home={home} locked={locked}
+      homeDirectory={null} search={vi.fn()} toggle={vi.fn()} disclose={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU}
+      {...(slots ? { slots } : {})}
+      conversations={{ list: () => list as never, shown, seen: new Set(), now: NOW, folded, bare, fold: vi.fn(), open: vi.fn(), remove: vi.fn() }} /></TooltipProvider>);
+  }
+  const rowOf = (html: string, title: string) => html.match(new RegExp(`<div class="shell-conv-row row"[^>]*aria-label="${title}"[^>]*>[\\s\\S]*?</div>`))?.[0] ?? "";
+
+  test("two conversations show under the viewed canvas row as level-4 tree items in a group, the shown one current with a check", () => {
+    const html = markup();
+    expect(html).toContain('<div role="group" class="shell-conv-list" aria-label="Conversations">');
+    // The list is the canvas row's sibling, not inside it, so the row's own focus rules and press never reach it.
+    expect(html.indexOf('class="shell-conv-list"')).toBeGreaterThan(html.indexOf('aria-label="checkout menu"'));
+    const current = rowOf(html, "Title c1");
+    expect(current).toMatch(/role="treeitem"/);
+    expect(current).toMatch(/aria-level="4"/);
+    expect(current).toMatch(/aria-current="true"/);
+    expect(current).toContain('<span class="shell-conv-check" aria-hidden="true">');
+    expect(current).toContain('<span class="shell-conv-title">Title c1</span>');
+    const other = rowOf(html, "Title c2");
+    expect(other).not.toMatch(/aria-current/);
+    expect(other).not.toContain("shell-conv-check");
+    // Latest activity first.
+    expect(html.indexOf('aria-label="Title c1"')).toBeLessThan(html.indexOf('aria-label="Title c2"'));
+  });
+
+  test("each row's state is its described status, read even while Delete covers the mark; both are always mounted", () => {
+    const row = rowOf(markup(), "Title c2");
+    const described = row.match(/aria-describedby="([^"]+)"/)![1]!;
+    expect(row).toContain(`<span class="sr-only" id="${described}">Claude Code is working</span>`);
+    expect(row).toMatch(/<span class="row-slot working" aria-hidden="true">/);
+    expect(row).toMatch(/<button type="button" class="doan-icon-button shell-more conv-trash"[^>]*aria-label="Delete “Title c2”"/);
+  });
+
+  test("an unavailable Delete stays reachable with aria-disabled and reads its reason; an available one has neither", () => {
+    const html = markup();
+    const busy = rowOf(html, "Title c2");
+    const reasonId = busy.match(/conv-trash"[^>]*aria-describedby="([^"]+)"/)![1]!;
+    expect(busy).toMatch(/conv-trash"[^>]*aria-disabled="true"/);
+    expect(busy).toContain(`id="${reasonId}">The agent is working on this conversation.</span>`);
+    const idle = rowOf(html, "Title c1");
+    expect(idle).not.toMatch(/conv-trash"[^>]*aria-disabled/);
+  });
+
+  test("an empty title reads as Conversation, and its Delete as this conversation", () => {
+    const html = markup({ list: [conversation("c1", { title: "" }), conversation("c2")] });
+    expect(rowOf(html, "Conversation")).toContain('aria-label="Delete this conversation"');
+  });
+
+  test("the viewed canvas row with a list carries the chevron in its icon's place and aria-expanded", () => {
+    const html = markup();
+    const row = html.match(/<div class="shell-canvas-row row"[^>]*aria-label="checkout"[^>]*>/)![0];
+    expect(row).toContain('aria-expanded="true"');
+    expect(html).toMatch(/<span class="shell-lead canvas-lead"><svg[^>]*class="[^"]*canvas-icon[^"]*"[\s\S]*?<button type="button" class="shell-disclosure" aria-label="Collapse checkout" tabindex="-1">/);
+    const folded = markup({ folded: true });
+    expect(folded).toMatch(/aria-label="checkout"[^>]*aria-expanded="false"|aria-expanded="false"[^>]*aria-label="checkout"/);
+    expect(folded).toContain('aria-label="Expand checkout"');
+    expect(folded).not.toContain("shell-conv-list");
+  });
+
+  test("one conversation, another canvas row, Home and a list that cannot be read show no list and no chevron", () => {
+    for (const html of [markup({ list: [conversation("c1")] }), markup({ list: "error" }), markup({ list: "loading" }), markup({ home: true })]) {
+      expect(html).not.toContain("shell-conv-list");
+      expect(html).not.toContain("canvas-lead");
+      expect(html).not.toMatch(/class="shell-canvas-row row"[^>]*aria-expanded/);
+    }
+    const other = markup({ canvas: B.path });
+    expect(other).not.toContain("shell-conv-list");
+  });
+
+  test("while the list shows the canvas row drops its conversation signal and keeps a terminal spinner; folded it shows the strongest", () => {
+    const key = `/w\n${A.path}`;
+    const slots = new Map<string, Slot>([[key, { kind: "permission", label: "Claude Code needs your answer" }]]);
+    const canvasRow = (html: string) => html.match(/<div class="shell-canvas-row row"[^>]*aria-label="checkout"[\s\S]*?checkout menu/)![0];
+    expect(canvasRow(markup({ slots }))).not.toContain("row-slot");
+    const terminal = new Map<string, Slot>([[key, { kind: "working", label: "Codex is working in a terminal", source: "terminal" }]]);
+    expect(canvasRow(markup({ slots, bare: terminal }))).toContain('aria-label="Codex is working in a terminal"');
+    expect(canvasRow(markup({ slots, folded: true }))).toContain('aria-label="Claude Code needs your answer"');
+  });
+
+  test("the panel's new conversation state marks no row current", () => {
+    expect(markup({ shown: null })).not.toMatch(/shell-conv-row[^>]*aria-current/);
+  });
+
+  test("a locked page keeps the rows and Delete in the focus order, unavailable", () => {
+    const html = markup({ locked: true });
+    expect(rowOf(html, "Title c1")).toMatch(/aria-disabled="true"/);
+    expect(rowOf(html, "Title c1")).toMatch(/conv-trash"[^>]*aria-disabled="true"/);
+  });
+});
+
+it("hands a removed conversation row's focus to the next row, else the previous one, else its canvas row", () => {
+  const canvasRow = { key: "/w\nc", parent: "/w\n#canvases", canvas: true };
+  const conversation = (id: string) => ({ key: `/w\nc\n${id}`, parent: canvasRow.key, conversation: true });
+  const a = conversation("a"), b = conversation("b"), c = conversation("c");
+  const next = { key: "/w\nd", parent: "/w\n#canvases", canvas: true };
+  const previous = [{ key: "w" }, { key: "/w\n#canvases", parent: "w" }, canvasRow, a, b, c, next];
+  const without = (...lost: { key: string }[]) => previous.filter(row => !lost.includes(row));
+  expect(recoveryKey(previous, without(b), b.key)).toBe(c.key);
+  expect(recoveryKey(previous, without(c), c.key)).toBe(b.key);
+  // Folding, or a canvas left with one conversation: the list goes and focus goes to its canvas row, not to the
+  // canvas row that now sits in the list's place.
+  expect(recoveryKey(previous, without(a, b, c), b.key)).toBe(canvasRow.key);
+  expect(recoveryKey(previous, without(a, b, c), a.key)).toBe(canvasRow.key);
+});
+
+it("CSS: the conversation list's chevron, Delete and status follow the canvas row's reveal rules, hidden visually only", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  // POSTMORTEM 2026-11-06: a reveal-on-focus rule uses :focus-visible, never :focus-within.
+  expect(css).toContain(".shell-canvas-row[aria-expanded]:is(:hover, :focus-visible, :has(:focus-visible)) .shell-disclosure { visibility: visible; }");
+  expect(css).toContain(".shell-canvas-row[aria-expanded]:is(:hover, :focus-visible, :has(:focus-visible)) .canvas-lead > .canvas-icon { visibility: hidden; }");
+  expect(css).toContain('.shell-canvas-row[aria-expanded="false"] .shell-disclosure svg { transform: rotate(-90deg); }');
+  expect(css).not.toMatch(/\.shell-conv-row[^{]*focus-within/);
+  // POSTMORTEM 2026-11-03: a control that takes focus is hidden visually only.
+  const idle = css.match(/\.shell-conv-row:not\(:hover, :focus-visible, :has\(:focus-visible\)\) > \.shell-more \{([^}]*)\}/)![1]!;
+  expect(idle).toContain("position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);");
+  expect(idle).not.toMatch(/display|visibility/);
+  const spot = css.match(/\.shell-conv-row:is\(:hover, :focus-visible, :has\(:focus-visible\)\) > \.row-slot \{([^}]*)\}/)![1]!;
+  expect(spot).toContain("clip-path: inset(50%)");
+  expect(spot).not.toMatch(/display|visibility/);
+  // The draft's indent: the title starts under the canvas name (10 + 16 + 8 + 16 + 8 = 58 px), the check in the gutter.
+  expect(css).toContain(".shell-side .shell-conv-row { position: relative; padding-left: calc(10px + 2 * (var(--size-icon) + var(--space-2)));");
+  expect(css).toContain(".shell-conv-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }");
+});

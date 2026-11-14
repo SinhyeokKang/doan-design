@@ -672,3 +672,163 @@ describe("reading spinner", () => {
     } finally { vi.useRealTimers(); }
   });
 });
+
+// sidebar-canvas-conversations: the viewed canvas's conversation rows in the tree's keyboard order and their actions.
+describe("the viewed canvas's conversation list", () => {
+  const CHECKOUT = ".doan/canvases/checkout.html", PRICING = ".doan/canvases/pricing.html";
+  const conversation = (conversationId: string, minutes: number, patch: Record<string, unknown> = {}) => ({ conversationId, canvas: { path: CHECKOUT }, title: `Title ${conversationId}`, owner: "doan", provider: "claude",
+    fromHome: false, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: new Date(Date.parse("2026-11-14T12:00:00.000Z") - minutes * 60_000).toISOString(), preview: "", ...patch });
+  function conversations(patch: Record<string, unknown> = {}) {
+    let list: unknown = [conversation("c1", 1), conversation("c2", 5), conversation("c3", 9)];
+    return { setList(next: unknown) { list = next; }, list: () => list as never, shown: "c1", seen: new Set<string>(), now: Date.parse("2026-11-14T12:00:00.000Z"), folded: false, bare: new Map(), fold: vi.fn(), open: vi.fn(), remove: vi.fn(), ...patch };
+  }
+  const tree = (props: ReturnType<typeof conversations>, canvas = CHECKOUT) => groupsFixture(undefined, ["canvases/checkout", "canvases/pricing"], { canvas, conversations: props });
+
+  it("puts the conversation rows after their canvas row in the keyboard order", () => {
+    const t = tree(conversations());
+    expect(t.rows.map(row => [row["aria-label"], row["aria-level"]])).toEqual([["demo", 1], ["Design system", 2], ["Canvases", 2], ["checkout", 3], ["Title c1", 4], ["Title c2", 4], ["Title c3", 4], ["pricing", 3]]);
+    t.press("checkout", "ArrowDown"); expect(t.active()).toBe("Title c1");
+    t.press("Title c3", "ArrowDown"); expect(t.active()).toBe("pricing");
+  });
+
+  it("on the canvas row → goes to the first conversation and ← folds; folded, → unfolds and ← goes to the group head", () => {
+    const open = conversations();
+    const t = tree(open);
+    t.press("checkout", "ArrowRight"); expect(t.active()).toBe("Title c1");
+    t.press("checkout", "ArrowLeft"); expect(open.fold).toHaveBeenCalledWith(true);
+    const folded = conversations({ folded: true });
+    const f = tree(folded);
+    expect(f.rows.map(row => row["aria-label"])).not.toContain("Title c1");
+    f.press("checkout", "ArrowRight"); expect(folded.fold).toHaveBeenCalledWith(false);
+    f.press("checkout", "ArrowLeft"); expect(f.active()).toBe("Canvases");
+    expect(folded.fold).toHaveBeenCalledOnce();
+  });
+
+  it("on a conversation row ← goes to its canvas row and → does nothing", () => {
+    const props = conversations();
+    const t = tree(props);
+    t.press("Title c2", "ArrowLeft"); expect(t.active()).toBe("checkout");
+    const event = t.press("Title c2", "ArrowRight");
+    expect(t.active()).toBe("checkout");
+    expect(props.fold).not.toHaveBeenCalled();
+    expect(props.open).not.toHaveBeenCalled();
+    expect(event.preventDefault).toHaveBeenCalled();
+  });
+
+  it("a conversation row's press and Enter ask App for that conversation on its canvas, never the canvas row's move", () => {
+    const props = conversations();
+    const t = tree(props);
+    (t.row("Title c2").onClick as () => void)();
+    t.press("Title c3", "Enter");
+    expect(props.open.mock.calls.map(call => [call[0], (call[1] as { path: string }).path, call[2]])).toEqual([["/a", CHECKOUT, "c2"], ["/a", CHECKOUT, "c3"]]);
+    expect(t.props.open).not.toHaveBeenCalled();
+  });
+
+  it("Delete is on the row's tab stop only, never in the arrow order, and hands App the next row for focus", () => {
+    const props = conversations();
+    const t = tree(props);
+    const trash = (name: string) => elements(ShellSidebar({ ...t.props, canvas: CHECKOUT, conversations: props } as never)).find(item => item["aria-label"] === `Delete “${name}”`)!;
+    expect(t.rows.map(row => row["aria-label"])).not.toContain("Delete “Title c2”");
+    expect(trash("Title c2").tabIndex).toBe(-1);
+    const node = {};
+    const click = { stopPropagation: vi.fn(), currentTarget: node };
+    (trash("Title c2").onClick as (event: unknown) => void)(click);
+    expect(click.stopPropagation).toHaveBeenCalled();
+    expect(props.remove).toHaveBeenCalledWith({ conversationId: "c2", root: "/a", title: "Title c2", provider: "claude", from: "sidebar", after: `/a\n${CHECKOUT}\nc3`, canvasRow: `/a\n${CHECKOUT}` }, node);
+    (trash("Title c3").onClick as (event: unknown) => void)(click);
+    expect(props.remove).toHaveBeenLastCalledWith(expect.objectContaining({ conversationId: "c3", after: `/a\n${CHECKOUT}\nc2` }), node);
+    expect(t.props.open).not.toHaveBeenCalled();
+  });
+
+  it("an unavailable Delete asks App for nothing", () => {
+    const props = conversations();
+    props.setList([conversation("c1", 1), conversation("c2", 5, { phase: "waiting", working: true })]);
+    const t = tree(props);
+    const trash = elements(ShellSidebar({ ...t.props, canvas: CHECKOUT, conversations: props } as never)).find(item => item["aria-label"] === "Delete “Title c2”")!;
+    (trash.onClick as (event: unknown) => void)({ stopPropagation: vi.fn(), currentTarget: {} });
+    expect(props.remove).not.toHaveBeenCalled();
+  });
+
+  it("the canvas row's chevron folds the list without the row's move, and never takes focus from a press", () => {
+    const props = conversations();
+    const t = tree(props);
+    const rendered = elements(ShellSidebar({ ...t.props, canvas: CHECKOUT, conversations: props } as never));
+    const chevron = rendered.find(item => item["aria-label"] === "Collapse checkout")!;
+    const down = { preventDefault: vi.fn() };
+    (chevron.onMouseDown as (event: unknown) => void)(down);
+    expect(down.preventDefault).toHaveBeenCalled();
+    const click = { stopPropagation: vi.fn() };
+    (chevron.onClick as (event: unknown) => void)(click);
+    expect(click.stopPropagation).toHaveBeenCalled();
+    expect(props.fold).toHaveBeenCalledWith(true);
+    expect(t.props.open).not.toHaveBeenCalled();
+  });
+
+  it("a locked page leaves the conversation rows and their Delete doing nothing", () => {
+    const props = conversations();
+    const t = groupsFixture(undefined, ["canvases/checkout", "canvases/pricing"], { canvas: CHECKOUT, conversations: props, locked: true });
+    (t.row("Title c2").onClick as () => void)();
+    t.press("Title c2", "Enter");
+    const trash = elements(ShellSidebar({ ...t.props, canvas: CHECKOUT, conversations: props, locked: true } as never)).find(item => item["aria-label"] === "Delete “Title c1”")!;
+    (trash.onClick as (event: unknown) => void)({ stopPropagation: vi.fn(), currentTarget: {} });
+    expect(props.open).not.toHaveBeenCalled();
+    expect(props.remove).not.toHaveBeenCalled();
+  });
+
+  describe("held order and place", () => {
+    const render = (props: ReturnType<typeof conversations>, canvas = CHECKOUT) => {
+      hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0;
+      const { props: base } = fixture();
+      base.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: [{ path: CHECKOUT, url: "c" }, { path: PRICING, url: "p" }] };
+      return elements(ShellSidebar({ ...base, canvas, conversations: props } as never));
+    };
+    const titles = (rendered: Record<string, unknown>[]) => rendered.filter(item => item.className === "shell-conv-row row").map(item => item["aria-label"]);
+    const group = (rendered: Record<string, unknown>[]) => rendered.find(item => item.className === "shell-conv-list")!;
+    const aside = (rendered: Record<string, unknown>[]) => rendered.find(item => item["aria-label"] === "Projects" && item.className === "side shell-side")!;
+
+    it("while the pointer is over the list its rows keep their order and a new conversation goes last; leaving sorts again", () => {
+      hooks.stable = true;
+      const props = conversations();
+      let rendered = render(props);
+      expect(titles(rendered)).toEqual(["Title c1", "Title c2", "Title c3"]);
+      (group(rendered).onPointerEnter as () => void)();
+      props.setList([conversation("c1", 1), conversation("c2", 5), conversation("c3", 0), conversation("c4", 0)]);
+      rendered = render(props);
+      expect(titles(rendered)).toEqual(["Title c1", "Title c2", "Title c3", "Title c4"]);
+      (group(rendered).onPointerLeave as () => void)();
+      rendered = render(props);
+      expect(titles(rendered)).toEqual(["Title c3", "Title c4", "Title c1", "Title c2"]);
+    });
+
+    it("while keyboard focus is in the list its rows keep their order", () => {
+      hooks.stable = true;
+      const props = conversations();
+      let rendered = render(props);
+      (group(rendered).onFocus as () => void)();
+      props.setList([conversation("c1", 1), conversation("c2", 5), conversation("c3", 0)]);
+      rendered = render(props);
+      expect(titles(rendered)).toEqual(["Title c1", "Title c2", "Title c3"]);
+      (group(rendered).onBlur as (event: unknown) => void)({ currentTarget: { contains: () => false }, relatedTarget: null });
+      rendered = render(props);
+      expect(titles(rendered)).toEqual(["Title c3", "Title c1", "Title c2"]);
+    });
+
+    it("after a press on a canvas row below, the list stays under the previous canvas until the pointer leaves the sidebar", () => {
+      hooks.stable = true;
+      const props = conversations();
+      props.setList([conversation("c1", 1), conversation("c2", 5), conversation("b1", 1, { canvas: { path: PRICING } }), conversation("b2", 2, { canvas: { path: PRICING } })]);
+      let rendered = render(props);
+      expect(titles(rendered)).toEqual(["Title c1", "Title c2"]);
+      (aside(rendered).onPointerEnter as () => void)();
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title c1", "Title c2"]);
+      const keys = rendered.filter(item => item.role === "treeitem").map(item => item["aria-label"]);
+      expect(keys.indexOf("Title c1")).toBe(keys.indexOf("checkout") + 1);
+      (aside(rendered).onPointerLeave as () => void)();
+      rendered = render(props, PRICING);
+      expect(titles(rendered)).toEqual(["Title b1", "Title b2"]);
+      const moved = rendered.filter(item => item.role === "treeitem").map(item => item["aria-label"]);
+      expect(moved.indexOf("Title b1")).toBe(moved.indexOf("pricing") + 1);
+    });
+  });
+});
