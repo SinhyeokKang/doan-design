@@ -1,22 +1,55 @@
 # canvas-mark-accent — tasks
 
-`/ship` 하나로 간다. 작업 1은 리드가 develop에서 끝낸다(초안과 사용자 확인).
+`/ship` 하나로 간다. 작업 1은 리드가 develop에서 끝냈다(초안과 사용자 확인).
 
 - [x] 1. **`/design-draft`**(리드, develop): design.md '초안 요청'. 검증: `doan check --repo . --json`이 오류 0, `doan ls --repo . --json`이 `canvas-mark-accent`의 프레임 ID 다섯 개(`marks`, `bubble`, `jump`, `buddies`, `backgrounds`)를 보인다. 사용자의 앱 확인이 design.md '확인 기록'에 있다.
   - 커밋 경계: 초안.
 - [ ] 2. **순수 함수**(design.md '순수 함수' 1–3).
-  - 테스트: 버블 구성(선택 없음, Play 없음·있음, picker 불가 이유), 표시 박스와 `sizeBubblePlace`의 바깥 가장자리 기준(아래·안쪽·위), 버블과 Pick이 같은 앵커를 낸다.
+  - 테스트:
+    - Add to message 가용성: capture 모드, 노트(프레임 없는 앵커), `pickerView`의 각 이유(컴포저 입력 불가, 32곳 한도), 캔버스를 보일 수 없음, 목록에 없는 캔버스, 순서(capture가 노트보다, 노트가 picker 이유보다 먼저).
+    - `sizeBubble.test.ts`: `SIZE_BUBBLE.gap` 6.5에서 아래·위·안쪽이 선 바깥 가장자리 기준 5px다.
+    - 앵커: 노트, 프레임 안 요소, 중첩 프레임 안 요소에서 버블과 Pick이 같은 앵커를 낸다.
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`. `/tdd` 보고서가 새로 실패해야 할 테스트 이름을 적고, `/implement` 뒤 모두 green이다.
   - 커밋 경계: `test:` 하나, 구현 하나.
-- [ ] 3. **오버레이와 버블 연결**(CSS, `CanvasController.ts`, `App.tsx`).
-  - 테스트: 버블 버튼을 눌렀을 때 접힌 패널을 펼치고, 칩을 커서 자리에 넣고, 포커스를 필드로 옮기고, 선택을 유지한다. 비활성일 때는 아무것도 하지 않고 이유를 툴팁으로 보인다. 가용성이 바뀌어도 같은 버튼 요소다. 패널을 막 펼친 경우의 늦은 넣기를 확인한다.
+- [ ] 3. **오버레이와 버블 연결**(CSS, `CanvasController.ts`, `App.tsx`, `ds/checks.test.ts`).
+  - 테스트:
+    - 누르면 접힌 패널을 펼치고, inert가 풀린 뒤 필드에 포커스를 주고, 칩을 커서 자리에 넣고, 선택을 유지한다. 패널이 이미 열린 경우는 바로 넣는다.
+    - 대기 중 넣기: 다른 곳 `focusin`이면 칩만 넣는다. 다른 캔버스, 대화 전환, 컴포저 입력 불가면 버린다. 조합 중인 필드는 조합이 끝난 뒤 받는다(`pickEnded`와 같다).
+    - 패널이 다른 대화(프로젝트 대화나 다른 캔버스의 대화)를 보여 주고 있으면 Picker와 같이 전환한다.
+    - 비활성: Enter·Space·클릭이 아무것도 하지 않는다. 이유가 툴팁과 접근성 설명에 있다. 툴팁은 키보드 포커스에서도 보인다.
+    - 정체성: 가용성이 바뀌거나 Play가 생기고 사라져도 Add to message는 같은 요소이고 포커스가 남는다.
+    - 포커스 이동: 버블이 사라지면 툴바 Picker, Play만 사라지면 Add to message, ⌘L로 pick을 시작한 뒤 취소하면 컴포저 필드다.
+    - Esc: 툴팁이 열려 있어도 한 번에 선택이 한 단계 올라간다.
+    - `ds/checks.test.ts`: `.mark`, `.dims`, 버블 버튼 선택자가 accent 사용처 목록(`accentPlaces`, `violetAllowed`)에 있다.
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`.
   - 커밋 경계: `test:` 하나, 구현 하나.
-- [ ] 4. **`/design-sync`**: 초안의 다섯 프레임과 실제 앱의 computed style을 맞춘다. 다섯 버디, 세 배경, 대비 측정(design.md '대비 측정')을 포함한다.
-  - 검증: `/design-sync`·`/runtime-test` 스킬의 `.scratch` 측정 스크립트(명령 미정 — 사용자 확인 필요, `node .scratch/design-sync/canvas-mark-accent/measure.mjs`를 제안한다).
-  - 커밋 경계: 맞춘 구현과 DESIGN.md 측정값.
-- [ ] 5. **`/runtime-test`**: 격리한 실제 앱에서 Select와 Picker 모드의 선택·호버, 버블의 Add to message(접힌 패널, 커서 자리, 포커스, 32곳 한도에서 포커스된 버튼 비활성화 뒤 `document.activeElement`), 점프 하이라이트(chip locate, `doan open`), 작업 중 프레임을 확인한다.
-  - 검증: 명령 미정 — 사용자 확인 필요(`/runtime-test` 스킬의 `.scratch` probe).
-- [ ] 6. **승격**: `docs/PRODUCT.md` §5 item 6(크기 버블의 Add to message, 선택 유지)과 item 2의 선택 표시 문장, `docs/DESIGN.md`('Overlay marks', 'Hover / selection outline', 'Size bubble with Play', 'Working-frame marker', 'Accent places' 표)를 현재 규칙으로 고친다. ARCHITECTURE는 바뀌지 않음을 확인한다. `docs/features/canvas-mark-accent/`를 지운다.
-  - 검증: `rg -n "border-focus" docs/DESIGN.md`에 오버레이 표시가 남지 않는다. `git ls-files docs/features/canvas-mark-accent`가 빈 결과다.
-  - 커밋 경계: 문서별 커밋.
+- [ ] 4. **`/design-sync`**: 초안의 다섯 프레임과 실제 앱의 computed style을 2x에서 맞춘다. 다섯 버디, 세 배경, 대비 측정(design.md '대비 측정')을 포함한다.
+  - 검증: `node .scratch/design-sync/canvas-mark-accent/measure.mjs`가 exit 0이다. 프레임마다 차이가 0이거나 DESIGN.md에 편차로 적혀 있다. 다섯 버디와 세 배경의 대비 값이 적혀 있다.
+  - 커밋 경계: 구현 수정 하나, DESIGN.md 측정값 하나.
+- [ ] 5. **`/runtime-test`**: 격리한 실제 앱에서 다음을 확인한다.
+  - 선택·호버: Select와 Picker 모드, 캔버스 배율 0.25와 4, 1x 화면(`--force-device-scale-factor=1`)에서 틈과 번짐.
+  - 버블:
+    - Add to message를 누른다. 패널이 접힌 경우와 열린 경우, 긴 초안에서 커서가 끝에 있을 때 칩이 보이는지 확인한다.
+    - 비활성 경우를 확인한다. 노트, capture 중, 32곳 한도.
+    - Add to message에 포커스를 둔 채 컴포저가 입력을 받지 않게 만든 뒤 `document.activeElement`를 읽는다.
+    - reload 뒤 포커스가 돌아오는지 확인한다.
+    - 버블 버튼에 포커스가 있을 때 ⌘L을 누르고 Esc로 취소한다. 포커스가 body로 떨어지지 않아야 한다.
+    - 보기 오른쪽 가장자리 근처의 선택에서 버블이 잘리는지 확인한다.
+  - 점프 하이라이트: chip locate, `doan open`, 작업 중 프레임. 강제 색상의 `Highlight` 테두리가 요소 밖에 있는지, reduced motion에서 작업 중 표시가 멈추는지 확인한다.
+  - `DOAN_RUNTIME=<temp>/runtime.json <CLI> active --json --repo <temp repo>`로 누르기 전후의 `doan active`가 같은지 확인한다.
+  - 검증: probe가 exit 0과 완료 표시를 내고, 스크린샷 경로가 보고서에 있다. 명령은 `/runtime-test` 스킬의 `.scratch/runtime-test/canvas-mark-accent/` probe다.
+- [ ] 6. **승격**(문서마다 커밋 하나).
+  - `docs/PRODUCT.md`
+    - §5 item 2 'Prototype window' > 'Play controls': 버블에 든 것(Play, 크기, Add to message)과 포커스를 잃을 때의 규칙.
+    - §5 item 6: 칩을 넣는 네 번째 경로(버블의 Add to message, 선택 유지), 가용성(노트, capture 포함), 비활성 문구.
+  - `docs/DESIGN.md`
+    - 'Overlay marks'(769행)
+    - 'Hover / selection outline'(1169행), 'Dimensions'(1170행)
+    - 'Size bubble with Play'(1960행), 'Bubble placement'(1961행)
+    - 'Working-frame marker'(825행)
+    - Locate 설명(871행), 테스트 목록(847행), 'Not verified' 802–803행
+    - 'Accent places' 표, 'Intended exceptions' 116행(버블 글자 대비)
+    - 'Documented deviations'에 `canvas-mark-accent.html`이 `doan-canvas.html`의 오버레이 표시를 대신한다는 줄
+  - `docs/ARCHITECTURE.md`: §3 'Picking and locate'와 §7 'Renderer primitives'에 렌더러가 선택에서 앵커를 만드는 경로를 한 줄 더한다.
+  - `docs/features/canvas-mark-accent/`를 지운다.
+  - 검증: DESIGN.md의 'Overlay marks', 'Hover / selection outline', 'Size bubble with Play' 행에 `border-focus`, `prominent`, 흰 링(`surface-panel` 1 px outer ring) 서술이 없다. `git ls-files docs/features/canvas-mark-accent`가 빈 결과다.
