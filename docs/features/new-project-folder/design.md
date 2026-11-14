@@ -1,5 +1,7 @@
 # new-project-folder — design
 
+`project-step-actions`가 develop에 병합된 뒤 시작한다. 알림 자리(폴더 출처는 카드 아래)와 모양(동작은 알림 안), 페이지 하단 "Add project", 버튼 크기, 오류 포커스는 그 feature의 규칙과 코드(`error.source`, `projectFooter`, `ProjectNoticeView`, `projectFocusNode`)를 그대로 쓴다.
+
 ## 흐름
 
 ```
@@ -36,13 +38,14 @@ renderer ProjectStep.newFolder(parent)          (picking·choosing = true, dropN
   - `projectStep.ts`
     - `Api`, `PageCalls`, `addPageApi`에 새 호출을 더한다.
     - `newFolder`, `chooseAnotherName`, `useExistingFolder`, `newFolderElsewhere`를 더한다.
-    - renderer 전용 오류 `folder_exists`·`folder_inside_project`·`folder_create_failed`를 두고, 경로를 `error.path`에 싣는다.
+    - renderer 전용 오류 `folder_exists`·`folder_inside_project`·`folder_create_failed`를 두고, 경로를 `error.path`에, 출처를 `error.source: "folder"`에 싣는다.
     - `defaultProjectParent`를 뺀다.
   - `Onboarding.tsx`
-    - 'Open a local folder' 카드에 버튼을 더한다.
+    - 로컬 폴더 카드(`LocalFolderCard`, `Onboarding.tsx:388-393`)에 `sm` New folder를 더하고, 제목·설명을 바꾼다(spec 정한 점 2).
     - `ProjectAction`에 `chooseAnotherName`·`useExistingFolder`·`newFolderElsewhere`를 더한다.
-    - `projectNotice`에 세 알림을 더한다.
-    - `projectFocusNode`의 "시트를 연 버튼" 분기에 `state.error === null` 조건을 더한다.
+    - `projectNotice`에 세 알림을 더한다. 알림 모양과 자리는 `project-step-actions`의 `ProjectNoticeView`가 정한다.
+    - 포커스: 오류 조건은 `project-step-actions`가 이미 더했다. 이 feature는 New folder와 알림 안 버튼이 연 저장 창의 취소 경로만 더한다(spec 정한 점 8).
+  - 카드 제목을 말하는 주석과 테스트: `folderDrop.ts:1`, `App.tsx:1299`, `Onboarding.tsx:350`, `Onboarding.test.tsx:236, 263`, `AddProjectsPage.test.tsx:18`. DESIGN.md의 "Open a local folder"도 다시 잰다.
 - **CLI·형식·스킬**: 바뀌지 않는다.
 
 ## 순수 함수로 뺄 것(`/tdd` 대상)
@@ -65,7 +68,7 @@ renderer ProjectStep.newFolder(parent)          (picking·choosing = true, dropN
    - 세션이 저장 창을 기다리는 동안 끝나면 결과를 버린다.
    - Choose another name은 직전 결과의 부모에서, Change location은 `defaultProjectParent`에서 다시 연다.
    - "이전 화면으로" 규칙은 `inspectPath`의 `back`을 따른다.
-5. **포커스**: `projectFocusNode`. 화면이 그대로이고 오류가 없을 때만 시트를 연 버튼으로 돌아온다. 오류가 있으면 `projectFocusTarget`의 알림으로 간다.
+5. **포커스**: 저장 창 취소는 New folder로, 알림 안 Choose another name·Change location이 연 저장 창 취소는 그 알림 버튼(알림이 없어졌으면 New folder)으로 돌아온다. 알림이 뜨면 알림으로 가는 규칙은 `project-step-actions`의 것이다.
 
 ## 세부 규칙
 
@@ -75,21 +78,15 @@ renderer ProjectStep.newFolder(parent)          (picking·choosing = true, dropN
   - `defaultPath`에는 디렉터리만 주어 이름 칸을 비운다.
 - **잠금**: 페이지는 잠그지 않는다(spec 정한 점 7). `acting`과 `choosing`이 Add Project…를 끄는 지금 규칙이 그대로 적용된다(`menuState`). 저장 창이 돌아왔을 때 창이 없거나 세션이 끝났으면 main은 `mkdir`를 하지 않고 `cancelled`로 답한다.
 - **검사 표시**: 만든 뒤 `inspectPath`가 `checking`을 보이므로 CLI `ls`(최대 10초) 동안 상태 줄이 있다.
-- **알림 위치**: choose 화면의 알림 자리(`ob-project-notice`)를 쓴다.
+- **알림 위치와 모양**: 폴더 출처 알림이므로 카드 바로 아래, 끌어 놓기 알림과 같은 자리이고 서로를 지운다. 동작은 알림 안에 있다(이미 있는 폴더 알림은 동작 둘이라 아래 줄에 쌓는다). 모두 `project-step-actions` 규칙이다.
+- **만든 뒤**: 설정 패널에서 페이지는 하단 "Add project"가, 첫 실행은 카드 안 "Set up and continue"가 동의다.
 
-## 초안 요청
+## 초안
 
-`/design-draft`에 넘길 내용이다. 출시된 화면(첫 실행 Project 단계, Add Projects 페이지)에 버튼을 더하는 새 초안 파일이고, 출시된 초안(`.doan/canvases/doan-onboarding.html`, `doan-add-projects.html`)은 고치지 않는다.
-
-- 캔버스: `.doan/canvases/new-project-folder.html`, 캔버스 ID `new-project-folder`.
-- 프레임
-  - `card-add-projects`: Add Projects의 'Open a local folder' 카드(Choose folder, New folder, 고친 제목·설명).
-  - `card-first-run`: 첫 실행 Project 단계의 같은 카드.
-  - `card-busy`: 다른 작업 중이라 두 버튼이 비활성인 카드.
-  - `save-panel`: macOS 저장 창. 네이티브라 그리지 않고, 옵션(message, Name:, Create, 기본 위치, 빈 이름)을 적은 라벨 타일로 둔다.
-  - `notice-exists-folder`, `notice-exists-file`, `notice-inside-project`, `notice-create-failed`(경로 detail 포함).
-  - `after-create`: 만든 폴더의 설정 패널. 출시된 화면 그대로이며 Include in Git이 기본이다.
-- 제약: 출시된 토큰과 컴포넌트만 쓴다. 새 토큰은 없다. 영어 문구는 `clarify` 프리셋으로 쓴다. 알림 문장은 클론 알림의 문장 틀을 따른다.
+- 초안은 `.doan/canvases/new-project-folder.html` 하나를 `project-step-actions`와 같이 쓴다. 출시된 Project 단계를 다시 설계하는 초안이므로, AGENTS.md 'Workflow'의 redesign 예외에 따라 이 feature가 병합될 때까지 New folder 부분의 `/design-sync` 기준이다. 출시된 초안(`doan-onboarding.html`, `doan-add-projects.html`)은 고치지 않는다.
+- 이 feature가 맡는 프레임(`project-step-actions`가 적용된 모양): `card-add-projects`, `card-first-run`, `save-panel`, `notice-exists-folder`, `notice-exists-file`, `notice-inside-project`, `notice-create-failed`, `after-create`. `card-busy`와 `shipped-notices-*` 다섯 프레임은 `project-step-actions`가 맡는다.
+- 문구는 `clarify` 프리셋으로 정했다. 카드 제목 "Use a folder on your Mac", 설명 "Choose a project folder you already have, or create a new one.", 저장 창 message "Name your new project folder and choose where to create it.", 이미 있는 폴더 "A folder named “<name>” already exists in <~ parent>. Doan didn’t replace it. Choose another name or use the existing folder.", 폴더가 아닌 항목 "An item named “<name>” already exists in <~ parent> and isn’t a folder. Doan didn’t replace it. Choose another name.", 프로젝트 안은 클론의 출시 문장, 실패 "Couldn’t create this folder. Check folder access, then choose another location."과 시도한 절대 경로.
+- 사용자가 2026-11-14 앱에서 프레임별로 초안을 확인했다(알림 자리·모양, 하단 "Add project", 버튼 크기는 그 과정에서 정해져 `project-step-actions`로 갔다). 부작용 점검으로 고칠 타일을 그리는 중이며, 고친 초안을 다시 확인받는다.
 
 ## 형식 변경
 
@@ -103,7 +100,7 @@ renderer ProjectStep.newFolder(parent)          (picking·choosing = true, dropN
 
 - PRODUCT §3 Out of scope 6(Git operations): New folder는 Git 명령을 실행하지 않는다.
 - PRODUCT §3 Out of scope 7: 빈 폴더 하나만 만들고 파일은 쓰지 않는다.
-- PRODUCT §5 item 0 'Project step'과 item 1 'Add Projects'에 New folder를 적는다(마지막 작업). 'Leaving'은 바뀌지 않는다.
+- PRODUCT §5 item 0 'Project step'과 item 1 'Add Projects'에 New folder와 카드 제목을 적는다(마지막 작업). 'Leaving'은 바뀌지 않는다.
 - ARCHITECTURE §7 'Settings IPC'의 'Project addition'과 'Main boundary'에 새 채널, `parent`의 역할, 폴더를 main이 만든다는 규칙을 적는다.
 
 ## PoC 의존
