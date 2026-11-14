@@ -59,7 +59,7 @@
 
 - `agentPresence.ts:19-30`: 첫 대화 하나를 고른다. `boardPresence`로 바꾼다.
 - `agentIndicator.ts`: `pickWork` `:41-58`, 정지 `:149-159`, `settleStopping` `:162-164`.
-- `CanvasAgent.tsx`: Stop `:64-72`.
+- `CanvasAgent.tsx`: Stop `:64-72`. 보드 알림의 Stop은 지운다(spec 정한 점 3).
 - `App.tsx`
   - 사이드바 캔버스 행 클릭 `:757-764`(`openSidebarCanvas`).
   - 대기 알림 Open `:2129-2136`.
@@ -151,7 +151,7 @@
 8. **접기**: `archived` 뒤 이벤트를 건너뛰지 않음, 표시 없음.
 9. **`handoffDecision`·`missedHandoffs`·`promotionTarget`**: `has_conversation`과 `busy` 조건 제거.
 10. **새 대화 따라가기**: `defaultNew`, 직전 목록, 새 목록, 시작 출처 → 넘어갈 대화나 없음.
-11. **Stop 대상 전환**: 따르는 대화가 바뀐 시각 → 약 1초 동안 `aria-disabled`(시계 주입).
+11. ~~Stop 대상 전환~~: 2026-11-15 사용자 결정으로 보드 알림의 Stop이 없어져 지웠다(spec 정한 점 3).
 12. **`trashBlock`/`trashBusy` 집합**: 작업 중·준비 중·답 대기.
 
 ## 형식 변경
@@ -241,8 +241,8 @@
 - **2026-11-14 'A list read moved the prototype window's first message, still being sent, into the conversation it started'**: "a move of a draft driven by a list read or an event never takes a draft whose send can be in flight." 프로토타입 창이 대화를 바꿀 수 있게 되어도 같다.
 - **2026-11-01 'The canvas agent indicator kept another worktree's conversation and its Stop'**: "any state kept across a failed or pending read about a canvas carries the project root in its identity." `boardPresence`도 루트를 정체성에 넣는다.
 - **2026-11-01 'A ui-state save sent before the startup read could replace every remembered field'**: "a client of a replace-semantics store sends nothing until its first read has settled, and merges what it read before the first save." `conversationByCanvas`도 같다.
-- **2026-11-13 'A Stop pressed while a send was still being prepared did not stop it'**: Stop 대상이 바뀌는 동안의 테스트는 보내기 준비의 각 await에서 Stop을 누르는 기존 방식을 따른다.
-- **2026-11-13 'A toolbar control that turned unavailable while focused was mounted anew and focus fell to the page'**: Stop은 대상이 바뀌어도 같은 요소로 남는다.
+- **2026-11-13 'A Stop pressed while a send was still being prepared did not stop it'**: 보드 Stop이 없어져, composer Stop의 기존 테스트만 남는다.
+- **2026-11-13 'A toolbar control that turned unavailable while focused was mounted anew and focus fell to the page'**: 보드 Stop이 없어져 해당하지 않는다.
 - **2026-11-14 'The installed Doan.app came up on the real userData during a real-HOME probe…'**: PoC와 `/runtime-test`의 안전 조치(위 'PoC 의존').
 
 ## 초안 요청
@@ -251,14 +251,14 @@
 
 - 캔버스: `.doan/canvases/canvas-concurrent-conversations.html`, 캔버스 ID `canvas-concurrent-conversations`.
 - 프레임
-  - `board-notice`: 보이는 대화가 작업 중, 보이는 대화가 쉬고 다른 대화가 작업 중(그 대화를 따름, Stop이 "Stop <제목>"), 다른 대화가 답을 기다림(답 대기 우선, Open), 좁은 보드(문구가 먼저 줄어듦).
-  - `board-stop`: Stop이 따르는 대화 하나를 멈춘 뒤 알림이 다음 대화로 넘어가고 Stop이 잠깐 비활성인 모습.
+  - `board-notice`: 보이는 대화가 작업 중, 보이는 대화가 쉬고 다른 대화가 작업 중(그 대화를 따름), 다른 대화가 답을 기다림(답 대기 우선, Open), 좁은 보드(문구가 먼저 줄어듦).
+  - `board-stop`: 따르는 대화가 composer Stop으로 멈추거나 끝난 뒤 알림이 다음 작업 중인 대화로 넘어가는 모습. 보드에 Stop은 없다(2026-11-15 사용자 결정으로 다시 그림).
   - `title-menu`: 대화 넷(작업 중 둘, 답 필요 하나, 안 본 종료 하나), 보이는 대화가 눌린 행, 행 상태 표시와 Delete, 긴 제목. 열린 메뉴에 새 대화가 끝에 붙은 모습. 긴 목록. 목록을 읽는 중과 읽기 실패.
   - `badge`: 접힌 패널의 Show conversation 배지 세 경우(답 필요, 작업 중, 안 본 종료). 배지가 보이는 대화가 아닌 다른 대화를 가리키는 경우.
   - `overview-rows`: Overview Canvas conversations에서 한 캔버스의 대화 셋이 각각 한 행(제목과 상태). 제목이 빈 행("Conversation").
   - `prototype-head-menu`: 프로토타입 창 머리 제목의 대화 메뉴(New conversation, 대화 행, Delete). 읽는 중, 읽기 실패와 Retry, 막힘(캔버스가 떠남·ID가 겹침), 대화 없음.
   - `delete-shown`: 보던 대화를 삭제한 뒤 다음 대화가 보이고 포커스가 제목 메뉴 버튼인 상태, 남은 대화가 없어 새 대화 상태가 되는 상태.
-- 제약: 출시된 토큰과 컴포넌트만 쓴다. 영어 문구는 `clarify` 프리셋으로 정한다("Stop <제목>", `PROMOTED_TEXT`와 "Open the current conversation"의 대체 문구).
+- 제약: 출시된 토큰과 컴포넌트만 쓴다. 영어 문구는 `clarify` 프리셋으로 정한다(`PROMOTED_TEXT`와 "Open the current conversation"의 대체 문구).
 - 검증: `doan ls`가 위 일곱 프레임 ID를 보인다.
 
 ## 초안 확인

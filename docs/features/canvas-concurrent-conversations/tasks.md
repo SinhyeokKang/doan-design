@@ -34,14 +34,14 @@
   - 테스트: design.md '순수 함수' 1–5, 7, 10–12.
     - `pickShownConversation`: 요청, 답 대기 여럿, `remembered`, 최근 활동, 새 대화. 읽는 중·실패. 다시 읽을 때 `shown` 유지. 캔버스가 프로젝트를 떠남. 두 루트가 같은 캔버스 ID. 사이드바 행 클릭의 슬롯 대화.
     - `boardPresence`: 순위 유지, 같은 순위의 먼저 시작한 대화, `working` 플래그로 깜빡임 없음, N=0, 답 대기 포함, 실패한 읽기 동안 유지, 루트 정체성.
-    - `pickWork`(따르는 대화만), `canvasStrongestSignal`(작업 중 포함, `scheduled` 없음, 대상 대화), `titleMenuOrder`(열린 동안 고정, 새 대화는 끝), `canvasConversationRows`, 새 대화 따라가기(사람·handoff·승격, 동시에 둘), Stop 대상 전환(시계 주입), Move to Trash 집합(렌더러와 main이 같다).
+    - `pickWork`(따르는 대화만), `canvasStrongestSignal`(작업 중 포함, `scheduled` 없음, 대상 대화), `titleMenuOrder`(열린 동안 고정, 새 대화는 끝), `canvasConversationRows`, 새 대화 따라가기(사람·handoff·승격, 동시에 둘), Move to Trash 집합(렌더러와 main이 같다).
     - `dockedAvailability`에 `restore` 문구가 없다. `DockedMode`에 `archived`가 없다.
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
   - 커밋 경계: `test:` 하나, 구현 하나.
 - [ ] 6. **배치 P — 캔버스 패널·보드·배지·사이드바 클릭·ui-state**(F 뒤, O와 병렬).
   - 테스트(`CanvasConversationPanel.test.tsx`, `canvasRun.test.ts`, `CanvasAgent.test.tsx`, `agentIndicator.test.ts`, `App.*.test.tsx`의 해당 파일, `uiState.test.ts`, `DockedComposer.test.tsx`)
     - 보관 보기·복원이 없다. 목록을 읽는 동안에도 새 대화를 보낸다. 삭제 뒤 다음 대화와 제목 메뉴 버튼 포커스.
-    - Stop 이름과 잠깐 비활성, 대상이 바뀌어도 같은 요소. 대기 알림 Open. 보드에 다른 대화의 수가 없음.
+    - 보드 알림에 Stop이 없음(2026-11-15 사용자 결정). 대기 알림 Open. 보드에 다른 대화의 수가 없음.
     - 배지(작업 중 포함)와 배지로 펼치면 그 대화. 사이드바 캔버스 행 클릭.
     - `conversationByCanvas`: 검증, `renameUiRoots`, 첫 읽기 전 저장 없음과 병합, 'Seen'에서만 씀, 옮긴 캔버스.
     - 터미널 세션 이어받기 제안이 그 세션을 쥔 대화가 있으면 숨는다.
@@ -63,7 +63,7 @@
   - 커밋 경계: `/design-sync` 수정과 DESIGN.md.
 - [ ] 10. **`/runtime-test`**(컨덕터): 격리 앱(임시 userData·HOME·SHELL·`DOAN_RUNTIME`)에서 확인한다. 실제 턴은 작업 1의 프로바이더 로그인을 앱이 쓰는 프로필로 다시 만들어야 한다. 그 프로필의 절대 경로를 orch.md에 적고 실행 내내 재사용한다. 설치된 앱 안전 조치는 작업 1과 같다.
   - 한 캔버스에서 A 작업 중에 B를 보내면 둘 다 끝까지 돈다(Claude Code와 Codex. 나머지 셋은 PoC 근거이고 BACKLOG에 적는다).
-  - 보드: 따르는 대화, 다른 대화의 수 없음, Stop 한 대화만과 잠깐 비활성, 작업 메모와 Following.
+  - 보드: 따르는 대화, 다른 대화의 수 없음, 보드 알림에 Stop 없음(멈추기는 composer Stop에서 그 대화만), 작업 메모와 Following.
   - 접힌 패널 배지와 배지로 펼치기. 제목 메뉴(눌린 행, 열린 동안 고정). Overview 행. 사이드바 캔버스 행 클릭.
   - 프로토타입 창 대화 메뉴, 새 대화, Retry. 보던 대화 삭제 뒤.
   - 업데이트 전 v2 색인(보관 대화 포함)을 둔 userData로 시작하면 보관 대화가 본 것인 보통 대화로 보이고, 첫 저장 뒤 v3다.
