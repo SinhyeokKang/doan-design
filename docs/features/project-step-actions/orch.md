@@ -9,7 +9,7 @@
 ## Codex 사용 범위
 
 - 시작 시 주간 사용량(`$CODEX_HOME` 최신 rollout, `window_minutes: 10080`): 42% 사용, 리셋 2026-11-19 18:16 KST.
-- 체인 상시 권한(사용자 2026-11-14)으로 Codex 워커를 쓴다. 범위: 독립 `/code-review` 워커 R(gpt-6-astra medium). 구현은 Claude가 맡는다(메모리 규칙: Claude 주, Codex는 교차 리뷰 위주).
+- 체인 상시 권한(사용자 2026-11-14)으로 Codex 워커를 쓴다. 범위: 독립 `/code-review` 워커 R(gpt-6-astra medium). 리뷰를 나눌 때(A 완료 뒤) 다시 보지 않았다 — 시작 시점과 같은 세션, 42%. 구현은 Claude가 맡는다(메모리 규칙: Claude 주, Codex는 교차 리뷰 위주).
 
 ## 결정 기록
 
@@ -22,16 +22,19 @@
 ## 배치
 
 - Orca Run: `run_22242497f776`
+- D7 A가 본 '설정 실패 뒤 사이드바에 Not set up으로 등록됨'은 출시 규칙이다(PRODUCT §5 item 1 'Add Projects': "a failure leaves it registered as Not set up"). 결함이 아니다 — 컨덕터 판단.
+- D8 초안과 코드가 다른 세 곳(`config_invalid`·`project_unreadable`이 검사가 아니라 등록에서 나서 그 폴더 화면에 뜸, `access_failed`에서 'or use GitHub' 구분선 숨김, `invalid_url`에서 Find repository 꺼짐)은 출시 규칙을 따르고 DESIGN.md에 문서화된 차이로 둔다. spec이 바꾸라고 하지 않은 출시 동작이다. 링크 2가 같은 초안을 쓰므로 PR 본문에 적는다 — 컨덕터 판단.
 - D6 리드 정정(2026-11-14): 워커 브리프에서 변수 경로 `rm` 금지 줄을 뺐다. Orca 워커에는 해당하지 않는다.
 
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A | tasks 2(`/tdd`), 3(`/implement`), 4(`/design-sync`), 5(`/runtime-test`) | `app/src/renderer/**`, `docs/DESIGN.md`, `.scratch/` | 없음 | Claude Opus high — 동의 토큰·포커스·알림 자리 규칙이 얽혀 판단이 많고, 틀리면 보여 주지 않은 계획에 동의하는 회귀가 난다 | tasks 2–5의 검증 줄 | 진행 중 — `ctx_959255317537`, 워크트리 `psa-a`(브랜치 `SinhyeokKang/psa-a`, 기준 `89a27111e`) |
-| R | tasks 6 `/code-review`(보고만) | 없음(읽기) | A | Codex gpt-6-astra medium — 판단 위주 교차 리뷰 | 보고서 | 대기 |
-| A' | tasks 6 `/refactor`, 영향받은 5번 재확인, tasks 7 승격(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG, 피처 디렉터리 삭제) | A와 같음 + `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/project-step-actions/` | R | Claude Opus high(A 워커 이어서) | 🔴 0, tasks 7 검증 줄 | 대기 |
+| A | tasks 2(`/tdd`), 3(`/implement`), 4(`/design-sync`), 5(`/runtime-test`) | `app/src/renderer/**`, `docs/DESIGN.md`, `.scratch/` | 없음 | Claude Opus high — 동의 토큰·포커스·알림 자리 규칙이 얽혀 판단이 많고, 틀리면 보여 주지 않은 계획에 동의하는 회귀가 난다 | tasks 2–5의 검증 줄 | 완료 — `ctx_959255317537`, 워크트리 `psa-a`(브랜치 `SinhyeokKang/psa-a`, 기준 `89a27111e`). 커밋 `4c12c0cf1` test, `d8e535260` feat, `92886cc0b` docs(DESIGN). test·typecheck·lint·build 통과, measure PASS(구현 결함 0), probe PASS 23 |
+| R | tasks 6 `/code-review`(보고만) | 없음(읽기) | A | Codex gpt-6-astra medium — 판단 위주 교차 리뷰 | 보고서 | 진행 중 — `ctx_4bd8911eaef1`, `psa-a`에서 |
+| D | `/design-sync` 6단계 독립 리뷰 + Doan preset 점검(보고만) | 없음(읽기) | A | Claude Opus medium — design-sync는 같은 런타임 리뷰를 요구하고, 표와 스크린샷 대조라 판단은 중간 | 보고서 | 진행 중 — `ctx_b359592c24b1`, `psa-a`에서 |
+| A' | tasks 6 `/refactor`, 영향받은 4·5번 재확인, tasks 7 승격(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG). 피처 디렉터리 삭제는 컨덕터(orch.md 충돌 방지) | A와 같음 + `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md` | R, D | Claude Opus high(A 워커 이어서) | 🔴 0, tasks 7 검증 줄 | 대기 |
 | 컨덕터 | 통합(cherry-pick), tasks 8 `/verify`, push, PR | `orch.md` | A' | — | `verify.mjs` PASS | 대기 |
 
-- 파일 겹침: 모든 배치가 같은 파일을 고치므로 병렬은 없다. A → R → A' → 통합 순.
+- 파일 겹침: 모든 배치가 같은 파일을 고치므로 병렬은 없다. A → R·D(읽기만, 병렬) → A' → 통합 순.
 - 다른 컨덕터 `feat/cli-remove`와 `app/src/main/index.ts`·`senderAllowed.ts`·`preload/index.ts`가 겹칠 수 있으나, 이 링크는 renderer만 바꾼다(tasks 3 검증: main·preload diff 비어 있음).
 - tasks 체크 항목 대응: 1 → D1(컨덕터), 2–5 → A, 6 → R + A', 7 → A', 8 → 컨덕터. 주인 없는 항목 0.
