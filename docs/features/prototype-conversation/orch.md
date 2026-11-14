@@ -70,3 +70,8 @@ task 2(`/design-draft`)는 이미 끝났다. task 10은 리뷰 행과 conductor�
 - 사용자 결정(U 리뷰에서 올라온 셋): D1 접힌 패널은 돌아온 큐를 가져가지 않는다(열린 패널만). D2 새 대화 상태에서 쓰던 초안도, 이 창의 시작이 진행 중이 아니면 새 현재 대화로 옮긴다. D3 승격 알림도 '그리기 중' 알림처럼 대화 id만 중계해 프로토타입 창에 보인다.
 - M3 완료(`e0283b28..f776cb2d`) → `d5265e89..930eacbe`로 통합. M 보고: 관련 테스트 830개, typecheck, lint, 전체 test 12140개 통과(부하 속 첫 실행의 타이밍 실패는 단독 재실행에서 통과).
 - M4(`ctx_54f19431437b`): 승격 알림 중계와 provider 없는 settings reveal의 main 쪽. U2(`ctx_69d5efd3d5ff`): U 리뷰 수정, D1·D2, 그리기 중 중계 배선. 승격 알림과 provider 없는 settings의 renderer 쪽은 M4 뒤로 미뤘다.
+- U2 완료(`6a805701..2c85584d`) → `e4c5047c..d70cae5a`로 통합. U 리뷰 1회차의 🔴1, 🟡3·4, ⚪1–6과 D1·D2, 그리기 중 중계 배선(D3)을 고쳤고 새 경우마다 red를 먼저 봤다(U 보고: typecheck, lint, build 통과, 전체 test는 `shell.test.ts` 한 건 말고 통과).
+- M4 완료(`e5dbf61e..53cfb9de`) → `4acad13e..c2797e81`로 통합. 승격 알림의 출처는 main이 직접 받는 `conversation.bound` 이벤트이고, id만 `readPromoted`·`onPromoted`로 간다. reveal의 settings에서 provider를 생략할 수 있다. `App.tsx` 한 줄은 conductor가 허락했다. 통합 HEAD `c2797e81`에서 typecheck 통과.
+- `shell.test.ts` "setting up the same folder again…"는 이 feature 전 커밋 `10d6ed84`에서도 두 번 다 실패했다(14.6초에 실패 한 번, 20초 시간 초과 한 번). 실제 Go CLI와 git을 부르는 기존 테스트의 문제이고 이 feature의 회귀가 아니다. PR 본문에 적는다.
+- U3(`ctx_594e04e4cad1`): 승격 알림과 provider 없는 Settings의 renderer 쪽, 이어서 task 8(`/design-sync`)과 task 9(`/runtime-test`). lead에 `GUI again`을 알렸다. 실제 턴은 공유 로그인 프로필을 제자리에서 쓰고 상태 파일을 백업·복원한다.
+- 리뷰: U 2회차(Claude Opus, `ctx_ca925c1496cd`), M 4회차(M3+M4, Codex, `ctx_a314b63e3802`).
