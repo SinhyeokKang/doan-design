@@ -489,6 +489,53 @@ describe("what main hears", () => {
   });
 });
 
+// The folded panel's button reads every conversation of the playing canvas (the main window's strongest signal), in
+// this window's order: an answer needed, then working, then an unread ending. Opening through it shows the conversation
+// it stands for; a list read alone never moves the person's pick.
+describe("the folded badge across the canvas", () => {
+  const waiting = (conversationId: string) => summary({ conversationId, phase: "waiting", working: true, waitingSince: "2026-11-01T12:01:00.000Z" });
+  test("another conversation waiting for an answer badges the button while an idle one shows", async () => {
+    await playing({ panel: { open: false, width: 280 } }, [summary({ conversationId: "A" })]);
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "A" }), waiting("B")]);
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "A" });
+    expect(run.button()).toEqual({ label: "Show conversation", badge: "permission", name: "Show conversation, needs your answer" });
+  });
+
+  test("an answer needed elsewhere outranks the shown conversation's work; another's work outranks nothing", async () => {
+    await playing({ panel: { open: false, width: 280 } }, [summary({ conversationId: "A", phase: "running", working: true })]);
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "A", phase: "running", working: true }), waiting("B")]);
+    expect(run.button().badge).toBe("permission");
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "A" }), summary({ conversationId: "B", phase: "running", working: true })]);
+    expect(run.button()).toEqual({ label: "Show conversation", badge: "working", name: "Show conversation, agent is working" });
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "A" }), summary({ conversationId: "B", unseen: true })]);
+    expect(run.button().badge).toBe("unseen");
+  });
+
+  test("opening through the badge shows the conversation it stands for; a later read keeps the person's pick", async () => {
+    await playing({ panel: { open: false, width: 280 } }, [summary({ conversationId: "A", lastActivityAt: "2026-11-01T12:05:00.000Z" })]);
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "A", lastActivityAt: "2026-11-01T12:05:00.000Z" }), waiting("B")]);
+    run.unfoldTarget();
+    run.setView(view({ panel: { open: true, width: 280 } }));
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "B" });
+    run.run.select("A");
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "A", lastActivityAt: "2026-11-01T12:05:00.000Z" }), waiting("B")]);
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "A" });
+  });
+
+  test("with no badge opening keeps what the panel showed", async () => {
+    await playing({ panel: { open: false, width: 280 } }, [summary({ conversationId: "A" }), summary({ conversationId: "B", lastActivityAt: "2026-11-01T11:00:00.000Z" })]);
+    run.unfoldTarget();
+    run.setView(view({ panel: { open: true, width: 280 } }));
+    expect(run.shown()).toEqual({ kind: "conversation", conversationId: "A" });
+  });
+});
+
 // The project conversation drawing the playing canvas comes from the main window by id only (user decision): the new
 // conversation state shows its notice, whose Open goes to the main window.
 describe("the drawing project conversation", () => {
@@ -504,35 +551,65 @@ describe("the drawing project conversation", () => {
   });
 });
 
-// A project conversation promoted to the playing canvas comes from main by id (user decision): while the panel shows it,
-// it says why, as the main window's panel does.
+// A project conversation promoted to the playing canvas comes from main by id (user decision): this window's list never
+// held it as a project conversation, so the relayed id feeds the shared notice rule. A promotion never moves the panel,
+// so it is announced unless the panel already shows it, as in the main window.
 describe("the promoted conversation", () => {
   const current = (conversationId: string) => summary({ conversationId });
-  test("the panel showing it carries the promotion notice, until a send under the notice ends it", async () => {
+  const promotedRow = (conversationId: string) => summary({ conversationId, startedBy: "promotion" });
+  test("over the new conversation state the panel stays and announces it, with Open", async () => {
+    await playing({}, []);
+    drawing!("P");
+    promoted!("P");
+    drawing!(null);
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [promotedRow("P")]);
+    expect(run.shown()).toEqual({ kind: "new" });
+    expect(run.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", open: "P" } });
+  });
+
+  test("over another conversation the panel stays on it and announces the promoted one, until a send under the notice ends it", async () => {
+    await playing({}, [current("A")]);
+    promoted!("P");
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [current("A"), promotedRow("P")]);
+    const shown = run.run.view();
+    expect(shown).toMatchObject({ kind: "conversation", conversationId: "A", notice: { kind: "promoted", open: "P" } });
+    run.run.sent(run.run.target()!, run.run.revision(), shown?.kind === "conversation" ? shown.notice : null);
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "A", notice: null });
+    // A late push of the same promotion after the notice was spent announces nothing again.
+    promoted!(null);
+    promoted!("P");
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [current("A"), promotedRow("P")]);
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "A", notice: null });
+  });
+
+  test("the panel showing the promoted conversation carries no notice", async () => {
     calls.readPromoted!.mockResolvedValueOnce("p1");
     await playing({}, [current("p1")]);
     await flush();
-    const shown = run.run.view();
-    expect(shown).toMatchObject({ kind: "conversation", conversationId: "p1", notice: { kind: "promoted", open: "p1" } });
-    // A send made under the notice ends it, as in the main window's panel.
-    run.run.sent(run.run.target()!, run.run.revision(), shown?.kind === "conversation" ? shown.notice : null);
     expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "p1", notice: null });
   });
 
   test("main's null (another canvas plays, or nothing was promoted) shows no notice", async () => {
-    calls.readPromoted!.mockResolvedValueOnce("p1");
-    await playing({}, [current("p1")]);
+    await playing({}, [current("A"), promotedRow("p1")]);
+    promoted!("p1");
     await flush();
-    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "p1", notice: { kind: "promoted", open: "p1" } });
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "A", notice: { kind: "promoted", open: "p1" } });
     promoted!(null);
-    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "p1", notice: null });
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "A", notice: null });
   });
 
-  test("a promoted id that is not the conversation shown shows nothing", async () => {
-    calls.readPromoted!.mockResolvedValueOnce("p1");
-    await playing({}, [current("other")]);
+  test("the person's menu choice ends the notice; the relayed id does not bring it back", async () => {
+    await playing({}, [current("A"), promotedRow("P")]);
+    promoted!("P");
     await flush();
-    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "other", notice: null });
+    expect(run.run.view()).toMatchObject({ notice: { kind: "promoted", open: "P" } });
+    run.run.select("A");
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [current("A"), promotedRow("P")]);
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "A", notice: null });
   });
 });
 
@@ -555,13 +632,13 @@ describe("the drawing across a switch of canvas", () => {
 describe("the promotion across a switch of canvas", () => {
   test("a new playing canvas shows no promotion notice from the canvas left behind", async () => {
     calls.readPromoted!.mockResolvedValueOnce("p1");
-    await playing({}, [summary({ conversationId: "p1" })]);
+    await playing({}, [summary({ conversationId: "A" }), summary({ conversationId: "p1", startedBy: "promotion" })]);
     await flush();
-    expect(run.run.view()).toMatchObject({ notice: { kind: "promoted", open: "p1" } });
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "A", notice: { kind: "promoted", open: "p1" } });
     const { canvasId: _none, ...plain } = view({ path: PLAIN.path, frame: "x", frames: [] });
     run.setView(plain);
-    await answer(ROOT, [summary({ conversationId: "p1", canvas: PLAIN })]);
-    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "p1", notice: null });
+    await answer(ROOT, [summary({ conversationId: "A2", canvas: PLAIN }), summary({ conversationId: "p1", canvas: PLAIN, startedBy: "promotion" })]);
+    expect(run.run.view()).toMatchObject({ kind: "conversation", conversationId: "A2", notice: null });
   });
 });
 
@@ -592,3 +669,28 @@ describe("the drawing pushed before the view of the new canvas", () => {
     expect(run.run.view()).toMatchObject({ kind: "new", notice: { kind: "drawing", open: "p2" } });
   });
 });
+
+// One session is one conversation: main offers no terminal session a conversation already holds, so the window asks
+// again whenever the new conversation state comes back or a list change can move who holds it.
+describe("the terminal session after it was resumed", () => {
+  test("New after resuming the session into a conversation no longer offers it; deleting that conversation offers it again", async () => {
+    calls.conversationResumeTarget!.mockResolvedValueOnce({ available: true, runtime: "claude", session: "S" });
+    calls.conversationResumeTarget!.mockResolvedValueOnce({ available: false, reason: "no_record" });
+    calls.conversationResumeTarget!.mockResolvedValueOnce({ available: true, runtime: "claude", session: "S" });
+    await playing({}, []);
+    expect(run.run.view()).toMatchObject({ kind: "new", start: { offer: "claude" } });
+    run.run.started({ root: ROOT, canvas: CHECKOUT }, "A", "claude", run.run.revision());
+    listChanged!({ root: ROOT });
+    await answer(ROOT, [summary({ conversationId: "A" })]);
+    run.run.select(null);
+    await flush();
+    expect(run.run.view()).toMatchObject({ kind: "new", start: { offer: null, mode: "new" } });
+    // The main window deletes A: the list no longer names it, and the session is offered again.
+    listChanged!({ root: ROOT });
+    await answer(ROOT, []);
+    await flush();
+    expect(calls.conversationResumeTarget).toHaveBeenCalledTimes(3);
+    expect(run.run.view()).toMatchObject({ kind: "new", start: { offer: "claude" } });
+  });
+});
+

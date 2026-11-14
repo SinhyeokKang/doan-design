@@ -410,6 +410,48 @@ test("a terminal session answer that lands after the person left the canvas is d
   expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: true, offer: null } });
 });
 
+// One session is one conversation (main answers no_record for a session a conversation holds): the target is asked
+// again when the new conversation state comes back and when a list change adds or drops a conversation, in both windows.
+for (const prototype of [false, true]) {
+  test(`after a resume, New asks again and offers no held session; the holder's deletion offers it back (${prototype ? "prototype" : "main"} window)`, async () => {
+    const h = harness({ prototype });
+    h.run.show(checkout);
+    h.answer([]);
+    resume[0]!.resolve({ available: true, runtime: "claude", lastCheckAt: "x", session: "S" });
+    await flush();
+    expect(h.run.view()).toMatchObject({ kind: "new", start: { mode: "resume", offer: "claude" } });
+    h.run.started(checkout, A, "claude", h.run.revision());
+    h.answer([summary(A)]);
+    h.run.select(null);
+    expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(2);
+    expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: true } });
+    resume[1]!.resolve({ available: false, reason: "no_record" });
+    await flush();
+    expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false, offer: null, mode: "new" } });
+    // A read naming the same conversations asks nothing more.
+    h.answer([summary(A)]);
+    expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(2);
+    h.answer([]);
+    expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(3);
+    resume[2]!.resolve({ available: true, runtime: "claude", lastCheckAt: "x", session: "S" });
+    await flush();
+    expect(h.run.view()).toMatchObject({ kind: "new", start: { mode: "resume", offer: "claude" } });
+  });
+}
+
+test("a list change while this panel's start is in flight asks nothing, so the sent mode stays", async () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([]);
+  resume[0]!.resolve({ available: true, runtime: "claude", lastCheckAt: "x", session: "S" });
+  await flush();
+  const done = h.run.startSending(checkout);
+  h.answer([summary(B, { canvas: CART })]);
+  expect(doan.conversationResumeTarget).toHaveBeenCalledTimes(1);
+  expect(h.run.view()).toMatchObject({ kind: "new", start: { mode: "resume", offer: "claude" } });
+  done();
+});
+
 test("a failed resume target read starts a new conversation rather than holding Send", async () => {
   const h = harness();
   h.run.show(checkout);
