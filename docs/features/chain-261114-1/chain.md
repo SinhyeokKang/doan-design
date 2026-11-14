@@ -47,7 +47,7 @@
 
 | 링크 | 세션·워크트리 | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| project-step-actions | — | — | — | 대기 |
+| project-step-actions | `project-step-actions-orch` (feat/project-step-actions), Claude 컨덕터 | 2026-11-14, bb4447737 | — | 진행 |
 | new-project-folder | — | — | — | 대기 |
 
 ## 인계 기록
