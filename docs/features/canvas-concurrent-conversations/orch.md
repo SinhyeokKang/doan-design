@@ -27,7 +27,7 @@
 |---|---|---|---|---|---|---|
 | PoC | 1 | `.scratch/canvas-concurrent-conversations/` | — | 컨덕터 | `node .scratch/canvas-concurrent-conversations/poc.mjs` exit 0 | 통과(design.md 'PoC 관찰') |
 | S | 3 | tasks.md 표의 S 행 | — | Claude Opus high — 저장 형식·저널 이전이 틀리면 사용자 대화 기록을 잃는다 | test, typecheck | 통합 `0ed2e701d`·`63988c595`·`fccfce338`, 리뷰 🔴0 🟡0, 워크트리 정리 |
-| R | 4 | tasks.md 표의 R 행 | S | Claude Opus high — 동시 턴, 지연 콜백 울타리, handoff | test, typecheck, lint | 통합 `21455c8b0`·`7ddaf91ce`, 리뷰 중 |
+| R | 4 | tasks.md 표의 R 행 | S | Claude Opus high — 동시 턴, 지연 콜백 울타리, handoff | test, typecheck, lint | 통합 `21455c8b0`·`7ddaf91ce`, 리뷰 🔴0 🟡0, 후속 `a1e4e3c37`–`0d129ac73`(세션 하나는 대화 하나, 프로토타입 `rememberedConversation`; 컨덕터가 diff 확인), 워크트리 정리 |
 | F | 5 | tasks.md 표의 F 행 | R | Claude Opus medium — 순수 함수지만 순위 규칙 판단이 많다 | test, typecheck | 통합 `c895927dc`·`dd7296ec8`, 고침 `cdfdba433`·`83a3c87a0`(리뷰 🟡3 해소, 컨덕터가 diff 확인), 워크트리 정리 |
 | P | 6 | tasks.md 표의 P 행 | F | Claude Opus high — `App.tsx`, 포커스, ui-state 병합 | test, typecheck, lint, build | 진행(`ctx_5834c9faff5f`, `ccc-batch-p`) |
 | O | 7 | tasks.md 표의 O 행 | F | Claude Opus high — 프로토타입 창 초안 옮기기 함정(POSTMORTEM) | test, typecheck, lint, build | 진행(`ctx_2cb661736ee3`, `ccc-batch-o`) |
@@ -59,4 +59,5 @@
 - F가 P 파일(`CanvasConversationPanel.tsx`, `canvasRun.ts`, P 테스트 9건)에서 보관·복원 갈래만 지웠다(컨덕터 허가).
 - F 리뷰 🟡3: 대기 순서를 마지막 활동 시각으로 잼, 순위가 바뀌어도 이전 대상을 유지함, 기록을 못 읽은 handoff 대화를 따라감. F 고침 1회차에서 `summary.ts`에 `waitingSince`를 더한다(컨덕터 허가).
 - 워커 O 질문 — 컨덕터 판단: (1) 프로토타입 창의 대화 고르기 덮어쓰기를 지우고 창마다 자기 `CanvasRun`이 고르고 따라간다. P의 `canvasRun` 테스트가 두 창 모두를 고정한다. (2) 프로토타입 창의 `remembered`는 R이 읽기 전용 preload 호출 `rememberedConversation()`을 더한 뒤 O 후속 작업으로 잇는다.
+- R이 `main/prototype/ipc.ts`·`ipc.test.ts`를 고쳤다(새 채널, 컨덕터 허가).
 - S가 범위 밖 `io.test.ts`의 테스트 하나("recovers an interrupted replacement rollback…")를 고쳤다. 컨덕터가 허가했다.
