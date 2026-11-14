@@ -139,10 +139,13 @@ export type FolderPurpose = "project" | "destination";
 // New folder's answer: newFolderTarget's judgment of the panel's path, or cancelled when the panel was, or the step or
 // window that asked went first.
 export type NewFolderResult = NewFolderTarget;
-// New folder requests in flight, by the token the Project step gave, with the frame that sent it. The step cancels its
-// own when it goes (the page left, first run closed) while the window stays, so a Create that returns later makes
-// nothing.
+// New folder requests in flight, by the token the Project step gave, with the id of the webContents that sent it (only
+// its top frame may, `fromWindow`). The step cancels its own when it goes (the page left, first run closed) while the
+// window stays, so a Create that returns later makes nothing.
 const folderRequests = new Map<string, number>();
+function dropFolderRequests(contentsId: number): void {
+  for (const [token, owner] of folderRequests) if (owner === contentsId) folderRequests.delete(token);
+}
 
 // The window only ever shows the bundled UI; canvases live in a sandboxed
 // iframe whose navigation stays on the local server. Anything else a page tries
@@ -660,6 +663,11 @@ function createWindow(buddy: BuddyId): BrowserWindow {
   // it keeps running.
   window.webContents.on("render-process-gone", () => addPage?.rendererGone());
   window.webContents.on("did-navigate", () => addPage?.rendererGone());
+  // A reloaded or crashed renderer never disposes its Project step, so it cannot cancel a New folder request whose
+  // save panel is still open; its requests go with it, and a Create that returns later makes nothing.
+  const contentsId = window.webContents.id;
+  window.webContents.on("render-process-gone", () => dropFolderRequests(contentsId));
+  window.webContents.on("did-navigate", () => dropFolderRequests(contentsId));
   // Read after destroy, webContents throws, so the id is kept now.
   const owner = window.webContents.id;
   // A sign-in belongs to the renderer that started it; a lost renderer cannot cancel it any more.
