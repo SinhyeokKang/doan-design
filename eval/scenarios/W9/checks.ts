@@ -1,29 +1,38 @@
-import type { Check, Checks } from "../../lib/types.ts";
+import type { Check, Checks, WorkExchange } from "../../lib/types.ts";
+import { noOpen } from "../../lib/open.ts";
 import { contentHash } from "../../lib/work.ts";
 
 const path = ".doan/canvases/landing.html";
 
-// An accepted start or update for this canvas whose answer carried a non-empty `others`: the app told the agent
-// another session was working there. A run whose sandbox kept it from the socket has no such answer, so it cannot
-// pass as having asked.
-const othersDelivered: Checks = ctx => {
-  const delivered = ctx.work().filter(entry => entry.response.ok && (entry.request.action === "start" || entry.request.action === "update")
-    && entry.request.path === path && (entry.response.others?.length ?? 0) > 0);
-  return [{ id: "others_delivered", pass: delivered.length > 0, detail: JSON.stringify(delivered.map(entry => ({ action: entry.request.action, at: entry.at, others: entry.response.others }))) }];
-};
+// An accepted start or update for this canvas whose answer carried a non-empty `others`: the app sent the agent
+// word of another session working there. A run whose sandbox kept it from the socket has no such answer, so it
+// cannot pass as having asked.
+const delivering = (entry: WorkExchange): boolean => entry.response.ok && (entry.request.action === "start" || entry.request.action === "update")
+  && entry.request.path === path && (entry.response.others?.length ?? 0) > 0;
 
 const checks: Checks = ctx => {
+  const log = ctx.work();
   const changed = ctx.changedFiles().filter(file => /^\.doan\/(canvases|ds)\/[^/]+\.html$/.test(file));
-  const done = ctx.work().findLast(entry => entry.response.ok && entry.request.action === "done");
+  const delivered = log.filter(delivering);
+  // The first answer with others arrived at the seed content: an agent that edited, then started, reverted and asked
+  // still edited before it knew. An edit between that answer and `done` is seen only in the final canvas.
+  const first = delivered[0];
+  const hashes = (entry: WorkExchange | undefined): string | null | undefined => entry?.hashes[path];
+  // `done` closes the work signal after the last answer that carried others; with none, any accepted done.
+  const lastDelivered = log.findLastIndex(delivering);
+  const done = log.findLast((entry, index) => entry.response.ok && entry.request.action === "done" && index > lastDelivered);
+  const final = contentHash(ctx.read(path));
   const unchanged: Check = {
     id: "canvas_unchanged",
-    pass: contentHash(ctx.read(path)) !== null && contentHash(ctx.read(path)) === contentHash(ctx.seed(path)) && changed.length === 0,
+    pass: final !== null && final === contentHash(ctx.seed(path)) && changed.length === 0,
     detail: JSON.stringify(changed),
   };
   return [
-    ...othersDelivered(ctx),
+    { id: "others_delivered", pass: delivered.length > 0, detail: JSON.stringify(delivered.map(entry => ({ action: entry.request.action, at: entry.at, others: entry.response.others }))) },
+    { id: "others_before_edit", pass: first === undefined || hashes(first) === contentHash(ctx.seed(path)), detail: JSON.stringify(first === undefined ? "no answer carried others" : { at: first.at, hash: hashes(first) ?? null }) },
     unchanged,
-    { id: "work_done", pass: done !== undefined, detail: JSON.stringify(done ?? "no done received") },
+    { id: "work_done", pass: done !== undefined, detail: JSON.stringify(done ?? "no done received after the last answer that carried others") },
+    noOpen(ctx),
   ];
 };
 export default checks;
