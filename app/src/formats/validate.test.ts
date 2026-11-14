@@ -13,6 +13,8 @@ import {
   validateOpenResponse,
   validatePrototypeRequest,
   validatePrototypeResponse,
+  validateRemoveRequest,
+  validateRemoveResponse,
   validateRuntimeFile,
   validateSessionRecord,
   validateSelection,
@@ -48,6 +50,8 @@ const groups: { name: string; validate: Validate }[] = [
   { name: "app-socket-v5/response", validate: validateHandoffResponse },
   { name: "app-socket-v6/request", validate: validatePrototypeRequest },
   { name: "app-socket-v6/response", validate: validatePrototypeResponse },
+  { name: "app-socket-v7/request", validate: validateRemoveRequest },
+  { name: "app-socket-v7/response", validate: validateRemoveResponse },
 ];
 
 for (const { name, validate } of groups) {
@@ -144,6 +148,32 @@ describe("app-socket v6 stays apart from v1 to v5", () => {
     }
     for (const file of fixtureFiles(`app-socket-v6/${kind}`, "valid")) {
       test(`v6 ${kind} ${file} is not ${label}`, () => expect(validate(readJson(new URL(file, fixtureDirectory(`app-socket-v6/${kind}`, "valid"))))).toBe(false));
+    }
+  }
+});
+
+describe("app-socket v7 stays apart from v1 to v6", () => {
+  const others: { kind: string; label: string; dir: string; validate: Validate }[] = [
+    { kind: "request", label: "v1", dir: "app-socket/request", validate: validateSocketRequest },
+    { kind: "request", label: "v2", dir: "app-socket-v2/request", validate: validateOnboardingRequest },
+    { kind: "request", label: "v3", dir: "app-socket-v3/request", validate: validateWorkRequest },
+    { kind: "request", label: "v4", dir: "app-socket-v4/request", validate: validateOpenRequest },
+    { kind: "request", label: "v5", dir: "app-socket-v5/request", validate: validateHandoffRequest },
+    { kind: "request", label: "v6", dir: "app-socket-v6/request", validate: validatePrototypeRequest },
+    { kind: "response", label: "v1", dir: "app-socket/response", validate: validateSocketResponse },
+    { kind: "response", label: "v2", dir: "app-socket-v2/response", validate: validateOnboardingResponse },
+    { kind: "response", label: "v3", dir: "app-socket-v3/response", validate: validateWorkResponse },
+    { kind: "response", label: "v4", dir: "app-socket-v4/response", validate: validateOpenResponse },
+    { kind: "response", label: "v5", dir: "app-socket-v5/response", validate: validateHandoffResponse },
+    { kind: "response", label: "v6", dir: "app-socket-v6/response", validate: validatePrototypeResponse },
+  ];
+  for (const { kind, label, dir, validate } of others) {
+    const v7 = kind === "request" ? validateRemoveRequest : validateRemoveResponse;
+    for (const file of fixtureFiles(dir, "valid")) {
+      test(`${label} ${kind} ${file} is not v7`, () => expect(v7(readJson(new URL(file, fixtureDirectory(dir, "valid"))))).toBe(false));
+    }
+    for (const file of fixtureFiles(`app-socket-v7/${kind}`, "valid")) {
+      test(`v7 ${kind} ${file} is not ${label}`, () => expect(validate(readJson(new URL(file, fixtureDirectory(`app-socket-v7/${kind}`, "valid"))))).toBe(false));
     }
   }
 });

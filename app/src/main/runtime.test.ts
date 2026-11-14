@@ -330,7 +330,7 @@ test("a v2 request outside the schema is refused before the token and the servic
 
 test("an unknown client version gets the v1 refusal it already understands", async () => {
   const { socket, token } = await start();
-  expect(await ask(socket, `${JSON.stringify({ v: 7, token, op: "start" })}\n`)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+  expect(await ask(socket, `${JSON.stringify({ v: 8, token, op: "start" })}\n`)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
 });
 
 test("a failing onboarding service answers a generic v2 refusal without its message", async () => {

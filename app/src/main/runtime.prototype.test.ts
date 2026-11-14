@@ -72,7 +72,7 @@ test("v1 to v5 never reach the play and keep their own replies; an unknown versi
     { v: 5, token, root, handoff: "a".repeat(64), path, text: "Go on." },
   ];
   for (const value of versions) expect(Reflect.get(await answerLine(JSON.stringify(value), token, service), "v"), String(value.v)).toBe(value.v);
-  expect(await answerLine(JSON.stringify({ ...request, v: 7 }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+  expect(await answerLine(JSON.stringify({ ...request, v: 8 }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(await answerLine(JSON.stringify({ ...request, v: "6" }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(service.playPrototype).not.toHaveBeenCalled();
 });

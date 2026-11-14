@@ -588,6 +588,16 @@ test("exposes conversation handoffs as their own event with cleanup", () => {
   expect(notices).toEqual([notice]); expect(emitter.listenerCount("conversation:handoff")).toBe(0);
 });
 
+// `doan remove` took these roots out of the list; the renderer tidies its own state for them.
+test("folders:removed arrives on its own event with the removed paths, and stops cleanly", () => {
+  const removed: unknown[] = [];
+  const stop = api.onFoldersRemoved(paths => removed.push(paths));
+  emitter.emit("folders:removed", {}, { paths: ["/w/app", "/w/app-fix"] });
+  stop(); stop(); emitter.emit("folders:removed", {}, { paths: ["/w/other"] });
+  expect(removed).toEqual([["/w/app", "/w/app-fix"]]);
+  expect(emitter.listenerCount("folders:removed")).toBe(0);
+});
+
 test("work and deep links expose dedicated events with independent cleanup", async () => {
   const work = vi.fn(), links = vi.fn();
   const stopWork = api.onWorkChanged(work), stopLinks = api.onOpenLink(links);

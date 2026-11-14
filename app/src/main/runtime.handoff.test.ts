@@ -73,7 +73,7 @@ test("other versions never reach the handoff service, and an unknown version kee
   const service = state();
   for (const v of [1, 2, 3, 4, 6]) await answerLine(JSON.stringify({ ...request, v }), token, service);
   expect(await answerLine(JSON.stringify({ ...request, v: 6 }), token, service)).toMatchObject({ v: 6, ok: false, error: { code: "bad_request" } });
-  expect(await answerLine(JSON.stringify({ ...request, v: 7 }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+  expect(await answerLine(JSON.stringify({ ...request, v: 8 }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(await answerLine(JSON.stringify({ ...request, v: "5" }), token, service)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(service.handoff).not.toHaveBeenCalled();
 });
