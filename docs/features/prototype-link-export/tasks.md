@@ -1,42 +1,51 @@
 # prototype-link-export — tasks
 
-`/orchestrate`로 돈다(상위 `prototype-frame-links` 체인의 셋째 링크, 하위 2 병합 뒤). 상위 문서의 체크는 리드가 develop에서 한다.
+상위 `prototype-frame-links` 체인의 셋째 링크로, `/orchestrate`가 돈다. 하위 2가 병합된 뒤에 시작한다. 작업 2는 워커가 `/ship bypass`로 `test:` 커밋과 구현 커밋을 쌍으로 만든다. 나머지는 컨덕터가 한다. 실제 앱 probe는 모두 격리한다: `app/runtime/`(`isolatedEnv`), 임시 userData·HOME·SHELL·`DOAN_RUNTIME`, `--user-data-dir`, 앞뒤 `real-state` 비교, 브랜치에서 빌드한 `DOAN_CLI`. 상위 문서의 체크는 리드가 develop에서 한다.
 
-- [ ] 1. **PoC**(컨덕터, `.scratch/prototype-link-export/`): 손으로 만든 두 프레임 파일에서 다음을 확인한다. 열기 방식은 `file://`과 로컬 웹 서버 두 가지이고, 브라우저는 Chrome과 Safari다.
-  - `srcdoc` iframe을 다시 만들면서 hash로 기록을 남기는 방식에서 브라우저 Back과 Forward가 동작하는지
-  - 이전 iframe의 메시지를 버리는지
-  - 검증: 명령 미정 — 사용자 확인 필요(`node .scratch/prototype-link-export/poc.mjs`가 Playwright Chromium·WebKit으로 확인하고 exit 0, Safari는 손으로 확인). 관찰을 design.md에 적는다.
+- [ ] 1. **PoC**(컨덕터, `.scratch/prototype-link-export/`): 손으로 만든 두·세 프레임 파일을 Playwright Chromium과 WebKit으로 연다. 여는 방식은 `file://`과 로컬 웹 서버 둘 다다.
+  - 볼 것
+    - iframe을 다시 만들 때 이동 1회마다 `history.length`가 1 늘어난다.
+    - Back과 Forward가 hash와 iframe을 함께 되돌린다. A→B→C에서 Back 한 번이 한 프레임이고, 세 번째 Back은 파일을 떠난다.
+    - sandbox iframe에서 `window.name`이 읽힌다.
+    - 이전 iframe의 메시지를 버린다.
+    - iframe 안의 `#` 링크나 `pushState` 다음에 연결로 이동하면 Back이 어떻게 되는지 관찰만 한다.
+  - 검증: `node .scratch/prototype-link-export/poc.mjs`가 앞의 네 항목이 기대대로일 때 exit 0이다. 마지막 항목은 관찰만 한다. 관찰을 design.md에 적는다.
+    - 기대와 다르면 커밋하고 멈춰 사용자에게 묻는다.
+    - WebKit 바이너리를 쓸 수 없으면 "실행 못 함"으로 보고한다.
   - 커밋 경계: 관찰을 적은 design.md.
-- [ ] 2. **배치 E — Go 묶음과 페이지 조립**(순수 함수 1).
-  - 테스트: `cli/internal/export`·`cli/internal/cli`. 다음을 고정한다.
-    - 연결 없는 프레임(한 프레임), 묶음, 끊긴 묶음(시작 프레임의 묶음만), 시작 프레임
-    - 묶음 JSON, 캔버스를 한 번만 담는 것
-    - `</script`·`<template/>`가 든 캔버스
-    - 50 MiB 한도
-  - 프로토타입 고정 테스트를 갱신한다. 캔버스 export 고정 테스트는 그대로다.
-  - 검증: `go test ./...`, `go vet ./...`.
-  - 커밋 경계: `test:` 하나, 구현 하나.
-- [ ] 3. **배치 V — viewer**(순수 함수 2·3, E 뒤).
-  - 테스트: `app/src/main/exportViewer.test.ts`. 다음을 다룬다.
-    - `prototype.js` 상태 전이, hash, 이전 iframe 메시지
-    - `isolate.js` 연결 판단 드리프트(하위 1 fixture, 하위 2 주입 스크립트와 같음)
-    - 프레임마다 로딩 시한, 탭 제목
-  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `go test ./...`.
-  - 커밋 경계: `test:` 하나, 구현 하나.
-- [ ] 4. **확인**: 세 프레임이 연결된 캔버스를 임시 저장소에서 내보내고, Playwright(Chromium, WebKit)로 파일을 연다.
-  - 다음을 확인한다.
-    - 연결 이동과 새로 시작
-    - 브라우저 Back과 Forward
-    - hash로 열기
-    - `preventDefault()`
-    - 깨진 연결
-    - 오프라인
-  - 창의 Export로 만든 파일과 `doan export`로 만든 파일이 같은지 본다.
-  - 검증: `.scratch/runtime-test/prototype-link-export/` probe가 exit 0과 완료 표시를 내고, 스크린샷 경로가 보고서에 있다.
-- [ ] 5. **`/agent-eval` X2**.
-  - 검증: X2가 통과하고, 결과가 `docs/USABILITY-EVAL.md`에 있다. 실패하면 사용자가 열린 이슈로 받아들이지 않는 한 병합을 막는다.
-- [ ] 6. **승격**(문서별 커밋).
-  - PRODUCT §1 In scope 8("plays only that frame")과 §5 item 3 'Export and viewer'
-  - ARCHITECTURE §3 'Prototype window' 'Export', 'Exported canvas and viewer' 'Prototype page', §12
-  - `docs/features/prototype-link-export/`를 지운다.
-  - 검증: `grep -n "plays only that frame" docs/PRODUCT.md`가 빈 결과이고, `git ls-files docs/features/prototype-link-export`가 빈 결과다.
+- [ ] 2. **배치 X — Go와 viewer**(순수 함수 1–3). 맡는 파일: `export.go`, `prototype_rules.go`(필요 시), `assemble.go`, `viewer/*`, `canvasExport.ts`, `canvasRowMessages.ts`, `exportViewer.test.ts`, Go export 테스트. `test:`와 구현 쌍을 두 번 만든다. 첫 쌍은 Go와 결과 필드, 둘째 쌍은 viewer와 토스트다.
+  - Go 테스트
+    - 연결 없는 프레임(한 프레임), 묶음, 끊긴 묶음(시작 프레임의 묶음만), 1,000개를 넘는 묶음(끊지 않음)
+    - 시작 프레임, 결과 필드
+    - 묶음 JSON, 캔버스 한 번(바이트 비교)
+    - `</script`·`<template/>`·`</template>`가 든 캔버스
+    - 50 MiB 한도(`TestExportPrototypeTooLargeAfterEncoding`를 새 담는 방식에 맞춤)
+    - 정적 `<title>`과 `<noscript>` 표지
+  - 의도적으로 갱신할 테스트: `TestAssemblePrototypeOutputIsPinned`, `TestAssemblePrototypeSrcdocIsTheCanvasWithTheIsolationScriptInItsHead`, `TestExportPrototypeWritesThePrototypePage`
+  - 캔버스 고정 테스트는 `go test ./cli/internal/export -run 'TestExportOutputIsPinned|TestAssembleOutputIsPinned'`로 따로 돌려 그대로 통과한다.
+  - viewer 테스트: 순수 함수 2·3의 모든 경우, 토스트 문구.
+  - 검증: `go test ./...`, `go vet ./...`, `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`. `/tdd` 보고서가 red여야 할 테스트 이름을 적고, `/implement` 뒤 모두 green이다.
+- [ ] 3. **통합 확인**(컨덕터): `node .agents/skills/verify/scripts/verify.mjs`가 통과한다.
+- [ ] 4. **브라우저 확인**(컨덕터, `.scratch/runtime-test/prototype-link-export/`)
+  - 준비: 임시 저장소에서 세 프레임이 연결된 캔버스와 연결 없는 프레임 하나를 만든다. `DOAN_RUNTIME=<임시>/runtime.json go run ./cli/cmd/doan export … --repo <임시> --json`으로 내보낸다.
+  - Playwright Chromium과 WebKit으로 확인한다.
+    - 연결 이동과 새로 시작, `<a href>` 위의 연결
+    - `preventDefault`, `element.click()`, 자기 연결, 깨진 연결
+    - Back과 Forward, 첫 프레임을 지나는 Back
+    - hash로 열기(묶음 안·밖·깨진 인코딩), 새로고침, 주소창에서 hash 바꾸기
+    - 이동 중 이전 프레임 유지, 탭 제목과 iframe `title`, 포커스
+    - 이동한 프레임의 10초 시한
+    - 연결 없는 한 프레임 파일이 지금처럼 동작하는지(제목, 10초 문구)
+    - 오프라인: `file:` 말고 요청이 0건
+  - 검증: probe가 exit 0과 완료 표시를 내고, 스크린샷 경로가 보고서에 있다. 만든 파일 경로를 사용자에게 주고, 사용자가 Safari에서 한 번 열어 본다(병합을 막지 않음).
+- [ ] 5. **`/runtime-test`**(격리한 실제 앱): 프로토타입 창 Export로 같은 캔버스를 내보낸다.
+  - 검증: 그 파일과 작업 4의 `doan export` 파일의 sha256이 같다. 성공 토스트가 연결 프레임 수를 말한다. probe가 exit 0과 완료 표시를 낸다.
+- [ ] 6. **`/agent-eval` X2**: 먼저 `npm --prefix app run package`를 하고 `node eval/run.ts --scenarios X2 --round <이름>`을 돌린다.
+  - 검증: `grep -c "X2" docs/USABILITY-EVAL.md`가 승격 전보다 크다. 자동 검사가 `--repeat 2` 뒤에도 실패하면, 사용자가 열린 이슈로 받아들이지 않는 한 병합을 막는다.
+- [ ] 7. **승격**(문서별 커밋): design.md '바뀌는 곳' 문서 목록의 모든 항목. `docs/features/prototype-link-export/`를 지운다.
+  - 검증
+    - 다음이 모두 0이다.
+      - `grep -cE "plays only that( marked)? frame|shows only that frame" docs/PRODUCT.md`
+      - `grep -c "plays only that frame" README.md`
+      - `grep -c "plays only that frame" cli/internal/cli/skill.md`
+    - `test ! -d docs/features/prototype-link-export`가 성공한다.
