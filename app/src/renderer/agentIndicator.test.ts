@@ -76,7 +76,7 @@ describe("canvasAgent", () => {
     expect(canvasAgent([summary({})], null, previous, [])).toBeNull();
     expect(canvasAgent(null, null, previous, [])).toBeNull();
   });
-  // spec decided point 1: the shown conversation while it works or waits, else another waiting, else another working.
+  // The followed conversation: the shown one while it works or waits, else another waiting, else another working.
   test("follows the conversation the panel shows while it works, else another one waiting before another working", () => {
     const list = [summary({ conversationId: "c1", title: "First" }), summary({ conversationId: "c2", title: "Second", phase: "waiting" }), summary({ conversationId: "c3", title: "Third" })];
     expect(canvasAgent(list, target, null, [], [], "c3")).toMatchObject({ presence: { conversationId: "c3", kind: "working" }, title: "Third" });
@@ -236,7 +236,7 @@ describe("agentNoticeView", () => {
   test("a Stop pressed for another conversation does not hold this one", () => {
     expect(agentNoticeView(working, "c0", false)?.action).toEqual({ kind: "stop", label: "Stop", disabled: false, stopping: false });
   });
-  // spec decided point 3: another conversation's Stop names it; a change of the followed conversation holds Stop.
+  // Another conversation's Stop names it; a change of the followed conversation holds Stop.
   test("Stop takes the name it is given, and a hold makes it unavailable without the Stopping spinner", () => {
     expect(agentNoticeView(working, null, false, null, { name: "Stop “Add an empty state”", held: false })?.action).toEqual({ kind: "stop", label: "Stop “Add an empty state”", disabled: false, stopping: false });
     expect(agentNoticeView(working, null, false, null, { name: "Stop “Add an empty state”", held: true })?.action).toEqual({ kind: "stop", label: "Stop “Add an empty state”", disabled: true, stopping: false });
@@ -296,7 +296,7 @@ describe("work content on the open canvas", () => {
     test("the canvas's own conversation without content on this canvas shows no content, not the terminal's", () => {
       expect(pickWork(target, working, [conv({ conversationId: "c1", path: ".doan/canvases/other.html" })], [term({ frame: "a" })])).toBeNull();
     });
-    // spec decided point 4: another conversation's `doan work update` on this canvas moves nothing.
+    // Another conversation's `doan work update` on this canvas moves nothing.
     test("only the followed conversation's content counts, however recent another conversation's update is", () => {
       const own = conv({ conversationId: "c1", frame: "plans", touched: 5 }), other = conv({ conversationId: "c2", frame: "other", touched: 50 });
       expect(pickWork(target, { conversationId: "c1", kind: "working" }, [other, own], [])).toMatchObject({ source: "conversation:c1", frame: "plans" });

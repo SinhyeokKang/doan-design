@@ -30,7 +30,7 @@ import { nextStopHold, stopHeld, stopName, type StopHold } from "./stopTarget";
 // another canvas, shows the indicator without Stop); `frames` is the open document's layout, for the frame's title.
 // `onWork` gets the open canvas's work for the controller's marker and following, once per change. `buddy` is the
 // chosen buddy, whose painter the notice shows.
-// canvas-concurrent-conversations (draft frames board-notice, board-stop): the notice follows one conversation of the
+// .doan/canvases/canvas-concurrent-conversations.html 'board-notice', 'board-stop': the notice follows one conversation of the
 // canvas, the one the panel shows (`shown`, also while folded) while it works or waits, else another; Stop names one
 // that is not the shown one, and a change of the followed conversation holds Stop for a moment. Open gets the followed
 // conversation.

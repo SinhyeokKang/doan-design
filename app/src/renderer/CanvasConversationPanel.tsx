@@ -110,7 +110,7 @@ export interface CanvasConversationProps {
   // The prototype window's playing frame, pinned on its composer and put first in every message.
   playing?: PlayingFrameChip | null;
   // The prototype window's failed list read: the thread's place holds the failure line with Retry. Send stays
-  // available: a new conversation runs beside the others (spec decided point 12).
+  // available: a new conversation runs beside the others and cannot end one nobody can see.
   listFailed?: boolean;
   // False where a refused conversation offers no "Start a new conversation". A refused terminal session still switches
   // to the new conversation it shares a field with.

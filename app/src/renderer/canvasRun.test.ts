@@ -105,7 +105,7 @@ test("the person's choice shows any of the canvas's conversations, and the view 
   expect(h.run.composerKey()).toBe(`conversation:${B}`);
 });
 
-// Upper decision 5: request > waiting for an answer (the earliest waiting) > last seen here on this device > most recent > new.
+// The shared pick: request > waiting for an answer (the earliest waiting) > last seen here on this device > most recent > new.
 test("with nothing shown yet: a conversation waiting for an answer, else the one last seen here, else the most recent", () => {
   const waits = harness();
   waits.state.remembered = A;
@@ -685,7 +685,7 @@ test("a canvas that opens before the next list read does not pick the deleted co
 
 // POSTMORTEM 2026-11-14 'The main window's panel never showed…': the default new state (nothing existed) gives way to
 // a conversation the person newly started (in this window or another), the person's New does not; a handoff's or a
-// promotion's conversation moves no screen (spec decided point 10). CanvasRun runs in the main window and in the
+// promotion's conversation moves no screen and takes no draft. CanvasRun runs in the main window and in the
 // prototype window, each from its own state.
 for (const prototype of [false, true]) {
   const where = prototype ? "the prototype window" : "the main window";

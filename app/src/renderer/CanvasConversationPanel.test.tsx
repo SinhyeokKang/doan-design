@@ -201,7 +201,7 @@ test("a queued message keeps its request for the thread", () => {
 });
 
 // A new conversation runs beside the others, so ⌘N while the first list read is still loading sends once the terminal
-// session answered; nothing waits for the list (design 'Remove the wait to send a new conversation while the list reads').
+// session answered; nothing waits for the list.
 test("New while the list loads sends once the session answers, and again beside a running conversation", async () => {
   resume = { available: false, reason: "no_record" };
   const lists = new Map<string, ListView>([[ROOT, "loading"]]);

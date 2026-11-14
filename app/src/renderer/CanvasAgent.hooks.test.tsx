@@ -154,7 +154,7 @@ describe("CanvasAgent Stop", () => {
   });
 });
 
-// spec decided points 1 and 3: the notice and Stop follow one conversation; a change of it holds Stop for about a
+// The notice and Stop follow one conversation; a change of it holds Stop for about a
 // second (STOP_HOLD_MS) on the same element (POSTMORTEM 2026-11-13 'A toolbar control that turned unavailable…').
 describe("CanvasAgent follows one conversation", () => {
   let interrupt: ReturnType<typeof vi.fn>;

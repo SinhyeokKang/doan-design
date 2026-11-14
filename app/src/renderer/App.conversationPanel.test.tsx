@@ -520,7 +520,7 @@ test("a folded panel's open button carries the news dot while a conversation of 
   expect(badge()).toBeNull();
 });
 
-// spec decided point 5: the strongest signal across every conversation of the canvas, working included.
+// The badge: the strongest signal across every conversation of the canvas, working included.
 test("the badge shows the strongest signal across the canvas's conversations: working over another's unseen ending", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", unseen: true, lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2", phase: "running", working: true })]);
   await openCanvas(FOLDED);
@@ -548,7 +548,7 @@ test("unfolding without a badge keeps what the panel showed", async () => {
   expect(shownId()).toBe("c2");
 });
 
-// spec decided points 1 and 3: the board follows what the panel shows, or would show once unfolded.
+// The board follows what the panel shows, or would show once unfolded.
 test("the board's indicator gets the conversation the panel shows, also while it is folded", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2" })]);
   await openCanvas(FOLDED);
@@ -569,7 +569,7 @@ test("the capsule's Open shows the followed waiting conversation, unfolds the pa
   expect(conversation()?.arrival).toMatchObject({ focus: "permission" });
 });
 
-// design 'the conversation last seen on that canvas on this device': ui-state's conversationByCanvas.
+// The conversation last seen on a canvas on this device: ui-state's conversationByCanvas.
 test("the panel opens on the conversation last seen on the canvas, and what is seen there is saved", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2" })]);
   await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, conversationByCanvas: { "/w/a": { a: "c2", other: "c9" } } });
@@ -602,7 +602,7 @@ test("a sidebar canvas row unfolds the panel only when its slot needs an answer 
 
 // the row shows the terminal spinner over the app's unseen ending (withTerminalSlots), so its click decides with
 // that working slot and keeps the panel as it was.
-// spec decided point 9: a slot that unfolds the panel names its conversation; otherwise the shared rule picks.
+// A sidebar row whose slot unfolds the panel names its conversation; otherwise the shared rule picks.
 test("a sidebar canvas row with an unseen ending shows that conversation, not the most recent one", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ conversationId: "c1", fromHome: true, lastActivityAt: "2026-11-01T00:02:00.000Z" }), rowSummary({ conversationId: "c2", fromHome: true, unseen: true })]);
   await openCanvas(FOLDED);

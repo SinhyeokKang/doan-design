@@ -785,7 +785,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const shownSlots = () => withTerminalSlots(homeRun.current.slots(), work, entriesRef.current);
   // A sidebar canvas row: its slot decides whether the panel unfolds. A row that needs an
   // answer or has an unseen ending shows that slot's conversation; working or no mark keeps the panel as is, and the
-  // panel picks by its shared rule (spec decided point 9). The slot is the one the row shows, so a terminal spinner over
+  // panel picks by its shared rule (pickShownConversation). The slot is the one the row shows, so a terminal spinner over
   // an unseen ending keeps the panel.
   function openSidebarCanvas(root: string, row: CanvasRow, cursor?: number) {
     const slot = shownSlots().get(canvasSlotKey(root, row.path)) ?? null;
@@ -1445,7 +1445,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
             ? { field: false, selector: `.ov-right .cv-row[data-key="${CSS.escape(target.after.key)}"]`, fallback: ".ov-right .rp-head" }
             : { field: false, selector: ".ov-right .rp-head" };
           // The canvas panel moves on to the next conversation (or the new state) under the title menu button, which takes
-          // focus (spec decided point 8, draft frame delete-shown).
+          // focus (draft frame delete-shown).
           else if (shown) afterDelete.current = from === "overview" ? { field: true, selector: ".workspace .ov-main .composer-input" } : { field: false, selector: ".doan-conv-panel .doan-conv-title .ov-title" };
         } finally { store.deleted(conversationId); }
       } else { store.cancelDelete(conversationId); overviewRuns.sync(); canvasRuns.sync(); }
@@ -1874,7 +1874,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const duplicated = panelCanvas?.row.id !== undefined && entry?.kind === "list" && entry.canvases.filter(row => row.id === panelCanvas.row.id).length > 1;
   const panelProject = panelTarget ? cards.find(card => card.rows.some(row => row.path === panelTarget.root))?.name ?? projectNames(entries.map(entry => entry.path)).get(panelTarget.root) ?? panelTarget.root : "";
   const panelBlocked = !panelTarget ? null : state.unlisted ? canvasUnlistedText(panelProject) : duplicated ? DUPLICATE_CANVAS_TEXT : null;
-  // The folded panel's badge: the strongest signal across the canvas's conversations (spec decided point 5).
+  // The folded panel's badge: the strongest signal across the canvas's conversations, working included.
   const panelBadge = panelTarget && Array.isArray(panelList) && !rightPanel.open ? canvasStrongestSignal(panelList, panelTarget.canvas, homeRun.current.seenPending()) : null;
   // Show conversation: with a badge the panel unfolds on the conversation it stands for, focus on its request when it
   // waits for an answer; without one it unfolds on what it showed.

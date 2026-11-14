@@ -274,7 +274,7 @@ test("a new conversation started from the panel sends the Fast it shows and reme
   for (const [choice] of onRemember.mock.calls) expect(choice).not.toHaveProperty("fast");
 });
 
-// spec decided point 7: the title menu lists every conversation of the canvas by latest activity, the shown one pressed;
+// The title menu lists every conversation of the canvas by latest activity, the shown one pressed;
 // while it is open the order holds and a conversation that appears goes at the end.
 test("the title menu keeps the order it opened with while open; a new conversation joins at the end", () => {
   const summary = (conversationId: string, lastActivityAt: string) => ({ conversationId, title: conversationId, state: "current", owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,

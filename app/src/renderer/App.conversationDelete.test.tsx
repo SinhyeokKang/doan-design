@@ -289,7 +289,7 @@ test("not_found cleans up as a deletion and says it was already deleted", async 
   expect(focused.calls).toEqual([FIELDS[".workspace .ov-main .composer-input"]]);
 });
 
-// spec decided point 8: the next conversation by the shared rule, else the new conversation state; focus on the title menu button.
+// Deleting the shown conversation: the next conversation by the shared rule, else the new conversation state; focus on the title menu button.
 test("deleting the shown conversation from its Title menu shows the next one and focuses the title menu button", async () => {
   await openCanvasPanel();
   doan.deleteConversation = vi.fn(async () => undefined);
