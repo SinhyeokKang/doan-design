@@ -4,8 +4,8 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 // modally with focus on Cancel, so automatic focus never lands on the action that writes. A title with markup (a path as
 // code) names the dialog through `label`; the description, which says what the verb does, describes it.
 // `pending`: an owner that writes before closing passes it. The verb then leaves the alert open, and while the write is
-// out the alert is busy: the verb spins and Cancel, Escape and the verb do nothing, staying focusable (aria-disabled)
-// so focus does not fall out of the alert. The owner closes it by unmounting it once the write answers.
+// out the alert is busy: the verb keeps its fill and spins, Cancel dims, and Cancel, Escape and the verb do nothing,
+// staying focusable (aria-disabled) so focus does not fall out of the alert. The owner closes it by unmounting it once the write answers.
 export function SettingsDialog({ title, label, description, children, verb, pending, answer }: { title: ReactNode; label?: string; description: ReactNode; children?: ReactNode; verb: string; pending?: boolean; answer: (allow: boolean) => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
@@ -23,7 +23,7 @@ export function SettingsDialog({ title, label, description, children, verb, pend
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">{title}</h3><p className="doan-dialog-description" id={describedBy}>{description}</p></div></div>
     {children}<div className="doan-dialog-actions">
       <button className="doan-button" data-ui-variant="subtle" ref={cancel} aria-disabled={pending || undefined} data-disabled={pending ? "" : undefined} onClick={() => reply(false)}>Cancel</button>
-      <button className="doan-button" data-ui-variant="prominent" aria-disabled={pending || undefined} data-disabled={pending ? "" : undefined} onClick={() => reply(true)}>{pending && <span className="doan-spinner" aria-hidden="true" />}{verb}</button>
+      <button className="doan-button" data-ui-variant="prominent" aria-disabled={pending || undefined} aria-busy={pending || undefined} onClick={() => reply(true)}>{pending && <span className="doan-spinner" aria-hidden="true" />}{verb}</button>
     </div>
   </dialog>;
 }

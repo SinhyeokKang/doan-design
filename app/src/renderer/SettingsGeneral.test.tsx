@@ -150,6 +150,10 @@ describe("asking before a switch", () => {
     expect(dialog()).toBeDefined();
     const verb = button("Switch to Popo");
     expect(verb.props["aria-disabled"]).toBe(true);
+    // The pressed verb keeps its fill (no DS disabled look) and says it is busy; Cancel dims.
+    expect(verb.props["data-disabled"]).toBeUndefined();
+    expect(verb.props["aria-busy"]).toBe(true);
+    expect(button("Cancel").props["data-disabled"]).toBe("");
     expect(all(verb.props.children as ReactNode).some(element => element.props.className === "doan-spinner" && element.props["aria-hidden"] === "true")).toBe(true);
     expect(button("Cancel").props["aria-disabled"]).toBe(true);
     (button("Cancel").props.onClick as () => void)();
@@ -351,6 +355,8 @@ describe("SettingsDialog", () => {
 test("lock CSS: the problem overlay's material over the group, its corners following the group's; tabular digits", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".doan-settings-group.buddy-locked { position: relative; }");
+  // The group's row hairline (`> * + *`) must not draw a second line under the group's top border.
+  expect(css).toMatch(/\.buddy-lock \{[^}]*border: 0;/);
   expect(css).toMatch(/\.buddy-lock \{[^}]*background: color-mix\(in srgb, var\(--surface-panel\) 60%, transparent\);[^}]*backdrop-filter: blur\(var\(--blur-sm\)\);/);
   expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{ \.buddy-lock \{ background: var\(--surface-panel\); -webkit-backdrop-filter: none; backdrop-filter: none; \} \}/);
   expect(css).toMatch(/\.buddy-lock \.ob-heading h3 \{[^}]*font-variant-numeric: tabular-nums;/);
