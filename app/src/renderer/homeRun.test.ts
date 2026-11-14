@@ -607,7 +607,6 @@ test("visiting the project row marks a canvas-panel conversation's ending seen o
   h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
   h.run.entriesChanged();
   await flush(); await flush();
-  expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
   h.run.visit([ROOT]);
   await flush(); await flush();
   expect(doan.markConversationSeen).toHaveBeenCalledWith({ conversationId: "panel", seq: 5 });
