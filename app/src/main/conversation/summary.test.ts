@@ -9,7 +9,7 @@ function history(...payloads: (EventPayload | [EventPayload, string])[]): Conver
 const doan: ConversationMetadata = { conversationId: "c", root: "/repo", title: "Make a pricing page", state: "current", model: "opus", effort: "high", fromHome: true, seenSeq: 0,
   owner: { kind: "doan", provider: "claude", connectionId: "conn", accountId: "acct", workspaceId: "org", profile: "claude" },
   session: { runtime: "claude", origin: "newDesign", sessionId: "s", configDir: "/profiles/claude", cwd: "/repo" } };
-const legacy: ConversationMetadata = { conversationId: "c", root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, title: "Fix the header", state: "archived",
+const legacy: ConversationMetadata = { conversationId: "c", root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, title: "Fix the header", state: "current",
   owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/home/.codex", cwd: "/repo" } };
 const started: EventPayload[] = [{ type: "user.message", text: "Make a pricing page", anchors: [] }, { type: "turn.started" }];
 const permission: EventPayload = { type: "permission.request", requestId: "r", tool: "Bash", summary: "Run npm test", options: [{ id: "allow", label: "Allow", kind: "allow" }] };
@@ -23,7 +23,7 @@ describe("conversationSummary", () => {
   });
   it("includes a legacy external conversation with its canvas and no choice", () => {
     const s = conversationSummary(legacy, { ok: true, events: history(...started, { type: "turn.done" }) }, restarted);
-    expect(s).toMatchObject({ owner: "legacy-external", provider: "codex", canvas: { path: ".doan/canvases/a.html", id: "a" }, state: "archived", fromHome: false, phase: "ended" });
+    expect(s).toMatchObject({ owner: "legacy-external", provider: "codex", canvas: { path: ".doan/canvases/a.html", id: "a" }, state: "current", fromHome: false, phase: "ended" });
     expect(s).not.toHaveProperty("model");
   });
   it("carries the conversation's chosen permission mode, and none for Default", () => {
@@ -59,9 +59,14 @@ describe("conversationSummary", () => {
     expect(conversationSummary({ ...doan, seenSeq: 3 }, { ok: true, events: bound }, restarted).unseen).toBe(false);
     expect(conversationSummary({ ...doan, seenSeq: 2 }, { ok: true, events: bound }, restarted).unseen).toBe(true);
   });
-  it("never counts an archived conversation as unseen, even one replaced while it ran", () => {
+  // Nothing is archived any more: an end counts by the seen marker alone. A conversation an earlier build archived lost
+  // its marker when the index was migrated (store.ts), so the interruption recorded at the archive is seen.
+  it("counts an end by the seen marker alone, whatever the state field says", () => {
     const replaced = history(...started, { type: "interrupted", reason: "user" }, { type: "conversation.archived" });
-    expect(conversationSummary({ ...doan, state: "archived", seenSeq: 0 }, { ok: true, events: replaced }, restarted).unseen).toBe(false);
+    const { seenSeq: _seen, ...migrated } = doan;
+    expect(conversationSummary(migrated, { ok: true, events: replaced }, restarted).unseen).toBe(false);
+    expect(conversationSummary({ ...doan, seenSeq: 0 }, { ok: true, events: replaced }, restarted).unseen).toBe(true);
+    expect(conversationSummary({ ...doan, state: "archived", seenSeq: 0 }, { ok: true, events: replaced }, restarted)).toMatchObject({ state: "current", unseen: true });
   });
   it("returns only a read error for an unreadable history", () => {
     expect(conversationSummary(doan, { ok: false }, live)).toMatchObject({ conversationId: "c", readError: true, phase: "ended", unseen: false, preview: "", lastActivityAt: "" });
@@ -108,11 +113,12 @@ describe("conversationSummary", () => {
 describe("suggestion and returned draft", () => {
   const ended = { ok: true as const, events: history(...started, { type: "message.done", messageId: "m", text: "Done." }, { type: "turn.done" }) };
   const shown = { ...live, returned: false, suggestion: "Run the tests" };
-  it("carries the suggestion only for a current, ended conversation that is not working, has nothing queued and no returned draft", () => {
+  it("carries the suggestion only for an ended conversation that is not working, has nothing queued and no returned draft", () => {
     expect(conversationSummary(doan, ended, shown)).toMatchObject({ suggestion: "Run the tests" });
     expect(conversationSummary(doan, ended, shown)).not.toHaveProperty("returnedDraft");
+    // The state field no longer decides it.
+    expect(conversationSummary({ ...doan, state: "archived" }, ended, shown)).toMatchObject({ suggestion: "Run the tests" });
     const hidden: [string, ReturnType<typeof conversationSummary>][] = [
-      ["archived", conversationSummary({ ...doan, state: "archived" }, ended, shown)],
       ["running", conversationSummary(doan, { ok: true, events: history(...started, { type: "activity", kind: "read", summary: "Read a.html" }) }, shown)],
       ["waiting", conversationSummary(doan, { ok: true, events: history(...started, permission) }, shown)],
       ["working", conversationSummary(doan, ended, { ...shown, working: true })],

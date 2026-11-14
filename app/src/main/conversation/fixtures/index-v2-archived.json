@@ -1,0 +1,34 @@
+{
+  "v": 2,
+  "conversations": [
+    {
+      "conversationId": "replaced-1",
+      "root": "/repo",
+      "canvas": { "path": ".doan/canvases/a.html", "id": "a" },
+      "title": "Replaced while it ran",
+      "state": "archived",
+      "seenSeq": 0,
+      "owner": { "kind": "doan", "provider": "codex", "connectionId": "conn-codex-1", "accountId": "acct-codex-1", "workspaceId": null, "profile": "codex" },
+      "session": { "runtime": "codex", "origin": "new", "sessionId": "session-1", "configDir": "/profiles/codex", "cwd": "/repo" }
+    },
+    {
+      "conversationId": "current-1",
+      "root": "/repo",
+      "canvas": { "path": ".doan/canvases/a.html", "id": "a" },
+      "title": "Current on the same canvas",
+      "state": "current",
+      "seenSeq": 2,
+      "owner": { "kind": "doan", "provider": "codex", "connectionId": "conn-codex-1", "accountId": "acct-codex-1", "workspaceId": null, "profile": "codex" },
+      "session": { "runtime": "codex", "origin": "new", "sessionId": "session-2", "configDir": "/profiles/codex", "cwd": "/repo" }
+    },
+    {
+      "conversationId": "archived-legacy",
+      "root": "/repo",
+      "canvas": { "path": ".doan/canvases/b.html" },
+      "title": "Archived before seen markers",
+      "state": "archived",
+      "owner": { "kind": "legacy-external" },
+      "session": { "runtime": "claude", "origin": "resumed", "sessionId": "session-3", "configDir": "/profiles/claude", "cwd": "/repo" }
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldConversation, mergeEvents, turnState, bindFirstCanvas, archiveForStart } from "./state";
+import { foldConversation, mergeEvents, turnState, bindFirstCanvas } from "./state";
 import { reserveSession, promoteReservation, releaseReservation } from "./ownership";
 import type { ConversationEvent, EventPayload, ConversationBinding, Reservation, SessionKey } from "./types";
 const event = (seq: number, payload: EventPayload, turnId = "turn-1", conversationId = "a"): ConversationEvent => ({ v: 1, seq, conversationId, turnId, at: "2026-10-27T00:00:00.000Z", ...payload });
@@ -21,9 +21,10 @@ describe("conversation recovery and event merge", () => {
     expect(state.messages).toEqual([{ id: "m", text: "Hello!", done: true }]);
     expect(state.permissions.r).toBe("expired");
   });
-  it("keeps archives and resolved decisions across restart", () => {
+  it("keeps resolved decisions across an earlier build's archive line and a restart", () => {
     const state = foldConversation([event(1, { type: "turn.started" }), event(2, permission), event(3, { type: "permission.resolved", requestId: "r", optionId: "deny" }), event(4, { type: "turn.done" }), event(5, { type: "conversation.archived" })], "a", true);
-    expect(state.archived).toBe(true);
+    expect(state).not.toHaveProperty("archived");
+    expect(state).toMatchObject({ turn: "idle", lastSeq: 5 });
     expect(state.permissions.r).toBe("deny");
   });
   it("waits on a question like a permission and resumes when it is answered", () => {
@@ -74,15 +75,13 @@ describe("conversation recovery and event merge", () => {
     const state = foldConversation([event(1, { type: "turn.started" }), event(2, { type: "turn.done" }), event(3, { type: "turn.started" }, "turn-2"), event(4, { type: "turn.failed", code: "unknown" })], "a", false);
     expect(state.turn).toBe("starting");
   });
-  it("binds only the first same-root canvas and archives the previous identity only after acceptance", () => {
+  it("binds only the first same-root canvas", () => {
     const binding: ConversationBinding = { conversationId: "a", root: "/repo", origin: "newDesign", state: "current" };
     const canvas = { id: "home", path: ".doan/canvases/a.html" };
     expect(bindFirstCanvas(binding, "/other", canvas)).toEqual(binding);
     const bound = bindFirstCanvas(binding, "/repo", canvas);
     expect(bound.canvas).toEqual(canvas);
     expect(bindFirstCanvas(bound, "/repo", { id: "other", path: ".doan/canvases/b.html" })).toEqual(bound);
-    expect(archiveForStart([bound], { ...bound, conversationId: "b", canvas: { ...canvas, path: ".doan/canvases/moved.html" } }, false)).toEqual([bound]);
-    expect(archiveForStart([bound], { ...bound, conversationId: "b" }, true)[0]?.state).toBe("archived");
   });
 });
 describe("turn state", () => {
@@ -132,29 +131,38 @@ it("does not reuse an unconfirmed Claude process or a Codex server without expli
   expect(reserveSession([{ owner: "a", key: codex }], "a", codex)).toEqual({ ok: false, code: "busy" });
   expect(reserveSession([{ owner: "a", key: codex }], "a", codex, true).ok).toBe(true);
 });
-it("does not revive an archived conversation from later buffered events", () => {
-  expect(foldConversation([event(1, { type: "turn.started" }), event(2, { type: "conversation.archived" }), event(3, { type: "message.delta", messageId: "m", text: "late" })], "a", false).messages).toEqual([]);
-});
-describe("bound and restored markers", () => {
-  it("restores an archived conversation and folds the events after the restore again", () => {
+// An earlier build archived a conversation with a conversation.archived line and made it current again with
+// conversation.restored. Nothing is archived any more: the archive line only expires the requests still open, and the
+// turn's events after it fold as any others.
+describe("an earlier build's archive and restore lines", () => {
+  it("folds the same turn's late events after an archive line", () => {
+    const state = foldConversation([event(1, { type: "turn.started" }), event(2, { type: "conversation.archived" }), event(3, { type: "message.delta", messageId: "m", text: "late" }), event(4, { type: "turn.done" })], "a", false);
+    expect(state.messages).toEqual([{ id: "m", text: "late", done: false }]);
+    expect(state.turn).toBe("idle");
+  });
+  it("expires a permission still open at the archive line and keeps folding the turn", () => {
+    const state = foldConversation([event(1, { type: "turn.started" }), event(2, permission), event(3, { type: "conversation.archived" }),
+      event(4, { type: "permission.resolved", requestId: "r", optionId: "allow" }), event(5, { type: "message.done", messageId: "m", text: "done" }), event(6, { type: "turn.done" })], "a", false);
+    expect(state.permissions.r).toBe("expired");
+    expect(state.messages).toEqual([{ id: "m", text: "done", done: true }]);
+    expect(state.turn).toBe("idle");
+  });
+  it("folds every turn across archive and restore lines", () => {
     const state = foldConversation([
       event(1, { type: "turn.started" }), event(2, { type: "turn.done" }), event(3, { type: "conversation.archived" }),
-      event(4, { type: "message.delta", messageId: "late", text: "ignored" }, "turn-1"),
+      event(4, { type: "message.delta", messageId: "late", text: "after its end" }, "turn-1"),
       event(5, { type: "conversation.restored" }, "turn-2"), event(6, { type: "user.message", text: "again", anchors: [] }, "turn-2"),
       event(7, { type: "turn.started" }, "turn-2"), event(8, { type: "message.delta", messageId: "m", text: "back" }, "turn-2"),
     ], "a", false);
-    expect(state.archived).toBe(false);
+    expect(state).not.toHaveProperty("archived");
     expect(state.turn).toBe("streaming");
     expect(state.lastSeq).toBe(8);
+    // A turn's events after its end were fenced before and still are.
     expect(state.messages).toEqual([{ id: "m", text: "back", done: false }]);
-  });
-  it("keeps a conversation archived again after a later archive", () => {
-    const state = foldConversation([event(1, { type: "conversation.archived" }), event(2, { type: "conversation.restored" }), event(3, { type: "conversation.archived" })], "a", true);
-    expect(state.archived).toBe(true);
   });
   it("records a bound marker without changing the turn", () => {
     const state = foldConversation([event(1, { type: "turn.started" }), event(2, { type: "turn.done" }), event(3, { type: "conversation.bound", canvas: { path: ".doan/canvases/a.html", id: "a" } })], "a", true);
-    expect(state.turn).toBe("idle"); expect(state.archived).toBe(false); expect(state.lastSeq).toBe(3);
+    expect(state.turn).toBe("idle"); expect(state.lastSeq).toBe(3);
   });
 });
 

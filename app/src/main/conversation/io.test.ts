@@ -361,22 +361,23 @@ it("keeps seq consistent when a regular log is replaced before the append open",
   expect(JSON.parse(readFileSync(path + ".old", "utf8")).seq).toBe(1);
 });
 
-it("recovers an interrupted replacement rollback on restart before exposing history", () => {
+// A bind cuts the bound conversation's history back to its prefix when it fails; that cut is the rollback interrupted here.
+it("recovers an interrupted rollback on restart before exposing history", () => {
   const root = temp(); const store = new ConversationStore(root);
   const old = { conversationId: "old", root: "/repo", title: "old", state: "current" as const, owner: { kind: "legacy-external" as const }, session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/profile", cwd: "/repo" } };
+  const canvas = { path: ".doan/canvases/a.html", id: "a" };
   store.save([old]); store.append("old", "t", { type: "turn.done" }); const before = store.read("old");
   const append = store.append.bind(store);
-  vi.spyOn(store, "append").mockImplementation((id, turn, body) => { if (id === "new" && body.type === "turn.started") throw new Error("disk full"); return append(id, turn, body); });
+  vi.spyOn(store, "append").mockImplementation((id, turn, body) => { if (id === "old" && body.type === "turn.started") throw new Error("disk full"); return append(id, turn, body); });
   hooks.truncate = true;
-  expect(() => store.acceptStart([{ ...old, state: "archived" }, { ...old, conversationId: "new" }], "new", [
-    { id: "old", turn: "t", body: { type: "conversation.archived" } },
-    { id: "new", turn: "t", body: { type: "user.message", text: "hello", anchors: [] } },
-    { id: "new", turn: "t", body: { type: "turn.started" } },
+  expect(() => store.acceptChange({ kind: "bind", id: "old", canvas, replaced: [] }, [{ ...old, canvas }], [
+    { id: "old", turn: "t", body: { type: "conversation.bound", canvas } },
+    { id: "old", turn: "t", body: { type: "turn.started" } },
   ])).toThrow("rollback interrupted");
   expect(() => store.list()).toThrow("rollback interrupted");
   hooks.truncate = false;
   const restarted = new ConversationStore(root);
-  expect(restarted.list()).toEqual([old]); expect(restarted.read("old")).toEqual(before); expect(restarted.read("new")).toEqual([]);
+  expect(restarted.list()).toEqual([old]); expect(restarted.read("old")).toEqual(before);
 });
 it("keeps a committed replacement when recovery finds the committed index", () => {
   const root = temp(); const store = new ConversationStore(root);
