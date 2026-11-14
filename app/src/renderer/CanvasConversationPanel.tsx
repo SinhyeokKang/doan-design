@@ -109,12 +109,6 @@ export interface CanvasConversationProps {
   canvasPress?: CanvasPress | undefined;
   // The prototype window's playing frame, pinned on its composer and put first in every message.
   playing?: PlayingFrameChip | null;
-  // The prototype window's failed list read: the thread's place holds the failure line with Retry. Send stays
-  // available: a new conversation runs beside the others and cannot end one nobody can see.
-  listFailed?: boolean;
-  // False where a refused conversation offers no "Start a new conversation". A refused terminal session still switches
-  // to the new conversation it shares a field with.
-  newFromRefusal?: boolean;
 }
 
 const NEW_PLACEHOLDER = "Ask, / for presets";
@@ -443,8 +437,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
       case "busy": return { kind: "busy", busy: error.busy };
       case "blocked": return { kind: "blocked", text: error.text, ...(error.action ? { action: error.action } : {}) };
       case "notice": {
-        const startNew = error.startNew && (props.newFromRefusal !== false || mode.kind === "new" || mode.kind === "resume");
-        return { kind: "notice", text: error.text, ...(error.retry ? { retry: true } : {}), ...(startNew ? { startNew: true } : {}) };
+        return { kind: "notice", text: error.text, ...(error.retry ? { retry: true } : {}), ...(error.startNew ? { startNew: true } : {}) };
       }
       // attachments and resend never reach here: the composer marks moved files and resends not_running itself.
       default: return { kind: "notice", text: "Couldn’t send your message. Try again." };
@@ -490,8 +483,6 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
-        : props.listFailed ? <div className="doan-notice error thread-notice list-error" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Couldn’t read conversations</b></span>
-          <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>
         : view.kind === "wait" || conversationId ? <Waiting /> : <>
           {newView?.listError && <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
             <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}
