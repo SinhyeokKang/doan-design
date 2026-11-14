@@ -75,7 +75,7 @@ renderer ProjectStep.newFolder(parent)          (picking·choosing = true, dropN
 - **저장 창 옵션**: `dialog.showSaveDialog(window, {message, buttonLabel: "Create", nameFieldLabel: "Name:", defaultPath: parent, showsTagField: false})`.
   - `createDirectory`는 넣지 않는다.
   - 시트에서는 `title`이 보이지 않을 수 있어 안내 문장은 `message`에 둔다(PoC에서 확인한다). 문구는 초안에서 확정한다.
-  - `defaultPath`에는 디렉터리만 주어 이름 칸을 비운다.
+  - `defaultPath`에는 디렉터리만 준다. 이름 칸에는 macOS 기본 이름이 선택된 채 열린다(PoC '이름 칸', spec 정한 점 3).
 - **잠금**: 페이지는 잠그지 않는다(spec 정한 점 7). `acting`과 `choosing`이 Add Project…를 끄는 지금 규칙이 그대로 적용된다(`menuState`). 저장 창이 돌아왔을 때 창이 없거나 세션이 끝났으면 main은 `mkdir`를 하지 않고 `cancelled`로 답한다.
 - **검사 표시**: 만든 뒤 `inspectPath`가 `checking`을 보이므로 CLI `ls`(최대 10초) 동안 상태 줄이 있다.
 - **알림 위치와 모양**: 폴더 출처 알림이므로 카드 바로 아래, 끌어 놓기 알림과 같은 자리이고 서로를 지운다. 동작은 알림 안에 있다(이미 있는 폴더 알림은 동작 둘이라 아래 줄에 쌓는다). 모두 `project-step-actions` 규칙이다.
@@ -119,7 +119,7 @@ renderer ProjectStep.newFolder(parent)          (picking·choosing = true, dropN
   - 재귀 없는 `mkdir`는 창이 무엇을 돌려주든 덮어쓰지 않는다.
 - **알림 문구**: '초안'의 이미 있음 문구 둘은 바꾸지 않아도 된다. macOS 질문이 "대치하면 현재 내용을 덮어씁니다"라고 말한 뒤 Doan 알림이 "Doan didn’t replace it"이라고 바로잡으므로, Replace 다음 순서에서 맞게 읽힌다. 질문에서 Cancel을 누르면 저장 창으로 돌아가므로 알림은 뜨지 않는다. 대소문자만 다를 때 저장 창이 돌려주는 이름은 입력한 쪽이고 macOS 질문은 디스크의 이름을 보인다. 알림의 “<name>”에 어느 쪽을 넣을지는 이 PoC가 정하지 않는다.
 - **시트**: 시트에는 `message`가 보이고 `title`은 보이지 않는다(접근성 트리의 시트 노드 이름에만 들어간다). 안내 문장을 `message`에 두는 '세부 규칙'이 맞다.
-- **이름 칸**: `defaultPath`에 디렉터리만 주어도 이름 칸은 비지 않는다. macOS 기본 이름("무제", 영어 로케일이면 "Untitled")이 선택된 채 열리므로, 입력하면 그 이름을 덮어쓴다. 실패: '세부 규칙'의 "이름 칸을 비운다", 초안 `save-panel`의 "empty at first", 작업 6의 "이름 칸이 비어 있다"가 이 관찰과 다르다. 고치는 일은 이 PoC 밖이다.
+- **이름 칸**: `defaultPath`에 디렉터리만 주어도 이름 칸은 비지 않는다. macOS 기본 이름("무제", 영어 로케일이면 "Untitled")이 선택된 채 열리므로, 입력하면 그 이름을 덮어쓴다. 실패: '세부 규칙'의 "이름 칸을 비운다", 초안 `save-panel`의 "empty at first", 작업 6의 "이름 칸이 비어 있다"가 이 관찰과 달랐다. 사용자가 2026-11-14 macOS 기본 이름을 그대로 두기로 정했고, spec 정한 점 3·'세부 규칙'·작업 6·초안을 그에 맞췄다.
 
 ## POSTMORTEM에서 가져온 것
 

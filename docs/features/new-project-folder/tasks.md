@@ -2,7 +2,7 @@
 
 `project-step-actions`는 develop에 병합됐다(PR #196, 0ca3828be). 작업 1(PoC)과 3–9는 `/ship bypass new-project-folder`로 간다. `/ship`의 범위 기준(§0)이 feature 문서가 필요한 변경을 멈추기 때문이다. 변경은 앱(main, preload, renderer) 안에만 있다. 에이전트가 읽는 글이 바뀌지 않으므로(`cli/internal/cli/skill.md:53`, `active.go:30`, `open_rules.go:82`는 "Add Project…"·"Add Projects"만 말한다) `/agent-eval`은 하지 않고, PR 본문에 그 이유를 적는다. 커밋 경계는 `/ship`을 따른다: 테스트(`test:`), 구현 하나(`feat:`), `/design-sync` 수정과 DESIGN.md, `/refactor`, 문서 승격(문서마다).
 
-- [ ] 1. PoC(`.scratch/new-project-folder/`, design.md 'PoC 의존'): 격리 앱(임시 userData·HOME·SHELL)에서 `dialog.showSaveDialog`를 시트로 연다.
+- [x] 1. PoC(`.scratch/new-project-folder/`, design.md 'PoC 의존'): 격리 앱(임시 userData·HOME·SHELL)에서 `dialog.showSaveDialog`를 시트로 연다.
   - 네이티브 입력으로 확인할 것: 이미 있는 폴더 이름으로 Create를 누르면 Replace를 묻는가, Replace와 Cancel이 각각 무엇을 돌려주는가; 대소문자만 다른 이름, `/`·`:`가 든 이름, `.`으로 시작하는 이름; 시트에 `title`과 `message` 중 무엇이 보이는가.
   - 함정: POSTMORTEM 2026-10-27·2026-11-13·2026-10-30(design.md). 변수 경로로 `rm`을 쓰지 않는다.
   - 검증: `node .scratch/new-project-folder/poc.mjs`가 관찰을 한 줄씩 찍고 완료 줄과 exit 0으로 끝난다. 관찰(통과·실패·날짜)이 design.md에 적혀 있다.
@@ -26,7 +26,7 @@
   - 검증: `node .scratch/design-sync/new-project-folder/measure.mjs`의 모든 행이 차이 0이거나 문서화된 차이뿐이다.
   - 커밋 경계: `/design-sync` 수정과 DESIGN.md.
 - [ ] 6. `/runtime-test`: 격리 앱(임시 userData·HOME·SHELL)의 Add Projects에서 네이티브 입력으로 확인한다. 첫 실행 Project 단계는 격리 앱에서 닿지 않는다(DESIGN.md 'Onboarding'). 함정은 작업 1과 같다.
-  - New folder → 저장 창 위치가 마지막 등록 프로젝트의 부모이고 이름 칸이 비어 있다.
+  - New folder → 저장 창 위치가 마지막 등록 프로젝트의 부모이고 이름 칸에 macOS 기본 이름이 선택되어 있다.
   - 새 이름으로 Create → 폴더가 생기고 설정 패널이 열리며 하단 "Add project"가 켜진다(Include in Git 기본) → 누르면 설정·등록·Home.
   - 취소 → 아무것도 바뀌지 않고 `document.activeElement`가 New folder.
   - 이미 있는 폴더 이름 → 카드 아래 알림, 포커스가 알림, Replace를 눌렀어도 폴더 내용 그대로 → Use existing folder는 검사로 → Choose another name은 직전 위치에서 다시.
