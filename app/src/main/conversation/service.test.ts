@@ -37,7 +37,9 @@ it("retains idle Codex ownership until confirmed exit and reuses only the owning
   const h = fixture(); const id = (await h.service.start(request)).conversationId;
   h.service.receive(id, { type: "turn.done" }); await h.service.send(id, "again", []);
   expect(h.open).toHaveBeenCalledOnce(); expect(h.runners[0]?.send).toHaveBeenCalledTimes(2);
-  await h.service.interrupt(id); await expect(h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).rejects.toThrow("session_in_use");
+  // Deleted, the conversation no longer holds the session; its process still does until it exits.
+  await h.service.interrupt(id); h.service.delete(id);
+  await expect(h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).rejects.toThrow("session_in_use");
   h.exits[0]?.(); await h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } });
 });
 it("tells prepare when a send reuses the conversation's live Codex server", async () => {
@@ -128,9 +130,10 @@ it("releases preparation failures without spawning and preserves existing histor
 });
 it("keeps a colliding generated ID unavailable after the original owner exits", async () => {
   const h = fixture(); h.prepare.mockResolvedValue({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} });
-  await h.service.start({ ...request, mode: "new", runtime: "codex" });
+  const first = (await h.service.start({ ...request, mode: "new", runtime: "codex" })).conversationId;
   await expect(h.service.start({ ...request, mode: "new", runtime: "codex" })).rejects.toThrow("session_in_use");
-  h.exits[0]?.();
+  // Deleted, the first conversation no longer holds the session; only the losing process's quarantine does.
+  h.service.receive(first, { type: "turn.done" }); h.exits[0]?.(); h.service.delete(first);
   h.prepare.mockResolvedValue({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "new-session", command: "/fake", env: {} });
   await expect(h.service.start(request)).rejects.toThrow("session_in_use");
   h.exits[1]?.(); await h.service.start(request);

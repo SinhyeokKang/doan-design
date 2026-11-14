@@ -324,6 +324,7 @@ export class ConversationService {
       if (input.owner) live.provider = input.owner.provider;
       if (input.quiet) live.quiet = input.quiet;
       if (this.quitting) throw new Error("busy");
+      if (request.mode === "resume") this.checkSessionFree(input.runtime, input.configDir, input.sessionId);
       // A handoff cancelled while this was prepared opens no runner and holds no lease (POSTMORTEM 2026-10-27).
       if (handoff) this.checkHandoffSource(handoff.origin.conversationId, handoff.turnId, handoff.path);
       if (input.sessionId) this.promote(id, input, input.sessionId);
@@ -352,6 +353,7 @@ export class ConversationService {
         : { ...base, owner: { kind: "legacy-external" }, session: { ...session, runtime: runtime === "claude" ? "claude" : "codex" } };
       // The canvas's other conversations stay as they are and keep running: a start only adds one beside them.
       const entries = this.store.list();
+      if (request.mode === "resume") this.checkSessionFree(input.runtime, input.configDir, runner.sessionId);
       // A handoff cancelled meanwhile does not start (POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn').
       if (handoff) this.checkHandoffSource(handoff.origin.conversationId, handoff.turnId, handoff.path);
       // The files may have moved while the runner was prepared and opened; the prompt and history use this check.
@@ -1595,6 +1597,12 @@ export class ConversationService {
     if (projectBusy(this.live, root, exceptId, now) || [...this.evidence].some(([id, evidence]) => id !== exceptId && evidence.root === root && !(evidence.endedAt === undefined && asking(id)))) throw new Error("project_busy");
   }
   private snapshot(root: string): Canvas[] { return this.canvases(root).map(c => c.id === undefined ? { path: c.path } : { path: c.path, id: c.id }); }
+  // One session is one conversation: a terminal session resume is refused while a conversation in the index holds it,
+  // whether or not its process still runs (two conversations sending to one agent session would mix their histories).
+  // A deleted conversation no longer holds it.
+  private checkSessionFree(runtime: Provider, configDir: string, sessionId: string | undefined): void {
+    if (sessionId !== undefined && this.store.list().some(m => m.session.runtime === runtime && m.session.configDir === configDir && m.session.sessionId === sessionId)) throw new Error("session_in_use");
+  }
   // metadata throws not_found for a conversation deleted meanwhile.
   private checkSend(id: string, live: Live): void {
     if (this.quitting || this.live.get(id) !== live || live.terminal || live.cancelled) throw new Error("busy");
