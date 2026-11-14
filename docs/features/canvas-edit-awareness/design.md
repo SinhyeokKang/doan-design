@@ -1,6 +1,6 @@
 # canvas-edit-awareness — design
 
-이 문서는 develop `e55357832`의 코드를 기준으로 썼다. 하위 1([canvas-concurrent-conversations](../canvas-concurrent-conversations/design.md))이 병합되면 `conversation/` 쪽 인용과 `index.ts` 줄 번호를 그 결과와 다시 맞춘다(tasks 1). `ConversationMetadata.canvas`는 이미 develop에 있고 하위 1은 그 이름이나 뜻을 바꾸지 않는다.
+이 문서의 인용은 하위 1(canvas-concurrent-conversations, #199)이 병합된 develop `ef2bff835`과 맞췄다(tasks 1). `ConversationMetadata.canvas`는 이미 develop에 있고 하위 1은 그 이름이나 뜻을 바꾸지 않는다.
 
 ## 흐름
 
@@ -28,10 +28,10 @@
   - `cli/internal/cli/work_rules.go`: `readWorkResponse`가 `bool` 대신 `(delivered bool, others []workOther)`를 돌려주게 바꾼다(이름은 그대로 `readWorkResponse`). `others`는 스키마를 통과한 답에서만 꺼낸다.
   - `cli/internal/cli/work.go`(`:50-56`): `start`·`update` 결과에 `others`를 더한다(비지 않았을 때만). `done`은 `others`를 계산하지도 담지도 않는다. 텍스트 줄은 더하지 않는다. 텍스트 모드에서 `Outcome.Text`를 쓰면 `delivered`가 빠지므로 지금처럼 결과 JSON이 찍히게 둔다(`run.go:363`).
 - **앱 main(TS)**
-  - `app/src/main/conversationWork.ts` `LiveTurn`(`:8`, 지금 `{root, turnId, running}`): `canvas?`(묶인 캔버스의 경로·ID, `ConversationMetadata.canvas`)와 `provider`를 더한다. `liveTurns()`(`conversation/service.ts:699`)가 이미 메타데이터를 읽으므로 2초 기한 안에서 디스크를 다시 읽지 않는다. 레거시 외부 대화의 프로바이더는 `session.runtime`에서 가져온다.
+  - `app/src/main/conversationWork.ts` `LiveTurn`(`:8`, 지금 `{root, turnId, running}`): `canvas?`(묶인 캔버스의 경로·ID, `ConversationMetadata.canvas`)와 `provider`를 더한다. `liveTurns()`(`conversation/service.ts:656`)가 이미 메타데이터를 읽으므로 2초 기한 안에서 디스크를 다시 읽지 않는다. 레거시 외부 대화의 프로바이더는 `session.runtime`에서 가져온다.
   - `app/src/main/runtime.ts` `answerLine`의 v3 분기(`:228-240`)와 `workAfterRegistration`(`:178`): `state.work`·`state.conversationWork`를 적용한 뒤 `state.workOthers(request)`로 `others`를 받아 답에 넣는다. 대화 `update` 분기(`:231-233`, `isOpen` 확인 전에 `ok:true`)도 `others`를 싣는다. `RuntimeState`(`:26`)에 `workOthers(request: WorkRequest): WorkOther[]`를 더한다. `workOthers`가 던지면 `others` 없이 `ok: true`를 답한다. 오류 답과 `project_not_open`, `done`은 그대로다.
   - 새 순수 모듈 `app/src/main/workOthers.ts`(아래 순수 함수 1)와 상한 상수 `WORK_OTHERS_MAX = 8`.
-  - `app/src/main/index.ts`(`:961` 근처): `workOthers`를 `workState`, `conversationWork`, `conversations.liveTurns()`, 시계로 채운다.
+  - `app/src/main/index.ts`(`:982` 근처): `workOthers`를 `workState`, `conversationWork`, `conversations.liveTurns()`, 시계로 채운다.
   - `app/src/formats/types.ts`: `WorkResponse`에 `others?`.
 - **가이드**
   - `cli/internal/cli/skill.md` 규칙 D(`:37`)에 '문구'의 문장을 더하고, 예산을 맞추려 아래 '가이드 예산'처럼 줄인다. `doan work start`·`update` 설명(`:55-56`)에 `others`를 적는다.
