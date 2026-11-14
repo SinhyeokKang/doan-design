@@ -10,6 +10,7 @@ import { SkillCatalog } from "./skills";
 import type { Canvas, ConversationEvent } from "./types";
 import { storedAnswers } from "./transport";
 import { foldConversation } from "./state";
+import { othersOnCanvas } from "../workOthers";
 const paths: string[] = []; afterEach(() => { vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
@@ -2576,6 +2577,21 @@ describe("conversation work", () => {
     expect(h.service.liveTurns().get(id)).toMatchObject({ running: true, canvas: { path: ".doan/canvases/new.html", id: "new" } });
     h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2](); h.service.delete(id);
     expect(h.service.liveTurns().has(id)).toBe(false);
+  });
+  // A send refused as busy still saves the moved path first (refreshCanvas before the busy check), so the running turn
+  // must follow it: the moved file lists the conversation and the old path no longer does.
+  it("a running turn's canvas follows a move a refused send saved", async () => {
+    const h = fixture();
+    let listed = { id: "a", path: ".doan/canvases/a.html" };
+    const service = new ConversationService(h.store, h.prepare, h.open, () => {}, (_root, canvas) => canvas ? listed : undefined);
+    const id = (await service.start({ ...request, canvas: listed })).conversationId;
+    listed = { id: "a", path: ".doan/canvases/moved.html" };
+    await expect(service.send(id, "while running", [])).rejects.toThrow("busy");
+    expect(h.store.list()[0]!.canvas).toEqual(listed);
+    expect(service.liveTurns().get(id)).toMatchObject({ running: true, canvas: listed });
+    const others = (path: string) => othersOnCanvas({ request: { v: 3, token: "t", root: "/repo", action: "start", path }, now: Date.now(), work: [], conversationWork: [], liveTurns: service.liveTurns() });
+    expect(others(listed.path)).toEqual([{ kind: "conversation", provider: "codex" }]);
+    expect(others(".doan/canvases/a.html")).toEqual([]);
   });
   // Restart to Update asks on every conversation event, so this reads memory only.
   it("restartHolds counts running turns and the answers they wait for, from acceptance to the end", async () => {
