@@ -628,6 +628,9 @@ body:has(.shell-top) { background: transparent; }
    title keeps its width; aria-current="true" carries the state. */
 .shell-conv-check { position: absolute; left: calc(10px + var(--size-icon) + var(--space-2)); top: 50%; display: grid; place-items: center; width: var(--size-icon); height: var(--size-icon); transform: translateY(-50%); }
 .shell-conv-check svg { width: var(--size-icon); height: var(--size-icon); }
+/* Under the pointer the shown conversation takes the pressed fill, as the viewed canvas row does, so it stays apart
+   from the hovered rows around it; at rest only its check marks it. */
+.shell-side .shell-conv-row[aria-current="true"]:hover { background: var(--affordance-backdrop-pressed); }
 .shell-conv-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell-conv-row > .shell-more { margin-left: auto; }
 /* Delete follows the canvas row menu button's rule: hidden visually at rest, never display: none or visibility: hidden,

@@ -573,4 +573,6 @@ it("CSS: the conversation list's chevron, Delete and status follow the canvas ro
   // The draft's indent: the title starts under the canvas name (10 + 16 + 8 + 16 + 8 = 58 px), the check in the gutter.
   expect(css).toContain(".shell-side .shell-conv-row { position: relative; padding-left: calc(10px + 2 * (var(--size-icon) + var(--space-2)));");
   expect(css).toContain(".shell-conv-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }");
+  // The shown conversation's row takes the pressed fill under the pointer (draft frame hover-delete), the others the hover fill.
+  expect(css).toContain('.shell-side .shell-conv-row[aria-current="true"]:hover { background: var(--affordance-backdrop-pressed); }');
 });
