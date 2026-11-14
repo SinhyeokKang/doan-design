@@ -38,3 +38,4 @@
 - 사용자 확인: 이 워크트리 폴더를 설치된 Doan에 프로젝트로 추가하고(지휘자가 computer-use로 추가), `focus-close`와 `panel-titles`를 강조해 보였다. 사용자가 두 프레임을 받고 초안을 구현 기준으로 확정했다.
 - A PoC(2026-11-14, `orca computer` 네이티브 입력): 12/12 통과. 설계 수정 없음. 근거는 design.md 'PoC 의존'의 관찰.
 - R 리뷰(tasks 5–8, aa22f31e1..d81ebcf65): 🔴 0, 🟡 1(열고 닫을 때 포커스가 main의 view 뒤에만 간다는 순서를 테스트가 고정하지 않음), 🟢 3(styles.css 주석의 slug를 초안 경로로, `.pw-conv[hidden]`의 POSTMORTEM 2026-11-03 예외를 주석에, "Esc는 접지 않는다" 검사가 실제로 아무것도 확인하지 않음). 지휘자 판단: 넷 다 고친다. C가 tasks 9·10을 마친 뒤 C에게 보낸다. 보고서는 `.scratch/evidence/review-R.md`.
+- 지휘자 판단 (C 질문, tasks 10): 공유 provider 프로필은 링크 3 병합 때 지워져 없다. 실제 턴 대신 격리 앱에서 fixture 대화 index를 바꿔(빈 제목과 첫 user.message → index에서 이름을 바꾸고 목록 변경을 일으킴) 머리 제목이 따라가는지 본다. 실제 턴 확인은 '확인하지 못함'으로 둔다. 근거: 이 feature는 목록이 대화 이름을 정하는 방법을 바꾸지 않고, 머리가 보여 줄 제목만 정한다.
