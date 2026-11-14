@@ -1175,7 +1175,7 @@ Reference: `.doan/canvases/select-inspect.html`, frames `hover`, `element-select
 
 | Element | Measured contract | Reason |
 |---|---|---|
-| Hover / selection outline | 1.5px `--text-accent` just outside the element; dashed / solid (Canvas area and right panel 'Overlay marks') | Distinguishes hover from selection without relying on colour, and leaves the element's own edge visible. |
+| Hover / selection outline | 1.5 px `--text-accent` just outside the element (below 2x, 1 px); dashed / solid (Canvas area and right panel 'Overlay marks') | Distinguishes hover from selection without relying on colour, and leaves the element's own edge visible. |
 | Dimensions | The size bubble, an accent capsule ('Size bubble with Play'; Intended exceptions) | Legible independently of canvas scale. |
 | Inspector head | Padding 12; gap 6; 1px bottom divider; tag 12.5px / 600 | |
 | Selector / head metadata | 11.5px; metadata columns 52px / remaining width (`52px 195px` in the live panel), gaps 5px 8px | Frame Title and Implements are paired; Implements shows e.g. `src/screens/sign-in.tsx` with the same full title. |
