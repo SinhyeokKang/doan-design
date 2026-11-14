@@ -102,6 +102,7 @@ import { canvasKeyString } from "./prototype/targets";
 import { parseComposerChoice, parseRevealRequest } from "./prototype/requests";
 import { createPrototypeShowing } from "./prototype/showing";
 import { createPrototypeDrawing, prototypeTargetRef } from "./prototype/drawing";
+import { createPrototypePromoted } from "./prototype/promoted";
 import { parseUiState } from "../restore/uiState";
 import { createComposerSettings } from "./prototype/composerSettings";
 import { createPrototypeWindow } from "./prototypeWindow";
@@ -341,6 +342,7 @@ const prototype = createPrototypeWindow({
   closed: contents => {
     prototypeShowing.closed();
     prototypeDrawing.closed();
+    prototypePromoted.closed();
     prototypeResume = null;
     prototypeWorkSent = "[]";
     prototypeEntrySent = null;
@@ -367,8 +369,19 @@ const prototypeShowing = createPrototypeShowing({ playing: () => prototype.contr
 
 // The drawing project conversation of the playing canvas, which the main window says and main relays by id (drawing.ts).
 const prototypeDrawing = createPrototypeDrawing({ playing: () => prototype.controller.playing(), generation: () => prototype.controller.canvasGeneration(), conversations: () => indexedConversations() });
+// A project conversation promoted to the playing canvas's conversation, from main's own events (promoted.ts).
+const prototypePromoted = createPrototypePromoted({ playing: () => prototype.controller.playing(), generation: () => prototype.controller.canvasGeneration() });
 let prototypeTargetSent = "null";
 let prototypeDrawingSent = "null";
+let prototypePromotedSent = "null";
+
+function sendPrototypePromoted(): void {
+  const conversationId = prototypePromoted.current();
+  const text = JSON.stringify(conversationId);
+  if (text === prototypePromotedSent || prototype.window() === undefined) return;
+  prototypePromotedSent = text;
+  prototype.send(PROTOTYPE_CHANNELS.promotedChanged, { conversationId });
+}
 
 function sendPrototypeDrawing(): void {
   const conversationId = prototypeDrawing.current();
@@ -387,8 +400,8 @@ function prototypeTargetChanged(): void {
     prototypeTargetSent = text;
     send(PROTOTYPE_CHANNELS.target, target);
   }
-  if (prototype.window() === undefined) prototypeDrawingSent = "null";
-  else sendPrototypeDrawing();
+  if (prototype.window() === undefined) { prototypeDrawingSent = "null"; prototypePromotedSent = "null"; }
+  else { sendPrototypeDrawing(); sendPrototypePromoted(); }
 }
 
 // The buddy a new prototype window's page starts with; the saved one once preferences are read.
@@ -890,7 +903,7 @@ async function start(): Promise<void> {
   const hostRequests: ReadonlySet<string> = new Set([
     PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
     PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember, PROTOTYPE_CHANNELS.entry,
-    PROTOTYPE_CHANNELS.drawing,
+    PROTOTYPE_CHANNELS.drawing, PROTOTYPE_CHANNELS.promoted,
   ]);
   handle(PROTOTYPE_CHANNELS.visible, null, (_event, value: unknown) => value === undefined ? { visible: prototype.visible() } : null);
   for (const channel of PROTOTYPE_WINDOW_REQUESTS) {
@@ -1207,6 +1220,7 @@ async function start(): Promise<void> {
     if (prototype.window() === undefined) return;
     const list = message.channel === "conversation:event" || message.channel === "conversation:stage" ? knownFor(message.value.conversationId) : known ?? [];
     if (prototypeReceives(message, prototype.controller.playing(), list)) prototype.send(message.channel, message.value);
+    if (message.channel === "conversation:event" && prototypePromoted.event(message.value, list)) sendPrototypePromoted();
   };
   const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, (event, deferNotice) => { broadcast({ channel: "conversation:event", value: event }); if (!deferNotice) notify.event(event); updates?.conversationsChanged(); starPrompt?.event(event); }, (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
@@ -1440,6 +1454,12 @@ async function start(): Promise<void> {
     const taken = prototypeDrawing.set(kind, value);
     if (taken) sendPrototypeDrawing();
     return taken;
+  });
+  handle(PROTOTYPE_CHANNELS.promoted, null, (_event, value: unknown) => {
+    if (value !== undefined) return null;
+    const conversationId = prototypePromoted.current();
+    prototypePromotedSent = JSON.stringify(conversationId);
+    return conversationId;
   });
   handle(PROTOTYPE_CHANNELS.drawing, null, (_event, value: unknown) => {
     if (value !== undefined) return null;

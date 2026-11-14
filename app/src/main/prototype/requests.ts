@@ -209,9 +209,12 @@ export function parseRevealRequest(kind: unknown, value: unknown): RevealPayload
       const link = request === null ? null : replyLink(request.link);
       return request !== null && link !== null && validAuthId(request.conversationId) ? { kind: "reply", conversationId: request.conversationId, link } : null;
     }
+    // "Sign in to an agent…" and "Manage agents…" name no provider.
     case "settings": {
-      const request = record(value, ["kind", "provider"]);
-      return request !== null && validProvider(request.provider) ? { kind: "settings", provider: request.provider } : null;
+      const request = record(value, "provider" in value ? ["kind", "provider"] : ["kind"]);
+      if (request === null) return null;
+      if (!("provider" in request)) return { kind: "settings" };
+      return validProvider(request.provider) ? { kind: "settings", provider: request.provider } : null;
     }
     case "conversation": {
       const request = record(value, ["kind", "conversationId"]);

@@ -135,7 +135,7 @@ export function prototypeReceives(message: ConversationBroadcast, playing: Playi
 // canvas; an Open names a conversation or a listed canvas of the playing root (the drawing project conversation and a
 // handoff's target are not on the playing canvas). Sign in needs no target.
 export function prototypeRevealRequest(payload: RevealPayload, playing: PlayingCanvas | null, conversations: readonly ScopedConversation[], entries: readonly FolderEntry[]): PrototypeReveal | null {
-  if (payload.kind === "settings") return { kind: "settings", provider: payload.provider };
+  if (payload.kind === "settings") return payload.provider === undefined ? { kind: "settings" } : { kind: "settings", provider: payload.provider };
   const row = playingRow(playing, entries);
   if (playing === null || row === null) return null;
   const inRoot = (id: string) => conversations.find(candidate => candidate.conversationId === id && candidate.root === playing.root);

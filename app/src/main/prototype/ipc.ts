@@ -70,6 +70,10 @@ export const PROTOTYPE_CHANNELS = {
   setDrawing: "prototype:setDrawing",
   drawing: "prototype:drawing",
   drawingChanged: "prototype:drawingChanged",
+  // A project conversation promoted to the playing canvas's conversation (promoted.ts), by id only (`{conversationId}`),
+  // and its read.
+  promoted: "prototype:promoted",
+  promotedChanged: "prototype:promotedChanged",
 } as const;
 
 export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
@@ -78,7 +82,7 @@ export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
   PROTOTYPE_CHANNELS.mode, PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible,
   PROTOTYPE_CHANNELS.panel, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
   PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember, PROTOTYPE_CHANNELS.entry,
-  PROTOTYPE_CHANNELS.drawing,
+  PROTOTYPE_CHANNELS.drawing, PROTOTYPE_CHANNELS.promoted,
 ];
 
 // From the moment the host sets the iframe's src to the run's result. The slowest measured canvas answered in under
@@ -188,7 +192,7 @@ export interface PanelRequest {
 export type RevealPayload =
   | { kind: "chip"; conversationId: string; anchor: Anchor }
   | { kind: "reply"; conversationId: string; link: ReplyAnchor }
-  | { kind: "settings"; provider: Provider }
+  | { kind: "settings"; provider?: Provider }
   | { kind: "conversation"; conversationId: string }
   | { kind: "handoff"; canvas: Canvas; conversationId?: string };
 
@@ -201,7 +205,7 @@ export type RevealPayload =
 export type PrototypeReveal =
   | { kind: "chip"; root: string; canvas: Canvas; conversationId: string; anchor: Anchor }
   | { kind: "reply"; root: string; conversationId: string; link: ReplyAnchor }
-  | { kind: "settings"; provider: Provider }
+  | { kind: "settings"; provider?: Provider }
   | { kind: "conversation"; root: string; conversationId: string; canvas?: Canvas }
   | { kind: "handoff"; root: string; canvas: Canvas; conversationId?: string };
 
@@ -259,4 +263,8 @@ export interface PrototypeWindowApi {
   // window as `{kind: "conversation", conversationId}`.
   readDrawing(): Promise<string | null>;
   onDrawing(listener: (conversationId: string | null) => void): () => void;
+  // A project conversation promoted to the playing canvas's conversation, by id only (null for none); the panel's
+  // promotion notice, whose Open reveals it in the main window.
+  readPromoted(): Promise<string | null>;
+  onPromoted(listener: (conversationId: string | null) => void): () => void;
 }

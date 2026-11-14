@@ -103,6 +103,11 @@ const api = {
   readDrawing: (): Promise<string | null> => ipcRenderer.invoke("prototype:drawing"),
   onDrawing: (listener: (conversationId: string | null) => void): (() => void) =>
     listen<{ conversationId: string | null }>("prototype:drawingChanged", value => listener(value.conversationId)),
+  // A project conversation promoted to the playing canvas's conversation, by id only, then each change (null after a
+  // play of another canvas).
+  readPromoted: (): Promise<string | null> => ipcRenderer.invoke("prototype:promoted"),
+  onPromoted: (listener: (conversationId: string | null) => void): (() => void) =>
+    listen<{ conversationId: string | null }>("prototype:promotedChanged", value => listener(value.conversationId)),
 
   // Provider readiness: the main preload's snapshot with every account's identity left out. Only snapshots newer than
   // the last delivered, so an initial read that loses a race with a change never replaces the newer state.
