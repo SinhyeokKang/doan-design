@@ -118,6 +118,12 @@ test("markup is a labelled button with the still image, the floor shadow below i
   expect(renderToStaticMarkup(<Buddy buddy="doany" size={142.5} />)).toContain('style="width:142.5px;height:142.5px"');
 });
 
+// Settings > General's lock overlay: the countdown and its line describe the buddy, read once when focus reaches it.
+test("a slot can be described by text beside it; Home's has no description", () => {
+  expect(renderToStaticMarkup(<Buddy buddy="popo" size={96} describedBy="settings-buddy-time settings-buddy-rule" />)).toContain('<button type="button" class="doany" aria-label="Make Popo hop" aria-describedby="settings-buddy-time settings-buddy-rule" style="width:96px;height:96px">');
+  expect(renderToStaticMarkup(<Buddy buddy="popo" size={114} />)).not.toContain("aria-describedby");
+});
+
 test("each buddy's slot names it, shows its still and its shadow about its ground contact", () => {
   for (const id of BUDDY_IDS) {
     const { name, assets, rig } = buddy(id);
