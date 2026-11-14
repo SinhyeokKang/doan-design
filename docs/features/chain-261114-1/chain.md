@@ -40,7 +40,6 @@
 
 - 워커 대기 루프는 `/orchestrate` §2를 따른다. Codex 워커는 용량 오류로 조용히 멈출 수 있다.
 - `/agent-eval`은 두 링크 모두 해당하지 않는다. 에이전트가 읽는 문구(`cli/internal/cli/skill.md:53`, `active.go:30`, `open_rules.go:82`)가 바뀌는 라벨을 말하지 않는다. 각 PR 본문에 이유를 적는다.
-- 워커와 서브에이전트 브리프에 변수 경로 `rm` 금지를 넣는다(Claude Code의 위험한 `rm` 확인이 사용자 화면에 뜬다).
 - 같은 시각 리드는 `feat/cli-remove` 컨덕터도 돌린다. `app/src/main/index.ts`, `senderAllowed.ts`, `preload/index.ts`가 겹칠 수 있다. 나중에 병합되는 쪽이 `origin/develop`을 병합해 푼다.
 
 ## 링크 상태
