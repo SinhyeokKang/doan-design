@@ -42,6 +42,7 @@ import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
 import type { AddPageResponse, AddPageState } from "../main/addPage";
 import type { PlayRequest, PrototypeReveal } from "../main/prototype/ipc";
+import type { DrawingReport, PrototypeTargetRef } from "../main/prototype/drawing";
 import type { ComposerChoice } from "../renderer/rememberChoice";
 
 export type { AddPageResponse, AddPageState, WorkItem, OpenLinkResult, TrashPlanReply, TrashReply, ExportReply };
@@ -537,6 +538,17 @@ const api = {
     ipcRenderer.on("prototype:revealRequest", receive);
     return () => ipcRenderer.removeListener("prototype:revealRequest", receive);
   },
+  // The canvas the prototype window plays (null while it is closed), then each change: the main window says which
+  // project conversation draws it. Subscribe first, then read.
+  onPrototypeTarget(listener: (target: PrototypeTargetRef | null) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, target: PrototypeTargetRef | null) => listener(target);
+    ipcRenderer.on("prototype:target", receive);
+    return () => ipcRenderer.removeListener("prototype:target", receive);
+  },
+  readPrototypeTarget: (): Promise<PrototypeTargetRef | null> => ipcRenderer.invoke("prototype:readTarget"),
+  // The project conversation drawing that target, or null. Main takes it only for the target playing now and only a
+  // project conversation of its root, and relays the id alone to the prototype window.
+  setPrototypeDrawing: (report: DrawingReport): Promise<boolean> => ipcRenderer.invoke("prototype:setDrawing", report),
   // A pick in the prototype window's composer, to remember as Last used exactly as this window's own composer picks.
   onPrototypeLastUsed(listener: (choice: ComposerChoice) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, choice: ComposerChoice) => listener(choice);

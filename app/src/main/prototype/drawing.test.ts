@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest";
-import type { CanvasRow, FolderEntry } from "../view";
 import type { PlayingCanvas, ScopedConversation } from "./conversationScope";
 import { createPrototypeDrawing, prototypeTargetRef } from "./drawing";
 
@@ -8,11 +7,6 @@ import { createPrototypeDrawing, prototypeTargetRef } from "./drawing";
 // the playing canvas changes or the window closes.
 const PROTO = ".doan/canvases/proto.html";
 const LOOSE = ".doan/canvases/loose.html";
-const row = (path: string, id?: string): CanvasRow => ({ path, url: `http://127.0.0.1:5123/t/tok/k1/${path}`, ...(id ? { id } : {}) });
-const ENTRIES: FolderEntry[] = [
-  { path: "/r", kind: "list", canvases: [row(PROTO, "proto"), row(LOOSE)], servedRev: 0 },
-  { path: "/r-wt", kind: "list", canvases: [row(PROTO, "proto")], servedRev: 0 },
-];
 const CONVERSATIONS: ScopedConversation[] = [
   { conversationId: "p-project", root: "/r" },
   { conversationId: "p-project-wt", root: "/r-wt" },
@@ -26,7 +20,7 @@ const forA = { root: "/r", canvas: { id: "proto", path: PROTO } };
 function setup(start: PlayingCanvas | null = A) {
   let playing = start;
   let generation = 0;
-  const drawing = createPrototypeDrawing({ playing: () => playing, generation: () => generation, conversations: () => CONVERSATIONS, entries: () => ENTRIES });
+  const drawing = createPrototypeDrawing({ playing: () => playing, generation: () => generation, conversations: () => CONVERSATIONS });
   return { drawing, play: (next: PlayingCanvas | null) => { if (next !== playing) generation++; playing = next; } };
 }
 

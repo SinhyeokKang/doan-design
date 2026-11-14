@@ -41,6 +41,8 @@ export interface PrototypeWindowDeps {
   appHidden?(): boolean;
   // The saved buddy, in the page's query as the main window's, so the panel's first paint has its accent.
   buddy(): BuddyId;
+  // A new view went to the window: its target may have changed.
+  viewSent?(): void;
 }
 
 export interface PrototypeWindow {
@@ -299,6 +301,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     reread(root) { deps.reread(root); },
     sendView(view) {
       live()?.webContents.send(PROTOTYPE_CHANNELS.changed, view);
+      deps.viewSent?.();
     },
     async capture(mark, mode, sideColumn) {
       const target = live();

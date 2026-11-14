@@ -98,6 +98,11 @@ const api = {
   // it again when the view's root changes.
   readTargetEntry: (): Promise<FolderEntry | null> => ipcRenderer.invoke("prototype:entry"),
   onTargetEntry: (listener: (entry: FolderEntry | null) => void): (() => void) => listen("prototype:entryChanged", listener),
+  // The project conversation drawing the playing canvas, by id only, then each change (null when none, after a play of
+  // another canvas and when the main window no longer says one draws it).
+  readDrawing: (): Promise<string | null> => ipcRenderer.invoke("prototype:drawing"),
+  onDrawing: (listener: (conversationId: string | null) => void): (() => void) =>
+    listen<{ conversationId: string | null }>("prototype:drawingChanged", value => listener(value.conversationId)),
 
   // Provider readiness: the main preload's snapshot with every account's identity left out. Only snapshots newer than
   // the last delivered, so an initial read that loses a race with a change never replaces the newer state.

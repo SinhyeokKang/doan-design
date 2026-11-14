@@ -62,6 +62,14 @@ export const PROTOTYPE_CHANNELS = {
   // To the main window: a checked reveal (PrototypeReveal) and a Last used pick (ComposerChoice).
   revealRequest: "prototype:revealRequest",
   lastUsed: "prototype:lastUsed",
+  // The drawing project conversation (drawing.ts). To the main window: the playing target (PrototypeTargetRef | null)
+  // whenever it changes, and its read; from the main window: which project conversation draws it. To the prototype
+  // window: that conversation's id only (`{conversationId}`), and its read.
+  target: "prototype:target",
+  readTarget: "prototype:readTarget",
+  setDrawing: "prototype:setDrawing",
+  drawing: "prototype:drawing",
+  drawingChanged: "prototype:drawingChanged",
 } as const;
 
 export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
@@ -70,6 +78,7 @@ export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
   PROTOTYPE_CHANNELS.mode, PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible,
   PROTOTYPE_CHANNELS.panel, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
   PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember, PROTOTYPE_CHANNELS.entry,
+  PROTOTYPE_CHANNELS.drawing,
 ];
 
 // From the moment the host sets the iframe's src to the run's result. The slowest measured canvas answered in under
@@ -246,4 +255,8 @@ export interface PrototypeWindowApi {
   rememberChoice(choice: ComposerChoice): Promise<void>;
   readTargetEntry(): Promise<FolderEntry | null>;
   onTargetEntry(listener: (entry: FolderEntry | null) => void): () => void;
+  // The project conversation drawing the playing canvas, by id only (null for none); its Open reveals it in the main
+  // window as `{kind: "conversation", conversationId}`.
+  readDrawing(): Promise<string | null>;
+  onDrawing(listener: (conversationId: string | null) => void): () => void;
 }
