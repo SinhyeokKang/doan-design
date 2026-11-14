@@ -9,7 +9,7 @@
 ## Codex 사용 범위
 
 - 시작 시 주간 사용량(`$CODEX_HOME` 최신 rollout, `window_minutes: 10080`): 42% 사용, 리셋 2026-11-19 18:16 KST.
-- 체인 상시 권한(사용자 2026-11-14)으로 Codex 워커를 쓴다. 범위: 독립 `/code-review` 워커 R(gpt-6-astra medium). 리뷰를 나눌 때(A 완료 뒤) 다시 보지 않았다 — 시작 시점과 같은 세션, 42%. 구현은 Claude가 맡는다(메모리 규칙: Claude 주, Codex는 교차 리뷰 위주).
+- 체인 상시 권한(사용자 2026-11-14)으로 Codex 워커를 쓴다. 범위: 독립 `/code-review` 워커 R(gpt-6-astra medium). 리뷰를 나눌 때(A 완료 뒤, R의 rollout) 다시 봤다: 42% 사용. 구현은 Claude가 맡는다(메모리 규칙: Claude 주, Codex는 교차 리뷰 위주).
 
 ## 결정 기록
 
