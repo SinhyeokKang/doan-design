@@ -1,0 +1,42 @@
+# prototype-link-export — tasks
+
+`/orchestrate`로 돈다(상위 `prototype-frame-links` 체인의 셋째 링크, 하위 2 병합 뒤). 상위 문서의 체크는 리드가 develop에서 한다.
+
+- [ ] 1. **PoC**(컨덕터, `.scratch/prototype-link-export/`): 손으로 만든 두 프레임 파일에서 다음을 확인한다. 열기 방식은 `file://`과 로컬 웹 서버 두 가지이고, 브라우저는 Chrome과 Safari다.
+  - `srcdoc` iframe을 다시 만들면서 hash로 기록을 남기는 방식에서 브라우저 Back과 Forward가 동작하는지
+  - 이전 iframe의 메시지를 버리는지
+  - 검증: 명령 미정 — 사용자 확인 필요(`node .scratch/prototype-link-export/poc.mjs`가 Playwright Chromium·WebKit으로 확인하고 exit 0, Safari는 손으로 확인). 관찰을 design.md에 적는다.
+  - 커밋 경계: 관찰을 적은 design.md.
+- [ ] 2. **배치 E — Go 묶음과 페이지 조립**(순수 함수 1).
+  - 테스트: `cli/internal/export`·`cli/internal/cli`. 다음을 고정한다.
+    - 연결 없는 프레임(한 프레임), 묶음, 끊긴 묶음(시작 프레임의 묶음만), 시작 프레임
+    - 묶음 JSON, 캔버스를 한 번만 담는 것
+    - `</script`·`<template/>`가 든 캔버스
+    - 50 MiB 한도
+  - 프로토타입 고정 테스트를 갱신한다. 캔버스 export 고정 테스트는 그대로다.
+  - 검증: `go test ./...`, `go vet ./...`.
+  - 커밋 경계: `test:` 하나, 구현 하나.
+- [ ] 3. **배치 V — viewer**(순수 함수 2·3, E 뒤).
+  - 테스트: `app/src/main/exportViewer.test.ts`. 다음을 다룬다.
+    - `prototype.js` 상태 전이, hash, 이전 iframe 메시지
+    - `isolate.js` 연결 판단 드리프트(하위 1 fixture, 하위 2 주입 스크립트와 같음)
+    - 프레임마다 로딩 시한, 탭 제목
+  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `go test ./...`.
+  - 커밋 경계: `test:` 하나, 구현 하나.
+- [ ] 4. **확인**: 세 프레임이 연결된 캔버스를 임시 저장소에서 내보내고, Playwright(Chromium, WebKit)로 파일을 연다.
+  - 다음을 확인한다.
+    - 연결 이동과 새로 시작
+    - 브라우저 Back과 Forward
+    - hash로 열기
+    - `preventDefault()`
+    - 깨진 연결
+    - 오프라인
+  - 창의 Export로 만든 파일과 `doan export`로 만든 파일이 같은지 본다.
+  - 검증: `.scratch/runtime-test/prototype-link-export/` probe가 exit 0과 완료 표시를 내고, 스크린샷 경로가 보고서에 있다.
+- [ ] 5. **`/agent-eval` X2**.
+  - 검증: X2가 통과하고, 결과가 `docs/USABILITY-EVAL.md`에 있다. 실패하면 사용자가 열린 이슈로 받아들이지 않는 한 병합을 막는다.
+- [ ] 6. **승격**(문서별 커밋).
+  - PRODUCT §1 In scope 8("plays only that frame")과 §5 item 3 'Export and viewer'
+  - ARCHITECTURE §3 'Prototype window' 'Export', 'Exported canvas and viewer' 'Prototype page', §12
+  - `docs/features/prototype-link-export/`를 지운다.
+  - 검증: `grep -n "plays only that frame" docs/PRODUCT.md`가 빈 결과이고, `git ls-files docs/features/prototype-link-export`가 빈 결과다.
