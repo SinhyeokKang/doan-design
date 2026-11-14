@@ -16,7 +16,7 @@
 - 컨덕터 판단 — 문서 정렬: `project-step-actions` 병합(PR #196) 뒤 바뀐 줄 번호(`Onboarding.tsx:369-411`, `:367`, `App.tsx:1302`, `Onboarding.test.tsx:266`)와 `LocalFolderCard.interaction.test.tsx`를 문서에 반영했다. `projectFocusNode`의 '알림 버튼이 사라지면 카드 첫 버튼' 규칙에 New folder 경우를 더한다고 design.md에 적었다(spec 정한 점 8이 이미 정한 동작).
 - 컨덕터 판단 — 작업 2 완료: 체인 파일 시작 점검 2와 링크 2 '초안' 줄이 2026-11-14 사용자 확인을 적고 있고, PR #196은 `shipped-notices-choose` 안만 바꿨다. `doan check --repo . --json` 오류 0(경고 40, 모두 이 초안 밖).
 - 컨덕터 판단 — PoC와 구현 병렬: 비재귀 `mkdir`는 창이 무엇을 돌려주든 덮어쓰지 않으므로(design.md 'PoC 의존') PoC는 이미 있음 문구만 바꿀 수 있다. B는 그 문구를 잠정으로 두고 시작한다. PoC가 문구를 바꾸면 초안 수정과 사용자 확인을 거친 뒤 B에 새 Task로 보낸다.
-- 사용자 결정(2026-11-14) — 저장 창 이름 칸: PoC(P)에서 Electron 저장 창은 이름 칸을 비워 둘 수 없었다. macOS 기본 이름("Untitled"/"무제")이 선택된 채 여는 것으로 정했다. spec 정한 점 3·완료 조건, design '세부 규칙', 작업 6을 고쳤고(c8760cc65), 초안 `save-panel` 프레임은 P가 고친 뒤 사용자 확인을 받는다.
+- 사용자 결정(2026-11-14) — 저장 창 이름 칸: PoC(P)에서 Electron 저장 창은 이름 칸을 비워 둘 수 없었다. macOS 기본 이름("Untitled"/"무제")이 선택된 채 여는 것으로 정했다. spec 정한 점 3·완료 조건, design '세부 규칙', 작업 6을 고쳤고(c8760cc65), 초안 `save-panel` 프레임은 P가 고쳤고(04271c32b, 낡은 PoC 줄은 3d121da74), 컨덕터가 diff와 `doan check`(오류 0)를 확인한 뒤 사용자가 2026-11-14 확인했다.
 - 컨덕터 판단 — 이미 있음 문구: PoC 결과 바꾸지 않는다(macOS Replace 질문 뒤에도 "Doan didn’t replace it"이 맞게 읽힌다).
 - 컨덕터 판단 — 대소문자만 다른 이름: 알림의 “<name>”은 입력한 이름을 보인다. B가 이미 그렇게 구현했고, 디스크 이름을 찾는 규칙을 더하지 않는다.
 - 컨덕터 판단 — `/agent-eval` 없음: 체인 파일 운영 메모와 tasks.md 머리. 에이전트가 읽는 글(`skill.md:53`, `active.go:30`, `open_rules.go:82`)은 바뀌는 라벨을 말하지 않는다. PR 본문에 적는다.
@@ -40,6 +40,6 @@
 | 배치 | Run·Task·Dispatch | 워크트리 | 통합 해시 | 라운드 |
 |---|---|---|---|---|
 | P | run_6648828fe5bb · task_638787e4ebbb · ctx_6ec6ae0a9668 | `npf-poc` (5fa5a713a 기준) | d65d7f9c0 | 1 완료 |
-| P(초안) | task_c53ed68a51e9 · ctx_3a3f7d5a778e | `npf-poc` | — | 진행 |
+| P(초안) | task_c53ed68a51e9 · ctx_3a3f7d5a778e | `npf-poc` | 04271c32b, 3d121da74 | 완료 |
 | B | run_6648828fe5bb · task_4387308aad57 · ctx_d3f8c9e2289b | `npf-impl` (5fa5a713a 기준) | — | 1 완료(design-sync 2279행 차이 0, runtime 19 checks) |
 | R | task_52d60241ce7d · ctx_b46ef401ca8c (Codex gpt-6-astra medium) | `npf-impl`(읽기만) | — | 진행 |
