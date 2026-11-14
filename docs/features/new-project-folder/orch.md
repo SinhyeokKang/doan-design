@@ -42,4 +42,10 @@
 | P | run_6648828fe5bb · task_638787e4ebbb · ctx_6ec6ae0a9668 | `npf-poc` (5fa5a713a 기준) | d65d7f9c0 | 1 완료 |
 | P(초안) | task_c53ed68a51e9 · ctx_3a3f7d5a778e | `npf-poc` | 04271c32b, 3d121da74 | 완료 |
 | B | run_6648828fe5bb · task_4387308aad57 · ctx_d3f8c9e2289b | `npf-impl` (5fa5a713a 기준) | — | 1 완료(design-sync 2279행 차이 0, runtime 19 checks) |
-| R | task_52d60241ce7d · ctx_b46ef401ca8c (Codex gpt-6-astra medium) | `npf-impl`(읽기만) | — | 진행 |
+| R | task_52d60241ce7d · ctx_b46ef401ca8c (Codex gpt-6-astra medium) | `npf-impl`(읽기만) | — | 완료: 🔴 1(R1 화면이 사라진 뒤 늦은 Create가 폴더를 만듦, spec 정한 점 7), 🟡 0, ⚪ 1(N1 mkdir 경합·EROFS/EPERM 테스트) |
+| B 수정 1 | task_4046cd2a657b · ctx_35355a914576 | `npf-impl` | — | 진행(R1, N1, DESIGN.md 이름 칸 행) |
+| D | task_248216990495 · ctx_f3ff03773f50 (Claude Opus medium) | `npf-impl`(읽기만) | — | 진행: design-sync 독립 리뷰(B가 건너뜀) |
+
+## 정리
+
+- P: 워커 해제(ctx_75e23c177ce8), `npf-poc` 워크트리 삭제. 브랜치 `SinhyeokKang/npf-poc`(3d121da74)는 남긴다. PoC 스크립트와 handoff는 `.scratch/new-project-folder-poc/`에 복사했다.
