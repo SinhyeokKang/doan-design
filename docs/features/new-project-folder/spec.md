@@ -2,7 +2,7 @@
 
 Project 단계(첫 실행과 Add Projects 페이지)의 로컬 폴더 카드에 New folder를 둔다. 누르면 macOS 저장 창에서 이름과 위치를 정한다. Doan은 그 자리에 빈 폴더를 만들고, Choose folder로 고른 폴더처럼 설정 패널로 넘어간다.
 
-이 feature는 `project-step-actions`(Project 단계의 알림 자리·모양, 페이지의 "Add project", 버튼 크기, 오류 포커스) 위에 올라간다. 그 feature가 develop에 병합된 뒤 최신 develop에서 시작하고, 알림·하단 줄·포커스는 그 규칙을 따른다.
+이 feature는 `project-step-actions`(Project 단계의 알림 자리·모양, 페이지의 "Add project", 버튼 크기, 오류 포커스) 위에 올라간다. 그 feature는 develop에 병합됐다(PR #196). 알림·하단 줄·포커스는 그 규칙을 따른다.
 
 ## 사용자
 
