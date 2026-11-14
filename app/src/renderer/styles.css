@@ -212,6 +212,11 @@ code, kbd { font-family: var(--type-family); }
 .ob-notice-title { font-weight: var(--type-weight-medium); }
 /* Only under a title: a body alone is the first line, which the notice icon is centred on. */
 .ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
+/* A Project notice's text takes the room beside its actions; its second line (main's own account, or a note) is a
+   caption under the sentence. */
+.ob-notice-text { flex: 1 1 240px; min-width: 0; }
+.ob-notice-actions { flex: none; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.ob-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
 .ob-state-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
 .ob-state-actions.submit-only { justify-content: flex-end; }
 .ob-page-help { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); margin-top: var(--space-3); color: var(--text-subtle); }
@@ -233,7 +238,6 @@ code, kbd { font-family: var(--type-family); }
 .ob-field-label { display: block; margin-bottom: var(--space-2); font-weight: var(--type-weight-medium); }
 .ob-spaced { margin-top: var(--space-6); }
 .ob-url-action { display: flex; justify-content: flex-end; margin-top: var(--space-3); }
-.ob-recovery { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); width: 100%; margin-top: var(--space-4); }
 /* Mid-window the Agent/Project glass is about --affordance-subtle's own colour, so a subtle button standing on it
    lost its fill. It takes the step capsule's fill on the same glass; panels, dialogs, the Welcome surface and the DS
    hover, pressed and disabled fills are left alone. */
@@ -254,7 +258,6 @@ code, kbd { font-family: var(--type-family); }
 .ob-chosen > div, .ob-destination-name, .ob-choice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
 .ob-chosen strong, .ob-destination-name strong, .ob-choice strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
 .ob-path, .ob-choice small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
-.ob-notice-detail { margin-top: var(--space-3); }
 .ob-small-action { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
 .ob-destination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
 .ob-projects { margin-bottom: var(--space-6); }

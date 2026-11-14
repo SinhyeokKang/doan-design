@@ -56,9 +56,9 @@ test("a storage radio that plans the folder again gets focus back once the plan 
   expect(doc.activeElement).toBe(other);
 });
 
-// A failed re-plan keeps the setup screen with its error; focus goes back to the radio, which the person was on, while
-// the alert is announced by its role.
-test("a storage radio whose re-plan fails gets focus back, not the error", () => {
+// A failed re-plan keeps the setup screen with its error; like any failure after the person's own action, focus goes to
+// its notice rather than back to the radio.
+test("a storage radio whose re-plan fails hands focus to the error, not back to the radio", () => {
   const radio = new Element(), heading = new Element(), alert = new Element();
   let busy = false;
   const session = { state: { phase: { kind: "setup" }, error: null as { code: string } | null }, busy: () => busy, picking: () => false };
@@ -70,8 +70,8 @@ test("a storage radio whose re-plan fails gets focus back, not the error", () =>
   render();
   busy = false; radio.disabled = false; session.state = { ...session.state, error: { code: "project_unavailable" } };
   render();
-  expect(doc.activeElement).toBe(radio);
-  expect(alert.focused).toBe(0);
+  expect(doc.activeElement).toBe(alert);
+  expect(alert.focused).toBe(1);
 });
 
 // A radio changed with nothing focused leaves <body> active; the hook never hands focus back to <body>.

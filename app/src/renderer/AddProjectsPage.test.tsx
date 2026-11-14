@@ -87,7 +87,7 @@ test("selecting and cloning have no footer; cloning says why the page cannot be 
 test("the inline Cancel of a repository check is named apart from the footer Cancel", () => {
   const html = page({ phase: { kind: "inspecting", url: "https://github.com/acme/tokens" }, url: "https://github.com/acme/tokens" }, true);
   expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Cancel check">Cancel</button>');
-  expect(html).toContain('data-ui-variant="subtle">Cancel</button></div>');
+  expect(html).toContain('<div class="ob-footer add-footer"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button>');
 });
 
 test("every error code shows first run's copy; the page never shows the no-agent notice", () => {

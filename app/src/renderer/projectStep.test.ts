@@ -88,7 +88,7 @@ test("an invalid URL is refused locally; editing it clears the error", async () 
   const h = harness();
   h.session.setUrl("github.com/acme");
   await h.session.findRepository();
-  expect(h.session.state.error).toEqual({ code: "invalid_url" });
+  expect(h.session.state.error).toEqual({ code: "invalid_url", source: "url" });
   expect(h.api.inspectOnboardingProject).not.toHaveBeenCalled();
   h.session.setUrl("https://github.com/acme/studio");
   expect(h.session.state.error).toBeNull();
@@ -200,7 +200,7 @@ test("a repository Git cannot reach goes back to the first screen with the URL k
   h.queue.clone!.push(ok(op("project_clone", { state: "failed", error: { code: "repository_unreachable", message: "x" } })));
   await h.session.clone();
   expect(phase(h)).toEqual({ kind: "choose" });
-  expect(h.session.state.error).toEqual({ code: "access_failed" });
+  expect(h.session.state.error).toEqual({ code: "access_failed", source: "url" });
   expect(h.session.state.url).toBe("https://github.com/acme/studio");
 });
 
@@ -587,7 +587,7 @@ test("V re-check: Retry on the access error inspects an edited URL, like Enter, 
   await planned(h);
   h.queue.clone!.push(ok(op("project_clone", { state: "failed", error: { code: "repository_unreachable", message: "x" } })));
   await h.session.clone();
-  expect(h.session.state.error).toEqual({ code: "access_failed" });
+  expect(h.session.state.error).toEqual({ code: "access_failed", source: "url" });
   h.session.setUrl("https://github.com/git/git");
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/git"]]) })));
   await h.session.retry();
