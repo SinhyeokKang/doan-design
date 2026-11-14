@@ -175,25 +175,43 @@ const GROUP = [worktree("/w/a"), worktree("/w/b")];
 const removedByCli = (paths: string[]) => { listeners.foldersRemoved!(paths as never); render(); };
 const remembered = () => harness.controller!.remember!.mock.calls.filter(([, item]) => item === null).map(([root]) => root as string);
 
-// The group's second worktree open, then the list without the group, as main sends it before folders:removed.
-function cliRemoval() {
+const DRAFT = { segments: [{ kind: "text", text: "half a thought" }], preset: null, attachments: [], shape: "capsule" } as const;
+// What both removals must leave alike: sidebar projects, Home, forgotten canvases, Back/Forward history, conversation
+// memory as saved, and the Overview drafts.
+function windowState() {
+  const history = hooks.refs.map(ref => ref.current).find(value => typeof value === "object" && value !== null && Array.isArray(Reflect.get(value, "visits")) && typeof Reflect.get(value, "cursor") === "number");
+  const saved = doan.saveUiState!.mock.lastCall?.[0] as { conversationByRoot?: Record<string, string> } | undefined;
+  return { projects: sidebar().projects, home: find(Home).length, remembered: [...new Set(remembered())].sort(), history, conversations: saved?.conversationByRoot ?? {}, drafts: [...overviewRun().drafts.keys()].sort() };
+}
+// The group and another project listed, ui-state read with conversation memory for /w/b and /w/c, /w/c then /w/b
+// visited, and an Overview draft on /w/a (no conversation memory), /w/b and /w/c.
+async function seeded(memory: Record<string, string> = { "/w/b": "conv-b", "/w/c": "conv-c" }) {
+  vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(1_000_000);
   render(); folders([...GROUP, listed("/w/c")]);
-  toOverview("/w/b");
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, shellProjects: {}, conversationByRoot: memory });
+  await flush();
+  toOverview("/w/c"); toOverview("/w/b");
   expect(overview()?.root).toBe("/w/b");
+  overviewRun().setDrafts(drafts => new Map([...drafts, ["root:/w/a", DRAFT as never], ["root:/w/b", DRAFT as never], ["root:/w/c", DRAFT as never]]));
+  render();
+}
+// The group's second worktree open, then the list without the group, as main sends it before folders:removed.
+async function cliRemoval() {
+  await seeded();
   folders([listed("/w/c")]);
   removedByCli(["/w/a", "/w/b"]);
+  await flush();
 }
 async function menuRemoval() {
-  render(); folders([...GROUP, listed("/w/c")]);
-  toOverview("/w/b");
+  await seeded();
   sidebar().remove(["/w/a", "/w/b"]); render();
   (dialogButton("Remove from Doan").props.onClick as () => void)();
   folders([listed("/w/c")]);
   await flush();
 }
 
-test("a CLI removal of the open project's group goes Home, leaves the sidebar and forgets each root's canvas", () => {
-  cliRemoval();
+test("a CLI removal of the open project's group goes Home, leaves the sidebar and forgets each root's canvas", async () => {
+  await cliRemoval();
   expect(overview()).toBeUndefined();
   expect(find(Home)).toHaveLength(1);
   expect(sidebar().cards.flatMap(card => card.rows.map(row => row.path))).toEqual(["/w/c"]);
@@ -205,12 +223,15 @@ test("a CLI removal of the open project's group goes Home, leaves the sidebar an
 
 test("a CLI removal leaves the same window state as the menu's Remove from Doan", async () => {
   await menuRemoval();
-  const byMenu = { projects: sidebar().projects, home: find(Home).length, remembered: [...new Set(remembered())].sort() };
+  const byMenu = windowState();
   expect(doan.removeProjects).toHaveBeenCalledExactlyOnceWith(["/w/a", "/w/b"]);
   reset();
-  cliRemoval();
-  expect({ projects: sidebar().projects, home: find(Home).length, remembered: [...new Set(remembered())].sort() }).toEqual(byMenu);
+  await cliRemoval();
+  expect(windowState()).toEqual(byMenu);
   expect(byMenu.remembered).toEqual(["/w/a", "/w/b"]);
+  expect(byMenu.history).toEqual({ visits: [{ root: "/w/c" }], cursor: 0 });
+  expect(byMenu.conversations).toEqual({ "/w/c": "conv-c" });
+  expect(byMenu.drafts).toEqual(["root:/w/c"]);
 });
 
 test("folders:removed for roots the window's own Remove already tidied changes nothing", async () => {
@@ -222,12 +243,20 @@ test("folders:removed for roots the window's own Remove already tidied changes n
   expect(find(Home)).toHaveLength(1);
 });
 
-test("folders:removed that arrives before the list update tidies the same state", () => {
-  render(); folders([...GROUP, listed("/w/c")]);
-  toOverview("/w/b");
+test("folders:removed that arrives before the list update tidies the same state", async () => {
+  await seeded();
   removedByCli(["/w/a", "/w/b"]);
+  // Before the list says so: the removed root's Overview draft and conversation memory are already gone.
+  expect([...overviewRun().drafts.keys()]).toEqual(["root:/w/c"]);
   folders([listed("/w/c")]);
   expect(find(Home)).toHaveLength(1);
   expect(Object.values(sidebar().projects).flatMap(project => project.roots)).not.toEqual(expect.arrayContaining(["/w/a"]));
   expect(remembered()).toEqual(expect.arrayContaining(["/w/a", "/w/b"]));
+});
+
+// A root with an Overview draft but no conversation memory still loses the draft, as the menu's Remove drops it.
+test("folders:removed drops the removed roots' Overview drafts even without conversation memory", async () => {
+  await seeded({ "/w/c": "conv-c" });
+  removedByCli(["/w/a", "/w/b"]);
+  expect([...overviewRun().drafts.keys()]).toEqual(["root:/w/c"]);
 });

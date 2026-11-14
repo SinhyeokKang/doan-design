@@ -8,7 +8,8 @@ func Remove(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	}
 	r, failure := repository(ctx, f)
 	if failure != nil {
-		if failure.Code == "repo_not_found" || failure.Code == "invalid_config" {
+		// The app lists these as Not set up or Config error (a newer config version included).
+		if failure.Code == "repo_not_found" || failure.Code == "invalid_config" || failure.Code == "unsupported_version" {
 			failure.NextSteps = problemRootSteps
 		}
 		return Outcome{}, failure

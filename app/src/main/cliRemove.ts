@@ -40,7 +40,9 @@ export function cliRemoveDecision({ root, entries, ready, firstRun, menu, liveTu
     const page = menu.screen === "addProjects" ? "add_projects" : menu.projectSettings === true ? "project_settings" : "settings";
     return refuse("busy", openBlockedMessage(page));
   }
-  if (!ready || card.rows.some(row => row.kind === "loading")) return refuse("busy", "Doan is still loading this project. Try again shortly.");
+  // `ready` waits for every root, not only the group's: a just-added worktree has no Git common directory while it
+  // loads, so the group cannot claim it yet and removing the group now would leave it listed.
+  if (!ready || card.rows.some(row => row.kind === "loading")) return refuse("busy", "Doan is still loading a project. Try again shortly.");
   const roots = card.rows.map(row => row.path);
   for (const turn of liveTurns.values()) {
     if (turn.running && roots.includes(turn.root)) return refuse("conversation_running", "A conversation is running in this project in Doan.");

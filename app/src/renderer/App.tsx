@@ -1332,7 +1332,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     setShellProjects(next.shellProjects); setExpanded(next.expanded);
     if (next.history !== current.history) { historyRef.current = next.history; setHistory(next.history); }
     for (const root of paths) controller.current?.remember(root, null);
-    if (paths.some(root => root in conversationByRoot.current)) forgetConversations(paths);
+    // Only while something is left to forget, so a second pass bumps no memory tick and saves nothing: before ui-state
+    // is read every removal is marked (memoryTouched), and after it a root's conversation memory or Overview draft.
+    if (!memoryRead.current || paths.some(root => root in conversationByRoot.current || overviewRun.current?.drafts.has(`root:${root}`))) forgetConversations(paths);
   }
   // The dialog asks main for its plan before it can be
   // confirmed. A busy plan keeps it open with its working line; any other refusal closes it with that refusal's toast.

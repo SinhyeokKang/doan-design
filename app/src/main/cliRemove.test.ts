@@ -64,7 +64,7 @@ describe("refusals change nothing", () => {
   });
 
   test("before the app is ready, or while a root of the group is still read, Doan is busy loading", () => {
-    const loading = { code: "busy", message: "Doan is still loading this project. Try again shortly." };
+    const loading = { code: "busy", message: "Doan is still loading a project. Try again shortly." };
     expect(refusal({ ready: false }).error).toEqual(loading);
     const reading: FolderEntry = { path: "/w/app-fix", kind: "loading", lastCommon: COMMON };
     expect(refusal({ entries: [MAIN, OTHER, reading, AUTO] }).error).toEqual(loading);
@@ -110,7 +110,7 @@ describe("refusals change nothing", () => {
     expect(refusal(all).error.message).toBe("Finish Doan's first run, then try again.");
     expect(refusal({ ...all, firstRun: false }).error.message).toBe("A dialog is open in Doan. Close it, then try again.");
     expect(refusal({ ...all, firstRun: false, menu: { screen: "settings", modal: false, locked: true } }).error.message).toBe(openBlockedMessage("settings"));
-    expect(refusal({ ...all, firstRun: false, menu: { screen: "home", modal: false } }).error.message).toBe("Doan is still loading this project. Try again shortly.");
+    expect(refusal({ ...all, firstRun: false, menu: { screen: "home", modal: false } }).error.message).toBe("Doan is still loading a project. Try again shortly.");
     expect(refusal({ ...all, ready: true, firstRun: false, menu: { screen: "home", modal: false } }).error.code).toBe("conversation_running");
   });
 });

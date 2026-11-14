@@ -199,7 +199,10 @@ func TestRemoveProblemRootsPointToTheApp(t *testing.T) {
 	notSetUp := t.TempDir()
 	broken := t.TempDir()
 	putFile(t, broken, ".doan/config.json", `{`)
-	for root, code := range map[string]string{notSetUp: "repo_not_found", broken: "invalid_config"} {
+	// A config from a newer Doan is a Config error in the app too (PRODUCT §5 item 3 'Problem states').
+	newer := t.TempDir()
+	putFile(t, newer, ".doan/config.json", `{"v": 2}`)
+	for root, code := range map[string]string{notSetUp: "repo_not_found", broken: "invalid_config", newer: "unsupported_version"} {
 		failure := removeCode(t, root, code)
 		if steps := stringsOf(failure["nextSteps"]); !reflect.DeepEqual(steps, []string{"If Doan lists this folder as Not set up or Config error, ask the user to use Remove from Doan in the app; do not run `doan init` here"}) {
 			t.Errorf("%s: %q", code, steps)

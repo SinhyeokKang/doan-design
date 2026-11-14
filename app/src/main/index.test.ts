@@ -1333,9 +1333,9 @@ describe("removing from the CLI", () => {
     expect(mocks.shell.remove).not.toHaveBeenCalled();
   });
 
-  test("a root still being read keeps Doan busy", async () => {
+  test("any root still being read keeps Doan busy, another project's included", async () => {
     mocks.shell.entries.mockReturnValue([...entries, { path: "/code/new", kind: "loading" }]);
-    expect(await remove(APP)).toMatchObject({ v: 7, ok: false, error: { code: "busy", message: "Doan is still loading this project. Try again shortly." } });
+    expect(await remove(APP)).toMatchObject({ v: 7, ok: false, error: { code: "busy", message: "Doan is still loading a project. Try again shortly." } });
     expect(mocks.shell.remove).not.toHaveBeenCalled();
   });
 });
