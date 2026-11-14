@@ -54,10 +54,11 @@ export class PrototypeConversationRun {
   // The project conversation drawing the playing canvas, by id only: main relays it from the main window, which reads
   // project conversations this window cannot.
   private drawingId: string | null = null;
-  private drawingPushed = false;
+  // Moves with every push and every read: a read answered after a newer push or read is dropped.
+  private drawingTurn = 0;
   // The project conversation main saw become the playing canvas's current one, by id, likewise relayed.
   private promotedId: string | null = null;
-  private promotedPushed = false;
+  private promotedTurn = 0;
 
   constructor(private readonly calls: PrototypeConversationCalls, private readonly host: PrototypeRunHost) {
     const list = (root: string): ListView => (this.view?.root === root ? this.listView : "loading");
@@ -106,11 +107,10 @@ export class PrototypeConversationRun {
       this.calls.onWorkChanged(items => { this.workItems = items; this.host.changed(); }),
       this.calls.onTargetEntry(entry => { if (entry === null || entry.path === this.view?.root) { this.entryValue = entry; this.host.changed(); } }),
       this.calls.onComposerSettings(settings => { this.settingsValue = settings; this.host.changed(); }),
-      this.calls.onDrawing(conversationId => { this.drawingPushed = true; this.setDrawing(conversationId); }),
-      this.calls.onPromoted(conversationId => { this.promotedPushed = true; this.setPromoted(conversationId); }),
+      this.calls.onDrawing(conversationId => { this.drawingTurn++; this.setDrawing(conversationId); }),
+      this.calls.onPromoted(conversationId => { this.promotedTurn++; this.setPromoted(conversationId); }),
     ];
-    void this.calls.readDrawing().then(conversationId => { if (!this.drawingPushed) this.setDrawing(conversationId); }, console.error);
-    void this.calls.readPromoted().then(conversationId => { if (!this.promotedPushed) this.setPromoted(conversationId); }, console.error);
+    this.readRelayed();
     void this.calls.getWork().then(items => { this.workItems = items; this.host.changed(); }, console.error);
     void this.calls.readComposerSettings().then(settings => { if (settings && !this.settingsValue) { this.settingsValue = settings; this.host.changed(); } }, console.error);
     return () => { for (const off of offs) off(); };
@@ -125,13 +125,15 @@ export class PrototypeConversationRun {
     const target = this.target()!;
     const key = canvasKey(target);
     if (key !== this.key) {
+      const switched = this.key !== null;
       this.key = key;
       this.listView = "loading";
       this.last = null;
-      // Main nulls the drawing and the promotion for every new target, but that may come after this view: the canvas
-      // left behind's must not show on this one meanwhile.
-      this.drawingId = null;
-      this.promotedId = null;
+      // The relayed drawing and promotion belong to a target. Main nulls them for every new target and may push the new
+      // one's before this view arrives (views wait behind the still capture), so the old values go and main is asked
+      // again: its answer is for the target playing now.
+      // (The first target's were read at connect.)
+      if (switched) { this.drawingId = null; this.promotedId = null; this.readRelayed(); }
     }
     this.last = playingFrameChip(view, this.last);
     // A row back from being read again (a folder reload) reads the list again: list changes meanwhile were dropped.
@@ -218,6 +220,13 @@ export class PrototypeConversationRun {
       this.run.select(shown.conversationId);
     }
     this.changed();
+  }
+
+  // Subscribed before (connect): a push that lands after the read began wins over the read's answer.
+  private readRelayed(): void {
+    const drawing = ++this.drawingTurn, promoted = ++this.promotedTurn;
+    void this.calls.readDrawing().then(conversationId => { if (drawing === this.drawingTurn) this.setDrawing(conversationId); }, console.error);
+    void this.calls.readPromoted().then(conversationId => { if (promoted === this.promotedTurn) this.setPromoted(conversationId); }, console.error);
   }
 
   private setPromoted(conversationId: string | null): void {
