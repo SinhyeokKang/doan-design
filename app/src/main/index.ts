@@ -61,6 +61,7 @@ import type { NotificationTarget } from "./notifications";
 import { conversationNames, createNotifyService } from "./notifyService";
 import { createPreferencesStore, windowBuddy } from "./preferences";
 import { buddyIntroShown } from "./buddyIntro";
+import { answerCliRemove } from "./cliRemove";
 import type { BuddyId } from "../renderer/buddies";
 import { createLocalSeen, type LocalSeen } from "./canvasSeen";
 import { createReadState, type ReadState } from "./readState";
@@ -127,7 +128,9 @@ export type MenuCommand = "home" | "quickOpen" | "newConversation" | "pickFromCa
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
 // `overview`: a project Overview shows (File > New Conversation).
 // `pickerAvailable`: the composer takes input and the canvas is loaded, so the menu follows the canvas toolbar's Picker.
-export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; sidebarHidden?: boolean }
+// projectSettings: the "settings" screen is the Project Settings page, which enables the menu as Settings does; only
+// `doan remove`'s busy sentence tells the two apart.
+export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; sidebarHidden?: boolean; projectSettings?: boolean }
 export type RemoveResult = { kind: "removed" } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
 // The onboarding Project step's folder picker: a path only. Inspection, registration and setup go through the
@@ -561,12 +564,12 @@ const realHomeDirectory = (): string => realHome(homeDirectory());
 function setMenuInputs(next: MenuInputs): void {
   if (next.screen === menuInputs.screen && next.modal === menuInputs.modal &&
     next.choose === menuInputs.choose && next.locked === menuInputs.locked && next.overview === menuInputs.overview &&
-    next.pickerAvailable === menuInputs.pickerAvailable && next.sidebarHidden === menuInputs.sidebarHidden) return;
+    next.pickerAvailable === menuInputs.pickerAvailable && next.sidebarHidden === menuInputs.sidebarHidden && next.projectSettings === menuInputs.projectSettings) return;
   menuInputs = next;
   setMenu();
 }
 
-const MENU_FLAGS = ["choose", "locked", "overview", "pickerAvailable", "sidebarHidden"] as const;
+const MENU_FLAGS = ["choose", "locked", "overview", "pickerAvailable", "sidebarHidden", "projectSettings"] as const;
 function parseMenuInputs(value: unknown): MenuInputs | null {
   if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value)) return null;
   const flags = MENU_FLAGS.filter(flag => flag in value);
@@ -966,6 +969,20 @@ async function start(): Promise<void> {
     // Before the conversation service exists no conversation holds a key.
     handoff: request => conversations ? conversations.requestHandoff(request) : "not_app_conversation",
     playPrototype,
+    // Main judges and removes without asking the renderer; the window learns which roots went afterwards and tidies its
+    // own state for them. The window does not come forward.
+    remove: request => answerCliRemove(request, {
+      ready: openLinksReady,
+      firstRun: () => onboardingOpen || buddyIntroOpen,
+      entries: () => ready.entries(),
+      menu: () => menuInputs,
+      liveTurns: () => conversations?.liveTurns() ?? new Map(),
+      async removeRoots(roots) {
+        const removed = await removeRoots(roots);
+        if (removed.kind === "removed") send("folders:removed", { paths: removed.paths });
+        return removed;
+      },
+    }),
     async onboarding(request) {
       const service = await onboardingStarted;
       // start keeps the session and its input; the window comes forward only when Doan is
@@ -1337,6 +1354,19 @@ async function start(): Promise<void> {
     store: (paths) => ready.store(paths),
   });
   addFlow = flow;
+  // Every path that takes stored roots out by request (the menu's Remove from Doan, `doan remove`) goes through here, so
+  // state keyed by those roots is cleared in one place (POSTMORTEM 2026-10-25 'Locating a project kept the old root's
+  // selection'). The store reads its list before the first await, so the removal starts within the request.
+  async function removeRoots(roots: readonly string[]): Promise<{ kind: "removed"; paths: string[] } | { kind: "unavailable" }> {
+    const before = ready.entries();
+    if (selection && roots.includes(selection.root)) selection = null;
+    const removed = await ready.remove(roots);
+    if (removed.paths.length === 0) return { kind: "unavailable" };
+    // Background work a done turn left in a removed project stops without asking, as on sign-out.
+    conversations?.stopBackground(removed.paths);
+    void thumbs.removed(removed.paths, before);
+    return { kind: "removed", paths: removed.paths };
+  }
   // A row or a whole card.
   handle("folders:remove", { kind: "unavailable" }, (event, value: unknown): Promise<RemoveResult> | RemoveResult => {
     if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("paths" in value)) return { kind: "unavailable" };
@@ -1344,18 +1374,7 @@ async function start(): Promise<void> {
     const stored = ready.entries();
     if (!Array.isArray(paths) || paths.length === 0 || new Set(paths).size !== paths.length ||
       !paths.every((path) => stored.some((entry) => entry.path === path))) return { kind: "unavailable" };
-    const roots = paths.map(String);
-    const before = ready.entries();
-    if (selection && roots.includes(selection.root)) selection = null;
-    return new Promise((resolve) => {
-      void ready.remove(roots).then((removed) => {
-        if (removed.paths.length === 0) { resolve({ kind: "unavailable" }); return; }
-        // Background work a done turn left in a removed project stops without asking, as on sign-out.
-        conversations?.stopBackground(removed.paths);
-        void thumbs.removed(removed.paths, before);
-        resolve({ kind: "removed" });
-      });
-    });
+    return removeRoots(paths.map(String)).then((removed): RemoveResult => removed.kind === "removed" ? { kind: "removed" } : removed);
   });
   handle("folders:locate", { kind: "unavailable" }, async (event, value: unknown): Promise<LocateResult> => {
     const from = storedPath(value);

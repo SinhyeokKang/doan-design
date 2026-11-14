@@ -18,13 +18,42 @@ test("the page heading is 'Add a project', named for the landmark, without Your 
   expect(html).toContain("Open a local folder");
 });
 
-test("the page footer is Cancel, plus the step's primary only for candidates and clone", () => {
-  expect(page({})).toContain('<div class="ob-footer add-footer"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button></div>');
+// One submit for the page: "Add project" at the bottom right, whatever the step, and no other submit label.
+test("the page footer is Cancel and Add project in every unlocked phase, and no other submit appears", () => {
+  const footer = (disabled: boolean) => new RegExp(`<div class="ob-footer add-footer"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent"${disabled ? ' disabled=""' : ""} data-consent="">Add project<svg`);
+  expect(page({})).toMatch(footer(true));
   const candidates = page({ phase: { kind: "candidates", inspectionId: "i", url: null, candidates: [{ path: "/w/a", changes: [] }, { path: "/w/b", changes: [] }], choice: "/w/a" } });
-  expect(candidates).toMatch(/<div class="ob-footer add-footer"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel<\/button><button type="button" class="doan-button" data-ui-variant="prominent" data-consent="">Use this folder<svg/);
+  expect(candidates).toMatch(footer(false));
   const clone = page({ phase: { kind: "clone", url: "https://github.com/acme/tokens", inspectionId: "i", destination: "/Users/ada/code/tokens" } });
-  expect(clone).toMatch(/data-ui-variant="prominent" data-consent="">Clone and add<svg/);
-  expect(page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] } })).toContain(">Set up and add</button>");
+  expect(clone).toMatch(footer(false));
+  const setup = page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [".doan/config.json"] } });
+  expect(setup).toMatch(footer(false));
+  // The panel holds no submit of its own on the page.
+  expect(setup).not.toMatch(/<section class="doan-panel ob-setup">[^]*data-consent=""[^]*<\/section>/);
+  expect(page({ phase: { kind: "inspecting", url: "https://github.com/acme/tokens" }, url: "https://github.com/acme/tokens" }, true)).toMatch(footer(true));
+  expect(page({ phase: { kind: "checking", path: "/w/a" } }, true)).toMatch(footer(true));
+  for (const html of [page({}), candidates, clone, setup, page({ phase: { kind: "cloneCancelled", url: "https://github.com/acme/tokens", destination: "/Users/ada/code/tokens" } })])
+    expect(html).not.toMatch(/Use this folder|Clone and add|Set up and add/);
+});
+
+// The setup panel's consent is Add project: it carries the panel's inspection and is described by the git init line.
+test("on the setup panel Add project is the consent, described by the git init line under Keep out of Git", () => {
+  const setUp = vi.fn();
+  const NEW_REPO: ProjectStepState["phase"] = { kind: "setup", inspectionId: "i-7", url: null, path: "/w/new", changes: [".doan/canvases/", ".doan/config.json", ".git/", ".git/info/exclude"], storage: "local" };
+  const tree = <ProjectScreen use="addPage" state={{ ...base, storage: "local", phase: NEW_REPO }} busy={false} agentReady projects={[]} home={null} urlValid={false} heading={noop} on={{ ...on, setUp }} />;
+  const html = renderToStaticMarkup(tree);
+  expect(html).toContain('<p class="ob-provider-help storage-git-init" id="ob-setup-git-init">');
+  expect(html).toMatch(/<div class="ob-footer add-footer"><button[^>]*>Cancel<\/button><button type="button" class="doan-button" data-ui-variant="prominent" data-consent="" aria-describedby="ob-setup-git-init">Add project<svg/);
+  // Include in Git chosen: no line, no description.
+  expect(page({ storage: "repo", phase: NEW_REPO })).not.toContain("aria-describedby");
+});
+
+// A cancelled clone's Add project clones again, so its notice drops Retry.
+test("a cancelled clone on the page offers Choose local folder in its notice and enables Add project", () => {
+  const html = page({ url: "https://github.com/acme/tokens", phase: { kind: "cloneCancelled", url: "https://github.com/acme/tokens", destination: "/Users/ada/code/tokens" } });
+  expect(html).toMatch(/<div class="doan-notice ob-project-notice" role="status" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">Cloning was cancelled\. Choose a folder or try again\.<\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Choose local folder<\/button><\/div><\/div>/);
+  expect(html).not.toContain(">Retry</button>");
+  expect(html).toMatch(/data-ui-variant="prominent" data-consent="">Add project<svg/);
 });
 
 // the page's footer only leaves, so a local folder's setup offers Choose
@@ -58,7 +87,7 @@ test("selecting and cloning have no footer; cloning says why the page cannot be 
 test("the inline Cancel of a repository check is named apart from the footer Cancel", () => {
   const html = page({ phase: { kind: "inspecting", url: "https://github.com/acme/tokens" }, url: "https://github.com/acme/tokens" }, true);
   expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Cancel check">Cancel</button>');
-  expect(html).toContain('data-ui-variant="subtle">Cancel</button></div>');
+  expect(html).toContain('<div class="ob-footer add-footer"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button>');
 });
 
 test("every error code shows first run's copy; the page never shows the no-agent notice", () => {
@@ -74,14 +103,14 @@ test("a refused drop's notice sits under the card as an alert", () => {
   const html = renderToStaticMarkup(<ProjectScreen use="addPage" state={base} busy={false} agentReady projects={[]} home={null} urlValid={false} heading={noop} on={on}
     drop={{ notice: "Drop one folder at a time.", allowed: () => true, started: noop, dropped: noop }} />);
   // The page sits on the white home panel, so its notice keeps the inset fill; first run's overlay takes the panel.
-  expect(html).toMatch(/Choose folder<\/button><\/div><div class="doan-notice error ob-project-notice ob-drop-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="selectable">Drop one folder at a time\.<\/span><\/div>/);
+  expect(html).toMatch(/Choose folder<\/button><\/div><div class="doan-notice error ob-project-notice ob-drop-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">Drop one folder at a time\.<\/span><\/div>/);
 });
 
 test("first run's Project step takes the same card drop", () => {
   const html = renderToStaticMarkup(<ProjectScreen state={base} busy={false} agentReady projects={[]} home={null} urlValid={false} heading={noop} on={on}
     drop={{ notice: "Only folders can be added.", allowed: () => true, started: noop, dropped: noop }} />);
   expect(html).toContain("Choose your project");
-  expect(html).toMatch(/Choose folder<\/button><\/div><div class="doan-notice error doan-panel ob-project-notice ob-drop-notice" role="alert" tabindex="-1">.*?<span class="selectable">Only folders can be added\.<\/span>/);
+  expect(html).toMatch(/Choose folder<\/button><\/div><div class="doan-notice error doan-panel ob-project-notice ob-drop-notice" role="alert" tabindex="-1">.*?<span class="ob-notice-text selectable">Only folders can be added\.<\/span>/);
 });
 
 // The shared focus hook's decision; the page and first run pass their own scene root.
@@ -95,9 +124,9 @@ test("focus: a closed folder sheet hands focus back to its button, else the aler
     const scene = root({ 'role="alert"': alert, 'role="status"': status, "button:not(:disabled)": action });
     const at = (state: ProjectStepState, over: Partial<Parameters<typeof projectFocusNode>[0]> = {}) =>
       projectFocusNode({ opened: null, asked: false, root: scene as never, active: body as never, body: body as never, heading: heading as never, state, agentReady: true, busy: false, ...over });
-    expect(at(base, { opened: { node: opener as never, phase: "choose" } }), use).toBe(opener);
+    expect(at(base, { opened: { node: opener as never, phase: "choose", error: null } }), use).toBe(opener);
     // The screen changed while the sheet was open: the button is not where the person is any more.
-    expect(at({ ...base, phase: { kind: "checking", path: "/w/a" } }, { opened: { node: opener as never, phase: "choose" } })).toBe(status);
+    expect(at({ ...base, phase: { kind: "checking", path: "/w/a" } }, { opened: { node: opener as never, phase: "choose", error: null } })).toBe(status);
     expect(at({ ...base, error: { code: "project_unavailable" } })).toBe(alert);
     expect(at({ ...base, phase: cloning })).toBe(status);
     expect(at(base)).toBe(action);
@@ -157,7 +186,7 @@ test("the setup panel offers where the Doan files go, or says the project alread
   expect(html).toContain('<input type="radio" name="ob-setup-storage" checked=""/>');
   expect(html).toContain("<strong>Include in Git</strong><span>Git tracks these files. Commit them so your team gets your canvases and settings.</span>");
   expect(html).toContain("<strong>Keep out of Git (this Mac only)</strong><span>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</span>");
-  expect(html.indexOf("Doan files")).toBeLessThan(html.indexOf("Set up and add"));
+  expect(html.indexOf("Doan files")).toBeLessThan(html.indexOf("Add project"));
   const local = setup({}, { storage: "local" });
   expect(local.match(/<input type="radio" name="ob-setup-storage"( checked="")?\/>/g)).toEqual(['<input type="radio" name="ob-setup-storage"/>', '<input type="radio" name="ob-setup-storage" checked=""/>']);
   const kept = setup({ changes: [".doan/canvases/", ".doan/config.json"], storage: "local" });
@@ -191,4 +220,60 @@ test("a clone that landed but whose storage failed says so on the clone screen",
     expect(html, code).toContain(message);
     expect(html, code).not.toContain("nothing was set up");
   }
+});
+
+// Decision 8: a failure after a sheet goes to its notice, not back to the button that opened the sheet; a sheet opened
+// from a notice's button and cancelled returns to that button while the notice stays, else to the card's Choose folder.
+test("focus: an error after a sheet goes to the notice; a cancelled sheet from a notice's button returns to it, else to Choose folder", () => {
+  const opener = node(), heading = node(), alert = node(), card = node(), action = node();
+  const scene = root({ ".ob-local-option": card, 'role="alert"': alert, "button:not(:disabled)": action });
+  const at = (state: ProjectStepState, opened: Parameters<typeof projectFocusNode>[0]["opened"]) =>
+    projectFocusNode({ opened, asked: false, root: scene as never, active: body as never, body: body as never, heading: heading as never, state, agentReady: true, busy: false });
+  const failure = { code: "project_unavailable" as const, source: "folder" as const };
+  // Choose folder (no notice before) picked a folder that failed on the same screen.
+  expect(at({ ...base, error: failure }, { node: opener as never, phase: "choose", error: null })).toBe(alert);
+  // Change on the clone screen, and a radio whose new plan failed, the same.
+  const clone = { kind: "clone", url: "u", inspectionId: null, destination: "/d" } as const;
+  expect(at({ ...base, phase: clone, error: { code: "destination_exists" } }, { node: opener as never, phase: "clone", error: null })).toBe(alert);
+  // The notice's own Choose folder opened the sheet and it was cancelled: the same notice stays, so focus goes back.
+  expect(at({ ...base, error: failure }, { node: opener as never, phase: "choose", error: failure })).toBe(opener);
+  // A new failure of the same code is a new notice.
+  expect(at({ ...base, error: { ...failure } }, { node: opener as never, phase: "choose", error: failure })).toBe(alert);
+  // The notice that held the button went away meanwhile: the card's Choose folder on the choose screen.
+  const gone = node({ isConnected: false });
+  expect(at(base, { node: gone as never, phase: "choose", error: failure })).toBe(card);
+});
+
+// Add project consents, so recovery never puts focus on it.
+test("focus: lost focus on a page step never lands on Add project", () => {
+  const consent = node({ matches: (s: string) => s === "[data-consent]" });
+  const heading = node();
+  const scene = root({ "button:not(:disabled)": consent });
+  const candidates: ProjectStepState = { ...base, phase: { kind: "candidates", inspectionId: "i", url: null, candidates: [{ path: "/w/a", changes: [] }], choice: "/w/a" } };
+  expect(projectFocusNode({ opened: null, asked: false, root: scene as never, active: null, body: body as never, heading: heading as never, state: candidates, agentReady: true, busy: false })).toBe(heading);
+});
+
+// A folder chosen from a cancelled clone's notice can fail its check; the failure replaces the cancelled status and
+// takes its place: an alert with its own recoveries, focused, and Add project off while it shows.
+test("after a cancelled clone, a chosen folder's failure shows its own alert instead of the cancelled status", () => {
+  const url = "https://github.com/acme/tokens";
+  const cancelled = { kind: "cloneCancelled", url, destination: "/Users/ada/code/tokens" } as const;
+  const mismatch = page({ url, phase: cancelled, error: { code: "remote_mismatch", path: "/Users/ada/code/other", source: "folder" } });
+  expect(mismatch).toMatch(/<div class="doan-notice error stacked ob-project-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">other belongs to a different repository\.<\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Edit repository URL<\/button><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Choose another folder<\/button><\/div><\/div>/);
+  expect(mismatch).not.toContain("Cloning was cancelled");
+  expect(mismatch).not.toContain('role="status"');
+  // Edit repository URL is the notice's, so the screen does not repeat it.
+  expect(mismatch.split(">Edit repository URL</button>").length - 1).toBe(1);
+  expect(mismatch).toMatch(/data-ui-variant="prominent" disabled="" data-consent="">Add project<svg/);
+  const gone = page({ url, phase: cancelled, error: { code: "project_unavailable", source: "folder" } });
+  expect(gone).toMatch(/role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">This folder is no longer available\. Choose it again or select another folder\.<\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Choose folder<\/button><\/div>/);
+  expect(gone).not.toContain("Cloning was cancelled");
+});
+
+test("focus: a failure after a sheet opened from the cancelled clone's notice goes to the new alert", () => {
+  const opener = node(), heading = node(), alert = node(), action = node();
+  const scene = root({ 'role="alert"': alert, "button:not(:disabled)": action });
+  const cancelled = { kind: "cloneCancelled", url: "u", destination: "/d" } as const;
+  expect(projectFocusNode({ opened: { node: opener as never, phase: "cloneCancelled", error: null }, asked: false, root: scene as never, active: heading as never, body: body as never,
+    heading: heading as never, state: { ...base, phase: cancelled, error: { code: "remote_mismatch", source: "folder" } }, agentReady: true, busy: false })).toBe(alert);
 });

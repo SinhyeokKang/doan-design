@@ -1265,6 +1265,90 @@ describe("removing", () => {
   });
 });
 
+// `doan remove` (app-socket v7): main judges and removes through the same removeRoots as the menu, then tells the
+// window which roots went; nothing is asked of the renderer and the window does not come forward.
+describe("removing from the CLI", () => {
+  const TOKEN = "t";
+  type RemoveState = { remove(request: { v: 7; token: string; root: string }): Promise<unknown> };
+  const remove = (root: string) => (runtimeState() as unknown as RemoveState).remove({ v: 7, token: TOKEN, root });
+  const removedEvents = () => window().webContents.send.mock.calls.filter(([channel]) => channel === "folders:removed").map(([, value]) => value as unknown);
+  beforeAll(() => { launchCompletion = COMPLETE; });
+  afterAll(() => { launchCompletion = { kind: "missing" }; });
+  beforeEach(async () => {
+    mocks.shell.entries.mockReturnValue(entries);
+    mocks.shell.remove.mockImplementation(async (paths: string[]) => ({ paths }));
+    await invoke("deep-link:ready", window().webContents, null);
+  });
+
+  test("removes the whole group, clears its selection, stops its background work and tells the window", async () => {
+    const contents = window().webContents;
+    await invoke("selection:set", contents, null, { root: APP, canvas: { path: ".doan/canvases/a.html", id: "a" } });
+    const service = mocks.conversationService as unknown as { stopBackground(paths: string[]): void };
+    const stop = vi.spyOn(service, "stopBackground");
+    window().show.mockClear(); window().focus.mockClear();
+    expect(await remove(WT)).toEqual({ v: 7, ok: true, removed: true, project: "app", roots: [APP, WT] });
+    expect(mocks.shell.remove).toHaveBeenCalledExactlyOnceWith([APP, WT]);
+    expect(runtimeState().selection()).toBeNull();
+    expect(stop).toHaveBeenCalledExactlyOnceWith([APP, WT]);
+    expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith([APP, WT], entries);
+    expect(removedEvents()).toEqual([{ paths: [APP, WT] }]);
+    expect(window().show).not.toHaveBeenCalled();
+    expect(window().focus).not.toHaveBeenCalled();
+    expect(mocks.app.show).not.toHaveBeenCalled();
+  });
+
+  test("the menu's Remove shares removeRoots but sends no folders:removed", async () => {
+    const contents = window().webContents;
+    await invoke("selection:set", contents, null, { root: WT, canvas: { path: ".doan/canvases/a.html", id: "a" } });
+    expect(await invoke("folders:remove", contents, null, { paths: [WT] })).toEqual({ kind: "removed" });
+    expect(runtimeState().selection()).toBeNull();
+    expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith([WT], entries);
+    expect(removedEvents()).toEqual([]);
+  });
+
+  test("a store that removed nothing answers project_not_open and sends nothing", async () => {
+    mocks.shell.remove.mockResolvedValue({ paths: [] });
+    expect(await remove(APP)).toMatchObject({ v: 7, ok: false, error: { code: "project_not_open" } });
+    expect(removedEvents()).toEqual([]);
+  });
+
+  test("a running turn in another worktree of the group refuses and changes nothing", async () => {
+    const service = mocks.conversationService as unknown as { liveTurns(): ReadonlyMap<string, { root: string; turnId: string; running: boolean }> };
+    vi.spyOn(service, "liveTurns").mockReturnValue(new Map([["c", { root: APP, turnId: "t1", running: true }]]));
+    expect(await remove(WT)).toEqual({ v: 7, ok: false, error: { code: "conversation_running", message: "A conversation is running in this project in Doan." } });
+    expect(mocks.shell.remove).not.toHaveBeenCalled();
+    expect(removedEvents()).toEqual([]);
+  });
+
+  test("the window's last menu state blocks: a dialog, and a locked page by name", async () => {
+    const contents = window().webContents;
+    await invoke("menu:state", contents, null, { screen: "workspace", modal: true });
+    expect(await remove(APP)).toMatchObject({ v: 7, ok: false, error: { code: "busy", message: "A dialog is open in Doan. Close it, then try again." } });
+    await invoke("menu:state", contents, null, { screen: "addProjects", modal: false, locked: true });
+    expect(await remove(APP)).toMatchObject({ v: 7, ok: false, error: { code: "busy", message: "The Add Projects page in Doan is in the middle of a task. Finish or cancel it, then try again." } });
+    await invoke("menu:state", contents, null, { screen: "settings", modal: false, locked: true });
+    expect(await remove(APP)).toMatchObject({ error: { code: "busy", message: "Settings in Doan is in the middle of a change. Finish or cancel it, then try again." } });
+    await invoke("menu:state", contents, null, { screen: "settings", modal: false, locked: true, projectSettings: true });
+    expect(await remove(APP)).toMatchObject({ error: { code: "busy", message: "Project Settings in Doan is in the middle of a change. Finish or cancel it, then try again." } });
+    expect(mocks.shell.remove).not.toHaveBeenCalled();
+  });
+
+  test("any root still being read keeps Doan busy, another project's included", async () => {
+    mocks.shell.entries.mockReturnValue([...entries, { path: "/code/new", kind: "loading" }]);
+    expect(await remove(APP)).toMatchObject({ v: 7, ok: false, error: { code: "busy", message: "Doan is still loading a project. Try again shortly." } });
+    expect(mocks.shell.remove).not.toHaveBeenCalled();
+  });
+});
+
+// The default launch here has no completion record, so first run is open.
+test("doan remove during first run answers busy and removes nothing", async () => {
+  mocks.shell.entries.mockReturnValue(entries);
+  await invoke("deep-link:ready", window().webContents, null);
+  const state = runtimeState() as unknown as { remove(request: { v: 7; token: string; root: string }): Promise<unknown> };
+  expect(await state.remove({ v: 7, token: "t", root: APP })).toMatchObject({ v: 7, ok: false, error: { code: "busy", message: "Finish Doan's first run, then try again." } });
+  expect(mocks.shell.remove).not.toHaveBeenCalled();
+});
+
 describe("locate and reveal", () => {
   beforeEach(() => mocks.shell.entries.mockReturnValue(entries));
 

@@ -175,6 +175,12 @@ const api = {
     ipcRenderer.on("conversation:listChanged", receive);
     return () => ipcRenderer.removeListener("conversation:listChanged", receive);
   },
+  // `doan remove` took these roots out of the list; the folder list itself arrives on `folders` as for any change.
+  onFoldersRemoved(listener: (paths: string[]) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, value: { paths: string[] }) => listener(value.paths);
+    ipcRenderer.on("folders:removed", receive);
+    return () => ipcRenderer.removeListener("folders:removed", receive);
+  },
   // A handoff started a conversation on another canvas: its root, the earlier conversation
   // and its canvas, and the new one and its canvas. The renderer decides whether to move there or show a toast.
   onConversationHandoff(listener: (notice: ConversationHandoffNotice) => void): () => void {

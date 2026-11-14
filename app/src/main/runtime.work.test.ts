@@ -6,7 +6,7 @@ import { cliPlayError } from "./prototype/cliPlay";
 const token = "secret", root = "/repo", path = ".doan/canvases/a.html";
 const request = { v: 3, token, root, action: "start", path };
 const state = () => ({ isOpen: vi.fn((value: string) => value === root), selection: () => null, work: vi.fn(), conversationWork: vi.fn(), onboarding: async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } }),
-  open: async (): Promise<OpenResponse> => ({ v: 4, ok: false, error: { code: "busy", message: "unused" } }), handoff: () => null, playPrototype: () => cliPlayError("not_ready", "unused"),
+  open: async (): Promise<OpenResponse> => ({ v: 4, ok: false, error: { code: "busy", message: "unused" } }), handoff: () => null, playPrototype: () => cliPlayError("not_ready", "unused"), remove: async () => ({ v: 7 as const, ok: false as const, error: { code: "bad_request" as const, message: "unused" } }),
   roots: () => [root], readRoot: vi.fn(async (): Promise<FolderState> => ({ kind: "uninitialized" })), adopt: vi.fn() });
 test("v3 validates schema, then token, then registered root, before applying work", async () => {
   const service = state();
@@ -61,7 +61,7 @@ describe("update", () => {
   });
 });
 test("non-numeric or unknown versions keep the v1 refusal", async () => {
-  for (const v of ["3", 7, null]) expect(await answerLine(JSON.stringify({ ...request, v }), token, state())).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+  for (const v of ["3", 8, null]) expect(await answerLine(JSON.stringify({ ...request, v }), token, state())).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
 });
 
 // ARCHITECTURE §4 'Auto-registration': a `start` from an unregistered worktree of a saved repository registers it.

@@ -71,6 +71,11 @@ test("the page body reads its session, focuses the heading on entry, and reports
   // Busy at once: the report needs no render in between.
   expect(page.onState).toHaveBeenLastCalledWith({ locked: false, choose: false });
   await flush();
+  // A set-up folder waits for Add project on the page.
+  expect(page.onState).toHaveBeenLastCalledWith({ locked: false, choose: false });
+  await flush();
+  screen.props.on.select!();
+  await flush();
   // Selecting is locked; the select reply is held, and no render ran since the click.
   expect(page.onState).toHaveBeenLastCalledWith({ locked: true, choose: false });
 });
