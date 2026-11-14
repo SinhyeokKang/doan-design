@@ -1,6 +1,6 @@
 # new-project-folder — design
 
-`project-step-actions`가 develop에 병합된 뒤 시작한다. 알림 자리(폴더 출처는 카드 아래)와 모양(동작은 알림 안), 페이지 하단 "Add project", 버튼 크기, 오류 포커스는 그 feature의 규칙과 코드(`error.source`, `projectFooter`, `ProjectNoticeView`, `projectFocusNode`)를 그대로 쓴다.
+`project-step-actions`는 develop에 병합됐다(PR #196). 알림 자리(폴더 출처는 카드 아래)와 모양(동작은 알림 안), 페이지 하단 "Add project", 버튼 크기, 오류 포커스는 그 feature의 규칙과 코드(`error.source`, `projectFooter`, `ProjectNoticeView`, `projectFocusNode`)를 그대로 쓴다.
 
 ## 흐름
 
@@ -41,11 +41,11 @@ renderer ProjectStep.newFolder(parent)          (picking·choosing = true, dropN
     - renderer 전용 오류 `folder_exists`·`folder_inside_project`·`folder_create_failed`를 두고, 경로를 `error.path`에, 출처를 `error.source: "folder"`에 싣는다.
     - `defaultProjectParent`를 뺀다.
   - `Onboarding.tsx`
-    - 로컬 폴더 카드(`LocalFolderCard`, `Onboarding.tsx:388-393`)에 `sm` New folder를 더하고, 제목·설명을 바꾼다(spec 정한 점 2).
+    - 로컬 폴더 카드(`LocalFolderCard`, `Onboarding.tsx:369-411`)에 `sm` New folder를 더하고, 제목·설명을 바꾼다(spec 정한 점 2).
     - `ProjectAction`에 `chooseAnotherName`·`useExistingFolder`·`newFolderElsewhere`를 더한다.
     - `projectNotice`에 세 알림을 더한다. 알림 모양과 자리는 `project-step-actions`의 `ProjectNoticeView`가 정한다.
-    - 포커스: 오류 조건은 `project-step-actions`가 이미 더했다. 이 feature는 New folder와 알림 안 버튼이 연 저장 창의 취소 경로만 더한다(spec 정한 점 8).
-  - 카드 제목을 말하는 주석과 테스트: `folderDrop.ts:1`, `App.tsx:1299`, `Onboarding.tsx:350`, `Onboarding.test.tsx:236, 263`, `AddProjectsPage.test.tsx:18`. DESIGN.md의 "Open a local folder"도 다시 잰다.
+    - 포커스: 오류 조건은 `project-step-actions`가 이미 더했다. 이 feature는 New folder와 알림 안 버튼이 연 저장 창의 취소 경로만 더한다(spec 정한 점 8). 지금 `projectFocusNode`는 알림 버튼이 사라지면 카드의 첫 버튼(Choose folder)으로 보낸다. New folder 쪽 알림이 연 저장 창이면 New folder로 가게 한다.
+  - 카드 제목을 말하는 주석과 테스트: `folderDrop.ts:1`, `App.tsx:1302`, `Onboarding.tsx:367`, `Onboarding.test.tsx:236, 266`, `AddProjectsPage.test.tsx:18`, `LocalFolderCard.interaction.test.tsx`(카드 props). DESIGN.md의 "Open a local folder"도 다시 잰다.
 - **CLI·형식·스킬**: 바뀌지 않는다.
 
 ## 순수 함수로 뺄 것(`/tdd` 대상)
@@ -86,7 +86,7 @@ renderer ProjectStep.newFolder(parent)          (picking·choosing = true, dropN
 - 초안은 `.doan/canvases/new-project-folder.html` 하나를 `project-step-actions`와 같이 쓴다. 출시된 Project 단계를 다시 설계하는 초안이므로, AGENTS.md 'Workflow'의 redesign 예외에 따라 이 feature가 병합될 때까지 New folder 부분의 `/design-sync` 기준이다. 출시된 초안(`doan-onboarding.html`, `doan-add-projects.html`)은 고치지 않는다.
 - 이 feature가 맡는 프레임(`project-step-actions`가 적용된 모양): `card-add-projects`, `card-first-run`, `save-panel`, `notice-exists-folder`, `notice-exists-file`, `notice-inside-project`, `notice-create-failed`, `after-create`. `card-busy`와 `shipped-notices-*` 다섯 프레임은 `project-step-actions`가 맡는다.
 - 문구는 `clarify` 프리셋으로 정했다. 카드 제목 "Use a folder on your Mac", 설명 "Choose a project folder you already have, or create a new one.", 저장 창 message "Name your new project folder and choose where to create it.", 이미 있는 폴더 "A folder named “<name>” already exists in <~ parent>. Doan didn’t replace it. Choose another name or use the existing folder.", 폴더가 아닌 항목 "An item named “<name>” already exists in <~ parent> and isn’t a folder. Doan didn’t replace it. Choose another name.", 프로젝트 안은 클론의 출시 문장, 실패 "Couldn’t create this folder. Check folder access, then choose another location."과 시도한 절대 경로.
-- 사용자가 2026-11-14 앱에서 프레임별로 초안을 확인했다(알림 자리·모양, 하단 "Add project", 버튼 크기는 그 과정에서 정해져 `project-step-actions`로 갔다). 부작용 점검으로 고칠 타일을 그리는 중이며, 고친 초안을 다시 확인받는다.
+- 사용자가 2026-11-14 앱에서 프레임별로 초안을 확인했다(알림 자리·모양, 하단 "Add project", 버튼 크기는 그 과정에서 정해져 `project-step-actions`로 갔다). 부작용 점검으로 고친 초안도 같은 날 확인했다(chain-261114-1 시작 점검 2). `project-step-actions`는 공유 초안 중 `shipped-notices-choose` 안만 바꿨고, New folder 프레임은 그대로다(PR #196).
 
 ## 형식 변경
 
