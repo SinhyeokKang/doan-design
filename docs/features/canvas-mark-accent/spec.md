@@ -16,9 +16,9 @@
 
 ## 완료 조건
 
-1. 선택 표시는 요소 영역 바깥 1px에 `--text-accent` 실선으로 그린다. 호버는 같은 자리의 같은 색 점선이다. 흰 링은 없다. Select와 Picker 모드에서 같다.
-2. 크기 버블은 `--affordance-accent` 배경에 `--text-on-accent` 글자다. 높이·패딩·글자 역할·위치 규칙은 지금과 같고, 표시선 바깥 가장자리에서 5px 떨어진다.
-3. 선택이 있으면 크기 버블에 "Add to message" 버튼(lucide `Crosshair`)이 늘 보인다. 순서는 크기 글자, Add to message, Play이고, Play는 지금처럼 재생할 수 있는 프레임일 때만 있다.
+1. 선택 표시는 요소 영역 바깥 1.5px에 `--text-accent` 실선으로 그린다. 호버는 같은 자리의 같은 색 점선이다. 흰 링은 없다. Select와 Picker 모드에서 같다. 1x 화면에서는 Chromium이 1px로 그린다.
+2. 크기 버블은 `--affordance-accent` 배경에 `--text-on-accent` 글자다. 높이·글자 역할·위치 규칙은 지금과 같고, 표시선 바깥 가장자리에서 5px 떨어진다(지금은 1px 선 안쪽 기준이라 4px다).
+3. 선택이 있으면 크기 버블에 "Add to message" 버튼(lucide `Crosshair`)이 늘 보인다. 순서는 Play, 크기 글자, Add to message이고, Play는 지금처럼 재생할 수 있는 프레임일 때만 있다. Add to message는 늘 버블 끝에 있다.
 4. Add to message를 누르면 다음이 일어난다.
    - 선택한 프레임이나 요소가 칩으로 캔버스 대화 컴포저의 커서 자리에 들어간다. 칩은 Pick from canvas가 같은 대상에서 만드는 것과 같다.
    - 접힌 패널은 먼저 펼친다.
@@ -31,7 +31,8 @@
 
 ## 하지 않는 것
 
-- 선 두께 변경(둘 다 1px), 선택 핸들, 크기 조절.
+- 점프 하이라이트 선 두께 변경(3px 그대로), 선택 핸들, 크기 조절.
+- 버블 Play의 툴팁. Play는 지금처럼 이름만 있다.
 - 흰 링 대신 다른 대비 장치. 버디 색과 비슷한 캔버스에서 선이 덜 보이는 것은 사용자가 받아들였다.
 - 점 칩의 Add to message. 선택은 프레임과 요소만 있다.
 - 키보드 단축키. 버튼은 Tab으로 닿고 Enter·Space로 누른다.
