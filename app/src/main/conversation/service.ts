@@ -654,11 +654,12 @@ export class ConversationService {
   // its terminal event, a history that stopped taking writes, or the quit. A send being prepared is not
   // running yet, so a previous turn's late update is dropped until the next turn is accepted.
   liveTurns(): ReadonlyMap<string, LiveTurn> {
-    const roots = new Map(this.store.list().map(m => [m.conversationId, m.root]));
+    const entries = new Map(this.store.list().map(m => [m.conversationId, m]));
     const turns = new Map<string, LiveTurn>();
     for (const [id, live] of this.live) {
-      const root = roots.get(id); if (root === undefined) continue;
-      turns.set(id, { root, turnId: live.turnId, running: !this.quitting && live.accepted && live.busy && !live.terminal && !live.closed && !live.failedPersistence });
+      const m = entries.get(id); if (m === undefined) continue;
+      turns.set(id, { root: m.root, turnId: live.turnId, running: !this.quitting && live.accepted && live.busy && !live.terminal && !live.closed && !live.failedPersistence,
+        provider: m.owner.kind === "doan" ? m.owner.provider : m.session.runtime, ...(m.canvas ? { canvas: m.canvas } : {}) });
     }
     return turns;
   }

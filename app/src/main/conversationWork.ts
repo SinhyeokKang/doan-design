@@ -1,11 +1,14 @@
 import type { WorkRequest } from "../formats/types";
+import type { Provider } from "./agentAuth/types";
+import type { Canvas } from "./conversation/types";
 
 // An app conversation's last `doan work update`, in main's memory only: one per conversation,
 // cleared when its turn ends. turnId: the turn it was accepted in, the renderer's follow key with conversationId.
 export interface ConversationWork { conversationId: string; root: string; path: string; frame?: string; note?: string; touched: number; turnId: string }
 export type ConversationUpdate = Extract<WorkRequest, { conversation: string }>;
-// A conversation's current turn as ConversationService sees it now. running: accepted and not ended.
-export interface LiveTurn { root: string; turnId: string; running: boolean }
+// A conversation's current turn as ConversationService sees it now. running: accepted and not ended. canvas: the canvas
+// the conversation is bound to; provider: the agent it runs on, both as `doan work` replies describe it to other sessions.
+export interface LiveTurn { root: string; turnId: string; running: boolean; provider: Provider; canvas?: Canvas }
 
 const FIELDS = ["conversationId", "root", "path", "frame", "note", "touched", "turnId"] as const;
 // The request names the conversation but no turn: a previous turn's update that arrives after the next turn was

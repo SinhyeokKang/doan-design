@@ -13,7 +13,7 @@ const request: RemoveRequest = { v: 7, token, root };
 const fixtures = join(__dirname, "../../../schema/fixtures/app-socket-v7/request");
 const removed: RemoveResponse = { v: 7, ok: true, removed: true, project: "repo", roots: [root, "/repo-fix"] };
 const state = (remove: RuntimeState["remove"] = async () => removed) => ({
-  isOpen: vi.fn((value: string) => value === root), selection: vi.fn(() => null), work: vi.fn(), conversationWork: vi.fn(),
+  isOpen: vi.fn((value: string) => value === root), selection: vi.fn(() => null), work: vi.fn(), conversationWork: vi.fn(), workOthers: vi.fn(() => []),
   onboarding: vi.fn(async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } })),
   open: vi.fn(async (): Promise<OpenResponse> => ({ v: 4, ok: true, opened: true, frame: "none" })),
   handoff: vi.fn(() => null), playPrototype: vi.fn((): PrototypeResponse => ({ v: 6, ok: true, played: true })), remove: vi.fn(remove),

@@ -12,7 +12,7 @@ const token = "secret", root = "/repo";
 const request: HandoffRequest = { v: 5, token, root, handoff: "a".repeat(64), path: ".doan/canvases/new.html", text: "Continue the checkout flow." };
 const fixtures = join(__dirname, "../../../schema/fixtures/app-socket-v5/request");
 const state = (handoff: RuntimeState["handoff"] = () => null) => ({
-  isOpen: vi.fn((value: string) => value === root), selection: vi.fn(() => null), work: vi.fn(), conversationWork: vi.fn(),
+  isOpen: vi.fn((value: string) => value === root), selection: vi.fn(() => null), work: vi.fn(), conversationWork: vi.fn(), workOthers: vi.fn(() => []),
   onboarding: vi.fn(async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } })),
   open: vi.fn(async (): Promise<OpenResponse> => ({ v: 4, ok: true, opened: true, frame: "none" })),
   handoff: vi.fn(handoff), playPrototype: vi.fn((): PrototypeResponse => ({ v: 6, ok: false, error: { code: "not_ready", message: "unused" } })), remove: async () => ({ v: 7 as const, ok: false as const, error: { code: "bad_request" as const, message: "unused" } }),
