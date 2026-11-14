@@ -1,0 +1,47 @@
+# prototype-link-play — tasks
+
+`/orchestrate`로 돈다(상위 `prototype-frame-links` 체인의 둘째 링크). 하위 1(`prototype-link-convention`)과 체인 `chain-261114-2`의 링크 3(`canvas-edit-awareness`, 가이드), 링크 4(`canvas-mark-accent`, `CanvasController.ts`·`App.tsx`)가 병합된 뒤 시작한다. 상위 문서의 체크는 리드가 develop에서 한다.
+
+- [ ] 1. **PoC**(컨덕터, `.scratch/prototype-link-play/`): 격리한 실제 앱의 프로토타입 창에서, 주입 스크립트의 capture click 리스너와 `setTimeout(0)` 뒤 `defaultPrevented` 읽기를 확인한다. 캔버스가 `stopPropagation()`을 부를 때와 `preventDefault()`를 부를 때, `<a href>`, `<button>`의 Enter·Space를 본다.
+  - 검증: 명령 미정 — 사용자 확인 필요(`node .scratch/prototype-link-play/poc.mjs`를 제안한다. 다섯 경우가 기대대로면 exit 0). 관찰을 design.md에 적는다.
+  - 커밋 경계: 관찰을 적은 design.md.
+- [ ] 2. **`/design-draft`**: design.md '초안 요청'. 사용자가 앱에서 확인한다.
+  - 검증: `doan check --repo . --json` 오류 0, `doan ls --repo . --json`이 `prototype-link-play`의 세 프레임 id를 보인다. 확인 기록이 design.md에 있다.
+  - 커밋 경계: 초안.
+- [ ] 3. **배치 L — 판단과 검증**(순수 함수 1–3, 6).
+  - 테스트: `playability.test.ts`, `requests.test.ts`, `windowState.test.ts`(또는 해당 파일), 토스트 합치기.
+  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
+  - 커밋 경계: `test:` 하나, 구현 하나.
+- [ ] 4. **배치 S — 스크립트 보고**(순수 함수 5).
+  - 테스트: 주입 스크립트와 보드 스크립트가 fixture `placements`를 실행해 `gotos`를 보고한다. 한도를 넘으면 자른다. `<template>`·`<template/>` 안은 세지 않는다. 클릭 처리(capture, `defaultPrevented`, 가장 가까운 연결, 재생 중인 프레임 밖)도 고정한다.
+  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
+  - 커밋 경계: `test:` 하나, 구현 하나.
+- [ ] 5. **배치 W — 창과 툴바**(L·S 뒤).
+  - 테스트:
+    - 프로토타입 창: 이동, 토스트, 제목·서랍·칩이 새 프레임을 따름, 서랍 묶음과 키보드.
+    - 툴바: 세 상태, Hand, pick·capture 비활성, 서랍 열기와 고르기, 버튼 정체성.
+  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`.
+  - 커밋 경계: `test:` 하나, 구현 하나.
+- [ ] 6. **배치 G — 가이드와 eval**.
+  - 가이드 문구와 줄일 곳을 사용자가 확인한다.
+  - 새 시나리오를 더한다: `eval/scenarios/<새 id>/`, pass·fail fixture, `checks.test.ts`.
+  - 검증: `go test ./...`(`TestSkillGuideFitsToolOutputCap` 포함), `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios <새 id>`가 `self-test PASS`와 exit 0.
+  - 커밋 경계: 가이드 하나, eval 하나.
+- [ ] 7. **`/design-sync`**: 초안의 세 프레임과 실제 앱을 맞춘다.
+  - 검증: `node .scratch/design-sync/prototype-link-play/measure.mjs`가 exit 0이다. 프레임마다 차이가 0이거나 DESIGN.md에 편차로 적혀 있다.
+  - 커밋 경계: 구현 수정 하나, DESIGN.md 하나.
+- [ ] 8. **`/runtime-test`**: 격리한 실제 앱에서 다음을 확인한다.
+  - 세 프레임 연결: A→B→C, 되돌아가기, 자기 연결, 깨진 연결의 토스트.
+  - Back과 Forward.
+  - 크기가 다른 대상에서 창 맞춤.
+  - 대화 패널의 칩.
+  - 툴바 세 상태와 서랍.
+  - 검증: probe가 exit 0과 완료 표시를 낸다. 스크린샷 경로가 보고서에 있다.
+- [ ] 9. **`/agent-eval`**: 새 시나리오와 W7·W8·X2를 돌린다.
+  - 검증: 결과가 `docs/USABILITY-EVAL.md`에 있다. 새 시나리오나 기존 시나리오가 실패하면, 사용자가 열린 이슈로 받아들이지 않는 한 병합을 막는다.
+- [ ] 10. **승격**(문서별 커밋).
+  - PRODUCT §5 item 2: "frames do not link to each other"를 지우고 'Content', 'Header', 'Play controls', 프레임 서랍을 고친다.
+  - ARCHITECTURE §3 'Prototype window': `goto` 메시지, 검증, gotos 보고.
+  - DESIGN.md.
+  - `docs/features/prototype-link-play/`를 지운다.
+  - 검증: `grep -c "frames do not link to each other" docs/PRODUCT.md`가 0이고, `git ls-files docs/features/prototype-link-play`가 빈 결과다.
