@@ -24,6 +24,11 @@
 - Orca Run: `run_22242497f776`
 - D7 A가 본 '설정 실패 뒤 사이드바에 Not set up으로 등록됨'은 출시 규칙이다(PRODUCT §5 item 1 'Add Projects': "a failure leaves it registered as Not set up"). 결함이 아니다 — 컨덕터 판단.
 - D8 초안과 코드가 다른 세 곳(`config_invalid`·`project_unreadable`이 검사가 아니라 등록에서 나서 그 폴더 화면에 뜸, `access_failed`에서 'or use GitHub' 구분선 숨김, `invalid_url`에서 Find repository 꺼짐)은 출시 규칙을 따르고 DESIGN.md에 문서화된 차이로 둔다. spec이 바꾸라고 하지 않은 출시 동작이다. 링크 2가 같은 초안을 쓰므로 PR 본문에 적는다 — 컨덕터 판단.
+- D9 리뷰 D(`psa-a/.scratch/review-D.md`): 🔴 0, 🟡 4. 결정 질문 셋은 컨덕터가 정했다.
+  - 첫 실행 'Your projects' 실패 뒤 Use this folder: 출시대로 켜 둔다. spec '하지 않는 것'이 첫 실행 제출 방식 변경을 뺐다.
+  - 페이지 클론 취소 문구 "Choose a folder or try again.": 그대로 둔다. 사용자가 확인한 초안 타일이 이 문구와 Choose local folder 하나를 그렸다("user decision").
+  - 카드의 Choose folder와 폴더 출처 알림의 Choose folder가 겹침: 초안대로 둔다. 사용자가 확인한 초안이 이렇게 그렸고 출시 규칙 'never repeated'는 화면 동작 줄에만 적용된다.
+- D10 D8의 세 곳과 D9의 첫 실행 Use this folder는 문서화된 차이로 남기지 않고 초안 타일을 출시 동작에 맞춘다(메모리 규칙: 승인된 동작이 초안과 다르면 초안을 고친다). 이 링크가 맡은 `shipped-notices-*` 타일이다. A'가 고치고 그 타일을 다시 잰다 — 컨덕터 판단.
 - D6 리드 정정(2026-11-14): 워커 브리프에서 변수 경로 `rm` 금지 줄을 뺐다. Orca 워커에는 해당하지 않는다.
 
 
@@ -31,7 +36,7 @@
 |---|---|---|---|---|---|---|
 | A | tasks 2(`/tdd`), 3(`/implement`), 4(`/design-sync`), 5(`/runtime-test`) | `app/src/renderer/**`, `docs/DESIGN.md`, `.scratch/` | 없음 | Claude Opus high — 동의 토큰·포커스·알림 자리 규칙이 얽혀 판단이 많고, 틀리면 보여 주지 않은 계획에 동의하는 회귀가 난다 | tasks 2–5의 검증 줄 | 완료 — `ctx_959255317537`, 워크트리 `psa-a`(브랜치 `SinhyeokKang/psa-a`, 기준 `89a27111e`). 커밋 `4c12c0cf1` test, `d8e535260` feat, `92886cc0b` docs(DESIGN). test·typecheck·lint·build 통과, measure PASS(구현 결함 0), probe PASS 23 |
 | R | tasks 6 `/code-review`(보고만) | 없음(읽기) | A | Codex gpt-6-astra medium — 판단 위주 교차 리뷰 | 보고서 | 진행 중 — `ctx_4bd8911eaef1`, `psa-a`에서 |
-| D | `/design-sync` 6단계 독립 리뷰 + Doan preset 점검(보고만) | 없음(읽기) | A | Claude Opus medium — design-sync는 같은 런타임 리뷰를 요구하고, 표와 스크린샷 대조라 판단은 중간 | 보고서 | 진행 중 — `ctx_b359592c24b1`, `psa-a`에서 |
+| D | `/design-sync` 6단계 독립 리뷰 + Doan preset 점검(보고만) | 없음(읽기) | A | Claude Opus medium — design-sync는 같은 런타임 리뷰를 요구하고, 표와 스크린샷 대조라 판단은 중간 | 보고서 | 완료 — 🔴 0, 🟡 4, ⚪ 5. 앱·초안을 띄우지 않고 기존 스크린샷과 소스로 봤다(포커스 링·Tab 순서 미확인). preset critique·audit·clarify |
 | A' | tasks 6 `/refactor`, 영향받은 4·5번 재확인, tasks 7 승격(PRODUCT·ARCHITECTURE·DESIGN·BACKLOG). 피처 디렉터리 삭제는 컨덕터(orch.md 충돌 방지) | A와 같음 + `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md` | R, D | Claude Opus high(A 워커 이어서) | 🔴 0, tasks 7 검증 줄 | 대기 |
 | 컨덕터 | 통합(cherry-pick), tasks 8 `/verify`, push, PR | `orch.md` | A' | — | `verify.mjs` PASS | 대기 |
 
