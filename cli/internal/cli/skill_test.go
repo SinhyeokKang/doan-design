@@ -437,7 +437,8 @@ func TestSkillGuideWorkOthers(t *testing.T) {
 	for _, required := range []string{
 		"Only if a reply lists `others`",
 		"before your first edit of that canvas in this conversation",
-		"(kind, provider, frame title, note)",
+		// The agent says what kind of session it is in the person's words, not the bare value.
+		"(`terminal` agent or Doan app `conversation`, provider, frame title, note)",
 		"ask whether to go ahead",
 		"if you stop, run `doan work done --json`",
 		// The comparison point is the count when the agent last asked, not the previous reply.
