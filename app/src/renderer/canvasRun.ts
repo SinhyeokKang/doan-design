@@ -4,7 +4,7 @@ import type { Canvas, Runtime } from "../main/conversation/types";
 import type { DoanApi } from "../preload";
 import { newConversationMode, pickCanvasConversation, PROMOTED_TEXT, shouldMarkSeen, type CanvasNotice, type NewConversationView, type ResumeTarget } from "./canvasConversation";
 import type { ConversationStore, ListView } from "./conversationStore";
-import { draftKey, type DockedMode } from "./dockedRules";
+import { carryDraft, draftKey, type DockedMode } from "./dockedRules";
 import { endSeq, type ScrollTo } from "./overviewRun";
 
 // The canvas page's conversation panel: which
@@ -60,6 +60,9 @@ interface CanvasState {
   // A conversation a start reply showed before any list named it: kept until a list read names it, so a read that
   // was older or already in flight cannot replace it (the Overview's `listed` rule).
   unconfirmed: string | null;
+  // The new conversation state shows only because the canvas had no current conversation (not the person's New):
+  // a current conversation that appears from elsewhere (the prototype window's first send) then shows.
+  defaultNew?: boolean;
 }
 
 // A canvas keeps its state by id when it has one, so a moved canvas keeps what it showed and its draft.
@@ -77,6 +80,8 @@ export class CanvasRun {
   private resumeAsks = 0;
   // The relayed promotion a send was made under, so its notice ends as a notice of the panel's own does.
   private promotedSent: string | null = null;
+  // Starts from this panel by canvas key, until main answers: their draft is the message being sent.
+  private starting = new Map<string, number>();
 
   constructor(private host: CanvasRunHost, readonly store: ConversationStore, private calls: ResumeCalls) {
     store.subscribe((conversationId, change) => {
@@ -144,6 +149,7 @@ export class CanvasRun {
   select(conversationId: string | null): void {
     const s = this.shownState();
     if (!s) return;
+    s.defaultNew = false;
     s.request = null;
     s.notice = null;
     s.unconfirmed = null;
@@ -168,6 +174,18 @@ export class CanvasRun {
     if (!s || s.choice === choice) return;
     s.choice = choice;
     this.host.changed();
+  }
+  // A start from this panel is in flight until the returned function is called.
+  startSending(target: CanvasTarget): () => void {
+    const key = canvasKey(target);
+    this.starting.set(key, (this.starting.get(key) ?? 0) + 1);
+    let done = false;
+    return () => {
+      if (done) return;
+      done = true;
+      const left = (this.starting.get(key) ?? 1) - 1;
+      if (left > 0) this.starting.set(key, left); else this.starting.delete(key);
+    };
   }
   // A start from the new conversation state shows at once, before any list has it, unless the person chose something
   // else while it was sent (`revision` is the panel's then).
@@ -217,6 +235,7 @@ export class CanvasRun {
       s.unconfirmed = null;
       s.revision++;
       // A canvas not on screen asks for its terminal session when it shows again.
+      s.defaultNew = true;
       if (key === this.visible) this.setShown(s, null); else s.shown = null;
     }
     this.seenEnd.delete(conversationId);
@@ -289,12 +308,29 @@ export class CanvasRun {
       if (!Array.isArray(list) || !list.some(c => c.conversationId === s.unconfirmed)) return;
       s.unconfirmed = null;
     }
+    if (s.shown === null && s.defaultNew && Array.isArray(list) && this.takeNewCurrent(s, list)) return;
     const pick = pickCanvasConversation(list, s.target.canvas, null, { ...(s.shown !== undefined ? { shown: s.shown } : {}), previous: s.previous, promoted: s.notice?.kind === "promoted" ? s.notice.open : null, drawing });
     // A failed first read shows the new conversation state (view) without picking: the next read that answers picks.
     if (pick.kind === "new" && pick.listError) { if (s.resume === undefined && s.ask === 0) this.askResume(s); return; }
     if (pick.kind === "wait" || pick.kind === "reread") return;
     s.notice = pick.notice;
+    if (pick.kind !== "conversation") s.defaultNew = true;
     this.setShown(s, pick.kind === "conversation" ? pick.conversationId : null);
+  }
+  // A current conversation that newly appeared on a canvas showing only the default new state shows, with the new
+  // state's draft when it has none, unless this panel's own start from that draft is in flight (the composer empties
+  // only the key it sent from). Only one the list before did not name at all: a promoted project conversation stays
+  // announced, and one already there when the panel chose the new state (after a delete, on a return) stays unshown.
+  private takeNewCurrent(s: CanvasState, list: readonly ConversationSummary[]): boolean {
+    const current = list.find(c => c.state === "current" && c.canvas !== undefined && sameTarget(c.canvas, s.target.canvas));
+    if (!current || this.store.deleting(current.conversationId)) return false;
+    if (s.previous === null || s.previous.some(c => c.conversationId === current.conversationId)) return false;
+    const key = canvasKey(s.target);
+    if (!this.starting.has(key)) this.store.setDrafts(drafts => carryDraft(drafts, key, `conversation:${current.conversationId}`));
+    s.defaultNew = false;
+    s.notice = null;
+    this.setShown(s, current.conversationId);
+    return true;
   }
   private newView(s: CanvasState, listError: boolean): CanvasView {
     const current = this.listed(s.target.root).find(c => c.state === "current" && c.canvas !== undefined && sameTarget(c.canvas, s.target.canvas));

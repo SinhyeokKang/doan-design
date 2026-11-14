@@ -404,7 +404,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
         ? { root, mode: "resume" as const, canvas: target.canvas, text: request.text, anchors: [...request.anchors] }
         : { root, mode: "new" as const, runtime, canvas: target.canvas, text: request.text, anchors: [...request.anchors],
           ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(picker.effort?.fast?.on ? { fast: true } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}) };
-      const reply = await calls.startConversation(start).catch(() => ({ error: "unknown" }));
+      const sending = run.startSending(target);
+      const reply = await calls.startConversation(start).catch(() => ({ error: "unknown" })).finally(sending);
       if ("error" in reply) return sendRefusal(reply);
       // Home's and the Overview's starts are remembered by App's run host; this one starts here.
       if (mode.kind === "new") props.onRemember?.({ provider: runtime, model: model ?? null, effort: model ? effort : null, ...modelPicked, ...(permissionMode ? { permissionMode } : {}) });

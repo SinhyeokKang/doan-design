@@ -76,7 +76,13 @@ export class PrototypeConversationRun {
     this.bodyCalls = {
       ...calls,
       // Main starts only canvas conversations for this window; a start without a canvas has no draft here to guard.
-      startConversation: request => request.canvas ? this.track(canvasKey({ root: request.root, canvas: request.canvas }), calls.startConversation(request)) : calls.startConversation(request),
+      startConversation: request => {
+        if (!request.canvas) return calls.startConversation(request);
+        const target = { root: request.root, canvas: request.canvas };
+        // The canvas run holds its new state's draft back too while this start is in flight.
+        const sending = this.run.startSending(target);
+        return this.track(canvasKey(target), calls.startConversation(request)).finally(sending);
+      },
       sendConversation: request => this.track(`conversation:${request.conversationId}`, calls.sendConversation(request)),
       queueConversation: request => this.track(`conversation:${request.conversationId}`, calls.queueConversation(request)),
     };
