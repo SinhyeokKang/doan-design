@@ -4,7 +4,7 @@
 
 포맷과 fixture 변경은 없다. 순서: 맞추기와 PoC → 초안 → 순수 함수 → main(I/O) → UI → 실제 앱 → 문서. 프롬프트·guide·CLI 출력이 바뀌지 않으므로 `/agent-eval`은 하지 않는다.
 
-- [ ] 1. 링크 3 병합본과 맞추기. design.md '링크 3과의 의존'의 표(오른쪽 무리 상수, `prototypePanelBounds`, `openPanelResize`, `prototypePanelFit`과 `fitted()`·`placed()`, `prototypeCaptureRect`의 넷째 인자와 `controller.ts`의 `prototypePanelWidth`, `.pw[data-panel="open"]` 규칙, `.doan-conv-column`의 `ref`·`onBlur`·`ColumnFocusGuard`, `prototypeShownConversation`의 종류, `conversationButton`, Tab 순서, 토스트 자리, 막힌 composer의 포커스 가능 여부)를 develop의 코드와 승격된 PRODUCT·ARCHITECTURE·DESIGN에 대조하고, 다른 문장을 고친다. 머리 없던 상태의 종류, 막힌 composer의 포커스, 토스트 자리가 design.md '정한 점'의 전제와 다르면 사용자에게 다시 묻는다. 검증: design.md '대조표'에 항목 · develop 파일:줄 · 같음/바뀜이 모든 행에 채워져 있다.
+- [x] 1. 링크 3 병합본과 맞추기. design.md '링크 3과의 의존'의 표(오른쪽 무리 상수, `prototypePanelBounds`, `openPanelResize`, `prototypePanelFit`과 `fitted()`·`placed()`, `prototypeCaptureRect`의 넷째 인자와 `controller.ts`의 `prototypePanelWidth`, `.pw[data-panel="open"]` 규칙, `.doan-conv-column`의 `ref`·`onBlur`·`ColumnFocusGuard`, `prototypeShownConversation`의 종류, `conversationButton`, Tab 순서, 토스트 자리, 막힌 composer의 포커스 가능 여부)를 develop의 코드와 승격된 PRODUCT·ARCHITECTURE·DESIGN에 대조하고, 다른 문장을 고친다. 머리 없던 상태의 종류, 막힌 composer의 포커스, 토스트 자리가 design.md '정한 점'의 전제와 다르면 사용자에게 다시 묻는다. 검증: design.md '대조표'에 항목 · develop 파일:줄 · 같음/바뀜이 모든 행에 채워져 있다.
   - 커밋 경계: 문서 맞추기.
 - [ ] 2. PoC(`.scratch/prototype-conversation-panel/`, design.md 'PoC 의존'): develop 앱을 격리해 띄우고(제품 코드는 바꾸지 않는다) Playwright `_electron` evaluate로 열린 배치 CSS를 주입한다. computer-use의 네이티브 입력으로 본다: 패널을 열고 닫을 때와 손잡이로 폭을 바꿀 때 드래그 영역이 헤더 폭을 따르는지(패널 머리의 Hide와 제목은 클릭되고 창이 끌리지 않음, 왼쪽 헤더 빈 곳은 끌림, 닫은 뒤 헤더 오른쪽이 다시 끌림), 위쪽 28 px 안에서 손잡이를 끌고 두 번 누를 때 손잡이가 받고(두 번 누르면 기본 폭) 창이 확대되지 않는지. 관찰(통과·실패·날짜)은 이 feature 문서에 적는다. 검증: `node .scratch/prototype-conversation-panel/poc-drag.mjs`가 완료 줄을 찍고 exit 0이며, 네이티브 입력 결과가 기록되어 있다.
   - 커밋 경계: 실패하면 해결책을 고르고 design.md를 고친 문서 커밋 후 멈춘다(통과하면 관찰만 1번과 함께 적는다).
@@ -31,12 +31,12 @@
 - [ ] 7. main: `controller.ts`·`prototypeWindow.ts`의 캡처 인자 이름(`sideColumn` → 패널 폭)과 주석, 테스트 기대값을 맞춘다. `fitted()`와 최소폭 640/360은 그대로다. preload와 IPC는 바뀌지 않는다. 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
   - 커밋 경계: main.
 - [ ] 8. UI: 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`.
-  - `PrototypeWindow.tsx`·`PrototypeConversation.tsx`: 대화 열을 `ConversationPanel` 셸로 바꾸고 `columnRef={conv.column}`, `onBlur={conv.onFocusOut}`를 넘긴다. 패널 열을 DOM에서 콘텐츠 패널 앞에 둔다. 열린 동안 R 104와 `prototypeSideLayout`의 이름 줄(끄는 중에는 미리보기 폭). 머리의 `h2.phead.rp-head` 안 `span` 제목(`prototypeHeadTitle`), `scrollWidth > clientWidth`와 `ResizeObserver`로 잘렸을 때만 `title`(창 크기, 손잡이 끌기·방향키, 제목이 바뀔 때 다시 판정). 헤더 대화 버튼은 Show 전용으로 두고 열린 동안 같은 요소를 숨긴다. 열면 composer로, 받을 수 없으면 머리 제목으로, 목록이 준비되어 composer가 받을 수 있게 되면 포커스가 아직 머리 제목일 때 한 번 composer로. 열린 동안 composer가 막히면 포커스가 `body`로 떨어지지 않게. 닫으면 다시 보이게 된 헤더 버튼으로.
+  - `PrototypeWindow.tsx`·`PrototypeConversation.tsx`: 대화 열을 `ConversationPanel` 셸로 바꾸고 `columnRef={conv.column}`, `onBlur={conv.onFocusOut}`를 넘긴다. 패널 열을 DOM에서 콘텐츠 패널 앞에 둔다. 열린 동안 R 104와 `prototypeSideLayout`의 이름 줄(끄는 중에는 미리보기 폭). 머리의 `h2.phead.rp-head` 안 `span` 제목(`prototypeHeadTitle`), `scrollWidth > clientWidth`와 `ResizeObserver`로 잘렸을 때만 `title`(창 크기, 손잡이 끌기·방향키, 제목이 바뀔 때 다시 판정). 헤더 대화 버튼은 Show 전용으로 두고 열린 동안 같은 요소를 숨긴다. 열면 composer로, 창이 첫 view를 받기 전이라 composer가 없으면 머리 제목으로, composer가 생기면 포커스가 아직 머리 제목일 때 한 번 composer로. 열린 동안 composer가 막혀도 포커스를 옮기지 않는다(막힌 composer는 `readOnly`로 포커스를 지닌다). 닫으면 다시 보이게 된 헤더 버튼으로.
   - `styles.css`: `.pw[data-panel="open"]`의 규칙을 바꾼다(두 열과 열 간격 8, 헤더 1열, 대화 열 `grid-row: 1 / -1`과 위 여백 8, 패널의 네 모서리 24·그림자·시작 테두리 없음, 열린 동안의 `--pw-right`). 머리 높이는 출시된 56 그대로 둔다. 링크 3의 R 0 0 R, `.pw-stage` 아래 오른쪽 0, 0 R R 0, 머리 없는 위쪽 16 규칙을 지운다.
   - 테스트
     - `prototype/WindowShell.test.tsx`: 닫힘 R 140·열림 R 104 상수가 두 `--pw-right`와 같다(5번에서 옮겨 온 CSS 미러 검사). 열린 배치에서 헤더 버튼이 같은 요소로 DOM에 남고 숨겨져 Tab 정지가 아님. Hide conversation이 머리에 있고 `aria-expanded`·`aria-controls`. 열린 동안 DOM·Tab 순서가 헤더 → 손잡이 → Hide → thread → composer → 프레임 콘텐츠이고, 닫히면 헤더 → 프레임 콘텐츠. 손잡이 미리보기로 L이 408을 지날 때 같은 캡슐이 줄을 옮김. 열린 동안 창 폭이 줄어 L이 408을 지나거나 P가 최대로 잘림. 패널 머리에 `-webkit-app-region`을 스크립트로 쓰지 않음.
     - `prototype/PrototypeWindow.test.tsx`: 키보드로 열기(Space, Enter → composer)와 닫기(Hide → 헤더 버튼), Esc가 패널을 닫지 않음, 패널을 연 채 Back 한 번과 `doan open --prototype`의 view에서 패널과 제목이 유지됨.
-    - `prototype/PrototypeConversation.test.tsx`: 머리 제목(요약 제목, 첫 메시지 줄, "New conversation", 머리 없던 상태와 빈 제목의 "Conversation"), 잘림에 따른 `title`, 목록 읽는 중에 열었다가 준비되면 한 번 composer로, 열린 동안 캔버스가 사라지거나 ID가 겹치면 제목이 "Conversation"이 되고 포커스가 `body`로 떨어지지 않음.
+    - `prototype/PrototypeConversation.test.tsx`: 머리 제목(요약 제목, 첫 메시지 줄, "New conversation", 머리 없던 상태와 빈 제목의 "Conversation"), 잘림에 따른 `title`, 첫 view 전에 열면 머리 제목에 갔다가 view가 와서 composer가 생기면 한 번 composer로, 목록 읽는 중에 열면 composer로, 열린 동안 캔버스가 사라지거나 ID가 겹치면 제목이 "Conversation"이 되고 포커스가 composer에 남음(`body`로 떨어지지 않음).
   - 커밋 경계: UI.
 - [ ] 9. `/design-sync`로 초안과 실제 앱을 맞춘다(spec 결정 14로 이 초안이 기준): 1024 창의 닫힘·열림·최대 512, 640 창 닫힘·열림, 360에서 열어 640, 696/280과 695/280의 이름 줄, 패널 위치·크기·모서리·그림자·시작 테두리 없음, 머리 56과 Hide y20–52·제목 가운데 y36·제목 글 시작 16, 긴 제목의 말줄임표, "New conversation"과 "Conversation", Hide의 키보드 링과 툴팁, 머리 제목의 포커스 링, 헤더 R 104(토글 x576, Export 끝 x680)와 이름 범위, 콘텐츠 패널의 위치와 모서리. DESIGN.md 'Frame prototype'에 잰 값을 적고 링크 3의 대화 열 값을 바꾼다. 검증: `node .scratch/design-sync/prototype-conversation-panel/measure.mjs`의 모든 행이 차이 0이거나 문서화된 차이뿐이다.
   - 커밋 경계: `/design-sync` 수정과 DESIGN.md.
@@ -46,14 +46,14 @@
   - 패널 머리의 Hide와 제목을 네이티브로 클릭해도 창이 끌리지 않고, 왼쪽 헤더는 끌린다. 닫은 뒤와 손잡이로 폭을 바꾼 뒤 드래그 영역이 새 헤더 폭을 따른다. 위쪽 28 px에서 손잡이를 두 번 누르면 기본 폭이 되고 창은 확대되지 않는다.
   - 손잡이를 키보드와 포인터로 끌고, 창 크기를 바꿔 이름이 줄을 옮길 때 이름 캡슐의 포커스와 열린 프레임 메뉴가 남는다. 창을 줄이면 P가 최대로 잘린다.
   - 패널을 연 채 드로어로 390 × 844를 고르면(P 320) 창 콘텐츠가 734 × 952가 되고, Back 한 번과 `doan open --prototype`도 같은 규칙으로 맞춘다. 실패·lost로 찍힌 정지 이미지에 패널이 없다.
-  - 긴 제목이 잘리고 native `title`이 전체 제목이다. 첫 메시지를 보낸 뒤 목록이 이름을 주면 제목이 바뀐다. 목록 읽기 실패와, 열린 동안 캔버스가 사라지거나 ID가 겹치면 제목이 "Conversation"이고 포커스가 `body`로 떨어지지 않는다.
+  - 긴 제목이 잘리고 native `title`이 전체 제목이다. 첫 메시지를 보낸 뒤 목록이 이름을 주면 제목이 바뀐다. 목록 읽기 실패와, 열린 동안 캔버스가 사라지거나 ID가 겹치면 제목이 "Conversation"이고, 막힌 동안 포커스가 composer에 남아 `body`로 떨어지지 않는다.
   - 열린 패널에서 Export 결과 토스트가 창 오른쪽 아래(오른쪽과 아래에서 16)에 보인다.
   - 작업 영역 600은 실제 화면으로 만들지 않는다. 5번의 단위 테스트(600/280 → L 312)가 알려진 한계를 고정한다. 패널 여닫기에는 애니메이션이 없으므로 reduced motion 확인은 해당하지 않는다.
 - [ ] 11. `/code-review` → `/refactor` → `/verify`. 검증: `node .agents/skills/verify/scripts/verify.mjs`.
   - 커밋 경계: `/refactor` 수정.
 - [ ] 12. 결론을 승격하고 `docs/features/prototype-conversation-panel/`를 삭제한다. 문서마다 커밋한다. 검증: `node .agents/skills/verify/scripts/verify.mjs`(문서만 바뀌면 대상 확인), `grep -c "over the content panel" docs/PRODUCT.md`가 0, ARCHITECTURE §3 'Fit'에 "depend only on the window's width"가 없음, `test ! -d docs/features/prototype-conversation-panel`.
-  - PRODUCT §5 item 2 'Prototype window': 링크 3이 적은 패널 배치·헤더 대화 버튼·머리 없는 패널·Tab 순서 문장을 독립 패널, 머리의 제목(머리 없던 상태의 "Conversation" 포함)과 Hide conversation, 머리 높이(출시된 56), 열린 동안 헤더 버튼 없음, L 기준 이름 줄, 왼쪽 헤더만 드래그, 열 때 포커스의 대체 대상(머리 제목), 열린 동안의 Tab 순서(헤더 → 패널 → 프레임), 패널을 연 채 맞춤(표시 + 24 + P, L 기준 줄)으로 바꾼다. 'Export'의 토스트 문장 "at the window's bottom right, over the content panel and never over the header"에서 "over the content panel"을 뺀다.
-  - ARCHITECTURE §3 'Prototype window'의 'Fit'(이름 줄이 창 폭, 패널 폭, 두 R 값에 달림, 두 미러 상수)과 'Timeout and kill'의 캡처(패널과 간격을 뺀 영역).
-  - DESIGN.md 'Frame prototype'(9번에서 고친 값)과 'Export toasts' 행의 "over the content panel only".
+  - PRODUCT §5 item 2 'Prototype window'('Header', 'Conversation panel'과 그 'Width'·'Content', design.md '결정 영향'): 링크 3이 적은 패널 배치·헤더 대화 버튼·머리 없는 패널·W 기준 이름 줄·Tab 순서 문장을 독립 패널, 머리의 제목(머리 없던 상태의 "Conversation" 포함)과 Hide conversation, 머리 높이(출시된 56), 열린 동안 헤더 버튼 없음, L 기준 이름 줄, 왼쪽 헤더만 드래그, 열 때 포커스의 대체 대상(첫 view 전의 머리 제목), 열린 동안의 Tab 순서(헤더 → 패널 → 프레임), 패널을 연 채 맞춤(표시 + 24 + P, L 기준 줄)으로 바꾼다. 'Export'의 토스트 문장 "at the window's bottom right, over the content panel and never over the header"에서 "over the content panel"을 뺀다.
+  - ARCHITECTURE §3 'Prototype window'의 'Fit'(이름 줄이 창 폭, 패널 폭, 두 R 값에 달림, 두 미러 상수)과 'Timeout and kill'의 캡처(L 기준 이름 줄, 패널과 간격을 뺀 영역).
+  - DESIGN.md 'Frame prototype'(9번에서 고친 값: 'Header right group', 'Frame name', 'Conversation button', 'Conversation column', 'Panel width', 'Headless panel')과 'Export toasts' 행의 "over the content panel only".
   - BACKLOG.md에 작업 영역 632 미만에서 열린 헤더의 두 무리가 겹치는 한계를 적는다.
   - 커밋 경계: 문서 승격.

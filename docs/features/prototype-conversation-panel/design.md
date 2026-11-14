@@ -4,7 +4,7 @@
 
 ## 링크 3과의 의존 (먼저 확인)
 
-이 feature는 체인 261113-3이 끝난 뒤 별도의 `/orchestrate`로 돌고(체인 링크가 아니다), `prototype-conversation`(링크 3)이 develop에 넣은 배치를 바꾼다. 링크 3은 고치지 않는다. 아래 목록의 이름은 링크 3 브랜치 `origin/feat/prototype-conversation`의 a0f035773(병합 전)에서 읽었다. 링크 3이 병합되면 그 문서는 PRODUCT·ARCHITECTURE·DESIGN으로 승격되고 지워지므로, **`/tdd` 전에 이 목록을 develop의 코드와 승격된 문서에 대조해 아래 '대조표'를 채우고, 다른 문장을 고친다**(tasks 1).
+이 feature는 체인 261113-3이 끝난 뒤 별도의 `/orchestrate`로 돌고(체인 링크가 아니다), `prototype-conversation`(링크 3)이 develop에 넣은 배치를 바꾼다. 링크 3은 고치지 않는다. 아래 목록의 이름은 링크 3 브랜치 `origin/feat/prototype-conversation`의 a0f035773(병합 전)에서 읽었다. tasks 1에서 이 목록을 링크 3이 병합된 develop(aa22f31e1)의 코드와 승격된 PRODUCT·ARCHITECTURE·DESIGN에 대조해 아래 '대조표'를 채우고, 다른 문장을 고쳤다.
 
 | 항목 | a0f035773에서 읽은 모양 |
 |---|---|
@@ -21,11 +21,27 @@
 | 토스트 | `.toast`가 창 오른쪽 아래 |
 | 애니메이션 | 열 여닫기에 없음 |
 
-### 대조표 (tasks 1에서 채운다)
+### 대조표
+
+develop aa22f31e1에서 대조했다. 경로는 `app/src/`를 뺀 것이다.
 
 | 항목 | develop 파일:줄 | 같음/바뀜 |
 |---|---|---|
-| (위 표의 각 행) | | |
+| 오른쪽 무리 | `main/prototype/fit.ts:13` `PROTOTYPE_HEADER_RIGHT = 140`, `renderer/styles.css:1843` `:root { --pw-right: 140px; }` | 같음 |
+| 패널 한도 | `main/prototype/fit.ts:53` `prototypePanelBounds`(min 280, max `max(280, min(⌊W/2⌋, W − 360))`, default `min(max, max(320, ⌊0.28W⌋))`), `fit.ts:60` `prototypePanelWidth` | 같음 |
+| 패널 열기 | `main/prototype/fit.ts:76` `openPanelResize(window, workArea, remembered = null)` → `{bounds, panel, minimum}` | 같음 |
+| 패널을 연 채 Play | `main/prototype/fit.ts:88` `prototypePanelFit`(표시 + 16 + P, 최소 640), `fit.ts:43` `placed()`, `fit.ts:102` `headerHeight(width)`(R 140), `main/prototypeWindow.ts:126` `fitted()` | 같음 |
+| 캡처 | `main/prototype/fit.ts:142` `prototypeCaptureRect(content, mark, mode, sideColumn = 0)`, `main/prototype/controller.ts:36–37`(주석과 `capture(mark, mode, sideColumn)`), `controller.ts:116–117`(지역 이름 `column`에 `prototypePanelWidth(...)`를 담아 넘긴다), `main/prototypeWindow.ts:308,314`. `main/prototype/windowState.ts:21,115`는 `fit` effect를 내기만 하고 기하를 계산하지 않는다 | 같음 |
+| 배치 | `renderer/styles.css:1895–1903`(R 0 0 R, `.pw-stage` 아래 오른쪽 0, 2열 2행, 0 R R 0, 머리 없는 위쪽 16). 닫힘의 `display: none`은 `styles.css:1899` | 같음 |
+| 대화 열 | `renderer/prototype/PrototypeWindow.tsx:423–428`(`div.doan-conv-column`, `ref={conv.column}`, `onBlur={conv.onFocusOut}`, 열린 동안만 `ResizeHandle`), composer 포커스 질의 `:147`, `dockedBuddy.start` `:155`, `ColumnFocusGuard` `:95`·`:238`, `renderer/prototype/focusGuard.ts:9`. `renderer/ConversationPanel.tsx:22`의 셸에는 아직 `columnRef`·`onBlur` prop이 없다 | 같음 |
+| 보여 주는 대화 | `renderer/prototype/conversation.ts:15–30` `prototypeShownConversation` → `conversation`·`new`·`list_loading`·`list_error`·`blocked`(gone/duplicate). `renderer/prototype/conversationRun.ts:172`는 view가 없거나 캔버스 행을 읽는 중이면 `list_loading` | 같음 |
+| 헤더 버튼 | `renderer/prototype/conversation.ts:73–74` `conversationButton(open, current, seen)`, `open`이면 "Hide conversation" | 같음 |
+| Tab 순서 | `renderer/prototype/PrototypeWindow.tsx:364`(헤더) → `:403`(`ContentPanel`) → `:423`(대화 열). PRODUCT §5 item 2 'Prototype window' 'Header'의 "Tab reaches … before the frame's content, and the conversation panel after it" | 같음 |
+| 토스트 | `renderer/styles.css:388` `.toast { position: absolute; right: 16; bottom: 16 }`, `PrototypeWindow.tsx:429`(`.pw`의 자식이고 `.pw`는 `inset: 0`) | 같음 |
+| 애니메이션 | `renderer/styles.css:1838–1906`의 `.pw` 규칙에 `transition`이 없다 | 같음 |
+| 막힌 composer의 포커스(새로 확인) | `renderer/ComposerParts.tsx:163` `.composer-input`은 언제나 `tabIndex={0}`이고, 막히면 `renderer/DockedComposer.tsx:222,488`에서 `readOnly`(`contentEditable=false`)가 될 뿐 같은 요소로 남는다 | 포커스를 받는다 → '포커스'를 고쳤다 |
+| 목록 읽는 중의 composer(새로 확인) | `renderer/CanvasConversationPanel.tsx:514`가 조기 return 없이 `DockedComposer`를 늘 그린다. 목록 읽는 중·읽기 실패에도 `readOnly`가 아니다. composer가 없는 것은 창이 첫 view를 받기 전뿐이다(`renderer/prototype/PrototypeConversation.tsx:15`, view나 target이 없으면 `null`) | 바뀜(설계 전제) → '포커스'를 고쳤다 |
+| 승격된 문서의 자리 | PRODUCT §5 item 2 'Prototype window': 이름 줄 규칙과 Tab 순서는 'Header', 패널을 연 채 맞춤은 'Conversation panel'의 'Width', 머리 없는 패널은 'Content', 토스트는 'Export'. ARCHITECTURE §3 'Prototype window': 'Fit'의 "The rows depend only on the window's width and the right group's width", 'Timeout and kill'의 "less the open conversation column at its stored width cut to the window's current range". DESIGN.md 'Frame prototype'의 'Header right group', 'Frame name', 'Conversation button', 'Conversation column', 'Panel width', 'Headless panel', 'Export toasts' 행 | 바뀜(문장 위치) → '결정 영향'과 tasks 12를 고쳤다 |
 
 ## 영향 범위
 
@@ -70,8 +86,9 @@
 ### 포커스
 
 - 열 때: 패널 열을 보이게 한 뒤 composer에 포커스를 준다. composer가 포커스를 받을 수 없으면 머리 제목으로 준다(결정 11, `App.tsx`의 `focusPanel` 대상과 같다). 숨겨지는 헤더 버튼에 포커스를 남기지 않는다(POSTMORTEM 2026-11-13).
-- 목록을 읽는 중에 열어 머리 제목으로 갔다면, composer가 포커스를 받을 수 있게 된 첫 렌더에서 포커스가 아직 머리 제목에 있을 때만 한 번 composer로 옮긴다. 그 사이 사람이 포커스를 옮겼으면 그대로 둔다.
-- 열린 동안 composer가 막히면(캔버스 사라짐·ID 겹침) 포커스가 composer에 있었을 때 머리 제목으로 옮겨 `body`로 떨어지지 않게 한다. 막힌 composer가 포커스를 받는지는 tasks 1에서 develop으로 확인하고, 받으면 옮기지 않는다.
+- composer가 포커스를 받을 수 없는 것은 창이 첫 view를 받기 전뿐이다. 이때 `PrototypeConversationPanel`은 아무것도 그리지 않는다(`PrototypeConversation.tsx:15`). 목록을 읽는 중과 읽기 실패에도 `CanvasConversation`이 composer를 그리고 그 composer는 포커스를 받는다('대조표').
+- 첫 view 전에 열어 머리 제목으로 갔다면, composer가 생겨 포커스를 받을 수 있게 된 첫 렌더에서 포커스가 아직 머리 제목에 있을 때만 한 번 composer로 옮긴다. 그 사이 사람이 포커스를 옮겼으면 그대로 둔다.
+- 열린 동안 composer가 막혀도(캔버스 사라짐·ID 겹침) 포커스를 옮기지 않는다. 막힌 composer는 같은 요소로 남아 `readOnly`가 될 뿐 포커스를 지니므로(`ComposerParts.tsx:163`, `DockedComposer.tsx:222,488`) 포커스가 `body`로 떨어지지 않는다.
 - 닫을 때: 헤더 버튼이 다시 보인 뒤 포커스를 준다(위 '헤더와 이름 줄').
 - 링크 3의 `ColumnFocusGuard`(다시 로드되는 프레임이 composer 포커스를 가져가지 않게 하는 장치)는 같은 `.doan-conv-column` 요소를 그대로 지킨다.
 
@@ -93,7 +110,7 @@
 - **머리 없던 상태의 제목은 "Conversation"**. 링크 3의 `list_loading`, `list_error`, `blocked`에서 main의 `canvasConversationTitle`을 그대로 쓰면 "New conversation"이 보인다. 이 상태들은 새 대화 상태가 아니므로 `ConversationPanel` 셸의 기본 제목을 쓴다.
 - **패널을 연 채 Play: 폭 = 표시 + 24 + P(최소 640), 이름 줄은 맞춘 L과 R 104**. 왼쪽 8, 간격 8, 오른쪽 8이므로 콘텐츠 패널이 표시 폭과 같다(링크 3의 + 16이면 Fit 프레임이 8 줄어 보인다). 맞춘 L은 P가 잘리지 않는 한 표시 + 16이고, 표시 폭 392 이상에서 첫째 줄이다. 닫힌 창(표시 + 16, R 140)은 428 이상에서 첫째 줄이므로, 패널을 연 채 Play한 창의 이름이 닫힌 창보다 아래로 가는 일은 없다.
 - **640–735 창의 둘째 줄을 받아들인다**. 기본 폭으로 열면 이 범위에서 L이 408보다 작아 이름이 둘째 줄로 가고 콘텐츠 패널이 44 내려간다(초안 프레임 02).
-- **열 때 composer가 포커스를 받을 수 없으면 머리 제목으로**. 위 '포커스'.
+- **열 때 composer가 포커스를 받을 수 없으면 머리 제목으로**. develop에서 그런 때는 창이 첫 view를 받기 전뿐이다. 위 '포커스'.
 - **Export 토스트는 패널이 열려 있어도 창 오른쪽 아래**. composer를 가릴 수 있다. `.toast`가 이미 창 오른쪽 아래이므로 코드는 바뀌지 않는다. 승격 때 PRODUCT의 "at the window's bottom right, over the content panel and never over the header"에서 "over the content panel"을 빼고, DESIGN.md 'Frame prototype' 'Export toasts' 행의 "over the content panel only"도 고친다.
 - **작업 영역 632 미만의 헤더 겹침은 알려진 한계**. 창이 작업 영역 폭, 패널 280이면 L = W − 288이다. 오른쪽 무리(R 104)는 L − 120에서 시작하고 왼쪽 무리는 x192에서 끝나므로, 작업 영역 632 미만에서 열린 동안 두 무리가 겹친다. 280 규칙을 지키고 승격 때 BACKLOG.md에 적는다.
 - **초안의 지위**: lead가 AGENTS.md와 `/design-draft`·`/design-sync` 스킬을 넓혀, develop에 이미 있는 화면을 다시 설계하는 후속 feature가 자기 새 초안을 병합 전까지 기준으로 쓰게 한다. 이 초안이 이 브랜치가 병합될 때까지 패널 배치와 머리의 `/design-sync` 기준이고, 링크 3의 초안은 고치지 않는다.
@@ -112,9 +129,9 @@
 
 링크 3 승격 뒤의 문장을 바꾼다(마지막 task). 사용자가 이 요청, 초안 확인, 리뷰 결정으로 승인했다.
 
-- **PRODUCT §5 item 2 'Prototype window'**: 링크 3이 적은 패널 배치(콘텐츠 패널 옆, 헤더 아래), 헤더 대화 버튼의 Show/Hide, 머리 없는 패널, Tab 순서(헤더 → 프레임 → 패널) 문장을 독립 패널, 머리의 제목(머리 없던 상태의 "Conversation")과 Hide, 열린 동안 헤더 버튼 없음, L 기준 이름 줄, 왼쪽 헤더만 드래그, 열 때 포커스의 대체 대상, 열린 동안의 Tab 순서(헤더 → 패널 → 프레임)로 바꾼다. 'One window'의 패널을 연 채 맞춤(표시 + 24 + P, L 기준 줄). 'Export'의 토스트 문장에서 "over the content panel"을 뺀다.
-- **ARCHITECTURE §3 'Prototype window' 'Fit'**: "The rows depend only on the window's width and the right group's width"를 창 폭, 패널 폭, 두 R 값으로 고친다. 'Timeout and kill'의 캡처 "less any side column"을 패널과 간격으로 고친다.
-- **DESIGN.md 'Frame prototype'**: 링크 3의 대화 열 값, 'Export toasts' 행.
+- **PRODUCT §5 item 2 'Prototype window'**: 링크 3이 적은 문장을 바꾼다. 'Header'의 오른쪽 무리 끝의 대화 버튼, 이름 줄을 "only the window's width decides"로 정하는 문장, Tab 순서("… before the frame's content, and the conversation panel after it")는 열린 동안 헤더 버튼 없음, L 기준 이름 줄, 왼쪽 헤더만 드래그, 열린 동안의 Tab 순서(헤더 → 패널 → 프레임)로. 'Conversation panel'의 Show/Hide 버튼 문장과 "Opening moves focus to the composer's field"는 머리의 Hide와 열 때 포커스의 대체 대상(첫 view 전의 머리 제목)으로. 'Width'의 "takes its width from the frame column beside the content panel … runs from under the header"와 패널을 연 채 맞춤("the shown width plus 16 px plus the panel")은 독립 패널과 표시 + 24 + P, L 기준 줄로. 'Content'의 "without its head"는 머리의 제목(머리 없던 상태의 "Conversation")과 Hide로. 'Export'의 토스트 문장에서 "over the content panel"을 뺀다.
+- **ARCHITECTURE §3 'Prototype window' 'Fit'**: "The rows depend only on the window's width and the right group's width `PROTOTYPE_HEADER_RIGHT`"를 창 폭, 패널 폭, 두 R 값과 두 미러 상수로 고친다. 'Timeout and kill'의 캡처 "header rows from the window's width, … less the open conversation column at its stored width cut to the window's current range"를 L 기준 이름 줄과, 패널과 간격을 뺀 영역으로 고친다.
+- **DESIGN.md 'Frame prototype'**: 링크 3의 값이 있는 'Header right group'(R 140만 있음), 'Frame name'(W 기준 줄), 'Conversation button'(열린 동안 "Hide conversation"), 'Conversation column', 'Panel width'(콘텐츠 패널 344·688·496), 'Headless panel' 행과 'Export toasts' 행의 "over the content panel only".
 - **BACKLOG.md**: 작업 영역 632 미만에서 열린 헤더의 두 무리가 겹치는 한계.
 - **ARCHITECTURE §3 'Canvas view'의 clip 불변식**: 바뀌지 않는다. 콘텐츠 패널은 출시된 나눈 clip으로 돌아가고, 대화 패널은 iframe 조상이 아니다.
 - 서빙 범위, sandbox iframe, GitHub 토큰, git 명령, 대화 범위 검사, sender role은 건드리지 않는다.
