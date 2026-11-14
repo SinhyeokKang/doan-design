@@ -176,3 +176,16 @@ describe("prototype window", () => {
     ]) expect(senderAllowed(channel, "prototype"), channel).toBe(false);
   });
 });
+
+// The drawing project conversation: the main window reads the prototype window's target and says which project
+// conversation draws it; the prototype window reads only that id.
+test("the drawing relay's requests belong to their windows and its events are not requests", async () => {
+  const { PROTOTYPE_CHANNELS } = await import("./prototype/ipc");
+  for (const channel of [PROTOTYPE_CHANNELS.readTarget, PROTOTYPE_CHANNELS.setDrawing]) {
+    expect(senderAllowed(channel, "main"), channel).toBe(true);
+    expect(senderAllowed(channel, "prototype"), channel).toBe(false);
+  }
+  expect(senderAllowed(PROTOTYPE_CHANNELS.drawing, "prototype")).toBe(true);
+  expect(senderAllowed(PROTOTYPE_CHANNELS.drawing, "main")).toBe(false);
+  for (const kind of ["main", "prototype"]) for (const channel of [PROTOTYPE_CHANNELS.target, PROTOTYPE_CHANNELS.drawingChanged]) expect(senderAllowed(channel, kind), `${channel} ${kind}`).toBe(false);
+});

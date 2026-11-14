@@ -51,6 +51,7 @@ test("every request goes to its prototype channel with the payload main parses",
   await api.readComposerSettings();
   await api.rememberChoice({ provider: "claude", model: "sonnet", effort: null, modelPicked: true });
   await api.readTargetEntry();
+  await api.readDrawing();
   expect(mocks.invoke.mock.calls).toEqual([
     [PROTOTYPE_CHANNELS.read], [PROTOTYPE_CHANNELS.result, { gen: 2, state: "timeout" }], [PROTOTYPE_CHANNELS.frames, { gen: 2, frames: [] }],
     [PROTOTYPE_CHANNELS.reload, { gen: 3 }], [PROTOTYPE_CHANNELS.back], [PROTOTYPE_CHANNELS.forward], [PROTOTYPE_CHANNELS.choose, { frame: "tablet" }],
@@ -58,7 +59,7 @@ test("every request goes to its prototype channel with the payload main parses",
     [PROTOTYPE_CHANNELS.export, { root: "/r", path: ".doan/canvases/a.html", frame: "checkout" }], [PROTOTYPE_CHANNELS.revealExport, "id-1"], [PROTOTYPE_CHANNELS.visible],
     [PROTOTYPE_CHANNELS.panel, { open: true, width: 300 }], [PROTOTYPE_CHANNELS.showing, { conversationId: "c1" }], [PROTOTYPE_CHANNELS.showing, { conversationId: null }],
     [PROTOTYPE_CHANNELS.reveal, { kind: "settings", provider: "claude" }], [PROTOTYPE_CHANNELS.auth], [PROTOTYPE_CHANNELS.work], [PROTOTYPE_CHANNELS.composer],
-    [PROTOTYPE_CHANNELS.remember, { provider: "claude", model: "sonnet", effort: null, modelPicked: true }], [PROTOTYPE_CHANNELS.entry],
+    [PROTOTYPE_CHANNELS.remember, { provider: "claude", model: "sonnet", effort: null, modelPicked: true }], [PROTOTYPE_CHANNELS.entry], [PROTOTYPE_CHANNELS.drawing],
   ]);
   expect(new Set(mocks.invoke.mock.calls.map(call => call[0]))).toEqual(new Set(PROTOTYPE_WINDOW_REQUESTS));
 });
@@ -236,4 +237,15 @@ test("terminal work, composer settings and the target root's entry arrive from t
   expect(work.mock.calls).toEqual([[[]]]);
   expect(settings.mock.calls).toEqual([[{ home: null, newConversation: null, buddy: "doany" }]]);
   expect(entry.mock.calls).toEqual([[{ path: "/r", kind: "loading" }]]);
+});
+
+// The drawing project conversation's id, and nothing else about it.
+test("the drawing conversation's id arrives from its pushes until unsubscribed", () => {
+  const seen = vi.fn();
+  const stop = api.onDrawing(seen);
+  emitter.emit(PROTOTYPE_CHANNELS.drawingChanged, {}, { conversationId: "p1" });
+  emitter.emit(PROTOTYPE_CHANNELS.drawingChanged, {}, { conversationId: null });
+  stop();
+  emitter.emit(PROTOTYPE_CHANNELS.drawingChanged, {}, { conversationId: "p2" });
+  expect(seen.mock.calls).toEqual([["p1"], [null]]);
 });
