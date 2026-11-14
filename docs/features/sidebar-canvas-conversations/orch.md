@@ -24,19 +24,22 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A | 작업 2, 3, 4 | `docs/features/sidebar-canvas-conversations/design.md`(인용 맞추기), `app/src/renderer/`(`ShellSidebar.tsx`, `conversationList.ts`, `homeRun.ts`, `canvasNotice.ts`, `App.tsx`, `ConversationDeleteDialog.tsx`, `conversationDelete.ts`, `styles.css`, 새 순수 함수 파일과 테스트), `app/src/restore/uiState.ts`와 테스트 | 없음 | Claude Opus high — 로빙 포커스 복구, 순서 멈춤, ui-state 첫 읽기 병합처럼 틀리면 회귀가 나는 판단이 많다 | 작업 3: 새 테스트만 red. 작업 4: `npm --prefix app test`·`typecheck`·`lint`·`build` | 대기 |
-| A-DS | 작업 5 | A의 파일 중 스타일·마크업 수정, `docs/DESIGN.md` 사이드바 절, `.scratch/design-sync/sidebar-canvas-conversations/` | A 통합 | Claude Opus high(A와 같은 워커, 후속 Task) — 자기 구현을 아는 워커가 고친다 | `node .scratch/design-sync/sidebar-canvas-conversations/measure.mjs` 차이 0 또는 문서화된 차이 | 대기 |
+| A | 작업 2, 3, 4 | `docs/features/sidebar-canvas-conversations/design.md`(인용 맞추기), `app/src/renderer/`(`ShellSidebar.tsx`, `conversationList.ts`, `homeRun.ts`, `canvasNotice.ts`, `App.tsx`, `ConversationDeleteDialog.tsx`, `conversationDelete.ts`, `styles.css`, 새 순수 함수 파일과 테스트), `app/src/restore/uiState.ts`와 테스트 | 없음 | Claude Opus high — 로빙 포커스 복구, 순서 멈춤, ui-state 첫 읽기 병합처럼 틀리면 회귀가 나는 판단이 많다 | 작업 3: 새 테스트만 red. 작업 4: `npm --prefix app test`·`typecheck`·`lint`·`build` | 통합 `36f5278af`·`6fbec639d`·`06df30066`·`130007f3d` |
+| A-DS | 작업 5 | A의 파일 중 스타일·마크업 수정, `docs/DESIGN.md` 사이드바 절, `.scratch/design-sync/sidebar-canvas-conversations/` | A 통합 | Claude Opus high(A와 같은 워커, 후속 Task) — 자기 구현을 아는 워커가 고친다 | `node .scratch/design-sync/sidebar-canvas-conversations/measure.mjs` 차이 0 또는 문서화된 차이 | 진행 |
 | A-RT | 작업 6 | `.scratch/runtime-test/sidebar-canvas-conversations/`(코드 수정 없음) | A-DS 통합 | Claude Opus high(같은 워커, 후속 Task) — 가짜 IPC 응답과 포커스·순서 확인이 까다롭다 | `node .scratch/runtime-test/sidebar-canvas-conversations/probe.mjs` 완료 줄, exit 0 | 대기 |
-| R | 작업 7 리뷰 | 없음(보고서만) | A-RT | Codex `gpt-6-astra` medium — 다른 계열의 독립 리뷰 | 보고서 🔴 0 | 대기 |
+| R | 작업 7 리뷰 | 없음(보고서만) | A 통합(A-DS와 병렬) | Codex `gpt-6-astra` medium — 다른 계열의 독립 리뷰 | 보고서 🔴 0 | 진행(A 범위) |
 | A-FIX | 작업 7 `/refactor` | A의 파일 | R | A와 같은 워커 | 리뷰 지적 해결, 영향받은 작업 6 항목 재확인 | 대기 |
 | C | 작업 8, 9 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/DESIGN.md`(필요하면), feature 디렉터리 삭제 | 모든 배치 | 컨덕터 — 문서 승격과 최종 `/verify` | tasks 8의 grep 검증, `verify.mjs` PASS | 대기 |
 
 ## 겹침과 순서
 
+- 컨덕터 판단 — R은 A 통합본(`8aa30ada4..130007f3d`)을 A-DS와 병렬로 리뷰한다. R은 보고서만 쓰고 앱을 띄우지 않아 파일·GUI가 겹치지 않는다. A-DS·A-RT의 수정분은 뒤에 따로 리뷰한다.
 - 모든 코드 작업이 `App.tsx`·`ShellSidebar.tsx`·`styles.css`를 함께 고치므로 A → A-DS → A-RT → R → A-FIX를 직렬로 돈다. 병렬 배치는 없다.
 - 링크 3과는 코드·테스트·초안 파일이 겹치지 않는다(체인 파일 확인). 겹침을 찾으면 리드에게 알린다.
 - 링크 4가 이 링크 병합 뒤 `CanvasController.ts`·`App.tsx`·`styles.css`를 고친다. PR 본문에 알릴 것을 적는다.
 
 ## 리뷰·검증 기록
 
-(진행하면서 적는다)
+- A 완료(2026-11-15): 게이트 test(알려진 부하 실패 2건만, 단독 통과)·typecheck·lint(80, 기준과 같음)·build exit 0. 계획과 다른 점 10개는 `.scratch/handoff-A.md`, R이 판단한다. 통합 HEAD의 `/verify`는 마지막 통합에서 한 번 돈다(A-DS가 GUI 측정 중이라 부하를 겹치지 않는다).
+- 컨덕터 판단 — spec·tasks의 옛 PRODUCT 줄 번호는 고치지 않는다. design.md는 맞췄고, feature 디렉터리는 승격 뒤 지운다.
+- Codex 주간 사용량(R 시작 시): 44% 사용.
