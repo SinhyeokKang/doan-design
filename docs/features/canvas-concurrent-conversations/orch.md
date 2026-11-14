@@ -51,4 +51,7 @@
 - R 리뷰: Claude Opus high(`ctx_90c3e649f0a6`, `ccc-review-r`). R 통합 HEAD `7ddaf91ce`에서 `/verify`.
 - 워커 R 질문 — 컨덕터 판단: spec 정한 점 12의 프로토타입 창 Delete를 위해 R이 프로토타입 역할에 삭제(그 창이 띄운 캔버스의 대화만)를 열고 `preload/prototype.ts`에 `deleteConversation`을 더한다.
 - R이 `summary.ts`(S 파일)에 `startedBy?: "handoff" | "promotion"`을 더했다(브리프가 허용).
+- 워커 F 질문 — 컨덕터 판단: F가 P 파일 `CanvasConversationPanel.tsx`·`canvasRun.ts`에서 보관·복원 갈래만 지운다(P는 F 뒤에 돌아 겹치지 않는다).
+- R 리뷰 🔴0 🟡0 ⚪4. 리뷰어의 사용자 결정 후보(세션 하나는 대화 하나를 main도 강제할지) — 컨덕터 판단: spec 정한 점 11이 이미 정한 규칙이라, main도 기존 `session_in_use` 거부로 막는다(새 코드·문구 없음). R에 후속 작업으로 보냈다. ⚪1(`homeConversations.ts:97`의 `forCanvas` 주석)은 O에, ⚪3·⚪4는 그대로 둔다.
+- R 통합 HEAD `7ddaf91ce`의 `/verify`: verify-tests·runtime-support·go test·go vet·typecheck·lint 통과, app-test에서 `cli.test.ts` "Include in Git, then Keep out of Git…"와 `shell.test.ts` "setting up the same folder again…"가 부하 중 시간 초과로 실패(F·R 워커 테스트와 겹침, load 14). 두 파일만 다시 돌리면 116 통과. build는 돌지 않았다. 마지막 `/verify`에서 다시 본다.
 - S가 범위 밖 `io.test.ts`의 테스트 하나("recovers an interrupted replacement rollback…")를 고쳤다. 컨덕터가 허가했다.
