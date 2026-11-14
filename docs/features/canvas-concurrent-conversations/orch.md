@@ -34,7 +34,7 @@
 | C | 8 | 모든 `state` 읽기와 테스트 | P, O | Codex Sol medium — 기계적 정리 | tasks.md 8의 `rg`, test, typecheck, lint, build | 통합 `4c31850b6`, 워크트리 정리 |
 | DS | 9 | P·O 렌더러 파일, DESIGN.md | C | Claude Opus high — 실제 앱 측정과 수정 | measure.mjs | 진행(`ctx_5ae544d5ad76`, `ccc-design-sync`) |
 | RT | 10 | `.scratch/runtime-test/` | DS | 컨덕터 | probe.mjs exit 0 | 대기 |
-| 리뷰 | 12 | 보고서만 | 각 배치 | S·F·O: Codex Astra medium, R·P·C: Claude Opus high, 최종: Codex Astra medium | 🔴 0 | 대기 |
+| 리뷰 | 12 | 보고서만 | 각 배치 | S·F·O: Codex Astra medium, R·P: Claude Opus high, C: 최종 리뷰에 포함, 최종: Codex Astra medium | 🔴 0 | 최종 리뷰 🔴0 🟡3 → DS 워커가 고침 |
 | 승격 | 13 | PRODUCT·ARCHITECTURE·DESIGN·BACKLOG, fixtures/README | RT | 컨덕터 | tasks.md 13 | 대기 |
 | verify | 14 | — | 승격 | 컨덕터 | verify.mjs PASS | 대기 |
 
@@ -69,4 +69,5 @@
 - P가 표에 없는 `CanvasHeader.tsx`를 가져갔다(작업 중 배지).
 - 남은 정리(배치 C에 넘김): `styles.css`의 고아 `.pw-side-title`과 `WindowShell.test.tsx:736-738`.
 - 배치 C 리뷰 — 컨덕터 판단: 따로 돌리지 않는다. 동작을 바꾸지 않는 기계적 정리이고(전체 12748 통과, `rg` 남은 줄 모두 이유 있음), 작업 12의 최종 리뷰가 feature 전체 diff로 함께 본다.
+- 최종 리뷰(Codex gpt-6-astra medium) 🟡3: 새 대화 상태에서 이어받기 제안 캐시를 다시 묻지 않음, 프로토타입 창 접힌 배지가 보이는 대화 하나만 봄, 프로토타입 창이 승격 안내를 놓침. 고칠 파일을 DS가 넘겨받아 DS 후속으로 고친다. 컨덕터 판단: 프로토타입 창 배지도 캔버스 전체 대화에서 고르고(spec 정한 점 5), 자기 표시 순서(점 > 스피너 > 말풍선)는 그대로 두며, 배지로 펼치면 그 대화를 보인다.
 - S가 범위 밖 `io.test.ts`의 테스트 하나("recovers an interrupted replacement rollback…")를 고쳤다. 컨덕터가 허가했다.
