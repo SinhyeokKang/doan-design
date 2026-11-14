@@ -63,8 +63,10 @@ export type EventPayload =
   // always with model_unavailable.
   | { type: "turn.failed"; code: FailureCode; detail?: string; model?: string }
   | { type: "interrupted"; reason: "user" | "appQuit" | "crashed" }
+  // archived and restored: written only by earlier builds, which archived a canvas's previous conversation and made an
+  // archived one current again; still read, never written by this build.
   | { type: "conversation.archived" }
-  // A project conversation became this canvas's current conversation; restored undoes an earlier archive.
+  // A project conversation was bound to this canvas.
   | { type: "conversation.bound"; canvas: Canvas }
   | { type: "conversation.restored" }
   // The turn asked for a handoff (in that turn); its resolution comes once the turn ended and was judged, with the

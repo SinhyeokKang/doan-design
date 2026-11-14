@@ -16,7 +16,8 @@ export type ExternalSession = SessionBinding<Runtime>;
 // turn was accepted, so a project conversation binds only to a canvas that appeared after that; fromHome marks a
 // newDesign started from Home, whose turns carry Home's fixed paragraph (entries without it never do). seenSeq is the
 // last seq the person has seen; an entry without it counts as seen, so an upgrade does not light up every conversation.
-// permissionMode is the conversation's chosen mode; Default is stored as no key.
+// permissionMode is the conversation's chosen mode; Default is stored as no key. state is no longer stored (index v3):
+// every conversation reads as "current" until the field leaves the type.
 interface MetadataBase {
   conversationId: string; root: string; canvas?: Canvas; title: string; state: "current" | "archived";
   model?: string; effort?: string; fast?: true; permissionMode?: Exclude<PermissionModeId, "default">; canvasesAtStart?: Canvas[]; fromHome?: true; seenSeq?: number;
@@ -39,9 +40,12 @@ export function validCanvas(value: unknown): value is Canvas {
     (value.id === undefined || (typeof value.id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.id)));
 }
 function label(value: unknown): value is string { return str(value) && value.length > 0; }
-function metadata(value: unknown, version: 1 | 2): value is ConversationMetadata {
+type IndexVersion = 1 | 2 | 3;
+// v1 and v2 entries carry a state, current or archived; v3 entries carry none, and a state key there is ignored like any
+// other unknown key.
+function metadata(value: unknown, version: IndexVersion): value is ConversationMetadata {
   if (!object(value) || !validId(value.conversationId) || typeof value.root !== "string" || !absolutePath(value.root) || !str(value.title) ||
-      (value.state !== "current" && value.state !== "archived") || (value.canvas !== undefined && !validCanvas(value.canvas)) || !object(value.session) ||
+      (version !== 3 && value.state !== "current" && value.state !== "archived") || (value.canvas !== undefined && !validCanvas(value.canvas)) || !object(value.session) ||
       (value.fromHome !== undefined && value.fromHome !== true) || (value.fast !== undefined && value.fast !== true) || (value.model !== undefined && !label(value.model)) || (value.effort !== undefined && !label(value.effort)) ||
       (value.canvasesAtStart !== undefined && (!Array.isArray(value.canvasesAtStart) || ![...value.canvasesAtStart].every(validCanvas))) ||
       (value.seenSeq !== undefined && (typeof value.seenSeq !== "number" || !Number.isSafeInteger(value.seenSeq) || value.seenSeq < 0))) return false;
@@ -54,19 +58,34 @@ function metadata(value: unknown, version: 1 | 2): value is ConversationMetadata
   if (version === 1) return external;
   return validOwner(value.owner) && (value.owner.kind === "legacy-external" ? external : s.runtime === value.owner.provider);
 }
-function validEntries(entries: readonly unknown[], version: 1 | 2): entries is ConversationMetadata[] {
+function validEntries(entries: readonly unknown[], version: IndexVersion): entries is ConversationMetadata[] {
   return entries.every(m => metadata(m, version)) && new Set(entries.map(m => (m as ConversationMetadata).conversationId)).size === entries.length;
 }
 export type IndexRead = { ok: true; entries: ConversationMetadata[] } | { ok: false; code: "corrupt" | "unknown_version" | "invalid" };
+// archived: the ids a v1 or v2 index stored as archived, which only an earlier build's journal reads (recover).
+type IndexFile = { ok: true; version: IndexVersion; entries: ConversationMetadata[]; archived: Set<string> } | Extract<IndexRead, { ok: false }>;
 export function parseIndex(text: string): IndexRead {
+  const read = parseIndexFile(text);
+  return read.ok ? { ok: true, entries: read.entries } : read;
+}
+// v1 and v2 are read into the v3 shape in memory; the first save writes v3, and earlier builds refuse v3 as an unknown
+// version. An archived conversation becomes an ordinary one without seenSeq, which counts its whole history as seen:
+// otherwise the interruption recorded when it was archived would light up as an unseen end.
+function parseIndexFile(text: string): IndexFile {
   let raw: unknown;
   try { raw = JSON.parse(text); } catch { return { ok: false, code: "corrupt" }; }
   if (!object(raw)) return { ok: false, code: "corrupt" };
   const version = raw.v;
-  if (version !== 1 && version !== 2) return { ok: false, code: "unknown_version" };
+  if (version !== 1 && version !== 2 && version !== 3) return { ok: false, code: "unknown_version" };
   if (!Array.isArray(raw.conversations) || !validEntries(raw.conversations, version)) return { ok: false, code: "invalid" };
-  const entries = raw.conversations.map(storedMode);
-  return { ok: true, entries: version === 1 ? entries.map(m => ({ ...m, owner: { kind: "legacy-external" } }) as ConversationMetadata) : entries };
+  const archived = new Set(version === 3 ? [] : raw.conversations.filter(m => m.state === "archived").map(m => m.conversationId));
+  const entries = raw.conversations.map(storedMode).map((m): ConversationMetadata => {
+    const owned = version === 1 ? { ...m, owner: { kind: "legacy-external" } } as ConversationMetadata : m;
+    if (!archived.has(m.conversationId)) return { ...owned, state: "current" };
+    const { seenSeq: _seen, ...rest } = owned;
+    return { ...rest, state: "current" };
+  });
+  return { ok: true, version, entries, archived };
 }
 // Unlike the other known fields, a permission mode this build cannot read (a later build's mode) reads as Default for
 // that entry alone instead of making the index invalid; Default is never wider than the person's own settings.
@@ -162,7 +181,9 @@ function parseDeletions(text: string): string[] | null {
   return ids.every(validId) && new Set(ids).size === ids.length ? ids : null;
 }
 export interface JournalWrite { id: string; turn: string; body: EventPayload }
-// What an accepted change does to the index. replaced: the current conversations it archives.
+// What an accepted change does to the index. replaced: the current conversations it archives, always empty from this
+// build; restore and a non-empty replaced (and a start that pins other histories) are an earlier build's, settled only
+// beside its v1 or v2 index.
 export type JournalChange =
   | { kind: "start"; id: string }
   | { kind: "bind" | "promote"; id: string; canvas: Canvas; replaced: string[] }
@@ -177,23 +198,25 @@ function validChange(change: JournalChange): boolean {
   return Array.isArray(change.replaced) && change.replaced.every(validId) && !change.replaced.includes(change.id) && new Set(change.replaced).size === change.replaced.length;
 }
 // Whether an index holds the change, does not hold it yet, or neither (a damaged or foreign record). others: every
-// touched conversation besides the target, all current before the change and archived by it.
-function changeState(change: JournalChange, others: readonly string[], index: readonly ConversationMetadata[]): "committed" | "uncommitted" | null {
+// touched conversation besides the target, all current before the change and archived by it. stateOf: each entry's
+// state, which only an earlier build's archiving change reads.
+function changeState(change: JournalChange, others: readonly string[], index: readonly ConversationMetadata[], stateOf = (m: ConversationMetadata) => m.state): "committed" | "uncommitted" | null {
   const find = (id: string) => index.find(m => m.conversationId === id);
-  const all = (state: "current" | "archived") => others.every(id => find(id)?.state === state);
-  const target = find(change.id);
+  const state = (id: string) => { const m = find(id); return m && stateOf(m); };
+  const all = (wanted: "current" | "archived") => others.every(id => state(id) === wanted);
+  const target = find(change.id), targetState = target && stateOf(target);
   switch (change.kind) {
     case "start":
       if (index.some(m => m.conversationId !== change.id && m.conversationId.toLowerCase() === change.id.toLowerCase())) return null;
       if (!target) return all("current") ? "uncommitted" : null;
-      return target.state === "current" && all("archived") ? "committed" : null;
+      return targetState === "current" && all("archived") ? "committed" : null;
     case "bind": case "promote":
-      if (!target || target.state !== "current") return null;
+      if (!target || targetState !== "current") return null;
       if (!target.canvas) return all("current") ? "uncommitted" : null;
       return sameCanvas(target.canvas, change.canvas) && all("archived") ? "committed" : null;
     case "restore":
       if (!target) return null;
-      if (target.state === "archived") return all("current") ? "uncommitted" : null;
+      if (targetState === "archived") return all("current") ? "uncommitted" : null;
       return all("archived") ? "committed" : null;
   }
 }
@@ -232,19 +255,22 @@ export class ConversationStore {
     if (!this.accepting) this.recover();
     return this.readIndex();
   }
-  private readIndex(): ConversationMetadata[] {
+  private readIndex(): ConversationMetadata[] { return this.readIndexFile().entries; }
+  // A missing index is an empty v3 one.
+  private readIndexFile(): Extract<IndexFile, { ok: true }> {
     let text: string;
-    try { text = readRegular(join(this.directory, "index.json")); } catch (error) { if (object(error) && error.code === "ENOENT") return []; throw error; }
-    const read = parseIndex(text);
+    try { text = readRegular(join(this.directory, "index.json")); } catch (error) { if (object(error) && error.code === "ENOENT") return { ok: true, version: 3, entries: [], archived: new Set() }; throw error; }
+    const read = parseIndexFile(text);
     if (!read.ok) throw new Error(read.code === "unknown_version" ? "Unsupported conversation index version" : "Invalid conversation index");
-    return read.entries;
+    return read;
   }
   save(entries: readonly ConversationMetadata[]): void {
     if (!this.accepting) this.recover();
-    if (!validEntries(entries, 2)) throw new Error("Invalid conversation index");
+    const stored = entries.map(({ state: _state, ...rest }) => rest);
+    if (!validEntries(stored, 3)) throw new Error("Invalid conversation index");
     // A future or damaged index is kept for diagnosis instead of being replaced.
     this.readIndex();
-    this.replace("index", JSON.stringify({ v: 2, conversations: entries }));
+    this.replace("index", JSON.stringify({ v: 3, conversations: stored }));
   }
   // <name>.json written whole: a temporary file, then the rename.
   private replace(name: string, text: string): void {
@@ -346,8 +372,14 @@ export class ConversationStore {
     let text: string;
     try { text = readRegular(path); } catch (error) { if (object(error) && error.code === "ENOENT") return; throw error; }
     const journal = parseJournal(JSON.parse(text));
-    const index = this.readIndex(), ids = journal.previous.map(old => old.id);
-    const state = changeState(journal, ids.filter(id => id !== journal.id), index);
+    const index = this.readIndexFile(), ids = journal.previous.map(old => old.id);
+    const others = ids.filter(id => id !== journal.id);
+    // A journal that archives or restores was written by an earlier build, which never writes v3: it is settled by its
+    // own meaning against the states of the v1 or v2 index beside it, and is damaged beside a v3 one. Every other
+    // journal is read against the migrated index, where nothing is archived.
+    const earlier = journal.kind === "restore" || others.length > 0;
+    if (earlier && index.version === 3) throw new Error(`Invalid ${journal.kind} recovery record`);
+    const state = changeState(journal, others, index.entries, earlier ? m => index.archived.has(m.conversationId) ? "archived" : "current" : undefined);
     if (!state) throw new Error(`Invalid ${journal.kind} recovery record`);
     if (state === "uncommitted") {
       const identities = new Set(journal.previous.map(old => `${old.dev}:${old.ino}`));

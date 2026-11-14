@@ -46,6 +46,7 @@ const REASONS: Record<string, (project: string) => string> = {
   // A start refused because the canvas was gone or its ID listed twice: the same fact as a judged not_listed.
   canvas_not_found: project => `It isn’t a single canvas in ${project}.`,
   not_new: () => "It existed before this turn started.",
+  // Only in an earlier build's histories, which refused a handoff to a new canvas that already had a conversation.
   has_conversation: () => "It already has a conversation.",
 };
 export function handoffLineText(item: HandoffItem, ctx: { project: string; provider: Provider; listed(canvas: Canvas): boolean }): HandoffLineView {

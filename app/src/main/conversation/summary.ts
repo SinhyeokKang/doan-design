@@ -5,6 +5,7 @@ import type { PermissionModeId } from "./permissionMode";
 import type { Canvas, ConversationEvent } from "./types";
 // One row of a project's conversation list (conversation:list). The renderer imports this type only.
 export interface ConversationSummary {
+  // state: always "current"; nothing is archived any more, and the field is left only until its readers are gone.
   conversationId: string; canvas?: Canvas; title: string; state: "current" | "archived";
   // permissionMode: the conversation's chosen mode, absent for Default; it also changes after a Claude plan approval.
   owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; fast?: true; permissionMode?: PermissionModeId; fromHome: boolean;
@@ -20,7 +21,7 @@ export interface ConversationSummary {
   // send or a restart.
   returnedDraft?: true;
   // Claude Code's suggestion for the next message, kept in main memory only. Present only while the composer would show
-  // it: a current conversation whose turn ended, not working, with nothing queued and no returned draft.
+  // it: a conversation whose turn ended, not working, with nothing queued and no returned draft.
   suggestion?: string;
   // Background work the done turn turnId started still runs (memory only); stopping: its Stop was pressed.
   background?: { turnId: string; stopping?: true };
@@ -43,7 +44,7 @@ const COMMAND = "Running a command";
 // limitResetsAt and scheduledAt: the usage-limit facts main holds in memory (service.ts list).
 export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean; returned?: boolean; suggestion?: string; background?: { turnId: string; stopping?: true }; stopping?: true; limitResetsAt?: string; scheduledAt?: string }): ConversationSummary {
   const base = {
-    conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title, state: m.state,
+    conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title, state: "current" as const,
     owner: m.owner.kind, provider: m.session.runtime, ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}),
     ...(m.fast ? { fast: true as const } : {}), ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}), fromHome: m.fromHome === true, queued: live.queued, working: live.working,
     ...(live.returned ? { returnedDraft: true as const } : {}),
@@ -53,13 +54,13 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
   if (!read.ok) return { ...base, phase: "ended", unseen: false, lastActivityAt: "", preview: "", readError: true };
   const events = read.events, folded = foldConversation(events, m.conversationId, !live.live);
   const phase = folded.turn === "waitingPermission" ? "waiting" : folded.turn === "starting" || folded.turn === "streaming" ? "running" : "ended";
-  // Markers of binding, archiving and restoring are not something to see: they would mark a seen end unseen again. A
+  // Markers of binding, and an earlier build's archiving and restoring, are not something to see: they would mark a seen end unseen again. A
   // handoff's resolution and a missed handoff's line also come after the turn's end, often while the person is moved to
   // the next conversation.
   const lastTurnSeq = [...events].reverse().find(e => !e.type.startsWith("conversation.") && e.type !== "handoff.resolved" && e.type !== "handoff.missed")?.seq ?? 0;
-  const unseen = phase === "ended" && m.state === "current" && m.seenSeq !== undefined && lastTurnSeq > m.seenSeq;
+  const unseen = phase === "ended" && m.seenSeq !== undefined && lastTurnSeq > m.seenSeq;
   // A queue or a returned draft is what the composer offers next, so a suggestion never competes with them.
-  const suggested = live.suggestion && m.state === "current" && phase === "ended" && !live.working && live.queued === 0 && !live.returned ? { suggestion: live.suggestion } : {};
+  const suggested = live.suggestion && phase === "ended" && !live.working && live.queued === 0 && !live.returned ? { suggestion: live.suggestion } : {};
   return { ...base, phase, unseen, lastActivityAt: events.at(-1)?.at ?? "", preview: preview(events, phase, folded, folded.turnId, folded.messages), ...suggested };
 }
 function preview(events: readonly ConversationEvent[], phase: ConversationSummary["phase"], open: Pick<FoldedConversation, "permissions" | "questions">, turnId: string | null, messages: { text: string }[]): string {
