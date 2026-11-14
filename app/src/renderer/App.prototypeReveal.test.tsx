@@ -303,7 +303,7 @@ describe("Last used from the prototype composer", () => {
 // The project conversation drawing the prototype window's canvas reaches that window by id (user decision): this window
 // subscribes to the playing target first, then reads it, and reports the drawing for every target and each change.
 describe("the drawing relay", () => {
-  const target = { root: "/w/a", canvas: { path: C, id: "checkout" } };
+  const target = { root: "/w/a", canvas: { path: C, id: "checkout" }, generation: 3 };
   test("subscribe first, then read the target, then report what draws it (nothing here)", async () => {
     doan.readPrototypeTarget!.mockImplementation(async () => target);
     await overview();
