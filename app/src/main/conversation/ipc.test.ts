@@ -60,6 +60,29 @@ it("names the terminal session in the resume target", async () => {
       .toEqual({ available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00.000Z", session: "019a-thread" });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+// One session is one conversation: while a conversation holds the terminal session, the panel offers no resume of it,
+// as when there is no record to continue; deleting that conversation brings the offer back.
+it("offers no resume of a terminal session a conversation holds, and offers it again once that conversation is deleted", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+  try {
+    const h = home(dir, undefined, [{ path: ".doan/canvases/a.html" }]);
+    const target = { root: "/repo", canvas: { path: ".doan/canvases/a.html" } };
+    const held = (await h.service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: target.canvas, text: "hi", anchors: [] })).conversationId;
+    const terminal = (sessionId: string, configDir = "/profile") => ({ runtime: "claude" as const, configDir, cwd: "/repo", command: "/fake", env: {}, sessionId, lastCheckAt: "2026-11-01T14:02:00.000Z" });
+    h.prepare.mockResolvedValueOnce(terminal("s1"));
+    expect(await h.handle(true, "resumeTarget", target)).toEqual({ available: false, reason: "no_record" });
+    // A terminal process holding it now (session_in_use) is still the conversation's session.
+    h.prepare.mockRejectedValueOnce(Object.assign(new Error("session_in_use"), { runtime: "claude", sessionId: "s1" }));
+    expect(await h.handle(true, "resumeTarget", target)).toEqual({ available: false, reason: "no_record" });
+    h.prepare.mockResolvedValueOnce(terminal("other"));
+    expect(await h.handle(true, "resumeTarget", target)).toEqual({ available: true, runtime: "claude", lastCheckAt: "2026-11-01T14:02:00.000Z", session: "other" });
+    h.prepare.mockResolvedValueOnce(terminal("s1", "/another-profile"));
+    expect(await h.handle(true, "resumeTarget", target)).toMatchObject({ available: true, session: "s1" });
+    h.service.receive(held, { type: "turn.done" }); h.service.delete(held);
+    h.prepare.mockResolvedValueOnce(terminal("s1"));
+    expect(await h.handle(true, "resumeTarget", target)).toMatchObject({ available: true, session: "s1" });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 const MODELS: ModelOption[] = [{ id: "sonnet", label: "Sonnet", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku", default: false }];
 it("takes newDesign multi-line text as is and rejects subject requests", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));

@@ -120,6 +120,13 @@ test("window visibility comes from main's first answer, then its pushes; a push 
   await vi.waitFor(() => expect(first.mock.calls).toEqual([[true]]));
 });
 
+test("reads the main window's remembered conversation of the playing canvas through its own channel", async () => {
+  mocks.invoke.mockClear();
+  mocks.invoke.mockResolvedValueOnce("0a1b2c3d-0000-4000-8000-000000000001");
+  expect(await api.rememberedConversation()).toBe("0a1b2c3d-0000-4000-8000-000000000001");
+  expect(mocks.invoke.mock.calls).toEqual([["prototype:rememberedConversation"]]);
+});
+
 test("has no conversationForCanvas, which main no longer answers", () => {
   expect(api).not.toHaveProperty("conversationForCanvas");
 });
