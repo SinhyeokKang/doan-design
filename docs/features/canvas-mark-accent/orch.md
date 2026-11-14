@@ -37,3 +37,5 @@
 - 2026-11-15 M 시작: Orca run `run_1e77781701e9`, dispatch `ctx_85f6a623fc52`, 워크트리 `cma-m`(브랜치 `SinhyeokKang/cma-m`, `a7741f38c`에서), Claude opus high.
 - 2026-11-15 M 완료: 커밋 `8c5f580bf` `83452cd4f` `c7dcb6ecf` `a0be42474`. 앱 테스트·typecheck·lint·build·verify.mjs 통과. 설계와 다른 점(`SIZE_BUBBLE`을 `sizeBubble.ts`로 옮김, 버블 버튼에서 pick을 시작하면 시작 전에 포커스를 컴포저 필드로 옮김, 누르기는 host의 native click이 받음)은 R1이 판단한다.
 - 2026-11-15 R1 시작: dispatch `ctx_61bd72207a4a`, `cma-m` 워크트리에서 보고만, Codex gpt-6-astra medium.
+- 2026-11-15 R1 완료: 🔴0 🟡2 🟢2(보고서 `cma-m/.scratch/review-R1.md`, `.scratch/review-R1.md`로 복사). 🟡1 접힌 패널에서 버블 버튼으로 시작한 pick을 취소하면 포커스가 컴포저가 아닌 툴바 Picker에 남는다. 🟡2 reload 중 포커스가 다른 곳을 거쳐 원래 자리로 돌아오면 버블이 포커스를 다시 가져간다. 사용자 결정은 필요 없다(design.md '포커스'대로 고친다).
+- 2026-11-15 M 수정 1회차 시작: follow-up dispatch `ctx_a455e02da563`.
