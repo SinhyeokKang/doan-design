@@ -51,6 +51,12 @@
 - 재생할 수 없는 대상의 토스트 문구와 모양(프로토타입 창에 토스트 자리가 있는지부터).
 - 프레임 서랍의 묶음(결정 8): 주입 스크립트가 프레임 목록과 함께 연결을 보고하고(`parseFramesReport` 확장), 렌더러가 하위 1의 묶음 계산으로 나눈다. 묶음의 모양(머리 이름, 구분선), 묶음과 프레임의 순서, 연결 없는 프레임의 자리, 지금 재생 중인 묶음 표시를 초안으로 정한다. 프레임 서랍은 `PrototypeWindow.tsx`의 `FrameMenu`(556행 근처)다.
 - 대화 패널의 "재생 중인 프레임" 칩, 창 제목, 프레임 메뉴가 이동을 따라가는지 확인한다.
+- main 창 툴바 Play(결정 9, 2026-11-14 사용자 요청). 지금 규칙은 PRODUCT §5 item 2 'Play controls'(Select에서 마크된 프레임 자체를 골랐을 때만 활성, 나머지는 이유와 함께 비활성)다. 하위 2가 정할 것:
+  - 프로토타입 서랍의 모양과 자리: 툴바 버튼에서 열리는 목록(popover)인지, 기존 프레임 서랍(item 3 'Frame drawer')을 프로토타입만 보이게 여는 것인지. 프로토타입 창 서랍처럼 묶음별로 보이는지.
+  - 마크된 프레임 안의 요소를 골랐을 때: 서랍을 열지(결정 9를 그대로 따름), 감싼 프로토타입 프레임을 재생할지.
+  - Hand, pick, capture 모드에서의 동작과 비활성 이유 문구.
+  - 캔버스에 프로토타입이 있는지는 렌더러가 보드의 live layout에서 안다(지금 Play 가용성 `canvasPlayability`, `prototypePlay.ts`).
+  - 크기 버블의 Play(그리고 `canvas-mark-accent`의 Add to message)와 겹치는 규칙.
 - 가이드 문구와 줄일 곳, `/agent-eval` 새 시나리오(연결 쓰기, `doan check` 통과).
 - PRODUCT §5 item 2 'Prototype window'의 "frames do not link to each other"와 'Content'를 고친다.
 
