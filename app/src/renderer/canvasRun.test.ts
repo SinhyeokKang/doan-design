@@ -642,3 +642,13 @@ test("a promotion while the panel shows the default new state is still announced
   h.answer([summary(P)]);
   expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", open: P } });
 });
+
+// In the app the root's list is read before the canvas opens: the canvas's state has no list of its own yet.
+test("a canvas opened after its list was read still moves to a conversation started elsewhere", () => {
+  const h = harness();
+  h.answer([]);
+  h.run.show(checkout);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  h.answer([summary(A)]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+});

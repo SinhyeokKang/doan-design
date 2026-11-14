@@ -60,9 +60,10 @@ interface CanvasState {
   // A conversation a start reply showed before any list named it: kept until a list read names it, so a read that
   // was older or already in flight cannot replace it (the Overview's `listed` rule).
   unconfirmed: string | null;
-  // The new conversation state shows only because the canvas had no current conversation (not the person's New):
-  // a current conversation that appears from elsewhere (the prototype window's first send) then shows.
-  defaultNew?: boolean;
+  // The new conversation state shows only because the canvas had no current conversation (not the person's New), with
+  // the conversations the list named then: a current conversation that appears after (the prototype window's first
+  // send) then shows. Kept apart from `previous`, which a canvas opened after its root's list was read has none of.
+  defaultNew?: ReadonlySet<string>;
 }
 
 // A canvas keeps its state by id when it has one, so a moved canvas keeps what it showed and its draft.
@@ -149,7 +150,7 @@ export class CanvasRun {
   select(conversationId: string | null): void {
     const s = this.shownState();
     if (!s) return;
-    s.defaultNew = false;
+    delete s.defaultNew;
     s.request = null;
     s.notice = null;
     s.unconfirmed = null;
@@ -235,7 +236,7 @@ export class CanvasRun {
       s.unconfirmed = null;
       s.revision++;
       // A canvas not on screen asks for its terminal session when it shows again.
-      s.defaultNew = true;
+      s.defaultNew = this.listedIds(s.target.root);
       if (key === this.visible) this.setShown(s, null); else s.shown = null;
     }
     this.seenEnd.delete(conversationId);
@@ -265,6 +266,7 @@ export class CanvasRun {
     if (!s) { s = { target, revision: 0, request: null, notice: null, previous: null, last: null, ask: 0, unconfirmed: null }; this.canvases.set(key, s); }
     return s;
   }
+  private listedIds(root: string): ReadonlySet<string> { return new Set(this.listed(root).map(c => c.conversationId)); }
   private listed(root: string): readonly ConversationSummary[] {
     const list = this.host.list(root);
     return Array.isArray(list) ? list : [];
@@ -308,26 +310,25 @@ export class CanvasRun {
       if (!Array.isArray(list) || !list.some(c => c.conversationId === s.unconfirmed)) return;
       s.unconfirmed = null;
     }
-    if (s.shown === null && s.defaultNew && Array.isArray(list) && this.takeNewCurrent(s, list)) return;
+    if (s.shown === null && s.defaultNew && Array.isArray(list) && this.takeNewCurrent(s, s.defaultNew, list)) return;
     const pick = pickCanvasConversation(list, s.target.canvas, null, { ...(s.shown !== undefined ? { shown: s.shown } : {}), previous: s.previous, promoted: s.notice?.kind === "promoted" ? s.notice.open : null, drawing });
     // A failed first read shows the new conversation state (view) without picking: the next read that answers picks.
     if (pick.kind === "new" && pick.listError) { if (s.resume === undefined && s.ask === 0) this.askResume(s); return; }
     if (pick.kind === "wait" || pick.kind === "reread") return;
     s.notice = pick.notice;
-    if (pick.kind !== "conversation") s.defaultNew = true;
+    if (pick.kind !== "conversation") s.defaultNew = this.listedIds(s.target.root);
     this.setShown(s, pick.kind === "conversation" ? pick.conversationId : null);
   }
   // A current conversation that newly appeared on a canvas showing only the default new state shows, with the new
   // state's draft when it has none, unless this panel's own start from that draft is in flight (the composer empties
-  // only the key it sent from). Only one the list before did not name at all: a promoted project conversation stays
-  // announced, and one already there when the panel chose the new state (after a delete, on a return) stays unshown.
-  private takeNewCurrent(s: CanvasState, list: readonly ConversationSummary[]): boolean {
+  // only the key it sent from). Only one the list did not name when the panel fell back to the new state: a promoted
+  // project conversation stays announced, and one already there (after a delete, on a return) stays unshown.
+  private takeNewCurrent(s: CanvasState, known: ReadonlySet<string>, list: readonly ConversationSummary[]): boolean {
     const current = list.find(c => c.state === "current" && c.canvas !== undefined && sameTarget(c.canvas, s.target.canvas));
-    if (!current || this.store.deleting(current.conversationId)) return false;
-    if (s.previous === null || s.previous.some(c => c.conversationId === current.conversationId)) return false;
+    if (!current || known.has(current.conversationId) || this.store.deleting(current.conversationId)) return false;
     const key = canvasKey(s.target);
     if (!this.starting.has(key)) this.store.setDrafts(drafts => carryDraft(drafts, key, `conversation:${current.conversationId}`));
-    s.defaultNew = false;
+    delete s.defaultNew;
     s.notice = null;
     this.setShown(s, current.conversationId);
     return true;
