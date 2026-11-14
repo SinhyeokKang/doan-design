@@ -294,6 +294,12 @@ describe("typed undo journal", () => {
     restore: { change: { kind: "restore", id: "arch", replaced: ["old"] }, entries: e => e.map(m => m.conversationId === "arch" ? { ...m, state: "current" as const } : m.conversationId === "old" ? { ...m, state: "archived" as const } : m),
       writes: [{ id: "old", turn: "t", body: { type: "conversation.archived" } }, { id: "arch", turn: "r", body: { type: "conversation.restored" } }] },
   };
+  // Only recovery reads an archiving change now; this build never stages one, whatever index it writes over.
+  it.each(["start", "promote"] as const)("refuses to stage an archiving %s, leaving every record as it was", kind => {
+    const f = changeFixture("v2"), c = earlier[kind], beforeLogs = logs(f), beforeIndex = readFileSync(f.index);
+    expect(() => f.store.acceptChange(c.change, c.entries(f.entries), c.writes)).toThrow("Invalid change targets");
+    expect(logs(f)).toEqual(beforeLogs); expect(readFileSync(f.index)).toEqual(beforeIndex); expect(existsSync(f.journal)).toBe(false);
+  });
   // What the earlier build left behind: its journal (pinning each touched history's size before the writes) and the
   // writes themselves; the index is the caller's.
   function stage(f: ReturnType<typeof changeFixture>, c: Case): string {

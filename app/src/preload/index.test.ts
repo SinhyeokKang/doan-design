@@ -26,6 +26,10 @@ beforeEach(async () => {
   api = exposed;
 });
 
+test("has no conversationForCanvas, which main no longer answers", () => {
+  expect(api).not.toHaveProperty("conversationForCanvas");
+});
+
 test("reads the clock's hour cycle main passed to the window, 12-hour by default", async () => {
   expect(api.clockHour12).toBe(true);
   const argv = process.argv;

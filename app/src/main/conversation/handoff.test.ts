@@ -43,7 +43,7 @@ describe("handoffEligibility", () => {
 
 describe("handoffDecision", () => {
   const made = { path: ".doan/canvases/new.html", id: "new" };
-  const base: HandoffJudgement = { done: true, path: made.path, listed: [source, made], snapshot: [source], source, settled: false, current: () => false };
+  const base: HandoffJudgement = { done: true, path: made.path, listed: [source, made], snapshot: [source], source, settled: false };
   it("cancels a turn that did not end done, whatever is listed", () => {
     expect(handoffDecision({ ...base, done: false })).toEqual({ kind: "cancelled" });
     expect(handoffDecision({ ...base, done: false, listed: [] })).toEqual({ kind: "cancelled" });
@@ -63,12 +63,9 @@ describe("handoffDecision", () => {
     expect(handoffDecision({ ...base, snapshot: [source, { path: ".doan/canvases/old-name.html", id: "new" }] })).toEqual({ kind: "refused", reason: "not_new" });
     expect(handoffDecision({ ...base, snapshot: [source, { path: made.path }] })).toEqual({ kind: "refused", reason: "not_new" });
   });
-  it("refuses a canvas that has a current conversation", () => {
-    expect(handoffDecision({ ...base, current: canvas => canvas.id === "new" })).toEqual({ kind: "refused", reason: "has_conversation" });
-  });
-  it("refuses the conversation's own canvas before asking whether it is new or has a conversation", () => {
+  it("refuses the conversation's own canvas before asking whether it is new", () => {
     const moved = { path: ".doan/canvases/moved.html", id: "a" };
-    expect(handoffDecision({ ...base, path: moved.path, listed: [moved], current: () => true })).toEqual({ kind: "refused", reason: "same_canvas" });
+    expect(handoffDecision({ ...base, path: moved.path, listed: [moved] })).toEqual({ kind: "refused", reason: "same_canvas" });
   });
   it("starts on a canvas without an ID by its path", () => {
     const plain = { path: ".doan/canvases/plain.html" };
@@ -79,7 +76,7 @@ describe("handoffDecision", () => {
 // A guided turn's new canvases that the agent edited and never asked a handoff for (each gets a missed line).
 describe("missedHandoffs", () => {
   const made = { path: ".doan/canvases/b.html", id: "b" }, other = { path: ".doan/canvases/c.html", id: "c" };
-  const base: MissedInput = { root: "/repo", edits: ["/repo/.doan/canvases/b.html"], listed: [source, made], snapshot: [source], requested: [], source, current: () => false };
+  const base: MissedInput = { root: "/repo", edits: ["/repo/.doan/canvases/b.html"], listed: [source, made], snapshot: [source], requested: [], source };
   it("names a new canvas the turn edited and asked no handoff for", () => {
     expect(missedHandoffs(base)).toEqual([made]);
   });
@@ -101,9 +98,6 @@ describe("missedHandoffs", () => {
   });
   it("leaves out a canvas whose ID is listed twice", () => {
     expect(missedHandoffs({ ...base, listed: [source, made, { path: ".doan/canvases/copy.html", id: "b" }] })).toEqual([]);
-  });
-  it("leaves out a canvas that has a current conversation", () => {
-    expect(missedHandoffs({ ...base, current: canvas => canvas.id === "b" })).toEqual([]);
   });
   it("leaves out a canvas the turn asked a handoff for, whatever that request's outcome", () => {
     expect(missedHandoffs({ ...base, requested: [made.path] })).toEqual([]);

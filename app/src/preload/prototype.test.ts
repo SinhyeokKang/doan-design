@@ -120,12 +120,16 @@ test("window visibility comes from main's first answer, then its pushes; a push 
   await vi.waitFor(() => expect(first.mock.calls).toEqual([[true]]));
 });
 
+test("has no conversationForCanvas, which main no longer answers", () => {
+  expect(api).not.toHaveProperty("conversationForCanvas");
+});
+
 // The panel's body runs on either preload: the calls it shares with the main window keep their names, signatures,
 // channels and payloads, so the renderer passes either one as its calls object.
 const canvas = { id: "proto", path: ".doan/canvases/proto.html" };
 const SHARED_CALLS: [SharedWithMain, (api: Pick<DoanApi, SharedWithMain>) => Promise<unknown>][] = [
   ["conversationResumeTarget", a => a.conversationResumeTarget({ root: "/r", canvas })],
-  ["conversationForCanvas", a => a.conversationForCanvas({ root: "/r", canvas })],
+  ["deleteConversation", a => a.deleteConversation({ conversationId: "c" })],
   ["startConversation", a => a.startConversation({ root: "/r", mode: "new", runtime: "claude", canvas, text: "hi", attachments: [{ id: "a" }] })],
   ["sendConversation", a => a.sendConversation({ conversationId: "c", text: "{{1}} x", anchors: [{ frame: { id: "f" } }], model: "opus" })],
   ["scheduledMessages", a => a.scheduledMessages({ conversationId: "c" })],
@@ -182,7 +186,7 @@ test("the calls shared with the main window go to the same channels with the sam
   expect(fromPrototype).toEqual(fromMain);
   expect(fromPrototype.length).toBe(SHARED_CALLS.length);
   // Nothing the panel calls goes to a channel main closes to this window.
-  for (const [channel] of fromPrototype) expect(["conversation:delete", "attachments:capture", "agent-auth:read", "preferences:read", "work:get"]).not.toContain(channel);
+  for (const [channel] of fromPrototype) expect(["attachments:capture", "agent-auth:read", "preferences:read", "work:get"]).not.toContain(channel);
 });
 
 // Main answers this window's list only for the canvas the request names, so a view that trails main's play is told so

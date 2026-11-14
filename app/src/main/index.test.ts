@@ -2276,7 +2276,7 @@ test.each(["window", "app", "both"])("quit does not reveal hidden %s", async hid
 });
 
 test("conversation IPC rejects foreign windows and canvas frames", async () => {
-  for (const method of ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read"]) {
+  for (const method of ["resumeTarget", "start", "send", "interrupt", "answerPermission", "read", "delete"]) {
     expect(await invoke(`conversation:${method}`, {}, null, {})).toEqual({ error: "bad_request" });
     expect(await invoke(`conversation:${method}`, window().webContents, {}, {})).toEqual({ error: "bad_request" });
   }

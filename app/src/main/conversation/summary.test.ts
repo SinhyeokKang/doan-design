@@ -68,6 +68,20 @@ describe("conversationSummary", () => {
     expect(conversationSummary({ ...doan, seenSeq: 0 }, { ok: true, events: replaced }, restarted).unseen).toBe(true);
     expect(conversationSummary({ ...doan, state: "archived", seenSeq: 0 }, { ok: true, events: replaced }, restarted)).toMatchObject({ state: "current", unseen: true });
   });
+  // A new conversation the person started (main window or prototype window) may take over an empty panel; one a handoff
+  // or a promotion made never does, so the summary says who started it.
+  it("says a handoff or a promotion started the conversation, and nothing for the person's own", () => {
+    const origin = { kind: "handoff" as const, conversationId: "source", canvas: { path: ".doan/canvases/s.html", id: "s" } };
+    const handedOff = history({ type: "user.message", text: "Continue here.", anchors: [], origin }, { type: "turn.started" });
+    expect(conversationSummary(legacy, { ok: true, events: history(...started) }, live)).not.toHaveProperty("startedBy");
+    expect(conversationSummary(doan, { ok: true, events: history(...started) }, live)).not.toHaveProperty("startedBy");
+    expect(conversationSummary({ ...doan, canvas: { path: ".doan/canvases/b.html", id: "b" }, session: { ...doan.session, origin: "new" } }, { ok: true, events: handedOff }, live).startedBy).toBe("handoff");
+    const promoted = { ...doan, canvas: { path: ".doan/canvases/b.html", id: "b" } };
+    expect(conversationSummary(promoted, { ok: true, events: history(...started, { type: "turn.done" }, { type: "conversation.bound", canvas: { path: ".doan/canvases/b.html", id: "b" } }) }, live).startedBy).toBe("promotion");
+    // The promotion is in the index; whether a handoff started it is only in the unreadable history.
+    expect(conversationSummary(promoted, { ok: false }, live).startedBy).toBe("promotion");
+    expect(conversationSummary(legacy, { ok: false }, live)).not.toHaveProperty("startedBy");
+  });
   it("returns only a read error for an unreadable history", () => {
     expect(conversationSummary(doan, { ok: false }, live)).toMatchObject({ conversationId: "c", readError: true, phase: "ended", unseen: false, preview: "", lastActivityAt: "" });
   });

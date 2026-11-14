@@ -216,23 +216,6 @@ describe("a steered message the agent never reported (Claude)", () => {
     h.runs[0]!.exited(); await out;
     expect(h.types(id)).toEqual(["user.message", "turn.started", "user.message", "interrupted"]);
   });
-  // An archive writes its interrupted end through the journal at once (no read can follow it), so a found message is
-  // only kept out of the returned draft; one not found comes back as before.
-  it("on archive, keeps a found message out of the returned draft", async () => {
-    const h = fixture(); const { id, messageId } = await steered(h);
-    // A new conversation on the same canvas archives this one.
-    await h.service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "fresh", anchors: [] });
-    h.setTranscript(h.userLine(messageId));
-    h.runs[0]!.exited();
-    expect(h.drafts.returned(id)).toBeUndefined();
-    expect(h.drafts.queued(id)).toEqual([]);
-  });
-  it("on archive, hands a message the transcript does not have back as a draft", async () => {
-    const h = fixture(); const { id } = await steered(h);
-    await h.service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "fresh", anchors: [] });
-    h.runs[0]!.exited();
-    expect(h.drafts.returned(id)?.text).toBe("also this");
-  });
   it("on app quit, writes nothing more but takes a found message out of the queue", async () => {
     const h = fixture(); const { id, messageId } = await steered(h);
     const quitting = h.service.quit();
@@ -365,11 +348,16 @@ describe("background work after a done turn", () => {
     expect(h.runs[1]!.runner.stop).not.toHaveBeenCalled();
     expect(h.types(id).at(-1)).toBe("turn.started");
   });
-  it("a sign-out, an archive, a deletion and the app's quit stop the group without asking, through close()", async () => {
-    for (const how of ["signOut", "archive", "delete", "quit"] as const) {
+  it("another conversation starting on the same canvas leaves the background group alone", async () => {
+    const h = fixture(); const { id, turnId } = await background(h);
+    await h.service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "fresh", anchors: [] });
+    expect(h.runs[0]!.runner.close).not.toHaveBeenCalled();
+    expect(h.summary(id).background).toEqual({ turnId });
+  });
+  it("a sign-out, a deletion and the app's quit stop the group without asking, through close()", async () => {
+    for (const how of ["signOut", "delete", "quit"] as const) {
       const h = fixture(); const { id } = await background(h);
       if (how === "signOut") await h.service.stopRuns("claude");
-      if (how === "archive") await h.service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "fresh", anchors: [] });
       if (how === "delete") h.service.delete(id);
       if (how === "quit") await h.service.quit();
       expect(h.runs[0]!.runner.close).toHaveBeenCalled();

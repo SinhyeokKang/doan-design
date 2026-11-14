@@ -287,14 +287,13 @@ describe("clearing a schedule", () => {
     h.service.schedule(id, { text: "waiting", anchors: [] });
     return id;
   }
-  it("hands it back as a draft at once when the conversation is archived", async () => {
+  it("keeps it when another conversation starts on the same canvas", async () => {
     const h = fixture(); h.limit(RESET); const id = await scheduled(h);
-    // Another provider's connection holds no limit, so its start goes on and archives this one.
-    await h.service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "replacing", anchors: [] });
-    expect(h.store.list().find(m => m.conversationId === id)?.state).toBe("archived");
-    expect(h.drafts.returned(id)).toMatchObject({ text: "waiting" });
-    // Only the limit's own timer is left.
-    expect(h.clock.pending()).toBe(1);
+    // Another provider's connection holds no limit, so its start goes on beside this one.
+    await h.service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "another", anchors: [] });
+    expect(h.drafts.returned(id)).toBeUndefined();
+    expect(h.service.scheduled(id).map(item => item.text)).toEqual(["waiting"]);
+    expect(h.summary(id).scheduledAt).toBeDefined();
   });
   it("hands it back as a draft at once on a sign-out or an account replacement, and forgets the limit", async () => {
     for (const next of [undefined, "c2"]) {
@@ -362,7 +361,7 @@ describe("a scheduled send that cannot go out", () => {
   });
 });
 
-// A Stop, an archive, a sign-out or a stop of the provider's runs while the usage read after a limited turn still runs
+// A Stop, a sign-out or a stop of the provider's runs while the usage read after a limited turn still runs
 // ends that lookup: the stopped turn never goes out again, and its failure notice is told exactly once.
 describe("a usage read still running after a limited turn", () => {
   async function stoppedWhileReading(h: ReturnType<typeof fixture>) {
@@ -402,11 +401,12 @@ describe("a usage read still running after a limited turn", () => {
     expect(h.drafts.returned(id)).toMatchObject({ text: "behind", reason: "interrupted" });
     await stillNothingAfterTheRead(h, id, read);
   });
-  it("ends with an archive", async () => {
-    const h = fixture(); const { id, read } = await stoppedWhileReading(h);
-    await h.service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "replacing", anchors: [] });
-    expect(h.drafts.returned(id)).toMatchObject({ text: "behind" });
-    await stillNothingAfterTheRead(h, id, read);
+  it("goes on when another conversation starts on the same canvas", async () => {
+    const h = fixture(); const { id } = await stoppedWhileReading(h);
+    await h.service.start({ root: "/repo", mode: "new", runtime: "claude", canvas: { path: ".doan/canvases/a.html" }, text: "another", anchors: [] });
+    expect(h.drafts.returned(id)).toBeUndefined();
+    expect(h.summary(id).working).toBe(true);
+    expect(failedNotices(h)).toEqual([]);
   });
 });
 

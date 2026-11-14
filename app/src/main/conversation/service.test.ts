@@ -86,7 +86,7 @@ describe("Codex MCP reload", () => {
     expect(vi.mocked(h.runners[0]!.send).mock.calls.map(call => call[3]?.reloadMcp)).toEqual([undefined, undefined]);
   });
 });
-it("keeps archived history read-only and persists quit interruption synchronously", async () => {
+it("persists quit interruption synchronously", async () => {
   const h = fixture(); const id = (await h.service.start(request)).conversationId;
   h.service.quit(); expect(h.store.read(id).at(-1)).toMatchObject({ type: "interrupted", reason: "appQuit" });
   expect(h.runners[0]?.close).toHaveBeenCalledOnce();
@@ -104,7 +104,7 @@ it("keeps different sessions independent", async () => {
   await h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } });
   expect(h.store.list()).toHaveLength(2);
 });
-it("does not archive or log a start whose new session ID collides with another owner", async () => {
+it("does not log a start whose new session ID collides with another owner", async () => {
   const h = fixture(); h.prepare.mockResolvedValue({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} });
   const first = await h.service.start({ ...request, mode: "new", runtime: "codex" });
   await expect(h.service.start({ ...request, mode: "new", runtime: "codex" })).rejects.toThrow("session_in_use");
@@ -146,28 +146,29 @@ it("initiates cleanup while an opener is still awaiting its protocol handshake",
   await service.quit(); expect(stop).toHaveBeenCalledOnce(); release(); await expect(pending).rejects.toThrow("busy");
 });
 
-it("rejects a pending send archived during preparation and ignores late runner callbacks", async () => {
+it("lets a send prepared while another conversation starts on the same canvas run, and leaves that start alone", async () => {
   const h = fixture(); const id = (await h.service.start(request)).conversationId;
   h.service.receive(id, { type: "turn.done" });
   let release = () => {};
   h.prepare.mockImplementationOnce(() => new Promise(resolve => { release = () => resolve({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {} }); }));
   const pending = h.service.send(id, "late", []);
   h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "replacement", command: "/fake", env: {} });
-  await h.service.start(request); const before = h.store.read(id);
-  release(); await expect(pending).rejects.toThrow("busy");
-  h.service.receive(id, { type: "message.delta", messageId: "late", text: "late" });
-  expect(h.store.read(id)).toEqual(before); expect(h.runners[0]?.send).toHaveBeenCalledTimes(1);
+  const other = (await h.service.start(request)).conversationId;
+  release(); await pending;
+  expect(h.store.read(id).map(e => e.type)).toEqual(["user.message", "turn.started", "turn.done", "user.message", "turn.started"]);
+  expect(h.store.read(other).map(e => e.type)).toEqual(["user.message", "turn.started"]);
+  expect(h.runners[0]?.send).toHaveBeenCalledTimes(2); expect(h.runners[0]?.close).not.toHaveBeenCalled();
+  expect(h.store.list().map(m => m.conversationId).sort()).toEqual([id, other].sort());
 });
 
-it.each(["corrupt", "archive", "new-log", "index", "prompt"])("preserves prior current and history when replacement fails at %s", async boundary => {
+it.each(["new-log", "index", "prompt"])("leaves the canvas's earlier conversation and its history as they were when another start there fails at %s", async boundary => {
   const h = fixture(); const id = (await h.service.start(request)).conversationId;
   h.service.receive(id, { type: "turn.done" }); const before = h.store.read(id); const index = h.store.list();
   h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "replacement", command: "/fake", env: {} });
-  if (boundary === "corrupt") writeFileSync(join(paths.at(-1)!, "conversations", id + ".jsonl"), "corrupt\n");
-  if (boundary === "archive" || boundary === "new-log") {
+  if (boundary === "new-log") {
     const append = h.store.append.bind(h.store);
     vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
-      if ((boundary === "archive" && body.type === "conversation.archived") || (boundary === "new-log" && cid !== id && body.type === "turn.started")) throw new Error("injected");
+      if (cid !== id && body.type === "turn.started") throw new Error("injected");
       return append(cid, turn, body);
     });
   }
@@ -175,8 +176,18 @@ it.each(["corrupt", "archive", "new-log", "index", "prompt"])("preserves prior c
   await expect(h.service.start({ ...request, text: boundary === "prompt" ? "{{1}}" : request.text })).rejects.toThrow();
   expect(h.store.list()).toEqual(index);
   const restarted = new ConversationStore(paths.at(-1)!); expect(restarted.list()).toEqual(index);
-  if (boundary !== "corrupt") expect(restarted.read(id)).toEqual(before);
+  expect(restarted.read(id)).toEqual(before);
   expect(h.runners[0]?.close).not.toHaveBeenCalled();
+});
+it("starts a conversation on a canvas whose other conversation's history cannot be read, and leaves that history as it was", async () => {
+  const h = fixture(); const id = (await h.service.start(request)).conversationId;
+  h.service.receive(id, { type: "turn.done" });
+  const log = join(paths.at(-1)!, "conversations", id + ".jsonl");
+  writeFileSync(log, "corrupt\n");
+  h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "replacement", command: "/fake", env: {} });
+  const next = (await h.service.start(request)).conversationId;
+  expect(h.store.list().map(m => m.conversationId).sort()).toEqual([id, next].sort());
+  expect(readFileSync(log, "utf8")).toBe("corrupt\n");
 });
 
 it("refreshes a moved stable canvas before preparation and send acceptance", async () => {
@@ -187,7 +198,6 @@ it("refreshes a moved stable canvas before preparation and send acceptance", asy
   });
   const id = (await service.start({ ...request, canvas: listed })).conversationId;
   service.receive(id, { type: "turn.done" }); listed = { ...listed, path: ".doan/canvases/moved.html" };
-  expect(service.forCanvas(request.root, listed).current?.canvas).toEqual(listed);
   await service.send(id, "continue", []);
   expect(h.prepare.mock.calls.at(-1)?.[0].canvas).toEqual(listed);
   expect(h.store.list()[0]?.canvas).toEqual(listed);
@@ -212,7 +222,7 @@ it("ignores a previous turn send rejection after the owning Codex runner starts 
   expect(h.store.read(id)).toEqual(before);
 });
 
-it("rechecks archive status after an awaited runner opening", async () => {
+it("runs a send whose runner opened while another conversation started on the same canvas", async () => {
   const h = fixture(); const id = (await h.service.start(request)).conversationId;
   h.service.receive(id, { type: "turn.done" }); h.exits[0]?.();
   let release = () => {}; const send = vi.fn(async () => {}); const close = vi.fn(async () => {});
@@ -220,18 +230,18 @@ it("rechecks archive status after an awaited runner opening", async () => {
   const pending = h.service.send(id, "late opening", []);
   await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
   h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "replacement", command: "/fake", env: {} });
-  await h.service.start(request); const before = h.store.read(id);
-  release(); await expect(pending).rejects.toThrow("busy");
-  expect(send).not.toHaveBeenCalled(); expect(close).toHaveBeenCalledOnce(); expect(h.store.read(id)).toEqual(before);
+  await h.service.start(request);
+  release(); await pending;
+  expect(send).toHaveBeenCalledOnce(); expect(close).not.toHaveBeenCalled(); expect(h.store.read(id).at(-1)?.type).toBe("turn.started");
 });
-it("retains accepted replacement and emits terminal failure for a transport error", async () => {
+it("keeps the canvas's earlier conversation as it was when a new one starts and fails on transport", async () => {
   const h = fixture(); const old = (await h.service.start(request)).conversationId;
-  h.service.receive(old, { type: "turn.done" });
+  h.service.receive(old, { type: "turn.done" }); const before = h.store.read(old);
   h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "replacement", command: "/fake", env: {} });
   h.open.mockResolvedValueOnce({ sessionId: "replacement", send: async () => { throw new Error("transport broke"); }, close: async () => {}, stop: async () => {}, answer: () => false });
   const next = (await h.service.start(request)).conversationId;
-  expect(h.store.list().find(m => m.conversationId === old)?.state).toBe("archived");
-  expect(h.store.list().find(m => m.conversationId === next)?.state).toBe("current");
+  expect(h.store.read(old)).toEqual(before); expect(h.runners[0]?.close).not.toHaveBeenCalled();
+  expect(h.store.list().map(m => m.conversationId).sort()).toEqual([old, next].sort());
   expect(h.store.read(next).at(-1)?.type).toBe("turn.failed");
 });
 
@@ -281,33 +291,24 @@ it("keeps a timed-out wait from orphaning a failed opening's reservation", async
   h.exits[1]!(); await h.service.send(id, "after exit", []);
   expect(h.open).toHaveBeenCalledTimes(3);
 });
-it("restores an archived conversation only after its closing process is gone (POSTMORTEM 2026-10-28)", async () => {
-  const h = perTurn(); const id = (await h.service.start(request)).conversationId;
-  h.service.receive(id, { type: "turn.done" });
-  h.prepare.mockResolvedValueOnce({ ...claudeTurn, sessionId: "replacement" });
-  const current = (await h.service.start(request)).conversationId;
-  h.service.receive(current, { type: "turn.done" }); h.exits[1]!();
-  let sent = false; const pending = h.service.send(id, "back", []).then(() => { sent = true; });
-  await new Promise(resolve => setTimeout(resolve, 20));
-  expect(sent).toBe(false); expect(h.open).toHaveBeenCalledTimes(2);
-  h.exits[0]!(); await pending;
-  expect(h.open).toHaveBeenCalledTimes(3);
-  expect(h.store.list().find(m => m.conversationId === id)!.state).toBe("current");
-  expect(h.store.list().find(m => m.conversationId === current)!.state).toBe("archived");
-});
-it("never reuses the closing Codex server of an archived conversation", async () => {
+it("keeps the Codex server of a canvas's earlier conversation when another one starts there, and reuses it", async () => {
   const h = fixture(); const id = (await h.service.start(request)).conversationId;
   h.service.receive(id, { type: "turn.done" });
   h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "replacement", command: "/fake", env: {} });
-  const current = (await h.service.start(request)).conversationId;
-  expect(h.runners[0]?.close).toHaveBeenCalledOnce();
-  h.service.receive(current, { type: "turn.done" });
-  const pending = h.service.send(id, "back", []);
-  await new Promise(resolve => setTimeout(resolve, 20));
-  expect(h.open).toHaveBeenCalledTimes(2);
-  h.exits[0]!(); await pending;
-  expect(h.open).toHaveBeenCalledTimes(3);
-  expect(h.runners[0]?.send).toHaveBeenCalledOnce(); expect(h.runners[2]?.send).toHaveBeenCalledOnce();
+  await h.service.start(request);
+  expect(h.runners[0]?.close).not.toHaveBeenCalled();
+  await h.service.send(id, "again", []);
+  expect(h.open).toHaveBeenCalledTimes(2); expect(h.runners[0]?.send).toHaveBeenCalledTimes(2);
+});
+it("resumes a terminal session on a canvas whose conversation is running, which goes on", async () => {
+  const h = fixture(); const running = (await h.service.start(request)).conversationId;
+  h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", sessionId: "terminal-session", command: "/fake", env: {} });
+  const resumed = (await h.service.start(request)).conversationId;
+  expect(h.runners[0]?.stop).not.toHaveBeenCalled(); expect(h.runners[0]?.close).not.toHaveBeenCalled();
+  expect(h.store.read(running).map(e => e.type)).toEqual(["user.message", "turn.started"]);
+  expect(h.store.list().find(m => m.conversationId === resumed)?.session.sessionId).toBe("terminal-session");
+  h.service.receive(running, { type: "turn.done" });
+  expect(h.store.read(running).at(-1)?.type).toBe("turn.done");
 });
 it("sends the fixed preset guidance on a follow-up turn as on the first", async () => {
   const h = fixture(); const id = (await h.service.start(request)).conversationId;
@@ -319,7 +320,7 @@ it("sends the fixed preset guidance on a follow-up turn as on the first", async 
 });
 
 // Home starts (newDesign), chosen models, attachments and binding by start-time lists.
-// admit: resolve a canvas against the listed rows as main does (restore needs it); files: the queue's attachment hooks.
+// admit: resolve a canvas against the listed rows as main does; files: the queue's attachment hooks.
 function homeFixture(canvases: { path: string; id?: string }[] = [], options: { admit?: boolean; files?: QueueFiles; fast?: QueueOptions["fast"] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
   const store = new ConversationStore(dir); const runners: Runner[] = []; let session = 0;
@@ -997,7 +998,7 @@ describe("promotion", () => {
     return { current, project };
   }
   const entry = (h: ReturnType<typeof homeFixture>, id: string) => h.store.list().find(m => m.conversationId === id)!;
-  it("moves a project conversation to the existing canvas its own edit changed and archives that canvas's conversation", async () => {
+  it("moves a project conversation to the existing canvas its own edit changed and leaves that canvas's conversation as it was", async () => {
     const h = homeFixture([a, b]); const { current, project } = await withCurrent(h);
     h.service.receive(project, edit(a.path));
     h.service.refreshed("/repo", [a.path]);
@@ -1005,11 +1006,10 @@ describe("promotion", () => {
     h.changes.length = 0;
     h.service.refreshed("/repo", []);
     expect(entry(h, project)).toMatchObject({ canvas: a, state: "current" });
-    expect(entry(h, current).state).toBe("archived");
-    expect(h.store.read(current).at(-1)).toMatchObject({ type: "conversation.archived" });
+    expect(entry(h, current)).toMatchObject({ canvas: a, state: "current" });
+    expect(h.store.read(current).at(-1)).toMatchObject({ type: "turn.done" });
     expect(h.store.read(project).at(-1)).toMatchObject({ type: "conversation.bound", canvas: a });
-    // The archived conversation's runner closes as a replaced start's does.
-    expect(h.runners[0]!.close).toHaveBeenCalled();
+    expect(h.runners[0]!.close).not.toHaveBeenCalled();
     expect(h.changes).toContain("/repo");
   });
   it("keeps a turn whose edit was refused (no file change) or whose file changed without its edit a project conversation", async () => {
@@ -1020,11 +1020,16 @@ describe("promotion", () => {
     h.service.refreshed("/repo", []);
     expect(entry(h, project).canvas).toBeUndefined(); expect(entry(h, current).state).toBe("current");
   });
-  it("does not promote while the target canvas's current conversation is working", async () => {
+  it("promotes to a canvas whose conversation is working, which goes on running", async () => {
     const h = homeFixture([a]); const { current, project } = await withCurrent(h, false);
     h.service.receive(project, edit(a.path)); h.service.refreshed("/repo", [a.path]);
     h.service.receive(project, { type: "turn.done" }); h.service.refreshed("/repo", []);
-    expect(entry(h, project).canvas).toBeUndefined(); expect(entry(h, current).state).toBe("current");
+    expect(entry(h, project).canvas).toEqual(a);
+    expect(h.store.read(current).map(e => e.type)).toEqual(["user.message", "turn.started"]);
+    expect(h.runners[0]!.stop).not.toHaveBeenCalled(); expect(h.runners[0]!.close).not.toHaveBeenCalled();
+    expect(h.service.list("/repo").find(c => c.conversationId === current)).toMatchObject({ working: true, phase: "running" });
+    h.service.receive(current, { type: "turn.done" });
+    expect(h.store.read(current).at(-1)).toMatchObject({ type: "turn.done" });
   });
   it("promotes to none of two edited canvases and none of two new ones", async () => {
     const h = homeFixture([a, b]); const { project } = await withCurrent(h);
@@ -1051,7 +1056,8 @@ describe("promotion", () => {
     const h = homeFixture([a]); const { current, project } = await withCurrent(h);
     h.service.receive(project, edit(a.path)); h.service.refreshed("/repo", [a.path]);
     h.service.receive(project, { type: "turn.failed", code: "rate_limited" }); h.service.refreshed("/repo", []);
-    expect(entry(h, project).canvas).toEqual(a); expect(entry(h, current).state).toBe("archived");
+    expect(entry(h, project).canvas).toEqual(a); expect(entry(h, current).state).toBe("current");
+    expect(h.store.read(current).at(-1)).toMatchObject({ type: "turn.done" });
   });
   it("leaves the index and both histories unchanged, also after a restart, when the promotion cannot be saved", async () => {
     const h = homeFixture([a]); const { current, project } = await withCurrent(h);
@@ -1113,84 +1119,68 @@ describe("promotion", () => {
   });
 });
 
-// A send to an archived conversation makes it current again.
-describe("restore", () => {
+// Several conversations of one canvas run side by side: none is archived or stopped by another.
+describe("concurrent conversations on one canvas", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
-  async function archived(h: ReturnType<typeof homeFixture>) {
-    const old = (await h.service.start(canvasStart)).conversationId;
-    h.service.receive(old, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
-    const current = (await h.service.start(canvasStart)).conversationId;
-    h.service.receive(current, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
-    return { old, current };
-  }
-  const state = (h: ReturnType<typeof homeFixture>, id: string) => h.store.list().find(m => m.conversationId === id)!.state;
-  function unchanged(h: ReturnType<typeof homeFixture>, ids: string[]) {
-    const index = h.store.list(), logs = ids.map(id => h.store.read(id));
-    return () => { expect(h.store.list()).toEqual(index); expect(ids.map(id => h.store.read(id))).toEqual(logs); };
-  }
-  it("archives the current conversation, restores the archived one and runs its turn on its own session", async () => {
-    const h = homeFixture([a], { admit: true }); const { old, current } = await archived(h);
-    h.changes.length = 0;
-    await h.service.send(old, "back to this one", []);
-    expect(state(h, old)).toBe("current"); expect(state(h, current)).toBe("archived");
-    expect(h.store.read(old).slice(-3).map(e => e.type)).toEqual(["conversation.restored", "user.message", "turn.started"]);
-    expect(h.store.read(current).at(-1)).toMatchObject({ type: "conversation.archived" });
-    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ sessionId: "s1" });
-    expect(h.published.map(e => e.type)).toEqual(expect.arrayContaining(["conversation.restored", "conversation.archived"]));
-    expect(h.changes).toContain("/repo");
-    // Restarted, the restored conversation is still the current one.
-    expect(new ConversationStore(h.dir).list().find(m => m.conversationId === old)!.state).toBe("current");
+  const types = (h: ReturnType<typeof homeFixture>, id: string) => h.store.read(id).map(e => e.type);
+  it("starts B while A works, and both turns run to their end", async () => {
+    const h = homeFixture([a], { admit: true });
+    const first = (await h.service.start(canvasStart)).conversationId;
+    const second = (await h.service.start({ ...canvasStart, text: "another idea" })).conversationId;
+    expect(h.runners[0]!.stop).not.toHaveBeenCalled(); expect(h.runners[0]!.close).not.toHaveBeenCalled();
+    expect(h.service.list("/repo").map(c => [c.conversationId, c.working, c.phase])).toEqual(expect.arrayContaining([[first, true, "running"], [second, true, "running"]]));
+    h.service.receive(second, { type: "turn.done" }); h.service.receive(first, { type: "turn.done" });
+    expect(types(h, first)).toEqual(["user.message", "turn.started", "turn.done"]);
+    expect(types(h, second)).toEqual(["user.message", "turn.started", "turn.done"]);
+    expect(h.published.map(e => e.type)).not.toContain("conversation.archived");
   });
-  it("refuses with canvas_not_found when the canvas is gone or its ID is listed twice, and changes nothing", async () => {
-    const h = homeFixture([a], { admit: true }); const { old, current } = await archived(h);
-    const check = unchanged(h, [old, current]);
-    h.listed.splice(0);
-    await expect(h.service.send(old, "back", [])).rejects.toThrow("canvas_not_found");
-    h.listed.push(a, { path: ".doan/canvases/copy.html", id: "a" });
-    await expect(h.service.send(old, "back", [])).rejects.toThrow("canvas_not_found");
-    check();
-  });
-  it("finds a canvas moved under the same ID and records its new path", async () => {
-    const h = homeFixture([a], { admit: true }); const { old } = await archived(h);
-    h.listed.splice(0, 1, { path: ".doan/canvases/moved.html", id: "a" });
-    await h.service.send(old, "back", []);
-    expect(h.store.list().find(m => m.conversationId === old)).toMatchObject({ state: "current", canvas: { path: ".doan/canvases/moved.html", id: "a" } });
-  });
-  it("refuses with busy while the canvas's current conversation works, and when it starts a send during the restore's preparation", async () => {
+  it("runs a send to the canvas's earlier conversation on its own session and touches no other conversation", async () => {
     const h = homeFixture([a], { admit: true });
     const old = (await h.service.start(canvasStart)).conversationId;
     h.service.receive(old, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
-    const current = (await h.service.start(canvasStart)).conversationId;
-    const check = unchanged(h, [old, current]);
-    await expect(h.service.send(old, "back", [])).rejects.toThrow("busy");
-    check();
-    h.service.receive(current, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
-    const prepared = h.prepare.getMockImplementation()!; let release!: () => void;
-    h.prepare.mockImplementationOnce(async (...args) => { await new Promise<void>(resolve => { release = resolve; }); return prepared(...args); });
-    const restoring = h.service.send(old, "back", []);
-    await vi.waitFor(() => expect(release).toBeDefined());
-    const next = h.service.send(current, "keep going", []);
-    release();
-    await expect(restoring).rejects.toThrow("busy");
-    await next;
-    expect(state(h, current)).toBe("current"); expect(state(h, old)).toBe("archived");
+    const other = (await h.service.start(canvasStart)).conversationId;
+    const before = h.store.read(other);
+    await h.service.send(old, "back to this one", []);
+    expect(types(h, old).slice(-2)).toEqual(["user.message", "turn.started"]);
+    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ sessionId: "s1" });
+    expect(h.store.read(other)).toEqual(before); expect(h.runners[1]!.stop).not.toHaveBeenCalled();
   });
-  it("answers not_logged_in when the provider signed out and changes nothing", async () => {
-    const h = homeFixture([a], { admit: true }); const { old, current } = await archived(h);
-    const check = unchanged(h, [old, current]);
-    h.prepare.mockRejectedValueOnce(new Error("not_logged_in"));
-    await expect(h.service.send(old, "back", [])).rejects.toThrow("not_logged_in");
-    check();
+  it("sends to a canvas conversation while another one there is working", async () => {
+    const h = homeFixture([a], { admit: true });
+    const old = (await h.service.start(canvasStart)).conversationId;
+    h.service.receive(old, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
+    const working = (await h.service.start(canvasStart)).conversationId;
+    await h.service.send(old, "meanwhile", []);
+    expect(types(h, old).slice(-2)).toEqual(["user.message", "turn.started"]);
+    expect(types(h, working)).toEqual(["user.message", "turn.started"]);
   });
-  it("leaves both conversations as they were, also after a restart, when the restore cannot be saved", async () => {
-    const h = homeFixture([a], { admit: true }); const { old, current } = await archived(h);
-    const check = unchanged(h, [old, current]);
-    vi.spyOn(h.store, "save").mockImplementationOnce(() => { throw new Error("injected"); });
-    await expect(h.service.send(old, "back", [])).rejects.toThrow("injected");
-    check();
-    const restarted = new ConversationStore(h.dir);
-    expect(restarted.list()).toEqual(h.store.list());
+  it("deleting one conversation leaves the canvas's other running turn alone", async () => {
+    const h = homeFixture([a], { admit: true });
+    const running = (await h.service.start(canvasStart)).conversationId;
+    const idle = (await h.service.start(canvasStart)).conversationId;
+    h.service.receive(idle, { type: "turn.done" });
+    h.service.delete(idle);
+    expect(h.runners[0]!.stop).not.toHaveBeenCalled(); expect(h.runners[0]!.close).not.toHaveBeenCalled();
+    expect(h.service.list("/repo").map(c => c.conversationId)).toEqual([running]);
+    h.service.receive(running, { type: "turn.done" });
+    expect(types(h, running)).toEqual(["user.message", "turn.started", "turn.done"]);
+  });
+  it("counts every running turn of the canvas for an update restart, and a sign-out stops all of them", async () => {
+    const h = homeFixture([a], { admit: true });
+    const first = (await h.service.start(canvasStart)).conversationId;
+    const second = (await h.service.start(canvasStart)).conversationId;
+    expect(h.service.restartHolds().liveTurns).toBe(2);
+    await h.service.stopRuns("claude");
+    for (const id of [first, second]) expect(h.store.read(id).at(-1)).toMatchObject({ type: "interrupted", reason: "user" });
+    expect(h.runners[0]!.close).toHaveBeenCalled(); expect(h.runners[1]!.close).toHaveBeenCalled();
+  });
+  it("a quit stops every running turn of the canvas", async () => {
+    const h = homeFixture([a], { admit: true });
+    const first = (await h.service.start(canvasStart)).conversationId;
+    const second = (await h.service.start(canvasStart)).conversationId;
+    await h.service.quit();
+    for (const id of [first, second]) expect(h.store.read(id).at(-1)).toMatchObject({ type: "interrupted", reason: "appQuit" });
   });
 });
 
@@ -1838,7 +1828,7 @@ describe("send now", () => {
     expect(await answer(sent)).toBe("not_running");
     expect(h.service.takeDraft(id)).toEqual({ text: "one\n\ntwo", anchors: [], attachments: [], reason });
   });
-  it("hands the steered message back when the conversation is archived or its provider signs out meanwhile", async () => {
+  it("hands the steered message back when its provider signs out meanwhile", async () => {
     const h = homeFixture();
     const { id, calls } = await running(h);
     const item = h.service.queue(id, { text: "one", anchors: [] });
@@ -1878,18 +1868,17 @@ describe("send now", () => {
     expect(userMessages(h, id)).toHaveLength(1);
     expect(queued(h, id)).toEqual(["one"]);
   });
-  it("hands the steered message back when another start archives the conversation meanwhile, and ignores its late read", async () => {
+  it("keeps the steered message on its turn when another conversation starts on the same canvas meanwhile", async () => {
     const h = homeFixture();
     const { id, calls, read } = await running(h);
     const queued = h.service.queue(id, { text: "two", anchors: [] });
-    const archived = h.service.sendNow(id, queued.itemId);
+    const sent = h.service.sendNow(id, queued.itemId);
     calls[0]!.accept();
-    await h.service.start(canvasStart); h.open.mock.calls[0]![2]();
-    expect(h.store.list().find(m => m.conversationId === id)?.state).toBe("archived");
-    expect(await answer(archived)).toBe("not_running");
+    await h.service.start(canvasStart);
     read(calls[0]!.messageId);
-    expect(userMessages(h, id)).toHaveLength(1);
-    expect(h.service.takeDraft(id)).toMatchObject({ text: "two", reason: "interrupted" });
+    expect(await answer(sent)).toBe("ok");
+    expect(userMessages(h, id)).toHaveLength(2);
+    expect(h.service.takeDraft(id)).toBeNull();
   });
   it("keeps the message queued, not sending, when the provider refuses it, and the queue follows the turn's end", async () => {
     const h = homeFixture();
@@ -2296,20 +2285,16 @@ describe("agent questions", () => {
     await sending;
     expect(h.store.read(id).filter(e => e.type === "user.message")).toHaveLength(2);
   });
-  // The runner's own expiry (runners.test.ts 'expires a waiting question once on close') comes after the archive and
-  // is dropped; the history's archive marker expires the question, once.
-  it("closes the runner of a conversation replaced while it waits on a question, and folds the question expired once", async () => {
+  it("keeps a conversation waiting on a question asking when another one starts on the same canvas", async () => {
     const h = asking(); const canvas = { path: ".doan/canvases/a.html", id: "a" }; h.listed.push(canvas);
     const first = (await h.service.start({ ...homeRequest, mode: "new", canvas })).conversationId;
-    const emit = h.open.mock.calls[0]![1];
-    vi.mocked(h.runners[0]!.close).mockImplementation(async () => { emit({ type: "question.resolved", requestId: "q1", outcome: "expired" }); });
     h.service.receive(first, question("q1"));
     await h.service.start({ ...homeRequest, mode: "new", canvas });
-    expect(h.runners[0]!.close).toHaveBeenCalledOnce();
+    expect(h.runners[0]!.close).not.toHaveBeenCalled();
     const history = h.store.read(first);
-    expect(history.filter(e => e.type === "question.resolved")).toEqual([]);
-    expect(history.map(e => e.type).slice(-2)).toEqual(["interrupted", "conversation.archived"]);
-    expect(foldConversation(history, first).questions).toEqual({ q1: "expired" });
+    expect(history.map(e => e.type).slice(-1)).toEqual(["question.request"]);
+    expect(foldConversation(history, first, false).questions).toEqual({ q1: "pending" });
+    expect(h.service.restartHolds().pendingAnswers).toBe(1);
   });
   // Synthetic secret sentinel: Claude questions are never secret, so the history write path is fed a secret question
   // through storedAnswers, the one place a runner turns an answer into what the history keeps.
@@ -2430,19 +2415,11 @@ describe("prompt suggestions", () => {
     await expect(h.service.send(id, "next", [])).rejects.toThrow("not_logged_in");
     expect(h.shown(id)).toBe("Run the tests");
   });
-  it("clears it on archive, and a late suggestion of the same run does not come back", async () => {
+  it("keeps it when another conversation starts on the same canvas", async () => {
     const h = suggesting(); const id = await h.start();
     h.service.receive(id, { type: "turn.done" }); h.suggest(0, "Run the tests");
-    // A new conversation on the same canvas archives this one.
     h.runs[0]!.exited(); await h.start();
-    expect(h.store.list().find(m => m.conversationId === id)?.state).toBe("archived");
-    const before = h.changes.length;
-    h.suggest(0, "Late");
-    expect(h.changes.length).toBe(before);
-    // Restoring it shows no suggestion of the earlier turn either.
-    h.service.receive(h.store.list().find(m => m.state === "current")!.conversationId, { type: "turn.done" }); h.runs[1]!.exited();
-    await h.service.send(id, "back", []); h.service.receive(id, { type: "turn.done" });
-    expect(h.shown(id)).toBeUndefined();
+    expect(h.shown(id)).toBe("Run the tests");
   });
   it("clears it on delete, and a late suggestion of the deleted conversation is ignored", async () => {
     const h = suggesting(); const id = await h.start();
@@ -2559,10 +2536,6 @@ describe("conversation work", () => {
   // A turn that ends without its terminal event keeps its unanswered requests in memory; they must not hold the
   // restart back for the rest of the session.
   it.each<[string, (h: ReturnType<typeof fixture>, id: string) => Promise<unknown> | unknown]>([
-    ["an archive by a replacing start", async h => {
-      h.prepare.mockResolvedValueOnce({ ...prepared(), sessionId: "replacement" });
-      await h.service.start(request);
-    }],
     ["a history that stopped taking writes", (h, id) => {
       vi.spyOn(h.store, "append").mockImplementationOnce(() => { throw new Error("File exceeds limit"); });
       vi.spyOn(console, "error").mockImplementation(() => {});
@@ -2582,10 +2555,6 @@ describe("conversation work", () => {
     ["turn.failed", (h, id) => h.service.receive(id, { type: "turn.failed", code: "unknown" })],
     ["a Stop", (h, id) => h.service.interrupt(id)],
     ["the process exiting", h => h.exits[0]?.()],
-    ["an archive by a replacing start", async h => {
-      h.prepare.mockResolvedValueOnce({ ...prepared(), sessionId: "replacement" });
-      await h.service.start(request);
-    }],
     ["the app quitting", h => h.service.quit()],
     ["a history that stopped taking writes", (h, id) => {
       vi.spyOn(h.store, "append").mockImplementationOnce(() => { throw new Error("File exceeds limit"); });
@@ -2598,6 +2567,16 @@ describe("conversation work", () => {
     await act(h, id);
     expect(h.ended).toContain(id);
     expect(h.service.liveTurns().get(id)?.running ?? false).toBe(false);
+  });
+  it("another start on the same canvas keeps the running conversation's work, turn and answers", async () => {
+    const h = fixture();
+    const id = (await h.service.start(request)).conversationId; h.ended.length = 0;
+    h.service.receive(id, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+    h.prepare.mockResolvedValueOnce({ ...prepared(), sessionId: "replacement" });
+    await h.service.start(request);
+    expect(h.ended).not.toContain(id);
+    expect(h.service.liveTurns().get(id)?.running).toBe(true);
+    expect(h.service.restartHolds()).toEqual({ liveTurns: 2, pendingAnswers: 1 });
   });
   it("a sign-out stopping the provider's runs clears the conversation's work", async () => {
     const h = fixture(); h.prepare.mockResolvedValue({ ...prepared(), owner: { kind: "doan", provider: "codex", connectionId: "c", accountId: "acct", workspaceId: "org", profile: "codex" } });
@@ -2850,7 +2829,7 @@ describe("a history that stopped taking writes", () => {
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
   type Way = "a write while the process runs" | "the exit's own turn.failed" | "a transport failure's turn.failed";
   const row = (h: ReturnType<typeof homeFixture>, id: string) => h.service.list("/repo").find(s => s.conversationId === id)!;
-  // An archived conversation of the canvas (its process gone) and the current one, running, with a queued message.
+  // An earlier conversation of the canvas (its process gone) and a later one, running, with a queued message.
   async function running(h: ReturnType<typeof homeFixture>, way?: Way) {
     const old = (await h.service.start(canvasStart)).conversationId;
     h.service.receive(old, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
@@ -2888,12 +2867,13 @@ describe("a history that stopped taking writes", () => {
     h.service.delete(current);
     expect(h.store.list().some(m => m.conversationId === current)).toBe(false);
   });
-  it.each(ways)("lets the canvas's archived conversation be restored (%s)", async way => {
+  it.each(ways)("lets the canvas's other conversation send and leaves this one's history as it was (%s)", async way => {
     const h = homeFixture([a], { admit: true });
     const { old, current } = await failed(h, way);
+    const before = h.store.read(current);
     await h.service.send(old, "back to this one", []);
-    expect(h.store.list().find(m => m.conversationId === old)!.state).toBe("current");
-    expect(h.store.list().find(m => m.conversationId === current)!.state).toBe("archived");
+    expect(h.store.read(old).slice(-2).map(e => e.type)).toEqual(["user.message", "turn.started"]);
+    expect(h.store.read(current)).toEqual(before);
   });
   it.each(ways)("starts a new turn with the next send (%s)", async way => {
     const h = homeFixture([a], { admit: true });

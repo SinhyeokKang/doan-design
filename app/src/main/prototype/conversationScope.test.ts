@@ -42,10 +42,10 @@ describe("prototypeConversationScope", () => {
   const allowed = (method: string, payload: unknown, playing: PlayingCanvas | null = PLAYING, entries = ENTRIES) =>
     prototypeConversationScope(method, payload, playing, CONVERSATIONS, entries);
 
-  test("the allowed methods are the panel's; delete and newDesign are not among them", () => {
-    expect([...PROTOTYPE_CONVERSATION_METHODS].sort()).toEqual([...BY_ID, ...ROOT_ONLY, "list", "forCanvas", "resumeTarget", "start"].sort());
-    expect(allowed("delete", { conversationId: "c-proto" })).toBe(false);
+  test("the allowed methods are the panel's, delete included; newDesign and forCanvas are not among them", () => {
+    expect([...PROTOTYPE_CONVERSATION_METHODS].sort()).toEqual([...BY_ID, ...ROOT_ONLY, "list", "resumeTarget", "start", "delete"].sort());
     expect(allowed("start", { root: "/r", mode: "newDesign", text: "x", runtime: "claude" })).toBe(false);
+    expect(allowed("forCanvas", { root: "/r", canvas: { id: "proto", path: PROTO } })).toBe(false);
     for (const method of ["", "toString", "__proto__", "deleteAll"]) expect(allowed(method, { conversationId: "c-proto" }), method).toBe(false);
   });
 
@@ -65,8 +65,15 @@ describe("prototypeConversationScope", () => {
     }
   });
 
-  test("list, forCanvas and resumeTarget name the playing canvas in the playing root only", () => {
-    for (const method of ["list", "forCanvas", "resumeTarget"]) {
+  // The window's head menu deletes a conversation of the canvas it plays, never another canvas's or a project one.
+  test("delete reaches only a conversation of the playing canvas in the playing root", () => {
+    expect(allowed("delete", { conversationId: "c-proto" })).toBe(true);
+    for (const id of ["c-other", "c-project", "c-proto-wt", "missing"]) expect(allowed("delete", { conversationId: id }), id).toBe(false);
+    expect(allowed("delete", { conversationId: "c-proto" }, null)).toBe(false);
+  });
+
+  test("list and resumeTarget name the playing canvas in the playing root only", () => {
+    for (const method of ["list", "resumeTarget"]) {
       expect(allowed(method, { root: "/r", canvas: { id: "proto", path: PROTO } }), method).toBe(true);
       expect(allowed(method, { root: "/r", canvas: { id: "other", path: OTHER } }), method).toBe(false);
       expect(allowed(method, { root: "/r-wt", canvas: { id: "proto", path: PROTO } }), method).toBe(false);
@@ -123,8 +130,8 @@ describe("prototypeConversationScope", () => {
       expect(allowed("read", { conversationId: "c-loose" }, PLAYING_LOOSE)).toBe(true);
       expect(allowed("read", { conversationId: "c-loose-wt" }, PLAYING_LOOSE)).toBe(false);
       expect(allowed("read", { conversationId: "c-proto" }, PLAYING_LOOSE)).toBe(false);
-      expect(allowed("forCanvas", { root: "/r", canvas: { path: LOOSE } }, PLAYING_LOOSE)).toBe(true);
-      expect(allowed("forCanvas", { root: "/r-wt", canvas: { path: LOOSE } }, PLAYING_LOOSE)).toBe(false);
+      expect(allowed("list", { root: "/r", canvas: { path: LOOSE } }, PLAYING_LOOSE)).toBe(true);
+      expect(allowed("list", { root: "/r-wt", canvas: { path: LOOSE } }, PLAYING_LOOSE)).toBe(false);
     });
 
     test("a row doan ls could not read is no match for an ID-keyed conversation, in either worktree", () => {

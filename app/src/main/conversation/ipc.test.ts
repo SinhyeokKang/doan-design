@@ -41,6 +41,14 @@ function home(dir: string, models?: ModelOption[], canvases: { path: string }[] 
   const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
   return { handle, start, prepare, catalog, attachments, service };
 }
+it("has no forCanvas method: main lists a canvas's conversations only through list", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+  try {
+    const h = home(dir, undefined, [{ path: ".doan/canvases/a.html" }]);
+    expect(conversationMethods).not.toContain("forCanvas");
+    expect(await h.handle(true, "forCanvas" as never, { root: "/repo", canvas: { path: ".doan/canvases/a.html" } })).not.toHaveProperty("current");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 // The renderer holds the terminal session choice while that session (provider:id) works in a
 // terminal, so the resume target names its session.
 it("names the terminal session in the resume target", async () => {

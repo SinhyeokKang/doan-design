@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ConversationStore, parseIndex, restoreEntries, type ConversationMetadata } from "./store";
+import { ConversationStore, parseIndex, type ConversationMetadata } from "./store";
 import { FOLDER_ATTACHMENT, IMAGE_NAMED_FOLDER, LEGACY_ATTACHMENTS } from "./attachmentRecords.fixture";
 const hooks = vi.hoisted(() => ({ failRename: false, journals: [] as string[] }));
 vi.mock("node:fs", async original => {
@@ -388,21 +388,6 @@ describe("seen marker in the index", () => {
   });
 });
 
-describe("restoreEntries", () => {
-  const canvas = { path: ".doan/canvases/a.html", id: "a" };
-  it("swaps the archived conversation with the current one of its canvas and leaves the rest", () => {
-    const current = { ...legacy("now"), canvas }, archived = { ...legacy("then"), canvas, state: "archived" as const }, other = legacy("other"), older = { ...legacy("older"), canvas, state: "archived" as const };
-    expect(restoreEntries([current, archived, other, older], "then")).toEqual({ entries: [{ ...current, state: "archived" }, { ...archived, state: "current" }, other, older], replaced: ["now"] });
-  });
-  it("matches the canvas by ID across a move", () => {
-    const current = { ...legacy("now"), canvas: { path: ".doan/canvases/moved.html", id: "a" } }, archived = { ...legacy("then"), canvas, state: "archived" as const };
-    expect(restoreEntries([current, archived], "then")?.replaced).toEqual(["now"]);
-  });
-  it("refuses a target that is not an archived canvas conversation", () => {
-    expect(restoreEntries([legacy("now")], "now")).toBeNull();
-    expect(restoreEntries([legacy("now")], "missing")).toBeNull();
-  });
-});
 // The successor's first user.message carries its origin and the agent's text
 // as written, markers included; the earlier conversation keeps its request and resolution.
 describe("handoff events in event v1", () => {

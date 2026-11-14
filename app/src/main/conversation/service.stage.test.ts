@@ -90,15 +90,16 @@ it("drops the stage when the process dies while thinking, and takes no late one"
   expect(h.service.read(id)).not.toHaveProperty("stage");
 });
 
-it("has no stage in the read after an archive, a deletion, a sign-out's stop or the quit", async () => {
-  const archive = fixture(); const first = (await archive.service.start(request)).conversationId; archive.stage(THINKING);
-  // A new conversation for the same canvas archives the running one.
-  archive.prepare.mockResolvedValueOnce({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} });
-  await archive.service.start({ ...request, mode: "new" as const, runtime: "claude" as const });
-  archive.opened[0]!.input.stage!(GENERAL);
-  expect(archive.service.read(first)).not.toHaveProperty("stage");
-  expect(archive.signals.filter(s => s.conversationId === first).map(s => s.stage)).toEqual([THINKING]);
+it("keeps the running conversation's stage when another conversation starts on the same canvas", async () => {
+  const h = fixture(); const first = (await h.service.start(request)).conversationId; h.stage(THINKING);
+  h.prepare.mockResolvedValueOnce({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} });
+  await h.service.start({ ...request, mode: "new" as const, runtime: "claude" as const });
+  h.opened[0]!.input.stage!(GENERAL);
+  expect(h.service.read(first).stage?.stage).toEqual(GENERAL);
+  expect(h.signals.filter(s => s.conversationId === first).map(s => s.stage)).toEqual([THINKING, GENERAL]);
+});
 
+it("has no stage in the read after a deletion, a sign-out's stop or the quit", async () => {
   const deletion = fixture(); const id = (await deletion.service.start(request)).conversationId; deletion.stage(THINKING);
   deletion.last().emit({ type: "turn.done" }); deletion.service.delete(id); deletion.stage(GENERAL);
   expect(() => deletion.service.read(id)).toThrow("not_found");

@@ -12,6 +12,7 @@ const ENTRIES: FolderEntry[] = [
 ];
 const CONVERSATIONS: ScopedConversation[] = [
   { conversationId: "c-proto", root: "/r", canvas: { id: "proto", path: PROTO } },
+  { conversationId: "c-proto-2", root: "/r", canvas: { id: "proto", path: PROTO } },
   { conversationId: "c-proto-wt", root: "/r-wt", canvas: { id: "proto", path: PROTO } },
   { conversationId: "c-other", root: "/r", canvas: { id: "other", path: ".doan/canvases/other.html" } },
 ];
@@ -34,6 +35,15 @@ describe("prototype:showing", () => {
     expect(showing.shown()).toBe("c-proto");
     showing.set("prototype", { conversationId: null });
     expect(showing.shown()).toBeNull();
+  });
+
+  // A canvas holds several conversations: the one the window shows, not the main window's, is left out of notifications.
+  test("follows whichever conversation of the playing canvas the window shows", () => {
+    const { showing } = setup();
+    showing.set("prototype", { conversationId: "c-proto-2" });
+    expect(showing.shown()).toBe("c-proto-2");
+    showing.set("prototype", { conversationId: "c-proto" });
+    expect(showing.shown()).toBe("c-proto");
   });
 
   test("a conversation outside the playing canvas is never taken, the same canvas in another worktree neither", () => {

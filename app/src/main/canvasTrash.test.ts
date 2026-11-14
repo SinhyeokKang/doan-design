@@ -59,12 +59,22 @@ describe("trashBusy", () => {
   });
   const work = (root: string, path = target.path): WorkItem => ({ root, path, session: null, provider: null, touched: 0, turn: "none:t" });
 
-  test("a canvas conversation running, waiting or still working blocks; an ended or archived one does not", () => {
+  test("a canvas conversation running, waiting or still working blocks; an ended one does not", () => {
     expect(trashBusy(target, [summary({ phase: "running" })], [], [])).toBe(true);
     expect(trashBusy(target, [summary({ phase: "waiting" })], [], [])).toBe(true);
     expect(trashBusy(target, [summary({ working: true })], [], [])).toBe(true);
     expect(trashBusy(target, [summary({ unseen: true })], [], [])).toBe(false);
-    expect(trashBusy(target, [summary({ phase: "running", state: "archived" })], [], [])).toBe(false);
+  });
+
+  // Several conversations of one canvas run side by side; one that works is enough, and every one counts.
+  test("any one of the canvas's conversations that runs, waits or works blocks, whatever the others do", () => {
+    const ended = summary({ conversationId: "c1" });
+    expect(trashBusy(target, [ended, summary({ conversationId: "c2", phase: "running" })], [], [])).toBe(true);
+    expect(trashBusy(target, [summary({ conversationId: "c2", phase: "waiting" }), ended], [], [])).toBe(true);
+    expect(trashBusy(target, [ended, summary({ conversationId: "c2", working: true })], [], [])).toBe(true);
+    expect(trashBusy(target, [ended, summary({ conversationId: "c2", unseen: true })], [], [])).toBe(false);
+    // An earlier build's archived conversation is an ordinary one now.
+    expect(trashBusy(target, [summary({ phase: "running", state: "archived" })], [], [])).toBe(true);
   });
 
   test("conversations match by id when either side has one, else by path", () => {
