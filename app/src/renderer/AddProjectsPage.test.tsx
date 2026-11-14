@@ -6,7 +6,8 @@ import type { ProjectStepState } from "./projectStep";
 // The page shares onboarding's Project screen, with its own heading and footer because it adds a project without wizard steps.
 const noop = () => {};
 const on: ProjectScreenProps["on"] = { back: noop, backToAgents: noop, chooseFolder: noop, chooseExisting: noop, setUrl: noop, find: noop, cancelInspect: noop, edit: noop,
-  pickListed: noop, useListed: noop, pickCandidate: noop, select: noop, setUp: noop, changeDestination: noop, useExisting: noop, clone: noop, cancelClone: noop, complete: noop, retry: noop, setStorage: noop };
+  pickListed: noop, useListed: noop, pickCandidate: noop, select: noop, setUp: noop, changeDestination: noop, useExisting: noop, clone: noop, cancelClone: noop, complete: noop, retry: noop, setStorage: noop,
+  newFolder: noop, chooseAnotherName: noop, useExistingFolder: noop, newFolderElsewhere: noop };
 const base: ProjectStepState = { phase: { kind: "choose" }, url: "", inspectedUrl: null, error: null, listChoice: null };
 const page = (state: Partial<ProjectStepState>, busy = false) => renderToStaticMarkup(<ProjectScreen use="addPage" headingId="add-page-title" state={{ ...base, ...state }} busy={busy} agentReady projects={["/Users/ada/code/doan"]} home="/Users/ada" urlValid={false} heading={noop} on={on} />);
 const cloning = { kind: "cloning", url: "https://github.com/acme/tokens", destination: "/Users/ada/code/tokens", operationId: "op", cancelling: false } as const;
@@ -15,7 +16,8 @@ test("the page heading is 'Add a project', named for the landmark, without Your 
   const html = page({});
   expect(html).toContain('<div class="ob-heading"><h2 tabindex="-1" id="add-page-title">Add a project</h2><p>Start with a folder on your Mac, or a GitHub repository.</p></div>');
   expect(html).not.toContain("Your projects");
-  expect(html).toContain("Open a local folder");
+  expect(html).toContain("Use a folder on your Mac");
+  expect(html).toContain(">New folder</button>");
 });
 
 // One submit for the page: "Add project" at the bottom right, whatever the step, and no other submit label.
@@ -103,14 +105,14 @@ test("a refused drop's notice sits under the card as an alert", () => {
   const html = renderToStaticMarkup(<ProjectScreen use="addPage" state={base} busy={false} agentReady projects={[]} home={null} urlValid={false} heading={noop} on={on}
     drop={{ notice: "Drop one folder at a time.", allowed: () => true, started: noop, dropped: noop }} />);
   // The page sits on the white home panel, so its notice keeps the inset fill; first run's overlay takes the panel.
-  expect(html).toMatch(/Choose folder<\/button><\/div><div class="doan-notice error ob-project-notice ob-drop-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">Drop one folder at a time\.<\/span><\/div>/);
+  expect(html).toMatch(/New folder<\/button><\/div><\/div><div class="doan-notice error ob-project-notice ob-drop-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">Drop one folder at a time\.<\/span><\/div>/);
 });
 
 test("first run's Project step takes the same card drop", () => {
   const html = renderToStaticMarkup(<ProjectScreen state={base} busy={false} agentReady projects={[]} home={null} urlValid={false} heading={noop} on={on}
     drop={{ notice: "Only folders can be added.", allowed: () => true, started: noop, dropped: noop }} />);
   expect(html).toContain("Choose your project");
-  expect(html).toMatch(/Choose folder<\/button><\/div><div class="doan-notice error doan-panel ob-project-notice ob-drop-notice" role="alert" tabindex="-1">.*?<span class="ob-notice-text selectable">Only folders can be added\.<\/span>/);
+  expect(html).toMatch(/New folder<\/button><\/div><\/div><div class="doan-notice error doan-panel ob-project-notice ob-drop-notice" role="alert" tabindex="-1">.*?<span class="ob-notice-text selectable">Only folders can be added\.<\/span>/);
 });
 
 // The shared focus hook's decision; the page and first run pass their own scene root.

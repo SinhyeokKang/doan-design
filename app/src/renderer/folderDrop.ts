@@ -1,4 +1,4 @@
-// A drop on the 'Open a local folder' card. path is what preload's
+// A drop on the 'Use a folder on your Mac' card. path is what preload's
 // webUtils.getPathForFile read; an item not backed by a file has none ("").
 export type FolderDrop = { kind: "folder"; index: number } | { kind: "notice"; text: string };
 

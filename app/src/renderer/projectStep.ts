@@ -3,6 +3,7 @@ import type {
 } from "../formats/types";
 import type { AddPageResponse, AddPageState, DoanApi } from "../preload";
 import type { FolderEntry } from "../main/view";
+import type { NewFolderResult } from "../main/index";
 import { parseGitHubUrl } from "../main/onboarding/repository";
 import { leaveLocked } from "./addProjectsNav";
 import { dropFolder } from "./folderDrop";
@@ -20,8 +21,10 @@ interface Api {
   cancelOnboardingOperation(request: Request<"cancelOnboardingOperation">): Promise<OnboardingResponse | AddPageResponse>;
   completeOnboarding(request: Request<"completeOnboarding">): Promise<OnboardingResponse | AddPageResponse>;
   chooseOnboardingFolder(purpose: "project" | "destination"): Promise<string | null>;
+  newOnboardingFolder(parent: string, token: string): Promise<NewFolderResult>;
+  cancelOnboardingFolder(token: string): Promise<boolean>;
 }
-type PageCalls = Pick<DoanApi, "readAddPage" | "onAddPageSession" | "inspectAddPageProject" | "selectAddPageProject" | "cloneAddPageProject" | "cancelAddPageOperation" | "chooseOnboardingFolder">;
+type PageCalls = Pick<DoanApi, "readAddPage" | "onAddPageSession" | "inspectAddPageProject" | "selectAddPageProject" | "cloneAddPageProject" | "cancelAddPageOperation" | "chooseOnboardingFolder" | "newOnboardingFolder" | "cancelOnboardingFolder">;
 export function addPageApi(doan: PageCalls): Api {
   return {
     readOnboardingSession: request => doan.readAddPage(request),
@@ -33,6 +36,8 @@ export function addPageApi(doan: PageCalls): Api {
     // The page has no completion record; a registered project is handed over at once (`use`).
     completeOnboarding: () => Promise.reject(new Error("The Add Projects page has no completion")),
     chooseOnboardingFolder: purpose => doan.chooseOnboardingFolder(purpose),
+    newOnboardingFolder: (parent, token) => doan.newOnboardingFolder(parent, token),
+    cancelOnboardingFolder: token => doan.cancelOnboardingFolder(token),
   };
 }
 export interface ProjectStepDeps {
@@ -58,7 +63,9 @@ export function isMainCheckout(entries: readonly FolderEntry[], path: string): b
   return entry?.kind === "list" && !!entry.git && (entry.git.main === path || entry.git.common === `${path}/.git`);
 }
 
-export type ProjectError = OnboardingOperationErrorCode | OnboardingSocketErrorCode | "access_failed";
+// New folder's failures are the window's own, like access_failed: main answers them to New folder only, so they are
+// not socket codes (app-socket v2) and no CLI reads them.
+export type ProjectError = OnboardingOperationErrorCode | OnboardingSocketErrorCode | "access_failed" | "folder_exists" | "folder_inside_project" | "folder_create_failed";
 export type ProjectSource = "folder" | "url";
 // A candidate as the inspection showed it; storage "local" is set up or planned out of Git (app-socket v2).
 export interface ProjectCandidate { path: string; changes: OnboardingChange[]; storage?: "local" }
@@ -87,7 +94,9 @@ export interface ProjectStepState {
   // detail: the failure's own account main gives the window only (the CLI's message for project_unreadable).
   // source: whether a folder or a URL led to it, which decides where the choose screen shows it. Set by the caller,
   // since the same codes come from both.
-  error: { code: ProjectError; message?: string; path?: string; detail?: string; source?: ProjectSource } | null;
+  // directory: New folder's existing name is a folder (Use existing folder); project: the Doan project its location
+  // is inside.
+  error: { code: ProjectError; message?: string; path?: string; detail?: string; source?: ProjectSource; directory?: boolean; project?: string } | null;
   // The registered project picked in 'Your projects', before it is inspected.
   listChoice: string | null;
   // Where the Doan files of a setup or clone go (absent: Include in Git, the default). It outlives a refused or failed
@@ -98,6 +107,12 @@ export interface ProjectStepState {
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 const basename = (path: string) => path.replace(/\/+$/, "").split("/").at(-1) ?? path;
 const parent = (path: string) => path.replace(/\/+$/, "").split("/").slice(0, -1).join("/") || "/";
+// Where a clone and New folder's save panel go by default: the last registered project's parent, else HOME, else the
+// root (2026-10-29 user).
+export function defaultProjectParent(projects: readonly string[], home: string | null): string {
+  const last = projects.at(-1);
+  return last ? parent(last) : (home ?? "/").replace(/\/+$/, "") || "/";
+}
 // url on a path inspection: a folder chosen for that repository, so main checks its remote.
 type Inspect = { path: string; url?: string } | { url: string; destination?: string };
 type Reply = { ok: true; operation: OnboardingOperation } | { ok: false; code: ProjectError; message?: string; detail?: string };
@@ -128,6 +143,8 @@ export class ProjectStepSession {
   }
   dispose(): void {
     this.live = false;
+    // The step is going with its save panel open: main makes nothing when Create returns.
+    if (this.folderRequest !== null) { void this.deps.api.cancelOnboardingFolder(this.folderRequest).catch(() => false); this.folderRequest = null; }
     for (const stop of this.stops.splice(0)) stop();
     this.waiting.clear();
   }
@@ -188,6 +205,20 @@ export class ProjectStepSession {
       const picked = await this.pick("project");
       if (this.live && picked !== null) await this.inspectPath(picked);
     });
+  }
+  // New folder: main's save panel opens at the default location; main makes the folder at the path it returns, and a
+  // made folder is inspected like a chosen one. Choose another name reopens where the clashing name was; Change
+  // location opens at the default again, since the location was the problem.
+  newFolder(): Promise<void> { this.clearDropNotice(); return this.act(() => this.createFolder(this.defaultParent())); }
+  chooseAnotherName(): Promise<void> {
+    const clash = this.state.error?.code === "folder_exists" ? this.state.error.path : undefined;
+    return this.act(() => this.createFolder(clash ? parent(clash) : this.defaultParent()));
+  }
+  newFolderElsewhere(): Promise<void> { return this.act(() => this.createFolder(this.defaultParent())); }
+  useExistingFolder(): Promise<void> {
+    const error = this.state.error;
+    const path = error?.code === "folder_exists" && error.directory ? error.path : undefined;
+    return path ? this.act(() => this.inspectPath(path)) : Promise.resolve();
   }
   useListed(): Promise<void> { const path = this.state.listChoice; return path ? this.act(() => this.inspectPath(path)) : Promise.resolve(); }
   findRepository(): Promise<void> { this.clearDropNotice(); return this.act(() => this.inspectUrl()); }
@@ -251,6 +282,25 @@ export class ProjectStepSession {
     this.choosing = true;
     try { return await this.deps.api.chooseOnboardingFolder(purpose).catch(() => null); } finally { this.choosing = false; }
   }
+  // A cancelled panel changes nothing, a notice it opened from included. Its answer is dropped once the step is gone.
+  private folderRequest: string | null = null;
+  private async createFolder(at: string): Promise<void> {
+    let made: NewFolderResult;
+    const token = this.deps.requestId();
+    this.folderRequest = token;
+    this.choosing = true;
+    try { made = await this.deps.api.newOnboardingFolder(at, token).catch((): NewFolderResult => ({ kind: "cancelled" })); } finally {
+      this.choosing = false;
+      if (this.folderRequest === token) this.folderRequest = null;
+    }
+    if (!this.live || made.kind === "cancelled") return;
+    if (made.kind === "created") { await this.inspectPath(made.path); return; }
+    // The notice sits under the card, in the drop notice's slot, which it takes over.
+    this.dropNotice = null;
+    const code: ProjectError = made.kind === "exists" ? "folder_exists" : made.kind === "inside_project" ? "folder_inside_project" : "folder_create_failed";
+    this.set({ error: { code, path: made.path, source: "folder", ...(made.kind === "exists" ? { directory: made.directory } : {}), ...(made.kind === "inside_project" ? { project: made.project } : {}) } });
+  }
+  private defaultParent(): string { return defaultProjectParent(this.deps.projects(), this.deps.homeDirectory()); }
   private async act(work: () => Promise<void>): Promise<void> {
     if (this.busy() || !this.live) return;
     const token = {};
@@ -433,9 +483,7 @@ export class ProjectStepSession {
 
   private defaultDestination(url: string): string {
     const repo = parseGitHubUrl(url)!.repository;
-    const last = this.deps.projects().at(-1);
-    const home = this.deps.homeDirectory() ?? "/";
-    return `${last ? parent(last) : home.replace(/\/+$/, "")}/${repo}`;
+    return `${this.defaultParent().replace(/\/+$/, "")}/${repo}`;
   }
   private async inspect(target: Inspect): Promise<Reply> {
     // Always with storage: this app's own window speaks the field, so the reply shows which candidates are out of Git.

@@ -88,3 +88,43 @@ test("a re-plan started with nothing focused does not restore focus to <body>", 
   expect(doc.body.focused).toBe(0);
   expect(doc.activeElement).toBe(heading);
 });
+
+// New folder's save panel: a cancel returns focus to the button that opened it, New folder on the card or a notice's
+// Choose another name / Change location while that notice stays; if the notice went, to New folder, not Choose folder.
+test("a cancelled save panel hands focus back to New folder, or to the notice button that opened it", () => {
+  const newFolder = new Element(), choose = new Element(), heading = new Element(), alert = new Element(), again = new Element();
+  let busy = false, picking = false;
+  const exists = { code: "folder_exists", path: "/Users/ada/a", directory: true, source: "folder" };
+  const session = { state: { phase: { kind: "choose" }, error: null as typeof exists | null }, busy: () => busy, picking: () => picking };
+  const scope = { current: { querySelector: (selector: string) => selector.includes("data-new-folder") ? newFolder : selector.includes(".ob-local-option") ? choose : selector.includes('role="alert"') ? alert : null } };
+  const render = () => { hooks.cursor = 0; return useProjectFocus(session as never, scope as never, { current: heading } as never, () => true, true); };
+  const open = (from: Element) => {
+    doc.activeElement = from;
+    render().openPicker(() => { picking = true; busy = true; });
+    // The busy step disables the card's buttons while the panel is open, which drops focus.
+    from.disabled = true; doc.activeElement = doc.body;
+    render();
+  };
+  const cancel = (from: Element) => { picking = false; busy = false; from.disabled = false; render(); };
+  render();
+  open(newFolder); cancel(newFolder);
+  expect(doc.activeElement).toBe(newFolder);
+  // The panel answered with an existing folder: the new notice takes focus.
+  open(newFolder); session.state = { ...session.state, error: exists }; cancel(newFolder);
+  expect(doc.activeElement).toBe(alert);
+  // Choose another name in that notice, cancelled: the notice is still there, so focus is back on its button.
+  open(again); cancel(again);
+  expect(doc.activeElement).toBe(again);
+  // The notice and its button went meanwhile: New folder, since the notice was New folder's.
+  open(again); again.isConnected = false; session.state = { ...session.state, error: null }; cancel(again);
+  expect(doc.activeElement).toBe(newFolder);
+  expect(choose.focused).toBe(0);
+  // A Choose folder notice's button that went keeps the shipped place, the card's Choose folder.
+  const gone = new Element();
+  session.state = { ...session.state, error: { ...exists, code: "project_unavailable" } };
+  render();
+  const failure = session.state.error;
+  open(gone); gone.isConnected = false; session.state = { ...session.state, error: null }; cancel(gone);
+  expect(failure?.code).toBe("project_unavailable");
+  expect(doc.activeElement).toBe(choose);
+});

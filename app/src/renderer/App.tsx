@@ -1299,7 +1299,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
   }, []);
-  // Only the Open a local folder card takes a file drop. Elsewhere the window refuses files, so the cursor shows no
+  // Only the 'Use a folder on your Mac' card takes a file drop. Elsewhere the window refuses files, so the cursor shows no
   // drop and the window never opens the file; a target that took the drag has already prevented the default. Text
   // and links are left to the fields that take them.
   useEffect(() => {

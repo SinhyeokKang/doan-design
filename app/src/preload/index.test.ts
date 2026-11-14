@@ -386,6 +386,10 @@ test("Add Projects page calls use their own fixed channels and pass the request 
   await api.cancelAddPageOperation({ ...ids, operationId: "o" }); expect(mocks.invoke).toHaveBeenLastCalledWith("add-projects:cancel", { ...ids, operationId: "o" });
   // The folder sheet is first run's, which belongs to no session.
   await api.chooseOnboardingFolder("project"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:choose-folder", "project");
+  // New folder: only where the save panel opens; main makes the folder and answers what happened.
+  // The token names the request, so a step that goes away can cancel it before main makes anything.
+  await api.newOnboardingFolder("/Users/ada/code", "t1"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:new-folder", { parent: "/Users/ada/code", token: "t1" });
+  await api.cancelOnboardingFolder("t1"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:new-folder-cancel", { token: "t1" });
 });
 
 test("Add Projects page changes and the menu's open request are subscriptions that unsubscribe", () => {
