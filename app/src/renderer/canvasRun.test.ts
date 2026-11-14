@@ -635,6 +635,31 @@ test("New chosen over an existing conversation stays the new conversation state 
   expect(h.run.view()).toMatchObject({ kind: "new" });
 });
 
+// A list read that changes nothing must not turn the person's New into the default new state.
+test("New chosen over an existing conversation keeps its draft and stays after an unchanged read", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A)]);
+  h.run.select(null);
+  const writing = { segments: [{ kind: "text" as const, text: "a new idea" }], preset: null, attachments: [], shape: "capsule" as const };
+  h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), writing));
+  h.answer([summary(A)]);
+  h.answer([summary(A, { state: "archived" }), summary(B)]);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  expect(h.store.drafts.get(canvasKey(checkout))).toBe(writing);
+  expect(h.store.drafts.get(`conversation:${B}`)).toBeUndefined();
+});
+
+test("an empty new state draft is not carried to a current conversation started elsewhere", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([]);
+  h.store.setDrafts(drafts => new Map(drafts).set(canvasKey(checkout), { segments: [], preset: null, attachments: [], shape: "box" }));
+  h.answer([summary(A)]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+  expect(h.store.drafts.has(`conversation:${A}`)).toBe(false);
+});
+
 test("a promotion while the panel shows the default new state is still announced, not shown", () => {
   const h = harness();
   h.run.show(checkout);

@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { ConversationEvent, StageSignal } from "../conversation/types";
 import type { CanvasRow, FolderEntry } from "../view";
 import {
-  PROTOTYPE_CONVERSATION_METHODS, prototypeAuthSnapshot, prototypeComposerSettings, prototypeEntry, prototypeConversationScope, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
+  PROTOTYPE_CONVERSATION_METHODS, prototypeAuthSnapshot, prototypeComposerSettings, prototypeEntry, prototypeConversationScope, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
   type PlayingCanvas, type ScopedConversation,
 } from "./conversationScope";
 import type { WorkItem } from "../workState";
@@ -36,14 +36,14 @@ const CONVERSATIONS: ScopedConversation[] = [
 ];
 
 const BY_ID = ["read", "send", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "interrupt", "answerPermission", "answerQuestion", "markSeen", "setPermissionMode", "scheduled"] as const;
-const ROOT_ONLY = ["list", "models", "skills"] as const;
+const ROOT_ONLY = ["models", "skills"] as const;
 
 describe("prototypeConversationScope", () => {
   const allowed = (method: string, payload: unknown, playing: PlayingCanvas | null = PLAYING, entries = ENTRIES) =>
     prototypeConversationScope(method, payload, playing, CONVERSATIONS, entries);
 
   test("the allowed methods are the panel's; delete and newDesign are not among them", () => {
-    expect([...PROTOTYPE_CONVERSATION_METHODS].sort()).toEqual([...BY_ID, ...ROOT_ONLY, "forCanvas", "resumeTarget", "start"].sort());
+    expect([...PROTOTYPE_CONVERSATION_METHODS].sort()).toEqual([...BY_ID, ...ROOT_ONLY, "list", "forCanvas", "resumeTarget", "start"].sort());
     expect(allowed("delete", { conversationId: "c-proto" })).toBe(false);
     expect(allowed("start", { root: "/r", mode: "newDesign", text: "x", runtime: "claude" })).toBe(false);
     for (const method of ["", "toString", "__proto__", "deleteAll"]) expect(allowed(method, { conversationId: "c-proto" }), method).toBe(false);
@@ -65,8 +65,8 @@ describe("prototypeConversationScope", () => {
     }
   });
 
-  test("forCanvas and resumeTarget name the playing canvas in the playing root only", () => {
-    for (const method of ["forCanvas", "resumeTarget"]) {
+  test("list, forCanvas and resumeTarget name the playing canvas in the playing root only", () => {
+    for (const method of ["list", "forCanvas", "resumeTarget"]) {
       expect(allowed(method, { root: "/r", canvas: { id: "proto", path: PROTO } }), method).toBe(true);
       expect(allowed(method, { root: "/r", canvas: { id: "other", path: OTHER } }), method).toBe(false);
       expect(allowed(method, { root: "/r-wt", canvas: { id: "proto", path: PROTO } }), method).toBe(false);
@@ -87,7 +87,7 @@ describe("prototypeConversationScope", () => {
 
   test("nothing is allowed without a playing target or with a payload that is not an object", () => {
     expect(allowed("read", { conversationId: "c-proto" }, null)).toBe(false);
-    expect(allowed("list", { root: "/r" }, null)).toBe(false);
+    expect(allowed("list", { root: "/r", canvas: { id: "proto", path: PROTO } }, null)).toBe(false);
     for (const payload of [null, undefined, "c-proto", ["c-proto"]]) expect(allowed("read", payload)).toBe(false);
   });
 
@@ -98,7 +98,7 @@ describe("prototypeConversationScope", () => {
     const unregistered: FolderEntry[] = [ENTRIES[1]!];
     for (const entries of [loading, gone, shared, unregistered]) {
       expect(allowed("read", { conversationId: "c-proto" }, PLAYING, entries)).toBe(false);
-      expect(allowed("list", { root: "/r" }, PLAYING, entries)).toBe(false);
+      expect(allowed("list", { root: "/r", canvas: { id: "proto", path: PROTO } }, PLAYING, entries)).toBe(false);
       expect(allowed("start", { root: "/r", mode: "new", canvas: { id: "proto", path: PROTO }, text: "x", runtime: "claude" }, PLAYING, entries)).toBe(false);
     }
   });
@@ -116,7 +116,7 @@ describe("prototypeConversationScope", () => {
       expect(allowed("read", { conversationId: "c-proto-wt" }, PLAYING)).toBe(false);
       expect(allowed("read", { conversationId: "c-proto" }, PLAYING_WT)).toBe(false);
       expect(allowed("read", { conversationId: "c-proto-wt" }, PLAYING_WT)).toBe(true);
-      expect(allowed("list", { root: "/r" }, PLAYING_WT)).toBe(false);
+      expect(allowed("list", { root: "/r", canvas: { id: "proto", path: PROTO } }, PLAYING_WT)).toBe(false);
     });
 
     test("an ID-less canvas is matched by its path within the playing root", () => {
@@ -134,6 +134,23 @@ describe("prototypeConversationScope", () => {
       expect(allowed("read", { conversationId: "c-proto-wt" }, PLAYING, unreadable)).toBe(false);
       expect(allowed("read", { conversationId: "c-proto-wt" }, PLAYING_WT, unreadable)).toBe(true);
     });
+  });
+});
+
+// The window's view trails main's play (it waits behind the still capture): a list it asks for the canvas it still
+// shows is no failure, and no answer for that canvas either.
+describe("prototypeListElsewhere", () => {
+  test("a list for another canvas, or in another root, than the one playing", () => {
+    expect(prototypeListElsewhere({ root: "/r", canvas: { id: "other", path: OTHER } }, PLAYING)).toBe(true);
+    expect(prototypeListElsewhere({ root: "/r-wt", canvas: { id: "proto", path: PROTO } }, PLAYING)).toBe(true);
+    expect(prototypeListElsewhere({ root: "/r", canvas: { path: LOOSE } }, PLAYING)).toBe(true);
+    expect(prototypeListElsewhere({ root: "/r", canvas: { id: "proto", path: PROTO } }, null)).toBe(true);
+  });
+  test("not the playing canvas's own list, even one refused while its row cannot be judged, nor a malformed request", () => {
+    expect(prototypeListElsewhere({ root: "/r", canvas: { id: "proto", path: PROTO } }, PLAYING)).toBe(false);
+    expect(prototypeListElsewhere({ root: "/r", canvas: { id: "proto", path: ".doan/canvases/moved.html" } }, PLAYING)).toBe(false);
+    expect(prototypeListElsewhere({ root: "/r", canvas: { path: LOOSE } }, PLAYING_LOOSE)).toBe(false);
+    for (const payload of [{ root: "/r" }, { canvas: { id: "other", path: OTHER } }, null, "x"]) expect(prototypeListElsewhere(payload, PLAYING), JSON.stringify(payload)).toBe(false);
   });
 });
 

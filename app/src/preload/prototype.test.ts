@@ -134,7 +134,6 @@ const SHARED_CALLS: [SharedWithMain, (api: Pick<DoanApi, SharedWithMain>) => Pro
   ["removeQueuedMessage", a => a.removeQueuedMessage({ conversationId: "c", itemId: "i" })],
   ["sendQueuedNow", a => a.sendQueuedNow({ conversationId: "c", itemId: "i" })],
   ["takeConversationDraft", a => a.takeConversationDraft({ conversationId: "c" })],
-  ["listConversations", a => a.listConversations({ root: "/r" })],
   ["markConversationSeen", a => a.markConversationSeen({ conversationId: "c", seq: 3 })],
   ["openLink", a => a.openLink("https://example.com")],
   ["interruptConversation", a => a.interruptConversation({ conversationId: "c", turnId: "t" })],
@@ -184,6 +183,15 @@ test("the calls shared with the main window go to the same channels with the sam
   expect(fromPrototype.length).toBe(SHARED_CALLS.length);
   // Nothing the panel calls goes to a channel main closes to this window.
   for (const [channel] of fromPrototype) expect(["conversation:delete", "attachments:capture", "agent-auth:read", "preferences:read", "work:get"]).not.toContain(channel);
+});
+
+// Main answers this window's list only for the canvas the request names, so a view that trails main's play is told so
+// instead of getting another canvas's rows.
+test("the list goes to the main window's channel and names the canvas it is for", async () => {
+  mocks.invoke.mockClear();
+  mocks.invoke.mockResolvedValue([]);
+  await api.listConversations({ root: "/r", canvas });
+  expect(mocks.invoke.mock.calls).toEqual([["conversation:list", { root: "/r", canvas }]]);
 });
 
 test("the shared conversation events arrive on the main window's channels until unsubscribed", () => {
