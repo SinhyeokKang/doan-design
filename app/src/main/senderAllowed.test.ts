@@ -191,3 +191,8 @@ test("the drawing relay's requests belong to their windows and its events are no
   }
   for (const kind of ["main", "prototype"]) for (const channel of [PROTOTYPE_CHANNELS.target, PROTOTYPE_CHANNELS.drawingChanged, PROTOTYPE_CHANNELS.promotedChanged]) expect(senderAllowed(channel, kind), `${channel} ${kind}`).toBe(false);
 });
+// folders:removed tells the main window which roots `doan remove` took out; it is an event main sends, never a request.
+test("folders:removed is an event main sends, never a request", () => {
+  for (const kind of ["main", "prototype", "settings", undefined]) expect(senderAllowed("folders:removed", kind)).toBe(false);
+  expect(senderAllowed("folders:remove", "main")).toBe(true);
+});

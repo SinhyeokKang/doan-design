@@ -21,7 +21,7 @@ func (refusingLoader) Load(url string) (any, error) {
 var validators = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 	compiler := jsonschema.NewCompiler()
 	compiler.UseLoader(refusingLoader{})
-	files := []string{"config.v1", "cli-envelope.v1", "runtime.v1", "app-socket.v1", "app-socket.v2", "app-socket.v3", "app-socket.v4", "app-socket.v5", "app-socket.v6", "sessions.v1"}
+	files := []string{"config.v1", "cli-envelope.v1", "runtime.v1", "app-socket.v1", "app-socket.v2", "app-socket.v3", "app-socket.v4", "app-socket.v5", "app-socket.v6", "app-socket.v7", "sessions.v1"}
 	// Register every file before compiling any: app-socket v3 and v6 $ref v4 by its absolute $id.
 	for _, name := range files {
 		filename := name + ".schema.json"
@@ -55,6 +55,8 @@ var validators = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 		"handoff-response":    schemaBase + "app-socket.v5.schema.json#/$defs/response",
 		"prototype-request":   schemaBase + "app-socket.v6.schema.json#/$defs/request",
 		"prototype-response":  schemaBase + "app-socket.v6.schema.json#/$defs/response",
+		"remove-request":      schemaBase + "app-socket.v7.schema.json#/$defs/request",
+		"remove-response":     schemaBase + "app-socket.v7.schema.json#/$defs/response",
 	}
 	compiled := make(map[string]*jsonschema.Schema, len(targets))
 	for name, url := range targets {
@@ -96,5 +98,8 @@ func ValidateHandoffResponse(value any) error { return validate("handoff-respons
 
 func ValidatePrototypeRequest(value any) error  { return validate("prototype-request", value) }
 func ValidatePrototypeResponse(value any) error { return validate("prototype-response", value) }
+
+func ValidateRemoveRequest(value any) error  { return validate("remove-request", value) }
+func ValidateRemoveResponse(value any) error { return validate("remove-response", value) }
 
 func ValidateSessionRecord(value any) error { return validate("sessions", value) }

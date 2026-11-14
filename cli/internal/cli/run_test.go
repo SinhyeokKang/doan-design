@@ -224,6 +224,14 @@ func TestHelpUsageAndHumanError(t *testing.T) {
 		t.Fatal(&out, &errout)
 	}
 }
+
+// doan remove is in help only, with the line that says when an agent may run it; the guide and stub do not name it.
+func TestHelpListsRemoveForTheUserOnly(t *testing.T) {
+	usage := result(t, t.TempDir(), 0, "help")["usage"].(string)
+	if !strings.Contains(usage, "\n  remove\n      (removes this project from Doan's list; files stay. Only when the user asks)\n") {
+		t.Fatal(usage)
+	}
+}
 func TestRemovedMCPCommandIsUnknown(t *testing.T) {
 	if strings.Contains(result(t, t.TempDir(), 0, "help")["usage"].(string), "mcp") {
 		t.Fatal("usage lists mcp")
