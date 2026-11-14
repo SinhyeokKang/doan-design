@@ -459,6 +459,56 @@ describe("selection", () => {
 
     // A reload hides the bubble while the new document is asked for the same selection; focus waits on the toolbar and
     // comes back to the same button once the selection is found, unless the person moved it meanwhile.
+    // ARCHITECTURE §3: a waiting focus move ends for good the moment focus goes anywhere else, even if it comes back.
+    it("gives up bringing focus back for good once focus went elsewhere during the reload, even back to the holder", () => {
+      const frames = [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }];
+      for (const which of ["add", "play"] as const) {
+        const { h, addButton, holder, play, playButton } = setup();
+        play.onFocusLost.mockImplementation(() => { h.doc.activeElement = holder; });
+        const focusin = (target: unknown) => {
+          h.doc.activeElement = target;
+          const event = new Event("focusin");
+          Object.defineProperty(event, "target", { get: () => target });
+          h.host.dispatchEvent(event);
+        };
+        try {
+          const target = which === "play" ? frameTarget("intro") : h.target;
+          h.select(1, { target });
+          const button = which === "play" ? playButton()! : addButton;
+          h.doc.activeElement = button;
+          h.controller.command("reload");
+          expect(h.doc.activeElement, which).toBe(holder);
+          focusin({ name: "sidebar row" });
+          focusin(holder);
+          h.layout({ frames });
+          h.select(1, { target });
+          expect(h.doc.activeElement, which).toBe(holder);
+          expect(button.focus, which).not.toHaveBeenCalled();
+        } finally { h.controller.dispose(); }
+      }
+    });
+
+    // The wait listens for focus moves only while it can still bring focus back.
+    it("stops watching focus once the wait ends: focus came back, the selection was cleared, or the controller went", () => {
+      const frames = [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }];
+      for (const end of ["found", "cleared", "disposed"] as const) {
+        const { h, addButton } = setup();
+        const added = vi.spyOn(h.host, "addEventListener"), removed = vi.spyOn(h.host, "removeEventListener");
+        const watching = () => added.mock.calls.filter(call => call[0] === "focusin").length - removed.mock.calls.filter(call => call[0] === "focusin").length;
+        try {
+          h.select(1);
+          h.doc.activeElement = addButton;
+          h.controller.command("reload");
+          expect(watching(), end).toBe(1);
+          h.layout({ frames });
+          if (end === "found") h.select(1);
+          else if (end === "cleared") h.select(1, { target: null });
+          else h.controller.dispose();
+          expect(watching(), end).toBe(0);
+        } finally { h.controller.dispose(); }
+      }
+    });
+
     it("brings focus back to the same button once a reload finds the selection again, unless it moved meanwhile", () => {
       for (const which of ["add", "play"] as const) {
         const { h, add, addButton, holder, play, playButton } = setup();

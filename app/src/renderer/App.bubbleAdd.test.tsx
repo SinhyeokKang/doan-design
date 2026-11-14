@@ -147,6 +147,8 @@ const focusMoved = (target: unknown) => windowListeners.focusin?.({ target } as 
 const hook = () => (harness.controller as unknown as { bubbleAdd: BubbleAddHook }).bubbleAdd;
 const bubble = () => find<BubbleProps>(BubbleAdd)[0]?.props;
 const HOST = { name: "the bubble's host" };
+const rowSummary = (patch: Record<string, unknown> = {}) => ({ conversationId: "c1", canvas: { path: rowA.path, id: "a" }, title: "Payment copy", owner: "doan", provider: "claude",
+  fromHome: false, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch });
 function canvas(patch: Record<string, unknown> = {}) {
   harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, layout: LAYOUT, selection: SELECTION, ...patch });
   render();
@@ -289,24 +291,63 @@ test("the controller reads App's Add to message button", async () => {
   expect(hook().button()).toBe(add);
 });
 
-// A pick clears the selection, so a bubble button it starts from goes away: focus moves to the composer field first,
-// where a cancel leaves it and a chip lands, never the page body.
-test("⌘L from a bubble button takes focus to the field before the pick, and a cancel leaves it there", async () => {
-  for (const from of ["add", "play"] as const) {
-    reset();
-    const { link } = await bubbleWithComposer();
-    const button = element(from);
-    if (from === "add") bubble()!.button.current = button;
-    else harness.controller!.bubblePlayButton!.mockReturnValue(button);
-    (document as { activeElement: unknown }).activeElement = button;
-    link.focus.mockImplementation(() => { (document as { activeElement: unknown }).activeElement = { name: "field" }; });
+// A pick clears the selection, so a bubble button it starts from goes away and the controller hands focus to the
+// toolbar (its onFocusLost). A cancel then sends focus to the composer field, never back to the hidden button and
+// never the page body, whether the panel was open or folded (a folded panel's field takes no focus until it unfolds).
+// Add to message's button stays in the DOM, hidden; Play's is removed.
+test.each([["Add to message", "open"], ["Add to message", "folded"], ["Play", "open"], ["Play", "folded"]] as const)(
+  "a pick started with ⌘L from the bubble's %s, panel %s, ends in the composer field when cancelled", async (which, shown) => {
+    const { link, field } = await bubbleWithComposer({ panel: shown === "open" });
+    const NodeClass = class {};
+    vi.stubGlobal("Node", NodeClass);
+    vi.stubGlobal("HTMLElement", class extends NodeClass {});
+    const doc = document as { activeElement: unknown };
+    const focusable = (name: string, connected = true) => {
+      const node: { name: string; isConnected: boolean; focus: ReturnType<typeof vi.fn> } = Object.assign(new (globalThis.HTMLElement as unknown as new () => object)(), { name, isConnected: connected, focus: vi.fn(() => { doc.activeElement = node; }) });
+      return node;
+    };
+    // The toolbar sits in the canvas area, where a pick leaves focus.
+    const picker = focusable("Picker"), toolbarPlay = focusable("toolbar Play");
+    pane().picker.button!.current = picker;
+    (pane() as unknown as { player: { button: { current: unknown } } }).player.button.current = toolbarPlay;
+    const viewport = (all(tree).find(element => "viewport" in (element.props as object))!.props as { viewport: { current: Record<string, unknown> } }).viewport;
+    viewport.current.contains = (node: unknown) => node === picker || node === toolbarPlay;
+    viewport.current.focus = vi.fn();
+    // A hidden button refuses focus.
+    const bubbleButton = { ...focusable(which, which === "Add to message"), focus: vi.fn() };
+    Object.setPrototypeOf(bubbleButton, (globalThis.HTMLElement as unknown as { prototype: object }).prototype);
+    if (which === "Add to message") bubble()!.button.current = bubbleButton;
+    else harness.controller!.bubblePlayButton!.mockReturnValue(bubbleButton);
+    doc.activeElement = bubbleButton;
+    // The field takes focus only once its column is not inert.
+    link.focus.mockImplementation(() => { if (panel()?.open) doc.activeElement = field; });
     listeners.menu!("pickFromCanvas" as never); render();
-    expect(link.focus, from).toHaveBeenCalledOnce();
-    expect(link.focus.mock.invocationCallOrder[0], from).toBeLessThan(harness.controller!.pick!.mock.invocationCallOrder[0]!);
+    expect(harness.controller!.pick, `${which} ${shown}`).toHaveBeenCalledOnce();
+    // The pick cleared the selection: the bubble went, and if its button still had focus the controller handed it on.
+    if (doc.activeElement === bubbleButton) {
+      const hooks = harness.controller as unknown as { bubbleAdd: BubbleAddHook; bubblePlay: { onFocusLost(): void } };
+      (which === "Add to message" ? hooks.bubbleAdd : hooks.bubblePlay).onFocusLost();
+      focusMoved(doc.activeElement);
+    }
+    harness.controller!.bubblePlayButton!.mockReturnValue(null);
     harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, layout: LAYOUT, picking: true });
     render();
     (harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void)({ kind: "cancelled" });
-    expect(link.focus, from).toHaveBeenCalledOnce();
-    expect(button.focus, from).not.toHaveBeenCalled();
-  }
+    expect((doc.activeElement as { name?: string } | null)?.name, `${which} ${shown}`).toBe(field.name);
+    expect(bubbleButton.focus, `${which} ${shown}`).not.toHaveBeenCalled();
+  });
+
+// The same conversation's composer, or none: a chip for one the panel no longer shows is dropped.
+test("a waiting chip is dropped when the panel's conversation changes on the same canvas", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary(), rowSummary({ conversationId: "c2", title: "Header copy", lastActivityAt: "2026-10-31T00:00:00.000Z" })]);
+  const { link } = await bubbleWithComposer({ panel: false });
+  const run = find<{ run: { composerKey(): string | null; target(): unknown; request(target: unknown, conversationId: string, scroll: null): void } }>(CanvasConversation)[0]!.props.run;
+  const before = run.composerKey();
+  expect(before).toBe("conversation:c1");
+  hook().onAdd();
+  run.request(run.target(), "c2", null);
+  render();
+  expect(run.composerKey()).not.toBe(before);
+  expect(link.insert).not.toHaveBeenCalled();
+  expect(link.focus).not.toHaveBeenCalled();
 });
