@@ -369,6 +369,24 @@ describe("selection", () => {
     });
   });
 
+  // The mark's padding box is the element's rect and its line grows outward by the line's own width. Chromium floors
+  // a border to whole device pixels (1.5px → 1 at 1x) but not a margin, so at 1x a −1.5 margin under a 1px line left a
+  // pixel gap on one side and put the line over the element's last pixel on the other (runtime probe at 1x, 100 %).
+  // Each resolution's margin, and the bubble's distance from the line, must match the width drawn there.
+  it("grows the selection box by the line width actually drawn, at 2x and at 1x", () => {
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    const rule = (text: string, selector: string) => { const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); return text.match(new RegExp(`(?:^|\\n|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? null; };
+    const low = css.match(/@media \(resolution < 2dppx\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(rule(css, ".mark")).toContain("border: 1.5px solid var(--text-accent)");
+    expect(rule(css, ".mark:not(.jump-point)")).toContain("margin: -1.5px");
+    expect(rule(css, ".dims")).toContain("top: calc(100% + 1.5px + 5px)");
+    expect(rule(css, ".dims.above")).toContain("bottom: calc(100% + 1.5px + 5px)");
+    expect(rule(low, ".mark")).toContain("border-width: 1px");
+    expect(rule(low, ".mark:not(.jump-point)")).toContain("margin: -1px");
+    expect(rule(low, ".dims")).toContain("top: calc(100% + 1px + 5px)");
+    expect(rule(low, ".dims.above")).toContain("bottom: calc(100% + 1px + 5px)");
+  });
+
   // Add to message ends the size bubble whenever there is a selection. The controller owns a fixed host at the bubble's
   // end and App portals the button into it, so availability, its reason and the tooltip stay React's, while the press
   // is the host's own native listener: the viewport's listeners would act on it before any React handler.
