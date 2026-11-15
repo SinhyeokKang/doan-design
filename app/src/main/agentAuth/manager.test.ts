@@ -2109,7 +2109,7 @@ describe("MCP connector steps", () => {
   it("starts no Copilot process when its fence cannot be built", async () => {
     const m = manager({ fence: { userData: join(root, "elsewhere") } }); await m.load();
     const run = started(await m.signIn("copilot", 7));
-    expect(await run.done).toMatchObject({ phase: "disconnected" });
+    expect(await run.done).toMatchObject({ phase: "error", connection: null, error: { code: "sign_in_failed" } });
     expect(spawn).not.toHaveBeenCalled();
   });
   it("finishes a sign-out whose MCP logout throws", async () => {

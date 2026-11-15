@@ -44,7 +44,9 @@ const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")
 // outside any sandbox (Codex MCP servers and notify do even inside its own, probe), so the agent must not plant them.
 // Doan writes the doan skill stub before spawning, so it stays readable. Neither CLI writes these files during a run (Claude Code 2.1.319: suggested permissions go
 // to the project's local settings or the session; codex-cli 0.166.0 wrote no config.toml). Doan main writes them from
-// outside the fence. The ACP providers always run inside this fence, so their settings need no such line.
+// outside the fence. The ACP providers' profiles get no such line: every Copilot process and every ACP list read runs in
+// this fence, and the processes left outside it (Cursor's and Antigravity's sign-in and status, Cursor's --version)
+// started none of the hooks and MCP servers planted in their profiles (probe).
 const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")) (subpath (param "PROVIDER_PROJECT")) (literal (param "PROVIDER_MCP")))
 `;
 const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))
@@ -88,13 +90,18 @@ export function fenceArgs(provider: Provider, paths: FencePaths): string[] {
 export function fencedCommand(command: string, args: readonly string[], fence?: readonly string[], exec = SANDBOX_EXEC): { command: string; args: string[] } {
   return fence ? { command: exec, args: [...fence, command, ...args] } : { command, args: [...args] };
 }
-// A Claude process Doan starts outside a conversation (the usage read, MCP connector commands, a sign-out's MCP logout)
-// in the outer fence: the CLI starts the MCP servers the profile's .claude.json names, and the usage read's SDK those of
-// a .mcp.json in its folder or any folder above it, all of which an agent in the outer fence can write. null: the fence
-// cannot be built, and the process must not start.
-export function claudeFencedCommand(setup: { userData: string; exec?: string }, profileDir: string, command: string, args: readonly string[], realpath: (path: string) => string = path => realpathSync.native(path)): { command: string; args: string[] } | null {
-  const paths = resolveFencePaths({ provider: "claude", userData: setup.userData, profileDir, attachments: [] }, realpath);
-  return paths ? fencedCommand(command, args, fenceArgs("claude", paths), setup.exec) : null;
+// Copilot imports its own JavaScript from the profile's package cache ($HOME/Library/Caches/copilot/pkg, ~/.copilot/pkg)
+// in every process but --version, with no signature check, and its prompt sessions start the hooks and MCP servers the
+// profile names; a fenced Copilot turn can rewrite all of them. Copilot writes that cache itself when it updates, so
+// rather than closing it to writes, every Copilot process Doan starts runs in the outer fence.
+export const fencedEverywhere = (provider: Provider) => provider === "copilot";
+// A process Doan starts outside a conversation in the outer fence: Claude's usage read, MCP connector commands and a
+// sign-out's MCP logout (the CLI starts the MCP servers the profile's .claude.json names, and the usage read's SDK those
+// of a .mcp.json in its folder or any folder above it, all of which an agent in the outer fence can write), and every
+// Copilot process (fencedEverywhere). null: the fence cannot be built, and the process must not start.
+export function profileFencedCommand(provider: Provider, setup: { userData: string; exec?: string }, profileDir: string, command: string, args: readonly string[], realpath: (path: string) => string = path => realpathSync.native(path)): { command: string; args: string[] } | null {
+  const paths = resolveFencePaths({ provider, userData: setup.userData, profileDir, attachments: [] }, realpath);
+  return paths ? fencedCommand(command, args, fenceArgs(provider, paths), setup.exec) : null;
 }
 
 // Control characters: a path or name carrying one is refused rather than escaped (TOML takes no U+007F).

@@ -244,9 +244,11 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         const judgment = judgeConnection(stored.owner, adapter.verifyByRun && !current.error ? { ...current, verified: true } : current, { exists, occupancy });
         if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment, provider));
       }
-      // Every conversation run, Claude's per turn: this turn's pasted images may differ. Of the list reads only Claude's
-      // start the repository's own hooks and MCP servers; the others run no model tool.
-      const fenced = fence && !reusing && (use === "run" || provider === "claude") ? runFence(fence, provider, configDir, request.attachments ?? []) : undefined;
+      // Every conversation run, Claude's per turn: this turn's pasted images may differ. Every list read but Codex's too:
+      // Claude's starts the repository's hooks and MCP servers, and an ACP server's session/new those its profile names
+      // (Copilot, Cursor; probe), which the provider's own fenced turn can write. Codex reads neither: its profile's
+      // settings are closed to its turns and an untrusted project's .codex/ is not loaded.
+      const fenced = fence && !reusing && (use === "run" || provider !== "codex") ? runFence(fence, provider, configDir, request.attachments ?? []) : undefined;
       const connection = recheck(), ran = installed;
       const mcp: McpRun | undefined = (MCP_PROVIDERS as readonly Provider[]).includes(provider) ? { generation: () => connectors.generation(provider as McpProvider), labels: () => connectors.labels() } : undefined;
       const runArgs = provider === "claude" || provider === "codex" ? RUN_ARGS[provider] : adapter.acp!.args;
