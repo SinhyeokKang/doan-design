@@ -170,8 +170,36 @@ describe("provider file bridge", () => {
   });
 });
 
+// A provider process runs in the profile and can put anything where Doan's own settings file was; the next launch
+// reads that path on main before it rewrites the file.
+describe("owned profile settings", () => {
+  const rel = ".copilot/settings.json", text = '{"doan":1}\n';
+  const pathOf = (storage: AuthStorage) => { const path = join(storage.profileDir("copilot"), rel); mkdirSync(dirname(path), { recursive: true }); return path; };
+  it("replaces a FIFO with the text without blocking", async () => {
+    const storage = new AuthStorage(root, fakeCipher()), path = pathOf(storage);
+    const main = await withFifo(path, () => storage.writeSetting("copilot", rel, text));
+    expect(main.ms).toBeLessThan(PROMPT_MS);
+    expect(lstatSync(path).isFile()).toBe(true);
+    expect(readFileSync(path, "utf8")).toBe(text);
+  });
+  it("replaces a link with the text, even one to a file that already has it, and leaves the link's target alone", () => {
+    const storage = new AuthStorage(root, fakeCipher()), path = pathOf(storage), elsewhere = join(root, "elsewhere.json");
+    writeFileSync(elsewhere, text); symlinkSync(elsewhere, path);
+    storage.writeSetting("copilot", rel, text);
+    expect(lstatSync(path).isFile()).toBe(true);
+    expect(readFileSync(path, "utf8")).toBe(text);
+    expect(readFileSync(elsewhere, "utf8")).toBe(text);
+  });
+  it("replaces a file grown past the cap", () => {
+    const storage = new AuthStorage(root, fakeCipher()), path = pathOf(storage);
+    writeFileSync(path, text); truncateSync(path, 17 * 1024 * 1024);
+    storage.writeSetting("copilot", rel, text);
+    expect(readFileSync(path, "utf8")).toBe(text);
+  });
+});
+
 describe("merged profile settings", () => {
-  const read = (storage: AuthStorage, rel: string) => readFileSync(join(storage.profileDir("claude"), rel), "utf8");
+  const read =(storage: AuthStorage, rel: string) => readFileSync(join(storage.profileDir("claude"), rel), "utf8");
   it("hands a missing file to the merge as null and writes what it returns", () => {
     const storage = new AuthStorage(root, fakeCipher());
     const seen: (string | null)[] = [];
