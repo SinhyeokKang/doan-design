@@ -72,7 +72,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const pressedInFrame = useRef<boolean | null>(null);
   const reloadFocus = useRef<number | null>(null);
   // A link move sent to main (the gen it left, the frame it asked for), and the gen whose ready run is announced.
-  const moving = useRef<{ gen: number; frame: string } | null>(null);
+  // A self link (a restart) is pending with no frame to announce.
+  const moving = useRef<{ gen: number; frame: string | null } | null>(null);
   const [announced, setAnnounced] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
   // The text of the export toast this window last showed: while it is the toast on screen, a link's toast waits.
@@ -206,9 +207,13 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     const move = linkMove(current, message, shown !== undefined && shown === exportToastShown.current);
     if (move.kind === "drop" || current === null) return;
     if (move.kind === "toast") { toastRef.current.show(move.text); return; }
-    const active = document.activeElement;
-    if (active !== null && [...frames.current.values()].some(frame => frame === active)) reloadFocus.current = current.gen;
-    moving.current = move.frame === current.frame ? null : { gen: current.gen, frame: move.frame };
+    // Main may hold the moved run's view behind its still of this one, so a second link can come while this run still
+    // shows: main refuses it (its gen is old), and it must not replace the first move's focus return or announcement.
+    if (moving.current?.gen !== current.gen) {
+      const active = document.activeElement;
+      if (active !== null && [...frames.current.values()].some(frame => frame === active)) reloadFocus.current = current.gen;
+      moving.current = { gen: current.gen, frame: move.frame === current.frame ? null : move.frame };
+    }
     void api.goto(message);
   };
   const followRef = useRef(followLink); followRef.current = followLink;
@@ -217,7 +222,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     const pending = moving.current;
     if (view === null || pending === null || view.gen <= pending.gen) return;
     moving.current = null;
-    setAnnounced(view.frame === pending.frame ? view.gen : null);
+    setAnnounced(pending.frame !== null && view.frame === pending.frame ? view.gen : null);
   }, [view]);
 
   // The host's own limit, from the moment the iframe's src is set to the run's result (PROTOTYPE_LOAD_TIMEOUT_MS).

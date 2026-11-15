@@ -484,7 +484,7 @@ describe("link moves", () => {
       playing({ frames });
       click("account");
       click(second);
-      expect(api.goto.mock.calls.slice(-2), second).toEqual([[{ gen: 1, goto: "account" }], [{ gen: 1, goto: second }]]);
+      expect(api.goto!.mock.calls.slice(-2), second).toEqual([[{ gen: 1, goto: "account" }], [{ gen: 1, goto: second }]]);
       show(at({ gen: 2, phase: "loading", frame: "account", title: "Account", frames }));
       shell.frames!.set(2, iframe() as never);
       show(at({ gen: 2, frame: "account", title: "Account", frames }));

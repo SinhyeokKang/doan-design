@@ -71,6 +71,17 @@ export function currentRun(layers: HostLayers, gen: number | null): RunFrame | n
   return newest !== undefined && newest.gen === gen ? newest : null;
 }
 
+// Unlike a result or a list, which only main reads, a followed link's value is used here first: its toast quotes it.
+// So it is taken only in the shape the prototype script posts (exactly `{gen, goto}`, a value of at most 200 UTF-16
+// units or null); main still checks it again.
+function gotoMessage(data: object): GotoMessage | null {
+  const keys = Object.keys(data);
+  if (keys.length !== 2 || !keys.includes("gen") || !keys.includes("goto")) return null;
+  const { gen, goto } = data as { gen: unknown; goto: unknown };
+  if (typeof gen !== "number" || (goto !== null && (typeof goto !== "string" || goto.length > 200))) return null;
+  return { gen, goto };
+}
+
 export type Forward = { kind: "result"; message: RunMessage } | { kind: "frames"; message: FramesMessage } | { kind: "goto"; message: GotoMessage };
 
 // A message from the run's document. Only the current iframe's own window, at the opaque origin a sandboxed canvas
@@ -81,5 +92,7 @@ export function forwardedMessage(event: { source: unknown; origin: string; data:
   const data = event.data;
   if (typeof data !== "object" || data === null || Array.isArray(data) || (data as { gen?: unknown }).gen !== run.gen) return null;
   if ("state" in data) return { kind: "result", message: data as RunMessage };
-  return "goto" in data ? { kind: "goto", message: data as GotoMessage } : { kind: "frames", message: data as FramesMessage };
+  if (!("goto" in data)) return { kind: "frames", message: data as FramesMessage };
+  const message = gotoMessage(data);
+  return message === null ? null : { kind: "goto", message };
 }
