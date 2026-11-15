@@ -56,8 +56,8 @@ export interface AuthManagerOptions {
   // Antigravity's account lookup (Google token and userinfo requests); globalThis.fetch when absent.
   fetch?: typeof globalThis.fetch;
   // The outer fence (profileFencedCommand) for Claude's MCP logout commands, since `claude mcp list` starts the stdio
-  // servers the profile's .claude.json names, which an agent in the outer fence can write; and for every Copilot process
-  // (fencedEverywhere). The other providers' sign-in, status and own logout stay unfenced.
+  // servers the profile's .claude.json names, which an agent in the outer fence can write; and for every Copilot and
+  // Cursor process (fencedEverywhere). The other providers' sign-in, status and own logout stay unfenced.
   fence?: { userData: string; exec?: string };
 }
 export interface WriteOptions { stop?: boolean }

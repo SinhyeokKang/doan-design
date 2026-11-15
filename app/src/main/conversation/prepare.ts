@@ -218,12 +218,16 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
     try {
       recheck();
       if (provider !== "antigravity") {
-        // Copilot's --version imports a newer package from the profile's cache when one is there, like its other
-        // processes (fencedEverywhere), so it runs in the outer fence; one that cannot be built starts nothing.
-        const check = fence && fencedEverywhere(provider) ? profileFencedCommand(provider, fence, lease.profileDir, lease.command, ["--version"]) : { command: lease.command, args: ["--version"] };
+        // Copilot's and Cursor's --version load code from caches in the profile, like their other processes
+        // (fencedEverywhere), so it runs in the outer fence; one that cannot be built starts nothing.
+        const fencedCheck = fence !== undefined && fencedEverywhere(provider);
+        const check = fencedCheck ? profileFencedCommand(provider, fence, lease.profileDir, lease.command, ["--version"]) : { command: lease.command, args: ["--version"] };
         if (!check) throw new Error("unknown");
         const version = await runProcess(check.command, check.args, lease.env, 5000);
         recheck();
+        // sandbox-exec missing, or exiting at once (65 policy error, 71) before the CLI printed anything, says nothing
+        // about the CLI's version.
+        if (fencedCheck && !version.timedOut && !version.stdout && (version.spawnError !== undefined || version.exitCode === 65 || version.exitCode === 71)) throw new Error("process_exited");
         installed = version.exitCode === 0 && !version.timedOut ? parseCliVersion(version.stdout)?.installed : undefined;
         if (installed) versions?.versionRead(provider, installed);
         if (version.exitCode !== 0 || version.timedOut || versionStatus(provider, version.stdout) !== "supported") { toolsFailed(provider); throw new Error(stored ? "session_unavailable" : "runtime_unsupported"); }
