@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
+import { USER_DATA } from "./real-state.ts";
 
 for (const relative of ["agent-setup.json", "sessions.jsonl", "conversations/index.json", "conversations/start-undo.json", "conversations/nested/session.jsonl", "agent-auth/vault/cursor.bin",
-  "preferences.json", "auto-folders.json", "canvas-seen.json", "mcp-connectors.json", "mcp-connectors-pending.json", "star-prompt.json", "attachments/0f4e/pasted.png"]) {
+  "preferences.json", "auto-folders.json", "canvas-seen.json", "mcp-connectors.json", "mcp-connectors-pending.json", "star-prompt.json", "attachments/0f4e/pasted.png",
+  "agent-runtimes/antigravity-acp/bin/server", "terminal/install-claude.command", "usage-probe/CLAUDE.md"]) {
   for (const mutation of ["create", "modify", "remove"]) {
     test(`real-state detects ${mutation} of ${relative} in a simulated HOME`, async () => {
       const home = await mkdtemp(join(tmpdir(), "doan-state-fixture-"));
@@ -224,4 +226,20 @@ await assert.rejects(assertRealState(before), /real onboarding state changed/);
     });
     assert.equal(result.stderr, "");
   } finally { await rm(home, { recursive: true, force: true }); }
+});
+
+// A new userData file must join the snapshot in the same change. Names joined to userData through another directory
+// variable (folders.json's auto-folders.json sibling, the MCP connector store's files, sessions.jsonl) are not visible
+// to this scan and stay in the list by hand.
+test("real-state fingerprints every userData entry main names", async () => {
+  const main = new URL("../src/main/", import.meta.url);
+  const files = (await readdir(main, { recursive: true })).filter(name => name.endsWith(".ts") && !/\.(test|fixture)\.ts$/.test(name));
+  const named = new Set<string>();
+  for (const file of files) {
+    const text = await readFile(new URL(file, main), "utf8");
+    for (const match of text.matchAll(/join\((?:[\w.]+\.)?userData, "([^"]+)"/g)) named.add(match[1]!);
+    for (const match of text.matchAll(/\b(?:COMPLETION_FILE|CANCELLED_FILE) = "([^"]+)"/g)) named.add(match[1]!);
+  }
+  assert.ok(named.size >= 10, `the scan found only ${[...named].join(", ")}`);
+  for (const name of named) assert.ok(USER_DATA.includes(name), `${name} is written under userData but not in the real-state snapshot`);
 });

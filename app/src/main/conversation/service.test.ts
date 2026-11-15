@@ -1885,6 +1885,29 @@ describe("send now", () => {
     expect(userMessages(h, id)).toHaveLength(1);
     expect(queued(h, id)).toEqual(["one"]);
   });
+  // A quit whose appQuit write throws for one conversation still ends every other conversation's steers. Both carry a
+  // steer and the first appQuit write throws, whichever conversation quit reaches first.
+  it("puts every conversation's steered message back in the queue when the first appQuit write throws", async () => {
+    const h = homeFixture();
+    const conversations = [await running(h), await running(h, { ...canvasStart, canvas: { path: ".doan/canvases/b.html", id: "b" } })];
+    const sent = conversations.map(({ id, calls }) => {
+      const item = h.service.queue(id, { text: "one", anchors: [] });
+      const answered = h.service.sendNow(id, item.itemId);
+      calls[0]!.accept();
+      return answered;
+    });
+    await tick();
+    for (const { id } of conversations) expect(sending(h, id)).toEqual(["one"]);
+    const append = h.store.append.bind(h.store);
+    let thrown = false;
+    vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
+      if (body.type === "interrupted" && !thrown) { thrown = true; throw new Error("File exceeds limit"); }
+      return append(cid, turn, body);
+    });
+    expect(() => h.service.quit()).toThrow("File exceeds limit");
+    for (const answered of sent) expect(await answer(answered)).toBe("not_running");
+    for (const { id } of conversations) { expect(sending(h, id)).toEqual([]); expect(queued(h, id)).toEqual(["one"]); }
+  });
   it("puts the steered message back in the queue when the history stops taking writes meanwhile, and ignores its late read", async () => {
     const h = homeFixture();
     const { id, calls, read } = await running(h);
