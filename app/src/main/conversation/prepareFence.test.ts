@@ -1,10 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { execFileSync, spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const mocks = vi.hoisted(() => ({ probe: vi.fn(), run: vi.fn() }));
 vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: mocks.run }));
+import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { createAccountPrepare, routePrepare, wireAccountPrepare, type AccountPrepare, type AccountRuntime } from "./prepare";
 import { initialAuthState } from "../agentAuth/state";
 import type { Lease } from "../agentAuth/manager";
@@ -114,21 +114,15 @@ for (const [shape, plant] of REPO_SHAPES) {
     expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [join(w.real, "attachments", "0f4e")] }, claudeSandboxOff: true });
   });
 }
-// A blocking read of a FIFO waits on main for a writer. The rescuer opens the write end after 2 s, so a read that does
-// block is released and shows as slow instead of hanging the run.
+// A blocking read of a FIFO waits on main for a writer.
 it("counts a FIFO named like a skill, subagent or command as naming hooks without reading it", async () => {
   for (const at of [["skills", "x", "SKILL.md"], ["agents", "y.md"], ["commands", "z.md"]]) {
     const w = world("claude");
     writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
     const path = join(w.project, ".claude", ...at); mkdirSync(join(path, ".."), { recursive: true });
-    execFileSync("/usr/bin/mkfifo", [path]);
-    const rescuer = spawn("/bin/sh", ["-c", 'sleep 2; : > "$1"', "sh", path], { stdio: "ignore" });
-    try {
-      const started = performance.now();
-      const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [] });
-      expect(performance.now() - started).toBeLessThan(1000);
-      expect(ready.fence?.claudeSandboxOff).toBe(true);
-    } finally { rescuer.kill("SIGKILL"); }
+    const { value: ready, ms } = await withFifo(path, () => prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [] }));
+    expect(ms).toBeLessThan(PROMPT_MS);
+    expect(ready.fence?.claudeSandboxOff).toBe(true);
   }
 }, 20000);
 it("keeps Claude's own sandbox for a repository whose skills, .mcp.json and settings start nothing", async () => {
