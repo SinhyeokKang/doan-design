@@ -13,6 +13,7 @@
 | 2 | `skill_test.go` 내용 테스트는 가이드가 `data-doan-goto`와 `goto_*`를 담는지 본다(design.md의 "네 코드 이름" 대신). | 결정 1에 따른다. 컨덕터 판단. |
 | 3 | 새 eval 시나리오 id는 W9가 아니라 **W11**이다. | 컨덕터 판단: `eval/scenarios/W9`·`W10`이 이미 다른 과제(다른 세션 편집 중)다. ARCHITECTURE §14 'Scenarios are fixed after their first recorded round'. |
 | 4 | 배치 순서는 tasks.md대로 S → L → W 직렬, G는 처음부터 병렬. S는 작업 1 PoC가 기대대로 끝난 뒤 시작한다. | `requests.ts`를 S와 L이 함께 고치고, W는 둘의 타입과 판단을 쓴다. PoC가 클릭 판정의 전제다. |
+| 5 | 실제 DOM 드리프트 테스트(링크 1 fixture html, 클릭 판정 표)는 Vitest에서 앱의 Electron을 Playwright `_electron`으로 띄워 숨긴 BrowserWindow에서 돌린다. CI(`ci.yml`)에 Electron 바이너리 내려받기를 더한다(배치 S가 고침). 승격 때 ARCHITECTURE에 적는다. 링크 3의 `isolate.js` 드리프트 테스트도 같은 장치를 쓴다. | 사용자 결정(2026-11-15). 앱 Vitest에 DOM이 없고, ARCHITECTURE 'Home tests without a DOM'이 jsdom 추가를 막는다. electron·playwright는 이미 devDependency다. |
 
 ## 배치
 
