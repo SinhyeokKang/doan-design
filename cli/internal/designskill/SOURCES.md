@@ -8,7 +8,7 @@ This file maps every upstream source behind Doan's design presets to the public 
 
 ## Public catalog
 
-The public catalog is the 20 IDs below (user decision 2026-10-28; `context` ID 2026-10-29), in this order. `catalog.json`, not this file, is the shipped catalog; it holds all 20 presets in this order.
+The public catalog is the 20 IDs below, in this order. `catalog.json`, not this file, is the shipped catalog; it holds all 20 presets in this order.
 
 `context`, `shape`, `document`, `extract`, `critique`, `audit`, `polish`, `distill`, `bolder`, `quieter`, `layout`, `typeset`, `colorize`, `clarify`, `harden`, `onboard`, `adapt`, `animate`, `delight`, `generate`.
 
@@ -16,13 +16,13 @@ Upstream names that are not published (`craft`, `live`, `overdrive`, `optimize`,
 
 Decided display names (`title` in `catalog.json`):
 
-| ID | Title | Decision |
-|---|---|---|
-| `context` | Gather design context | G1, 2026-10-29 |
-| `clarify` | Clarify copy | design example contract, 2026-10-29 |
-| `document` | Document the design system | user decision, 2026-10-29 |
+| ID | Title |
+|---|---|
+| `context` | Gather design context |
+| `clarify` | Clarify copy |
+| `document` | Document the design system |
 
-The other titles were written with their bodies (batch P, 2026-10-29) and live in `catalog.json`.
+The other titles were written with their bodies and live in `catalog.json`.
 
 ## Notices shipped in the CLI
 
@@ -39,15 +39,9 @@ Every preset body also ends with its own source line naming the upstream commit 
 
 ## Upstream engine check
 
-No preset body may keep an upstream engine command, placeholder, rule tag, or harness block. `go test ./cli/internal/designskill` enforces this (`TestPresetsKeepNoUpstreamEngine`, with the pattern itself pinned by `TestEngineCheckPattern` in `designskill_test.go`); Go's regexp has no lookbehind, so the test blanks the allowed tokens below and then matches the rest. The same check by hand, from the repository root:
+No preset body may keep an upstream engine command, placeholder, rule tag, or harness block. `go test ./cli/internal/designskill` enforces this: `TestPresetsKeepNoUpstreamEngine` checks every body, and `TestEngineCheckPattern` in `designskill_test.go` pins the pattern, the three exact source-notice tokens that may contain `impeccable`, and the cases it must catch. A source line must spell those tokens exactly and must not call the project "Impeccable" bare. The validator in `designskill.go` separately rejects placeholders, relative Markdown link destinations, and bare `reference/`, `agents/`, or `scripts/` paths.
 
-```sh
-rg -n -i -P '(?<!pbakaus/)(?<!`skill/agents/)impeccable|pbakaus/impeccable(?! at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860)|`skill/agents/impeccable(?!-(documenter|finish-reviewer)\.md`)|\{\{|\}\}|<skill-base-dir>|<!-- rule:|</?(codex|claude)>|CONTEXT_STALE|NO_PRODUCT_MD|IMAGE_GEN_AVAILABLE' cli/internal/designskill/presets/
-```
-
-The expected result is no output (exit status 1). Only three exact source-notice tokens may contain `impeccable`: `pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860`, and the backticked role-document paths `` `skill/agents/impeccable-documenter.md` `` and `` `skill/agents/impeccable-finish-reviewer.md` `` (the validator requires each catalog source path to appear in the body). A source line must spell them exactly that way and must not call the project "Impeccable" bare. Every other occurrence is caught, including launcher and slash commands (`impeccable context`, `{{command_prefix}}impeccable polish`), `.impeccable/` paths, subagent names (`impeccable-finish-reviewer`), un-backticked or altered role-document paths (`skill/agents/impeccable context`), template placeholders, upstream rule tags, harness-conditional blocks, and engine directives. The validator separately rejects `{{...}}`, `<skill-base-dir>`, relative Markdown link destinations (inline links and link reference definitions), and bare `reference/`, `agents/`, or `scripts/` paths.
-
-This grep is a string check. It cannot tell whether the text around an allowed token tells an agent to run an upstream engine or subagent (for example, a sentence asking the agent to run a role document as a subagent), so it does not replace reading each changed body.
+This test is a string check. It cannot tell whether the text around an allowed token tells an agent to run an upstream engine or subagent (for example, a sentence asking the agent to run a role document as a subagent), so it does not replace reading each changed body.
 
 ## Status values
 
@@ -144,12 +138,10 @@ No subagent is ported. Doan's presets are read by the current agent, which does 
 
 ## Decisions the `document` preset must carry
 
-PRODUCT.md §5 'Skills' (Design presets) states the outline; the full procedure, including the items below, is `presets/document.md`:
+PRODUCT.md §5 'Skills' (Design presets) states the outline, including where the rules document goes, reuse of an existing system, and the legacy canvas move; the full procedure is `presets/document.md`. The preset must also keep these, which PRODUCT does not state:
 
-- The preset writes two artifacts: a rules document for agents, and design-system canvases for people to check colors, typography, and components.
-- Rules document location: update the project's existing design document if there is one; otherwise ask the user where it should go; if there is no answer, propose a root `DESIGN.md` (user decision 2026-10-29). Do not put it under `.doan/`.
-- Canvases: in `.doan/ds/`, one canvas per logical unit by default (a token group, a shared component, or a shared surface such as an app shell), never two units in one canvas; the canvas id is the file name without `.html`. A project's existing organization, including a legacy `.doan/canvases/design-system.html`, is kept and moved only with the user's agreement (user decision 2026-10-31). There is no separate display name such as "Design System" (user decision 2026-10-28).
-- Respect the project's existing structure. When updating, keep frames and IDs outside the request unchanged; colors and typography reference the project's token CSS variables instead of copying values (user decision 2026-10-29).
-- Reuse an existing design system when it is sufficient; a plain CLI setup request is not approval to write one.
-- Rules the project does not have are not written as settled facts: a rule is grounded in the code or settled with the user, otherwise it is an open decision listed only in the rules document; a canvas discloses only what it draws that is not in code (user decision 2026-10-31).
-- Read the `context` preset before writing either artifact, even when the request names the deliverable, unless it was already read in the conversation or the project has a product context document (user decision 2026-10-29).
+- Rules document location: if the user gives no answer, propose a root `DESIGN.md`.
+- Canvases: in `.doan/ds/`, one canvas per logical unit by default (a token group, a shared component, or a shared surface such as an app shell), never two units in one canvas; the canvas id is the file name without `.html`. There is no separate display name such as "Design System".
+- When updating, keep frames and IDs outside the request unchanged; colors and typography reference the project's token CSS variables instead of copying values.
+- Rules the project does not have are not written as settled facts: a rule is grounded in the code or settled with the user, otherwise it is an open decision listed only in the rules document; a canvas discloses only what it draws that is not in code.
+- Read the `context` preset before writing either artifact, even when the request names the deliverable, unless it was already read in the conversation or the project has a product context document.
