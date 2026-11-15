@@ -16,7 +16,7 @@ function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
   const store = new ConversationStore(dir); const runners: Runner[] = []; const exits: (() => void)[] = [];
   let hold: (() => void) | undefined;
-  const open = vi.fn<OpenRunner>(async (input, emit, exited) => {
+  const open = vi.fn<OpenRunner>(async (input, _emit, exited) => {
     exits.push(exited); if (hold) await new Promise<void>(resolve => { hold = resolve; });
     const runner: Runner = { sessionId: input.sessionId ?? "new-session", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) };
     runners.push(runner); return runner;
@@ -1047,7 +1047,7 @@ describe("promotion", () => {
     expect(h.changes).toContain("/repo");
   });
   it("keeps a turn whose edit was refused (no file change) or whose file changed without its edit a project conversation", async () => {
-    const h = homeFixture([a, b]); const { current, project } = await withCurrent(h);
+    const h = homeFixture([a, b]); const { project } = await withCurrent(h);
     h.service.receive(project, edit(a.path));
     h.service.refreshed("/repo", [b.path]);
     h.service.receive(project, { type: "turn.done" });
@@ -1078,7 +1078,7 @@ describe("promotion", () => {
     expect(entry(h, project).canvas).toBeUndefined();
   });
   it("prefers a new canvas over an edited existing one", async () => {
-    const h = homeFixture([a]); const { current, project } = await withCurrent(h);
+    const h = homeFixture([a]); const { project } = await withCurrent(h);
     h.service.receive(project, edit(a.path));
     h.listed.push({ path: ".doan/canvases/new.html", id: "new" });
     h.service.refreshed("/repo", [a.path, ".doan/canvases/new.html"]);
@@ -1136,7 +1136,7 @@ describe("promotion", () => {
     expect(h.store.read(id).filter(e => e.type === "user.message")).toHaveLength(2);
   });
   it("never crosses one turn's refused edit with a change made during the next turn", async () => {
-    const h = homeFixture([a]); const { current, project } = await withCurrent(h);
+    const h = homeFixture([a]); const { project } = await withCurrent(h);
     // T1 asks to edit a.html; the edit is refused, so the file never changes.
     h.service.receive(project, edit(a.path));
     h.service.receive(project, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
@@ -1718,7 +1718,7 @@ describe("permission mode", () => {
   });
   it("stores the mode Claude reports after a plan approval and announces the list change", async () => {
     const h = homeFixture();
-    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" })).conversationId;
+    await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" });
     const report = h.open.mock.calls[0]![0].planApproved!;
     h.changes.length = 0;
     report("acceptEdits");

@@ -46,7 +46,7 @@ import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } 
 import { editMenuInput, editMenuTemplate } from "./editMenu";
 import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, type AddFlow } from "./addProjects";
-import { cliCommand, cliEnv, readFolder, runConfig, runDesignSkill, runExport, runLs, type CliEnv } from "./cli";
+import { cliCommand, cliEnv, runConfig, runDesignSkill, runExport, runLs, type CliEnv } from "./cli";
 import { createCanvasExport, createPrototypeExport, EXPORT_REFUSED } from "./canvasExport";
 import { createCanvasTrash, TRASH_REFUSED, trashBusy } from "./canvasTrash";
 import { createConfigBridge, storageWrite, type ConfigBridge } from "./configBridge";
@@ -161,8 +161,6 @@ app.on("web-contents-created", (_event, contents) => {
   contents.setWindowOpenHandler(() => ({ action: "deny" }));
 });
 
-// --bg-app in renderer/tokens.css: windows paint it before the renderer's first frame.
-const SHELL_BACKGROUND = "#f1f1f2";
 let win: BrowserWindow | undefined;
 let configBridge: ConfigBridge | undefined;
 let shell: Shell | undefined;
@@ -1280,7 +1278,7 @@ async function start(): Promise<void> {
     return project?.kind === "list" ? project.canvases : [];
   }, root => broadcast({ channel: "conversation:listChanged", value: { root } }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true,
     limitWindows: (provider, connectionId) => usage ? usage.limitWindows(provider, connectionId) : Promise.resolve([]), resumed: listener => { powerMonitor.on("resume", listener); }, notice: event => notify.event(event) }, id => notify.close(id),
-  // A stage is a live signal beside the events, never one of them: its own channel, to the main window only as events go.
+  // A stage is a live signal beside the events, never one of them: its own channel, sent to the same windows as events.
   id => { updateConversationWork(endConversationWork(conversationWork, id)); updates?.conversationsChanged(); }, notice => broadcast({ channel: "conversation:handoff", value: notice }), signal => broadcast({ channel: "conversation:stage", value: signal }));
   conversations = conversationService;
   attachments.cleanup();

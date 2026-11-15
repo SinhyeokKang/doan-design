@@ -186,4 +186,4 @@ snake_case; `account/rateLimits/read` answers the same fields in camelCase (`age
 `claude-transcript-<cli>-<case>.jsonl` (cases `folded`, `followup`, `stop-kill`, `stop-term`) and
 `claude-frames-<cli>-next-turn-after-stop.jsonl`, for Claude Code 2.1.284 and 2.1.322, are PoC session transcript lines
 and raw SDK frames with paths and account and environment ids removed; each `.meta.json` names its CLI version, case,
-the prompt ids and what was filtered. `transcript.test.ts` reads the transcripts.
+the prompt ids and what was filtered. `transcript.test.ts` reads the transcripts and `turnEnd.test.ts` replays the frames.

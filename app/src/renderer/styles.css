@@ -1373,7 +1373,7 @@ body:has(.shell-top) { background: transparent; }
 .cv-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-head .row-slot { margin-left: 0; }
 .cv-when { flex: none; margin-left: auto; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
-/* The right panel on the Overview: its title; batch RL adds the canvas rows. */
+/* The right panel on the Overview: its title, then the canvas rows. */
 .right.ov-right .rp-head { display: flex; align-items: center; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); border-bottom: 0; font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); }
 .right.ov-right .rp-head:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 .rp-list { list-style: none; margin: 0; padding: 0 var(--space-2) var(--space-2); }
@@ -1691,8 +1691,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-canvas-top > .doan-agent { align-self: center; }
 /* The tooltip's near-black and text roles at 60% (ego's task bar), the floating blur, a pill. Canvas-local, not a shared
    primitive. The wording gives way first; the button keeps its size. Every capsule in the column takes the app notice's
-   height (4 + 32 + 4): the picking hint ends in a key and the terminal notice has no button (terminal-agent-activity
-   user decision D2, draft terminal-notice). */
+   height (4 + 32 + 4): the picking hint ends in a key and the terminal notice has no button (draft
+   terminal-notice). */
 .doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; min-height: var(--size-control); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
 /* A notice with no button to end on (a terminal session, or an app conversation working: stopping is the composer's,
    tied to one conversation): an even inline inset (draft terminal-notice). */

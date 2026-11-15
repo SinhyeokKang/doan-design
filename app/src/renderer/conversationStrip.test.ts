@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { ConversationEvent, EventPayload, FailureCode } from "../main/conversation/types";
-import { asksPerson, focusAfterStop, mergeConversationEvents, stripErrorText, stripSendFailed, stripState, stripView, type StripContext, type StripState } from "./conversationStrip";
+import { asksPerson, focusAfterStop, stripErrorText, stripSendFailed, stripState, stripView, type StripContext, type StripState } from "./conversationStrip";
 
 function events(...payloads: (EventPayload & { turnId?: string })[]): ConversationEvent[] {
   return payloads.map(({ turnId, ...payload }, i) => ({ ...payload, v: 1, conversationId: "c1", seq: i + 1, turnId: turnId ?? "t1", at: "2026-10-29T00:00:00Z" }) as ConversationEvent);
@@ -102,13 +102,6 @@ test("each provider names itself", () => {
   expect(stripView({ kind: "working", activity: null }, { ...CTX, provider: "copilot" }).title).toBe("GitHub Copilot is working");
 });
 
-// ARCHITECTURE §7: subscribe first, read, then merge by seq; the renderer cannot import main's state.ts (node:path).
-test("the read snapshot and buffered events merge by seq, once each, for this conversation only", () => {
-  const all = events(...started, { type: "activity", kind: "edit", summary: "a" }, { type: "activity", kind: "edit", summary: "b" });
-  const other = { ...all[1]!, conversationId: "other", seq: 99 };
-  const merged = mergeConversationEvents(all.slice(0, 2), [...all.slice(2).reverse(), all[1]!, other, { ...all[2]!, seq: 0 }], all[0]!.conversationId);
-  expect(merged.map(e => e.seq)).toEqual(all.map(e => e.seq));
-});
 
 // BV1 defect (2026-10-30): a Copilot Deny ended the turn ~300 ms after the answer, Stop went away with focus on it and
 // focus fell to the page. After an answer focus stays on Stop while the turn runs; once Stop is gone it goes to Dismiss.

@@ -33,7 +33,8 @@ export interface DockSurface extends Surface { accepts: boolean }
 
 export interface DockedInputs {
   surfaces: { dock: DockSurface | null; tools: Surface | null };
-  // Step-aside reasons: a queued message, suggested prompts, a permission or question card waiting for an answer.
+  // Step-aside reasons: a queued message, a new conversation's notice or choice (prompts), a permission or question card
+  // waiting for an answer.
   reasons: { queue: boolean; prompts: boolean; waiting: boolean };
   panel: { folded: boolean; folding: boolean };
   resting: boolean;

@@ -86,23 +86,6 @@ export function cardRow(entry: FolderEntry, loaded: string | null, selection: Se
   }
 }
 
-// Rows whose branch would be cut off beside their summary; the view puts
-// those summaries on a line of their own (`narrow`). Each row is measured in
-// the wide layout, so the answer never depends on the class it gives.
-export function measureNarrow(card: HTMLElement): Set<string> {
-  const narrow = new Set<string>();
-  for (const row of card.querySelectorAll<HTMLElement>(".wt[data-path]")) {
-    const name = row.querySelector<HTMLElement>(".wt-label .name");
-    const path = row.dataset.path;
-    if (!name || !row.querySelector(".wt-sum") || path === undefined) continue;
-    const was = row.classList.contains("narrow");
-    row.classList.remove("narrow");
-    if (name.scrollWidth > name.clientWidth) narrow.add(path);
-    row.classList.toggle("narrow", was);
-  }
-  return narrow;
-}
-
 // A frame selection shows the frame's title, an element its tag and id.
 function selectionLabel(selection: SelectionView): string | undefined {
   if (selection.element) return selection.element.doanId === undefined ? selection.tag : `${selection.tag} · ${selection.element.doanId}`;

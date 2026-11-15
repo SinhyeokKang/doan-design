@@ -1,8 +1,5 @@
 import type { ProjectInitResult } from "../main/shell";
 
-export type CopyState = "idle" | "copying" | "copied" | "failed";
-export const COPY_FAILED = "Couldn’t copy. Your clipboard could not be updated. Try again.";
-
 export function tilde(path: string, home: string): string {
   return path === home ? "~" : path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
 }

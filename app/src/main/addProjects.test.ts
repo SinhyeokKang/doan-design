@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, test, vi } from "vitest";
+import { afterAll, describe, expect, test } from "vitest";
 import { createAddFlow, gitChildren, type AddFlowDeps } from "./addProjects";
 import type { LsTarget } from "./cli";
 import type { FolderState } from "./folderState";

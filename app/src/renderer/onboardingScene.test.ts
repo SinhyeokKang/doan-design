@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { AuthStatusDto, Provider, Readiness } from "../main/agentAuth/types";
-import { advance, canAdvance, canComplete, initialScene, isCurrent, mergeStatus, newerAuth, nextScene, ownedSignIns, setupSteps, type SceneEvent, type SceneState } from "./onboardingScene";
+import { advance, canAdvance, initialScene, newerAuth, nextScene, ownedSignIns, setupSteps, type SceneEvent, type SceneState } from "./onboardingScene";
 
 function provider(name: Provider, readiness: Readiness, extra: Partial<AuthStatusDto> = {}): AuthStatusDto {
   return { provider: name, revision: 1, generation: 1, phase: readiness.ready ? "connected" : "disconnected", account: null, attempt: null, readiness, error: null, actions: [], ...extra };
@@ -110,30 +110,12 @@ test("the stepper numbers Buddy, Agent and Project; a done step is named as comp
   expect(setupSteps("project").map(item => [item.state, item.label])).toEqual([["done", "Buddy, completed"], ["done", "Agent, completed"], ["current", null]]);
 });
 
-test("on the Project step, the only ready provider expiring blocks completion; another ready one keeps it allowed", () => {
-  const root = "/Users/alex/code/studio";
-  expect(canComplete(oneReady, root)).toBe(true);
-  const onlyExpired = snapshot(4, provider("claude", expired, { phase: "reauthRequired" }), provider("codex", notConnected));
-  expect(canComplete(onlyExpired, root)).toBe(false);
-  const otherStillReady = snapshot(4, provider("claude", expired, { phase: "reauthRequired" }), provider("codex", READY));
-  expect(canComplete(otherStillReady, root)).toBe(true);
-  expect(canComplete(oneReady, null)).toBe(false);
-  expect(canComplete(oneReady, "")).toBe(false);
-  expect(canComplete(null, root)).toBe(false);
-});
-
-test("a result started under an older scene or selection generation is discarded, in either completion order", () => {
-  let selection = { generation: 0 };
-  const first = selection.generation;
-  selection = advance(selection);
-  const second = selection.generation;
-  // Newer finishes first, then the older one arrives late.
-  expect(isCurrent(selection, second)).toBe(true);
-  expect(isCurrent(selection, first)).toBe(false);
+test("a new selection or scene change outdates results started under the previous generation", () => {
+  const selection = { generation: 0 };
+  expect(advance(selection).generation).not.toBe(selection.generation);
   // A scene change also outdates checks started on the previous scene.
   const scene = nextScene({ scene: "project", generation: 9 }, { type: "back" }, { ...idle, auth: oneReady });
-  expect(isCurrent(scene, 9)).toBe(false);
-  expect(isCurrent(scene, scene.generation)).toBe(true);
+  expect(scene.generation).not.toBe(9);
 });
 
 test("auth snapshots keep the newest revision whatever order replies and events arrive in", () => {
@@ -142,34 +124,6 @@ test("auth snapshots keep the newest revision whatever order replies and events 
   expect(newerAuth(r4, r5)).toBe(r5);
   expect(newerAuth(r5, r4)).toBe(r5);
   expect(newerAuth(r5, r5b)).toBe(r5);
-});
-
-type Status = { session: { id: string; revision: number }; auth: AuthSnapshot; root: string | null };
-test("onboarding session revision and auth revision are merged independently", () => {
-  const current: Status = { session: { id: "s1", revision: 3 }, auth: snapshot(8, provider("claude", READY)), root: "/a" };
-  // A newer session state carrying an older auth snapshot keeps the auth snapshot already seen.
-  const newerSession: Status = { session: { id: "s1", revision: 4 }, auth: snapshot(7, provider("claude", notConnected)), root: "/b" };
-  expect(mergeStatus(current, newerSession, "s1")).toEqual({ ...newerSession, auth: current.auth });
-  // An older session state still contributes a newer auth snapshot.
-  const olderSession: Status = { session: { id: "s1", revision: 2 }, auth: snapshot(9, provider("claude", notConnected)), root: "/c" };
-  expect(mergeStatus(current, olderSession, "s1")).toEqual({ ...current, auth: olderSession.auth });
-  const same: Status = { session: { id: "s1", revision: 3 }, auth: snapshot(8, provider("claude", notConnected)), root: "/d" };
-  expect(mergeStatus(current, same, "s1")).toBe(current);
-  expect(mergeStatus(null, current, "s1")).toBe(current);
-});
-
-test("only the session named by the latest start or reconnect is accepted; a late reply from another is dropped", () => {
-  const a: Status = { session: { id: "sA", revision: 5 }, auth: snapshot(8, provider("claude", READY)), root: "/a" };
-  const b: Status = { session: { id: "sB", revision: 1 }, auth: snapshot(1, provider("claude", notConnected)), root: null };
-  const lateA: Status = { session: { id: "sA", revision: 6 }, auth: snapshot(9, provider("claude", READY)), root: "/late" };
-  // Start returned sB: the sA state is replaced wholesale, nothing of it is kept.
-  const afterB = mergeStatus(a, b, "sB");
-  expect(afterB).toBe(b);
-  // A late sA reply, even with higher revisions, never comes back.
-  expect(mergeStatus(afterB, lateA, "sB")).toBe(b);
-  expect(mergeStatus(null, lateA, "sB")).toBeNull();
-  // Before the sB reply lands, an sA reply cannot win either.
-  expect(mergeStatus(a, lateA, "sB")).toBe(a);
 });
 
 test("Continue cancels only the sign-ins this window owns", () => {

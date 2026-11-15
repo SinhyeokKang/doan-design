@@ -10,12 +10,6 @@ export interface DirectoryFacts {
   // Each non-null value is a caller-verified, existing canonical directory.
   root: string | null; cwd: string | null; configDir: string | null;
 }
-export interface AvailabilityFacts extends DirectoryFacts {
-  cli: boolean; version: string | null;
-  selectedConfigDir: string | null;
-  occupancy: "free" | "occupied" | "unknown";
-  sessionExists: boolean;
-}
 export interface Anchor {
   frame?: { id: string; title?: string };
   // selector is absent only on a reply chip: it names the element by its doan id alone. A person's

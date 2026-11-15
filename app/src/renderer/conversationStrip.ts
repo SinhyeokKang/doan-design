@@ -52,15 +52,6 @@ export function stripState(events: readonly ConversationEvent[]): StripState {
   return state;
 }
 
-// The same rule as main's state.ts mergeEvents (one event per seq, this conversation only, in seq order).
-export function mergeConversationEvents(snapshot: readonly ConversationEvent[], buffered: readonly ConversationEvent[], conversationId: string): ConversationEvent[] {
-  const bySeq = new Map<number, ConversationEvent>();
-  for (const event of [...snapshot, ...buffered]) {
-    if (event.conversationId === conversationId && Number.isSafeInteger(event.seq) && event.seq > 0 && !bySeq.has(event.seq)) bySeq.set(event.seq, event);
-  }
-  return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
-}
-
 export type StripAction =
   | { command: "stop" | "skip" | "editOnHome" | "dismiss" | "open"; label: string }
   | { command: "answer"; label: string; optionId: string; kind: PermissionOption["kind"] };

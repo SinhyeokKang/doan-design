@@ -142,7 +142,7 @@ function WorkWords({ view, moment }: { view: AgentNoticeView; moment: NoticeMome
 }
 
 // The chosen buddy in the notice's mark slot (.doan/canvases/doany-artist.html, doany-family.html, buddy-choice.html
-// 'notice'): Doany paints, types or reads, picked with equal odds when the notice mounts; a friend has its one painter.
+// 'notice'): Doany paints, types or reads, picked with equal odds when the notice mounts, and so does a friend.
 // The pick holds while the buddy stays, so working, stopping and waiting keep one picture; the next notice, or a change
 // of buddy while it shows, picks again. A GIF cannot pause, so a still buddy is the variant's first frame: waiting, and
 // while the workspace is hidden (the dot field pauses then too). The picture source keeps the first frame under

@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { CLAUDE_REGISTRY_FLOOR, CODEX_ROLLOUT_FLOOR, MINIMUM_VERSIONS, mergeOccupancy, parseCliVersion, parseSessionRecords, pickSession, registryIdentity, registryRecordVerdict, sessionAvailability, SESSION_TAIL_BYTES, storedVersionAtLeast, versionStatus } from "./sessions";
+import { CLAUDE_REGISTRY_FLOOR, CODEX_ROLLOUT_FLOOR, MINIMUM_VERSIONS, mergeOccupancy, parseCliVersion, parseSessionRecords, pickSession, registryIdentity, registryRecordVerdict, SESSION_TAIL_BYTES, storedVersionAtLeast, versionStatus } from "./sessions";
 import { agentEnv } from "./environment";
-import type { SessionRecord, AvailabilityFacts, UnavailableReason } from "./types";
+import type { SessionRecord } from "./types";
 
 const record: SessionRecord = { v: 1, at: "2026-10-27T00:00:00.000Z", root: "/repo", canvas: { id: "home", path: ".doan/canvases/home.html" }, hash: `sha256:${"a".repeat(64)}`, runtime: "claude", sessionId: "session-1", cwd: "/repo", configDir: "/profile/.claude" };
-const facts: AvailabilityFacts = { cli: true, version: "2.1.312", root: "/repo", cwd: "/repo", configDir: "/profile/.claude", selectedConfigDir: "/profile/.claude", occupancy: "free", sessionExists: true };
 describe("session records", () => {
   it("uses the shared schema and skips malformed, unknown and truncated records", () => {
     const text = [JSON.stringify(record), "broken", JSON.stringify({ ...record, v: 2 }), JSON.stringify({ ...record, configDir: undefined }), '{"v":1'].join("\n");
@@ -39,25 +38,6 @@ describe("session records", () => {
     const checked: string[] = [];
     expect(pickSession([record, newest], "/repo", record.canvas, r => { checked.push(r.sessionId); return "session_unavailable"; })).toEqual({ available: false, reason: "session_unavailable" });
     expect(checked).toEqual(["missing"]);
-  });
-  const unavailableCases: [Partial<AvailabilityFacts>, UnavailableReason][] = [
-    [{ cli: false }, "cli_missing"], [{ version: "9" }, "session_unavailable"],
-    [{ version: "2.1.283" }, "session_unavailable"], [{ version: null }, "session_unavailable"], [{ occupancy: "occupied" }, "session_in_use"],
-    [{ occupancy: "unknown" }, "session_unavailable"], [{ sessionExists: false }, "session_unavailable"],
-    [{ cwd: "/repo2" }, "outside_root"], [{ cwd: "/outside/symlink-target" }, "outside_root"],
-    [{ cwd: null }, "session_unavailable"], [{ root: null }, "session_unavailable"],
-    [{ configDir: null }, "session_unavailable"], [{ selectedConfigDir: "/other-profile" }, "session_unavailable"],
-  ];
-  it.each(unavailableCases)("refuses unavailable facts %j", (patch, reason) => {
-    expect(sessionAvailability(record, { ...facts, ...patch })).toBe(reason);
-  });
-  it("accepts verified in-root cwd and external config at or above the minimum version", () => {
-    expect(sessionAvailability(record, { ...facts, cwd: "/repo/sub" })).toBeNull();
-    expect(sessionAvailability(record, { ...facts, version: "2.1.400" })).toBeNull();
-    const codex: SessionRecord = { ...record, runtime: "codex" };
-    expect(sessionAvailability(codex, { ...facts, version: "0.158.0" })).toBeNull();
-    expect(sessionAvailability(codex, { ...facts, version: "0.170.0" })).toBeNull();
-    expect(sessionAvailability(codex, { ...facts, version: "0.157.0" })).toBe("session_unavailable");
   });
   it("rejects empty session IDs via schema", () => {
     expect(parseSessionRecords(JSON.stringify({ ...record, runtime: "codex", sessionId: "" }))).toEqual([]);
