@@ -49,7 +49,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 - `app/src/renderer/`: the React renderer (`main.ts` is the entry, `App.tsx` the root) — screens, the canvas controller, the conversation UI, pure view rules with their tests; `prototype/` the prototype window's UI (its page is `prototype.html`, beside `index.html`), `ds/` the design-system CSS and checks, `components/ui/` shadcn components, `public/` static assets (fonts, provider marks, MCP preset marks, Doany's motion files and working-notice GIFs in `doany/`, every other buddy file, the shared eye and the Welcome group photo in `buddies/`).
 - `app/src/formats/`, `app/src/restore/`: pure modules shared by main and renderer (TypeScript format validation, UI-state restore planning).
 - `app/src/brand/`: test-only product-name checks (Go counterpart in `cli/internal/cli/brand_test.go`).
-- `app/runtime/`: reusable support for focused real-Electron probes (isolation, cleanup, real-state fingerprints, native helpers), with Node tests in the shared gate.
+- `app/runtime/`: reusable support for focused real-Electron probes (isolation, cleanup, real-state fingerprints, native helpers) and the real-DOM Electron harness app Vitest's injected-script drift tests run in, with Node tests in the shared gate.
 
 ## Design canvases
 
