@@ -3,7 +3,7 @@ import type { ConversationSummary } from "../../main/conversation/summary";
 import type { Anchor } from "../../main/conversation/types";
 import type { PrototypeView } from "../../main/prototype/ipc";
 import type { FieldSegment } from "../anchorField";
-import { conversationButton, playingFrameChip, playingFrameCount, prototypeHeadTitle, prototypeShown, withPlayingFrame } from "./conversation";
+import { conversationButton, playingFrameChip, prototypeHeadTitle, prototypeShown, withPlayingFrame } from "./conversation";
 
 const ROOT = "/w/acme";
 const CHECKOUT = { path: ".doan/canvases/checkout.html", id: "checkout" };
@@ -83,15 +83,6 @@ describe("withPlayingFrame", () => {
     expect(withPlayingFrame([...thirtyOne, elementChip(31)], playing)).toBeNull();
     // The playing frame already among 32 places is not a 33rd.
     expect(withPlayingFrame([frameChip("checkout"), ...thirtyOne], playing)?.anchors).toHaveLength(32);
-  });
-});
-
-describe("playingFrameCount", () => {
-  test("counts the playing frame as one of the field's places, once", () => {
-    expect(playingFrameCount([text("hi")], { id: "checkout" })).toBe(1);
-    expect(playingFrameCount([elementChip(1), elementChip(2)], { id: "checkout" })).toBe(3);
-    expect(playingFrameCount([frameChip("checkout"), elementChip(1)], { id: "checkout" })).toBe(2);
-    expect(playingFrameCount([elementChip(1)], null)).toBe(1);
   });
 });
 

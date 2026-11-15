@@ -4,10 +4,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
-import { textSegments } from "./anchorField";
 import { CanvasRun } from "./canvasRun";
 import { ConversationStore, type ListView } from "./conversationStore";
-import { draftKey, EMPTY_DRAFT } from "./dockedRules";
 import { DockedSupport } from "./dockedSupport";
 
 // The canvas panel at the usage limit: the composer gets the limit and the schedule, a scheduled send becomes a row, and

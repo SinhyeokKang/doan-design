@@ -162,7 +162,6 @@ test("with Model Default, Effort lists the default model's efforts and saves wit
   await settle();
   expect(labelled("Model for new conversations")[0]?.props["aria-label"]).toBe("Model for new conversations: Default · Opus 5.5");
   expect(labelled("Effort for new conversations")[0]?.props["aria-label"]).toBe("Effort for new conversations: Default");
-  const groups = all(tree).filter(element => element.type === DropdownMenu.RadioGroup);
   pickEffort("High");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", effort: "high" } });
   await settle({ preferences: prefs({ provider: "claude", effort: "high" }) });
@@ -319,7 +318,6 @@ test("Permission is a menu after Effort and saves the mode with the saved model 
   const menu = all(all(tree).filter(element => element.type === DropdownMenu.Content).at(-1)!).find(element => element.type === PermissionMenuItems)!;
   expect(menu.props.view).toMatchObject({ title: "Permissions · Claude Code", mode: "bypass" });
   expect((menu.props.view as { options: { description: string }[] }).options[0]!.description).toBe("Asks before edits and commands unless allowed");
-  const groups = all(tree).filter(element => element.type === DropdownMenu.RadioGroup);
   const pickMode = menu.props.onPick as (value: string) => void;
   pickMode("plan");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "high", permissionMode: "plan" } });

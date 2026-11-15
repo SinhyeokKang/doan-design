@@ -5,7 +5,8 @@ import type { Anchor, AttachmentRecord, ConversationEvent, StageSignal } from ".
 import { fromMessage, normalize, plainText, type FieldSegment } from "./anchorField";
 import { ATTACHMENT_LIMIT_TEXT } from "./canvasConversation";
 import type { SteerPhase } from "../main/conversation/steerSupport";
-import { asksPerson, mergeConversationEvents, stripState } from "./conversationStrip";
+import { asksPerson, stripState } from "./conversationStrip";
+import { mergeEvents } from "../main/conversation/state";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { EMPTY_QUESTION_DRAFT, questionDraft, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import { attachRefusal, issuedAttachment, readyAttachment, recordedAttachment, splitRequest, type AttachmentDraft } from "./homeComposer";
@@ -315,7 +316,7 @@ export class ConversationStore {
     if (event.type === "question.resolved") this.questions.get(event.conversationId)?.delete(event.requestId);
     const thread = this.threads.get(event.conversationId);
     if (!thread) { this.unclaimed = [...this.unclaimed, event].slice(-500); return; }
-    this.threads.set(event.conversationId, { ...thread, events: mergeConversationEvents(thread.events, [event], event.conversationId) });
+    this.threads.set(event.conversationId, { ...thread, events: mergeEvents(thread.events, [event], event.conversationId) });
     this.tell(event.conversationId, "event");
     this.host.changed();
   }
@@ -340,7 +341,7 @@ export class ConversationStore {
     if (this.threads.has(conversationId)) return this.threads.get(conversationId)!.read === "ready";
     const buffered = this.unclaimed.filter(event => event.conversationId === conversationId);
     this.unclaimed = this.unclaimed.filter(event => event.conversationId !== conversationId);
-    this.threads.set(conversationId, { events: mergeConversationEvents([], buffered, conversationId), read: "loading", liveAfter: Number.MAX_SAFE_INTEGER });
+    this.threads.set(conversationId, { events: mergeEvents([], buffered, conversationId), read: "loading", liveAfter: Number.MAX_SAFE_INTEGER });
     this.readThread(conversationId);
     return false;
   }
@@ -349,7 +350,7 @@ export class ConversationStore {
       const thread = this.threads.get(conversationId);
       if (!thread) return;
       if ("error" in reply) { this.threads.set(conversationId, { ...thread, read: "error" }); this.host.changed(); return; }
-      const events = mergeConversationEvents(reply.events, thread.events, conversationId);
+      const events = mergeEvents(reply.events, thread.events, conversationId);
       this.threads.set(conversationId, { events, read: "ready", liveAfter: reply.lastSeq ?? events.at(-1)?.seq ?? 0 });
       // After the set: stage() reads the current turn from the merged history.
       if (reply.stage) this.stage(reply.stage);

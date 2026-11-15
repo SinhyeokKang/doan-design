@@ -34,7 +34,7 @@ export interface McpProviderDto { provider: McpProvider; rows: McpRowDto[]; last
 // is broken or newer, URL servers cannot be added or removed, and a newer file's servers are not listed.
 export interface McpSnapshot { revision: number; file: "ok" | "broken" | "newer"; servers: McpServerDto[]; providers: McpProviderDto[] }
 
-// What conversations need from the connectors (batch BC): the generation a Codex runner compares before a turn to send
+// What conversations need from the connectors: the generation a Codex runner compares before a turn to send
 // config/mcpServer/reload, and the doan- name → label map for permission summaries.
 export interface McpConversationFacts { generation(provider: McpProvider): number; labels(): Readonly<Record<string, string>> }
 

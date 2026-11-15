@@ -99,11 +99,6 @@ describe("CanvasHeader", () => {
     expect(button(markup, "Frames")).toContain("disabled");
   });
 
-  it("keeps the drawer open for a reload that still shows the previous layout", () => {
-    const markup = html(opened({ reloading: true }));
-    expect(button(markup, "Frame 3: Payment")).not.toContain("disabled");
-  });
-
   // The open button exists only while the conversation panel is folded, last in the header.
   it("shows the conversation panel's open button only while the panel is folded, after a divider", () => {
     expect(html(opened(), { open: true, show: vi.fn() })).not.toContain("Show conversation");
@@ -136,7 +131,6 @@ describe("CanvasHeader", () => {
     ["loading", { status: "loading", layout: null, currentFrame: null }],
     ["failed", { status: "failed", layout: null, currentFrame: null }],
     ["no width", { status: "noWidth", layout: null, currentFrame: null }],
-    ["reloading", { reloading: true }],
   ] as const)("keeps Reload enabled while %s", (_name, over) => {
     expect(button(html(opened(over)), "Reload canvas")).toMatch(/^<button(?![^>]*disabled)/);
   });

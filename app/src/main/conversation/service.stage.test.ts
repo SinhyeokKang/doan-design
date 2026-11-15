@@ -39,7 +39,7 @@ it("sends a running turn's stage with the turn, the last written seq and a risin
 });
 
 it("sends the same stage once while no event comes, and again with the new seq after one", async () => {
-  const h = fixture(); const { conversationId: id } = await h.service.start(request);
+  const h = fixture(); await h.service.start(request);
   for (let i = 0; i < 83; i++) h.stage(THINKING);
   h.stage({ ...READ }); h.stage({ ...READ });
   h.last().emit({ type: "message.delta", messageId: "m", text: "a" });

@@ -17,7 +17,6 @@ export interface SceneGuard { auth: AuthSnapshot | null; busy: boolean }
 export function initialScene(completed: boolean): SceneState { return { scene: completed ? "home" : "welcome", generation: 0 }; }
 // agent-auth owns readiness; onboarding only asks whether any provider is ready.
 export function canAdvance(auth: AuthSnapshot | null): boolean { return !!auth && auth.providers.some(p => p.readiness.ready); }
-export function canComplete(auth: AuthSnapshot | null, root: string | null): boolean { return canAdvance(auth) && !!root; }
 
 // The stepper's steps, in order; Welcome is before them and Home after.
 export type SetupStep = "buddy" | "agent" | "project";
@@ -61,24 +60,11 @@ export function setupSteps(scene: Scene): StepperItem[] {
 
 // Project selection keeps its own fence: a new URL or folder outdates lookups started for the previous one.
 export function advance<T extends Fence>(fence: T): T { return { ...fence, generation: fence.generation + 1 }; }
-export function isCurrent(fence: Fence, generation: number): boolean { return fence.generation === generation; }
 
 // onAgentAuth already drops older snapshots, but a readAgentAuth reply can still arrive after a newer event.
 export function newerAuth(current: AuthSnapshot | null, incoming: AuthSnapshot): AuthSnapshot {
   return current && current.revision >= incoming.revision ? current : incoming;
 }
-export interface SessionMark { id: string; revision: number }
-// The onboarding session revision and the auth revision advance independently, so each part keeps its own newest.
-// A session id proves identity, not recency: active is the id the latest start or reconnect returned, and a reply
-// from any other session is dropped. The first reply of the active session replaces an older session's state.
-export function mergeStatus<T extends { session: SessionMark; auth: AuthSnapshot }>(current: T | null, incoming: T, active: string): T | null {
-  if (incoming.session.id !== active) return current;
-  if (!current || current.session.id !== active) return incoming;
-  const session = incoming.session.revision > current.session.revision ? incoming : current;
-  const auth = newerAuth(current.auth, incoming.auth);
-  return session === current && auth === current.auth ? current : { ...session, auth };
-}
-
 // Continue with another provider ready cancels this window's own sign-ins still running (2026-10-28 user).
 export function ownedSignIns(auth: AuthSnapshot | null, owned: readonly string[]): { provider: Provider; attemptId: string }[] {
   return (auth?.providers ?? []).flatMap(p => p.attempt?.kind === "signIn" && !p.attempt.cancelling && owned.includes(p.attempt.id) ? [{ provider: p.provider, attemptId: p.attempt.id }] : []);

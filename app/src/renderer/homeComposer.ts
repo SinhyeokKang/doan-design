@@ -478,23 +478,6 @@ function tokenScore(fields: readonly string[], token: string): number {
   return score;
 }
 
-// Every token must match; equal scores keep catalog order.
-export function searchPresets(presets: readonly PresetSummary[], query: string): PresetSummary[] {
-  const tokens = searchText(query).trim().split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return [...presets];
-  const scored = presets.flatMap((preset, i) => {
-    const fields = [preset.title, preset.id, preset.scope, preset.description].map(searchText);
-    let score = 0;
-    for (const token of tokens) {
-      const part = tokenScore(fields, token);
-      if (part === 0) return [];
-      score += part;
-    }
-    return [{ preset, score, i }];
-  });
-  return scored.sort((a, b) => b.score - a.score || a.i - b.i).map(s => s.preset);
-}
-
 export type ProjectSkillSummary = SkillSummary;
 export interface PresetRow {
   kind: "preset" | "skill"; key: string; icon: string;
