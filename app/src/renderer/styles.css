@@ -705,7 +705,7 @@ body:has(.shell-top) { background: transparent; }
    confirmed 2026-10-29). Shared buttons keep their own padding and fills; this only lays them out. */
 .home-shell { position: absolute; inset: 0; display: grid; grid-template-columns: var(--doan-sidebar-width) minmax(0, 1fr); grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); background: transparent; overflow: hidden; }
 @media (prefers-reduced-transparency: reduce) { .home-shell { background: var(--bg-app); } }
-.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }
 /* Add Projects page: the white panel is the scroll container and the 560px column grows with it (doan-add-projects
    draft round 3); the page scrolls whole, its footer included. The shared Project screen is sized for first run's
    14/20 body text and plain numerals (.ob-overlay); without them it inherits the app body's 13px/normal. */
@@ -1939,10 +1939,11 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    within 8192 CSS px of its origin at DPR 2 (ARCHITECTURE §3 'Canvas view', POSTMORTEM 2026-11-11), and a Fit frame
    keeps its marked size, however large. Clips, not hidden overflows: those scroll to show a focused control in a scaled
    frame and move it off its box. */
-.pw-panel { position: relative; min-width: 0; min-height: 0; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+.pw-panel { position: relative; min-width: 0; min-height: 0; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }
 .pw-content { position: absolute; inset: 0; overflow: clip; border-top-left-radius: inherit; border-top-right-radius: inherit; }
 .pw-stage { position: absolute; inset: 0; overflow: clip; border-bottom-left-radius: var(--radius-container); border-bottom-right-radius: var(--radius-container); }
-/* Fit: around the frame the panel shows the canvas board's ground, and the frame box keeps the panel's fill and edge. */
+/* Fit: around the frame the panel shows the canvas board's ground, and the frame box keeps the panel's fill with the
+   panel shadow as its edge on that ground. */
 .pw-content[data-mode="fit"] > .pw-stage { background: var(--surface-inset); }
 .pw-box { position: absolute; overflow: clip; background: var(--surface-panel); }
 .pw-content[data-mode="fit"] .pw-box { box-shadow: var(--shadow-panel); }
@@ -1970,7 +1971,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .pw[data-panel="open"] > .pw-panel { grid-column: 1; grid-row: 2; }
 .pw > .doan-conv-column { grid-column: 2; grid-row: 1 / -1; margin-top: var(--space-2); position: relative; display: flex; min-width: 0; min-height: 0; }
 .pw:not([data-panel="open"]) > .doan-conv-column { display: none; }
-.pw .right.doan-conv-panel { border-left: 0; border-radius: var(--radius-container); box-shadow: var(--shadow-panel); }
+.pw .right.doan-conv-panel { border-left: 0; border-radius: var(--radius-container); }
 /* The header's button stays one element while the panel is open, so focus has a place to come back to on close. A
    deliberate exception to hiding focus targets only visually (POSTMORTEM 2026-11-03): while open it must have no Tab
    stop and no box, or R is no longer 104, so it cannot be visually hidden. Focus is given back only after `hidden` is
