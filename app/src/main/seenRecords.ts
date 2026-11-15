@@ -110,7 +110,8 @@ async function seenDir(root: string, create: boolean): Promise<string | "absent"
 // null when there is no file. A link, a non-file or a file larger than any record throws.
 async function readBytes(file: string): Promise<Buffer | null> {
   let handle: FileHandle;
-  try { handle = await open(file, constants.O_RDONLY | NOFOLLOW); }
+  // O_NONBLOCK so a FIFO opens at once and fails the regular-file check instead of holding a libuv thread.
+  try { handle = await open(file, constants.O_RDONLY | constants.O_NONBLOCK | NOFOLLOW); }
   catch (error) { if (codeOf(error) === "ENOENT") return null; throw error; }
   try {
     const stat = await handle.stat();
