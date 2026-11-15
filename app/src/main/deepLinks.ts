@@ -3,6 +3,8 @@ import type { OpenFrameResult, OpenRequest, OpenResponse } from "../formats/type
 export interface OpenLink { root: string; canvas: string; frame?: string }
 export type OpenLinkResult = ({ kind: "navigate" } & OpenLink) | { kind: "malformed" } | { kind: "unregistered-root" } | { kind: "canvas-not-listed"; project: string };
 export const OPEN_LINK_LIMIT = 8192;
+// A canvas or design-system page, as the v3, v4 and v6 socket schemas write it; deepLinks.test.ts reads them.
+export const CANVAS_PATH = /^\.doan\/(canvases|ds)\/[^/]+\.html$/;
 
 export function parseOpenLink(text: string): OpenLink | null {
   if (text.length > OPEN_LINK_LIMIT || /[\u0000-\u0020\u007f]/.test(text)) return null;
@@ -17,7 +19,7 @@ export function parseOpenLink(text: string): OpenLink | null {
   if (keys.join(",") !== "root,canvas" && keys.join(",") !== "root,canvas,frame") return null;
   const root = url.searchParams.get("root"), canvas = url.searchParams.get("canvas"), frame = url.searchParams.get("frame");
   if (!root?.startsWith("/") || root.split("/").includes("..") || /[\u0000-\u001f\u007f\\]/.test(root) ||
-      !canvas || !/^\.doan\/(canvases|ds)\/[^/]+\.html$/.test(canvas) || /[\u0000-\u001f\u007f\\]/.test(canvas) ||
+      !canvas || !CANVAS_PATH.test(canvas) || /[\u0000-\u001f\u007f\\]/.test(canvas) ||
       frame === "" || (frame !== null && /[\u0000-\u001f\u007f]/.test(frame))) return null;
   return { root, canvas, ...(frame === null ? {} : { frame }) };
 }

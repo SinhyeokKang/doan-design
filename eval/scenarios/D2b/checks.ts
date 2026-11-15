@@ -2,8 +2,8 @@ import type { Checks } from "../../lib/types.ts";
 import d2 from "./base.ts";
 import { canvasParts } from "../D1/presets.ts";
 
-// D2 with the duplicate toggle worded unambiguously ("Email me when a client
-// pays an invoice"), so merging it is required rather than a judgment call.
+// The base checks plus a merge check: this seed words the duplicate toggle unambiguously ("Email me when a
+// client pays an invoice"), so merging it is required rather than a judgment call.
 const checks: Checks = ctx => {
   const text = canvasParts(ctx, ".doan/canvases/settings.html")?.frames.notifications?.text ?? "";
   // A merged toggle may be relabelled ("Invoice paid"), so count the word, not a phrase.

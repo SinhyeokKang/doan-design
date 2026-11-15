@@ -53,7 +53,11 @@ test("H5 flags config writes in either runtime, including an add that is later r
   assert.ok(failures(setup("pass", answer + "\n" + revert)).includes("no_config_write_call"));
   // A write inside a construct the reader does not follow cannot be ruled out.
   assert.deepEqual(failures(setup("pass", `${answer}\nOpenAI Codex v0.164.0\n${codex("if [ -d brand ]; then doan config --add-serve brand; fi")}`)), ["no_config_write_call"]);
-  for (const read of ["doan config --json", "doan --repo . config", "echo 'doan config --add-serve brand'"])
+  // Go's flag set takes one dash as well as two, flags on either side of the command, and --storage writes config too.
+  for (const command of ["doan config -add-serve brand", "doan -add-serve=brand config", "doan --token-css brand/x.css config", "doan config --storage local --json"])
+    assert.deepEqual(failures(setup("pass", `${answer}\nOpenAI Codex v0.164.0\n${codex(command)}`)), ["no_config_write_call"], command);
+  // A flag value is not a flag: here --add-serve is the --session value, and the command is a read.
+  for (const read of ["doan config --json", "doan --repo . config", "echo 'doan config --add-serve brand'", "doan config --session --add-serve --json"])
     assert.deepEqual(failures(setup("pass", `${answer}\nOpenAI Codex v0.164.0\n${codex(read)}`)), []);
 });
 test("H5 requires an answer that mentions the boundary", () => {

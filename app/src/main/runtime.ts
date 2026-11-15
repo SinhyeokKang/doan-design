@@ -7,6 +7,7 @@ import { join } from "node:path";
 import type { HandoffErrorCode, HandoffRequest, HandoffResponse, OpenRequest, OpenResponse, PrototypeRequest, PrototypeResponse, RemoveRequest, RemoveResponse, WorkOther, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
 import { validateHandoffRequest, validateOpenRequest, validatePrototypeRequest, validateRemoveRequest, validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
 import { autoRegisterRoot } from "./autoFolders";
+import { CANVAS_PATH } from "./deepLinks";
 import type { ConversationUpdate } from "./conversationWork";
 import type { FolderState } from "./folderState";
 
@@ -240,7 +241,7 @@ export async function answerLine(line: string, token: string, state: RuntimeStat
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 3) {
     if (!validateWorkRequest(value)) return workError("bad_request", "The request is not an app-socket v3 request.");
     if (!tokenMatches(value.token, token)) return workError("bad_token", "The token does not match this app.");
-    if (value.action !== "done" && !/^\.doan\/(canvases|ds)\/[^/]+\.html$/.test(value.path)) return workError("bad_request", "The path is not a canvas path.");
+    if (value.action !== "done" && !CANVAS_PATH.test(value.path)) return workError("bad_request", "The path is not a canvas path.");
     if (value.action === "update" && value.conversation !== undefined) {
       try { state.conversationWork(value); }
       catch (error) { console.error("doan: conversation work request failed", error); return workError("bad_request", "Doan could not handle this request."); }

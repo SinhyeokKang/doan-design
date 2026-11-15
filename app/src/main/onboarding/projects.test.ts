@@ -96,6 +96,19 @@ describe("planned changes", () => {
     truncateSync(join(big, ".gitattributes"), 2 * 1024 * 1024);
     expect(await plannedChanges(big, { kind: "uninitialized" })).toEqual([".doan/config.json", ".gitattributes"]);
   });
+  // The form promises the .gitattributes change doan init will make, so it reads the lines init adds, not its own idea.
+  it("list .gitattributes exactly when doan init would add one of its lines", async () => {
+    const source = readFileSync(new URL("../../../../cli/internal/cli/storage.go", import.meta.url), "utf8");
+    const list = /func missingAttributes[\s\S]*?range \[\]string\{([^}]*)\}/.exec(source)?.[1] ?? "";
+    const lines = [...list.matchAll(/"((?:\\.|[^"\\])*)"/g)].map(m => JSON.parse(`"${m[1]}"`) as string);
+    expect(lines.length).toBeGreaterThan(0);
+    const all = repo(temp(), { canvases: true, attributes: `*.png binary\n${lines.join("\n")}\n` });
+    expect(await plannedChanges(all, { kind: "uninitialized" })).toEqual([".doan/config.json"]);
+    for (const line of lines) {
+      const without = repo(temp(), { canvases: true, attributes: `*.png binary\n${lines.filter(other => other !== line).join("\n")}\n` });
+      expect(await plannedChanges(without, { kind: "uninitialized" }), line).toEqual([".doan/config.json", ".gitattributes"]);
+    }
+  });
 });
 
 // PRODUCT §5 item 0 'Doan files': the plan follows the mode. Kept out of Git, setup adds the exclude entry (by its

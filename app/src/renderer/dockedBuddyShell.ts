@@ -11,6 +11,8 @@
 import type { VisibleCalls } from "./visibleClock";
 import { EYE_TEXTURE, buddy as registry, type BuddyId } from "./buddies";
 import { canvasSize } from "./doanyMotion";
+// After a lost context a rebuild waits for the GPU to come back, on Home's schedule (the reason is in Doany.tsx).
+import { RETRIES, RETRY_MS } from "./Doany";
 import {
   advanceDocked, createDockedState, dockedGeometry, dockedNeedsTime, setDockedBuddy, REST_SECONDS, SIZE, xOn,
   type DockedEvent, type DockedFrame, type DockedInputs, type DockedState, type SurfaceName,
@@ -32,13 +34,6 @@ const PERSON_SCROLL_MS = 1000;
 // 60 Hz vsync jitter reaches, so 60 Hz drops nothing and 120 Hz advances every other callback. The core still gets
 // each real timestamp, so its time model does not change; an input change applies on the very next callback.
 const FRAME_MS = 1000 / 60 - 4;
-// After a ready rig loses its context the rebuild waits for the GPU process to come back: a context made while it
-// restarts can fail or be lost again. webglcontextrestored says it is back; when none comes, a rebuild is allowed
-// after RETRY_MS, and again after each failed rebuild, each wait twice the one before, at most RETRIES times. Two GPU
-// resets in a row make Chromium refuse WebGL to the page for about two minutes with no restore event (measured in
-// Electron 45), so the last try comes about four minutes after the loss.
-const RETRY_MS = 1000;
-const RETRIES = 8;
 
 // What only App knows. overview: the Overview covers the canvas page, whose toolbar stays laid out under it, so the
 // toolbar is no surface. covered: the problem overlay or first run is over the workspace. hint: a picking or capture

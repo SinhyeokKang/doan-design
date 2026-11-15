@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import type { CheckContext } from "../../lib/types.ts";
-import { presetChecks, presetLookups } from "./presets.ts";
+import { CATALOG, presetChecks, presetLookups } from "./presets.ts";
 
 const ran = (...commands: string[]) => ({ calls: { commands, mcpTools: [] } }) as unknown as CheckContext;
 const checks = (ctx: CheckContext) => Object.fromEntries(presetChecks(ctx, { required: [["harden", "clarify", "onboard"]], allowed: ["harden", "clarify", "onboard", "context"] }).map(c => [c.id, c.pass]));
@@ -83,4 +84,10 @@ test("a construct the reader does not follow never reads a preset and fails the 
   }
   // A read before the construct stays a read.
   assert.deepEqual(checks(ran("doan design-skill harden; if true; then doan design-skill polish; fi")), { read_harden_or_clarify_or_onboard: true, preset_reads_allowed: false });
+});
+
+// presetLookups drops ids outside CATALOG as usage errors, so a preset the CLI adds must be here or its read goes unseen.
+test("CATALOG lists exactly the presets the CLI's catalog embeds", () => {
+  const catalog = JSON.parse(readFileSync(new URL("../../../cli/internal/designskill/catalog.json", import.meta.url), "utf8"));
+  assert.deepEqual([...CATALOG].sort(), catalog.presets.map((p: { id: string }) => p.id).sort());
 });

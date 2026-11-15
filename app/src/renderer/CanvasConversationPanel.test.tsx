@@ -11,6 +11,8 @@ import { CanvasRun } from "./canvasRun";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { ConversationStore, type ListView } from "./conversationStore";
 import { DockedSupport } from "./dockedSupport";
+import { suggestedPrompts, type SuggestedPrompt } from "./homeComposer";
+import { SuggestionButton } from "./ComposerParts";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
 
@@ -142,6 +144,17 @@ test("a new conversation's suggestion rows highlight the canvas name and show th
   expect(out).toMatch(/<button type="button" class="suggestion" data-state="closed" data-slot="tooltip-trigger"><span class="suggestion-icon">/);
   expect(out).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">checkout</span> canvas</span>');
   expect(out).toContain('<span class="suggestion-label">Polish the <span class="suggestion-value">checkout</span> canvas</span>');
+});
+
+// The rows are the shared SuggestionButton, so the three surfaces cannot drift apart again.
+const suggestionButtons = (html: string) => html.match(/<button type="button" class="suggestion".*?<\/button>/g) ?? [];
+const sharedSuggestions = (prompts: readonly SuggestedPrompt[]) => prompts.flatMap(prompt => suggestionButtons(renderToStaticMarkup(<TooltipProvider><SuggestionButton prompt={prompt} onPick={() => {}} /></TooltipProvider>)));
+test("the panel's suggested prompts are the shared suggestion button", async () => {
+  const presets = (["critique", "polish"] as const).map(id => ({ id, title: id, description: `About ${id}.`, scope: `${id} scope`, group: "review" }));
+  const support = Object.assign(new DockedSupport(() => {}, window.doan), { auth: { revision: 1, providers: [connected("claude")] }, presets: { v: 1 as const, ok: true as const, result: { version: "1", presets } } });
+  const prompts = suggestedPrompts(ENTRY, "acme-web", presets);
+  expect(prompts.length).toBeGreaterThan(0);
+  expect(suggestionButtons(await panel([], () => {}, { support }))).toEqual(sharedSuggestions(prompts));
 });
 
 // A terminal session's mode is its own; the tray shows the fixed trigger, never the picker.

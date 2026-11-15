@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Checks } from "../../lib/types.ts";
-import { commandWords, doanCommand, doanPositionals } from "../../lib/transcript.ts";
+import { commandWords, doanArgs, lastFlag } from "../../lib/transcript.ts";
 
 const canvas = ".doan/canvases/profile.html";
 // The prompt names this file: the folder that holds the repo, outside every checkout.
@@ -10,13 +10,10 @@ const OUTPUT = "profile.html";
 export interface ExportCall { canvas: string | undefined; output: string | undefined }
 
 export function exportCalls(commands: string[]): ExportCall[] {
-  return commands.flatMap(commandWords).filter(words => doanCommand(words) === "export").map(words => {
-    let output: string | undefined;
-    for (let i = 1; i < words.length; i++) {
-      const match = words[i]!.match(/^--?o(?:=(.*))?$/);
-      if (match) output = match[1] ?? words[i + 1];
-    }
-    return { canvas: doanPositionals(words)?.[1], output };
+  return commands.flatMap(commandWords).flatMap(words => {
+    const args = doanArgs(words);
+    if (!args || args.refused || args.positionals[0] !== "export") return [];
+    return [{ canvas: args.positionals[1], output: lastFlag(args, "o")?.value }];
   });
 }
 

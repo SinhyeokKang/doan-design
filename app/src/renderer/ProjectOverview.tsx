@@ -18,7 +18,7 @@ import { startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { canvasLabel } from "./canvasTree";
 import { focusFieldEnd } from "./chipField";
-import { GroupIcon, SuggestionLabel } from "./ComposerParts";
+import { SuggestionButton } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
@@ -30,7 +30,7 @@ import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type 
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import { cardRow, chipClass, ROW_ACTION_ICONS, ROW_ACTION_LABELS, type RowAction } from "./homeCards";
 import {
-  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
+  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, modelOption, modelPickerView,
   selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
 } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
@@ -415,10 +415,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
             <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
             <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
-            <Tooltip key={prompt.label}><TooltipTrigger asChild><button type="button" className="suggestion"
-              onClick={() => { run.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>
-              <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><SuggestionLabel parts={prompt.parts} /><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button></TooltipTrigger>
-              <TooltipContent>{prompt.label}</TooltipContent></Tooltip>)}</div>}
+            <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { run.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }} />)}</div>}
         </div>}
     </div>
     <div className="ov-foot"><div className="ov-col">

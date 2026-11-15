@@ -8,6 +8,8 @@ test("X1 reads doan export calls with -o and --force as flags", () => {
   assert.deepEqual(exportCalls(["cd repo && doan export .doan/canvases/profile.html -o ../profile.html --force"]), [{ canvas: ".doan/canvases/profile.html", output: "../profile.html" }]);
   assert.deepEqual(exportCalls(["doan export -o out.html a.html --json"]), [{ canvas: "a.html", output: "out.html" }]);
   assert.deepEqual(exportCalls(["echo 'doan export a.html -o b.html'", "doan check"]), []);
+  // -o here is the --note value, so no output was named.
+  assert.deepEqual(exportCalls(["doan export a.html --note -o --json"]), [{ canvas: "a.html", output: undefined }]);
 });
 
 test("X1 finds references left in the page and in the canvas inside srcdoc", () => {

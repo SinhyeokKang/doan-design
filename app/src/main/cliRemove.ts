@@ -32,8 +32,9 @@ export function cliRemoveDecision({ root, entries, ready, firstRun, menu, liveTu
   const card = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])))
     .find(candidate => candidate.rows.some(row => row.path === root));
   if (!card) return refuse("project_not_open", NOT_OPEN);
-  // What the person must finish is named before loading: the renderer reports ready only after first run and the
-  // buddy screen, and a locked Add Projects page is itself reading the root it sets up.
+  // What the person must finish is named before loading: loading ends by itself while these stay until the person acts
+  // (readiness does not wait for first run or the buddy screen), and a locked Add Projects page is itself reading the
+  // root it sets up.
   if (firstRun) return refuse("busy", openBlockedMessage("first_run"));
   if (menu.modal) return refuse("busy", "A dialog is open in Doan. Close it, then try again.");
   if (menu.locked === true) {

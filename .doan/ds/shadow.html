@@ -11,13 +11,14 @@
 </head>
 <body>
 <main class="dsc">
-<header class="dsc-head"><h1>shadow</h1><p>Three shadows. Panels and floating surfaces take <code>--shadow-panel</code>, whose hairline ring draws their edge; dialogs and tooltips take <code>--shadow-sm</code>; the switch thumb takes <code>--shadow-xs</code>. Surfaces without a shadow are told apart by fill: shell <code>--bg-app</code>, panel <code>--surface-panel</code>, inset <code>--surface-inset</code>.</p></header>
+<header class="dsc-head"><h1>shadow</h1><p>Four shadows. Floating material and the raised surfaces on a panel (the composer tray, canvas notices, <code>.doan-panel</code> cards) take <code>--shadow-panel</code>, whose hairline ring draws their edge; body panels have none. Toasts and the GitHub star card take <code>--shadow-floating</code>, the same ring with a wider drop; dialogs and tooltips take <code>--shadow-sm</code>; the switch thumb takes <code>--shadow-xs</code>. Surfaces without a shadow are told apart by fill: shell <code>--bg-app</code>, panel <code>--surface-panel</code>, inset <code>--surface-inset</code>.</p></header>
 <section class="dsc-frame" data-doan-frame="shadows" data-doan-title="Shadows" data-doan-implements="app/src/renderer/tokens.css">
 <h2>Shadows</h2>
 <div class="dsc-row dsc-inset">
 <div class="dsc-cell"><span class="lift" style="box-shadow: var(--shadow-xs)"></span><code>--shadow-xs</code></div>
 <div class="dsc-cell"><span class="lift" style="box-shadow: var(--shadow-sm)"></span><code>--shadow-sm</code></div>
 <div class="dsc-cell"><span class="lift" style="box-shadow: var(--shadow-panel)"></span><code>--shadow-panel</code></div>
+<div class="dsc-cell"><span class="lift" style="box-shadow: var(--shadow-floating)"></span><code>--shadow-floating</code></div>
 </div>
 </section>
 </main>

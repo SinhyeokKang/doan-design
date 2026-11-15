@@ -5,7 +5,7 @@ import { connect } from "node:net";
 import { join } from "node:path";
 import { test } from "node:test";
 import { startFakeApp, validWorkRequest, validWorkResponse } from "./socket.ts";
-import { workChecks } from "./work.ts";
+import { CANVAS_PATH, workChecks } from "./work.ts";
 import type { CheckContext, WorkExchange } from "./types.ts";
 
 const path = ".doan/canvases/profile.html";
@@ -122,4 +122,21 @@ test("fake app keeps the canvas text an accepted update arrived at, and only for
     assert.deepEqual(log.map(entry => entry.canvas), [undefined, "seed", "edited", undefined]);
     assert.equal(log[1].request.note, "Drawing a");
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+// The eval's canvas path filter is the v3 schema's path pattern, and agrees with the shared v3 path fixtures.
+test("the canvas path filter is app-socket v3's path pattern", () => {
+  const schemaDir = join(import.meta.dirname, "../../schema");
+  const schema = JSON.parse(readFileSync(join(schemaDir, "app-socket.v3.schema.json"), "utf8")) as { $defs: { request: { properties: { path: { pattern: string } } } } };
+  assert.equal(CANVAS_PATH.source, new RegExp(schema.$defs.request.properties.path.pattern).source);
+  assert.equal(CANVAS_PATH.flags, "");
+  const fixtures = join(schemaDir, "fixtures", "app-socket-v3", "request");
+  let seen = 0;
+  for (const kind of ["valid", "invalid"] as const) for (const name of readdirSync(join(fixtures, kind))) {
+    const path: unknown = Reflect.get(JSON.parse(readFileSync(join(fixtures, kind, name), "utf8")) as object, "path");
+    if (typeof path !== "string" || (kind === "invalid" && !name.startsWith("path-"))) continue;
+    assert.equal(CANVAS_PATH.test(path), kind === "valid", `${kind}/${name}`);
+    seen++;
+  }
+  assert.ok(seen > 5);
 });
