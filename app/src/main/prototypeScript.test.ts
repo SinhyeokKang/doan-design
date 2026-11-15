@@ -237,10 +237,38 @@ describe("resolving and isolating the frame", () => {
     page.run("long");
     page.finish();
     const message = page.posted[0] as { frames: { id: string; title?: string; number: number }[] };
-    expect(message.frames).toHaveLength(1000);
+    // The first 1,000 frames of the document, as the board lists them: `plain`, the long ID, `long` and f0–f996.
+    expect(message.frames).toHaveLength(998);
     expect(message.frames[0]).toEqual({ id: "long", title: "t".repeat(199), size: "1x1", number: 3 });
     expect(message.frames[1]!.number).toBe(4);
+    expect(message.frames.at(-1)).toEqual({ id: "f996", size: "1x1", number: 1000 });
     expect(parseRunReport("prototype", message)).not.toBeNull();
+  });
+
+  test("a frame past the 1,000th of the document is neither listed nor an enclosing frame of a link, whatever is marked", () => {
+    const page = fakeDocument();
+    const first = frameEl("f0", "1x1");
+    append(first, element("a", [["data-doan-goto", "f1000"]]));
+    append(page.body, first);
+    for (let i = 1; i < 1000; i += 1) append(page.body, frameEl(`f${i}`));
+    const last = frameEl("f1000", "1x1");
+    append(last, element("a", [["data-doan-goto", "f0"]]));
+    append(page.body, last);
+    page.run("f0");
+    page.finish();
+    const message = page.posted[0] as { frames: { id: string; number: number }[]; gotos: { value: string; frames: string[] }[] };
+    expect(message.frames).toEqual([{ id: "f0", size: "1x1", number: 1 }]);
+    expect(message.gotos).toEqual([{ value: "f1000", frames: ["f0"] }, { value: "f0", frames: [] }]);
+  });
+
+  test("a frame past the 1,000th still counts toward a shared ID", () => {
+    const page = fakeDocument();
+    append(page.body, frameEl("dup", "1x1"));
+    for (let i = 1; i < 1000; i += 1) append(page.body, frameEl(`f${i}`));
+    append(page.body, frameEl("dup", "1x1"));
+    page.run("f1");
+    page.finish();
+    expect((page.posted[0] as { frames: unknown[] }).frames).toEqual([]);
   });
 
   test("runs only in the window's direct child at the run's URL, and once", () => {

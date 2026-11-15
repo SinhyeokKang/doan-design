@@ -179,6 +179,23 @@ describe("parseRunReport", () => {
   });
 });
 
+describe("sparse report arrays", () => {
+  // Structured clone keeps holes, and a hole is not a string or a record, whichever list it is in.
+  test("a hole in the frames, the links or a link's frames is refused by both report parsers", () => {
+    const holes = [
+      { frames: new Array(1), gotos: [] },
+      { frames: [], gotos: new Array(1) },
+      { frames: [], gotos: [{ value: "b", frames: new Array(1) }] },
+      { frames: [], gotos: [{ value: "b", frames: ["a", , "c"] }] },
+    ];
+    for (const lists of holes) {
+      const label = JSON.stringify(lists, (_key, value: unknown) => value === undefined ? "<hole>" : value);
+      expect(parseRunReport("prototype", structuredClone({ gen: 1, state: "missing", ...lists })), label).toBeNull();
+      expect(parseFramesReport("prototype", structuredClone({ gen: 1, ...lists })), label).toBeNull();
+    }
+  });
+});
+
 describe("parseFramesReport", () => {
   test("the list and links the run sends after load", () => {
     const gotos = [{ value: "b", frames: ["a"] }];
