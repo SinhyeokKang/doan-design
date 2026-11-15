@@ -84,6 +84,16 @@
   - B가 바로 준비를 보고했던 첫 실행: Back 3에서 C가 다시 나오고 `history.length`가 7→5로 줄었다. WebKit은 Back 4에서도 C였다. 지운 iframe의 기록 항목을 브라우저가 언제 정리하는지에 따라 결과가 달라진다.
   - 둘 다 브라우저 동작으로 받아들인다(위 'iframe 안 기록', 사용자 결정). 승격할 때 ARCHITECTURE 'Prototype page' 한계에 "iframe 안 `#` 링크와 `pushState`가 남긴 항목은 Back을 눈에 보이는 변화 없이 소비하거나, 순서를 예측할 수 없게 만든다"로 적는다.
 
+## PoC 2 관찰(취소 판정 재설계)
+
+2026-11-15, `node .scratch/prototype-link-export/poc2/poc.mjs`. 리뷰가 `<a href>`에 단 연결의 취소 누락을 거듭 찾아(자기 취소 뒤에는 캔버스의 취소를 구별할 수 없다), 사용자가 "자기 취소를 없앤다"를 골랐다. 같은 브라우저 조합(Chromium·WebKit, `file://`·http)에서 마우스, Enter, `element.click()`으로 시험했다.
+
+- **`window.stop()`(실패)**: 기본 동작을 막지 않고, 0 ms 타이머에서 캔버스가 취소하지 않았으면 `window.stop()`으로 탐색을 중단하고 goto를 보냈다. `file://`은 모두 통과했지만 Chromium http에서 `#sec`·`other.html` 링크의 탐색이 타이머보다 먼저 커밋되어 iframe이 다른 문서로 바뀌었다(세 번 실행에서 1–4건, 경합). Navigation API는 이 opaque origin iframe에서 `navigate`를 내지 않아 막을 수 없었다.
+- **href 떼기(채택)**: capture 리스너가 그 클릭에만 window 리스너를 하나 붙인다. 이 리스너는 bubble 단계에서 클릭 전에 등록된 캔버스 리스너 뒤에 돌고, 그때 가장 가까운 `<a>`·`<area>`의 `href`를 떼어 둔다. 브라우저의 활성화 동작은 따라갈 곳이 없으므로 탐색하지 않는다. 0 ms 타이머가 `href`를 되돌리고, 캔버스가 남긴 최종 `defaultPrevented`로 판단한다. isolate.js는 연결 클릭에 `preventDefault()`를 부르지 않는다. 그래서 취소 판정이 앱의 창과 같아진다.
+  - 세 번 실행해 92개 경우가 모두 통과했다. 검사한 것: 연결이 goto를 보내고 iframe 문서와 바깥 페이지가 그대로인지(`#sec`, `other.html`, 느린 http URL), 캔버스 취소가 이동과 탐색을 모두 막는지(미리 저장한 native `preventDefault`, 클릭 중 설정한 `onclick`의 `return false`, `Object.preventExtensions` 뒤 취소), passive 리스너의 `preventDefault`가 취소로 세어지지 않는지, 클릭 중 href를 더해도 goto가 오는지(`element.click()`·마우스).
+  - 실패 4건은 모두 href 없는 `<a>`에 Enter를 누른 경우다. 그런 링크는 포커스와 클릭을 받지 않으므로 앱의 창과 같은 브라우저 동작이고, 결함이 아니다.
+  - 남는 한계: 클릭 중에 캔버스가 붙인 리스너 중 우리 리스너 뒤에 도는 것은 href가 떼어진 링크를 본다. href를 지켜보는 `MutationObserver`는 떼고 되돌리는 변화를 본다. 캔버스가 window bubble 전에 전파를 멈추면 href가 남아 지금처럼 탐색이 일어나고, 연결은 따라간다(새 iframe이 바꾼다).
+
 ## 순수 함수(`/tdd` 대상)
 
 1. Go: 묶음과 시작 프레임으로 `Proto`를 만든다. 연결 없는 프레임은 한 프레임이고, 1,000개를 넘는 묶음도 끊지 않는다. 결과 필드도 함께 다룬다.
