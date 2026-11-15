@@ -19,8 +19,8 @@
 
 | 배치 | 항목 | 맡는 파일 | 선행 | 모델·effort와 이유 | 검증 | 상태 |
 |---|---|---|---|---|---|---|
-| PoC | tasks 1 | `.scratch/prototype-link-export/`, design.md 관찰 | — | 컨덕터 | `node .scratch/prototype-link-export/poc.mjs` exit 0 | 대기 |
-| X | tasks 2 | `cli/internal/cli/export.go`, `cli/internal/canvas/prototype_rules.go`(필요 시), `cli/internal/export/assemble.go`, `cli/internal/export/viewer/*`, `app/src/renderer/canvasExport.ts`, `app/src/renderer/canvasRowMessages.ts`, `app/src/main/exportViewer.test.ts`, Go export 테스트 | PoC | Claude Opus high — 링크 의미 복제, 기록·iframe 수명, 바이트 고정 테스트가 얽혀 판단이 많고 틀리면 받는 사람 파일이 깨진다 | tasks 2 검증 명령 | 대기 |
+| PoC | tasks 1 | `.scratch/prototype-link-export/`, design.md 관찰 | — | 컨덕터 | `node .scratch/prototype-link-export/poc.mjs` exit 0 | 완료(b9d192e55, Chromium·WebKit × file·http 세 번 exit 0) |
+| X | tasks 2 | `cli/internal/cli/export.go`, `cli/internal/canvas/prototype_rules.go`(필요 시), `cli/internal/export/assemble.go`, `cli/internal/export/viewer/*`, `app/src/renderer/canvasExport.ts`, `app/src/renderer/canvasRowMessages.ts`, `app/src/main/exportViewer.test.ts`, Go export 테스트 | PoC | Claude Opus high — 링크 의미 복제, 기록·iframe 수명, 바이트 고정 테스트가 얽혀 판단이 많고 틀리면 받는 사람 파일이 깨진다 | tasks 2 검증 명령 | 진행(`plx-x`, 브랜치 `SinhyeokKang/plx-x`, dispatch `ctx_047ad577e5e0`, run `run_0b37cea32707`) |
 | X 리뷰 | X diff `/code-review` | 보고만 | X | Codex `gpt-6-astra` medium — 교차 계열 독립 리뷰 | 🔴 0 | 대기 |
 | 통합·확인 | tasks 3–7 | 통합 커밋, 문서 승격 | X | 컨덕터 | 각 작업의 검증 | 대기 |
 
