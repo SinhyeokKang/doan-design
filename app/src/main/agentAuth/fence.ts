@@ -43,15 +43,18 @@ const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")
 // Doan writes the doan skill stub before spawning, so it stays readable. Neither CLI writes these files during a run (Claude Code 2.1.319: suggested permissions go
 // to the project's local settings or the session; codex-cli 0.166.0 wrote no config.toml). Doan main writes them from
 // outside the fence. The ACP providers always run inside this fence, so their settings need no such line.
-const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")))
+const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")) (subpath (param "PROVIDER_PROJECT")) (literal (param "PROVIDER_MCP")))
 `;
 const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))
 `;
 const hooked = (provider: Provider) => provider === "claude" || provider === "antigravity";
 const codexSettingsFiles = (profile: string) => [`${profile}/config.toml`, `${profile}/hooks.json`, `${profile}/managed_config.toml`, `${profile}/rules`];
 const codexSettingsDirs = (profile: string) => [`${profile}/skills`, `${profile}/plugins`];
-// commands/ is the older skill format and takes the same frontmatter, hooks included.
-const claudeSettingsDirs = (profile: string) => [`${profile}/skills`, `${profile}/agents`, `${profile}/plugins`, `${profile}/commands`];
+// commands/ is the older skill format and takes the same frontmatter, hooks included. .claude/ and .mcp.json are the
+// profile's project settings and project MCP servers for a process Doan starts with the profile as its folder (the MCP
+// connector commands, unfenced, which health-check project servers).
+const claudeSettingsDirs = (profile: string) => [`${profile}/skills`, `${profile}/agents`, `${profile}/plugins`, `${profile}/commands`, `${profile}/.claude`];
+const claudeSettingsFiles = (profile: string) => [`${profile}/settings.json`, `${profile}/.mcp.json`];
 
 // attachments: the number of attachment directories; each one past the first gets its own parameter and rule.
 export function fencePolicy(provider: Provider, attachments = 0): string {
@@ -66,8 +69,9 @@ export function fenceArgs(provider: Provider, paths: FencePaths): string[] {
     ["RUNTIME", `${u}/runtime.json`], ["ATTACHMENTS", attachments[0] ?? p]];
   if (hooked(provider)) params.push(["BROWSER_HOOK", `${u}/agent-auth/browser-hook`]);
   if (provider === "claude") {
-    const [skills, agents, plugins, commands] = claudeSettingsDirs(p);
-    params.push(["PROVIDER_SETTINGS", `${p}/settings.json`], ["PROVIDER_SKILLS", skills!], ["PROVIDER_AGENTS", agents!], ["PROVIDER_PLUGINS", plugins!], ["PROVIDER_COMMANDS", commands!]);
+    const [skills, agents, plugins, commands, project] = claudeSettingsDirs(p), [settings, mcp] = claudeSettingsFiles(p);
+    params.push(["PROVIDER_SETTINGS", settings!], ["PROVIDER_SKILLS", skills!], ["PROVIDER_AGENTS", agents!], ["PROVIDER_PLUGINS", plugins!], ["PROVIDER_COMMANDS", commands!],
+      ["PROVIDER_PROJECT", project!], ["PROVIDER_MCP", mcp!]);
   }
   if (provider === "codex") {
     const [config, hooks, managed, rules] = codexSettingsFiles(p), [skills, plugins] = codexSettingsDirs(p);
@@ -121,6 +125,24 @@ export function claudeSandboxEnabled(sources: ClaudeSettingSources): boolean {
   return enabled;
 }
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+// What the repository holds beside its settings files. mcpJson: a .mcp.json in the run's folder or above it, where the
+// CLI looks for project MCP servers. extensionHooks: a project skill, subagent or command whose frontmatter names hooks,
+// or one Doan could not read. unreadable: a project or local settings file that exists but Doan could not read or parse.
+export interface ClaudeRepoSources { mcpJson: boolean; extensionHooks: boolean; unreadable: boolean }
+// Whether the repository makes the CLI start its own code beside the model: hooks, project MCP servers, plugins (which
+// carry both) or credential helper commands. Claude's sandbox holds only the model's commands, so this code would run
+// outside every fence on a sandbox-on turn. A .mcp.json counts on its own: through the SDK, Claude Code 2.1.325 starts
+// its servers with no enable key or approval. The AWS helpers ran once the settings' env selected Bedrock, which the
+// forced login organization did not stop; apiKeyHelper is a command of the same kind. A key in an unexpected shape
+// counts, since the CLI may still read part of it. The Doan profile's own settings and managed settings are not the
+// repository's (the fence keeps the agent from writing the profile's).
+const REPO_CODE_KEYS = ["hooks", "enabledPlugins", "enabledMcpjsonServers", "awsAuthRefresh", "awsCredentialExport", "apiKeyHelper"];
+export function claudeRepoCode(sources: ClaudeSettingSources, repo: ClaudeRepoSources): boolean {
+  if (repo.unreadable || repo.extensionHooks || repo.mcpJson) return true;
+  const named = (value: unknown) => value !== undefined && !(record(value) && !Object.keys(value).length) && !(Array.isArray(value) && !value.length) && value !== "";
+  return [sources.project, sources.local].some(source => record(source) &&
+    (REPO_CODE_KEYS.some(key => named(source[key])) || (source.enableAllProjectMcpServers !== undefined && source.enableAllProjectMcpServers !== false)));
+}
 
 // Each listed directory's entries, as fenceListingDirs names them.
 // directory: false for a link too, so a link gets a file rule; Doan makes no link inside userData that points back into it
@@ -177,14 +199,15 @@ export interface ClaudeFenceSettings {
 // entry is therefore writable only through such a widening. allowUnsandboxedCommands false keeps a command from asking
 // its way out (Full access would run it outside without asking).
 // Doan judged the sandbox on, so the flag tier keeps it on: a user, project or local source Doan misread can no longer
-// turn it off, which leaves only managed sources Doan does not read. The profile's settings.json, .claude.json, skills,
-// agents and plugins are closed to Bash and the Edit tool and stay readable (the CLI itself still writes .claude.json
+// turn it off, which leaves only managed sources Doan does not read. The profile's settings.json, .claude.json, .mcp.json, skills,
+// agents, plugins, commands and .claude/ are closed to Bash and the Edit tool and stay readable (the CLI itself still writes .claude.json
 // and plugins/store; only a sandbox-on turn's tools are held here, the outer fence holds the rest for a sandbox-off one).
 // socket: the app socket's path. Claude's sandbox blocks unix sockets, and with allowUnsandboxedCommands false `doan`
 // cannot ask to run outside it, so only that socket is allowed (no other network changes).
 export function claudeFenceSettings(paths: FencePaths, denied: readonly FenceEntry[], socket?: string): ClaudeFenceSettings {
   const allowed = allowedPaths("claude", paths);
-  const files = [`${paths.profile}/settings.json`, `${paths.profile}/.claude.json`], dirs = claudeSettingsDirs(paths.profile);
+  const [settings, mcp] = claudeSettingsFiles(paths.profile);
+  const files = [settings!, `${paths.profile}/.claude.json`, mcp!], dirs = claudeSettingsDirs(paths.profile);
   return { permissions: { deny: [...claudeDenyRules([...denied, ...files.map(path => ({ path, directory: false }))]), ...dirs.map(dir => `Edit(/${dir}/**)`)] }, sandbox: { enabled: true, allowUnsandboxedCommands: false, ...socket ? { network: { allowUnixSockets: [socket] } } : {}, filesystem: {
     denyRead: [paths.userData], allowRead: allowed, denyWrite: [...denied.map(entry => entry.path), ...allowed.filter(path => path !== paths.profile), ...files, ...dirs], allowWrite: [paths.profile] } } };
 }
