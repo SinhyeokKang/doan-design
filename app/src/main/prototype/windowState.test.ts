@@ -293,7 +293,7 @@ describe("the frame's title", () => {
     const w = world();
     const shown = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
     w.set(A, w.present("http://h/t/tok/k1/proto.html", "s1", [{ id: "phone" }]));
-    const step = framesReported(shown, shown.gen, [{ id: "phone", size: "390x844", number: 1 }]);
+    const step = framesReported(shown, shown.gen, [{ id: "phone", size: "390x844", number: 1 }], []);
     expect(prototypeView(step.state, w.resolve)?.title).toBe("phone");
   });
 });
@@ -346,7 +346,7 @@ describe("failures, retry and stale results", () => {
       report(second, { gen: 1, state: "ready", size: phone, frames: listed, gotos: [] }),
       report(second, { gen: 1, state: "timeout" }),
       readFailed(second, 1, "x"),
-      framesReported(second, 1, listed),
+      framesReported(second, 1, listed, []),
     ]) expect(late).toEqual({ state: second, effects: [] });
   });
 
@@ -360,7 +360,7 @@ describe("failures, retry and stale results", () => {
   test("the list sent after load updates the drawer of the current run", () => {
     const { w, state } = loading();
     const shown = ready(state, "390x844", []).state;
-    const step = framesReported(shown, 1, listed);
+    const step = framesReported(shown, 1, listed, []);
     expect(prototypeView(step.state, w.resolve)?.frames).toEqual(listed);
   });
 });
@@ -476,7 +476,7 @@ describe("link moves", () => {
     const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
     expect(goto(loading, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
     // The list sent after load gives a loading run frames, still without a move.
-    expect(goto(framesReported(loading, 1, listed).state, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
+    expect(goto(framesReported(loading, 1, listed, []).state, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
     const lost = report(loading, { gen: 1, state: "missing", frames: listed, gotos: [] }).state;
     expect(goto(lost, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
     const failed = report(loading, { gen: 1, state: "timeout" }).state;
@@ -506,6 +506,33 @@ describe("link moves", () => {
     const atTablet = ready(moving, "820x1180", [listed[1]!]).state;
     expect(prototypeView(atTablet, w.resolve)?.canGoBack).toBe(false);
     expect(back(atTablet, w.resolve)).toBeNull();
+  });
+});
+
+// The run's links, kept beside its frames for the drawer's groups: replaced by every report, kept for a reload of the
+// same canvas as its frames are, and gone with them.
+describe("the run's links", () => {
+  const links = [{ value: "tablet", frames: ["phone"] }];
+  test("a ready or lost report and a late drawer list set them, and the view carries them", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    const atReady = report(loading, { gen: 1, state: "ready", size: phone, frames: listed, gotos: links }).state;
+    expect(prototypeView(atReady, w.resolve)?.gotos).toEqual(links);
+    const late = framesReported(atReady, 1, listed, []).state;
+    expect(prototypeView(late, w.resolve)?.gotos).toEqual([]);
+    const lost = report(loading, { gen: 1, state: "missing", frames: listed, gotos: links }).state;
+    expect(prototypeView(lost, w.resolve)?.gotos).toEqual(links);
+  });
+
+  test("a run of the same canvas keeps them until it reports, another canvas or a lost canvas clears them", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    const atReady = report(loading, { gen: 1, state: "ready", size: phone, frames: listed, gotos: links }).state;
+    expect(prototypeView(ok(goto(atReady, { gen: 1, goto: "tablet" }, w.resolve)).state, w.resolve)?.gotos).toEqual(links);
+    expect(prototypeView(reload(atReady, 1).state, w.resolve)?.gotos).toEqual(links);
+    expect(prototypeView(ok(play(atReady, { target: C, size: phone }, w.resolve)).state, w.resolve)?.gotos).toEqual([]);
+    w.set(A, { kind: "absent" });
+    expect(prototypeView(listChanged(atReady, w.resolve).state, w.resolve)?.gotos).toEqual([]);
   });
 });
 

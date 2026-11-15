@@ -153,6 +153,14 @@ describe("forwardedMessage", () => {
     expect(forwardedMessage(event(list), run)).toEqual({ kind: "frames", message: list });
   });
 
+  // The prototype script posts `{gen, goto}` for a followed link; a null goto is a value over 200 UTF-16 units.
+  test("routes a followed link by its goto key, a null one too", () => {
+    expect(forwardedMessage(event({ gen: 3, goto: "account" }), run)).toEqual({ kind: "goto", message: { gen: 3, goto: "account" } });
+    expect(forwardedMessage(event({ gen: 3, goto: null }), run)).toEqual({ kind: "goto", message: { gen: 3, goto: null } });
+    expect(forwardedMessage(event({ gen: 2, goto: "account" }), run)).toBeNull();
+    expect(forwardedMessage(event({ gen: 3, goto: "account" }, { source: other }), run)).toBeNull();
+  });
+
   test("drops another window's, another origin's, an old gen's or a non-object message", () => {
     const ready = { gen: 3, state: "ready", size: "390x844", frames: [] };
     expect(forwardedMessage(event(ready, { source: other }), run)).toBeNull();

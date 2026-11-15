@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { PLAY_REASONS } from "../main/prototype/playability";
-import { canvasPlayability, closedFocusTarget, playRequest, playSelection, playTooltip, sizeBubblePlay, type PlayState } from "./prototypePlay";
+import { canvasPlayability, closedFocusTarget, drawerPlayRequest, playDrawer, playRequest, playSelection, playTooltip, sizeBubblePlay, type PlayState } from "./prototypePlay";
 import type { CanvasFrameRect } from "./canvasMessage";
 import type { CanvasState } from "./CanvasController";
 import type { SelectionView } from "./selection";
@@ -123,5 +123,59 @@ describe("closedFocusTarget", () => {
     expect(closedFocusTarget(null, node("toolbar", true, true))).toBeNull();
     expect(closedFocusTarget(node("bubble", true, true), node("toolbar", false))).toBeNull();
     expect(closedFocusTarget(null, null)).toBeNull();
+  });
+});
+
+// The toolbar's frame drawer: the playable frames of the board's layout, in link groups, the prototype window's frame
+// marked Playing only when it plays this canvas.
+describe("playDrawer", () => {
+  const long = "x".repeat(200);
+  const linked = [
+    frame("home", { title: "Home", prototype: "390x844" }), // 0
+    frame("cart", { title: "Cart", prototype: "390x844" }), // 1
+    frame("cta", { parent: 1 }), // 2: unmarked, inside cart
+    frame("checkout", { title: "Checkout", prototype: "390x844" }), // 3
+    frame("plain"), // 4: unmarked
+    frame(long, { prototype: "390x844", cut: true }), // 5: cut, carries its raw mark
+    frame("inside-cut", { parent: 5 }), // 6: unmarked, inside the cut frame
+    frame(long, { prototype: "390x844" }), // 7: a genuine 200-unit id the cut one must not share
+  ];
+  const gotos = [{ value: "checkout", frame: 2 }, { value: "home", frame: 6 }, { value: long, frame: 0 }];
+  const withLinks = (list: CanvasFrameRect[], links: { value: string; frame?: number }[]) => state({ layout: { ...layout(list)!, gotos: links }, selection: null });
+  const rows = (groups: ReturnType<typeof playDrawer>["groups"]) => groups.map(group => [group.label, group.rows.map(row => [row.id === long ? "long" : row.id, row.number, row.current])]);
+
+  test("lists only playable frames, grouped by the links' enclosing frames, cut frames left out of both", () => {
+    const drawer = playDrawer(withLinks(linked, gotos), null);
+    expect(drawer.label).toBe("Prototype frames in a");
+    // cta's link names its enclosing cart; the link inside the cut frame has no playable frame around it (the walk
+    // skips the cut id and finds nothing above it), and home's link to the genuine long id joins them.
+    expect(rows(drawer.groups)).toEqual([
+      ["Home and 1 more", [["home", 1, false], ["long", 8, false]]],
+      ["Cart and 1 more", [["cart", 2, false], ["checkout", 4, false]]],
+    ]);
+  });
+
+  test("marks the row the prototype window plays when it plays this canvas, by id or by path for an id-less canvas", () => {
+    const current = (drawer: ReturnType<typeof playDrawer>) => drawer.groups.flatMap(group => group.rows).filter(row => row.current).map(row => row.id);
+    const s = withLinks(linked, gotos);
+    expect(current(playDrawer(s, { root: "/repo", canvas: { id: "a", path: ".doan/canvases/moved.html" }, frame: "checkout" }))).toEqual(["checkout"]);
+    expect(current(playDrawer(s, { root: "/repo", canvas: { id: "b", path: ".doan/canvases/a.html" }, frame: "checkout" }))).toEqual([]);
+    expect(current(playDrawer(s, { root: "/other", canvas: { id: "a", path: ".doan/canvases/a.html" }, frame: "checkout" }))).toEqual([]);
+    expect(current(playDrawer(s, { root: "/repo", canvas: { id: "a", path: ".doan/canvases/a.html" }, frame: "plain" }))).toEqual([]);
+    const loose = { ...s, open: { ...open!, row: { path: ".doan/canvases/a.html", url: "http://127.0.0.1/a.html" } } };
+    expect(current(playDrawer(loose, { root: "/repo", canvas: { path: ".doan/canvases/a.html" }, frame: "home" }))).toEqual(["home"]);
+    expect(current(playDrawer(loose, { root: "/repo", canvas: { id: "a", path: ".doan/canvases/a.html" }, frame: "home" }))).toEqual([]);
+  });
+
+  test("a frame without links goes to the last group", () => {
+    const drawer = playDrawer(withLinks(frames, []), null);
+    expect(rows(drawer.groups)).toEqual([["Frames without links", [["checkout", 1, false], ["phone", 5, false]]]]);
+  });
+
+  test("a pick plays the chosen row's frame with its own mark, whatever is selected", () => {
+    expect(drawerPlayRequest(state({ selection: frameSelection(3) }), "phone")).toEqual({ root: "/repo", path: ".doan/canvases/a.html", frame: "phone", mark: "320x640" });
+    expect(drawerPlayRequest(state(), "gift")).toBeNull();
+    expect(drawerPlayRequest(state(), "ghost")).toBeNull();
+    expect(drawerPlayRequest(state({ open: null }), "phone")).toBeNull();
   });
 });

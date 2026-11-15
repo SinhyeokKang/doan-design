@@ -5,6 +5,7 @@ import { createPrototypeDrawing, type PrototypeTargetRef } from "./drawing";
 import type { Rect } from "./fit";
 import { PROTOTYPE_CHANNELS } from "./ipc";
 import { createTargetRelay } from "./targetRelay";
+import type { PrototypePlaying } from "./ipc";
 
 // The main window re-reports the drawing project conversation only when main tells it of a target, and main forgets the
 // report on every change of the playing canvas. So every such change, also back to the same canvas and also while a
@@ -21,6 +22,7 @@ const BOX: Rect = { x: 0, y: 0, width: 390, height: 844 };
 
 function wired() {
   const targets: (PrototypeTargetRef | null)[] = [];
+  const playings: (PrototypePlaying | null)[] = [];
   const drawings: (string | null)[] = [];
   let release: (() => void) | null = null;
   let hold = false;
@@ -36,16 +38,16 @@ function wired() {
   const controller = createPrototypeController(host, () => entries);
   const drawing = createPrototypeDrawing({ playing: () => controller.playing(), generation: () => controller.canvasGeneration(), conversations: () => [{ conversationId: "p", root: "/r" }] });
   relay = createTargetRelay({
-    playing: () => controller.playing(), generation: () => controller.canvasGeneration(), open: () => controller.playing() !== null,
+    playing: () => controller.playing(), frame: () => controller.playingFrame(), generation: () => controller.canvasGeneration(), open: () => controller.playing() !== null,
     drawing: () => drawing.current(), promoted: () => null,
-    sendTarget: target => targets.push(target), sendDrawing: id => drawings.push(id), sendPromoted: () => {},
+    sendTarget: target => targets.push(target), sendPlaying: playing => playings.push(playing), sendDrawing: id => drawings.push(id), sendPromoted: () => {},
   });
   // The main window: a report for the last target it was told of, as App does.
   const report = () => {
     const target = targets.at(-1);
     if (target && drawing.set("main", { ...target, conversationId: "p" })) relay?.drawing();
   };
-  return { controller, drawing, targets, drawings, report, hold: () => { hold = true; }, release: () => release?.() };
+  return { controller, relay: relay!, drawing, targets, playings, drawings, report, hold: () => { hold = true; }, release: () => release?.() };
 }
 
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -94,5 +96,29 @@ describe("the target relay", () => {
     t.controller.request(PROTOTYPE_CHANNELS.close, "prototype", undefined);
     await flush();
     expect(t.targets.at(-1)).toBeNull();
+  });
+
+  // The toolbar's drawer marks the frame the prototype window plays: main tells the main window of every change of the
+  // frame, also between frames of one canvas, which the target above does not name.
+  test("tells the main window of the playing frame on start, a link move, Back and close, once per change", async () => {
+    const t = wired();
+    const tablet = { id: "tablet", size: "820x1180", number: 2 };
+    const two = [...frames, tablet];
+    t.controller.play("main", playA);
+    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "390x844", frames: two, gotos: [] });
+    await flush();
+    const at = (frame: string) => ({ root: "/r", canvas: { id: "proto", path: proto.path }, frame });
+    expect(t.playings).toEqual([at("phone")]);
+    expect(t.relay.playingTarget()).toEqual(at("phone"));
+    t.controller.request(PROTOTYPE_CHANNELS.goto, "prototype", { gen: 1, goto: "tablet" });
+    await flush();
+    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 2, state: "ready", size: "820x1180", frames: two, gotos: [] });
+    await flush();
+    t.controller.request(PROTOTYPE_CHANNELS.back, "prototype", undefined);
+    await flush();
+    t.controller.request(PROTOTYPE_CHANNELS.close, "prototype", undefined);
+    await flush();
+    expect(t.playings).toEqual([at("phone"), at("tablet"), at("phone"), null]);
+    expect(t.relay.playingTarget()).toBeNull();
   });
 });

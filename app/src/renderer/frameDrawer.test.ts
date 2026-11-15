@@ -48,6 +48,12 @@ describe("frameDrawerView", () => {
     expect(view.rows[0]).toMatchObject({ current: true, prototype: true });
   });
 
+  test("does not mark a frame whose id was cut, even when it carries a mark or its cut id equals another frame's", () => {
+    const long = "x".repeat(200);
+    const view = frameDrawerView(board({ layout: { frames: [{ ...frame(long), prototype: "390x844", cut: true as const }, { ...frame(long), prototype: "390x844" }], truncated: false }, currentFrame: 0 }));
+    expect(view.rows.map(row => row.prototype)).toEqual([false, true]);
+  });
+
   test("one frame", () => {
     const view = frameDrawerView(board({ layout: { frames: [frame("only", "Landing")], truncated: false }, currentFrame: 0 }));
     expect(view.buttonLabel).toBe("1. Landing");

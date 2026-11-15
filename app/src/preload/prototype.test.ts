@@ -121,6 +121,13 @@ test("window visibility comes from main's first answer, then its pushes; a push 
   await vi.waitFor(() => expect(first.mock.calls).toEqual([[true]]));
 });
 
+// A followed link: the host forwards the script's message as it is; main judges it.
+test("a followed link goes to main on its own channel", async () => {
+  mocks.invoke.mockClear();
+  await api.goto({ gen: 4, goto: "account" });
+  expect(mocks.invoke.mock.calls).toEqual([[PROTOTYPE_CHANNELS.goto, { gen: 4, goto: "account" }]]);
+});
+
 test("reads the main window's remembered conversation of the playing canvas through its own channel", async () => {
   mocks.invoke.mockClear();
   mocks.invoke.mockResolvedValueOnce("0a1b2c3d-0000-4000-8000-000000000001");

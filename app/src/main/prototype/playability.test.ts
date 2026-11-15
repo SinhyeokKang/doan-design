@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { PLAY_REASONS, markedForPrototype, playability, type PlayFrame, type PlayInput, type PlaySelection } from "./playability";
+import { PLAY_REASONS, playability, playableFrames, type PlayFrame, type PlayInput, type PlaySelection } from "./playability";
 
 const long = "x".repeat(200);
 // Indexes as the board lists them: parents always come earlier.
@@ -123,10 +123,14 @@ describe("playability, judged from the top row down", () => {
   });
 });
 
-describe("markedForPrototype (the frame drawer's Prototype meta)", () => {
+describe("playableFrames (the frame drawer's Prototype mark)", () => {
   test("only a unique, non-empty id with a valid mark", () => {
     const meta = [{ id: "phone", prototype: "390x844" }, { id: "plain" }, { id: "bad", prototype: "390" }, { id: "dup", prototype: "390x844" }, { id: "dup", prototype: "390x844" }, { id: "", prototype: "390x844" }];
-    expect(markedForPrototype("phone", meta)).toBe(true);
-    for (const id of ["plain", "bad", "dup", "", "ghost"]) expect(markedForPrototype(id, meta)).toBe(false);
+    expect(playableFrames(meta)).toEqual([true, false, false, false, false, false]);
+  });
+
+  // The board sends a cut frame's raw mark so the toolbar can name it broken; the drawer must still not mark it.
+  test("never marks a cut frame, even one that carries a valid mark, and a cut id shares nothing", () => {
+    expect(playableFrames(frames)).toEqual([true, false, true, false, false, false, false, false, false, false, true, false]);
   });
 });

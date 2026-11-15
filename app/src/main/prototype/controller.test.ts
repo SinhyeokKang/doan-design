@@ -414,11 +414,43 @@ describe("the conversation panel", () => {
     expect(t.calls[0]).toEqual(["capture", phone, "fit", 300]);
   });
 
+  // A link click the window forwards: main checks the role and shape, then judges it against its own run.
+  test("a link to another listed frame refits and starts it without bringing the window forward", async () => {
+    const t = opened();
+    t.controller.request(PROTOTYPE_CHANNELS.goto, "prototype", { gen: 1, goto: "tablet" });
+    expect(t.calls.slice(0, 3)).toEqual([["capture", phone, "fit"], ["fit", { width: 820, height: 1180 }], ["load", { gen: 2, url: proto.url, frame: "tablet" }]]);
+    expect(t.calls.some(call => Array.isArray(call) && call[0] === "activate")).toBe(false);
+    await vi.waitFor(() => expect(t.views.at(-1)).toMatchObject({ gen: 2, frame: "tablet", phase: "loading", canGoBack: true }));
+    expect(t.controller.playingFrame()).toBe("tablet");
+  });
+
+  test("a link from the main window, with a malformed payload, for an old run or to a frame the run did not list does nothing", () => {
+    const t = opened();
+    t.controller.request(PROTOTYPE_CHANNELS.goto, "main", { gen: 1, goto: "tablet" });
+    t.controller.request(PROTOTYPE_CHANNELS.goto, "prototype", { gen: 1, goto: "tablet", extra: true });
+    t.controller.request(PROTOTYPE_CHANNELS.goto, "prototype", { gen: 0, goto: "tablet" });
+    t.controller.request(PROTOTYPE_CHANNELS.goto, "prototype", { gen: 1, goto: "ghost" });
+    t.controller.request(PROTOTYPE_CHANNELS.goto, "prototype", { gen: 1, goto: null });
+    expect(t.calls).toEqual([]);
+    expect(t.controller.playingFrame()).toBe("phone");
+  });
+
+  test("the run's links reach the view with its frames", () => {
+    const t = setup();
+    t.controller.play("main", play);
+    const gotos = [{ value: "tablet", frames: ["phone"] }];
+    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "390x844", frames, gotos });
+    expect(t.views.at(-1)?.gotos).toEqual(gotos);
+    t.controller.request(PROTOTYPE_CHANNELS.frames, "prototype", { gen: 1, frames, gotos: [] });
+    expect(t.views.at(-1)?.gotos).toEqual([]);
+  });
+
   test("the playing canvas names the target's root, key and last path; nothing while closed", () => {
     const t = opened();
     expect(t.controller.playing()).toEqual({ root: "/r", canvas: { id: "proto" }, path: proto.path });
     t.controller.request(PROTOTYPE_CHANNELS.close, "prototype", undefined);
     expect(t.controller.playing()).toBeNull();
+    expect(t.controller.playingFrame()).toBeNull();
     expect(t.controller.panelOpen()).toBe(false);
   });
 });
