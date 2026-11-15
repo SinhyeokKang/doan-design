@@ -87,7 +87,7 @@ test("an empty composer for a project with canvases: project above, tray below, 
 
 // The rows are the shared SuggestionButton, so the three surfaces cannot drift apart again.
 const suggestionButtons = (html: string) => html.match(/<button type="button" class="suggestion".*?<\/button>/g) ?? [];
-const sharedSuggestions = (prompts: readonly SuggestedPrompt[]) => prompts.map(prompt => renderToStaticMarkup(<TooltipProvider><SuggestionButton prompt={prompt} onPick={() => {}} /></TooltipProvider>));
+const sharedSuggestions = (prompts: readonly SuggestedPrompt[]) => prompts.flatMap(prompt => suggestionButtons(renderToStaticMarkup(<TooltipProvider><SuggestionButton prompt={prompt} onPick={() => {}} /></TooltipProvider>)));
 test("Home's suggested prompts are the shared suggestion button", () => {
   const entry = project("/code/doan-design");
   const prompts = suggestedPrompts(entry, "doan-design", PRESETS);

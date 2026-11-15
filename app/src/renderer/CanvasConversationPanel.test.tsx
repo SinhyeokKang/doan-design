@@ -148,7 +148,7 @@ test("a new conversation's suggestion rows highlight the canvas name and show th
 
 // The rows are the shared SuggestionButton, so the three surfaces cannot drift apart again.
 const suggestionButtons = (html: string) => html.match(/<button type="button" class="suggestion".*?<\/button>/g) ?? [];
-const sharedSuggestions = (prompts: readonly SuggestedPrompt[]) => prompts.map(prompt => renderToStaticMarkup(<TooltipProvider><SuggestionButton prompt={prompt} onPick={() => {}} /></TooltipProvider>));
+const sharedSuggestions = (prompts: readonly SuggestedPrompt[]) => prompts.flatMap(prompt => suggestionButtons(renderToStaticMarkup(<TooltipProvider><SuggestionButton prompt={prompt} onPick={() => {}} /></TooltipProvider>)));
 test("the panel's suggested prompts are the shared suggestion button", async () => {
   const presets = (["critique", "polish"] as const).map(id => ({ id, title: id, description: `About ${id}.`, scope: `${id} scope`, group: "review" }));
   const support = Object.assign(new DockedSupport(() => {}, window.doan), { auth: { revision: 1, providers: [connected("claude")] }, presets: { v: 1 as const, ok: true as const, result: { version: "1", presets } } });

@@ -92,7 +92,7 @@ test("canvases but no conversations: a new conversation with suggestions naming 
 
 // The rows are the shared SuggestionButton, so the three surfaces cannot drift apart again.
 const suggestionButtons = (html: string) => html.match(/<button type="button" class="suggestion".*?<\/button>/g) ?? [];
-const sharedSuggestions = (prompts: readonly SuggestedPrompt[]) => prompts.map(prompt => renderToStaticMarkup(<TooltipProvider><SuggestionButton prompt={prompt} onPick={() => {}} /></TooltipProvider>));
+const sharedSuggestions = (prompts: readonly SuggestedPrompt[]) => prompts.flatMap(prompt => suggestionButtons(renderToStaticMarkup(<TooltipProvider><SuggestionButton prompt={prompt} onPick={() => {}} /></TooltipProvider>)));
 test("the Overview's suggested prompts are the shared suggestion button", () => {
   const prompts = suggestedPrompts(entry(ROOT, [".doan/canvases/checkout.html"]), "doan", PRESETS);
   expect(prompts.length).toBeGreaterThan(0);
