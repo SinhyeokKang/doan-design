@@ -42,12 +42,6 @@ export interface CanvasState {
   // Main's inspector rows for the current selection.
   inspector: InspectorView | null;
   status: "empty" | "loading" | "noWidth" | "failed" | "missing" | null;
-  // The reloaded document is still being asked for the previous selection.
-  reanchoring: boolean;
-  // A reload of the open canvas has not laid out its new document yet. The
-  // previous layout stays shown and `status` stays null meanwhile, so this is
-  // the only sign that the document on screen is about to be replaced.
-  reloading: boolean;
   message: string;
   error: string;
   unlisted: boolean;
@@ -95,7 +89,7 @@ const LOCATE_ID = "locate";
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], tool: "select", picking: false, capturing: false };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], tool: "select", picking: false, capturing: false };
 }
 
 // What a pan or zoom changes many times a second. Only the canvas header shows these, so App hands them to the header
@@ -472,8 +466,6 @@ export class CanvasController {
     this.syncLayer();
     this.state.tool = this.tool;
     this.state.hasFrame = this.frame !== null;
-    this.state.reanchoring = this.reanchor !== null;
-    this.state.reloading = this.loading && this.state.status === null;
     // Play's judgement reads the tool, a pick, capture mode and the layout, which change without a selection change.
     // Before drawWork, so the bubble's room is read before this publish writes styles.
     if (this.marks !== null) { const selected = this.markHidden ? null : this.selectedRect; this.placeSize(this.marks.size, selected, selected === null ? null : this.sizeBubbleRoom()); }

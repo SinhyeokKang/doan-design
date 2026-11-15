@@ -356,14 +356,14 @@ describe("WindowShell states", () => {
   test("loading shows the reading line on the blur only once it is due", () => {
     expect(markup({ view: view({ phase: "loading" }) })).not.toContain("problem-overlay");
     const html = markup({ view: view({ phase: "loading" }), readingShown: true });
-    expect(html).toContain('<div class="problem-overlay reading"><p class="problem-reading"><span class="doan-spinner" aria-hidden="true"></span>Loading prototype</p></div>');
+    expect(html).toContain('<div class="problem-overlay reading doan-scroll"><p class="problem-reading"><span class="doan-spinner" aria-hidden="true"></span>Loading prototype</p></div>');
     // The live region speaks; the line itself has no status role.
     expect(tag(html, "problem-reading")).not.toContain("role=");
   });
 
   test("a failure has an h2 title the scene names, Retry, Close and Details", () => {
     const html = markup({ view: view({ phase: "read-failed", detail: "EACCES: permission denied" }) });
-    expect(html).toContain('<div class="problem-scene" role="group" aria-labelledby="prototype-state-heading">');
+    expect(html).toContain('<div class="problem-overlay doan-scroll"><div class="problem-scene" role="group" aria-labelledby="prototype-state-heading">');
     expect(html).toContain('<h2 id="prototype-state-heading" tabindex="-1" aria-describedby="prototype-state-line">Couldn’t open this prototype</h2>');
     expect(html).toContain('<p id="prototype-state-line" class="selectable">Doan couldn’t read the canvas file for this frame.</p>');
     expect([...html.matchAll(/<button[^>]*class="doan-button[^"]*"[^>]*>([^<]*)/g)].map(match => match[1])).toEqual(["Retry", "Close", "Details ▸"]);
@@ -453,6 +453,13 @@ describe("prototype window styles", () => {
     expect(css).toMatch(/\.pw-frame \{[^}]*transform-origin: 0 0;/);
     expect(css).toMatch(/\.pw-content\[data-mode="fit"\] > \.pw-stage \{ background: var\(--surface-inset\); \}/);
     expect(css).toMatch(/\.pw-content\[data-mode="fit"\] \.pw-box \{ box-shadow: var\(--shadow-panel\); \}/);
+  });
+
+  // Body panels draw no edge shadow, as the main window's Overview and Canvas do; the Fit frame's box is a frame on the
+  // inset stage, not a body panel, so it keeps the panel shadow above.
+  test("the content panel draws no edge shadow", () => {
+    expect(css).toMatch(/^\.pw-panel \{[^}]*background: var\(--surface-panel\);/m);
+    expect(css).not.toMatch(/^\.pw-panel \{[^}]*box-shadow/m);
   });
 
   // The panel no longer clips, so the overlay rounds its own corners over the panel's.
@@ -726,8 +733,8 @@ describe("the conversation panel's styles", () => {
     expect(rule('.pw:not([data-panel="open"]) > .doan-conv-column')).toContain("display: none;");
   });
 
-  test("the panel is an independent surface: four 24 corners, the panel shadow, no start edge; the head keeps 56", () => {
-    expect(rule(".pw .right.doan-conv-panel")).toBe(" border-left: 0; border-radius: var(--radius-container); box-shadow: var(--shadow-panel); ");
+  test("the panel is an independent surface: four 24 corners, no edge shadow, no start edge; the head keeps 56", () => {
+    expect(rule(".pw .right.doan-conv-panel")).toBe(" border-left: 0; border-radius: var(--radius-container); ");
     expect(css).toMatch(/^\.doan-conv-head \{[^}]*min-height: var\(--size-chrome\);/m);
     expect(css).not.toMatch(/\.pw[^{]*\.doan-conv-head[^{]*\{[^}]*(min-height|height)/);
     expect(css).not.toMatch(/:not\(:has\(\.doan-conv-head\)\)/);

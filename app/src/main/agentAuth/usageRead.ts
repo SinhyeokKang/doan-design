@@ -1,8 +1,9 @@
 import { spawn as spawnChild } from "node:child_process";
-import { lstatSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { OwnedGroup } from "../conversation/process";
+import { readRegularFileNoFollowSync } from "../regularFile";
+import { profileFencedCommand } from "./fence";
 import type { AuthProcess, Lease, Spawn } from "./manager";
 import { PROVIDER_AUTH } from "./providers";
 import { claudeUsage, codexUsage, copilotUsage, cursorUsage, usageNotSupported } from "./usageParse";
@@ -25,8 +26,9 @@ const OUTPUT_LIMIT = 4 * 1024 * 1024;
 export interface UsageReadOptions {
   // A provider process in its own group; resolves gone once the group is gone (manager.ts spawnAuthProcess).
   spawn: Spawn;
-  // A Doan-owned empty folder under userData: the Claude and Copilot reads must not pick up a repo's settings.
-  probeDir: string;
+  // The outer fence for the Claude and Copilot reads (profileFencedCommand); without it they run unfenced, which only
+  // tests use.
+  fence?: { userData: string; exec?: string };
   fetch?: typeof globalThis.fetch; now?: () => number; openMs?: number; readMs?: number;
 }
 // A failure in Doan's own words: never a reply body, a provider message or a credential.
@@ -44,8 +46,6 @@ export async function readUsage(provider: UsageProvider, lease: Pick<Lease, "com
   const now = options.now ?? Date.now;
   try {
     if (signal?.aborted) throw new Stopped();
-    // Created empty and never written by Doan.
-    if (provider === "claude" || provider === "copilot") mkdirSync(options.probeDir, { recursive: true });
     const response = provider === "claude" ? await claudeRead(lease, options, signal)
       : provider === "codex" ? await rpcRead(lease, options, signal, {
         args: [...PROVIDER_AUTH.codex.args, "app-server"], cwd: lease.profileDir, framed: false,
@@ -53,8 +53,9 @@ export async function readUsage(provider: UsageProvider, lease: Pick<Lease, "com
         read: ["account/rateLimits/read", undefined],
       })
       : provider === "copilot" ? await rpcRead(lease, options, signal, {
-        // The SDK's server mode: Doan's ACP mode answers account.getQuota with Method not found (PoC).
-        args: [...PROVIDER_AUTH.copilot.args, "--headless", "--no-auto-update", "--stdio"], cwd: options.probeDir, framed: true,
+        // The SDK's server mode: Doan's ACP mode answers account.getQuota with Method not found (PoC). It imports the
+        // profile's package-cache JavaScript like every Copilot process, so it runs in the outer fence (fencedEverywhere).
+        args: [...PROVIDER_AUTH.copilot.args, "--headless", "--no-auto-update", "--stdio"], cwd: lease.profileDir, framed: true, fenced: "copilot",
         open: ["connect", { supportedTaskKinds: ["agent", "client", "shell"] }], initialized: false,
         read: ["account.getQuota", {}],
       })
@@ -149,9 +150,12 @@ class StdioRpc {
   }
 }
 
-interface RpcPlan { args: string[]; cwd: string; framed: boolean; open: [string, unknown]; initialized: boolean; read: [string, unknown] }
-async function rpcRead(lease: Pick<Lease, "command" | "env">, options: UsageReadOptions, signal: AbortSignal | undefined, plan: RpcPlan): Promise<unknown> {
-  const child = options.spawn(lease.command, plan.args, { cwd: plan.cwd, env: lease.env, input: true });
+// fenced: the provider whose outer fence the read runs in when a fence is set.
+interface RpcPlan { args: string[]; cwd: string; framed: boolean; open: [string, unknown]; initialized: boolean; read: [string, unknown]; fenced?: Provider }
+async function rpcRead(lease: Pick<Lease, "command" | "env" | "profileDir">, options: UsageReadOptions, signal: AbortSignal | undefined, plan: RpcPlan): Promise<unknown> {
+  const launch = plan.fenced && options.fence ? profileFencedCommand(plan.fenced, options.fence, lease.profileDir, lease.command, plan.args) : { command: lease.command, args: plan.args };
+  if (!launch) throw new ReadFailure("the fence could not be built");
+  const child = options.spawn(launch.command, launch.args, { cwd: plan.cwd, env: lease.env, input: true });
   const rpc = new StdioRpc(child, plan.framed), stop = stopped(signal);
   const exchange = async () => {
     await within(rpc.request(...plan.open), options.openMs ?? USAGE_OPEN_MS, plan.open[0]);
@@ -165,18 +169,26 @@ async function rpcRead(lease: Pick<Lease, "command" | "env">, options: UsageRead
 }
 
 // The SDK's Query on a session that sends no prompt: initialize, then the usage control request, then close. The cwd
-// is Doan's empty folder, not a repo, whose settings (an apiKeyHelper) could replace the login.
-async function claudeRead(lease: Pick<Lease, "command" | "env"> & { organization?: string }, options: UsageReadOptions, signal: AbortSignal | undefined): Promise<unknown> {
+// is Doan's own folder, not a repo, whose settings (an apiKeyHelper) could replace the login. The CLI still starts the
+// MCP servers the profile's .claude.json and any .mcp.json from its folder up name, which an agent can write, so the
+// read runs in the outer fence, with Claude's own sandbox off as in a fenced run.
+async function claudeRead(lease: Pick<Lease, "command" | "env" | "profileDir"> & { organization?: string }, options: UsageReadOptions, signal: AbortSignal | undefined): Promise<unknown> {
+  const fence = options.fence;
+  // Checked before the SDK starts anything: a fence that cannot be built starts no process.
+  if (fence && !profileFencedCommand("claude", fence, lease.profileDir, lease.command, [])) throw new ReadFailure("the fence could not be built");
   const controller = new AbortController(), stop = stopped(signal);
   let group: OwnedGroup | undefined, gone: Promise<void> = Promise.resolve();
   async function* idle() { await new Promise(resolve => { if (controller.signal.aborted) resolve(null); else controller.signal.addEventListener("abort", resolve, { once: true }); }); }
   const q = query({ prompt: idle(), options: {
-    cwd: options.probeDir, env: lease.env, pathToClaudeCodeExecutable: lease.command, settingSources: ["user", "project", "local"], abortController: controller,
+    cwd: lease.profileDir, env: lease.env, pathToClaudeCodeExecutable: lease.command, settingSources: ["user", "project", "local"], abortController: controller,
+    ...(fence ? { settings: { sandbox: { enabled: false } } } : {}),
     // The login's organization pinned as a Doan Claude run pins it (runners.ts): a device's managed apiKeyHelper then
     // makes Claude Code refuse (read_failed) instead of reading an API key's usage as "no usage limits".
     ...(lease.organization ? { managedSettings: { forceLoginOrgUUID: lease.organization } } : {}),
     spawnClaudeCodeProcess(spawned) {
-      const child = spawnChild(spawned.command, spawned.args, { cwd: spawned.cwd, env: spawned.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
+      const launch = fence ? profileFencedCommand("claude", fence, lease.profileDir, spawned.command, spawned.args) : { command: spawned.command, args: spawned.args };
+      if (!launch) throw new ReadFailure("the fence could not be built");
+      const child = spawnChild(launch.command, launch.args, { cwd: spawned.cwd, env: spawned.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
       let release!: () => void;
       gone = new Promise(resolve => { release = resolve; });
       if (child.pid) group = new OwnedGroup(child.pid, undefined, undefined, release); else release();
@@ -198,12 +210,13 @@ async function claudeRead(lease: Pick<Lease, "command" | "env"> & { organization
 function cursorCookie(profileDir: string): string {
   const path = join(profileDir, PROVIDER_AUTH.cursor.vault![0]!);
   let bytes: Buffer;
-  try {
-    // A link would let the read send another file's contents.
-    const info = lstatSync(path);
-    if (!info.isFile() || info.size > CURSOR_FILE_LIMIT) throw new ReadFailure("the credential file is not one Doan reads");
-    bytes = readFileSync(path);
-  } catch (error) { throw error instanceof ReadFailure ? error : new ReadFailure("the credential file could not be read"); }
+  // A link would let the read send another file's contents. ELOOP is the open refusing a link; an error without a
+  // code is a special or oversized file.
+  try { bytes = readRegularFileNoFollowSync(path, CURSOR_FILE_LIMIT); }
+  catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    throw new ReadFailure(code === undefined || code === "ELOOP" ? "the credential file is not one Doan reads" : "the credential file could not be read");
+  }
   let token: unknown, sub: unknown;
   try {
     token = (JSON.parse(bytes.toString("utf8")) as { accessToken?: unknown }).accessToken;

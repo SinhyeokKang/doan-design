@@ -113,6 +113,8 @@ const mocks = await vi.hoisted(async () => {
     uiState: { read: vi.fn(), save: vi.fn(), flushSync: vi.fn(), idle: vi.fn() },
     // Spied around the real canvas-seen store, so its IPC checks stay real.
     canvasSeenFlushSync: vi.fn(),
+    // Spied around the real prototype window, so a test can make its native teardown fail.
+    prototypeDestroyForQuit: vi.fn(),
     createUiStateStore: vi.fn(),
     thumbnails: { get: vi.fn(), visible: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
     createThumbnails: vi.fn(),
@@ -189,6 +191,13 @@ vi.mock("./canvasSeen", async (importOriginal) => {
   } };
 });
 vi.mock("./thumbnails", () => ({ createThumbnails: mocks.createThumbnails }));
+vi.mock("./prototypeWindow", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./prototypeWindow")>();
+  return { ...original, createPrototypeWindow: (deps: Parameters<typeof original.createPrototypeWindow>[0]) => {
+    const prototype = original.createPrototypeWindow(deps);
+    return { ...prototype, destroyForQuit: () => { mocks.prototypeDestroyForQuit(); prototype.destroyForQuit(); } };
+  } };
+});
 vi.mock("./onboarding/projects", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/projects")>(), ...mocks.projects }));
 const actualProjects = await vi.importActual<typeof import("./onboarding/projects")>("./onboarding/projects");
 
@@ -207,7 +216,13 @@ let launchEligibility = "dev";
 let launchFeed = false;
 const HELD = Symbol("held");
 let settleSetup: (value: unknown) => void = () => {};
+// The previous test's launch. A hook that timed out is not cancelled: its launch still opens a window later, which must
+// land before this launch resets the instances, not in the next test.
+let launching: Promise<unknown> = Promise.resolve();
+// The first launch transforms the whole main graph, which on a loaded CI shard took longer than the default 10 s.
+const LAUNCH_TIMEOUT_MS = 60_000;
 beforeEach(async () => {
+  await launching.catch(() => {});
   vi.resetModules();
   vi.clearAllMocks();
   usageProbe.read = undefined;
@@ -248,9 +263,12 @@ beforeEach(async () => {
   mocks.createThumbnails.mockReturnValue(mocks.thumbnails);
   mocks.thumbnails.removed.mockResolvedValue(undefined);
   for (const name of Object.keys(mocks.projects) as (keyof typeof mocks.projects)[]) mocks.projects[name].mockImplementation(actualProjects[name] as never);
-  await import("./index");
-  await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
-});
+  launching = (async () => {
+    await import("./index");
+    await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
+  })();
+  await launching;
+}, LAUNCH_TIMEOUT_MS);
 
 function window() {
   const window = mocks.Window.instances[0];
@@ -1495,6 +1513,22 @@ describe("ui state", () => {
     expect(mocks.canvasSeenFlushSync).toHaveBeenCalledOnce();
     expect(mocks.canvasSeenFlushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.thumbnails.dispose.mock.invocationCallOrder[0] ?? 0);
   });
+
+  // Destroying the prototype window is native teardown too: the state is on disk before it runs, and its failure
+  // skips nothing that keeps state.
+  test("an approved quit flushes the state before the prototype window is destroyed, even when destroying it throws", async () => {
+    mocks.prototypeDestroyForQuit.mockImplementationOnce(() => { throw new Error("destroy failed"); });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+      await new Promise<void>(resolve => setImmediate(resolve));
+      expect(mocks.prototypeDestroyForQuit).toHaveBeenCalledOnce();
+      expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
+      expect(mocks.canvasSeenFlushSync).toHaveBeenCalledOnce();
+      expect(mocks.uiState.flushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.prototypeDestroyForQuit.mock.invocationCallOrder[0] ?? 0);
+      expect(mocks.canvasSeenFlushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.prototypeDestroyForQuit.mock.invocationCallOrder[0] ?? 0);
+    } finally { error.mockRestore(); }
+  });
 });
 
 describe("text edit menu", () => {
@@ -1575,7 +1609,7 @@ describe("thumbnails", () => {
     return hidden;
   }
 
-  // The stage goes to the main window only, never to the capture window main also owns.
+  // The stage goes to the conversation windows, never to the capture window main also owns.
   test("a conversation stage reaches the main window and not the capture window", async () => {
     const hidden = await captureWindow();
     window().webContents.send.mockClear(); hidden.webContents.send.mockClear();

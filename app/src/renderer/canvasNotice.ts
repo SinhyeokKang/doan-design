@@ -1,4 +1,5 @@
 import type { CanvasRow, FolderEntry, ReadStateProblem } from "../main/view";
+import { canvasStem } from "./canvasTree";
 import { slotKey, type Slot } from "./homeConversations";
 
 // Canvas notices: the sidebar's dot for a canvas the person has not had on the canvas page since it appeared or its HTML
@@ -8,13 +9,11 @@ import { slotKey, type Slot } from "./homeConversations";
 // The sidebar's row slot: a conversation state, or a canvas notice under every conversation state.
 export type SidebarSlot = Slot | { kind: "canvas"; label: string };
 
-const stem = (path: string) => path.split("/").at(-1)!.replace(/\.html$/, "");
-
 export function canvasNoticeLabel(path: string, unseen: NonNullable<CanvasRow["unseen"]>): string {
-  return unseen === "new" ? `${stem(path)} is new` : `${stem(path)} changed since you last opened it`;
+  return unseen === "new" ? `${canvasStem(path)} is new` : `${canvasStem(path)} changed since you last opened it`;
 }
 
-export const readStateFailedLabel = (path: string): string => `Read state could not be saved for ${stem(path)}`;
+export const readStateFailedLabel = (path: string): string => `Read state could not be saved for ${canvasStem(path)}`;
 
 // The dot of an unseen row: a canvas whose read state could not be saved after it was shown says so instead of "changed".
 function rowNotice(row: CanvasRow): string | null {
@@ -58,8 +57,8 @@ export function shownIntent(entries: readonly FolderEntry[], page: CanvasPage): 
 export function readStateToast(problem: ReadStateProblem): { message: string; busy: string } {
   const readOnly = "readOnly" in problem && problem.readOnly ? " This folder is read-only." : "";
   switch (problem.kind) {
-    case "save": return { message: `Couldn’t save ${stem(problem.path)}’s read state.${readOnly}`, busy: `Saving ${stem(problem.path)}’s read state.` };
-    case "id": return { message: "Couldn’t save the read state because the canvas ID is missing or duplicated. Fix the ID, then retry.", busy: `Saving ${stem(problem.path)}’s read state.` };
+    case "save": return { message: `Couldn’t save ${canvasStem(problem.path)}’s read state.${readOnly}`, busy: `Saving ${canvasStem(problem.path)}’s read state.` };
+    case "id": return { message: "Couldn’t save the read state because the canvas ID is missing or duplicated. Fix the ID, then retry.", busy: `Saving ${canvasStem(problem.path)}’s read state.` };
     case "baseline": return { message: `Couldn’t save the initial read state.${readOnly}`, busy: "Saving the initial read state." };
     case "records": return { message: "Read-state records couldn’t be read. Restore them, then retry.", busy: "Reading the read-state records." };
     case "unsupported": return { message: "These read-state records need a compatible app version. Use that version, then retry.", busy: "Reading the read-state records." };

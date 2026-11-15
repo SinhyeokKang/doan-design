@@ -1,4 +1,5 @@
-import { commandWords, doanCommand, doanPositionals } from "./transcript.ts";
+import { commandWords, doanArgs, incompleteRead, lastFlag } from "./transcript.ts";
+import { prototypeCanvasPath } from "./prototype.ts";
 import { contentHash } from "./work.ts";
 import type { Check, CheckContext } from "./types.ts";
 
@@ -7,31 +8,34 @@ import type { Check, CheckContext } from "./types.ts";
 export interface OpenCall { path: string | undefined; frame: string | undefined }
 
 export function openCalls(ctx: Pick<CheckContext, "calls">): OpenCall[] {
-  return ctx.calls.commands.flatMap(commandWords).filter(words => doanCommand(words) === "open").map(words => {
-    let frame: string | undefined;
-    for (let i = 1; i < words.length; i++) {
-      const match = words[i]!.match(/^--?frame(?:=(.*))?$/);
-      if (match) frame = match[1] ?? words[i + 1];
-    }
-    return { path: doanPositionals(words)?.[1], frame };
+  return ctx.calls.commands.flatMap(commandWords).flatMap(words => {
+    const args = doanArgs(words);
+    if (!args || args.refused || args.positionals[0] !== "open") return [];
+    return [{ path: args.positionals[1], frame: lastFlag(args, "frame")?.value }];
   });
 }
 
-// For scenarios where nobody asked to open anything: neither a `doan open` command nor a v4/v6 request.
+// For scenarios where nobody asked to open anything: neither a `doan open` command nor a v4/v6 request. A command
+// the reader could not follow may have run one that the CLI refused before sending, so the absence is not
+// established beside it.
 export function noOpen(ctx: Pick<CheckContext, "calls" | "open" | "prototype">): Check {
   const calls = openCalls(ctx), received = ctx.open(), prototypes = ctx.prototype();
+  const incomplete = incompleteRead(ctx.calls.commands);
+  const none = calls.length === 0 && received.length === 0 && prototypes.length === 0 && !incomplete;
   return {
     id: "no_doan_open",
-    pass: calls.length === 0 && received.length === 0 && prototypes.length === 0,
-    detail: calls.length === 0 && received.length === 0 && prototypes.length === 0 ? "no doan open command and no v4 or v6 request reached the app" : `doan open commands: ${JSON.stringify(calls)}; v4 requests the app received: ${received.length}; v6 requests: ${prototypes.length}`,
+    pass: none,
+    detail: none ? "no doan open command and no v4 or v6 request reached the app" : `doan open commands: ${JSON.stringify(calls)}; v4 requests the app received: ${received.length}; v6 requests: ${prototypes.length}${incomplete ? "; a command could not be read completely" : ""}`,
   };
 }
 
 // For a person who asked to open `path` at `frame`: the command with those arguments, and the app's own record of an
 // accepted request for the same canvas and frame that arrived after the canvas reached its final content.
-export function openChecks(ctx: Pick<CheckContext, "calls" | "open" | "read">, path: string, frame: string): Check[] {
+export function openChecks(ctx: Pick<CheckContext, "calls" | "open" | "read" | "repo">, path: string, frame: string): Check[] {
   const calls = openCalls(ctx), received = ctx.open();
-  const asked = calls.some(call => call.path === path && call.frame === frame);
+  // The CLI resolves the path against the repository, so an absolute or ./ spelling names the same canvas.
+  const canvas = prototypeCanvasPath(ctx.repo, path);
+  const asked = calls.some(call => call.path !== undefined && prototypeCanvasPath(ctx.repo, call.path) === canvas && call.frame === frame);
   const final = contentHash(ctx.read(path));
   const accepted = received.filter(e => e.response.ok && e.request.path === path && e.request.frame === frame && e.response.frame === "found");
   const after = accepted.some(e => e.hashes[path] === final);

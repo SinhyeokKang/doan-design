@@ -2,6 +2,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathS
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "vitest";
+import { PROMPT_MS, withFifo } from "./fifo.fixture";
 import { MARKER, parseMarker, parseRecord, readSeen, recordText, SEEN_DIR, writeSeen } from "./seenRecords";
 
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-seen-records-")));
@@ -70,6 +71,15 @@ describe("reading", () => {
     const read = await readSeen(root, ["a", "b"]);
     expect(read.records.get("a")).toEqual({ read: { kind: "corrupt" }, bytes: undefined });
     expect(read.records.get("b")).toEqual({ read: { kind: "corrupt" }, bytes: undefined });
+  });
+
+  // A FIFO record would otherwise hold a libuv thread in open(2) until a writer appears; every folder's seen reads and
+  // writes share those threads.
+  test("a FIFO record reads as corrupt without blocking", async () => {
+    const root = repo(); mkdirSync(join(root, SEEN_DIR));
+    const read = await withFifo(join(root, SEEN_DIR, "a.json"), () => readSeen(root, ["a"]));
+    expect(read.value.records.get("a")).toEqual({ read: { kind: "corrupt" }, bytes: undefined });
+    expect(read.ms).toBeLessThan(PROMPT_MS);
   });
 
   test.skipIf(isRoot)("permission denied on a record is unreadable", async () => {

@@ -1,4 +1,4 @@
-import { accessSync, constants, mkdirSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { accessSync, constants, mkdirSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { probeShell, runProcess } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
@@ -8,7 +8,7 @@ import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
-import { claudeSandboxEnabled, fenceDenied, fenceListingDirs, resolveFencePaths, type FenceEntry, type FencePaths } from "../agentAuth/fence";
+import { fenceDenied, fencedEverywhere, fenceListingDirs, profileFencedCommand, resolveFencePaths, sandboxRefused, type FenceEntry, type FencePaths } from "../agentAuth/fence";
 import type { Lease, Started } from "../agentAuth/manager";
 import type { AuthState, ConnectionJudgment, Provider } from "../agentAuth/types";
 import type { McpRun, Prepare, Prepared, StartRequest } from "./service";
@@ -142,36 +142,22 @@ const NO_CONNECTORS: McpConnectorFacts = { generation: () => 0, labels: () => co
 export function connectorFacts(current: () => McpConnectorFacts | undefined): McpConnectorFacts {
   return { generation: provider => (current() ?? NO_CONNECTORS).generation(provider), labels: () => (current() ?? NO_CONNECTORS).labels() };
 }
-// Where a Doan-connection run's fence comes from: the app's userData, and for tests the Claude Code managed-settings
-// directory and another sandbox-exec. Without it no run is fenced, which only tests that predate the fence rely on.
-// socket: the app socket's path, which a Codex permission profile (by its directory) and a sandbox-on Claude turn allow.
-export interface FenceSetup { userData: string; socket: () => string | undefined; managedDir?: string; exec?: string }
-const CLAUDE_MANAGED_DIR = "/Library/Application Support/ClaudeCode";
-const SETTINGS_MAX = 1024 * 1024;
-// A settings file as Claude Code reads it, through a link too (dotfile setups link them); a missing, oversized or
-// malformed one is no source.
-function settingsFile(path: string): unknown {
-  try { const stat = statSync(path); if (!stat.isFile() || stat.size > SETTINGS_MAX) return undefined; return JSON.parse(readFileSync(path, "utf8")) as unknown; } catch { return undefined; }
-}
-function claudeSources(configDir: string, cwd: string, managedDir: string) {
-  let dropIns: string[] = [];
-  try { dropIns = readdirSync(join(managedDir, "managed-settings.d")).filter(name => name.endsWith(".json")).sort(); } catch { /* none */ }
-  return { user: settingsFile(join(configDir, "settings.json")), project: settingsFile(join(cwd, ".claude", "settings.json")), local: settingsFile(join(cwd, ".claude", "settings.local.json")),
-    managed: [settingsFile(join(managedDir, "managed-settings.json")), ...dropIns.map(name => settingsFile(join(managedDir, "managed-settings.d", name)))] };
-}
-// The userData entries a provider's own settings deny, listed now; an unreadable directory is left out of the listing,
-// which refuses the run.
-function listDenied(provider: "claude" | "codex", paths: FencePaths): FenceEntry[] {
+// Where a Doan-connection run's fence comes from: the app's userData, and for tests another sandbox-exec. Without it no
+// run is fenced, which only tests that predate the fence rely on. socket: the app socket's path, whose directory a Codex
+// permission profile allows.
+export interface FenceSetup { userData: string; socket: () => string | undefined; exec?: string }
+// The userData entries Codex's permission profiles deny, listed now; an unreadable directory is left out of the
+// listing, which refuses the run.
+function listDenied(paths: FencePaths): FenceEntry[] {
   const listing = new Map<string, { name: string; directory: boolean }[]>();
-  for (const dir of fenceListingDirs(provider, paths)) {
+  for (const dir of fenceListingDirs(paths)) {
     try { listing.set(dir, readdirSync(dir, { withFileTypes: true }).map(entry => ({ name: entry.name, directory: entry.isDirectory() }))); } catch { /* refused below */ }
   }
-  const denied = fenceDenied(provider, paths, listing); if (!denied) throw new Error("unknown");
+  const denied = fenceDenied(paths, listing); if (!denied) throw new Error("unknown");
   return denied;
 }
 // The app socket's path with its directory resolved; none while the app has no runtime (`doan` then reaches no app
-// anyway). A Codex profile server needs it, and the runner refuses one without it; a sandbox-on Claude turn allows it
-// when there is one; an outer-fenced run does not use it.
+// anyway). A Codex profile server needs it, and the runner refuses one without it; an outer-fenced run does not use it.
 function appSocket(setup: FenceSetup): { socket?: string } {
   const socket = setup.socket(); if (socket === undefined) return {};
   let dir: string; try { dir = realpathSync.native(dirname(socket)); } catch { throw new Error("unknown"); }
@@ -181,7 +167,7 @@ function appSocket(setup: FenceSetup): { socket?: string } {
 }
 // A fence that cannot be built refuses the run before anything starts (unknown): without it the agent would reach the
 // other providers' profiles.
-function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd: string, attachments: readonly { path: string; kind: string }[]): NonNullable<Prepared["fence"]> {
+function runFence(setup: FenceSetup, provider: Provider, profileDir: string, attachments: readonly { path: string; kind: string }[]): NonNullable<Prepared["fence"]> {
   // Codex's profile names the attachment directory, which exists only after a first paste.
   if (provider === "codex") try { mkdirSync(join(setup.userData, "attachments"), { recursive: true, mode: 0o700 }); } catch { /* resolve refuses below */ }
   // Only a pasted image's own directory is ever reopened; a folder the person attached widens nothing, wherever it is.
@@ -190,10 +176,8 @@ function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd
   if (!paths) throw new Error("unknown");
   const exec = setup.exec ? { exec: setup.exec } : {};
   // A Codex server picks its mechanism from the mode when it starts, so every Codex run carries its listing and the
-  // app socket's resolved directory.
-  if (provider === "codex") return { paths, denied: listDenied("codex", paths), ...appSocket(setup), ...exec };
-  if (provider !== "claude" || !claudeSandboxEnabled(claudeSources(profileDir, cwd, setup.managedDir ?? CLAUDE_MANAGED_DIR))) return { paths, ...exec };
-  return { paths, denied: listDenied("claude", paths), claudeSandbox: true, ...appSocket(setup), ...exec };
+  // app socket's resolved directory. The other providers always run in the outer fence.
+  return provider === "codex" ? { paths, denied: listDenied(paths), ...appSocket(setup), ...exec } : { paths, ...exec };
 }
 // The Doan-account side of routePrepare as main wires it: every argument reaches the account prepare (reusing included,
 // so a reused Codex server's send builds no fence), an unopened sign-in store refuses every run, and a run (never a
@@ -234,8 +218,15 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
     try {
       recheck();
       if (provider !== "antigravity") {
-        const version = await runProcess(lease.command, ["--version"], lease.env, 5000);
+        // Copilot's and Cursor's --version load code from caches in the profile, like their other processes
+        // (fencedEverywhere), so it runs in the outer fence; one that cannot be built starts nothing.
+        const fencedCheck = fence !== undefined && fencedEverywhere(provider);
+        const check = fencedCheck ? profileFencedCommand(provider, fence, lease.profileDir, lease.command, ["--version"]) : { command: lease.command, args: ["--version"] };
+        if (!check) throw new Error("unknown");
+        const version = await runProcess(check.command, check.args, lease.env, 5000);
         recheck();
+        // sandbox-exec missing, or refusing before the CLI printed anything, says nothing about the CLI's version.
+        if (fencedCheck && !version.timedOut && !version.stdout && (version.spawnError !== undefined || sandboxRefused(version))) throw new Error("process_exited");
         installed = version.exitCode === 0 && !version.timedOut ? parseCliVersion(version.stdout)?.installed : undefined;
         if (installed) versions?.versionRead(provider, installed);
         if (version.exitCode !== 0 || version.timedOut || versionStatus(provider, version.stdout) !== "supported") { toolsFailed(provider); throw new Error(stored ? "session_unavailable" : "runtime_unsupported"); }
@@ -260,9 +251,11 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         const judgment = judgeConnection(stored.owner, adapter.verifyByRun && !current.error ? { ...current, verified: true } : current, { exists, occupancy });
         if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment, provider));
       }
-      // Every conversation run, Claude's per turn: its sandbox setting and this turn's pasted images may differ. A list
-      // read runs no model tool, so it gets none.
-      const fenced = fence && use === "run" && !reusing ? runFence(fence, provider, configDir, cwd, request.attachments ?? []) : undefined;
+      // Every conversation run, Claude's per turn: this turn's pasted images may differ. Every list read but Codex's too:
+      // Claude's starts the repository's hooks and MCP servers, and an ACP server's session/new those its profile names
+      // (Copilot, Cursor; probe), which the provider's own fenced turn can write. Codex reads neither: its profile's
+      // settings are closed to its turns and an untrusted project's .codex/ is not loaded.
+      const fenced = fence && !reusing && (use === "run" || provider !== "codex") ? runFence(fence, provider, configDir, request.attachments ?? []) : undefined;
       const connection = recheck(), ran = installed;
       const mcp: McpRun | undefined = (MCP_PROVIDERS as readonly Provider[]).includes(provider) ? { generation: () => connectors.generation(provider as McpProvider), labels: () => connectors.labels() } : undefined;
       const runArgs = provider === "claude" || provider === "codex" ? RUN_ARGS[provider] : adapter.acp!.args;

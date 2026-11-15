@@ -32,7 +32,7 @@ test("Move to Trash waits for main's plan and holds while an agent works, with t
 test("the compact alert dialog starts on Cancel; Escape and Cancel only cancel", () => {
   const cancel = vi.fn(), confirm = vi.fn();
   const tree = CanvasTrashDialog({ view: trashDialogView("checkout", PATH, { kind: "ready" }, false), cancel, confirm });
-  expect(tree.props).toMatchObject({ className: "doan-dialog", "data-ui-size": "compact", role: "alertdialog", "aria-labelledby": "canvas-trash-title", "aria-describedby": "canvas-trash-body" });
+  expect(tree.props).toMatchObject({ className: "doan-dialog doan-scroll", "data-ui-size": "compact", role: "alertdialog", "aria-labelledby": "canvas-trash-title", "aria-describedby": "canvas-trash-body" });
   const [cancelButton, trashButton] = buttons(tree);
   expect(cancelButton!.props).toMatchObject({ children: "Cancel", autoFocus: true, "data-ui-variant": "subtle" });
   expect(trashButton!.props).toMatchObject({ children: "Move to Trash", "data-ui-variant": "prominent" });
@@ -66,7 +66,7 @@ test("an unavailable Move to Trash is aria-disabled, reads its reason and does n
 
 test("static markup: title, body, the working line and the actions in order", () => {
   const html = renderToStaticMarkup(<CanvasTrashDialog view={trashDialogView("checkout", PATH, { kind: "ready" }, true)} cancel={() => {}} confirm={() => {}} />);
-  expect(html).toContain('<dialog class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="canvas-trash-title" aria-describedby="canvas-trash-body">');
+  expect(html).toContain('<dialog class="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="canvas-trash-title" aria-describedby="canvas-trash-body">');
   expect(html).toContain('<h3 class="doan-dialog-title" id="canvas-trash-title">Move “checkout” to Trash?</h3>');
   expect(html).toContain('<p class="doan-notice" id="canvas-trash-reason"><svg');
   expect(html).toContain("<span class=\"selectable\">An agent started working on this canvas. Try again when it finishes.</span>");

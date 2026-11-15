@@ -3,8 +3,9 @@
    classes; opening and closing follow Radix data-state and the native dialog [open]. */
 
 /* ── Panel ───────────────────────────────────────────────────────────────────
-   The rounded, opaque sheet a screen is laid on. It draws no content of its own; the
-   screen decides what goes inside and how it scrolls. */
+   A rounded, opaque card raised on a backdrop (first run's cards and lists, notices on a
+   backdrop that is not plain white); the shadow's hairline ring draws its edge. A screen's
+   body panel is not one and has no shadow. It draws no content of its own. */
 .doan-panel {
   overflow: hidden;
   border-radius: var(--radius-container);

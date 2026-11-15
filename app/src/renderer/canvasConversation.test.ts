@@ -17,10 +17,8 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: at(60), preview: "Last reply", ...patch,
 });
 const current = summary({ conversationId: "cur", lastActivityAt: at(30) });
-const archived = summary({ conversationId: "old", lastActivityAt: at(5) });
 const other = summary({ conversationId: "elsewhere", canvas: { path: ".doan/canvases/home.html", id: "home" } });
 const { canvas: _bound, ...project } = summary({ conversationId: "proj" });
-const LIST = [archived, current, other, project];
 
 describe("canvasConversationMenu", () => {
   test("this canvas's conversations by latest activity, the shown one selected; none is pinned first", () => {

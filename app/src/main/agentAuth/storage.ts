@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { accessSync, chmodSync, closeSync, constants, fchmodSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, unlinkSync, writeSync, type Stats } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { swapFile } from "../agentSetup/swap";
+import { readRegularFileNoFollowSync } from "../regularFile";
 import { parseAuthMetadata, serializeAuthMetadata, validAuthId } from "./metadata";
 import { validProvider, type AuthMetadata, type Provider } from "./types";
 
@@ -14,7 +15,16 @@ export class StorageError extends Error {
 export type VaultFiles = Record<string, Buffer>;
 export type SettingMerge = (current: string | null) => string | null;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+// The provider process owns the profile and may leave a link, a FIFO or a huge file where its credential was; working
+// files are read with the open refusing a link (ELOOP) and a special or oversized file throwing without a code, so
+// none of them reads as absent. The cap is far above any credential (a few KB of JSON), low enough that a file the
+// provider grew cannot stall main or flood the vault.
+const WORKING_FILE_LIMIT = 16 * 1024 * 1024;
 function absent(error: unknown): boolean { return typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "ENOENT"; }
+// What readRegularFileNoFollowSync throws for a link, a special file or a file past its cap: not a file Doan can read.
+function notRegular(error: unknown): boolean { return error instanceof Error && ((error as NodeJS.ErrnoException).code === undefined || (error as NodeJS.ErrnoException).code === "ELOOP"); }
+// fsync and rename would publish whatever part of the bytes a short write left.
+function writeAll(fd: number, bytes: Buffer): void { if (writeSync(fd, bytes) !== bytes.length) throw new Error("Incomplete write"); }
 
 // Layout under <userData>/agent-auth: metadata.json, cleanup.json, vault/<provider>.bin, profiles/<profile>/. A profile
 // is the provider's name, or <provider>-<id> for a replacement staged apart from the stored login (Codex).
@@ -119,8 +129,12 @@ export class AuthStorage {
   writeSetting(provider: Provider, rel: string, text: string | SettingMerge, profile: string = provider): void {
     const path = this.working(provider, rel, profile);
     if (typeof text !== "string") return this.mergeSetting(path, text);
-    try { if (readFileSync(path, "utf8") === text) return; } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
-    this.replace(path, Buffer.from(text));
+    const bytes = Buffer.from(text);
+    // The provider process can leave a FIFO, a link or a huge file here, none of which is the text Doan owns: the
+    // rename replaces each of them without opening or following it.
+    try { if (readRegularFileNoFollowSync(path, WORKING_FILE_LIMIT).equals(bytes)) return; }
+    catch (error) { if (!absent(error) && !notRegular(error)) throw new StorageError("unreadable", message(error)); }
+    this.replace(path, bytes);
   }
   // Claude Code saves this file too, so Doan never renames its merge over a file it has not just re-verified
   // (agentSetup/swap.ts swapFile): a file that is not the one Doan read, by identity and bytes, stays and the next run
@@ -132,24 +146,27 @@ export class AuthStorage {
     if (seen !== null && !seen.isFile()) return;
     let bytes: Buffer | null = null, current: string | null = null;
     if (seen !== null) {
-      try { bytes = readFileSync(path); current = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+      // The file can be swapped after the lstat; one that is no longer a regular file stays, as it would have at lstat.
+      try { bytes = readRegularFileNoFollowSync(path, WORKING_FILE_LIMIT); current = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
       // Bytes that are not UTF-8 would be changed by a text round trip, so the file stays as it is.
-      catch (error) { if (error instanceof TypeError || absent(error)) return; throw new StorageError("unreadable", message(error)); }
+      catch (error) { if (error instanceof TypeError || absent(error) || notRegular(error)) return; throw new StorageError("unreadable", message(error)); }
     }
     const next = merge(current);
     if (next === null || next === current) return;
-    const staged = `${path}.${randomUUID()}.tmp`;
+    // Doan's temporary names live in the agent-auth folder, on the profile's volume: a fenced turn can write the profile
+    // folder, and a file it renamed onto a staged or moved-aside name there would be published or restored as the setting.
+    const staged = join(this.root, `.setting-${randomUUID()}.tmp`);
     try {
       this.stage(staged, Buffer.from(next), seen === null ? 0o600 : seen.mode & 0o777);
       if (seen === null || bytes === null) { linkSync(staged, path); return; }
       // swapFile moves the file aside before it links and restores with link(2) too, so a filesystem that refuses links
       // would lose the settings path. Probe with the staged file first; a failure leaves the original where it is.
-      const probe = `${path}.${randomUUID()}.probe`;
-      try { linkSync(staged, probe); } finally { try { rmSync(probe, { force: true }); } catch { /* Scrubbed with leftovers. */ } }
+      const probe = join(this.root, `.setting-${randomUUID()}.probe`);
+      try { linkSync(staged, probe); } finally { try { rmSync(probe, { force: true }); } catch { /* Nothing sweeps .setting-* names: it stays until removed by hand. */ } }
       const dir = lstatSync(dirname(path));
       const result = swapFile(
-        { lstatSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync, readFileSync },
-        { path, staged, id: `${seen.dev}:${seen.ino}`, bytes, aside: join(dirname(path), `.doan-${randomUUID()}.aside`), parent: dir.isDirectory() ? `${dir.dev}:${dir.ino}` : null },
+        { lstatSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync },
+        { path, staged, id: `${seen.dev}:${seen.ino}`, bytes, aside: join(this.root, `.setting-${randomUUID()}.aside`), parent: dir.isDirectory() ? `${dir.dev}:${dir.ino}` : null },
       );
       if (result.kind === "failed") throw new StorageError("write_failed", result.code);
       if (result.kind === "displaced") throw new StorageError("write_failed", `${path} was moved to ${result.at}`);
@@ -158,12 +175,12 @@ export class AuthStorage {
       if (error instanceof StorageError) throw error;
       if (typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "EEXIST") return;
       throw new StorageError("write_failed", message(error));
-    } finally { try { rmSync(staged, { force: true }); } catch { /* A stray temp file is scrubbed with leftovers. */ } }
+    } finally { try { rmSync(staged, { force: true }); } catch { /* Nothing sweeps .setting-* names: a stray one stays until removed by hand. */ } }
   }
   private stage(path: string, bytes: Buffer, mode: number): void {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     const fd = openSync(path, "wx", mode);
-    try { writeSync(fd, bytes); fchmodSync(fd, mode); fsyncSync(fd); } finally { closeSync(fd); }
+    try { writeAll(fd, bytes); fchmodSync(fd, mode); fsyncSync(fd); } finally { closeSync(fd); }
   }
   hasWorkingCopy(provider: Provider, rels: readonly string[]): boolean {
     return rels.some(rel => {
@@ -174,22 +191,18 @@ export class AuthStorage {
   // One working file for a main-only read (Antigravity's account lookup), or null when it is absent; links are
   // refused as in collect.
   readWorking(provider: Provider, rel: string, profile: string = provider): Buffer | null {
-    try {
-      const path = this.working(provider, rel, profile);
-      if (!lstatSync(path).isFile()) throw new StorageError("unreadable", `${rel} is not a regular file`);
-      return readFileSync(path);
-    } catch (error) { if (error instanceof StorageError) throw error; if (absent(error)) return null; throw new StorageError("unreadable", message(error)); }
+    try { return readRegularFileNoFollowSync(this.working(provider, rel, profile), WORKING_FILE_LIMIT); }
+    catch (error) { if (error instanceof StorageError) throw error; if (absent(error)) return null; throw new StorageError("unreadable", message(error)); }
   }
+  // A profile file no one but an agent would write and a later provider process loads (Codex's .env): unlinked, a link
+  // without following it; anything rmSync cannot unlink (a directory) fails the start.
+  removePlanted(provider: Provider, rel: string, profile: string = provider): void { this.remove(this.working(provider, rel, profile)); }
   scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.remove(path); }
   private collect(provider: Provider, rels: readonly string[]): VaultFiles {
     const current: VaultFiles = {};
     for (const rel of rels) {
-      try {
-        const path = this.working(provider, rel);
-        // A link would let a provider process pull an arbitrary file into the vault.
-        if (!lstatSync(path).isFile()) throw new StorageError("unreadable", `${rel} is not a regular file`);
-        current[rel] = readFileSync(path);
-      }
+      // A link would let a provider process pull an arbitrary file into the vault.
+      try { current[rel] = readRegularFileNoFollowSync(this.working(provider, rel), WORKING_FILE_LIMIT); }
       catch (error) { if (error instanceof StorageError) throw error; if (!absent(error)) throw new StorageError("unreadable", message(error)); }
     }
     return current;
@@ -229,10 +242,10 @@ export class AuthStorage {
     try {
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
       const fd = openSync(temp, "wx", 0o600);
-      try { writeSync(fd, bytes); fsyncSync(fd); } finally { closeSync(fd); }
+      try { writeAll(fd, bytes); fsyncSync(fd); } finally { closeSync(fd); }
       renameSync(temp, path);
     } catch (error) {
-      try { rmSync(temp, { force: true }); } catch { /* The write already failed; a stray temp file is scrubbed with leftovers. */ }
+      try { rmSync(temp, { force: true }); } catch { /* The write already failed; scrub removes a stray one beside a vault file, others stay. */ }
       throw new StorageError("write_failed", message(error));
     }
   }

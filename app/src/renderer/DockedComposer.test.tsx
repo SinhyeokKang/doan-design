@@ -102,7 +102,7 @@ test("another project conversation running blocks Send with Open named for the r
 test("a conversation whose canvas is gone shows the line instead of the composer", () => {
   const html = render({ mode: { kind: "existing", conversationId: "c1", provider: "claude" }, canvasGone: true });
   expect(html).not.toContain("composer-input");
-  expect(html).toContain('<div class="canvas-gone" role="status">');
+  expect(html).toMatch(/<div class="doan-notice" role="status"><svg[^>]*doan-alert-icon[^>]*>.*?<\/svg><span class="grow-text selectable">This conversation’s canvas/);
   expect(html).toContain("This conversation’s canvas is no longer in doan-design, so it can’t continue.");
 });
 

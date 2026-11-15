@@ -1,9 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Lease, McpLogoutRequest } from "../agentAuth/manager";
+import type { Lease, McpLogoutRequest, Spawn } from "../agentAuth/manager";
 import type { AuthState, Readiness } from "../agentAuth/types";
+import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { BASE_ARGS, FakeCli, type FakeProcess } from "./fixtures/fakeCli";
 import type { McpProvider } from "./presets";
 import { McpService, type McpServiceOptions, type McpSnapshot } from "./service";
@@ -21,7 +22,7 @@ let dir: string, cli: FakeCli, store: ConnectorStore, states: Record<McpProvider
 let launched: { provider: McpProvider; profileDir: string }[], settling: Record<McpProvider, boolean>;
 let held: Record<McpProvider, number>, acquired: { provider: McpProvider; use: string; added: Record<string, string> }[];
 let opened: string[], hook: ((raw: string) => void) | null, hooks: number, published: McpSnapshot[], readiness: Record<McpProvider, Readiness>;
-const profile = (provider: McpProvider) => join(dir, "profiles", provider);
+const profile = (provider: McpProvider) => join(dir, "agent-auth", "profiles", provider);
 const connected = (provider: McpProvider, connectionId = "c1"): AuthState => ({
   provider, phase: "connected", generation: 1, verified: true, expired: false, attempt: null, error: null,
   connection: { provider, connectionId, profile: provider, account: { id: null, workspace: null } },
@@ -576,7 +577,7 @@ describe("sign-out and replacement logout", () => {
   it("a Codex replacement registers in the new profile the servers whose logout succeeded and the signed-out ones", async () => {
     cli.failing.add("codex logout doan-figma");
     cli.registered.codex.set("doan-atlassian", { url: "https://mcp.atlassian.com/v1/mcp", auth: false });
-    const staging = join(dir, "profiles", "codex-next");
+    const staging = join(dir, "agent-auth", "profiles", "codex-next");
     mkdirSync(staging);
     const s = service();
     expect(await s.logoutForAuth("codex", request("codex", { kind: "replace", staging }))).toEqual({ failed: ["doan-figma"] });
@@ -748,6 +749,17 @@ describe("review fixes", () => {
       { provider: "codex", name: "doan-notion", url: "https://mcp.notion.com/mcp" }, { provider: "codex", name: "doan-atlassian", url: "https://mcp.atlassian.com/v1/mcp" },
       { provider: "codex", name: "doan-figma", url: "https://mcp.figma.com/mcp" },
     ]);
+    await s.idle();
+  });
+
+  // The profile belongs to the provider process: a FIFO config there must not hold main waiting for a writer.
+  it.each(["codex", "claude"] as const)("an unreadable %s list and a FIFO profile config fall back to every known server without blocking", async provider => {
+    cli.failing.add(`${provider} list`);
+    const s = service();
+    const request: McpLogoutRequest = { kind: provider === "codex" ? "signOut" : "replace", previousAccountId: "a1", nextAccountId: "a2", staging: null, profileDir: profile(provider), run: runner(provider) };
+    const read = await withFifo(join(profile(provider), provider === "codex" ? "config.toml" : ".claude.json"), () => s.logoutForAuth(provider, request));
+    expect(read.ms).toBeLessThan(PROMPT_MS);
+    expect(cli.commands(provider).filter(c => c[1] === "logout").map(c => c[2])).toEqual(["doan-notion", "doan-atlassian", "doan-figma"]);
     await s.idle();
   });
 
@@ -948,3 +960,44 @@ describe("conversation facts", () => {
   });
 });
 
+
+// `claude mcp list` and `get` start the stdio servers the profile's .claude.json names, which an agent in the outer fence
+// can write, so every Claude command runs in that fence too, from the profile. Codex's commands are unchanged.
+describe("outer fence", () => {
+  const EXEC = "/fence/sandbox-exec";
+  const unwrap = (args: string[]) => { let i = 0; while (args[i] === "-p" || args[i] === "-D") i += 2; return { command: args[i]!, args: args.slice(i + 1) }; };
+  function watched() {
+    const seen: { command: string; args: string[]; cwd: string; pty: boolean }[] = [];
+    const wrap = (inner: Spawn, pty: boolean): Spawn => (command, args, options) => {
+      seen.push({ command, args, cwd: options.cwd, pty });
+      const run = command === EXEC ? unwrap(args) : { command, args };
+      return inner(run.command, run.args, options);
+    };
+    return { seen, spawn: wrap(cli.spawn, false), spawnPty: wrap(cli.spawnPty, true) };
+  }
+  it("runs Claude's status reads and sign-in under sandbox-exec from the profile, and Codex's as before", async () => {
+    const { seen, spawn, spawnPty } = watched();
+    const s = service({ spawn, spawnPty, fence: { userData: dir, exec: EXEC } });
+    s.refresh(); await s.idle();
+    expect(s.connect("claude", "doan-notion")).toEqual({ ok: true });
+    await login("claude");
+    const claude = seen.filter(c => c.command !== "/verified/bin/codex");
+    expect(claude.some(c => c.pty)).toBe(true);
+    expect(claude.some(c => !c.pty)).toBe(true);
+    for (const c of claude) {
+      expect(c.command).toBe(EXEC);
+      expect(c.args).toContain(`PROFILE=${realpathSync.native(profile("claude"))}`);
+      expect(unwrap(c.args).command).toBe("/verified/bin/claude");
+      expect(c.cwd).toBe(profile("claude"));
+    }
+    expect(seen.some(c => c.command === "/verified/bin/codex")).toBe(true);
+    s.cancel("claude", "doan-notion"); await s.idle();
+  });
+  it("starts no Claude command when the fence cannot be built", async () => {
+    const { seen, spawn, spawnPty } = watched();
+    const s = service({ spawn, spawnPty, fence: { userData: join(dir, "elsewhere") } });
+    s.refresh(); await s.idle();
+    expect(seen.some(c => c.command !== "/verified/bin/codex")).toBe(false);
+    expect(seen.some(c => c.command === "/verified/bin/codex")).toBe(true);
+  });
+});

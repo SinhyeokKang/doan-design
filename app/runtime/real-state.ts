@@ -43,6 +43,22 @@ async function servers(path: string, toml: boolean): Promise<string> {
   const result = await promisify(execFile)("python3.12", ["-c", 'import hashlib,json,sys,tomllib\nwith open(sys.argv[1],"rb") as f: v=tomllib.load(f).get("mcp_servers")\nprint(hashlib.sha256(json.dumps(v,sort_keys=True,separators=(",",":")).encode()).hexdigest())', path], { timeout: 5_000, killSignal: "SIGKILL" });
   return result.stdout.trim();
 }
+// The person's Claude Code rewrites settings.json on its own, so only the `Bash(doan …)` allow rules agent setup merges
+// in are compared; every rule text Doan has written starts that way.
+async function claudeAllow(path: string): Promise<string> {
+  let bytes: string;
+  try { bytes = await readFile(path, "utf8"); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return "absent-file"; throw error; }
+  let allow: unknown;
+  try { allow = JSON.parse(bytes)?.permissions?.allow; } catch { return "unparsable"; }
+  return hash(JSON.stringify(Array.isArray(allow) ? allow.filter(rule => typeof rule === "string" && rule.startsWith("Bash(doan ")).sort() : null));
+}
+// Names only: another copy of the app (a PoC build, an unisolated dev run) shows up as a new `doan*` folder, and
+// hashing their contents could outlast the snapshot bound.
+async function siblings(support: string): Promise<string> {
+  try { return hash(JSON.stringify((await readdir(support)).filter(name => /^doan/i.test(name)).sort())); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return "absent"; throw error; }
+}
 // Provider credential stores are compared by metadata only; reading them would copy secrets into probe logs.
 const AUTH_FILES = [".claude/.credentials.json", ".codex/auth.json", ".cursor/auth.json", ".config/cursor/auth.json", ".copilot/config.json", ".copilot/settings.json",
   ".config/gh/hosts.yml", ".gemini/antigravity-cli", ".gemini/config"];
@@ -68,15 +84,38 @@ export async function codexMcpAccounts(): Promise<string[] | string> {
   return dump.split(/^keychain: /m).filter(block => /"svce"<blob>="Codex MCP Credentials"/.test(block))
     .map(block => block.match(/"acct"<blob>="([^"]*)"/)?.[1] ?? "").sort();
 }
+// Every userData entry the app writes; real-state.test.ts fails when main joins a name to userData that is missing here.
+export const USER_DATA = ["folders.json", "auto-folders.json", "runtime.json", "onboarding.json", "ui-state.json", "preferences.json", "canvas-seen.json", "star-prompt.json",
+  "agent-setup.json", "mcp-connectors.json", "mcp-connectors-pending.json", "thumbnails", "sessions.jsonl", "conversations", "attachments", "agent-auth",
+  "agent-runtimes", "terminal"];
+// The Antigravity server install is hundreds of MB: hashing it could outlast the snapshot bound, and an install or update
+// replaces files, which their size, time and inode show.
+const METADATA_ONLY = new Set(["agent-runtimes"]);
+async function metaTree(path: string): Promise<unknown> {
+  try {
+    const info = await lstat(path);
+    const meta = { mode: info.mode, ino: info.ino, dev: info.dev, size: info.size, mtimeMs: info.mtimeMs };
+    if (info.isSymbolicLink()) return { ...meta, link: await readlink(path) };
+    if (info.isDirectory()) return { ...meta, children: await Promise.all((await readdir(path)).sort().map(async name => [name, await metaTree(join(path, name))])) };
+    return meta;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "absent";
+    throw error;
+  }
+}
 async function snapshot(): Promise<Record<string, string>> {
   const home = homedir();
   const result: Record<string, string> = {};
   // Agent setup (app/src/main/agentSetup) writes these when a packaged app in Applications launches.
-  const agentSetup = [join(home, ".local/share/doan"), "/usr/local/bin/doan", join(home, ".codex/rules/doan.rules"), join(home, ".gemini/config/skills/doan"),
-    join(home, ".cursor/skills/doan"), join(home, ".copilot/skills/doan")];
+  const agentSetup = [join(home, ".local/share/doan"), "/usr/local/bin/doan", join(home, ".codex/rules/doan.rules"), join(home, ".gemini/config/skills/doan")];
+  const support = join(home, "Library/Application Support");
   for (const path of new Set([join(home, ".local/bin/doan"), join(home, ".agents/skills/doan"), join(home, ".claude/skills/doan"), ...agentSetup,
     ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, "skills/doan")] : []),
-    ...["folders.json", "runtime.json", "onboarding.json", "ui-state.json", "agent-setup.json", "thumbnails", "sessions.jsonl", "conversations", "agent-auth"].map(name => join(home, "Library/Application Support/doan", name))])) result[path] = hash(JSON.stringify(await tree(path)));
+    ...USER_DATA.filter(name => !METADATA_ONLY.has(name)).map(name => join(support, "doan", name))])) result[path] = hash(JSON.stringify(await tree(path)));
+  for (const name of METADATA_ONLY) result[`${join(support, "doan", name)}:meta`] = hash(JSON.stringify(await metaTree(join(support, "doan", name))));
+  result[`${join(support, "doan*")}:names`] = await siblings(support);
+  for (const path of new Set([join(home, ".claude/settings.json"), ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, "settings.json")] : [])]))
+    result[`${path}:permissions.allow(doan)`] = await claudeAllow(path);
   for (const rel of AUTH_FILES) result[`${join(home, rel)}:meta`] = hash(JSON.stringify(await meta(join(home, rel))));
   result["keychain:provider-items"] = await keychain();
   result["keychain:codex-mcp-accounts"] = hash(JSON.stringify(await codexMcpAccounts()));

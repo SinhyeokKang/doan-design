@@ -28,6 +28,10 @@ body{padding:var(--space-8);background:var(--surface-inset)}
 .canvas-status button{pointer-events:auto}
 .canvas-status b{color:var(--text-standard);font-weight:var(--type-weight-medium)}
 .canvas-status>*{max-width:260px;overflow-wrap:anywhere}
+.canvas-status>.canvas-status-block{display:flex;flex-direction:column;align-items:center;max-width:320px;padding:var(--space-6);border:1px solid var(--border-standard);border-radius:var(--radius-container);background:var(--surface-panel)}
+.canvas-status-block .doan-alert-icon{margin:0 0 var(--space-2)}
+.canvas-status-block h2{color:var(--text-standard);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
+.canvas-status-block .doan-button{margin-top:var(--space-4)}
 .doan-canvas-bottom{position:absolute;z-index:3;bottom:var(--space-5);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:var(--space-2)}
 .doan-canvas-tools{display:flex;align-items:center;gap:var(--space-half)}
 .doan-canvas-tools .doan-icon-button{color:var(--text-standard)}
@@ -149,7 +153,7 @@ body{padding:var(--space-8);background:var(--surface-inset)}
 <div class="tiles" data-doan-frame="board-failed" data-doan-title="Board · Hand, load failed" data-doan-implements="app/src/renderer/App.tsx">
 <div class="tile"><section class="area" aria-label="Canvas">
 <div class="overlay"></div>
-<div class="canvas-status" role="status"><div><b>Couldn’t load the canvas</b><br>Run doan check in a terminal<br><br><button class="doan-button" data-ui-variant="panel" data-ui-size="sm" data-doan-id="reload">Reload</button></div></div>
+<div class="canvas-status" role="status"><div class="canvas-status-block"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><h2>Couldn’t load the canvas</h2><p>Run doan check in a terminal.</p><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-doan-id="reload">Reload</button></div></div>
 <div class="doan-canvas-bottom"><div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
 <button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Select" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
 <button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Hand" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>

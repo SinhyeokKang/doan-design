@@ -31,6 +31,21 @@ test("static gates include runtime support and app lint without launching Electr
   assert.throws(() => plan(["--skip-tests"]), /Unknown/);
 });
 
+// The buddy goldens are generated from their drafts; a draft changed without regenerating must fail the gate.
+test("the buddy goldens are checked against their drafts, once, in shard 1 only", () => {
+  const goldens = [["buddy-golden", ["app/scripts/doanyGolden.mjs", "--check"]], ["docked-buddy-golden", ["app/scripts/dockedBuddyGolden.mjs", "--check"]]];
+  for (const flags of [[], ["--eval"], ["--shard", "1/3"]]) {
+    const planned = plan(flags);
+    for (const [name, args] of goldens) {
+      const found = planned.filter(s => s.name === name);
+      assert.equal(found.length, 1, `${name} ${flags.join(" ")}`);
+      assert.equal(found[0].command, process.execPath);
+      assert.deepEqual(found[0].args, args);
+    }
+  }
+  for (const flags of [["--shard", "2/3"], ["--shard", "3/3"]]) assert.ok(!plan(flags).some(s => s.name.endsWith("golden")));
+});
+
 test("a failed child stops later steps even if it prints PASS", async t => {
   const dir = await workspace(t);
   const result = await runSteps([

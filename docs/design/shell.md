@@ -170,7 +170,7 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 
 ### Not verified and unresolved
 
-- **Stop and Paste dialogs.** Settings reuses first run's Stop and Paste dialogs, whose actions are `sm`; the draft's `states-agents` tile and 'Dialogs' draw the default size. Unresolved with the same first-run mismatch.
+- **Stop and Paste dialogs.** Settings reuses first run's Stop and Paste dialogs, whose actions are at the default size, as the draft's `states-agents` tile and 'Dialogs' draw them; read from source, not measured.
 - The 24rem narrow layout in a real placement (no placement is that narrow at the 960 × 600 minimum).
 - Roles and names were read from DOM attributes, not from the accessibility tree: rows `group` named by the provider; Agent, Model and Effort `button` with `aria-haspopup="menu"`; switches `switch` with `aria-checked`; confirmations `alertdialog`.
 - Hover and keyboard focus on the sidebar rows, the switch focus ring and menu contents of Agent, Model and Effort were not measured.
@@ -186,7 +186,7 @@ Reference: `.doan/canvases/buddy-choice.html`, frames `settings-general` and `se
 | Header | Title "General", lead "Choices that apply across Doan on this Mac."; one section "Buddy" (title at y 170.4) with the description "Shown on Home and while an agent works on a canvas. It also sets the accent color." | |
 | Group | One `.doan-settings-group` (720 × 366 at 373, 220.4) holding a radiogroup named by the section title: one row per buddy in the default order Doany, Puri, Dungdung, Popo, Dori, split by `--border-standard` hairlines (72 high, 73 with the hairline) | |
 | Row | A `.doan-preference-row` `<label>` with columns auto / 1fr / auto and a 12 gap: `card.png` 48 × 48 (`--size-control-lg`), radius `--radius-chip`, `alt=""`; name (500) over its line; first run's 16px radio at the end, on as `--affordance-prominent` with a 6px `--text-on-prominent` dot. The whole row is the hit target. A click never checks the radio itself (the switch is confirmed first); the row does not move and draws no accent | |
-| Focus | 2px `--border-focus` ring at offset 2 with `--radius-row` while the radio is `:focus-visible`; arrows only move focus and go round from the last row to the first | |
+| Focus | 2px `--border-focus` ring at offset −2 with `--radius-row` while the radio is `:focus-visible` (the inset ring of preference rows, DESIGN 'Focus'); arrows only move focus and go round from the last row to the first | |
 | Failure | Above the group (`.settings-notice`), under a newer or broken notice when both show: the Buddy step's sentence with an sm Retry; the rows return to the saved buddy and the category's own `.ob-live` reads the failure once. Leaving the category clears it | |
 | Newer | Rows `data-disabled`: default cursor, an off radio on `--surface-inset` with a `--border-standard` ring, the checked one `--affordance-disabled` with a `--text-disabled` dot | |
 

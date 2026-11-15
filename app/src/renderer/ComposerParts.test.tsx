@@ -4,7 +4,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { DropdownMenu } from "radix-ui";
-import { AgentPicker, EffortPicker, IconTip, PermissionPicker, useOlderFold, presetBody, PresetsButton, SendButton, SlashPresets } from "./ComposerParts";
+import { AgentPicker, EffortPicker, IconTip, PermissionPicker, useOlderFold, presetBody, PresetsButton, SendButton, SlashPresets, SuggestionButton } from "./ComposerParts";
 import type { ModelPickerView } from "./homeComposer";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { permissionPickerView } from "./permissionPicker";
@@ -482,5 +482,17 @@ test("a checked older group waits for settled placement before unfolding, then r
 test("Queue's reset description is an sr-only span inside the button, not a title", () => {
   const out = renderToStaticMarkup(<TooltipProvider><SendButton action="queue" enabled sending={false} onSend={() => {}} description={"Sends when the limit resets at 3:00\u202fPM."} tip={"Queue — sends when the limit resets at 3:00\u202fPM"} /></TooltipProvider>);
   expect(out).toMatch(/<button[^>]*aria-label="Queue"[^>]*aria-describedby="([^"]+)"[^>]*>.*<span id="\1" class="sr-only">Sends when the limit resets at 3:00\u202fPM\.<\/span><\/button>/);
+  expect(out).not.toContain("title=");
+});
+// Home, the Overview and the canvas panel draw this one button, so a fix to it (the Tooltip instead of a native title)
+// reaches all three.
+test("a suggested prompt is one button: group icon, highlighted sentence and arrow, its sentence in the shared tooltip", () => {
+  const prompt = {
+    label: "Review the checkout canvas", text: "Review the checkout canvas.",
+    parts: [{ text: "Review the ", value: false }, { text: "checkout", value: true }, { text: " canvas", value: false }],
+    preset: { id: "critique", title: "Critique", description: "", scope: "", group: "review" },
+  };
+  const out = renderToStaticMarkup(<TooltipProvider><SuggestionButton prompt={prompt} onPick={() => {}} /></TooltipProvider>);
+  expect(out).toMatch(/^<button type="button" class="suggestion" data-state="closed" data-slot="tooltip-trigger"><span class="suggestion-icon"><svg[^>]*aria-hidden="true"[^>]*>.*?<\/svg><\/span><span class="suggestion-label">Review the <span class="suggestion-value">checkout<\/span> canvas<\/span><svg[^>]*class="[^"]*suggestion-go[^"]*"[^>]*>.*<\/svg><\/button>$/);
   expect(out).not.toContain("title=");
 });

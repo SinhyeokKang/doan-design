@@ -43,13 +43,24 @@ test("attempts the CLI refused are read from tool calls, not from quoted text", 
     [doan("sign-in --session s_eval --provider claude --stop --request x"), "no_stop_or_paste"],
     [doan("sign-in paste --session s_eval --provider antigravity --request x"), "no_stop_or_paste"],
     [`'/Applications/My Apps/doan.app/Contents/Resources/bin/doan' onboarding check --session s_eval --provider copilot --request k0 --json`, "no_copilot_check"],
+    // The CLI reads flags before the command as well.
+    ["doan --provider copilot onboarding check --session s_eval --request k0 --json", "no_copilot_check"],
+    ["doan --session s_eval -path repo onboarding project inspect --request i0", "absolute_paths_only"],
   ];
   for (const [command, id] of refused) {
     assert.deepEqual(run(PASS, { commands: [command] }), [id], command);
     assert.deepEqual(run(PASS, { commands: [`echo '${command.replaceAll("'", "")}'`] }), [], `quoted: ${command}`);
   }
-  for (const command of [doan('project inspect --session s_eval --path "$REPO" --request i0'), doan(`project inspect --session s_eval --path ${ROOT}/ --request i0`)])
+  // A flag value is not a flag or a subcommand: copilot is the request id here, and stop the session id.
+  for (const command of [doan('project inspect --session s_eval --path "$REPO" --request i0'), doan(`project inspect --session s_eval --path ${ROOT}/ --request i0`),
+    doan("check --session s_eval --provider claude --request copilot"), doan("sign-in --session stop --provider claude --request x")])
     assert.deepEqual(run(PASS, { commands: [command] }), [], command);
+});
+
+// A command the reader could not follow may have been any of those attempts, so none of the command-only checks holds.
+test("the command-only prohibitions fail beside a command the reader could not follow", () => {
+  const unread = `if true; then ${doan("check --session s_eval --provider copilot --request k0")}; fi`;
+  assert.deepEqual(run(PASS, { commands: [unread] }), ["absolute_paths_only", "no_copilot_check", "no_stop_or_paste"]);
 });
 
 // Disclosure before select is judged from the transcript; the judge must see the two in the order they happened.
@@ -61,4 +72,12 @@ test("the judge prompt keeps disclosure and select in transcript order", () => {
     assert.ok(prompt.includes(JSON.stringify(tell)) && prompt.includes(JSON.stringify(select)));
     assert.equal(prompt.indexOf(JSON.stringify(tell)) < prompt.indexOf(JSON.stringify(select)), before);
   }
+});
+
+// An unknown flag before the command may have taken the next word as its value, so the reader cannot tell which word
+// is the command; the attempt checks fail closed instead of missing it.
+test("an unknown flag before onboarding fails the command-only prohibitions", () => {
+  for (const command of ["doan --stop s1 onboarding cancel --session s_eval --json", "doan --provider claude --stop onboarding sign-in --session s_eval --request x",
+    "doan --code ABC onboarding check --session s_eval --provider copilot --request k0"])
+    assert.deepEqual(run(PASS, { commands: [command] }), ["absolute_paths_only", "no_copilot_check", "no_stop_or_paste"], command);
 });

@@ -1,20 +1,35 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { spawnAuthProcess } from "./manager";
 import { CURSOR_USAGE_URL, readUsage, type UsageReadOptions } from "./usageRead";
 
+// Runs a hook once, right after the first lstat or open of a chosen path returns: the moment a check-then-read could
+// be raced by the provider process replacing the file.
+const fsHook = vi.hoisted(() => ({ path: "", after: null as null | (() => void) }));
+vi.mock("node:fs", async original => {
+  const real = await original<typeof import("node:fs")>();
+  const looked = (path: unknown) => { const after = fsHook.after; if (after && path === fsHook.path) { fsHook.after = null; after(); } };
+  return {
+    ...real,
+    lstatSync: ((...args: Parameters<typeof real.lstatSync>) => { const result = real.lstatSync(...args); looked(args[0]); return result; }) as typeof real.lstatSync,
+    openSync: ((...args: Parameters<typeof real.openSync>) => { const result = real.openSync(...args); looked(args[0]); return result; }) as typeof real.openSync,
+  };
+});
+afterEach(() => { fsHook.after = null; });
+
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}-usage.json`, import.meta.url), "utf8");
-let root: string, profileDir: string, probeDir: string, log: string;
+let root: string, profileDir: string, log: string;
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "doan-usage-read-"));
-  profileDir = join(root, "profile"); probeDir = join(root, "probe"); log = join(root, "log");
-  mkdirSync(profileDir); mkdirSync(probeDir);
+  profileDir = join(root, "profile"); log = join(root, "log");
+  mkdirSync(profileDir);
 });
 afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
-const options = (over: Partial<UsageReadOptions> = {}): UsageReadOptions => ({ spawn: spawnAuthProcess, probeDir, openMs: 10_000, readMs: 1000, now: () => 1_000, ...over });
+const options = (over: Partial<UsageReadOptions> = {}): UsageReadOptions => ({ spawn: spawnAuthProcess, openMs: 10_000, readMs: 1000, now: () => 1_000, ...over });
 const lease = (command: string, mode = "") => ({ command, env: { PATH: process.env.PATH ?? "", HOME: profileDir, FAKE_USAGE: mode, FAKE_LOG: log }, profileDir });
 const logged = () => readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as Record<string, unknown>);
 const gone = (pid: number) => { try { process.kill(pid, 0); return false; } catch { return true; } };
@@ -113,11 +128,31 @@ describe("Copilot usage read", () => {
     expect(reading).toMatchObject({ status: "ok", readAt: 1_000 });
     const [start, ...messages] = logged();
     expect(start).toMatchObject({ argv: ["--headless", "--no-auto-update", "--stdio"] });
-    expect(String(start!.cwd)).toContain("probe");
+    expect(start!.cwd).toBe(realpathSync.native(profileDir));
     expect(messages.map(m => m.method)).toEqual(["connect", "account.getQuota"]);
     expect(messages.every(m => m.jsonrpc === "2.0")).toBe(true);
     expect(gone(Number(start!.pid))).toBe(true);
   }, 20_000);
+  // Every Copilot process imports the JavaScript in the profile's package cache, which a fenced Copilot turn can rewrite,
+  // so the read runs in the outer fence, from the profile (userData itself is closed).
+  it("runs under the outer fence from the profile when a fence is set", async () => {
+    const userData = join(root, "ud"), profile = join(userData, "agent-auth", "profiles", "copilot"); mkdirSync(profile, { recursive: true });
+    const exec = join(root, "sandbox-exec"), seen = join(root, "exec-args");
+    writeFileSync(exec, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(seen)}\nwhile [ "$1" = "-p" ] || [ "$1" = "-D" ]; do shift 2; done\nexec "$@"\n`, { mode: 0o700 });
+    const command = copilot();
+    const reading = await readUsage("copilot", { ...lease(command), profileDir: profile }, options({ fence: { userData, exec } }));
+    expect(reading).toMatchObject({ status: "ok" });
+    const args = readFileSync(seen, "utf8").split("\n");
+    expect(args[0]).toBe("-p");
+    expect(args).toContain(`PROFILE=${realpathSync.native(profile)}`);
+    expect(args.slice(-5, -1)).toEqual([command, "--headless", "--no-auto-update", "--stdio"]);
+    expect(logged()[0]!.cwd).toBe(realpathSync.native(profile));
+  }, 20_000);
+  it("starts nothing and reads as read_failed when the fence cannot be built", async () => {
+    const reading = await readUsage("copilot", lease(copilot()), options({ fence: { userData: join(root, "ud") } }));
+    expect(reading).toMatchObject({ status: "unavailable", reason: "read_failed" });
+    expect(() => logged()).toThrow();
+  });
   it("reads a missing connect answer as read_failed and Method not found as not_supported", async () => {
     expect(await readUsage("copilot", lease(copilot(), "silent-init"), options({ openMs: 3000 }))).toMatchObject({ status: "unavailable", reason: "read_failed" });
     expect(await readUsage("copilot", lease(copilot(), "not-found"), options())).toMatchObject({ status: "unavailable", reason: "not_supported" });
@@ -130,7 +165,7 @@ describe("Claude usage read", () => {
     expect(reading).toMatchObject({ status: "ok", readAt: 1_000 });
     expect(reading.status === "ok" && reading.windows.slice(0, 2)).toMatchObject([{ id: "five_hour", usedPercent: 3 }, { id: "seven_day", usedPercent: 99 }]);
     const entries = logged(), start = entries[0]!;
-    expect(String(start.cwd)).toContain("probe");
+    expect(start.cwd).toBe(realpathSync.native(profileDir));
     const requests = entries.filter(m => m.type === "control_request").map(m => m.request as Record<string, unknown>);
     expect(requests.map(r => r.subtype)).toEqual(["initialize", "get_usage"]);
     expect(requests[1]).toMatchObject({ skip_behaviors: true });
@@ -146,6 +181,29 @@ describe("Claude usage read", () => {
     expect(pinned!.slice(pinned!.indexOf("--managed-settings"), pinned!.indexOf("--managed-settings") + 2)).toEqual(["--managed-settings", '{"forceLoginOrgUUID":"org-uuid-1"}']);
     expect(unpinned).not.toContain("--managed-settings");
   }, 30_000);
+  // An agent can write the profile's .claude.json and a .mcp.json in a folder above userData, and the CLI starts the MCP
+  // servers they name with the read, so the read runs in the outer fence, from the profile (userData itself is closed).
+  it("runs under the outer fence from the profile, with Claude's own sandbox off, when a fence is set", async () => {
+    const userData = join(root, "ud"), profile = join(userData, "agent-auth", "profiles", "claude"); mkdirSync(profile, { recursive: true });
+    const exec = join(root, "sandbox-exec"), seen = join(root, "exec-args");
+    writeFileSync(exec, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(seen)}\nwhile [ "$1" = "-p" ] || [ "$1" = "-D" ]; do shift 2; done\nexec "$@"\n`, { mode: 0o700 });
+    const command = claude();
+    const reading = await readUsage("claude", { ...lease(command), profileDir: profile }, options({ readMs: 5000, fence: { userData, exec } }));
+    expect(reading).toMatchObject({ status: "ok" });
+    const args = readFileSync(seen, "utf8").split("\n");
+    expect(args[0]).toBe("-p");
+    expect(args).toContain(`PROFILE=${realpathSync.native(profile)}`);
+    expect(args).toContain(command);
+    const start = logged()[0]!;
+    expect(start.cwd).toBe(realpathSync.native(profile));
+    const argv = start.argv as string[];
+    expect(JSON.parse(argv[argv.indexOf("--settings") + 1]!)).toEqual({ sandbox: { enabled: false } });
+  }, 20_000);
+  it("starts nothing and reads as read_failed when the fence cannot be built", async () => {
+    const reading = await readUsage("claude", lease(claude()), options({ fence: { userData: join(root, "ud") } }));
+    expect(reading).toMatchObject({ status: "unavailable", reason: "read_failed" });
+    expect(() => logged()).toThrow();
+  });
   it("reads an unsupported control request as not_supported and a missing initialize answer as read_failed", async () => {
     expect(await readUsage("claude", lease(claude(), "unsupported"), options({ readMs: 5000 }))).toMatchObject({ status: "unavailable", reason: "not_supported" });
     expect(await readUsage("claude", lease(claude(), "silent-init"), options({ openMs: 3000 }))).toMatchObject({ status: "unavailable", reason: "read_failed" });
@@ -215,6 +273,25 @@ describe("Cursor usage read", () => {
     const fetch = vi.fn<typeof globalThis.fetch>();
     expect(await read(fetch)).toMatchObject({ status: "unavailable", reason: "read_failed" });
     expect(fetch).not.toHaveBeenCalled();
+  });
+  it("refuses a FIFO credential file without blocking", async () => {
+    mkdirSync(join(profileDir, ".cursor"));
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const result = await withFifo(authFile(), () => read(fetch));
+    expect(result.value).toMatchObject({ status: "unavailable", reason: "read_failed" });
+    expect(result.ms).toBeLessThan(PROMPT_MS);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("never sends another file's token when the credential file becomes a link after it was first looked at", async () => {
+    writeAuth();
+    const OTHER = `${b64({ alg: "HS256" })}.${b64({ sub: "auth0|someone_else", exp: 9_999_999_999 })}.other-signature`;
+    writeFileSync(join(root, "elsewhere.json"), JSON.stringify({ accessToken: OTHER }));
+    fsHook.path = authFile();
+    fsHook.after = () => { rmSync(authFile()); symlinkSync(join(root, "elsewhere.json"), authFile()); };
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => reply(200, fixture("cursor")));
+    await read(fetch);
+    expect(fsHook.after).toBeNull();
+    expect(JSON.stringify(fetch.mock.calls.map(call => call[1]?.headers))).not.toContain("other-signature");
   });
   it("keeps the token out of its result, its logs and its errors, whatever the request throws", async () => {
     writeAuth();

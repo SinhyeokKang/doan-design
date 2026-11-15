@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useLayoutEffect, useReducer, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from "react";
 import { DropdownMenu } from "radix-ui";
-import { ArrowUpRight, Check, ChevronDown, GitBranch, Plus } from "lucide-react";
+import { Check, ChevronDown, GitBranch, Plus } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { AttachmentResult } from "../main/attachments";
@@ -12,18 +12,17 @@ import { useProjectSkills, type SkillsCalls } from "./useProjectSkills";
 import { fieldSkillRuns } from "./skillWords";
 import { AlertIcon } from "./AlertIcon";
 import {
-  AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, GroupIcon, PermissionPicker, PresetsButton, SendButton, SlashPresets, SuggestionLabel, useComposerDrop, usePresetListOutside,
+  AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PermissionPicker, PresetsButton, SendButton, SlashPresets, SuggestionButton, useComposerDrop, usePresetListOutside,
   type ComposerFieldHandle,
 } from "./ComposerParts";
 import type { BuddyId } from "./buddies";
 import { Buddy, type BuddyHandle } from "./Doany";
 import { textSegments, typedText } from "./anchorField";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { cardRow, chipClass, groupProjects } from "./homeCards";
 import { generationOf, modelsKey } from "./dockedSupport";
 import {
   followDrawerHighlight, type PresetRow, attachmentChipView, attachmentLimit, attachRefusal, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, defaultProject, defaultProvider,
-  fixedPreference, greetingText, groupIcon, lengthCounter, markRefused, modelOption, modelPickerView, presetListView, presetPlaceholder, readyAttachment,
+  fixedPreference, greetingText, lengthCounter, markRefused, modelOption, modelPickerView, presetListView, presetPlaceholder, readyAttachment,
   rootForProject, selectableProvider, sendAvailability, slashKey, slashQuery, startErrorView, suggestedPresets, suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type NewConversationDefault, type PresetListReply, type PresetSummary,
 } from "./homeComposer";
@@ -584,20 +583,17 @@ export function HeroComposer(props: HeroComposerProps) {
           <span className="tray-path selectable">{displayPath(entry.path, props.homeDirectory)}</span>
         </div>}
       </div>
-      {prompts.length > 0 && <div className="home-suggestions" role="group" aria-label="Suggested prompts" inert={started}>{prompts.map(prompt => {
-        const button = <button key={prompt.label} type="button" className="suggestion" onClick={() => { edit({ preset: prompt.preset, text: prompt.text }); queueMicrotask(focusEnd); }}>
-          <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><SuggestionLabel parts={prompt.parts} /><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button>;
-        return <Tooltip key={prompt.label}><TooltipTrigger asChild>{button}</TooltipTrigger><TooltipContent>{prompt.label}</TooltipContent></Tooltip>;
-      })}</div>}
+      {prompts.length > 0 && <div className="home-suggestions" role="group" aria-label="Suggested prompts" inert={started}>{prompts.map(prompt =>
+        <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { edit({ preset: prompt.preset, text: prompt.text }); queueMicrotask(focusEnd); }} />)}</div>}
       {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable">{notice.text}</span>{notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => void send()}>Retry</button>}</div>}
       {!notice && reason && reason.kind !== "noAgent" && (reason.kind === "attachmentMissing"
         ? <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable">{reason.text}</span></div>
         : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}
       <div className="sr-only" role="status">{announcement}</div>
     </div>
-    {confirm && <dialog className="doan-dialog" data-ui-size="compact" aria-label={confirm.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); setConfirm(null); }}>
+    {confirm && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" aria-label={confirm.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); setConfirm(null); }}>
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">{confirm.title}</h3><p className="doan-dialog-description">{confirm.body}</p></div></div>
-      <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" autoFocus onClick={() => { setConfirm(null); queueMicrotask(focusEnd); }}>{confirm.cancel}</button><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={() => apply(confirm.request)}>{confirm.confirm}</button></div>
+      <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" autoFocus onClick={() => { setConfirm(null); queueMicrotask(focusEnd); }}>{confirm.cancel}</button><button type="button" className="doan-button" data-ui-variant="prominent" onClick={() => apply(confirm.request)}>{confirm.confirm}</button></div>
     </dialog>}
     <HomeCredit />
   </HomeStage>;

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { documents, exportCalls, localReferences } from "./checks.ts";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { documents, exportCalls, localReferences, sameCanvas } from "./checks.ts";
 
 const srcdoc = (canvas: string) => `<!doctype html><html><body><iframe srcdoc="${canvas.replaceAll("&", "&amp;").replaceAll('"', "&quot;")}"></iframe><script>el.href = "app.js"; fetch("data.json")</script></body></html>`;
 
@@ -8,6 +11,9 @@ test("X1 reads doan export calls with -o and --force as flags", () => {
   assert.deepEqual(exportCalls(["cd repo && doan export .doan/canvases/profile.html -o ../profile.html --force"]), [{ canvas: ".doan/canvases/profile.html", output: "../profile.html" }]);
   assert.deepEqual(exportCalls(["doan export -o out.html a.html --json"]), [{ canvas: "a.html", output: "out.html" }]);
   assert.deepEqual(exportCalls(["echo 'doan export a.html -o b.html'", "doan check"]), []);
+  // --force here is the -o value; export refuses --note, so that command named nothing.
+  assert.deepEqual(exportCalls(["doan export a.html -o --force --json"]), [{ canvas: "a.html", output: "--force" }]);
+  assert.deepEqual(exportCalls(["doan export a.html --note -o --json"]), []);
 });
 
 test("X1 finds references left in the page and in the canvas inside srcdoc", () => {
@@ -23,4 +29,21 @@ test("X1 decodes the srcdoc as a second document and ignores script bodies", () 
   assert.equal(documents(page).length, 2);
   assert.match(documents(page)[1]!, /title="x &amp; y"/);
   assert.deepEqual(localReferences(page), []);
+});
+
+// The run's repo is a realpath (/private/tmp on macOS); an agent may spell the canvas through the /tmp link.
+test("X1 takes a canvas spelled through a symlinked folder as the same canvas", () => {
+  const base = mkdtempSync(join(tmpdir(), "doan-x1-"));
+  try {
+    const repo = realpathSync(base);
+    mkdirSync(join(repo, ".doan/canvases"), { recursive: true });
+    writeFileSync(join(repo, ".doan/canvases/profile.html"), "");
+    const link = `${base}-link`;
+    symlinkSync(repo, link);
+    try {
+      assert.equal(sameCanvas(repo, repo, join(link, ".doan/canvases/profile.html")), true);
+      assert.equal(sameCanvas(repo, repo, ".doan/canvases/profile.html"), true);
+      assert.equal(sameCanvas(repo, repo, ".doan/canvases/other.html"), false);
+    } finally { rmSync(link, { force: true }); }
+  } finally { rmSync(base, { recursive: true, force: true }); }
 });

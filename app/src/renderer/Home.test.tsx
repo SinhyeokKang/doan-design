@@ -7,7 +7,8 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { emptyComposer, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
-import type { PresetListReply, PresetSummary } from "./homeComposer";
+import { suggestedPrompts, type PresetListReply, type PresetSummary, type SuggestedPrompt } from "./homeComposer";
+import { SuggestionButton } from "./ComposerParts";
 import { ShellSidebar } from "./ShellSidebar";
 import { groupProjects } from "./homeCards";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -46,7 +47,7 @@ test("Home is the shell with the sidebar and a composer body: no project cards, 
   expect(html).not.toContain("Finish setting up doan");
   expect(html).not.toContain("Connection problem");
   expect(html).toContain('<main class="app-shell home-shell"><header class="top shell-top"></header><aside class="side shell-side"');
-  expect(html).toContain('<section class="home-panel" aria-label="Home"><div class="home-stage"><button type="button" class="doany" aria-label="Make Doany hop" style="width:114px;height:114px"><img src="doany/doany.png" alt=""/><img class="buddy-shadow" src="buddies/doany/shadow.png" alt="" aria-hidden="true" style="transform-origin:calc(16.5% + 67% * 0.458) calc(16.5% + 67% * 0.941)"/><canvas hidden="" aria-hidden="true"></canvas></button><h1 class="home-greeting">');
+  expect(html).toContain('<section class="home-panel doan-scroll" aria-label="Home"><div class="home-stage"><button type="button" class="doany" aria-label="Make Doany hop" style="width:114px;height:114px"><img src="doany/doany.png" alt=""/><img class="buddy-shadow" src="buddies/doany/shadow.png" alt="" aria-hidden="true" style="transform-origin:calc(16.5% + 67% * 0.458) calc(16.5% + 67% * 0.941)"/><canvas hidden="" aria-hidden="true"></canvas></button><h1 class="home-greeting">');
   // The sidebar marks no current project or canvas on Home.
   expect(html).not.toContain("aria-current=\"location\"");
 });
@@ -82,6 +83,16 @@ test("an empty composer for a project with canvases: project above, tray below, 
   expect(html.replace(/<[^>]+>/g, "")).toContain("Review the doan-onboarding canvas");
   expect(html.match(/suggestion-go/g)).toHaveLength(3);
   expect(html).not.toContain("composer-reason");
+});
+
+// The rows are the shared SuggestionButton, so the three surfaces cannot drift apart again.
+const suggestionButtons = (html: string) => html.match(/<button type="button" class="suggestion".*?<\/button>/g) ?? [];
+const sharedSuggestions = (prompts: readonly SuggestedPrompt[]) => prompts.flatMap(prompt => suggestionButtons(renderToStaticMarkup(<TooltipProvider><SuggestionButton prompt={prompt} onPick={() => {}} /></TooltipProvider>)));
+test("Home's suggested prompts are the shared suggestion button", () => {
+  const entry = project("/code/doan-design");
+  const prompts = suggestedPrompts(entry, "doan-design", PRESETS);
+  expect(prompts).toHaveLength(3);
+  expect(suggestionButtons(render([entry]))).toEqual(sharedSuggestions(prompts));
 });
 
 test("with no project the picker is Add Projects…, the tray and suggestions are gone and Send explains why", () => {
@@ -158,6 +169,24 @@ test("Home CSS keeps the draft's measured icon sizes, popover status type, chip 
   expect(css).not.toMatch(/\.preset-chip \.chip-remove[^{]*\{[^}]*color/);
   // Send keeps the shared disabled fill while sending, as the draft renders it.
   expect(css).not.toMatch(/\.composer-send[^{]*\{[^}]*background/);
+});
+
+// Body panels draw no edge shadow, as the workspace's Overview and Canvas do; Home, Add Projects, Settings and Project
+// Settings share .home-panel. Floating material keeps the panel shadow as its edge.
+test("Home CSS: the body panel has the white fill and container corners and no edge shadow", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const panel = css.match(/\n\.home-panel \{[^}]*\}/)![0];
+  expect(panel).toContain("border-radius: var(--radius-container); background: var(--surface-panel);");
+  expect(panel).not.toContain("box-shadow");
+  expect(css).not.toMatch(/\.home-panel[^{]*\{[^}]*box-shadow/);
+  expect(readFileSync(new URL("./ds/surfaces.css", import.meta.url), "utf8")).toMatch(/\.doan-floating \{[^}]*box-shadow: var\(--shadow-panel\);/);
+  // The workspace's body panels spell the same corner and gutter with the same tokens.
+  for (const selector of [".workspace > .doan-canvas-panel", ".workspace > .ov"]) {
+    const body = css.match(new RegExp(`\\n${selector.replace(/[.>]/g, m => `\\${m}`)} \\{([^}]*)\\}`))![1]!;
+    expect(body).toContain("margin-left: var(--space-2);");
+    expect(body).toContain("border-radius: var(--radius-container) 0 0 var(--radius-container);");
+  }
+  expect(css).toContain(".workspace > .right-stack { border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }");
 });
 
 // The composer's focused border and the disabled ink of its tools.

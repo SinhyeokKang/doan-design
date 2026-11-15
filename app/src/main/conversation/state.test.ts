@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { foldConversation, mergeEvents, turnState, bindFirstCanvas } from "./state";
+import { foldConversation, mergeEvents, turnState } from "./state";
 import { reserveSession, promoteReservation, releaseReservation } from "./ownership";
-import type { ConversationEvent, EventPayload, ConversationBinding, Reservation, SessionKey } from "./types";
+import type { ConversationEvent, EventPayload, Reservation, SessionKey } from "./types";
 const event = (seq: number, payload: EventPayload, turnId = "turn-1", conversationId = "a"): ConversationEvent => ({ v: 1, seq, conversationId, turnId, at: "2026-10-27T00:00:00.000Z", ...payload });
 const permission: EventPayload = { type: "permission.request", requestId: "r", tool: "Write", summary: "Write file", options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" }] };
 const question: EventPayload = { type: "question.request", requestId: "q", questions: [{ id: "0", header: "Color", question: "Which color?", options: [{ label: "Red" }, { label: "Blue" }], multiSelect: false, other: true }] };
@@ -70,17 +70,14 @@ describe("conversation recovery and event merge", () => {
     expect(foldConversation(merged, "a", false).turn).toBe("idle");
     expect(mergeEvents(merged, [event(3, { type: "conversation.archived" })], "a")).toHaveLength(3);
   });
+  it("orders by seq whatever the arrival order and drops a non-positive seq", () => {
+    const all = [event(1, { type: "turn.started" }), event(2, { type: "activity", kind: "edit", summary: "a" }), event(3, { type: "activity", kind: "edit", summary: "b" }), event(4, { type: "activity", kind: "edit", summary: "c" })];
+    const merged = mergeEvents(all.slice(0, 2), [...all.slice(2).reverse(), all[1]!, event(99, { type: "turn.done" }, "turn-1", "other"), { ...all[2]!, seq: 0 }], "a");
+    expect(merged.map(e => e.seq)).toEqual([1, 2, 3, 4]);
+  });
   it("fences delayed events from an older turn", () => {
     const state = foldConversation([event(1, { type: "turn.started" }), event(2, { type: "turn.done" }), event(3, { type: "turn.started" }, "turn-2"), event(4, { type: "turn.failed", code: "unknown" })], "a", false);
     expect(state.turn).toBe("starting");
-  });
-  it("binds only the first same-root canvas", () => {
-    const binding: ConversationBinding = { conversationId: "a", root: "/repo", origin: "newDesign" };
-    const canvas = { id: "home", path: ".doan/canvases/a.html" };
-    expect(bindFirstCanvas(binding, "/other", canvas)).toEqual(binding);
-    const bound = bindFirstCanvas(binding, "/repo", canvas);
-    expect(bound.canvas).toEqual(canvas);
-    expect(bindFirstCanvas(bound, "/repo", { id: "other", path: ".doan/canvases/b.html" })).toEqual(bound);
   });
 });
 describe("turn state", () => {

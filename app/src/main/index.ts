@@ -46,7 +46,7 @@ import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } 
 import { editMenuInput, editMenuTemplate } from "./editMenu";
 import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, type AddFlow } from "./addProjects";
-import { cliCommand, cliEnv, readFolder, runConfig, runDesignSkill, runExport, runLs, type CliEnv } from "./cli";
+import { cliCommand, cliEnv, runConfig, runDesignSkill, runExport, runLs, type CliEnv } from "./cli";
 import { createCanvasExport, createPrototypeExport, EXPORT_REFUSED } from "./canvasExport";
 import { createCanvasTrash, TRASH_REFUSED, trashBusy } from "./canvasTrash";
 import { createConfigBridge, storageWrite, type ConfigBridge } from "./configBridge";
@@ -161,8 +161,6 @@ app.on("web-contents-created", (_event, contents) => {
   contents.setWindowOpenHandler(() => ({ action: "deny" }));
 });
 
-// --bg-app in renderer/tokens.css: windows paint it before the renderer's first frame.
-const SHELL_BACKGROUND = "#f1f1f2";
 let win: BrowserWindow | undefined;
 let configBridge: ConfigBridge | undefined;
 let shell: Shell | undefined;
@@ -1021,7 +1019,7 @@ async function start(): Promise<void> {
   });
 
   removeStaleLinkDirs();
-  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
+  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), fence: { userData }, locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
     // The onboarding tap comes after AuthIpc stored the link, so the link it opens is this prompt's.
     onChange: () => authIpc?.changed(), onPrompt: prompt => { authIpc?.prompted(prompt); onboarding?.prompted(prompt); },
     // A sign-out or replacement also stops the provider's usage read, whose lease it waits for like a run's.
@@ -1055,11 +1053,11 @@ async function start(): Promise<void> {
   }
   // Agent usage (ARCHITECTURE §7): read on fixed triggers into main memory only, shown only while the window is.
   if (agentAuth && authIpc) {
-    const auth = agentAuth, ipc = authIpc, probeDir = join(userData, "usage-probe");
+    const auth = agentAuth, ipc = authIpc;
     usage = new UsageService({
       auth,
       readiness: provider => ipc.latest().providers.find(status => status.provider === provider)?.readiness ?? { ready: false, cause: "not_connected", action: "signIn" },
-      read: (provider, lease, signal) => readUsage(provider, lease, { spawn: spawnAuthProcess, probeDir }, signal),
+      read: (provider, lease, signal) => readUsage(provider, lease, { spawn: spawnAuthProcess, fence: { userData } }, signal),
       visible: () => windowShown && !appHidden,
       publish: entries => send(USAGE_CHANNELS.changed, entries),
     });
@@ -1081,7 +1079,7 @@ async function start(): Promise<void> {
       readiness: provider => authIpc?.latest().providers.find(status => status.provider === provider)?.readiness ?? { ready: false, cause: "not_connected", action: "signIn" },
       spawn: spawnAuthProcess, spawnPty: ptySpawner({ packaged: app.isPackaged }),
       openExternal: url => electronShell.openExternal(url),
-      publish: snapshot => send(MCP_CHANNELS.changed, snapshot),
+      publish: snapshot => send(MCP_CHANNELS.changed, snapshot), fence: { userData },
     });
   }
   const mcpIpc = mcp ? new McpIpc(mcp) : null;
@@ -1131,7 +1129,7 @@ async function start(): Promise<void> {
       return result;
     },
   };
-  const realOrNull = (path: string) => { try { return realpathSync(path); } catch { return null; } };
+  const realOrNull = (path: string) => { try { return realpathSync.native(path); } catch { return null; } };
   // The developer directory xcode-select would use, read without running it (see locateGit).
   const developerDir = () => { if (process.env.DEVELOPER_DIR) return process.env.DEVELOPER_DIR; try { return readlinkSync("/var/db/xcode_select_link"); } catch { return null; } };
   // First run and the Add Projects page add projects with the same folder work and locks.
@@ -1280,7 +1278,7 @@ async function start(): Promise<void> {
     return project?.kind === "list" ? project.canvases : [];
   }, root => broadcast({ channel: "conversation:listChanged", value: { root } }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model), fast: (root, provider, model) => modelCatalog?.fast(root, provider, model) === true,
     limitWindows: (provider, connectionId) => usage ? usage.limitWindows(provider, connectionId) : Promise.resolve([]), resumed: listener => { powerMonitor.on("resume", listener); }, notice: event => notify.event(event) }, id => notify.close(id),
-  // A stage is a live signal beside the events, never one of them: its own channel, to the main window only as events go.
+  // A stage is a live signal beside the events, never one of them: its own channel, sent to the same windows as events.
   id => { updateConversationWork(endConversationWork(conversationWork, id)); updates?.conversationsChanged(); }, notice => broadcast({ channel: "conversation:handoff", value: notice }), signal => broadcast({ channel: "conversation:stage", value: signal }));
   conversations = conversationService;
   attachments.cleanup();
@@ -1772,7 +1770,11 @@ app.on("before-quit", (event) => {
       if (result.status === "rejected") console.error("doan: project cleanup failed during quit", result.reason);
     }
     quitting = true;
-    try { prototype.destroyForQuit(); cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose(); } catch (error) {
+    // Accepted state goes to disk before any native teardown: a teardown that throws or crashes must not lose it.
+    try { uiState?.flushSync(); canvasSeen?.flushSync(); } catch (error) {
+      console.error("doan: final cleanup failed during quit", error);
+    }
+    try { prototype.destroyForQuit(); cancelPendingHide(); thumbnails?.dispose(); } catch (error) {
       console.error("doan: final cleanup failed during quit", error);
     }
     // Restart to Update installs only here, after the save and the flush; quitting is set, so the windows the install

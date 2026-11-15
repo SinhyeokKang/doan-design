@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CLI_TIMEOUT_MS, folderState, homeOrAbove, initOutcome, realHome, reconcileFolders, type CliRun } from "./folderState";
@@ -370,4 +370,25 @@ describe("homeOrAbove", () => {
       expect(realHome("")).toBe("");
     } finally { rmSync(link); rmSync(spelled, { recursive: true }); }
   });
+
+  // The CLI reports roots in their on-disk spelling; non-native realpath keeps the caller's letter case on a
+  // case-insensitive volume, so a HOME spelled in another case would not match a saved root.
+  test("realHome reads HOME in its on-disk letter case", ctx => {
+    const real = realpathSync.native(mkdtempSync(join(tmpdir(), "doan-home-")));
+    const alias = join(real, "..", (real.split("/").pop() ?? "").toUpperCase());
+    try {
+      if (!existsSync(alias)) ctx.skip();
+      expect(realHome(alias)).toBe(real);
+    } finally { rmSync(real, { recursive: true }); }
+  });
+});
+
+// Identity comparisons in main read paths as the CLI does, in their on-disk spelling.
+test("main resolves real paths only through realpathSync.native", () => {
+  const dir = new URL("./", import.meta.url);
+  const sources = readdirSync(dir, { recursive: true, encoding: "utf8" }).filter(file => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));
+  // Imports and comments are left out: `realpathSync.native` needs `realpathSync` imported, and comments name it to warn.
+  const callers = sources.flatMap(file => readFileSync(new URL(file, dir), "utf8").split("\n").flatMap((line, index) =>
+    !/^\s*(import |\/\/|\*)/.test(line) && /\brealpathSync\b(?!\.native)/.test(line) ? [`${file}:${index + 1}`] : []));
+  expect(callers).toEqual([]);
 });

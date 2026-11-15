@@ -27,9 +27,7 @@ code, kbd { font-family: var(--type-family); }
 .meta { font: 11.5px var(--type-family); color: var(--text-metadata); white-space: nowrap; }
 .side { background: var(--surface-panel); border-right: 1px solid var(--border-standard); }
 .right { background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
-.native-scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
-.native-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.native-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb-quiet); border-radius: 4px; }
+.right.doan-scroll { overflow: auto; }
 .sec { font: 10.5px var(--type-family); letter-spacing: .1em; text-transform: uppercase; color: var(--text-metadata); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 6px; }
 .sec .r { letter-spacing: 0; text-transform: none; }
 .sec .r { color: var(--text-metadata); }
@@ -423,9 +421,9 @@ body:has(.shell-top) { background: transparent; }
 .shell-worktree > span { min-width: 0; flex: 1; }
 .shell-worktree > span > span, .shell-worktree small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell-worktree small { margin-top: 4px; color: var(--text-metadata); font-size: 11px; line-height: 14px; }
-.workspace > .doan-canvas-panel { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
-.workspace > .ov { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
-.workspace > .right-stack { border-radius: 0 24px 24px 0; overflow: hidden; }
+.workspace > .doan-canvas-panel { margin-left: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container) 0 0 var(--radius-container); }
+.workspace > .ov { margin-left: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container) 0 0 var(--radius-container); }
+.workspace > .right-stack { border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
 @media (prefers-reduced-transparency: reduce) {
   body:has(.shell-top), .workspace.app-shell { background: var(--bg-app); }
 }
@@ -435,7 +433,7 @@ body:has(.shell-top) { background: transparent; }
    confirmed 2026-10-29). Shared buttons keep their own padding and fills; this only lays them out. */
 .home-shell { position: absolute; inset: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); background: transparent; overflow: hidden; }
 @media (prefers-reduced-transparency: reduce) { .home-shell { background: var(--bg-app); } }
-.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }
 /* Add Projects page: the white panel is the scroll container and the 560px column grows with it (doan-add-projects
    draft round 3); the page scrolls whole, its footer included. The shared Project screen is sized for first run's
    14/20 body text and plain numerals (.ob-overlay); without them it inherits the app body's 13px/normal. */
@@ -616,8 +614,6 @@ body:has(.shell-top) { background: transparent; }
 .queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
 .queue-item > svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
 .queue-item .queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.canvas-gone { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.canvas-gone svg { flex: none; }
 .grow-text { flex: 1; min-width: 0; }
 /* Suggested prompts under the composer: they wrap instead of shortening (2026-10-29 user). */
 .home-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-4); padding-inline: var(--space-8); }

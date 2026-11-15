@@ -30,6 +30,9 @@ func checkInput(r repo.Repository, resolver *repo.Resolver, inspected func([]can
 	if e != nil {
 		return in, e
 	}
+	if in.MiscasedCanvases, e = repo.MiscasedCanvases(r.Root); e != nil {
+		return in, e
+	}
 	if inspected != nil {
 		readable := make([]canvasFile, 0, len(files))
 		for _, file := range files {

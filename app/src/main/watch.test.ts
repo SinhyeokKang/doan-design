@@ -89,14 +89,14 @@ function repo(parts: { design?: boolean; ds?: boolean; doan?: boolean } = {}): s
   return root;
 }
 
-// Starts watching, lets startup events settle, then counts re-reads.
+// Starts watching, waits out the startup events, then counts re-reads.
 async function watch(root: string): Promise<{ reads: () => number; reset: () => void }> {
   let reads = 0;
   open = watchFolder(root, async () => {
     reads++;
   });
-  await settle(() => reads);
-  reads = 0;
+  // A late setup event would count as the re-read a test expects.
+  await drainSetup(root, () => reads, () => (reads = 0));
   return { reads: () => reads, reset: () => (reads = 0) };
 }
 
@@ -218,17 +218,15 @@ interface Recorder {
   reset: () => void;
 }
 
-// Starts watching with a serving scope as `doan ls` reports it, lets startup
-// events settle, then records what each re-read was asked to do.
+// Starts watching with a serving scope as `doan ls` reports it, waits out the
+// startup events, then records what each re-read was asked to do.
 async function watchScope(root: string, scope: string[]): Promise<Recorder> {
   let calls: Change[] = [];
   open = watchFolder(root, async (change) => {
     calls.push(change);
   });
   open.setScope(scope);
-  await settle(() => calls.length);
-  calls = [];
-  return {
+  const recorder: Recorder = {
     calls: () => calls,
     merged: () => {
       const names = mergedNames(calls);
@@ -236,6 +234,10 @@ async function watchScope(root: string, scope: string[]): Promise<Recorder> {
     },
     reset: () => (calls = []),
   };
+  // Quiet alone let a late FSEvents batch from setup reach a loaded shard's
+  // first assertion; a marker written after setup arrives after that batch.
+  await drainSetup(root, () => calls.length, recorder.reset);
+  return recorder;
 }
 
 // Like the refresher: a union, unknown once any call had an unknown name, and
@@ -256,6 +258,30 @@ async function expectChange(w: Recorder, change: () => void, expected: Change): 
   await vi.waitFor(() => expect(w.merged()).toEqual(expected), { timeout: 5_000, interval: 20 });
   await settle(() => w.calls().length);
   expect(w.merged()).toEqual(expected);
+}
+
+// Waits until FSEvents has delivered everything the repository's setup caused, by writing a marker after it and
+// waiting for the root watcher to see the marker: one stream delivers events in order, and a quiet interval cannot
+// tell a backlogged fseventsd from a finished one. The marker itself reaches no watcher's listener.
+async function drainSetup(root: string, calls: () => number, reset: () => void): Promise<void> {
+  const prefix = `.drain-${count++}-`;
+  let seen = false;
+  raw.drop = (path, filename) => {
+    if (path !== root || !filename?.startsWith(prefix)) return false;
+    seen = true;
+    return true;
+  };
+  // A stream that FSEvents has not started yet never reports a write made before it, so
+  // a marker that went unseen is written again under a new name.
+  const deadline = Date.now() + 3_000;
+  for (let i = 0; !seen && Date.now() < deadline; i++) {
+    writeFileSync(join(root, `${prefix}${i}`), "");
+    await within(500, () => seen);
+  }
+  expect(seen).toBe(true);
+  // Kept for the rest of the test, so a retried marker's late event never reaches it.
+  await settle(calls);
+  reset();
 }
 
 async function expectQuiet(w: Recorder, change: () => void): Promise<void> {

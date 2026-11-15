@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { query, type EffortLevel, type PermissionResult, type PermissionUpdate, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
@@ -8,6 +7,7 @@ import { openAcp } from "./acpRunner";
 import { CodexDispatcher, RpcError } from "./dispatcher";
 import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeVerdict } from "./handshake";
 import { afterTurnCleanup, OwnedGroup } from "./process";
+import { readRegularFileNoFollowSync } from "../regularFile";
 import { object } from "./sessions";
 import { applyClaudeFastUnavailable, parseClaudeModels, parseCodexModels } from "./models";
 import { parseClaudeSkills, parseCodexSkills } from "./skills";
@@ -17,7 +17,7 @@ import { backgroundTasks, CLAUDE_QUESTION_TOOL, claudePermissionSummary, claudeQ
 import { questionAnswer } from "./questionAnswer";
 import { promptSuggestionText } from "./promptSuggestion";
 import { claudePermission, codexDefaults, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
-import { claudeFenceSettings, codexMechanism, codexProfileArgs, codexTurnPermission, fenceArgs, fencedCommand, type ClaudeFenceSettings } from "../agentAuth/fence";
+import { codexMechanism, codexProfileArgs, codexTurnPermission, fenceArgs, fencedCommand, sandboxRefused } from "../agentAuth/fence";
 import type { OpenRunner, Prepared, ReadListing, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode, SkillSummary } from "./types";
 // steerConsumed: the agent read a steered message, called in line with the run's events so the message
@@ -49,9 +49,10 @@ export const listSkills: ReadListing<SkillSummary[]> = async (input, exited, reg
 export function claudeFastSettings(fast: boolean | undefined): { settings?: { fastMode: true } } {
   return fast ? { settings: { fastMode: true } } : {};
 }
-// The run's flag-tier settings: Fast, and Doan's fence settings when this turn runs with Claude's own sandbox on.
-function claudeRunSettings(fast: boolean | undefined, fence: ClaudeFenceSettings | undefined): { settings?: { fastMode?: true } & Partial<ClaudeFenceSettings> } {
-  const settings = { ...claudeFastSettings(fast).settings, ...fence };
+// The run's flag-tier settings: Fast, and for a fenced run Claude's own sandbox off, whatever a user, project or local
+// source says: it cannot start inside the outer fence (exit 71).
+function claudeRunSettings(fast: boolean | undefined, fence: Prepared["fence"]): { settings?: { fastMode?: true; sandbox?: { enabled: false } } } {
+  const settings = { ...claudeFastSettings(fast).settings, ...fence ? { sandbox: { enabled: false as const } } : {} };
   return Object.keys(settings).length ? { settings } : {};
 }
 // Fast for a Codex turn: a doan turn always names its tier, standard included, so a model whose catalog default is Fast
@@ -93,9 +94,10 @@ function timeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
   });
 }
 // The doan- servers Doan registered in this Codex profile, read from its config.toml for every turn: a Connect may have
-// added one since the server started. An unreadable or oversized file names none, so the turn does not wait.
+// added one since the server started. An unreadable or oversized file names none, so the turn does not wait; so does a
+// FIFO or a link the agent running in this profile put there, which a blocking read would hold main on.
 function profileServers(configDir: string): string[] {
-  try { const text = readFileSync(join(configDir, "config.toml"), "utf8"); return text.length > 1024 * 1024 ? [] : codexProfileServers(text); }
+  try { return codexProfileServers(readRegularFileNoFollowSync(join(configDir, "config.toml"), 1024 * 1024).toString("utf8")); }
   catch { return []; }
 }
 // One Codex send's start (runners.ts openCodex): stopped by a Stop that came before its turn existed, wake ends its wait.
@@ -286,8 +288,6 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   // API key could replace the login, so the connection must be signed in again instead of running unpinned.
   const organization = input.owner ? input.owner.workspaceId : undefined;
   if (organization === null || organization === "") throw new Error("not_logged_in");
-  // A sandboxed turn without its listing would deny the Read and Edit tools nothing, so it does not start.
-  if (input.fence?.claudeSandbox && !input.fence.denied) throw new Error("unknown");
   const sessionId = input.sessionId ?? randomUUID(); const controller = new AbortController();
   // A Claude run opens for one turn, so the connector names read here are current for it.
   const labels = input.mcp?.labels();
@@ -349,15 +349,13 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     abortController: controller, ...(input.sessionId ? { resume: input.sessionId } : { sessionId }),
     // A resume without them starts on the default model, so every run passes the conversation's choice.
     ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort as EffortLevel } : {}),
-    // Every run with Fast asks for it, as each turn opens a new process; a run without it passes nothing. A turn with
-    // Claude's own sandbox on carries Doan's fence as settings, since that sandbox cannot start inside sandbox-exec.
-    ...claudeRunSettings(input.fast, input.fence?.claudeSandbox ? claudeFenceSettings(input.fence.paths, input.fence.denied ?? [], input.fence.socket) : undefined),
+    // Every run with Fast asks for it, as each turn opens a new process; a run without it passes nothing.
+    ...claudeRunSettings(input.fast, input.fence),
     // Default passes nothing, so the Doan profile's and the project's settings decide, as before this option existed.
     // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does.
     ...(input.owner ? claudePermission(input.permissionMode ?? "default") : {}),
     spawnClaudeCodeProcess(options) {
-      const fence = input.fence && !input.fence.claudeSandbox ? input.fence : undefined;
-      const launch = fencedCommand(options.command, options.args, fence ? fenceArgs("claude", fence.paths) : undefined, fence?.exec);
+      const launch = fencedCommand(options.command, options.args, input.fence ? fenceArgs("claude", input.fence.paths) : undefined, input.fence?.exec);
       const child = spawn(launch.command, launch.args, { cwd: options.cwd, env: options.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
       if (child.pid) {
         const owned = new OwnedGroup(child.pid, undefined, undefined, exited); group = owned;
@@ -410,8 +408,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     // A fenced start that could not run is a process failure, never the SDK's message about the CLI binary, which names
     // a missing CLI: sandbox-exec missing (a spawn error), or sandbox-exec itself refusing (65 for a policy error, 71 for
     // an exec failure, with its own "sandbox-exec:" message). The CLI's own early exit keeps the SDK's error.
-    const refused = childExited && (exitCode === 65 || exitCode === 71) && /^sandbox-exec: /m.test(stderr);
-    if (input.fence && !input.fence.claudeSandbox && (spawnFailed || refused)) throw new Error("process_exited");
+    const refused = childExited && sandboxRefused({ exitCode, stderr });
+    if (input.fence && (spawnFailed || refused)) throw new Error("process_exited");
     throw error;
   }
   return {

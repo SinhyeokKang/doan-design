@@ -18,6 +18,10 @@ it("breaks ties by natural file stem, then path, and does not mutate the input",
   expect(sortedCanvases(input).map(item => item.path)).toEqual([".doan/canvases/page2.html", ".doan/canvases/x/page2.html", ".doan/canvases/page10.html", ".doan/canvases/m.html"]);
   expect(input).toEqual(before);
 });
+it("breaks ties by the sidebar's label, whatever the extension's case", () => {
+  // Under the collator `-` sorts before `.`, so comparing `b.HTML` unstripped would put `b-a` first.
+  expect(paths(sortedCanvases([row(".doan/canvases/b-a.html", 1), row(".doan/canvases/b.HTML", 1)]))).toEqual(["b.HTML", "b-a.html"]);
+});
 it("orders both groups the same way", () => {
   const groups = sidebarGroups(sortedCanvases([row(".doan/ds/a.html", 1), row(".doan/ds/b.html", 2), row(".doan/canvases/c.html", 1), row(".doan/canvases/d.html", 2)]));
   expect(groups.map(group => paths(group.rows as CanvasRow[]))).toEqual([["b.html", "a.html"], ["d.html", "c.html"]]);

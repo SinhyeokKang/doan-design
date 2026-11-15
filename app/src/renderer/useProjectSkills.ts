@@ -13,15 +13,25 @@ const ended = (turn: ComposerTurn) => turn === "idle" || turn === "holding";
 export type SkillsCalls = Pick<DoanApi, "listConversationSkills">;
 export function useProjectSkills(calls: SkillsCalls, root: string | null, provider: Provider | null, turn: ComposerTurn, generation = 0) {
   const [lists, setLists] = useState<Record<string, readonly SkillSummary[]>>({});
-  const pending = useRef(new Set<string>());
+  // A read asked while one for the same key is pending runs once after it: the pending reply may predate the skill a
+  // turn that has just ended made. Several such asks are one read.
+  const pending = useRef(new Map<string, { again: boolean }>());
   const key = JSON.stringify([root, provider, generation]);
   const supported = provider === "claude" || provider === "codex";
-  const read = () => {
-    if (!root || !provider || !supported || pending.current.has(key)) return;
-    pending.current.add(key);
+  const fetch = (root: string, provider: Provider, key: string) => {
+    const entry = { again: false };
+    pending.current.set(key, entry);
     void calls.listConversationSkills({ root, provider }).then(reply => {
       if ("skills" in reply) setLists(current => ({ ...current, [key]: reply.skills }));
-    }).catch(error => console.error("Could not read project skills", error)).finally(() => pending.current.delete(key));
+    }).catch(error => console.error("Could not read project skills", error)).finally(() => {
+      pending.current.delete(key);
+      if (entry.again) fetch(root, provider, key);
+    });
+  };
+  const read = () => {
+    if (!root || !provider || !supported) return;
+    const inFlight = pending.current.get(key);
+    if (inFlight) inFlight.again = true; else fetch(root, provider, key);
   };
   useEffect(() => { read(); }, [key]);
   const previous = useRef({ key, turn });

@@ -35,7 +35,7 @@ describe("Inspector for an element", () => {
   const html = render(element, ROWS_FIXTURE);
 
   test("heads the panel with tag, selector, frame, wrapped ancestors and the ⌥ hint", () => {
-    expect(html).toContain('<aside class="right native-scroll" role="region" aria-label="Inspector"><h2 class="phead">Inspector</h2><div class="inspect-head"><h3>button</h3>');
+    expect(html).toContain('<aside class="right doan-scroll" role="region" aria-label="Inspector"><h2 class="phead">Inspector</h2><div class="inspect-head"><h3>button</h3>');
     expect(html).toContain('<span class="truncate selector" title="[data-doan-id=&quot;sign-in&quot;]">[data-doan-id=&quot;sign-in&quot;]</span>');
     expect(html).toContain('<dl class="head-kv"><dt>Frame</dt><dd>hero · Sign in</dd></dl>');
     expect(html).toContain('<nav class="ancestors" aria-label="Ancestor path"><button class="truncate" title="hero" aria-current="false">hero</button><span aria-hidden="true">›</span>');

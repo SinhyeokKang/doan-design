@@ -380,6 +380,15 @@ describe("SettingsDialog", () => {
   });
 });
 
+// Preference radio rows sit in a list, so their focus ring is drawn inward (DESIGN 'Focus'), as Project Settings' storage
+// rows and the question card's rows draw theirs; the Set Up dialog's storage options follow the same rule.
+test("buddy rows and the Set Up storage options take the inward row focus ring", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".buddy-row:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }");
+  expect(css).toContain(".storage-option:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }");
+  expect(css).not.toMatch(/\.(buddy-row|storage-option)[^{]*focus-visible[^{]*\{[^}]*outline-offset: 2px/);
+});
+
 test("lock CSS: the problem overlay's material over the group, its corners following the group's; tabular digits", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".doan-settings-group.buddy-locked { position: relative; }");

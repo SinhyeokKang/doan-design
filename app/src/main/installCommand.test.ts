@@ -60,16 +60,17 @@ describe("installChoice", () => {
 describe("terminalScript", () => {
   const update = installChoice("codex", below("0.150.0")) as TerminalChoice;
   const install = installChoice("codex", missing) as TerminalChoice;
-  let dir: string | undefined;
-  afterEach(() => { if (dir) rmSync(dir, { recursive: true, force: true }); dir = undefined; });
+  // A test may run several scripts, each in its own folder.
+  const dirs: string[] = [];
+  afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
   // Runs the script from its file the way Terminal does, with the command replaced by a harmless one. Never with
   // sh -c: the script removes "$0".
-  function runScript(script: string, input: string): { stdout: string; status: number | null; file: string } {
-    dir = mkdtempSync(join(tmpdir(), "doan-install-script-"));
+  function runScript(script: string, input: string): { stdout: string; status: number | null; file: string; dir: string } {
+    const dir = mkdtempSync(join(tmpdir(), "doan-install-script-")); dirs.push(dir);
     const file = join(dir, "codex-test.command");
     writeFileSync(file, script, { mode: 0o700 });
     const result = spawnSync("/bin/sh", [file], { cwd: dir, input, encoding: "utf8" });
-    return { stdout: result.stdout, status: result.status, file };
+    return { stdout: result.stdout, status: result.status, file, dir };
   }
   const run = (choice: TerminalChoice, input: string) => runScript(terminalScript(choice, "Codex"), input);
 
@@ -98,17 +99,17 @@ describe("terminalScript", () => {
     expect(stdout.startsWith("Update Codex\n")).toBe(true);
     const ran = run({ ...update, command: "touch ran" }, "\n");
     expect(existsSync(ran.file)).toBe(false);
-    expect(existsSync(join(dir!, "ran"))).toBe(true);
+    expect(existsSync(join(ran.dir, "ran"))).toBe(true);
   });
 
   it("runs nothing until Return", () => {
-    run({ ...update, command: "touch ran" }, "");
-    expect(existsSync(join(dir!, "ran"))).toBe(false);
+    const { dir } = run({ ...update, command: "touch ran" }, "");
+    expect(existsSync(join(dir, "ran"))).toBe(false);
   });
 
   it("tells the person to go back to Doan when the command exits 0", () => {
-    const { stdout } = run({ ...update, command: "touch ran" }, "\n");
-    expect(existsSync(join(dir!, "ran"))).toBe(true);
+    const { stdout, dir } = run({ ...update, command: "touch ran" }, "\n");
+    expect(existsSync(join(dir, "ran"))).toBe(true);
     expect(stdout.endsWith("Press Return to run it, or press Control-C to cancel.\nFinished. Go back to Doan to continue.\n")).toBe(true);
   });
 

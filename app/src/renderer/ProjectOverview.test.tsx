@@ -7,7 +7,8 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { textSegments } from "./anchorField";
 import { DockedSupport } from "./dockedSupport";
-import type { PresetSummary } from "./homeComposer";
+import { suggestedPrompts, type PresetSummary, type SuggestedPrompt } from "./homeComposer";
+import { SuggestionButton } from "./ComposerParts";
 import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun";
 import { ProjectOverview, worktreeChoice, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -82,10 +83,20 @@ test("a new conversation offers Home's suggestions over the composer, also for a
 
 test("canvases but no conversations: a new conversation with suggestions naming the canvas", () => {
   const html = render([]);
-  expect(html).toContain("Review the checkout canvas");
-  expect(html).toContain('class="suggestion" title="Review the checkout canvas"><span class="suggestion-icon">');
+  // The shared Tooltip, as Home's suggestions have, not the native title.
+  expect(html).not.toContain('title="Review the checkout canvas"');
+  expect(html).toMatch(/<button type="button" class="suggestion" data-state="closed" data-slot="tooltip-trigger"><span class="suggestion-icon">/);
   // The name is highlighted; title and the sentence's text are unchanged.
   expect(html).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">checkout</span> canvas</span>');
+});
+
+// The rows are the shared SuggestionButton, so the three surfaces cannot drift apart again.
+const suggestionButtons = (html: string) => html.match(/<button type="button" class="suggestion".*?<\/button>/g) ?? [];
+const sharedSuggestions = (prompts: readonly SuggestedPrompt[]) => prompts.flatMap(prompt => suggestionButtons(renderToStaticMarkup(<TooltipProvider><SuggestionButton prompt={prompt} onPick={() => {}} /></TooltipProvider>)));
+test("the Overview's suggested prompts are the shared suggestion button", () => {
+  const prompts = suggestedPrompts(entry(ROOT, [".doan/canvases/checkout.html"]), "doan", PRESETS);
+  expect(prompts.length).toBeGreaterThan(0);
+  expect(suggestionButtons(render([]))).toEqual(sharedSuggestions(prompts));
 });
 
 test("a promotion leaves the moved line with Open above the suggestions", () => {

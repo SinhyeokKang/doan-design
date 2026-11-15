@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { ConversationStore, type ConversationMetadata, type JournalWrite } from "./store";
+import { ConversationStore, refusesForGood, type ConversationMetadata, type JournalWrite } from "./store";
 import { foldConversation } from "./state";
 import { promoteReservation, releaseReservation, reserveSession } from "./ownership";
 import { transportError } from "./transport";
@@ -12,7 +12,7 @@ import { requestTitleText } from "./requestLines";
 import { BIND_GRACE_MS, contestedCanvas, PROMOTION_SETTLE_MS, projectBusy, promotionDeadline, promotionTarget } from "./project";
 import { clampSeen, conversationSummary, type ConversationSummary } from "./summary";
 import { combineQueued } from "./queue";
-import { DraftStore, joined, type ReturnedDraft } from "./drafts";
+import { DraftStore, type ReturnedDraft } from "./drafts";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import { codexRestart, type FenceEntry, type FenceMechanism, type FencePaths } from "../agentAuth/fence";
 import type { ModelList } from "./models";
@@ -71,12 +71,12 @@ export interface Prepared {
   // The turn's stage after a frame, called right after that frame's events. It names no turn:
   // a reused Codex server keeps the callback it opened with, and the service takes the live turn of that moment.
   stage?: (stage: TurnStage) => void;
-  // Doan-account conversation runs only (never a list read or a terminal session's run): what keeps the run out of the
-  // rest of Doan's userData (agentAuth/fence.ts). claudeSandbox: this Claude turn runs with its own sandbox on, so it
-  // gets Doan's settings instead of the outer sandbox-exec. denied: the userData entries listed for a provider's own
-  // settings (a Claude turn with its sandbox on, every Codex run). exec: another sandbox-exec, for tests.
-  // socket: the app socket's path, which a Codex profile server (by its directory) and a sandbox-on Claude turn allow.
-  fence?: { paths: FencePaths; denied?: FenceEntry[]; claudeSandbox?: true; socket?: string; exec?: string };
+  // Doan-account conversation runs and Claude list reads only (never another provider's list read or a terminal
+  // session's run): what keeps the run out of the rest of Doan's userData (agentAuth/fence.ts). A fenced Claude run is
+  // always in the outer sandbox-exec with its own sandbox off at the flag tier. denied: the userData entries listed for
+  // Codex's permission profiles (every Codex run). exec: another sandbox-exec, for tests. socket: the app socket's path,
+  // whose directory a Codex profile server allows.
+  fence?: { paths: FencePaths; denied?: FenceEntry[]; socket?: string; exec?: string };
 }
 // generation: the provider's connector generation now. labels: connector names by doan- name, for permission
 // summaries and activity lines.
@@ -240,6 +240,11 @@ export class ConversationService {
   private reservations: Reservation[] = [];
   private live = new Map<string, Live>();
   private quitting = false;
+  // appQuit interruptions a quit still has to write (conversation id → turn id, and whether a quit already failed it):
+  // a failure a retry could fix cancels that quit and is written again by the next, since the conversation already
+  // counts as ended. A refusal no retry fixes, or a second failure, is a known refusal like a failedPersistence
+  // history's: it is not owed again, or every later quit (update install, logout) would be cancelled.
+  private owedAppQuit = new Map<string, { turnId: string; failed: boolean }>();
   private stops = 0;
   private lastStop = new Map<Provider, number>();
   // Sends waiting for the previous turn's process to exit; cancelled ones are refused once woken.
@@ -283,9 +288,9 @@ export class ConversationService {
   // deleted: a conversation deleted (delete), once its index entry is gone.
   // workEnded: the conversation's turn can no longer take a `doan work update` (its end, a deletion, a
   // history that stopped taking writes, the app quitting), so main drops its work (conversationWork.ts).
-  // handedOff: a turn's handoffs started one or more conversations (conversation:handoff, main window only), once all of
-  // them were resolved.
-  // staged: a running turn's stage changed (conversation:stage, main window only); never written to the history.
+  // handedOff: a turn's handoffs started one or more conversations (conversation:handoff, to the main window and, about the
+  // playing canvas, the prototype window), once all of them were resolved.
+  // staged: a running turn's stage changed (conversation:stage, routed like events); never written to the history.
   // publish's deferNotice: a turn.failed whose notification waits until main knows the turn was not scheduled again
   // (QueueOptions.notice).
   constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent, deferNotice?: true) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}, private workEnded: (id: string) => void = () => {}, private handedOff: (notice: ConversationHandoffNotice) => void = () => {}, private staged: (signal: StageSignal) => void = () => {}) {
@@ -846,18 +851,33 @@ export class ConversationService {
     this.missedWaits.clear();
     for (const id of [...this.waits.keys(), ...this.judging.keys()]) this.cancelWait(id);
     for (const listing of this.listings) if (listing.cleanup) closing.push(listing.cleanup());
-    // Before the appQuit writes: one that throws ends this loop, and the quit's failure is reported, but no
-    // conversation's work content may outlive it.
+    // Before the appQuit writes: one that throws cancels the quit, but no conversation's work content or run may
+    // outlive it.
     for (const id of this.live.keys()) this.endWork(id);
+    for (const live of this.live.values()) if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
+    // Decided before the pass below marks every conversation ended. As for a Stop, a history that already stopped taking
+    // writes takes no interrupted event: its known refusal is no new persistence failure to cancel the quit for.
+    for (const [id, live] of this.live) if (live.accepted && live.busy && !live.terminal && !live.failedPersistence) this.owedAppQuit.set(id, { turnId: live.turnId, failed: false });
     for (const [id, live] of this.live) {
-      if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
       if (live.held) { clearTimeout(live.held.timer); delete live.held; }
-      if (live.accepted && live.busy && !live.terminal) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
       live.terminal = true; live.busy = false; delete live.stage;
       // Nothing more is written, but a message the agent already has must not come back from the queue at the next start.
       this.lookLater(id, live, false);
       this.dropSteers(id);
     }
+    // Last, since a write can throw; each history gets its own attempt, and the first failure that a retry could fix
+    // cancels the quit.
+    let failure: { error: unknown } | undefined;
+    for (const [id, owed] of [...this.owedAppQuit]) {
+      try { this.append(id, owed.turnId, { type: "interrupted", reason: "appQuit" }); this.owedAppQuit.delete(id); }
+      catch (error) {
+        if (owed.failed || refusesForGood(error)) {
+          this.owedAppQuit.delete(id);
+          console.error("doan: conversation appQuit persistence refused", error);
+        } else { owed.failed = true; failure ??= { error }; }
+      }
+    }
+    if (failure) throw failure.error;
     return Promise.all(closing).then(() => undefined);
   }
   // A folder listing of root was read again. changed: root-relative canvas paths whose files the watcher saw change since

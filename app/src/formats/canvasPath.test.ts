@@ -7,8 +7,6 @@ describe("canvasKind", () => {
     [".doan/canvases/sub/deep/a.html", "canvases"],
     [".doan/ds/button.html", "ds"],
     [".doan/ds/forms/input.html", "ds"],
-    [".doan/ds/A.HTML", "ds"],
-    [".doan/canvases/b.Html", "canvases"],
   ])("%s is a %s canvas", (path, kind) => {
     expect(canvasKind(path)).toBe(kind);
   });
@@ -21,6 +19,9 @@ describe("canvasKind", () => {
     ["another look-alike", ".doan/canvases-old/a.html"],
     ["a stylesheet", ".doan/ds/tokens.css"],
     [".htm", ".doan/ds/a.htm"],
+    // Every path grammar (work, open, handoff, links) is lower-case, so only a lower-case .html is listed.
+    ["an upper-case extension", ".doan/ds/A.HTML"],
+    ["a mixed-case extension", ".doan/canvases/b.Html"],
     ["a dot file", ".doan/ds/.a.html"],
     ["a file in a dot folder", ".doan/canvases/.cache/a.html"],
     ["an empty segment", ".doan/ds//a.html"],

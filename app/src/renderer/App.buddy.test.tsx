@@ -69,7 +69,6 @@ const { DEFAULT_PREFERENCES } = await import("../main/preferences");
 
 let listeners: Record<string, (...args: never[]) => void>;
 let windowListeners: Record<string, (event: never) => void>;
-let readUiState: (state: unknown) => void;
 let doan: Record<string, ReturnType<typeof vi.fn>>;
 let readPreferences: (snapshot: PreferencesSnapshot | null) => void;
 let paint: { first: BuddyId; apply: Mock<(id: BuddyId) => void> };
@@ -88,7 +87,7 @@ function reset() {
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
     onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => buddyIntro),
-    readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
+    readUiState: vi.fn(() => new Promise(() => {})), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(() => new Promise(resolve => { readPreferences = resolve; })), savePreferences: vi.fn(async () => null),
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
   };

@@ -1,9 +1,10 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, test, vi } from "vitest";
 import type { LsTarget } from "../cli";
 import type { FolderState } from "../folderState";
+import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import type { ProjectInitResult } from "../shell";
 import { readGitRemotes } from "./gitConfig";
 import { canonicalFolder, cloneDestination, leftoverPresent, cloneProject, confirmProject, destinationState, inspectPath, inspectUrl, newFolderTarget, plannedChanges, registerClone, selectProject, type ProjectDeps } from "./projects";
@@ -83,6 +84,30 @@ describe("planned changes", () => {
     expect(await plannedChanges(neither, { kind: "uninitialized" })).toEqual([".doan/config.json", ".gitattributes"]);
     const setUp = repo(temp(), { canvases: true, config: "{\"v\":1}", attributes: ".doan/comments/*.jsonl merge=union\n" });
     expect(await plannedChanges(setUp, { kind: "list", root: setUp, scope: [], canvases: [] })).toEqual([]);
+  });
+
+  // A repository can hold a FIFO or a huge file at .gitattributes; neither may hold a libuv thread or load whole.
+  it("read a FIFO or oversized .gitattributes as unreadable, listing it, without blocking", async () => {
+    const fifo = repo(temp(), { canvases: true });
+    const read = await withFifo(join(fifo, ".gitattributes"), () => plannedChanges(fifo, { kind: "uninitialized" }));
+    expect(read.value).toEqual([".doan/config.json", ".gitattributes"]);
+    expect(read.ms).toBeLessThan(PROMPT_MS);
+    const big = repo(temp(), { canvases: true, attributes: ".doan/** linguist-documentation\n" });
+    truncateSync(join(big, ".gitattributes"), 2 * 1024 * 1024);
+    expect(await plannedChanges(big, { kind: "uninitialized" })).toEqual([".doan/config.json", ".gitattributes"]);
+  });
+  // The form promises the .gitattributes change doan init will make, so it reads the lines init adds, not its own idea.
+  it("list .gitattributes exactly when doan init would add one of its lines", async () => {
+    const source = readFileSync(new URL("../../../../cli/internal/cli/storage.go", import.meta.url), "utf8");
+    const list = /func missingAttributes[\s\S]*?range \[\]string\{([^}]*)\}/.exec(source)?.[1] ?? "";
+    const lines = [...list.matchAll(/"((?:\\.|[^"\\])*)"/g)].map(m => JSON.parse(`"${m[1]}"`) as string);
+    expect(lines.length).toBeGreaterThan(0);
+    const all = repo(temp(), { canvases: true, attributes: `*.png binary\n${lines.join("\n")}\n` });
+    expect(await plannedChanges(all, { kind: "uninitialized" })).toEqual([".doan/config.json"]);
+    for (const line of lines) {
+      const without = repo(temp(), { canvases: true, attributes: `*.png binary\n${lines.filter(other => other !== line).join("\n")}\n` });
+      expect(await plannedChanges(without, { kind: "uninitialized" }), line).toEqual([".doan/config.json", ".gitattributes"]);
+    }
   });
 });
 

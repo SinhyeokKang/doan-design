@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ACP_PROTOCOL_VERSION, AcpConnection, AcpError } from "../conversation/acp";
@@ -10,6 +10,8 @@ import { object } from "../conversation/sessions";
 import { AUTH_LINK_FILE, BROWSER_HOOK, callbackAddress, INSTALL_FAILED, forwardCallback, signInLink, type SignInLink } from "./antigravity";
 import { probeShell } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
+import { readRegularFileNoFollowSync } from "../regularFile";
+import { CODEX_DOTENV, fencedEverywhere, profileFencedCommand } from "./fence";
 import { providerEnv } from "./environment";
 import { codexAccountEmail, GOOGLE_USERINFO_URL, googleAccessToken, googleEmail, googleRefreshRequest, withIdentity } from "./identity";
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
@@ -53,10 +55,15 @@ export interface AuthManagerOptions {
   mcpLogout?(provider: Provider, request: McpLogoutRequest): Promise<{ failed: string[] }>;
   // Antigravity's account lookup (Google token and userinfo requests); globalThis.fetch when absent.
   fetch?: typeof globalThis.fetch;
+  // The outer fence (profileFencedCommand) for Claude's MCP logout commands, since `claude mcp list` starts the stdio
+  // servers the profile's .claude.json names, which an agent in the outer fence can write; and for every Copilot and
+  // Cursor process (fencedEverywhere). The other providers' sign-in, status and own logout stay unfenced.
+  fence?: { userData: string; exec?: string };
 }
 export interface WriteOptions { stop?: boolean }
 interface Run { code: number | null; stdout: string; stderr: string }
 const OUTPUT_LIMIT = 1024 * 1024;
+const OUTPUT_GRACE_MS = 500;
 const QUIT_WAIT_MS = 5000;
 const ACP_OPEN_MS = 60_000;
 const LINK_POLL_MS = 100;
@@ -548,7 +555,7 @@ export class AuthManager {
 
   private async mcpStep(provider: Provider, attemptId: string, profile: string, request: Omit<McpLogoutRequest, "run" | "profileDir">): Promise<void> {
     if (!this.options.mcpLogout) return;
-    const run = (args: string[]) => this.exec(provider, attemptId, args, this.options.statusTimeoutMs ?? 20_000, profile);
+    const run = (args: string[]) => this.exec(provider, attemptId, args, this.options.statusTimeoutMs ?? 20_000, profile, undefined, undefined, provider === "claude");
     try { await this.options.mcpLogout(provider, { ...request, profileDir: this.options.storage.profileDir(provider, profile), run }); }
     catch (error) { console.error(`doan: ${provider} MCP logout step failed`, message(error)); }
   }
@@ -782,6 +789,8 @@ export class AuthManager {
     if (!located) throw new Error("cli_missing");
     const profileDir = this.options.storage.profileDir(provider, profile);
     for (const [rel, text] of Object.entries(this.adapters[provider].settings)) this.options.storage.writeSetting(provider, rel, text, profile);
+    // A .env a turn wrote before the fence closed it would still set every later Codex process's environment.
+    if (provider === "codex") this.options.storage.removePlanted(provider, CODEX_DOTENV, profile);
     return { command: located.command, env: this.childEnv(provider, located.path, profileDir, added), profileDir, ...(located.promptSuggestion === undefined ? {} : { promptSuggestion: located.promptSuggestion }) };
   }
   private childEnv(provider: Provider, path: string, profileDir: string, added: Record<string, string>): Record<string, string> {
@@ -809,11 +818,14 @@ export class AuthManager {
   }
 
   // Resolves only after the process group is gone, so no result outruns its process.
-  private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, profile = this.profileOf(provider), onText?: (text: string) => void, added?: Record<string, string>): Promise<Run> {
+  private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, profile = this.profileOf(provider), onText?: (text: string) => void, added?: Record<string, string>, fenced = false): Promise<Run> {
     const { command, env, profileDir } = await this.launch(provider, attemptId, added, profile);
     // A cancel, window close or quit can arrive while the CLI is located, before there is a process to stop.
     if (this.stopRequests.has(attemptId)) throw new Cancelled();
-    const child = this.options.spawn(command, [...this.adapters[provider].args, ...args], { cwd: profileDir, env });
+    const full = [...this.adapters[provider].args, ...args];
+    const launch = (fenced || fencedEverywhere(provider)) && this.options.fence ? profileFencedCommand(provider, this.options.fence, profileDir, command, full) : { command, args: full };
+    if (!launch) throw new Error("the fence could not be built");
+    const child = this.options.spawn(launch.command, launch.args, { cwd: profileDir, env });
     const owned = this.processes.get(attemptId) ?? new Set();
     owned.add(child); this.processes.set(attemptId, owned);
     if (this.stopRequests.has(attemptId)) child.stop();
@@ -856,7 +868,11 @@ export class AuthManager {
   // write-back failure, if any: the plaintext is still removed, so the refresh is lost and the vault may be stale.
   private drop(provider: Provider): Promise<string | null> {
     return this.serial(provider, async () => {
-      const count = (this.holds.get(provider) ?? 1) - 1, auth = this.adapters[provider];
+      // A release after quit's final drop holds nothing: absorbing the scrubbed profile would read it as a sign-out and
+      // empty the vault.
+      const held = this.holds.get(provider) ?? 0, auth = this.adapters[provider];
+      if (held <= 0) { this.holds.set(provider, 0); return null; }
+      const count = held - 1;
       this.holds.set(provider, count);
       if (count > 0 || !auth.vault) return null;
       let lost: string | null = null;
@@ -924,7 +940,9 @@ export function hookLinks(onLink: (raw: string) => void): { env: Record<string, 
   let read = 0;
   const timer = setInterval(() => {
     let text: string;
-    try { text = readFileSync(file, "utf8"); } catch { return; }
+    // Any process of the person's can put a FIFO, a link or a huge file at this path, and main polls it: such a file
+    // reads as no link yet. The cap only bounds what main reads; a real file holds a few links.
+    try { text = readRegularFileNoFollowSync(file, 1024 * 1024).toString("utf8"); } catch { return; }
     const end = text.lastIndexOf("\n");
     if (end < read) return;
     for (const line of text.slice(read, end).split("\n")) if (line) onLink(line);
@@ -976,7 +994,13 @@ export const spawnAuthProcess: Spawn = (command, args, { cwd, env, input }) => {
   // A login that exits first closes the pipe; a late write must not crash main.
   child.stdin?.on("error", () => {});
   let release!: () => void;
-  const gone = new Promise<void>(resolve => { release = resolve; });
+  const groupGone = new Promise<void>(resolve => { release = resolve; });
+  // Both are pipes in every stdio configuration above.
+  const stdout = child.stdout!, stderr = child.stderr!;
+  // The group can be gone in the same tick as the leader's exit while its output is still in the pipe, so gone waits
+  // for both pipes to close too. A process that left the group can hold them open for good: a grace bounds that wait.
+  const closed = Promise.all([stdout, stderr].map(stream => new Promise<void>(resolve => { stream.once("close", () => resolve()); }))).then(() => {});
+  const gone = groupGone.then(() => Promise.race([closed, new Promise<void>(resolve => { setTimeout(resolve, OUTPUT_GRACE_MS).unref(); })]));
   const group = child.pid ? new OwnedGroup(child.pid, undefined, undefined, release) : null;
   const exit = new Promise<number | null>(resolve => {
     child.once("error", () => { resolve(null); if (group) group.childExited(); else release(); });
@@ -986,8 +1010,6 @@ export const spawnAuthProcess: Spawn = (command, args, { cwd, env, input }) => {
       setTimeout(() => void group?.stop(), 2000).unref();
     });
   });
-  // Both are pipes in every stdio configuration above.
-  const stdout = child.stdout!, stderr = child.stderr!;
   stdout.setEncoding("utf8"); stderr.setEncoding("utf8");
   return {
     onOutput: listener => { stdout.on("data", (text: string) => listener(text)); stderr.on("data", (text: string) => listener(text, "stderr")); },

@@ -69,26 +69,14 @@ vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), 
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
-const { ProjectOverview } = await import("./ProjectOverview");
-const { ProblemOverlay } = await import("./ProblemOverlay");
-const { ProjectSetupDialog } = await import("./ProjectSetupDialog");
-const { KeyedConversationStrip, ConversationStrip } = await import("./ConversationStripView");
-const { HomeRun } = await import("./homeRun");
-const { OverviewRun } = await import("./overviewRun");
-const { Home } = await import("./Home");
 const { initialCanvasState } = await import("./CanvasController");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
-const notFound = (path = "/w/a"): FolderEntry => ({ path, kind: "notFound" });
-const uninitialized = (path = "/w/a"): FolderEntry => ({ path, kind: "uninitialized" });
 const configError = (path = "/w/a", message = "unexpected end of JSON input"): FolderEntry => ({ path, kind: "error", message, config: `${path}/.doan/config.json` });
-const cliError = (path = "/w/a"): FolderEntry => ({ path, kind: "cliError", reason: "Unavailable" });
-const loading = (path = "/w/a"): FolderEntry => ({ path, kind: "loading" });
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 const HEADING = ".workspace .problem-overlay h2", COMPOSER = ".workspace .ov-main .composer-input", AREA = ".workspace .doan-canvas-panel .area";
 let listeners: Record<string, (...args: never[]) => void>;
-let readUiState: (state: unknown) => void;
 let doan: Record<string, ReturnType<typeof vi.fn>>;
 let tree: ReactNode;
 let focused: string[];
@@ -104,7 +92,7 @@ function reset() {
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
     onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
-    readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
+    readUiState: vi.fn(() => new Promise(() => {})), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
     reopenFolder: vi.fn(async () => {}), revealProject: vi.fn(async () => {}), removeProjects: vi.fn(async () => ({ kind: "removed" })), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}),

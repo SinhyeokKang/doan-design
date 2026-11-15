@@ -8,16 +8,15 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { textSegments } from "./anchorField";
 import { DockedSupport } from "./dockedSupport";
 import type { PresetSummary } from "./homeComposer";
 import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun";
-import { ProjectOverview, worktreeChoice, type ProjectOverviewProps } from "./ProjectOverview";
+import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 // The Overview's header and main column as static markup.
 
-const ROOT = "/code/doan", WT = "/code/doan-checkout";
+const ROOT = "/code/doan";
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
 const row = (path: string): CanvasRow => ({ path, id: path.split("/").at(-1)!.replace(/\.html$/, ""), url: "u" });
 const entry = (path: string, canvases: string[], branch = "main"): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases: canvases.map(row), git: { branch, common: "/code/doan/.git" } } as FolderEntry);

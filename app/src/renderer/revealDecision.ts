@@ -3,7 +3,7 @@ import type { Anchor, Canvas } from "../main/conversation/types";
 import type { PrototypeReveal } from "../main/prototype/ipc";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { sameCanvas } from "./canvasConversationRows";
-import { canvasLabel } from "./canvasTree";
+import { canvasLabel, canvasStem } from "./canvasTree";
 import { blockedReason, type LockedPage } from "./openDecision";
 
 // What the main window does with a chip, Sign in or Open pressed in the prototype window, after main checked it and
@@ -66,7 +66,7 @@ export function revealName(request: PrototypeReveal, entries: readonly FolderEnt
     case "handoff": {
       const entry = entries.find(candidate => candidate.path === request.root);
       const row = entry?.kind === "list" ? entry.canvases.find(candidate => sameCanvas(request.canvas, candidate)) : undefined;
-      return row ? canvasLabel(row) : request.canvas.path.split("/").at(-1)!.replace(/\.html$/, "");
+      return row ? canvasLabel(row) : canvasStem(request.canvas.path);
     }
   }
 }

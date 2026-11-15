@@ -53,3 +53,15 @@ test("R11 requires each target's width and original frame copy", () => {
     }
   }
 });
+
+// doan ls reads the width meta whatever its attribute order or quotes, so the check does too.
+test("R11 reads each target's width as doan ls does", () => {
+  const ctx = setup();
+  const path = paths[0]!;
+  const html = ctx.read(path)!;
+  const meta = /<meta\s+name="doan:width"\s+content="390"\s*\/?>/.exec(html)![0];
+  writeFileSync(join(ctx.repo, path), html.replace(meta, "<meta content='390' name='doan:width'>"));
+  assert.deepEqual(failed(ctx), []);
+  writeFileSync(join(ctx.repo, path), html.replace(meta, "<meta content='391' name='doan:width'>"));
+  assert.ok(failed(ctx).includes("profile_mobile_content"));
+});

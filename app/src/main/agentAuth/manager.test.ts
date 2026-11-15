@@ -1,9 +1,10 @@
-import { execFileSync } from "node:child_process";
-import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn as spawnChild } from "node:child_process";
+import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "node:http";
+import { FIFO_RESCUE_MS, PROMPT_MS, withFifo } from "../fifo.fixture";
 import { AUTH_LINK_MARKER, BROWSER_HOOK } from "./antigravity";
 import { AuthManager, hookLinks, removeStaleLinkDirs, spawnAuthProcess, type AuthProcess, type McpLogoutRequest, type Spawn } from "./manager";
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
@@ -582,10 +583,12 @@ describe("sign-in", () => {
   });
   it("allows one sign-in or sign-out write across all providers but still allows checks", async () => {
     const m = manager(); await m.load();
-    started(await m.signIn("cursor", 7));
+    const run = started(await m.signIn("cursor", 7));
     expect(await m.signIn("claude", 8)).toEqual(expect.objectContaining({ ok: false, reason: "busy" }));
     expect(await m.signIn("cursor", 8)).toEqual(expect.objectContaining({ ok: false, reason: "busy" }));
-    expect((await m.check("claude")).ok).toBe(true);
+    const check = started(await m.check("claude"));
+    // Left running, both would write the profile after the test removed its folder.
+    await m.quit(); await run.done; await check.done;
   });
   it("reports a spawn failure or missing CLI as a failed sign-in and releases the write lock", async () => {
     const m = manager({ locate: async () => null }); await m.load();
@@ -1165,7 +1168,9 @@ describe("sign-out", () => {
     expect(await m.signOut("cursor")).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
     expect(await m.signIn("cursor", 7)).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
     await lease.release();
-    expect((await m.signOut("cursor")).ok).toBe(true);
+    const out = started(await m.signOut("cursor"));
+    await finish("status", 0);
+    expect(await out.done).toMatchObject({ phase: "disconnected" });
   });
   it("deletes the dedicated credential without a provider logout and confirms the profile is unauthenticated", async () => {
     const m = manager(); await m.load();
@@ -1386,6 +1391,18 @@ describe("leases and recovery", () => {
     expect(existsSync(tokenFile("cursor"))).toBe(false);
     expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", refreshed: 2 })) });
   });
+  // A lease whose group outlived quit's wait is released later, when the group is observed gone.
+  it("keeps the credential quit absorbed when a lease is released after quit", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    const a = await m.acquire("cursor"), b = await m.acquire("cursor");
+    writeFileSync(tokenFile("cursor"), JSON.stringify({ id: "u1", refreshed: 3 }));
+    await m.quit();
+    expect(existsSync(tokenFile("cursor"))).toBe(false);
+    await a.release(); await b.release();
+    expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", refreshed: 3 })) });
+    expect(existsSync(tokenFile("cursor"))).toBe(false);
+  });
   it("refuses a lease when a sign-in starts while the CLI is being located", async () => {
     let locating = false, resume!: () => void;
     const m = manager({ locate: async () => { if (locating) await new Promise<void>(resolve => { resume = resolve; }); return { command: "/bin/fake-cli", path: "/verified/bin" }; } });
@@ -1516,6 +1533,24 @@ describe("owned auth process", () => {
     await child.gone;
     expect(out.join("")).toContain("hi");
   });
+  // The group can be gone in the same tick as the leader's exit while its output is still in the pipe; a writer that
+  // left the group and writes a moment later holds that race open every time.
+  it("reports the group gone only after its output pipes close", async () => {
+    const late = "perl -MPOSIX -e 'exit if fork; POSIX::setsid(); select undef, undef, undef, 0.2; print \"late\\n\"'";
+    const child = spawnAuthProcess("/bin/sh", ["-c", `${late}; echo early`], options());
+    const out: string[] = []; child.onOutput(text => out.push(text));
+    expect(await child.exit).toBe(0);
+    await child.gone;
+    expect(out.join("")).toBe("early\nlate\n");
+  });
+  it("reports the group gone soon after when a process outside it keeps the pipes open", async () => {
+    const child = spawnAuthProcess("/bin/sh", ["-c", "perl -MPOSIX -e 'exit if fork; POSIX::setsid(); sleep 30'; echo x"], options());
+    const out: string[] = []; child.onOutput(text => out.push(text));
+    const started = Date.now();
+    await child.exit; await child.gone;
+    expect(Date.now() - started).toBeLessThan(3000);
+    expect(out.join("")).toBe("x\n");
+  });
   it("stops the whole group on request", async () => {
     const child = spawnAuthProcess("/bin/sh", ["-c", "sleep 30 & sleep 30"], options());
     child.stop();
@@ -1526,6 +1561,34 @@ describe("owned auth process", () => {
     const child = spawnAuthProcess("/nonexistent/cli", [], options());
     expect(await child.exit).toBeNull();
     await child.gone;
+  });
+});
+
+// Every Codex process loads <CODEX_HOME>/.env into its environment (codex-cli 0.169.0, probe); one a turn planted before
+// the fence closed it would still set PATH for the harness's unsandboxed children, so it goes before any Codex process.
+describe("a planted Codex .env", () => {
+  it("is removed before a Codex sign-in, check and run starts, a link without touching its target", async () => {
+    const m = manager(); await m.load();
+    const env = join(storage.profileDir("codex"), ".env"), decoy = join(root, "decoy.env");
+    mkdirSync(storage.profileDir("codex"), { recursive: true });
+    writeFileSync(env, "PATH=/tmp/planted:/usr/bin:/bin\n");
+    const run = started(await m.signIn("codex", 7));
+    keychain = { status: "connected", account: { id: "acct", workspace: null } };
+    await finish("login", 0, () => expect(existsSync(env)).toBe(false));
+    await finish("status", 0);
+    expect(await run.done).toMatchObject({ phase: "connected" });
+    writeFileSync(decoy, "KEEP=1\n"); symlinkSync(decoy, env);
+    const lease = await m.acquire("codex");
+    expect(readdirSync(lease.profileDir)).not.toContain(".env");
+    expect(readFileSync(decoy, "utf8")).toBe("KEEP=1\n");
+    await lease.release();
+  });
+  it("is left alone in another provider's profile", async () => {
+    const m = manager(); await m.load();
+    mkdirSync(storage.profileDir("cursor"), { recursive: true });
+    writeFileSync(join(storage.profileDir("cursor"), ".env"), "A=1\n");
+    await signedInCursor(m);
+    expect(readFileSync(join(storage.profileDir("cursor"), ".env"), "utf8")).toBe("A=1\n");
   });
 });
 
@@ -2049,6 +2112,55 @@ describe("MCP connector steps", () => {
     expect(listed).toEqual({ code: 0, stdout: "[]", stderr: "" });
     expect(calls).toEqual([{ provider: "codex", request: { kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null, profileDir: storage.profileDir("codex") } }]);
   });
+  // `claude mcp list` starts the stdio servers the profile's .claude.json names, which an agent can write from inside
+  // the outer fence, so the logout step's commands run in that fence too; the provider's own logout does not.
+  it("runs a Claude sign-out's MCP logout commands in the outer fence", async () => {
+    const userData = join(root, "ud"); storage = new AuthStorage(join(userData, "agent-auth"), cipher);
+    const m = manager({ fence: { userData, exec: "/fence/sandbox-exec" }, mcpLogout: async (_provider, request) => { await request.run(["mcp", "list"]); return { failed: [] }; } }); await m.load();
+    await signedInClaude(m, "a1");
+    const out = started(await m.signOut("claude"));
+    const list = await next("status");
+    const [command, args, options] = spawn.mock.calls.at(-1)!;
+    expect(command).toBe("/fence/sandbox-exec");
+    expect(args).toContain(`PROFILE=${realpathSync.native(storage.profileDir("claude"))}`);
+    expect(args.slice(-5)).toEqual(["/bin/fake-cli", "-c", "store=keyring", "mcp", "list"]);
+    expect(options.cwd).toBe(storage.profileDir("claude"));
+    settledSet.add(list); list.finish(0);
+    const logout = await finish("logout", 0);
+    expect(spawn.mock.calls.find(call => call[1].includes("logout"))![0]).toBe("/bin/fake-cli");
+    expect(logout.args).toEqual(["-c", "store=keyring", "logout"]);
+    keychain = { status: "disconnected" };
+    await finish("status", 0);
+    expect(await out.done).toMatchObject({ phase: "disconnected" });
+  });
+  // Every Copilot process imports the JavaScript in its profile's package cache, and every Cursor process runs Node with
+  // a compile cache in its profile, both of which a fenced turn can rewrite, so their sign-in and check run in the outer
+  // fence; the other providers' do not.
+  it("runs Copilot's and Cursor's sign-in and check in the outer fence", async () => {
+    const userData = join(root, "ud"); storage = new AuthStorage(join(userData, "agent-auth"), cipher);
+    const m = manager({ fence: { userData, exec: "/fence/sandbox-exec" } }); await m.load();
+    const run = started(await m.signIn("copilot", 7));
+    const login = await next("login");
+    const [command, args, options] = spawn.mock.calls.at(-1)!;
+    expect(command).toBe("/fence/sandbox-exec");
+    expect(args).toContain(`PROFILE=${realpathSync.native(storage.profileDir("copilot"))}`);
+    expect(args.slice(-2)).toEqual(["/bin/fake-cli", "login"]);
+    expect(options.cwd).toBe(storage.profileDir("copilot"));
+    settledSet.add(login); writeToken(login, { id: "u1" }); login.finish(0);
+    await finish("status", 0);
+    expect(spawn.mock.calls.at(-1)![0]).toBe("/fence/sandbox-exec");
+    expect(spawn.mock.calls.at(-1)![1].slice(-2)).toEqual(["/bin/fake-cli", "status"]);
+    expect(await run.done).toMatchObject({ phase: "connected" });
+    await signedInCursor(m);
+    expect(spawn.mock.calls.slice(-2).map(call => call[0])).toEqual(["/fence/sandbox-exec", "/fence/sandbox-exec"]);
+    expect(spawn.mock.calls.at(-2)![1]).toContain(`PROFILE=${realpathSync.native(storage.profileDir("cursor"))}`);
+  });
+  it("starts no Copilot process when its fence cannot be built", async () => {
+    const m = manager({ fence: { userData: join(root, "elsewhere") } }); await m.load();
+    const run = started(await m.signIn("copilot", 7));
+    expect(await run.done).toMatchObject({ phase: "error", connection: null, error: { code: "sign_in_failed" } });
+    expect(spawn).not.toHaveBeenCalled();
+  });
   it("finishes a sign-out whose MCP logout throws", async () => {
     const m = manager({ mcpLogout: async () => { throw new Error("list failed"); } }); await m.load();
     await signedInClaude(m, "a1");
@@ -2158,6 +2270,32 @@ describe("MCP connector steps", () => {
     const hooked = hookLinks(() => {});
     expect(hooked.env.DOAN_AUTH_LINK).toMatch(/doan-auth-link-.*\/links$/);
     hooked.close();
+  });
+});
+
+// The link file sits in a temporary directory any process of the same user can write, and main polls it.
+describe("the sign-in link file", () => {
+  const settle = () => new Promise(resolve => setTimeout(resolve, 350));
+  it("delivers each complete line once", async () => {
+    const links: string[] = [], hooked = hookLinks(raw => links.push(raw));
+    try {
+      writeFileSync(hooked.env.DOAN_AUTH_LINK!, "https://a.example/1\nhttps://a.example/2\nhttps://a.exa");
+      await settle();
+      expect(links).toEqual(["https://a.example/1", "https://a.example/2"]);
+    } finally { hooked.close(); }
+  });
+  it("skips a FIFO there without blocking main, and still reads a file that replaces it", async () => {
+    const links: string[] = [], hooked = hookLinks(raw => links.push(raw)), file = hooked.env.DOAN_AUTH_LINK!;
+    // A blocking poll reopens the FIFO on its next tick, after withFifo's one rescue, so this keeps releasing it from
+    // then on and a regression fails the timing check instead of hanging the worker.
+    const releaser = spawnChild("/bin/sh", ["-c", `sleep ${FIFO_RESCUE_MS / 1000}; while [ -p "$1" ]; do : > "$1"; done`, "sh", file], { stdio: "ignore" });
+    try {
+      const main = await withFifo(file, settle).finally(() => releaser.kill("SIGKILL"));
+      expect(main.ms).toBeLessThan(PROMPT_MS);
+      rmSync(file); writeFileSync(file, "https://a.example/1\n");
+      await settle();
+      expect(links).toEqual(["https://a.example/1"]);
+    } finally { hooked.close(); }
   });
 });
 

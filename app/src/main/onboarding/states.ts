@@ -38,10 +38,6 @@ export function findOnPath(path: string, name: string, exists: (path: string) =>
   return null;
 }
 
-export function isTranslocated(path: string): boolean {
-  return path.split("/").includes("AppTranslocation");
-}
-
 // storage "local" keeps Doan files out of Git. Without it init follows the root's current mode, so a new worktree of a
 // project already kept out of Git gets no .gitattributes either (PRODUCT §5 item 8). gitInit: the screen showed the
 // .git/ setup creates outside Git; it means something only with Keep out of Git.

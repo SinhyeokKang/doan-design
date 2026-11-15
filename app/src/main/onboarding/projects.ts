@@ -1,4 +1,5 @@
-import { lstat, mkdir, readFile, realpath, stat } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, mkdir, open, realpath, stat } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import type { OnboardingChange, OnboardingOperationErrorCode, OnboardingStorage } from "../../formats/types";
 import { gitChildren, hasGitEntry } from "../addProjects";
@@ -118,7 +119,7 @@ export async function plannedChanges(root: string, state: FolderState, plan: Set
   const changes: OnboardingChange[] = [];
   try { await lstat(join(root, ".doan/canvases")); } catch { changes.push(".doan/canvases/"); }
   if (plan === "repo") {
-    const attributes = await readFile(join(root, ".gitattributes"), "utf8").catch(() => "");
+    const attributes = await readAttributes(join(root, ".gitattributes")).catch(() => "");
     const present = attributes.split("\n").map(line => line.replace(/\r$/, ""));
     if (ATTRIBUTE_LINES.some(line => !present.includes(line))) changes.push(".gitattributes");
   }
@@ -126,6 +127,23 @@ export async function plannedChanges(root: string, state: FolderState, plan: Set
   if (plan === "local" && state.notGit && !homeOrAbove(root, home)) changes.push(".git/");
   changes.push(".doan/config.json");
   return changes.sort();
+}
+
+// Far above any real .gitattributes; a larger one reads as unreadable, so its lines are planned.
+const ATTRIBUTES_LIMIT = 1024 * 1024;
+// The repository can hold a FIFO here: a blocking open would hold a libuv thread until a writer appears, so the open
+// is O_NONBLOCK and only a regular file within the cap is read. Links are followed, as git follows them.
+async function readAttributes(path: string): Promise<string> {
+  const handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK);
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.size > ATTRIBUTES_LIMIT) throw new Error("Not a readable attributes file");
+    // One byte past the stat'd size shows a file that grew after the check.
+    const buffer = Buffer.alloc(stat.size + 1);
+    const { bytesRead } = await handle.read(buffer, 0, stat.size + 1, 0);
+    if (bytesRead > stat.size) throw new Error("Not a readable attributes file");
+    return buffer.toString("utf8", 0, bytesRead);
+  } finally { await handle.close(); }
 }
 
 // The candidate of a folder that may still need setup, planned for the requested mode unless its project already

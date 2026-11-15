@@ -1,5 +1,5 @@
-import { expect, it, vi } from "vitest";
-import { mkdtempSync, readFileSync, realpathSync, truncateSync, writeFileSync } from "node:fs";
+import { afterAll, afterEach, expect, it, vi } from "vitest";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { acpPermission, acpPromptDone, initialAcp, normalizeAcp, AcpConnection } from "./acp";
@@ -16,7 +16,12 @@ import copilot from "./fixtures/acp-copilot.json";
 const SERVER = join(__dirname, "fixtures", "fake-acp-server.cjs");
 const SESSION = cursor.turn[0]!.params!.sessionId;
 const SESSION_OF = { copilot: copilot.turn[0]!.params!.sessionId };
+// Folders a test made, removed when it ends: a fake server only writes when the test sends it a line.
+const made: string[] = [];
+function temp(prefix: string): string { const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix))); made.push(dir); return dir; }
+afterEach(() => { for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 const CWD = realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-")));
+afterAll(() => rmSync(CWD, { recursive: true, force: true }));
 function input(provider: "cursor" | "copilot", over: Partial<Prepared> = {}, mode = ""): Prepared {
   return { runtime: provider, command: process.execPath, args: [SERVER, join(__dirname, "fixtures", `acp-${provider}.json`)], cwd: CWD, configDir: "/profile",
     env: { PATH: process.env.PATH ?? "", FAKE_ACP: mode }, ...(provider === "cursor" ? { authenticate: "cursor_login" } : {}), ...over };
@@ -226,7 +231,7 @@ const MODELS = { currentModelId: "gemini-3.8-flash-high", availableModels: [{ mo
 function logged(log: string): { method?: string; params?: Record<string, unknown> }[] {
   return readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
 }
-function logFile(): string { return join(realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-log-"))), "log.jsonl"); }
+function logFile(): string { return join(temp("doan-acp-log-"), "log.jsonl"); }
 it("lists an ACP provider's models from session/new without a prompt and reports the process gone", async () => {
   const log = logFile(), release = vi.fn();
   const models = await listModels(input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP_MODELS: JSON.stringify(MODELS), FAKE_ACP_LOG: log } }), release, () => {});
@@ -250,7 +255,7 @@ it("sets the chosen model after session/new and again after session/load, before
   expect(logged(plain).some(r => r.method === "session/set_config_option")).toBe(false);
 });
 it("adds verified images up to 50 MB as ACP image blocks for Antigravity only", async () => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-images-")));
+  const dir = temp("doan-acp-images-");
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
   const small = join(dir, "small.png"), big = join(dir, "big.png"), changed = join(dir, "changed.png"), text = join(dir, "notes.txt");
   writeFileSync(small, png); writeFileSync(big, png); truncateSync(big, MAX_IMAGE_BYTES + 1); writeFileSync(changed, "no longer an image"); writeFileSync(text, "hello");
@@ -270,7 +275,7 @@ it("adds verified images up to 50 MB as ACP image blocks for Antigravity only", 
   expect(prompts.cursor).toEqual([{ type: "text", text: "hi" }]);
 });
 it("sends no image block to an Antigravity server that does not take images", async () => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-images-"))), small = join(dir, "a.png");
+  const dir = temp("doan-acp-images-"), small = join(dir, "a.png");
   writeFileSync(small, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
   const log = logFile();
   // Copilot's recorded initialize has promptCapabilities.image true too, so only a server without it is synthetic here.
@@ -285,7 +290,7 @@ it("does not set a model the opened session already runs", async () => {
   expect(logged(log).some(r => r.method === "session/set_config_option")).toBe(false);
 });
 it.each(["quit", "stopRuns"] as const)("stops a real ACP model-list read hanging in its handshake on %s and frees the lease after the server is gone", async how => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-listing-"))), log = logFile();
+  const dir = temp("doan-acp-listing-"), log = logFile();
   const release = vi.fn(async () => {});
   const service = new ConversationService(new ConversationStore(dir), async () => ({ ...input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "hang-init", FAKE_ACP_LOG: log } }), release }), vi.fn(), () => {});
   // Settled as soon as the stop ends the handshake, while quit still waits for the group.
@@ -356,7 +361,7 @@ function questionFixture(after: Record<string, unknown>[] = []): string {
     ...after.map(update => ({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update } })),
     { jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Thanks." } } } },
     { jsonrpc: "2.0", id: 3, result: { stopReason: "end_turn" } }] };
-  const path = join(realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-question-"))), "acp-antigravity.json");
+  const path = join(temp("doan-acp-question-"), "acp-antigravity.json");
   writeFileSync(path, JSON.stringify(fixture)); return path;
 }
 async function asking(runtime: "antigravity" | "copilot", mode = "", after: Record<string, unknown>[] = [], stage?: (stage: TurnStage) => void) {

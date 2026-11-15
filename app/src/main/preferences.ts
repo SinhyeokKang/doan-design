@@ -221,5 +221,3 @@ export function createPreferencesStore(file: string, options: { fs?: Partial<Pre
     },
   };
 }
-
-export type PreferencesStore = ReturnType<typeof createPreferencesStore>;

@@ -1,7 +1,7 @@
 import { forwardRef, Fragment, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Folder, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, SquareSlash, Square, TextAlignStart, TriangleAlert, X, Zap } from "lucide-react";
+import { ArrowUp, ArrowUpRight, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Folder, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, SquareSlash, Square, TextAlignStart, TriangleAlert, X, Zap } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { PermissionModeId } from "../main/conversation/permissionMode";
@@ -16,7 +16,7 @@ import { outsidePresetList } from "./presetOutside";
 import type { SettingsTarget } from "./settingsSections";
 import {
   attachmentChipView, foldRows, groupIcon, heldScrollTop, lockedOlderSide, isSubmitKey, steerKey, modelPickerView, NO_OLDER, olderLabel, olderOpened, olderOrder, olderToggled,
-  drawerSearchLabel, presetListView, providerLogo, type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary, type SuggestionPart,
+  drawerSearchLabel, presetListView, providerLogo, type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary, type SuggestedPrompt, type SuggestionPart,
 } from "./homeComposer";
 import type { PermissionIcon, PermissionPickerView } from "./permissionPicker";
 
@@ -28,6 +28,13 @@ const GROUP_ICONS: Record<string, typeof Compass> = { "square-slash": SquareSlas
 // button's accessible name stays the whole sentence.
 export function SuggestionLabel({ parts }: { parts: readonly SuggestionPart[] }) {
   return <span className="suggestion-label">{parts.map((part, i) => part.value ? <span key={i} className="suggestion-value">{part.text}</span> : <Fragment key={i}>{part.text}</Fragment>)}</span>;
+}
+
+// One suggested prompt: Home, the Overview and the canvas panel draw this same row and differ only in what a pick does.
+// The sentence is in the shared Tooltip, not a native title.
+export function SuggestionButton({ prompt, onPick }: { prompt: SuggestedPrompt; onPick: () => void }) {
+  return <IconTip label={prompt.label}><button type="button" className="suggestion" onClick={onPick}>
+    <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><SuggestionLabel parts={prompt.parts} /><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button></IconTip>;
 }
 
 export function GroupIcon({ name, className }: { name: string; className?: string }) {

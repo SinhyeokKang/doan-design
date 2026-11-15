@@ -12,6 +12,7 @@ vi.mock("node:child_process", async original => {
   return { ...actual, spawn: record("spawn"), spawnSync: record("spawnSync"), exec: record("exec"), execSync: record("execSync"), execFile: record("execFile"), execFileSync: record("execFileSync"), fork: record("fork") };
 });
 const { parseGitConfig, readGitRemotes } = await import("./gitConfig");
+const { PROMPT_MS, withFifo } = await import("../fifo.fixture");
 
 let temp: string, home: string;
 beforeEach(() => { temp = realpathSync(mkdtempSync(join(tmpdir(), "doan-gitconfig-"))); home = join(temp, "home"); mkdirSync(home); spawned.length = 0; });
@@ -111,6 +112,28 @@ test("includes resolve relative to the including file and from ~, nested, with c
   expect(read).toEqual({ ok: true, urls: ["git@github.com:someone/studio.git", "https://github.com/acme/nested", "https://github.com/acme/home", "https://github.com/acme/studio"], uncertain: true });
 });
 
+// The cycle check sees only the current chain, so a file included from several places is read each time. A file
+// included twice is ordinary; ten includes per file, levels deep, would be read 10^depth times on main.
+test("a file included from two places is read from both", () => {
+  const root = repo("dag-small", "[include]\n\tpath = a.inc\n[include]\n\tpath = b.inc\n[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  file(join(root, ".git", "a.inc"), "[include]\n\tpath = shared.inc\n");
+  file(join(root, ".git", "b.inc"), "[include]\n\tpath = shared.inc\n");
+  file(join(root, ".git", "shared.inc"), "[remote \"shared\"]\n\turl = https://github.com/acme/shared\n");
+  expect(readGitRemotes(root, home)).toEqual({ ok: true, urls: ["https://github.com/acme/shared", "https://github.com/acme/shared", "https://github.com/acme/studio"], uncertain: false });
+});
+
+test("a wide include graph stops at its read budget and is uncertain", () => {
+  const ten = (path: string) => "[include]\n\tpath = " + path + "\n";
+  const root = repo("dag-wide", ten("l1.inc").repeat(10) + "[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  for (let level = 1; level < 4; level++) file(join(root, ".git", `l${level}.inc`), ten(`l${level + 1}.inc`).repeat(10));
+  file(join(root, ".git", "l4.inc"), "[remote \"deep\"]\n\turl = https://github.com/acme/deep\n");
+  const started = performance.now();
+  const read = readGitRemotes(root, home);
+  expect(performance.now() - started).toBeLessThan(PROMPT_MS);
+  expect(read).toMatchObject({ ok: true, uncertain: true });
+  expect(read.ok && read.urls.at(-1)).toBe("https://github.com/acme/studio");
+});
+
 test("a missing include is skipped like git does; an unreadable or malformed one makes the read uncertain", () => {
   const missing = repo("missing-inc", "[include]\n\tpath = nowhere.inc\n[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
   expect(readGitRemotes(missing, home)).toEqual({ ok: true, urls: ["https://github.com/acme/studio"], uncertain: false });
@@ -171,4 +194,45 @@ test("config features doan does not resolve make the read uncertain instead of c
 
 test("a repository with no remotes reads as an empty list", () => {
   expect(readGitRemotes(repo("empty", "[core]\n\tbare = false\n"), home)).toEqual({ ok: true, urls: [], uncertain: false });
+});
+
+// A FIFO or device in repository metadata must not stall or flood main: it reads as unreadable (or makes an include
+// uncertain) at once.
+test("a FIFO .git file, commondir or config is unreadable without blocking", async () => {
+  const dotGit = join(temp, "fifo-dotgit"); mkdirSync(dotGit);
+  const asDotGit = await withFifo(join(dotGit, ".git"), () => readGitRemotes(dotGit, home));
+  expect(asDotGit.value).toEqual({ ok: false, reason: "unreadable" });
+  expect(asDotGit.ms).toBeLessThan(PROMPT_MS);
+
+  const main = repo("fifo-main", "[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  const gitdir = join(main, ".git", "worktrees", "wt"); mkdirSync(gitdir, { recursive: true });
+  const worktree = join(temp, "fifo-wt"); file(join(worktree, ".git"), `gitdir: ${gitdir}\n`);
+  const asCommondir = await withFifo(join(gitdir, "commondir"), () => readGitRemotes(worktree, home));
+  expect(asCommondir.value).toEqual({ ok: false, reason: "unreadable" });
+  expect(asCommondir.ms).toBeLessThan(PROMPT_MS);
+
+  const config = join(temp, "fifo-config"); mkdirSync(join(config, ".git"), { recursive: true });
+  const asConfig = await withFifo(join(config, ".git", "config"), () => readGitRemotes(config, home));
+  expect(asConfig.value).toEqual({ ok: false, reason: "unreadable" });
+  expect(asConfig.ms).toBeLessThan(PROMPT_MS);
+});
+
+test("a FIFO, device or oversized include makes the read uncertain without blocking", async () => {
+  const fifo = repo("fifo-inc", "[include]\n\tpath = pipe.inc\n[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  const read = await withFifo(join(fifo, ".git", "pipe.inc"), () => readGitRemotes(fifo, home));
+  expect(read.value).toEqual({ ok: true, urls: ["https://github.com/acme/studio"], uncertain: true });
+  expect(read.ms).toBeLessThan(PROMPT_MS);
+  const device = repo("dev-inc", "[include]\n\tpath = /dev/null\n[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  expect(readGitRemotes(device, home)).toEqual({ ok: true, urls: ["https://github.com/acme/studio"], uncertain: true });
+  const big = repo("big-inc", "[include]\n\tpath = big.inc\n[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  file(join(big, ".git", "big.inc"), `[remote "big"]\n\turl = https://github.com/acme/big\n${"#".repeat(16 * 1024 * 1024)}\n`);
+  expect(readGitRemotes(big, home)).toEqual({ ok: true, urls: ["https://github.com/acme/studio"], uncertain: true });
+});
+
+// Dotfile setups link their git config; following the link keeps such a regular file readable.
+test("an include reached through a link is still read", () => {
+  const root = repo("linked-inc", "[include]\n\tpath = ~/.gitconfig-linked\n");
+  file(join(home, "dotfiles", "gitconfig"), "[remote \"linked\"]\n\turl = https://github.com/acme/linked\n");
+  symlinkSync(join(home, "dotfiles", "gitconfig"), join(home, ".gitconfig-linked"));
+  expect(readGitRemotes(root, home)).toEqual({ ok: true, urls: ["https://github.com/acme/linked"], uncertain: false });
 });

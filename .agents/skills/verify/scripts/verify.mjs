@@ -22,6 +22,9 @@ export function plan(flags) {
   return [
     node("verify-tests", ["--test", ".agents/skills/verify/scripts/verify.test.mjs"]),
     node("runtime-support", ["--test", "app/runtime/*.test.ts"]),
+    // The buddy goldens are generated from their drafts; a draft changed without regenerating fails here.
+    node("buddy-golden", ["app/scripts/doanyGolden.mjs", "--check"]),
+    node("docked-buddy-golden", ["app/scripts/dockedBuddyGolden.mjs", "--check"]),
     { name: "go-test", command: "go", args: ["test", "./..."] },
     { name: "go-vet", command: "go", args: ["vet", "./..."] },
     npm("typecheck", ["run", "typecheck"]),

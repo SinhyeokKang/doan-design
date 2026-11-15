@@ -23,6 +23,7 @@ import { useVisibleClock } from "../visibleClock";
 import { useToast } from "../Toast";
 import { CLOSE, covered, DETAILS, drawerGroups, drawerLabel, EMPTY_DRAWER, exportAvailability, linkMove, liveText, LOADING_LABEL, modeTooltip, RETRY, stateScene, windowTitle, type SceneIcon } from "./view";
 import { FrameListBody } from "../FrameListBody";
+import { useHeaderNoDrag } from "../headerNoDrag";
 
 // The prototype window (PRODUCT §3 Show, one frame): the main window's shell without a sidebar, a header of Back,
 // Forward and Reload, the playing frame's name, the Fit/Responsive toggle and Export, and the frame's own document in a
@@ -517,8 +518,8 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
     <ConversationPanel open={conv.open} width={conv.width} bounds={conv.bounds} onHide={conv.onToggle} onResize={conv.onResize} preview={conv.preview}
       title={conv.title} columnRef={conv.column} onBlur={conv.onFocusOut}>{conv.body}</ConversationPanel>
     <ContentPanel view={view} layers={layers} covered={coveredNow} content={content} frames={frames}>
-      {view?.phase === "loading" && readingShown && <div className="problem-overlay reading"><p className="problem-reading"><span className="doan-spinner" aria-hidden="true" />{LOADING_LABEL}</p></div>}
-      {scene !== null && <div className="problem-overlay">
+      {view?.phase === "loading" && readingShown && <div className="problem-overlay reading doan-scroll"><p className="problem-reading"><span className="doan-spinner" aria-hidden="true" />{LOADING_LABEL}</p></div>}
+      {scene !== null && <div className="problem-overlay doan-scroll">
         <div className="problem-scene" role="group" aria-labelledby={SCENE_HEADING_ID}>
           <SceneIcon icon={scene.icon} />
           <div className="ob-heading problem-heading">
@@ -601,11 +602,15 @@ function FrameMenu({ view, open, onOpenChange, trigger: triggerRef, onTipEscape,
   const [tip, setTip] = useState(false);
   const text = useRef<HTMLSpanElement>(null);
   const groups = drawerGroups(view);
+  // The header is a drag region: an open menu holds it so a press on its empty part closes the menu.
+  useHeaderNoDrag(open, text);
 
   useLayoutEffect(() => {
     const node = text.current;
     if (!node) return;
-    const measure = () => setCut(node.scrollWidth > node.clientWidth);
+    // A name that fits closes the tooltip's own state too: masked by `cut` alone, a hover kept from before would open
+    // it with nobody pointing once the name is cut short again.
+    const measure = () => { const now = node.scrollWidth > node.clientWidth; setCut(now); if (!now) setTip(false); };
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
@@ -618,7 +623,7 @@ function FrameMenu({ view, open, onOpenChange, trigger: triggerRef, onTipEscape,
   const trigger = <button type="button" className="shell-search pw-name" ref={triggerRef} aria-haspopup={empty ? "dialog" : "listbox"}>
     <span className="pw-name-text" ref={text}>{view.title}</span><ChevronDown className="chev" aria-hidden="true" /></button>;
   return <><Popover.Root open={open} onOpenChange={onOpenChange}>
-    <Tooltip open={cut && tip} onOpenChange={setTip}><TooltipTrigger asChild><Popover.Trigger asChild {...(empty ? { "aria-describedby": EMPTY_DRAWER_ID } : {})}>{trigger}</Popover.Trigger></TooltipTrigger><TooltipContent onEscapeKeyDown={onTipEscape}>{view.title}</TooltipContent></Tooltip>
+    <Tooltip open={tip} onOpenChange={next => setTip(next && cut)}><TooltipTrigger asChild><Popover.Trigger asChild {...(empty ? { "aria-describedby": EMPTY_DRAWER_ID } : {})}>{trigger}</Popover.Trigger></TooltipTrigger><TooltipContent onEscapeKeyDown={onTipEscape}>{view.title}</TooltipContent></Tooltip>
     <FrameListBody label={drawerLabel(view)} groups={groups} open={open} empty={EMPTY_DRAWER} className="doan-floating doan-menu doan-frame-list pw-drawer" align="center"
       onPick={row => { onOpenChange(false); onChoose(row.id); }} />
   </Popover.Root>{empty && <span className="sr-only" id={EMPTY_DRAWER_ID}>{EMPTY_DRAWER}</span>}</>;

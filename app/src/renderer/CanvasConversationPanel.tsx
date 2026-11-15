@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import { DropdownMenu } from "radix-ui";
-import { ArrowUpRight, ChevronDown, Info, Plus, SquarePen } from "lucide-react";
+import { ChevronDown, Info, Plus, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import { sendNowShown } from "../main/conversation/steerSupport";
@@ -22,7 +22,7 @@ import { canvasConversationError, canvasConversationMenu, noticeOpenName, resume
 import { sameCanvas } from "./canvasConversationRows";
 import type { CanvasRun, CanvasTarget, CanvasView, ResumeReply } from "./canvasRun";
 import { focusFieldEnd } from "./chipField";
-import { GroupIcon, SuggestionLabel, type CanvasPress } from "./ComposerParts";
+import { SuggestionButton, type CanvasPress } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
@@ -34,7 +34,7 @@ import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPi
 import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
 import {
-  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView,
+  attachmentLimit, chosenAttachments, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProvider, fixedPreference, modelOption, modelPickerView,
   selectableProvider, sendRefusal, suggestedPresets, suggestedPrompts, type AttachmentDraft, type NewConversationDefault, type ModelsState,
 } from "./homeComposer";
 import { PROVIDER_NAMES } from "./agentAuthView";
@@ -488,9 +488,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
             <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}
           {resume && <ResumeChoice offer={offer!} reply={resume.resume} now={props.now} mode={held ? "new" : resume.start.mode} held={held} onChoose={choice => { run.choose(choice); focusField(); }} />}
           {prompts.length > 0 && !started && !resume && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
-            <button key={prompt.label} type="button" className="suggestion" title={prompt.label}
-              onClick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>
-              <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><SuggestionLabel parts={prompt.parts} /><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button>)}</div>}
+            <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }} />)}</div>}
         </>}
       {notice && <div className="doan-notice thread-notice" role="status"><Info className="doan-alert-icon" aria-hidden="true" /><span className="strip-text selectable"><span>{notice.text}</span></span>
         <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel"

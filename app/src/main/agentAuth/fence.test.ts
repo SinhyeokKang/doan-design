@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claudeDenyRules, claudeFenceSettings, claudeSandboxEnabled, codexMechanism, codexProfileArgs, codexRestart, codexTurnPermission, fenceArgs, fenceDenied, fencedCommand, fenceListingDirs, fencePolicy, resolveFencePaths, SANDBOX_EXEC, type FenceListing, type FencePaths } from "./fence";
+import { codexMechanism, codexProfileArgs, codexRestart, codexTurnPermission, fenceArgs, fenceDenied, fencedCommand, fenceListingDirs, fencePolicy, fencedEverywhere, profileFencedCommand, resolveFencePaths, SANDBOX_EXEC, sandboxRefused, type FenceListing, type FencePaths } from "./fence";
 import { PERMISSION_MODES } from "../conversation/permissionMode";
 import type { Provider } from "./types";
 
@@ -17,9 +17,9 @@ const HOOK = `(allow file-read* (literal (param "BROWSER_HOOK")))
 // A later run reads these as its settings, and Claude's or Codex's next run may start without the outer fence
 // (Claude by its sandbox setting, Codex outside Full access): their hooks, MCP servers and notify then run outside
 // any sandbox, so the agent must not plant them.
-const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")))
+const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")) (subpath (param "PROVIDER_PROJECT")) (literal (param "PROVIDER_MCP")))
 `;
-const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))
+const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (literal (param "CODEX_ENV")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))
 `;
 const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")))
 (allow file-read* (subpath (param "AGENT_RUNTIME")))
@@ -62,12 +62,13 @@ describe("fenceArgs", () => {
     expect(fenceArgs("claude", paths({ attachments: [att] }))).toEqual(["-p", BASE + HOOK + CLAUDE_SETTINGS,
       "-D", `USERDATA=${U}`, "-D", `AGENT_AUTH=${U}/agent-auth`, "-D", `PROFILES=${U}/agent-auth/profiles`, "-D", `PROFILE=${P}`,
       "-D", `RUNTIME=${U}/runtime.json`, "-D", `ATTACHMENTS=${att}`, "-D", `BROWSER_HOOK=${U}/agent-auth/browser-hook`, "-D", `PROVIDER_SETTINGS=${P}/settings.json`,
-      "-D", `PROVIDER_SKILLS=${P}/skills`, "-D", `PROVIDER_AGENTS=${P}/agents`, "-D", `PROVIDER_PLUGINS=${P}/plugins`, "-D", `PROVIDER_COMMANDS=${P}/commands`]);
+      "-D", `PROVIDER_SKILLS=${P}/skills`, "-D", `PROVIDER_AGENTS=${P}/agents`, "-D", `PROVIDER_PLUGINS=${P}/plugins`, "-D", `PROVIDER_COMMANDS=${P}/commands`,
+      "-D", `PROVIDER_PROJECT=${P}/.claude`, "-D", `PROVIDER_MCP=${P}/.mcp.json`]);
   });
   it("names Codex's settings files in its own profile", () => {
     const profile = `${U}/agent-auth/profiles/codex-7`;
     expect(params(fenceArgs("codex", { userData: U, profile, attachments: [`${U}/attachments`] }))).toMatchObject({
-      CODEX_CONFIG: `${profile}/config.toml`, CODEX_HOOKS: `${profile}/hooks.json`, CODEX_MANAGED: `${profile}/managed_config.toml`, CODEX_RULES: `${profile}/rules`,
+      CODEX_CONFIG: `${profile}/config.toml`, CODEX_HOOKS: `${profile}/hooks.json`, CODEX_MANAGED: `${profile}/managed_config.toml`, CODEX_ENV: `${profile}/.env`, CODEX_RULES: `${profile}/rules`,
       CODEX_SKILLS: `${profile}/skills`, CODEX_PLUGINS: `${profile}/plugins` });
   });
   it("gives Antigravity its agent runtime and its own profile's skill paths", () => {
@@ -88,7 +89,7 @@ describe("fenceArgs", () => {
   });
   it("names no other provider's profile and no Doan path beyond the allowed ones", () => {
     const values = Object.values(params(fenceArgs("claude", paths())));
-    expect(values.filter(v => v.startsWith(`${U}/agent-auth/profiles/`))).toEqual([P, P, `${P}/settings.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`, `${P}/commands`]);
+    expect(values.filter(v => v.startsWith(`${U}/agent-auth/profiles/`))).toEqual([P, P, `${P}/settings.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`, `${P}/commands`, `${P}/.claude`, `${P}/.mcp.json`]);
     expect(values.some(v => v.includes("conversations") || v.includes("vault"))).toBe(false);
   });
   it("keeps a path with quotes, spaces and parentheses as one argument", () => {
@@ -144,6 +145,53 @@ describe("resolveFencePaths", () => {
   });
 });
 
+// Processes Doan starts outside a conversation load files an agent in that provider's outer fence can write: Claude's
+// usage read and MCP connector commands the MCP servers its .claude.json names, every Copilot process the JavaScript in
+// its profile's package cache. They run in the outer fence.
+describe("profileFencedCommand", () => {
+  const real = (path: string) => path.replace("/link", "");
+  it("runs the command under sandbox-exec with Claude's policy and the resolved profile", () => {
+    const launch = profileFencedCommand("claude", { userData: `/link${U}` }, `/link${P}`, "/bin/claude", ["mcp", "list"], real)!;
+    expect(launch.command).toBe(SANDBOX_EXEC);
+    expect(launch.args.slice(-3)).toEqual(["/bin/claude", "mcp", "list"]);
+    expect(launch.args[1]).toBe(fencePolicy("claude"));
+    expect(params(launch.args)).toMatchObject({ USERDATA: U, PROFILE: P, PROVIDER_SETTINGS: `${P}/settings.json`, BROWSER_HOOK: `${U}/agent-auth/browser-hook` });
+  });
+  it("runs a Copilot command under Copilot's policy in its own profile", () => {
+    const copilot = `${U}/agent-auth/profiles/copilot`;
+    const launch = profileFencedCommand("copilot", { userData: U }, copilot, "/bin/copilot", ["login"], real)!;
+    expect(launch.command).toBe(SANDBOX_EXEC);
+    expect(launch.args.slice(-2)).toEqual(["/bin/copilot", "login"]);
+    expect(launch.args[1]).toBe(fencePolicy("copilot"));
+    expect(params(launch.args)).toEqual({ USERDATA: U, AGENT_AUTH: `${U}/agent-auth`, PROFILES: `${U}/agent-auth/profiles`, PROFILE: copilot, RUNTIME: `${U}/runtime.json`, ATTACHMENTS: copilot });
+  });
+  it("takes another sandbox-exec path", () => {
+    expect(profileFencedCommand("claude", { userData: U, exec: "/tmp/exec" }, P, "/bin/claude", [], real)!.command).toBe("/tmp/exec");
+  });
+  it("is null when the fence cannot be built, so nothing starts unfenced", () => {
+    expect(profileFencedCommand("claude", { userData: U }, "/elsewhere/claude", "/bin/claude", [], real)).toBeNull();
+    expect(profileFencedCommand("copilot", { userData: U }, P, "/bin/copilot", [], () => { throw new Error("ENOENT"); })).toBeNull();
+  });
+});
+
+// Every Copilot process imports the JavaScript in the profile's package cache, which its own fenced turn can rewrite;
+// the other providers' sign-in and status commands ran nothing planted in their profiles (probe).
+it("fences every process of Copilot and Cursor and of no other provider", () => {
+  expect((["claude", "codex", "cursor", "antigravity", "copilot"] as const).filter(fencedEverywhere)).toEqual(["cursor", "copilot"]);
+});
+
+// sandbox-exec exits 65 for a policy error and 71 when it cannot exec the command, each with its own "sandbox-exec:"
+// line; a CLI that exits 65 or 71 by itself writes no such line.
+describe("sandboxRefused", () => {
+  it("is sandbox-exec's own refusal only: exit 65 or 71 with its stderr line", () => {
+    expect(sandboxRefused({ exitCode: 71, stderr: "sandbox-exec: execvp() of '/bin/cli' failed: No such file or directory\n" })).toBe(true);
+    expect(sandboxRefused({ exitCode: 65, stderr: "warn\nsandbox-exec: invalid policy\n" })).toBe(true);
+    expect(sandboxRefused({ exitCode: 71, stderr: "cli: internal error\n" })).toBe(false);
+    expect(sandboxRefused({ exitCode: 65, stderr: "" })).toBe(false);
+    expect(sandboxRefused({ exitCode: 1, stderr: "sandbox-exec: invalid policy\n" })).toBe(false);
+    expect(sandboxRefused({ exitCode: null, stderr: "sandbox-exec: invalid policy\n" })).toBe(false);
+  });
+});
 describe("fencedCommand", () => {
   it("runs the original command and arguments, in order, under sandbox-exec", () => {
     expect(fencedCommand("/bin/agent", ["-c", "a=b", "app-server"], ["-p", "X", "-D", "A=/a"]))
@@ -157,29 +205,7 @@ describe("fencedCommand", () => {
   });
 });
 
-describe("claudeSandboxEnabled", () => {
-  const on = { sandbox: { enabled: true } }, off = { sandbox: { enabled: false } };
-  it("is off with no setting anywhere", () => {
-    expect(claudeSandboxEnabled({ user: undefined, project: undefined, local: undefined, managed: [] })).toBe(false);
-  });
-  it("lets local beat project and project beat user", () => {
-    expect(claudeSandboxEnabled({ user: on, project: undefined, local: undefined, managed: [] })).toBe(true);
-    expect(claudeSandboxEnabled({ user: on, project: off, local: undefined, managed: [] })).toBe(false);
-    expect(claudeSandboxEnabled({ user: off, project: off, local: on, managed: [] })).toBe(true);
-    expect(claudeSandboxEnabled({ user: undefined, project: on, local: off, managed: [] })).toBe(false);
-  });
-  it("lets managed beat every other source, a later drop-in beating an earlier one", () => {
-    expect(claudeSandboxEnabled({ user: on, project: on, local: on, managed: [off] })).toBe(false);
-    expect(claudeSandboxEnabled({ user: off, project: off, local: off, managed: [off, on] })).toBe(true);
-    expect(claudeSandboxEnabled({ user: on, project: undefined, local: undefined, managed: [undefined, {}] })).toBe(true);
-  });
-  it("reads a non-boolean or malformed value as no setting", () => {
-    expect(claudeSandboxEnabled({ user: on, project: { sandbox: { enabled: "false" } }, local: { sandbox: null }, managed: ["text", [1]] })).toBe(true);
-  });
-});
-
 describe("fenceDenied", () => {
-  const att = `${U}/attachments/0f4e`;
   const listing: FenceListing = new Map([
     [U, [{ name: "agent-auth", directory: true }, { name: "attachments", directory: true }, { name: "conversations", directory: true }, { name: "runtime.json", directory: false }, { name: "sessions.jsonl", directory: false }, { name: "agent-runtimes", directory: true }]],
     [`${U}/agent-auth`, [{ name: "profiles", directory: true }, { name: "vault", directory: true }, { name: "metadata.json", directory: false }, { name: "browser-hook", directory: false }]],
@@ -187,99 +213,26 @@ describe("fenceDenied", () => {
     [`${U}/attachments`, [{ name: "0f4e", directory: true }, { name: "77aa", directory: true }]],
   ]);
   const dir = (path: string) => ({ path, directory: true }), file = (path: string) => ({ path, directory: false });
-  it("lists the directories on the way to Claude's allowed paths, the attachment store only with a pasted image", () => {
-    expect(fenceListingDirs("claude", paths({ attachments: [att] }))).toEqual([U, `${U}/agent-auth`, `${U}/agent-auth/profiles`, `${U}/attachments`]);
-    expect(fenceListingDirs("claude", paths())).toEqual([U, `${U}/agent-auth`, `${U}/agent-auth/profiles`]);
-  });
-  it("denies every Claude entry off the way to the allowed paths", () => {
-    expect(fenceDenied("claude", paths({ attachments: [att] }), listing)).toEqual([
-      dir(`${U}/conversations`), file(`${U}/sessions.jsonl`), dir(`${U}/agent-runtimes`),
-      dir(`${U}/agent-auth/vault`), file(`${U}/agent-auth/metadata.json`),
-      dir(`${U}/agent-auth/profiles/codex`), dir(`${U}/agent-auth/profiles/codex-7`), dir(`${U}/agent-auth/profiles/cursor`),
-      dir(`${U}/attachments/77aa`),
-    ]);
-  });
-  it("denies the whole attachment store to a Claude turn with no pasted image", () => {
-    expect(fenceDenied("claude", paths(), new Map([...listing].filter(([d]) => d !== `${U}/attachments`)))).toContainEqual(dir(`${U}/attachments`));
-  });
+  const codex = { userData: U, profile: `${U}/agent-auth/profiles/codex`, attachments: [`${U}/attachments`] };
   it("leaves Codex the whole attachment store and denies the browser hook it does not run", () => {
-    const codex = { userData: U, profile: `${U}/agent-auth/profiles/codex`, attachments: [`${U}/attachments`] };
-    expect(fenceListingDirs("codex", codex)).toEqual([U, `${U}/agent-auth`, `${U}/agent-auth/profiles`]);
-    expect(fenceDenied("codex", codex, listing)).toEqual([
+    expect(fenceListingDirs(codex)).toEqual([U, `${U}/agent-auth`, `${U}/agent-auth/profiles`]);
+    expect(fenceDenied(codex, listing)).toEqual([
       dir(`${U}/conversations`), file(`${U}/sessions.jsonl`), dir(`${U}/agent-runtimes`),
       dir(`${U}/agent-auth/vault`), file(`${U}/agent-auth/metadata.json`), file(`${U}/agent-auth/browser-hook`),
       dir(`${U}/agent-auth/profiles/claude`), dir(`${U}/agent-auth/profiles/codex-7`), dir(`${U}/agent-auth/profiles/cursor`),
     ]);
   });
   it("never denies an allowed path or one of its ancestors", () => {
-    const denied = fenceDenied("claude", paths({ attachments: [att] }), listing)!.map(e => e.path);
-    for (const allowed of [U, P, att, `${U}/runtime.json`, `${U}/agent-auth/browser-hook`, `${U}/agent-auth/profiles`, `${U}/agent-auth`, `${U}/attachments`]) expect(denied).not.toContain(allowed);
+    const denied = fenceDenied(codex, listing)!.map(e => e.path);
+    for (const allowed of [U, codex.profile, `${U}/runtime.json`, `${U}/agent-auth/profiles`, `${U}/agent-auth`, `${U}/attachments`]) expect(denied).not.toContain(allowed);
   });
   it("refuses when an ancestor could not be listed", () => {
-    expect(fenceDenied("claude", paths(), new Map([...listing].filter(([d]) => d !== `${U}/agent-auth`)))).toBeNull();
+    expect(fenceDenied(codex, new Map([...listing].filter(([d]) => d !== `${U}/agent-auth`)))).toBeNull();
   });
   // TOML basic strings take no U+007F, which JSON.stringify leaves as it is.
   it("refuses a name a permission rule or profile entry would read as a pattern, or any control character", () => {
     for (const name of ["a*b", "a?b", "a[b]", "a\\b", "a(b)", "a{b}", "a\x01b", "a\x7fb", "a\tb"])
-      expect(fenceDenied("claude", paths(), new Map([...listing].map(([d, entries]) => [d, d === U ? [...entries, { name, directory: false }] : entries])))).toBeNull();
-  });
-});
-
-describe("claudeDenyRules", () => {
-  it("writes directories with /** and files as they are, `//` starting an absolute path", () => {
-    expect(claudeDenyRules([{ path: `${U}/conversations`, directory: true }, { path: `${U}/sessions.jsonl`, directory: false }])).toEqual([
-      `Read(/${U}/conversations/**)`, `Edit(/${U}/conversations/**)`, `Read(/${U}/sessions.jsonl)`, `Edit(/${U}/sessions.jsonl)`]);
-  });
-});
-
-describe("claudeFenceSettings", () => {
-  const att = `${U}/attachments/0f4e`;
-  const denied = [{ path: `${U}/conversations`, directory: true }, { path: `${U}/agent-auth/profiles/codex`, directory: true }];
-  const settingsFiles = [{ path: `${P}/settings.json`, directory: false }, { path: `${P}/.claude.json`, directory: false }];
-  const settingsDirs = ["skills", "agents", "plugins", "commands"].map(dir => `Edit(/${P}/${dir}/**)`);
-  it("adds Doan's deny rules and filesystem limits, keeps the sandbox on and turns off running outside it", () => {
-    expect(claudeFenceSettings(paths({ attachments: [att] }), denied)).toEqual({
-      permissions: { deny: [...claudeDenyRules([...denied, ...settingsFiles]), ...settingsDirs] },
-      sandbox: { enabled: true, allowUnsandboxedCommands: false, filesystem: {
-        denyRead: [U], allowRead: [P, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`],
-        denyWrite: [`${U}/conversations`, `${U}/agent-auth/profiles/codex`, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`, `${P}/settings.json`, `${P}/.claude.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`, `${P}/commands`], allowWrite: [P] } },
-    });
-  });
-  // Hooks, MCP servers and a sandbox switch in these files run outside any sandbox on a later turn with the sandbox on.
-  it("keeps the agent's Bash and Edit tool off its own profile's settings files", () => {
-    const settings = claudeFenceSettings(paths(), []);
-    for (const file of ["settings.json", ".claude.json"]) {
-      expect(settings.sandbox.filesystem.denyWrite).toContain(`${P}/${file}`);
-      expect(settings.permissions.deny).toContain(`Edit(/${P}/${file})`);
-    }
-  });
-  // A skill's or subagent's frontmatter hooks and a skills-dir plugin's hooks and MCP servers run outside the sandbox
-  // too, and a skill added mid-session is picked up at once.
-  it("keeps the agent's Bash and Edit tool off its own profile's skills, agents and plugins, which stay readable", () => {
-    const settings = claudeFenceSettings(paths(), []);
-    // commands/ is the older skill format and takes the same frontmatter, hooks included.
-    for (const dir of ["skills", "agents", "plugins", "commands"]) {
-      expect(settings.sandbox.filesystem.denyWrite).toContain(`${P}/${dir}`);
-      expect(settings.permissions.deny).toContain(`Edit(/${P}/${dir}/**)`);
-      expect(settings.permissions.deny).not.toContain(`Read(/${P}/${dir}/**)`);
-    }
-  });
-  // Claude's sandbox blocks unix sockets, and allowUnsandboxedCommands false removed the way to run `doan` outside it,
-  // so only the app socket's own directory is allowed (Claude Code 2.1.319, sandbox run; direct TCP stays blocked).
-  it("allows the app socket's directory and no other network", () => {
-    // The socket's own path, as the setting documents it, rather than its directory.
-    expect(claudeFenceSettings(paths(), [], "/private/var/folders/x/T/doan-AbC/app.sock").sandbox.network).toEqual({ allowUnixSockets: ["/private/var/folders/x/T/doan-AbC/app.sock"] });
-    expect(claudeFenceSettings(paths(), []).sandbox).not.toHaveProperty("network");
-  });
-  // Doan judged the sandbox on; the flag tier keeps it on when a user, project or local source it misread says off.
-  it("turns the sandbox on in the flag tier", () => {
-    expect(claudeFenceSettings(paths(), []).sandbox.enabled).toBe(true);
-  });
-  // A denyWrite path beats an allowWrite inside it (Claude Code 2.1.319, real sandbox run), so userData as a whole
-  // kept Bash from writing its own profile.
-  it("keeps the profile writable: no denyWrite path is the profile or one of its ancestors", () => {
-    const { denyWrite } = claudeFenceSettings(paths({ attachments: [att] }), denied).sandbox.filesystem;
-    for (const path of denyWrite) expect(P === path || P.startsWith(`${path}/`)).toBe(false);
+      expect(fenceDenied(codex, new Map([...listing].map(([d, entries]) => [d, d === U ? [...entries, { name, directory: false }] : entries])))).toBeNull();
   });
 });
 
@@ -289,7 +242,7 @@ describe("codexProfileArgs", () => {
   const denied = [{ path: `${U}/conversations`, directory: true }, { path: `${U}/agent-auth/profiles/cursor`, directory: true }];
   const sock = "/private/var/folders/x/T/doan-AbC123";
   it("defines Doan's two permission profiles and makes the read-only one the default", () => {
-    const entries = `{"${U}/conversations"="deny","${U}/agent-auth/profiles/cursor"="deny","${profile}/config.toml"="deny","${profile}/hooks.json"="deny","${profile}/managed_config.toml"="deny","${profile}/rules"="deny","${profile}"="write","${U}/runtime.json"="read","${U}/attachments"="read","${profile}/skills"="read","${profile}/plugins"="read"}`;
+    const entries = `{"${U}/conversations"="deny","${U}/agent-auth/profiles/cursor"="deny","${profile}/config.toml"="deny","${profile}/hooks.json"="deny","${profile}/managed_config.toml"="deny","${profile}/.env"="deny","${profile}/rules"="deny","${profile}"="write","${U}/runtime.json"="read","${U}/attachments"="read","${profile}/skills"="read","${profile}/plugins"="read"}`;
     const network = `network={enabled=true,unix_sockets={"${sock}"="allow"}}`;
     expect(codexProfileArgs(codex, denied, sock)).toEqual([
       "-c", 'default_permissions="doan"',
@@ -297,12 +250,14 @@ describe("codexProfileArgs", () => {
       "-c", `permissions.doan-workspace={extends=":workspace",filesystem=${entries},${network}}`,
     ]);
   });
+  // Every Codex process loads <CODEX_HOME>/.env into its own environment (codex-cli 0.169.0, probe), and a planted PATH
+  // there decides what the harness's own unsandboxed children (git) run, so it is closed like the settings files.
   // MCP servers and notify from config.toml run outside the Codex sandbox (codex-cli 0.166.0, probe), and an escalated
   // command keeps only deny entries, so the settings files are denied rather than read-only.
   // A skill's agents/openai.yaml can name MCP dependencies and a plugin can carry hooks and MCP servers.
   it("denies the profile's own settings files, skills and plugins", () => {
     const text = codexProfileArgs(codex, denied, sock).join(" ");
-    for (const file of ["config.toml", "hooks.json", "managed_config.toml", "rules"]) expect(text).toContain(`"${profile}/${file}"="deny"`);
+    for (const file of ["config.toml", "hooks.json", "managed_config.toml", ".env", "rules"]) expect(text).toContain(`"${profile}/${file}"="deny"`);
   });
   // The model opens a skill's SKILL.md with shell tools, so a deny kept the doan stub from sandboxed commands; read-only
   // still keeps them from writing there (codex sandbox probe). An approved escalated command keeps only deny entries,

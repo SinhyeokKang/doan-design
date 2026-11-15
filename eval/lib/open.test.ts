@@ -27,9 +27,15 @@ test("openCalls reads the canvas and frame whatever the flag spelling, and only 
     `doan open ${path}`,
     "echo 'doan open x.html'",
     "doan ls --json",
+    // --prototype here is the --frame value, not a flag.
+    `doan open ${path} --frame --prototype`,
+    // The CLI refuses these: open takes one --frame, one path, and no --note.
+    `doan open ${path} --frame x --frame profile-form`,
+    `doan open ${path} .doan/canvases/other.html --frame profile-form`,
+    `doan open ${path} --note n --frame profile-form`,
   ) });
   assert.deepEqual(calls, [
-    { path, frame: "profile-form" }, { path, frame: "profile-form" }, { path, frame: "profile-form" }, { path, frame: undefined },
+    { path, frame: "profile-form" }, { path, frame: "profile-form" }, { path, frame: "profile-form" }, { path, frame: undefined }, { path, frame: "--prototype" },
   ]);
 });
 
@@ -38,12 +44,21 @@ const exchange = (request: Partial<OpenExchange["request"]>, response: OpenExcha
 });
 const found = { v: 4, ok: true, opened: true, frame: "found" } as const;
 const ctx = (commands: string[], log: OpenExchange[], final = "final") =>
-  ({ calls: shell(...commands), open: () => log, prototype: () => [], read: () => final }) as unknown as CheckContext;
+  ({ repo: "/repo", calls: shell(...commands), open: () => log, prototype: () => [], read: () => final }) as unknown as CheckContext;
 
 test("noOpen fails on a command or on a request the app received, and passes on neither", () => {
   assert.equal(noOpen(ctx([], [])).pass, true);
   assert.equal(noOpen(ctx([`doan open ${path} --frame profile-form`], [])).pass, false);
   assert.equal(noOpen(ctx([], [exchange({}, found, null)])).pass, false);
+});
+
+test("noOpen fails beside a command the reader could not follow, which may have run doan open", () => {
+  const check = noOpen(ctx([`if [ -f ${path} ]; then doan open ${path} --frame profile-form; fi`], []));
+  assert.equal(check.pass, false);
+  assert.match(check.detail, /could not be read completely/);
+  assert.equal(noOpen(ctx([`test -f ${path} && doan ls --json`], [])).pass, true);
+  const computed = JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "exec", input: `const p = "${path}"; await tools.exec_command({cmd: \`doan open \${p}\`});` } });
+  assert.equal(noOpen({ calls: toolCalls(computed), open: () => [], prototype: () => [] }).pass, false);
 });
 
 test("openChecks need the call and an accepted request that arrived after the final edit", () => {
@@ -101,4 +116,13 @@ test("noOpen rejects v6-only evidence and reports both socket versions", () => {
   assert.equal(result.pass, false);
   assert.match(result.detail, /v4.*0.*v6.*1/);
   assert.match(noOpen(ctx([], [])).detail, /v4.*v6/);
+});
+
+// The CLI resolves the canvas path against the repository, so an absolute or ./ spelling asks for the same canvas.
+test("openChecks read the canvas path as the CLI does", () => {
+  const after = exchange({ frame: "profile-form" }, found, contentHash("final"));
+  const asked = (command: string) => openChecks(ctx([command], [after]), path, "profile-form").find(c => c.id === "open_command")!.pass;
+  for (const spelled of [`/repo/${path}`, `./${path}`, `.doan/../${path}`]) assert.equal(asked(`doan open ${spelled} --frame profile-form`), true, spelled);
+  assert.equal(asked("doan open .doan/canvases/other.html --frame profile-form"), false);
+  assert.equal(asked(`doan open ${path} --frame x --frame profile-form`), false);
 });

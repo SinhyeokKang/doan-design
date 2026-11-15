@@ -16,6 +16,7 @@ export class OwnedGroup {
   private killing: Promise<void> | undefined;
   private poll: ReturnType<typeof setInterval> | undefined;
   private escalation: ReturnType<typeof setTimeout> | undefined;
+  private waiting: (() => void)[] = [];
   constructor(readonly pid: number, private signal = (pid: number, signal: NodeJS.Signals) => { process.kill(-pid, signal); },
     private alive = (pid: number) => { try { process.kill(-pid, 0); return true; } catch (error) { if (object(error) && error.code === "ESRCH") return false; throw error; } }, private released = () => {}) {}
   childExited(): void { this.observe(); if (!this.exited) this.monitor(); }
@@ -25,7 +26,7 @@ export class OwnedGroup {
     this.send("SIGTERM"); this.monitor();
     this.escalation = setTimeout(() => { if (!this.exited) this.send("SIGKILL"); }, 500);
     this.escalation.unref();
-    this.stopping = new Promise(resolve => { const timer = setTimeout(resolve, 2000); timer.unref(); });
+    this.stopping = this.bounded();
     return this.stopping;
   }
   // At once, also while a stop is still before its own SIGKILL: a finished turn's process with nothing left to save. The
@@ -33,8 +34,16 @@ export class OwnedGroup {
   kill(): Promise<void> {
     if (this.exited) return Promise.resolve();
     this.send("SIGKILL"); this.monitor();
-    this.killing ??= new Promise(resolve => { const timer = setTimeout(resolve, 2000); timer.unref(); });
+    this.killing ??= this.bounded();
     return this.stopping ?? this.killing;
+  }
+  // The 2 s is a ceiling for a group that will not go; a caller waits only until the group is observed gone.
+  private bounded(): Promise<void> {
+    if (this.exited) return Promise.resolve();
+    return new Promise(resolve => {
+      const timer = setTimeout(resolve, 2000); timer.unref();
+      this.waiting.push(() => { clearTimeout(timer); resolve(); });
+    });
   }
   private send(signal: NodeJS.Signals): void { try { this.signal(this.pid, signal); } catch { /* Only an independent liveness observation releases ownership. */ } this.observe(); }
   private monitor(): void { if (!this.poll && !this.exited) { this.poll = setInterval(() => this.observe(), 100); this.poll.unref(); } }
@@ -42,5 +51,6 @@ export class OwnedGroup {
     if (this.exited) return;
     try { if (this.alive(this.pid)) return; } catch { return; }
     this.exited = true; clearInterval(this.poll); clearTimeout(this.escalation); this.released();
+    for (const settle of this.waiting.splice(0)) settle();
   }
 }

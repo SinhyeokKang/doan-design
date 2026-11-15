@@ -82,16 +82,16 @@ body:has(.shell-top) { background: transparent; }
 .shell-worktree > span { min-width: 0; flex: 1; }
 .shell-worktree > span > span, .shell-worktree small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell-worktree small { margin-top: 4px; color: var(--text-metadata); font-size: 11px; line-height: 14px; }
-.workspace > .area { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
-.workspace > .ov { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
-.workspace > .right-stack { border-radius: 0 24px 24px 0; overflow: hidden; }
+.workspace > .area { margin-left: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container) 0 0 var(--radius-container); }
+.workspace > .ov { margin-left: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container) 0 0 var(--radius-container); }
+.workspace > .right-stack { border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
 
 /* ── Home (doan-home, not in code) ── */
 /* Icon size baseline at zero specificity; every component rule below still wins. */
 :where(svg){width:var(--size-icon);height:var(--size-icon);flex:none}
 .shell-window{width:1238px;height:780px;display:grid;grid-template-columns:260px minmax(0,1fr);grid-template-rows:var(--size-chrome) minmax(0,1fr);padding:0 var(--space-2) var(--space-2);position:relative;border-radius:var(--radius-chip);box-shadow:var(--shadow-panel);overflow:hidden;isolation:isolate}
 .shell-window .shell-top{grid-column:1/-1}
-.home-panel{position:relative;margin-left:var(--space-2);min-width:0;min-height:0;border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);isolation:isolate}
+.home-panel{position:relative;margin-left:var(--space-2);min-width:0;min-height:0;border-radius:var(--radius-container);background:var(--surface-panel);isolation:isolate}
 /* Home's own atmosphere (2026-10-29 user, after a Gemini home screenshot): a wide violet ellipse spreading from the
    composer's centre, smooth and still; unlike Welcome's bottom glow it has no grain. The panel clips it at its corners. */
 .home-atmosphere{position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;background:radial-gradient(ellipse 78% 64% at 50% 60%,color-mix(in srgb,var(--affordance-accent) 24%,transparent) 0%,color-mix(in srgb,var(--affordance-accent) 15%,transparent) 32%,color-mix(in srgb,var(--affordance-accent) 6%,transparent) 62%,transparent 100%)}
@@ -313,7 +313,7 @@ body:has(.shell-top) { background: transparent; }
 .doan-toast.toast .msg{flex:1;min-width:0}
 
 .worktree-popover{width:244px}
-</style><style>/* Home rules copied from app/src/renderer/styles.css. */.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }.home-atmosphere { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; background: radial-gradient(ellipse 78% 64% at 50% 60%, color-mix(in srgb, var(--affordance-accent) 24%, transparent) 0%, color-mix(in srgb, var(--affordance-accent) 15%, transparent) 32%, color-mix(in srgb, var(--affordance-accent) 6%, transparent) 62%, transparent 100%); }
+</style><style>/* Home rules copied from app/src/renderer/styles.css. */.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }.home-atmosphere { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; background: radial-gradient(ellipse 78% 64% at 50% 60%, color-mix(in srgb, var(--affordance-accent) 24%, transparent) 0%, color-mix(in srgb, var(--affordance-accent) 15%, transparent) 32%, color-mix(in srgb, var(--affordance-accent) 6%, transparent) 62%, transparent 100%); }
 @media (prefers-reduced-transparency: reduce) { .home-atmosphere { opacity: .6; } }
 @media (forced-colors: active) { .home-atmosphere { display: none; } }
 .home-stage { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: 152px var(--space-8) var(--space-8); }

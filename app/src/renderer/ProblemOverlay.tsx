@@ -20,12 +20,12 @@ export function ProblemOverlay({ view, details, detail, pressed, announcement, o
   announcement: string;
   onAction(name: RowAction): void;
 }) {
-  if (view.kind === "reading") return <div className="problem-overlay reading"><p className="problem-reading" role="status"><span className="doan-spinner" aria-hidden="true" />{view.label}</p></div>;
+  if (view.kind === "reading") return <div className="problem-overlay reading doan-scroll"><p className="problem-reading" role="status"><span className="doan-spinner" aria-hidden="true" />{view.label}</p></div>;
   const Icon = view.icon;
   const { path, text } = view.line;
   const line: ReactNode = path !== undefined ? <><code>{path}</code> {text}</>
     : text.startsWith(CONFIG_FILE) ? <><code>{CONFIG_FILE}</code>{text.slice(CONFIG_FILE.length)}</> : text;
-  return <div className="problem-overlay">
+  return <div className="problem-overlay doan-scroll">
     <div className="problem-scene" role="group" aria-labelledby={HEADING_ID}>
       <Icon className="problem-icon" aria-hidden="true" />
       <div className="ob-heading problem-heading">

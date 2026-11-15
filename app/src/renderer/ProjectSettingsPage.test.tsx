@@ -70,9 +70,8 @@ const loading = (): FolderEntry => ({ path: ROOT, kind: "loading" });
 const CONFIG = { kind: "config", root: ROOT, tokenCss: "src/styles/tokens.css", serve: ["src/components/ui", "public/fonts"], changed: false };
 let doan: Record<string, ReturnType<typeof vi.fn>>;
 let props: Parameters<typeof ProjectSettingsPage>[0];
-let focused: string[];
 beforeEach(() => {
-  resetHooks(); focused = [];
+  resetHooks();
   doan = {
     startConfigSession: vi.fn(async () => {}), endConfigSession: vi.fn(async () => {}),
     readConfig: vi.fn(async (root: string) => ({ ...CONFIG, root })),

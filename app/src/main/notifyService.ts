@@ -91,5 +91,3 @@ export function createNotifyService(deps: NotifyDeps) {
     },
   };
 }
-
-export type NotifyService = ReturnType<typeof createNotifyService>;

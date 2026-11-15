@@ -44,15 +44,16 @@ test("R10 passes with one accepted request for the new canvas after it was writt
 test("R10 fails when no request arrived, two arrived or the only one was refused", () => {
   const ctx = setup();
   assert.deepEqual(failed(ctx, []), ["handoff_requested_once", "handoff_path_is_new_canvas", "canvas_written_before_request", "handoff_message_not_empty"]);
-  assert.ok(failed(ctx, [request(ctx), request(ctx)]).includes("handoff_requested_once"));
-  assert.ok(failed(ctx, [request(ctx, { ok: false })]).includes("handoff_requested_once"));
+  // Two requests after the final write are a count failure only: the canvas was not written late.
+  assert.deepEqual(failed(ctx, [request(ctx), request(ctx)]), ["handoff_requested_once"]);
+  assert.deepEqual(failed(ctx, [request(ctx, { ok: false })]), ["handoff_requested_once", "handoff_path_is_new_canvas", "canvas_written_before_request", "handoff_message_not_empty"]);
 });
 test("R10 counts the accepted request: a refused attempt followed by one accepted request passes, two accepted would not", () => {
   const ctx = setup();
   assert.deepEqual(failed(ctx, [request(ctx, { path: ".doan/canvases/account.html", ok: false }), request(ctx)]), []);
   assert.deepEqual(failed(ctx, [request(ctx), request(ctx, { ok: false })]), []);
-  assert.ok(failed(ctx, [request(ctx, { ok: false }), request(ctx, { ok: false })]).includes("handoff_requested_once"));
-  assert.ok(failed(ctx, [request(ctx), request(ctx)]).includes("handoff_requested_once"));
+  assert.deepEqual(failed(ctx, [request(ctx, { ok: false }), request(ctx, { ok: false })]), ["handoff_requested_once", "handoff_path_is_new_canvas", "canvas_written_before_request", "handoff_message_not_empty"]);
+  assert.deepEqual(failed(ctx, [request(ctx), request(ctx)]), ["handoff_requested_once"]);
 });
 test("R10 requires the 390 px width and both screens' copy on the new canvas, in whatever frames", () => {
   const ctx = setup();
@@ -85,6 +86,14 @@ test("R10 puts the start of the delivered message in the detail", () => {
 test("R10 fails a request for the source canvas or another path", () => {
   const ctx = setup();
   assert.ok(failed(ctx, [request(ctx, { path: ".doan/canvases/account.html" })]).includes("handoff_path_is_new_canvas"));
+});
+// Path and message are judged on every accepted request, so a bad second request is not only a count failure.
+test("R10 judges the path and message of every accepted request, not only the first", () => {
+  const ctx = setup();
+  assert.deepEqual(failed(ctx, [request(ctx), request(ctx, { path: ".doan/canvases/account.html" })]), ["handoff_requested_once", "handoff_path_is_new_canvas"]);
+  assert.deepEqual(failed(ctx, [request(ctx), request(ctx, { text: " " })]), ["handoff_requested_once", "handoff_message_not_empty"]);
+  // A refused request is not judged for either.
+  assert.deepEqual(failed(ctx, [request(ctx), request(ctx, { path: ".doan/canvases/account.html", text: "", ok: false })]), []);
 });
 test("R10 fails when the canvas changed after the request or did not exist at it", () => {
   const ctx = setup();

@@ -36,3 +36,20 @@ it("kill sends one SIGKILL and nothing for a group already gone", async () => {
   expect(released).toHaveBeenCalledOnce();
   await group.kill(); expect(signal).toHaveBeenCalledOnce();
 });
+// The 2 s bound is a ceiling for a group that will not go; a caller of a group gone sooner settles once it is observed gone.
+it.each(["stop", "kill"] as const)("%s settles once the group is observed gone, before the bound", async how => {
+  vi.useFakeTimers(); let alive = true; const released = vi.fn();
+  const group = new OwnedGroup(79, vi.fn(), () => alive, released);
+  let settled = false; void group[how]().then(() => { settled = true; });
+  await vi.advanceTimersByTimeAsync(50); expect(settled).toBe(false);
+  alive = false; await vi.advanceTimersByTimeAsync(100);
+  expect(released).toHaveBeenCalledOnce(); expect(settled).toBe(true);
+});
+it("a stop and a kill during it both settle when the child's exit shows the group gone", async () => {
+  vi.useFakeTimers(); let alive = true;
+  const group = new OwnedGroup(80, vi.fn(), () => alive);
+  let stopped = false, killed = false;
+  void group.stop().then(() => { stopped = true; }); void group.kill().then(() => { killed = true; });
+  alive = false; group.childExited(); await Promise.resolve(); await Promise.resolve();
+  expect([stopped, killed]).toEqual([true, true]);
+});

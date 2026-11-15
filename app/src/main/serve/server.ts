@@ -30,8 +30,10 @@ const O_NOFOLLOW_ANY = 0x20000000;
 // The server opens only realpath results, which contain no links. Opening them
 // with O_NOFOLLOW_ANY means a directory swapped for a link between the realpath
 // check and the open fails instead of leading the open outside the scope.
+// O_NONBLOCK: a FIFO would otherwise hold a libuv thread until a writer appears;
+// opened at once, it fails the caller's regular-file check.
 export function openNoFollow(path: string): Promise<FileHandle> {
-  return open(path, O_NOFOLLOW_ANY | constants.O_RDONLY);
+  return open(path, O_NOFOLLOW_ANY | constants.O_RDONLY | constants.O_NONBLOCK);
 }
 
 const TYPES: Record<string, string> = {
