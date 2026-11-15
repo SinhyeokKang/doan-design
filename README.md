@@ -153,9 +153,11 @@ A typical agent turn:
 
 ```sh
 doan work start .doan/canvases/tasks.html --json
+doan work update .doan/canvases/tasks.html --frame approval --note "Update the approval frame" --json
 # … the agent edits the canvas …
 doan check --json
 doan work done .doan/canvases/tasks.html --json
+# Only when the person asks to open it:
 doan open .doan/canvases/tasks.html --frame approval --json
 ```
 
