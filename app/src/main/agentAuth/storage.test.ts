@@ -1,7 +1,8 @@
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { fakeCipher } from "./fixtures/cipher";
 import { AuthStorage, StorageError } from "./storage";
 
@@ -137,6 +138,24 @@ describe("provider file bridge", () => {
     mkdirSync(join(root, "elsewhere")); writeFileSync(join(root, "elsewhere/auth.json"), "{}");
     symlinkSync(join(root, "elsewhere"), join(storage.profileDir("cursor"), "config"));
     expect(() => storage.readWorking("cursor", "config/auth.json")).toThrow(StorageError);
+  });
+  // The provider process owns the profile: a FIFO there must not freeze main, and a huge file must not load whole.
+  it("refuses a FIFO or oversized working file for main and for the vault, without blocking", async () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    const path = join(storage.profileDir("cursor"), "config/auth.json");
+    mkdirSync(dirname(path), { recursive: true });
+    const main = await withFifo(path, () => { try { storage.readWorking("cursor", "config/auth.json"); return null; } catch (error) { return error; } });
+    expect(main.value).toMatchObject({ code: "unreadable" });
+    expect(main.ms).toBeLessThan(PROMPT_MS);
+    rmSync(path);
+    const vault = await withFifo(path, () => storage.absorb("cursor", files).then(() => null, (error: unknown) => error));
+    expect(vault.value).toMatchObject({ code: "unreadable" });
+    expect(vault.ms).toBeLessThan(PROMPT_MS);
+    rmSync(path);
+    writeFileSync(path, "{}"); truncateSync(path, 17 * 1024 * 1024);
+    expect(() => storage.readWorking("cursor", "config/auth.json")).toThrow(expect.objectContaining({ code: "unreadable" }));
+    await expect(storage.absorb("cursor", files)).rejects.toThrow(expect.objectContaining({ code: "unreadable" }));
+    expect(await storage.loadVault("cursor")).toBeNull();
   });
   it("reports a failed scrub so a sign-out cannot claim the file is gone", async () => {
     const storage = new AuthStorage(root, fakeCipher());

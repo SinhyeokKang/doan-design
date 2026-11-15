@@ -112,6 +112,28 @@ test("includes resolve relative to the including file and from ~, nested, with c
   expect(read).toEqual({ ok: true, urls: ["git@github.com:someone/studio.git", "https://github.com/acme/nested", "https://github.com/acme/home", "https://github.com/acme/studio"], uncertain: true });
 });
 
+// The cycle check sees only the current chain, so a file included from several places is read each time. A file
+// included twice is ordinary; ten includes per file, levels deep, would be read 10^depth times on main.
+test("a file included from two places is read from both", () => {
+  const root = repo("dag-small", "[include]\n\tpath = a.inc\n[include]\n\tpath = b.inc\n[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  file(join(root, ".git", "a.inc"), "[include]\n\tpath = shared.inc\n");
+  file(join(root, ".git", "b.inc"), "[include]\n\tpath = shared.inc\n");
+  file(join(root, ".git", "shared.inc"), "[remote \"shared\"]\n\turl = https://github.com/acme/shared\n");
+  expect(readGitRemotes(root, home)).toEqual({ ok: true, urls: ["https://github.com/acme/shared", "https://github.com/acme/shared", "https://github.com/acme/studio"], uncertain: false });
+});
+
+test("a wide include graph stops at its read budget and is uncertain", () => {
+  const ten = (path: string) => "[include]\n\tpath = " + path + "\n";
+  const root = repo("dag-wide", ten("l1.inc").repeat(10) + "[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  for (let level = 1; level < 4; level++) file(join(root, ".git", `l${level}.inc`), ten(`l${level + 1}.inc`).repeat(10));
+  file(join(root, ".git", "l4.inc"), "[remote \"deep\"]\n\turl = https://github.com/acme/deep\n");
+  const started = performance.now();
+  const read = readGitRemotes(root, home);
+  expect(performance.now() - started).toBeLessThan(PROMPT_MS);
+  expect(read).toMatchObject({ ok: true, uncertain: true });
+  expect(read.ok && read.urls.at(-1)).toBe("https://github.com/acme/studio");
+});
+
 test("a missing include is skipped like git does; an unreadable or malformed one makes the read uncertain", () => {
   const missing = repo("missing-inc", "[include]\n\tpath = nowhere.inc\n[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
   expect(readGitRemotes(missing, home)).toEqual({ ok: true, urls: ["https://github.com/acme/studio"], uncertain: false });

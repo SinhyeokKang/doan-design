@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Lease, McpLogoutRequest } from "../agentAuth/manager";
 import type { AuthState, Readiness } from "../agentAuth/types";
+import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { BASE_ARGS, FakeCli, type FakeProcess } from "./fixtures/fakeCli";
 import type { McpProvider } from "./presets";
 import { McpService, type McpServiceOptions, type McpSnapshot } from "./service";
@@ -748,6 +749,17 @@ describe("review fixes", () => {
       { provider: "codex", name: "doan-notion", url: "https://mcp.notion.com/mcp" }, { provider: "codex", name: "doan-atlassian", url: "https://mcp.atlassian.com/v1/mcp" },
       { provider: "codex", name: "doan-figma", url: "https://mcp.figma.com/mcp" },
     ]);
+    await s.idle();
+  });
+
+  // The profile belongs to the provider process: a FIFO config there must not hold main waiting for a writer.
+  it.each(["codex", "claude"] as const)("an unreadable %s list and a FIFO profile config fall back to every known server without blocking", async provider => {
+    cli.failing.add(`${provider} list`);
+    const s = service();
+    const request: McpLogoutRequest = { kind: provider === "codex" ? "signOut" : "replace", previousAccountId: "a1", nextAccountId: "a2", staging: null, profileDir: profile(provider), run: runner(provider) };
+    const read = await withFifo(join(profile(provider), provider === "codex" ? "config.toml" : ".claude.json"), () => s.logoutForAuth(provider, request));
+    expect(read.ms).toBeLessThan(PROMPT_MS);
+    expect(cli.commands(provider).filter(c => c[1] === "logout").map(c => c[2])).toEqual(["doan-notion", "doan-atlassian", "doan-figma"]);
     await s.idle();
   });
 

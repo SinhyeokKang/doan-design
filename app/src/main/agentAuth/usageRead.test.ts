@@ -2,8 +2,23 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { spawnAuthProcess } from "./manager";
 import { CURSOR_USAGE_URL, readUsage, type UsageReadOptions } from "./usageRead";
+
+// Runs a hook once, right after the first lstat or open of a chosen path returns: the moment a check-then-read could
+// be raced by the provider process replacing the file.
+const fsHook = vi.hoisted(() => ({ path: "", after: null as null | (() => void) }));
+vi.mock("node:fs", async original => {
+  const real = await original<typeof import("node:fs")>();
+  const looked = (path: unknown) => { const after = fsHook.after; if (after && path === fsHook.path) { fsHook.after = null; after(); } };
+  return {
+    ...real,
+    lstatSync: ((...args: Parameters<typeof real.lstatSync>) => { const result = real.lstatSync(...args); looked(args[0]); return result; }) as typeof real.lstatSync,
+    openSync: ((...args: Parameters<typeof real.openSync>) => { const result = real.openSync(...args); looked(args[0]); return result; }) as typeof real.openSync,
+  };
+});
+afterEach(() => { fsHook.after = null; });
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}-usage.json`, import.meta.url), "utf8");
 let root: string, profileDir: string, probeDir: string, log: string;
@@ -215,6 +230,25 @@ describe("Cursor usage read", () => {
     const fetch = vi.fn<typeof globalThis.fetch>();
     expect(await read(fetch)).toMatchObject({ status: "unavailable", reason: "read_failed" });
     expect(fetch).not.toHaveBeenCalled();
+  });
+  it("refuses a FIFO credential file without blocking", async () => {
+    mkdirSync(join(profileDir, ".cursor"));
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const result = await withFifo(authFile(), () => read(fetch));
+    expect(result.value).toMatchObject({ status: "unavailable", reason: "read_failed" });
+    expect(result.ms).toBeLessThan(PROMPT_MS);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("never sends another file's token when the credential file becomes a link after it was first looked at", async () => {
+    writeAuth();
+    const OTHER = `${b64({ alg: "HS256" })}.${b64({ sub: "auth0|someone_else", exp: 9_999_999_999 })}.other-signature`;
+    writeFileSync(join(root, "elsewhere.json"), JSON.stringify({ accessToken: OTHER }));
+    fsHook.path = authFile();
+    fsHook.after = () => { rmSync(authFile()); symlinkSync(join(root, "elsewhere.json"), authFile()); };
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => reply(200, fixture("cursor")));
+    await read(fetch);
+    expect(fsHook.after).toBeNull();
+    expect(JSON.stringify(fetch.mock.calls.map(call => call[1]?.headers))).not.toContain("other-signature");
   });
   it("keeps the token out of its result, its logs and its errors, whatever the request throws", async () => {
     writeAuth();
