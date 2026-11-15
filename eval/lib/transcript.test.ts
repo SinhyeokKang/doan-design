@@ -352,7 +352,8 @@ test("DOAN_COMMAND_FLAGS is run.go's per-command flag table", () => {
     } else read[name] = flags;
   }
   assert.equal(cases.length, Object.keys(read).length);
-  assert.equal([...table.matchAll(/allowed\[/g)].length, cases.reduce((n, block) => n + [...block.matchAll(/allowed\["/g)].length, 0), "every allowed flag sits under a case");
+  // Every entry is a literal name, or onboarding's loop over its own table.
+  assert.equal([...table.matchAll(/allowed\[/g)].length, [...table.matchAll(/allowed\["/g)].length + [...table.matchAll(/allowed\[name\] = true/g)].length, "every allowed flag is read here");
   const model = Object.fromEntries(Object.entries(DOAN_COMMAND_FLAGS).map(([name, flags]) => [name, [...flags].sort()]));
   assert.deepEqual(model, Object.fromEntries(Object.entries(read).map(([name, flags]) => [name, flags.sort()])));
   // What the table means for a command.
@@ -410,7 +411,7 @@ test("commands inside $(…) and backticks are read, also in assignments and dou
   read('bash -c "echo $(doan active)"', [["doan", "active"], ["echo", "$()"]]);
   // Quoted or escaped, it is text; $((…)) is arithmetic.
   read("echo '$(doan active)'", [["echo", "$(doan active)"]]);
-  read('echo "\\$(doan active)"', [["echo", "$(doan", "active)"]]);
+  read('echo "\\$(doan active)"', [["echo", "$(doan active)"]]);
   read("echo $((1 + 2)); doan active", [["echo", "$(())"], ["doan", "active"]]);
   // The substitution as the program: its command is read, what runs then is unknown.
   read("$(doan design-skill --json)", [["doan", "design-skill", "--json"]], true);
