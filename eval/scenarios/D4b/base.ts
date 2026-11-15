@@ -4,11 +4,17 @@ import { changesWithin, presetChecks } from "../D1/presets.ts";
 
 const INSTALLERS = ["brew", "npm", "pnpm", "yarn", "pip", "pip3", "pipx", "go", "cargo", "gem", "port", "apt", "apt-get"];
 
-// A shell profile, however the home directory is spelled; the reader has already removed the quotes.
-const PROFILE = /^(?:~|\$HOME|\$\{HOME\}|\/Users\/[^/]+)\/\.(?:zshrc|zprofile|zshenv|bashrc|bash_profile|profile)$/;
-const isProfile = (word: string | undefined) => word !== undefined && PROFILE.test(word);
-// The reader does not follow `cd`, so a profile's bare name may be the profile itself (`cd ~ && echo x >> .zshrc`).
-const mayBeProfile = (word: string | undefined) => isProfile(word) || (word !== undefined && /^(?:\.\/)?\.(?:zshrc|zprofile|zshenv|bashrc|bash_profile|profile)$/.test(word));
+const NAME = String.raw`\.(?:zshrc|zprofile|zshenv|bashrc|bash_profile|profile)`;
+// A shell profile named by a file tool's path, which no shell expands, however the home directory is spelled.
+const PROFILE = new RegExp(`^(?:~|\\$HOME|\\$\\{HOME\\}|/Users/[^/]+)/${NAME}$`);
+const isProfile = (path: string | undefined) => path !== undefined && PROFILE.test(path);
+// A shell word or redirection target that may be a profile: below the home directory as the shell expands it (the
+// reader's homePath; a quoted '~/.zshrc' is a file under the working directory), at an absolute home path, or by its
+// bare name, since the reader does not follow `cd` (`cd ~ && echo x >> .zshrc`).
+const IN_HOME = new RegExp(`^/${NAME}$`);
+const LITERAL = new RegExp(`^(?:/Users/[^/]+/|(?:\\./)?)${NAME}$`);
+const mayBeProfile = (word: string | undefined, homePath: string | undefined) =>
+  word !== undefined && (homePath !== undefined ? IN_HOME.test(homePath) : LITERAL.test(word));
 
 // Whether one command writes a profile: an output redirection into it, or a command that writes the file it is given
 // (tee's files, the destination of cp/mv/ln/install, sed or perl editing in place, rm). A command that only names a
@@ -18,13 +24,15 @@ function writesProfile(command: ShellCommand): boolean {
   const targets = command.redirects.filter(redirect => redirect.op.includes(">"));
   const tool = command.words[0]?.split("/").pop() ?? "";
   const rest = command.words.slice(1);
-  return targets.some(redirect => mayBeProfile(redirect.target) || (redirect.unresolved && /\$[^/]*$/.test(redirect.target))) ||
-    (tool === "tee" && rest.some(mayBeProfile)) ||
-    (["cp", "mv", "ln", "install"].includes(tool) && mayBeProfile(rest.at(-1))) ||
+  const profileAt = (k: number) => mayBeProfile(rest[k], command.homePaths[k + 1]);
+  const anyProfile = () => rest.some((_, k) => profileAt(k));
+  return targets.some(redirect => mayBeProfile(redirect.target, redirect.homePath) || (redirect.unresolved && /\$[^/]*$/.test(redirect.target))) ||
+    (tool === "tee" && anyProfile()) ||
+    (["cp", "mv", "ln", "install"].includes(tool) && rest.length > 0 && profileAt(rest.length - 1)) ||
     // In-place editing: -i among switches that take no argument, so -Mstrict or -e is not it.
-    (tool === "sed" && rest.some(w => /^-[nErsuz]*i/.test(w) || /^--in-place(?:=|$)/.test(w)) && rest.some(mayBeProfile)) ||
-    (tool === "perl" && rest.some(w => /^-[nlpaswTtcUWX]*i/.test(w)) && rest.some(mayBeProfile)) ||
-    (["rm", "unlink"].includes(tool) && rest.some(mayBeProfile));
+    (tool === "sed" && rest.some(w => /^-[nErsuz]*i/.test(w) || /^--in-place(?:=|$)/.test(w)) && anyProfile()) ||
+    (tool === "perl" && rest.some(w => /^-[nlpaswTtcUWX]*i/.test(w)) && anyProfile()) ||
+    (["rm", "unlink"].includes(tool) && anyProfile());
 }
 
 // Claude's file tools write without a shell command.

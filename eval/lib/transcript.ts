@@ -227,10 +227,11 @@ export function shellCommands(transcript: string): string[] {
 // the command, such as a handoff message that may well contain a line starting with `doan open`. Quoted text is kept
 // whole, so a `<<` inside a string starts nothing and `bash -c "…<<EOF…"` is read when its script is. A comment (a `#`
 // starting a word outside quotes) goes too: the shell drops it, and a quote inside it opens no string. `unread` is set
-// when an unquoted body holds a substitution, which the shell runs and this reader does not follow there.
+// when an unquoted body holds a substitution, which the shell runs and this reader does not follow there. A body that
+// names doan leaves NAMES_DOAN_BODY after its tag, since an interpreter that reads it as its script may run doan.
 function withoutHeredocsAndComments(command: string): { text: string; unread: boolean } {
   let out = "", quote: string | null = null, unread = false;
-  const pending: { tag: string; indented: boolean; quoted: boolean }[] = [];
+  const pending: { tag: string; indented: boolean; quoted: boolean; at: number }[] = [];
   for (let i = 0; i < command.length; i++) {
     const c = command[i]!;
     if (quote) {
@@ -250,12 +251,14 @@ function withoutHeredocsAndComments(command: string): { text: string; unread: bo
       i += 2;
     } else if (c === "<" && command[i + 1] === "<" && /^<<(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s;&|<>()'"]+))/.test(command.slice(i))) {
       const m = /^<<(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s;&|<>()'"]+))/.exec(command.slice(i))!;
-      pending.push({ tag: m[2] ?? m[3] ?? m[4]!, indented: m[1] === "-", quoted: m[4] === undefined });
       out += m[0];
+      pending.push({ tag: m[2] ?? m[3] ?? m[4]!, indented: m[1] === "-", quoted: m[4] === undefined, at: out.length });
       i += m[0].length - 1;
     } else if (c === "\n" && pending.length) {
       out += c;
-      for (const { tag, indented, quoted } of pending.splice(0)) {
+      let marked = 0;
+      for (const { tag, indented, quoted, at } of pending.splice(0)) {
+        let names = false;
         // An unterminated body runs to the end, as the shell reads it.
         while (i + 1 < command.length) {
           const end = command.indexOf("\n", i + 1);
@@ -263,7 +266,9 @@ function withoutHeredocsAndComments(command: string): { text: string; unread: bo
           i = end === -1 ? command.length : end;
           if ((indented ? line.replace(/^\t+/, "") : line) === tag) break;
           if (!quoted && /\$\(|`/.test(line)) unread = true;
+          if (NAMES_DOAN.test(line)) names = true;
         }
+        if (names) { out = out.slice(0, at + marked) + NAMES_DOAN_BODY + out.slice(at + marked); marked++; }
       }
     } else out += c;
   }
@@ -271,6 +276,16 @@ function withoutHeredocsAndComments(command: string): { text: string; unread: bo
 }
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z_0-9]*=/;
+// doan as a word, not `.doan/` or `/tmp/doan-x`.
+const NAMES_DOAN = /(?<![\w.-])doan(?![\w.-])/;
+// Where withoutHeredocsAndComments marked a heredoc whose body names doan; U+0004 never occurs in a shell command.
+const NAMES_DOAN_BODY = "\u0004";
+// A key in the reader's variables for one assigned just the home directory, holding what followed it (`/` or
+// nothing); no shell name holds U+0002.
+const HOME_OF = "\u0002";
+// The home directory in expandToken's copy of a word, so where it stands can be checked; U+0003 never occurs in a
+// shell command.
+const HOME_MARK = "\u0003";
 // Where substitutions(n) took the nth command substitution out of a command; NUL never occurs in a shell command.
 const SUBSTITUTED = /\$\(\0(\d+)\)/g;
 
@@ -389,11 +404,15 @@ const UNSUPPORTED = /^(?:if|then|elif|else|fi|while|until|do|done|case|esac|sele
 const LOOP_BUDGET = 256;
 
 interface ReadState { left: number; incomplete: boolean }
-interface Expanded { words: string[]; unresolved: boolean }
+// `homePath`: the path below the home directory (`/.zshrc`, or "" for the home itself) when the shell expands the word to
+// start there; `onlyHome`: what follows the home directory when the word is just that, for a variable assigned it.
+interface Expanded { words: string[]; unresolved: boolean; homePath: string | undefined; onlyHome: string | undefined }
 // A redirection the shell takes out of a command's words: the operator with its file descriptor, and the target as the
-// shell expands it (`unresolved` when it holds a variable or substitution this reader does not know).
-export interface Redirect { op: string; target: string; unresolved: boolean }
-export interface ShellCommand { words: string[]; redirects: Redirect[] }
+// shell expands it (`unresolved` when it holds a variable or substitution this reader does not know). The text keeps
+// `~` and an unknown `$HOME` as written, quoted or not; `homePath` says whether the shell expands it into the home
+// directory, and so do a command's `homePaths`, one per word.
+export interface Redirect { op: string; target: string; unresolved: boolean; homePath: string | undefined }
+export interface ShellCommand { words: string[]; homePaths: (string | undefined)[]; redirects: Redirect[] }
 
 // Where parse put a redirection into a token group: MARK, the operator, MARK, the raw target. U+0001 never occurs in a
 // shell command.
@@ -401,30 +420,72 @@ const MARK = "\u0001";
 // The shell takes a redirection before it reads the program, wherever it stands in the command.
 const REDIRECT_OPERATOR = /^\d*(?:&>>?|<<<|<<-?|<>|<&|>&|>>|>\||<|>)$/;
 
-// One raw token (quotes still on) to the words the shell makes of it. Single quotes and an escaped `\$` keep a
-// literal `$`. A variable that is not known here, or a command substitution, is left as written and marks the token
-// unresolved: what the shell would pass there is unknown. A bare `$name` holding several words splits into them, as
-// an unquoted expansion does.
+// One raw token (quotes still on) to the words the shell makes of it. Single quotes and a backslash keep the next
+// character literal. A variable that is not known here, or a command substitution, is left as written and marks the
+// token unresolved: what the shell would pass there is unknown. A bare `$name` holding several words splits into them,
+// as an unquoted expansion does. The home directory is an unquoted leading `~` (before `/` or the end), `$HOME` outside
+// single quotes while the command line has not assigned HOME, or a variable assigned just one of those.
 function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
   const whole = /^\$(?:(\w+)|\{(\w+)\})$/.exec(raw);
-  const held = whole ? env.get(whole[1] ?? whole[2]!) : undefined;
-  if (held !== undefined) return { words: held.split(/\s+/).filter(Boolean), unresolved: false };
+  const name = whole ? whole[1] ?? whole[2]! : undefined;
+  const held = name !== undefined ? env.get(name) : undefined;
+  if (held !== undefined) {
+    const words = held.split(/\s+/).filter(Boolean);
+    const home = words.length === 1 ? env.get(HOME_OF + name) : undefined;
+    return { words, unresolved: false, homePath: home, onlyHome: home };
+  }
   let unresolved = false;
   const known = (written: string, plain?: string, braced?: string) => {
     const value = env.get(plain ?? braced!);
     if (value === undefined) unresolved = true;
     return value ?? written;
   };
+  const home = (variable: string) => env.get(HOME_OF + variable) ?? (variable === "HOME" && !env.has("HOME") ? "" : undefined);
   // What is left after the variables: a `$(` or a backtick starts a substitution this reader does not run.
   const substitution = (text: string) => { if (/\$\(|`/.test(text)) unresolved = true; return text; };
-  const word = raw.replace(/"((?:\\.|[^"\\])*)"|'([^']*)'|([^"']+)/g, (_, double, single, bare) => {
-    if (single !== undefined) return single;
+  // The same word with the home directory as HOME_MARK.
+  let marked = "";
+  const word = raw.replace(/"((?:\\.|[^"\\])*)"|'([^']*)'|((?:\\[\s\S]|[^"'\\])+)/g, (_, double, single, bare) => {
+    if (single !== undefined) { marked += single; return single; }
     const text = (double ?? bare) as string;
-    const pattern = double !== undefined ? /\\([\$`"\\\n])|\$(?:(\w+)|\{(\w+)\})/g : /\\(\$)|\$(?:(\w+)|\{(\w+)\})/g;
+    const pattern = double !== undefined ? /\\([\$`"\\\n])|\$(?:(\w+)|\{(\w+)\})/g : /\\([\s\S])|\$(?:(\w+)|\{(\w+)\})/g;
+    marked += text.replace(pattern, (m: string, escaped: string | undefined, plain?: string, braced?: string) => {
+      const below = escaped === undefined ? home(plain ?? braced!) : undefined;
+      return escaped ?? (below !== undefined ? HOME_MARK + below : m);
+    });
     return substitution(text.replace(pattern, (m: string, escaped: string | undefined, plain?: string, braced?: string) => escaped ?? known(m, plain, braced)).replace(/\\\$/g, "$"));
   });
+  if (/^~(?:\/|$)/.test(raw)) marked = HOME_MARK + marked.slice(1);
+  const below = /^\u0003(?=\/|$)/.test(marked) ? marked.slice(1) : undefined;
   // A substitution the reader has already read (see substitutions) leaves only that it was there.
-  return { words: [word.replace(SUBSTITUTED, "$()")], unresolved };
+  return { words: [word.replace(SUBSTITUTED, "$()")], unresolved, homePath: below, onlyHome: below === "" || below === "/" ? below : undefined };
+}
+
+// A program that runs another command it is given: doan itself, a shell, or a wrapper that may run one.
+const RUNNER = /^(?:.*\/)?(?:doan|(?:ba|z|da)?sh|env|timeout|nohup|nice|time|command|exec|eval|xargs)$/;
+const INTERPRETER = /^(?:node|python[\d.]*|perl|ruby|osascript|deno|bun)$/;
+// The switches that give each interpreter its script inline, as a word this reader sees.
+const INLINE: [RegExp, RegExp][] = [
+  [/^python/, /^-[A-Za-z]*[cm]$/],
+  [/^(?:node|bun|deno)$/, /^(?:-[ep]+|--eval|--print)(?:=|$)/],
+  [/^(?:perl|ruby)$/, /^-[\w]*[eE]$/],
+  [/^osascript$/, /^-e$/],
+];
+
+// Whether an interpreter may run doan where this reader cannot see it: an argument (an inline script among them) that
+// names doan, a script file, or a script read from its input, unless that is a heredoc or here-string the transcript
+// shows and that does not name doan. A version or help query with no script runs nothing.
+function interpreterMayRunDoan(program: string, args: string[], redirects: Redirect[], heredocNamesDoan: boolean): boolean {
+  if (args.some(word => NAMES_DOAN.test(word))) return true;
+  const inline = INLINE.find(([name]) => name.test(program))?.[1];
+  if (inline && args.some(word => inline.test(word))) return false;
+  const script = args.find(word => word === "-" || !word.startsWith("-"));
+  if (script !== undefined && script !== "-") return true;
+  if (script === undefined && args.some(word => /^(?:-[vVh]|--version|--help)$/.test(word))) return false;
+  const input = redirects.filter(redirect => /^0?(?:<<<|<<-?|<)$/.test(redirect.op)).at(-1);
+  if (input?.op.endsWith("<<<")) return NAMES_DOAN.test(input.target);
+  if (input && /<<-?$/.test(input.op)) return heredocNamesDoan;
+  return true;
 }
 
 // Executes the words of raw token groups the way the shell would, for what a transcript can show: `NAME=value`
@@ -443,11 +504,13 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
   };
   const redirectsOf = (tokens: string[]): Redirect[] => tokens.filter(token => token.startsWith(MARK)).map(token => {
     const [, op = "", target = ""] = token.split(MARK);
-    const expanded = expandToken(target, vars);
-    return { op, target: expanded.words.join(" "), unresolved: expanded.unresolved };
+    const expanded = expandToken(target.replace(NAMES_DOAN_BODY, ""), vars);
+    return { op, target: expanded.words.join(" "), unresolved: expanded.unresolved, homePath: expanded.homePath };
   });
   for (let i = 0; i < groups.length; i++) {
-    const raw = groups[i]!;
+    // Inside `[[ … ]]`, `<` and `>` compare strings: the shell opens no file for them.
+    const close = groups[i]![0] === "[[" ? groups[i]!.indexOf("]]") : -1;
+    const raw = close < 0 ? groups[i]! : [...groups[i]!.slice(0, close).flatMap(token => token.startsWith(MARK) ? token.split(MARK).slice(1) : [token]), ...groups[i]!.slice(close)];
     const group = raw.filter(token => !token.startsWith(MARK));
     if (group[0] === "for" && /^[A-Za-z_]\w*$/.test(group[1] ?? "") && group[2] === "in") {
       const head = groups[i + 1];
@@ -462,7 +525,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
       if (done < 0) { state.incomplete = true; return out; }
       substitute(group.slice(3));
       const lists = group.slice(3).map(token => expandToken(token, vars));
-      const values = lists.flatMap(list => list.words);
+      const values = lists.flatMap(list => list.words.map(word => ({ word, home: list.onlyHome })));
       if (lists.some(list => list.unresolved) || values.length > state.left) {
         // The body ran an unknown number of times with unknown values: nothing after it can rely on the variables.
         state.incomplete = true;
@@ -473,7 +536,8 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
         substitute(body[done]!);
         const loop = redirectsOf(body[done]!);
         for (const value of values) {
-          vars.set(group[1]!, value);
+          vars.set(group[1]!, value.word);
+          if (value.home === undefined) vars.delete(HOME_OF + group[1]!); else vars.set(HOME_OF + group[1]!, value.home);
           append(runGroups(body.slice(0, done), vars, state, bodies).map(entry => ({ ...entry, redirects: [...entry.redirects, ...loop] })));
         }
       }
@@ -489,6 +553,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
         const name = token.slice(0, token.indexOf("="));
         const value = expandToken(token.slice(token.indexOf("=") + 1), vars);
         if (value.unresolved) vars.delete(name); else vars.set(name, value.words.join(" "));
+        if (value.onlyHome === undefined) vars.delete(HOME_OF + name); else vars.set(HOME_OF + name, value.onlyHome);
       }
     }
     // Where such a construct ends is not known, so nothing after it is read and no variable is trusted past it.
@@ -499,29 +564,33 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     const expanded = group.slice(skipped).map(token => expandToken(token, vars));
     let words = expanded.flatMap(token => token.words);
     let open = expanded.flatMap(token => token.words.map(() => token.unresolved));
+    let homePaths = expanded.flatMap(token => token.words.map(() => token.homePath));
     let at: number | null | undefined = null;
     while (!open[0] && (at = wrappedAt(words)) !== null) {
       // An option value the shell may expand to no word or several moves where the command starts.
       if (at === undefined || words.slice(0, at).some((word, index) => open[index] && !ASSIGNMENT.test(word))) { at = undefined; break; }
       words = words.slice(at);
       open = open.slice(at);
+      homePaths = homePaths.slice(at);
     }
     if (at === undefined) { state.incomplete = true; continue; }
     if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0] ?? "") && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) { append(parse(words[2], state)); continue; }
     // A script the reader cannot see into may run doan: a shell reading a file or its input, a sourced or executed
-    // script file, or an inline script of another language that names doan (as a word: not `.doan/` or `/tmp/doan-x`).
+    // script file, or a script of another language that may (see interpreterMayRunDoan).
     const program = words[0]?.split("/").pop() ?? "";
     if (/^(?:ba|z|da)?sh$/.test(program) || ["source", "."].includes(program) || /\.(?:ba|z)?sh$/.test(program) ||
-      (/^(?:node|python[\d.]*|perl|ruby|osascript|deno|bun)$/.test(program) && words.slice(1).some(word => /(?<![\w.-])doan(?![\w.-])/.test(word)))) { state.incomplete = true; continue; }
+      (INTERPRETER.test(program) && interpreterMayRunDoan(program, words.slice(1), redirects, raw.some(token => token.startsWith(MARK) && token.includes(NAMES_DOAN_BODY))))) { state.incomplete = true; continue; }
     // eval runs its words, joined, as a command of this shell.
     if (words[0] === "eval") {
       if (open.some(Boolean)) state.incomplete = true; else append(parse(words.slice(1).join(" "), state, vars));
       continue;
     }
-    if (!words.length) { if (redirects.length) out.push({ words, redirects }); continue; }
+    if (!words.length) { if (redirects.length) out.push({ words, homePaths, redirects }); continue; }
     // xargs adds words read from its input to the command it runs, so a doan run (or a shell or wrapper that may run
     // one) through it cannot be read.
-    if (/^(?:.*\/)?xargs$/.test(words[0]!) && (open.some(Boolean) || words.slice(1).some(word => /^(?:.*\/)?(?:doan|(?:ba|z|da)?sh|env|timeout|nohup|nice|time|command|exec|eval|xargs)$/.test(word)))) { state.incomplete = true; continue; }
+    if (/^(?:.*\/)?xargs$/.test(words[0]!) && (open.some(Boolean) || words.slice(1).some(word => RUNNER.test(word)))) { state.incomplete = true; continue; }
+    // find runs the command after -exec (or -execdir, -ok, -okdir) once per file, with the file's name in it.
+    if (/^(?:.*\/)?find$/.test(words[0]!) && words.some((word, k) => /^-(?:exec|execdir|ok|okdir)$/.test(words[k - 1] ?? "") && (open[k] || RUNNER.test(word)))) { state.incomplete = true; continue; }
     // A program or a doan operand the reader could not resolve may be anything, including a lookup.
     let known = !open[0];
     if (known && /^(?:.*\/)?doan$/.test(words[0]!)) {
@@ -529,7 +598,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
       const read = readDoanArgs(words.map((word, index) => open[index] ? "\0" : word))!;
       known = !read.ambiguous && (read.args.refused ? !open.some(Boolean) : !read.args.positionals.some(operand => operand.includes("\0")));
     }
-    if (known) out.push({ words, redirects }); else state.incomplete = true;
+    if (known) out.push({ words, homePaths, redirects }); else state.incomplete = true;
   }
   return out;
 }
@@ -543,7 +612,8 @@ function parse(command: string, state: ReadState, vars = new Map<string, string>
   // An unquoted redirection operator is a token of its own (`2>&1` is not a background `&`), joined with the word
   // after it, its target; heredoc bodies are already gone, so a `<<` takes its tag.
   let operator: string | undefined;
-  for (const token of taken.text.matchAll(/\d*(?:&>>?|<<<|<<-?|<>|<&|>&|>>|>\||<|>)|[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s;&|"'<>])+/g)) {
+  // A backslash quotes the next character (`\>` is a word), except a newline, which it joins to the next line.
+  for (const token of taken.text.matchAll(/\d*(?:&>>?|<<<|<<-?|<>|<&|>&|>>|>\||<|>)|[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|\\[^\n]?|[^\s;&|"'<>\\])+/g)) {
     const value = token[0];
     const separator = /^[;&|\n]+$/.test(value);
     // An operator with no word after it is a syntax error: the shell runs nothing of that command line.
