@@ -2675,6 +2675,28 @@ describe("conversation work", () => {
     });
     expect(() => h.service.quit()).toThrow("File exceeds limit");
     expect(h.ended).toEqual(expect.arrayContaining([first, second]));
+    // The aborted quit leaves the conversations stopped, so no runner after the failed write may be left open.
+    expect(h.runners).toHaveLength(2);
+    for (const runner of h.runners) expect(runner.close).toHaveBeenCalled();
+  });
+  // Like Stop, quit writes no interrupted event to a history that already refused one; that known refusal must not
+  // abort the quit or keep a later conversation's runner open.
+  it("a quit skips the appQuit write of a history that stopped taking writes and closes every runner", async () => {
+    const h = fixture(); vi.spyOn(console, "error").mockImplementation(() => {});
+    const first = (await h.service.start(request)).conversationId;
+    h.prepare.mockResolvedValueOnce({ ...prepared(), sessionId: "second-session" });
+    const second = (await h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).conversationId;
+    const append = h.store.append.bind(h.store);
+    vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
+      if (cid === first) throw new Error("File exceeds limit");
+      return append(cid, turn, body);
+    });
+    // The process is still alive, so the conversation stays busy until its group is observed gone.
+    h.service.receive(first, { type: "activity", kind: "read", summary: "Read a.html" });
+    await h.service.quit();
+    for (const runner of h.runners) expect(runner.close).toHaveBeenCalled();
+    expect(h.store.read(first).some(e => e.type === "interrupted")).toBe(false);
+    expect(h.store.read(second).at(-1)).toMatchObject({ type: "interrupted", reason: "appQuit" });
   });
   it("a deletion clears the conversation's work", async () => {
     const h = fixture(); const id = (await h.service.start(request)).conversationId;
