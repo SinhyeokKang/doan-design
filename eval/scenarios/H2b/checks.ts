@@ -1,22 +1,6 @@
+import { finalAnswer, withoutCode } from "../../lib/answer.ts";
 import type { Checks } from "../../lib/types.ts";
 import { inspect } from "./inspect.ts";
-
-// Read only assistant output, never tool results containing the guide.
-export function answer(transcript: string): string {
-  const results: string[] = [];
-  for (const line of transcript.split("\n")) {
-    try {
-      const item = JSON.parse(line);
-      if (item.type === "result" && typeof item.result === "string") results.push(item.result);
-      if (item.type === "assistant") for (const block of item.message?.content ?? []) {
-        if (block.type === "text") results.push(block.text);
-      }
-    } catch { /* Codex stdout is plain text before its stderr header. */ }
-  }
-  if (results.length) return results.join("\n");
-  if (transcript.trimStart().startsWith("{")) return "";
-  return transcript.split(/^OpenAI Codex\b/m)[0].trim();
-}
 
 const checks: Checks = ctx => {
   const target = ".doan/canvases/dashboard.html";
@@ -39,7 +23,9 @@ const checks: Checks = ctx => {
       return matches.length === 1 && frame(after, matches[0]) === frame(before, old);
     });
   const check = ctx.doan(["check"]);
-  const response = answer(ctx.transcript);
+  // Only the final answer is what the user is asked; a question the agent raised mid-run and went past is not one,
+  // and neither is a question mark in code.
+  const response = withoutCode(finalAnswer(ctx.transcript));
   // The judge evaluates the question's relevance and the quality/bounds of edits.
   const question = /[?？]/.test(response) || /\b(?:please|could you)\s+(?:clarify|confirm|specify|choose)\b/i.test(response);
   const dashboardChanged = changed.includes(target) && after.nodes.length > 0;

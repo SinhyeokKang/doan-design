@@ -3,8 +3,9 @@ import type { Checks } from "../../lib/types.ts";
 // Final-answer extraction (eval/lib/answer.ts): Claude's result event, Codex stdout before its stderr banner.
 import { finalAnswer } from "../../lib/answer.ts";
 
-// The flags with which `doan config` writes (cli/internal/cli/config.go); --git-init only works with --storage.
-const WRITE_FLAGS = ["token-css", "clear-token-css", "add-serve", "remove-serve", "storage", "git-init"];
+// The flags with which `doan config` writes (cli/internal/cli/config.go). --git-init is not one: the CLI refuses it
+// without --storage local, which --storage already counts.
+const WRITE_FLAGS = ["token-css", "clear-token-css", "add-serve", "remove-serve", "storage"];
 
 const checks: Checks = ctx => {
   const answer = finalAnswer(ctx.transcript);

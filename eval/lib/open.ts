@@ -1,4 +1,5 @@
 import { commandWords, doanArgs, incompleteRead, lastFlag } from "./transcript.ts";
+import { prototypeCanvasPath } from "./prototype.ts";
 import { contentHash } from "./work.ts";
 import type { Check, CheckContext } from "./types.ts";
 
@@ -30,9 +31,11 @@ export function noOpen(ctx: Pick<CheckContext, "calls" | "open" | "prototype">):
 
 // For a person who asked to open `path` at `frame`: the command with those arguments, and the app's own record of an
 // accepted request for the same canvas and frame that arrived after the canvas reached its final content.
-export function openChecks(ctx: Pick<CheckContext, "calls" | "open" | "read">, path: string, frame: string): Check[] {
+export function openChecks(ctx: Pick<CheckContext, "calls" | "open" | "read" | "repo">, path: string, frame: string): Check[] {
   const calls = openCalls(ctx), received = ctx.open();
-  const asked = calls.some(call => call.path === path && call.frame === frame);
+  // The CLI resolves the path against the repository, so an absolute or ./ spelling names the same canvas.
+  const canvas = prototypeCanvasPath(ctx.repo, path);
+  const asked = calls.some(call => call.path !== undefined && prototypeCanvasPath(ctx.repo, call.path) === canvas && call.frame === frame);
   const final = contentHash(ctx.read(path));
   const accepted = received.filter(e => e.response.ok && e.request.path === path && e.request.frame === frame && e.response.frame === "found");
   const after = accepted.some(e => e.hashes[path] === final);
