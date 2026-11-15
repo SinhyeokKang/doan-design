@@ -47,7 +47,7 @@ Report review coverage separately from correction status. A fully inspected deci
 
 ## Preserve evidence
 
-- PRODUCT, ARCHITECTURE and DESIGN describe the current product only: correct them in place and delete stale text instead of adding dated corrections. Keep POSTMORTEM entries and USABILITY-EVAL rounds intact; add a dated correction when necessary instead of retroactively changing what was observed.
+- PRODUCT, ARCHITECTURE and DESIGN (`docs/DESIGN.md` and `docs/design/`) describe the current product only: correct them in place and delete stale text instead of adding dated corrections. Keep POSTMORTEM entries (`docs/postmortem/`) and USABILITY-EVAL rounds (`docs/usability-eval/`) intact; add a dated correction when necessary instead of retroactively changing what was observed.
 - DESIGN measurements require new measurements to change their values or verification status. Source CSS does not prove the rendered result. Do not turn a failed, skipped, or unrun test into a pass.
 - Only change a decision when the user actually makes that decision. Factual cleanup does not create a new product decision.
 - Follow AGENTS language rules and per-document commit conventions. Invocation authorizes factual documentation fixes; do not edit application code, fixtures, or tests to make the docs agree. Treat changes to executable examples or product skill guidance as meaningful behavior guidance requiring the applicable verification, not harmless prose.
@@ -60,4 +60,4 @@ Finish when both review passes cover the requested scope and every verified fact
 
 Report in Korean: unresolved decisions and unchecked areas first, corrected files with evidence, then coverage and checks actually performed. Do not claim the whole repository is synchronized if any area remains unchecked. Use `.scratch/doc-check/<run>/` for detailed evidence; do not add a permanent duplicate drift ledger.
 
-Adapted from `~/code/malmoi/.claude/commands/doc-check.md`, inspected on 2026-10-25: parallel document owners, two passes per reviewer, and lead integration of repeated facts. doan adds explicit coverage completion and keeps factual fixes with the lead; its document authority, history preservation, language rules, and symlinks replace malmoi-specific conventions.
+Adapted from `~/code/malmoi/.claude/commands/doc-check.md` (inspected 2026-10-25); doan applies its parallel document owners, two passes per reviewer and lead integration of repeated facts, with an explicit coverage completion gate.
