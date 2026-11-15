@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ACP_PROTOCOL_VERSION, AcpConnection, AcpError } from "../conversation/acp";
@@ -10,6 +10,7 @@ import { object } from "../conversation/sessions";
 import { AUTH_LINK_FILE, BROWSER_HOOK, callbackAddress, INSTALL_FAILED, forwardCallback, signInLink, type SignInLink } from "./antigravity";
 import { probeShell } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
+import { readRegularFileNoFollowSync } from "../regularFile";
 import { fencedEverywhere, profileFencedCommand } from "./fence";
 import { providerEnv } from "./environment";
 import { codexAccountEmail, GOOGLE_USERINFO_URL, googleAccessToken, googleEmail, googleRefreshRequest, withIdentity } from "./identity";
@@ -936,7 +937,9 @@ export function hookLinks(onLink: (raw: string) => void): { env: Record<string, 
   let read = 0;
   const timer = setInterval(() => {
     let text: string;
-    try { text = readFileSync(file, "utf8"); } catch { return; }
+    // Any process of the person's can put a FIFO, a link or a huge file at this path, and main polls it: such a file
+    // reads as no link yet. The cap only bounds what main reads; a real file holds a few links.
+    try { text = readRegularFileNoFollowSync(file, 1024 * 1024).toString("utf8"); } catch { return; }
     const end = text.lastIndexOf("\n");
     if (end < read) return;
     for (const line of text.slice(read, end).split("\n")) if (line) onLink(line);

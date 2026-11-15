@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { accessSync, chmodSync, constants, linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
+import { readRegularBytesSync, readRegularFileNoFollowSync } from "../regularFile";
 import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
 import { swapFile, swapLink, type SwapResult } from "./swap";
 import { classifyTarget, decide, installEligibility, mergeClaudeAllow, needsSystemLink, plannedTargets, record, writeFailure, type Eligibility, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
@@ -29,6 +30,8 @@ export interface AgentSetupOptions {
 export interface AgentSetupResult { home: string; items: SetupItem[]; steps: Step[] }
 
 const CANCELLED_FILE = "agent-setup.json";
+// The cap readRegularBytesSync applies to the linked settings, far above any Claude Code settings or rule file.
+const READ_LIMIT = 16 * 1024 * 1024;
 // `parent` is the resolved folder's "dev:ino", so a replacement can tell the folder was swapped; `id` is the target's.
 // `bytes` is what `content` was decoded from, which a replacement compares the moved file against.
 interface Seen extends Observation { stamp: string; parent: string | null; id?: string; bytes?: Buffer }
@@ -79,10 +82,12 @@ function observe(target: PlannedTarget): Seen {
   let value: string | null = null, bytes: Buffer | undefined, stamp = `${real}:${kind}`, id: string | undefined;
   try {
     if (kind === "symlink") value = readlinkSync(target.path);
-    if (kind === "file" && target.file) bytes = readFileSync(target.path);
+    // The file can be swapped for a FIFO or a link after the lstat above: that read fails without a code, which lands
+    // where an unreadable file does, and the next launch sees what is there.
+    if (kind === "file" && target.file) bytes = readRegularFileNoFollowSync(target.path, READ_LIMIT);
     // Read through a link to the person's settings only to see whether they added the rules themselves.
     // Only a regular file: reading a link to a FIFO would block launch.
-    if (kind === "symlink" && target.target === "claude-allow") { try { if (statSync(target.path).isFile()) bytes = readFileSync(target.path); } catch { bytes = undefined; } }
+    if (kind === "symlink" && target.target === "claude-allow") { try { bytes = readRegularBytesSync(target.path); } catch { bytes = undefined; } }
     if (kind !== "missing") { const s = lstatSync(target.path); id = `${s.dev}:${s.ino}`; stamp += `:${id}:${s.mtimeMs}:${s.ctimeMs}`; }
   } catch (error) { return { kind: "missing", error: errorCode(error), real, stamp: `error:${errorCode(error)}`, parent }; }
   const content = bytes === undefined ? null : decode(bytes);

@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { query, type EffortLevel, type PermissionResult, type PermissionUpdate, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
@@ -8,6 +7,7 @@ import { openAcp } from "./acpRunner";
 import { CodexDispatcher, RpcError } from "./dispatcher";
 import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeVerdict } from "./handshake";
 import { afterTurnCleanup, OwnedGroup } from "./process";
+import { readRegularFileNoFollowSync } from "../regularFile";
 import { object } from "./sessions";
 import { applyClaudeFastUnavailable, parseClaudeModels, parseCodexModels } from "./models";
 import { parseClaudeSkills, parseCodexSkills } from "./skills";
@@ -94,9 +94,10 @@ function timeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
   });
 }
 // The doan- servers Doan registered in this Codex profile, read from its config.toml for every turn: a Connect may have
-// added one since the server started. An unreadable or oversized file names none, so the turn does not wait.
+// added one since the server started. An unreadable or oversized file names none, so the turn does not wait; so does a
+// FIFO or a link the agent running in this profile put there, which a blocking read would hold main on.
 function profileServers(configDir: string): string[] {
-  try { const text = readFileSync(join(configDir, "config.toml"), "utf8"); return text.length > 1024 * 1024 ? [] : codexProfileServers(text); }
+  try { return codexProfileServers(readRegularFileNoFollowSync(join(configDir, "config.toml"), 1024 * 1024).toString("utf8")); }
   catch { return []; }
 }
 // One Codex send's start (runners.ts openCodex): stopped by a Stop that came before its turn existed, wake ends its wait.
