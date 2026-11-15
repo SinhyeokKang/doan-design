@@ -1508,8 +1508,8 @@ describe("isolate.js follows links in a real DOM", () => {
   const frames = (link: string, script = "") =>
     `<div data-doan-frame="a" data-doan-prototype="390x844">${link}</div><div data-doan-frame="b" data-doan-prototype="390x844"></div>${script}`;
 
-  // isolate.js cancels every link's default itself so the canvas stays in its document; that is not the canvas
-  // cancelling the click.
+  // isolate.js takes a followed link's href off while the browser would act on it, so the document stays without
+  // isolate.js cancelling the click.
   test("a link on <a href> to another document is followed, and the document stays", async () => {
     const { frame, posted } = await clickIn("a", frames(`<a id="x" href="other.html" data-doan-goto="b">Next</a>`), "#x");
     expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
@@ -1544,8 +1544,8 @@ describe("isolate.js follows links in a real DOM", () => {
   });
 
   // A click whose bubble phase never reaches the window still posts, and leaves nothing behind for the next click, which
-  // is decided on its own. No href here: a link's default is cancelled only in the window's bubble phase, so a canvas
-  // that stops propagation keeps it, as before.
+  // is decided on its own. No href here: the href comes off only in the window's bubble phase, so on an <a href> a canvas
+  // that stops propagation leaves the browser's navigation as it was before, and the test frame would leave.
   test("a canvas listener that stops propagation does not stop a link, and the next click is decided on its own", async () => {
     const script = `<script>let n = 0;
       document.getElementById("x").addEventListener("click", event => { n += 1; if (n === 1) event.stopPropagation(); });
@@ -1559,85 +1559,98 @@ describe("isolate.js follows links in a real DOM", () => {
     expect((await dom.flush(frame)).slice(before.length)).toEqual([{ type: "doan-prototype", goto: "b" }]);
   });
 
-  // isolate.js cancels a followed link's default only once every canvas listener has run, window bubble ones included,
-  // so any way the canvas cancels the click stops the link, on an href in the document or to another one.
-  describe.each(["#sec", "other.html"])("a link on <a href=\"%s\">", href => {
-    const link = `<a id="x" href="${href}" data-doan-goto="b">Next</a>`;
-    // Where the document is after the click: its URL and fragment, and the frame still playing.
-    const place = (frame: Frame) => frame.evaluate(() => [location.href, document.querySelector("[data-doan-proto-frame]")?.getAttribute("data-doan-frame")]);
+  // The canvas's cancel is judged as in the prototype window, by the final defaultPrevented: isolate.js cancels no
+  // followed click itself, so no way of cancelling is mistaken or missed. Every case runs on an href in the document,
+  // an href to another one and no href, and checks that the document stayed and the href is back after the timer.
+  describe.each([["#sec"], ["other.html"], [null]])("a link with href %s", href => {
+    const link = `<a id="x"${href === null ? "" : ` href="${href}"`} data-doan-goto="b">Next</a>`;
+    const before = (body: string) => `<script>${body}</script>`;
+    const during = (body: string) => `<script>document.getElementById("x").addEventListener("click", event => { ${body} });</script>`;
+    const after = (frame: Frame) => frame.evaluate(() => [
+      location.href, document.querySelector("[data-doan-proto-frame]")?.getAttribute("data-doan-frame"), document.getElementById("x")!.getAttribute("href"),
+    ]);
 
     test.each([
-      ["window bubble preventDefault()", `<script>window.addEventListener("click", event => event.preventDefault());</script>`],
-      ["window bubble returnValue = false", `<script>window.addEventListener("click", event => { event.returnValue = false; });</script>`],
-      ["window.onclick returning false", `<script>window.onclick = () => false;</script>`],
-      ["element preventDefault()", `<script>document.getElementById("x").addEventListener("click", event => event.preventDefault());</script>`],
-      ["document bubble preventDefault()", `<script>document.addEventListener("click", event => event.preventDefault());</script>`],
-      ["window capture preventDefault()", `<script>window.addEventListener("click", event => event.preventDefault(), true);</script>`],
-    ])("the canvas cancelling it (%s) stops it", async (_name, script) => {
+      ["element preventDefault()", during("event.preventDefault();")],
+      ["document bubble preventDefault()", before(`document.addEventListener("click", event => event.preventDefault());`)],
+      ["window bubble preventDefault()", before(`window.addEventListener("click", event => event.preventDefault());`)],
+      ["window capture preventDefault()", before(`window.addEventListener("click", event => event.preventDefault(), true);`)],
+      ["window bubble returnValue = false", before(`window.addEventListener("click", event => { event.returnValue = false; });`)],
+      ["window.onclick returning false", before("window.onclick = () => false;")],
+      ["window preventDefault() added during the click", during(`window.addEventListener("click", e => e.preventDefault(), { once: true });`)],
+      ["window returnValue = false added during the click", during(`window.addEventListener("click", e => { e.returnValue = false; }, { once: true });`)],
+      ["window.onclick returning false, set during the click", during("window.onclick = () => false;")],
+      ["a preventDefault bound during the click, called from a later listener", during(`const cancel = event.preventDefault.bind(event); window.addEventListener("click", () => cancel(), { once: true });`)],
+      ["Event.prototype.preventDefault.call(event) from a listener added during the click", during(`window.addEventListener("click", e => Event.prototype.preventDefault.call(e), { once: true });`)],
+      ["Object.preventExtensions, then preventDefault() from a listener added during the click", during(`Object.preventExtensions(event); window.addEventListener("click", e => e.preventDefault(), { once: true });`)],
+    ])("cancelled by %s: no goto, the document stays and keeps its href", async (_name, script) => {
       const { frame, posted } = await clickIn("a", frames(link, script), "#x");
       expect(posted).toEqual([]);
-      expect(await place(frame)).toEqual(["about:srcdoc", "a"]);
+      expect(await after(frame)).toEqual(["about:srcdoc", "a", href]);
     });
-
-    test("with no canvas handler it is followed, and the document neither moves to a fragment nor leaves", async () => {
-      const { frame, posted } = await clickIn("a", frames(link), "#x");
-      expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
-      expect(await place(frame)).toEqual(["about:srcdoc", "a"]);
-    });
-  });
-
-  // A window listener the canvas adds while the click is dispatched (from the element's own handler) runs after any
-  // listener isolate.js added at the window's capture phase; its cancel still stops the link.
-  describe.each([["#sec"], ["other.html"], [null]])("a link with href %s, cancelled from a window listener added during the click", href => {
-    const link = `<a id="x"${href === null ? "" : ` href="${href}"`} data-doan-goto="b">Next</a>`;
-    const during = (body: string) => `<script>document.getElementById("x").addEventListener("click", () => { ${body} });</script>`;
-    const place = (frame: Frame) => frame.evaluate(() => [location.href, document.querySelector("[data-doan-proto-frame]")?.getAttribute("data-doan-frame")]);
 
     test.each([
-      ["preventDefault()", `window.addEventListener("click", event => event.preventDefault(), { once: true });`],
-      ["returnValue = false", `window.addEventListener("click", event => { event.returnValue = false; }, { once: true });`],
-    ])("%s stops it", async (_name, body) => {
-      const { frame, posted } = await clickIn("a", frames(link, during(body)), "#x");
+      ["no canvas handler", ""],
+      // The browser ignores a cancel from a passive listener, so it is no cancel.
+      ["a passive window listener added during the click calling preventDefault()", during(`window.addEventListener("click", e => e.preventDefault(), { once: true, passive: true });`)],
+    ])("followed with %s: the goto, and the document stays and keeps its href", async (_name, script) => {
+      const { frame, posted } = await clickIn("a", frames(link, script), "#x");
+      expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
+      expect(await after(frame)).toEqual(["about:srcdoc", "a", href]);
+    });
+
+    test("an href the canvas sets during the click, with a cancel, is kept", async () => {
+      const script = during(`window.addEventListener("click", e => { document.getElementById("x").setAttribute("href", "#new"); e.preventDefault(); }, { once: true });`);
+      const { frame, posted } = await clickIn("a", frames(link, script), "#x");
       expect(posted).toEqual([]);
-      expect(await place(frame)).toEqual(["about:srcdoc", "a"]);
+      expect(await after(frame)).toEqual(["about:srcdoc", "a", "#new"]);
     });
   });
 
-  // Without an href isolate.js cancels nothing of its own, so the final defaultPrevented decides, as in the prototype
-  // window: an event handler first set during the click counts too.
-  test("a link without an href is stopped by window.onclick returning false, set during the click", async () => {
-    const script = `<script>document.getElementById("x").addEventListener("click", () => { window.onclick = () => false; });</script>`;
-    const { posted } = await clickIn("a", frames(`<a id="x" data-doan-goto="b">Next</a>`, script), "#x");
-    expect(posted).toEqual([]);
+  test("an href the canvas adds during the click is no cancel: the link is followed and the document stays", async () => {
+    const script = `<script>document.getElementById("x").addEventListener("click", event => event.currentTarget.setAttribute("href", "other.html"));</script>`;
+    const { frame, posted } = await clickIn("a", frames(`<a id="x" data-doan-goto="b">Next</a>`, script), "#x");
+    expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
+    expect(await frame.evaluate(() => [location.href, document.getElementById("x")!.getAttribute("href")])).toEqual(["about:srcdoc", "other.html"]);
+  });
+
+  test("an <svg> link's xlink:href comes off and back the same way", async () => {
+    const svg = `<svg><a id="x" xlink:href="other.html" data-doan-goto="b"><text y="10">Next</text></a></svg>`;
+    const frame = await dom.load(isolateDocument("a", frames(svg)));
+    const loaded = await dom.flush(frame);
+    // An SVG element has no click(); a dispatched click runs the same activation.
+    await frame.evaluate(() => document.getElementById("x")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, composed: true })));
+    expect((await dom.flush(frame)).slice(loaded.length)).toEqual([{ type: "doan-prototype", goto: "b" }]);
+    expect(await frame.evaluate(() => [location.href, document.getElementById("x")!.getAttributeNS("http://www.w3.org/1999/xlink", "href")])).toEqual(["about:srcdoc", "other.html"]);
   });
 
   test("a click() the canvas makes from its handler is decided on its own, and so is the outer click", async () => {
     const script = `<script>
       document.getElementById("x").addEventListener("click", () => document.getElementById("y").click());
       window.addEventListener("click", event => { if (event.target === document.getElementById("y")) event.preventDefault(); });</script>`;
-    for (const href of ["#sec", null]) {
+    for (const href of ["#sec", "other.html", null]) {
       const outer = `<a id="x"${href === null ? "" : ` href="${href}"`} data-doan-goto="b">Next</a><a id="y" href="#sec" data-doan-goto="c">Inner</a>`;
-      const { posted } = await clickIn("a", frames(outer, script), "#x");
+      const { frame, posted } = await clickIn("a", frames(outer, script), "#x");
       expect(posted, String(href)).toEqual([{ type: "doan-prototype", goto: "b" }]);
+      expect(await frame.evaluate(() => [location.href, document.getElementById("y")!.getAttribute("href")])).toEqual(["about:srcdoc", "#sec"]);
     }
   });
 
-  // Documented limits on an <a href> link, where isolate.js must cancel the default itself before the click's dispatch
-  // ends. Pinned so a change to either is deliberate.
-  describe("limits on a link with an href", () => {
-    const link = `<a id="x" href="#sec" data-doan-goto="b">Next</a>`;
-    const during = (body: string) => `<script>document.getElementById("x").addEventListener("click", () => { ${body} });</script>`;
+  // Links isolate.js does not follow keep the handling every link had: the default is stopped, a # link moves within
+  // the document.
+  test("a link to another document that is not followed is still stopped", async () => {
+    for (const html of [`<a id="x" href="other.html">Other</a>`, `</div><div data-doan-frame="c" data-doan-prototype="1x1"><a id="x" href="other.html" data-doan-goto="b">Other</a>`]) {
+      const { frame, posted } = await clickIn("a", frames(html), "#x");
+      expect(posted, html).toEqual([]);
+      expect(await frame.evaluate(() => [location.href, document.getElementById("x")!.getAttribute("href")]), html).toEqual(["about:srcdoc", "other.html"]);
+    }
+  });
 
-    test("a passive window listener added during the click that calls preventDefault() counts as a cancel", async () => {
-      const body = `window.addEventListener("click", event => event.preventDefault(), { once: true, passive: true });`;
-      const { posted } = await clickIn("a", frames(link, during(body)), "#x");
-      expect(posted).toEqual([]);
-    });
-
-    test("window.onclick first set during the click, returning false, is not seen and the link is followed", async () => {
-      const { posted } = await clickIn("a", frames(link, during("window.onclick = () => false;")), "#x");
-      expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
-    });
+  test("a # link outside the playing frame moves within the document, as an ordinary link", async () => {
+    const html = `</div><div data-doan-frame="c" data-doan-prototype="1x1"><a id="x" href="#sec" data-doan-goto="b">Other</a>`;
+    const { frame, posted } = await clickIn("a", frames(html), "#x");
+    expect(posted).toEqual([]);
+    expect(await frame.evaluate(() => location.hash)).toBe("#sec");
   });
 });
 
