@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/repo"
+	"golang.org/x/sys/unix"
 )
 
 const localGuidance = "Doan files stay in this checkout on this Mac; they do not follow other worktrees or devices. Git worktree removal or git clean -x can delete them; use Export to share a canvas. Existing .gitattributes lines remain. If you previously committed .doan/, those files remain tracked. To stop tracking them, run `git rm -r --cached .doan` in this project folder, then commit. The staged deletions enter your next commit; teammates who pull it lose their .doan/ files. Doan does not run this command or commit."
@@ -123,7 +124,14 @@ func writeAttributes(root string) (bool, error) {
 			return false, errors.New(".gitattributes is a dangling symlink")
 		}
 	}
-	data, err := os.ReadFile(path)
+	// A linked .gitattributes (Resolve kept it inside the repository) stays a link: its target is the file replaced.
+	target := path
+	if info != nil {
+		if target, err = filepath.EvalSymlinks(path); err != nil {
+			return false, err
+		}
+	}
+	data, err := os.ReadFile(target)
 	if err != nil && !os.IsNotExist(err) {
 		return false, err
 	}
@@ -131,6 +139,11 @@ func writeAttributes(root string) (bool, error) {
 	if len(missing) == 0 {
 		return false, nil
 	}
+	// A rename would replace a file the team made read-only, which the write in place used to refuse.
+	if info != nil && unix.Access(target, unix.W_OK) != nil {
+		return false, errors.New(".gitattributes is not writable")
+	}
+	original := bytes.Clone(data)
 	newline := "\n"
 	if bytes.Contains(data, []byte("\r\n")) {
 		newline = "\r\n"
@@ -141,7 +154,28 @@ func writeAttributes(root string) (bool, error) {
 	for _, line := range missing {
 		data = append(data, line+newline...)
 	}
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	// Staged, as the config and the exclude are: a write in place that fails after truncating loses the team's lines.
+	perm := os.FileMode(0644)
+	if info != nil {
+		perm = info.Mode().Perm()
+	}
+	err = repo.WriteStaged(filepath.Dir(target), ".gitattributes-*", perm, data, func(temp string) error {
+		if info == nil {
+			if _, err := os.Lstat(target); !os.IsNotExist(err) {
+				return errors.New(".gitattributes changed before replacement; retry")
+			}
+			return os.Rename(temp, target)
+		}
+		current, err := os.Stat(target)
+		if err != nil || !os.SameFile(info, current) {
+			return errors.New(".gitattributes changed before replacement; retry")
+		}
+		if now, err := os.ReadFile(target); err != nil || !bytes.Equal(now, original) {
+			return errors.New(".gitattributes changed before replacement; retry")
+		}
+		return os.Rename(temp, target)
+	})
+	if err != nil {
 		return false, err
 	}
 	return true, nil

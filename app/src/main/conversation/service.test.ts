@@ -1901,10 +1901,10 @@ describe("send now", () => {
     const append = h.store.append.bind(h.store);
     let thrown = false;
     vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
-      if (body.type === "interrupted" && !thrown) { thrown = true; throw new Error("File exceeds limit"); }
+      if (body.type === "interrupted" && !thrown) { thrown = true; throw Object.assign(new Error("EIO: i/o error"), { code: "EIO" }); }
       return append(cid, turn, body);
     });
-    expect(() => h.service.quit()).toThrow("File exceeds limit");
+    expect(() => h.service.quit()).toThrow("EIO");
     for (const answered of sent) expect(await answer(answered)).toBe("not_running");
     for (const { id } of conversations) { expect(sending(h, id)).toEqual([]); expect(queued(h, id)).toEqual(["one"]); }
   });
