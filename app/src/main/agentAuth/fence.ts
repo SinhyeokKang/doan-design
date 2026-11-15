@@ -45,8 +45,8 @@ const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")
 // Doan writes the doan skill stub before spawning, so it stays readable. Neither CLI writes these files during a run (Claude Code 2.1.319: suggested permissions go
 // to the project's local settings or the session; codex-cli 0.166.0 wrote no config.toml). Doan main writes them from
 // outside the fence. The ACP providers' profiles get no such line: every Copilot process and every ACP list read runs in
-// this fence, and the processes left outside it (Cursor's and Antigravity's sign-in and status, Cursor's --version)
-// started none of the hooks and MCP servers planted in their profiles (probe).
+// this fence. Of the processes left outside it, Cursor's and Antigravity's status checks and Cursor's --version started
+// none of the hooks and MCP servers planted in their profiles (probe); their sign-in was not probed.
 const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")) (subpath (param "PROVIDER_PROJECT")) (literal (param "PROVIDER_MCP")))
 `;
 const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))
@@ -91,8 +91,8 @@ export function fencedCommand(command: string, args: readonly string[], fence?: 
   return fence ? { command: exec, args: [...fence, command, ...args] } : { command, args: [...args] };
 }
 // Copilot imports its own JavaScript from the profile's package cache ($HOME/Library/Caches/copilot/pkg, ~/.copilot/pkg)
-// in every process but --version, with no signature check, and its prompt sessions start the hooks and MCP servers the
-// profile names; a fenced Copilot turn can rewrite all of them. Copilot writes that cache itself when it updates, so
+// with no signature check, in every process (--version too, once a newer package is cached), and its prompt sessions
+// start the hooks and MCP servers the profile names; a fenced Copilot turn can rewrite all of them. Copilot writes that cache itself when it updates, so
 // rather than closing it to writes, every Copilot process Doan starts runs in the outer fence.
 export const fencedEverywhere = (provider: Provider) => provider === "copilot";
 // A process Doan starts outside a conversation in the outer fence: Claude's usage read, MCP connector commands and a

@@ -30,7 +30,7 @@ export interface AgentSetupOptions {
 export interface AgentSetupResult { home: string; items: SetupItem[]; steps: Step[] }
 
 const CANCELLED_FILE = "agent-setup.json";
-// The cap readRegularBytesSync applies to the linked settings, far above any Claude Code settings or rule file.
+// The cap on reading a setup target that is a file, far above any Claude Code settings or rule file.
 const READ_LIMIT = 16 * 1024 * 1024;
 // `parent` is the resolved folder's "dev:ino", so a replacement can tell the folder was swapped; `id` is the target's.
 // `bytes` is what `content` was decoded from, which a replacement compares the moved file against.
