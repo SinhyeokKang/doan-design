@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { appendFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { hookLinks as fileHookLinks, type AuthProcess, type Lease, type McpLogoutRequest, type Spawn } from "../agentAuth/manager";
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import type { AuthState, Provider, Readiness } from "../agentAuth/types";
+import { readRegularFileSync } from "../regularFile";
 import { mcpAuthLink } from "./authLink";
 import { CONNECTOR_NAME, connectorName, connectorWithUrl, parseConnectorUrl, type UrlRejection } from "./names";
 import { codexServerToml, mcpLogoutOutcome, mcpLogoutPlan, plaintextLeftovers, reconcilePlan, type McpLogoutInput } from "./plans";
@@ -343,7 +344,8 @@ export class McpService implements McpConversationFacts {
   }
   private profileServers(provider: McpProvider, profileDir: string): ListedServer[] | null {
     let text: string;
-    try { text = readFileSync(join(profileDir, provider === "codex" ? "config.toml" : ".claude.json"), "utf8"); } catch { return null; }
+    // The provider process owns the profile and could leave a FIFO or a huge file here.
+    try { text = readRegularFileSync(join(profileDir, provider === "codex" ? "config.toml" : ".claude.json")); } catch { return null; }
     return provider === "codex" ? codexConfigServers(text) : claudeConfigServers(text);
   }
 

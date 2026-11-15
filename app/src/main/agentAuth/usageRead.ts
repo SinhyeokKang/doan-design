@@ -1,8 +1,9 @@
 import { spawn as spawnChild } from "node:child_process";
-import { lstatSync, mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { OwnedGroup } from "../conversation/process";
+import { readRegularFileNoFollowSync } from "../regularFile";
 import type { AuthProcess, Lease, Spawn } from "./manager";
 import { PROVIDER_AUTH } from "./providers";
 import { claudeUsage, codexUsage, copilotUsage, cursorUsage, usageNotSupported } from "./usageParse";
@@ -198,12 +199,13 @@ async function claudeRead(lease: Pick<Lease, "command" | "env"> & { organization
 function cursorCookie(profileDir: string): string {
   const path = join(profileDir, PROVIDER_AUTH.cursor.vault![0]!);
   let bytes: Buffer;
-  try {
-    // A link would let the read send another file's contents.
-    const info = lstatSync(path);
-    if (!info.isFile() || info.size > CURSOR_FILE_LIMIT) throw new ReadFailure("the credential file is not one Doan reads");
-    bytes = readFileSync(path);
-  } catch (error) { throw error instanceof ReadFailure ? error : new ReadFailure("the credential file could not be read"); }
+  // A link would let the read send another file's contents. ELOOP is the open refusing a link; an error without a
+  // code is a special or oversized file.
+  try { bytes = readRegularFileNoFollowSync(path, CURSOR_FILE_LIMIT); }
+  catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    throw new ReadFailure(code === undefined || code === "ELOOP" ? "the credential file is not one Doan reads" : "the credential file could not be read");
+  }
   let token: unknown, sub: unknown;
   try {
     token = (JSON.parse(bytes.toString("utf8")) as { accessToken?: unknown }).accessToken;
