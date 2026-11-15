@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -20,7 +21,8 @@ export function createFingerprints(): Fingerprints {
     async of(root, path) {
       const file = join(root, path);
       let handle;
-      try { handle = await open(file, "r"); } catch { return null; }
+      // O_NONBLOCK so a FIFO opens at once and fails the isFile check instead of holding a libuv thread.
+      try { handle = await open(file, constants.O_RDONLY | constants.O_NONBLOCK); } catch { return null; }
       try {
         const keyOf = (stat: { ino: bigint; size: bigint; mtimeNs: bigint; ctimeNs: bigint }) => `${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
         const before = await handle.stat({ bigint: true });

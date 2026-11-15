@@ -1,6 +1,7 @@
-import { lstatSync, readFileSync, statSync } from "node:fs";
+import { lstatSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { readRegularFileSync } from "../regularFile";
 
 // Remotes are read from the config files themselves. Running git in a user's repository can execute its
 // fsmonitor, hooks and filters (POSTMORTEM 2026-10-25 'Eval inspection executed repository-configured helpers').
@@ -115,12 +116,12 @@ function configPath(root: string): string | RemoteRead {
   }
   try {
     if (!statSync(dotGit).isDirectory()) {
-      const line = /^gitdir: (.+)$/.exec(readFileSync(dotGit, "utf8").split("\n", 1)[0]!.replace(/\r$/, ""));
+      const line = /^gitdir: (.+)$/.exec(readRegularFileSync(dotGit).split("\n", 1)[0]!.replace(/\r$/, ""));
       if (!line) return { ok: false, reason: "unreadable" };
       gitDir = resolve(root, line[1]!);
     }
   } catch { return { ok: false, reason: "unreadable" }; }
-  try { return join(resolve(gitDir, readFileSync(join(gitDir, "commondir"), "utf8").trim()), "config"); }
+  try { return join(resolve(gitDir, readRegularFileSync(join(gitDir, "commondir")).trim()), "config"); }
   catch (error) { return errorCode(error) === "ENOENT" ? join(gitDir, "config") : { ok: false, reason: "unreadable" }; }
 }
 
@@ -128,7 +129,7 @@ export function readGitRemotes(root: string, home: string = homedir()): RemoteRe
   const config = configPath(root);
   if (typeof config !== "string") return config;
   let items: Item[] | null;
-  try { items = parseItems(readFileSync(config, "utf8")); } catch { return { ok: false, reason: "unreadable" }; }
+  try { items = parseItems(readRegularFileSync(config)); } catch { return { ok: false, reason: "unreadable" }; }
   if (!items) return { ok: false, reason: "unreadable" };
   const urls: string[] = [];
   let uncertain = false;
@@ -141,7 +142,7 @@ export function readGitRemotes(root: string, home: string = homedir()): RemoteRe
       const path = item.path.startsWith("~/") ? join(home, item.path.slice(2)) : isAbsolute(item.path) ? item.path : resolve(dirname(file), item.path);
       if (chain.length >= MAX_INCLUDE_DEPTH || chain.includes(path)) { uncertain = true; continue; }
       let nested: Item[] | null;
-      try { nested = parseItems(readFileSync(path, "utf8")); }
+      try { nested = parseItems(readRegularFileSync(path)); }
       catch (error) { if (errorCode(error) !== "ENOENT") uncertain = true; continue; }
       if (!nested) { uncertain = true; continue; }
       walk(path, nested, [...chain, path]);
