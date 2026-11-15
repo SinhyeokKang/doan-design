@@ -1,0 +1,220 @@
+# Design measurements — Canvas conversation panel and pickers
+
+> Part of [DESIGN.md](../DESIGN.md), which holds the evidence and verification policy, the design system and the index of every screen section.
+
+## Canvas conversation panel
+
+Reference: `.doan/canvases/doan-canvas-conversation.html` (15 frames; `panel-states` has 13 tiles), plus the shared choice card on first run's Your projects and Add Projects' repositories in a folder. Built app at 1238 × 780 and 960 × 600: the draft is copied into a fixture repo as the canvas `checkout` and read in the app's canvas iframe, next to the panel it draws; accessible names from the CDP AX tree. No provider is signed in: the signed-in states come from main's agent-auth, model, conversation list / read / start / send and resume-target handlers replaced in the isolated app.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Panel head | The Overview right panel title row: the conversation title is an sm `trigger` button (label-sm 14/20 500, padding 6 / 8, gap 6, 16 px `.chev`), then the 32 px New conversation (`SquarePen`, the menu item one click away; on a new conversation it is `aria-disabled` and does nothing, and while the list is read it only focuses the composer) and Hide conversation icon buttons; 56 high (the chrome height, as the canvas header and the Overview heads) with an 8 px end inset. No bar, divider or shadow; the thread scrolls under it and is clipped at its lower edge. While the list loads the trigger is disabled (`--text-disabled`) | Nothing to choose until the list reads. |
+| Conversation menu | The Overview `conv-menu`: 360 wide, `doan-floating`, 4 inset; New conversation, separator, "Conversations on <canvas>", then rows (logo 14, title, time, one-line preview) with the shared 1 px dividers; the shown conversation has the pressed fill. Measured against `.doan/canvases/canvas-concurrent-conversations.html` `title-menu` (built app at 1238 × 780 and 960 × 600, working and waiting states from replaced main conversation IPC handlers): every conversation on the canvas by latest activity, none pinned; the shown one is the pressed row (`.current`, rgba(0,0,0,.1)); rows 350 × 54 with the shipped marks (Working 14 px spinner, Needs your answer, finished unread) and Delete (`aria-disabled` while that conversation works or waits). While the menu is open the order holds and a conversation started meanwhile goes last. A list that was never read (its first read failed) shows `.conv-error` in place of the rows: 350 × 40, padding 4 / 4 / 4 / 12, gap 8, "Couldn’t read conversations" in `--text-subtle` and the menu item Retry (58.5 × 32); a failed re-read keeps the last list and an enabled trigger. A long list scrolls inside the menu at the popper's available height (668 at 1238 × 780) | Same rows as the Overview. |
+| Thread | Thread insets 8 / 16 / 32 on `.thread-scroll`; gap 20; the person's bubble at most 92 %, padding 8 / 16, radius 16, light accent fill (rgb(245,240,253)); text body-sm 14/20 | The Overview thread at panel width. The gap 20 is pinned by unit tests only; the 32 bottom inset (room for the docked buddy) was read from the rule in the real app ('Docked buddy'). |
+| Anchor chip | Inline, 20 high in a bubble and 24 in the field (the line height), padding 0 / 6, gap 4, margin 0 / 2, radius 6, 500 weight, `--text-accent-subtle` (rgb(84,56,113)) on `--surface-accent-subtle`, on `--surface-panel` inside a bubble; 14 px Lucide icon (Frame, SquareMousePointer, MapPin); label ellipsized at a 180 px chip. Field chips carry a hidden kind prefix ("Frame", "Element", "Point"); thread chips are buttons named "Show <label> on canvas" | Component constants (180, 6): no token has them. |
+| Agent reply chip | The thread chip's box inline in the reply's Markdown (paragraphs, lists, tables; 20 high at body-sm). A chip into another canvas adds " · <canvas name>" in the same ink and is still capped at 180 px: the label ellipsizes first and the canvas name stays whole (measured 180 = label 77.5 + name 72.5). Only a name that does not fit a 180 px chip by itself widens the chip, just enough (a 45-character name: 336.7 px), up to the reply block's width, where the name ellipsizes inside the chip; `.msg-agent` is an inline-size container for that cap, and reply block widths were unchanged by it. A chip at the block's full width sits 2 px past the block edge (its own margin). Named "Open <canvas> and show <label>" | `agent-reply-chips.html` `panel-other-canvas`. |
+| Not found note | "No longer in the canvas": caption 12/16 `--text-metadata`, `role="status"`, and the chip's `aria-describedby` while it shows; under the bubble for a sent chip, 6 px under the reply block for an agent reply's chip, and for a composer chip an overlay 4 px under that chip, start-aligned with it, outside the field | The field's DOM is never touched. |
+| Docked composer | The shipped docked composer (Project Overview) in a 12 px foot: capsule while empty or one line of plain text; any chip — attachment, preset or anchor — makes the box (padding 16 / 12 / 12 / 16, radius 24). The capsule's placeholder is one line ending in an ellipsis | A chip in the capsule would clip in the 320–347 px panel. |
+| Pick from canvas | 24 px xs icon button at the start of the model row (`margin-right: auto`), `--text-subtle`; pressed: `--affordance-backdrop-pressed` and `--text-standard`; unavailable: `aria-disabled`, `--text-disabled`, pointer cursor (its tooltip names the reason) | |
+| Picking hint | The agent notice's capsule ('Canvas area and right panel' 'Agent notice'; its 40 high is `--size-control`) with padding 4 / 8 / 4 / 16; wording 14/20 white; the shared `on-prominent` Esc key (28 high, padding 4 / 8, 16 % white fill, white, no ring); hidden "Press Escape to cancel"; `role="status"`. It leads with the composer pick button's Crosshair (14 px, 8 before the text) and sits 8 above the Canvas tools row in the board's bottom column, so the agent notices in the top column never move it ('Terminal work in another worktree'). The board shows a crosshair; the panel keeps its own cursors | Picking is a mode the person turned on; its hint stays by the tools that switch modes. |
+| Tools row | The tools in the order of 'Canvas area and right panel' (40 px): an unavailable Picker or Export is `aria-disabled` with `--text-disabled` ink, a not-allowed cursor and no hover or pressed fill, so its reason tooltip still shows (the shared tooltip: 24 high, padding 4 / 8, radius 12, black, caption 12/16 white; Select, Hand and the Picker name their key) | |
+| Terminal session | Choice cards above the composer (`ob-choice-list cp-resume`, margin-bottom 4); the model and effort triggers keep their size without chevrons; Attach is `aria-disabled` in `--text-disabled` with a not-allowed cursor. While that session works in a terminal the choice is held: 'Terminal agent activity' | The same triggers, not interactive. |
+| Suggestions | The Home suggestion rows ('Home' 'Suggestions') at the panel's inner width (247 at the 280 minimum), 32 above the composer area, clear of the docked buddy (1238 × 780: last row bottom 636, buddy hit box top 636). They show only in the plain new state, not beside a terminal session choice (`CanvasConversationPanel.tsx`) | |
+| Loading and unreadable conversation | "Loading conversation" and "Doan couldn’t read this conversation" sit in the middle of the panel body with the thread's 16 px side insets | |
+| Open button badge | Folded panel's Show conversation: a needs-your-answer request is an 8 px `--affordance-accent` dot, 4 from the top and end, 2 px `--surface-panel` ring (`[data-badge="true"]::after`); an unread finished conversation is a 14 px (`--size-icon-sm`) round speech bubble (`.badge-bubble`, lucide `MessageCircle`, stroke 2 in `--text-accent`, filled `--surface-panel`) 2 px (`--space-half`) from the top and end, with a 2 px `--surface-panel` ring (`[data-badge="unseen"]`). A working conversation shows the prototype window's working badge (`.badge-working`, `[data-badge="working"]`): a 14 px white circle 2 from the top and end with a 2 px `--surface-panel` ring around the 14 px spinner. Named "Show conversation, needs your answer" / "Show conversation, agent is working" / "Show conversation, conversation finished unread". The badge is the strongest signal across all the canvas's conversations: needs your answer, then working, then finished unread, so a working conversation can hide another's unread bubble; unfolding through a badged button shows the conversation it points to, focus on its request (measured against `.doan/canvases/canvas-concurrent-conversations.html` `badge`). The Show sidebar button uses the same two marks | The sidebar slot's marks. Measured for the Show sidebar button only (below); the panel button shares the rule and has a unit test. |
+| Locate | Frame chips jump like the drawer; the jump highlight is the canvas area's (3 px accent gradient line outside the element, its 1 px white ring and accent glow outside the line, 1.2 s); a point shows a 12 px ring of the same line, centred on the spot | |
+| Agent notice | "A project conversation is drawing this canvas…" (Open the project conversation) and the promoted notice ("A project conversation moved to this canvas.", Open named "Open the moved conversation"; a promotion never moves the panel): the shared `doan-notice thread-notice`, last in `.cp-scroll`; body-sm 14/20, padding 12 / 16, grid columns 16 + 1fr with a 6 px column gap and a 12 px row gap, radius 16, `--surface-inset`; the sm Open in the second column under the text. At 1238 × 780 the drawing notice is 314 × 128 (draft tile 315 × 128); the promoted notice, reached for real, 314 × 108 (`.doan/canvases/canvas-concurrent-conversations.html` `title-menu`; the draft tile is 1 px wider, without the panel's start border) | Measured with the component's markup placed in the panel; the state itself was not reached (Not verified). The draft's icon sits 2 px higher: its bare `<svg>` lacks `doan-alert-icon`, which centres the app's icon on the 20 px first line. |
+| Narrow | The panel can be dragged to 280, the minimum: nothing in the head, title menu or composer passes its edges, and a chip makes the box. At 960 × 600 the default is 320 | The 280 minimum; 320 is the default `max(320px, 28dvw)`. |
+| Deleting the shown conversation | The panel shows the next conversation by the shared pick (waiting, then last seen, then most recent), or the new conversation state when none is left (the head's New conversation `aria-disabled`); focus goes to the title-menu trigger, which shows the shared 2 px rgb(0,0,0) ring at 2 px after a keyboard confirm | Measured against `canvas-concurrent-conversations.html` `delete-shown`. |
+
+### Documented deviations from the draft
+
+- **Send while empty.** Send is disabled while the field is empty (the shipped docked rule); several frames draw it enabled.
+- **Waiting reason line.** While a permission request waits, the composer shows "Answer or stop the request above." under the model row (shared docked rule); `panel-permission` leaves it out.
+- **Start refusal.** A refused start shows the shared composer notice (`doan-notice error doan-panel`) under the model row; the "Start refused" tile draws a reason line.
+- **Unavailable composer.** On a page outside the list or with a duplicate canvas ID the composer keeps its draft and chips but takes no input: Attach, Presets and Send are disabled (`--text-disabled`), the chips cannot be removed, a dropped or pasted file is not attached, and the field is read-only (`aria-readonly`) so the kept draft can still be selected; the tile draws Attach and Presets enabled and the field `aria-disabled`.
+- Context, not deviations: the draft's placeholder drawn as field text and its caret stand-in (2 px taller lines); the field's `pre-wrap`; the focused composer's shared ring; the draft's frame-wide crosshair in `picker-mode`; state tiles drawn as 347 × 420 cards; fixture text, conversation titles and provider names.
+
+### Not verified
+
+- `panel-states` "Project conversation drawing" and "Promoted while open": HomeRun's drawing and promotion state was not reached; the notice was measured from its markup placed in the panel (Agent notice), not from a running project conversation or a promotion.
+- "Duplicate canvas ID": not reachable on the canvas page (the controller closes such a canvas).
+- `canvas-concurrent-conversations.html` (board, title menu, badge, Overview rows, prototype head menu, deleting the shown conversation): no provider turn ran; working, waiting and work notes came from replaced main IPC handlers. The `title-menu` tiles that draw a thread with a disabled trigger or the menu's error line were compared with the first list read (the new conversation state), the only time either shows. A prototype canvas that left the project and real (non-synthetic) pointer hover were not measured; the window ran hidden with reduced motion emulated.
+- Every signed-in state with a real provider (injected handlers only); element and point chips in the field were drawn from a returned draft, not picked (picking itself was checked by a separate runtime probe).
+- Hover of the chip, picker and tools (the draft draws none).
+- At the 280 minimum width: the terminal session selection card (needs a resumable terminal session) and the suggested prompts (no agent was ready).
+- Known gap: Chromium exposes no `aria-autocomplete` on the contenteditable field's `/` combobox; role, expanded state, controls and active descendant match the earlier textarea (ARCHITECTURE §7 'Renderer primitives').
+
+### Regression pointers
+
+`DockedComposer.test.tsx` (an anchor chip makes the box), `DockedComposer.interaction.test.tsx` (a locked composer takes no preset, file or chip removal), `canvasPicker.test.ts`, `CanvasController.test.ts`, `ConversationThread.locate.test.tsx`, `CanvasConversationPanel.test.tsx`, `Onboarding.test.tsx` (choice card markup). Sizes, colours and geometry above are `.scratch/` probes only.
+
+## Context window ring
+
+Reference: `.doan/canvases/context-window-ring.html` (frames `place-capsule`, `place-box`, `ring-states`, `ring-geometry`, `ring-tooltip`). Built app, the draft read in the app's own canvas iframe: the canvas conversation panel at 960 × 600 (panel 320, and 280 after End) and the Overview at 1238 × 780, conversations seeded as real history in an isolated userData (provider readiness, model lists and usage injected; no sign-in). No difference in the ring, its tooltip or the tray placement.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Ring | `span.context-ring`, 16 × 16 (`--size-icon`), `display: block`, `flex: none`, default cursor, no padding or fill. SVG viewBox 24 turned −90°, circles r 10.5 with stroke-width 3 (a 2 px stroke on a radius-7 centreline, outer edge on the box edge); track `--border-track` (`color(srgb 0 0 0 / .15)`), value `--affordance-prominent` with `stroke-dasharray` "<n> 100" on `pathLength` 100, `--border-danger` (rgb(229,72,77)) with `data-band="full"` from 70 % of the unrounded ratio (69.9 % stays default, 70 % is danger); past 100 % the arc is full. No text, no logo, no transition | The 24 px usage-ring geometry scaled to 16 px would draw a 1.33 px stroke. |
+| Place | The tray's last child, 12 from its end (the tray's end padding) and 10 from its top in the 32-high tray, 4 after the previous picker (tray gap 2 + `margin-inline-start` 2), measured in the canvas panel (content 354) for a Codex conversation and a terminal session's fixed tray (picker-default-labels). Its place at panel 320 and 280, in the Overview (tray 666), with no effort or permission picker (Copilot), with the box composer, while a turn runs and for an archived conversation was measured under the earlier 4 + 4 spacing and not remeasured; the rules are the same `.docked .composer-tray` ones | The tray's `justify-content: flex-end` and the model trigger's auto start margin keep its end at the right edge whichever pickers show. |
+| Narrow tray | One line at every measured width; at panel 320 and 280 Effort and Permission show icons only and the model label ellipsizes while the logo stays (container rules, 'Permission mode picker' › 'Docked width steps'); the ring never shrinks. The label widths were measured under the earlier gaps and steps | |
+| No value | No ring element; the tray as without the feature: gap 2, end padding 12, `flex-end`. Its equality with the context-window-ring draft's "Today / no value" tiles (drawn at gap 4) was measured before the gap changed and not remeasured | The tray is as without the feature. |
+| Tooltip | The shared tooltip above the ring (`data-side="top"`), 4 from its top. Two `.tip-line` blocks, both white caption 12/16/400: "Context window 42% used · last turn" and "84K of 200K tokens"; otherwise the shared values ('Canvas conversation panel' 'Tools row'), 40 high. Overview: centred on the ring. Panel: pushed start-ward to the window edge (its right edge 20 past the composer) | |
+| Behaviour | Escape closes the tooltip; leaving and re-hovering reopens it, as after a press on the ring. A press opens no dialog, menu or popover. Tab from the last picker skips the ring | POSTMORTEM 2026-10-23 'Re-hovering a dismissed tooltip did not reopen it'. |
+| Accessible node | Chromium (CDP): role image, name "Context window 42% used · last turn", description "84K of 200K tokens", not focusable | |
+| Usage ring | The header rings use the shared `ProgressRing`: markup (class, `data-provider`, `data-band`, svg attributes, logo), 24 × 24, r 11, stroke 2, logo 14 × 14, the button `-webkit-app-region: no-drag` (see 'Agent usage') | |
+
+### Documented differences from the draft
+
+- **Panel composer width.** The composer is 295 wide at panel 320 (255 at 280) where the draft draws 296 (256): the panel's 1 px start border. Everything right-anchored (the ring, Permission) lands at the same offsets; the model label is 1 px narrower.
+- **Computed values without effect.** The ring's svg computes `flex-shrink: 1` (the draft board's `:where(svg)` rule gives 0; the svg's parent is a block), and the value circle computes `display: flex; gap: 6px` from the Inspector's global `.value` rule (CSS display other than `none` does not change an SVG shape; the usage ring's circle has the same values).
+- **Context, not deviations:** the Overview's board width (720 drawn, tray 666 measured); the fixed tray's disabled Attach and `.is-fixed` cursors, shipped rules the draft does not copy; the tooltip's `white-space` (the draft's static stand-in sets `nowrap`; the measured widths match).
+
+### Not verified
+
+- The draft tile "With ring · 720 · terminal session (fixed tray, Overview)": the Overview has no fixed tray (`composerFixed` serves the canvas panel only), so a legacy-external project conversation there shows ordinary pickers; the ring was measured last, 12 from the end, on one line in it.
+- Real provider turns: values were seeded history, and the running tiles were reached by having main answer a streaming turn.
+
+### Regression pointers
+
+`DockedComposer.test.tsx` (ring markup and place, no ring without a value, pickers, fixed tray, running, danger band, the ring CSS), `ContextRing.test.tsx` (tooltip lines, span outside Tab order), `contextWindow.test.ts` (value, floored percent, token text), `CanvasConversationPanel.test.tsx` and `ProjectOverview.context.test.tsx` (the hosts' values), `AgentUsageButton.test.tsx` (usage ring markup). Pixel geometry and the tooltip's position are `.scratch/` probes only.
+
+## Conversation delete
+
+Reference: `.doan/canvases/conversation-delete.html` (frames `row-button`, `row-unavailable`, `delete-dialog`, `delete-toast`, `after-delete`). Built app at 1238 × 780, the draft in the app's canvas iframe. The Overview's Conversation menu and the canvas panel's Title menu were reached in an isolated app from stored conversation records. Working and waiting rows came from main's own `conversation:list` answer, wrapped in the main process because no agent runs in an isolated app. The refusal toast came from a conversations directory made read-only (`unknown`).
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Row wrapper | Each conversation row is a `.conv-row` (`position: relative`) holding the row's radio item and its Delete. The hairline is `.conv-row + .conv-row > .conv-item::before` (inset 12), hidden around the current, the hovered and the highlighted row. While the highlight sits on the Delete, the row keeps its highlight fill rgb(245,245,246). The selected row keeps the pressed fill rgba(0,0,0,0.1) | The sibling selector `.conv-item + .conv-item` no longer matches once rows are wrapped. When the highlight moves to the button, the row loses `data-highlighted`. |
+| Row Delete | A Radix menu item (`role="menuitem"`, not a nested button): 24 × 24 `doan-icon-button`, 18 px corners, a 16 px Trash2 in `--text-subtle` (rgb(82,82,82)). It sits 6 from the row's top and 8 from its end, centred on the first line, its glyph flush with the time's end (12 in). Highlighted: fill `--affordance-subtle-hover` (rgb(241,241,242)), from the keyboard the 2 px black ring at offset 2 | |
+| Shown and hidden | It shows while the pointer is over the row and while the row or the button is highlighted. Otherwise it is `position: absolute`, 1 × 1, `overflow: hidden`, `clip-path: inset(50%)`. While it shows, the time keeps a 24 px spot and its visible text gets the same clip, while the spoken label stays. A row without a time (an unreadable conversation) keeps the same 24 px spot after its title and mark (probe) | Radix must be able to return focus to it; a `display: none` item cannot take focus (POSTMORTEM 2026-11-03 'A canvas row menu closed by Esc dropped focus to the page body'). |
+| Unavailable Delete | Working or waiting: `--text-disabled` ink (rgb(149,149,149)), no fill on hover, press or highlight, default cursor, `aria-disabled` and reachable by the arrows. Its reason is an `sr-only` sibling that `aria-describedby` names, and it is the tooltip's text | The status mark already shows the state; the tooltip says why Delete waits. |
+| Tooltip | The shared tooltip ('Canvas conversation panel' 'Tools row'), 4 above the button, centred on it, drawn over the menu (hit-tested). It shows on keyboard highlight and when the pointer rests on the button, not on the row alone | |
+| Escape | One Escape on a highlighted Delete closes the tooltip and the title menu together, and focus returns to the trigger | The tooltip is the top dismissable layer: without routing its Escape to the (controlled) menu, the first Escape closed only the tooltip (runtime probe). |
+| Confirmation | The Trash dialog ('Canvas row menu and export viewer'): compact `alertdialog`, 400 wide, 32 padding, 28 corners, 16 gap. Title 16/24/500, body 14/20 rgb(82,82,82). Cancel subtle rgb(245,245,246) and Delete prominent black, both 40 high. The reason notice (12 / 16 padding, 16 corners, rgb(245,245,246)) and the unavailable Delete (rgb(232,232,232), rgb(149,149,149) ink) are equal to the draft's. While the request is out, Cancel and Delete are `aria-disabled` and the alert refuses its cancel event: two Escapes in a row with no click between left it open with no `close` event (probe, request held 3 s in main), and a link's dismissal is refused | Measured plain, with the unsent line, and after the conversation started working while the alert was open. A busy dialog refuses its cancel (PRODUCT §5 item 3 'Deep links'); cancelling would stop nothing. |
+| Refusal toast | The shipped toast: 384 wide, 12 padding, 24 corners; message 14/20 | |
+| After the last conversation | The Conversation menu holds New conversation only (the shipped empty list) | |
+| New conversation on the new state | The header's New conversation (`ov-new-conv`, canvas panel `doan-conv-new`) on the new conversation state: `aria-disabled`, `--text-disabled` ink, no hover or pressed fill (transparent), default cursor. The tooltip stays `New conversation` and the button stays in the focus order; a click does nothing | Not drawn in the draft (decided after it); checked in the real app only. |
+
+### Documented differences from the draft
+
+- **Text-less roots.** A `div` item inherits `start` alignment where the draft's `button` specimens give `center`; it paints no text of its own, and every text child (titles, preview, dialog title and body, toast message) matches.
+- **Tooltip gap and wrapping.** The draft's stand-in tooltip sits 2 px above the button, while its caption and rule comment say 4. The app uses the shared tooltip's 4 px `sideOffset`. The stand-in's `white-space: nowrap` belongs to its absolute staging; the shared tooltip wraps at 384 px, and every reason fits on one line (24 high, as drawn).
+- **Row focus ring.** When Radix focuses a hovered row in keyboard modality, the shared `.doan-menu-item:focus-visible` inset ring (2 px, offset −2) shows; the draft draws the fill alone. This shipped rule is unchanged ('Canvas row menu and export viewer', 'Keyboard ring on a menu item').
+- **Placement.** Position, overflow, max width and z-index of the menu, dialog and toast are not compared.
+
+### Not verified
+
+- A real agent working or waiting: the unavailable rows were reached through a wrapped `conversation:list` answer.
+- Main's `busy` and `not_found` toasts, and no toast after main's `app:quitting` push (a refusal while the app quits). Only `unknown` was reached in the real app. The copy is pinned by `conversationDelete.test.ts` and the flow, the quit case included, by `App.conversationDelete.test.tsx`.
+- The alert dismissed by a `doan://` link (the shared `dismissDialogs` path) and an OS notification click while it is open (PRODUCT §5 item 0 'Notifications': a click during a modal only brings the window forward).
+- Roles and names were read from DOM attributes, not the accessibility tree.
+
+### Regression pointers
+
+`ConversationDeleteDialog.test.tsx` (item names, unavailable state, Escape, dialog, the clipped hidden button, the wrapper hairline and the row fill rules), `conversationDeleteMenus.test.tsx` (both menus' row structure, unavailable rows, delete without picking, the controlled menu, no rows on a list error or while loading, New conversation unavailable on the new conversation state on both screens), `App.conversationDelete.test.tsx` (the deleting mark, cleanup order, a throwing cleanup still ending the mark and the alert, refusal toasts, focus on both screens). Geometry is unpinned (`.scratch/` probes only).
+
+## Canvas tools, Send now in the thread and Canvas conversations Delete
+
+Reference: `.doan/canvases/canvas-composer-polish.html` (9 frames: `toolbar-default`, `toolbar-picking`, `toolbar-disabled`, `sending`, `sending-read`, `sending-refused`, `cv-delete`, `cv-special`, `home-reason`). Built app at 1280 × 820: the draft is copied into a fixture repo as the canvas `landing` and read in the app's canvas iframe. Running, waiting, queued, Send now and export states come from replaced main IPC handlers (no provider signs in); the unreadable canvas is a file without read permission; the unlisted page is an asset page opened inside the canvas iframe. Every difference is listed as context, except the unavailable Export's reason (fixed, below).
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Tools row | The row and order of 'Canvas area and right panel'. Measured here: Select, Hand and Picker 40 px `md` at 5 / 47 / 89 inside the row; the separator 1 × 20 `--border-standard` with 4 px inline margins; Export 40 px, 5 from the row's end; 187 × 50 measured before Capture area and Play prototype were added | Export is an action after the tools, so the divider sets it apart. |
+| Picking | Only the Picker has `--affordance-backdrop-pressed` (rgba(0,0,0,.1)) and `aria-pressed="true"`; Select and Hand are unpressed, and the composer's Pick is pressed too. The picking hint sits above the row (shipped) | One pick, wherever it started. |
+| Unavailable Picker and Export | `aria-disabled` (never `disabled`), `--text-disabled` ink (rgb(149,149,149)), not-allowed cursor, no hover fill; ←/→ reach them. The tooltip names the reason; the unavailable Export also names it through an `sr-only` sibling and `aria-describedby`, so it stays described after its tooltip closes (pinned in `CanvasTools.test.tsx`). While exporting, keyboard focus stays on Export with the shared 2 px black ring at offset 2 | The reason stays with the control. |
+| Tooltips | The shared tooltip ('Canvas conversation panel' 'Tools row'). Picker "Pick from canvas" with the `on-prominent` sm ⌘L key (the composer's Pick tooltip names ⌘L too); Export "Export canvas"; reasons "This page is not a listed canvas.", "Can’t read this canvas.", "Exporting", and "Pick from canvas isn’t available while the canvas can’t be shown." | |
+| Sending message | The person's message (bubble, chips, attachment chips) at the thread's end, then one caption line 6 below: the 14 px spinner, 6 gap, "Sending" in caption 12/16 `--text-metadata` (rgb(95,95,95)), end-aligned. An open permission card stays the last item, under it | Send now's message moves out of the queue at the press. |
+| Queued row | White (`--surface-panel`) capsule with a 1 px `--border-standard` inset ring, 40 high, padding 8 / 8 / 8 / 16, radius `--radius-pill` (9999px). Send now is the xs `subtle` capsule (24 high, padding 4 / 8, rgb(245,245,246), hover `--affordance-subtle-hover` rgb(241,241,242)); Remove the 24 px icon button in metadata ink | The row's action reads as a control. |
+| Refused Send now | The row returns to its own place with the status line under it: 4 above, padding-left 16, gap 8, caption 12/16 `--text-subtle`, a 16 px icon in metadata ink, "Couldn’t send now. It stays queued."; the docked composer's `sr-only` status says the same. Focus does not move | |
+| Row Delete | 24 × 24 `doan-icon-button` (18 px corners, 16 px Trash2 in `--text-subtle` rgb(82,82,82)), a sibling of the row button, 4 from the item's end and centred on the row's first line: the head line on a row with a time (10 below the item's top), the name on a special row. Hover: `--affordance-subtle-hover`, and the row keeps its hover fill and hides its hairlines. Keyboard focus: the 2 px black ring at offset 2. While it shows, the time keeps a 24 px spot (its visible text clipped, its spoken label kept) and a special row's name gets 30 px end padding. Otherwise it is 1 × 1 with `clip-path: inset(50%)` | The title menu's row Delete, on the Overview list. |
+| Unavailable row Delete | Working or waiting: `aria-disabled`, `--text-disabled`, default cursor, no fill; reason as tooltip and `sr-only` `aria-describedby` ("The agent is working on this conversation." / "The agent is waiting for your answer.") | |
+| Home reason line | `.composer-reason`: 12 below the composer, gap 12, caption 12/16 `--text-subtle`, "Another conversation is still running in <project>." with the sm `subtle` Open; Send disabled. While the other conversation only waits for an answer there is no line and Send is enabled | |
+
+### Documented deviations from the draft
+
+- **Repeated description while a tooltip is open.** Radix appends its open tooltip's id to the trigger's `aria-describedby`, so while the tooltip of an unavailable Export or row Delete is open Chromium describes the reason twice. The title menu's Delete ('Conversation delete') has the same pattern.
+- Context, not deviations: the stand-in tooltips' `nowrap`; hover fills on Export and Delete that the draft's tiles do not draw; the shipped picking crosshair (`.area[data-picking]`) inherited by the tools row; the panel at its default 358 at a 1280 window against the draft's 360 (thread 2 px narrower, so the permission card's Stop wraps); the shipped sent chip's letter spacing; fixture texts, picked chip labels and the thumbnails' hidden "Preview" labels.
+
+### Not verified
+
+- Every conversation state with a real provider: running, waiting, queue, Send now and its refusal were injected through main's IPC handlers.
+- The folded panel unfolding for the toolbar Picker or ⌘L, and ⌘L itself (menu accelerator), were not part of this measurement.
+- The draft's row-read-error tile, a canvas still shown with an available Picker: the fixture's unreadable file (no read permission) could not load either, so the Picker read unavailable there with the can't-be-shown reason (its look equals the other unavailable tiles).
+
+### Regression pointers
+
+`CanvasTools.test.tsx` (order, pressed state, unavailable Picker and Export with their reasons), `ConversationThread.test.tsx` and `threadItems.test.ts` (the sending message), `DockedComposer.queue.test.tsx`, `CanvasConversationList.test.tsx`, `homeComposer.test.ts` (the reason line). Sizes, colours and geometry above are `.scratch/` probes only.
+
+## Permission mode picker
+
+Reference: `.doan/canvases/permission-mode.html` (6 frames). Packaged app with Claude and Codex signed in; the draft loads in a hidden window of the same Electron build. States: Home default and Full access (closed, open, hover), the open menu, the Overview tray, its width steps and the Settings row.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Trigger | After Effort: Home's sm `trigger` (32 high, padding 6 / 8, gap 6, body-sm 14/20 400), the docked tray's xs; the mode's own 14 px Lucide icon (shield, file-pen-line, eye, shield-alert), the label, the 16 px chevron. aria-label "Permission: <label>", Full access "Permission: Full access, no approval requests" | Each mode has its own icon, so an icon-only trigger still names the mode. |
+| Full access | `--text-danger` (rgb(100,23,35)) on the trigger's own fills (none at rest, the shared hover and open fills), chevron in `currentColor` | Never colour alone, no edge stripe or fill. |
+| Menu | `doan-floating doan-menu`, 280 wide (component constant: Effort's 200 is too narrow for the descriptions, the shared cap is 320); head "Permissions · <provider>" caption 12/16 `--text-metadata`; one row per mode (gap 8; 44 high with a one-line description, 60 with two): 16 px icon in `--text-subtle` (Full access `--text-danger`), the name 14/20 over a caption 12/16 `--text-metadata` description that wraps (`white-space: normal`, never ellipsized; Ask first's per-provider line takes two lines in the 280 menu), the check slot | The preset rows' name-over-description. |
+| Docked width steps | The tray is an inline-size container and never wraps (32 high at every width); its controls are 2 apart. Below a 432 px content width Permission shows its icon only; below 384 Effort does too; the model label ellipsizes last (it is the only trigger that shrinks), below 320 with the widest labels. Hidden labels stay in the xs tooltip and aria-label | Remeasured by picker-default-labels (see there) at content widths 456, 433, 432, 431, 396, 385, 384, 383, 336, 321, 320, 319 and 264: no overflow, the same in the draft. The canvas panel at its default width (content 354) is at step 2. |
+| Settings row | Permission after Effort, 57 high like its siblings; the composer's menu rows; `data-mode="bypass"` takes the danger ink | |
+
+### Documented deviations from the draft
+
+- **Settings trigger icon.** 16 px, like the shipped Effort row's gauge; the draft draws 14 px from a `.settings-select svg` rule the app does not have (a shared primitive beats one screen).
+- **Long model labels.** The step boundaries come from the widest labels in the picker-default-labels draft ("GPT-5.6-Terra", "Extra high" with the Fast icon, "Ask first"): every label fits from 432, the model label ellipsizes only below 320. A longer provider label than those ellipsizes earlier; the order of the steps holds.
+- **Settings menu side.** The menu opens below the trigger as drawn when there is room; at the bottom of the window Radix flips it above.
+- Context, not deviations: the selected and highlighted row differ between the drawn and the measured state; fixture labels.
+
+### Not verified
+
+- Terminal session's fixed trigger (`docked-fixed`): no legacy external session was reachable in the probe; the markup is pinned by `DockedComposer.test.tsx`.
+- ACP providers' pickers (no ACP provider was signed in).
+
+### Regression pointers
+
+`permissionPicker.test.ts`, `ComposerParts.test.tsx`, `DockedComposer.test.tsx`, `ProjectOverview.test.tsx`, `SettingsAgents.test.tsx`, `HomeComposerView.interaction.test.tsx`, `rememberChoice.test.ts`, `homeRun.test.ts`, `dockedSupport.test.ts`, `app/src/restore/uiState.test.ts`. Sizes, colours and widths above are `.scratch/` probes only.
+
+## Picker default labels
+
+Reference: `.doan/canvases/picker-default-labels.html` (frames `triggers`, `menus`, `docked-widths`, `settings`). Built app at 1440 × 900, the draft read in the app's canvas iframe; aria-label and aria-checked compared, accessible names read through CDP. No provider signs in: main's agent-auth, model, preferences and conversation replies are replaced with fixed list shapes (Claude Code's default row named "Opus 5.5", Codex's isDefault row with `defaultEffort` medium, GitHub Copilot's `auto` with modes agent and plan).
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Placeholder trigger | A trigger with no value shows its drawer's name ("Model", "Effort", a terminal session's "Effort" and "Permission") in `--text-metadata` (rgb(95,95,95)); a value keeps the trigger's own ink. Names: "Agent: <provider>, model not chosen", "Effort: default" (plus ", Fast on/off" where the model offers Fast) | A drawer name reads as a heading, not a choice. |
+| Default value | The provider's default row by its name ("Opus 5.5", "GPT-6-Luna", "Auto") and Codex's default level ("Medium") show in the trigger's ink; names end with ", default" ("Agent: Codex, model GPT-6-Luna, default", "Effort: Medium, default", docked "Model: GPT-6-Luna, default (Codex)") | The trigger names what runs. |
+| Model menu mark | `.model-default` after the default row's name: caption 12/16 `--text-metadata`, 6 start margin, inside the name span; measured on Claude Code's and Codex's default rows with Claude Code chosen (an ACP agent's current-model row is pinned by `homeComposer.test.ts` only). Before a list is read the group's row stays "Default" | A caption mark, not a second name. |
+| Effort Default row | First in the effort menu, a `menuitemradio` on the compact row (274 wide, padding 4 / 8, 44 high): "Default" 14/20 over its line in caption 12/16 `--text-metadata` ("Medium for this model", "Set by Claude Code"), the check slot 2 below the row's name line (`align-items: flex-start`, as `.perm-item` and `.fast-item`); the shared separator (250 × 1) under it, then the levels. Checked while no level is chosen; no level is checked then | Picking it sends no level again. |
+| Ask first row | The Default mode's row: "Ask first" over its per-provider line (PRODUCT §5 item 1 'Permission picker'; GitHub Copilot as the ACP provider), which wraps to two lines in the 280 menu (60 high) | The line says when each provider asks. |
+| Docked ink | The model, effort and permission triggers draw a value in `--text-standard` (rgb(15,15,15)), as on Home; a drawer's name keeps `--text-metadata` (rgb(95,95,95)); Attach and Pick keep `--text-subtle` (rgb(82,82,82)), a terminal session's disabled Attach `--text-disabled`, Full access `--text-danger` (rgb(100,23,35)); a trigger disabled while a send is pending keeps the tray's `--text-subtle` (not measured). Measured for a Codex conversation, the widest labels and a terminal session's fixed tray | Against the tray's subtle ink a value and a drawer name were nearly the same grey (about 1.2:1). |
+| Docked tray | Every control 2 apart (`gap: var(--space-half)`: Attach, Pick, model, effort, permission) and the context ring 4 after the last picker (2 gap + 2 start margin); the model trigger's auto start margin takes the rest. Measured in the canvas panel for a Codex conversation and a terminal session's fixed tray, and the draft's tiles, all 2 / 2 / 2 / 4 | Accepted deviation |
+| Docked steps | Widest labels ("GPT-5.6-Terra", "Extra high" with the Fast icon, "Ask first"): every label at content 432 and above, Permission icon-only at 431–384, Effort too at 383–320, the model label ellipsized at 319 and below; no overflow at any width (456 to 264). The draft measures the same at each width. The canvas panel's default width gives content 354 (step 2) | The model name stays whole longest. |
+| Terminal session tray | Fixed triggers "Terminal session", "Effort", "Permission" (the last two in the placeholder ink), tooltip "Set in your terminal", names "…: set by the terminal session" (CDP) | Accepted deviation |
+| Settings › New conversations | Nothing fixed: Model "Default · Opus 5.5" / "Default · GPT-6-Luna", Effort "Default" (Claude Code) / "Default · Medium" (Codex), Permission "Ask first"; names "Model for new conversations: Default · …". The Model menu opens with the Default row (its line the default model, checked), the separator, then the models; Claude Code's own default row is not listed | Accepted deviation |
+
+### Documented deviations from the draft
+
+- **Effort Default row alignment.** The draft's `.unset-item` rule loses to its own Effort row rule (`:is(.effort-popover .doan-menu-item)`), so it renders centred with the check 11 below the name line. The app keeps the check on the name line, as the draft's own comment asks and as the Fast row does.
+- **Settings menu density.** The draft draws the Settings Model menu compact and 280 wide; the app keeps the Settings menus' shipped density (padding 4, rows 6 / 12 with radius 19, width from the content: 184 with these labels), shared by its Agent, Model and Effort menus (a shared primitive beats one screen). The Default row is 48 high there.
+- **Shipped tray and trigger rules.** The draft's restated tray omits the terminal session's disabled Attach and its Pick, and the ring's "· last turn"; triggers on a model that offers Fast keep the shipped ", Fast off" in their names. The app keeps them.
+- Context, not deviations: Attach and Pick 1–3 steps of grey apart (the draft's buttons were read mid colour transition); label widths up to 0.72 px apart in the agent trigger (the same font, size and spacing on both sides); fixture models and modes (Copilot's second row is Plan, not Accept edits).
+
+### Not verified
+
+- Real provider lists: every state used replaced replies, so a real Copilot `auto`, an ACP agent's current model and a real Claude Code `resolvedModel` pairing were not seen here.
+- The Overview's docked composer (measured in the canvas panel only), the box-shaped docked composer, and hover and focus-visible states of the new rows.
+
+### Regression pointers
+
+`homeComposer.test.ts`, `dockedRules.test.ts`, `permissionPicker.test.ts`, `newConversationSettings.test.ts`, `SettingsAgents.test.tsx`, `ComposerParts.test.tsx`, `DockedComposer.test.tsx` (CSS source strings only, including the docked trigger ink), `HomeComposerView.interaction.test.tsx`, `rememberChoice.test.ts` and `ProjectOverview.fast.test.tsx` (a model is remembered and marked as picked only when the person picked it, not when restored by Edit). Colours, widths and gaps above are `.scratch/` probes only.

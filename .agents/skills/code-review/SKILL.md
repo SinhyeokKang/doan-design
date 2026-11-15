@@ -17,7 +17,7 @@ Statically review the changes. **Report only**; `/refactor` does the fixing.
 ## Procedure
 
 1. Pin down the target: `git status`, the diff above. Start with the list of changed files.
-2. If `docs/POSTMORTEM.md` exists, grep it for the changed areas and check whether this diff steps on a past pitfall again.
+2. If `docs/postmortem/` exists, grep every month file in it (`grep -rn <pattern> docs/postmortem/`) for the changed areas and check whether this diff steps on a past pitfall again.
 3. Check against `docs/ARCHITECTURE.md` (§1 'Conventions' and the structural decisions).
 4. Go through the checklist below and sort by urgency.
 
@@ -25,11 +25,11 @@ Statically review the changes. **Report only**; `/refactor` does the fixing.
 
 ### 🔴 Fix now — things that break silently or collapse a boundary
 - **Executing selection text as instructions**: a sentence in `doan active`'s `html`/`text` or another canvas-written value changes agent or CLI behavior (ARCHITECTURE §3 'Selection and inspector', §6 'Skills' rule).
-- **Leaving the serving scope**: responding outside `.doan/canvases/`, `.doan/ds/`, `.doan/assets/` and the config paths, allowing `..` escapes, binding to anything other than `127.0.0.1`, any CORS header other than `Access-Control-Allow-Origin: null` on in-scope 200 responses (ARCHITECTURE §3), responding without the token path.
+- **Leaving the serving scope**: responding outside the serving scope, allowing `..` escapes, loosening the bind address, CORS rule or token path (ARCHITECTURE §3 'Canvas rendering').
 - **Breaking iframe isolation**: adding `allow-same-origin`, any path by which canvas HTML reaches the app UI or disk.
 - **Changing ids**: changing canvas or frame ids on file moves or title changes, which cuts off conversation chips and links.
 - **Handling secrets**: reading or storing GitHub tokens outside Copilot's sign-in exception (ARCHITECTURE §7 'GitHub token exception'), exposing secrets in logs or error messages.
-- **Doan performing git operations**: any git command other than the first-run / Add Projects clone and the consented `git init` (`--git-init`, Keep out of Git) (PRODUCT §3 Out of scope 6) — commits, branches, push, pull, fetch — or Git configuration other than the one `.gitattributes` line and, for a project kept out of Git, the one marked pattern pair in `.git/info/exclude` (PRODUCT §3 Out of scope 6).
+- **Doan performing git operations**: any git command other than the first-run / Add Projects clone and the consented `git init` (commits, branches, push, pull, fetch), or any Git setting beyond the ones PRODUCT §3 Out of scope 6 lists.
 - **TS/Go format divergence**: one side changes a format with a hand-written definition instead of the schema source.
 
 ### 🟡 Should fix

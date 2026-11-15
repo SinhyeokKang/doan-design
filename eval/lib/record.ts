@@ -20,7 +20,7 @@ export interface RoundMeta { date: string; versions: Partial<Record<Agent, strin
 
 const NAMES: Record<Agent, string> = { claude: "Claude Code", codex: "Codex" };
 
-// One row for the 'Rounds' table in docs/USABILITY-EVAL.md; Notes is left for the person recording it.
+// One row for the month's results table in docs/usability-eval/rounds-<YYYY-MM>.md; Notes is left for the person recording it.
 export function roundRow(meta: RoundMeta, runs: RunRecord[]): string {
   const agents = Object.entries(meta.versions).map(([agent, version]) => `${NAMES[agent as Agent]} ${version?.match(/\d+\.\d+\.\d+\S*/)?.[0] ?? version}`).join(", ");
   const scenarios = [...new Set(runs.map(run => run.scenario))];
@@ -47,7 +47,7 @@ export function summary(round: string, meta: RoundMeta, runs: RunRecord[]): stri
     && run.judge && run.judge !== "skipped" && run.judge.verdict === "partial";
   const lines = [
     `# agent-eval round ${round}`, "",
-    "Row for the 'Rounds' table in docs/USABILITY-EVAL.md:", "",
+    "Row for the results table in docs/usability-eval/rounds-<YYYY-MM>.md:", "",
     "```", roundRow(meta, runs), "```", "",
     "## Runs", "",
     "| Scenario | Agent | n | Result | Failed checks | Judge | Layer | Seconds | Exit |",

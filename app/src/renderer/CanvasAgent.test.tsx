@@ -105,7 +105,7 @@ describe("CanvasAgent", () => {
     expect(html).toContain('aria-label="Open the request">Open</button>');
   });
 
-  // DESIGN 'Terminal work in another worktree' (draft frame sibling-notice): another worktree of this project works on this
+  // docs/design/canvas.md 'Terminal work in another worktree' (draft frame sibling-notice): another worktree of this project works on this
   // canvas's path while this checkout has nothing on it. One notice, no glow or dot field, Open named for the worktree.
   describe("another worktree's work on this path", () => {
     const COMMON = "/repo/.git";
@@ -204,7 +204,7 @@ test("the agent notices and the picking hint are 40px tall; the terminal notice'
   expect(css).toMatch(/\.doan-agent\.doan-agent-terminal \{[^}]*padding: var\(--space-1\) var\(--space-4\);/);
 });
 
-// DESIGN 'Terminal work in another worktree' (draft frame picking-hint): the picking hint left the top column for the bottom
+// docs/design/canvas.md 'Terminal work in another worktree' (draft frame picking-hint): the picking hint left the top column for the bottom
 // one, 8px (its gap) above the Canvas tools, so agent notices coming and going never move it. It leads with the
 // composer pick button's Crosshair at the icon size; the rest is unchanged. App's CanvasPane needs a DOM, so its markup
 // is read from the source as the canvas-notice test does.

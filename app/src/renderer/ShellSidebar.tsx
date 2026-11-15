@@ -182,7 +182,7 @@ interface RowMenu {
 }
 // A canvas row's button and menu, drawn inline so the row's own tree holds
 // it. Unavailable items keep `aria-disabled`, not Radix `disabled`, so arrows still reach them and their reason line
-// is read through `aria-describedby` (DESIGN 'Locked Back'); their name is the label alone, so the reason is read once. While the page is locked the button is unavailable too:
+// is read through `aria-describedby` (docs/design/onboarding.md 'Locked Back'); their name is the label alone, so the reason is read once. While the page is locked the button is unavailable too:
 // unlike the project menu, nothing in this one works then.
 function canvasRowMenu(args: RowMenu): ReactElement {
   const { menu, root, row, locked } = args;

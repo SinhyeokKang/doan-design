@@ -2250,7 +2250,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (!rightPanelRef.current.open) foldPanel(true, "content");
     setArrival({ focus, seq: ++panelArrivals.current, ...(handoff ? { handoff } : {}) });
   }
-  // The other worktree notice's Open (DESIGN 'Terminal work in another worktree'): opens W's same canvas,
+  // The other worktree notice's Open (docs/design/canvas.md 'Terminal work in another worktree'): opens W's same canvas,
   // which makes W the selected worktree and leaves one canvas visit. A pick on this canvas ends first.
   const onOpenSibling = (root: string) => {
     if (!state.open) return;
@@ -2536,7 +2536,7 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
         <TooltipContent className="has-key">{sidebar.view.icon === "hide" ? "Hide sidebar" : "Show sidebar"}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘B</span></TooltipContent></Tooltip>
       <button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} aria-disabled={unavailable} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
     <div className="shell-modes"><button {...tab("addProjects")} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button {...tab(null)} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button {...tab("settings")} aria-disabled={unavailable} onClick={settings}><Settings />Settings</button></div>
-    {/* Beside the tabs (docs/DESIGN.md 'Agent usage'), then the update button at the right end. */}
+    {/* Beside the tabs (docs/design/shell.md 'Agent usage'), then the update button at the right end. */}
     <AgentUsageButton openSettings={usage.openSettings} canvasPress={usage.canvasPress} />
     <UpdateHeaderButton disabled={updateDisabled} canvasPress={usage.canvasPress} />
   </header>;
@@ -2580,7 +2580,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
         : <p className="selectable">{state.message}</p>}
     </div>}
     {/* Picking is a mode the person turned on, so its hint sits by the tools, out of the agent notices' column: their
-        coming and going never moves it (DESIGN 'Terminal work in another worktree'). The composer pick button's glyph leads it. */}
+        coming and going never moves it (docs/design/canvas.md 'Terminal work in another worktree'). The composer pick button's glyph leads it. */}
     <div className="doan-canvas-bottom">
       {picking && <div className="doan-agent doan-picking" role="status"><Crosshair className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
         <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}

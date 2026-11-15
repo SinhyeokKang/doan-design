@@ -33,7 +33,7 @@ Three files under `docs/features/<slug>/`. The slug is kebab-case.
 - **Parts to split out as pure functions**: these become `/tdd` targets. If this is empty, revisit the design.
 - **Format changes**: does it change the JSON Schema source (ARCHITECTURE §11 'Shared formats')? If so, whether the format version `v` goes up, and which fixtures TS and Go will both read.
 - **Conventions impact**: does it change ARCHITECTURE §1 'Conventions' (canvas conventions, agent rules) or add a `doan check` rule?
-- **Decision impact**: does it touch ARCHITECTURE's structural decisions (serving scope, sandbox iframe, no GitHub token beyond Copilot's sign-in (§7 'GitHub token exception'), no git command beyond the exceptions in PRODUCT §3 Out of scope 6 (first-run / Add Projects clone, consented `git init`), etc.)? If so, why, and how they are preserved.
+- **Decision impact**: does it touch ARCHITECTURE's structural decisions (serving scope and sandbox iframe (§3 'Canvas rendering'), GitHub token (§7 'GitHub token exception'), git commands (PRODUCT §3 Out of scope 6), etc.)? If so, why, and how they are preserved.
 - **PoC dependency**: does it lean on an assumption no PoC has established yet (`docs/BACKLOG.md` or the feature's own unknowns)? If so, put the PoC first as a task.
 
 ### `tasks.md` — order
@@ -46,7 +46,7 @@ Three files under `docs/features/<slug>/`. The slug is kebab-case.
 
 1. Scope gate. If it hits, ask back and wait.
 2. Read `docs/PRODUCT.md` so nothing conflicts with what is already decided. Do not redesign what is decided. README is an introduction; do not cite it as a decision.
-3. If `docs/POSTMORTEM.md` exists, grep it for the areas this feature touches and quote the matching pitfalls in design.md. For a UI flow, check Doan's own design presets as AGENTS.md 'Design presets in development skills' says, and name the presets read in the report.
+3. If `docs/postmortem/` exists, grep every month file in it (`grep -rn <pattern> docs/postmortem/`) for the areas this feature touches and quote the matching pitfalls in design.md. For a UI flow, check Doan's own design presets as AGENTS.md 'Design presets in development skills' says, and name the presets read in the report.
 4. Write the three files.
 5. Ask about points open to interpretation **one at a time** with the runtime's question tool (AskUserQuestion in Claude Code). Give each set of options one recommendation with a reason, and include a visible 'Other (type your own)' option. Apply each answer to the documents.
 6. **Commit** once the documents are written and the questions are settled — only `docs/features/<slug>/`. `docs(feature): <slug> spec, design, tasks`. Since only documents change, commit on the checked-out branch without switching, and on develop push straight to develop; never commit on main (AGENTS.md 'Commit conventions'). Stage paths one by one; trailers follow `/ship`'s commit rules.

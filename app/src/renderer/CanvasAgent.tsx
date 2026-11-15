@@ -21,7 +21,7 @@ import { pickArtist, type BuddyId } from "./buddies";
 // `work`: the canvases terminal sessions work on (draft frame terminal-notice); one on this
 // canvas shows the same indicator without a button.
 // `entries` group the worktrees: with nothing on this canvas here, a session on its path in another worktree of the
-// project shows a notice with Open and no glow (DESIGN 'Terminal work in another worktree', draft frame sibling-notice).
+// project shows a notice with Open and no glow (docs/design/canvas.md 'Terminal work in another worktree', draft frame sibling-notice).
 // `onOpenSibling` gets that worktree's root.
 // work-update (draft .doan/canvases/work-update.html 'notice-states', 'notice-typing'): `doan work update` content words
 // the notice. `conversationWork` is app conversations' content (a project conversation, or a canvas conversation naming
