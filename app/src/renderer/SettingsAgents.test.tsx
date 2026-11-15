@@ -315,7 +315,10 @@ test("Permission is a menu after Effort and saves the mode with the saved model 
   expect(trigger.props["aria-label"]).toBe("Permission for new conversations: Full access, no approval requests");
   expect(trigger.props["data-mode"]).toBe("bypass");
   expect(words(trigger.props.children)).toBe("Full access");
-  const menu = all(all(tree).filter(element => element.type === DropdownMenu.Content).at(-1)!).find(element => element.type === PermissionMenuItems)!;
+  const content = all(tree).filter(element => element.type === DropdownMenu.Content).at(-1)!;
+  // Every Settings menu is the standard density, as Agent, Model and Effort beside it are.
+  expect(content.props["data-ui-size"]).toBeUndefined();
+  const menu = all(content).find(element => element.type === PermissionMenuItems)!;
   expect(menu.props.view).toMatchObject({ title: "Permissions · Claude Code", mode: "bypass" });
   expect((menu.props.view as { options: { description: string }[] }).options[0]!.description).toBe("Asks before edits and commands unless allowed");
   const pickMode = menu.props.onPick as (value: string) => void;

@@ -275,7 +275,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
           <DropdownMenu.Trigger asChild disabled={off}><button type="button" className="doan-button settings-select" data-ui-variant="trigger" data-ui-size="sm" data-mode={permission.mode}
             aria-label={`Permission for new conversations: ${permission.trigger.ariaLabel.replace(/^Permission: /, "")}`} disabled={off}>
             <PermissionIconView name={permission.trigger.icon} className="inline" /><span>{permission.trigger.label}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
-          <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu permission-popover" data-ui-size="compact" aria-label="Permission for new conversations" side="bottom" align="end" sideOffset={4} collisionPadding={8}>
+          <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu permission-popover" aria-label="Permission for new conversations" side="bottom" align="end" sideOffset={4} collisionPadding={8}>
             <PermissionMenuItems view={permission} onPick={value => choose({ provider, ...(pref?.model ? { model: pref.model } : {}), ...(pref?.effort ? { effort: pref.effort } : {}), ...(value === "default" ? {} : { permissionMode: value }) })} />
           </DropdownMenu.Content></DropdownMenu.Portal>
         </DropdownMenu.Root></div>

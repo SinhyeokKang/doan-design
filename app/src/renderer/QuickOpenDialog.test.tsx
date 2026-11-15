@@ -23,7 +23,7 @@ const rows = (list: readonly FolderEntry[], query: string, currentRoot: string |
 
 test("a modal dialog with a combobox over a listbox, the placeholder and no key hint", () => {
   const html = render("/code/acme-web");
-  expect(html).toMatch(/^<dialog class="doan-dialog qo" data-ui-presentation="search" aria-label="Quick Open"/);
+  expect(html).toMatch(/^<dialog class="doan-dialog doan-scroll qo" data-ui-presentation="search" aria-label="Quick Open"/);
   expect(html).toMatch(/<input[^>]*role="combobox"[^>]*>/);
   expect(html).toContain('aria-label="Search canvases, frames and conversations"');
   expect(html).toContain('placeholder="Search canvases, frames and conversations"');

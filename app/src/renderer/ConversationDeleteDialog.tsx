@@ -52,7 +52,7 @@ export function ConversationDeleteDialog({ view, reason, pending, cancel, confir
 }) {
   const confirmable = reason === null && !pending;
   const dismiss = () => { if (!pending) cancel(); };
-  return <dialog className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="conversation-delete-title" aria-describedby="conversation-delete-body"
+  return <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="conversation-delete-title" aria-describedby="conversation-delete-body"
     ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); dismiss(); }}
     // A Canvas conversations Delete pressed from the keyboard opens the alert while its tooltip still exits; that
     // tooltip's dismissable layer takes the next Escape and prevents its default, so no cancel event would follow. The

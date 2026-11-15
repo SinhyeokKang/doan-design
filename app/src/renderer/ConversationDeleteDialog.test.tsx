@@ -79,7 +79,7 @@ const dialog = (props: Partial<Parameters<typeof ConversationDeleteDialog>[0]> =
 
 test("the confirmation is Move to Trash's compact alert dialog: Cancel first with focus, then a prominent Delete", () => {
   const { tree, cancel, confirm, cancelButton, deleteButton } = dialog();
-  expect(tree.props).toMatchObject({ className: "doan-dialog", "data-ui-size": "compact", role: "alertdialog", "aria-labelledby": "conversation-delete-title", "aria-describedby": "conversation-delete-body" });
+  expect(tree.props).toMatchObject({ className: "doan-dialog doan-scroll", "data-ui-size": "compact", role: "alertdialog", "aria-labelledby": "conversation-delete-title", "aria-describedby": "conversation-delete-body" });
   const text = all(tree);
   expect(text.find(element => element.props["id"] === "conversation-delete-title")?.props["children"]).toBe("Delete “t”?");
   expect(text.find(element => element.props["id"] === "conversation-delete-body")?.props["children"]).toBe("Body.");

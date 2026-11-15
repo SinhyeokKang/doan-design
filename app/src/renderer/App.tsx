@@ -2483,10 +2483,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   </main>
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} kept={projectKeepsLocal(allEntries, setup)} notGit={allEntries.some(entry => entry.path === setup && entry.kind === "uninitialized" && entry.notGit === true)} onClose={() => { pressEnded(setup, "setUp"); setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} conversations={conversationLists} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
-  {run.removing && <dialog className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>
+  {run.removing && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="project-remove-title">{run.removing.title}</h3><p className="doan-dialog-description" id="project-remove-body">{run.removing.body}</p></div></div>
-    <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" autoFocus onClick={() => { run.cancelRemove(); modalClosed(); }}>{run.removing.cancel}</button>
-      <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={() => { modalClosed(); void run.confirmRemove(); }}>{run.removing.confirm}</button></div>
+    <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" autoFocus onClick={() => { run.cancelRemove(); modalClosed(); }}>{run.removing.cancel}</button>
+      <button type="button" className="doan-button" data-ui-variant="prominent" onClick={() => { modalClosed(); void run.confirmRemove(); }}>{run.removing.confirm}</button></div>
   </dialog>}
   {deletingConversation && (() => {
     const { target, pending } = deletingConversation, summary = deleteSummary(target);
@@ -2575,7 +2575,8 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
     {/* A canvas closed for a missing or not set up root leaves no message: the overlay names the problem. */}
     {state.status && (state.status !== "missing" || state.message) && <div className="canvas-status" role="status">
       {state.status === "loading" ? <p><span className="doan-spinner" aria-hidden="true" />Loading</p>
-        : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><br />Run doan check in a terminal<br /><br /><button className="doan-button" data-ui-variant="panel" data-ui-size="sm" onClick={() => command("reload")}>Reload</button></div>
+        : state.status === "failed" ? <div className="canvas-status-block"><AlertIcon size={20} /><h2>Couldn’t load the canvas</h2><p>Run doan check in a terminal.</p>
+          <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => command("reload")}>Reload</button></div>
         : state.status === "noWidth" ? <p className="selectable"><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
         : <p className="selectable">{state.message}</p>}
     </div>}

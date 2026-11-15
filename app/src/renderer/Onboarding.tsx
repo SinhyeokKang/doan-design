@@ -127,27 +127,27 @@ export function openOverlay(node: Pick<HTMLDialogElement, "open" | "showModal"> 
 export function PasteDialog({ view, value, submittable, tooLong, busy, change, submit, close }: {
   view: ReturnType<typeof pasteDialog>; value: string; submittable: boolean; tooLong: boolean; busy: boolean; change: (value: string) => void; submit: () => void; close: () => void;
 }) {
-  return <dialog className="doan-dialog" data-ui-size="compact" aria-labelledby="ob-paste-title" aria-busy={busy || undefined} ref={openModal}
+  return <dialog className="doan-dialog doan-scroll" data-ui-size="compact" aria-labelledby="ob-paste-title" aria-busy={busy || undefined} ref={openModal}
     onCancel={event => { event.preventDefault(); close(); }} onKeyDown={dialogKeys(close)}>
     <form className="ob-dialog-form" onSubmit={event => { event.preventDefault(); if (submittable) submit(); }}>
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="ob-paste-title">{view.title}</h3><p className="doan-dialog-description">{view.body}</p></div></div>
       <input className="doan-input" aria-label={view.inputLabel} placeholder={view.placeholder} spellCheck={false} value={value} autoFocus disabled={busy} onChange={event => change(event.target.value)} />
       {tooLong && <p className="ob-field-error" role="alert">This address is too long to submit.</p>}
       <div className="doan-dialog-actions">
-        <button type="button" className="doan-button" data-ui-variant={view.cancel.variant} data-ui-size="sm" disabled={busy} onClick={close}>{view.cancel.label}</button>
-        <button type="submit" className="doan-button" data-ui-variant={view.submit.variant} data-ui-size="sm" disabled={!submittable}>{view.submit.label}</button>
+        <button type="button" className="doan-button" data-ui-variant={view.cancel.variant} disabled={busy} onClick={close}>{view.cancel.label}</button>
+        <button type="submit" className="doan-button" data-ui-variant={view.submit.variant} disabled={!submittable}>{view.submit.label}</button>
       </div>
     </form>
   </dialog>;
 }
 
 export function StopDialog({ view, busy, confirm, close }: { view: ReturnType<typeof stopDialog>; busy: boolean; confirm: () => void; close: () => void }) {
-  return <dialog className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="ob-stop-title" aria-describedby="ob-stop-body" ref={openModal}
+  return <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="ob-stop-title" aria-describedby="ob-stop-body" ref={openModal}
     onCancel={event => { event.preventDefault(); close(); }} onKeyDown={dialogKeys(close)}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="ob-stop-title">{view.title}</h3><p className="doan-dialog-description" id="ob-stop-body">{view.body}</p></div></div>
     <div className="doan-dialog-actions">
-      <button type="button" className="doan-button" data-ui-variant={view.cancel.variant} data-ui-size="sm" autoFocus onClick={close}>{view.cancel.label}</button>
-      <button type="button" className="doan-button" data-ui-variant={view.confirm.variant} data-ui-size="sm" disabled={busy} data-consent="" onClick={confirm}>{view.confirm.label}</button>
+      <button type="button" className="doan-button" data-ui-variant={view.cancel.variant} autoFocus onClick={close}>{view.cancel.label}</button>
+      <button type="button" className="doan-button" data-ui-variant={view.confirm.variant} disabled={busy} data-consent="" onClick={confirm}>{view.confirm.label}</button>
     </div>
   </dialog>;
 }

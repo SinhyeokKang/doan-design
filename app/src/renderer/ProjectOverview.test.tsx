@@ -82,8 +82,9 @@ test("a new conversation offers Home's suggestions over the composer, also for a
 
 test("canvases but no conversations: a new conversation with suggestions naming the canvas", () => {
   const html = render([]);
-  expect(html).toContain("Review the checkout canvas");
-  expect(html).toContain('class="suggestion" title="Review the checkout canvas"><span class="suggestion-icon">');
+  // The shared Tooltip, as Home's suggestions have, not the native title.
+  expect(html).not.toContain('title="Review the checkout canvas"');
+  expect(html).toMatch(/<button type="button" class="suggestion" data-state="closed" data-slot="tooltip-trigger"><span class="suggestion-icon">/);
   // The name is highlighted; title and the sentence's text are unchanged.
   expect(html).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">checkout</span> canvas</span>');
 });

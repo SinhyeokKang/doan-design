@@ -21,7 +21,7 @@ export function trashDialogView(stem: string, path: string, plan: TrashPlanReply
 // Focus starts on Cancel; Escape cancels. Ids are fixed: App shows one at a time. An unavailable Move to Trash keeps
 // `aria-disabled`, so it stays in the focus order and reads its reason.
 export function CanvasTrashDialog({ view, cancel, confirm }: { view: TrashDialogView; cancel(): void; confirm(): void }) {
-  return <dialog className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="canvas-trash-title" aria-describedby="canvas-trash-body"
+  return <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="canvas-trash-title" aria-describedby="canvas-trash-body"
     ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); cancel(); }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="canvas-trash-title">{view.title}</h3><p className="doan-dialog-description selectable" id="canvas-trash-body">{view.body}</p></div></div>
     {view.reason && <p className="doan-notice" id="canvas-trash-reason"><AlertIcon /><span className="selectable">{view.reason}</span></p>}

@@ -415,9 +415,10 @@ export function ProjectOverview(props: ProjectOverviewProps) {
             <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
             <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
-            <button key={prompt.label} type="button" className="suggestion" title={prompt.label}
+            <Tooltip key={prompt.label}><TooltipTrigger asChild><button type="button" className="suggestion"
               onClick={() => { run.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>
-              <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><SuggestionLabel parts={prompt.parts} /><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button>)}</div>}
+              <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><SuggestionLabel parts={prompt.parts} /><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button></TooltipTrigger>
+              <TooltipContent>{prompt.label}</TooltipContent></Tooltip>)}</div>}
         </div>}
     </div>
     <div className="ov-foot"><div className="ov-col">

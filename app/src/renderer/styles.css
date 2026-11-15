@@ -45,9 +45,7 @@ code, kbd { font-family: var(--type-family); }
 .spacer { flex: 1; }
 .side { background: var(--surface-panel); border-right: 1px solid var(--border-standard); }
 .right { background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
-.native-scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
-.native-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.native-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb-quiet); border-radius: 4px; }
+.right.doan-scroll { overflow: auto; }
 .row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; font: 12.5px var(--type-family); color: var(--text-subtle); position: relative; white-space: nowrap; cursor: pointer; }
 .row .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
 .row:hover { background: var(--surface-inset); }
@@ -127,6 +125,12 @@ code, kbd { font-family: var(--type-family); }
 .canvas-status b { color: var(--text-standard); font-weight: var(--type-weight-medium); }
 .canvas-status > * { max-width: 260px; overflow-wrap: anywhere; }
 .canvas-status .doan-spinner { display: block; margin: 0 auto var(--space-2); }
+/* A panel-level failure (DESIGN 'No coloured edge stripes'): a white block with the hairline border, the centred 20px
+   alert icon, a label-sm title, the subtle line and a centred action. On white, the action is subtle so it keeps a fill. */
+.canvas-status > .canvas-status-block { display: flex; flex-direction: column; align-items: center; max-width: 320px; padding: var(--space-6); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
+.canvas-status-block .doan-alert-icon { margin: 0 0 var(--space-2); }
+.canvas-status-block h2 { color: var(--text-standard); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.canvas-status-block .doan-button { margin-top: var(--space-4); }
 .canvas-notice { padding: 7px 12px; background: var(--surface-inset); color: var(--text-standard); font: 11px var(--type-family); }
 .phead { font: 600 12px var(--type-family); padding: 11px 14px 10px; border-bottom: 1px solid var(--border-standard); }
 .pempty { padding: 14px; font: 12.5px var(--type-family); color: var(--text-metadata); }
@@ -364,7 +368,7 @@ code, kbd { font-family: var(--type-family); }
 .buddy-row { position: relative; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0 var(--space-3); cursor: pointer; }
 .buddy-row img { width: var(--size-control-lg); height: var(--size-control-lg); border-radius: var(--radius-chip); object-fit: cover; }
 .buddy-row input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-.buddy-row:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: var(--radius-row); }
+.buddy-row:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
 .buddy-row:has(input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
 .buddy-row:has(input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
 .buddy-row[data-disabled], .buddy-row[data-disabled] input { cursor: default; }
@@ -693,9 +697,9 @@ body:has(.shell-top) { background: transparent; }
 .shell-worktree > .ob-chip { flex: none; }
 .shell-worktree > span > span, .shell-worktree small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell-worktree small { margin-top: 4px; color: var(--text-metadata); font-size: 11px; line-height: 14px; }
-.workspace > .doan-canvas-panel { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
-.workspace > .ov { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
-.workspace > .right-stack { border-radius: 0 24px 24px 0; overflow: hidden; }
+.workspace > .doan-canvas-panel { margin-left: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container) 0 0 var(--radius-container); }
+.workspace > .ov { margin-left: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container) 0 0 var(--radius-container); }
+.workspace > .right-stack { border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
 @media (prefers-reduced-transparency: reduce) {
   body:has(.shell-top), .workspace.app-shell { background: var(--bg-app); }
 }
@@ -705,7 +709,7 @@ body:has(.shell-top) { background: transparent; }
    confirmed 2026-10-29). Shared buttons keep their own padding and fills; this only lays them out. */
 .home-shell { position: absolute; inset: 0; display: grid; grid-template-columns: var(--doan-sidebar-width) minmax(0, 1fr); grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); background: transparent; overflow: hidden; }
 @media (prefers-reduced-transparency: reduce) { .home-shell { background: var(--bg-app); } }
-.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }
 /* Add Projects page: the white panel is the scroll container and the 560px column grows with it (doan-add-projects
    draft round 3); the page scrolls whole, its footer included. The shared Project screen is sized for first run's
    14/20 body text and plain numerals (.ob-overlay); without them it inherits the app body's 13px/normal. */
@@ -997,8 +1001,6 @@ body:has(.shell-top) { background: transparent; }
 .queue-full-list .queue-tip-item + .queue-tip-item { margin-top: var(--space-2); }
 .queue-full-list b, .queue-full-list .queue-tip-item > span { display: block; }
 .queue-full-list b { font-weight: var(--type-weight-medium); }
-.canvas-gone { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.canvas-gone svg { flex: none; }
 .grow-text { flex: 1; min-width: 0; }
 /* Suggested prompts: a prompt-only button, not the shared doan-button (.doan/canvases/suggested-prompt-variants.html
    variant C). Full-width rows; on Home they take the composer's width, 32px under it. */
@@ -1824,7 +1826,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .storage-option > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .storage-option:has(> input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
 .storage-option:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
-.storage-option:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: var(--space-1); }
+.storage-option:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
 .storage-option:has(> input:disabled), .storage-option > input:disabled { cursor: default; }
 /* A command or path chip in a caption description keeps the caption size and never breaks inside itself. */
 :is(.storage-option small, .storage-pref .doan-preference-row-description) code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
@@ -1939,10 +1941,11 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    within 8192 CSS px of its origin at DPR 2 (ARCHITECTURE §3 'Canvas view', POSTMORTEM 2026-11-11), and a Fit frame
    keeps its marked size, however large. Clips, not hidden overflows: those scroll to show a focused control in a scaled
    frame and move it off its box. */
-.pw-panel { position: relative; min-width: 0; min-height: 0; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+.pw-panel { position: relative; min-width: 0; min-height: 0; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }
 .pw-content { position: absolute; inset: 0; overflow: clip; border-top-left-radius: inherit; border-top-right-radius: inherit; }
 .pw-stage { position: absolute; inset: 0; overflow: clip; border-bottom-left-radius: var(--radius-container); border-bottom-right-radius: var(--radius-container); }
-/* Fit: around the frame the panel shows the canvas board's ground, and the frame box keeps the panel's fill and edge. */
+/* Fit: around the frame the panel shows the canvas board's ground, and the frame box keeps the panel's fill with the
+   panel shadow as its edge on that ground. */
 .pw-content[data-mode="fit"] > .pw-stage { background: var(--surface-inset); }
 .pw-box { position: absolute; overflow: clip; background: var(--surface-panel); }
 .pw-content[data-mode="fit"] .pw-box { box-shadow: var(--shadow-panel); }
@@ -1970,7 +1973,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .pw[data-panel="open"] > .pw-panel { grid-column: 1; grid-row: 2; }
 .pw > .doan-conv-column { grid-column: 2; grid-row: 1 / -1; margin-top: var(--space-2); position: relative; display: flex; min-width: 0; min-height: 0; }
 .pw:not([data-panel="open"]) > .doan-conv-column { display: none; }
-.pw .right.doan-conv-panel { border-left: 0; border-radius: var(--radius-container); box-shadow: var(--shadow-panel); }
+.pw .right.doan-conv-panel { border-left: 0; border-radius: var(--radius-container); }
 /* The header's button stays one element while the panel is open, so focus has a place to come back to on close. A
    deliberate exception to hiding focus targets only visually (POSTMORTEM 2026-11-03): while open it must have no Tab
    stop and no box, or R is no longer 104, so it cannot be visually hidden. Focus is given back only after `hidden` is

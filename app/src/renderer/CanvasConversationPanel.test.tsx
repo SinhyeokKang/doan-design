@@ -134,11 +134,12 @@ test("another session, or an anonymous one, working in a terminal leaves the cho
 });
 
 // The new conversation's suggestion rows highlight the canvas name inside the same sentence.
-test("a new conversation's suggestion rows highlight the canvas name and keep the sentence as the title", async () => {
+test("a new conversation's suggestion rows highlight the canvas name and show the sentence in the shared tooltip", async () => {
   const presets = (["critique", "polish"] as const).map(id => ({ id, title: id, description: `About ${id}.`, scope: `${id} scope`, group: "review" }));
   const support = Object.assign(new DockedSupport(() => {}, window.doan), { auth: { revision: 1, providers: [connected("claude")] }, presets: { v: 1 as const, ok: true as const, result: { version: "1", presets } } });
   const out = await panel([], () => {}, { support });
-  expect(out).toContain('title="Review the checkout canvas"');
+  expect(out).not.toContain('title="Review the checkout canvas"');
+  expect(out).toMatch(/<button type="button" class="suggestion" data-state="closed" data-slot="tooltip-trigger"><span class="suggestion-icon">/);
   expect(out).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">checkout</span> canvas</span>');
   expect(out).toContain('<span class="suggestion-label">Polish the <span class="suggestion-value">checkout</span> canvas</span>');
 });

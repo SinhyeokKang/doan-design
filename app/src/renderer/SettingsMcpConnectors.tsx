@@ -235,7 +235,7 @@ function McpRow({ row, run, askRemove, focused, runningNotice }: { row: McpRowVi
 }
 
 function AddServerDialog({ dialog, change, submit, close }: { dialog: Extract<Dialog, { kind: "add" }>; change(value: string): void; submit(): void; close(): void }) {
-  return <dialog className="doan-dialog" data-ui-size="compact" aria-labelledby="mcp-add-title" aria-busy={dialog.busy || undefined} ref={openModal}
+  return <dialog className="doan-dialog doan-scroll" data-ui-size="compact" aria-labelledby="mcp-add-title" aria-busy={dialog.busy || undefined} ref={openModal}
     onCancel={event => { event.preventDefault(); close(); }} onKeyDown={dialogKeys(close)}>
     <form className="ob-dialog-form" onSubmit={event => { event.preventDefault(); submit(); }}>
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="mcp-add-title">Add server by URL</h3>
@@ -254,7 +254,7 @@ function AddServerDialog({ dialog, change, submit, close }: { dialog: Extract<Di
 
 // Remove can't be undone, so it asks first (spec 8); Cancel is focused, Escape cancels.
 function RemoveAlert({ label, confirm, close }: { label: string; confirm(): void; close(): void }) {
-  return <dialog className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="mcp-remove-title" aria-describedby="mcp-remove-body" ref={openModal}
+  return <dialog className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="mcp-remove-title" aria-describedby="mcp-remove-body" ref={openModal}
     onCancel={event => { event.preventDefault(); close(); }} onKeyDown={dialogKeys(close)}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="mcp-remove-title">{`Remove ${label} from Doan’s agents?`}</h3>
       <p className="doan-dialog-description" id="mcp-remove-body">Claude Code and Codex disconnect from it. Your terminal setup is not changed.</p></div></div>

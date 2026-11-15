@@ -488,9 +488,10 @@ export function CanvasConversation(props: CanvasConversationProps) {
             <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}
           {resume && <ResumeChoice offer={offer!} reply={resume.resume} now={props.now} mode={held ? "new" : resume.start.mode} held={held} onChoose={choice => { run.choose(choice); focusField(); }} />}
           {prompts.length > 0 && !started && !resume && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
-            <button key={prompt.label} type="button" className="suggestion" title={prompt.label}
+            <Tooltip key={prompt.label}><TooltipTrigger asChild><button type="button" className="suggestion"
               onClick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>
-              <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><SuggestionLabel parts={prompt.parts} /><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button>)}</div>}
+              <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><SuggestionLabel parts={prompt.parts} /><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button></TooltipTrigger>
+              <TooltipContent>{prompt.label}</TooltipContent></Tooltip>)}</div>}
         </>}
       {notice && <div className="doan-notice thread-notice" role="status"><Info className="doan-alert-icon" aria-hidden="true" /><span className="strip-text selectable"><span>{notice.text}</span></span>
         <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel"
