@@ -85,8 +85,10 @@ let current = null;
 let visible = null;
 
 function show(id) {
+  // A frame dropped while it loads passes its claim on, since the inert frame on screen has lost
+  // focus by then.
   const focused = document.activeElement;
-  const wantFocus = current !== null && (focused === current.iframe || focused === visible?.iframe);
+  const wantFocus = current !== null && (current.wantFocus || focused === current.iframe || focused === visible?.iframe);
   if (current !== null) {
     clearTimeout(current.timer);
     // A frame that never got on screen is dropped at once; the one on screen stays until this one

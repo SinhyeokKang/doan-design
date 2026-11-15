@@ -1868,6 +1868,22 @@ describe("prototype.js plays the group one frame at a time", () => {
     page.ready(page.iframes[2]!);
     expect(page.document.activeElement).toBe(elsewhere);
   });
+
+  // The old iframe turns inert at the first move, which takes focus out of it; a second move before the first frame
+  // is ready must still hand focus to the frame that ends up shown.
+  test("focus follows through a move made while another frame loads", () => {
+    const page = runPage();
+    const [a] = page.iframes;
+    page.ready(a!);
+    page.document.activeElement = a;
+    page.send(a!, { goto: "b" });
+    page.hashchange();
+    page.document.activeElement = {};
+    page.hashchange("#c%20d");
+    const c = page.iframes[2]!;
+    page.ready(c);
+    expect(page.document.activeElement).toBe(c);
+  });
 });
 
 describe("prototype viewer files", () => {
