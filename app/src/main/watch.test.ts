@@ -89,14 +89,14 @@ function repo(parts: { design?: boolean; ds?: boolean; doan?: boolean } = {}): s
   return root;
 }
 
-// Starts watching, lets startup events settle, then counts re-reads.
+// Starts watching, waits out the startup events, then counts re-reads.
 async function watch(root: string): Promise<{ reads: () => number; reset: () => void }> {
   let reads = 0;
   open = watchFolder(root, async () => {
     reads++;
   });
-  await settle(() => reads);
-  reads = 0;
+  // A late setup event would count as the re-read a test expects.
+  await drainSetup(root, () => reads, () => (reads = 0));
   return { reads: () => reads, reset: () => (reads = 0) };
 }
 
@@ -236,7 +236,7 @@ async function watchScope(root: string, scope: string[]): Promise<Recorder> {
   };
   // Quiet alone let a late FSEvents batch from setup reach a loaded shard's
   // first assertion; a marker written after setup arrives after that batch.
-  await drainSetup(root, recorder);
+  await drainSetup(root, () => calls.length, recorder.reset);
   return recorder;
 }
 
@@ -263,7 +263,7 @@ async function expectChange(w: Recorder, change: () => void, expected: Change): 
 // Waits until FSEvents has delivered everything the repository's setup caused, by writing a marker after it and
 // waiting for the root watcher to see the marker: one stream delivers events in order, and a quiet interval cannot
 // tell a backlogged fseventsd from a finished one. The marker itself reaches no watcher's listener.
-async function drainSetup(root: string, w: Recorder): Promise<void> {
+async function drainSetup(root: string, calls: () => number, reset: () => void): Promise<void> {
   const prefix = `.drain-${count++}-`;
   let seen = false;
   raw.drop = (path, filename) => {
@@ -280,8 +280,8 @@ async function drainSetup(root: string, w: Recorder): Promise<void> {
   }
   expect(seen).toBe(true);
   // Kept for the rest of the test, so a retried marker's late event never reaches it.
-  await settle(() => w.calls().length);
-  w.reset();
+  await settle(calls);
+  reset();
 }
 
 async function expectQuiet(w: Recorder, change: () => void): Promise<void> {
