@@ -28,7 +28,7 @@ A commit can be published only when every file it touches is under:
 - `.github/ISSUE_TEMPLATE/` and `.github/pull_request_template.md` (not `.github/workflows/`, which is code)
 - `web/` (the landing page)
 
-`docs/PRODUCT.md`, `docs/ARCHITECTURE.md` and `docs/DESIGN.md` describe `develop`, including behaviour not released yet. Publish a commit to them only when it does not describe unreleased behaviour; say so in the report.
+`docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md` and `docs/design/` describe `develop`, including behaviour not released yet. Publish a commit to them only when it does not describe unreleased behaviour; say so in the report.
 
 ## Steps
 
