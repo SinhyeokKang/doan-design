@@ -54,3 +54,25 @@ test("reads again once when a turn ends into holding, and not again when holding
   await render("holding");
   expect(list).toHaveBeenCalledTimes(4);
 });
+
+// A read still pending when the turn ends was asked before the agent made its skill, so the end's read must still happen
+// after it, and its reply is the list shown.
+test("a turn end during a pending read reads once more after it and shows that reply", async () => {
+  const replies: ((reply: { skills: { name: string }[] }) => void)[] = [];
+  list.mockImplementation(() => new Promise(resolve => { replies.push(resolve); }));
+  await render("running");
+  expect(list).toHaveBeenCalledTimes(1);
+  await render("idle");
+  await render("idle");
+  expect(list).toHaveBeenCalledTimes(1);
+  replies[0]?.({ skills: [] });
+  await settle();
+  expect(list).toHaveBeenCalledTimes(2);
+  replies[1]?.({ skills: [{ name: "made" }] });
+  await settle();
+  hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
+  expect(useProjectSkills(window.doan, "/code/doan", "claude", "idle").skills).toEqual([{ name: "made" }]);
+  // Only one more: ends that came while the read was pending are one read, not one each.
+  await settle();
+  expect(list).toHaveBeenCalledTimes(2);
+});
