@@ -1,7 +1,9 @@
+import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
-import { describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { MAX_COPY_TEXT, MAX_TEXT_RECTS } from "../renderer/canvasMessage";
 import { MAX_PROTOTYPE_MARK } from "./prototype/mark";
+import { launchElectronDom, type ElectronDom } from "./electronDom";
 import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, escapeTarget, frameBottom, frameStep, nextHeight, textBoundary, textDragState, textQuote, type ChainLink } from "./canvasScript";
 
 describe("nextHeight", () => {
@@ -2962,5 +2964,80 @@ describe("canvasScript text drag", () => {
     t.canvas.trigger("ResizeObserver");
     t.canvas.runFrame();
     expect(t.ranges().at(-1)).toMatchObject({ dragging: false, rects: [] });
+  });
+});
+
+interface LinkPlacement {
+  name: string;
+  html: string;
+  frames: { id: string; prototype: string | null }[];
+  gotos: { value: string; frames: string[] }[];
+}
+
+const links = JSON.parse(readFileSync(new URL("../../../schema/fixtures/prototype-links/cases.json", import.meta.url), "utf8")) as { placements: LinkPlacement[] };
+
+type BoardFrame = { id: string; prototype?: string; cut?: true; parent?: number };
+type BoardLayout = { type: "layout"; frames: BoardFrame[]; gotos: { value: string; frame?: number }[]; truncated: boolean };
+
+// The board's frames and links in a real DOM, the script running first as the board's injection puts it.
+describe("layout frames and links in a real DOM", () => {
+  let dom: ElectronDom;
+  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
+  afterAll(async () => { await dom?.close(); }, 30_000);
+
+  const layoutOf = async (body: string): Promise<BoardLayout> => {
+    const frame = await dom.load(`<!doctype html><html><head><script>${canvasScriptSource()}</script></head><body>${body}</body></html>`);
+    const layouts = (await dom.flush(frame)).filter((message): message is BoardLayout => (message as { type?: unknown }).type === "layout");
+    expect(layouts.length).toBeGreaterThan(0);
+    const last = layouts.at(-1)!;
+    return { ...last, frames: last.frames.map(({ id, prototype, cut, parent }) => ({ id, ...(prototype === undefined ? {} : { prototype }), ...(cut === undefined ? {} : { cut }), ...(parent === undefined ? {} : { parent }) })) };
+  };
+  // A link's enclosing frames, outermost first, by its innermost frame and the frames' parents.
+  const chain = (layout: BoardLayout, index: number | undefined): string[] => {
+    const ids: string[] = [];
+    for (let at = index; at !== undefined; at = layout.frames[at]!.parent) ids.unshift(layout.frames[at]!.id);
+    return ids;
+  };
+
+  describe("link placements of the shared fixture", () => {
+    test.each(links.placements)("$name", async ({ html, frames, gotos }) => {
+      const layout = await layoutOf(html);
+      // An ID over 200 units is cut for the list and the frame cannot play, so it carries no mark.
+      expect(layout.frames.map(({ id, prototype, cut }) => ({ id, ...(prototype === undefined ? {} : { prototype }), ...(cut === undefined ? {} : { cut }) }))).toEqual(
+        frames.map(({ id, prototype }) => id.length > 200 ? { id: clipText(id, 200), cut: true } : { id, ...(prototype === null ? {} : { prototype }) }));
+      const reported = gotos.filter(goto => goto.value.length <= 200);
+      expect(layout.gotos.map(goto => goto.value)).toEqual(reported.map(goto => goto.value));
+      expect(layout.gotos.map(goto => chain(layout, goto.frame))).toEqual(reported.map(goto => goto.frames.map(id => clipText(id, 200))));
+      expect(layout.truncated).toBe(frames.some(frame => frame.id.length > 200));
+    });
+  });
+
+  test("parent is the nearest enclosing frame's index", async () => {
+    const f = (id: string, inner = "") => `<div data-doan-frame="${id}">${inner}</div>`;
+    const layout = await layoutOf(`${f("a", `<section>${f("b")}</section>${f("c", f("d"))}`)}${f("e")}`);
+    expect(layout.frames).toEqual([{ id: "a" }, { id: "b", parent: 0 }, { id: "c", parent: 0 }, { id: "d", parent: 2 }, { id: "e" }]);
+  });
+
+  test("a cut ID's frame keeps its place and number but no mark", async () => {
+    const layout = await layoutOf(`<div data-doan-frame="a" data-doan-prototype="1x1"></div><div data-doan-frame="${"x".repeat(201)}" data-doan-prototype="1x1"><div data-doan-frame="c" data-doan-prototype="1x1"><a data-doan-goto="a"></a></div></div>`);
+    expect(layout.frames).toEqual([{ id: "a", prototype: "1x1" }, { id: "x".repeat(200), cut: true }, { id: "c", prototype: "1x1", parent: 1 }]);
+    expect(layout.gotos).toEqual([{ value: "a", frame: 2 }]);
+  });
+
+  test("links stop at 1,000, counting only the ones reported; a link outside frames has no frame", async () => {
+    const many = Array.from({ length: 1001 }, (_, i) => `<a data-doan-goto="v${i}"></a>`).join("");
+    const layout = await layoutOf(`<a data-doan-goto="out"></a><div data-doan-frame="a"><a data-doan-goto="${"x".repeat(201)}"></a>${many}</div>`);
+    expect(layout.gotos).toHaveLength(1000);
+    expect(layout.gotos[0]).toEqual({ value: "out" });
+    expect(layout.gotos[1]).toEqual({ value: "v0", frame: 0 });
+    expect(layout.gotos[999]).toEqual({ value: "v998", frame: 0 });
+  });
+
+  test("a link in a frame past the 1,000 listed names its nearest listed frame", async () => {
+    const inner = Array.from({ length: 1000 }, (_, i) => `<div data-doan-frame="f${i}">${i === 999 ? '<a data-doan-goto="x"></a>' : ""}</div>`).join("");
+    const layout = await layoutOf(`<div data-doan-frame="outer">${inner}</div>`);
+    expect(layout.frames).toHaveLength(1000);
+    expect(layout.truncated).toBe(true);
+    expect(layout.gotos).toEqual([{ value: "x", frame: 0 }]);
   });
 });

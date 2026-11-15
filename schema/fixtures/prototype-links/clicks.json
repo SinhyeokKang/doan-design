@@ -1,0 +1,176 @@
+{
+  "description": "Click decisions for data-doan-goto in a playing frame. Read by the injected prototype script's test (app) and meant for the exported prototype's script. Each case is a canvas body (html, scripts included, which run after the injected script's listener is registered) whose frame `playing` plays. Once the frame plays, the case clicks the element `click` (a CSS selector, looked up inside the open shadow root of `shadowHost` or inside the same-origin iframe `iframe` when given) with element.click() in the canvas's own context; real mouse and key input was checked in the prototype window separately. `posts` is the message the click makes, without its gen: {\"goto\": <value>} follows the link, {\"goto\": null} reports a link whose value is longer than 200 UTF-16 units, and null means nothing is posted. The decision: the listener is a window capture listener registered before the canvas's scripts; it takes the click's target as dispatched to the window (a shadow root's content is retargeted to its host) and the nearest element with data-doan-goto from there, inclusive; that link must be inside the playing frame (the frame element itself counts); after a 0 ms timer it posts only if the event was not default-prevented. isTrusted is not checked, and stopPropagation or stopImmediatePropagation by the canvas does not stop it. The script does not judge whether the value names a playable frame.",
+  "cases": [
+    {
+      "name": "plain-click",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"b\">Next</a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": "b" }
+    },
+    {
+      "name": "click-on-child-of-link",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><button data-doan-goto=\"b\"><span id=\"x\">Next</span></button></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": "b" }
+    },
+    {
+      "name": "stop-propagation-on-element",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"b\">Next</a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div><script>document.getElementById(\"x\").addEventListener(\"click\", event => event.stopPropagation());</script>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": "b" }
+    },
+    {
+      "name": "stop-immediate-propagation-in-window-capture",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"b\">Next</a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div><script>window.addEventListener(\"click\", event => event.stopImmediatePropagation(), true);</script>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": "b" }
+    },
+    {
+      "name": "prevent-default-on-element",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"b\">Next</a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div><script>document.getElementById(\"x\").addEventListener(\"click\", event => event.preventDefault());</script>",
+      "playing": "a",
+      "click": "#x",
+      "posts": null
+    },
+    {
+      "name": "prevent-default-in-document-bubble",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"b\">Next</a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div><script>document.addEventListener(\"click\", event => event.preventDefault());</script>",
+      "playing": "a",
+      "click": "#x",
+      "posts": null
+    },
+    {
+      "name": "prevent-default-in-window-bubble",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"b\">Next</a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div><script>window.addEventListener(\"click\", event => event.preventDefault());</script>",
+      "playing": "a",
+      "click": "#x",
+      "posts": null
+    },
+    {
+      "name": "prevent-default-in-window-capture",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"b\">Next</a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div><script>window.addEventListener(\"click\", event => event.preventDefault(), true);</script>",
+      "playing": "a",
+      "click": "#x",
+      "posts": null
+    },
+    {
+      "name": "nearest-link-wins",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><div data-doan-goto=\"b\"><button id=\"x\" data-doan-goto=\"c\">Next</button></div></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"c\" data-doan-prototype=\"390x844\"></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": "c" }
+    },
+    {
+      "name": "link-on-playing-frame-element",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\" data-doan-goto=\"b\"><p id=\"x\">Anywhere</p></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": "b" }
+    },
+    {
+      "name": "link-in-frame-nested-in-playing-frame",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><div data-doan-frame=\"card\"><a id=\"x\" data-doan-goto=\"b\">Next</a></div></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": "b" }
+    },
+    {
+      "name": "link-to-playing-frame-itself",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"a\">Again</a></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": "a" }
+    },
+    {
+      "name": "link-in-another-frame",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"a\">Back</a></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": null
+    },
+    {
+      "name": "link-outside-every-frame",
+      "html": "<a id=\"x\" data-doan-goto=\"b\">Next</a><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": null
+    },
+    {
+      "name": "link-around-the-playing-frame",
+      "html": "<div data-doan-goto=\"b\"><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><p id=\"x\">Inside</p></div></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": null
+    },
+    {
+      "name": "no-link",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><button id=\"x\">Plain</button></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": null
+    },
+    {
+      "name": "link-in-shadow-root",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><div id=\"host\"></div></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div><script>document.getElementById(\"host\").attachShadow({ mode: \"open\" }).innerHTML = '<a id=\"x\" data-doan-goto=\"b\">Next</a>';</script>",
+      "playing": "a",
+      "click": "#x",
+      "shadowHost": "#host",
+      "posts": null
+    },
+    {
+      "name": "shadow-host-inside-link",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\"><span id=\"host\"></span></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div><script>document.getElementById(\"host\").attachShadow({ mode: \"open\" }).innerHTML = '<b id=\"x\">Next</b>';</script>",
+      "playing": "a",
+      "click": "#x",
+      "shadowHost": "#host",
+      "posts": { "goto": "b" }
+    },
+    {
+      "name": "link-in-nested-iframe",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><iframe id=\"inner\" srcdoc='<a id=\"x\" data-doan-goto=\"b\">Next</a>'></iframe></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "playing": "a",
+      "click": "#x",
+      "iframe": "#inner",
+      "posts": null
+    },
+    {
+      "name": "value-200-units",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊\">Next</a></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": "🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊" }
+    },
+    {
+      "name": "value-201-units",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"a🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊\">Next</a></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": null }
+    },
+    {
+      "name": "empty-value",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"\">Next</a></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": "" }
+    },
+    {
+      "name": "value-naming-no-frame",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" data-doan-goto=\"nope\">Next</a></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": "nope" }
+    },
+    {
+      "name": "decoded-value-and-uppercase-name",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a id=\"x\" DATA-DOAN-GOTO=\"b&amp;c\">Next</a></div><div data-doan-frame=\"b&amp;c\" data-doan-prototype=\"390x844\"></div>",
+      "playing": "a",
+      "click": "#x",
+      "posts": { "goto": "b&c" }
+    }
+  ]
+}
