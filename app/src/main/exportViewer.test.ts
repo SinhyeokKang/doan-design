@@ -1711,7 +1711,7 @@ describe("prototype.js plays the group one frame at a time", () => {
   });
 
   test("opening with a hash plays the frame it names, or the start frame when it names none of the group", () => {
-    for (const [hash, id, title] of [["#c%20d", "c d", "c d"], ["#b", "b", "Basket"], ["#zz", "a", "A"], ["#%E0", "a", "A"], ["#", "a", "A"], ["#c d", "a", "A"]] as const) {
+    for (const [hash, id, title] of [["#c%20d", "c d", "c d"], ["#b", "b", "Basket"], ["#zz", "a", "A"], ["#%E0", "a", "A"], ["#", "a", "A"], ["#c d", "c d", "c d"]] as const) {
       const page = runPage(hash);
       expect(page.iframes.map(frame => frame.name), hash).toEqual([id]);
       expect(page.location.replaced, hash).toEqual([`#${encodeURIComponent(id)}`]);

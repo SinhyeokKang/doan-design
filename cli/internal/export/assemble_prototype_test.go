@@ -357,10 +357,10 @@ func TestAssemblePrototypeOutputIsPinned(t *testing.T) {
 		proto        Proto
 		want         string
 	}{
-		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", Proto{Frame: "a", Frames: []ProtoFrame{{ID: "a", Title: `a "&" <b>`}}}, "7cd9f468f1b17aac2b4714726d785fed62a56b20a478bd8fb0d4879474c16bdf"},
-		{"bare", "<p>a & \"b\"</p>", Proto{Frame: "x</script>", Frames: []ProtoFrame{{ID: "x</script>"}}}, "3b0eb8ab0f93bf9ec0dfe0fd9e0bfd6144a6d127623a8f24306c8988f2146dc9"},
-		{"empty", "", checkout, "ea1b6b2f13a764e9b082440ddab0fb170025f07c29e2ab0426e0af2e2b64843b"},
-		{"group", "<p>g</p>", Proto{Frame: "b", Frames: []ProtoFrame{{ID: "a", Title: "A"}, {ID: "b"}, {ID: "c d", Title: "C & D"}}}, "d3c0cd1858c60bc9bb44f3fe30fbf9bfc8cdc4cc6bece6a93a448937cf783d53"},
+		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", Proto{Frame: "a", Frames: []ProtoFrame{{ID: "a", Title: `a "&" <b>`}}}, "1c93d9532228612a2434dc2db826f03d018e668947f766a5e14710413fa15eaa"},
+		{"bare", "<p>a & \"b\"</p>", Proto{Frame: "x</script>", Frames: []ProtoFrame{{ID: "x</script>"}}}, "df5922ddc2b7e2c9e136a0c022d50f41d8dc6026e9998b97417879806aa9877e"},
+		{"empty", "", checkout, "a4687808df5ef8d8a7d2b318890e2f53777be055b825b9c92e39f45061fee6b1"},
+		{"group", "<p>g</p>", Proto{Frame: "b", Frames: []ProtoFrame{{ID: "a", Title: "A"}, {ID: "b"}, {ID: "c d", Title: "C & D"}}}, "7701728d9630ffd633b30a35b32d7c9cdfc73543366e7ee4724ef7752347b287"},
 	} {
 		page, err := AssemblePrototype(Meta{Name: "pinned", Width: 320}, c.proto, []byte(c.canvas))
 		if err != nil {

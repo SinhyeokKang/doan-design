@@ -11,7 +11,8 @@ import type { FolderEntry } from "./view";
 
 // What the renderer needs for its toasts, nothing more (the CLI's absolute output path stays in main):
 // - `exported`: `external` is how many internet URLs the file still loads; `reveal` is an opaque id for
-//   `canvas:revealExport` (Show in Finder), valid only for a file main itself just wrote.
+//   `canvas:revealExport` (Show in Finder), valid only for a file main itself just wrote. A prototype export adds
+//   `linkedFrames`, how many frames of the start frame's link group the file holds besides it.
 // - `failed` `refused`: `count` references Doan can't include, `first` the first one as the CLI wrote it (no absolute
 //   path). `unreadable`: refused with no reference (the canvas doesn't parse or has no valid
 //   `doan:width`). `tooLarge`: over 50 MiB, `largest` the biggest asset's repo-relative path when the CLI named one.
@@ -24,12 +25,12 @@ import type { FolderEntry } from "./view";
 //   longer the one playing.
 export type ExportReply =
   | { kind: "cancelled" }
-  | { kind: "exported"; external: number; reveal: string }
+  | { kind: "exported"; external: number; linkedFrames?: number; reveal: string }
   | { kind: "failed"; reason: "refused"; count: number; first: string }
   | { kind: "failed"; reason: "tooLarge"; largest: string | null }
   | { kind: "failed"; reason: "unreadable" | "insideDoan" | "failed" | "notFound" | "notMarked" }
   | { kind: "refused"; reason: "notListed" | "exporting" | "changed" };
-export type ExportOutcome = Exclude<ExportReply, { kind: "cancelled" | "refused" | "exported" }> | { kind: "exported"; external: number };
+export type ExportOutcome = Exclude<ExportReply, { kind: "cancelled" | "refused" | "exported" }> | { kind: "exported"; external: number; linkedFrames?: number };
 
 export const EXPORT_REFUSED: ExportReply = { kind: "refused", reason: "notListed" };
 
@@ -62,7 +63,8 @@ function listed(message: string): string[] {
 const insideDoan = (output: string) => posix.dirname(output).split("/").some(segment => segment.toLowerCase() === ".doan");
 
 // One `doan export` run read as the renderer's outcome. `output` is the file main asked the CLI to write. `prototype`:
-// the run had `--prototype`, so only a result that says so is the file asked for.
+// the run had `--prototype`, so only a result that says so is the file asked for. Its `linkedFrames` only words the
+// toast: the file is written either way, so a value that is not a count reads as none.
 export function interpretExport(run: CliRun, output: string, prototype = false): ExportOutcome {
   let value: unknown;
   try { value = JSON.parse(run.stdout); } catch { return { kind: "failed", reason: "failed" }; }
@@ -70,8 +72,11 @@ export function interpretExport(run: CliRun, output: string, prototype = false):
   if (Reflect.get(value, "ok") === true && run.exitCode === 0) {
     const result: unknown = Reflect.get(value, "result");
     const external: unknown = typeof result === "object" && result !== null ? Reflect.get(result, "external") : undefined;
-    if (prototype && (typeof result !== "object" || result === null || Reflect.get(result, "prototype") !== true)) return { kind: "failed", reason: "failed" };
-    return { kind: "exported", external: Array.isArray(external) ? external.filter(url => typeof url === "string").length : 0 };
+    const count = Array.isArray(external) ? external.filter(url => typeof url === "string").length : 0;
+    if (!prototype) return { kind: "exported", external: count };
+    if (typeof result !== "object" || result === null || Reflect.get(result, "prototype") !== true) return { kind: "failed", reason: "failed" };
+    const linked: unknown = Reflect.get(result, "linkedFrames");
+    return { kind: "exported", external: count, linkedFrames: Number.isSafeInteger(linked) && (linked as number) >= 0 ? linked as number : 0 };
   }
   const error: unknown = Reflect.get(value, "error");
   const code: unknown = typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;

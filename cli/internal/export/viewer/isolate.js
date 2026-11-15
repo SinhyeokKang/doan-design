@@ -1,7 +1,7 @@
 // The first script in an exported prototype's canvas document (srcdoc), wrapped in a function by
 // AssemblePrototype. It isolates one frame as the app's prototype window does
-// (app/src/main/prototypeScript.ts), keeps the canvas from leaving its document, and tells the page
-// around it, once, whether the frame is there.
+// (app/src/main/prototypeScript.ts), keeps the canvas from leaving its document, tells the page
+// around it, once, whether the frame is there, and tells it which link a click in the frame follows.
 //
 // The frame is the iframe's name, which prototype.js sets before the document loads: the canvas is
 // held once in the page for every frame of the group. The CLI already judged the group from the
@@ -11,7 +11,7 @@
 // Taken before any canvas script runs, so a canvas name cannot shadow them.
 const FRAME = window.name;
 const host = window.parent;
-const post = (state) => host.postMessage({ type: "doan-prototype", state }, "*");
+const post = (message) => host.postMessage({ type: "doan-prototype", ...message }, "*");
 
 // A srcdoc document's URL is about:srcdoc while its base is the page's file URL, so a fragment or a
 // path given to pushState or replaceState resolves against that file URL and the browser refuses it
@@ -38,6 +38,34 @@ function sameDocument(href) {
   return href.startsWith("#");
 }
 
+// A click on a data-doan-goto link inside the playing frame posts its value, as the prototype
+// window's injected script decides it (the shared table in schema/fixtures/prototype-links/clicks.json
+// holds both to it). The listener is on the window's capture phase and registered before the
+// canvas's own scripts run, so a canvas stopping the click's propagation cannot keep it from us; only
+// the canvas's `preventDefault()` cancels, read after a 0 ms timer so its handlers have all run. The
+// click's target is the one the window sees, so a link inside a shadow root (retargeted to its host)
+// or a nested iframe (its clicks never reach this window) does nothing. A value over 200 UTF-16 units
+// is posted as null, as the window's script does; the page follows neither it nor a value naming no
+// frame of its group.
+const GOTO_ATTRIBUTE = "data-doan-goto";
+const MAX_GOTO = 200;
+let playing = null;
+// Clicks a link will be followed for unless the canvas cancels them.
+const following = new WeakSet();
+// Clicks whose default only the link handling below prevented: that is not the canvas cancelling.
+const ownPrevented = new WeakSet();
+window.addEventListener("click", (event) => {
+  const target = event.target;
+  if (playing === null || !(target instanceof Element)) return;
+  const link = target.closest(`[${GOTO_ATTRIBUTE}]`);
+  if (link === null || !playing.contains(link)) return;
+  const value = link.getAttribute(GOTO_ATTRIBUTE) ?? "";
+  following.add(event);
+  setTimeout(() => {
+    if (ownPrevented.has(event) || !event.defaultPrevented) post({ goto: value.length <= MAX_GOTO ? value : null });
+  }, 0);
+}, true);
+
 // Bubble phase, so the canvas's own handlers run first and a handler that checks defaultPrevented
 // (a client-side router's link) still sees its own event. A handler that stops propagation keeps
 // its default.
@@ -50,7 +78,13 @@ window.addEventListener("click", (event) => {
     if (!(node instanceof Element) || (node.localName !== "a" && node.localName !== "area")) continue;
     const href = node.getAttribute("href") ?? node.getAttribute("xlink:href");
     if (href === null) return;
+    // Not cancelled by the canvas so far. A canvas window listener that runs after this one and
+    // prevents the default is not told apart from this call, so the link is still followed.
+    ownPrevented.add(event);
     event.preventDefault();
+    // A link followed replaces the whole document, so moving to its fragment first would only leave
+    // a history entry behind.
+    if (following.has(event)) return;
     // A srcdoc document resolves "#id" against the page's file URL, not its own, so the browser's
     // own handling leaves it: WebKit loads the page around the frame into the frame, and Chromium
     // drops the click. Setting the hash moves within the document, as the link would in the app.
@@ -96,8 +130,9 @@ function finish(final) {
   done = true;
   if (matches.length === 1) {
     isolate(matches[0]);
-    post("ready");
-  } else post("missing");
+    playing = matches[0];
+    post({ state: "ready" });
+  } else post({ state: "missing" });
   return true;
 }
 const afterLoad = (then) => window.addEventListener("load", () => setTimeout(then, 0), { once: true });

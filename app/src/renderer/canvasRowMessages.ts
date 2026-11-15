@@ -21,12 +21,16 @@ export const exportProgress = (stem: string) => `Exporting “${stem}”`;
 
 // The result toast, with main's Show in Finder id once the file is written; null for a cancelled save panel. A
 // refusal from main (`exporting`, `notListed`) has no sentence of its own and reads as any other failure.
-// `prototype`: the prototype window's Export, where `stem` is the frame's title or ID. Its file plays one frame but
-// holds the whole canvas, other frames and notes included, so the success toast says so.
+// `prototype`: the prototype window's Export, where `stem` is the frame's title or ID. Its file plays that frame and
+// the frames linked with it, and holds the whole canvas, other frames and notes included, so the success toast says so.
 export function exportToast(stem: string, reply: ExportReply, prototype = false): { text: string; reveal?: string } | null {
   const failed = `Couldn’t export “${stem}”.`;
   if (reply.kind === "cancelled") return null;
-  if (reply.kind === "exported") return { text: `Exported “${stem}”.${prototype ? " The file also contains the rest of the canvas." : ""}${reply.external > 0 ? " Parts of it load from the internet." : ""}`, reveal: reply.reveal };
+  if (reply.kind === "exported") {
+    const linked = prototype ? reply.linkedFrames ?? 0 : 0;
+    const exported = linked > 0 ? `Exported “${stem}” and ${linked} linked frame${linked === 1 ? "" : "s"}.` : `Exported “${stem}”.`;
+    return { text: `${exported}${prototype ? " The file also contains the rest of the canvas." : ""}${reply.external > 0 ? " Parts of it load from the internet." : ""}`, reveal: reply.reveal };
+  }
   // Export again would export the frame playing now, so this names the clicked frame instead of saying Try again.
   if (reply.kind === "refused" && reply.reason === "changed") return { text: `${failed} Another frame started playing first. Play “${stem}” again, then export it.` };
   if (reply.kind === "refused") return { text: `${failed} Try again.` };
