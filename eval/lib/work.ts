@@ -3,8 +3,11 @@ import type { Check, CheckContext } from "./types.ts";
 
 export const contentHash = (bytes: string | Buffer | null): string | null => bytes === null ? null : createHash("sha256").update(bytes).digest("hex");
 
+// A canvas or design-system page, as the v3 socket schema writes it; work.test.ts reads it.
+export const CANVAS_PATH = /^\.doan\/(canvases|ds)\/[^/]+\.html$/;
+
 export function workChecks(ctx: CheckContext): Check[] {
-  const changed = ctx.changedFiles().filter(path => /^\.doan\/(canvases|ds)\/[^/]+\.html$/.test(path));
+  const changed = ctx.changedFiles().filter(path => CANVAS_PATH.test(path));
   const log = ctx.work().filter(entry => entry.response.ok);
   // update also counts as start (guide rule D).
   const starts = changed.map(path => ({ path, first: log.find(entry => (entry.request.action === "start" || entry.request.action === "update") && entry.request.path === path) }));
