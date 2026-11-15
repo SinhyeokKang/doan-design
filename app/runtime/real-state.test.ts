@@ -130,17 +130,27 @@ test("real-state fingerprints every agent setup target the plan writes", async (
     const source = join(home, "fixture.mjs");
     await writeFile(source, `
 import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { registerHooks } from 'node:module';
-import { realState } from ${JSON.stringify(new URL("./real-state.ts", import.meta.url).href)};
+import { realState, assertRealState } from ${JSON.stringify(new URL("./real-state.ts", import.meta.url).href)};
 // app/src imports omit the extension (Vite resolves them; Node does not).
 registerHooks({ resolve(specifier, context, next) {
   if (/^\\.\\.?\\//.test(specifier) && !/\\.[cm]?[jt]sx?$/.test(specifier) && context.parentURL?.includes('/app/src/')) return next(specifier + '.ts', context);
   return next(specifier, context);
 } });
-const { plannedTargets } = await import(${JSON.stringify(new URL("../src/main/agentSetup/plan.ts", import.meta.url).href)});
-const watched = Object.keys(await realState()).map(key => key.replace(/:[^/]*$/, ''));
+const { plannedTargets, mergeClaudeAllow } = await import(${JSON.stringify(new URL("../src/main/agentSetup/plan.ts", import.meta.url).href)});
+// settings.json is compared by a rule filter, so the rules agent setup writes today must pass it: the file exists before
+// the snapshot, so only those rules differ.
+const settings = join(process.env.HOME, '.claude/settings.json'), empty = '{"permissions":{"allow":[]}}';
+await mkdir(join(process.env.HOME, '.claude'), {recursive:true});
+await writeFile(settings, empty);
+const before = await realState();
+const watched = Object.keys(before).map(key => key.replace(/:[^/]*$/, ''));
 for (const { path } of plannedTargets(process.env.HOME, '/Applications/Doan.app/Contents/Resources', ['claude', 'codex', 'gemini'], true))
   assert.ok(watched.some(root => path === root || path.startsWith(root + '/')), path + ' is not in the real-state snapshot');
+await writeFile(settings, mergeClaudeAllow(empty).text);
+await assert.rejects(assertRealState(before), /real onboarding state changed/);
 `);
     const result = await promisify(execFile)(process.execPath, [source], {
       env: { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex") },
