@@ -451,8 +451,9 @@ export class ConversationStore {
   }
   // Nothing lists the conversations directory at start, so a temporary file a failed write leaves would stay for good.
   private fill(fd: number, temp: string, text: string): void {
-    try { this.write(fd, text); } catch (error) { closeSync(fd); unlinkSync(temp); throw error; }
-    closeSync(fd);
+    try {
+      try { this.write(fd, text); } finally { closeSync(fd); }
+    } catch (error) { unlinkSync(temp); throw error; }
   }
   private write(fd: number, text: string): void {
     const bytes = Buffer.from(text); if (writeSync(fd, bytes) !== bytes.length) throw new Error("Incomplete conversation write");

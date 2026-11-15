@@ -864,7 +864,11 @@ export class AuthManager {
   // write-back failure, if any: the plaintext is still removed, so the refresh is lost and the vault may be stale.
   private drop(provider: Provider): Promise<string | null> {
     return this.serial(provider, async () => {
-      const count = (this.holds.get(provider) ?? 1) - 1, auth = this.adapters[provider];
+      // A release after quit's final drop holds nothing: absorbing the scrubbed profile would read it as a sign-out and
+      // empty the vault.
+      const held = this.holds.get(provider) ?? 0, auth = this.adapters[provider];
+      if (held <= 0) { this.holds.set(provider, 0); return null; }
+      const count = held - 1;
       this.holds.set(provider, count);
       if (count > 0 || !auth.vault) return null;
       let lost: string | null = null;

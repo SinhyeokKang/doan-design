@@ -240,6 +240,9 @@ export class ConversationService {
   private reservations: Reservation[] = [];
   private live = new Map<string, Live>();
   private quitting = false;
+  // appQuit interruptions a quit still has to write (conversation id → turn id): one that failed cancels that quit and
+  // is written again by the next, since the conversation already counts as ended.
+  private owedAppQuit = new Map<string, string>();
   private stops = 0;
   private lastStop = new Map<Provider, number>();
   // Sends waiting for the previous turn's process to exit; cancelled ones are refused once woken.
@@ -846,20 +849,27 @@ export class ConversationService {
     this.missedWaits.clear();
     for (const id of [...this.waits.keys(), ...this.judging.keys()]) this.cancelWait(id);
     for (const listing of this.listings) if (listing.cleanup) closing.push(listing.cleanup());
-    // Before the appQuit writes: one that throws ends this loop, and the quit's failure is reported, but no
-    // conversation's work content or run may outlive it.
+    // Before the appQuit writes: one that throws cancels the quit, but no conversation's work content or run may
+    // outlive it.
     for (const id of this.live.keys()) this.endWork(id);
     for (const live of this.live.values()) if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
+    // Decided before the pass below marks every conversation ended. As for a Stop, a history that already stopped taking
+    // writes takes no interrupted event: its known refusal is no new persistence failure to cancel the quit for.
+    for (const [id, live] of this.live) if (live.accepted && live.busy && !live.terminal && !live.failedPersistence) this.owedAppQuit.set(id, live.turnId);
     for (const [id, live] of this.live) {
       if (live.held) { clearTimeout(live.held.timer); delete live.held; }
-      // As for a Stop, a history that already stopped taking writes takes no interrupted event: its known refusal is
-      // no new persistence failure to cancel the quit for.
-      if (live.accepted && live.busy && !live.terminal && !live.failedPersistence) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
       live.terminal = true; live.busy = false; delete live.stage;
       // Nothing more is written, but a message the agent already has must not come back from the queue at the next start.
       this.lookLater(id, live, false);
       this.dropSteers(id);
     }
+    // Last, since a write can throw; each history gets its own attempt, and the first failure cancels the quit.
+    let failure: { error: unknown } | undefined;
+    for (const [id, turnId] of [...this.owedAppQuit]) {
+      try { this.append(id, turnId, { type: "interrupted", reason: "appQuit" }); this.owedAppQuit.delete(id); }
+      catch (error) { failure ??= { error }; }
+    }
+    if (failure) throw failure.error;
     return Promise.all(closing).then(() => undefined);
   }
   // A folder listing of root was read again. changed: root-relative canvas paths whose files the watcher saw change since
