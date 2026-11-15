@@ -81,3 +81,22 @@
 - **컨덕터로 고친다**:
   - `fix/eval-reader-4`: C4-1(회귀 우선, postmortem 포함), C4-3, C4-4, M4-7, M4-10, M4-4
   - `fix/fence-r4`: B4-1(probe 먼저), C4-5, C4-2, B4-2, M4-1, M4-3, L4-2, M4-9
+
+## 4라운드 결과 (2026-11-16 마감)
+
+**검증하지 못한 것**
+- 실제 로그인이 필요해서 하지 못한 것: fence 안에서 Cursor sign-in을 끝까지 하는 것. BACKLOG 'Not verified'에 넣었다.
+- Claude settings merge의 새 temp 위치는 단위 테스트로만 확인했다.
+- Claude·Codex의 run 전 `--version`은 probe하지 않았다. fence 밖 목록에 문서로만 적었다.
+- 앱을 켤 때 사용자 HOME에서 도는 Cursor `--version`(readiness)은 여전히 fence 밖이다. 이 항목은 BACKLOG의 B3-4 (b) 결정 항목에 덧붙였다.
+- CI의 `onboarding/machine.test.ts` 셸 probe 테스트 두 개가 다시 한 번 실패했다(1라운드 #213에서도 실패했다). 재실행에서는 통과했다.
+
+**병합한 PR** (모두 develop)
+- #228 eval reader: C4-1(#226 회귀, postmortem 포함), C4-3, C4-4, M4-7, M4-10, M4-4. 기록된 실행 957건으로 다시 확인했더니 Claude 실행 37건이 preset 읽기를 다시 제대로 센다. #226 reader로 채점한 라운드는 없어서, 기록된 결과가 바뀐 것은 없다.
+- #229 fence: B4-1, C4-5, C4-2, B4-2, M4-1, M4-3, L4-2, M4-9.
+  - B4-1(Cursor 컴파일 캐시)은 위조한 캐시 항목으로 확인했다. 그래서 Cursor의 모든 프로세스를 fence 안에서 돌린다.
+  - 같은 계열인 Antigravity의 Python user-site 경로는 반증됐다.
+
+**다음 라운드 후보**
+- 불안정한 테스트 `onboarding/machine.test.ts`: 두 라운드에서 실패했다.
+- 인용된 `'~'`가 들어간 리다이렉트 대상을 D4b가 profile로 본다(거짓 실패 쪽).
