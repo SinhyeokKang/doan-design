@@ -55,7 +55,7 @@
 - [x] 7. **`/design-sync`**: 초안의 세 프레임과 실제 앱을 맞춘다.
   - 검증: `node .scratch/design-sync/prototype-link-play/measure.mjs`가 exit 0이다. 프레임마다 차이가 0이거나 DESIGN.md에 편차로 적혀 있다.
   - 커밋 경계: 구현 수정 하나, DESIGN.md 하나.
-- [ ] 8. **`/runtime-test`**(격리한 실제 앱). 확인할 것:
+- [x] 8. **`/runtime-test`**(격리한 실제 앱). 확인할 것:
   - 연결: A→B→C, 되돌아가기, 자기 연결, 깨진 연결의 토스트
   - `preventDefault`와 `stopPropagation`, Enter·Space, 가장 가까운 연결
   - 로딩 중 클릭과 더블클릭
