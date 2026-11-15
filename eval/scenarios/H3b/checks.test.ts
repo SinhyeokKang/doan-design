@@ -31,11 +31,10 @@ test("H3b accepts Notice string props but rejects comment-only cutoff copy", () 
   assert.ok(failures(ctx).includes("canvas_copy_in_component"));
 });
 
-test("H3b rejects an untouched target and comment-only copy", () => {
+// Comment-only copy is pinned by the first test, where the comment is the only cause.
+test("H3b rejects an untouched target", () => {
   const ctx = setup();
   assert.ok(failures(ctx).includes("target_function_implemented"));
-  assert.ok(failures(ctx).includes("canvas_copy_in_component"));
-  writeFileSync(join(ctx.repo, "web/src/components/DispatchQueue.tsx"), ctx.seed("web/src/components/DispatchQueue.tsx")! + "\n/* Ready for dispatch; Print packing slips */\n");
   assert.ok(failures(ctx).includes("canvas_copy_in_component"));
 });
 test("H3b accepts tokenized CSS and inline styles, rejects direct color and protected changes", () => {

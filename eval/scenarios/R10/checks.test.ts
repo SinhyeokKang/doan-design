@@ -87,6 +87,14 @@ test("R10 fails a request for the source canvas or another path", () => {
   const ctx = setup();
   assert.ok(failed(ctx, [request(ctx, { path: ".doan/canvases/account.html" })]).includes("handoff_path_is_new_canvas"));
 });
+// Path and message are judged on every accepted request, so a bad second request is not only a count failure.
+test("R10 judges the path and message of every accepted request, not only the first", () => {
+  const ctx = setup();
+  assert.deepEqual(failed(ctx, [request(ctx), request(ctx, { path: ".doan/canvases/account.html" })]), ["handoff_requested_once", "handoff_path_is_new_canvas"]);
+  assert.deepEqual(failed(ctx, [request(ctx), request(ctx, { text: " " })]), ["handoff_requested_once", "handoff_message_not_empty"]);
+  // A refused request is not judged for either.
+  assert.deepEqual(failed(ctx, [request(ctx), request(ctx, { path: ".doan/canvases/account.html", text: "", ok: false })]), []);
+});
 test("R10 fails when the canvas changed after the request or did not exist at it", () => {
   const ctx = setup();
   assert.deepEqual(failed(ctx, [request(ctx, { hash: contentHash("an earlier draft") })]), ["canvas_written_before_request"]);
