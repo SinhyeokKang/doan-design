@@ -258,6 +258,24 @@ async function expectChange(w: Recorder, change: () => void, expected: Change): 
   expect(w.merged()).toEqual(expected);
 }
 
+// Waits until FSEvents has delivered everything the repository's setup caused, by writing a marker after it and
+// waiting for the root watcher to see the marker: one stream delivers events in order, and a quiet interval cannot
+// tell a backlogged fseventsd from a finished one. The marker itself reaches no watcher's listener.
+async function drainSetup(root: string, w: Recorder): Promise<void> {
+  const marker = `.drain-${count++}`;
+  let seen = false;
+  raw.drop = (path, filename) => {
+    if (path !== root || filename !== marker) return false;
+    seen = true;
+    return true;
+  };
+  writeFileSync(join(root, marker), "");
+  await vi.waitFor(() => expect(seen).toBe(true), { timeout: 5_000, interval: 10 });
+  raw.drop = undefined;
+  await settle(() => w.calls().length);
+  w.reset();
+}
+
 async function expectQuiet(w: Recorder, change: () => void): Promise<void> {
   await settle(() => w.calls().length);
   w.reset();
@@ -315,6 +333,8 @@ describe("watchFolder classifies changes", () => {
     const root = repo();
     vi.mocked(fsWatch).mockClear();
     const w = await watchScope(root, [".doan/canvases"]);
+    // A late batch of the setup's root `.doan` events would add a served change this path never makes.
+    await drainSetup(root, w);
     const index = watchedPaths().indexOf(join(root, ".doan/canvases"));
     const watcher = vi.mocked(fsWatch).mock.results[index]?.value as FSWatcher | undefined;
     expect(watcher).toBeDefined();

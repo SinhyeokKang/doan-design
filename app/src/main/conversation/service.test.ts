@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore } from "./store";
@@ -24,7 +24,7 @@ function fixture() {
   const prepare = vi.fn<Prepare>(async () => ({ runtime: "codex" as const, configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {} }));
   const ended: string[] = [];
   const service = new ConversationService(store, prepare, open, () => {}, undefined, undefined, undefined, undefined, undefined, undefined, id => { ended.push(id); });
-  return { service, store, runners, exits, prepare, open, ended, hold: () => { hold = () => {}; }, release: () => hold?.() };
+  return { service, store, dir, runners, exits, prepare, open, ended, hold: () => { hold = () => {}; }, release: () => hold?.() };
 }
 const request = { root: "/repo", mode: "resume" as const, canvas: { path: ".doan/canvases/a.html" }, text: "hello", anchors: [] };
 it("reserves pending sessions across canvases before opening and leaves rejected starts untouched", async () => {
@@ -1901,10 +1901,10 @@ describe("send now", () => {
     const append = h.store.append.bind(h.store);
     let thrown = false;
     vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
-      if (body.type === "interrupted" && !thrown) { thrown = true; throw new Error("File exceeds limit"); }
+      if (body.type === "interrupted" && !thrown) { thrown = true; throw Object.assign(new Error("EIO: i/o error"), { code: "EIO" }); }
       return append(cid, turn, body);
     });
-    expect(() => h.service.quit()).toThrow("File exceeds limit");
+    expect(() => h.service.quit()).toThrow("EIO");
     for (const answered of sent) expect(await answer(answered)).toBe("not_running");
     for (const { id } of conversations) { expect(sending(h, id)).toEqual([]); expect(queued(h, id)).toEqual(["one"]); }
   });
@@ -2693,16 +2693,17 @@ describe("conversation work", () => {
     h.ended.length = 0;
     const append = h.store.append.bind(h.store);
     vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
-      if (body.type === "interrupted") throw new Error("File exceeds limit");
+      if (body.type === "interrupted") throw Object.assign(new Error("EIO: i/o error"), { code: "EIO" });
       return append(cid, turn, body);
     });
-    expect(() => h.service.quit()).toThrow("File exceeds limit");
+    expect(() => h.service.quit()).toThrow("EIO");
     expect(h.ended).toEqual(expect.arrayContaining([first, second]));
     // The aborted quit leaves the conversations stopped, so no runner after the failed write may be left open.
     expect(h.runners).toHaveLength(2);
     for (const runner of h.runners) expect(runner.close).toHaveBeenCalled();
   });
   // One history's failed appQuit write cancels the quit, but the others still get theirs, and the next quit writes it again.
+  // The failure is one a retry can fix (an I/O error), unlike the refusals below.
   it("a quit writes every other conversation's appQuit past a failed one and writes the failed one at the next quit", async () => {
     const h = fixture();
     const first = (await h.service.start(request)).conversationId;
@@ -2711,10 +2712,10 @@ describe("conversation work", () => {
     const append = h.store.append.bind(h.store);
     let failed: string | undefined;
     const spy = vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
-      if (body.type === "interrupted" && failed === undefined) { failed = cid; throw new Error("File exceeds limit"); }
+      if (body.type === "interrupted" && failed === undefined) { failed = cid; throw Object.assign(new Error("EIO: i/o error"), { code: "EIO" }); }
       return append(cid, turn, body);
     });
-    expect(() => h.service.quit()).toThrow("File exceeds limit");
+    expect(() => h.service.quit()).toThrow("EIO");
     const other = failed === first ? second : first;
     expect(h.store.read(other).filter(e => e.type === "interrupted")).toEqual([expect.objectContaining({ reason: "appQuit" })]);
     expect(h.store.read(failed!).some(e => e.type === "interrupted")).toBe(false);
@@ -2740,6 +2741,57 @@ describe("conversation work", () => {
     for (const runner of h.runners) expect(runner.close).toHaveBeenCalled();
     expect(h.store.read(first).some(e => e.type === "interrupted")).toBe(false);
     expect(h.store.read(second).at(-1)).toMatchObject({ type: "interrupted", reason: "appQuit" });
+  });
+  // A history at its size limit, or whose last line is torn, refuses every later append too: a quit that cancelled for it
+  // would be cancelled again at every later Cmd+Q, update install and logout, with nothing the person can do.
+  it.each([
+    ["at its size limit", () => new Error("File exceeds limit")],
+    ["unreadable", () => new SyntaxError("Unexpected end of JSON input")],
+    ["torn by a short write", () => new Error("Incomplete conversation write")],
+  ])("a quit is not cancelled by an appQuit write a history %s refuses for good", async (_label, refusal) => {
+    const h = fixture(); vi.spyOn(console, "error").mockImplementation(() => {});
+    const first = (await h.service.start(request)).conversationId;
+    h.prepare.mockResolvedValueOnce({ ...prepared(), sessionId: "second-session" });
+    const second = (await h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).conversationId;
+    const append = h.store.append.bind(h.store);
+    const spy = vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
+      if (cid === first && body.type === "interrupted") throw refusal();
+      return append(cid, turn, body);
+    });
+    await h.service.quit();
+    for (const runner of h.runners) expect(runner.close).toHaveBeenCalled();
+    expect(h.store.read(second).at(-1)).toMatchObject({ type: "interrupted", reason: "appQuit" });
+    // Nothing is owed any more, so a second quit tries no write and is not cancelled either.
+    spy.mockClear();
+    await h.service.quit();
+    expect(spy).not.toHaveBeenCalled();
+  });
+  it("a quit is not cancelled by a history whose last line is torn", async () => {
+    const h = fixture(); vi.spyOn(console, "error").mockImplementation(() => {});
+    const id = (await h.service.start(request)).conversationId;
+    appendFileSync(join(h.dir, "conversations", `${id}.jsonl`), '{"v":1');
+    expect(() => h.store.read(id)).toThrow(SyntaxError);
+    await h.service.quit();
+    await h.service.quit();
+    for (const runner of h.runners) expect(runner.close).toHaveBeenCalled();
+  });
+  // A failure a retry could fix cancels one quit; when the next quit's retry fails as well, the history counts as
+  // refusing, so no third Cmd+Q is needed.
+  it("an appQuit write that keeps failing cancels only the first quit", async () => {
+    const h = fixture(); vi.spyOn(console, "error").mockImplementation(() => {});
+    const id = (await h.service.start(request)).conversationId;
+    const append = h.store.append.bind(h.store);
+    const spy = vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
+      if (body.type === "interrupted") throw Object.assign(new Error("EIO: i/o error"), { code: "EIO" });
+      return append(cid, turn, body);
+    });
+    expect(() => h.service.quit()).toThrow("EIO");
+    await h.service.quit();
+    expect(spy.mock.calls.filter(([cid, , body]) => cid === id && body.type === "interrupted")).toHaveLength(2);
+    spy.mockClear();
+    await h.service.quit();
+    expect(spy).not.toHaveBeenCalled();
+    for (const runner of h.runners) expect(runner.close).toHaveBeenCalled();
   });
   it("a deletion clears the conversation's work", async () => {
     const h = fixture(); const id = (await h.service.start(request)).conversationId;

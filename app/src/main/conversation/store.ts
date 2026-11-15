@@ -459,3 +459,10 @@ export class ConversationStore {
     const bytes = Buffer.from(text); if (writeSync(fd, bytes) !== bytes.length) throw new Error("Incomplete conversation write");
   }
 }
+// An append failure that every later append of the same history meets again: the size limit, content that no longer
+// parses (a torn last line from an incomplete write included), or an event the history cannot take. Other failures
+// (an open or I/O error) may pass.
+export function refusesForGood(error: unknown): boolean {
+  if (error instanceof SyntaxError) return true;
+  return error instanceof Error && ["File exceeds limit", "Invalid conversation event", "Incomplete conversation write"].includes(error.message);
+}

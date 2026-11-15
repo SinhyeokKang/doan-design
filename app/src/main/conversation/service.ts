@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { ConversationStore, type ConversationMetadata, type JournalWrite } from "./store";
+import { ConversationStore, refusesForGood, type ConversationMetadata, type JournalWrite } from "./store";
 import { foldConversation } from "./state";
 import { promoteReservation, releaseReservation, reserveSession } from "./ownership";
 import { transportError } from "./transport";
@@ -240,9 +240,11 @@ export class ConversationService {
   private reservations: Reservation[] = [];
   private live = new Map<string, Live>();
   private quitting = false;
-  // appQuit interruptions a quit still has to write (conversation id → turn id): one that failed cancels that quit and
-  // is written again by the next, since the conversation already counts as ended.
-  private owedAppQuit = new Map<string, string>();
+  // appQuit interruptions a quit still has to write (conversation id → turn id, and whether a quit already failed it):
+  // a failure a retry could fix cancels that quit and is written again by the next, since the conversation already
+  // counts as ended. A refusal no retry fixes, or a second failure, is a known refusal like a failedPersistence
+  // history's: it is not owed again, or every later quit (update install, logout) would be cancelled.
+  private owedAppQuit = new Map<string, { turnId: string; failed: boolean }>();
   private stops = 0;
   private lastStop = new Map<Provider, number>();
   // Sends waiting for the previous turn's process to exit; cancelled ones are refused once woken.
@@ -855,7 +857,7 @@ export class ConversationService {
     for (const live of this.live.values()) if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
     // Decided before the pass below marks every conversation ended. As for a Stop, a history that already stopped taking
     // writes takes no interrupted event: its known refusal is no new persistence failure to cancel the quit for.
-    for (const [id, live] of this.live) if (live.accepted && live.busy && !live.terminal && !live.failedPersistence) this.owedAppQuit.set(id, live.turnId);
+    for (const [id, live] of this.live) if (live.accepted && live.busy && !live.terminal && !live.failedPersistence) this.owedAppQuit.set(id, { turnId: live.turnId, failed: false });
     for (const [id, live] of this.live) {
       if (live.held) { clearTimeout(live.held.timer); delete live.held; }
       live.terminal = true; live.busy = false; delete live.stage;
@@ -863,11 +865,17 @@ export class ConversationService {
       this.lookLater(id, live, false);
       this.dropSteers(id);
     }
-    // Last, since a write can throw; each history gets its own attempt, and the first failure cancels the quit.
+    // Last, since a write can throw; each history gets its own attempt, and the first failure that a retry could fix
+    // cancels the quit.
     let failure: { error: unknown } | undefined;
-    for (const [id, turnId] of [...this.owedAppQuit]) {
-      try { this.append(id, turnId, { type: "interrupted", reason: "appQuit" }); this.owedAppQuit.delete(id); }
-      catch (error) { failure ??= { error }; }
+    for (const [id, owed] of [...this.owedAppQuit]) {
+      try { this.append(id, owed.turnId, { type: "interrupted", reason: "appQuit" }); this.owedAppQuit.delete(id); }
+      catch (error) {
+        if (owed.failed || refusesForGood(error)) {
+          this.owedAppQuit.delete(id);
+          console.error("doan: conversation appQuit persistence refused", error);
+        } else { owed.failed = true; failure ??= { error }; }
+      }
     }
     if (failure) throw failure.error;
     return Promise.all(closing).then(() => undefined);

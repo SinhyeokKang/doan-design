@@ -216,7 +216,13 @@ let launchEligibility = "dev";
 let launchFeed = false;
 const HELD = Symbol("held");
 let settleSetup: (value: unknown) => void = () => {};
+// The previous test's launch. A hook that timed out is not cancelled: its launch still opens a window later, which must
+// land before this launch resets the instances, not in the next test.
+let launching: Promise<unknown> = Promise.resolve();
+// The first launch transforms the whole main graph, which on a loaded CI shard took longer than the default 10 s.
+const LAUNCH_TIMEOUT_MS = 60_000;
 beforeEach(async () => {
+  await launching.catch(() => {});
   vi.resetModules();
   vi.clearAllMocks();
   usageProbe.read = undefined;
@@ -257,9 +263,12 @@ beforeEach(async () => {
   mocks.createThumbnails.mockReturnValue(mocks.thumbnails);
   mocks.thumbnails.removed.mockResolvedValue(undefined);
   for (const name of Object.keys(mocks.projects) as (keyof typeof mocks.projects)[]) mocks.projects[name].mockImplementation(actualProjects[name] as never);
-  await import("./index");
-  await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
-});
+  launching = (async () => {
+    await import("./index");
+    await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
+  })();
+  await launching;
+}, LAUNCH_TIMEOUT_MS);
 
 function window() {
   const window = mocks.Window.instances[0];

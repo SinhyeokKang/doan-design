@@ -220,7 +220,7 @@ func writeExportWith(ctx Context, output string, force bool, data []byte, write 
 			return usageError("The output path is a directory; name a file")
 		}
 		if !force {
-			return &Error{Code: "destination_exists", Message: "The output file already exists", NextSteps: []string{"Ask the user, or choose another -o name. Pass --force only if the user agreed to replace that file"}}
+			return destinationExists()
 		}
 	} else if !os.IsNotExist(err) {
 		return exportInternal(err)
@@ -275,7 +275,31 @@ func writeExportWith(ctx Context, output string, force bool, data []byte, write 
 	mu.Lock()
 	defer mu.Unlock()
 	if err == nil {
-		err = os.Rename(temp, output)
+		if force {
+			err = os.Rename(temp, output)
+		} else {
+			// The check above is only a fast refusal: a file can appear at the output while the page is built and
+			// written, and a rename would replace it. A link fails on any existing name.
+			err = os.Link(temp, output)
+			if errors.Is(err, fs.ErrExist) {
+				os.Remove(temp)
+				owned = false
+				return destinationExists()
+			}
+			if err == nil {
+				// Published under the output's name; the temporary name is this process's to drop.
+				os.Remove(temp)
+				owned = false
+				return nil
+			}
+			// A volume without hard links (exFAT, some network shares) keeps the check-then-rename it had.
+			if _, statErr := os.Lstat(output); statErr == nil {
+				os.Remove(temp)
+				owned = false
+				return destinationExists()
+			}
+			err = os.Rename(temp, output)
+		}
 	}
 	if err != nil {
 		os.Remove(temp)
@@ -284,6 +308,10 @@ func writeExportWith(ctx Context, output string, force bool, data []byte, write 
 	}
 	owned = false
 	return nil
+}
+
+func destinationExists() *Error {
+	return &Error{Code: "destination_exists", Message: "The output file already exists", NextSteps: []string{"Ask the user, or choose another -o name. Pass --force only if the user agreed to replace that file"}}
 }
 
 // exportTempPrefix is `.<name>.doan-`, with the name cut at a character boundary so the whole temporary name
