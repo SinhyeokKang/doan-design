@@ -218,6 +218,14 @@
       "groups": [["café"], ["a"]]
     },
     {
+      "name": "character-references-decode",
+      "html": "<div data-doan-frame=\"a&amp;b\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"c\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"a&amp;b\"></a><a data-doan-goto=\"a&#38;b\"></a></div>",
+      "frames": [{ "id": "a&b", "prototype": "390x844" }, { "id": "c", "prototype": "390x844" }],
+      "gotos": [{ "value": "a&b", "frames": ["c"] }, { "value": "a&b", "frames": ["c"] }],
+      "codes": [],
+      "groups": [["a&b", "c"]]
+    },
+    {
       "name": "outside-frames-and-inside-unmarked-frame",
       "html": "<a data-doan-goto=\"a\"></a><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"b\"><a data-doan-goto=\"a\"></a></div>",
       "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": null }],
