@@ -99,14 +99,22 @@ function linkElement(event) {
   return null;
 }
 
-// Removes every attribute named href in any namespace (the href, and the XLink href an SVG link
-// falls back to, whatever its prefix) and returns them as attribute nodes, which keep their namespace
-// and prefix for the way back.
+// A namespace name, not an address: nothing is fetched from it.
+const XLINK = "http://www.w3.org/1999/xlink";
+
+// Removes the hrefs a browser follows, the one with no namespace and the XLink one an SVG link falls
+// back to (matched by namespace, whatever its prefix), and returns them as attribute nodes, which
+// keep their namespace and prefix for the way back. An href in any other namespace is the canvas's.
 function takeHref(event) {
   const node = linkElement(event);
   if (node === null) return [];
-  const taken = Array.from(node.attributes).filter((attr) => attr.localName === "href").map((attr) => ({ node, attr }));
-  for (const { attr } of taken) node.removeAttributeNode(attr);
+  const taken = [];
+  for (const namespace of [null, XLINK]) {
+    const attr = node.getAttributeNodeNS(namespace, "href");
+    if (attr === null) continue;
+    node.removeAttributeNode(attr);
+    taken.push({ node, attr });
+  }
   return taken;
 }
 
