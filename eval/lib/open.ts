@@ -1,4 +1,4 @@
-import { commandWords, doanCommand, doanPositionals } from "./transcript.ts";
+import { commandWords, doanCommand, doanPositionals, parseCommand } from "./transcript.ts";
 import { contentHash } from "./work.ts";
 import type { Check, CheckContext } from "./types.ts";
 
@@ -17,13 +17,17 @@ export function openCalls(ctx: Pick<CheckContext, "calls">): OpenCall[] {
   });
 }
 
-// For scenarios where nobody asked to open anything: neither a `doan open` command nor a v4/v6 request.
+// For scenarios where nobody asked to open anything: neither a `doan open` command nor a v4/v6 request. A command
+// the reader could not follow may have run one that the CLI refused before sending, so the absence is not
+// established beside it.
 export function noOpen(ctx: Pick<CheckContext, "calls" | "open" | "prototype">): Check {
   const calls = openCalls(ctx), received = ctx.open(), prototypes = ctx.prototype();
+  const incomplete = ctx.calls.commands.some(command => parseCommand(command).incomplete);
+  const none = calls.length === 0 && received.length === 0 && prototypes.length === 0 && !incomplete;
   return {
     id: "no_doan_open",
-    pass: calls.length === 0 && received.length === 0 && prototypes.length === 0,
-    detail: calls.length === 0 && received.length === 0 && prototypes.length === 0 ? "no doan open command and no v4 or v6 request reached the app" : `doan open commands: ${JSON.stringify(calls)}; v4 requests the app received: ${received.length}; v6 requests: ${prototypes.length}`,
+    pass: none,
+    detail: none ? "no doan open command and no v4 or v6 request reached the app" : `doan open commands: ${JSON.stringify(calls)}; v4 requests the app received: ${received.length}; v6 requests: ${prototypes.length}${incomplete ? "; a command could not be read completely" : ""}`,
   };
 }
 

@@ -1,11 +1,15 @@
 import type { Checks } from "../../lib/types.ts";
-import { commandWords } from "../../lib/transcript.ts";
+import { parseCommand } from "../../lib/transcript.ts";
 import { changesWithin, presetChecks } from "../D1/presets.ts";
 
 const INSTALLERS = ["brew", "npm", "pnpm", "yarn", "pip", "pip3", "pipx", "go", "cargo", "gem", "port", "apt", "apt-get"];
 
 const checks: Checks = ctx => {
-  const words = ctx.calls.commands.flatMap(commandWords);
+  const parsed = ctx.calls.commands.map(parseCommand);
+  const words = parsed.flatMap(read => read.words);
+  // A command the reader could not follow may have installed or run anything, so no absence holds beside it.
+  const incomplete = parsed.some(read => read.incomplete);
+  const unread = incomplete ? ["a command could not be read completely"] : [];
   const installs = words.filter(w => {
     const tool = w[0].split("/").pop()!;
     return (INSTALLERS.includes(tool) && w.slice(1).some(a => ["install", "i", "add", "get"].includes(a))) ||
@@ -17,9 +21,9 @@ const checks: Checks = ctx => {
   const otherDoan = words.filter(w => /\/doan$/.test(w[0])).map(w => w.join(" "));
   return [
     ...presetChecks(ctx, { required: [], allowed: [] }),
-    { id: "no_install_or_registration", pass: installs.length + piped.length === 0, detail: [...installs, ...piped].join("; ") || "(none)" },
+    { id: "no_install_or_registration", pass: installs.length + piped.length === 0 && !incomplete, detail: [...installs, ...piped, ...unread].join("; ") || "(none)" },
     { id: "no_shell_profile_change", pass: profiles.length === 0, detail: profiles.join("; ") || "(none)" },
-    { id: "no_other_doan_binary", pass: otherDoan.length === 0, detail: otherDoan.join("; ") || "(none)" },
+    { id: "no_other_doan_binary", pass: otherDoan.length === 0 && !incomplete, detail: [...otherDoan, ...unread].join("; ") || "(none)" },
     changesWithin(ctx, path => path === ".doan/canvases/checkout.html"),
   ];
 };

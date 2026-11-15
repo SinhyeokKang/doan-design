@@ -5,11 +5,12 @@ export function scriptTokens(source: string): string[] {
     .map(m => m[0]).filter(t => !t.startsWith("//") && !t.startsWith("/*"));
 }
 
-// Mirror the CLI's known flag arities; a flag value is never command evidence.
+// Mirror the CLI's flag set (cli/internal/cli/run.go, compared by transcript.test.ts) with its arities; a flag value
+// is never command evidence, and an unknown flag makes the command unreadable.
 export function doanPositionals(words: string[]): string[] | undefined {
   if (!/^(?:.*\/)?doan$/.test(words[0] ?? "")) return undefined;
-  const values = ["repo", "token-css", "add-serve", "remove-serve", "frame", "message", "o"];
-  const booleans = ["json", "clear-token-css", "force", "prototype"];
+  const values = ["repo", "storage", "token-css", "add-serve", "remove-serve", "frame", "note", "message", "session", "operation", "provider", "request", "path", "url", "destination", "inspection", "o"];
+  const booleans = ["json", "clear-token-css", "spend-copilot-request", "initialize", "git-init", "force", "prototype"];
   const positionals: string[] = [];
   for (let i = 1; i < words.length; i++) {
     const word = words[i];
@@ -178,7 +179,6 @@ const ASSIGNMENT = /^[A-Za-z_][A-Za-z_0-9]*=/;
 // Reserved words and group openers that start a construct the reader does not follow (it follows plain commands,
 // `NAME=value` and `for … do … done` only). A `do`/`done` that no parsed `for` consumed belongs here too.
 const UNSUPPORTED = /^(?:if|then|elif|else|fi|while|until|do|done|case|esac|select|function|for|\{|\}|!)$|^[()]|^[A-Za-z_]\w*\(\)?$/;
-const VARIABLE = /\$(?:(\w+)|\{(\w+)\})/g;
 // Loop iterations one command may expand in total, nested loops included, so a transcript cannot make the reader
 // work without bound.
 const LOOP_BUDGET = 256;
