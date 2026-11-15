@@ -455,3 +455,161 @@ func TestPrototypeFindingsNameTheMark(t *testing.T) {
 		t.Fatalf("%+v", stray)
 	}
 }
+
+type linkFixtures struct {
+	Placements []struct {
+		Name, HTML string
+		Codes      []string
+	}
+}
+
+func readLinkFixtures(t *testing.T) linkFixtures {
+	t.Helper()
+	var fx linkFixtures
+	data, err := os.ReadFile("../../../schema/fixtures/prototype-links/cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(data, &fx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fx.Placements) == 0 {
+		t.Fatal("no fixtures")
+	}
+	return fx
+}
+
+func isGotoCode(code string) bool {
+	switch code {
+	case "goto_target_not_found", "goto_target_shared", "goto_target_not_prototype", "goto_outside_prototype":
+		return true
+	}
+	return false
+}
+
+func gotoFindings(in Input) []Finding {
+	got := []Finding{}
+	for _, f := range Run(in) {
+		if isGotoCode(f.Code) {
+			got = append(got, f)
+		}
+	}
+	return got
+}
+
+func TestGotoPlacementsFixture(t *testing.T) {
+	for _, tt := range readLinkFixtures(t).Placements {
+		t.Run(tt.Name, func(t *testing.T) {
+			in := base()
+			in.Canvases[0] = parse(".doan/canvases/a.html", metadata, tt.HTML)
+			got := []string{}
+			for _, f := range gotoFindings(in) {
+				got = append(got, f.Code)
+			}
+			want := tt.Codes
+			if want == nil {
+				want = []string{}
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("got %v want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestGotoFindings(t *testing.T) {
+	marked := func(id, inner string) string {
+		return `<div data-doan-frame="` + id + `" data-doan-prototype="390x844">` + inner + `</div>`
+	}
+	goto_ := func(v string) string { return `<a data-doan-goto="` + v + `"></a>` }
+	long := strings.Repeat("a", 201)
+	notFound := func(v string) string {
+		return `data-doan-goto="` + v + `" names no frame in this canvas; use the data-doan-frame id of a marked frame.`
+	}
+	shared := func(v string) string {
+		return `data-doan-goto="` + v + `" names a frame id that two or more frames share; give each frame its own id.`
+	}
+	tooLong := func(v string) string {
+		return `data-doan-goto="` + v + `" names a frame whose id is longer than 200 characters; shorten the id.`
+	}
+	notMarked := func(v string) string {
+		return `data-doan-goto="` + v + `" names a frame that is not marked for prototyping; add data-doan-prototype to that frame.`
+	}
+	outside := func(v string) string {
+		return `data-doan-goto="` + v + `" is not inside a frame that can play; put it inside a frame marked with data-doan-prototype.`
+	}
+	type want struct{ code, frame, value, message string }
+	for _, tt := range []struct {
+		name, body string
+		want       []want
+	}{
+		{"no target", marked("a", goto_("nope")), []want{{"goto_target_not_found", "a", "nope", notFound("nope")}}},
+		{"empty value", marked("a", goto_("")), []want{{"goto_target_not_found", "a", "", notFound("")}}},
+		{"empty value with a marked empty-id frame", marked("", "") + marked("a", goto_("")), []want{{"goto_target_not_found", "a", "", notFound("")}}},
+		{"shared target", marked("a", goto_("b")) + marked("b", "") + marked("b", ""), []want{{"goto_target_shared", "a", "b", shared("b")}}},
+		{"unmarked target", marked("a", goto_("b")) + `<div data-doan-frame="b"></div>`, []want{{"goto_target_not_prototype", "a", "b", notMarked("b")}}},
+		{"invalid mark on target", marked("a", goto_("b")) + `<div data-doan-frame="b" data-doan-prototype="390X844"></div>`, []want{{"goto_target_not_prototype", "a", "b", notMarked("b")}}},
+		{"marked target with a long id", marked("a", goto_(long)) + marked(long, ""), []want{{"goto_target_not_prototype", "a", long, tooLong(long)}}},
+		{"unmarked target with a long id", marked("a", goto_(long)) + `<div data-doan-frame="` + long + `"></div>`, []want{{"goto_target_not_prototype", "a", long, tooLong(long)}}},
+		{"long value with no target", marked("a", goto_(long)), []want{{"goto_target_not_found", "a", long, notFound(long)}}},
+		{"outside frames names no frame", goto_("home"), []want{
+			{"goto_outside_prototype", "", "home", outside("home")},
+			{"goto_target_not_found", "", "home", notFound("home")},
+		}},
+		{"innermost frame is reported", marked("a", `<div data-doan-frame="b">`+marked("c", goto_("nope"))+`</div>`), []want{{"goto_target_not_found", "c", "nope", notFound("nope")}}},
+		{"unmarked innermost frame inside playable frames", marked("a", marked("c", `<div data-doan-frame="b">`+goto_("nope")+`</div>`)), []want{{"goto_target_not_found", "b", "nope", notFound("nope")}}},
+		{"unmarked frame only", `<div data-doan-frame="b">` + goto_("a") + `</div>` + marked("a", ""), []want{{"goto_outside_prototype", "b", "a", outside("a")}}},
+		{"link to its own frame", marked("home", goto_("home")), nil},
+		{"same bad value twice in one frame", marked("a", goto_("nope")+goto_("nope")), []want{{"goto_target_not_found", "a", "nope", notFound("nope")}}},
+		{"same bad value in two frames", marked("a", goto_("nope")) + marked("b", goto_("nope")), []want{
+			{"goto_target_not_found", "a", "nope", notFound("nope")},
+			{"goto_target_not_found", "b", "nope", notFound("nope")},
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			in := base()
+			in.Canvases[0] = parse(".doan/canvases/a.html", metadata, tt.body)
+			got := []want{}
+			for _, f := range gotoFindings(in) {
+				if f.Severity != "error" || f.Path != ".doan/canvases/a.html" || f.Canvas != "one" {
+					t.Fatalf("%+v", f)
+				}
+				got = append(got, want{f.Code, f.Frame, f.Value, f.Message})
+			}
+			w := tt.want
+			if w == nil {
+				w = []want{}
+			}
+			if !reflect.DeepEqual(got, w) {
+				t.Fatalf("got %+v\nwant %+v", got, w)
+			}
+		})
+	}
+}
+
+func TestGotoSharedTargetAlsoReportsDuplicateFrameID(t *testing.T) {
+	in := base()
+	in.Canvases[0] = parse(".doan/canvases/a.html", metadata, `<div data-doan-frame="a" data-doan-prototype="390x844"><a data-doan-goto="b"></a></div><div data-doan-frame="b" data-doan-prototype="390x844"></div><div data-doan-frame="b"></div>`)
+	fs := Run(in)
+	if dup := codes(fs, "duplicate_frame_id"); len(dup) != 1 || dup[0].Frame != "b" {
+		t.Fatalf("%+v", fs)
+	}
+	if sh := codes(fs, "goto_target_shared"); len(sh) != 1 || sh[0].Frame != "a" || sh[0].Value != "b" {
+		t.Fatalf("%+v", fs)
+	}
+}
+
+// A body fragment cannot put the attribute on <head> or <body>, so this case is pinned here only.
+func TestGotoOnHeadAndBodyIsOutside(t *testing.T) {
+	c, err := canvas.Parse(".doan/canvases/a.html", []byte(`<html><head data-doan-goto="a">`+metadata+`</head><body data-doan-goto="b"><div data-doan-frame="a" data-doan-prototype="390x844"></div><div data-doan-frame="b" data-doan-prototype="390x844"></div></body></html>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := base()
+	in.Canvases[0] = c
+	fs := gotoFindings(in)
+	if len(fs) != 2 || fs[0].Code != "goto_outside_prototype" || fs[0].Frame != "" || fs[0].Value != "a" ||
+		fs[1].Code != "goto_outside_prototype" || fs[1].Frame != "" || fs[1].Value != "b" {
+		t.Fatalf("%+v", fs)
+	}
+}
