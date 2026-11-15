@@ -840,7 +840,7 @@ it("stops the Claude CLI when a failed result leaves a steered message unread, s
   });
 }, 15000);
 // A success result that leaves a steered uuid unread waits at most STEER_READ_WAIT_MS (30 s) for its echo. The CLI's own
-// timers run in real time; only setTimeout is faked, from just before the steer, so a group stop's 2 s wait must be advanced.
+// timers run in real time; only setTimeout is faked, from just before the steer, so a group stop's 2 s ceiling must be advanced.
 async function lateSteer(runner: { send(prompt: string, turnId: string): Promise<void>; steer?: (prompt: string, turnId: string, messageId: string) => Promise<void> }, seq: unknown[], root: string) {
   const sending = runner.send("hello", "turn-1").then(() => "resolved", (e: unknown) => e);
   await vi.waitFor(() => expect(seq).toContainEqual({ type: "message.done", messageId: "a1", text: "40 facts" }));
