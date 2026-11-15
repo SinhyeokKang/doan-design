@@ -72,13 +72,11 @@ export interface Prepared {
   // a reused Codex server keeps the callback it opened with, and the service takes the live turn of that moment.
   stage?: (stage: TurnStage) => void;
   // Doan-account conversation runs and Claude list reads only (never another provider's list read or a terminal
-  // session's run): what keeps the run out of the rest of Doan's userData (agentAuth/fence.ts). claudeSandbox: this
-  // Claude turn runs with its own sandbox on, so it gets Doan's settings instead of the outer sandbox-exec.
-  // claudeSandboxOff: this Claude run starts the repository's own hooks or MCP servers, or is a list read, so it runs in
-  // the outer sandbox-exec with Claude's sandbox turned off at the flag tier. denied: the userData entries listed for a
-  // provider's own settings (a Claude turn with its sandbox on, every Codex run). exec: another sandbox-exec, for tests.
-  // socket: the app socket's path, which a Codex profile server (by its directory) and a sandbox-on Claude turn allow.
-  fence?: { paths: FencePaths; denied?: FenceEntry[]; claudeSandbox?: true; claudeSandboxOff?: true; socket?: string; exec?: string };
+  // session's run): what keeps the run out of the rest of Doan's userData (agentAuth/fence.ts). A fenced Claude run is
+  // always in the outer sandbox-exec with its own sandbox off at the flag tier. denied: the userData entries listed for
+  // Codex's permission profiles (every Codex run). exec: another sandbox-exec, for tests. socket: the app socket's path,
+  // whose directory a Codex profile server allows.
+  fence?: { paths: FencePaths; denied?: FenceEntry[]; socket?: string; exec?: string };
 }
 // generation: the provider's connector generation now. labels: connector names by doan- name, for permission
 // summaries and activity lines.

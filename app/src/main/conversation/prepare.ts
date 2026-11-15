@@ -4,12 +4,11 @@ import { probeShell, runProcess } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { agentEnv, promptSuggestionEnv } from "./environment";
 import { launchEnv } from "../launchEnv";
-import { readRegularFileSync } from "../regularFile";
 import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists, readRegular, readSessionTail } from "./io";
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
-import { claudeRepoCode, claudeSandboxEnabled, fenceDenied, fenceListingDirs, resolveFencePaths, type ClaudeRepoSources, type FenceEntry, type FencePaths } from "../agentAuth/fence";
+import { fenceDenied, fenceListingDirs, resolveFencePaths, type FenceEntry, type FencePaths } from "../agentAuth/fence";
 import type { Lease, Started } from "../agentAuth/manager";
 import type { AuthState, ConnectionJudgment, Provider } from "../agentAuth/types";
 import type { McpRun, Prepare, Prepared, StartRequest } from "./service";
@@ -143,77 +142,22 @@ const NO_CONNECTORS: McpConnectorFacts = { generation: () => 0, labels: () => co
 export function connectorFacts(current: () => McpConnectorFacts | undefined): McpConnectorFacts {
   return { generation: provider => (current() ?? NO_CONNECTORS).generation(provider), labels: () => (current() ?? NO_CONNECTORS).labels() };
 }
-// Where a Doan-connection run's fence comes from: the app's userData, and for tests the Claude Code managed-settings
-// directory and another sandbox-exec. Without it no run is fenced, which only tests that predate the fence rely on.
-// socket: the app socket's path, which a Codex permission profile (by its directory) and a sandbox-on Claude turn allow.
-export interface FenceSetup { userData: string; socket: () => string | undefined; managedDir?: string; exec?: string }
-const CLAUDE_MANAGED_DIR = "/Library/Application Support/ClaudeCode";
-const SETTINGS_MAX = 1024 * 1024;
-// A settings file as Claude Code reads it, through a link too (dotfile setups link them); a missing, oversized or
-// malformed one is no source. A repository can put a FIFO where one goes, so the read never blocks on it.
-function settingsFile(path: string): unknown {
-  try { const text = readRegularFileSync(path); return Buffer.byteLength(text) > SETTINGS_MAX ? undefined : JSON.parse(text) as unknown; } catch { return undefined; }
-}
-function claudeSources(configDir: string, cwd: string, managedDir: string) {
-  let dropIns: string[] = [];
-  try { dropIns = readdirSync(join(managedDir, "managed-settings.d")).filter(name => name.endsWith(".json")).sort(); } catch { /* none */ }
-  return { user: settingsFile(join(configDir, "settings.json")), project: settingsFile(join(cwd, ".claude", "settings.json")), local: settingsFile(join(cwd, ".claude", "settings.local.json")),
-    managed: [settingsFile(join(managedDir, "managed-settings.json")), ...dropIns.map(name => settingsFile(join(managedDir, "managed-settings.d", name)))] };
-}
-const missing = (error: unknown) => error instanceof Error && "code" in error && (error.code === "ENOENT" || error.code === "ENOTDIR");
-// A repository source that exists but cannot be read whole is counted as starting code: the CLI may still read it.
-function claudeRepoSources(cwd: string): ClaudeRepoSources {
-  let unreadable = false;
-  for (const name of ["settings.json", "settings.local.json"]) {
-    const path = join(cwd, ".claude", name);
-    try { statSync(path); } catch (error) { if (!missing(error)) unreadable = true; continue; }
-    if (settingsFile(path) === undefined) unreadable = true;
-  }
-  // The CLI looks for .mcp.json from the run's folder up to the filesystem root.
-  let mcpJson = false;
-  for (let dir = cwd; ; dir = dirname(dir)) {
-    try { statSync(join(dir, ".mcp.json")); mcpJson = true; } catch (error) { if (!missing(error)) mcpJson = true; }
-    if (mcpJson || dirname(dir) === dir) break;
-  }
-  return { unreadable, mcpJson, extensionHooks: ["skills", "agents", "commands"].some(dir => frontmatterHooks(join(cwd, ".claude", dir), 0)) };
-}
-const EXTENSION_DEPTH = 6, EXTENSION_FILE_MAX = 1024 * 1024;
-// Whether a Markdown file under dir (skills, subagents and commands take hooks in their frontmatter) names hooks; a
-// tree deeper than the CLI's layouts, an unreadable entry or an oversized file counts as naming them. Links are
-// followed, as the CLI follows them (this repository's own skills are links), and the depth bounds a loop.
-function frontmatterHooks(dir: string, depth: number): boolean {
-  let names: string[];
-  try { names = readdirSync(dir); } catch (error) { return depth > 0 || !missing(error); }
-  if (depth >= EXTENSION_DEPTH) return true;
-  for (const name of names) {
-    const path = join(dir, name);
-    try {
-      const stat = statSync(path);
-      if (stat.isDirectory()) { if (frontmatterHooks(path, depth + 1)) return true; continue; }
-      if (!name.endsWith(".md")) continue;
-      // A FIFO or device the repository names like a skill would block main on a plain read.
-      if (!stat.isFile() || stat.size > EXTENSION_FILE_MAX) return true;
-      const text = readRegularFileSync(path).replace(/\r\n/g, "\n");
-      const end = text.startsWith("---\n") ? text.indexOf("\n---", 3) : -1;
-      // YAML may quote the key.
-      if (end !== -1 && /^(hooks|"hooks"|'hooks')\s*:/m.test(text.slice(4, end))) return true;
-    } catch { return true; }
-  }
-  return false;
-}
-// The userData entries a provider's own settings deny, listed now; an unreadable directory is left out of the listing,
-// which refuses the run.
-function listDenied(provider: "claude" | "codex", paths: FencePaths): FenceEntry[] {
+// Where a Doan-connection run's fence comes from: the app's userData, and for tests another sandbox-exec. Without it no
+// run is fenced, which only tests that predate the fence rely on. socket: the app socket's path, whose directory a Codex
+// permission profile allows.
+export interface FenceSetup { userData: string; socket: () => string | undefined; exec?: string }
+// The userData entries Codex's permission profiles deny, listed now; an unreadable directory is left out of the
+// listing, which refuses the run.
+function listDenied(paths: FencePaths): FenceEntry[] {
   const listing = new Map<string, { name: string; directory: boolean }[]>();
-  for (const dir of fenceListingDirs(provider, paths)) {
+  for (const dir of fenceListingDirs(paths)) {
     try { listing.set(dir, readdirSync(dir, { withFileTypes: true }).map(entry => ({ name: entry.name, directory: entry.isDirectory() }))); } catch { /* refused below */ }
   }
-  const denied = fenceDenied(provider, paths, listing); if (!denied) throw new Error("unknown");
+  const denied = fenceDenied(paths, listing); if (!denied) throw new Error("unknown");
   return denied;
 }
 // The app socket's path with its directory resolved; none while the app has no runtime (`doan` then reaches no app
-// anyway). A Codex profile server needs it, and the runner refuses one without it; a sandbox-on Claude turn allows it
-// when there is one; an outer-fenced run does not use it.
+// anyway). A Codex profile server needs it, and the runner refuses one without it; an outer-fenced run does not use it.
 function appSocket(setup: FenceSetup): { socket?: string } {
   const socket = setup.socket(); if (socket === undefined) return {};
   let dir: string; try { dir = realpathSync.native(dirname(socket)); } catch { throw new Error("unknown"); }
@@ -222,9 +166,8 @@ function appSocket(setup: FenceSetup): { socket?: string } {
   return { socket: real };
 }
 // A fence that cannot be built refuses the run before anything starts (unknown): without it the agent would reach the
-// other providers' profiles. listing: a Claude list read, which runs no model tool but starts the repository's hooks and
-// MCP servers with the CLI.
-function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd: string, attachments: readonly { path: string; kind: string }[], listing: boolean): NonNullable<Prepared["fence"]> {
+// other providers' profiles.
+function runFence(setup: FenceSetup, provider: Provider, profileDir: string, attachments: readonly { path: string; kind: string }[]): NonNullable<Prepared["fence"]> {
   // Codex's profile names the attachment directory, which exists only after a first paste.
   if (provider === "codex") try { mkdirSync(join(setup.userData, "attachments"), { recursive: true, mode: 0o700 }); } catch { /* resolve refuses below */ }
   // Only a pasted image's own directory is ever reopened; a folder the person attached widens nothing, wherever it is.
@@ -233,15 +176,8 @@ function runFence(setup: FenceSetup, provider: Provider, profileDir: string, cwd
   if (!paths) throw new Error("unknown");
   const exec = setup.exec ? { exec: setup.exec } : {};
   // A Codex server picks its mechanism from the mode when it starts, so every Codex run carries its listing and the
-  // app socket's resolved directory.
-  if (provider === "codex") return { paths, denied: listDenied("codex", paths), ...appSocket(setup), ...exec };
-  if (provider !== "claude") return { paths, ...exec };
-  // Code the repository starts with the CLI runs outside Claude's own sandbox, so it needs the outer fence, and that
-  // sandbox cannot start inside it: the flag tier turns it off, whatever Doan read it as.
-  const sources = claudeSources(profileDir, cwd, setup.managedDir ?? CLAUDE_MANAGED_DIR);
-  if (listing || claudeRepoCode(sources, claudeRepoSources(cwd))) return { paths, claudeSandboxOff: true, ...exec };
-  if (!claudeSandboxEnabled(sources)) return { paths, ...exec };
-  return { paths, denied: listDenied("claude", paths), claudeSandbox: true, ...appSocket(setup), ...exec };
+  // app socket's resolved directory. The other providers always run in the outer fence.
+  return provider === "codex" ? { paths, denied: listDenied(paths), ...appSocket(setup), ...exec } : { paths, ...exec };
 }
 // The Doan-account side of routePrepare as main wires it: every argument reaches the account prepare (reusing included,
 // so a reused Codex server's send builds no fence), an unopened sign-in store refuses every run, and a run (never a
@@ -308,9 +244,9 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         const judgment = judgeConnection(stored.owner, adapter.verifyByRun && !current.error ? { ...current, verified: true } : current, { exists, occupancy });
         if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment, provider));
       }
-      // Every conversation run, Claude's per turn: its sandbox setting and this turn's pasted images may differ. Of the
-      // list reads only Claude's start the repository's own hooks and MCP servers; the others run no model tool.
-      const fenced = fence && !reusing && (use === "run" || provider === "claude") ? runFence(fence, provider, configDir, cwd, request.attachments ?? [], use === "listing") : undefined;
+      // Every conversation run, Claude's per turn: this turn's pasted images may differ. Of the list reads only Claude's
+      // start the repository's own hooks and MCP servers; the others run no model tool.
+      const fenced = fence && !reusing && (use === "run" || provider === "claude") ? runFence(fence, provider, configDir, request.attachments ?? []) : undefined;
       const connection = recheck(), ran = installed;
       const mcp: McpRun | undefined = (MCP_PROVIDERS as readonly Provider[]).includes(provider) ? { generation: () => connectors.generation(provider as McpProvider), labels: () => connectors.labels() } : undefined;
       const runArgs = provider === "claude" || provider === "codex" ? RUN_ARGS[provider] : adapter.acp!.args;
