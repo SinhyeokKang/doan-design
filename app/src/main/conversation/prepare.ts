@@ -1,4 +1,4 @@
-import { accessSync, constants, mkdirSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { accessSync, closeSync, constants, fstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { probeShell, runProcess } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
@@ -151,7 +151,17 @@ const SETTINGS_MAX = 1024 * 1024;
 // A settings file as Claude Code reads it, through a link too (dotfile setups link them); a missing, oversized or
 // malformed one is no source.
 function settingsFile(path: string): unknown {
-  try { const stat = statSync(path); if (!stat.isFile() || stat.size > SETTINGS_MAX) return undefined; return JSON.parse(readFileSync(path, "utf8")) as unknown; } catch { return undefined; }
+  try { return JSON.parse(readRegularText(path, SETTINGS_MAX)) as unknown; } catch { return undefined; }
+}
+// A repository can put a FIFO or a device where a settings or skill file goes, or swap one in after a stat: a blocking
+// open of a FIFO waits on main for a writer. The open is non-blocking, and only a regular file within max is read.
+function readRegularText(path: string, max: number): string {
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK);
+  try {
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.size > max) throw new Error("Not a regular file within the limit");
+    return readFileSync(fd, "utf8");
+  } finally { closeSync(fd); }
 }
 function claudeSources(configDir: string, cwd: string, managedDir: string) {
   let dropIns: string[] = [];
@@ -190,8 +200,9 @@ function frontmatterHooks(dir: string, depth: number): boolean {
       const stat = statSync(path);
       if (stat.isDirectory()) { if (frontmatterHooks(path, depth + 1)) return true; continue; }
       if (!name.endsWith(".md")) continue;
-      if (stat.size > EXTENSION_FILE_MAX) return true;
-      const text = readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+      // A FIFO or device the repository names like a skill would block main on a plain read.
+      if (!stat.isFile() || stat.size > EXTENSION_FILE_MAX) return true;
+      const text = readRegularText(path, EXTENSION_FILE_MAX).replace(/\r\n/g, "\n");
       const end = text.startsWith("---\n") ? text.indexOf("\n---", 3) : -1;
       // YAML may quote the key.
       if (end !== -1 && /^(hooks|"hooks"|'hooks')\s*:/m.test(text.slice(4, end))) return true;
