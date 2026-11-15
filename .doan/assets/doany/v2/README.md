@@ -70,13 +70,15 @@ eyes, hop headroom). The app's port is described in ARCHITECTURE §7 'Buddy (mas
 
 ## Motion contract
 
-Retain V1's time model from `app/src/renderer/doanyMotion.ts`: approximately
+This prototype retains V1's time model from `../motion/mascot.js`: approximately
 3.31-second breathing; initial blink at 2 seconds, then 2.5–6 seconds apart with
 260 ms blinks; pointer target held 1.8 seconds; typing attention held 1.4 seconds;
 hop 180 ms anticipation + 570 ms flight + 600 ms settling; spring-following beret.
 V2 uses its own layer anchors and removes six-lobed radial deformation,
 preserving the smooth Pebble outline with whole-body squash/stretch/tilt.
 The canvas storyboard is illustrative, not measured animation output.
+The app follows `.doan/assets/buddies/motion-preview.js` through
+`app/src/renderer/doanyMotion.ts`; these prototypes keep their original timing.
 
 Preserve Home/Welcome drawing slots (114/142.5 px), keyboard and send triggers,
 reduced-motion rest, hidden-view draw gating, static fallback and context cleanup.
