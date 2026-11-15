@@ -42,6 +42,24 @@ func TestUnparsableCanvasIsFinding(t *testing.T) {
 		t.Fatal(ls)
 	}
 }
+func TestMiscasedCanvasIsWarnedNotListed(t *testing.T) {
+	root := initialized(t)
+	putFile(t, root, ".doan/canvases/A.HTML", validCanvas)
+	if ls := result(t, root, 0, "ls")["canvases"].([]any); len(ls) != 0 {
+		t.Fatal(ls)
+	}
+	got := result(t, root, 0, "check")
+	found := false
+	for _, v := range got["findings"].([]any) {
+		f := v.(map[string]any)
+		if f["code"] == "canvas_extension_case" && f["path"] == ".doan/canvases/A.HTML" && f["severity"] == "warning" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal(got)
+	}
+}
 func TestRunRepositoryDiscoveryAndParsing(t *testing.T) {
 	root := initialized(t)
 	nested := filepath.Join(root, "sub")

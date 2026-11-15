@@ -65,3 +65,22 @@ func TestInitPublicationFailureThenRetry(t *testing.T) {
 		t.Fatal(again)
 	}
 }
+
+// Once the config is published the staged name is free, and another initializer may already own it.
+func TestInitLeavesTheStagedNameAfterPublication(t *testing.T) {
+	root := t.TempDir()
+	var staged string
+	_, err := initWithRename(Context{Start: root}, Flags{}, nil, func(from, to string) error {
+		staged = from
+		if err := os.Rename(from, to); err != nil {
+			return err
+		}
+		return os.WriteFile(from, []byte("another initializer"), 0o600)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, e := os.ReadFile(staged); e != nil || string(data) != "another initializer" {
+		t.Fatalf("another initializer's staged file was removed: %q, %v", data, e)
+	}
+}
