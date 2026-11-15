@@ -877,8 +877,8 @@ body:has(.shell-top) { background: transparent; }
 .agent-note { display: inline-flex; align-items: center; gap: var(--space-1h); margin-left: auto; }
 :is(.model-item, .project-item, .effort-popover .doan-menu-item) { display: flex; align-items: center; gap: var(--space-2); }
 .model-name { flex: 1; min-width: 0; }
-/* The provider's default row carries a small "Default" after its name, the Frame drawer's "Viewing" look (caption,
-   metadata ink). */
+/* The provider's default row carries a small "Default" after its name: caption in metadata ink, a mark rather than a
+   second name. */
 .model-default { margin-left: var(--space-1h); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 /* The Older models line at a group's end (model-drawer-older, draft frames inline and settings): its name in the subtle
    ink, the count in the metadata ink, a chevron in the check slot that points down while folded and up while open. */
