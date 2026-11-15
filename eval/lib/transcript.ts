@@ -29,9 +29,13 @@ export interface DoanArgs { positionals: string[]; flags: { name: string; value:
 
 const TRUE = /^(?:1|t|T|true|TRUE|True)$/;
 
+// A frame id checkFrame accepts: not empty, at most 200 characters, no control character.
+const frameAccepted = (frame: string | undefined) => frame === undefined || (frame !== "" && [...frame].length <= 200 && !/[\u0000-\u001f\u007f]/.test(frame));
+
 // The argument shapes the commands the checks read refuse with a usage error before doing anything (openInput,
-// exportInput, DesignSkill; tied to the CLI by transcript.test.ts). --frame accumulates in the flag set, and these
-// commands refuse a second one.
+// exportInput, checkFrame, DesignSkill with designskill.ValidID; tied to the CLI by transcript.test.ts). --frame
+// accumulates in the flag set, and these commands refuse a second one. An id of the right shape that is not in the
+// catalog is refused too; the preset checks compare ids with the catalog themselves.
 function shapeAccepted(positionals: string[], flags: DoanArgs["flags"]): boolean {
   const all = (name: string) => flags.filter(flag => flag.name === name);
   const frames = all("frame").length;
@@ -39,9 +43,9 @@ function shapeAccepted(positionals: string[], flags: DoanArgs["flags"]): boolean
   const prototype = last("prototype") !== undefined && (last("prototype")!.value === undefined || TRUE.test(last("prototype")!.value!));
   const operands = positionals.length - 1;
   switch (positionals[0]) {
-    case "open": return operands === 1 && frames <= 1 && last("frame")?.value !== "" && (frames === 1 || !prototype);
-    case "export": return operands === 1 && !!last("o")?.value && frames <= 1 && last("frame")?.value !== "" && prototype === (frames === 1);
-    case "design-skill": return operands <= 1;
+    case "open": return operands === 1 && frames <= 1 && frameAccepted(last("frame")?.value) && (frames === 1 || !prototype);
+    case "export": return operands === 1 && !!last("o")?.value && frames <= 1 && frameAccepted(last("frame")?.value) && prototype === (frames === 1);
+    case "design-skill": return operands === 0 || (operands === 1 && /^[a-z]+(?:-[a-z]+)*$/.test(positionals[1]!));
     default: return true;
   }
 }
@@ -104,7 +108,8 @@ export function doanCommand(words: string[]): string | undefined {
   return doanPositionals(words)?.[0];
 }
 
-interface ExtractedCall { name: string; command?: string; patchCandidate?: string }
+// `patch` is the text of every apply_patch call given a literal, run or only a candidate.
+interface ExtractedCall { name: string; command?: string; patch?: string; patchCandidate?: string }
 
 // Stands in for an exec_command whose command is not a plain string (a template, a variable, an expression): it ran
 // something the reader cannot see. parseCommand reads it as incomplete, so no absence check holds beside it, and it
@@ -140,7 +145,7 @@ function execCalls(source: string): ExtractedCall[] {
         const start = tokens[0] === "await" ? 1 : 0;
         const end = tokens.at(-1) === ";" ? tokens.length - 1 : tokens.length;
         const standalone = simpleLiteral && i === start && end === i + 6;
-        if (!standalone) calls.push({ name, patchCandidate: patch });
+        calls.push(standalone ? { name, patch } : { name, patch, patchCandidate: patch });
       }
       continue;
     }
@@ -167,6 +172,7 @@ function rolloutCalls(event: { type?: string; payload?: { type?: string; name?: 
   if (event.type !== "response_item") return [];
   const p = event.payload;
   if (p?.type === "custom_tool_call" && /^(?:functions\.)?exec$/.test(p.name ?? "") && typeof p.input === "string") return execCalls(p.input);
+  if (p?.type === "custom_tool_call" && /^(?:functions\.)?apply_patch$/.test(p.name ?? "") && typeof p.input === "string") return [{ name: "apply_patch", patch: p.input }];
   if (p?.type !== "function_call" || typeof p.name !== "string") return [];
   if (p.name === "exec_command" || p.name === "functions.exec_command") {
     try {
@@ -321,6 +327,8 @@ function substitutions(command: string): { text: string; bodies: string[] } | nu
       i = end;
       continue;
     }
+    // A process substitution runs its command where this reader does not follow it.
+    if (quote === null && (c === "<" || c === ">") && command[i + 1] === "(") return null;
     if (quote === null && (c === "'" || c === '"')) quote = c;
     else if (quote === '"' && c === '"') quote = null;
     text += c;
@@ -331,7 +339,7 @@ function substitutions(command: string): { text: string; bodies: string[] } | nu
 // Wrappers that run their operand as the command. The index where that command starts, null when the words are not
 // such a wrapper (or `command -v`, a lookup), and undefined when an option is one the reader does not know, so where
 // the command starts is unknown.
-const WRAPPER = /^(?:.*\/)?(env|timeout|nohup|nice|time)$/;
+const WRAPPER = /^(?:.*\/)?(env|timeout|nohup|nice|time|sudo)$/;
 function wrappedAt(words: string[]): number | null | undefined {
   const name = ["command", "exec"].includes(words[0] ?? "") ? words[0] : WRAPPER.exec(words[0] ?? "")?.[1];
   let k = 1;
@@ -368,6 +376,8 @@ function wrappedAt(words: string[]): number | null | undefined {
     // The shell keyword takes -p; /usr/bin/time also -l, -h, -a and -o <file>.
     case "time": return options(["-p", "-l", "-h", "-a"], ["-o"], /^-o.+$/);
     case "exec": return options(["-c", "-l"], ["-a"], /^-a.+$/);
+    // Any other sudo option may change what runs (-e edits, -l lists, -s and -i start a shell), so it is not followed.
+    case "sudo": return options(["-E", "-H", "-n", "-S", "-A", "-b", "-P", "--preserve-env"], ["-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "-T"], /^(?:-[ugCDhprtUT].+|--preserve-env=.*)$/);
     default: return null;
   }
 }
@@ -380,6 +390,16 @@ const LOOP_BUDGET = 256;
 
 interface ReadState { left: number; incomplete: boolean }
 interface Expanded { words: string[]; unresolved: boolean }
+// A redirection the shell takes out of a command's words: the operator with its file descriptor, and the target as the
+// shell expands it (`unresolved` when it holds a variable or substitution this reader does not know).
+export interface Redirect { op: string; target: string; unresolved: boolean }
+export interface ShellCommand { words: string[]; redirects: Redirect[] }
+
+// Where parse put a redirection into a token group: MARK, the operator, MARK, the raw target. U+0001 never occurs in a
+// shell command.
+const MARK = "\u0001";
+// The shell takes a redirection before it reads the program, wherever it stands in the command.
+const REDIRECT_OPERATOR = /^\d*(?:&>>?|<<<|<<-?|<>|<&|>&|>>|>\||<|>)$/;
 
 // One raw token (quotes still on) to the words the shell makes of it. Single quotes and an escaped `\$` keep a
 // literal `$`. A variable that is not known here, or a command substitution, is left as written and marks the token
@@ -414,15 +434,16 @@ function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
 // unresolved word) sets `state.incomplete` and yields no words, and so does a simple command whose program or doan
 // operand is unresolved: the read is then not complete and must not be taken for the whole list of what ran.
 // Any other compound or reserved word (UNSUPPORTED) stops the read there, as incomplete.
-function runGroups(groups: string[][], vars: Map<string, string>, state: ReadState, bodies: string[]): string[][] {
-  const out: string[][] = [];
-  const append = (words: string[][]) => { for (const entry of words) out.push(entry); };
+function runGroups(groups: string[][], vars: Map<string, string>, state: ReadState, bodies: string[]): ShellCommand[] {
+  const out: ShellCommand[] = [];
+  const append = (commands: ShellCommand[]) => { for (const entry of commands) out.push(entry); };
   // A substitution runs before the command it is in, in a subshell that sees the variables set so far.
   const substitute = (tokens: string[]) => {
     for (const token of tokens) for (const m of token.matchAll(SUBSTITUTED)) append(parse(bodies[Number(m[1])]!, state, new Map(vars)));
   };
   for (let i = 0; i < groups.length; i++) {
-    const group = groups[i]!;
+    const raw = groups[i]!;
+    const group = raw.filter(token => !token.startsWith(MARK));
     if (group[0] === "for" && /^[A-Za-z_]\w*$/.test(group[1] ?? "") && group[2] === "in") {
       const head = groups[i + 1];
       const rest = head?.[0] === "do" && head.length > 1 ? [head.slice(1)] : [];
@@ -461,8 +482,13 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     }
     // Where such a construct ends is not known, so nothing after it is read and no variable is trusted past it.
     if (UNSUPPORTED.test(group[skipped] ?? "") || group[skipped + 1] === "()") { state.incomplete = true; vars.clear(); return out; }
-    // Only after that check: a substitution in a function or case body may never run.
-    substitute(group);
+    // Only after that check: a substitution in a function or case body may never run. One in a redirection target runs too.
+    substitute(raw);
+    const redirects = raw.filter(token => token.startsWith(MARK)).map(token => {
+      const [, op = "", target = ""] = token.split(MARK);
+      const expanded = expandToken(target, vars);
+      return { op, target: expanded.words.join(" "), unresolved: expanded.unresolved };
+    });
     const expanded = group.slice(skipped).map(token => expandToken(token, vars));
     let words = expanded.flatMap(token => token.words);
     let open = expanded.flatMap(token => token.words.map(() => token.unresolved));
@@ -475,12 +501,17 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     }
     if (at === undefined) { state.incomplete = true; continue; }
     if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0] ?? "") && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) { append(parse(words[2], state)); continue; }
+    // A script the reader cannot see into may run doan: a shell reading a file or its input, a sourced or executed
+    // script file, or an inline script of another language that names doan (as a word: not `.doan/` or `/tmp/doan-x`).
+    const program = words[0]?.split("/").pop() ?? "";
+    if (/^(?:ba|z|da)?sh$/.test(program) || ["source", "."].includes(program) || /\.(?:ba|z)?sh$/.test(program) ||
+      (/^(?:node|python[\d.]*|perl|ruby|osascript|deno|bun)$/.test(program) && words.slice(1).some(word => /(?<![\w.-])doan(?![\w.-])/.test(word)))) { state.incomplete = true; continue; }
     // eval runs its words, joined, as a command of this shell.
     if (words[0] === "eval") {
       if (open.some(Boolean)) state.incomplete = true; else append(parse(words.slice(1).join(" "), state, vars));
       continue;
     }
-    if (!words.length) continue;
+    if (!words.length) { if (redirects.length) out.push({ words, redirects }); continue; }
     // xargs adds words read from its input to the command it runs, so a doan run (or a shell or wrapper that may run
     // one) through it cannot be read.
     if (/^(?:.*\/)?xargs$/.test(words[0]!) && (open.some(Boolean) || words.slice(1).some(word => /^(?:.*\/)?(?:doan|(?:ba|z|da)?sh|env|timeout|nohup|nice|time|command|exec|eval|xargs)$/.test(word)))) { state.incomplete = true; continue; }
@@ -491,31 +522,48 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
       const read = readDoanArgs(words.map((word, index) => open[index] ? "\0" : word))!;
       known = !read.ambiguous && (read.args.refused ? !open.some(Boolean) : !read.args.positionals.some(operand => operand.includes("\0")));
     }
-    if (known) out.push(words); else state.incomplete = true;
+    if (known) out.push({ words, redirects }); else state.incomplete = true;
   }
   return out;
 }
 
-function parse(command: string, state: ReadState, vars = new Map<string, string>()): string[][] {
+function parse(command: string, state: ReadState, vars = new Map<string, string>()): ShellCommand[] {
   const plain = withoutHeredocsAndComments(command);
   if (plain.unread) state.incomplete = true;
   const taken = substitutions(plain.text);
   if (taken === null) { state.incomplete = true; return []; }
   const groups: string[][] = [[]];
-  for (const token of taken.text.matchAll(/[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s;&|"'])+/g)) {
+  // An unquoted redirection operator is a token of its own (`2>&1` is not a background `&`), joined with the word
+  // after it, its target; heredoc bodies are already gone, so a `<<` takes its tag.
+  let operator: string | undefined;
+  for (const token of taken.text.matchAll(/\d*(?:&>>?|<<<|<<-?|<>|<&|>&|>>|>\||<|>)|[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s;&|"'<>])+/g)) {
     const value = token[0];
-    if (/^[;&|\n]+$/.test(value)) groups.push([]);
+    const separator = /^[;&|\n]+$/.test(value);
+    // An operator with no word after it is a syntax error: the shell runs nothing of that command line.
+    if (operator !== undefined && (separator || REDIRECT_OPERATOR.test(value))) { state.incomplete = true; return []; }
+    if (operator !== undefined && !separator && !REDIRECT_OPERATOR.test(value)) { groups.at(-1)!.push(`${MARK}${operator}${MARK}${value}`); operator = undefined; continue; }
+    operator = undefined;
+    if (separator) groups.push([]);
+    else if (REDIRECT_OPERATOR.test(value)) operator = value;
     else groups.at(-1)!.push(value);
   }
+  if (operator !== undefined) { state.incomplete = true; return []; }
   return runGroups(groups.filter(g => g.length), vars, state, taken.bodies);
 }
 
-// The words of what a command runs, and whether the read is complete. An incomplete read lacks the commands it
-// could not follow (see runGroups): the words it does give are real, but they are not the whole list.
-export function parseCommand(command: string): { words: string[][]; incomplete: boolean } {
+// Each command a command line runs, with its words and its redirections, and whether the read is complete. An
+// incomplete read lacks the commands it could not follow (see runGroups): what it does give is real, but it is not
+// the whole list. A command that is only redirections (`> file`) has no words.
+export function readCommands(command: string): { commands: ShellCommand[]; incomplete: boolean } {
   const state: ReadState = { left: LOOP_BUDGET, incomplete: false };
-  const words = parse(command, state);
-  return { words, incomplete: state.incomplete };
+  const commands = parse(command, state);
+  return { commands, incomplete: state.incomplete };
+}
+
+// The words of what a command runs, and whether the read is complete (see readCommands).
+export function parseCommand(command: string): { words: string[][]; incomplete: boolean } {
+  const read = readCommands(command);
+  return { words: read.commands.filter(entry => entry.words.length).map(entry => entry.words), incomplete: read.incomplete };
 }
 
 // Whether any command could not be read to the end. Its missing words may have been anything, so a check that needs
@@ -623,7 +671,8 @@ function toolSearches(transcript: string): ToolSearch[] {
   });
 }
 
-export interface ToolCalls { commands: string[]; mcpTools: string[]; patchCandidates?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
+// patchFiles: the files apply_patch calls name (added, updated, deleted or moved to), candidates included.
+export interface ToolCalls { commands: string[]; mcpTools: string[]; patchCandidates?: string[]; patchFiles?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
 
 export function toolCalls(transcript: string): ToolCalls {
   const outputs = invocationOutputs(transcript);
@@ -633,5 +682,6 @@ export function toolCalls(transcript: string): ToolCalls {
     catch { return []; }
   });
   const patchCandidates = patchCalls.flatMap(call => call.patchCandidate === undefined ? [] : [call.patchCandidate]);
-  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(patchCandidates.length ? { patchCandidates } : {}), ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
+  const patchFiles = [...new Set(patchCalls.flatMap(call => [...(call.patch ?? "").matchAll(/^\*\*\* (?:(?:Add|Update|Delete) File|Move to): (.+)$/gm)].map(m => m[1]!.trim())))];
+  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(patchCandidates.length ? { patchCandidates } : {}), ...(patchFiles.length ? { patchFiles } : {}), ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
 }

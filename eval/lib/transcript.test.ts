@@ -516,7 +516,7 @@ test("redirections and their targets are not words of the command", () => {
   assert.equal(doanArgs(commandWords("doan design-skill document --json > /tmp/x")[0]!)?.refused, false);
   // A redirection with no target is a syntax error, and a process substitution runs a command this reader does not.
   read("doan active >", [], true);
-  read("diff <(doan design-skill polish --json) /tmp/x", [["diff", "/tmp/x"]], true);
+  read("diff <(doan design-skill polish --json) /tmp/x", [], true);
 });
 
 test("readCommands gives each command's redirections with their targets as the shell expands them", () => {
@@ -552,4 +552,12 @@ test("a script the reader cannot see into makes the read incomplete", () => {
   // An inline script that does not mention doan runs no doan, and a shell -c script is read as before.
   read(`node -e "console.log(1)"`, [["node", "-e", "console.log(1)"]]);
   read("bash -c 'doan active'", [["doan", "active"]]);
+});
+
+test("an inline script that only names a path containing doan is read as it was", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  read(`doan design-skill document --json > /tmp/doan-doc.json; python3 -I -c "import json;print(json.load(open('/tmp/doan-doc.json'))['result']['body'])"`,
+    [["doan", "design-skill", "document", "--json"], ["python3", "-I", "-c", "import json;print(json.load(open('/tmp/doan-doc.json'))['result']['body'])"]]);
+  read("python3 fix.py .doan/canvases/a.html", [["python3", "fix.py", ".doan/canvases/a.html"]]);
+  read(`python3 -c "import subprocess; subprocess.run(['/usr/local/bin/doan', 'active'])"`, [], true);
 });

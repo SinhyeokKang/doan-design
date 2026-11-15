@@ -2,6 +2,7 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Checks } from "../../lib/types.ts";
 import { commandWords, doanArgs, lastFlag } from "../../lib/transcript.ts";
+import { prototypeCanvasPath } from "../../lib/prototype.ts";
 
 const canvas = ".doan/canvases/profile.html";
 // The prompt names this file: the folder that holds the repo, outside every checkout.
@@ -17,7 +18,8 @@ export function exportCalls(commands: string[]): ExportCall[] {
   });
 }
 
-const sameCanvas = (repo: string, cwd: string, arg: string | undefined) => arg !== undefined && resolve(cwd, arg) === resolve(repo, canvas);
+// By realpath, as the CLI and the open and prototype checks compare canvases.
+export const sameCanvas = (repo: string, cwd: string, arg: string | undefined) => arg !== undefined && prototypeCanvasPath(cwd, arg) === prototypeCanvasPath(repo, canvas);
 
 // The page's own markup and each canvas inside a `srcdoc`, which the browser parses as a second document.
 export function documents(page: string): string[] {
