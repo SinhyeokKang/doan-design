@@ -521,21 +521,67 @@ test("redirections and their targets are not words of the command", () => {
 
 test("readCommands gives each command's redirections with their targets as the shell expands them", () => {
   assert.deepEqual(readCommands(`echo 'export A=1'>>~/.zshrc 2>/dev/null`), {
-    commands: [{ words: ["echo", "export A=1"], redirects: [{ op: ">>", target: "~/.zshrc", unresolved: false }, { op: "2>", target: "/dev/null", unresolved: false }] }],
+    commands: [{ words: ["echo", "export A=1"], homePaths: [undefined, undefined], redirects: [{ op: ">>", target: "~/.zshrc", unresolved: false, homePath: "/.zshrc" }, { op: "2>", target: "/dev/null", unresolved: false, homePath: undefined }] }],
     incomplete: false,
   });
   assert.deepEqual(readCommands(`f=/tmp/x; echo hi > "$f"; echo hi > "$g"`).commands.flatMap(c => c.redirects), [
-    { op: ">", target: "/tmp/x", unresolved: false },
-    { op: ">", target: "$g", unresolved: true },
+    { op: ">", target: "/tmp/x", unresolved: false, homePath: undefined },
+    { op: ">", target: "$g", unresolved: true, homePath: undefined },
   ]);
   // A redirection on a loop's done applies to every command the loop ran.
   assert.deepEqual(readCommands("for p in a b; do echo $p; done >> /tmp/x").commands, [
-    { words: ["echo", "a"], redirects: [{ op: ">>", target: "/tmp/x", unresolved: false }] },
-    { words: ["echo", "b"], redirects: [{ op: ">>", target: "/tmp/x", unresolved: false }] },
+    { words: ["echo", "a"], homePaths: [undefined, undefined], redirects: [{ op: ">>", target: "/tmp/x", unresolved: false, homePath: undefined }] },
+    { words: ["echo", "b"], homePaths: [undefined, undefined], redirects: [{ op: ">>", target: "/tmp/x", unresolved: false, homePath: undefined }] },
   ]);
   // A command that is only a redirection still writes its target.
-  assert.deepEqual(readCommands("> ~/.zshrc").commands, [{ words: [], redirects: [{ op: ">", target: "~/.zshrc", unresolved: false }] }]);
+  assert.deepEqual(readCommands("> ~/.zshrc").commands, [{ words: [], homePaths: [], redirects: [{ op: ">", target: "~/.zshrc", unresolved: false, homePath: "/.zshrc" }] }]);
   assert.deepEqual(parseCommand("> ~/.zshrc"), { words: [], incomplete: false });
+});
+
+// Only an unquoted leading `~` and a `$HOME` outside single quotes become the home directory; a variable assigned just
+// the home directory carries it, and a quoted `'~'` or `'$HOME'` is the literal text.
+test("readCommands marks the words and targets the shell expands into the home directory", () => {
+  const target = (command: string) => { const r = readCommands(command).commands.flatMap(c => c.redirects).at(-1)!; return [r.target, r.homePath]; };
+  for (const [command, expected] of [
+    ["echo x >> ~/.zshrc", ["~/.zshrc", "/.zshrc"]],
+    ['echo x >> "$HOME/.zshrc"', ["$HOME/.zshrc", "/.zshrc"]],
+    ['echo x >> "$HOME"/.zshrc', ["$HOME/.zshrc", "/.zshrc"]],
+    ["echo x >> ${HOME}/.zprofile", ["${HOME}/.zprofile", "/.zprofile"]],
+    ["echo x >> ~", ["~", ""]],
+    ["echo x >> '~/.zshrc'", ["~/.zshrc", undefined]],
+    ['echo x >> "~/.zshrc"', ["~/.zshrc", undefined]],
+    ["echo x >> '$HOME/.zshrc'", ["$HOME/.zshrc", undefined]],
+    ["echo x >> \\$HOME/.zshrc", ["$HOME/.zshrc", undefined]],
+    ["echo x >> \\~/.zshrc", ["~/.zshrc", undefined]],
+    ['echo x >> ~"/.zshrc"', ["~/.zshrc", undefined]],
+    ['echo x >> "$HOME".bak/.zshrc', ["$HOME.bak/.zshrc", undefined]],
+    ['echo x >> "$HOME"x', ["$HOMEx", undefined]],
+    ['D=$HOME; echo x >> "$D/.zshrc"', ["$D/.zshrc", "/.zshrc"]],
+    ['D="$HOME/"; echo x >> $D.zshrc', ["$D.zshrc", "/.zshrc"]],
+    ["D=~; echo x >> $D/.zshrc", ["~/.zshrc", "/.zshrc"]],
+    ['D=$HOME; E="$D"; echo x >> ${E}/.zshrc', ["${E}/.zshrc", "/.zshrc"]],
+    ["D='~'; echo x >> $D/.zshrc", ["~/.zshrc", undefined]],
+    ["D=$HOME/sub; echo x >> $D/.zshrc", ["$D/.zshrc", undefined]],
+    ["D=$HOME; D=/tmp; echo x >> $D/.zshrc", ["/tmp/.zshrc", undefined]],
+    ["HOME=/tmp/h; echo x >> $HOME/.zshrc", ["/tmp/h/.zshrc", undefined]],
+    ["for d in ~; do echo x >> $d/.zshrc; done", ["~/.zshrc", "/.zshrc"]],
+    ["for d in '~'; do echo x >> $d/.zshrc; done", ["~/.zshrc", undefined]],
+  ] as [string, [string, string | undefined]][]) assert.deepEqual(target(command), expected, command);
+  assert.deepEqual(readCommands("tee -a ~/.zshrc '~/.zprofile' \"$HOME\"/.bashrc").commands[0]!.homePaths, [undefined, undefined, "/.zshrc", undefined, "/.bashrc"]);
+  // The home path does not change what was read: `$HOME` stays unresolved, and a variable holding it is too.
+  assert.deepEqual(parseCommand("D=$HOME; $D/bin/doan active"), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand("D=~; $D/bin/doan active"), { words: [["~/bin/doan", "active"]], incomplete: false });
+});
+
+// A backslash quotes the next character, so `\>` is a word, and inside `[[ … ]]` `<` and `>` compare strings.
+test("an escaped operator and a [[ ]] comparison are not redirections", () => {
+  assert.deepEqual(readCommands("echo a \\> ~/.zshrc").commands.map(c => [c.words, c.redirects]), [[["echo", "a", ">", "~/.zshrc"], []]]);
+  assert.deepEqual(readCommands("[ a \\< b ]").commands.map(c => [c.words, c.redirects]), [[["[", "a", "<", "b", "]"], []]]);
+  assert.deepEqual(readCommands("echo a\\ b \\| c").commands.map(c => c.words), [["echo", "a b", "|", "c"]]);
+  assert.deepEqual(readCommands('[[ a > $b ]] && echo yes').commands.map(c => [c.words, c.redirects]), [[["[[", "a", ">", "$b", "]]"], []], [["echo", "yes"], []]]);
+  // A redirection after the closing ]] still is one.
+  assert.deepEqual(readCommands("[[ a < b ]] > /tmp/x").commands[0]!.redirects.map(r => r.target), ["/tmp/x"]);
+  assert.equal(readCommands("echo a \\> ~/.zshrc").incomplete, false);
 });
 
 test("sudo runs its operand; a sudo option the reader does not know makes the read incomplete", () => {
@@ -563,6 +609,36 @@ test("an inline script that only names a path containing doan is read as it was"
   const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
   read(`doan design-skill document --json > /tmp/doan-doc.json; python3 -I -c "import json;print(json.load(open('/tmp/doan-doc.json'))['result']['body'])"`,
     [["doan", "design-skill", "document", "--json"], ["python3", "-I", "-c", "import json;print(json.load(open('/tmp/doan-doc.json'))['result']['body'])"]]);
-  read("python3 fix.py .doan/canvases/a.html", [["python3", "fix.py", ".doan/canvases/a.html"]]);
   read(`python3 -c "import subprocess; subprocess.run(['/usr/local/bin/doan', 'active'])"`, [], true);
+});
+
+// An interpreter's script is read only when it is inline (-c, -e) or a heredoc or here-string the transcript shows; a
+// script file, a script read from a file or a pipe, and a find -exec into doan or a shell may run doan unseen.
+test("an interpreter running a script the reader cannot see, or find -exec into doan, makes the read incomplete", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  for (const command of [
+    "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['doan', 'active'])\nEOF",
+    "python3 -I - .doan/canvases/a.html <<'EOF'\nimport os\nos.system('doan check --json')\nEOF",
+    "node <<EOF\nrequire('child_process').execSync('doan ls --json')\nEOF",
+    "python3 <<< 'import os; os.system(\"doan active\")'",
+    "python3 /tmp/run.py",
+    "python3 fix.py .doan/canvases/a.html",
+    "node build.mjs",
+    "python3 -u /tmp/run.py --repo .",
+    "deno run x.ts",
+    "python3 < /tmp/run.py",
+    "node - < /tmp/run.js",
+    "find . -name '*.html' -exec doan check {} \\;",
+    "find . -execdir /usr/local/bin/doan check {} +",
+    "find .doan -exec sh -c 'doan check \"$1\"' _ {} \\;",
+  ]) read(command, [], true);
+  read("cat /tmp/run.py | python3", [["cat", "/tmp/run.py"]], true);
+  // A script the transcript shows that does not name doan, a module, a version query and a find that runs no doan stay read.
+  read("python3 - <<'EOF'\nimport json\nprint(json.load(open('.doan/canvases/a.html')))\nEOF", [["python3", "-"]]);
+  read("python3 -I - .doan/canvases/a.html <<'EOF'\nimport sys\nprint(open(sys.argv[1]).read())\nEOF", [["python3", "-I", "-", ".doan/canvases/a.html"]]);
+  read("doan ls --json | python3 -m json.tool", [["doan", "ls", "--json"], ["python3", "-m", "json.tool"]]);
+  read("python3 --version; node -v", [["python3", "--version"], ["node", "-v"]]);
+  read("perl -0pi -e 's/a/b/' .doan/canvases/a.html", [["perl", "-0pi", "-e", "s/a/b/", ".doan/canvases/a.html"]]);
+  read("cat <<'EOF' > /tmp/x\ndoan active\nEOF", [["cat"]]);
+  read("find . -name '*.html' -exec cat {} \\;", [["find", ".", "-name", "*.html", "-exec", "cat", "{}", ";"]]);
 });
