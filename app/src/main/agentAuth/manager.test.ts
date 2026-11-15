@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -2064,6 +2064,27 @@ describe("MCP connector steps", () => {
     expect(await out.done).toMatchObject({ phase: "disconnected" });
     expect(listed).toEqual({ code: 0, stdout: "[]", stderr: "" });
     expect(calls).toEqual([{ provider: "codex", request: { kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null, profileDir: storage.profileDir("codex") } }]);
+  });
+  // `claude mcp list` starts the stdio servers the profile's .claude.json names, which an agent can write from inside
+  // the outer fence, so the logout step's commands run in that fence too; the provider's own logout does not.
+  it("runs a Claude sign-out's MCP logout commands in the outer fence", async () => {
+    const userData = join(root, "ud"); storage = new AuthStorage(join(userData, "agent-auth"), cipher);
+    const m = manager({ fence: { userData, exec: "/fence/sandbox-exec" }, mcpLogout: async (_provider, request) => { await request.run(["mcp", "list"]); return { failed: [] }; } }); await m.load();
+    await signedInClaude(m, "a1");
+    const out = started(await m.signOut("claude"));
+    const list = await next("status");
+    const [command, args, options] = spawn.mock.calls.at(-1)!;
+    expect(command).toBe("/fence/sandbox-exec");
+    expect(args).toContain(`PROFILE=${realpathSync.native(storage.profileDir("claude"))}`);
+    expect(args.slice(-5)).toEqual(["/bin/fake-cli", "-c", "store=keyring", "mcp", "list"]);
+    expect(options.cwd).toBe(storage.profileDir("claude"));
+    settledSet.add(list); list.finish(0);
+    const logout = await finish("logout", 0);
+    expect(spawn.mock.calls.find(call => call[1].includes("logout"))![0]).toBe("/bin/fake-cli");
+    expect(logout.args).toEqual(["-c", "store=keyring", "logout"]);
+    keychain = { status: "disconnected" };
+    await finish("status", 0);
+    expect(await out.done).toMatchObject({ phase: "disconnected" });
   });
   it("finishes a sign-out whose MCP logout throws", async () => {
     const m = manager({ mcpLogout: async () => { throw new Error("list failed"); } }); await m.load();

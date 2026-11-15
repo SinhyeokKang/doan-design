@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { appendFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { hookLinks as fileHookLinks, type AuthProcess, type Lease, type McpLogoutRequest, type Spawn } from "../agentAuth/manager";
+import { claudeFencedCommand } from "../agentAuth/fence";
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import type { AuthState, Provider, Readiness } from "../agentAuth/types";
+import { readRegularFileSync } from "../regularFile";
 import { mcpAuthLink } from "./authLink";
 import { CONNECTOR_NAME, connectorName, connectorWithUrl, parseConnectorUrl, type UrlRejection } from "./names";
 import { codexServerToml, mcpLogoutOutcome, mcpLogoutPlan, plaintextLeftovers, reconcilePlan, type McpLogoutInput } from "./plans";
@@ -58,6 +60,10 @@ export interface McpServiceOptions {
   baseArgs?: Record<McpProvider, string[]>;
   tmpdir?: string; newId?: () => string;
   limits?: Partial<typeof LIMITS>;
+  // The outer fence for every Claude command (claudeFencedCommand): `claude mcp list` and `get` start the stdio servers
+  // the profile's .claude.json names, which an agent in the outer fence can write. Without it they run unfenced, which
+  // only tests use.
+  fence?: { userData: string; exec?: string };
 }
 
 const LIMITS = {
@@ -343,7 +349,8 @@ export class McpService implements McpConversationFacts {
   }
   private profileServers(provider: McpProvider, profileDir: string): ListedServer[] | null {
     let text: string;
-    try { text = readFileSync(join(profileDir, provider === "codex" ? "config.toml" : ".claude.json"), "utf8"); } catch { return null; }
+    // The provider process owns the profile and could leave a FIFO or a huge file here.
+    try { text = readRegularFileSync(join(profileDir, provider === "codex" ? "config.toml" : ".claude.json")); } catch { return null; }
     return provider === "codex" ? codexConfigServers(text) : claudeConfigServers(text);
   }
 
@@ -629,7 +636,10 @@ export class McpService implements McpConversationFacts {
     if (owner.stopped) return { code: null, output: "", timedOut: false };
     const spawn = options.pty ? this.options.spawnPty : this.options.spawn;
     let child: AuthProcess;
-    try { child = spawn(lease.command, [...this.baseArgs[provider], ...args], { cwd: options.cwd ?? lease.profileDir, env: options.env ?? lease.env }); }
+    const fence = provider === "claude" ? this.options.fence : undefined;
+    const launch = fence ? claudeFencedCommand(fence, lease.profileDir, lease.command, [...this.baseArgs[provider], ...args]) : { command: lease.command, args: [...this.baseArgs[provider], ...args] };
+    if (!launch) throw new Failure("failed", "the fence could not be built");
+    try { child = spawn(launch.command, launch.args, { cwd: options.cwd ?? lease.profileDir, env: options.env ?? lease.env }); }
     catch (error) { throw new Failure("failed", `the CLI could not be started: ${message(error)}`); }
     owner.processes.add(child);
     if (owner.stopped) child.stop();

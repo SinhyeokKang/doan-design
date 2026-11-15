@@ -1,11 +1,13 @@
+import { realpathSync } from "node:fs";
 import { codexPermission, type CodexDefaults, type CodexWorkspace, type PermissionModeId } from "../conversation/permissionMode";
 import type { Provider } from "./types";
 
 // How a Doan-connection run is kept out of the rest of Doan's userData (the other providers' profiles, Doan's own
 // conversations, the vault, other conversations' pasted images). A process already inside a Seatbelt policy cannot
-// apply a second one with any rule (sandbox_apply fails with exit 71), so a provider that sandboxes its own commands
-// (Claude Code with its sandbox on, Codex outside Full access) gets Doan's limits as its own settings instead of an
-// outer sandbox-exec.
+// apply a second one with any rule (sandbox_apply fails with exit 71), so Codex outside Full access, which sandboxes its
+// own commands, gets Doan's limits as its own settings instead of an outer sandbox-exec. Claude Code always runs in the
+// outer one with its own sandbox turned off: the hooks, MCP servers and helpers the CLI starts beside the model run
+// outside its command sandbox, and choosing the mechanism by detecting them kept missing shapes.
 export const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 // The two ways a fenced Codex server runs; it keeps one for its life.
 export type FenceMechanism = "fence" | "codex-profile";
@@ -37,8 +39,8 @@ const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")
 `;
 // Claude's and Codex's own settings in the profile: settings files, and the skills, subagents and plugins that can carry
 // hooks and MCP servers (Claude skill and subagent frontmatter hooks, skills-dir plugins; a Codex skill's MCP
-// dependencies, Codex plugins). A later run reads them, and the next Claude or Codex run may start without this outer
-// fence (Claude by its sandbox setting, Codex outside Full access): hooks, MCP servers and notify named there then run
+// dependencies, Codex plugins). A later process reads them, and some start without this outer fence (Codex outside
+// Full access; Claude's sign-in, status and sign-out commands): hooks, MCP servers and notify named there then run
 // outside any sandbox (Codex MCP servers and notify do even inside its own, probe), so the agent must not plant them.
 // Doan writes the doan skill stub before spawning, so it stays readable. Neither CLI writes these files during a run (Claude Code 2.1.319: suggested permissions go
 // to the project's local settings or the session; codex-cli 0.166.0 wrote no config.toml). Doan main writes them from
@@ -51,8 +53,8 @@ const hooked = (provider: Provider) => provider === "claude" || provider === "an
 const codexSettingsFiles = (profile: string) => [`${profile}/config.toml`, `${profile}/hooks.json`, `${profile}/managed_config.toml`, `${profile}/rules`];
 const codexSettingsDirs = (profile: string) => [`${profile}/skills`, `${profile}/plugins`];
 // commands/ is the older skill format and takes the same frontmatter, hooks included. .claude/ and .mcp.json are the
-// profile's project settings and project MCP servers for a process Doan starts with the profile as its folder (the MCP
-// connector commands, unfenced, which health-check project servers).
+// profile's project settings and project MCP servers for a process Doan starts with the profile as its folder (the
+// usage read and the MCP connector commands, which health-check project servers).
 const claudeSettingsDirs = (profile: string) => [`${profile}/skills`, `${profile}/agents`, `${profile}/plugins`, `${profile}/commands`, `${profile}/.claude`];
 const claudeSettingsFiles = (profile: string) => [`${profile}/settings.json`, `${profile}/.mcp.json`];
 
@@ -86,6 +88,14 @@ export function fenceArgs(provider: Provider, paths: FencePaths): string[] {
 export function fencedCommand(command: string, args: readonly string[], fence?: readonly string[], exec = SANDBOX_EXEC): { command: string; args: string[] } {
   return fence ? { command: exec, args: [...fence, command, ...args] } : { command, args: [...args] };
 }
+// A Claude process Doan starts outside a conversation (the usage read, MCP connector commands, a sign-out's MCP logout)
+// in the outer fence: the CLI starts the MCP servers the profile's .claude.json names, and the usage read's SDK those of
+// a .mcp.json in its folder or any folder above it, all of which an agent in the outer fence can write. null: the fence
+// cannot be built, and the process must not start.
+export function claudeFencedCommand(setup: { userData: string; exec?: string }, profileDir: string, command: string, args: readonly string[], realpath: (path: string) => string = path => realpathSync.native(path)): { command: string; args: string[] } | null {
+  const paths = resolveFencePaths({ provider: "claude", userData: setup.userData, profileDir, attachments: [] }, realpath);
+  return paths ? fencedCommand(command, args, fenceArgs("claude", paths), setup.exec) : null;
+}
 
 // Control characters: a path or name carrying one is refused rather than escaped (TOML takes no U+007F).
 const CONTROL = /[\x00-\x1f\x7f]/;
@@ -112,47 +122,14 @@ export function resolveFencePaths(input: { provider: Provider; userData: string;
   return { userData, profile, attachments: dirs };
 }
 
-// Claude Code's settings sources as the SDK's resolveSettings merges them (0.3.312): user < project < local < managed,
-// managed-settings.json first and its managed-settings.d drop-ins after it in name order. Each value is the file's
-// parsed JSON, undefined when it is missing or unreadable.
-export interface ClaudeSettingSources { user: unknown; project: unknown; local: unknown; managed: readonly unknown[] }
-export function claudeSandboxEnabled(sources: ClaudeSettingSources): boolean {
-  let enabled = false;
-  for (const source of [sources.user, sources.project, sources.local, ...sources.managed]) {
-    const sandbox = record(source) ? source.sandbox : undefined;
-    if (record(sandbox) && typeof sandbox.enabled === "boolean") enabled = sandbox.enabled;
-  }
-  return enabled;
-}
-const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
-// What the repository holds beside its settings files. mcpJson: a .mcp.json in the run's folder or above it, where the
-// CLI looks for project MCP servers. extensionHooks: a project skill, subagent or command whose frontmatter names hooks,
-// or one Doan could not read. unreadable: a project or local settings file that exists but Doan could not read or parse.
-export interface ClaudeRepoSources { mcpJson: boolean; extensionHooks: boolean; unreadable: boolean }
-// Whether the repository makes the CLI start its own code beside the model: hooks, project MCP servers, plugins (which
-// carry both) or credential helper commands. Claude's sandbox holds only the model's commands, so this code would run
-// outside every fence on a sandbox-on turn. A .mcp.json counts on its own: through the SDK, Claude Code 2.1.325 starts
-// its servers with no enable key or approval. The AWS helpers ran once the settings' env selected Bedrock, which the
-// forced login organization did not stop; apiKeyHelper is a command of the same kind. A key in an unexpected shape
-// counts, since the CLI may still read part of it. The Doan profile's own settings and managed settings are not the
-// repository's (the fence keeps the agent from writing the profile's).
-const REPO_CODE_KEYS = ["hooks", "enabledPlugins", "enabledMcpjsonServers", "awsAuthRefresh", "awsCredentialExport", "apiKeyHelper"];
-export function claudeRepoCode(sources: ClaudeSettingSources, repo: ClaudeRepoSources): boolean {
-  if (repo.unreadable || repo.extensionHooks || repo.mcpJson) return true;
-  const named = (value: unknown) => value !== undefined && !(record(value) && !Object.keys(value).length) && !(Array.isArray(value) && !value.length) && value !== "";
-  return [sources.project, sources.local].some(source => record(source) &&
-    (REPO_CODE_KEYS.some(key => named(source[key])) || (source.enableAllProjectMcpServers !== undefined && source.enableAllProjectMcpServers !== false)));
-}
-
 // Each listed directory's entries, as fenceListingDirs names them.
 // directory: false for a link too, so a link gets a file rule; Doan makes no link inside userData that points back into it
 // (Electron's Singleton* links point outside).
 export type FenceListing = ReadonlyMap<string, readonly { name: string; directory: boolean }[]>;
 export interface FenceEntry { path: string; directory: boolean }
-// What a provider's own settings reopen: Claude this turn's pasted images and the $BROWSER hook it runs, Codex its
-// whole attachment store (paths.attachments) and no hook.
-function allowedPaths(provider: "claude" | "codex", paths: FencePaths): string[] {
-  return [paths.profile, `${paths.userData}/runtime.json`, ...paths.attachments, ...provider === "claude" ? [`${paths.userData}/agent-auth/browser-hook`] : []];
+// What Codex's permission profiles reopen: its whole attachment store (paths.attachments) and no hook.
+function allowedPaths(paths: FencePaths): string[] {
+  return [paths.profile, `${paths.userData}/runtime.json`, ...paths.attachments];
 }
 function ancestors(paths: FencePaths, allowed: readonly string[]): string[] {
   const u = paths.userData, found = new Set<string>([u]);
@@ -160,17 +137,17 @@ function ancestors(paths: FencePaths, allowed: readonly string[]): string[] {
   return [...found].sort();
 }
 // userData and every directory between it and an allowed path: the shell lists each for fenceDenied.
-export function fenceListingDirs(provider: "claude" | "codex", paths: FencePaths): string[] {
-  return ancestors(paths, allowedPaths(provider, paths));
+export function fenceListingDirs(paths: FencePaths): string[] {
+  return ancestors(paths, allowedPaths(paths));
 }
-// Characters a permission rule or a Codex filesystem entry may read as a pattern or as the end of its content.
+// Characters a Codex filesystem entry may read as a pattern or as the end of its content.
 const PATTERN = /[*?[\]{}\\()]/;
 // Every entry off the way to an allowed path, denied by name. A deny over userData as a whole would beat what the
-// settings reopen inside it: Claude's denyWrite beats an allowWrite under it, and Codex applies a profile's deny
-// entries but not the narrower read and write entries under them to an approved escalated command (so `doan handoff`
-// lost runtime.json). The cost: an entry made after the listing is not denied.
-export function fenceDenied(provider: "claude" | "codex", paths: FencePaths, listing: FenceListing): FenceEntry[] | null {
-  const allowed = allowedPaths(provider, paths), dirs = ancestors(paths, allowed);
+// profile reopens inside it: Codex applies a profile's deny entries but not the narrower read and write entries under
+// them to an approved escalated command (so `doan handoff` lost runtime.json). The cost: an entry made after the
+// listing is not denied.
+export function fenceDenied(paths: FencePaths, listing: FenceListing): FenceEntry[] | null {
+  const allowed = allowedPaths(paths), dirs = ancestors(paths, allowed);
   if (PATTERN.test(paths.userData)) return null;
   const denied: FenceEntry[] = [];
   for (const dir of dirs) {
@@ -183,35 +160,6 @@ export function fenceDenied(provider: "claude" | "codex", paths: FencePaths, lis
   }
   return denied;
 }
-// A deny rule beats every allow, so the Read and Edit tools get the listed entries rather than userData as a whole,
-// which would hide the agent's own profile and this turn's pasted image. `//` starts an absolute path.
-export function claudeDenyRules(denied: readonly FenceEntry[]): string[] {
-  return denied.flatMap(entry => { const target = `/${entry.path}${entry.directory ? "/**" : ""}`; return [`Read(${target})`, `Edit(${target})`]; });
-}
-export interface ClaudeFenceSettings {
-  permissions: { deny: string[] };
-  sandbox: { enabled: true; allowUnsandboxedCommands: false; network?: { allowUnixSockets: string[] }; filesystem: { denyRead: string[]; allowRead: string[]; denyWrite: string[]; allowWrite: string[] } };
-}
-// The flag tier (SDK settings, the CLI's --settings), which neither the agent nor a repository can edit. Reading:
-// userData is denied and the allowed paths reopened (an allowRead holds inside a denyRead). Writing: a sandboxed
-// command writes only where it is allowed, so the profile is the one allowed path; the listed entries and the read-only
-// allowed paths are denied too, in case the agent's own profile settings widen allowWrite for a later turn. A new
-// entry is therefore writable only through such a widening. allowUnsandboxedCommands false keeps a command from asking
-// its way out (Full access would run it outside without asking).
-// Doan judged the sandbox on, so the flag tier keeps it on: a user, project or local source Doan misread can no longer
-// turn it off, which leaves only managed sources Doan does not read. The profile's settings.json, .claude.json, .mcp.json, skills,
-// agents, plugins, commands and .claude/ are closed to Bash and the Edit tool and stay readable (the CLI itself still writes .claude.json
-// and plugins/store; only a sandbox-on turn's tools are held here, the outer fence holds the rest for a sandbox-off one).
-// socket: the app socket's path. Claude's sandbox blocks unix sockets, and with allowUnsandboxedCommands false `doan`
-// cannot ask to run outside it, so only that socket is allowed (no other network changes).
-export function claudeFenceSettings(paths: FencePaths, denied: readonly FenceEntry[], socket?: string): ClaudeFenceSettings {
-  const allowed = allowedPaths("claude", paths);
-  const [settings, mcp] = claudeSettingsFiles(paths.profile);
-  const files = [settings!, `${paths.profile}/.claude.json`, mcp!], dirs = claudeSettingsDirs(paths.profile);
-  return { permissions: { deny: [...claudeDenyRules([...denied, ...files.map(path => ({ path, directory: false }))]), ...dirs.map(dir => `Edit(/${dir}/**)`)] }, sandbox: { enabled: true, allowUnsandboxedCommands: false, ...socket ? { network: { allowUnixSockets: [socket] } } : {}, filesystem: {
-    denyRead: [paths.userData], allowRead: allowed, denyWrite: [...denied.map(entry => entry.path), ...allowed.filter(path => path !== paths.profile), ...files, ...dirs], allowWrite: [paths.profile] } } };
-}
-
 // Codex permission profiles (experimental API): a profile's deny entries hold its sandboxed commands, approved
 // escalations and view_image. Defining any profile requires default_permissions, so Ask first runs on Doan's read-only
 // one; a Doan profile records no project trust, so Codex's own default there is read-only too. denied: listed when the

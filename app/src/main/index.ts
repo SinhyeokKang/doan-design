@@ -1019,7 +1019,7 @@ async function start(): Promise<void> {
   });
 
   removeStaleLinkDirs();
-  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
+  const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), fence: { userData }, locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
     // The onboarding tap comes after AuthIpc stored the link, so the link it opens is this prompt's.
     onChange: () => authIpc?.changed(), onPrompt: prompt => { authIpc?.prompted(prompt); onboarding?.prompted(prompt); },
     // A sign-out or replacement also stops the provider's usage read, whose lease it waits for like a run's.
@@ -1057,7 +1057,7 @@ async function start(): Promise<void> {
     usage = new UsageService({
       auth,
       readiness: provider => ipc.latest().providers.find(status => status.provider === provider)?.readiness ?? { ready: false, cause: "not_connected", action: "signIn" },
-      read: (provider, lease, signal) => readUsage(provider, lease, { spawn: spawnAuthProcess, probeDir }, signal),
+      read: (provider, lease, signal) => readUsage(provider, lease, { spawn: spawnAuthProcess, probeDir, fence: { userData } }, signal),
       visible: () => windowShown && !appHidden,
       publish: entries => send(USAGE_CHANNELS.changed, entries),
     });
@@ -1079,7 +1079,7 @@ async function start(): Promise<void> {
       readiness: provider => authIpc?.latest().providers.find(status => status.provider === provider)?.readiness ?? { ready: false, cause: "not_connected", action: "signIn" },
       spawn: spawnAuthProcess, spawnPty: ptySpawner({ packaged: app.isPackaged }),
       openExternal: url => electronShell.openExternal(url),
-      publish: snapshot => send(MCP_CHANNELS.changed, snapshot),
+      publish: snapshot => send(MCP_CHANNELS.changed, snapshot), fence: { userData },
     });
   }
   const mcpIpc = mcp ? new McpIpc(mcp) : null;

@@ -21,7 +21,7 @@ function world(provider: Provider, profileName: string = provider) {
   for (const dir of [profile, join(userData, "agent-auth", "profiles", "cursor"), join(userData, "conversations"), join(userData, "attachments", "0f4e"), join(userData, "attachments", "77aa"), project]) mkdirSync(dir, { recursive: true });
   writeFileSync(join(userData, "runtime.json"), "{}"); writeFileSync(join(userData, "attachments", "0f4e", "pasted.png"), "x");
   const socketDir = join(base, "sock"); mkdirSync(socketDir);
-  return { base, userData, real: realpathSync.native(userData), profile, project: realpathSync.native(project), managed: join(base, "managed"), socket: join(socketDir, "app.sock") };
+  return { base, userData, real: realpathSync.native(userData), profile, project: realpathSync.native(project), socket: join(socketDir, "app.sock") };
 }
 function prepare(provider: Provider, w: ReturnType<typeof world>, fence = true, release = vi.fn(async () => {})) {
   const connection: AccountConnection = { provider, connectionId: "conn-1", profile: provider, account: { id: "acct-1", workspace: provider === "claude" ? "org-1" : null, email: "ada@example.com" } };
@@ -31,7 +31,7 @@ function prepare(provider: Provider, w: ReturnType<typeof world>, fence = true, 
     state: () => state, check: vi.fn(), checked: vi.fn(async () => {}), confirm: vi.fn(),
     acquire: vi.fn(async (): Promise<Lease> => ({ command: `/bin/${provider}`, env: { PATH: "/shell/bin" }, profileDir: w.profile, release })),
   };
-  return { release, runtime, run: createAccountPrepare(runtime, "/Applications/doan.app/Contents/Resources/bin/doan", () => {}, undefined, undefined, fence ? { userData: w.userData, managedDir: w.managed, socket: () => w.socket } : undefined) };
+  return { release, runtime, run: createAccountPrepare(runtime, "/Applications/doan.app/Contents/Resources/bin/doan", () => {}, undefined, undefined, fence ? { userData: w.userData, socket: () => w.socket } : undefined) };
 }
 const pasted = (w: ReturnType<typeof world>): AttachmentRecord => ({ name: "pasted.png", size: 1, kind: "image", path: join(w.real, "attachments", "0f4e", "pasted.png") });
 
@@ -44,22 +44,20 @@ it("fences a conversation run with resolved paths and this turn's pasted image d
 it("opens nothing in the fence for a folder attachment, even one inside a pasted image directory", async () => {
   const w = world("claude");
   const inner = join(w.real, "attachments", "77aa", "inner"); mkdirSync(inner);
-  writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
   const folders: AttachmentRecord[] = [{ name: "inner", kind: "directory", path: inner }, { name: "attachments", kind: "directory", path: join(w.real, "attachments") }, { name: "user Data", kind: "directory", path: w.real }];
   const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [], attachments: [pasted(w), ...folders] });
   expect(ready.fence?.paths.attachments).toEqual([join(w.real, "attachments", "0f4e")]);
-  expect((ready.fence?.denied ?? []).map(entry => entry.path)).toEqual(expect.arrayContaining([`${w.real}/attachments/77aa`, `${w.real}/conversations`]));
 });
 it("gives no prepare without the fence setup a fence", async () => {
   const w = world("claude");
   expect((await prepare("claude", w, false).run({ root: w.project, mode: "new", runtime: "claude", text: "", anchors: [] })).fence).toBeUndefined();
 });
 // A Claude list read starts the CLI with the repository's settings sources, so its hooks and MCP servers start too.
-it("runs a Claude list read under the outer fence with its sandbox off, even when the settings turn the sandbox on", async () => {
+it("runs a Claude list read under the outer fence, even when the settings turn the sandbox on", async () => {
   const w = world("claude");
   writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
   const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "", anchors: [] }, undefined, "listing");
-  expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] }, claudeSandboxOff: true });
+  expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] } });
 });
 it("leaves the other providers' list reads unfenced", async () => {
   for (const provider of ["codex", "antigravity"] as const) {
@@ -74,89 +72,34 @@ it("refuses a Claude list read whose fence cannot be built as unknown and frees 
   await expect(run({ root: w.project, mode: "new", runtime: "claude", text: "", anchors: [] }, undefined, "listing")).rejects.toThrow(/^unknown$/);
   expect(release).toHaveBeenCalled();
 });
-// Each shape a repository can use to start its own code with the CLI: with the sandbox on from the profile, the turn
-// switches to the outer fence and turns the sandbox off at the flag tier, so hooks and MCP servers start inside it.
+// Code the repository or the profile makes the CLI start (hooks, MCP servers, plugins, credential helpers, Git filters)
+// runs beside the model, outside Claude's own sandbox, and detecting it kept missing shapes. So every Claude turn runs
+// under the outer fence, whatever a settings source says about the sandbox; the runner turns that sandbox off.
 const HOOKS = { hooks: { SessionStart: [{ hooks: [{ type: "command", command: "./reader.sh" }] }] } };
-const REPO_SHAPES: [string, (w: ReturnType<typeof world>) => void][] = [
-  ["hooks in the project's settings", w => { mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.json"), JSON.stringify({ sandbox: { enabled: true }, ...HOOKS })); }],
-  ["hooks in the local settings", w => { mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.local.json"), JSON.stringify(HOOKS)); }],
-  ["enableAllProjectMcpServers", w => { mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.json"), JSON.stringify({ enableAllProjectMcpServers: true })); }],
-  ["enabledMcpjsonServers", w => { mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.local.json"), JSON.stringify({ enabledMcpjsonServers: ["reader"] })); }],
-  ["a parent folder's .mcp.json the profile's settings enable", w => {
-    writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true }, enableAllProjectMcpServers: true }));
-    writeFileSync(join(w.base, ".mcp.json"), JSON.stringify({ mcpServers: { reader: { command: "./reader.sh" } } }));
-  }],
-  ["a .mcp.json no source enables", w => { writeFileSync(join(w.project, ".mcp.json"), JSON.stringify({ mcpServers: { reader: { command: "./reader.sh" } } })); }],
-  ["AWS credential helpers in the project's settings", w => {
-    mkdirSync(join(w.project, ".claude"));
-    writeFileSync(join(w.project, ".claude", "settings.json"), JSON.stringify({ env: { CLAUDE_CODE_USE_BEDROCK: "1" }, awsAuthRefresh: "./reader.sh", awsCredentialExport: "./reader.sh" }));
-  }],
-  ["an apiKeyHelper in the local settings", w => { mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.local.json"), JSON.stringify({ apiKeyHelper: "./reader.sh" })); }],
-  ["enabled plugins", w => { mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: { "x@market": true } })); }],
-  ["hooks in a project skill's frontmatter", w => {
-    mkdirSync(join(w.project, ".claude", "skills", "read"), { recursive: true });
-    writeFileSync(join(w.project, ".claude", "skills", "read", "SKILL.md"), "---\nname: read\nhooks:\n  PreToolUse:\n    - hooks: [{ type: command, command: ./reader.sh }]\n---\nRead.\n");
-  }],
-  ["hooks in a project subagent's frontmatter", w => {
-    mkdirSync(join(w.project, ".claude", "agents"), { recursive: true });
-    writeFileSync(join(w.project, ".claude", "agents", "reader.md"), "---\nname: reader\nhooks:\n  Stop: []\n---\n");
-  }],
-  ["hooks in a project command's frontmatter", w => {
-    mkdirSync(join(w.project, ".claude", "commands", "nested"), { recursive: true });
-    writeFileSync(join(w.project, ".claude", "commands", "nested", "go.md"), "---\nhooks: {}\n---\n");
-  }],
-  ["a quoted hooks key in a project skill's frontmatter", w => {
-    mkdirSync(join(w.project, ".claude", "skills", "quoted"), { recursive: true });
-    writeFileSync(join(w.project, ".claude", "skills", "quoted", "SKILL.md"), "---\r\nname: quoted\r\n\"hooks\": { Stop: [] }\r\n---\r\n");
-  }],
-  ["a project settings file Doan cannot parse", w => { mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.json"), "{ \"hooks\": "); }],
+const SETTINGS: [string, (w: ReturnType<typeof world>) => void][] = [
+  ["no settings", () => {}],
+  ["the sandbox on in the profile's settings", w => { writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } })); }],
+  ["the sandbox on in the project's settings", w => { mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.json"), JSON.stringify({ sandbox: { enabled: true } })); }],
+  ["the sandbox on and hooks in the local settings", w => { mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.local.json"), JSON.stringify({ sandbox: { enabled: true }, ...HOOKS })); }],
 ];
-for (const [shape, plant] of REPO_SHAPES) {
-  it(`runs a Claude turn with ${shape} under the outer fence with its sandbox off`, async () => {
+for (const [shape, plant] of SETTINGS) {
+  it(`runs a Claude turn with ${shape} under the outer fence`, async () => {
     const w = world("claude");
-    writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
     plant(w);
     const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [], attachments: [pasted(w)] });
-    expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [join(w.real, "attachments", "0f4e")] }, claudeSandboxOff: true });
+    expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [join(w.real, "attachments", "0f4e")] } });
   });
 }
-// A blocking read of a FIFO waits on main for a writer.
-it("counts a FIFO named like a skill, subagent or command as naming hooks without reading it", async () => {
-  for (const at of [["skills", "x", "SKILL.md"], ["agents", "y.md"], ["commands", "z.md"]]) {
+// The choice no longer reads the repository, so a FIFO where its settings or skills go cannot hold main.
+it("prepares a Claude turn without reading the repository's settings or skills", async () => {
+  for (const at of [["settings.json"], ["settings.local.json"], ["skills", "x", "SKILL.md"]]) {
     const w = world("claude");
-    writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
     const path = join(w.project, ".claude", ...at); mkdirSync(join(path, ".."), { recursive: true });
     const { value: ready, ms } = await withFifo(path, () => prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [] }));
     expect(ms).toBeLessThan(PROMPT_MS);
-    expect(ready.fence?.claudeSandboxOff).toBe(true);
+    expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] } });
   }
 }, 20000);
-it("keeps Claude's own sandbox for a repository whose skills and settings start nothing", async () => {
-  const w = world("claude");
-  writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
-  mkdirSync(join(w.project, ".claude", "skills", "plain"), { recursive: true });
-  writeFileSync(join(w.project, ".claude", "skills", "plain", "SKILL.md"), "---\nname: plain\ndescription: mentions hooks: in prose\n---\nhooks: below the frontmatter is text.\n");
-  writeFileSync(join(w.project, ".claude", "settings.json"), JSON.stringify({ permissions: { allow: ["Bash(ls)"] } }));
-  const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [] });
-  expect(ready.fence?.claudeSandbox).toBe(true);
-  expect(ready.fence && "claudeSandboxOff" in ready.fence).toBe(false);
-});
-// A Full access turn runs in the outer fence and can write the repository's local settings without a card (probe):
-// the sandbox switch and hook it plants must not take the next turn out of the fence.
-it("keeps the next turn in the outer fence after a turn plants a sandbox switch and a hook in the local settings", async () => {
-  const w = world("claude");
-  const request = { root: w.project, mode: "new" as const, runtime: "claude" as const, text: "hi", anchors: [] };
-  expect((await prepare("claude", w).run(request)).fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] } });
-  mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.local.json"), JSON.stringify({ sandbox: { enabled: true }, enableAllProjectMcpServers: true, ...HOOKS }));
-  expect((await prepare("claude", w).run(request)).fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] }, claudeSandboxOff: true });
-});
-// A source Doan misread could still turn the sandbox on, which would fail every command inside the outer fence.
-it("turns the sandbox off at the flag tier for a repository with hooks even when Doan reads it as off", async () => {
-  const w = world("claude");
-  mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.json"), JSON.stringify(HOOKS));
-  const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [] });
-  expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] }, claudeSandboxOff: true });
-});
 it("fences an Antigravity run, which reads no version", async () => {
   const w = world("antigravity");
   const ready = await prepare("antigravity", w).run({ root: w.project, mode: "new", runtime: "antigravity", text: "hi", anchors: [] });
@@ -170,27 +113,6 @@ it("gives a Codex run the whole attachment directory, creating it first", async 
   // Listed for Doan's Codex permission profile: the other provider's profile and Doan's own files, never userData itself.
   expect(ready.fence?.denied?.map(entry => entry.path).sort()).toEqual([`${w.real}/agent-auth/profiles/cursor`, `${w.real}/conversations`]);
   expect(statSync(join(w.userData, "attachments")).mode & 0o777).toBe(0o700);
-});
-it("reads Claude's sandbox as on from the profile's settings and adds deny rules for everything else in userData", async () => {
-  const w = world("claude");
-  writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
-  const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [], attachments: [pasted(w)] });
-  expect(ready.fence?.claudeSandbox).toBe(true);
-  expect(ready.fence?.socket).toBe(join(realpathSync.native(join(w.base, "sock")), "app.sock"));
-  const denied = (ready.fence?.denied ?? []).map(entry => entry.path);
-  expect(denied).toEqual(expect.arrayContaining([`${w.real}/agent-auth/profiles/cursor`, `${w.real}/conversations`, `${w.real}/attachments/77aa`]));
-  expect(denied.some(path => path.includes("profiles/claude") || path.includes("0f4e") || path.includes("runtime.json") || path === w.real)).toBe(false);
-});
-it("lets the project's local settings and then managed settings decide Claude's sandbox", async () => {
-  const w = world("claude");
-  writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
-  mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.local.json"), JSON.stringify({ sandbox: { enabled: false } }));
-  const request = { root: w.project, mode: "new" as const, runtime: "claude" as const, text: "hi", anchors: [] };
-  expect((await prepare("claude", w).run(request)).fence?.claudeSandbox).toBeUndefined();
-  mkdirSync(join(w.managed, "managed-settings.d"), { recursive: true });
-  writeFileSync(join(w.managed, "managed-settings.json"), JSON.stringify({ sandbox: { enabled: false } }));
-  writeFileSync(join(w.managed, "managed-settings.d", "10-on.json"), JSON.stringify({ sandbox: { enabled: true } }));
-  expect((await prepare("claude", w).run(request)).fence?.claudeSandbox).toBeDefined();
 });
 it("refuses a run whose fence cannot be built as unknown, before anything starts, and frees the lease", async () => {
   const w = world("claude");

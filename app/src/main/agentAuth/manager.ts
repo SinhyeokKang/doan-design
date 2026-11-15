@@ -10,6 +10,7 @@ import { object } from "../conversation/sessions";
 import { AUTH_LINK_FILE, BROWSER_HOOK, callbackAddress, INSTALL_FAILED, forwardCallback, signInLink, type SignInLink } from "./antigravity";
 import { probeShell } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
+import { claudeFencedCommand } from "./fence";
 import { providerEnv } from "./environment";
 import { codexAccountEmail, GOOGLE_USERINFO_URL, googleAccessToken, googleEmail, googleRefreshRequest, withIdentity } from "./identity";
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
@@ -53,6 +54,10 @@ export interface AuthManagerOptions {
   mcpLogout?(provider: Provider, request: McpLogoutRequest): Promise<{ failed: string[] }>;
   // Antigravity's account lookup (Google token and userinfo requests); globalThis.fetch when absent.
   fetch?: typeof globalThis.fetch;
+  // The outer fence for Claude's MCP logout commands (claudeFencedCommand): `claude mcp list` starts the stdio servers
+  // the profile's .claude.json names, which an agent in the outer fence can write. Sign-in, status and the provider's own
+  // logout stay unfenced.
+  fence?: { userData: string; exec?: string };
 }
 export interface WriteOptions { stop?: boolean }
 interface Run { code: number | null; stdout: string; stderr: string }
@@ -548,7 +553,7 @@ export class AuthManager {
 
   private async mcpStep(provider: Provider, attemptId: string, profile: string, request: Omit<McpLogoutRequest, "run" | "profileDir">): Promise<void> {
     if (!this.options.mcpLogout) return;
-    const run = (args: string[]) => this.exec(provider, attemptId, args, this.options.statusTimeoutMs ?? 20_000, profile);
+    const run = (args: string[]) => this.exec(provider, attemptId, args, this.options.statusTimeoutMs ?? 20_000, profile, undefined, undefined, provider === "claude");
     try { await this.options.mcpLogout(provider, { ...request, profileDir: this.options.storage.profileDir(provider, profile), run }); }
     catch (error) { console.error(`doan: ${provider} MCP logout step failed`, message(error)); }
   }
@@ -809,11 +814,14 @@ export class AuthManager {
   }
 
   // Resolves only after the process group is gone, so no result outruns its process.
-  private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, profile = this.profileOf(provider), onText?: (text: string) => void, added?: Record<string, string>): Promise<Run> {
+  private async exec(provider: Provider, attemptId: string, args: string[], timeoutMs: number | null, profile = this.profileOf(provider), onText?: (text: string) => void, added?: Record<string, string>, fenced = false): Promise<Run> {
     const { command, env, profileDir } = await this.launch(provider, attemptId, added, profile);
     // A cancel, window close or quit can arrive while the CLI is located, before there is a process to stop.
     if (this.stopRequests.has(attemptId)) throw new Cancelled();
-    const child = this.options.spawn(command, [...this.adapters[provider].args, ...args], { cwd: profileDir, env });
+    const full = [...this.adapters[provider].args, ...args];
+    const launch = fenced && this.options.fence ? claudeFencedCommand(this.options.fence, profileDir, command, full) : { command, args: full };
+    if (!launch) throw new Error("the fence could not be built");
+    const child = this.options.spawn(launch.command, launch.args, { cwd: profileDir, env });
     const owned = this.processes.get(attemptId) ?? new Set();
     owned.add(child); this.processes.set(attemptId, owned);
     if (this.stopRequests.has(attemptId)) child.stop();

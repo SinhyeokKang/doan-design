@@ -8,11 +8,20 @@ const MAX_BYTES = 16 * 1024 * 1024;
 // the cap is read. Links are followed: dotfile setups link git config and include files. Throws as readFileSync does
 // (ENOENT for a missing file); a special or oversized file throws without a code.
 export function readRegularFileSync(path: string): string {
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK);
+  return readOpened(openSync(path, constants.O_RDONLY | constants.O_NONBLOCK), MAX_BYTES).toString("utf8");
+}
+
+// As readRegularFileSync, for a file whose link must be refused (a credential an agent could point elsewhere): the
+// open itself refuses a link with ELOOP, so no check-then-read gap lets one be swapped in.
+export function readRegularFileNoFollowSync(path: string, limit: number): Buffer {
+  return readOpened(openSync(path, constants.O_RDONLY | constants.O_NONBLOCK | constants.O_NOFOLLOW), limit);
+}
+
+function readOpened(fd: number, limit: number): Buffer {
   try {
     const stat = fstatSync(fd), size = stat.size;
     if (!stat.isFile()) throw new Error("Not a regular file");
-    if (size > MAX_BYTES) throw new Error("File exceeds limit");
+    if (size > limit) throw new Error("File exceeds limit");
     const bytes = Buffer.alloc(size);
     let offset = 0;
     while (offset < size) {
@@ -20,6 +29,6 @@ export function readRegularFileSync(path: string): string {
       if (!count) break;
       offset += count;
     }
-    return bytes.toString("utf8", 0, offset);
+    return bytes.subarray(0, offset);
   } finally { closeSync(fd); }
 }

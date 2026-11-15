@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { accessSync, chmodSync, closeSync, constants, fchmodSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, unlinkSync, writeSync, type Stats } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { swapFile } from "../agentSetup/swap";
+import { readRegularFileNoFollowSync } from "../regularFile";
 import { parseAuthMetadata, serializeAuthMetadata, validAuthId } from "./metadata";
 import { validProvider, type AuthMetadata, type Provider } from "./types";
 
@@ -14,6 +15,11 @@ export class StorageError extends Error {
 export type VaultFiles = Record<string, Buffer>;
 export type SettingMerge = (current: string | null) => string | null;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+// The provider process owns the profile and may leave a link, a FIFO or a huge file where its credential was; working
+// files are read with the open refusing a link (ELOOP) and a special or oversized file throwing without a code, so
+// none of them reads as absent. The cap is far above any credential (a few KB of JSON), low enough that a file the
+// provider grew cannot stall main or flood the vault.
+const WORKING_FILE_LIMIT = 16 * 1024 * 1024;
 function absent(error: unknown): boolean { return typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "ENOENT"; }
 
 // Layout under <userData>/agent-auth: metadata.json, cleanup.json, vault/<provider>.bin, profiles/<profile>/. A profile
@@ -174,22 +180,15 @@ export class AuthStorage {
   // One working file for a main-only read (Antigravity's account lookup), or null when it is absent; links are
   // refused as in collect.
   readWorking(provider: Provider, rel: string, profile: string = provider): Buffer | null {
-    try {
-      const path = this.working(provider, rel, profile);
-      if (!lstatSync(path).isFile()) throw new StorageError("unreadable", `${rel} is not a regular file`);
-      return readFileSync(path);
-    } catch (error) { if (error instanceof StorageError) throw error; if (absent(error)) return null; throw new StorageError("unreadable", message(error)); }
+    try { return readRegularFileNoFollowSync(this.working(provider, rel, profile), WORKING_FILE_LIMIT); }
+    catch (error) { if (error instanceof StorageError) throw error; if (absent(error)) return null; throw new StorageError("unreadable", message(error)); }
   }
   scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.remove(path); }
   private collect(provider: Provider, rels: readonly string[]): VaultFiles {
     const current: VaultFiles = {};
     for (const rel of rels) {
-      try {
-        const path = this.working(provider, rel);
-        // A link would let a provider process pull an arbitrary file into the vault.
-        if (!lstatSync(path).isFile()) throw new StorageError("unreadable", `${rel} is not a regular file`);
-        current[rel] = readFileSync(path);
-      }
+      // A link would let a provider process pull an arbitrary file into the vault.
+      try { current[rel] = readRegularFileNoFollowSync(this.working(provider, rel), WORKING_FILE_LIMIT); }
       catch (error) { if (error instanceof StorageError) throw error; if (!absent(error)) throw new StorageError("unreadable", message(error)); }
     }
     return current;
