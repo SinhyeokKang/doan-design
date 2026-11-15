@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { launchElectronDom, type ElectronDom } from "./electronDom";
+import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
 import { parseRunReport, parseFramesReport } from "./prototype/requests";
 import { parsePrototypeMark } from "./prototype/mark";
 import { prototypeScriptSource } from "./prototypeScript";
@@ -357,19 +357,18 @@ describe("in a real DOM", () => {
       expect(parseRunReport("prototype", message)).not.toBeNull();
     });
 
-    test("a link inside more than 1,000 frames is left out, not cut", async () => {
-      const nest = (depth: number, value: string) => `<script>{
+    test("a link's enclosing frames stop at the document's first 1,000 frames", async () => {
+      const nest = `<script>{
         let el = document.body;
-        for (let i = 0; i < ${depth}; i++) { const next = document.createElement("div"); next.setAttribute("data-doan-frame", "f" + i); el.append(next); el = next; }
-        const link = document.createElement("a"); link.setAttribute("data-doan-goto", "${value}"); el.append(link);
+        for (let i = 0; i < 1001; i++) { const next = document.createElement("div"); next.setAttribute("data-doan-frame", "f" + i); el.append(next); el = next; }
+        const link = document.createElement("a"); link.setAttribute("data-doan-goto", "deep"); el.append(link);
       }</script>`;
-      const message = await report(`${nest(1000, "deep")}${nest(1001, "deeper")}`);
-      expect(message.gotos.map(goto => goto.value)).toEqual(["deep"]);
-      expect(message.gotos[0]!.frames).toEqual(Array.from({ length: 1000 }, (_, i) => `f${i}`));
+      const message = await report(nest);
+      expect(message.gotos).toEqual([{ value: "deep", frames: Array.from({ length: 1000 }, (_, i) => `f${i}`) }]);
       expect(parseRunReport("prototype", message)).not.toBeNull();
     });
 
-    test("frames past the 1,000th playable one are not listed, and their links still report their ids", async () => {
+    test("frames past the 1,000th are not listed, and links past 1,000 are not reported", async () => {
       const body = Array.from({ length: 1001 }, (_, i) => `<div data-doan-frame="f${i}" data-doan-prototype="1x1"><a data-doan-goto="f0"></a></div>`).join("");
       const message = await report(body);
       expect(message.frames).toHaveLength(1000);

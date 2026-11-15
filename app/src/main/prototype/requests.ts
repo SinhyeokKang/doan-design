@@ -64,10 +64,14 @@ function gotoList(value: unknown): PrototypeGoto[] | null {
   for (const raw of value) {
     const entry = record(raw, ["value", "frames"]);
     if (entry === null || typeof entry.value !== "string" || entry.value.length > MAX_REPORT_STRING) return null;
-    const frames = entry.frames;
-    if (!Array.isArray(frames) || frames.length > MAX_GOTO_FRAMES) return null;
-    if (!frames.every((frame): frame is string => typeof frame === "string" && frame.length <= MAX_REPORT_STRING)) return null;
-    gotos.push({ value: entry.value, frames: [...frames] });
+    if (!Array.isArray(entry.frames) || entry.frames.length > MAX_GOTO_FRAMES) return null;
+    // for…of reads every index, holes as undefined: a structured clone keeps a sparse array's holes, which every() skips.
+    const frames: string[] = [];
+    for (const frame of entry.frames as unknown[]) {
+      if (typeof frame !== "string" || frame.length > MAX_REPORT_STRING) return null;
+      frames.push(frame);
+    }
+    gotos.push({ value: entry.value, frames });
   }
   return gotos;
 }

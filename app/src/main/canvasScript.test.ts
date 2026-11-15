@@ -3,7 +3,7 @@ import { runInNewContext } from "node:vm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { MAX_COPY_TEXT, MAX_TEXT_RECTS } from "../renderer/canvasMessage";
 import { MAX_PROTOTYPE_MARK } from "./prototype/mark";
-import { launchElectronDom, type ElectronDom } from "./electronDom";
+import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
 import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, escapeTarget, frameBottom, frameStep, nextHeight, textBoundary, textDragState, textQuote, type ChainLink } from "./canvasScript";
 
 describe("nextHeight", () => {

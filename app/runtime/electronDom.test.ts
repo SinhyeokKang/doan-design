@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawn, type ChildProcess } from "node:child_process";
-import { EventEmitter } from "node:events";
+import { EventEmitter, once } from "node:events";
 import { mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,12 +10,16 @@ const dom: typeof import("./electronDom") = await import(new URL("./electronDom.
 
 const exists = (path: string) => stat(path).then(() => true, () => false);
 const tempDir = () => mkdtemp(join(tmpdir(), "doan-dom-test-"));
-// Exits 0 on SIGTERM, as an app does when it quits.
-const quitting = () => spawn(process.execPath, ["-e", "process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1000)"]);
+// Exits 0 on SIGTERM, as an app does when it quits; resolves once its handler is in place.
+const quitting = async (): Promise<ChildProcess> => {
+  const child = spawn(process.execPath, ["-e", "process.on('SIGTERM', () => process.exit(0)); console.log('ready'); setInterval(() => {}, 1000)"]);
+  await once(child.stdout!, "data");
+  return child;
+};
 
 test("a clean close removes the temporary folder", async () => {
   const dir = await tempDir();
-  const child = quitting();
+  const child = await quitting();
   await dom.closeElectron({ process: () => child, close: async () => { child.kill("SIGTERM"); } }, dir, 2_000);
   assert.equal(child.exitCode, 0);
   assert.equal(await exists(dir), false);
@@ -23,7 +27,7 @@ test("a clean close removes the temporary folder", async () => {
 
 test("a close that fails kills the process, waits for its exit, removes the folder and still fails", async () => {
   const dir = await tempDir();
-  const child = quitting();
+  const child = await quitting();
   await assert.rejects(dom.closeElectron({ process: () => child, close: async () => { throw new Error("close refused"); } }, dir, 2_000), /close refused/);
   assert.equal(child.signalCode, "SIGKILL");
   assert.equal(await exists(dir), false);
@@ -31,7 +35,7 @@ test("a close that fails kills the process, waits for its exit, removes the fold
 
 test("a close that hangs is bounded, then the process is killed and the folder removed", async () => {
   const dir = await tempDir();
-  const child = quitting();
+  const child = await quitting();
   await assert.rejects(dom.closeElectron({ process: () => child, close: () => new Promise(() => {}) }, dir, 200), /timed out/);
   assert.equal(child.signalCode, "SIGKILL");
   assert.equal(await exists(dir), false);

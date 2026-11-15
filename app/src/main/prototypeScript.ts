@@ -32,9 +32,8 @@ export function prototypeScript(target: string, gen: number, url: string): void 
   // selected on the board either, so it is left out rather than cut.
   const MAX_STRING = 200;
   const MAX_FRAMES = 1000;
-  // requests.ts's MAX_REPORT_GOTOS and MAX_GOTO_FRAMES.
+  // requests.ts's MAX_REPORT_GOTOS. Its MAX_GOTO_FRAMES needs no check here: only the first 1,000 frames enclose.
   const MAX_GOTOS = 1000;
-  const MAX_GOTO_FRAMES = 1000;
   const GOTO_ATTRIBUTE = "data-doan-goto";
   const post = (message: unknown) => parent.postMessage(message, "*");
   const frameId = (el: Element) => el.getAttribute("data-doan-frame") ?? "";
@@ -48,7 +47,8 @@ export function prototypeScript(target: string, gen: number, url: string): void 
   };
 
   // The drawer list: frames with a unique, non-empty ID and a valid mark, in document order, numbered by their
-  // position among all frames as the board's frame drawer numbers them.
+  // position among all frames as the board's frame drawer numbers them. Only the first 1,000 frames of the document
+  // can be listed, the board's limit, whatever is marked; an ID is still judged shared over all frames.
   const list = () => {
     const all = frames();
     const counts = new Map<string, number>();
@@ -57,7 +57,7 @@ export function prototypeScript(target: string, gen: number, url: string): void 
     all.forEach((el, index) => {
       const id = frameId(el);
       const size = el.getAttribute(MARK_ATTRIBUTE) ?? "";
-      if (listed.length === MAX_FRAMES || id === "" || id.length > MAX_STRING || counts.get(id) !== 1 || !MARK.test(size)) return;
+      if (index >= MAX_FRAMES || id === "" || id.length > MAX_STRING || counts.get(id) !== 1 || !MARK.test(size)) return;
       const title = el.getAttribute("data-doan-title");
       listed.push({ id, ...(title === null ? {} : { title: clip(title) }), size, number: index + 1 });
     });
@@ -67,6 +67,8 @@ export function prototypeScript(target: string, gen: number, url: string): void 
   // The links the drawer groups frames by, in document order. Over a cap a value or id is left out, never cut, so the
   // groups computed from what is left match those of the raw document as far as the run can play them.
   const gotos = () => {
+    // Frames past the 1,000th are no link's enclosing frames, as on the board, which does not list them.
+    const firstFrames = new Set(frames().slice(0, MAX_FRAMES));
     const reported: { value: string; frames: string[] }[] = [];
     for (const el of Array.from(document.querySelectorAll(`[${GOTO_ATTRIBUTE}]`))) {
       if (reported.length === MAX_GOTOS) break;
@@ -74,9 +76,9 @@ export function prototypeScript(target: string, gen: number, url: string): void 
       if (value.length > MAX_STRING) continue;
       const around: string[] = [];
       for (let node: Element | null = el; node !== null; node = node.parentElement) {
-        if (node.hasAttribute("data-doan-frame") && frameId(node).length <= MAX_STRING) around.push(frameId(node));
+        if (firstFrames.has(node) && frameId(node).length <= MAX_STRING) around.push(frameId(node));
       }
-      if (around.length <= MAX_GOTO_FRAMES) reported.push({ value, frames: around.reverse() });
+      reported.push({ value, frames: around.reverse() });
     }
     return reported;
   };
