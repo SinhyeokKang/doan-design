@@ -170,7 +170,7 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 
 ### Not verified and unresolved
 
-- **Stop and Paste dialogs.** Settings reuses first run's Stop and Paste dialogs, whose actions are `sm`; the draft's `states-agents` tile and 'Dialogs' draw the default size. Unresolved with the same first-run mismatch.
+- **Stop and Paste dialogs.** Settings reuses first run's Stop and Paste dialogs, whose actions are at the default size, as the draft's `states-agents` tile and 'Dialogs' draw them; read from source, not measured.
 - The 24rem narrow layout in a real placement (no placement is that narrow at the 960 × 600 minimum).
 - Roles and names were read from DOM attributes, not from the accessibility tree: rows `group` named by the provider; Agent, Model and Effort `button` with `aria-haspopup="menu"`; switches `switch` with `aria-checked`; confirmations `alertdialog`.
 - Hover and keyboard focus on the sidebar rows, the switch focus ring and menu contents of Agent, Model and Effort were not measured.

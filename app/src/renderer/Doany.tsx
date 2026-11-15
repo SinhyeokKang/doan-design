@@ -231,9 +231,10 @@ export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLIma
 // is back; when none comes, a mount is tried after RETRY_MS and again after each failed try, each wait twice the one
 // before, at most RETRIES times. Two GPU resets in a row make Chromium refuse WebGL to the page for about two minutes
 // with no restore event (measured in Electron 45), so the last try comes about four minutes after the loss. A buddy
-// that never drew is not tried again here: Home mounts it again on its next visit.
-const RETRY_MS = 1000;
-const RETRIES = 8;
+// that never drew is not tried again here: Home mounts it again on its next visit. The docked buddy
+// (dockedBuddyShell.ts) recovers on the same schedule.
+export const RETRY_MS = 1000;
+export const RETRIES = 8;
 
 export function keepBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLImageElement, placeholder: HTMLCanvasElement): { readonly rig: DoanyRig | null; dispose(): void } {
   let retries = 0, retry: ReturnType<typeof setTimeout> | undefined;

@@ -1,6 +1,6 @@
 import type { Check, Checks, WorkExchange } from "../../lib/types.ts";
 import { noOpen } from "../../lib/open.ts";
-import { contentHash } from "../../lib/work.ts";
+import { CANVAS_PATH, contentHash } from "../../lib/work.ts";
 
 const path = ".doan/canvases/landing.html";
 
@@ -12,7 +12,7 @@ const delivering = (entry: WorkExchange): boolean => entry.response.ok && (entry
 
 const checks: Checks = ctx => {
   const log = ctx.work();
-  const changed = ctx.changedFiles().filter(file => /^\.doan\/(canvases|ds)\/[^/]+\.html$/.test(file));
+  const changed = ctx.changedFiles().filter(file => CANVAS_PATH.test(file));
   const delivered = log.filter(delivering);
   // The first answer with others arrived at the seed content: an agent that edited, then started, reverted and asked
   // still edited before it knew. An edit between that answer and `done` is seen only in the final canvas.

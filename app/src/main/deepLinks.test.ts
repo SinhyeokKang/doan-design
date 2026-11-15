@@ -1,6 +1,8 @@
 import { expect, test, vi } from "vitest";
 import cases from "../../../schema/fixtures/open-link/cases.json";
-import { parseOpenLink, openLinkQueue, resolveOpenLink, resolveOpenTarget } from "./deepLinks";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { CANVAS_PATH, parseOpenLink, openLinkQueue, resolveOpenLink, resolveOpenTarget } from "./deepLinks";
 
 for (const item of cases.build) test(`reads shared link: ${item.name}`, () => {
   expect(parseOpenLink(item.expected)).toEqual({ root: item.root, canvas: item.path, ...("frame" in item ? { frame: item.frame } : {}) });
@@ -44,4 +46,22 @@ test("an open target names a worktree's project by its main checkout, as the sid
 test("a link to a root being read again is still refused as unlisted, as before the split", () => {
   const url = cases.build[0]!.expected, root = cases.build[0]!.root;
   expect(resolveOpenLink(url, [{ path: root, kind: "loading" }])).toEqual({ kind: "canvas-not-listed", project: "repo" });
+});
+
+// The app's one canvas path pattern (doan:// links and the v3 work request's second check) is the v3, v4 and v6
+// schema's: a change to either must change both.
+const schemaDir = join(__dirname, "../../../schema");
+for (const v of [3, 4, 6]) test(`the canvas path pattern is app-socket v${v}'s, and agrees with its path fixtures`, () => {
+  const schema = JSON.parse(readFileSync(join(schemaDir, `app-socket.v${v}.schema.json`), "utf8")) as { $defs: { request: { properties: { path: { pattern: string } } } } };
+  expect(CANVAS_PATH.source).toBe(new RegExp(schema.$defs.request.properties.path.pattern).source);
+  expect(CANVAS_PATH.flags).toBe("");
+  const fixtures = join(schemaDir, "fixtures", `app-socket-v${v}`, "request");
+  let seen = 0;
+  for (const kind of ["valid", "invalid"] as const) for (const name of readdirSync(join(fixtures, kind))) {
+    const path: unknown = Reflect.get(JSON.parse(readFileSync(join(fixtures, kind, name), "utf8")) as object, "path");
+    if (typeof path !== "string" || (kind === "invalid" && !name.startsWith("path-"))) continue;
+    expect(CANVAS_PATH.test(path), `${kind}/${name}`).toBe(kind === "valid");
+    seen++;
+  }
+  expect(seen).toBeGreaterThan(5);
 });

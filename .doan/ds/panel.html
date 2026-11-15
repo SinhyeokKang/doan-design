@@ -11,10 +11,10 @@
 </head>
 <body>
 <main class="dsc">
-<header class="dsc-head"><h1>panel</h1><p><code>.doan-panel</code>: the rounded, opaque sheet a screen is laid on (<code>--radius-container</code>, <code>--surface-panel</code>, <code>--shadow-panel</code>). It draws no content; the screen decides what goes inside. The text and padding below are canvas content.</p></header>
-<section class="dsc-frame" data-doan-frame="panel" data-doan-title="Panel on the shell" data-doan-implements="app/src/renderer/ds/surfaces.css">
-<h2>Panel on the shell</h2>
-<div style="padding: var(--space-6); border-radius: var(--radius-row); background: var(--bg-app)"><div class="doan-panel" style="padding: var(--space-6)">Content of the screen</div></div>
+<header class="dsc-head"><h1>panel</h1><p><code>.doan-panel</code>: a rounded, opaque card raised on a backdrop, such as first run's cards and lists and notices on a backdrop that is not plain white (<code>--radius-container</code>, <code>--surface-panel</code>, <code>--shadow-panel</code>, whose hairline ring draws its edge). A screen's body panel is not a <code>.doan-panel</code> and has no shadow (see <code>shell-layout</code>). It draws no content of its own. The text and padding below are canvas content.</p></header>
+<section class="dsc-frame" data-doan-frame="panel" data-doan-title="Panel on a backdrop" data-doan-implements="app/src/renderer/ds/surfaces.css">
+<h2>Panel on a backdrop</h2>
+<div style="padding: var(--space-6); border-radius: var(--radius-row); background: var(--bg-app)"><div class="doan-panel" style="padding: var(--space-6)">Card content</div></div>
 </section>
 </main>
 </body>
