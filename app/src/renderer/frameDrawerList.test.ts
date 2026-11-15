@@ -76,7 +76,7 @@ describe("drawerTypeahead", () => {
   });
 });
 
-// The prototype drawers' rows in link groups (child 1's linkGroups): linked groups first in the document order of their
+// The prototype drawers' rows in link groups (links.ts linkGroups): linked groups first in the document order of their
 // first frames, then every frame without links together in document order.
 describe("groupDrawer", () => {
   const f = (id: string, number: number, name = id, current = false): DrawerFrame => ({ key: id, id, number, name, current, mark: "390x844" });

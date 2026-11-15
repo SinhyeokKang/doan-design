@@ -4,7 +4,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { PlayTool } from "./CanvasTools";
 
-// The toolbar's Play prototype on the canvas page (spec 8–11): its state from the selection, the frame drawer it opens,
+// The toolbar's Play prototype on the canvas page: its state from the selection, the frame drawer it opens,
 // what a pick sends, and the prototype window's playing frame in that drawer. Driven with hooks as plain state, with the
 // harness of App.bubbleAdd.test.tsx.
 const hooks = vi.hoisted(() => ({

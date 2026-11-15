@@ -215,7 +215,7 @@ describe("CanvasTools", () => {
     expect(text(all(tree).filter(element => element.type === TooltipContent)[4]!.props.children as ReactNode)).toBe("Play “Checkout”");
   });
 
-  // Spec 9: the name stays "Play prototype"; the tooltip and the description say what a press does now.
+  // The name stays "Play prototype"; the tooltip and the description say what a press does now.
   it.each([["play", PLAYER], ["drawer", DRAWER], ["disabled", DISABLED]] as const)("names Play the same and describes its %s state with its tooltip", (_kind, player) => {
     const html = markup({ player });
     const tag = html.match(/<button[^>]*aria-label="Play prototype"[^>]*>/)?.[0] ?? "";

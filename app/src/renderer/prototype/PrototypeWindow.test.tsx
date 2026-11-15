@@ -395,7 +395,7 @@ describe("focus after a pointer Reload", () => {
   });
 });
 
-// A link click in the playing frame (spec 1–6): the script posts `{gen, goto}`, the window judges it by its own view
+// A link click in the playing frame: the script posts `{gen, goto}`, the window judges it by its own view
 // and either asks main to move, shows the broken link's toast or drops it.
 describe("link moves", () => {
   const LISTED = [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }, { id: "account", title: "Account", size: "390x844", number: 2 }];
