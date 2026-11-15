@@ -17,7 +17,7 @@ const HOOK = `(allow file-read* (literal (param "BROWSER_HOOK")))
 // A later run reads these as its settings, and Claude's or Codex's next run may start without the outer fence
 // (Claude by its sandbox setting, Codex outside Full access): their hooks, MCP servers and notify then run outside
 // any sandbox, so the agent must not plant them.
-const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")))
+const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")) (subpath (param "PROVIDER_PROJECT")) (literal (param "PROVIDER_MCP")))
 `;
 const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))
 `;
@@ -62,7 +62,8 @@ describe("fenceArgs", () => {
     expect(fenceArgs("claude", paths({ attachments: [att] }))).toEqual(["-p", BASE + HOOK + CLAUDE_SETTINGS,
       "-D", `USERDATA=${U}`, "-D", `AGENT_AUTH=${U}/agent-auth`, "-D", `PROFILES=${U}/agent-auth/profiles`, "-D", `PROFILE=${P}`,
       "-D", `RUNTIME=${U}/runtime.json`, "-D", `ATTACHMENTS=${att}`, "-D", `BROWSER_HOOK=${U}/agent-auth/browser-hook`, "-D", `PROVIDER_SETTINGS=${P}/settings.json`,
-      "-D", `PROVIDER_SKILLS=${P}/skills`, "-D", `PROVIDER_AGENTS=${P}/agents`, "-D", `PROVIDER_PLUGINS=${P}/plugins`, "-D", `PROVIDER_COMMANDS=${P}/commands`]);
+      "-D", `PROVIDER_SKILLS=${P}/skills`, "-D", `PROVIDER_AGENTS=${P}/agents`, "-D", `PROVIDER_PLUGINS=${P}/plugins`, "-D", `PROVIDER_COMMANDS=${P}/commands`,
+      "-D", `PROVIDER_PROJECT=${P}/.claude`, "-D", `PROVIDER_MCP=${P}/.mcp.json`]);
   });
   it("names Codex's settings files in its own profile", () => {
     const profile = `${U}/agent-auth/profiles/codex-7`;
@@ -88,7 +89,7 @@ describe("fenceArgs", () => {
   });
   it("names no other provider's profile and no Doan path beyond the allowed ones", () => {
     const values = Object.values(params(fenceArgs("claude", paths())));
-    expect(values.filter(v => v.startsWith(`${U}/agent-auth/profiles/`))).toEqual([P, P, `${P}/settings.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`, `${P}/commands`]);
+    expect(values.filter(v => v.startsWith(`${U}/agent-auth/profiles/`))).toEqual([P, P, `${P}/settings.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`, `${P}/commands`, `${P}/.claude`, `${P}/.mcp.json`]);
     expect(values.some(v => v.includes("conversations") || v.includes("vault"))).toBe(false);
   });
   it("keeps a path with quotes, spaces and parentheses as one argument", () => {
@@ -273,20 +274,20 @@ describe("claudeDenyRules", () => {
 describe("claudeFenceSettings", () => {
   const att = `${U}/attachments/0f4e`;
   const denied = [{ path: `${U}/conversations`, directory: true }, { path: `${U}/agent-auth/profiles/codex`, directory: true }];
-  const settingsFiles = [{ path: `${P}/settings.json`, directory: false }, { path: `${P}/.claude.json`, directory: false }];
-  const settingsDirs = ["skills", "agents", "plugins", "commands"].map(dir => `Edit(/${P}/${dir}/**)`);
+  const settingsFiles = [{ path: `${P}/settings.json`, directory: false }, { path: `${P}/.claude.json`, directory: false }, { path: `${P}/.mcp.json`, directory: false }];
+  const settingsDirs = ["skills", "agents", "plugins", "commands", ".claude"].map(dir => `Edit(/${P}/${dir}/**)`);
   it("adds Doan's deny rules and filesystem limits, keeps the sandbox on and turns off running outside it", () => {
     expect(claudeFenceSettings(paths({ attachments: [att] }), denied)).toEqual({
       permissions: { deny: [...claudeDenyRules([...denied, ...settingsFiles]), ...settingsDirs] },
       sandbox: { enabled: true, allowUnsandboxedCommands: false, filesystem: {
         denyRead: [U], allowRead: [P, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`],
-        denyWrite: [`${U}/conversations`, `${U}/agent-auth/profiles/codex`, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`, `${P}/settings.json`, `${P}/.claude.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`, `${P}/commands`], allowWrite: [P] } },
+        denyWrite: [`${U}/conversations`, `${U}/agent-auth/profiles/codex`, `${U}/runtime.json`, att, `${U}/agent-auth/browser-hook`, `${P}/settings.json`, `${P}/.claude.json`, `${P}/.mcp.json`, `${P}/skills`, `${P}/agents`, `${P}/plugins`, `${P}/commands`, `${P}/.claude`], allowWrite: [P] } },
     });
   });
   // Hooks, MCP servers and a sandbox switch in these files run outside any sandbox on a later turn with the sandbox on.
   it("keeps the agent's Bash and Edit tool off its own profile's settings files", () => {
     const settings = claudeFenceSettings(paths(), []);
-    for (const file of ["settings.json", ".claude.json"]) {
+    for (const file of ["settings.json", ".claude.json", ".mcp.json"]) {
       expect(settings.sandbox.filesystem.denyWrite).toContain(`${P}/${file}`);
       expect(settings.permissions.deny).toContain(`Edit(/${P}/${file})`);
     }
@@ -295,8 +296,9 @@ describe("claudeFenceSettings", () => {
   // too, and a skill added mid-session is picked up at once.
   it("keeps the agent's Bash and Edit tool off its own profile's skills, agents and plugins, which stay readable", () => {
     const settings = claudeFenceSettings(paths(), []);
-    // commands/ is the older skill format and takes the same frontmatter, hooks included.
-    for (const dir of ["skills", "agents", "plugins", "commands"]) {
+    // commands/ is the older skill format and takes the same frontmatter, hooks included. .claude/ is the profile's
+    // project settings folder for a process Doan starts there (MCP connector commands).
+    for (const dir of ["skills", "agents", "plugins", "commands", ".claude"]) {
       expect(settings.sandbox.filesystem.denyWrite).toContain(`${P}/${dir}`);
       expect(settings.permissions.deny).toContain(`Edit(/${P}/${dir}/**)`);
       expect(settings.permissions.deny).not.toContain(`Read(/${P}/${dir}/**)`);
