@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -161,6 +161,29 @@ describe("Claude usage read", () => {
     expect(pinned!.slice(pinned!.indexOf("--managed-settings"), pinned!.indexOf("--managed-settings") + 2)).toEqual(["--managed-settings", '{"forceLoginOrgUUID":"org-uuid-1"}']);
     expect(unpinned).not.toContain("--managed-settings");
   }, 30_000);
+  // An agent can write the profile's .claude.json and a .mcp.json in a folder above userData, and the CLI starts the MCP
+  // servers they name with the read, so the read runs in the outer fence, from the profile (userData itself is closed).
+  it("runs under the outer fence from the profile, with Claude's own sandbox off, when a fence is set", async () => {
+    const userData = join(root, "ud"), profile = join(userData, "agent-auth", "profiles", "claude"); mkdirSync(profile, { recursive: true });
+    const exec = join(root, "sandbox-exec"), seen = join(root, "exec-args");
+    writeFileSync(exec, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(seen)}\nwhile [ "$1" = "-p" ] || [ "$1" = "-D" ]; do shift 2; done\nexec "$@"\n`, { mode: 0o700 });
+    const command = claude();
+    const reading = await readUsage("claude", { ...lease(command), profileDir: profile }, options({ readMs: 5000, fence: { userData, exec } }));
+    expect(reading).toMatchObject({ status: "ok" });
+    const args = readFileSync(seen, "utf8").split("\n");
+    expect(args[0]).toBe("-p");
+    expect(args).toContain(`PROFILE=${realpathSync.native(profile)}`);
+    expect(args).toContain(command);
+    const start = logged()[0]!;
+    expect(start.cwd).toBe(realpathSync.native(profile));
+    const argv = start.argv as string[];
+    expect(JSON.parse(argv[argv.indexOf("--settings") + 1]!)).toEqual({ sandbox: { enabled: false } });
+  }, 20_000);
+  it("starts nothing and reads as read_failed when the fence cannot be built", async () => {
+    const reading = await readUsage("claude", lease(claude()), options({ fence: { userData: join(root, "ud") } }));
+    expect(reading).toMatchObject({ status: "unavailable", reason: "read_failed" });
+    expect(() => logged()).toThrow();
+  });
   it("reads an unsupported control request as not_supported and a missing initialize answer as read_failed", async () => {
     expect(await readUsage("claude", lease(claude(), "unsupported"), options({ readMs: 5000 }))).toMatchObject({ status: "unavailable", reason: "not_supported" });
     expect(await readUsage("claude", lease(claude(), "silent-init"), options({ openMs: 3000 }))).toMatchObject({ status: "unavailable", reason: "read_failed" });

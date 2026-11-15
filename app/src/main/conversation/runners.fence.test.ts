@@ -74,41 +74,36 @@ readline.createInterface({input:process.stdin}).on('line', line => {
   return command;
 }
 const CLAUDE_OWNER = { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "a1", workspaceId: "org-1", profile: "claude" };
-it("wraps a Claude turn with its sandbox off in sandbox-exec, and gives one with its sandbox on Doan's settings instead", async () => {
+// Every fenced Claude turn and list read runs inside sandbox-exec, so the code the CLI starts beside the model (hooks,
+// MCP servers, helpers) is held too. Claude's own sandbox cannot start inside it, so the flag tier turns it off whatever
+// the profile or the repository says, Fast or not.
+it("wraps every fenced Claude turn and list read in sandbox-exec and passes sandbox.enabled false", async () => {
   const root = temp(), exec = fakeExec(root), command = fakeClaude(root);
-  const base = { command, runtime: "claude" as const, owner: CLAUDE_OWNER, cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root } };
-  const off = await openRunner({ ...base, fence: { paths: paths("claude"), exec } }, () => {}, () => {}, () => {});
-  await off.close();
-  expect(execArgs(root)?.slice(-1)[0]).toBe(JSON.parse(readFileSync(join(root, "claude-argv"), "utf8")).at(-1));
-  expect(execArgs(root)).toContain(command);
-  expect(JSON.parse(readFileSync(join(root, "claude-argv"), "utf8"))).not.toContain("--settings");
-
-  rmSync(join(root, "exec-args"));
-  const on = await openRunner({ ...base, fast: true, fence: { paths: paths("claude"), exec, claudeSandbox: true, denied: [{ path: "/u/conversations", directory: true }], socket: "/tmp/doan-sock/app.sock" } }, () => {}, () => {}, () => {});
-  await on.close();
-  expect(execArgs(root)).toBeNull();
-  const argv = JSON.parse(readFileSync(join(root, "claude-argv"), "utf8")) as string[];
-  const settings = JSON.parse(argv[argv.indexOf("--settings") + 1]!) as Record<string, unknown>;
-  expect(settings).toMatchObject({ fastMode: true, permissions: { deny: expect.arrayContaining(["Read(//u/conversations/**)", "Edit(//u/conversations/**)", "Edit(//u/agent-auth/profiles/claude/settings.json)"]) },
-    sandbox: { enabled: true, allowUnsandboxedCommands: false, network: { allowUnixSockets: ["/tmp/doan-sock/app.sock"] }, filesystem: { denyRead: ["/u"], denyWrite: expect.arrayContaining(["/u/conversations", "/u/runtime.json", "/u/agent-auth/profiles/claude/settings.json"]), allowWrite: ["/u/agent-auth/profiles/claude"] } } });
-}, 20000);
-
-// A turn whose repository starts its own hooks or MCP servers, and every Claude list read, run inside sandbox-exec with
-// Claude's sandbox off at the flag tier, since that sandbox cannot start inside the outer fence.
-it("wraps a Claude turn or list read with its sandbox turned off in sandbox-exec and passes sandbox.enabled false", async () => {
-  const root = temp(), exec = fakeExec(root), command = fakeClaude(root);
-  const base = { command, runtime: "claude" as const, owner: CLAUDE_OWNER, cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, fence: { paths: paths("claude"), exec, claudeSandboxOff: true as const } };
+  const base = { command, runtime: "claude" as const, owner: CLAUDE_OWNER, cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, fence: { paths: paths("claude"), exec } };
   const settingsOf = () => { const argv = JSON.parse(readFileSync(join(root, "claude-argv"), "utf8")) as string[]; return JSON.parse(argv[argv.indexOf("--settings") + 1]!) as Record<string, unknown>; };
   const turn = await openRunner(base, () => {}, () => {}, () => {});
   await turn.close();
   expect(execArgs(root)).toContain(command);
+  expect(execArgs(root)?.slice(-1)[0]).toBe(JSON.parse(readFileSync(join(root, "claude-argv"), "utf8")).at(-1));
   expect(settingsOf()).toEqual({ sandbox: { enabled: false } });
+  rmSync(join(root, "exec-args")); rmSync(join(root, "claude-argv"));
+  const fast = await openRunner({ ...base, fast: true }, () => {}, () => {}, () => {});
+  await fast.close();
+  expect(execArgs(root)).toContain(command);
+  expect(settingsOf()).toEqual({ fastMode: true, sandbox: { enabled: false } });
   for (const read of [listModels, listSkills] as const) {
     rmSync(join(root, "exec-args")); rmSync(join(root, "claude-argv"));
     await read(base, () => {}, () => {});
     expect(execArgs(root)).toContain(command);
     expect(settingsOf()).toMatchObject({ sandbox: { enabled: false } });
   }
+}, 20000);
+it("leaves a Claude run without a fence (a terminal session's) outside sandbox-exec with no settings", async () => {
+  const root = temp(), command = fakeClaude(root);
+  const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root } }, () => {}, () => {}, () => {});
+  await runner.close();
+  expect(execArgs(root)).toBeNull();
+  expect(JSON.parse(readFileSync(join(root, "claude-argv"), "utf8"))).not.toContain("--settings");
 }, 20000);
 
 const CODEX_OWNER = { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: "a1", workspaceId: null, profile: "codex" };
@@ -191,13 +186,12 @@ it("fails a fenced Claude or Codex start as process_exited, never cli_missing, w
     for (const input of inputs) expect(await openRunner(input, () => {}, () => {}, () => {}).then(() => "started", (e: unknown) => (e as Error).message)).toBe("process_exited");
   }
 }, 40000);
-it("refuses a Claude turn with its sandbox on, or a Codex profile server, that has no listing to deny", async () => {
-  const root = temp(), exec = fakeExec(root), claude = fakeClaude(root), codex = fakeCodex(root);
-  await expect(openRunner({ command: claude, runtime: "claude", owner: CLAUDE_OWNER, cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, fence: { paths: paths("claude"), exec, claudeSandbox: true } }, () => {}, () => {}, () => {})).rejects.toThrow("unknown");
+it("refuses a Codex profile server that has no listing to deny", async () => {
+  const root = temp(), exec = fakeExec(root), codex = fakeCodex(root);
   await expect(openRunner({ command: codex, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, fence: { paths: paths("codex"), exec, socket: "/tmp/doan-sock/app.sock" } }, () => {}, () => {}, () => {})).rejects.toThrow("unknown");
   // Without the app socket's directory the profile would leave `doan` unable to reach the app.
   await expect(openRunner({ command: codex, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, fence: { paths: paths("codex"), exec, denied: [] } }, () => {}, () => {}, () => {})).rejects.toThrow("unknown");
-  expect(existsSync(join(root, "claude-argv")) || existsSync(join(root, "codex-argv"))).toBe(false);
+  expect(existsSync(join(root, "codex-argv"))).toBe(false);
 });
 // Only sandbox-exec's own failure is reclassified: a CLI that ends during its start keeps the SDK's error, so its
 // sign-in or version guidance is not lost.
