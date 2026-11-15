@@ -32,7 +32,7 @@
   - 맡는 파일: `playability.ts`, `prototypePlay.ts`, `requests.ts`의 `goto` 검증, `windowState.ts`, `history.ts`.
   - 테스트: `playability.test.ts`, `prototypePlay.test.ts`, `requests.test.ts`, `windowState.test.ts`. 연결로 옮긴 뒤 재생할 수 없게 된 프레임으로의 Back을 포함한다.
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
-- [ ] 4. **배치 G — 가이드와 eval**(처음부터 병렬, 다른 배치와 파일이 겹치지 않음).
+- [x] 4. **배치 G — 가이드와 eval**(처음부터 병렬, 다른 배치와 파일이 겹치지 않음).
   - 가이드 문구와 줄일 곳을 design.md '가이드 예산' 표로 사용자가 확인한다.
   - `skill_test.go`에 내용 테스트를 더한다.
   - `eval/scenarios/W9/`를 만든다.
