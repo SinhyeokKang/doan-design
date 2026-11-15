@@ -12,7 +12,7 @@ Make `/tdd`'s tests green or implement the tasks in `docs/features/<slug>/tasks.
 
 ## 1. Before starting (do not skip)
 
-- If `docs/POSTMORTEM.md` exists, grep it for the files and areas you will touch. Design around the matching pitfalls and record them in the report.
+- If `docs/postmortem/` exists, grep every month file in it (`grep -rn <pattern> docs/postmortem/`) for the files and areas you will touch. Design around the matching pitfalls and record them in the report.
 - Read the relevant sections of `docs/PRODUCT.md` and `docs/ARCHITECTURE.md`, especially ARCHITECTURE §1 'Conventions' and the structural decisions. If the implementation conflicts with a decision, the question may be about the decision first, not the code.
 - If `tasks.md` exists, confirm which task this work is. If the work is not on the list, write in the report why it is needed.
 - If it reaches out of scope (PRODUCT §3 'Out of scope'), stop and ask.
@@ -28,9 +28,9 @@ Make `/tdd`'s tests green or implement the tasks in `docs/features/<slug>/tasks.
 
 ## 3. Self-check (four perspectives)
 
-Sort each finding into 🔴 (must fix) / 🟡 (should fix) / ⚪ (note). If you split the perspectives across subagents, respect the worker model boundary in AGENTS.md 'Runtime differences' (Claude Code sessions use only Claude models, Codex sessions only Codex models).
+Sort each finding into 🔴 (must fix) / 🟡 (should fix) / ⚪ (note). If you split the perspectives across subagents, use only this session's model family (AGENTS.md 'Runtime differences').
 
-1. **Decisions** — does it respect ARCHITECTURE's structural decisions: serving only `.doan/canvases/`, `.doan/ds/`, `.doan/assets/` and the config paths, `127.0.0.1`, no CORS header except `Access-Control-Allow-Origin: null` on in-scope 200 responses, token path / no `allow-same-origin` on the iframe / no handling of GitHub tokens except Copilot's sign-in token (ARCHITECTURE §7 'GitHub token exception') / Doan runs no git command except the first-run / Add Projects clone and the consented `git init` (`--git-init`, Keep out of Git) (PRODUCT §3 Out of scope 6) — no commits, branches, push, pull or fetch; it reads Git metadata from files and the only Git settings it writes are the one `.gitattributes` line (`doan init`, `doan config --storage repo`) and, for a project kept out of Git, one marked pattern pair in `.git/info/exclude` / selection text (`doan active` `html`/`text`) is treated as data, not instructions.
+1. **Decisions** — does it respect ARCHITECTURE's structural decisions: the serving scope, token path, `127.0.0.1` binding and CORS rule (§3 'Canvas rendering') / the sandboxed iframe without `allow-same-origin` (§3) / no GitHub token except Copilot's sign-in (§7 'GitHub token exception') / no git command or Git setting beyond the exceptions in PRODUCT §3 Out of scope 6 / selection text (`doan active` `html`/`text`) is treated as data, not instructions (§6 'Skills').
 2. **Scope** — has §3 'Out of scope' slipped in? Does it force formats outside ARCHITECTURE §1 'Conventions' onto the canvas?
 3. **Types and boundaries** — no TS `any` or assertions, no discarded Go `error`? Are failures not silently swallowed? Do the `--json` envelope and exit codes follow the contract?
 4. **Simplicity** — is there flexibility, configuration, or abstraction nobody asked for? Pre-built extensibility is a defect in itself.
