@@ -181,6 +181,11 @@ func TestHandoffRequestWorstCaseFitsTheLine(t *testing.T) {
 		if bytes.Count(line, []byte(`\u`)) < handoffTextLimit {
 			t.Fatalf("%q was not escaped to six bytes", ch)
 		}
+		// A text of only U+2028 or U+2029 is blank to the app's schema, so it bounds the line size but is no
+		// valid request.
+		if ch == "\u2028" || ch == "\u2029" {
+			continue
+		}
 		var probe any
 		if err := json.Unmarshal(line, &probe); err != nil || formats.ValidateHandoffRequest(probe) != nil {
 			t.Fatalf("%q: %v", ch, err)

@@ -81,31 +81,14 @@ func WriteStorage(root, home, storage string) (bool, error) {
 }
 
 func replaceExclude(path string, data, next []byte, info os.FileInfo, recheck func(string) ([]byte, os.FileInfo, error)) error {
-	temp, err := os.CreateTemp(filepath.Dir(path), ".exclude-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(temp.Name())
-	if err := temp.Chmod(info.Mode().Perm()); err != nil {
-		temp.Close()
-		return err
-	}
-	if _, err := temp.Write(next); err != nil {
-		temp.Close()
-		return err
-	}
-	if err := temp.Close(); err != nil {
-		return err
-	}
-	current, currentInfo, err := recheck(path)
-	if err != nil {
-		return err
-	}
-	if currentInfo == nil || !os.SameFile(info, currentInfo) || !bytes.Equal(current, data) {
-		return errors.New("exclude changed before replacement; retry")
-	}
-	if err := os.Rename(temp.Name(), path); err != nil {
-		return err
-	}
-	return nil
+	return WriteStaged(filepath.Dir(path), ".exclude-*", info.Mode().Perm(), next, func(temp string) error {
+		current, currentInfo, err := recheck(path)
+		if err != nil {
+			return err
+		}
+		if currentInfo == nil || !os.SameFile(info, currentInfo) || !bytes.Equal(current, data) {
+			return errors.New("exclude changed before replacement; retry")
+		}
+		return os.Rename(temp, path)
+	})
 }
