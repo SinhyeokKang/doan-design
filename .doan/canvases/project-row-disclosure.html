@@ -25,9 +25,7 @@ code, kbd { font-family: var(--type-family); }
 .meta { font: 11.5px var(--type-family); color: var(--text-metadata); white-space: nowrap; }
 .side { background: var(--surface-panel); border-right: 1px solid var(--border-standard); }
 .right { background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
-.native-scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
-.native-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.native-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb-quiet); border-radius: 4px; }
+.right.doan-scroll { overflow: auto; }
 .sec { font: 10.5px var(--type-family); letter-spacing: .1em; text-transform: uppercase; color: var(--text-metadata); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 6px; }
 .sec .r { letter-spacing: 0; text-transform: none; }
 .sec .r { color: var(--text-metadata); }
@@ -478,9 +476,9 @@ body:has(.shell-top) { background: transparent; }
 .shell-worktree > span { min-width: 0; flex: 1; }
 .shell-worktree > span > span, .shell-worktree small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell-worktree small { margin-top: 4px; color: var(--text-metadata); font-size: 11px; line-height: 14px; }
-.workspace > .doan-canvas-panel { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
-.workspace > .ov { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
-.workspace > .right-stack { border-radius: 0 24px 24px 0; overflow: hidden; }
+.workspace > .doan-canvas-panel { margin-left: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container) 0 0 var(--radius-container); }
+.workspace > .ov { margin-left: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container) 0 0 var(--radius-container); }
+.workspace > .right-stack { border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
 @media (prefers-reduced-transparency: reduce) {
   body:has(.shell-top), .workspace.app-shell { background: var(--bg-app); }
 }
@@ -677,8 +675,6 @@ body:has(.shell-top) { background: transparent; }
 .queue-status:not(:empty) { margin-top: var(--space-1); }
 .queue-status { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); }
 .queue-status svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
-.canvas-gone { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.canvas-gone svg { flex: none; }
 .grow-text { flex: 1; min-width: 0; }
 /* Suggested prompts: a prompt-only button, not the shared doan-button (.doan/canvases/suggested-prompt-variants.html
    variant C). Full-width rows; on Home they take the composer's width, 32px under it. */
