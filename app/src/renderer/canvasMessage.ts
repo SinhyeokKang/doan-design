@@ -38,7 +38,7 @@ export const MAX_TEXT_RECTS = 2000;
 export interface CanvasFrameRect {
   id: string;
   title?: string;
-  // The frame's raw `data-doan-prototype` value; playability parses it. Absent on a frame whose ID was cut.
+  // The frame's raw `data-doan-prototype` value; playability parses it. A `cut` frame keeps it but never plays.
   prototype?: string;
   // The ID was cut at 200 UTF-16 units, so it is not the frame's: the frame cannot play, and link groups, which compare
   // raw ids, must leave it out rather than take the cut ID for another frame's.
@@ -438,7 +438,7 @@ function parseFrame(raw: unknown): { frame: CanvasFrameRect; cut: boolean } | nu
   const frame: CanvasFrameRect = { id: clippedId.text, x, y, width, height };
   if (clippedId.cut || raw.cut === true) frame.cut = true;
   // A mark that is not a string or is over the cap is dropped, not the frame: the frame stays listed, unmarked.
-  if (frame.cut === undefined && typeof prototype === "string" && prototype.length <= MAX_PROTOTYPE_MARK) frame.prototype = prototype;
+  if (typeof prototype === "string" && prototype.length <= MAX_PROTOTYPE_MARK) frame.prototype = prototype;
   let cut = clippedId.cut;
   if (title !== undefined) {
     const clippedTitle = clip(title);

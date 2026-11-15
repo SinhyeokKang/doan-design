@@ -254,12 +254,12 @@ describe("parseCanvasMessage: layout parents and links", () => {
     expect(message.gotos).toEqual([{ value: "a", frame: 2 }]);
   });
 
-  test("a frame whose ID the script or the parser cut is marked cut and loses its mark", () => {
+  test("a frame whose ID the script or the parser cut is marked cut and keeps its mark", () => {
     const exact = "a".repeat(MAX_STRING);
     const message = parsed({ frames: [f(exact, { prototype: "1x1", cut: true }), f("a".repeat(MAX_STRING + 1), { prototype: "1x1" }), f(exact, { prototype: "1x1" }), f("b", { prototype: "1x1", cut: "yes" })] });
     expect(message.frames.map(({ id, prototype, cut }) => ({ id, prototype, cut }))).toEqual([
-      { id: exact, prototype: undefined, cut: true },
-      { id: exact, prototype: undefined, cut: true },
+      { id: exact, prototype: "1x1", cut: true },
+      { id: exact, prototype: "1x1", cut: true },
       { id: exact, prototype: "1x1", cut: undefined },
       { id: "b", prototype: "1x1", cut: undefined },
     ]);

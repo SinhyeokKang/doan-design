@@ -293,12 +293,12 @@ export function canvasScript(lib: CanvasLib): void {
       const frame: (typeof list)[number] = { id: clip(id), x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height };
       const title = el.getAttribute("data-doan-title");
       if (title !== null) frame.title = clip(title);
-      // A cut ID is not the frame's, so the frame cannot play: it keeps its place and number but carries no mark, and
-      // `cut` tells link groups (which compare raw ids) to leave it out.
+      // A cut ID is not the frame's, so the frame cannot play: `cut` keeps it out of play and out of link groups (which
+      // compare raw ids), while its place, number and mark stay, so Play can say a marked frame can't play.
       if (frame.id !== id) frame.cut = true;
       // The raw prototype mark, judged by the renderer; cutting a junk value does not make the list truncated.
       const mark = el.getAttribute("data-doan-prototype");
-      if (mark !== null && frame.cut === undefined) frame.prototype = lib.clipText(mark, MAX_PROTOTYPE_MARK);
+      if (mark !== null) frame.prototype = lib.clipText(mark, MAX_PROTOTYPE_MARK);
       const parentIndex = listedAround(el.parentElement);
       if (parentIndex !== undefined) frame.parent = parentIndex;
       listed.set(el, list.length);

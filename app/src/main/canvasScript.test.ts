@@ -3002,9 +3002,9 @@ describe("layout frames and links in a real DOM", () => {
   describe("link placements of the shared fixture", () => {
     test.each(links.placements)("$name", async ({ html, frames, gotos }) => {
       const layout = await layoutOf(html);
-      // An ID over 200 units is cut for the list and the frame cannot play, so it carries no mark.
+      // An ID over 200 units is cut for the list and marked `cut`, so the frame cannot play; its mark stays.
       expect(layout.frames.map(({ id, prototype, cut }) => ({ id, ...(prototype === undefined ? {} : { prototype }), ...(cut === undefined ? {} : { cut }) }))).toEqual(
-        frames.map(({ id, prototype }) => id.length > 200 ? { id: clipText(id, 200), cut: true } : { id, ...(prototype === null ? {} : { prototype }) }));
+        frames.map(({ id, prototype }) => ({ id: clipText(id, 200), ...(prototype === null ? {} : { prototype }), ...(id.length > 200 ? { cut: true } : {}) })));
       const reported = gotos.filter(goto => goto.value.length <= 200);
       expect(layout.gotos.map(goto => goto.value)).toEqual(reported.map(goto => goto.value));
       expect(layout.gotos.map(goto => chain(layout, goto.frame))).toEqual(reported.map(goto => goto.frames.map(id => clipText(id, 200))));
@@ -3018,9 +3018,9 @@ describe("layout frames and links in a real DOM", () => {
     expect(layout.frames).toEqual([{ id: "a" }, { id: "b", parent: 0 }, { id: "c", parent: 0 }, { id: "d", parent: 2 }, { id: "e" }]);
   });
 
-  test("a cut ID's frame keeps its place and number but no mark", async () => {
+  test("a cut ID's frame keeps its place, number and mark, marked cut", async () => {
     const layout = await layoutOf(`<div data-doan-frame="a" data-doan-prototype="1x1"></div><div data-doan-frame="${"x".repeat(201)}" data-doan-prototype="1x1"><div data-doan-frame="c" data-doan-prototype="1x1"><a data-doan-goto="a"></a></div></div>`);
-    expect(layout.frames).toEqual([{ id: "a", prototype: "1x1" }, { id: "x".repeat(200), cut: true }, { id: "c", prototype: "1x1", parent: 1 }]);
+    expect(layout.frames).toEqual([{ id: "a", prototype: "1x1" }, { id: "x".repeat(200), prototype: "1x1", cut: true }, { id: "c", prototype: "1x1", parent: 1 }]);
     expect(layout.gotos).toEqual([{ value: "a", frame: 2 }]);
   });
 
