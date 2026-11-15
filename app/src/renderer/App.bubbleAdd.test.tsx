@@ -75,7 +75,6 @@ const { BubbleAdd } = await import("./BubbleAdd");
 const { ADD_TO_MESSAGE_CAPTURING, ADD_TO_MESSAGE_OUTSIDE_FRAMES, ADD_TO_MESSAGE_UNAVAILABLE, ANCHOR_LIMIT_TEXT } = await import("./canvasPicker");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
-const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let windowListeners: Record<string, (event: never) => void>;

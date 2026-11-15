@@ -46,7 +46,6 @@ function run(make: () => ReactNode): ReactNode {
   return tree;
 }
 const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
-const unmount = () => { for (const slot of hooks.effects) slot?.cleanup?.(); };
 const button = (label: string) => { const found = all(tree).find(element => element.type === "button" && (element.props["aria-label"] === label || words(element.props.children) === label)); if (!found) throw new Error(`no button ${label}`); return found; };
 const click = (label: string) => (button(label).props.onClick as () => void)();
 const text = () => words(all(tree).filter(element => typeof element.type === "string").map(element => element.props.children));

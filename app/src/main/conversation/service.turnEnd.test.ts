@@ -79,7 +79,7 @@ describe("judging a project turn once its process group is gone", () => {
     expect(h.open).toHaveBeenCalledTimes(2);
   });
   it("judges at a folder refresh that comes first", async () => {
-    fake(); const h = fixture(); const id = await h.startProject();
+    fake(); const h = fixture(); await h.startProject();
     h.listed.push({ path: ".doan/canvases/new.html", id: "new" });
     h.runs[0]!.emit({ type: "turn.done" }); h.runs[0]!.exited();
     h.service.refreshed("/repo", [".doan/canvases/new.html"]);

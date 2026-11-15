@@ -1,5 +1,5 @@
 import type {
-  OnboardingChange, OnboardingOperation, OnboardingOperationErrorCode, OnboardingResponse, OnboardingSocketErrorCode, OnboardingState, OnboardingStorage,
+  OnboardingChange, OnboardingOperation, OnboardingOperationErrorCode, OnboardingResponse, OnboardingSocketErrorCode, OnboardingStorage,
 } from "../formats/types";
 import type { AddPageResponse, AddPageState, DoanApi } from "../preload";
 import type { FolderEntry } from "../main/view";

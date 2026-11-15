@@ -46,7 +46,7 @@ import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } 
 import { editMenuInput, editMenuTemplate } from "./editMenu";
 import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, type AddFlow } from "./addProjects";
-import { cliCommand, cliEnv, readFolder, runConfig, runDesignSkill, runExport, runLs, type CliEnv } from "./cli";
+import { cliCommand, cliEnv, runConfig, runDesignSkill, runExport, runLs, type CliEnv } from "./cli";
 import { createCanvasExport, createPrototypeExport, EXPORT_REFUSED } from "./canvasExport";
 import { createCanvasTrash, TRASH_REFUSED, trashBusy } from "./canvasTrash";
 import { createConfigBridge, storageWrite, type ConfigBridge } from "./configBridge";

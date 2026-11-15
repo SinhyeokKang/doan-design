@@ -318,7 +318,7 @@ describe("failures, retry and stale results", () => {
   });
 
   test("Reload and Retry start a new run at the same size, without history", () => {
-    const { w, state } = loading();
+    const { state } = loading();
     const failed = report(state, { gen: 1, state: "timeout" }).state;
     const step = reload(failed, 1);
     expect(step.effects).toEqual([{ kind: "load", gen: 2, url: "http://h/t/tok/k1/proto.html", frame: "phone" }]);

@@ -23,7 +23,7 @@ const cardProps = (patch: Partial<QuestionCardProps> = {}): QuestionCardProps =>
   item: item([layout]), provider: "claude", live: false, base: "b", draft: EMPTY_QUESTION_DRAFT, onDraft: noop, onSend: noop, onSkip: noop, onStop: noop, ...patch,
 });
 const card = (patch: Partial<QuestionCardProps> = {}) => renderToStaticMarkup(<TooltipProvider><QuestionCard {...cardProps(patch)} /></TooltipProvider>);
-const draftOf = (questions: Question[], ...actions: QuestionDraftAction[]): QuestionDraft => actions.reduce(questionDraft, EMPTY_QUESTION_DRAFT);
+const draftOf = (...actions: QuestionDraftAction[]): QuestionDraft => actions.reduce(questionDraft, EMPTY_QUESTION_DRAFT);
 
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);
@@ -85,7 +85,7 @@ describe("question card", () => {
   });
 
   test("chosen options show by their control; Other chosen opens its input, masked for a secret question", () => {
-    const draft = draftOf([layout, sections], { type: "other", question: layout }, { type: "text", questionId: "0", text: "Both" }, { type: "choose", question: sections, option: 0 });
+    const draft = draftOf({ type: "other", question: layout }, { type: "text", questionId: "0", text: "Both" }, { type: "choose", question: sections, option: 0 });
     const out = card({ item: item([layout, sections]), draft });
     expect(out).toMatch(/<input type="checkbox" aria-labelledby="b-q1-1-l0" name="b-q1-1"[^>]*checked=""[^>]*\/><span class="doan-preference-row-icon"><span class="doan-checkbox q-check" data-state="checked" aria-hidden="true">/);
     expect(out).toContain('<span class="doan-preference-row-extra"><input class="doan-input q-input" type="text" placeholder="Type your answer" aria-label="Other answer" maxLength="4096" id="b-q1-0-other" value="Both"/></span>');
@@ -105,7 +105,7 @@ describe("question card", () => {
     const tip = off.find(el => typeof el.type !== "string" && textOf(el.props.children as ReactNode) === "Choose or type an answer first.");
     expect(tip).toBeDefined();
     expect(all(QuestionCard(cardProps({ item: item([layout, sections]) }))).some(el => textOf(el.props.children as ReactNode) === "Answer each question first.")).toBe(true);
-    const ready = card({ draft: draftOf([layout], { type: "choose", question: layout, option: 1 }) });
+    const ready = card({ draft: draftOf({ type: "choose", question: layout, option: 1 }) });
     expect(ready).toContain('<button type="button" class="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent">Send</button>');
   });
 
@@ -113,7 +113,7 @@ describe("question card", () => {
     const onSend = vi.fn(), onSkip = vi.fn(), onStop = vi.fn();
     (button(tree({ onSend, onSkip, onStop }), "Send").props.onClick as () => void)();
     expect(onSend).not.toHaveBeenCalled();
-    const ready = tree({ onSend, onSkip, onStop, draft: draftOf([layout], { type: "choose", question: layout, option: 0 }) });
+    const ready = tree({ onSend, onSkip, onStop, draft: draftOf({ type: "choose", question: layout, option: 0 }) });
     (button(ready, "Send").props.onClick as () => void)();
     (button(ready, "Skip").props.onClick as () => void)();
     (button(ready, "Stop").props.onClick as () => void)();
@@ -151,7 +151,7 @@ describe("question card", () => {
 
   test("Return in the Other input sends only when Send can, and never while an IME composes", () => {
     const onSend = vi.fn(), preventDefault = vi.fn();
-    const draft = draftOf([layout], { type: "other", question: layout }, { type: "text", questionId: "0", text: "Both" });
+    const draft = draftOf({ type: "other", question: layout }, { type: "text", questionId: "0", text: "Both" });
     const field = (d: QuestionDraft) => inputs(tree({ onSend, draft: d })).find(el => el.props.type === "text")!;
     const press = (d: QuestionDraft, nativeEvent: Record<string, unknown>) => (field(d).props.onKeyDown as (e: unknown) => void)({ key: "Enter", nativeEvent, preventDefault });
     press(draft, { isComposing: true });
@@ -159,7 +159,7 @@ describe("question card", () => {
     expect(onSend).not.toHaveBeenCalled();
     press(draft, { isComposing: false });
     expect(onSend).toHaveBeenCalledTimes(1);
-    press(draftOf([layout], { type: "other", question: layout }), { isComposing: false });
+    press(draftOf({ type: "other", question: layout }), { isComposing: false });
     expect(onSend).toHaveBeenCalledTimes(1);
   });
 
@@ -180,7 +180,7 @@ describe("question card", () => {
 
   test("sending: Send is busy with a spinner, the choices and Skip are read-only, Stop stays live", () => {
     const onSend = vi.fn(), onSkip = vi.fn(), onStop = vi.fn();
-    const draft = questionDraft(draftOf([layout], { type: "choose", question: layout, option: 1 }), { type: "sending", how: "answer" });
+    const draft = questionDraft(draftOf({ type: "choose", question: layout, option: 1 }), { type: "sending", how: "answer" });
     const out = card({ draft });
     expect(out).toContain('<div class="doan-notice thread-notice q-card is-locked">');
     expect(out).toContain('<button type="button" class="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Send</button>');
@@ -194,7 +194,7 @@ describe("question card", () => {
   });
 
   test("a failed send keeps the choices and says so under the actions", () => {
-    const draft = questionDraft(questionDraft(draftOf([layout], { type: "choose", question: layout, option: 1 }), { type: "sending", how: "answer" }), { type: "failed" });
+    const draft = questionDraft(questionDraft(draftOf({ type: "choose", question: layout, option: 1 }), { type: "sending", how: "answer" }), { type: "failed" });
     const out = card({ draft });
     expect(out).toContain('<span class="ask-error" role="alert">Couldn’t send your answer. Try again.</span>');
     expect(out).toContain('<div class="doan-notice thread-notice q-card">');
@@ -221,7 +221,7 @@ describe("the thread's question items", () => {
   const html = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}) => renderToStaticMarkup(<TooltipProvider><ConversationThread {...props(items, patch)} /></TooltipProvider>);
 
   test("a pending question draws its card with the host's draft; the status says the agent needs an answer", () => {
-    const draft = draftOf([layout], { type: "choose", question: layout, option: 1 });
+    const draft = draftOf({ type: "choose", question: layout, option: 1 });
     const out = html([item([layout], { seq: 3 })], { liveAfter: 2, questionDraft: id => id === "q1" ? draft : EMPTY_QUESTION_DRAFT });
     expect(out).toContain('<div class="thread-item" data-item="Qq1"><div class="doan-notice thread-notice q-card">');
     expect(out).toContain('role="alert"><b>Which layout');

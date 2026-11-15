@@ -67,21 +67,11 @@ vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
 const { ProjectOverview } = await import("./ProjectOverview");
-const { ProblemOverlay } = await import("./ProblemOverlay");
-const { ProjectSetupDialog } = await import("./ProjectSetupDialog");
-const { KeyedConversationStrip, ConversationStrip } = await import("./ConversationStripView");
-const { HomeRun } = await import("./homeRun");
 const { OverviewRun } = await import("./overviewRun");
 const { Home } = await import("./Home");
-const { initialCanvasState } = await import("./CanvasController");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
-const notFound = (path = "/w/a"): FolderEntry => ({ path, kind: "notFound" });
-const uninitialized = (path = "/w/a"): FolderEntry => ({ path, kind: "uninitialized" });
-const configError = (path = "/w/a", message = "unexpected end of JSON input"): FolderEntry => ({ path, kind: "error", message, config: `${path}/.doan/config.json` });
-const cliError = (path = "/w/a"): FolderEntry => ({ path, kind: "cliError", reason: "Unavailable" });
-const loading = (path = "/w/a"): FolderEntry => ({ path, kind: "loading" });
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" }, updates: { autoCheck: true } }, notice: null };
 const HEADING = ".workspace .problem-overlay h2", COMPOSER = ".workspace .ov-main .composer-input", AREA = ".workspace .doan-canvas-panel .area";
 let listeners: Record<string, (...args: never[]) => void>;
@@ -148,24 +138,12 @@ const find = <P,>(type: unknown) => all(tree).filter(element => element.type ===
 function folders(entries: FolderEntry[], focus?: { from: string; root: string }) { listeners.folders!(entries as never, focus as never); render(); }
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); render(); };
 
-type Overlay = { view: { kind: string; entryKind?: string; heading?: string; busy?: boolean; actions?: { name: string }[] }; details: boolean; detail?: string; pressed: string | null; announcement: string; onAction(name: string): void };
-const overlay = () => find<Overlay>(ProblemOverlay)[0]?.props;
 type Sidebar = { cards: { key: string; rows: { path: string }[] }[]; overview(root: string): void; toggle(key: string): void; remove(roots: string[]): void; worktree(root: string): void; projects: Record<string, { roots: string[] }> };
 const sidebar = () => find<Sidebar>(ShellSidebar)[0]!.props;
-const keyOf = (root: string) => sidebar().cards.find(card => card.rows.some(row => row.path === root))!.key;
 const overview = () => find<{ root: string; unavailable: string | null }>(ProjectOverview)[0]?.props;
-const pane = () => all(tree).find(element => typeof element.type === "function" && element.type.name === "CanvasPane");
-const homeRun = () => hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as InstanceType<typeof HomeRun>;
 const overviewRun = () => hooks.refs.find(ref => ref.current instanceof OverviewRun)!.current as InstanceType<typeof OverviewRun>;
-const menuState = () => doan.setMenuState!.mock.lastCall?.[0] as Record<string, unknown>;
 const toOverview = (root = "/w/a") => { sidebar().overview(root); render(); };
-const clearController = () => { for (const mock of Object.values(harness.controller!)) if (vi.isMockFunction(mock)) mock.mockClear(); };
 // A canvas of /w/a open on the canvas page, entered through its Overview.
-function canvasOpen(root = "/w/a", patch: Record<string, unknown> = {}) {
-  toOverview(root);
-  harness.setState!({ ...initialCanvasState(), open: { folder: root, canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, message: "", layout: { frames: [], width: 800 }, ...patch });
-  render();
-}
 const removalDialog = () => all(tree).find(element => element.type === "dialog" && element.props.role === "alertdialog");
 const dialogButton = (label: string) => all(removalDialog()!).find(element => element.type === "button" && element.props.children === label)!;
 

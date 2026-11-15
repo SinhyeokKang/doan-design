@@ -9,11 +9,11 @@ const listRow = (path: string, git?: GitInfo, extra: { canvases?: CanvasRow[]; c
   path, kind: "list", servedRev: 0, canvases: extra.canvases ?? [], ...(git ? { git } : {}), ...(extra.changedAt === undefined ? {} : { changedAt: extra.changedAt }),
 });
 const common = "/code/acme/.git";
-const acme = (path: string, branch: string): GitInfo => ({ common, main: "/code/acme", branch, worktrees: ["/code/acme", "/code/acme-feat"] });
+const acme = (branch: string): GitInfo => ({ common, main: "/code/acme", branch, worktrees: ["/code/acme", "/code/acme-feat"] });
 
 describe("groupProjects", () => {
   test("puts worktrees of one common dir in one card, at the first row's place", () => {
-    const entries = [listRow("/code/acme", acme("", "main")), listRow("/code/solo", { common: "/code/solo/.git", worktrees: ["/code/solo"] }), listRow("/code/acme-feat", acme("", "feat"))];
+    const entries = [listRow("/code/acme", acme("main")), listRow("/code/solo", { common: "/code/solo/.git", worktrees: ["/code/solo"] }), listRow("/code/acme-feat", acme("feat"))];
     const cards = groupProjects(entries, new Map());
     expect(cards.map((card) => [card.name, card.rows.map((row) => row.path)])).toEqual([
       ["acme", ["/code/acme", "/code/acme-feat"]],
@@ -27,13 +27,13 @@ describe("groupProjects", () => {
   });
 
   test("a row that is not a list stays in the card it was last seen in", () => {
-    const entries: FolderEntry[] = [listRow("/code/acme", acme("", "main")), { path: "/code/acme-feat", kind: "notFound" }, { path: "/x/bad", kind: "error", message: "bad", config: "/x/bad/.doan/config.json" }];
+    const entries: FolderEntry[] = [listRow("/code/acme", acme("main")), { path: "/code/acme-feat", kind: "notFound" }, { path: "/x/bad", kind: "error", message: "bad", config: "/x/bad/.doan/config.json" }];
     const cards = groupProjects(entries, new Map([["/code/acme-feat", common]]));
     expect(cards.map((card) => card.rows.map((row) => row.path))).toEqual([["/code/acme", "/code/acme-feat"], ["/x/bad"]]);
   });
 
   test("a list row that lost its git leaves the card it was last seen in", () => {
-    const entries = [listRow("/code/acme", acme("", "main")), listRow("/code/acme-feat")];
+    const entries = [listRow("/code/acme", acme("main")), listRow("/code/acme-feat")];
     const cards = groupProjects(entries, new Map([["/code/acme-feat", common]]));
     expect(cards.map((card) => card.rows.map((row) => row.path))).toEqual([["/code/acme"], ["/code/acme-feat"]]);
   });
@@ -45,7 +45,7 @@ describe("groupProjects", () => {
       { path: "/w/cli", kind: "cliError", reason: "x" },
     ];
     const memory = new Map(problems.map((entry) => [entry.path, common]));
-    const cards = groupProjects([listRow("/code/acme", acme("", "main")), ...problems], memory);
+    const cards = groupProjects([listRow("/code/acme", acme("main")), ...problems], memory);
     expect(cards.map((card) => card.rows.map((row) => row.path))).toEqual([["/code/acme", "/w/missing", "/w/bad", "/w/cli"]]);
   });
 
@@ -57,7 +57,7 @@ describe("groupProjects", () => {
   test("the name is the main worktree's basename, else the first row's", () => {
     const linkedOnly: GitInfo = { common: "/bare.git", worktrees: ["/w/feat"] };
     expect(groupProjects([listRow("/w/feat", linkedOnly)], new Map())[0]?.name).toBe("feat");
-    expect(groupProjects([listRow("/w/feat", acme("", "feat"))], new Map())[0]?.name).toBe("acme");
+    expect(groupProjects([listRow("/w/feat", acme("feat"))], new Map())[0]?.name).toBe("acme");
     expect(groupProjects([{ path: "/w/gone", kind: "notFound" }], new Map())[0]?.name).toBe("gone");
   });
 
@@ -93,7 +93,7 @@ describe("cardRow", () => {
   });
 
   test("a list row has no chip and summarizes branch and change; the counts are homeSummary's", () => {
-    const entry = listRow("/code/acme", acme("", "main"), { canvases: [canvas(), canvas(), canvas()], changedAt: 1234 });
+    const entry = listRow("/code/acme", acme("main"), { canvases: [canvas(), canvas(), canvas()], changedAt: 1234 });
     const row = cardRow(entry, null, null);
     expect(row.chip).toBeUndefined();
     expect(row.summary).toEqual({ branch: "main", changedAt: 1234 });
