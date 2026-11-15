@@ -55,6 +55,14 @@ test("W11 rejects invalid targets and missing links", () => {
   assert.deepEqual(withCanvas(pass.replaceAll(/ data-doan-goto="[^"]*"/g, '')), ["one_link_group", "only_canvas_changed"]);
 });
 
+test("W11 rejects hash-link wrappers and onclick navigation without goto attributes", () => {
+  const hashLinks = pass.replace(/<button([^>]*?) data-doan-goto="([^"]+)"([^>]*)>([\s\S]*?)<\/button>/g, '<a href="#$2"><button$1$3>$4</button></a>');
+  const onclick = pass.replace(/data-doan-goto="([^"]+)"/g, `onclick="location.hash = '$1'"`);
+  for (const html of [hashLinks, onclick]) {
+    assert.deepEqual(withCanvas(html), ["canvas_otherwise_unchanged", "one_link_group"]);
+  }
+});
+
 test("W11 preserves text, scripts, marks, ids, and every other file", () => {
   for (const html of [
     pass.replace('>Welcome</h1>', '>Hello</h1>'),
@@ -73,7 +81,7 @@ test("W11 ignores template links, including self-closing template syntax", () =>
   }
 });
 
-test("W11 applies shared grouping rules for duplicate ids, raw values and nested enclosing frames", () => {
+test("W11 rejects duplicate ids, outside links, raw value mismatches and an extra marked frame", () => {
   const group = (html: string) => groupChecks(setup("pass", { [canvasPath]: html }))[0]?.pass;
   assert.equal(group(pass.replace('data-doan-frame="signup"', 'data-doan-frame="welcome"')), false);
   assert.equal(group(seed.replace('</body>', '<button data-doan-goto="welcome"></button></body>')), false);
