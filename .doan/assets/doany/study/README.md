@@ -77,5 +77,5 @@ Home stays at 64px; both share `../motion/mascot.js` with no separate choreograp
 Doany, the 104px Doan wordmark, introduction, and Get started are one centered
 group, offset upward 72px. The action follows the original Welcome spacing:
 40px above the 48px-high button. Short windows scroll from the top.
-`../../onboarding-grain.svg` is the shared copy of the app public asset.
+`../../onboarding-grain.svg` is a copy of the grain asset Welcome used then; the app no longer ships it.
 Get started is a visual fixture; the next onboarding step is not simulated.
