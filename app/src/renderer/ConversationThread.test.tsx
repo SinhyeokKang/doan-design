@@ -437,7 +437,8 @@ describe("reply chips", () => {
 
   // A runtime test against the draft: an other-canvas chip is at most 180px like every
   // chip, the label shrinks and ellipsizes first and the suffix is never cut; the chip grows past 180px only when the
-  // suffix alone does not fit, and never past the reply block. Pure CSS; the real-app widths are checked by batch C.
+  // suffix alone does not fit, and never past the reply block. Pure CSS, which jsdom does not lay out, so this pins only
+  // the structure the CSS needs.
   test("the label and the canvas name are drawn apart, so the label ellipsizes first inside the 180px chip", () => {
     const out = html([agent("[c](doan:checkout/frame/payment)")], panel);
     // Icon, label and suffix are the chip's three direct children: the grid's three columns, in that order.

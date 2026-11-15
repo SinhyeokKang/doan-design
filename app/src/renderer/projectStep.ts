@@ -176,7 +176,7 @@ export class ProjectStepSession {
   pickListed(path: string): void { this.set({ listChoice: path }); }
   pickCandidate(path: string): void { const p = this.state.phase; if (p.kind === "candidates") this.set({ phase: { ...p, choice: path } }); }
   // Edit repository URL: back to the first screen, keeping the URL.
-  // The old inspection goes with it, so nothing later re-plans a repository the user has left (batch V defect 1).
+  // The old inspection goes with it, so nothing later re-plans a repository the user has left.
   restart(): void { this.fence(); this.acting = null; this.again = null; this.source = null; this.consent = null; this.set({ phase: { kind: "choose" }, error: null }); }
   // A cancelled or failed clone is left through its URL: Back returns there rather than to the Agent step, where
   // Continue would bring the same clone screen back.
@@ -247,7 +247,7 @@ export class ProjectStepSession {
   // the setup screen instead.
   select(): Promise<void> { return this.act(() => this.runSelect()); }
   // Set up and continue: the user's consent to write the planned changes, for the inspection that button was shown
-  // for (batch V saw a setup once without this click; no path was found, so consent is now an explicit token).
+  // for. Consent is an explicit token because a setup was once seen to run without this click and no path to it was found.
   setUp(inspectionId: string): Promise<void> {
     return this.act(async () => {
       const p = this.state.phase;
@@ -262,7 +262,7 @@ export class ProjectStepSession {
     if (this.state.error?.code === "completion_unsupported_version") return Promise.resolve();
     const p = this.state.phase;
     // The access error keeps the URL field editable: an edited URL is looked up as Enter would, and the old
-    // inspection and its retry are dropped (batch V re-check). An unchanged URL repeats the failed action.
+    // inspection and its retry are dropped. An unchanged URL repeats the failed action.
     if (p.kind === "choose" && this.state.error?.code === "access_failed" && this.state.url.trim() !== this.state.inspectedUrl) { this.again = null; this.source = null; return this.act(() => this.inspectUrl()); }
     const again = this.again ?? (p.kind === "cloneCancelled" || p.kind === "clone" ? () => this.runClone() : () => this.inspectUrl());
     return this.act(again);
