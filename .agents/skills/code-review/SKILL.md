@@ -29,7 +29,7 @@ Statically review the changes. **Report only**; `/refactor` does the fixing.
 - **Breaking iframe isolation**: adding `allow-same-origin`, any path by which canvas HTML reaches the app UI or disk.
 - **Changing ids**: changing canvas or frame ids on file moves or title changes, which cuts off conversation chips and links.
 - **Handling secrets**: reading or storing GitHub tokens outside Copilot's sign-in exception (ARCHITECTURE §7 'GitHub token exception'), exposing secrets in logs or error messages.
-- **Doan performing git operations**: any git command other than the first-run / Add Projects clone (PRODUCT §3 Out of scope 6) — commits, branches, push, pull, fetch — or Git configuration other than the one `.gitattributes` line and, for a project kept out of Git, the one marked pattern pair in `.git/info/exclude` (PRODUCT §3 Out of scope 6).
+- **Doan performing git operations**: any git command other than the first-run / Add Projects clone and the consented `git init` (`--git-init`, Keep out of Git) (PRODUCT §3 Out of scope 6) — commits, branches, push, pull, fetch — or Git configuration other than the one `.gitattributes` line and, for a project kept out of Git, the one marked pattern pair in `.git/info/exclude` (PRODUCT §3 Out of scope 6).
 - **TS/Go format divergence**: one side changes a format with a hand-written definition instead of the schema source.
 
 ### 🟡 Should fix
