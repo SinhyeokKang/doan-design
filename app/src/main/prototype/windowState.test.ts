@@ -484,10 +484,12 @@ describe("link moves", () => {
     expect(goto(CLOSED, { gen: 0, goto: "tablet" }, w.resolve)).toBeNull();
   });
 
-  test("a move whose canvas is gone is refused", () => {
-    const { w, state } = opened();
-    w.set(A, { kind: "absent" });
-    expect(goto(state, { gen: state.gen, goto: "tablet" }, w.resolve)).toBeNull();
+  test("a move, to another frame or the playing one, is refused while the canvas is gone or its root is still being read", () => {
+    for (const resolution of [{ kind: "absent" as const }, { kind: "unknown" as const }]) {
+      const { w, state } = opened();
+      w.set(A, resolution);
+      for (const value of ["tablet", "phone"]) expect(goto(state, { gen: state.gen, goto: value }, w.resolve), `${resolution.kind} ${value}`).toBeNull();
+    }
   });
 
   test("Back after a move plays the previous frame again", () => {
