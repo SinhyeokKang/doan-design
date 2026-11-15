@@ -13,10 +13,10 @@ export function canvasDir(path: string): CanvasKind | null {
 }
 
 // The CLI's listing rule (cli/internal/repo/files.go): a file under a canvas
-// directory, `.html` without case, no path segment below `.doan` starting with a dot.
+// directory, a lower-case `.html`, no path segment below `.doan` starting with a dot.
 export function canvasKind(path: string): CanvasKind | null {
   const kind = canvasDir(path);
-  if (kind === null || !path.toLowerCase().endsWith(".html")) return null;
+  if (kind === null || !path.endsWith(".html")) return null;
   const below = path.slice(CANVAS_DIRS[kind].length + 1).split("/");
   return below.some((segment) => segment === "" || segment.startsWith(".")) ? null : kind;
 }

@@ -145,7 +145,7 @@ func canvasLink(root, path string) string {
 }
 
 // workNoteMax and the excluded characters below are the note limits of app-socket.v3.schema.json,
-// which the app applies again; keep them in step. Lengths are code points.
+// which the app applies again; a test reads the schema's maxLength. Lengths are code points.
 const workNoteMax = 120
 
 // workUpdateArgs checks work update's arguments after run.go parsed the flags. --frame may appear once.

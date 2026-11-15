@@ -89,7 +89,7 @@ What the conversation runtime promises. The UI is §5 items 1–3; SDK, transpor
 ### Unit of review: one spec = one canvas
 
 - One spec (one ticket) — user flow, per-state guides for blocks and components, layout and spacing, copy — is reviewed on **a single canvas** holding **multiple frames**; the human zooms and picks a frame.
-- **One canvas = one HTML file in the repo.** The agent decides whether to keep shared shells or assets separately.
+- **One canvas = one HTML file in the repo**, named with a lower-case `.html`. The agent decides whether to keep shared shells or assets separately.
 - **Frames are what the agent marks with `data-doan-frame="id"`**; the agent decides layout and look. The frame list, jumps and anchors use this id.
 - **Ids do not change**, so anchors and conversations follow a moved file or renamed title. The agent names canvas and frame ids when it creates them, and `doan check` catches duplicates and omissions (ARCHITECTURE §1 'Conventions').
 - **A frame can point to its implementation file** (`data-doan-implements`), per frame, since each frame has its own.

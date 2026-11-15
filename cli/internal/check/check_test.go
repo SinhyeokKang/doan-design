@@ -613,3 +613,29 @@ func TestGotoOnHeadAndBodyIsOutside(t *testing.T) {
 		t.Fatalf("%+v", fs)
 	}
 }
+
+// A file whose .html is in another case is not a canvas (every path grammar is lower-case), so check says why
+// it is missing from the list instead of passing over it.
+func TestCanvasExtensionCaseWarning(t *testing.T) {
+	in := base()
+	in.MiscasedCanvases = []string{".doan/ds/Tokens.HTML", ".doan/canvases/b.Html"}
+	fs := codes(Run(in), "canvas_extension_case")
+	if len(fs) != 2 {
+		t.Fatalf("findings: %+v", fs)
+	}
+	for _, f := range fs {
+		if f.Severity != "warning" || f.Message != "Only a lower-case .html file is a canvas, so Doan does not list this file. Rename it to end in .html." {
+			t.Fatal(f)
+		}
+	}
+	if fs[0].Path != ".doan/canvases/b.Html" || fs[1].Path != ".doan/ds/Tokens.HTML" {
+		t.Fatalf("not in path order: %+v", fs)
+	}
+	if fs := codes(Run(base()), "canvas_extension_case"); len(fs) != 0 {
+		t.Fatal(fs)
+	}
+	only := Input{MiscasedCanvases: []string{".doan/canvases/a.HTML"}}
+	if len(codes(Run(only), "no_canvases")) != 1 || len(codes(Run(only), "canvas_extension_case")) != 1 {
+		t.Fatal(Run(only))
+	}
+}

@@ -38,6 +38,9 @@ type Input struct {
 	TokenCSS   TokenCSS
 	Served     func(string) bool
 	Implements map[string]State
+
+	// MiscasedCanvases are files under a canvas directory whose .html is in another case; they are not canvases.
+	MiscasedCanvases []string
 }
 type Finding struct {
 	Severity string `json:"severity"`
@@ -90,6 +93,11 @@ func Run(in Input) []Finding {
 	}
 	if len(in.Canvases)+len(in.Unparsable) == 0 {
 		add(Finding{Severity: "warning", Code: "no_canvases", Path: ".doan/canvases/", Message: "No canvases found under .doan/canvases/ or .doan/ds/. Write a canvas, then run doan check again."})
+	}
+	miscased := append([]string(nil), in.MiscasedCanvases...)
+	sort.Strings(miscased)
+	for _, path := range miscased {
+		add(Finding{Severity: "warning", Code: "canvas_extension_case", Path: path, Message: "Only a lower-case .html file is a canvas, so Doan does not list this file. Rename it to end in .html."})
 	}
 	for path, message := range in.Unparsable {
 		add(Finding{Code: "unparsable_canvas", Path: path, Message: "Cannot parse canvas: " + message})

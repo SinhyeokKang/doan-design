@@ -13,7 +13,7 @@ import (
 )
 
 // openFrameMax and the control-character rule below are the frame limits of app-socket.v4.schema.json,
-// which the app applies again; keep them in step.
+// which the app applies again; a test reads the schema's maxLength.
 const openFrameMax = 200
 
 // openTarget is what the reply is read against: the resolved canvas the request named.
