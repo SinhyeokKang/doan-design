@@ -62,8 +62,6 @@ Two invocations; never run `/ship` inside one, because a broken session could no
    - **Back to develop.** `gh pr create --base develop --head hotfix/<slug> --title "Merge hotfix <version> into develop"`; after its gate, `gh pr merge --merge`. If it conflicts, merge `origin/develop` into a local `hotfix/<slug>`: for `app/package.json` and `app/package-lock.json` keep the higher version; for any other conflicting file, abort the merge, stop and report the files.
    - Report: step 8 plus the back-merge PR.
 
-Hotfix mode has not been run for real yet (BACKLOG.md 'Undecided').
-
 ## Resume
 
 Calling `/release <version>` again resumes from the state preflight detects. Tags are never moved or deleted.
