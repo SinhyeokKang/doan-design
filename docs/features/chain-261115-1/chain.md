@@ -11,7 +11,7 @@
 
 직렬이다. 링크 2는 링크 1의 묶음 계산(`links.ts`, fixture)을 쓰고, 링크 3은 링크 1의 `LinkGroups`와 링크 2의 클릭 판정 표를 쓴다.
 
-1. **prototype-link-convention** — [spec](../prototype-link-convention/spec.md) · [design](../prototype-link-convention/design.md) · [tasks](../prototype-link-convention/tasks.md)
+1. **prototype-link-convention** — 병합됨(#204, 7e2fc2c0d). feature 문서는 승격 뒤 지웠다.
    - 리뷰: `/feature-review`를 반영했다(35a114974). 화면이 없어 초안은 없다.
    - 먼저 가는 이유: 규약, `doan check` 규칙, 묶음 계산, 공유 fixture를 정한다. 다른 두 링크가 이것을 쓴다.
    - `chain-261114-2`와 겹치는 코드 파일이 없다(이 링크는 `cli/internal/canvas`, `cli/internal/check`, `schema/fixtures/prototype-links/`, `app/src/main/prototype/links.ts`). 그래서 그 체인을 기다리지 않는다.
@@ -55,8 +55,8 @@
 
 | 링크 | 세션·워크트리 | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| prototype-link-convention | claude · `prototype-link-convention-orch` (`feat/prototype-link-convention`) | 2026-11-15 | — | 진행 |
-| prototype-link-play | — | — | — | 대기 |
+| prototype-link-convention | claude · `prototype-link-convention-orch`(제거됨, `feat/prototype-link-convention` 유지) | 2026-11-15 | [#204](https://github.com/SinhyeokKang/doan-design/pull/204) · 7e2fc2c0d | 병합 |
+| prototype-link-play | claude · `prototype-link-play-orch` (`feat/prototype-link-play`) | 2026-11-15 | — | 진행 |
 | prototype-link-export | — | — | — | 대기 |
 
 ## 인계 기록
@@ -66,3 +66,10 @@
 - 2026-11-15 리드 세션: 사용자가 이 체인을 다른 리드 세션에 맡겼다. 이 세션은 `chain-261114-2`를 마무리하고 릴리스를 준비한다. 시작 점검 1–3은 아직 사용자 승인 전이고, 링크는 하나도 시작하지 않았다. 링크 2는 `chain-261114-2`의 링크 3·4가 병합된 뒤에 시작할 수 있다. 상위 `prototype-frame-links`의 작업 1–3은 끝났다(체크됨).
 - 2026-11-15 이전 리드 세션: `chain-261114-2`가 모두 병합되었다(#199, #201, #200, #202). 링크 2의 시작 조건(그 체인의 링크 3·4 병합)이 충족되었다. 다섯 프로바이더가 로그인된 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`는 사용자 요청으로 지우지 않고 남겼다(다음 체인이 씀). 쓰고 나서 로그아웃과 삭제는 그 체인이 사용자와 정한다.
 - 2026-11-15 새 리드 세션: 이 체인을 넘겨받았다. 사용자가 시작 점검 1–3을 적힌 그대로 승인하고 시작을 지시했다. 링크 1을 `origin/develop`(08a79b565, 0.1.13 릴리스 뒤)에서 시작했다. 다른 실행 중인 컨덕터나 열린 PR은 없다.
+- 2026-11-15 새 리드 세션: 링크 1을 병합했다(#204, 7e2fc2c0d, `gate` 통과). 링크 2·3이 알아야 할 것은 #204 본문 'For links 2 and 3'에 있다. 요약하면 다음과 같다.
+  - 가이드(`cli/internal/cli/skill.md`)는 아직 그대로다. 클릭 동작 문장과 PRODUCT §5 항목 2의 "frames do not link to each other" 수정은 링크 2가 한다.
+  - DOM에서 읽는 쪽은 디코딩된 속성 값을 비교하고, 속성 이름을 소문자로 다루고, `<template/>`를 뒤를 숨기는 열린 template로 다룬다(fixture가 고정한다).
+  - `linkGroups`는 id와 값을 원문 그대로 받는다. 보드 `layout`이 id를 200 UTF-16 단위로 자르므로, 링크 2는 그런 프레임을 자르지 말고 빼고 넘겨야 한다.
+  - 미검증: fixture `html`은 아직 실제 DOM에서 돌지 않았다(링크 2의 주입·보드 스크립트, 링크 3의 `isolate.js`가 처음 읽는다). `/agent-eval`은 링크 2 라운드가 새 check 규칙을 함께 잰다.
+  - 링크 1은 Codex를 체인 권한 안에서 썼다(링크 시작 때 Codex 주간 사용량 46%).
+- 2026-11-15 새 리드 세션: 링크 2를 `origin/develop`(7e2fc2c0d, 링크 1 병합 뒤)에서 시작했다.
