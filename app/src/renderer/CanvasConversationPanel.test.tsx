@@ -139,7 +139,7 @@ test("a new conversation's suggestion rows highlight the canvas name and show th
   const support = Object.assign(new DockedSupport(() => {}, window.doan), { auth: { revision: 1, providers: [connected("claude")] }, presets: { v: 1 as const, ok: true as const, result: { version: "1", presets } } });
   const out = await panel([], () => {}, { support });
   expect(out).not.toContain('title="Review the checkout canvas"');
-  expect(out).toMatch(/<button type="button" class="suggestion" data-state="closed"><span class="suggestion-icon">/);
+  expect(out).toMatch(/<button type="button" class="suggestion" data-state="closed" data-slot="tooltip-trigger"><span class="suggestion-icon">/);
   expect(out).toContain('<span class="suggestion-label">Review the <span class="suggestion-value">checkout</span> canvas</span>');
   expect(out).toContain('<span class="suggestion-label">Polish the <span class="suggestion-value">checkout</span> canvas</span>');
 });

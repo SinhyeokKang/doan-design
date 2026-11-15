@@ -16,7 +16,7 @@ export function SettingsDialog({ title, label, description, children, verb, pend
     if (!allow || pending === undefined) dialog.current?.close();
     answer(allow);
   }
-  return <dialog ref={dialog} className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-label={label ?? (typeof title === "string" ? title : undefined)} aria-describedby={describedBy} onCancel={event => { event.preventDefault(); reply(false); }}
+  return <dialog ref={dialog} className="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-label={label ?? (typeof title === "string" ? title : undefined)} aria-describedby={describedBy} onCancel={event => { event.preventDefault(); reply(false); }}
     // Chromium closes a modal dialog on a repeated Escape even when its cancel is prevented; handling the keydown keeps
     // a busy alert open (as ConversationDeleteDialog does).
     onKeyDown={event => { if (event.key !== "Escape" || event.nativeEvent.isComposing) return; event.preventDefault(); reply(false); }}>

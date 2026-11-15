@@ -149,7 +149,7 @@ export function QuickOpen({ entries, conversations = NO_CONVERSATIONS, currentRo
     else document.getElementById(activeId)?.scrollIntoView({ block: "nearest" });
   }, [activeId, current]);
   useEffect(() => { if (list.current) list.current.scrollTop = 0; }, [query, kind]);
-  return <dialog className="doan-dialog qo" data-ui-presentation="search" aria-label="Quick Open" ref={node => {
+  return <dialog className="doan-dialog doan-scroll qo" data-ui-presentation="search" aria-label="Quick Open" ref={node => {
     dialog.current = node;
     if (node && !node.open) { opener.current = document.activeElement; node.showModal(); }
   }} onCancel={event => { event.preventDefault(); dismiss(); }}

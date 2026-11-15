@@ -462,7 +462,7 @@ export function DockedComposer(props: DockedComposerProps) {
     if (stopLeft) field.current?.focus();
   });
 
-  if (props.canvasGone || refusal?.kind === "gone") return <div className="canvas-gone" role="status"><AlertIcon /><span>{canvasGoneText(props.project)}</span></div>;
+  if (props.canvasGone || refusal?.kind === "gone") return <div className="doan-notice" role="status"><AlertIcon /><span className="grow-text selectable">{canvasGoneText(props.project)}</span></div>;
   const reason = availability.reason;
   // Once the usage limit's state shows, the Queue tooltip says what an earlier usage-limit refusal said.
   const notice = refusal?.kind === "notice" && !(limited && held?.code === "rate_limited") ? refusal : null;
@@ -520,10 +520,10 @@ export function DockedComposer(props: DockedComposerProps) {
     {notice && (notice.startNew
       ? <div className="composer-reason docked-reason reason-stack" role="status"><span>{notice.text}</span>
         <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => { clearRefusal(key); props.onStartNew?.(); focus({ kind: "restored" }); }}>Start a new conversation</button></div>
-      : <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable">{notice.text}</span>
+      : <div className="doan-notice error composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable">{notice.text}</span>
         {notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => void send()}>Retry</button>}</div>)}
     {reason && !reason.noAgent && (reason.alert
-      ? <div className="doan-notice error doan-panel composer-notice" role="alert" id={reasonId}><AlertIcon /><span className="grow-text selectable">{reason.text}</span></div>
+      ? <div className="doan-notice error composer-notice" role="alert" id={reasonId}><AlertIcon /><span className="grow-text selectable">{reason.text}</span></div>
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>
         {reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-label="Open the running conversation" onClick={() => props.onOpen(reason.open!)}>Open</button>}
         {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}

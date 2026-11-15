@@ -86,7 +86,7 @@ export function ProjectSetupDialog({ root, name, kept = false, notGit = false, o
     if (result?.kind === "success") { dialog.current?.close(); onClose(); }
     else if (result?.kind === "rerooted") { dialog.current?.close(); onRerooted(result.root, result.message); }
   }
-  return <dialog className="ob-dialog setup-dialog doan-dialog" aria-label="Set Up Project" aria-busy={form.running}
+  return <dialog className="ob-dialog setup-dialog doan-dialog doan-scroll" aria-label="Set Up Project" aria-busy={form.running}
     ref={node => { dialog.current = node; if (node && !node.open) { node.showModal(); chooseButton.current?.focus(); } }}
     onCancel={event => { event.preventDefault(); close(); }}
     onKeyDown={event => {

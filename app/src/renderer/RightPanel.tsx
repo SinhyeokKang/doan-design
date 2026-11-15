@@ -13,7 +13,7 @@ export function RightPanel({ state, selectPath }: { state: CanvasState; selectPa
   const open = state.open;
   if (open && state.selection) return <Inspector selection={state.selection} inspector={state.inspector} selectPath={selectPath} />;
   const info = open ? canvasInfo(open.row, state.unlisted ? null : state.layout) : null;
-  return <aside className="right native-scroll" role="region" aria-label="Canvas info">
+  return <aside className="right doan-scroll" role="region" aria-label="Canvas info">
     <h2 className="phead">Canvas</h2>
     {!open || !info ? <p className="pempty">No canvas open</p> : <>
       <div className="isec"><dl className="kv"><dt>Path</dt><dd>{info.path}</dd><dt>ID</dt><dd>{info.id}</dd><dt>Width</dt><dd>{info.width}</dd><dt>Frames</dt><dd>{info.frames}</dd></dl></div>
@@ -28,7 +28,7 @@ export function RightPanel({ state, selectPath }: { state: CanvasState; selectPa
 export function CanvasConversations(props: Omit<CanvasConversationListProps, "scroller" | "title">) {
   const scroller = useRef<HTMLElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
-  return <aside className="right native-scroll ov-right" role="region" aria-label="Canvas conversations" ref={scroller}>
+  return <aside className="right doan-scroll ov-right" role="region" aria-label="Canvas conversations" ref={scroller}>
     <h2 className="phead rp-head" tabIndex={-1} ref={title}>Canvas conversations</h2>
     <CanvasConversationList {...props} scroller={scroller} title={title} />
   </aside>;
@@ -49,7 +49,7 @@ export function Inspector({ selection, inspector, selectPath }: { selection: Sel
   const { element, frame } = selection;
   const rows = inspector?.status === "ready" ? inspector.rows : [];
   const last = selection.path.length - 1;
-  return <aside className="right native-scroll" role="region" aria-label="Inspector">
+  return <aside className="right doan-scroll" role="region" aria-label="Inspector">
     <h2 className="phead">Inspector</h2>
     <div className="inspect-head">
       <h3>{!element && frame ? frameLabel(frame).id : selection.tag}</h3>
