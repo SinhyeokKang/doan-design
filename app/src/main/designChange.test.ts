@@ -20,8 +20,8 @@ describe("classifyDesignChange", () => {
     expect(classify(["account/profile.html", "deep/er/x.html"])).toEqual(quiet(".doan/canvases/account/profile.html", ".doan/canvases/deep/er/x.html"));
   });
 
-  test("the extension is matched without case", () => {
-    expect(classify(["A.HTML", "b.Html"])).toEqual(quiet(".doan/canvases/A.HTML", ".doan/canvases/b.Html"));
+  test("only a lower-case .html is a canvas name, so another case bumps like any other file", () => {
+    expect(classify(["A.HTML", "b.Html"])).toEqual(bump());
   });
 
   test("a name listed twice counts once", () => {
@@ -66,8 +66,7 @@ describe("classifyDesignChange", () => {
       expect(classify(["sub/.b.html.tmp-1", "sub/b.html"])).toEqual(quiet(".doan/canvases/sub/b.html"));
     });
 
-    test("matches an upper-case canvas name without case", () => {
-      expect(classify(["a.HTML.tmp.1.ab", "a.HTML"])).toEqual(quiet(".doan/canvases/a.HTML"));
+    test("matches the temporary name without case", () => {
       expect(classify(["A.HTML.TMP", "a.html"])).toEqual(quiet(".doan/canvases/a.html"));
     });
 
@@ -99,7 +98,7 @@ describe("classifyDesignChange", () => {
 
   describe("repo-relative paths from both canvas directories", () => {
     test(".doan/ds/ canvases bump only their rows", () => {
-      expect(classifyDesignChange([".doan/ds/button.html", ".doan/ds/forms/input.HTML"])).toEqual(quiet(".doan/ds/button.html", ".doan/ds/forms/input.HTML"));
+      expect(classifyDesignChange([".doan/ds/button.html", ".doan/ds/forms/input.html"])).toEqual(quiet(".doan/ds/button.html", ".doan/ds/forms/input.html"));
     });
 
     test("the same file name in the two directories is two rows", () => {

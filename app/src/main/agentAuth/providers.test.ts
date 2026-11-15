@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CLAUDE_ALLOW_RULES, codexRuleText } from "../agentSetup/plan";
+import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { fakeCipher } from "./fixtures/cipher";
 import { PROVIDER_AUTH } from "./providers";
 import { AuthStorage } from "./storage";
@@ -97,6 +98,20 @@ describe("provider auth adapters", () => {
       writeFileSync(join(dir, ".copilot/config.json"), '// User settings belong in settings.json.\n// This file is managed automatically.\n{\n  "lastLoggedInUser": { "host": "https://github.com", "login": "ada" }\n}\n');
       expect(PROVIDER_AUTH.copilot.parseStatus({ ...run(0, "OK\n"), profileDir: dir })).toEqual({ status: "connected",
         account: { id: "ada", workspace: "https://github.com", displayName: "ada" } });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  // A provider process or a link could leave a FIFO where the account record should be; a status check must not stall
+  // main on it and reads it as no record.
+  it("reads a FIFO account record as no record without blocking", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-fifo-profile-"));
+    try {
+      const claude = await withFifo(join(dir, ".claude.json"), () => PROVIDER_AUTH.claude.parseStatus({ ...run(0, JSON.stringify({ loggedIn: true })), profileDir: dir }));
+      expect(claude.value).toEqual({ status: "connected", account: { id: null, workspace: null } });
+      expect(claude.ms).toBeLessThan(PROMPT_MS);
+      mkdirSync(join(dir, ".copilot"));
+      const copilot = await withFifo(join(dir, ".copilot/config.json"), () => PROVIDER_AUTH.copilot.parseStatus({ ...run(0, "OK\n"), profileDir: dir }));
+      expect(copilot.value).toEqual({ status: "connected", account: { id: null, workspace: null } });
+      expect(copilot.ms).toBeLessThan(PROMPT_MS);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it("reads Codex status from stderr (only the Not logged in stream was observed, on 0.163.0 and 0.164.0)", () => {

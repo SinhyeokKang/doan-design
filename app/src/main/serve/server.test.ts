@@ -4,6 +4,7 @@ import { connect } from "node:net";
 import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { openNoFollow, startServer, type LocalServer } from "./server";
 
 interface Response {
@@ -342,6 +343,16 @@ describe("the server", () => {
     expect(head).toMatch(/^HTTP\/1\.1 200/);
     expect(head).toMatch(/content-length: 16777216/i);
     expect(raw.length - split - 4).toBe(16 * 1024 * 1024);
+  });
+});
+
+// A canvas can name a FIFO as an asset; an open that waits for a writer would hold one of the four libuv threads that
+// every folder's serving, thumbnails and seen writes share.
+describe("special files", () => {
+  test("a FIFO in scope is 404 at once", async () => {
+    const res = await withFifo(join(repo, ".doan/canvases", "pipe.png"), () => send(server.port, `${base}/.doan/canvases/pipe.png`));
+    expectNotFound(res.value);
+    expect(res.ms).toBeLessThan(PROMPT_MS);
   });
 });
 

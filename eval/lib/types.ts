@@ -75,6 +75,10 @@ export interface CheckContext {
   prototype(): PrototypeExchange[];
   // Runs in the repo with the agent's environment and stdin from /dev/null.
   run(cmd: string, args: string[]): { code: number; stdout: string; stderr: string };
+  // Git in the repo (with the seed's separate Git directory when the scenario sets `git: false`) and the agent's
+  // environment, with configured hooks, fsmonitor and filters off. A check reads Git through this, never
+  // `run("git", …)`: the repository is the agent's, so its configuration is untrusted.
+  git(args: string[]): { code: number; stdout: string; stderr: string };
 }
 
 // The default export of `eval/scenarios/<id>/checks.ts`.

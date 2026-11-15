@@ -52,6 +52,12 @@ test("attempts the CLI refused are read from tool calls, not from quoted text", 
     assert.deepEqual(run(PASS, { commands: [command] }), [], command);
 });
 
+// A command the reader could not follow may have been any of those attempts, so none of the command-only checks holds.
+test("the command-only prohibitions fail beside a command the reader could not follow", () => {
+  const unread = `if true; then ${doan("check --session s_eval --provider copilot --request k0")}; fi`;
+  assert.deepEqual(run(PASS, { commands: [unread] }), ["absolute_paths_only", "no_copilot_check", "no_stop_or_paste"]);
+});
+
 // Disclosure before select is judged from the transcript; the judge must see the two in the order they happened.
 test("the judge prompt keeps disclosure and select in transcript order", () => {
   const select = { type: "assistant", message: { content: [{ type: "tool_use", id: "s", name: "Bash", input: { command: doan(`project select --session s_eval --inspection insp_1 --path ${ROOT} --initialize --request s1`) } }] } };
