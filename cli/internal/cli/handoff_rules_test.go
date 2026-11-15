@@ -46,6 +46,10 @@ func TestHandoffText(t *testing.T) {
 	}{
 		{"empty", "", "", false},
 		{"only whitespace", " \n\t \n", "", false},
+		// The app's trim and \S count U+FEFF as whitespace; Go's unicode.IsSpace does not.
+		{"only a byte order mark", "\ufeff", "", false},
+		{"byte order marks around text", "\ufeff Made it.\ufeff\n", "Made it.", true},
+		{"only Unicode spaces", "\u00a0\u3000\u2028\ufeff", "", false},
 		{"trimmed", "  Made the checkout canvas.\n", "Made the checkout canvas.", true},
 		{"newlines and tabs inside", "Asked:\n\t- a\n\t- b", "Asked:\n\t- a\n\t- b", true},
 		{"limit", strings.Repeat("a", handoffTextLimit), strings.Repeat("a", handoffTextLimit), true},
@@ -70,6 +74,45 @@ func TestHandoffText(t *testing.T) {
 		}
 		if failure == nil || failure.Code != "usage_error" || ExitCode(failure.Code) != 2 {
 			t.Errorf("%s: accepted %q %v", tt.name, got, failure)
+		}
+	}
+}
+
+// The app refuses a request whose text fails the schema, and the CLI could only report that as internal_error,
+// so every text the shared fixtures refuse must already be refused here as usage_error, and every valid text taken.
+func TestHandoffTextFollowsSharedRequestFixtures(t *testing.T) {
+	dir := filepath.Join("..", "..", "..", "schema", "fixtures", "app-socket-v5", "request")
+	for _, validity := range []string{"valid", "invalid"} {
+		files, err := filepath.Glob(filepath.Join(dir, validity, "*.json"))
+		if err != nil || len(files) == 0 {
+			t.Fatal(validity, err)
+		}
+		for _, file := range files {
+			name := filepath.Base(file)
+			if validity == "invalid" && !strings.HasPrefix(name, "text-") {
+				continue
+			}
+			data, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var request struct {
+				Text any `json:"text"`
+			}
+			if err := json.Unmarshal(data, &request); err != nil {
+				t.Fatal(name, err)
+			}
+			text, ok := request.Text.(string)
+			if !ok {
+				continue
+			}
+			_, failure := handoffText(text)
+			if validity == "valid" && failure != nil {
+				t.Errorf("%s/%s: refused %v", validity, name, failure)
+			}
+			if validity == "invalid" && (failure == nil || failure.Code != "usage_error") {
+				t.Errorf("%s/%s: accepted", validity, name)
+			}
 		}
 	}
 }

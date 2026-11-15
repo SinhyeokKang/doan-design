@@ -147,9 +147,14 @@ func TestCanvases(t *testing.T) {
 	link(t, filepath.Join(root, "outside.html"), filepath.Join(root, ".doan/canvases/link.html"))
 	link(t, filepath.Join(root, ".doan/canvases/a"), filepath.Join(root, ".doan/canvases/linked"))
 	got, err = Canvases(root)
-	want := []string{".doan/canvases/a/x.html", ".doan/canvases/z.HTML"}
+	want := []string{".doan/canvases/a/x.html"}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("%v %v", got, err)
+	}
+	got, err = MiscasedCanvases(root)
+	want = []string{".doan/canvases/z.HTML"}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("miscased: %v %v", got, err)
 	}
 }
 func TestCanvasesIncludesDesignSystem(t *testing.T) {
@@ -158,14 +163,17 @@ func TestCanvasesIncludesDesignSystem(t *testing.T) {
 		put(t, root, p, "")
 	}
 	got, err := Canvases(root)
-	want := []string{".doan/ds/button.html", ".doan/ds/color/Tokens.HTML"}
+	want := []string{".doan/ds/button.html"}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("ds only: %v %v", got, err)
+	}
+	if got, err := MiscasedCanvases(root); err != nil || !reflect.DeepEqual(got, []string{".doan/ds/color/Tokens.HTML"}) {
+		t.Fatalf("ds miscased: %v %v", got, err)
 	}
 	put(t, root, ".doan/canvases/home.html", "")
 	put(t, root, ".doan/canvases/z.html", "")
 	got, err = Canvases(root)
-	want = []string{".doan/canvases/home.html", ".doan/canvases/z.html", ".doan/ds/button.html", ".doan/ds/color/Tokens.HTML"}
+	want = []string{".doan/canvases/home.html", ".doan/canvases/z.html", ".doan/ds/button.html"}
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("both: %v %v", got, err)
 	}
