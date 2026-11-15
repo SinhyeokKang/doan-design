@@ -98,7 +98,7 @@
 
 ## Triage
 
-- **사용자 결정 필요**: B2-3 → BACKLOG.
+- **사용자 결정 필요**: B2-3. 처음에는 BACKLOG에 올렸다가, 2026-11-16 사용자가 'Doan 연결의 Claude 실행은 모두 바깥 fence로 돌리고, Claude 자체 sandbox는 항상 끈다'로 정했다. 감지 방식을 걷어내는 일까지 `fix/claude-fence-gaps`가 맡는다.
 - **컨덕터로 고친다**:
   - `fix/claude-fence-gaps`: B2-1, B2-2, B2-4, B2-5/C2-1, B2-6, B2-8, B2-9, G2. probe로 먼저 확인하고, 확인된 것만 같은 규칙으로 고친다.
   - `fix/auth-quit-cleanup`: L2-1, M2-2, M2-3, M2-4, G3
