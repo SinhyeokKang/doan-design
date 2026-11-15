@@ -151,6 +151,8 @@ What Doan has not settled or not shown yet: product questions without a decision
 
 ## Known defects
 
+- Home's disabled Send button exposes the blocking reason as a tooltip and accessible description only for “no agent” (`HomeComposerView.tsx`, `ComposerParts.tsx`). No project, over-limit text, checking and another conversation being busy show the reason below the composer but do not attach it to Send, contrary to PRODUCT §5 item 1's Send contract. Keep that product contract; the missing button tooltip and description need an implementation fix.
+- The first-run Buddy subtitle says "You can change it anytime in Settings." (`Onboarding.tsx`), but each change in Settings starts a 24-hour lock (PRODUCT §5 item 0 'General'). The first-run choice itself starts no lock; the subtitle does not explain the later restriction.
 - The menu's Remove from Doan (the sidebar and the Project Settings page) passes only the group's shown rows, so a hidden auto-registered worktree of the group (one that cannot be listed) stays in `folders.json` and `auto-folders.json`; `doan remove` takes the whole group, hidden roots included (PRODUCT §5 items 1 and 10).
 - The prototype window's conversation panel does not follow macOS's 24-hour setting: main passes the hour cycle only to the main window (`--doan-clock-hour12`, ARCHITECTURE §7 'Agent conversation runtime and IPC'), so the panel's times (`localClock()` in `limitReset.ts`) use the renderer's `Intl`, which resolves `h12` with `AppleICUForce24HourTime` on.
 - A removed project's prototype window stays open: Remove from Doan and `doan remove` take the project out of the list, but a prototype window open on one of its canvases stays open until the person closes it (PRODUCT §5 items 1 and 10).
