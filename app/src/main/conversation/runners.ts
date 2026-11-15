@@ -49,9 +49,11 @@ export const listSkills: ReadListing<SkillSummary[]> = async (input, exited, reg
 export function claudeFastSettings(fast: boolean | undefined): { settings?: { fastMode: true } } {
   return fast ? { settings: { fastMode: true } } : {};
 }
-// The run's flag-tier settings: Fast, and Doan's fence settings when this turn runs with Claude's own sandbox on.
-function claudeRunSettings(fast: boolean | undefined, fence: ClaudeFenceSettings | undefined): { settings?: { fastMode?: true } & Partial<ClaudeFenceSettings> } {
-  const settings = { ...claudeFastSettings(fast).settings, ...fence };
+// The run's flag-tier settings: Fast, and Doan's fence settings when this turn runs with Claude's own sandbox on, or the
+// sandbox turned off when the run is inside the outer fence for the repository's own code (it cannot start there).
+function claudeRunSettings(fast: boolean | undefined, fence: Prepared["fence"]): { settings?: { fastMode?: true } & (Partial<ClaudeFenceSettings> | { sandbox: { enabled: false } }) } {
+  const own = fence?.claudeSandbox ? claudeFenceSettings(fence.paths, fence.denied ?? [], fence.socket) : fence?.claudeSandboxOff ? { sandbox: { enabled: false as const } } : undefined;
+  const settings = { ...claudeFastSettings(fast).settings, ...own };
   return Object.keys(settings).length ? { settings } : {};
 }
 // Fast for a Codex turn: a doan turn always names its tier, standard included, so a model whose catalog default is Fast
@@ -351,7 +353,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort as EffortLevel } : {}),
     // Every run with Fast asks for it, as each turn opens a new process; a run without it passes nothing. A turn with
     // Claude's own sandbox on carries Doan's fence as settings, since that sandbox cannot start inside sandbox-exec.
-    ...claudeRunSettings(input.fast, input.fence?.claudeSandbox ? claudeFenceSettings(input.fence.paths, input.fence.denied ?? [], input.fence.socket) : undefined),
+    ...claudeRunSettings(input.fast, input.fence),
     // Default passes nothing, so the Doan profile's and the project's settings decide, as before this option existed.
     // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does.
     ...(input.owner ? claudePermission(input.permissionMode ?? "default") : {}),
