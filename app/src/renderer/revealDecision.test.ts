@@ -106,6 +106,7 @@ describe("the name a held request's toast gives", () => {
     expect(revealName({ kind: "settings", provider: "codex" }, [])).toBe("Settings");
     expect(revealName({ kind: "conversation", root: ROOT, conversationId: "c" }, [])).toBe("the conversation");
     expect(revealName({ kind: "handoff", root: ROOT, canvas: { path: ".doan/canvases/checkout.html" } }, [])).toBe("checkout");
+    expect(revealName({ kind: "handoff", root: ROOT, canvas: { path: ".doan/canvases/Checkout.HTML" } }, [])).toBe("Checkout");
   });
 
   test("a handoff's canvas by the name the sidebar gives its row now, when the root lists it", () => {

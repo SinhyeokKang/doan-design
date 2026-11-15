@@ -5,7 +5,12 @@ function fileNameOf(path: string): string {
 }
 
 export function canvasLabel(row: CanvasRow): string {
-  const fileName = fileNameOf(row.path);
+  return canvasStem(row.path);
+}
+
+// canvasLabel for a bare path: every canvas name the app shows goes through this one rule.
+export function canvasStem(path: string): string {
+  const fileName = fileNameOf(path);
   const stem = fileName.toLowerCase().endsWith(".html") ? fileName.slice(0, -".html".length) : fileName;
   return stem === "" ? fileName : stem;
 }

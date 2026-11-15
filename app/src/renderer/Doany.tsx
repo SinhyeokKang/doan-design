@@ -155,10 +155,14 @@ function surface(canvas: HTMLCanvasElement, buddy: Buddy): { target: DoanyTarget
   }
 }
 
+// What keepBuddy hears from a mount: WebGL is gone (ready: after it had drawn), or a lost context is back.
+interface BuddyWatch { failed(ready: boolean): void; restored(): void }
+const UNWATCHED: BuddyWatch = { failed: () => {}, restored: () => {} };
+
 // Everything the draft did on load, undone by dispose. React StrictMode runs effects twice in
 // development and a canvas keeps its released (lost) context for life, so each mount draws on a fresh
 // copy of React's canvas and puts React's back when it is disposed.
-export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLImageElement, placeholder: HTMLCanvasElement): { rig: DoanyRig | null; dispose(): void } {
+export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLImageElement, placeholder: HTMLCanvasElement, watch = UNWATCHED): { rig: DoanyRig | null; dispose(): void } {
   const canvas = placeholder.cloneNode(false) as HTMLCanvasElement;
   placeholder.replaceWith(canvas);
   // Without the still and without WebGL the slot is empty, and a shadow alone would float under nothing (doany.css).
@@ -175,9 +179,10 @@ export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLIma
   } catch (error) {
     setState("static");
     console.error(error);
+    watch.failed(false);
     return { rig: null, dispose: restore };
   }
-  if (!parts) { setState("static"); return { rig: null, dispose: restore }; }
+  if (!parts) { setState("static"); watch.failed(false); return { rig: null, dispose: restore }; }
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   const rig = createDoanyRig({
     target: parts.target,
@@ -197,6 +202,7 @@ export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLIma
     frames: { request: callback => requestAnimationFrame(callback), cancel: id => cancelAnimationFrame(id) },
     reduced: () => reduced.matches,
     random: Math.random,
+    failed: watch.failed,
     connect(rig) {
       const resize = new ResizeObserver(() => rig.resize()); resize.observe(host);
       const visible = new IntersectionObserver(entries => rig.intersect(entries[0]!.isIntersecting)); visible.observe(host);
@@ -214,7 +220,37 @@ export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLIma
       };
     },
   });
-  return { rig, dispose() { rig.dispose(); restore(); } };
+  // The rig prevents the lost event's default, so Chromium restores the context once the GPU is back.
+  const restored = () => watch.restored();
+  canvas.addEventListener("webglcontextrestored", restored);
+  return { rig, dispose() { rig.dispose(); canvas.removeEventListener("webglcontextrestored", restored); restore(); } };
+}
+
+// After a buddy that drew loses its context (a GPU process reset loses every context), it is mounted again once the
+// GPU is back: a context made while the GPU process restarts can fail or be lost again. webglcontextrestored says it
+// is back; when none comes, a mount is tried after RETRY_MS and again after each failed try, each wait twice the one
+// before, at most RETRIES times. Two GPU resets in a row make Chromium refuse WebGL to the page for about two minutes
+// with no restore event (measured in Electron 45), so the last try comes about four minutes after the loss. A buddy
+// that never drew is not tried again here: Home mounts it again on its next visit.
+const RETRY_MS = 1000;
+const RETRIES = 8;
+
+export function keepBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLImageElement, placeholder: HTMLCanvasElement): { readonly rig: DoanyRig | null; dispose(): void } {
+  let retries = 0, retry: ReturnType<typeof setTimeout> | undefined;
+  const remount = () => {
+    clearTimeout(retry); retry = undefined;
+    mounted.dispose();
+    mounted = mount();
+  };
+  const later = () => {
+    if (retry !== undefined || retries <= 0) return;
+    const wait = RETRY_MS * 2 ** (RETRIES - retries);
+    retries -= 1;
+    retry = setTimeout(remount, wait);
+  };
+  const mount = () => mountBuddy(buddy, host, still, placeholder, { failed(ready) { if (ready) retries = RETRIES; later(); }, restored: remount });
+  let mounted = mount();
+  return { get rig() { return mounted.rig; }, dispose() { clearTimeout(retry); mounted.dispose(); } };
 }
 
 // `size` is the drawing slot in CSS px (Home 114, Welcome 142.5); it includes the hop headroom. A new buddy is a new
@@ -226,12 +262,13 @@ export function Buddy({ buddy, size, describedBy, ref }: { buddy: BuddyId; size:
 
 function BuddySlot({ buddy, size, describedBy, ref }: { buddy: Buddy; size: number; describedBy?: string | undefined; ref?: Ref<BuddyHandle> | undefined }) {
   const host = useRef<HTMLButtonElement>(null), still = useRef<HTMLImageElement>(null), canvas = useRef<HTMLCanvasElement>(null);
-  const rig = useRef<DoanyRig | null>(null);
-  useImperativeHandle(ref, () => ({ hop: () => rig.current?.hop(), typing: () => rig.current?.typing() }), []);
+  // Read through the kept buddy at call time: a rebuild after a lost context replaces its rig.
+  const kept = useRef<{ readonly rig: DoanyRig | null } | null>(null);
+  useImperativeHandle(ref, () => ({ hop: () => kept.current?.rig?.hop(), typing: () => kept.current?.rig?.typing() }), []);
   useEffect(() => {
-    const mounted = mountBuddy(buddy, host.current!, still.current!, canvas.current!);
-    rig.current = mounted.rig;
-    return () => { rig.current = null; mounted.dispose(); };
+    const mounted = keepBuddy(buddy, host.current!, still.current!, canvas.current!);
+    kept.current = mounted;
+    return () => { kept.current = null; mounted.dispose(); };
   }, [buddy]);
   const [x, y] = buddy.rig.contact;
   return (

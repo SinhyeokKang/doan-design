@@ -1,9 +1,8 @@
 import type { ExportReply } from "../main/canvasExport";
 import type { TrashReply } from "../main/canvasTrash";
 
-// The toasts of a canvas row's Move to Trash and Export. `stem` is the row's name, the
-// file name without `.html`, as the sidebar shows it.
-export const canvasStem = (path: string) => path.split("/").at(-1)!.replace(/\.html$/, "");
+// The toasts of a canvas row's Move to Trash and Export. `stem` is the row's name as the sidebar shows it.
+export { canvasStem } from "./canvasTree";
 
 const REFUSED: Record<Extract<TrashReply, { kind: "refused" }>["reason"], string> = {
   busy: "An agent started working on it.",

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, test, vi } from "vitest";
 import { BUDDY_IDS, buddy, type BuddyId } from "./buddies";
-import { Buddy, fragmentFor, mountBuddy, vertexFor } from "./Doany";
+import { Buddy, fragmentFor, keepBuddy, mountBuddy, vertexFor } from "./Doany";
 
 // The WebGL calls of the buddy draft .doan/assets/buddies/motion-preview.js for Doany up to its first frame, from
 // app/scripts/doanyGolden.mjs (objects are creation ids, typed arrays are length and checksum).
@@ -98,6 +98,8 @@ function environment(options: { noContext?: boolean; compileFails?: boolean; bud
   return {
     log, record, count, media, page, host, still, canvas, lift, live: () => canvases.at(-1)!,
     mount: () => mountBuddy(buddy(options.buddy ?? "doany"), host as unknown as HTMLButtonElement, still as unknown as HTMLImageElement, canvas as unknown as HTMLCanvasElement),
+    keep: () => keepBuddy(buddy(options.buddy ?? "doany"), host as unknown as HTMLButtonElement, still as unknown as HTMLImageElement, canvas as unknown as HTMLCanvasElement),
+    contexts: () => (record as unknown[][]).filter(call => call[0] === "getContext").length,
     frame(now: number) { const [id, callback] = [...frames][0]!; frames.delete(id); callback(now); },
     async load() { for (const image of FakeImage.all) image.onload(); await flush(); },
     // Fails the image whose path ends with `name`; the others load.
@@ -108,7 +110,7 @@ function environment(options: { noContext?: boolean; compileFails?: boolean; bud
 }
 interface FakeCanvas extends ReturnType<typeof events> { name: string; hidden: boolean; width: number; height: number; listeners: ReturnType<typeof events>; getContext(type: string, attributes: unknown): unknown; cloneNode(): FakeCanvas; replaceWith(other: FakeCanvas): void }
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 test("markup is a labelled button with the still image, the floor shadow below it and a hidden canvas, and no state yet", () => {
   const html = renderToStaticMarkup(<Buddy buddy="doany" size={114} />);
@@ -175,8 +177,8 @@ test("dispose removes the lost listener, the frame and every listener before rel
   mounted.dispose();
   expect(env.log[0]).toBe("canvas off webglcontextlost");
   expect(env.log[1]).toBe("cancel frame");
-  expect(env.log.slice(2, -3).sort()).toEqual(["document off pointermove", "host off click", "host off keydown", "intersect disconnect", "media off change", "resize disconnect"]);
-  expect(env.log.slice(-3)).toEqual(["loseContext", "still off error", "replace clone with canvas"]);
+  expect(env.log.slice(2, -4).sort()).toEqual(["document off pointermove", "host off click", "host off keydown", "intersect disconnect", "media off change", "resize disconnect"]);
+  expect(env.log.slice(-4)).toEqual(["loseContext", "canvas off webglcontextrestored", "still off error", "replace clone with canvas"]);
   expect(env.host.dataset.state).toBe("idle");
 });
 
@@ -232,6 +234,87 @@ test("a lost context prevents the default and shows the still image as static", 
   expect(env.live().hidden).toBe(false);
   expect(env.live().listeners.dispatch("webglcontextlost")).toBe(true);
   expect([env.host.dataset.state, env.still.hidden, env.live().hidden]).toEqual(["static", false, true]);
+});
+
+// A GPU process reset loses every context; Home's buddy must not stand still until Home is visited again.
+test("a buddy that loses its context after it was ready is mounted again once the context is restored", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const env = environment();
+  const kept = env.keep();
+  await env.load(); env.frame(1000);
+  const lost = env.live();
+  lost.listeners.dispatch("webglcontextlost");
+  expect(env.host.dataset.state).toBe("static");
+  expect(env.contexts()).toBe(1);
+  lost.listeners.dispatch("webglcontextrestored");
+  expect(env.contexts()).toBe(2);
+  expect(env.live()).not.toBe(lost);
+  await env.load(); env.frame(1100);
+  expect([env.host.dataset.state, env.still.hidden, env.live().hidden]).toEqual(["idle", true, false]);
+  kept.rig!.hop(); env.frame(1120);
+  expect(env.host.dataset.state).toBe("jump");
+  // The restore arrived first, so no timer is left to mount it once more.
+  vi.advanceTimersByTime(600_000);
+  expect(env.contexts()).toBe(2);
+  kept.dispose();
+});
+
+// Two GPU resets in a row make Chromium refuse WebGL for about two minutes with no restore event: the tries back off
+// from 1 s, doubling, at most 8, and stop once one draws.
+test("with no restore event, a lost buddy is mounted again after waits that double from 1 s, at most 8 times", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const options: { noContext?: boolean } = {};
+  const env = environment(options);
+  const kept = env.keep();
+  await env.load(); env.frame(1000);
+  options.noContext = true;
+  env.live().listeners.dispatch("webglcontextlost");
+  vi.advanceTimersByTime(999);
+  expect(env.contexts()).toBe(1);
+  vi.advanceTimersByTime(1);
+  expect(env.contexts()).toBe(2);
+  expect(env.host.dataset.state).toBe("static");
+  vi.advanceTimersByTime(2000 + 4000);
+  expect(env.contexts()).toBe(4);
+  vi.advanceTimersByTime(8000 + 16_000 + 32_000 + 64_000 + 128_000);
+  expect(env.contexts()).toBe(9);
+  vi.advanceTimersByTime(600_000);
+  expect(env.contexts()).toBe(9);
+  kept.dispose();
+});
+
+test("a try that draws again ends the retries; a later loss starts them over", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const env = environment();
+  const kept = env.keep();
+  await env.load(); env.frame(1000);
+  env.live().listeners.dispatch("webglcontextlost");
+  vi.advanceTimersByTime(1000);
+  await env.load(); env.frame(1100);
+  expect(env.host.dataset.state).toBe("idle");
+  vi.advanceTimersByTime(600_000);
+  expect(env.contexts()).toBe(2);
+  env.live().listeners.dispatch("webglcontextlost");
+  vi.advanceTimersByTime(1000);
+  expect(env.contexts()).toBe(3);
+  kept.dispose();
+});
+
+// Home mounts the buddy on every visit, so a buddy that never drew is tried again there, not on a timer.
+test("a buddy that never drew is not mounted again, and dispose cancels a pending try", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const never = environment({ noContext: true });
+  never.keep();
+  vi.advanceTimersByTime(600_000);
+  expect(never.contexts()).toBe(1);
+  vi.unstubAllGlobals();
+  const env = environment();
+  const kept = env.keep();
+  await env.load(); env.frame(1000);
+  env.live().listeners.dispatch("webglcontextlost");
+  kept.dispose();
+  vi.advanceTimersByTime(600_000);
+  expect(env.contexts()).toBe(1);
 });
 
 test("the stylesheet is linked and keeps the draft's host rules with the shared focus ring", () => {

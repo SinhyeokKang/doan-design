@@ -14,7 +14,7 @@ const block = (selector: string) => css.match(new RegExp(`\\n${selector.replace(
 
 test("the scene: icon, a focusable heading described by its line, the path as a code chip, then the actions with the prominent one first", () => {
   const html = draw(view({ path: "/Users/ada/code/acme-web", kind: "notFound" }));
-  expect(html).toMatch(/^<div class="problem-overlay"><div class="problem-scene" role="group" aria-labelledby="([^"]+)"><svg[^>]*class="lucide lucide-folder-x problem-icon"[^>]*aria-hidden="true"/);
+  expect(html).toMatch(/^<div class="problem-overlay doan-scroll"><div class="problem-scene" role="group" aria-labelledby="([^"]+)"><svg[^>]*class="lucide lucide-folder-x problem-icon"[^>]*aria-hidden="true"/);
   const heading = html.match(/<h2 id="([^"]+)" tabindex="-1" aria-describedby="([^"]+)">acme-web is missing<\/h2>/)!;
   expect(heading).not.toBeNull();
   expect(html).toContain(`aria-labelledby="${heading[1]}"`);
@@ -76,7 +76,7 @@ test("busy: every action is aria-disabled and stays focusable; the pressed one s
 
 test("reading: the opaque panel with a status line and no scene", () => {
   const html = draw(view({ path: "/Users/ada/code/acme-web", kind: "loading" }, null, true));
-  expect(html).toBe('<div class="problem-overlay reading"><p class="problem-reading" role="status"><span class="doan-spinner" aria-hidden="true"></span>Reading project</p></div>');
+  expect(html).toBe('<div class="problem-overlay reading doan-scroll"><p class="problem-reading" role="status"><span class="doan-spinner" aria-hidden="true"></span>Reading project</p></div>');
 });
 
 test("a pressed action reaches onAction; a busy one does not", () => {

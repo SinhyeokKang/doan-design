@@ -20,7 +20,7 @@ export function Home({ header, sidebar, ...composer }: HomeProps) {
   return <main className="app-shell home-shell">
     {header}
     {sidebar}
-    <section className="home-panel" aria-label="Home">
+    <section className="home-panel doan-scroll" aria-label="Home">
       <HeroComposer {...composer} greeting={greeting} />
     </section>
   </main>;

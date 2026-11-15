@@ -7,6 +7,12 @@ test("a canvas's name is its file stem, from any subdirectory", () => {
   expect(canvasStem(".doan/ds/flows/checkout.html")).toBe("checkout");
 });
 
+// The sidebar's label (canvasLabel) strips the extension in any case and keeps a bare `.html`; every name follows it.
+test("a canvas's name is the sidebar's label for any extension case", () => {
+  expect(canvasStem(".doan/canvases/Checkout.HTML")).toBe("Checkout");
+  expect(canvasStem(".doan/canvases/.html")).toBe(".html");
+});
+
 test("Move to Trash says one toast per reply: success or main's refusal", () => {
   expect(trashToast("checkout", { kind: "trashed" })).toBe("Moved “checkout” to Trash.");
   expect(trashToast("checkout", { kind: "refused", reason: "busy" })).toBe("Couldn’t move “checkout” to Trash. An agent started working on it.");

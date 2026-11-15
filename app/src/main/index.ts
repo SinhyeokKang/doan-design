@@ -1129,7 +1129,7 @@ async function start(): Promise<void> {
       return result;
     },
   };
-  const realOrNull = (path: string) => { try { return realpathSync(path); } catch { return null; } };
+  const realOrNull = (path: string) => { try { return realpathSync.native(path); } catch { return null; } };
   // The developer directory xcode-select would use, read without running it (see locateGit).
   const developerDir = () => { if (process.env.DEVELOPER_DIR) return process.env.DEVELOPER_DIR; try { return readlinkSync("/var/db/xcode_select_link"); } catch { return null; } };
   // First run and the Add Projects page add projects with the same folder work and locks.
@@ -1770,7 +1770,11 @@ app.on("before-quit", (event) => {
       if (result.status === "rejected") console.error("doan: project cleanup failed during quit", result.reason);
     }
     quitting = true;
-    try { prototype.destroyForQuit(); cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose(); } catch (error) {
+    // Accepted state goes to disk before any native teardown: a teardown that throws or crashes must not lose it.
+    try { uiState?.flushSync(); canvasSeen?.flushSync(); } catch (error) {
+      console.error("doan: final cleanup failed during quit", error);
+    }
+    try { prototype.destroyForQuit(); cancelPendingHide(); thumbnails?.dispose(); } catch (error) {
       console.error("doan: final cleanup failed during quit", error);
     }
     // Restart to Update installs only here, after the save and the flush; quitting is set, so the windows the install

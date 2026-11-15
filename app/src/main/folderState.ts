@@ -166,5 +166,5 @@ export function reconcileFolders(stored: readonly string[], path: string, upward
 // any symlink as well, as the CLI judges it before writing; a HOME that cannot be read is kept as spelled.
 export function realHome(home: string): string {
   if (!home) return home;
-  try { return realpathSync(home); } catch { return home; }
+  try { return realpathSync.native(home); } catch { return home; }
 }

@@ -356,14 +356,14 @@ describe("WindowShell states", () => {
   test("loading shows the reading line on the blur only once it is due", () => {
     expect(markup({ view: view({ phase: "loading" }) })).not.toContain("problem-overlay");
     const html = markup({ view: view({ phase: "loading" }), readingShown: true });
-    expect(html).toContain('<div class="problem-overlay reading"><p class="problem-reading"><span class="doan-spinner" aria-hidden="true"></span>Loading prototype</p></div>');
+    expect(html).toContain('<div class="problem-overlay reading doan-scroll"><p class="problem-reading"><span class="doan-spinner" aria-hidden="true"></span>Loading prototype</p></div>');
     // The live region speaks; the line itself has no status role.
     expect(tag(html, "problem-reading")).not.toContain("role=");
   });
 
   test("a failure has an h2 title the scene names, Retry, Close and Details", () => {
     const html = markup({ view: view({ phase: "read-failed", detail: "EACCES: permission denied" }) });
-    expect(html).toContain('<div class="problem-scene" role="group" aria-labelledby="prototype-state-heading">');
+    expect(html).toContain('<div class="problem-overlay doan-scroll"><div class="problem-scene" role="group" aria-labelledby="prototype-state-heading">');
     expect(html).toContain('<h2 id="prototype-state-heading" tabindex="-1" aria-describedby="prototype-state-line">Couldn’t open this prototype</h2>');
     expect(html).toContain('<p id="prototype-state-line" class="selectable">Doan couldn’t read the canvas file for this frame.</p>');
     expect([...html.matchAll(/<button[^>]*class="doan-button[^"]*"[^>]*>([^<]*)/g)].map(match => match[1])).toEqual(["Retry", "Close", "Details ▸"]);
