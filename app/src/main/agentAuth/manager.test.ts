@@ -2087,9 +2087,10 @@ describe("MCP connector steps", () => {
     await finish("status", 0);
     expect(await out.done).toMatchObject({ phase: "disconnected" });
   });
-  // Every Copilot process imports the JavaScript in its profile's package cache, which a fenced Copilot turn can rewrite,
-  // so its sign-in and check run in the outer fence; the other providers' do not.
-  it("runs Copilot's sign-in and check in the outer fence and Cursor's outside it", async () => {
+  // Every Copilot process imports the JavaScript in its profile's package cache, and every Cursor process runs Node with
+  // a compile cache in its profile, both of which a fenced turn can rewrite, so their sign-in and check run in the outer
+  // fence; the other providers' do not.
+  it("runs Copilot's and Cursor's sign-in and check in the outer fence", async () => {
     const userData = join(root, "ud"); storage = new AuthStorage(join(userData, "agent-auth"), cipher);
     const m = manager({ fence: { userData, exec: "/fence/sandbox-exec" } }); await m.load();
     const run = started(await m.signIn("copilot", 7));
@@ -2105,7 +2106,8 @@ describe("MCP connector steps", () => {
     expect(spawn.mock.calls.at(-1)![1].slice(-2)).toEqual(["/bin/fake-cli", "status"]);
     expect(await run.done).toMatchObject({ phase: "connected" });
     await signedInCursor(m);
-    expect(spawn.mock.calls.slice(-2).map(call => call[0])).toEqual(["/bin/fake-cli", "/bin/fake-cli"]);
+    expect(spawn.mock.calls.slice(-2).map(call => call[0])).toEqual(["/fence/sandbox-exec", "/fence/sandbox-exec"]);
+    expect(spawn.mock.calls.at(-2)![1]).toContain(`PROFILE=${realpathSync.native(storage.profileDir("cursor"))}`);
   });
   it("starts no Copilot process when its fence cannot be built", async () => {
     const m = manager({ fence: { userData: join(root, "elsewhere") } }); await m.load();

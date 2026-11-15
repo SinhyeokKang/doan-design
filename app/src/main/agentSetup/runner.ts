@@ -134,7 +134,7 @@ function mergeSettings(target: PlannedTarget, before: Seen, temporary: string, r
   writeFileSync(temporary, merged.text, { flag: "wx" });
   chmodSync(temporary, lstatSync(real).mode & 0o777);
   if (observe(target).stamp !== before.stamp) return changed(target, home);
-  return settled(target, home, swapFile({ lstatSync, readFileSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync },
+  return settled(target, home, swapFile({ lstatSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync },
     { path: real, staged: temporary, id: before.id, bytes: before.bytes, aside: asideName(real), parent: before.parent }));
 }
 

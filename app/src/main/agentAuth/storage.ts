@@ -153,18 +153,20 @@ export class AuthStorage {
     }
     const next = merge(current);
     if (next === null || next === current) return;
-    const staged = `${path}.${randomUUID()}.tmp`;
+    // Doan's temporary names live in the agent-auth folder, on the profile's volume: a fenced turn can write the profile
+    // folder, and a file it renamed onto a staged or moved-aside name there would be published or restored as the setting.
+    const staged = join(this.root, `.setting-${randomUUID()}.tmp`);
     try {
       this.stage(staged, Buffer.from(next), seen === null ? 0o600 : seen.mode & 0o777);
       if (seen === null || bytes === null) { linkSync(staged, path); return; }
       // swapFile moves the file aside before it links and restores with link(2) too, so a filesystem that refuses links
       // would lose the settings path. Probe with the staged file first; a failure leaves the original where it is.
-      const probe = `${path}.${randomUUID()}.probe`;
+      const probe = join(this.root, `.setting-${randomUUID()}.probe`);
       try { linkSync(staged, probe); } finally { try { rmSync(probe, { force: true }); } catch { /* Scrubbed with leftovers. */ } }
       const dir = lstatSync(dirname(path));
       const result = swapFile(
-        { lstatSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync, readFileSync },
-        { path, staged, id: `${seen.dev}:${seen.ino}`, bytes, aside: join(dirname(path), `.doan-${randomUUID()}.aside`), parent: dir.isDirectory() ? `${dir.dev}:${dir.ino}` : null },
+        { lstatSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync },
+        { path, staged, id: `${seen.dev}:${seen.ino}`, bytes, aside: join(this.root, `.setting-${randomUUID()}.aside`), parent: dir.isDirectory() ? `${dir.dev}:${dir.ino}` : null },
       );
       if (result.kind === "failed") throw new StorageError("write_failed", result.code);
       if (result.kind === "displaced") throw new StorageError("write_failed", `${path} was moved to ${result.at}`);

@@ -21,15 +21,15 @@ vi.mock("node:fs", async original => {
 afterEach(() => { fsHook.after = null; });
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}-usage.json`, import.meta.url), "utf8");
-let root: string, profileDir: string, probeDir: string, log: string;
+let root: string, profileDir: string, log: string;
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "doan-usage-read-"));
-  profileDir = join(root, "profile"); probeDir = join(root, "probe"); log = join(root, "log");
-  mkdirSync(profileDir); mkdirSync(probeDir);
+  profileDir = join(root, "profile"); log = join(root, "log");
+  mkdirSync(profileDir);
 });
 afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
-const options = (over: Partial<UsageReadOptions> = {}): UsageReadOptions => ({ spawn: spawnAuthProcess, probeDir, openMs: 10_000, readMs: 1000, now: () => 1_000, ...over });
+const options = (over: Partial<UsageReadOptions> = {}): UsageReadOptions => ({ spawn: spawnAuthProcess, openMs: 10_000, readMs: 1000, now: () => 1_000, ...over });
 const lease = (command: string, mode = "") => ({ command, env: { PATH: process.env.PATH ?? "", HOME: profileDir, FAKE_USAGE: mode, FAKE_LOG: log }, profileDir });
 const logged = () => readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as Record<string, unknown>);
 const gone = (pid: number) => { try { process.kill(pid, 0); return false; } catch { return true; } };
@@ -128,7 +128,7 @@ describe("Copilot usage read", () => {
     expect(reading).toMatchObject({ status: "ok", readAt: 1_000 });
     const [start, ...messages] = logged();
     expect(start).toMatchObject({ argv: ["--headless", "--no-auto-update", "--stdio"] });
-    expect(String(start!.cwd)).toContain("probe");
+    expect(start!.cwd).toBe(realpathSync.native(profileDir));
     expect(messages.map(m => m.method)).toEqual(["connect", "account.getQuota"]);
     expect(messages.every(m => m.jsonrpc === "2.0")).toBe(true);
     expect(gone(Number(start!.pid))).toBe(true);
@@ -165,7 +165,7 @@ describe("Claude usage read", () => {
     expect(reading).toMatchObject({ status: "ok", readAt: 1_000 });
     expect(reading.status === "ok" && reading.windows.slice(0, 2)).toMatchObject([{ id: "five_hour", usedPercent: 3 }, { id: "seven_day", usedPercent: 99 }]);
     const entries = logged(), start = entries[0]!;
-    expect(String(start.cwd)).toContain("probe");
+    expect(start.cwd).toBe(realpathSync.native(profileDir));
     const requests = entries.filter(m => m.type === "control_request").map(m => m.request as Record<string, unknown>);
     expect(requests.map(r => r.subtype)).toEqual(["initialize", "get_usage"]);
     expect(requests[1]).toMatchObject({ skip_behaviors: true });

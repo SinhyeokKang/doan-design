@@ -1053,11 +1053,11 @@ async function start(): Promise<void> {
   }
   // Agent usage (ARCHITECTURE §7): read on fixed triggers into main memory only, shown only while the window is.
   if (agentAuth && authIpc) {
-    const auth = agentAuth, ipc = authIpc, probeDir = join(userData, "usage-probe");
+    const auth = agentAuth, ipc = authIpc;
     usage = new UsageService({
       auth,
       readiness: provider => ipc.latest().providers.find(status => status.provider === provider)?.readiness ?? { ready: false, cause: "not_connected", action: "signIn" },
-      read: (provider, lease, signal) => readUsage(provider, lease, { spawn: spawnAuthProcess, probeDir, fence: { userData } }, signal),
+      read: (provider, lease, signal) => readUsage(provider, lease, { spawn: spawnAuthProcess, fence: { userData } }, signal),
       visible: () => windowShown && !appHidden,
       publish: entries => send(USAGE_CHANNELS.changed, entries),
     });

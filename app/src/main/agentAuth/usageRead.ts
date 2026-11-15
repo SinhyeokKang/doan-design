@@ -1,5 +1,4 @@
 import { spawn as spawnChild } from "node:child_process";
-import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { OwnedGroup } from "../conversation/process";
@@ -27,9 +26,6 @@ const OUTPUT_LIMIT = 4 * 1024 * 1024;
 export interface UsageReadOptions {
   // A provider process in its own group; resolves gone once the group is gone (manager.ts spawnAuthProcess).
   spawn: Spawn;
-  // A Doan-owned empty folder under userData: the Claude and Copilot reads must not pick up a repo's settings. A fenced
-  // read runs from its profile instead, since the fence closes userData.
-  probeDir: string;
   // The outer fence for the Claude and Copilot reads (profileFencedCommand); without it they run unfenced, which only
   // tests use.
   fence?: { userData: string; exec?: string };
@@ -50,8 +46,6 @@ export async function readUsage(provider: UsageProvider, lease: Pick<Lease, "com
   const now = options.now ?? Date.now;
   try {
     if (signal?.aborted) throw new Stopped();
-    // Created empty and never written by Doan.
-    if (provider === "claude" || provider === "copilot") mkdirSync(options.probeDir, { recursive: true });
     const response = provider === "claude" ? await claudeRead(lease, options, signal)
       : provider === "codex" ? await rpcRead(lease, options, signal, {
         args: [...PROVIDER_AUTH.codex.args, "app-server"], cwd: lease.profileDir, framed: false,
@@ -61,7 +55,7 @@ export async function readUsage(provider: UsageProvider, lease: Pick<Lease, "com
       : provider === "copilot" ? await rpcRead(lease, options, signal, {
         // The SDK's server mode: Doan's ACP mode answers account.getQuota with Method not found (PoC). It imports the
         // profile's package-cache JavaScript like every Copilot process, so it runs in the outer fence (fencedEverywhere).
-        args: [...PROVIDER_AUTH.copilot.args, "--headless", "--no-auto-update", "--stdio"], cwd: options.fence ? lease.profileDir : options.probeDir, framed: true, fenced: "copilot",
+        args: [...PROVIDER_AUTH.copilot.args, "--headless", "--no-auto-update", "--stdio"], cwd: lease.profileDir, framed: true, fenced: "copilot",
         open: ["connect", { supportedTaskKinds: ["agent", "client", "shell"] }], initialized: false,
         read: ["account.getQuota", {}],
       })
@@ -186,7 +180,7 @@ async function claudeRead(lease: Pick<Lease, "command" | "env" | "profileDir"> &
   let group: OwnedGroup | undefined, gone: Promise<void> = Promise.resolve();
   async function* idle() { await new Promise(resolve => { if (controller.signal.aborted) resolve(null); else controller.signal.addEventListener("abort", resolve, { once: true }); }); }
   const q = query({ prompt: idle(), options: {
-    cwd: fence ? lease.profileDir : options.probeDir, env: lease.env, pathToClaudeCodeExecutable: lease.command, settingSources: ["user", "project", "local"], abortController: controller,
+    cwd: lease.profileDir, env: lease.env, pathToClaudeCodeExecutable: lease.command, settingSources: ["user", "project", "local"], abortController: controller,
     ...(fence ? { settings: { sandbox: { enabled: false } } } : {}),
     // The login's organization pinned as a Doan Claude run pins it (runners.ts): a device's managed apiKeyHelper then
     // makes Claude Code refuse (read_failed) instead of reading an API key's usage as "no usage limits".
