@@ -47,18 +47,28 @@ function sameDocument(href) {
 // window) does nothing. A value over 200 UTF-16 units is posted as null, as the window's script does;
 // the page follows neither it nor a value naming no frame of its group.
 //
-// isolate.js cancels a link's default itself (below), which must not read as the canvas cancelling.
-// So for a followed click the capture listener adds a one-time listener to the window: a listener
-// added during the window's capture phase runs in its bubble phase after every bubble listener the
-// canvas registered (each phase invokes a fresh copy of the window's list). There defaultPrevented
-// holds every cancellation the canvas made, a late window listener's, `returnValue = false` and an
-// event handler returning false included; that verdict is kept before the default is cancelled. When
-// the bubble phase never reaches the window (the canvas stopped propagation), the 0 ms timer reads
-// defaultPrevented itself and removes the listener, so it never sees a later click.
+// A link with nothing of isolate.js's own to cancel (no <a href> around it) is decided by the final
+// defaultPrevented, read after a 0 ms timer, as the window's script does.
+//
+// On an <a href> or <area href> isolate.js must cancel the default itself before the dispatch ends,
+// and that must not read as the canvas cancelling. So the capture listener adds a one-time window
+// listener for the click, which runs in the window's bubble phase after every canvas listener that
+// was there before the click (each phase invokes a fresh copy of the window's list). It records
+// defaultPrevented, which holds every cancel made so far, `returnValue = false` and an event handler
+// returning false included, then cancels with the native method. From then on that one event's own
+// preventDefault and returnValue setter (shadowing Event.prototype's) note a canvas cancel and call
+// the native ones, so a cancel from a listener the canvas added during the click still counts. Limits:
+// such a listener that is passive counts as a cancel although the browser ignores it, and an event
+// handler (an `onclick` property) first set during the click whose `return false` comes after ours
+// is not seen. When the bubble phase never reaches the window (the canvas stopped propagation), the
+// timer reads defaultPrevented itself and removes the listener, so it never sees a later click.
 const GOTO_ATTRIBUTE = "data-doan-goto";
 const MAX_GOTO = 200;
+// Taken before any canvas script runs.
+const nativePreventDefault = Event.prototype.preventDefault;
+const nativeReturnValue = Object.getOwnPropertyDescriptor(Event.prototype, "returnValue");
 let playing = null;
-// The canvas's verdict on each followed click: true when it cancelled the click.
+// Each followed click with an href: whether the canvas cancelled it, null until our listener ran.
 const cancelled = new WeakMap();
 window.addEventListener("click", (event) => {
   const target = event.target;
@@ -66,6 +76,13 @@ window.addEventListener("click", (event) => {
   const link = target.closest(`[${GOTO_ATTRIBUTE}]`);
   if (link === null || !playing.contains(link)) return;
   const value = link.getAttribute(GOTO_ATTRIBUTE) ?? "";
+  const follow = () => post({ goto: value.length <= MAX_GOTO ? value : null });
+  if (linkHref(event) === null) {
+    setTimeout(() => {
+      if (!event.defaultPrevented) follow();
+    }, 0);
+    return;
+  }
   // The guard: a click the canvas dispatches from its own handler (a nested click()) reaches this
   // listener before the outer click's bubble phase does.
   const late = (other) => {
@@ -75,32 +92,68 @@ window.addEventListener("click", (event) => {
     // A link followed replaces the whole document, so moving to its fragment first would only leave
     // a history entry behind.
     keepInDocument(event, false);
+    watchCancels(event);
   };
   cancelled.set(event, null);
   window.addEventListener("click", late);
   setTimeout(() => {
     window.removeEventListener("click", late);
-    const verdict = cancelled.get(event);
-    if (!(verdict ?? event.defaultPrevented)) post({ goto: value.length <= MAX_GOTO ? value : null });
+    delete event.preventDefault;
+    delete event.returnValue;
+    if (!(cancelled.get(event) ?? event.defaultPrevented)) follow();
   }, 0);
 }, true);
+
+// Own properties on the one event, so no other event and no Event.prototype changes. A call counts
+// only when the event can be cancelled; the native method or setter still does the work, with the
+// caller's receiver, result and exceptions, and the getter stays native.
+function watchCancels(event) {
+  const counted = (self) => {
+    if (self === event && event.cancelable) cancelled.set(event, true);
+  };
+  Object.defineProperty(event, "preventDefault", {
+    configurable: true,
+    writable: true,
+    value: function preventDefault() {
+      counted(this);
+      return nativePreventDefault.call(this);
+    },
+  });
+  Object.defineProperty(event, "returnValue", {
+    configurable: true,
+    get() {
+      return nativeReturnValue.get.call(this);
+    },
+    set(value) {
+      if (!value) counted(this);
+      nativeReturnValue.set.call(this, value);
+    },
+  });
+}
+
+// The href of the link the click is on, as a browser would follow it: the nearest <a> or <area> in
+// the click's path, or null when that has no href or there is none.
+function linkHref(event) {
+  for (const node of event.composedPath()) {
+    if (!(node instanceof Element) || (node.localName !== "a" && node.localName !== "area")) continue;
+    return node.getAttribute("href") ?? node.getAttribute("xlink:href");
+  }
+  return null;
+}
 
 // Only links whose written value starts with "#" stay in the document; every other link's default is
 // cancelled. Unless the canvas cancelled the click already: a handler that checks defaultPrevented (a
 // client-side router's link) still sees its own event.
 function keepInDocument(event, moveToFragment) {
   if (event.defaultPrevented) return;
-  for (const node of event.composedPath()) {
-    if (!(node instanceof Element) || (node.localName !== "a" && node.localName !== "area")) continue;
-    const href = node.getAttribute("href") ?? node.getAttribute("xlink:href");
-    if (href === null) return;
-    event.preventDefault();
-    // A srcdoc document resolves "#id" against the page's file URL, not its own, so the browser's
-    // own handling leaves it: WebKit loads the page around the frame into the frame, and Chromium
-    // drops the click. Setting the hash moves within the document, as the link would in the app.
-    if (moveToFragment && sameDocument(href)) location.hash = href;
-    return;
-  }
+  const href = linkHref(event);
+  if (href === null) return;
+  // Before watchCancels, if at all, so this is the native method.
+  event.preventDefault();
+  // A srcdoc document resolves "#id" against the page's file URL, not its own, so the browser's
+  // own handling leaves it: WebKit loads the page around the frame into the frame, and Chromium
+  // drops the click. Setting the hash moves within the document, as the link would in the app.
+  if (moveToFragment && sameDocument(href)) location.hash = href;
 }
 
 // Bubble phase, so the canvas's own handlers run first. A handler that stops propagation keeps its
