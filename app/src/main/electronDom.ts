@@ -57,11 +57,14 @@ export async function launchElectronDom(): Promise<ElectronDom> {
   const dir = await mkdtemp(join(tmpdir(), "doan-dom-"));
   let app: ElectronApplication | null = null;
   const close = async () => {
+    let timer: NodeJS.Timeout | undefined;
     try {
-      if (app !== null) await Promise.race([app.close(), new Promise((_, reject) => setTimeout(() => reject(new Error("Electron did not close")), TIMEOUT_MS))]);
+      if (app !== null) await Promise.race([app.close(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Electron did not close")), TIMEOUT_MS); })]);
     } catch {
       app?.process().kill("SIGKILL");
     } finally {
+      // A pending timer would hold the test worker open after a normal close.
+      clearTimeout(timer);
       await rm(dir, { recursive: true, force: true });
     }
   };

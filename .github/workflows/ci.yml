@@ -43,6 +43,10 @@ jobs:
         with:
           go-version-file: go.mod
       - run: npm --prefix app ci
+      # Electron 45 has no postinstall, and the drift tests of the scripts injected into canvases run in this binary
+      # (app/src/main/electronDom.ts), so it is downloaded here rather than from a test.
+      - run: node -e "require('electron')"
+        working-directory: app
       - run: node .agents/skills/verify/scripts/verify.mjs --shard ${{ matrix.shard }}/3
 
   # No display name on this job: the branch protection required check is the

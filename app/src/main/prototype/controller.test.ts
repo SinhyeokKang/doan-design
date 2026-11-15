@@ -52,7 +52,7 @@ function setup() {
 function opened() {
   const t = setup();
   t.controller.play("main", play);
-  t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "390x844", frames });
+  t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "390x844", frames, gotos: [] });
   t.calls.length = 0;
   return t;
 }
@@ -86,7 +86,7 @@ describe("prototype controller", () => {
   test("an unchanged view is not sent again", () => {
     const t = opened();
     t.controller.listChanged();
-    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "390x844", frames });
+    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "390x844", frames, gotos: [] });
     expect(t.calls).toEqual([]);
   });
 
@@ -113,7 +113,7 @@ describe("prototype controller", () => {
   test("staying ready or closing takes no still", async () => {
     const t = opened();
     t.controller.play("main", play);
-    t.controller.request(PROTOTYPE_CHANNELS.frames, "prototype", { gen: 1, frames: frames.slice(0, 1) });
+    t.controller.request(PROTOTYPE_CHANNELS.frames, "prototype", { gen: 1, frames: frames.slice(0, 1), gotos: [] });
     t.controller.listChanged();
     t.controller.request(PROTOTYPE_CHANNELS.close, "prototype", undefined);
     await Promise.resolve();
@@ -240,7 +240,7 @@ describe("prototype controller", () => {
     const t = opened();
     t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "tablet" });
     await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 2, "loading"]));
-    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 2, state: "ready", size: "820x1180", frames });
+    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 2, state: "ready", size: "820x1180", frames, gotos: [] });
     t.setCapture(async () => null);
     t.controller.request(PROTOTYPE_CHANNELS.choose, "prototype", { frame: "phone" });
     await vi.waitFor(() => expect(t.calls.at(-1)).toEqual(["view", 3, "loading"]));
@@ -269,7 +269,7 @@ describe("prototype controller", () => {
     t.calls.length = 0;
     t.controller.request(PROTOTYPE_CHANNELS.mode, "prototype", { mode: "responsive" });
     expect(t.calls).toEqual([["view", 1, "loading"]]);
-    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "390x844", frames });
+    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "390x844", frames, gotos: [] });
     expect(t.calls.at(-1)).toEqual(["view", 1, "ready"]);
     expect(t.views.at(-1)?.mode).toBe("responsive");
   });
@@ -277,7 +277,7 @@ describe("prototype controller", () => {
   test("the still is taken with the leaving run's mark and the mode it was shown in", async () => {
     const t = setup();
     t.controller.play("main", play);
-    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "400x700", frames });
+    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "400x700", frames, gotos: [] });
     t.controller.request(PROTOTYPE_CHANNELS.mode, "prototype", { mode: "responsive" });
     t.calls.length = 0;
     t.controller.request(PROTOTYPE_CHANNELS.reload, "prototype", { gen: 1 });

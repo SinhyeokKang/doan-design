@@ -7,7 +7,7 @@ import type { SelectionView } from "./selection";
 const frame = (id: string, prototype?: string) => ({ id, x: 0, y: 0, width: 100, height: 100, ...(prototype === undefined ? {} : { prototype }) });
 const frameSelection = (id: string): SelectionView => ({ tag: "section", frame: { id }, path: [] });
 const elementSelection = (id: string): SelectionView => ({ tag: "button", frame: { id }, element: { selector: "button", html: "<button>" }, path: [] });
-const layout = (frames: ReturnType<typeof frame>[]): CanvasState["layout"] => ({ type: "layout", href: "http://127.0.0.1/a.html", height: 100, viewport: 100, frames, truncated: false });
+const layout = (frames: ReturnType<typeof frame>[]): CanvasState["layout"] => ({ type: "layout", href: "http://127.0.0.1/a.html", height: 100, viewport: 100, frames, truncated: false, gotos: [] });
 const open = { folder: "/repo", canvas: ".doan/canvases/a.html", row: { path: ".doan/canvases/a.html", id: "a", url: "http://127.0.0.1/a.html" } } as CanvasState["open"];
 const state = (over: Partial<PlayState & Pick<CanvasState, "open">> = {}) => ({
   tool: "select" as const, picking: false, capturing: false, selection: frameSelection("checkout"), layout: layout([frame("checkout", "390x844"), frame("cart")]), open, ...over,

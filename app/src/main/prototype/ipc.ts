@@ -115,6 +115,15 @@ export interface PrototypeFrame {
 
 export type LostState = "missing" | "duplicate" | "unmarked" | "invalid";
 
+// A `data-doan-goto` link of the run's document outside `<template>`, in document order: its raw value and the raw ids
+// of the frames around it, outermost first, the element itself last when it is a frame. A value or id over 200 UTF-16
+// units is left out rather than cut (a link with such a value is not reported, such a frame is not in `frames`), so the
+// link groups are computed from raw ids as the shared fixture defines them.
+export interface PrototypeGoto {
+  value: string;
+  frames: string[];
+}
+
 // The prototype script in the run's document posts a RunMessage once and, when that went out before the `load`
 // handlers, one FramesMessage after them, both exactly as typed here (a RunMessage has `state`, a FramesMessage does
 // not). The host accepts only its current iframe's window, origin "null" and the current `gen`, then forwards the data
@@ -122,20 +131,28 @@ export type LostState = "missing" | "duplicate" | "unmarked" | "invalid";
 // `prototype:result`, sent once per run by the host. `ready` and the lost states come from the prototype script in the
 // run's document (at DOMContentLoaded, or after the `load` handlers); `timeout` is the host's own 10 s timer.
 export type RunMessage =
-  | { gen: number; state: "ready"; size: string; frames: PrototypeFrame[] }
-  | { gen: number; state: LostState; frames: PrototypeFrame[] }
+  | { gen: number; state: "ready"; size: string; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
+  | { gen: number; state: LostState; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
   | { gen: number; state: "timeout" };
 
 // What main acts on once a message is validated.
 export type RunReport =
-  | { gen: number; state: "ready"; size: PrototypeSize; frames: PrototypeFrame[] }
-  | { gen: number; state: LostState; frames: PrototypeFrame[] }
+  | { gen: number; state: "ready"; size: PrototypeSize; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
+  | { gen: number; state: LostState; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
   | { gen: number; state: "timeout" };
 
 // `prototype:frames`: the drawer list the run sends after the `load` handlers, when its result went out earlier.
 export interface FramesMessage {
   gen: number;
   frames: PrototypeFrame[];
+  gotos: PrototypeGoto[];
+}
+
+// A click on a link inside the playing frame that the canvas did not default-prevent, posted by the prototype script
+// after a 0 ms timer. `goto` is the link's raw value, or null when it is over 200 UTF-16 units (no frame can have it).
+export interface GotoMessage {
+  gen: number;
+  goto: string | null;
 }
 
 // Fit keeps the frame's viewport at its mark and scales it down to the panel; Responsive makes the panel the viewport.

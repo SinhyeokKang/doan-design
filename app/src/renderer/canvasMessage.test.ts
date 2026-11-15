@@ -247,10 +247,11 @@ describe("parseCanvasMessage: layout parents and links", () => {
     expect(parsed({ gotos: many }).gotos).toEqual(many.slice(0, MAX_GOTOS));
   });
 
-  test("indexes follow the frames kept when a malformed frame is dropped", () => {
+  test("indexes follow the frames kept when a malformed frame is dropped, and a link in it is left out", () => {
     const message = parsed({ frames: [f("a"), { id: 5 }, f("c", { parent: 0 }), f("d", { parent: 2 }), f("e", { parent: 1 })], gotos: [{ value: "a", frame: 3 }, { value: "a", frame: 1 }] });
     expect(message.frames.map(({ id, parent }) => [id, parent])).toEqual([["a", undefined], ["c", 0], ["d", 1], ["e", undefined]]);
-    expect(message.gotos).toEqual([{ value: "a", frame: 2 }, { value: "a" }]);
+    // The second link sat in the dropped frame, which the kept list cannot name.
+    expect(message.gotos).toEqual([{ value: "a", frame: 2 }]);
   });
 
   test("a frame whose ID the script or the parser cut is marked cut and loses its mark", () => {

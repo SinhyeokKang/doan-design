@@ -8,7 +8,14 @@
 // is and the frame is placed in the viewport in place: its ancestors lose their layout and their other children are
 // hidden, so ancestor selectors, listeners and relative assets keep working. Elements added outside the frame after
 // that moment (a modal appended to body) show. One RunMessage goes to the host; when it went out before the `load`
-// handlers, one FramesMessage follows them with the drawer list.
+// handlers, one FramesMessage follows them with the drawer list. Both carry the document's `data-doan-goto` links.
+//
+// A click on a link inside the playing frame posts one GotoMessage. The listener is on the window's capture phase and
+// registered before the canvas's own scripts run, so a canvas stopping the click's propagation, even in its own window
+// capture listener, cannot keep it from us; only `preventDefault()` cancels, read after a 0 ms timer so the canvas's
+// handlers have all run. `isTrusted` is not checked: a canvas can post a GotoMessage for the current gen itself anyway.
+// The click's target is the one the window sees, so a link inside a shadow root (retargeted to its host) or a nested
+// iframe (its clicks never reach this window) does nothing, as `doan check`'s static rules say.
 export function prototypeScript(target: string, gen: number, url: string): void {
   // Only the prototype window's direct child, and only the run's own document: a nested iframe or a document the
   // canvas moved to (the navigation gate refuses those anyway) gets nothing.
@@ -25,6 +32,10 @@ export function prototypeScript(target: string, gen: number, url: string): void 
   // selected on the board either, so it is left out rather than cut.
   const MAX_STRING = 200;
   const MAX_FRAMES = 1000;
+  // requests.ts's MAX_REPORT_GOTOS and MAX_GOTO_FRAMES.
+  const MAX_GOTOS = 1000;
+  const MAX_GOTO_FRAMES = 1000;
+  const GOTO_ATTRIBUTE = "data-doan-goto";
   const post = (message: unknown) => parent.postMessage(message, "*");
   const frameId = (el: Element) => el.getAttribute("data-doan-frame") ?? "";
   // querySelectorAll does not reach into <template> content, so frames there are not frames, as in the board.
@@ -51,6 +62,23 @@ export function prototypeScript(target: string, gen: number, url: string): void 
       listed.push({ id, ...(title === null ? {} : { title: clip(title) }), size, number: index + 1 });
     });
     return listed;
+  };
+
+  // The links the drawer groups frames by, in document order. Over a cap a value or id is left out, never cut, so the
+  // groups computed from what is left match those of the raw document as far as the run can play them.
+  const gotos = () => {
+    const reported: { value: string; frames: string[] }[] = [];
+    for (const el of Array.from(document.querySelectorAll(`[${GOTO_ATTRIBUTE}]`))) {
+      if (reported.length === MAX_GOTOS) break;
+      const value = el.getAttribute(GOTO_ATTRIBUTE) ?? "";
+      if (value.length > MAX_STRING) continue;
+      const around: string[] = [];
+      for (let node: Element | null = el; node !== null; node = node.parentElement) {
+        if (node.hasAttribute("data-doan-frame") && frameId(node).length <= MAX_STRING) around.push(frameId(node));
+      }
+      if (around.length <= MAX_GOTO_FRAMES) reported.push({ value, frames: around.reverse() });
+    }
+    return reported;
   };
 
   type Found = { state: "ready"; el: Element; size: string } | { state: "missing" | "duplicate" | "unmarked" | "invalid" };
@@ -93,6 +121,18 @@ export function prototypeScript(target: string, gen: number, url: string): void 
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   };
 
+  let playing: Element | null = null;
+  window.addEventListener("click", event => {
+    const target = event.target;
+    if (playing === null || !(target instanceof Element)) return;
+    const link = target.closest(`[${GOTO_ATTRIBUTE}]`);
+    if (link === null || !playing.contains(link)) return;
+    const value = link.getAttribute(GOTO_ATTRIBUTE) ?? "";
+    setTimeout(() => {
+      if (!event.defaultPrevented) post({ gen, goto: value.length <= MAX_STRING ? value : null });
+    }, 0);
+  }, true);
+
   let done = false;
   const finish = (final: boolean): boolean => {
     if (done) return true;
@@ -101,14 +141,15 @@ export function prototypeScript(target: string, gen: number, url: string): void 
     done = true;
     if (found.state === "ready") {
       isolate(found.el);
-      post({ gen, state: "ready", size: found.size, frames: list() });
-    } else post({ gen, state: found.state, frames: list() });
+      playing = found.el;
+      post({ gen, state: "ready", size: found.size, frames: list(), gotos: gotos() });
+    } else post({ gen, state: found.state, frames: list(), gotos: gotos() });
     return true;
   };
   // After the `load` handlers: a 0 ms timer queued from a `load` listener runs once every listener has run.
   const afterLoad = (then: () => void) => window.addEventListener("load", () => setTimeout(then, 0), { once: true });
   const atContentLoaded = () => {
-    if (finish(false)) afterLoad(() => post({ gen, frames: list() }));
+    if (finish(false)) afterLoad(() => post({ gen, frames: list(), gotos: gotos() }));
     else afterLoad(() => finish(true));
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", atContentLoaded, { once: true });

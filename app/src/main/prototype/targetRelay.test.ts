@@ -54,7 +54,7 @@ describe("the target relay", () => {
   test("A → B → A while a still capture holds the views still tells the main window of the new A", async () => {
     const t = wired();
     t.controller.play("main", playA);
-    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "390x844", frames });
+    t.controller.request(PROTOTYPE_CHANNELS.result, "prototype", { gen: 1, state: "ready", size: "390x844", frames, gotos: [] });
     await flush();
     t.report();
     expect(t.drawing.current()).toBe("p");

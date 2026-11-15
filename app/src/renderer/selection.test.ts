@@ -16,7 +16,7 @@ const view: SelectionView = {
   interactive: "control",
 };
 const select = (over: Partial<SelectMessage> = {}): SelectMessage => ({ type: "select", href: HREF, seq: 5, viewport: 150, target: { rect, ...view } satisfies SelectTarget, ...over });
-const layout = (over: Partial<LayoutMessage> = {}): LayoutMessage => ({ type: "layout", href: HREF, height: 900, viewport: 150, frames: [], truncated: false, seq: 5, selected: rect, ...over });
+const layout = (over: Partial<LayoutMessage> = {}): LayoutMessage => ({ type: "layout", href: HREF, height: 900, viewport: 150, frames: [], truncated: false, gotos: [], seq: 5, selected: rect, ...over });
 
 describe("acceptSelectionMessage", () => {
   test("drops anything from another document or before the first layout", () => {

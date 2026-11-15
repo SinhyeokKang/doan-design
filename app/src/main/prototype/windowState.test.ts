@@ -32,7 +32,7 @@ function ok(step: Step | null): Step {
 }
 
 function ready(state: PrototypeState, size = "390x844", frames = listed): Step {
-  return report(state, { gen: state.gen, state: "ready", size: parse(size), frames });
+  return report(state, { gen: state.gen, state: "ready", size: parse(size), frames, gotos: [] });
 }
 function parse(size: string) {
   const [w, h] = size.split("x").map(Number);
@@ -188,7 +188,7 @@ describe("source changes and loss", () => {
     const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
     const cases = [["missing", "frame-unavailable"], ["duplicate", "frame-unavailable"], ["unmarked", "prototype-unavailable"], ["invalid", "prototype-unavailable"]] as const;
     for (const [state, phase] of cases) {
-      const step = report(loading, { gen: 1, state, frames: listed.slice(1) });
+      const step = report(loading, { gen: 1, state, frames: listed.slice(1), gotos: [] });
       expect(step.effects).toEqual([]);
       expect(prototypeView(step.state, w.resolve)).toMatchObject({ phase, frames: listed.slice(1) });
     }
@@ -245,7 +245,7 @@ describe("review round 1", () => {
     // The frame's ID changes in the file: doan ls and the next run no longer list it.
     w.set(A, w.present("http://h/t/tok/k1/proto.html", "s2", [{ id: "phone-gone", title: "Phone" }]));
     const reloading = listChanged(shown, w.resolve).state;
-    const missing = report(reloading, { gen: reloading.gen, state: "missing", frames: [] }).state;
+    const missing = report(reloading, { gen: reloading.gen, state: "missing", frames: [], gotos: [] }).state;
     expect(prototypeView(missing, w.resolve)).toMatchObject({ phase: "frame-unavailable", title: "Phone" });
     w.set(A, { kind: "absent" });
     expect(prototypeView(listChanged(shown, w.resolve).state, w.resolve)).toMatchObject({ phase: "frame-unavailable", title: "Phone" });
@@ -282,7 +282,7 @@ describe("the frame's title", () => {
     const reloading = listChanged(shown, w.resolve).state;
     expect(prototypeView(reloading, w.resolve)?.title).toBe("phone");
     const untitled = [{ id: "phone", size: "390x844", number: 1 }];
-    const plain = report(reloading, { gen: reloading.gen, state: "ready", size: phone, frames: untitled }).state;
+    const plain = report(reloading, { gen: reloading.gen, state: "ready", size: phone, frames: untitled, gotos: [] }).state;
     expect(prototypeView(plain, w.resolve)?.title).toBe("phone");
     // Then the frame goes: no older title comes back.
     w.set(A, { kind: "absent" });
@@ -343,7 +343,7 @@ describe("failures, retry and stale results", () => {
     const { state } = loading();
     const second = reload(state, 1).state;
     for (const late of [
-      report(second, { gen: 1, state: "ready", size: phone, frames: listed }),
+      report(second, { gen: 1, state: "ready", size: phone, frames: listed, gotos: [] }),
       report(second, { gen: 1, state: "timeout" }),
       readFailed(second, 1, "x"),
       framesReported(second, 1, listed),
@@ -654,7 +654,7 @@ describe("the target canvas row in the view", () => {
   test("a frame the run lost leaves the row present", () => {
     const w = world();
     const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
-    const lost = report(loading, { gen: loading.gen, state: "missing", frames: [] }).state;
+    const lost = report(loading, { gen: loading.gen, state: "missing", frames: [], gotos: [] }).state;
     expect(prototypeView(lost, w.resolve)).toMatchObject({ phase: "frame-unavailable", canvasRow: "present" });
   });
 });

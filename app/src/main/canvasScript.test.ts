@@ -653,7 +653,7 @@ describe("canvasScriptSource", () => {
     canvas.ready();
     expect(canvas.posted).toEqual([
       {
-        message: { type: "layout", document: expect.any(String), href: "http://127.0.0.1:4000/t/tok/key/.doan/canvases/a.html", height: 900, viewport: 150, frames: [], truncated: false },
+        message: { type: "layout", document: expect.any(String), href: "http://127.0.0.1:4000/t/tok/key/.doan/canvases/a.html", height: 900, viewport: 150, frames: [], truncated: false, gotos: [] },
         origin: "*",
       },
     ]);

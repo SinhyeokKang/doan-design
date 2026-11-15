@@ -31,7 +31,7 @@ beforeEach(async () => {
 test("every request goes to its prototype channel with the payload main parses", async () => {
   await api.read();
   await api.reportResult({ gen: 2, state: "timeout" });
-  await api.reportFrames({ gen: 2, frames: [] });
+  await api.reportFrames({ gen: 2, frames: [], gotos: [] });
   await api.reload(3);
   await api.back();
   await api.forward();
@@ -56,7 +56,7 @@ test("every request goes to its prototype channel with the payload main parses",
   await api.rememberedConversation();
   await api.reveal({ kind: "settings" });
   expect(mocks.invoke.mock.calls).toEqual([
-    [PROTOTYPE_CHANNELS.read], [PROTOTYPE_CHANNELS.result, { gen: 2, state: "timeout" }], [PROTOTYPE_CHANNELS.frames, { gen: 2, frames: [] }],
+    [PROTOTYPE_CHANNELS.read], [PROTOTYPE_CHANNELS.result, { gen: 2, state: "timeout" }], [PROTOTYPE_CHANNELS.frames, { gen: 2, frames: [], gotos: [] }],
     [PROTOTYPE_CHANNELS.reload, { gen: 3 }], [PROTOTYPE_CHANNELS.back], [PROTOTYPE_CHANNELS.forward], [PROTOTYPE_CHANNELS.choose, { frame: "tablet" }],
     [PROTOTYPE_CHANNELS.close], [PROTOTYPE_CHANNELS.mode, { mode: "responsive" }],
     [PROTOTYPE_CHANNELS.export, { root: "/r", path: ".doan/canvases/a.html", frame: "checkout" }], [PROTOTYPE_CHANNELS.revealExport, "id-1"], [PROTOTYPE_CHANNELS.visible],
