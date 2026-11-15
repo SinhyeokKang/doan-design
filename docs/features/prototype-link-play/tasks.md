@@ -38,7 +38,7 @@
   - `eval/scenarios/W9/`를 만든다.
   - 검증: `go test ./...`(`TestSkillGuideFitsToolOutputCap`와 내용 테스트 포함), `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W9`가 `self-test PASS`와 exit 0.
   - 커밋 경계: 가이드 하나, eval 하나.
-- [ ] 5. **배치 W — 창과 툴바**(L·S 뒤, 순수 함수 4·6).
+- [x] 5. **배치 W — 창과 툴바**(L·S 뒤, 순수 함수 4·6).
   - 맡는 파일: `CanvasHeader.tsx`, `frameDrawer.ts`, `host.ts`, `PrototypeWindow.tsx`, `view.ts`, `ipc.ts`, `preload/prototype.ts`, `controller.ts`, 꺼낸 서랍 본문, `CanvasTools.tsx`, `canvasTool.ts`, `App.tsx`.
   - 테스트: `host.test.ts`, `controller.test.ts`, `PrototypeWindow` 테스트, `CanvasTools.test.tsx`, `App.*.test.tsx` 해당 파일.
     - 이동과 토스트, export 토스트 중 토스트 없음
@@ -52,7 +52,7 @@
     - 버블 Play의 Hand
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app run build`.
 - [ ] 6. **통합 확인**(컨덕터): `node .agents/skills/verify/scripts/verify.mjs --eval`이 통과한다.
-- [ ] 7. **`/design-sync`**: 초안의 세 프레임과 실제 앱을 맞춘다.
+- [x] 7. **`/design-sync`**: 초안의 세 프레임과 실제 앱을 맞춘다.
   - 검증: `node .scratch/design-sync/prototype-link-play/measure.mjs`가 exit 0이다. 프레임마다 차이가 0이거나 DESIGN.md에 편차로 적혀 있다.
   - 커밋 경계: 구현 수정 하나, DESIGN.md 하나.
 - [ ] 8. **`/runtime-test`**(격리한 실제 앱). 확인할 것:
