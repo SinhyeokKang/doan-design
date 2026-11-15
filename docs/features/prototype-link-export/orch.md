@@ -13,6 +13,7 @@
 | 1 | 성공 토스트 문구 | 연결이 있으면 `Exported “<frame>” and N linked frames. The file also contains the rest of the canvas.`, 1개면 `and 1 linked frame`. 연결이 없으면 지금 문구 그대로. | 사용자(시작 점검 2) |
 | 2 | `--json` 새 필드 | `linkedFrames`: 시작 프레임을 뺀 묶음의 프레임 수. `--prototype`일 때만 있고(`prototype: true`와 같은 규칙), 연결 없는 프레임은 0. 기존 `frames`는 그대로. | 사용자(시작 점검 2) |
 | 3 | 사람용 텍스트 출력(`Exported … frame … to …`) | 바꾸지 않는다. | 컨덕터 판단 — spec은 `--json` 필드만 말하고, 기존 출력을 바꾸지 않는 쪽이 범위가 작다 |
+| 5 | `<a href>` 연결의 취소 판정 | isolate.js가 연결 클릭을 스스로 취소하지 않는다(재설계). PoC 2로 방법을 정했다: bubble 단계에서 링크의 href를 잠깐 떼었다가 0 ms 타이머에서 되돌리고, 최종 `defaultPrevented`로 판단한다. `window.stop()`은 Chromium http에서 경합에 져서 버렸다. | 사용자(재리뷰 2 뒤, 세 안 중 '자기 취소를 없앤다'). 방법 선택은 컨덕터 판단 — PoC 2 근거 |
 | 4 | 가이드 문장 | 바꾸지 않는다. "plays only that frame"이 없는지만 확인한다. | spec '하지 않는 것', 완료 조건 13 |
 
 ## 배치
@@ -21,7 +22,7 @@
 |---|---|---|---|---|---|---|
 | PoC | tasks 1 | `.scratch/prototype-link-export/`, design.md 관찰 | — | 컨덕터 | `node .scratch/prototype-link-export/poc.mjs` exit 0 | 완료(b9d192e55, Chromium·WebKit × file·http 세 번 exit 0) |
 | X | tasks 2 | `cli/internal/cli/export.go`, `cli/internal/canvas/prototype_rules.go`(필요 시), `cli/internal/export/assemble.go`, `cli/internal/export/viewer/*`, `app/src/renderer/canvasExport.ts`, `app/src/renderer/canvasRowMessages.ts`, `app/src/main/exportViewer.test.ts`, Go export 테스트 | PoC | Claude Opus high — 링크 의미 복제, 기록·iframe 수명, 바이트 고정 테스트가 얽혀 판단이 많고 틀리면 받는 사람 파일이 깨진다 | tasks 2 검증 명령 | 구현 완료(`plx-x`, 브랜치 `SinhyeokKang/plx-x`, 893669f1c..b05d9740d, 게이트 5개 통과, 자체 `/code-review` 🟡 1 수정). 리뷰 대기 |
-| X 리뷰 | X diff `/code-review` | 보고만 | X | Codex `gpt-6-astra` medium — 교차 계열 독립 리뷰 | 🔴 0 | 1차: 🔴 1·🟡 0·⚪ 1(`.scratch/review-X.md`). 재리뷰 1: 🔴 1 남음. 수정 2차 진행 |
+| X 리뷰 | X diff `/code-review` | 보고만 | X | Codex `gpt-6-astra` medium — 교차 계열 독립 리뷰 | 🔴 0 | 1차: 🔴 1·🟡 0·⚪ 1(`.scratch/review-X.md`). 재리뷰 1: 🔴 1 남음. 재리뷰 2: 🔴 2·🟡 1·⚪ 1. 재설계(수정 3차) 진행 |
 | 통합·확인 | tasks 3–7 | 통합 커밋, 문서 승격 | X | 컨덕터 | 각 작업의 검증 | 대기 |
 
 ## 파일 겹침과 순서
@@ -45,3 +46,5 @@
 - 재리뷰 1(Codex astra medium, 첫 재개는 Codex 업데이트 화면에 막혀 같은 워크트리에 새로 띄움): 🔴 1 남음 — 클릭 처리 중에 캔버스가 새로 붙인 window 취소는 late 리스너 뒤에 돌아 놓친다. href 없는 연결에서는 기록한 값이 최종 `defaultPrevented`를 덮어 회귀가 생겼다.
 - 수정 2차 방향(컨덕터 판단): href 없는 연결은 late 리스너 없이 타이머에서 최종 `defaultPrevented`를 읽는다(앱과 같음). `<a href>` 연결은 late 리스너가 값을 기록하고 자기 취소를 한 뒤, 그 이벤트 인스턴스에만 `preventDefault`와 `returnValue` setter를 가려 그 뒤의 캔버스 취소를 기록한다(`Event.prototype`은 건드리지 않음). 남는 한계 둘(`<a href>` 연결에서 late 뒤에 추가된 passive 리스너의 `preventDefault`는 취소로 셈, 클릭 중 처음 설정한 `onclick`의 `return false`는 못 봄)은 테스트로 고정하고 ARCHITECTURE 한계에 적는다.
 - probe에 클릭 중 추가한 window 취소 두 경우(`<a href>`, button)를 더했다. 수정 1차 코드에서 Chromium·WebKit 모두 이 4개만 실패했다.
+- 수정 2차(b4cc8cca6, 32fd1e8dc): probe 82/82. 재리뷰 2(Codex, 재개는 다시 업데이트 화면에 막혀 새로 띄움): 🔴 2 — 미리 저장한 native `preventDefault`·`Event.prototype.preventDefault.call`·`preventExtensions` 뒤 취소를 놓침, 클릭 중 href를 더하면 정상 연결이 사라짐(회귀). 🟡 1 — 설치하지 않은 own property까지 지움. ⚪ 1 — 테스트 보완.
+- 사용자에게 물었다(남는 경우를 한계로 적기 / `Event.prototype` 래퍼 / 자기 취소 없애기). 사용자가 재설계를 골랐다. PoC 2(design.md 'PoC 2 관찰', c10fd922c)로 href 떼기를 골라 수정 3차를 보냈다(dispatch `ctx_bcaf473f7d83`).
