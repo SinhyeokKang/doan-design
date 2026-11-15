@@ -71,6 +71,19 @@
 - **iframe 안 기록**: 캔버스의 `#` 링크와 `pushState` 래퍼는 iframe 안에 기록을 쌓는다. 그 iframe을 지운 뒤 Back이 그 항목을 거치면 한 번 눌러도 화면이 그대로일 수 있다. 브라우저 동작으로 받아들이고(사용자 결정), PoC에서 관찰해 ARCHITECTURE 'Prototype page'의 한계에 적는다.
 - **드리프트**: `isolate.js`의 연결 판단은 하위 2가 export하는 클릭 판정 표로 고정한다. 지금 `exportViewer.test.ts`의 isolate 하네스는 `FakeElement` 대역이라 `closest`, capture/bubble 순서, `defaultPrevented`가 없다. 하위 2의 표가 도는 것과 같은 DOM 환경을 쓴다.
 
+## PoC 관찰(작업 1)
+
+2026-11-15, `node .scratch/prototype-link-export/poc.mjs`. Playwright 1.64.1의 Chromium(headless shell 1248)과 WebKit 2370에서, `file://`과 로컬 http 서버 둘 다로 열었다. 세 번 돌려 세 번 모두 exit 0이었다. 손으로 만든 세 프레임 파일은 위 '프레임 전환 방식'을 그대로 따른다(캔버스는 `data-` 속성 하나, iframe은 `sandbox` → `name` → `srcdoc` 순서로 설정한 뒤 붙임, 첫 열기는 `location.replace`).
+
+- **기록**: 처음 열 때 `location.replace("#a")`는 기록을 늘리지 않는다. 연결로 A→B, B→C를 한 번씩 이동하면 `history.length`가 1씩 는다. 이전 iframe은 새 iframe의 ready에서 지워서, 이동 뒤 iframe은 늘 하나다.
+- **Back과 Forward**: C에서 Back은 B, 다시 Back은 A이고, 둘 다 iframe을 새로 만든다. A에서 Forward는 B다. A에서 Back은 파일을 떠나 앞 페이지로 간다.
+- **`window.name`**: sandbox iframe(opaque origin, `allow-same-origin` 없음)의 문서가 `window.name`으로 시작 프레임 id를 읽는다. 대안(두 문자열)은 필요 없다.
+- **이전 iframe의 메시지**: A의 문서가 B로 가는 연결 뒤 10 ms마다 `goto`와 가짜 `ready`를 보내는 동안 B를 늦게 준비시켰다. 메시지 62개가 모두 `event.source` 비교에서 버려졌고, 아무 이동도 일어나지 않았다. iframe을 지운 뒤에는 그 문서의 타이머가 더 돌지 않았다.
+- **iframe 안 기록(관찰만)**: B에서 `#` 링크(`location.hash`)와 `pushState`를 한 번씩 한 뒤 C로 이동하면 `history.length`는 4→7이다. 그 뒤 Back은 다음과 같다.
+  - B가 준비를 늦게 보고할 때(세 번 모두 같음): Back 1은 B, Back 2·3은 화면이 그대로, Back 4는 A다. iframe 안에서 생긴 항목 하나마다 눈에 보이지 않는 Back이 한 번씩 든다.
+  - B가 바로 준비를 보고했던 첫 실행: Back 3에서 C가 다시 나오고 `history.length`가 7→5로 줄었다. WebKit은 Back 4에서도 C였다. 지운 iframe의 기록 항목을 브라우저가 언제 정리하는지에 따라 결과가 달라진다.
+  - 둘 다 브라우저 동작으로 받아들인다(위 'iframe 안 기록', 사용자 결정). 승격할 때 ARCHITECTURE 'Prototype page' 한계에 "iframe 안 `#` 링크와 `pushState`가 남긴 항목은 Back을 눈에 보이는 변화 없이 소비하거나, 순서를 예측할 수 없게 만든다"로 적는다.
+
 ## 순수 함수(`/tdd` 대상)
 
 1. Go: 묶음과 시작 프레임으로 `Proto`를 만든다. 연결 없는 프레임은 한 프레임이고, 1,000개를 넘는 묶음도 끊지 않는다. 결과 필드도 함께 다룬다.
