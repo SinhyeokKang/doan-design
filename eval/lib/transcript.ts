@@ -228,7 +228,8 @@ export function shellCommands(transcript: string): string[] {
 // whole, so a `<<` inside a string starts nothing and `bash -c "…<<EOF…"` is read when its script is. A comment (a `#`
 // starting a word outside quotes) goes too: the shell drops it, and a quote inside it opens no string. `unread` is set
 // when an unquoted body holds a substitution, which the shell runs and this reader does not follow there. A body that
-// names doan leaves NAMES_DOAN_BODY after its tag, since an interpreter that reads it as its script may run doan.
+// names doan and starts a process leaves NAMES_DOAN_BODY after its tag, since an interpreter that reads it as its
+// script may run doan; agents also feed interpreters long document-editing scripts whose text only mentions doan.
 function withoutHeredocsAndComments(command: string): { text: string; unread: boolean } {
   let out = "", quote: string | null = null, unread = false;
   const pending: { tag: string; indented: boolean; quoted: boolean; at: number }[] = [];
@@ -258,7 +259,7 @@ function withoutHeredocsAndComments(command: string): { text: string; unread: bo
       out += c;
       let marked = 0;
       for (const { tag, indented, quoted, at } of pending.splice(0)) {
-        let names = false;
+        let body = "";
         // An unterminated body runs to the end, as the shell reads it.
         while (i + 1 < command.length) {
           const end = command.indexOf("\n", i + 1);
@@ -266,9 +267,9 @@ function withoutHeredocsAndComments(command: string): { text: string; unread: bo
           i = end === -1 ? command.length : end;
           if ((indented ? line.replace(/^\t+/, "") : line) === tag) break;
           if (!quoted && /\$\(|`/.test(line)) unread = true;
-          if (NAMES_DOAN.test(line)) names = true;
+          body += line + "\n";
         }
-        if (names) { out = out.slice(0, at + marked) + NAMES_DOAN_BODY + out.slice(at + marked); marked++; }
+        if (NAMES_DOAN.test(body) && STARTS_PROCESS.test(body)) { out = out.slice(0, at + marked) + NAMES_DOAN_BODY + out.slice(at + marked); marked++; }
       }
     } else out += c;
   }
@@ -278,6 +279,9 @@ function withoutHeredocsAndComments(command: string): { text: string; unread: bo
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z_0-9]*=/;
 // doan as a word, not `.doan/` or `/tmp/doan-x`.
 const NAMES_DOAN = /(?<![\w.-])doan(?![\w.-])/;
+// How a node, python, perl, ruby or AppleScript script starts another program. A bare `system` or `exec` in prose
+// ("the design system") is not one, so those need a call after them.
+const STARTS_PROCESS = /\b(?:subprocess|child_process|execa|commands\.getoutput|pty\.spawn|Bun\.spawn|Deno\.(?:Command|run)|Open3|do shell script)\b|\b(?:system|exec\w*|spawn\w*|popen|qx)\s*[("'{]|%x[({[]/;
 // Where withoutHeredocsAndComments marked a heredoc whose body names doan; U+0004 never occurs in a shell command.
 const NAMES_DOAN_BODY = "\u0004";
 // A key in the reader's variables for one assigned just the home directory, holding what followed it (`/` or
@@ -589,8 +593,16 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     // xargs adds words read from its input to the command it runs, so a doan run (or a shell or wrapper that may run
     // one) through it cannot be read.
     if (/^(?:.*\/)?xargs$/.test(words[0]!) && (open.some(Boolean) || words.slice(1).some(word => RUNNER.test(word)))) { state.incomplete = true; continue; }
-    // find runs the command after -exec (or -execdir, -ok, -okdir) once per file, with the file's name in it.
-    if (/^(?:.*\/)?find$/.test(words[0]!) && words.some((word, k) => /^-(?:exec|execdir|ok|okdir)$/.test(words[k - 1] ?? "") && (open[k] || RUNNER.test(word)))) { state.incomplete = true; continue; }
+    // find runs the command after -exec (or -execdir, -ok, -okdir) once per file, with the file's name in it: a shell
+    // -c script is read as one, and doan, another shell or a wrapper cannot be.
+    if (/^(?:.*\/)?find$/.test(words[0]!)) {
+      const runs = words.flatMap((word, k) => /^-(?:exec|execdir|ok|okdir)$/.test(words[k - 1] ?? "") ? [k] : []);
+      const script = (k: number) => /^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[k]!) && /^-[a-z]*c$/.test(words[k + 1] ?? "") && words[k + 2] !== undefined && !open[k + 2];
+      if (runs.some(k => open[k] || (RUNNER.test(words[k]!) && !script(k)))) { state.incomplete = true; continue; }
+      out.push({ words, homePaths, redirects });
+      for (const k of runs) if (script(k)) append(parse(words[k + 2]!, state));
+      continue;
+    }
     // A program or a doan operand the reader could not resolve may be anything, including a lookup.
     let known = !open[0];
     if (known && /^(?:.*\/)?doan$/.test(words[0]!)) {

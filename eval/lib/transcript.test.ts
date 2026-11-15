@@ -630,9 +630,9 @@ test("an interpreter running a script the reader cannot see, or find -exec into 
     "node - < /tmp/run.js",
     "find . -name '*.html' -exec doan check {} \\;",
     "find . -execdir /usr/local/bin/doan check {} +",
-    "find .doan -exec sh -c 'doan check \"$1\"' _ {} \\;",
   ]) read(command, [], true);
   read("cat /tmp/run.py | python3", [["cat", "/tmp/run.py"]], true);
+  read("find .doan -exec sh -c 'doan check \"$1\"' _ {} \\;", [["find", ".doan", "-exec", "sh", "-c", 'doan check "$1"', "_", "{}", ";"]], true);
   // A script the transcript shows that does not name doan, a module, a version query and a find that runs no doan stay read.
   read("python3 - <<'EOF'\nimport json\nprint(json.load(open('.doan/canvases/a.html')))\nEOF", [["python3", "-"]]);
   read("python3 -I - .doan/canvases/a.html <<'EOF'\nimport sys\nprint(open(sys.argv[1]).read())\nEOF", [["python3", "-I", "-", ".doan/canvases/a.html"]]);
@@ -641,4 +641,14 @@ test("an interpreter running a script the reader cannot see, or find -exec into 
   read("perl -0pi -e 's/a/b/' .doan/canvases/a.html", [["perl", "-0pi", "-e", "s/a/b/", ".doan/canvases/a.html"]]);
   read("cat <<'EOF' > /tmp/x\ndoan active\nEOF", [["cat"]]);
   read("find . -name '*.html' -exec cat {} \\;", [["find", ".", "-name", "*.html", "-exec", "cat", "{}", ";"]]);
+  // A document-editing heredoc whose text names doan but that starts no process runs no doan.
+  read("python3 -I - <<'EOF'\np='DESIGN.md'; s=open(p).read()\ns=s.replace('`doan check` warns on raw values', 'The design system: `doan check` warns')\nopen(p,'w').write(s)\nEOF", [["python3", "-I", "-"]]);
+  for (const command of [
+    "python3 - <<'EOF'\nimport os\nos.popen('doan ls --json').read()\nEOF",
+    "perl <<'EOF'\nsystem \"doan\", \"active\";\nEOF",
+    "ruby <<'EOF'\nputs %x(doan active)\nEOF",
+    "osascript <<'EOF'\ndo shell script \"doan active\"\nEOF",
+  ]) read(command, [], true);
+  // find -exec into a shell -c script runs that script, which is read like any sh -c script.
+  read("find .agents -type f -exec sh -c 'echo \"== $1\"; cat \"$1\"' _ {} \\;", [["find", ".agents", "-type", "f", "-exec", "sh", "-c", 'echo "== $1"; cat "$1"', "_", "{}", ";"], ["echo", "== $1"], ["cat", "$1"]]);
 });
