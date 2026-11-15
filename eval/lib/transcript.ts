@@ -5,24 +5,49 @@ export function scriptTokens(source: string): string[] {
     .map(m => m[0]).filter(t => !t.startsWith("//") && !t.startsWith("/*"));
 }
 
-// Mirror the CLI's flag set (cli/internal/cli/run.go, compared by transcript.test.ts) with its arities; a flag value
-// is never command evidence, and an unknown flag makes the command unreadable.
-export function doanPositionals(words: string[]): string[] | undefined {
+// Mirror the CLI's flag set (cli/internal/cli/run.go, compared both ways by transcript.test.ts) with its arities.
+export const DOAN_VALUE_FLAGS: readonly string[] = ["repo", "storage", "token-css", "add-serve", "remove-serve", "frame", "note", "message", "session", "operation", "provider", "request", "path", "url", "destination", "inspection", "o"];
+export const DOAN_BOOLEAN_FLAGS: readonly string[] = ["json", "clear-token-css", "spend-copilot-request", "initialize", "git-init", "force", "prototype"];
+
+export interface DoanArgs { positionals: string[]; flags: { name: string; value: string | undefined }[]; refused: boolean }
+
+// doan's argv read as SplitArgs reads it: flags before, between and after the positionals, a value flag taking the
+// next word whatever it looks like. `refused` marks what the CLI rejects before running anything (an unknown flag,
+// a value flag with no value, a boolean that is not one); such a command ran nothing, but an attempt check may still
+// want its words, so an unknown flag is kept as a flag that takes no value.
+export function doanArgs(words: string[]): DoanArgs | undefined {
   if (!/^(?:.*\/)?doan$/.test(words[0] ?? "")) return undefined;
-  const values = ["repo", "storage", "token-css", "add-serve", "remove-serve", "frame", "note", "message", "session", "operation", "provider", "request", "path", "url", "destination", "inspection", "o"];
-  const booleans = ["json", "clear-token-css", "spend-copilot-request", "initialize", "git-init", "force", "prototype"];
   const positionals: string[] = [];
+  const flags: DoanArgs["flags"] = [];
+  let refused = false;
   for (let i = 1; i < words.length; i++) {
-    const word = words[i];
+    const word = words[i]!;
     if (word === "--") { positionals.push(...words.slice(i + 1)); break; }
     if (!word.startsWith("-") || word === "-") { positionals.push(word); continue; }
     const match = word.match(/^--?([^=]+)(?:=(.*))?$/);
-    if (!match) return undefined;
-    const [, name, value] = match;
-    if (values.includes(name)) { if (value === undefined && ++i >= words.length) return undefined; }
-    else if (!booleans.includes(name) || (value !== undefined && !/^(?:1|0|t|T|true|TRUE|True|f|F|false|FALSE|False)$/.test(value))) return undefined;
+    if (!match) { refused = true; continue; }
+    const name = match[1]!, inline = match[2];
+    if (DOAN_VALUE_FLAGS.includes(name)) {
+      const value = inline ?? words[++i];
+      if (value === undefined) refused = true;
+      flags.push({ name, value });
+      continue;
+    }
+    if (!DOAN_BOOLEAN_FLAGS.includes(name) || (inline !== undefined && !/^(?:1|0|t|T|true|TRUE|True|f|F|false|FALSE|False)$/.test(inline))) refused = true;
+    flags.push({ name, value: inline });
   }
-  return positionals;
+  return { positionals, flags, refused };
+}
+
+// The flag as the CLI ends up with it: Go's flag set keeps the last of a repeated flag.
+export function lastFlag(args: DoanArgs, name: string): DoanArgs["flags"][number] | undefined {
+  return args.flags.filter(flag => flag.name === name).at(-1);
+}
+
+// The positionals of a doan command the CLI would run; an unknown flag makes the command unreadable.
+export function doanPositionals(words: string[]): string[] | undefined {
+  const args = doanArgs(words);
+  return args && !args.refused ? args.positionals : undefined;
 }
 
 export function doanCommand(words: string[]): string | undefined {
@@ -30,6 +55,11 @@ export function doanCommand(words: string[]): string | undefined {
 }
 
 interface ExtractedCall { name: string; command?: string; patchCandidate?: string }
+
+// Stands in for an exec_command whose command is not a plain string (a template, a variable, an expression): it ran
+// something the reader cannot see. parseCommand reads it as incomplete, so no absence check holds beside it, and it
+// yields no words, so it is never evidence of a particular command either.
+const UNREADABLE_EXEC = "$(exec_command with a cmd that is not a string literal)";
 
 function execCalls(source: string): ExtractedCall[] {
   const tokens = scriptTokens(source);
@@ -66,16 +96,19 @@ function execCalls(source: string): ExtractedCall[] {
     }
     if (/^mcp__/.test(name)) calls.push({ name });
     if (name !== "exec_command") continue;
-    if (tokens[i + 4] !== "{") continue;
-    let depth = 1;
-    for (let j = i + 5; j < tokens.length && depth > 0; j++) {
-      if (tokens[j] === "{") depth++;
-      if (tokens[j] === "}") depth--;
-      if (depth === 1 && (tokens[j] === "cmd" || literal(tokens[j]) === "cmd") && tokens[j + 1] === ":") {
-        const value = literal(tokens[j + 2]);
-        if (value !== undefined && [",", "}"].includes(tokens[j + 3])) calls.push({ name, command: value });
+    let command: string | undefined;
+    if (tokens[i + 4] === "{") {
+      let depth = 1;
+      for (let j = i + 5; j < tokens.length && depth > 0; j++) {
+        if (tokens[j] === "{") depth++;
+        if (tokens[j] === "}") depth--;
+        if (depth === 1 && (tokens[j] === "cmd" || literal(tokens[j]) === "cmd") && tokens[j + 1] === ":") {
+          const value = literal(tokens[j + 2]);
+          command = value !== undefined && [",", "}"].includes(tokens[j + 3]) ? value : undefined;
+        }
       }
     }
+    calls.push({ name, command: command ?? UNREADABLE_EXEC });
   }
   return calls;
 }
@@ -88,8 +121,8 @@ function rolloutCalls(event: { type?: string; payload?: { type?: string; name?: 
   if (p.name === "exec_command" || p.name === "functions.exec_command") {
     try {
       const args = JSON.parse(p.arguments ?? "");
-      return typeof args.cmd === "string" ? [{ name: "exec_command", command: args.cmd }] : [];
-    } catch { return []; }
+      return [{ name: "exec_command", command: typeof args?.cmd === "string" ? args.cmd : UNREADABLE_EXEC }];
+    } catch { return [{ name: "exec_command", command: UNREADABLE_EXEC }]; }
   }
   return [{ name: p.name }];
 }

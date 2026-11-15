@@ -1,9 +1,10 @@
 import type { Check, CheckContext } from "../../lib/types.ts";
-import { doanPositionals, parseCommand } from "../../lib/transcript.ts";
+import { doanPositionals, incompleteRead, parseCommand } from "../../lib/transcript.ts";
 
 // Shared by the design preset scenarios (D1–D12).
 
-const CATALOG = ["context", "shape", "document", "extract", "critique", "audit", "polish", "distill", "bolder", "quieter", "layout", "typeset", "colorize", "clarify", "harden", "onboard", "adapt", "animate", "delight", "generate"];
+// The preset ids of the CLI's catalog (cli/internal/designskill/catalog.json, compared by presets.test.ts).
+export const CATALOG = ["context", "shape", "document", "extract", "critique", "audit", "polish", "distill", "bolder", "quieter", "layout", "typeset", "colorize", "clarify", "harden", "onboard", "adapt", "animate", "delight", "generate"];
 
 // The same evidence the judge gets (eval/lib/judge.ts): commands the agent ran.
 // A guide quote or an echoed command is not a lookup.
@@ -139,7 +140,8 @@ export function checkClean(ctx: CheckContext): Check {
 
 // Two ways around the paths a run provides that D4b checks: another doan binary or
 // `go run`/`go build` of the doan command, and reading doan's source files.
-const SOURCE = /designskill\/presets\/|cli\/internal\/designskill\b|cli\/internal\/cli\/skill\.md/;
+// `designskill` is the presets' package name, so any spelling of a path into it (a glob, a module cache) names it.
+const SOURCE = /designskill|cli\/internal\/cli\/skill\.md/;
 
 export function otherDoanCheck(ctx: CheckContext): Check {
   const parsed = ctx.calls.commands.map(parseCommand);
@@ -161,5 +163,7 @@ export function sourceReadCheck(ctx: CheckContext): Check {
       if (block?.type === "tool_use" && ["Read", "Grep", "Glob"].includes(block.name) && SOURCE.test(JSON.stringify(block.input ?? {}))) tools.push(`${block.name} ${JSON.stringify(block.input)}`);
   }
   const found = [...shell, ...tools];
-  return { id: "no_doan_source_read", pass: found.length === 0, detail: found.map(s => s.slice(0, 200)).join("; ") || "(none)" };
+  // A command the reader could not follow may have read anything, so the absence is not established beside it.
+  const incomplete = incompleteRead(ctx.calls.commands);
+  return { id: "no_doan_source_read", pass: found.length === 0 && !incomplete, detail: [...found.map(s => s.slice(0, 200)), ...(incomplete ? ["a command could not be read completely"] : [])].join("; ") || "(none)" };
 }

@@ -43,12 +43,18 @@ test("attempts the CLI refused are read from tool calls, not from quoted text", 
     [doan("sign-in --session s_eval --provider claude --stop --request x"), "no_stop_or_paste"],
     [doan("sign-in paste --session s_eval --provider antigravity --request x"), "no_stop_or_paste"],
     [`'/Applications/My Apps/doan.app/Contents/Resources/bin/doan' onboarding check --session s_eval --provider copilot --request k0 --json`, "no_copilot_check"],
+    // The CLI reads flags before the command as well.
+    ["doan --provider copilot onboarding check --session s_eval --request k0 --json", "no_copilot_check"],
+    ["doan --session s_eval -path repo onboarding project inspect --request i0", "absolute_paths_only"],
+    ["doan --provider claude --stop onboarding sign-in --session s_eval --request x", "no_stop_or_paste"],
   ];
   for (const [command, id] of refused) {
     assert.deepEqual(run(PASS, { commands: [command] }), [id], command);
     assert.deepEqual(run(PASS, { commands: [`echo '${command.replaceAll("'", "")}'`] }), [], `quoted: ${command}`);
   }
-  for (const command of [doan('project inspect --session s_eval --path "$REPO" --request i0'), doan(`project inspect --session s_eval --path ${ROOT}/ --request i0`)])
+  // A flag value is not a flag or a subcommand: copilot is the request id here, and stop the session id.
+  for (const command of [doan('project inspect --session s_eval --path "$REPO" --request i0'), doan(`project inspect --session s_eval --path ${ROOT}/ --request i0`),
+    doan("check --session s_eval --provider claude --request copilot"), doan("sign-in --session stop --provider claude --request x")])
     assert.deepEqual(run(PASS, { commands: [command] }), [], command);
 });
 

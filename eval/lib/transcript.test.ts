@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { shellCommands, commandWords, parseCommand, doanCommand, doanPositionals, mcpTools, toolCalls } from "./transcript.ts";
+import { shellCommands, commandWords, parseCommand, doanArgs, doanCommand, doanPositionals, incompleteRead, mcpTools, toolCalls, DOAN_BOOLEAN_FLAGS, DOAN_VALUE_FLAGS } from "./transcript.ts";
 test("only Bash tool_use and Codex exec headers yield shell commands", () => {
   assert.deepEqual(shellCommands('guide: doan active\n{"type":"user","message":{"content":[{"type":"tool_result","content":"doan active"}]}}'), []);
   assert.deepEqual(shellCommands('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"doan active"}}]}}'), ["doan active"]);
@@ -169,6 +169,46 @@ test("doanPositionals knows every flag doan's flag set defines, with its arity",
     assert.deepEqual(doanPositionals(["doan", "x", `--${name}`, "y"]), ["x", "y"], name);
     assert.deepEqual(doanPositionals(["doan", "x", `-${name}=false`, "y"]), ["x", "y"], name);
   }
+  // The other direction: a flag the CLI no longer defines would make the reader skip a word the CLI refuses on.
+  assert.deepEqual([...DOAN_VALUE_FLAGS].sort(), [...new Set(values)].sort(), "value flags");
+  assert.deepEqual([...DOAN_BOOLEAN_FLAGS].sort(), [...new Set(booleans)].sort(), "boolean flags");
+});
+
+// SplitArgs reads flags before, between and after the positionals, so a check that wants a flag must take it from the
+// same reading, never from the raw words around the command.
+test("doanArgs reads flags wherever doan's flag set does, and marks a command the CLI refuses", () => {
+  assert.deepEqual(doanArgs(["doan", "--provider", "copilot", "onboarding", "-session=s", "check", "--json"]),
+    { positionals: ["onboarding", "check"], flags: [{ name: "provider", value: "copilot" }, { name: "session", value: "s" }, { name: "json", value: undefined }], refused: false });
+  // A value flag takes the next word whatever it looks like.
+  assert.deepEqual(doanArgs(["doan", "open", "a.html", "--note", "--prototype"]),
+    { positionals: ["open", "a.html"], flags: [{ name: "note", value: "--prototype" }], refused: false });
+  assert.deepEqual(doanArgs(["doan", "config", "--", "--add-serve", "x"]), { positionals: ["config", "--add-serve", "x"], flags: [], refused: false });
+  // Unknown flags, a missing value and a bad boolean are refused by the CLI; the words are still there for an attempt check.
+  assert.deepEqual(doanArgs(["doan", "onboarding", "sign-in", "--stop", "--provider", "claude"]),
+    { positionals: ["onboarding", "sign-in"], flags: [{ name: "stop", value: undefined }, { name: "provider", value: "claude" }], refused: true });
+  assert.equal(doanArgs(["doan", "open", "--frame"])?.refused, true);
+  assert.equal(doanArgs(["doan", "open", "--json=maybe"])?.refused, true);
+  assert.equal(doanArgs(["git", "status"]), undefined);
+});
+
+// A Codex exec whose command the reader cannot see is still a command that ran, so no absence holds beside it.
+test("a Codex exec_command whose cmd is not a plain string makes the read incomplete", () => {
+  const event = (payload: object) => JSON.stringify({ type: "response_item", payload });
+  const exec = (input: string) => event({ type: "custom_tool_call", name: "exec", input });
+  for (const transcript of [
+    exec("const p = '.doan/canvases/a.html'; await tools.exec_command({cmd: `doan open ${p}`});"),
+    exec("const c = 'doan open .doan/canvases/a.html'; await tools.exec_command({cmd: c});"),
+    exec("await tools.exec_command({cmd: 'doan ' + 'open .doan/canvases/a.html'});"),
+    exec("const args = {cmd: 'doan open .doan/canvases/a.html'}; await tools.exec_command(args);"),
+    event({ type: "function_call", name: "exec_command", arguments: JSON.stringify({ cmd: ["doan", "open", ".doan/canvases/a.html"] }) }),
+    event({ type: "function_call", name: "exec_command", arguments: "{not json" }),
+  ]) {
+    const { commands } = toolCalls(transcript);
+    assert.equal(incompleteRead(commands), true, transcript);
+    assert.ok(!commands.flatMap(commandWords).some(words => words[0] === "doan"), transcript);
+  }
+  // A literal command stays readable.
+  assert.equal(incompleteRead(toolCalls(exec("await tools.exec_command({cmd: 'doan active --json', workdir: '/tmp'});")).commands), false);
 });
 
 // A command run through a shell variable or `for` loop is still run, so a preset read through them is still a read;

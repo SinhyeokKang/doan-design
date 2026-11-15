@@ -27,9 +27,11 @@ test("openCalls reads the canvas and frame whatever the flag spelling, and only 
     `doan open ${path}`,
     "echo 'doan open x.html'",
     "doan ls --json",
+    // --frame here is the --note value, not a frame.
+    `doan open ${path} --note --frame=profile-form`,
   ) });
   assert.deepEqual(calls, [
-    { path, frame: "profile-form" }, { path, frame: "profile-form" }, { path, frame: "profile-form" }, { path, frame: undefined },
+    { path, frame: "profile-form" }, { path, frame: "profile-form" }, { path, frame: "profile-form" }, { path, frame: undefined }, { path, frame: undefined },
   ]);
 });
 
@@ -51,6 +53,8 @@ test("noOpen fails beside a command the reader could not follow, which may have 
   assert.equal(check.pass, false);
   assert.match(check.detail, /could not be read completely/);
   assert.equal(noOpen(ctx([`test -f ${path} && doan ls --json`], [])).pass, true);
+  const computed = JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "exec", input: `const p = "${path}"; await tools.exec_command({cmd: \`doan open \${p}\`});` } });
+  assert.equal(noOpen({ calls: toolCalls(computed), open: () => [], prototype: () => [] }).pass, false);
 });
 
 test("openChecks need the call and an accepted request that arrived after the final edit", () => {

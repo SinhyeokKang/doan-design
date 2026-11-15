@@ -322,6 +322,21 @@ test("the fake initialize adds only the missing .gitattributes lines, like doan 
   }
 });
 
+// The fake stands in for doan init, so its lines are init's own (storage.go), compared here rather than copied by eye.
+test("the fake initialize adds exactly the lines doan init adds", () => {
+  const source = readFileSync(join(import.meta.dirname, "../../cli/internal/cli/storage.go"), "utf8");
+  const list = /func missingAttributes[\s\S]*?range \[\]string\{([^}]*)\}/.exec(source)?.[1] ?? "";
+  const lines = [...list.matchAll(/"((?:\\.|[^"\\])*)"/g)].map(m => JSON.parse(`"${m[1]}"`) as string);
+  assert.ok(lines.length > 0);
+  const dir = mkdtempSync(join(tmpdir(), "doan-fake-init-"));
+  try {
+    initializeRepo(dir, [".doan/config.json"], join(dir, "writes.json"));
+    assert.equal(readFileSync(join(dir, ".gitattributes"), "utf8"), lines.map(line => `${line}\n`).join(""));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a bad workOthers stops the fake app at start", async () => {
   for (const workOthers of [[], [{ provider: "codex" }], [{ kind: "conversation", id: "c1" }], [{ kind: "terminal", provider: "gemini" }], Array.from({ length: 9 }, () => ({ kind: "terminal" })), "codex"]) {
     const dir = mkdtempSync("/tmp/doan-eval-test-");

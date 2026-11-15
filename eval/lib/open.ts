@@ -1,4 +1,4 @@
-import { commandWords, doanCommand, doanPositionals, incompleteRead } from "./transcript.ts";
+import { commandWords, doanArgs, incompleteRead, lastFlag } from "./transcript.ts";
 import { contentHash } from "./work.ts";
 import type { Check, CheckContext } from "./types.ts";
 
@@ -7,13 +7,10 @@ import type { Check, CheckContext } from "./types.ts";
 export interface OpenCall { path: string | undefined; frame: string | undefined }
 
 export function openCalls(ctx: Pick<CheckContext, "calls">): OpenCall[] {
-  return ctx.calls.commands.flatMap(commandWords).filter(words => doanCommand(words) === "open").map(words => {
-    let frame: string | undefined;
-    for (let i = 1; i < words.length; i++) {
-      const match = words[i]!.match(/^--?frame(?:=(.*))?$/);
-      if (match) frame = match[1] ?? words[i + 1];
-    }
-    return { path: doanPositionals(words)?.[1], frame };
+  return ctx.calls.commands.flatMap(commandWords).flatMap(words => {
+    const args = doanArgs(words);
+    if (!args || args.refused || args.positionals[0] !== "open") return [];
+    return [{ path: args.positionals[1], frame: lastFlag(args, "frame")?.value }];
   });
 }
 
