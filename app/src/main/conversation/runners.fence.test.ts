@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openRunner } from "./runners";
+import { listModels, listSkills, openRunner } from "./runners";
 import { openAcp } from "./acpRunner";
 import { fencePolicy } from "../agentAuth/fence";
 import type { Prepared } from "./service";
@@ -91,6 +91,24 @@ it("wraps a Claude turn with its sandbox off in sandbox-exec, and gives one with
   const settings = JSON.parse(argv[argv.indexOf("--settings") + 1]!) as Record<string, unknown>;
   expect(settings).toMatchObject({ fastMode: true, permissions: { deny: expect.arrayContaining(["Read(//u/conversations/**)", "Edit(//u/conversations/**)", "Edit(//u/agent-auth/profiles/claude/settings.json)"]) },
     sandbox: { enabled: true, allowUnsandboxedCommands: false, network: { allowUnixSockets: ["/tmp/doan-sock/app.sock"] }, filesystem: { denyRead: ["/u"], denyWrite: expect.arrayContaining(["/u/conversations", "/u/runtime.json", "/u/agent-auth/profiles/claude/settings.json"]), allowWrite: ["/u/agent-auth/profiles/claude"] } } });
+}, 20000);
+
+// A turn whose repository starts its own hooks or MCP servers, and every Claude list read, run inside sandbox-exec with
+// Claude's sandbox off at the flag tier, since that sandbox cannot start inside the outer fence.
+it("wraps a Claude turn or list read with its sandbox turned off in sandbox-exec and passes sandbox.enabled false", async () => {
+  const root = temp(), exec = fakeExec(root), command = fakeClaude(root);
+  const base = { command, runtime: "claude" as const, owner: CLAUDE_OWNER, cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, fence: { paths: paths("claude"), exec, claudeSandboxOff: true as const } };
+  const settingsOf = () => { const argv = JSON.parse(readFileSync(join(root, "claude-argv"), "utf8")) as string[]; return JSON.parse(argv[argv.indexOf("--settings") + 1]!) as Record<string, unknown>; };
+  const turn = await openRunner(base, () => {}, () => {}, () => {});
+  await turn.close();
+  expect(execArgs(root)).toContain(command);
+  expect(settingsOf()).toEqual({ sandbox: { enabled: false } });
+  for (const read of [listModels, listSkills] as const) {
+    rmSync(join(root, "exec-args")); rmSync(join(root, "claude-argv"));
+    await read(base, () => {}, () => {});
+    expect(execArgs(root)).toContain(command);
+    expect(settingsOf()).toMatchObject({ sandbox: { enabled: false } });
+  }
 }, 20000);
 
 const CODEX_OWNER = { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: "a1", workspaceId: null, profile: "codex" };

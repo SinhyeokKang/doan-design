@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claudeDenyRules, claudeFenceSettings, claudeSandboxEnabled, codexMechanism, codexProfileArgs, codexRestart, codexTurnPermission, fenceArgs, fenceDenied, fencedCommand, fenceListingDirs, fencePolicy, resolveFencePaths, SANDBOX_EXEC, type FenceListing, type FencePaths } from "./fence";
+import { claudeDenyRules, claudeFenceSettings, claudeRepoCode, claudeSandboxEnabled, codexMechanism, codexProfileArgs, codexRestart, codexTurnPermission, fenceArgs, fenceDenied, fencedCommand, fenceListingDirs, fencePolicy, resolveFencePaths, SANDBOX_EXEC, type FenceListing, type FencePaths } from "./fence";
 import { PERMISSION_MODES } from "../conversation/permissionMode";
 import type { Provider } from "./types";
 
@@ -175,6 +175,44 @@ describe("claudeSandboxEnabled", () => {
   });
   it("reads a non-boolean or malformed value as no setting", () => {
     expect(claudeSandboxEnabled({ user: on, project: { sandbox: { enabled: "false" } }, local: { sandbox: null }, managed: ["text", [1]] })).toBe(true);
+  });
+});
+
+describe("claudeRepoCode", () => {
+  const none = { user: undefined, project: undefined, local: undefined, managed: [] };
+  const clean = { mcpJson: false, extensionHooks: false, unreadable: false };
+  it("finds nothing in a repository without settings, or with only its sandbox and permissions set", () => {
+    expect(claudeRepoCode(none, clean)).toBe(false);
+    expect(claudeRepoCode({ ...none, project: { sandbox: { enabled: true }, permissions: { allow: ["Bash(ls)"] }, hooks: {}, enabledMcpjsonServers: [], enabledPlugins: {} } }, clean)).toBe(false);
+  });
+  it("finds hooks named in the project's or the local settings", () => {
+    const hooks = { hooks: { SessionStart: [{ hooks: [{ type: "command", command: "./x.sh" }] }] } };
+    expect(claudeRepoCode({ ...none, project: hooks }, clean)).toBe(true);
+    expect(claudeRepoCode({ ...none, local: hooks }, clean)).toBe(true);
+  });
+  it("finds project MCP servers the project's or the local settings enable", () => {
+    expect(claudeRepoCode({ ...none, project: { enableAllProjectMcpServers: true } }, clean)).toBe(true);
+    expect(claudeRepoCode({ ...none, local: { enabledMcpjsonServers: ["reader"] } }, clean)).toBe(true);
+  });
+  it("finds plugins the project's or the local settings enable, which can carry hooks and MCP servers", () => {
+    expect(claudeRepoCode({ ...none, project: { enabledPlugins: { "x@market": true } } }, clean)).toBe(true);
+    expect(claudeRepoCode({ ...none, local: { enabledPlugins: { "x@market": true } } }, clean)).toBe(true);
+  });
+  // The Doan profile's own settings and managed settings are not the repository's, but they can enable its .mcp.json.
+  it("finds a repository .mcp.json that any source enables, and ignores one nothing enables", () => {
+    expect(claudeRepoCode(none, { ...clean, mcpJson: true })).toBe(false);
+    expect(claudeRepoCode({ ...none, user: { enableAllProjectMcpServers: true } }, { ...clean, mcpJson: true })).toBe(true);
+    expect(claudeRepoCode({ ...none, managed: [{ enabledMcpjsonServers: ["reader"] }] }, { ...clean, mcpJson: true })).toBe(true);
+    expect(claudeRepoCode({ ...none, user: { enableAllProjectMcpServers: true, hooks: { Stop: [] } } }, clean)).toBe(false);
+  });
+  it("finds hooks in the repository's skill, agent or command frontmatter", () => {
+    expect(claudeRepoCode(none, { ...clean, extensionHooks: true })).toBe(true);
+  });
+  it("fails closed on a project or local source it cannot read, or a value of an unexpected shape", () => {
+    expect(claudeRepoCode(none, { ...clean, unreadable: true })).toBe(true);
+    expect(claudeRepoCode({ ...none, project: { hooks: "./x.sh" } }, clean)).toBe(true);
+    expect(claudeRepoCode({ ...none, local: { enabledMcpjsonServers: "reader" } }, clean)).toBe(true);
+    expect(claudeRepoCode({ ...none, project: { enableAllProjectMcpServers: "true" } }, clean)).toBe(true);
   });
 });
 
