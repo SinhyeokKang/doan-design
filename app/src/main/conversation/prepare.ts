@@ -8,7 +8,7 @@ import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
-import { fenceDenied, fenceListingDirs, resolveFencePaths, type FenceEntry, type FencePaths } from "../agentAuth/fence";
+import { fenceDenied, fencedEverywhere, fenceListingDirs, profileFencedCommand, resolveFencePaths, type FenceEntry, type FencePaths } from "../agentAuth/fence";
 import type { Lease, Started } from "../agentAuth/manager";
 import type { AuthState, ConnectionJudgment, Provider } from "../agentAuth/types";
 import type { McpRun, Prepare, Prepared, StartRequest } from "./service";
@@ -218,7 +218,11 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
     try {
       recheck();
       if (provider !== "antigravity") {
-        const version = await runProcess(lease.command, ["--version"], lease.env, 5000);
+        // Copilot's --version imports a newer package from the profile's cache when one is there, like its other
+        // processes (fencedEverywhere), so it runs in the outer fence; one that cannot be built starts nothing.
+        const check = fence && fencedEverywhere(provider) ? profileFencedCommand(provider, fence, lease.profileDir, lease.command, ["--version"]) : { command: lease.command, args: ["--version"] };
+        if (!check) throw new Error("unknown");
+        const version = await runProcess(check.command, check.args, lease.env, 5000);
         recheck();
         installed = version.exitCode === 0 && !version.timedOut ? parseCliVersion(version.stdout)?.installed : undefined;
         if (installed) versions?.versionRead(provider, installed);
