@@ -330,7 +330,8 @@ export function onboardingApp(script: OnboardingScript, root: string, initialize
   };
 }
 
-// What the app's initialize writes: `doan init` without token CSS (cli/internal/cli/init.go).
+// What the app's initialize writes: `doan init` without token CSS (config in cli/internal/cli/init.go, attribute
+// lines in storage.go, compared by socket.test.ts).
 const ATTRIBUTE_LINES = [".doan/** linguist-documentation"];
 const INIT_CONFIG = JSON.stringify({ v: 1 }, null, 2) + "\n";
 
