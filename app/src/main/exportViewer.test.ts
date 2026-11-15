@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Hand, MousePointer2 } from "lucide-react";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import type { Frame } from "playwright";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
 import { MAX_FRAMES, MAX_HREF, MAX_STRING, parseCanvasMessage } from "../renderer/canvasMessage";
 import { INITIAL_HEIGHT, layoutHeight as appLayoutHeight, MAX_HEIGHT } from "../renderer/canvasView";
@@ -1538,6 +1539,49 @@ describe("isolate.js follows links in a real DOM", () => {
     expect(before).toEqual([{ type: "doan-prototype", state: "missing" }]);
     await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
     expect((await dom.flush(frame)).slice(before.length)).toEqual([]);
+  });
+
+  // A click whose bubble phase never reaches the window still posts, and leaves nothing behind for the next click, which
+  // is decided on its own. No href here: a link's default is cancelled only in the window's bubble phase, so a canvas
+  // that stops propagation keeps it, as before.
+  test("a canvas listener that stops propagation does not stop a link, and the next click is decided on its own", async () => {
+    const script = `<script>let n = 0;
+      document.getElementById("x").addEventListener("click", event => { n += 1; if (n === 1) event.stopPropagation(); });
+      window.addEventListener("click", event => { if (n === 2) event.preventDefault(); });</script>`;
+    const { frame, posted } = await clickIn("a", frames(`<a id="x" data-doan-goto="b">Next</a>`, script), "#x");
+    expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
+    const before = await dom.flush(frame);
+    await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
+    expect((await dom.flush(frame)).slice(before.length)).toEqual([]);
+    await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
+    expect((await dom.flush(frame)).slice(before.length)).toEqual([{ type: "doan-prototype", goto: "b" }]);
+  });
+
+  // isolate.js cancels a followed link's default only once every canvas listener has run, window bubble ones included,
+  // so any way the canvas cancels the click stops the link, on an href in the document or to another one.
+  describe.each(["#sec", "other.html"])("a link on <a href=\"%s\">", href => {
+    const link = `<a id="x" href="${href}" data-doan-goto="b">Next</a>`;
+    // Where the document is after the click: its URL and fragment, and the frame still playing.
+    const place = (frame: Frame) => frame.evaluate(() => [location.href, document.querySelector("[data-doan-proto-frame]")?.getAttribute("data-doan-frame")]);
+
+    test.each([
+      ["window bubble preventDefault()", `<script>window.addEventListener("click", event => event.preventDefault());</script>`],
+      ["window bubble returnValue = false", `<script>window.addEventListener("click", event => { event.returnValue = false; });</script>`],
+      ["window.onclick returning false", `<script>window.onclick = () => false;</script>`],
+      ["element preventDefault()", `<script>document.getElementById("x").addEventListener("click", event => event.preventDefault());</script>`],
+      ["document bubble preventDefault()", `<script>document.addEventListener("click", event => event.preventDefault());</script>`],
+      ["window capture preventDefault()", `<script>window.addEventListener("click", event => event.preventDefault(), true);</script>`],
+    ])("the canvas cancelling it (%s) stops it", async (_name, script) => {
+      const { frame, posted } = await clickIn("a", frames(link, script), "#x");
+      expect(posted).toEqual([]);
+      expect(await place(frame)).toEqual(["about:srcdoc", "a"]);
+    });
+
+    test("with no canvas handler it is followed, and the document neither moves to a fragment nor leaves", async () => {
+      const { frame, posted } = await clickIn("a", frames(link), "#x");
+      expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
+      expect(await place(frame)).toEqual(["about:srcdoc", "a"]);
+    });
   });
 });
 
