@@ -18,7 +18,7 @@
   - 볼 경우: `stopPropagation()`, `preventDefault()`, window capture의 `stopImmediatePropagation()`, `element.click()`, role=button의 Enter, `<a href>`, `<button>`의 Enter·Space, shadow root 안
   - 검증: 명령 미정 — 사용자 확인 필요(`node .scratch/prototype-link-play/poc.mjs`를 제안한다. 모든 경우가 기대대로면 exit 0). 관찰을 design.md에 적는다. 기대와 다르면 커밋하고 멈춰 사용자에게 묻는다.
   - 커밋 경계: 관찰을 적은 design.md.
-- [ ] 2. **배치 S — 스크립트와 보고**(순수 함수 5).
+- [x] 2. **배치 S — 스크립트와 보고**(순수 함수 5).
   - 맡는 파일: `prototypeScript.ts`, `canvasScript.ts`, `canvasMessage.ts`, `requests.ts`의 `gotos` 검증.
   - 테스트: `prototypeScript.test.ts`, `canvasScript.test.ts`, `requests.test.ts`에서 다음을 고정한다.
     - fixture `placements` 비교
