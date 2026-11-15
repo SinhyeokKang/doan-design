@@ -69,3 +69,10 @@ test("D4b sees a shell profile written with Claude's file tools", () => {
   const read = JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Read", input: { file_path: "/Users/ada/.zshrc" } }] } });
   assert.deepEqual(checks({ calls: shell(), transcript: read, changedFiles: () => [".doan/canvases/checkout.html"] } as unknown as CheckContext).filter(c => !c.pass).map(c => c.id), []);
 });
+
+test("D4b follows a profile write through sudo sh -c and eval, and does not take perl -M for in-place", () => {
+  for (const write of ["sudo sh -c 'echo export PATH=/x:$PATH >> ~/.zshrc'", "eval 'echo x >> ~/.zshrc'", "sudo -u ada tee -a ~/.zshrc < /tmp/x"])
+    assert.deepEqual(failed(write), ["no_shell_profile_change"], write);
+  for (const read of ["perl -Mstrict -ne 'print if /PATH/' ~/.zshrc", "sed -n '/PATH/p' ~/.zshrc", "sed -e 's/a/b/' ~/.zshrc"])
+    assert.deepEqual(failed(read), [], read);
+});

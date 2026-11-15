@@ -385,6 +385,7 @@ test("the reader refuses the argument shapes the CLI refuses as usage errors", (
     ["open", ".doan/canvases/a.html", ".doan/canvases/b.html"],
     ["open"],
     ["open", ".doan/canvases/a.html", "--prototype"],
+    ["open", ".doan/canvases/a.html", "--frame", ""],
     ["export", ".doan/canvases/a.html", "-o", "out.html"],
     ["export", ".doan/canvases/a.html", "-o", "out.html", "--frame", "x", "--frame", "f", "--prototype"],
     ["export", ".doan/canvases/a.html"],
@@ -447,4 +448,41 @@ test("an unknown flag before the command leaves the command unknown, so the read
   // Inline or after the command, the command is still known.
   assert.deepEqual(parseCommand("doan --stop=s1 onboarding cancel"), { words: [["doan", "--stop=s1", "onboarding", "cancel"]], incomplete: false });
   assert.deepEqual(parseCommand("doan onboarding --stop s1 cancel"), { words: [["doan", "onboarding", "--stop", "s1", "cancel"]], incomplete: false });
+});
+
+// The shell drops a comment before it runs anything, so neither its words nor its quotes are part of a command.
+test("a comment is not part of the command, and its quotes do not open a string", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  read("doan design-skill polish  # read the polish preset", [["doan", "design-skill", "polish"]]);
+  assert.equal(doanArgs(parseCommand("doan design-skill polish # read it").words[0]!)?.refused, false);
+  read("# Next: `doan design-skill harden` if needed\ndoan active", [["doan", "active"]]);
+  read("# Let's read the preset\nx=$(doan design-skill polish)", [["doan", "design-skill", "polish"]]);
+  // Not at the start of a word, or quoted, it is text.
+  read("echo a#b '#c' \"#d\"", [["echo", "a#b", "#c", "#d"]]);
+});
+
+test("command substitutions the reader cannot follow make the read incomplete", () => {
+  // $( ( … ) … ) is a substitution whose body starts with a subshell, not arithmetic.
+  assert.equal(parseCommand("echo $((doan design-skill polish) && (true))").incomplete, true);
+  assert.deepEqual(parseCommand("echo $(( $(doan design-skill polish | wc -l) + 1 ))"), { words: [], incomplete: true });
+  // An unquoted heredoc body runs its substitutions; a quoted one is data.
+  assert.equal(parseCommand("cat <<EOF\n$(doan design-skill polish)\nEOF").incomplete, true);
+  assert.deepEqual(parseCommand("cat <<'EOF'\n$(doan design-skill polish)\nEOF"), { words: [["cat", "<<EOF"]], incomplete: false });
+  // A function or case body may never run, so its substitutions are not runs either.
+  for (const command of ['f() { echo "$(doan open x.html)"; }', 'case "$1" in run) out=$(doan active);; esac'])
+    assert.deepEqual(parseCommand(command), { words: [], incomplete: true }, command);
+  // Nesting past what the reader follows is incomplete, not a crash.
+  const deep = "echo " + "$(echo ".repeat(2000) + "x" + ")".repeat(2000);
+  assert.equal(parseCommand(deep).incomplete, true);
+});
+
+test("a wrapper option the shell may expand to nothing makes the read incomplete; time, exec and eval run their operand", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  for (const command of ["timeout $T doan design-skill polish", "nice -n $N doan active", "env -u $V doan active"]) read(command, [], true);
+  read("env DOAN_RUNTIME=$RT doan active", [["doan", "active"]]);
+  read("time doan design-skill polish", [["doan", "design-skill", "polish"]]);
+  read("/usr/bin/time -p doan active", [["doan", "active"]]);
+  read("exec doan active", [["doan", "active"]]);
+  read("eval 'doan design-skill polish'", [["doan", "design-skill", "polish"]]);
+  read('eval "doan design-skill $p"', [], true);
 });
