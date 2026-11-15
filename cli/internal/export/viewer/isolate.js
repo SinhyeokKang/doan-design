@@ -42,55 +42,75 @@ function sameDocument(href) {
 // window's injected script decides it (the shared table in schema/fixtures/prototype-links/clicks.json
 // holds both to it). The listener is on the window's capture phase and registered before the
 // canvas's own scripts run, so a canvas stopping the click's propagation cannot keep it from us; only
-// the canvas's `preventDefault()` cancels, read after a 0 ms timer so its handlers have all run. The
-// click's target is the one the window sees, so a link inside a shadow root (retargeted to its host)
-// or a nested iframe (its clicks never reach this window) does nothing. A value over 200 UTF-16 units
-// is posted as null, as the window's script does; the page follows neither it nor a value naming no
-// frame of its group.
+// the canvas cancelling the click stops it. The click's target is the one the window sees, so a link
+// inside a shadow root (retargeted to its host) or a nested iframe (its clicks never reach this
+// window) does nothing. A value over 200 UTF-16 units is posted as null, as the window's script does;
+// the page follows neither it nor a value naming no frame of its group.
+//
+// isolate.js cancels a link's default itself (below), which must not read as the canvas cancelling.
+// So for a followed click the capture listener adds a one-time listener to the window: a listener
+// added during the window's capture phase runs in its bubble phase after every bubble listener the
+// canvas registered (each phase invokes a fresh copy of the window's list). There defaultPrevented
+// holds every cancellation the canvas made, a late window listener's, `returnValue = false` and an
+// event handler returning false included; that verdict is kept before the default is cancelled. When
+// the bubble phase never reaches the window (the canvas stopped propagation), the 0 ms timer reads
+// defaultPrevented itself and removes the listener, so it never sees a later click.
 const GOTO_ATTRIBUTE = "data-doan-goto";
 const MAX_GOTO = 200;
 let playing = null;
-// Clicks a link will be followed for unless the canvas cancels them.
-const following = new WeakSet();
-// Clicks whose default only the link handling below prevented: that is not the canvas cancelling.
-const ownPrevented = new WeakSet();
+// The canvas's verdict on each followed click: true when it cancelled the click.
+const cancelled = new WeakMap();
 window.addEventListener("click", (event) => {
   const target = event.target;
   if (playing === null || !(target instanceof Element)) return;
   const link = target.closest(`[${GOTO_ATTRIBUTE}]`);
   if (link === null || !playing.contains(link)) return;
   const value = link.getAttribute(GOTO_ATTRIBUTE) ?? "";
-  following.add(event);
+  // The guard: a click the canvas dispatches from its own handler (a nested click()) reaches this
+  // listener before the outer click's bubble phase does.
+  const late = (other) => {
+    if (other !== event) return;
+    window.removeEventListener("click", late);
+    cancelled.set(event, event.defaultPrevented);
+    // A link followed replaces the whole document, so moving to its fragment first would only leave
+    // a history entry behind.
+    keepInDocument(event, false);
+  };
+  cancelled.set(event, null);
+  window.addEventListener("click", late);
   setTimeout(() => {
-    if (ownPrevented.has(event) || !event.defaultPrevented) post({ goto: value.length <= MAX_GOTO ? value : null });
+    window.removeEventListener("click", late);
+    const verdict = cancelled.get(event);
+    if (!(verdict ?? event.defaultPrevented)) post({ goto: value.length <= MAX_GOTO ? value : null });
   }, 0);
 }, true);
 
-// Bubble phase, so the canvas's own handlers run first and a handler that checks defaultPrevented
-// (a client-side router's link) still sees its own event. A handler that stops propagation keeps
-// its default.
-window.addEventListener("submit", (event) => {
-  event.preventDefault();
-});
-window.addEventListener("click", (event) => {
+// Only links whose written value starts with "#" stay in the document; every other link's default is
+// cancelled. Unless the canvas cancelled the click already: a handler that checks defaultPrevented (a
+// client-side router's link) still sees its own event.
+function keepInDocument(event, moveToFragment) {
   if (event.defaultPrevented) return;
   for (const node of event.composedPath()) {
     if (!(node instanceof Element) || (node.localName !== "a" && node.localName !== "area")) continue;
     const href = node.getAttribute("href") ?? node.getAttribute("xlink:href");
     if (href === null) return;
-    // Not cancelled by the canvas so far. A canvas window listener that runs after this one and
-    // prevents the default is not told apart from this call, so the link is still followed.
-    ownPrevented.add(event);
     event.preventDefault();
-    // A link followed replaces the whole document, so moving to its fragment first would only leave
-    // a history entry behind.
-    if (following.has(event)) return;
     // A srcdoc document resolves "#id" against the page's file URL, not its own, so the browser's
     // own handling leaves it: WebKit loads the page around the frame into the frame, and Chromium
     // drops the click. Setting the hash moves within the document, as the link would in the app.
-    if (sameDocument(href)) location.hash = href;
+    if (moveToFragment && sameDocument(href)) location.hash = href;
     return;
   }
+}
+
+// Bubble phase, so the canvas's own handlers run first. A handler that stops propagation keeps its
+// default. A followed click is left to its own listener above, which runs after the canvas's window
+// listeners too.
+window.addEventListener("submit", (event) => {
+  event.preventDefault();
+});
+window.addEventListener("click", (event) => {
+  if (!cancelled.has(event)) keepInDocument(event, true);
 });
 
 // The same list and sheet as prototypeScript.ts's isolate (exportViewer.test.ts compares them).
