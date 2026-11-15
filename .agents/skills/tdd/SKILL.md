@@ -34,7 +34,7 @@ ARCHITECTURE §11 'Shared formats': `.doan/config.json`, CLI response envelopes,
 
 1. Decide the mode and scope.
 2. If `docs/features/<slug>/tasks.md` exists, first cover the tasks' "Verify:" lines as the case list. Do not miss anything on that list.
-3. If `docs/POSTMORTEM.md` exists, grep it for the target area and bring past pitfalls back as cases.
+3. If `docs/postmortem/` exists, grep every month file in it (`grep -rn <pattern> docs/postmortem/`) for the target area and bring past pitfalls back as cases.
 4. Write the tests. Name cases in English by what they guarantee (this is code).
 5. Use the test command from the AGENTS.md 'Commands' section to see that they **actually fail**. If that section is missing or has no command for the language, stop and ask. Do not invent commands, and do not write that you confirmed a red you could not run.
    - If it is unexpectedly green, stop and report. Do not leave a fake safety net.
