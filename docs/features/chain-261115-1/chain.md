@@ -15,7 +15,7 @@
    - 리뷰: `/feature-review`를 반영했다(35a114974). 화면이 없어 초안은 없다.
    - 먼저 가는 이유: 규약, `doan check` 규칙, 묶음 계산, 공유 fixture를 정한다. 다른 두 링크가 이것을 쓴다.
    - `chain-261114-2`와 겹치는 코드 파일이 없다(이 링크는 `cli/internal/canvas`, `cli/internal/check`, `schema/fixtures/prototype-links/`, `app/src/main/prototype/links.ts`). 그래서 그 체인을 기다리지 않는다.
-2. **prototype-link-play** — [spec](../prototype-link-play/spec.md) · [design](../prototype-link-play/design.md) · [tasks](../prototype-link-play/tasks.md)
+2. **prototype-link-play** — 병합됨(#205, 209ca74d5). feature 문서는 승격 뒤 지웠다.
    - 리뷰: 반영했다(bd88853da). 초안 `.doan/canvases/prototype-link-play.html`은 독립 리뷰를 거쳐 사용자가 확정했다(b69fd0e37).
    - 시작 조건: 링크 1이 병합되고, `chain-261114-2`의 링크 3(`canvas-edit-awareness`, 가이드)과 링크 4(`canvas-mark-accent`, `CanvasController.ts`·`App.tsx`)가 병합된 뒤.
 3. **prototype-link-export** — [spec](../prototype-link-export/spec.md) · [design](../prototype-link-export/design.md) · [tasks](../prototype-link-export/tasks.md)
@@ -56,8 +56,8 @@
 | 링크 | 세션·워크트리 | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | prototype-link-convention | claude · `prototype-link-convention-orch`(제거됨, `feat/prototype-link-convention` 유지) | 2026-11-15 | [#204](https://github.com/SinhyeokKang/doan-design/pull/204) · 7e2fc2c0d | 병합 |
-| prototype-link-play | claude · `prototype-link-play-orch` (`feat/prototype-link-play`) | 2026-11-15 | — | 진행 |
-| prototype-link-export | — | — | — | 대기 |
+| prototype-link-play | claude · `prototype-link-play-orch`(제거됨, `feat/prototype-link-play` 유지) | 2026-11-15 | [#205](https://github.com/SinhyeokKang/doan-design/pull/205) · 209ca74d5 | 병합 |
+| prototype-link-export | claude · `prototype-link-export-orch` (`feat/prototype-link-export`) | 2026-11-15 | — | 진행 |
 
 ## 인계 기록
 
@@ -73,3 +73,11 @@
   - 미검증: fixture `html`은 아직 실제 DOM에서 돌지 않았다(링크 2의 주입·보드 스크립트, 링크 3의 `isolate.js`가 처음 읽는다). `/agent-eval`은 링크 2 라운드가 새 check 규칙을 함께 잰다.
   - 링크 1은 Codex를 체인 권한 안에서 썼다(링크 시작 때 Codex 주간 사용량 46%).
 - 2026-11-15 새 리드 세션: 링크 2를 `origin/develop`(7e2fc2c0d, 링크 1 병합 뒤)에서 시작했다.
+- 2026-11-15 새 리드 세션: 링크 2를 병합했다(#205, 209ca74d5, `gate` 통과). 사용자가 `ci.yml`에 Electron 다운로드 단계를 더한 변경을 묻고 확인한 뒤 병합을 지시했다. `/agent-eval`(`plp-261115`): W11은 두 에이전트 모두 통과했다. D13·R11 Claude 자동 검사 실패는 `--repeat 2`에서 다시 실패하지 않아 시작 점검 조건을 지켰다. 링크 3이 알아야 할 것은 #205 본문 'For link 3'에 있다. 요약하면 다음과 같다.
+  - 공유 클릭 표 `schema/fixtures/prototype-links/clicks.json`은 `element.click()`만 다룬다. 내보낸 파일에서 키보드 Enter/Space와 `<a href>` 기본 동작은 따로 확인하거나 입력 종류를 더해야 한다.
+  - 실제 DOM 테스트 도구는 `app/runtime/electronDom.ts`의 `launchElectronDom()`이다. 예시는 `app/src/main/prototypeScript.test.ts` 'click decisions of the shared table'이다.
+  - 가이드는 18 B 남았다. 링크 3이 export 문장을 바꾸면 그 안에 맞추거나 다른 곳을 줄여야 한다.
+  - `linkGroups`를 쓰는 쪽은 `cut` 프레임을 프레임 목록과 링크의 감싸는 프레임 목록에서 모두 빼야 한다.
+  - `isolate.js`는 프로토타입 창과 같은 링크 의미를 따라야 한다(capture 단계 리스너, `closest("[data-doan-goto]")`, 재생 중인 프레임 안의 링크만, `setTimeout(0)` 뒤 `defaultPrevented`로 판정, 200 단위를 넘는 값은 재생할 수 없음).
+  - 실제 앱에서 확인하지 못한 항목(VoiceOver 실제 읽기 등)은 BACKLOG 'Not verified in the real app'에 있다.
+- 2026-11-15 새 리드 세션: 링크 3을 `origin/develop`(링크 2 병합 뒤)에서 시작했다.
