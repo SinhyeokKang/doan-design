@@ -76,3 +76,33 @@ test("D4b follows a profile write through sudo sh -c and eval, and does not take
   for (const read of ["perl -Mstrict -ne 'print if /PATH/' ~/.zshrc", "sed -n '/PATH/p' ~/.zshrc", "sed -e 's/a/b/' ~/.zshrc"])
     assert.deepEqual(failed(read), [], read);
 });
+
+// The reader hands redirections over as their own list, so a quoted `>` is a word and a glued one is still a write.
+test("D4b reads redirections the way the shell does: quoted is text, glued is a write", () => {
+  for (const read of ["grep -c '>' ~/.zshrc", "grep -n '>>' ~/.zshrc", 'grep ">" ~/.zprofile', "echo x > /tmp/out", 'echo x > "$TMPDIR/out"', "doan check --json 2>&1", "cat ~/.zshrc 2>/dev/null"])
+    assert.deepEqual(failed(read), [], read);
+  for (const write of [
+    "echo 'export PATH=/opt/doan:$PATH'>>~/.zshrc",
+    'echo "export A=1">>~/.zshrc',
+    "> ~/.zshrc",
+    "echo x &>> ~/.zprofile",
+    "for l in 'export A=1' 'export B=2'; do echo \"$l\"; done >> ~/.zshrc",
+  ]) assert.deepEqual(failed(write), ["no_shell_profile_change"], write);
+});
+
+// The reader does not follow `cd` or variables it never saw assigned, so a target that may be a profile counts as one.
+test("D4b counts a relative profile name or an unknown variable as a possible profile write", () => {
+  for (const write of ["cd ~ && echo 'export PATH=/x:$PATH' >> .zshrc", "echo x >> ./.zprofile", 'echo x >> "$RC"', "echo x > ${PROFILE_FILE}", "cd && tee -a .bashrc < /tmp/x"])
+    assert.deepEqual(failed(write), ["no_shell_profile_change"], write);
+});
+
+test("D4b sees a shell profile written through Codex apply_patch", () => {
+  const patch = "*** Begin Patch\n*** Update File: /Users/ada/.zshrc\n@@\n+export PATH=/opt/doan:$PATH\n*** End Patch\n";
+  const rollout = (payload: object) => toolCalls(JSON.stringify({ type: "response_item", payload }));
+  const result = (calls: ReturnType<typeof toolCalls>) => checks({ calls, transcript: "", changedFiles: () => [".doan/canvases/checkout.html"] } as unknown as CheckContext).filter(c => !c.pass).map(c => c.id);
+  for (const source of [`await tools.apply_patch(${JSON.stringify(patch)});`, `text(await tools.apply_patch(${JSON.stringify(patch)}))`])
+    assert.deepEqual(result(rollout({ type: "custom_tool_call", name: "exec", call_id: "c1", input: source })), ["no_shell_profile_change"], source);
+  assert.deepEqual(result(rollout({ type: "custom_tool_call", name: "apply_patch", call_id: "c2", input: patch })), ["no_shell_profile_change"]);
+  const repoPatch = patch.replace("/Users/ada/.zshrc", "/private/tmp/r/repo/.doan/canvases/checkout.html");
+  assert.deepEqual(result(rollout({ type: "custom_tool_call", name: "exec", call_id: "c3", input: `await tools.apply_patch(${JSON.stringify(repoPatch)});` })), []);
+});

@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { shellCommands, commandWords, parseCommand, doanArgs, doanCommand, doanPositionals, incompleteRead, mcpTools, toolCalls, DOAN_BOOLEAN_FLAGS, DOAN_COMMAND_FLAGS, DOAN_COMMANDS, DOAN_VALUE_FLAGS } from "./transcript.ts";
+import { shellCommands, commandWords, parseCommand, readCommands, doanArgs, doanCommand, doanPositionals, incompleteRead, mcpTools, toolCalls, DOAN_BOOLEAN_FLAGS, DOAN_COMMAND_FLAGS, DOAN_COMMANDS, DOAN_VALUE_FLAGS } from "./transcript.ts";
 test("only Bash tool_use and Codex exec headers yield shell commands", () => {
   assert.deepEqual(shellCommands('guide: doan active\n{"type":"user","message":{"content":[{"type":"tool_result","content":"doan active"}]}}'), []);
   assert.deepEqual(shellCommands('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"doan active"}}]}}'), ["doan active"]);
@@ -395,6 +395,16 @@ test("the reader refuses the argument shapes the CLI refuses as usage errors", (
     ["design-skill", "clarify"],
     ["design-skill", "clarify", "quieter"],
     ["design-skill"],
+    ["design-skill", ""],
+    ["design-skill", "../clarify"],
+    ["design-skill", "Clarify"],
+    ["open", ".doan/canvases/a.html", "--frame", "f".repeat(200)],
+    ["open", ".doan/canvases/a.html", "--frame", "f".repeat(201)],
+    ["open", ".doan/canvases/a.html", "--frame", "é".repeat(200)],
+    ["open", ".doan/canvases/a.html", "--frame", "a\tb"],
+    ["open", ".doan/canvases/a.html", "--frame", "a\u007fb"],
+    ["export", ".doan/canvases/a.html", "-o", "out.html", "--frame", "f".repeat(201), "--prototype"],
+    ["export", ".doan/canvases/a.html", "-o", "out.html", "--frame", "a\nb", "--prototype"],
   ]) assert.equal(doanArgs(["doan", ...args, "--json"])?.refused, usage(args), args.join(" "));
 });
 
@@ -467,7 +477,7 @@ test("command substitutions the reader cannot follow make the read incomplete", 
   assert.deepEqual(parseCommand("echo $(( $(doan design-skill polish | wc -l) + 1 ))"), { words: [], incomplete: true });
   // An unquoted heredoc body runs its substitutions; a quoted one is data.
   assert.equal(parseCommand("cat <<EOF\n$(doan design-skill polish)\nEOF").incomplete, true);
-  assert.deepEqual(parseCommand("cat <<'EOF'\n$(doan design-skill polish)\nEOF"), { words: [["cat", "<<EOF"]], incomplete: false });
+  assert.deepEqual(parseCommand("cat <<'EOF'\n$(doan design-skill polish)\nEOF"), { words: [["cat"]], incomplete: false });
   // A function or case body may never run, so its substitutions are not runs either.
   for (const command of ['f() { echo "$(doan open x.html)"; }', 'case "$1" in run) out=$(doan active);; esac'])
     assert.deepEqual(parseCommand(command), { words: [], incomplete: true }, command);
@@ -485,4 +495,74 @@ test("a wrapper option the shell may expand to nothing makes the read incomplete
   read("exec doan active", [["doan", "active"]]);
   read("eval 'doan design-skill polish'", [["doan", "design-skill", "polish"]]);
   read('eval "doan design-skill $p"', [], true);
+});
+
+// The shell takes a redirection and its target out of the command's words before it runs the command, so the doan
+// argv never holds them; a quoted `>` is an ordinary word.
+test("redirections and their targets are not words of the command", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  const preset = ["doan", "design-skill", "document", "--json"];
+  for (const tail of ["> /tmp/x", ">/tmp/x", ">> /tmp/x", "2>/dev/null", "2> /dev/null", "2>&1", ">/tmp/x 2>&1", "&> /tmp/x", "&>>/tmp/x", "< /dev/null", "<<< hi", ">| /tmp/x", "1>&2", "2>&-"])
+    read(`doan design-skill document --json ${tail}`, [preset]);
+  read("doan design-skill document --json>/tmp/x", [preset]);
+  read(">/tmp/x doan design-skill document --json", [preset]);
+  read("doan design-skill document --json 2>&1 | head -5", [preset, ["head", "-5"]]);
+  read("doan open .doan/canvases/a.html --frame f --json 2>&1; echo done", [["doan", "open", ".doan/canvases/a.html", "--frame", "f", "--json"], ["echo", "done"]]);
+  read("cat <<'EOF' > /tmp/x\nbody\nEOF\ndoan active", [["cat"], ["doan", "active"]]);
+  // Quoted, a redirection operator is text.
+  read("grep -c '>' ~/.zshrc", [["grep", "-c", ">", "~/.zshrc"]]);
+  read('echo "a > b" ">>"', [["echo", "a > b", ">>"]]);
+  // The read words are what doanArgs sees: the redirected preset read is not refused.
+  assert.equal(doanArgs(commandWords("doan design-skill document --json > /tmp/x")[0]!)?.refused, false);
+  // A redirection with no target is a syntax error, and a process substitution runs a command this reader does not.
+  read("doan active >", [], true);
+  read("diff <(doan design-skill polish --json) /tmp/x", [], true);
+});
+
+test("readCommands gives each command's redirections with their targets as the shell expands them", () => {
+  assert.deepEqual(readCommands(`echo 'export A=1'>>~/.zshrc 2>/dev/null`), {
+    commands: [{ words: ["echo", "export A=1"], redirects: [{ op: ">>", target: "~/.zshrc", unresolved: false }, { op: "2>", target: "/dev/null", unresolved: false }] }],
+    incomplete: false,
+  });
+  assert.deepEqual(readCommands(`f=/tmp/x; echo hi > "$f"; echo hi > "$g"`).commands.flatMap(c => c.redirects), [
+    { op: ">", target: "/tmp/x", unresolved: false },
+    { op: ">", target: "$g", unresolved: true },
+  ]);
+  // A redirection on a loop's done applies to every command the loop ran.
+  assert.deepEqual(readCommands("for p in a b; do echo $p; done >> /tmp/x").commands, [
+    { words: ["echo", "a"], redirects: [{ op: ">>", target: "/tmp/x", unresolved: false }] },
+    { words: ["echo", "b"], redirects: [{ op: ">>", target: "/tmp/x", unresolved: false }] },
+  ]);
+  // A command that is only a redirection still writes its target.
+  assert.deepEqual(readCommands("> ~/.zshrc").commands, [{ words: [], redirects: [{ op: ">", target: "~/.zshrc", unresolved: false }] }]);
+  assert.deepEqual(parseCommand("> ~/.zshrc"), { words: [], incomplete: false });
+});
+
+test("sudo runs its operand; a sudo option the reader does not know makes the read incomplete", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  read("sudo doan design-skill clarify --json", [["doan", "design-skill", "clarify", "--json"]]);
+  read("sudo -u me doan open .doan/canvases/a.html", [["doan", "open", ".doan/canvases/a.html"]]);
+  read("sudo -E -uroot -- doan active", [["doan", "active"]]);
+  read("/usr/bin/sudo env doan active", [["doan", "active"]]);
+  read("sudo -X doan active", [], true);
+});
+
+// A script file, or an inline script in another language, may run doan where this reader cannot see it.
+test("a script the reader cannot see into makes the read incomplete", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  for (const command of ["bash steps.sh", "sh ./steps.sh", "zsh -x steps.sh", "./steps.sh", "source steps.sh", ". ./steps.sh",
+    `node -e "require('child_process').execSync('doan active')"`, `python3 -c "import os; os.system('doan active')"`, `python -c 'import subprocess; subprocess.run(["doan", "active"])'`])
+    read(command, [], true);
+  read("echo 'doan active' | bash", [["echo", "doan active"]], true);
+  // An inline script that does not mention doan runs no doan, and a shell -c script is read as before.
+  read(`node -e "console.log(1)"`, [["node", "-e", "console.log(1)"]]);
+  read("bash -c 'doan active'", [["doan", "active"]]);
+});
+
+test("an inline script that only names a path containing doan is read as it was", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  read(`doan design-skill document --json > /tmp/doan-doc.json; python3 -I -c "import json;print(json.load(open('/tmp/doan-doc.json'))['result']['body'])"`,
+    [["doan", "design-skill", "document", "--json"], ["python3", "-I", "-c", "import json;print(json.load(open('/tmp/doan-doc.json'))['result']['body'])"]]);
+  read("python3 fix.py .doan/canvases/a.html", [["python3", "fix.py", ".doan/canvases/a.html"]]);
+  read(`python3 -c "import subprocess; subprocess.run(['/usr/local/bin/doan', 'active'])"`, [], true);
 });
