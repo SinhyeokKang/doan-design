@@ -33,6 +33,8 @@ test("the reference onboarding sequence passes every O3 check", () => {
 
 test("a doan init run fails O3 and leaves the other checks alone", () => {
   assert.deepEqual(run(PASS, { commands: ["doan init"] }), ["no_doan_init"]);
+  // A flag added to doan after the reader's table must not hide the command.
+  assert.deepEqual(run(PASS, { commands: ["doan init --storage repo --json"] }), ["no_doan_init"]);
   // Init written files are the agent's own changes too.
   assert.deepEqual(run(PASS, { commands: ["doan init"], changed: [".doan/config.json", ".gitattributes"] }), ["no_doan_init", "repo_untouched"]);
 });

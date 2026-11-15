@@ -54,6 +54,16 @@ test("noHandoff fails on a command or on a request the app received, and passes 
   assert.equal(noHandoff(ctx([], [sent])).pass, false);
 });
 
+test("noHandoff fails beside a command the reader could not follow, which may have run doan handoff", () => {
+  const ctx = (commands: string[]) => ({ calls: shell(...commands), handoff: () => [] }) as unknown as CheckContext;
+  const check = noHandoff(ctx([`if [ -f ${path} ]; then doan handoff ${path} --message x; fi`]));
+  assert.equal(check.pass, false);
+  assert.match(check.detail, /could not be read completely/);
+  // The same command, readable, is seen, and a readable command without one still passes.
+  assert.equal(noHandoff(ctx([`test -f ${path} && doan handoff ${path} --message x`])).pass, false);
+  assert.equal(noHandoff(ctx([`test -f ${path} && doan ls --json`])).pass, true);
+});
+
 test("the fake app answers v5 in the app's order, accepts each different path once, and logs token-free, hashed exchanges", async () => {
   const dir = mkdtempSync("/tmp/doan-handoff-test-");
   const root = join(dir, "repo");
