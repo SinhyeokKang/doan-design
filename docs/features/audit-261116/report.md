@@ -104,3 +104,27 @@
   - `fix/auth-quit-cleanup`: L2-1, M2-2, M2-3, M2-4, G3
   - `fix/eval-checks-2`: M2-11, M2-12, M2-13, M2-14
   - `chore/cleanup-2`: C2-3, M2-6, M2-7, M2-8, M2-9, M2-10, M2-15
+
+## 2라운드 결과 (2026-11-16 마감)
+
+**검증하지 못한 것**
+- Copilot usage read는 여전히 fence 밖(`usage-probe` cwd)에서 돈다. 저장소나 HOME의 설정을 불러오는지는 probe하지 않았다.
+- #221·#223에는 실제 앱 probe가 없다. 동작 변경이 없거나 main 내부의 quit 동작만 바꿨기 때문이다.
+- CI에서 불안정한 테스트 두 개가 한 번씩 실패했고, 재실행에서는 통과했다. 하나는 `index.test.ts`의 "guards reopen by sender frame and path type"(#221)이고, 다른 하나는 `watch.test.ts`의 ".doan/canvases/ watcher re-reads"(#223)다.
+
+**병합한 PR** (모두 develop)
+- #221 정리: C2-3, M2-6, M2-7, M2-8, M2-9, M2-10, M2-15
+- #222 eval 검사: M2-11, M2-12, M2-13, M2-14
+- #223 auth·quit·정리: L2-1, M2-2, M2-3, M2-4, G3
+- #224 fence: B2-1~B2-9(B2-3 포함), C2-1, G2
+  - 사용자 결정: "Doan 연결의 Claude 실행은 모두 바깥 fence로 돌리고, Claude 자체 sandbox는 항상 끈다."
+  - 같은 규칙으로 usage read, `claude mcp` connector 명령, sign-out의 MCP 단계도 fence 안에서 돈다.
+  - probe 결과: develop에서 B2-2, B2-4, B2-5(usage read), B2-9가 확인됐고 수정한 빌드에서 모두 막혔다. B2-1, B2-8, B2-5의 `claude mcp list` 경로는 반증됐다.
+  - 사용자가 겪을 변화: Ask first에서 Bash 승인 요청이 늘어난다.
+
+**BACKLOG**: B2-3을 올렸다가, 사용자 결정에 따라 #224에서 닫았다.
+
+**다음 라운드 후보**
+- 아직 FIFO를 막지 않는 읽기: `agentAuth/storage.ts`의 `writeSetting`/`mergeSetting`(Copilot `.copilot/settings.json`), `manager.ts`의 `hookLinks`, `agentSetup/swap.ts`(lstat 뒤 읽기)
+- eval: D4b의 `tee` 패턴이 `grep tee`를 잘못 실패시키고 `cp`·`sed -i`는 잡지 못한다. 알 수 없는 플래그가 앞에 붙은 onboarding 명령은 시도로 세지 않는다. 명령 이름 drift를 확인하는 테스트가 없다.
+- 위의 불안정한 CI 테스트 두 개
