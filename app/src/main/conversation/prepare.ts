@@ -193,7 +193,8 @@ function frontmatterHooks(dir: string, depth: number): boolean {
       if (stat.size > EXTENSION_FILE_MAX) return true;
       const text = readFileSync(path, "utf8").replace(/\r\n/g, "\n");
       const end = text.startsWith("---\n") ? text.indexOf("\n---", 3) : -1;
-      if (end !== -1 && /^hooks\s*:/m.test(text.slice(4, end))) return true;
+      // YAML may quote the key.
+      if (end !== -1 && /^(hooks|"hooks"|'hooks')\s*:/m.test(text.slice(4, end))) return true;
     } catch { return true; }
   }
   return false;

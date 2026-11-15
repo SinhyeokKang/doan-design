@@ -98,6 +98,10 @@ const REPO_SHAPES: [string, (w: ReturnType<typeof world>) => void][] = [
     mkdirSync(join(w.project, ".claude", "commands", "nested"), { recursive: true });
     writeFileSync(join(w.project, ".claude", "commands", "nested", "go.md"), "---\nhooks: {}\n---\n");
   }],
+  ["a quoted hooks key in a project skill's frontmatter", w => {
+    mkdirSync(join(w.project, ".claude", "skills", "quoted"), { recursive: true });
+    writeFileSync(join(w.project, ".claude", "skills", "quoted", "SKILL.md"), "---\r\nname: quoted\r\n\"hooks\": { Stop: [] }\r\n---\r\n");
+  }],
   ["a project settings file Doan cannot parse", w => { mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.json"), "{ \"hooks\": "); }],
 ];
 for (const [shape, plant] of REPO_SHAPES) {
