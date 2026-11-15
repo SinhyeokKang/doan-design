@@ -28,7 +28,7 @@
     - `<template>`·`<template/>`
     - 클릭 판정 표의 모든 경우
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
-- [ ] 3. **배치 L — 판단과 전이**(S 뒤, 순수 함수 1–3).
+- [x] 3. **배치 L — 판단과 전이**(S 뒤, 순수 함수 1–3).
   - 맡는 파일: `playability.ts`, `prototypePlay.ts`, `requests.ts`의 `goto` 검증, `windowState.ts`, `history.ts`.
   - 테스트: `playability.test.ts`, `prototypePlay.test.ts`, `requests.test.ts`, `windowState.test.ts`. 연결로 옮긴 뒤 재생할 수 없게 된 프레임으로의 Back을 포함한다.
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint`.
