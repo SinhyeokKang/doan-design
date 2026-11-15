@@ -126,3 +126,26 @@
 - 2026-11-15 초안 `.doan/canvases/prototype-link-play.html`을 그리고 독립 리뷰를 반영했다. 리뷰 중 사용자 결정: 서랍은 연결 없는 프레임을 끝에 모음, 툴바 서랍에 Playing 표시, 깨진 프레임 툴팁은 마크가 틀림·id 공유·id 200 초과에만.
 - 2026-11-15 사용자 결정: 지금 있는 행 표시를 세 서랍 모두 Eye 아이콘으로 통일(main 헤더 서랍 포함, 이어서 Prototype 캡션도 Play 아이콘으로).
 - 2026-11-15 사용자가 초안을 확정했다(3b3c85716).
+
+## PoC 관찰(작업 1)
+
+2026-11-15, `node .scratch/prototype-link-play/poc.mjs`가 세 번 연속 exit 0이었다(17개 경우 모두 기대대로). 격리한 실제 앱(이 브랜치 `32483e73d` 빌드)에서 `doan open --frame a --prototype`로 연 창에 PoC 리스너를 넣었다. 리스너는 프로토타입 창 debugger의 `Page.addScriptToEvaluateOnNewDocument` source 끝에 붙였으므로, 실제 주입과 같은 CDP 경로로 캔버스 스크립트보다 먼저 등록된다. 리스너는 `window` capture click에서 `event.target.closest("[data-doan-goto]")`를 찾고 `setTimeout(0)` 뒤 `event.defaultPrevented`를 읽는다. 클릭은 CDP 마우스·키 입력(Playwright)과 캔버스 문맥의 `click()`으로 만들었다.
+
+| 경우 | 관찰 | 따름 |
+|---|---|---|
+| 그냥 클릭, 연결 안의 자식 클릭 | 연결을 찾음, `isTrusted` true, prevented false | 예 |
+| 요소 리스너의 `stopPropagation()` | capture가 먼저 받음, prevented false | 예 |
+| 요소 리스너·document bubble 리스너의 `preventDefault()` | `setTimeout(0)` 뒤 prevented true | 아니오 |
+| 캔버스가 window capture에서 `stopImmediatePropagation()` | 주입 리스너가 먼저 등록되어 이미 받음 | 예 |
+| 캔버스 문맥의 `element.click()` | 받음, `isTrusted` false | 예 |
+| role=button에 Enter, keydown에서 `click()`하는 핸들러 있음 | 받음, `isTrusted` false | 예 |
+| role=button에 Enter, 핸들러 없음 | click 이벤트가 없음 | 아니오 |
+| `<a href="other.html">` 클릭 | 받음, prevented false. 다른 페이지 이동은 막혀 실행 문서가 그대로다 | 예 |
+| `<a href="#sec">` 클릭 | 받음. 같은 문서 안의 hash 이동이라 URL 조각만 바뀐다 | 예 |
+| `<button>`에 Enter·Space | click 이벤트, `isTrusted` true | 예 |
+| shadow root 안의 연결 | target이 shadow host로 바뀌어 `closest`가 연결을 찾지 못함 | 아니오 |
+| 연결 안의 연결 | 가장 가까운 연결의 값 | 예(안쪽) |
+| 재생 중인 프레임 밖의 연결(`click()`) | 찾지만 재생 중인 프레임 밖 | 아니오 |
+
+- design.md '클릭에서 이동까지' 1단계의 가정이 이 주입 환경에서 맞는다. 설계를 바꿀 것은 없다.
+- probe 메모: 격리 환경의 `TMPDIR`이 이 체크아웃 아래면 앱 소켓 경로가 macOS `sun_path` 104 B를 넘어 CLI가 `app_not_running`을 받는다. probe는 `TMPDIR=/private/tmp`로 띄웠다. Reload prototype을 마우스로 누르면 주입이 두 번 일어난 실행이 한 번 있었으므로, probe는 Reload 뒤 2초 기다린 다음 남은 실행을 잡는다.

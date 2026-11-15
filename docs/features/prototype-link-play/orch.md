@@ -18,7 +18,7 @@
 
 | 배치 | 항목 | 맡는 파일 | 선행 | 모델·effort와 이유 | 검증 | 상태 |
 |---|---|---|---|---|---|---|
-| P | 작업 1 PoC | `.scratch/prototype-link-play/` | — | 컨덕터 | `node .scratch/prototype-link-play/poc.mjs` exit 0 | 진행 |
+| P | 작업 1 PoC | `.scratch/prototype-link-play/` | — | 컨덕터 | `node .scratch/prototype-link-play/poc.mjs` exit 0 | 완료(세 번 연속 exit 0, design.md 'PoC 관찰') |
 | G | 작업 4 가이드·eval | `cli/internal/cli/skill.md`, `skill_test.go`, `eval/scenarios/W11/`, 필요하면 `eval/lib/` | 결정 1 | Codex `gpt-6.1-sol` medium: 문구가 정해졌고 W7 시나리오를 본뜨는 기계적 작업이다 | `go test ./...`, `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W11` | 대기 |
 | S | 작업 2 스크립트·보고 | `prototypeScript.ts`, `canvasScript.ts`, `canvasMessage.ts`, `requests.ts`의 `gotos` 검증과 각 테스트 | P | Claude Opus high: DOM 수집과 클릭 판정이 하위 1·3과 드리프트 없이 맞아야 한다 | `npm --prefix app test`, `typecheck`, `lint` | 대기 |
 | L | 작업 3 판단·전이 | `playability.ts`, `prototypePlay.ts`, `requests.ts`의 `goto` 검증, `windowState.ts`, `history.ts`와 각 테스트 | S | Claude Opus high: gen·phase 판단과 기록 전이가 틀리면 창 상태가 엇갈린다(POSTMORTEM 2026-11-14) | `npm --prefix app test`, `typecheck`, `lint` | 대기 |

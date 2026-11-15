@@ -14,7 +14,7 @@
   - `toolbar-play`: 툴바 Play의 모든 행(읽는 중, pick, capture, 프로토타입 없음, 재생, 감싼 프레임 재생, 서랍, 깨진 마크의 서랍), 상태별 툴팁, Hand, 툴바에서 열린 서랍
   - 검증: `doan check --repo . --json`이 오류 0이고, `doan ls --repo . --json`이 세 프레임 id를 보인다. 사용자 확인이 design.md에 있다.
   - 커밋 경계: 초안.
-- [ ] 1. **PoC**(컨덕터, `.scratch/prototype-link-play/`, 격리한 실제 앱): 주입 스크립트의 capture click 리스너와 `setTimeout(0)` 뒤 `defaultPrevented`를 확인한다.
+- [x] 1. **PoC**(컨덕터, `.scratch/prototype-link-play/`, 격리한 실제 앱): 주입 스크립트의 capture click 리스너와 `setTimeout(0)` 뒤 `defaultPrevented`를 확인한다.
   - 볼 경우: `stopPropagation()`, `preventDefault()`, window capture의 `stopImmediatePropagation()`, `element.click()`, role=button의 Enter, `<a href>`, `<button>`의 Enter·Space, shadow root 안
   - 검증: 명령 미정 — 사용자 확인 필요(`node .scratch/prototype-link-play/poc.mjs`를 제안한다. 모든 경우가 기대대로면 exit 0). 관찰을 design.md에 적는다. 기대와 다르면 커밋하고 멈춰 사용자에게 묻는다.
   - 커밋 경계: 관찰을 적은 design.md.
