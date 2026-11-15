@@ -3,7 +3,7 @@ import type { PrototypeFrame } from "./ipc";
 import type { CanvasRow } from "../view";
 import { canvasKeyString, resolveTarget, type PrototypeTarget, type Resolution } from "./targets";
 import {
-  CLOSED, back, choose, close, forward, framesReported, listChanged, play, prototypeView, readFailed, reload, report, setMode, setPanel, type PrototypeState, type Resolve, type Step,
+  CLOSED, back, choose, close, forward, framesReported, goto, listChanged, play, prototypeView, readFailed, reload, report, setMode, setPanel, type PrototypeState, type Resolve, type Step,
 } from "./windowState";
 
 const A: PrototypeTarget = { root: "/r", canvas: { id: "proto" }, frame: "phone" };
@@ -422,6 +422,88 @@ describe("Back and Forward", () => {
     expect(choose(state, "ghost", w.resolve)).toBeNull();
     expect(play(state, { target: { ...A, canvas: { id: "gone" } }, size: phone }, w.resolve)).toBeNull();
     expect(state.history.entries).toHaveLength(3);
+  });
+});
+
+describe("link moves", () => {
+  function opened() {
+    const w = world();
+    const state = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
+    return { w, state };
+  }
+
+  test("another listed frame fits to its listed mark, starts a new run and is recorded, without activating", () => {
+    const { w, state } = opened();
+    const step = ok(goto(state, { gen: state.gen, goto: "tablet" }, w.resolve));
+    // No activate: a canvas's timer click must not show a hidden app or take focus from another app.
+    expect(step.effects).toEqual([{ kind: "fit", size: tablet }, { kind: "load", gen: 2, url: "http://h/t/tok/k1/proto.html", frame: "tablet" }]);
+    expect(step.state.history.entries.map(entry => entry.target)).toEqual([A, B]);
+    expect(prototypeView(step.state, w.resolve)).toMatchObject({ gen: 2, phase: "loading", frame: "tablet", title: "Tablet", frames: listed, canGoBack: true, canGoForward: false });
+  });
+
+  test("a move drops the Forward entries, as any new play does", () => {
+    const { w, state } = opened();
+    const atTablet = ready(ok(goto(state, { gen: 1, goto: "tablet" }, w.resolve)).state, "820x1180").state;
+    const backAtPhone = ready(ok(back(atTablet, w.resolve)).state).state;
+    expect(prototypeView(backAtPhone, w.resolve)?.canGoForward).toBe(true);
+    const moved = ok(goto(backAtPhone, { gen: backAtPhone.gen, goto: "tablet" }, w.resolve)).state;
+    expect(moved.history.entries.map(entry => entry.target)).toEqual([A, B]);
+    expect(prototypeView(moved, w.resolve)?.canGoForward).toBe(false);
+  });
+
+  test("the playing frame starts over like Reload, without history or a refit", () => {
+    const { w, state } = opened();
+    const step = ok(goto(state, { gen: state.gen, goto: "phone" }, w.resolve));
+    expect(step).toEqual(reload(state, state.gen));
+    expect(step.effects).toEqual([{ kind: "load", gen: 2, url: "http://h/t/tok/k1/proto.html", frame: "phone" }]);
+    expect(step.state.history).toBe(state.history);
+  });
+
+  test("a value the run did not list, or none, is refused", () => {
+    const { w, state } = opened();
+    for (const value of ["ghost", "", null]) expect(goto(state, { gen: state.gen, goto: value }, w.resolve)).toBeNull();
+  });
+
+  test("an older run's move is refused", () => {
+    const { w, state } = opened();
+    const second = ready(reload(state, state.gen).state).state;
+    expect(goto(second, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
+    expect(goto(second, { gen: 3, goto: "tablet" }, w.resolve)).toBeNull();
+  });
+
+  test("a move is refused unless the run is ready: loading, failed or lost", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    expect(goto(loading, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
+    // The list sent after load gives a loading run frames, still without a move.
+    expect(goto(framesReported(loading, 1, listed).state, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
+    const lost = report(loading, { gen: 1, state: "missing", frames: listed, gotos: [] }).state;
+    expect(goto(lost, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
+    const failed = report(loading, { gen: 1, state: "timeout" }).state;
+    expect(goto(failed, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
+    expect(goto(CLOSED, { gen: 0, goto: "tablet" }, w.resolve)).toBeNull();
+  });
+
+  test("a move whose canvas is gone is refused", () => {
+    const { w, state } = opened();
+    w.set(A, { kind: "absent" });
+    expect(goto(state, { gen: state.gen, goto: "tablet" }, w.resolve)).toBeNull();
+  });
+
+  test("Back after a move plays the previous frame again", () => {
+    const { w, state } = opened();
+    const atTablet = ready(ok(goto(state, { gen: 1, goto: "tablet" }, w.resolve)).state, "820x1180").state;
+    const step = ok(back(atTablet, w.resolve));
+    expect(prototypeView(step.state, w.resolve)).toMatchObject({ frame: "phone", canGoForward: true });
+  });
+
+  test("Back skips a frame that could no longer play once the move's run reported", () => {
+    const { w, state } = opened();
+    const moving = ok(goto(state, { gen: 1, goto: "tablet" }, w.resolve)).state;
+    // The moved-to run no longer lists phone (its mark broke meanwhile).
+    const atTablet = ready(moving, "820x1180", [listed[1]!]).state;
+    expect(prototypeView(atTablet, w.resolve)?.canGoBack).toBe(false);
+    expect(back(atTablet, w.resolve)).toBeNull();
   });
 });
 

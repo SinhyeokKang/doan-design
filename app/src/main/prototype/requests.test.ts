@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { CanvasRow, FolderEntry } from "../view";
-import { exportTargetMatches, MAX_GOTO_FRAMES, MAX_REPORT_FRAMES, MAX_REPORT_GOTOS, MAX_REPORT_STRING, parseChooseRequest, parseComposerChoice, parseExportRequest, parseFramesReport, parseModeRequest, parsePanelRequest, parseReloadRequest, parseRevealRequest, parseRunReport, parseShowingRequest, playTarget, validateCliPlay, validatePlay, windowRequest } from "./requests";
+import { exportTargetMatches, MAX_GOTO_FRAMES, MAX_REPORT_FRAMES, MAX_REPORT_GOTOS, MAX_REPORT_STRING, parseChooseRequest, parseComposerChoice, parseExportRequest, parseFramesReport, parseGotoRequest, parseModeRequest, parsePanelRequest, parseReloadRequest, parseRevealRequest, parseRunReport, parseShowingRequest, playTarget, validateCliPlay, validatePlay, windowRequest } from "./requests";
 
 const base = "http://127.0.0.1:5123/t/tok/";
 function row(path: string, patch: Partial<CanvasRow> = {}): CanvasRow {
@@ -72,6 +72,20 @@ describe("prototype window requests", () => {
     expect(parseReloadRequest("prototype", { gen: 3 })).toBe(3);
     for (const value of [{ gen: 0 }, { gen: -1 }, { gen: 1.5 }, { gen: "3" }, { gen: Number.MAX_SAFE_INTEGER + 1 }, {}, null]) expect(parseReloadRequest("prototype", value)).toBeNull();
     expect(parseReloadRequest("main", { gen: 3 })).toBeNull();
+  });
+
+  test("a followed link names its run and the link's raw value, or null for a value no frame can have", () => {
+    expect(parseGotoRequest("prototype", { gen: 3, goto: "tablet" })).toEqual({ gen: 3, goto: "tablet" });
+    expect(parseGotoRequest("prototype", { gen: 3, goto: null })).toEqual({ gen: 3, goto: null });
+    // Empty and unknown values are judged against the run's list, not here.
+    expect(parseGotoRequest("prototype", { gen: 3, goto: "" })).toEqual({ gen: 3, goto: "" });
+    expect(parseGotoRequest("prototype", { gen: 3, goto: "x".repeat(MAX_REPORT_STRING) })).toEqual({ gen: 3, goto: "x".repeat(MAX_REPORT_STRING) });
+    for (const value of [
+      { gen: 3, goto: "x".repeat(MAX_REPORT_STRING + 1) }, { gen: 3, goto: 1 }, { gen: 3, goto: ["tablet"] }, { gen: 3, goto: { value: "tablet" } }, { gen: 3 },
+      { goto: "tablet" }, { gen: 0, goto: "tablet" }, { gen: -1, goto: "tablet" }, { gen: 1.5, goto: "tablet" }, { gen: "3", goto: "tablet" },
+      { gen: Number.MAX_SAFE_INTEGER + 1, goto: "tablet" }, { gen: 3, goto: "tablet", frame: "phone" }, null, undefined, "tablet", [3, "tablet"],
+    ]) expect(parseGotoRequest("prototype", value), JSON.stringify(value)).toBeNull();
+    for (const kind of ["main", "settings", undefined, null, ""]) expect(parseGotoRequest(kind, { gen: 3, goto: "tablet" })).toBeNull();
   });
 
   test("the viewport toggle names Fit or Responsive and nothing else", () => {
