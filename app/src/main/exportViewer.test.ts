@@ -1583,6 +1583,60 @@ describe("isolate.js follows links in a real DOM", () => {
       expect(await place(frame)).toEqual(["about:srcdoc", "a"]);
     });
   });
+
+  // A window listener the canvas adds while the click is dispatched (from the element's own handler) runs after any
+  // listener isolate.js added at the window's capture phase; its cancel still stops the link.
+  describe.each([["#sec"], ["other.html"], [null]])("a link with href %s, cancelled from a window listener added during the click", href => {
+    const link = `<a id="x"${href === null ? "" : ` href="${href}"`} data-doan-goto="b">Next</a>`;
+    const during = (body: string) => `<script>document.getElementById("x").addEventListener("click", () => { ${body} });</script>`;
+    const place = (frame: Frame) => frame.evaluate(() => [location.href, document.querySelector("[data-doan-proto-frame]")?.getAttribute("data-doan-frame")]);
+
+    test.each([
+      ["preventDefault()", `window.addEventListener("click", event => event.preventDefault(), { once: true });`],
+      ["returnValue = false", `window.addEventListener("click", event => { event.returnValue = false; }, { once: true });`],
+    ])("%s stops it", async (_name, body) => {
+      const { frame, posted } = await clickIn("a", frames(link, during(body)), "#x");
+      expect(posted).toEqual([]);
+      expect(await place(frame)).toEqual(["about:srcdoc", "a"]);
+    });
+  });
+
+  // Without an href isolate.js cancels nothing of its own, so the final defaultPrevented decides, as in the prototype
+  // window: an event handler first set during the click counts too.
+  test("a link without an href is stopped by window.onclick returning false, set during the click", async () => {
+    const script = `<script>document.getElementById("x").addEventListener("click", () => { window.onclick = () => false; });</script>`;
+    const { posted } = await clickIn("a", frames(`<a id="x" data-doan-goto="b">Next</a>`, script), "#x");
+    expect(posted).toEqual([]);
+  });
+
+  test("a click() the canvas makes from its handler is decided on its own, and so is the outer click", async () => {
+    const script = `<script>
+      document.getElementById("x").addEventListener("click", () => document.getElementById("y").click());
+      window.addEventListener("click", event => { if (event.target === document.getElementById("y")) event.preventDefault(); });</script>`;
+    for (const href of ["#sec", null]) {
+      const outer = `<a id="x"${href === null ? "" : ` href="${href}"`} data-doan-goto="b">Next</a><a id="y" href="#sec" data-doan-goto="c">Inner</a>`;
+      const { posted } = await clickIn("a", frames(outer, script), "#x");
+      expect(posted, String(href)).toEqual([{ type: "doan-prototype", goto: "b" }]);
+    }
+  });
+
+  // Documented limits on an <a href> link, where isolate.js must cancel the default itself before the click's dispatch
+  // ends. Pinned so a change to either is deliberate.
+  describe("limits on a link with an href", () => {
+    const link = `<a id="x" href="#sec" data-doan-goto="b">Next</a>`;
+    const during = (body: string) => `<script>document.getElementById("x").addEventListener("click", () => { ${body} });</script>`;
+
+    test("a passive window listener added during the click that calls preventDefault() counts as a cancel", async () => {
+      const body = `window.addEventListener("click", event => event.preventDefault(), { once: true, passive: true });`;
+      const { posted } = await clickIn("a", frames(link, during(body)), "#x");
+      expect(posted).toEqual([]);
+    });
+
+    test("window.onclick first set during the click, returning false, is not seen and the link is followed", async () => {
+      const { posted } = await clickIn("a", frames(link, during("window.onclick = () => false;")), "#x");
+      expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
+    });
+  });
 });
 
 describe("prototype.js plays the group one frame at a time", () => {
