@@ -29,6 +29,20 @@ test("process deadline and ENOENT settle once with stdin ignored", async () => {
   expect(await runProcess("/bin/sleep", ["30"], env, 20)).toMatchObject({ timedOut: true });
   expect(await runProcess("/missing/agent", [], env, 100)).toMatchObject({ spawnError: expect.any(String) });
 });
+// The exit event and the last pipe data race: a child's output still in the pipe when it exits belongs to its result.
+// A helper that keeps the pipe open for a moment holds the same race open long enough to see it every time.
+test("returns output that reaches the pipe after the child's exit", async () => {
+  expect(await runProcess("/bin/sh", ["-c", "(sleep 0.2; echo late) & echo early"], env, 5000)).toMatchObject({ stdout: "early\nlate\n", exitCode: 0, timedOut: false });
+  const big = await runProcess("/bin/sh", ["-c", "head -c 300000 /dev/zero | tr '\\0' a"], env, 5000);
+  expect(big).toMatchObject({ exitCode: 0, timedOut: false });
+  expect(big.stdout.length).toBe(300000);
+});
+// A daemon can inherit the pipe for good; its caller still gets the exit soon after the child is gone, not the deadline.
+test("settles shortly after exit when a daemon keeps the pipe open", async () => {
+  const started = Date.now();
+  expect(await runProcess("/bin/sh", ["-c", "sleep 30 & echo x"], env, 10_000)).toMatchObject({ stdout: "x\n", exitCode: 0, timedOut: false });
+  expect(Date.now() - started).toBeLessThan(3000);
+});
 test("the login shell sees only the launchd environment, and the rc file still selects the profile", async () => {
   const dump = join(temp, "env.txt");
   const inherited = { ...env, SSH_AUTH_SOCK: "/tmp/agent.sock", TMPDIR: temp, ORCA_TERMINAL_HANDLE: "term_1", ORCA_AGENT_HOOK_TOKEN: "tok",

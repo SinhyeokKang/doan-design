@@ -11,7 +11,7 @@ import { AUTH_LINK_FILE, BROWSER_HOOK, callbackAddress, INSTALL_FAILED, forwardC
 import { probeShell } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { readRegularFileNoFollowSync } from "../regularFile";
-import { fencedEverywhere, profileFencedCommand } from "./fence";
+import { CODEX_DOTENV, fencedEverywhere, profileFencedCommand } from "./fence";
 import { providerEnv } from "./environment";
 import { codexAccountEmail, GOOGLE_USERINFO_URL, googleAccessToken, googleEmail, googleRefreshRequest, withIdentity } from "./identity";
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
@@ -63,6 +63,7 @@ export interface AuthManagerOptions {
 export interface WriteOptions { stop?: boolean }
 interface Run { code: number | null; stdout: string; stderr: string }
 const OUTPUT_LIMIT = 1024 * 1024;
+const OUTPUT_GRACE_MS = 500;
 const QUIT_WAIT_MS = 5000;
 const ACP_OPEN_MS = 60_000;
 const LINK_POLL_MS = 100;
@@ -788,6 +789,8 @@ export class AuthManager {
     if (!located) throw new Error("cli_missing");
     const profileDir = this.options.storage.profileDir(provider, profile);
     for (const [rel, text] of Object.entries(this.adapters[provider].settings)) this.options.storage.writeSetting(provider, rel, text, profile);
+    // A .env a turn wrote before the fence closed it would still set every later Codex process's environment.
+    if (provider === "codex") this.options.storage.removePlanted(provider, CODEX_DOTENV, profile);
     return { command: located.command, env: this.childEnv(provider, located.path, profileDir, added), profileDir, ...(located.promptSuggestion === undefined ? {} : { promptSuggestion: located.promptSuggestion }) };
   }
   private childEnv(provider: Provider, path: string, profileDir: string, added: Record<string, string>): Record<string, string> {
@@ -991,7 +994,13 @@ export const spawnAuthProcess: Spawn = (command, args, { cwd, env, input }) => {
   // A login that exits first closes the pipe; a late write must not crash main.
   child.stdin?.on("error", () => {});
   let release!: () => void;
-  const gone = new Promise<void>(resolve => { release = resolve; });
+  const groupGone = new Promise<void>(resolve => { release = resolve; });
+  // Both are pipes in every stdio configuration above.
+  const stdout = child.stdout!, stderr = child.stderr!;
+  // The group can be gone in the same tick as the leader's exit while its output is still in the pipe, so gone waits
+  // for both pipes to close too. A process that left the group can hold them open for good: a grace bounds that wait.
+  const closed = Promise.all([stdout, stderr].map(stream => new Promise<void>(resolve => { stream.once("close", () => resolve()); }))).then(() => {});
+  const gone = groupGone.then(() => Promise.race([closed, new Promise<void>(resolve => { setTimeout(resolve, OUTPUT_GRACE_MS).unref(); })]));
   const group = child.pid ? new OwnedGroup(child.pid, undefined, undefined, release) : null;
   const exit = new Promise<number | null>(resolve => {
     child.once("error", () => { resolve(null); if (group) group.childExited(); else release(); });
@@ -1001,8 +1010,6 @@ export const spawnAuthProcess: Spawn = (command, args, { cwd, env, input }) => {
       setTimeout(() => void group?.stop(), 2000).unref();
     });
   });
-  // Both are pipes in every stdio configuration above.
-  const stdout = child.stdout!, stderr = child.stderr!;
   stdout.setEncoding("utf8"); stderr.setEncoding("utf8");
   return {
     onOutput: listener => { stdout.on("data", (text: string) => listener(text)); stderr.on("data", (text: string) => listener(text, "stderr")); },

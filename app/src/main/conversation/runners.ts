@@ -17,7 +17,7 @@ import { backgroundTasks, CLAUDE_QUESTION_TOOL, claudePermissionSummary, claudeQ
 import { questionAnswer } from "./questionAnswer";
 import { promptSuggestionText } from "./promptSuggestion";
 import { claudePermission, codexDefaults, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
-import { codexMechanism, codexProfileArgs, codexTurnPermission, fenceArgs, fencedCommand } from "../agentAuth/fence";
+import { codexMechanism, codexProfileArgs, codexTurnPermission, fenceArgs, fencedCommand, sandboxRefused } from "../agentAuth/fence";
 import type { OpenRunner, Prepared, ReadListing, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode, SkillSummary } from "./types";
 // steerConsumed: the agent read a steered message, called in line with the run's events so the message
@@ -408,7 +408,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     // A fenced start that could not run is a process failure, never the SDK's message about the CLI binary, which names
     // a missing CLI: sandbox-exec missing (a spawn error), or sandbox-exec itself refusing (65 for a policy error, 71 for
     // an exec failure, with its own "sandbox-exec:" message). The CLI's own early exit keeps the SDK's error.
-    const refused = childExited && (exitCode === 65 || exitCode === 71) && /^sandbox-exec: /m.test(stderr);
+    const refused = childExited && sandboxRefused({ exitCode, stderr });
     if (input.fence && (spawnFailed || refused)) throw new Error("process_exited");
     throw error;
   }

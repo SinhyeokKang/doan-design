@@ -9,6 +9,7 @@ import { parseShellProbe, type ShellProbe } from "./states";
 // PoC: 83 ms. Leave room for cold startup.
 export const SHELL_TIMEOUT_MS = 5000;
 const OUTPUT_LIMIT = 1024 * 1024;
+const OUTPUT_GRACE_MS = 500;
 
 export function runProcess(command: string, args: string[], env: NodeJS.ProcessEnv, timeout: number, nonce?: string): Promise<CliRun> {
   return new Promise(resolveRun => {
@@ -21,7 +22,9 @@ export function runProcess(command: string, args: string[], env: NodeJS.ProcessE
       resolveRun({ stdout, stderr, exitCode: null, timedOut: false, ...result });
     };
     const kill = () => { try { child.kill("SIGKILL"); } catch { /* Settlement cannot depend on kill success. */ } };
-    const timer = setTimeout(() => { kill(); finish({ timedOut: true }); }, timeout);
+    // Set by the exit event: a deadline that falls in the grace below reports that exit, not a timeout.
+    let exited: number | null | undefined;
+    const timer = setTimeout(() => { if (exited !== undefined) finish({ exitCode: exited }); else { kill(); finish({ timedOut: true }); } }, timeout);
     child.stdout.setEncoding("utf8"); child.stderr.setEncoding("utf8");
     child.stdout.on("data", (data: string) => {
       stdout += data;
@@ -30,8 +33,10 @@ export function runProcess(command: string, args: string[], env: NodeJS.ProcessE
     });
     child.stderr.on("data", (data: string) => { stderr += data; if (stderr.length > OUTPUT_LIMIT) { kill(); finish({ spawnError: "Process output exceeded the limit." }); } });
     child.once("error", error => finish({ spawnError: error.message }));
-    // A daemon can inherit a pipe. Waiting for close would strand the caller.
-    child.once("exit", code => finish({ exitCode: code }));
+    // Output still in the pipe can arrive after the exit event, so the result waits for the pipes to close. A daemon can
+    // inherit a pipe and never close it: a short grace after exit keeps it from stranding the caller until the deadline.
+    child.once("close", code => finish({ exitCode: code }));
+    child.once("exit", code => { exited = code; setTimeout(() => finish({ exitCode: code }), OUTPUT_GRACE_MS).unref(); });
   });
 }
 

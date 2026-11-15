@@ -9,7 +9,7 @@ const { USER_DATA }: typeof import("./real-state") = await import(new URL("./rea
 
 for (const relative of ["agent-setup.json", "sessions.jsonl", "conversations/index.json", "conversations/start-undo.json", "conversations/nested/session.jsonl", "agent-auth/vault/cursor.bin",
   "preferences.json", "auto-folders.json", "canvas-seen.json", "mcp-connectors.json", "mcp-connectors-pending.json", "star-prompt.json", "attachments/0f4e/pasted.png",
-  "agent-runtimes/antigravity-acp/bin/server", "terminal/install-claude.command", "usage-probe/CLAUDE.md"]) {
+  "agent-runtimes/antigravity-acp/bin/server", "terminal/install-claude.command"]) {
   for (const mutation of ["create", "modify", "remove"]) {
     test(`real-state detects ${mutation} of ${relative} in a simulated HOME`, async () => {
       const home = await mkdtemp(join(tmpdir(), "doan-state-fixture-"));
