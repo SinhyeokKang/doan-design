@@ -10,6 +10,8 @@ const mainOnly = [
   "folders:remove", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",
   "onboarding:choose-folder", "folders:get",
+  // New folder on the Project step: the save panel and the folder it makes.
+  "onboarding:new-folder", "onboarding:new-folder-cancel",
   // The canvas page says which canvas it shows, and the read-state toast's Retry.
   "read-state:showing", "read-state:retry",
   // Toasts need native visibility.
@@ -190,4 +192,9 @@ test("the drawing relay's requests belong to their windows and its events are no
     expect(senderAllowed(channel, "main"), channel).toBe(false);
   }
   for (const kind of ["main", "prototype"]) for (const channel of [PROTOTYPE_CHANNELS.target, PROTOTYPE_CHANNELS.drawingChanged, PROTOTYPE_CHANNELS.promotedChanged]) expect(senderAllowed(channel, kind), `${channel} ${kind}`).toBe(false);
+});
+// folders:removed tells the main window which roots `doan remove` took out; it is an event main sends, never a request.
+test("folders:removed is an event main sends, never a request", () => {
+  for (const kind of ["main", "prototype", "settings", undefined]) expect(senderAllowed("folders:removed", kind)).toBe(false);
+  expect(senderAllowed("folders:remove", "main")).toBe(true);
 });

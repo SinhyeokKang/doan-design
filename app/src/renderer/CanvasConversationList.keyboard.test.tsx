@@ -26,7 +26,7 @@ const { canvasConversationRows } = await import("./canvasConversationRows");
 
 const NOW = Date.parse("2026-11-01T12:00:00.000Z");
 const summary = (conversationId: string, path: string, minutes: number): ConversationSummary => ({
-  conversationId, title: `Title ${conversationId}`, state: "current", owner: "doan", provider: "claude", fromHome: false, phase: "ended", unseen: false,
+  conversationId, title: `Title ${conversationId}`, owner: "doan", provider: "claude", fromHome: false, phase: "ended", unseen: false,
   queued: 0, working: false, lastActivityAt: new Date(NOW - minutes * 60_000).toISOString(), preview: "", canvas: { path },
 });
 const canvas = (path: string): CanvasRow => ({ path, url: `doan://${path}` });

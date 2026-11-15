@@ -1,7 +1,7 @@
 import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Archive, ArrowDown, ArrowUpRight, Ban, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, MapPin, Pencil, PencilSparkles, RotateCcw, SquareMousePointer, Terminal, Zap } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Ban, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, MapPin, Pencil, PencilSparkles, SquareMousePointer, Terminal, Zap } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor, Canvas } from "../main/conversation/types";
 import { QUESTION_LIMITS, type Question, type QuestionAnswerInput } from "../main/conversation/question";
@@ -752,7 +752,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "end": return [provider, entry.key === last?.key, entry.key === last?.key && last.resend, entry.key === last?.key ? props.limitResets ?? null : null, entry.key === last?.key && !!props.resendHidden];
       case "handoff": return [provider, props.project, entry.target ? props.canvasListed(entry.target.canvas) : entry.outcome === "missed" ? props.canvasListed(entry.canvas) : null, !!props.onOpenHandoff];
       case "handoffCard": return [props.project, props.canvasListed(entry.origin.canvas), !!props.onOpenHandoff];
-      case "marker": return [props.project, entry.canvas ? props.canvasListed(entry.canvas) : null];
+      case "marker": return [props.project, props.canvasListed(entry.canvas)];
       default: return [];
     }
   };
@@ -808,9 +808,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "handoff": return <HandoffLine entry={entry} project={props.project} provider={provider} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
       case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
       case "marker": {
-        if (entry.marker === "archived") return <div className="marker"><span><Archive aria-hidden="true" />Archived when another conversation became current on this canvas. Send a message to make it current again.</span></div>;
-        if (entry.marker === "restored") return <div className="marker"><span><RotateCcw aria-hidden="true" />Made current again</span></div>;
-        const canvas = entry.canvas!, listed = props.canvasListed(canvas), name = canvas.path.split("/").at(-1) ?? canvas.path;
+        const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvas.path.split("/").at(-1) ?? canvas.path;
         return <div className="marker"><span><ArrowUpRight aria-hidden="true" />{listed ? `Moved to ${name}` : `Moved to ${name} · No longer in ${props.project}`}</span>
           <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled={!listed} onClick={() => latest.current.onOpenCanvas(canvas)}>Open</button></div>;
       }

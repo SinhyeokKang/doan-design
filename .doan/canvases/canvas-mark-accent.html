@@ -1,0 +1,305 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="canvas-mark-accent"><meta name="doan:width" content="1200"><title>Canvas marks in accent</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/ds-canvas.css"><link rel="stylesheet" href="../assets/mock.css">
+<style>
+/* ---- Proposed app CSS (styles.css). Values the implementation copies. ---- */
+.overlay { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+/* The mark box is the element's screen rect grown by 1.5px on every side, so the 1.5px line lies outside the element. No white ring.
+   Chromium floors a border to whole device pixels: 1.5px is 3 device px on a 2x display and 1px on a 1x display. */
+.mark { position: absolute; border: 1.5px solid var(--text-accent); }
+.mark.hover { border-style: dashed; }
+/* The size bubble ends with Add to message: 8px before the size text (4px when Play starts it), 4px after the button. 5px from the line's
+   outer edge: 100% is the mark's padding box, so the 1.5px line is added (shipped CSS left a 4px gap behind its 1px line). */
+.dims { position: absolute; top: calc(100% + 1.5px + 5px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-1) 0 var(--space-2); background: var(--affordance-accent); color: var(--text-on-accent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
+.dims.above { top: auto; bottom: calc(100% + 1.5px + 5px); }
+/* With Play the bubble starts with a button too, so both ends take the 4px button inset. */
+.dims.playable { padding-left: var(--space-1); }
+.bubble-button { pointer-events: auto; color: var(--text-on-accent); }
+.bubble-button svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* Specificity (0,5,0) on purpose: ds/controls.css's default icon-button hover and active rules are (0,4,0) and would paint
+   an opaque light fill over the accent (the shipped .bubble-play:hover at (0,2,0) loses the same way). Pressed keeps the
+   hover fill. */
+.overlay .dims .bubble-button:is(:hover, :active):not([aria-disabled="true"]), .bubble-button.is-hover { background: color-mix(in srgb, var(--text-on-accent) 16%, transparent); }
+.overlay .dims .bubble-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+.bubble-button.is-focus { outline: 2px solid var(--text-on-accent); outline-offset: -2px; }
+.bubble-button[aria-disabled="true"] { color: color-mix(in srgb, var(--text-on-accent) 45%, transparent); cursor: default; }
+/* Jump highlight: today's rules unchanged; only the box moves, to the element's rect grown by 3px on every side, so the
+   3px line lies outside the element and the ring and glow outside the line. */
+.mark.jump-highlight { border: 3px solid transparent; border-radius: 1px; box-shadow: 0 0 0 1px var(--surface-panel), 0 0 16px 2px color-mix(in srgb, var(--affordance-accent) 45%, transparent); }
+.mark.jump-highlight::before { content: ""; position: absolute; inset: -3px; padding: 3px; border-radius: inherit; background: linear-gradient(135deg, var(--affordance-accent), var(--indigo-600)); mask: linear-gradient(var(--affordance-prominent) 0 0) content-box, linear-gradient(var(--affordance-prominent) 0 0); mask-composite: exclude; }
+/* The mask reads only alpha: any opaque colour works; the app writes #000, the draft a role so doan check stays quiet. */
+.mark.jump-highlight.jump-point { border-radius: 50%; }
+.mark.jump-highlight.working { z-index: -1; }
+/* Today's marks, drawn only in the 'Current on develop' zoom tiles. */
+.mark.current { border-color: var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); }
+.mark.jump-highlight.current { border-color: transparent; }
+
+/* ---- Draft only: the five buddies re-point the roles a tile reads (the app does this on :root[data-buddy]). ---- */
+.buddy-doany { --text-accent: var(--violet-9); --affordance-accent: var(--violet-9); --text-on-accent: var(--violet-contrast); }
+.buddy-puri { --text-accent: var(--puri-icon); --affordance-accent: var(--puri-9); --text-on-accent: var(--neutral-standard-text); }
+.buddy-dungdung { --text-accent: var(--dungdung-icon); --affordance-accent: var(--dungdung-9); --text-on-accent: var(--neutral-standard-text); }
+.buddy-popo { --text-accent: var(--popo-icon); --affordance-accent: var(--popo-9); --text-on-accent: var(--neutral-1); }
+.buddy-dori { --text-accent: var(--dori-icon); --affordance-accent: var(--dori-9); --text-on-accent: var(--neutral-1); }
+
+/* ---- Draft layout ---- */
+body { padding: var(--space-8); background: var(--surface-inset); }
+.intro { max-width: 1136px; margin-bottom: var(--space-12); }
+.intro .status { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); margin-bottom: var(--space-2); }
+.intro h1 { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); }
+.intro p, .intro li { color: var(--text-subtle); }
+.intro p { margin-top: var(--space-3); }
+.intro h2 { margin-top: var(--space-6); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); font-weight: var(--type-weight-medium); }
+.intro ol, .intro ul { margin-top: var(--space-2); padding-left: var(--space-5); display: grid; gap: var(--space-1); }
+code { font-family: var(--type-family-mono); font-size: var(--type-caption-size); }
+.specimen { margin-bottom: var(--space-12); }
+.specimen > h2 { font-size: var(--type-body-lg-size); line-height: var(--type-body-lg-line-height); letter-spacing: var(--type-body-lg-letter-spacing); font-weight: var(--type-weight-medium); }
+.specimen > p { color: var(--text-subtle); margin: var(--space-2) 0 var(--space-5); max-width: 1136px; }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-8); }
+.tiles.three { grid-template-columns: repeat(3, 1fr); gap: var(--space-5); }
+.tile.span { grid-column: 1 / -1; }
+.tile > h3 { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.tile > p { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); min-height: var(--space-10); margin: var(--space-1) 0 var(--space-3); }
+.stage { position: relative; height: 280px; overflow: hidden; border-radius: var(--radius-container); border: 1px solid var(--border-standard); background: var(--mock-bg); }
+.stage.dark { background: var(--mock-measure-dark); }
+.stage.violet { background: var(--mock-measure-violet); }
+.stage.note { height: auto; padding: var(--space-5); background: var(--surface-panel); }
+.stage.note p + p { margin-top: var(--space-2); }
+.card { position: absolute; background: var(--mock-fill); border: 1px solid var(--mock-line); border-radius: var(--space-1); color: var(--mock-ink); }
+.card .t { position: absolute; top: var(--space-3); left: var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-medium); }
+.card .s { position: absolute; top: calc(var(--space-3) + var(--type-caption-line-height)); left: var(--space-4); right: var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--mock-ink-2); }
+.dark .card { background: var(--mock-dark-fill); border-color: var(--mock-dark-fill); color: var(--mock-dark-ink); }
+.dark .card .s { color: var(--mock-dark-ink); }
+.violet .card { background: var(--mock-violet-fill); border-color: var(--mock-violet-fill); color: var(--mock-violet-ink); }
+.violet .card .s { color: var(--mock-violet-ink); }
+.btn { position: absolute; display: flex; align-items: center; justify-content: center; background: var(--mock-ink); color: var(--mock-brand-ink); border-radius: var(--space-1); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.tip { position: absolute; }
+.tip .doan-tooltip { position: static; max-width: 384px; }
+/* Zoom tiles: a 55×28 px crop at ×10, so a 1px line reads as 10px. */
+.zoom { position: absolute; left: 0; top: 0; width: 55px; height: 28px; transform: scale(10); transform-origin: 0 0; }
+.zoom .el { position: absolute; left: 10px; top: 8px; width: 60px; height: 40px; background: var(--mock-fill); border: 1px solid var(--mock-ink-2); }
+.zoom .mark.jump-highlight { box-shadow: 0 0 0 1px var(--surface-panel); }
+.legend { position: absolute; right: var(--space-4); bottom: var(--space-3); padding: var(--space-1) var(--space-2); border-radius: var(--radius-chip); background: var(--surface-panel); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); box-shadow: var(--shadow-sm); }
+</style></head><body>
+
+<header class="intro">
+  <p class="status">FEATURE DRAFT · REDESIGN OF THE SHIPPED CANVAS OVERLAY + ONE NEW BUTTON (NOT IN CODE)</p>
+  <h1>Canvas marks in accent</h1>
+  <p>Selection and hover marks, the size bubble and the jump highlight move outside the element and take the person's buddy accent. The size bubble gains Add to message, which puts the selection into the canvas conversation's composer as a chip. Feature documents: <code>docs/features/canvas-mark-accent/</code> (spec, design, tasks). Until this feature merges, this draft is the reference for the overlay; <code>doan-canvas.html</code>, <code>frame-first-selection.html</code> and <code>frame-prototype.html</code> are not edited.</p>
+
+  <h2>Implementation notes (all frames)</h2>
+  <ol>
+    <li><b>Selection and hover</b> (<code>.mark</code>, <code>.mark.hover</code>): 1.5px <code>--text-accent</code> (the buddy's icon colour, DESIGN.md 'Tokens': accent icons, dots and outlines), solid for selection, dashed for hover. The box is the element's screen rect from <code>boardRectToScreen</code> grown by 1.5px on every side (left −1.5, top −1.5, width +3, height +3), so the line covers no element pixel. No <code>--surface-panel</code> ring. Same in Select and the Picker.</li>
+    <li><b>Why not <code>--affordance-accent</code> for the line</b>: Puri's 9 (#55bc98) and Dungdung's 9 (#e8ab00) are about 2:1 on white, too faint for a thin line. <code>--buddy-icon</code> clears 3:1 for all five buddies (tokens.css comment).</li>
+    <li><b>Size bubble</b> (<code>.dims</code>): <code>--affordance-accent</code> fill, <code>--text-on-accent</code> text and button ink (the accent button pairing). Always a flex row, gap 4, 24 high: padding 0 4 0 8, or 0 4 0 4 with Play (<code>.dims.playable</code>). 5px below the line's outer edge (above it when <code>sizeBubblePlace</code> says so); the inside/above decision uses the grown rect.</li>
+    <li><b>Add to message</b>: <code>doan-icon-button</code> xs, lucide <code>Crosshair</code> 14px, <code>aria-label</code> and tooltip "Add to message". Order: Play, size text, Add to message (Play only for a playable frame, as today; Add to message always ends the bubble). Shown whenever there is a selection.</li>
+    <li><b>Press</b>: anchor = <code>targetAnchor(selection)</code> (the same function the pick uses); unfold a folded panel as <code>pickFromCanvas</code> does; focus the composer field, then <code>insert(anchor)</code> at its caret (the order <code>pickEnded</code> explains); if the field is not registered yet because the panel just unfolded, insert once it registers. Selection, the bubble and <code>doan active</code> stay. Pointer events stop at the button, like Play's.</li>
+    <li><b>Unavailable</b>: whenever <code>pickerAvailability(...)</code> is not enabled. <code>aria-disabled</code> (not <code>disabled</code>), ink <code>color-mix(--text-on-accent 45%, transparent)</code>, no hover fill, tooltip = that reason. Update the same button element; never rebuild it while focused (POSTMORTEM 2026-11-13). When the bubble goes while a bubble button has focus, both buttons follow Play's <code>onFocusLost</code> / <code>closedFocusTarget</code> rule.</li>
+    <li><b>Hover fill and focus ring</b> on both bubble buttons: today's Play rules with <code>--text-on-prominent</code> replaced by <code>--text-on-accent</code> (16% fill on hover and press, 2px ring at −2px). The selector must outrank <code>ds/controls.css</code>'s icon-button hover and active rules (see the CSS comment); a disabled button takes no fill.</li>
+    <li><b>Tooltip</b>: Add to message shows the app tooltip (the shared <code>Tooltip</code> look: above, 4px offset, centred on the button): "Add to message", or the unavailable reason. The bubble buttons are controller DOM, not React; the implementation picks how to anchor the shared tooltip to them. Play keeps today's behaviour (accessible name only).</li>
+    <li><b>Jump highlight</b> (chip locate, frame drawer, Quick Open, deep link, <code>doan open</code>) and the working-frame marker: CSS unchanged; the box is the rect grown by 3px on every side, so the 3px line is outside the element and the 1px ring and glow outside the line. Forced colours' 3px <code>Highlight</code> border sits in the same place. The 12px point is unchanged: grow only the rect branch of <code>drawJump</code>, which places rects and points with the same box code.</li>
+    <li><b>Line width</b>: 1.5px for selection and hover (was 1px). On a 1x display Chromium draws it as 1px; the box still grows by 1.5px there, which leaves a sub-pixel gap the implementation may round (measure at 2x).</li>
+    <li><b>Not changed</b>: <code>.text-range</code>, the prototype window, the jump line's 3px, the point jump, motion and timings.</li>
+  </ol>
+  <h2>Copied, references</h2>
+  <ul>
+    <li>Copied from code: <code>styles.css</code> <code>.mark</code>, <code>.dims</code>, <code>.bubble-play</code>, <code>.mark.jump-highlight</code> (checked 2026-11-14); copy from <code>canvasPicker.ts</code> (<code>ANCHOR_LIMIT_TEXT</code>, checked).</li>
+    <li>The example canvases are mock content (<code>.doan/assets/mock.css</code>); their colours are not app values. The dark and violet tiles use #050507 and #5b21b6, the canvases DESIGN.md's contrast record uses.</li>
+    <li><code>/design-sync</code> compares every frame below. Buddy tiles re-point the roles in draft CSS only.</li>
+  </ul>
+</header>
+
+<!-- 1 -->
+<section class="specimen" data-doan-frame="marks" data-doan-title="Selection and hover outside the element" data-doan-implements="app/src/renderer/styles.css">
+  <h2>Selection and hover</h2>
+  <p>1.5px accent line just outside the element: solid for the selection, dashed for hover. Default buddy (Doany).</p>
+  <div class="tiles">
+    <div class="tile"><h3>Element selected</h3><p>Box = element rect + 1.5px each side. Size bubble 5px below the line.</p>
+      <div class="stage">
+        <div class="card" style="left:40px;top:40px;width:280px;height:170px"><span class="t">Pricing</span><span class="s">Pro plan, billed yearly</span></div>
+        <div class="btn" style="left:60px;top:150px;width:120px;height:32px">Start trial</div>
+        <div class="overlay">
+          <div class="mark selected" data-doan-id="marks-selected" style="left:58.5px;top:148.5px;width:123px;height:35px">
+            <div class="dims" data-doan-id="marks-dims"><span>120 × 32</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div>
+          </div>
+        </div>
+      </div></div>
+    <div class="tile"><h3>Hover</h3><p>Same box and colour, dashed. No bubble.</p>
+      <div class="stage">
+        <div class="card" style="left:40px;top:40px;width:280px;height:170px"><span class="t">Pricing</span><span class="s">Pro plan, billed yearly</span></div>
+        <div class="btn" style="left:60px;top:150px;width:120px;height:32px">Start trial</div>
+        <div class="overlay"><div class="mark hover" data-doan-id="marks-hover" style="left:58.5px;top:148.5px;width:123px;height:35px"></div></div>
+      </div></div>
+    <div class="tile span"><h3>Frame selected, element hovered</h3><p>Both marks at once; the hover sits inside the selected frame's line.</p>
+      <div class="stage">
+        <div class="card" style="left:40px;top:40px;width:280px;height:170px"><span class="t">Pricing</span><span class="s">Pro plan, billed yearly</span></div>
+        <div class="btn" style="left:60px;top:150px;width:120px;height:32px">Start trial</div>
+        <div class="overlay">
+          <div class="mark hover" style="left:58.5px;top:148.5px;width:123px;height:35px"></div>
+          <div class="mark selected" style="left:38.5px;top:38.5px;width:283px;height:173px">
+            <div class="dims"><span>280 × 170</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div>
+          </div>
+        </div>
+      </div></div>
+    <div class="tile"><h3>Current on develop (zoom ×10)</h3><p>Black line on the element's own edge pixels, white ring outside.</p>
+      <div class="stage"><div class="zoom"><div class="el"></div><div class="mark current" style="left:10px;top:8px;width:60px;height:40px"></div></div><span class="legend">grey = element edge</span></div></div>
+    <div class="tile"><h3>New (zoom ×10)</h3><p>1.5px accent line just outside the edge; the element's edge stays visible.</p>
+      <div class="stage"><div class="zoom"><div class="el"></div><div class="mark" data-doan-id="marks-zoom" style="left:8.5px;top:6.5px;width:63px;height:43px"></div></div><span class="legend">grey = element edge</span></div></div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="specimen" data-doan-frame="bubble" data-doan-title="Size bubble with Add to message" data-doan-implements="app/src/renderer/CanvasController.ts">
+  <h2>Size bubble</h2>
+  <p>Accent capsule: Play for a playable frame, the size, then Add to message. Add to message puts the selection into the composer as a chip and keeps the selection.</p>
+  <div class="tiles">
+    <div class="tile"><h3>Element selected</h3><p>The size, then Add to message.</p>
+      <div class="stage">
+        <div class="card" style="left:40px;top:40px;width:280px;height:170px"><span class="t">Pricing</span><span class="s">Pro plan, billed yearly</span></div>
+        <div class="btn" style="left:60px;top:150px;width:120px;height:32px">Start trial</div>
+        <div class="overlay"><div class="mark selected" style="left:58.5px;top:148.5px;width:123px;height:35px">
+          <div class="dims" data-doan-id="bubble-element"><span>120 × 32</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message" data-doan-id="bubble-anchor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div>
+        </div></div>
+      </div></div>
+    <div class="tile"><h3>Playable frame selected</h3><p>Play first, the size, then Add to message at the end.</p>
+      <div class="stage">
+        <div class="card" style="left:40px;top:30px;width:280px;height:170px"><span class="t">Pricing</span><span class="s">Pro plan, billed yearly</span></div>
+        <div class="overlay"><div class="mark selected" style="left:38.5px;top:28.5px;width:283px;height:173px">
+          <div class="dims playable" data-doan-id="bubble-playable"><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Play prototype" data-doan-id="bubble-play"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg></button><span>280 × 170</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div>
+        </div></div>
+      </div></div>
+    <div class="tile"><h3>No room below</h3><p><code>.dims.above</code>: 5px above the line's top edge.</p>
+      <div class="stage">
+        <div class="card" style="left:40px;top:90px;width:280px;height:180px"><span class="t">Pricing</span><span class="s">Pro plan, billed yearly</span></div>
+        <div class="overlay"><div class="mark selected" style="left:38.5px;top:88.5px;width:283px;height:183px">
+          <div class="dims above" data-doan-id="bubble-above"><span>280 × 180</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div>
+        </div></div>
+      </div></div>
+    <div class="tile"><h3>Hover on Add to message</h3><p>16% <code>--text-on-accent</code> fill; tooltip names the action.</p>
+      <div class="stage">
+        <div class="card" style="left:40px;top:40px;width:280px;height:170px"><span class="t">Pricing</span><span class="s">Pro plan, billed yearly</span></div>
+        <div class="btn" style="left:60px;top:150px;width:120px;height:32px">Start trial</div>
+        <div class="overlay"><div class="mark selected" style="left:58.5px;top:148.5px;width:123px;height:35px">
+          <div class="dims"><span>120 × 32</span><button type="button" class="doan-icon-button bubble-button is-hover" data-ui-size="xs" aria-label="Add to message" data-doan-id="bubble-anchor-hover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div>
+        </div>
+        <div class="tip" data-tip="hover" style="left:94.35px;top:161px"><div class="doan-tooltip" role="tooltip">Add to message</div></div></div>
+      </div></div>
+    <div class="tile"><h3>Keyboard focus</h3><p>2px <code>--text-on-accent</code> ring inside the button, off the size text.</p>
+      <div class="stage">
+        <div class="card" style="left:40px;top:40px;width:280px;height:170px"><span class="t">Pricing</span><span class="s">Pro plan, billed yearly</span></div>
+        <div class="btn" style="left:60px;top:150px;width:120px;height:32px">Start trial</div>
+        <div class="overlay"><div class="mark selected" style="left:58.5px;top:148.5px;width:123px;height:35px">
+          <div class="dims"><span>120 × 32</span><button type="button" class="doan-icon-button bubble-button is-focus" data-ui-size="xs" aria-label="Add to message" data-doan-id="bubble-anchor-focus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div>
+        </div></div>
+      </div></div>
+    <div class="tile"><h3>Unavailable (32 places in the message)</h3><p><code>aria-disabled</code>, ink 45%, no fill; the tooltip is Pick from canvas's reason.</p>
+      <div class="stage">
+        <div class="card" style="left:180px;top:20px;width:280px;height:170px"><span class="t">Pricing</span><span class="s">Pro plan, billed yearly</span></div>
+        <div class="btn" style="left:200px;top:130px;width:120px;height:32px">Start trial</div>
+        <div class="overlay"><div class="mark selected" style="left:198.5px;top:128.5px;width:123px;height:35px">
+          <div class="dims"><span>120 × 32</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message" aria-disabled="true" data-doan-id="bubble-anchor-disabled"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div>
+        </div>
+        <div class="tip" data-tip="limit" style="left:95.98px;top:125px"><div class="doan-tooltip" role="tooltip">A message can point at up to 32 places. Remove one to add another.</div></div></div>
+      </div></div>
+    <div class="tile span"><h3>After Add to message</h3><p>No new look: the composer shows the same chip Pick from canvas would add.</p>
+      <div class="stage note">
+        <p>1. A folded conversation panel unfolds first (the toolbar Picker's rule).</p>
+        <p>2. Focus moves to the composer field; the chip goes in at its caret. A composing field gets the chip when composition ends.</p>
+        <p>3. The canvas keeps the selection, its mark and the size bubble; <code>doan active</code> does not change. Pressing again adds the same place again; like a repeated pick it counts once toward the 32 (PRODUCT §5 item 6).</p>
+      </div></div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="specimen" data-doan-frame="jump" data-doan-title="Jump highlight outside the element" data-doan-implements="app/src/renderer/styles.css">
+  <h2>Jump highlight</h2>
+  <p>The 3px gradient line starts outside the element; the white ring and glow move out with it. Drawn opaque (the 1.2s fade is unchanged).</p>
+  <div class="tiles">
+    <div class="tile"><h3>Locate a frame or element</h3><p>Box = rect + 3px each side.</p>
+      <div class="stage">
+        <div class="card" style="left:40px;top:40px;width:280px;height:170px"><span class="t">Pricing</span><span class="s">Pro plan, billed yearly</span></div>
+        <div class="btn" style="left:60px;top:150px;width:120px;height:32px">Start trial</div>
+        <div class="overlay"><div class="mark jump-highlight" data-doan-id="jump-rect" style="left:37px;top:37px;width:286px;height:176px"></div></div>
+      </div></div>
+    <div class="tile"><h3>Working frame with a selection</h3><p>The working marker keeps the same geometry under the selection marks.</p>
+      <div class="stage">
+        <div class="card" style="left:40px;top:40px;width:280px;height:170px"><span class="t">Pricing</span><span class="s">Pro plan, billed yearly</span></div>
+        <div class="btn" style="left:60px;top:150px;width:120px;height:32px">Start trial</div>
+        <div class="overlay">
+          <div class="mark jump-highlight working" data-doan-id="jump-working" style="left:37px;top:37px;width:286px;height:176px"></div>
+          <div class="mark selected" style="left:58.5px;top:148.5px;width:123px;height:35px">
+            <div class="dims"><span>120 × 32</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div>
+          </div>
+        </div>
+      </div></div>
+    <div class="tile"><h3>Point (unchanged)</h3><p>12px circle centred on the spot, as today.</p>
+      <div class="stage">
+        <div class="card" style="left:40px;top:40px;width:280px;height:170px"><span class="t">Pricing</span><span class="s">Pro plan, billed yearly</span></div>
+        <div class="overlay"><div class="mark jump-highlight jump-point" data-doan-id="jump-point" style="left:224px;top:104px;width:12px;height:12px"></div></div>
+      </div></div>
+    <div class="tile"><h3>Zoom ×10: current, then new</h3><p>Glow left out of the zoom. Left: line on the element's edge; right: line outside it, ring outside the line.</p>
+      <div class="stage">
+        <div class="zoom"><div class="el" style="left:3px;width:18px"></div><div class="mark jump-highlight current" style="left:3px;top:8px;width:18px;height:40px"></div>
+          <div class="el" style="left:32px;width:18px"></div><div class="mark jump-highlight" data-doan-id="jump-zoom" style="left:29px;top:5px;width:24px;height:46px"></div></div>
+        <span class="legend">grey = element edge</span>
+      </div></div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="specimen" data-doan-frame="buddies" data-doan-title="The five buddies" data-doan-implements="app/src/renderer/tokens.css">
+  <h2>Buddies</h2>
+  <p>Line: <code>--text-accent</code> (buddy icon colour). Bubble: <code>--affordance-accent</code> with <code>--text-on-accent</code>. Each tile: a playable frame selected and an element hovered.</p>
+  <div class="tiles three">
+    <div class="tile buddy-doany"><h3>Doany</h3><p>Line and bubble violet 9; white text.</p><div class="stage" data-doan-id="buddy-doany">
+      <div class="card" style="left:32px;top:30px;width:240px;height:150px"><span class="t">Pricing</span><span class="s">Pro plan</span></div>
+      <div class="btn" style="left:52px;top:132px;width:110px;height:32px">Start trial</div>
+      <div class="overlay"><div class="mark hover" style="left:50.5px;top:130.5px;width:113px;height:35px"></div><div class="mark selected" style="left:30.5px;top:28.5px;width:243px;height:153px">
+        <div class="dims playable"><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Play prototype"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg></button><span>240 × 150</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div></div></div></div></div>
+    <div class="tile buddy-puri"><h3>Puri</h3><p>Line puri icon (darker than 9); bubble puri 9, standard ink.</p><div class="stage" data-doan-id="buddy-puri">
+      <div class="card" style="left:32px;top:30px;width:240px;height:150px"><span class="t">Pricing</span><span class="s">Pro plan</span></div>
+      <div class="btn" style="left:52px;top:132px;width:110px;height:32px">Start trial</div>
+      <div class="overlay"><div class="mark hover" style="left:50.5px;top:130.5px;width:113px;height:35px"></div><div class="mark selected" style="left:30.5px;top:28.5px;width:243px;height:153px">
+        <div class="dims playable"><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Play prototype"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg></button><span>240 × 150</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div></div></div></div></div>
+    <div class="tile buddy-dungdung"><h3>Dungdung</h3><p>Line dungdung icon; bubble dungdung 9, standard ink.</p><div class="stage" data-doan-id="buddy-dungdung">
+      <div class="card" style="left:32px;top:30px;width:240px;height:150px"><span class="t">Pricing</span><span class="s">Pro plan</span></div>
+      <div class="btn" style="left:52px;top:132px;width:110px;height:32px">Start trial</div>
+      <div class="overlay"><div class="mark hover" style="left:50.5px;top:130.5px;width:113px;height:35px"></div><div class="mark selected" style="left:30.5px;top:28.5px;width:243px;height:153px">
+        <div class="dims playable"><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Play prototype"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg></button><span>240 × 150</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div></div></div></div></div>
+    <div class="tile buddy-popo"><h3>Popo</h3><p>Line popo icon; bubble popo 9, white text.</p><div class="stage" data-doan-id="buddy-popo">
+      <div class="card" style="left:32px;top:30px;width:240px;height:150px"><span class="t">Pricing</span><span class="s">Pro plan</span></div>
+      <div class="btn" style="left:52px;top:132px;width:110px;height:32px">Start trial</div>
+      <div class="overlay"><div class="mark hover" style="left:50.5px;top:130.5px;width:113px;height:35px"></div><div class="mark selected" style="left:30.5px;top:28.5px;width:243px;height:153px">
+        <div class="dims playable"><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Play prototype"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg></button><span>240 × 150</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div></div></div></div></div>
+    <div class="tile buddy-dori"><h3>Dori</h3><p>Line dori icon; bubble dori 9, white text.</p><div class="stage" data-doan-id="buddy-dori">
+      <div class="card" style="left:32px;top:30px;width:240px;height:150px"><span class="t">Pricing</span><span class="s">Pro plan</span></div>
+      <div class="btn" style="left:52px;top:132px;width:110px;height:32px">Start trial</div>
+      <div class="overlay"><div class="mark hover" style="left:50.5px;top:130.5px;width:113px;height:35px"></div><div class="mark selected" style="left:30.5px;top:28.5px;width:243px;height:153px">
+        <div class="dims playable"><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Play prototype"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg></button><span>240 × 150</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div></div></div></div></div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="specimen" data-doan-frame="backgrounds" data-doan-title="Light, dark and violet canvases" data-doan-implements="app/src/renderer/styles.css">
+  <h2>Canvas backgrounds</h2>
+  <p>Default buddy. Selection with its bubble, a hovered element and a jump highlight on each. Without the white ring the violet line, and the violet bubble, nearly disappear on a violet canvas: the line was accepted (feature spec, non-goals). The jump highlight keeps its ring.</p>
+  <div class="tiles three">
+    <div class="tile"><h3>Light</h3><p>Mock white canvas.</p><div class="stage" data-doan-id="bg-light">
+      <div class="card" style="left:32px;top:30px;width:240px;height:150px"><span class="t">Pricing</span><span class="s">Pro plan</span></div>
+      <div class="btn" style="left:52px;top:132px;width:110px;height:32px">Start trial</div>
+      <div class="card" style="left:290px;top:30px;width:40px;height:40px"></div>
+      <div class="overlay"><div class="mark jump-highlight" style="left:287px;top:27px;width:46px;height:46px"></div><div class="mark hover" style="left:50.5px;top:130.5px;width:113px;height:35px"></div><div class="mark selected" style="left:30.5px;top:28.5px;width:243px;height:153px">
+        <div class="dims"><span>240 × 150</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div></div></div></div></div>
+    <div class="tile"><h3>Dark</h3><p>#050507, the dark canvas DESIGN.md measures on.</p><div class="stage dark" data-doan-id="bg-dark">
+      <div class="card" style="left:32px;top:30px;width:240px;height:150px"><span class="t">Pricing</span><span class="s">Pro plan</span></div>
+      <div class="btn" style="left:52px;top:132px;width:110px;height:32px">Start trial</div>
+      <div class="card" style="left:290px;top:30px;width:40px;height:40px"></div>
+      <div class="overlay"><div class="mark jump-highlight" style="left:287px;top:27px;width:46px;height:46px"></div><div class="mark hover" style="left:50.5px;top:130.5px;width:113px;height:35px"></div><div class="mark selected" style="left:30.5px;top:28.5px;width:243px;height:153px">
+        <div class="dims"><span>240 × 150</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div></div></div></div></div>
+    <div class="tile"><h3>Violet</h3><p>#5b21b6, the violet canvas DESIGN.md measures on. The bubble (violet 9) also sinks here.</p><div class="stage violet" data-doan-id="bg-violet">
+      <div class="card" style="left:32px;top:30px;width:240px;height:150px"><span class="t">Pricing</span><span class="s">Pro plan</span></div>
+      <div class="btn" style="left:52px;top:132px;width:110px;height:32px">Start trial</div>
+      <div class="card" style="left:290px;top:30px;width:40px;height:40px"></div>
+      <div class="overlay"><div class="mark jump-highlight" style="left:287px;top:27px;width:46px;height:46px"></div><div class="mark hover" style="left:50.5px;top:130.5px;width:113px;height:35px"></div><div class="mark selected" style="left:30.5px;top:28.5px;width:243px;height:153px">
+        <div class="dims"><span>240 × 150</span><button type="button" class="doan-icon-button bubble-button" data-ui-size="xs" aria-label="Add to message"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg></button></div></div></div></div></div>
+  </div>
+</section>
+</body></html>

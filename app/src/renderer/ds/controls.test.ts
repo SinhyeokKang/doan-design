@@ -31,6 +31,16 @@ test("every notice shares one style on the base class; tones colour the text onl
   expect(css).not.toMatch(/\.doan-notice[^{]*\.doan-alert-icon\s*\{[^}]*color/);
 });
 
+// Two or more actions in a notice stack on their own row at its end, 8px under the text. On that row the one-line
+// rule's negative block margins would eat the 12px bottom padding, so the stacked row drops them.
+test("a stacked notice wraps its action group onto its own end-aligned row, 8px under the text, with no negative margins", () => {
+  const css = read("./surfaces.css");
+  expect(rule(css, ".doan-notice.stacked")).toBe("flex-wrap: wrap; row-gap: var(--space-2);");
+  expect(rule(css, ".doan-notice.stacked > :has(> .doan-button)")).toBe("flex-basis: 100%; justify-content: flex-end; margin-block: 0;");
+  // The one-row layout is unchanged.
+  expect(css).toContain(".doan-notice > :is(.doan-button, :has(> .doan-button)) { flex: none; align-self: center; margin-block: calc((var(--type-body-sm-line-height) - var(--size-control-sm)) / 2); }");
+});
+
 test("a notice's text parts take no ink of their own, so the title, body, lines and agent names follow the tone", () => {
   // Code chips and buttons keep their own ink; every other text inside a notice inherits the notice's tone colour.
   const parts = /\.(ob-notice-title|ob-notice-body|strip-text|setup-notice-body|setup-notice-list|setup-notice-item|setup-notice-agents|grow-text)(?![\w-])/;
@@ -52,7 +62,7 @@ test("a notice's text parts take no ink of their own, so the title, body, lines 
 test("screens set only outer margins on a notice: no per-screen padding, gap, type, ink or alignment", () => {
   const notice = /\.(doan-notice|composer-notice|settings-notice|ob-list-notice|ob-project-notice|ob-drop-notice|setup-notice|convo-strip)(?![\w-])/;
   const sources = [read("./surfaces.css"), read("../styles.css")].join("\n").replace(/\/\*[\s\S]*?\*\//g, "");
-  const shared = new Set([".doan-notice", ".doan-notice.warning", ".doan-notice.error", ".doan-notice.ok", ".doan-notice.doan-panel"]);
+  const shared = new Set([".doan-notice", ".doan-notice.warning", ".doan-notice.error", ".doan-notice.ok", ".doan-notice.doan-panel", ".doan-notice.stacked"]);
   const offenders: string[] = [];
   for (const [, selectors, body] of sources.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     for (const selector of selectors!.split(",").map(s => s.trim())) {

@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { answerLine, AUTO_REGISTER_WAIT_MS } from "./runtime";
-import type { OnboardingResponse, OpenResponse } from "../formats/types";
+import type { OnboardingResponse, OpenResponse, WorkOther, WorkRequest } from "../formats/types";
+import { validateWorkResponse } from "../formats/validate";
+import { othersOnCanvas } from "./workOthers";
 import type { FolderState } from "./folderState";
 import { cliPlayError } from "./prototype/cliPlay";
 const token = "secret", root = "/repo", path = ".doan/canvases/a.html";
 const request = { v: 3, token, root, action: "start", path };
-const state = () => ({ isOpen: vi.fn((value: string) => value === root), selection: () => null, work: vi.fn(), conversationWork: vi.fn(), onboarding: async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } }),
-  open: async (): Promise<OpenResponse> => ({ v: 4, ok: false, error: { code: "busy", message: "unused" } }), handoff: () => null, playPrototype: () => cliPlayError("not_ready", "unused"),
+const state = () => ({ isOpen: vi.fn((value: string) => value === root), selection: () => null, work: vi.fn(), conversationWork: vi.fn(), workOthers: vi.fn((_request: WorkRequest): WorkOther[] => []), onboarding: async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } }),
+  open: async (): Promise<OpenResponse> => ({ v: 4, ok: false, error: { code: "busy", message: "unused" } }), handoff: () => null, playPrototype: () => cliPlayError("not_ready", "unused"), remove: async () => ({ v: 7 as const, ok: false as const, error: { code: "bad_request" as const, message: "unused" } }),
   roots: () => [root], readRoot: vi.fn(async (): Promise<FolderState> => ({ kind: "uninitialized" })), adopt: vi.fn() });
 test("v3 validates schema, then token, then registered root, before applying work", async () => {
   const service = state();
@@ -60,8 +62,73 @@ describe("update", () => {
     error.mockRestore();
   });
 });
+// Other sessions on the same file, chosen after the request applied; every answer stays a v3 response.
+describe("others", () => {
+  const listed: WorkOther[] = [{ kind: "terminal", provider: "codex", frame: "hero", note: "Tightening spacing" }, { kind: "conversation", provider: "claude" }];
+  const valid = (answer: unknown) => { expect(validateWorkResponse(answer)).toBe(true); return answer; };
+  const update = { v: 3, token, root, action: "update", path, frame: "hero", session: "s1", provider: "claude" };
+  test("a start or terminal update carries the others chosen after its work applied", async () => {
+    const service = state(), order: string[] = [];
+    service.work.mockImplementation(() => { order.push("work"); });
+    service.workOthers.mockImplementation(() => { order.push("others"); return listed; });
+    expect(valid(await answerLine(JSON.stringify(request), token, service))).toEqual({ v: 3, ok: true, others: listed });
+    expect(valid(await answerLine(JSON.stringify(update), token, service))).toEqual({ v: 3, ok: true, others: listed });
+    expect(order).toEqual(["work", "others", "work", "others"]);
+    expect(service.workOthers.mock.calls).toEqual([[request], [update]]);
+  });
+  test("with no other session the answer has no others", async () => {
+    const service = state();
+    expect(valid(await answerLine(JSON.stringify(request), token, service))).toEqual({ v: 3, ok: true });
+    expect(service.workOthers).toHaveBeenCalledOnce();
+  });
+  test("a conversation update carries the others without itself, whatever its root", async () => {
+    const service = state(), at = 1_000_000;
+    const turns = new Map([["c1", { root, turnId: "t1", running: true, provider: "codex" as const, canvas: { path } }], ["c2", { root, turnId: "u1", running: true, provider: "cursor" as const, canvas: { path } }]]);
+    service.workOthers.mockImplementation(value => value.action === "done" ? [] : othersOnCanvas({ request: value, now: at, work: [], conversationWork: [], liveTurns: turns }));
+    const conversation = { v: 3, token, root, action: "update", path, conversation: "c1" };
+    expect(valid(await answerLine(JSON.stringify(conversation), token, service))).toEqual({ v: 3, ok: true, others: [{ kind: "conversation", provider: "cursor" }] });
+    expect(valid(await answerLine(JSON.stringify({ ...conversation, root: "/closed" }), token, service))).toEqual({ v: 3, ok: true });
+    expect(service.conversationWork).toHaveBeenCalledTimes(2);
+    expect(service.isOpen).not.toHaveBeenCalled();
+  });
+  test("a done answer never carries others", async () => {
+    const service = state();
+    service.workOthers.mockReturnValue(listed);
+    expect(valid(await answerLine(JSON.stringify({ v: 3, token, root, action: "done", session: "s1", provider: "claude" }), token, service))).toEqual({ v: 3, ok: true });
+    expect(service.workOthers).not.toHaveBeenCalled();
+  });
+  test("error answers never carry others", async () => {
+    const service = state();
+    service.workOthers.mockReturnValue(listed);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const refused = [
+      { ...request, path: "outside.html" },
+      { ...request, token: "wrong" },
+      { ...request, root: "/closed" },
+      { ...request, extra: true },
+    ];
+    for (const value of refused) expect(valid(await answerLine(JSON.stringify(value), token, service))).toMatchObject({ v: 3, ok: false });
+    service.work.mockImplementationOnce(() => { throw new Error("work failed"); });
+    expect(valid(await answerLine(JSON.stringify(request), token, service))).toMatchObject({ v: 3, ok: false, error: { code: "bad_request" } });
+    service.conversationWork.mockImplementationOnce(() => { throw new Error("conversation work failed"); });
+    expect(valid(await answerLine(JSON.stringify({ v: 3, token, root, action: "update", path, conversation: "c1" }), token, service))).toMatchObject({ v: 3, ok: false, error: { code: "bad_request" } });
+    expect(service.workOthers).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+  // The work signal already applied; only the extra information is lost.
+  test("a throwing workOthers still answers ok, without others", async () => {
+    const service = state();
+    service.workOthers.mockImplementation(() => { throw new Error("/private/path"); });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(valid(await answerLine(JSON.stringify(request), token, service))).toEqual({ v: 3, ok: true });
+    expect(valid(await answerLine(JSON.stringify({ v: 3, token, root, action: "update", path, conversation: "c1" }), token, service))).toEqual({ v: 3, ok: true });
+    expect(service.work).toHaveBeenCalledOnce();
+    expect(service.conversationWork).toHaveBeenCalledOnce();
+    error.mockRestore();
+  });
+});
 test("non-numeric or unknown versions keep the v1 refusal", async () => {
-  for (const v of ["3", 7, null]) expect(await answerLine(JSON.stringify({ ...request, v }), token, state())).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+  for (const v of ["3", 8, null]) expect(await answerLine(JSON.stringify({ ...request, v }), token, state())).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
 });
 
 // ARCHITECTURE §4 'Auto-registration': a `start` from an unregistered worktree of a saved repository registers it.
@@ -213,6 +280,34 @@ describe("auto-registration", () => {
     expect(await send(start)).toMatchObject({ v: 3, ok: false, error: { code: "project_not_open" } });
     expect(service.adopt).not.toHaveBeenCalled();
     error.mockRestore();
+  });
+
+  test("a start applied after its registration answers the others chosen after it applied", async () => {
+    const { service, events, send, settle } = registry();
+    const listed: WorkOther[] = [{ kind: "terminal" }];
+    service.workOthers.mockImplementation(() => { events.push("others"); return listed; });
+    const answer = send(start);
+    await vi.waitFor(() => expect(service.readRoot).toHaveBeenCalled());
+    expect(service.workOthers).not.toHaveBeenCalled();
+    settle();
+    const answered = await answer;
+    expect(validateWorkResponse(answered)).toBe(true);
+    expect(answered).toEqual({ v: 3, ok: true, others: listed });
+    expect(events).toEqual([`adopt ${W}`, `start ${W}`, "others"]);
+  });
+
+  test("a refused registration and a done after one answer no others", async () => {
+    vi.useFakeTimers();
+    const { service, send, settle } = registry();
+    service.workOthers.mockReturnValue([{ kind: "terminal" }]);
+    const started = send(start);
+    await vi.advanceTimersByTimeAsync(AUTO_REGISTER_WAIT_MS);
+    expect(await started).toMatchObject({ v: 3, ok: false, error: { code: "project_not_open" } });
+    const finished = send(done);
+    await vi.advanceTimersByTimeAsync(0);
+    settle();
+    expect(await finished).toEqual({ v: 3, ok: true });
+    expect(service.workOthers).not.toHaveBeenCalledWith(done);
   });
 
   test("a later start after the registration needs no read", async () => {

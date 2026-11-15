@@ -92,6 +92,10 @@ const BLOCKED: Record<OpenBlock, string> = {
   first_run: "Finish Doan's first run, then try again.",
   dialog: "A dialog in Doan is busy and did not close. Finish it, then try again.",
 };
+// `doan remove` names a locked page with the same sentence (cliRemove.ts).
+export function openBlockedMessage(reason: OpenBlock): string {
+  return BLOCKED[reason];
+}
 function openError(code: "project_not_open" | "canvas_not_found" | "busy" | "not_ready", message: string): OpenResponse {
   return { v: 4, ok: false, error: { code, message } };
 }

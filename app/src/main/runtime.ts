@@ -4,8 +4,8 @@ import { chmod, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { HandoffErrorCode, HandoffRequest, HandoffResponse, OpenRequest, OpenResponse, PrototypeRequest, PrototypeResponse, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
-import { validateHandoffRequest, validateOpenRequest, validatePrototypeRequest, validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
+import type { HandoffErrorCode, HandoffRequest, HandoffResponse, OpenRequest, OpenResponse, PrototypeRequest, PrototypeResponse, RemoveRequest, RemoveResponse, WorkOther, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
+import { validateHandoffRequest, validateOpenRequest, validatePrototypeRequest, validateRemoveRequest, validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
 import { autoRegisterRoot } from "./autoFolders";
 import type { ConversationUpdate } from "./conversationWork";
 import type { FolderState } from "./folderState";
@@ -29,6 +29,8 @@ export interface RuntimeState extends ActiveState {
   // An app conversation's update: answered ok whatever the conversation state does with it, and
   // never registers a root, since a conversation's root is registered already.
   conversationWork(request: ConversationUpdate): void;
+  // Other sessions on a start or update's canvas file, read after the request applied; never asked for a done.
+  workOthers(request: WorkRequest): WorkOther[];
   // Called only with a schema-valid v2 request whose token matched. It must answer quickly: long work answers with
   // an operation id, since the connection is cut at the 2 s deadline.
   onboarding(request: OnboardingRequest): Promise<OnboardingResponse>;
@@ -41,6 +43,10 @@ export interface RuntimeState extends ActiveState {
   // `doan open --prototype` (app-socket v6) once its schema, token and registered root passed. Answers at once: the
   // play starts, or the window comes forward, before the reply.
   playPrototype(request: PrototypeRequest): PrototypeResponse;
+  // `doan remove` (app-socket v7) once its schema, token and registered root passed: main's judgment and the removal
+  // (cliRemove.ts answerCliRemove). The removal's write must land inside the 2 s deadline for the CLI to see the answer;
+  // a later one still removes.
+  remove(request: RemoveRequest): Promise<RemoveResponse>;
   // Auto-registration of a saved repository's worktree on a v3 start (ARCHITECTURE §4 'Auto-registration'): the registered roots,
   // `doan ls --json --repo <root>` (never killed early, so a late registration still lands), and the registration,
   // which must make `isOpen(root)` true before it returns so the start's work applies.
@@ -132,6 +138,10 @@ function prototypeError(code: "bad_request" | "bad_token" | "project_not_open", 
   return { v: 6, ok: false, error: { code, message } };
 }
 
+function removeError(code: "bad_request" | "bad_token" | "project_not_open", message: string): RemoveResponse {
+  return { v: 7, ok: false, error: { code, message } };
+}
+
 function workError(code: "bad_request" | "bad_token" | "project_not_open", message: string): WorkResponse {
   return { v: 3, ok: false, error: { code, message } };
 }
@@ -174,8 +184,9 @@ async function workAfterRegistration(state: RuntimeState, request: WorkRequest):
   if (!pending) return notOpen;
   const applied = pending.then((registered): WorkResponse => {
     if (!registered) return notOpen;
-    try { state.work(request); return { v: 3, ok: true }; }
+    try { state.work(request); }
     catch (error) { console.error("doan: work request failed", error); return workError("bad_request", "Doan could not handle this request."); }
+    return workApplied(state, request);
   });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<WorkResponse>((resolve) => { timer = setTimeout(() => resolve(notOpen), AUTO_REGISTER_WAIT_MS); });
@@ -183,11 +194,28 @@ async function workAfterRegistration(state: RuntimeState, request: WorkRequest):
   finally { clearTimeout(timer); }
 }
 
+// The work already applied, so a failed lookup costs only the information: the answer stays ok, without others.
+function workApplied(state: RuntimeState, request: WorkRequest): WorkResponse {
+  if (request.action === "done") return { v: 3, ok: true };
+  let others: WorkOther[] = [];
+  try { others = state.workOthers(request); }
+  catch (error) { console.error("doan: other sessions lookup failed", error); }
+  return others.length > 0 ? { v: 3, ok: true, others } : { v: 3, ok: true };
+}
+
 // Unknown versions keep the v1 refusal. No version exposes state before its token matched.
-type Answer = SocketResponse | OnboardingResponse | WorkResponse | OpenResponse | HandoffResponse | PrototypeResponse;
+type Answer = SocketResponse | OnboardingResponse | WorkResponse | OpenResponse | HandoffResponse | PrototypeResponse | RemoveResponse;
 export async function answerLine(line: string, token: string, state: RuntimeState): Promise<Answer> {
   let value: unknown;
   try { value = JSON.parse(line); } catch { value = null; }
+  // No auto-registration here, unlike v3: an unregistered worktree of a listed group is not open.
+  if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 7) {
+    if (!validateRemoveRequest(value)) return removeError("bad_request", "The request is not an app-socket v7 request.");
+    if (!tokenMatches(value.token, token)) return removeError("bad_token", "The token does not match this app.");
+    if (!state.isOpen(value.root)) return removeError("project_not_open", "The project is not open in Doan.");
+    try { return await state.remove(value); }
+    catch (error) { console.error("doan: remove request failed", error); return removeError("bad_request", "Doan could not handle this request."); }
+  }
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 6) {
     if (!validatePrototypeRequest(value)) return prototypeError("bad_request", "The request is not an app-socket v6 request.");
     if (!tokenMatches(value.token, token)) return prototypeError("bad_token", "The token does not match this app.");
@@ -214,12 +242,14 @@ export async function answerLine(line: string, token: string, state: RuntimeStat
     if (!tokenMatches(value.token, token)) return workError("bad_token", "The token does not match this app.");
     if (value.action !== "done" && !/^\.doan\/(canvases|ds)\/[^/]+\.html$/.test(value.path)) return workError("bad_request", "The path is not a canvas path.");
     if (value.action === "update" && value.conversation !== undefined) {
-      try { state.conversationWork(value); return { v: 3, ok: true }; }
+      try { state.conversationWork(value); }
       catch (error) { console.error("doan: conversation work request failed", error); return workError("bad_request", "Doan could not handle this request."); }
+      return workApplied(state, value);
     }
     if (!state.isOpen(value.root)) return workAfterRegistration(state, value);
-    try { state.work(value); return { v: 3, ok: true }; }
+    try { state.work(value); }
     catch (error) { console.error("doan: work request failed", error); return workError("bad_request", "Doan could not handle this request."); }
+    return workApplied(state, value);
   }
   if (typeof value !== "object" || value === null || Array.isArray(value) || Reflect.get(value, "v") !== 2) return answerRequest(line, token, state);
   if (!validateOnboardingRequest(value)) return onboardingError("bad_request", "The request is not an app-socket v2 request.");

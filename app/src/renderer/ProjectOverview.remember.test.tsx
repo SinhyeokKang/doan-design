@@ -22,7 +22,7 @@ const A = "aaaaaaaa-0000-4000-8000-000000000001";
 const row = (path: string): CanvasRow => ({ path, id: path.split("/").at(-1)!.replace(/\.html$/, ""), url: "u" });
 const entry = (path: string, canvases: string[], branch = "main"): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases: canvases.map(row), git: { branch, common: "/code/doan/.git" } } as FolderEntry);
 const summary = (patch: Partial<ConversationSummary> = {}): ConversationSummary => ({
-  conversationId: A, title: "What should the checkout empty state say when a cart has expired?", state: "current", owner: "doan", provider: "claude",
+  conversationId: A, title: "What should the checkout empty state say when a cart has expired?", owner: "doan", provider: "claude",
   fromHome: true, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...patch,
 });
 const PRESETS: PresetSummary[] = ([["context", "Gather design context", "start"], ["shape", "Shape a first screen", "start"], ["document", "Document the design system", "start"], ["critique", "Critique the design", "review"], ["polish", "Polish the details", "refine"]] as const)

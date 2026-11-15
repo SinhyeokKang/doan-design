@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, onTestFinished, test, vi } from "vitest";
@@ -119,7 +119,7 @@ const mocks = await vi.hoisted(async () => {
     readFolder: vi.fn(),
     nativeTheme: { themeSource: "system" },
     // Folder work the Add Projects page and onboarding share; each delegates to the real module unless a test says otherwise.
-    projects: { canonicalFolder: vi.fn(), inspectPath: vi.fn(), selectProject: vi.fn(), cloneDestination: vi.fn(), cloneProject: vi.fn() },
+    projects: { canonicalFolder: vi.fn(), inspectPath: vi.fn(), selectProject: vi.fn(), cloneDestination: vi.fn(), cloneProject: vi.fn(), newFolderTarget: vi.fn() },
     probeShell: vi.fn(),
     runAgentSetup: vi.fn(), osascriptAdmin: vi.fn(),
   };
@@ -1265,6 +1265,90 @@ describe("removing", () => {
   });
 });
 
+// `doan remove` (app-socket v7): main judges and removes through the same removeRoots as the menu, then tells the
+// window which roots went; nothing is asked of the renderer and the window does not come forward.
+describe("removing from the CLI", () => {
+  const TOKEN = "t";
+  type RemoveState = { remove(request: { v: 7; token: string; root: string }): Promise<unknown> };
+  const remove = (root: string) => (runtimeState() as unknown as RemoveState).remove({ v: 7, token: TOKEN, root });
+  const removedEvents = () => window().webContents.send.mock.calls.filter(([channel]) => channel === "folders:removed").map(([, value]) => value as unknown);
+  beforeAll(() => { launchCompletion = COMPLETE; });
+  afterAll(() => { launchCompletion = { kind: "missing" }; });
+  beforeEach(async () => {
+    mocks.shell.entries.mockReturnValue(entries);
+    mocks.shell.remove.mockImplementation(async (paths: string[]) => ({ paths }));
+    await invoke("deep-link:ready", window().webContents, null);
+  });
+
+  test("removes the whole group, clears its selection, stops its background work and tells the window", async () => {
+    const contents = window().webContents;
+    await invoke("selection:set", contents, null, { root: APP, canvas: { path: ".doan/canvases/a.html", id: "a" } });
+    const service = mocks.conversationService as unknown as { stopBackground(paths: string[]): void };
+    const stop = vi.spyOn(service, "stopBackground");
+    window().show.mockClear(); window().focus.mockClear();
+    expect(await remove(WT)).toEqual({ v: 7, ok: true, removed: true, project: "app", roots: [APP, WT] });
+    expect(mocks.shell.remove).toHaveBeenCalledExactlyOnceWith([APP, WT]);
+    expect(runtimeState().selection()).toBeNull();
+    expect(stop).toHaveBeenCalledExactlyOnceWith([APP, WT]);
+    expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith([APP, WT], entries);
+    expect(removedEvents()).toEqual([{ paths: [APP, WT] }]);
+    expect(window().show).not.toHaveBeenCalled();
+    expect(window().focus).not.toHaveBeenCalled();
+    expect(mocks.app.show).not.toHaveBeenCalled();
+  });
+
+  test("the menu's Remove shares removeRoots but sends no folders:removed", async () => {
+    const contents = window().webContents;
+    await invoke("selection:set", contents, null, { root: WT, canvas: { path: ".doan/canvases/a.html", id: "a" } });
+    expect(await invoke("folders:remove", contents, null, { paths: [WT] })).toEqual({ kind: "removed" });
+    expect(runtimeState().selection()).toBeNull();
+    expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith([WT], entries);
+    expect(removedEvents()).toEqual([]);
+  });
+
+  test("a store that removed nothing answers project_not_open and sends nothing", async () => {
+    mocks.shell.remove.mockResolvedValue({ paths: [] });
+    expect(await remove(APP)).toMatchObject({ v: 7, ok: false, error: { code: "project_not_open" } });
+    expect(removedEvents()).toEqual([]);
+  });
+
+  test("a running turn in another worktree of the group refuses and changes nothing", async () => {
+    const service = mocks.conversationService as unknown as { liveTurns(): ReadonlyMap<string, { root: string; turnId: string; running: boolean }> };
+    vi.spyOn(service, "liveTurns").mockReturnValue(new Map([["c", { root: APP, turnId: "t1", running: true }]]));
+    expect(await remove(WT)).toEqual({ v: 7, ok: false, error: { code: "conversation_running", message: "A conversation is running in this project in Doan." } });
+    expect(mocks.shell.remove).not.toHaveBeenCalled();
+    expect(removedEvents()).toEqual([]);
+  });
+
+  test("the window's last menu state blocks: a dialog, and a locked page by name", async () => {
+    const contents = window().webContents;
+    await invoke("menu:state", contents, null, { screen: "workspace", modal: true });
+    expect(await remove(APP)).toMatchObject({ v: 7, ok: false, error: { code: "busy", message: "A dialog is open in Doan. Close it, then try again." } });
+    await invoke("menu:state", contents, null, { screen: "addProjects", modal: false, locked: true });
+    expect(await remove(APP)).toMatchObject({ v: 7, ok: false, error: { code: "busy", message: "The Add Projects page in Doan is in the middle of a task. Finish or cancel it, then try again." } });
+    await invoke("menu:state", contents, null, { screen: "settings", modal: false, locked: true });
+    expect(await remove(APP)).toMatchObject({ error: { code: "busy", message: "Settings in Doan is in the middle of a change. Finish or cancel it, then try again." } });
+    await invoke("menu:state", contents, null, { screen: "settings", modal: false, locked: true, projectSettings: true });
+    expect(await remove(APP)).toMatchObject({ error: { code: "busy", message: "Project Settings in Doan is in the middle of a change. Finish or cancel it, then try again." } });
+    expect(mocks.shell.remove).not.toHaveBeenCalled();
+  });
+
+  test("any root still being read keeps Doan busy, another project's included", async () => {
+    mocks.shell.entries.mockReturnValue([...entries, { path: "/code/new", kind: "loading" }]);
+    expect(await remove(APP)).toMatchObject({ v: 7, ok: false, error: { code: "busy", message: "Doan is still loading a project. Try again shortly." } });
+    expect(mocks.shell.remove).not.toHaveBeenCalled();
+  });
+});
+
+// The default launch here has no completion record, so first run is open.
+test("doan remove during first run answers busy and removes nothing", async () => {
+  mocks.shell.entries.mockReturnValue(entries);
+  await invoke("deep-link:ready", window().webContents, null);
+  const state = runtimeState() as unknown as { remove(request: { v: 7; token: string; root: string }): Promise<unknown> };
+  expect(await state.remove({ v: 7, token: "t", root: APP })).toMatchObject({ v: 7, ok: false, error: { code: "busy", message: "Finish Doan's first run, then try again." } });
+  expect(mocks.shell.remove).not.toHaveBeenCalled();
+});
+
 describe("locate and reveal", () => {
   beforeEach(() => mocks.shell.entries.mockReturnValue(entries));
 
@@ -1783,7 +1867,7 @@ describe("canvas trash on main's grounds", () => {
     return dir;
   };
   const row = { path, id: "a", url: "http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html" };
-  const summary = (patch: object) => ({ conversationId: "c1", title: "t", state: "current", owner: "doan", provider: "claude", fromHome: false, phase: "ended",
+  const summary = (patch: object) => ({ conversationId: "c1", title: "t", owner: "doan", provider: "claude", fromHome: false, phase: "ended",
     unseen: false, queued: 0, working: false, lastActivityAt: "", preview: "", canvas: { path, id: "a" }, ...patch });
   function service() {
     const s = mocks.conversationService;
@@ -1923,7 +2007,8 @@ describe("main-window setup and settings", () => {
     expect(await invoke("onboarding:choose-folder", contents, null, "project")).toBeNull();
     mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/picked"] });
     expect(await invoke("onboarding:choose-folder", contents, null, "project")).toBe("/picked");
-    expect(mocks.dialog.showOpenDialog).toHaveBeenLastCalledWith(window(), expect.objectContaining({ properties: ["openDirectory"] }));
+    // macOS's own New Folder button in Choose folder's panel, as in Choose Where to Clone.
+    expect(mocks.dialog.showOpenDialog).toHaveBeenLastCalledWith(window(), expect.objectContaining({ properties: ["openDirectory", "createDirectory"] }));
     expect(await invoke("onboarding:choose-folder", contents, null, "destination")).toBe("/picked");
     expect(mocks.dialog.showOpenDialog).toHaveBeenLastCalledWith(window(), expect.objectContaining({ properties: ["openDirectory", "createDirectory"] }));
     expect(mocks.flow.add).not.toHaveBeenCalled();
@@ -1931,6 +2016,117 @@ describe("main-window setup and settings", () => {
     for (const purpose of [undefined, "other", 1]) expect(await invoke("onboarding:choose-folder", contents, null, purpose)).toBeNull();
     expect(await invoke("onboarding:choose-folder", contents, {}, "project")).toBeNull();
     expect(mocks.dialog.showOpenDialog).not.toHaveBeenCalled();
+  });
+
+  // New folder: main opens the save panel on the window and makes the folder; the renderer's parent only places the panel.
+  test("New folder opens the save panel at the given parent, else HOME, and answers the judged path without registering", async () => {
+    const contents = window().webContents;
+    const home = await invoke("app:home", contents, null);
+    const parent = realpathSync(mkdtempSync(join(tmpdir(), "doan-new-folder-")));
+    onTestFinished(() => rmSync(parent, { recursive: true, force: true }));
+    const options = (defaultPath: unknown) => ({ message: "Name your new project folder and choose where to create it.", buttonLabel: "Create", nameFieldLabel: "Name:", defaultPath, showsTagField: false });
+    // Once only: implementations outlive vi.clearAllMocks into later tests.
+    mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: true, filePath: "" });
+    expect(await invoke("onboarding:new-folder", contents, null, { parent, token: "t1" })).toEqual({ kind: "cancelled" });
+    // No createDirectory: a New Folder made in this panel would move it inside, and Create would nest the project.
+    expect(mocks.dialog.showSaveDialog).toHaveBeenLastCalledWith(window(), options(parent));
+    for (const bad of ["code", "/no/such/doan-folder", join(parent, "file")]) {
+      if (bad.endsWith("file")) writeFileSync(bad, "");
+      mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: true, filePath: "" });
+      await invoke("onboarding:new-folder", contents, null, { parent: bad, token: `t-${bad}` });
+      expect(mocks.dialog.showSaveDialog, bad).toHaveBeenLastCalledWith(window(), options(home));
+    }
+    expect(mocks.projects.newFolderTarget).not.toHaveBeenCalled();
+    mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: false, filePath: join(parent, "landing-page") }).mockResolvedValueOnce({ canceled: false, filePath: join(parent, "landing-page") });
+    mocks.projects.newFolderTarget.mockResolvedValueOnce({ kind: "exists", path: join(parent, "landing-page"), directory: true });
+    expect(await invoke("onboarding:new-folder", contents, null, { parent, token: "t1" })).toEqual({ kind: "exists", path: join(parent, "landing-page"), directory: true });
+    expect(mocks.projects.newFolderTarget).toHaveBeenLastCalledWith(join(parent, "landing-page"), expect.objectContaining({ ls: expect.any(Function) }), expect.any(Function));
+    mocks.projects.newFolderTarget.mockResolvedValueOnce({ kind: "created", path: join(parent, "landing-page") });
+    expect(await invoke("onboarding:new-folder", contents, null, { parent, token: "t1" })).toEqual({ kind: "created", path: join(parent, "landing-page") });
+    expect(mocks.flow.add).not.toHaveBeenCalled();
+  });
+
+  test("New folder refuses other senders and malformed requests, and makes nothing once the window is gone", async () => {
+    const contents = window().webContents;
+    for (const bad of [undefined, "/Users", { parent: 1, token: "t" }, { parent: "/Users", token: "t", name: "x" }, { parent: "/Users" }, { parent: "/Users", token: 1 }, { parent: "/Users", token: "" }, null]) {
+      expect(await invoke("onboarding:new-folder", contents, null, bad), JSON.stringify(bad)).toEqual({ kind: "cancelled" });
+    }
+    expect(await invoke("onboarding:new-folder", contents, {}, { parent: "/Users", token: "t" })).toEqual({ kind: "cancelled" });
+    expect(await invoke("onboarding:new-folder", {}, null, { parent: "/Users", token: "t" })).toEqual({ kind: "cancelled" });
+    expect(mocks.dialog.showSaveDialog).not.toHaveBeenCalled();
+    mocks.dialog.showSaveDialog.mockImplementationOnce(async () => { window().destroyed = true; return { canceled: false, filePath: "/Users/studio" }; });
+    expect(await invoke("onboarding:new-folder", contents, null, { parent: "/Users", token: "t" })).toEqual({ kind: "cancelled" });
+    expect(mocks.projects.newFolderTarget).not.toHaveBeenCalled();
+  });
+
+  // The Project step's screen can go (the page left, first run closed) while the window stays: a Create that returns
+  // after its request was cancelled makes nothing (spec: the step that asked is gone).
+  test("New folder: a request cancelled while its panel is open makes nothing, and a live one still creates", async () => {
+    const contents = window().webContents;
+    const parent = realpathSync(mkdtempSync(join(tmpdir(), "doan-new-folder-")));
+    onTestFinished(() => rmSync(parent, { recursive: true, force: true }));
+    const held = () => { let answer: (path: string) => void = () => {}; mocks.dialog.showSaveDialog.mockImplementationOnce(() => new Promise(resolve => { answer = path => resolve({ canceled: false, filePath: path }); })); return (path: string) => answer(path); };
+    const create = held();
+    const request = invoke("onboarding:new-folder", contents, null, { parent, token: "page-1" }) as Promise<unknown>;
+    await vi.waitFor(() => expect(mocks.dialog.showSaveDialog).toHaveBeenCalledOnce());
+    expect(await invoke("onboarding:new-folder-cancel", contents, null, { token: "page-1" })).toBe(true);
+    create(join(parent, "landing-page"));
+    expect(await request).toEqual({ kind: "cancelled" });
+    expect(mocks.projects.newFolderTarget).not.toHaveBeenCalled();
+    expect(existsSync(join(parent, "landing-page"))).toBe(false);
+    // A new page's request is not touched by the old token's cancel, and its still-wanted check stays true.
+    const again = held();
+    const live = invoke("onboarding:new-folder", contents, null, { parent, token: "page-2" }) as Promise<unknown>;
+    await vi.waitFor(() => expect(mocks.dialog.showSaveDialog).toHaveBeenCalledTimes(2));
+    expect(await invoke("onboarding:new-folder-cancel", contents, null, { token: "page-1" })).toBe(false);
+    let stillWanted: boolean | null = null;
+    mocks.projects.newFolderTarget.mockImplementationOnce(async (_path: string, _deps: unknown, wanted: () => boolean) => { stillWanted = wanted(); return { kind: "created", path: join(parent, "studio") }; });
+    again(join(parent, "studio"));
+    expect(await live).toEqual({ kind: "created", path: join(parent, "studio") });
+    expect(stillWanted).toBe(true);
+  });
+
+  // A reloaded or crashed renderer cannot cancel its own request (its step never disposed): main drops the window's
+  // pending requests then, whatever the original event's frame still reports, and a request from the new renderer
+  // is not removed when the old one answers.
+  test.each(["did-navigate", "render-process-gone"])("New folder: a %s with the panel open makes nothing on the late Create, and leaves the new renderer's request", async (event) => {
+    const contents = window().webContents;
+    const held = () => { let answer: (path: string) => void = () => {}; mocks.dialog.showSaveDialog.mockImplementationOnce(() => new Promise(resolve => { answer = path => resolve({ canceled: false, filePath: path }); })); return (path: string) => answer(path); };
+    const late = held();
+    const old = invoke("onboarding:new-folder", contents, null, { parent: "/Users", token: "before-reload" }) as Promise<unknown>;
+    await vi.waitFor(() => expect(mocks.dialog.showSaveDialog).toHaveBeenCalledOnce());
+    contents.emit(event, {}, {});
+    const fresh = held();
+    const next = invoke("onboarding:new-folder", contents, null, { parent: "/Users", token: "after-reload" }) as Promise<unknown>;
+    await vi.waitFor(() => expect(mocks.dialog.showSaveDialog).toHaveBeenCalledTimes(2));
+    late("/Users/left-behind");
+    expect(await old).toEqual({ kind: "cancelled" });
+    expect(mocks.projects.newFolderTarget).not.toHaveBeenCalled();
+    let stillWanted: boolean | null = null;
+    mocks.projects.newFolderTarget.mockImplementationOnce(async (_path: string, _deps: unknown, wanted: () => boolean) => { stillWanted = wanted(); return { kind: "created", path: "/Users/studio" }; });
+    fresh("/Users/studio");
+    expect(await next).toEqual({ kind: "created", path: "/Users/studio" });
+    expect(stillWanted).toBe(true);
+  });
+
+  // newFolderTarget awaits the location's checks before mkdir; a cancel meanwhile must still stop it.
+  test("New folder: the still-wanted check passed to newFolderTarget turns false on cancel, and the request is cleared after it answers", async () => {
+    const contents = window().webContents;
+    let wanted: () => boolean = () => true;
+    let finish: (value: unknown) => void = () => {};
+    mocks.projects.newFolderTarget.mockImplementationOnce((_path: string, _deps: unknown, still: () => boolean) => { wanted = still; return new Promise(resolve => { finish = resolve; }); });
+    mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: false, filePath: "/Users/studio" });
+    const request = invoke("onboarding:new-folder", contents, null, { parent: "/Users", token: "t-ls" }) as Promise<unknown>;
+    await vi.waitFor(() => expect(mocks.projects.newFolderTarget).toHaveBeenCalledOnce());
+    expect(wanted()).toBe(true);
+    expect(await invoke("onboarding:new-folder-cancel", contents, null, { token: "t-ls" })).toBe(true);
+    expect(wanted()).toBe(false);
+    finish({ kind: "cancelled" });
+    expect(await request).toEqual({ kind: "cancelled" });
+    // Answered: the token is gone, and only the window's own frame may cancel at all.
+    expect(await invoke("onboarding:new-folder-cancel", contents, null, { token: "t-ls" })).toBe(false);
+    for (const bad of [undefined, "t-ls", { token: 1 }, { token: "t", more: 1 }]) expect(await invoke("onboarding:new-folder-cancel", contents, null, bad)).toBe(false);
+    expect(await invoke("onboarding:new-folder-cancel", contents, {}, { token: "x" })).toBe(false);
   });
 });
 
@@ -2080,7 +2276,7 @@ test.each(["window", "app", "both"])("quit does not reveal hidden %s", async hid
 });
 
 test("conversation IPC rejects foreign windows and canvas frames", async () => {
-  for (const method of ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read"]) {
+  for (const method of ["resumeTarget", "start", "send", "interrupt", "answerPermission", "read", "delete"]) {
     expect(await invoke(`conversation:${method}`, {}, null, {})).toEqual({ error: "bad_request" });
     expect(await invoke(`conversation:${method}`, window().webContents, {}, {})).toEqual({ error: "bad_request" });
   }
@@ -2427,7 +2623,7 @@ describe("settings page", () => {
   });
 
   describe("notifications", () => {
-    const CONVERSATION = { conversationId: "c1", root: ROOT, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "new", sessionId: "s", configDir: "/c", cwd: ROOT } };
+    const CONVERSATION = { conversationId: "c1", root: ROOT, title: "t", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "new", sessionId: "s", configDir: "/c", cwd: ROOT } };
     const turnDone = { v: 1, conversationId: "c1", seq: 2, turnId: "t1", at: "2026-10-30T10:00:00.000Z", type: "turn.done" };
     function publish(event: unknown) {
       if (!mocks.publishConversation) throw new Error("no conversation publisher");

@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { AlertIcon } from "./AlertIcon";
-import { BUDDY_IDS, FIRST_RUN_ORDER, buddy, type BuddyId } from "./buddies";
+import { BUDDY_IDS, FIRST_RUN_ORDER, buddy, knownBuddyId, type BuddyId } from "./buddies";
 import { buddyFailureText } from "./buddyChoice";
 import type { BuddyFailure } from "./buddySelection";
 import { cardLayout, cardOffset, followPosition, keyTarget, scrollPosition, SNAP_MS, snapPosition, snapTarget, WHEEL_QUIET } from "./coverFlow";
@@ -117,14 +117,37 @@ export function BuddyFlow({ name, labelledBy, selected, disabled, select }: Budd
   </div>;
 }
 
+// Settings > General's rows: up/left and down/right go round them; other keys are not the rows'.
+export function rowFocusTarget(ids: readonly BuddyId[], current: BuddyId, key: string): BuddyId | null {
+  const step = key === "ArrowDown" || key === "ArrowRight" ? 1 : key === "ArrowUp" || key === "ArrowLeft" ? -1 : 0;
+  if (step === 0) return null;
+  const at = ids.indexOf(current);
+  return ids[(at + step + ids.length) % ids.length] ?? null;
+}
+
 // Settings > General: one preference row per buddy in the default order. The whole row is the label, so the picture
-// or the name picks too; arrows keep the native radio wrap. Nothing moves and there is no accent ring.
-export function BuddyRows({ name, labelledBy, selected, disabled, select }: BuddyPickerProps) {
-  return <div role="radiogroup" aria-labelledby={labelledBy} className="buddy-rows">
+// or the name picks too. A switch is confirmed first (PRODUCT §5 item 0 'General'), so a radio never turns checked on
+// its own: a click (Space reaches the radio as one) or Return asks for the buddy through `request`, and the arrows only
+// move focus, still going round as native radios do. Nothing moves and there is no accent ring. `inert`: under the
+// lock overlay.
+export interface BuddyRowsProps { name: string; labelledBy: string; selected: BuddyId; disabled: boolean; inert?: boolean; request(id: BuddyId): void }
+export function BuddyRows({ name, labelledBy, selected, disabled, inert, request }: BuddyRowsProps) {
+  const group = useRef<HTMLDivElement | null>(null);
+  const ask = (id: BuddyId) => { if (!disabled && id !== selected) request(id); };
+  const keys = (event: KeyboardEvent<HTMLDivElement>) => {
+    const from = "value" in event.target ? event.target.value : null;
+    const target = knownBuddyId(from) ? rowFocusTarget(BUDDY_IDS, from, event.key) : null;
+    if (target === null) return;
+    event.preventDefault();
+    group.current?.querySelector<HTMLInputElement>(`input[value="${target}"]`)?.focus();
+  };
+  return <div role="radiogroup" aria-labelledby={labelledBy} className="buddy-rows" inert={inert} ref={group} onKeyDown={keys}>
     {BUDDY_IDS.map(id => {
       const { name: title, line, assets } = buddy(id);
       return <label key={id} className="doan-preference-row buddy-row" data-disabled={disabled ? "" : undefined}>
-        <input type="radio" name={name} value={id} checked={id === selected} disabled={disabled} aria-labelledby={`${name}-${id}-name`} aria-describedby={`${name}-${id}-line`} onChange={() => select(id)} />
+        <input type="radio" name={name} value={id} checked={id === selected} readOnly disabled={disabled} aria-labelledby={`${name}-${id}-name`} aria-describedby={`${name}-${id}-line`}
+          onClick={(event: MouseEvent<HTMLInputElement>) => { event.preventDefault(); ask(id); }}
+          onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => { if (event.key !== "Enter") return; event.preventDefault(); ask(id); }} />
         <img src={assets.card} alt="" />
         <span className="doan-preference-row-content"><span className="doan-preference-row-label" id={`${name}-${id}-name`}>{title}</span><span className="doan-preference-row-description" id={`${name}-${id}-line`}>{line}</span></span>
         <span className="doan-preference-row-trailing"><span className="ob-radio" aria-hidden="true" /></span>

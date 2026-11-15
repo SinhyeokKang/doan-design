@@ -57,15 +57,19 @@ export interface UiState {
   // The project conversation last shown in each root's Overview. Top-level, not in
   // `shellProjects`: those entries are rebuilt per group on every save and would drop it.
   conversationByRoot?: Record<string, string>;
+  // The canvas conversation last seen on each canvas of a root (PRODUCT's Seen), by conversationCanvasKey. Written only
+  // by the main window: main replaces this file on every save, so a second writer would overwrite the first.
+  conversationByCanvas?: Record<string, Record<string, string>>;
   // The canvas page's conversation panel, one per device. A missing `width` is the
   // window-relative default, which only the renderer can compute.
   rightPanel?: { open: boolean; width?: number };
   // The Overview's canvas conversations panel, apart from the canvas panel's. Missing is
   // its default.
   overviewPanel?: { width: number };
-  // The shell sidebar, one per device: its width (missing is the default; the renderer clamps a kept width) and whether
-  // it is hidden (only `true` is stored). Each is read on its own; with neither the field is left out.
-  sidebar?: { width?: number; hidden?: true };
+  // The shell sidebar, one per device: its width (missing is the default; the renderer clamps a kept width), whether
+  // it is hidden and whether the viewed canvas's conversation list is folded (only `true` is stored for either). Each is
+  // read on its own; with none the field is left out.
+  sidebar?: { width?: number; hidden?: true; conversationsFolded?: true };
   // The canvas tool last chosen on this device. Only Hand is stored; a missing
   // field is Select.
   canvasTool?: "hand";
@@ -131,13 +135,18 @@ export function parseUiState(text: string, savedRoots: readonly string[], spelli
     state.shellProjects = Object.fromEntries(projects);
   }
   if (isRecord(value["conversationByRoot"])) state.conversationByRoot = entries(value["conversationByRoot"], saved, (item) => (typeof item === "string" && CONVERSATION_ID.test(item) ? item : undefined));
+  if (isRecord(value["conversationByCanvas"])) state.conversationByCanvas = entries(value["conversationByCanvas"], saved, (item) => {
+    if (!isRecord(item)) return undefined;
+    const kept = Object.entries(item).filter((entry): entry is [string, string] => entry[0] !== "" && typeof entry[1] === "string" && CONVERSATION_ID.test(entry[1]));
+    return kept.length ? Object.fromEntries(kept) : undefined;
+  });
   const rightPanel = parseRightPanel(value["rightPanel"]);
   if (rightPanel !== undefined) state.rightPanel = rightPanel;
   const overviewWidth = isRecord(value["overviewPanel"]) ? value["overviewPanel"]["width"] : undefined;
   if (savedWidth(overviewWidth)) state.overviewPanel = { width: overviewWidth };
   if (isRecord(value["sidebar"])) {
-    const width = value["sidebar"]["width"], hidden = value["sidebar"]["hidden"] === true;
-    if (savedWidth(width) || hidden) state.sidebar = { ...(savedWidth(width) ? { width } : {}), ...(hidden ? { hidden: true } : {}) };
+    const width = value["sidebar"]["width"], hidden = value["sidebar"]["hidden"] === true, folded = value["sidebar"]["conversationsFolded"] === true;
+    if (savedWidth(width) || hidden || folded) state.sidebar = { ...(savedWidth(width) ? { width } : {}), ...(hidden ? { hidden: true } : {}), ...(folded ? { conversationsFolded: true } : {}) };
   }
   if (value["canvasTool"] === "hand") state.canvasTool = "hand";
   if (isRecord(value["home"])) state.home = parseHome(value["home"], saved);
@@ -154,9 +163,9 @@ export function parseUiState(text: string, savedRoots: readonly string[], spelli
 }
 
 // Rewrites every root this file keys or names (the open place, `expanded`, `lastByRoot`, `shellProjects` keys, roots
-// and selection, `conversationByRoot`, `home.lastRoot`) from each spelling in `aliases` to the one it maps to, on the
+// and selection, `conversationByRoot`, `conversationByCanvas`, `home.lastRoot`) from each spelling in `aliases` to the one it maps to, on the
 // raw value so parseUiState still validates the result. Where both spellings hold a value the target's wins, per map
-// key and per `shellProjects` field; the other fills only what the target lacks.
+// key, per `shellProjects` field and per `conversationByCanvas` canvas; the other fills only what the target lacks.
 export function renameUiRoots(value: Record<string, unknown>, aliases: ReadonlyMap<string, string>): Record<string, unknown> {
   const real = (root: unknown) => typeof root === "string" ? aliases.get(root) ?? root : root;
   const rekey = (map: unknown, merge: (kept: unknown, alias: unknown) => unknown = kept => kept): unknown => {
@@ -177,6 +186,8 @@ export function renameUiRoots(value: Record<string, unknown>, aliases: ReadonlyM
   const next: Record<string, unknown> = { ...value, root: real(value["root"]) };
   if (!("root" in value)) delete next["root"];
   for (const key of ["expanded", "lastByRoot", "conversationByRoot"]) if (key in value) next[key] = rekey(value[key]);
+  // Per canvas, like `shellProjects` per field: a canvas only the alias remembered keeps its conversation.
+  if ("conversationByCanvas" in value) next["conversationByCanvas"] = rekey(value["conversationByCanvas"], (kept, alias) => isRecord(kept) && isRecord(alias) ? { ...alias, ...kept } : kept);
   if (isRecord(value["shellProjects"])) {
     const projects = Object.fromEntries(Object.entries(value["shellProjects"]).map(([key, item]) => [key, project(item)]));
     next["shellProjects"] = rekey(projects, (kept, alias) => isRecord(kept) && isRecord(alias) ? { ...alias, ...kept } : kept);
@@ -264,6 +275,12 @@ function entries<T>(value: unknown, saved: ReadonlySet<string>, read: (item: unk
     if (parsed !== undefined) kept.push([root, parsed]);
   }
   return Object.fromEntries(kept);
+}
+
+// A canvas's key in conversationByCanvas: its id, else its path (the draft key's rule), so a canvas moved under the same
+// id keeps the conversation it remembered.
+export function conversationCanvasKey(canvas: { path: string; id?: string }): string {
+  return canvas.id ?? canvas.path;
 }
 
 // A per-root map without the removed roots, so a removed project keeps no memory until the next read prunes it.

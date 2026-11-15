@@ -16,7 +16,7 @@ vi.mock("react", async original => {
     useLayoutEffect: () => {},
   };
 });
-const { BuddyFailureNotice, BuddyFlow, BuddyRows } = await import("./BuddyPicker");
+const { BuddyFailureNotice, BuddyFlow, BuddyRows, rowFocusTarget } = await import("./BuddyPicker");
 const { BuddyIntro, BuddyScene } = await import("./Onboarding");
 
 beforeEach(() => { hooks.refs = []; hooks.refCursor = 0; hooks.effects = []; vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; }); });
@@ -32,7 +32,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 const words = (node: unknown): string => Array.isArray(node) ? node.map(words).join("") : typeof node === "string" ? node : isValidElement<Record<string, unknown>>(node) ? words(node.props.children) : "";
 const radios = (tree: ReactNode) => all(tree).filter(element => element.type === "input");
 const snapshot = (notice: PreferencesSnapshot["notice"] = null): PreferencesSnapshot => ({ preferences: DEFAULT_PREFERENCES, notice });
-const selection = (patch: Partial<BuddySelection> = {}): BuddySelection => ({ shown: "doany", failure: null, select: vi.fn(async () => true), settled: async () => true, commit: vi.fn(async () => true), dismiss: vi.fn(), ...patch });
+const selection = (patch: Partial<BuddySelection> = {}): BuddySelection => ({ shown: "doany", failure: null, lockedUntil: null, select: vi.fn(async () => true), settled: async () => true, commit: vi.fn(async () => true), dismiss: vi.fn(), ...patch });
 const key = (name: string) => ({ key: name, preventDefault: vi.fn() });
 
 describe("first run's Cover Flow row", () => {
@@ -169,22 +169,101 @@ describe("first run's Cover Flow row", () => {
 });
 
 describe("Settings > General's rows", () => {
+  const rows = (patch: Partial<Parameters<typeof BuddyRows>[0]> = {}) => BuddyRows({ name: "settings-buddy", labelledBy: "settings-general-buddy", selected: "popo", disabled: false, request: vi.fn(), ...patch });
+  const event = (patch: Record<string, unknown> = {}) => ({ preventDefault: vi.fn(), ...patch });
+
   test("one preference row per buddy in the default order; the whole row is the label, with the card picture and the onboarding radio", () => {
-    const select = vi.fn();
-    const tree = BuddyRows({ name: "settings-buddy", labelledBy: "settings-general-buddy", selected: "popo", disabled: false, select });
+    const tree = rows();
     expect(all(tree)[0]!.props).toMatchObject({ role: "radiogroup", "aria-labelledby": "settings-general-buddy", className: "buddy-rows" });
-    const rows = all(tree).filter(element => element.type === "label");
-    expect(rows.every(row => row.props.className === "doan-preference-row buddy-row" && row.props["data-disabled"] === undefined)).toBe(true);
+    const labels = all(tree).filter(element => element.type === "label");
+    expect(labels.every(row => row.props.className === "doan-preference-row buddy-row" && row.props["data-disabled"] === undefined)).toBe(true);
     expect(radios(tree).map(radio => [radio.props.value, radio.props.checked])).toEqual([["doany", false], ["puri", false], ["dungdung", false], ["popo", true], ["dori", false]]);
-    expect(words(rows[4]!.props.children)).toBe("DoriA quiet, caring friend to lean on when you’re tired.");
-    expect(all(rows[0]).filter(element => element.type === "img").map(image => image.props)).toEqual([{ src: "buddies/doany/card.png", alt: "" }]);
-    expect(all(rows[0]).some(element => element.props.className === "ob-radio" && element.props["aria-hidden"] === "true")).toBe(true);
-    (radios(tree)[1]!.props.onChange as () => void)();
-    expect(select).toHaveBeenCalledWith("puri");
-    const off = BuddyRows({ name: "settings-buddy", labelledBy: "settings-general-buddy", selected: "doany", disabled: true, select });
+    expect(words(labels[4]!.props.children)).toBe("DoriA quiet, caring friend to lean on when you’re tired.");
+    expect(all(labels[0]).filter(element => element.type === "img").map(image => image.props)).toEqual([{ src: "buddies/doany/card.png", alt: "" }]);
+    expect(all(labels[0]).some(element => element.props.className === "ob-radio" && element.props["aria-hidden"] === "true")).toBe(true);
+    const off = rows({ disabled: true });
     expect(radios(off).every(radio => radio.props.disabled === true)).toBe(true);
     expect(all(off).filter(element => element.type === "label").every(row => row.props["data-disabled"] === "")).toBe(true);
   });
+
+  // A switch is confirmed first: the radio never turns checked on its own, so the row, Home and the accent wait.
+  test("a click (and Space, which the browser turns into a click) asks for the buddy without checking its radio", () => {
+    const request = vi.fn();
+    const tree = rows({ request });
+    const click = event();
+    (radios(tree)[1]!.props.onClick as (event: unknown) => void)(click);
+    expect(click.preventDefault).toHaveBeenCalled();
+    expect(request).toHaveBeenCalledWith("puri");
+    expect(radios(tree).find(radio => radio.props.checked)!.props.value).toBe("popo");
+  });
+
+  test("Return on a row asks for its buddy too", () => {
+    const request = vi.fn();
+    const tree = rows({ request });
+    const enter = event({ key: "Enter" });
+    (radios(tree)[4]!.props.onKeyDown as (event: unknown) => void)(enter);
+    expect(enter.preventDefault).toHaveBeenCalled();
+    expect(request).toHaveBeenCalledWith("dori");
+  });
+
+  test("the current buddy's row asks for nothing", () => {
+    const request = vi.fn();
+    const tree = rows({ request });
+    (radios(tree)[3]!.props.onClick as (event: unknown) => void)(event());
+    (radios(tree)[3]!.props.onKeyDown as (event: unknown) => void)(event({ key: "Enter" }));
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  test("off: a click or Return asks for nothing", () => {
+    const request = vi.fn();
+    const tree = rows({ request, disabled: true });
+    (radios(tree)[1]!.props.onClick as (event: unknown) => void)(event());
+    (radios(tree)[1]!.props.onKeyDown as (event: unknown) => void)(event({ key: "Enter" }));
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  // POSTMORTEM 2026-11-12 'An arrow key on the setup panel's storage radio dropped focus to the heading'.
+  test("arrows only move focus, wrapping at the ends: focus lands on the next row, nothing is asked or checked", () => {
+    const request = vi.fn();
+    const inputs = new Map<string, { focus(): void }>();
+    const doc = { activeElement: null as unknown };
+    vi.stubGlobal("document", doc);
+    const group = { querySelector: (selector: string) => inputs.get(/value="(\w+)"/.exec(selector)?.[1] ?? "") ?? null };
+    for (const id of ["doany", "puri", "dungdung", "popo", "dori"]) inputs.set(id, { focus() { doc.activeElement = this; } });
+    const tree = rows({ request });
+    hooks.refs[0]!.current = group;
+    const keys = all(tree)[0]!.props.onKeyDown as (event: unknown) => void;
+    const press = (key: string, from: string) => { const pressed = event({ key, target: { value: from } }); keys(pressed); return pressed; };
+    expect(press("ArrowDown", "popo").preventDefault).toHaveBeenCalled();
+    expect(doc.activeElement).toBe(inputs.get("dori"));
+    press("ArrowDown", "dori");
+    expect(doc.activeElement).toBe(inputs.get("doany"));
+    press("ArrowUp", "doany");
+    expect(doc.activeElement).toBe(inputs.get("dori"));
+    press("ArrowRight", "doany");
+    expect(doc.activeElement).toBe(inputs.get("puri"));
+    press("ArrowLeft", "puri");
+    expect(doc.activeElement).toBe(inputs.get("doany"));
+    expect(request).not.toHaveBeenCalled();
+    expect(radios(tree).find(radio => radio.props.checked)!.props.value).toBe("popo");
+    expect(press("Tab", "doany").preventDefault).not.toHaveBeenCalled();
+  });
+
+  test("locked: the group is inert under the overlay", () => {
+    expect(all(rows({ inert: true }))[0]!.props.inert).toBe(true);
+    expect(all(rows())[0]!.props.inert).toBeFalsy();
+  });
+});
+
+test("rowFocusTarget: up/left and down/right go round the rows; other keys are not the rows'", () => {
+  const ids = ["doany", "puri", "dungdung", "popo", "dori"] as const;
+  expect(rowFocusTarget(ids, "doany", "ArrowDown")).toBe("puri");
+  expect(rowFocusTarget(ids, "doany", "ArrowRight")).toBe("puri");
+  expect(rowFocusTarget(ids, "doany", "ArrowUp")).toBe("dori");
+  expect(rowFocusTarget(ids, "doany", "ArrowLeft")).toBe("dori");
+  expect(rowFocusTarget(ids, "dori", "ArrowDown")).toBe("doany");
+  expect(rowFocusTarget(ids, "popo", "ArrowUp")).toBe("dungdung");
+  for (const key of ["Enter", " ", "Home", "End", "Tab", "a"]) expect(rowFocusTarget(ids, "popo", key), key).toBeNull();
 });
 
 test("the failure notice names both buddies; Retry is named by its word and described by the sentence; no live role", () => {
@@ -223,7 +302,8 @@ describe("the Buddy step and the existing-user buddy screen", () => {
     expect(all(tree).find(element => element.props.className === "ob-live")!.props).toMatchObject({ role: "status", children: "Couldn’t switch to Popo. Doany is still your buddy." });
     const retry = all(tree).find(element => element.type === "button" && element.props.children === "Retry")!;
     (retry.props.onClick as () => void)();
-    expect(select).toHaveBeenCalledWith("popo");
+    // First run's Retry starts no lock: the buddy alone, no change time.
+    expect(select.mock.calls).toEqual([["popo"]]);
     await vi.waitFor(() => expect(checked.focus).toHaveBeenCalled());
   });
 

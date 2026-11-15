@@ -5,7 +5,7 @@ import { pasteDialog, stopDialog, type Notice, type ProviderView } from "./agent
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthAttempt, AuthState, Provider } from "../main/agentAuth/types";
 import { providerView } from "./agentAuthView";
-import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectChoice, openOverlay, recoveryControl, ProjectScreen, projectFocusTarget, projectNotice, ProviderRow, sceneMover, SceneScroll, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
+import { AgentFooter, cancelledNotice, firstUsable, focusLost, NoticeView, PasteDialog, ProjectChoice, openOverlay, recoveryControl, ProjectScreen, projectFocusTarget, projectNotice, projectNoticeActions, ProviderRow, sceneMover, SceneScroll, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
 import type { ProjectStepState } from "./projectStep";
 
 const noop = () => {};
@@ -233,9 +233,10 @@ test("Choose your project: local folder card, divider, URL field and a disabled 
   const html = screen({});
   expect(html).toMatch(/<input[^>]*aria-label="GitHub repository URL"[^>]*spellCheck="false"/);
   expect(html).toContain('<h2 tabindex="-1">Choose your project</h2><p>Start with a folder on your Mac, or a GitHub repository.</p>');
-  expect(html).toMatch(/<div class="doan-panel ob-local-option"><span class="ob-folder-icon"><svg[^>]*lucide-folder[^>]*>.*?<\/svg><\/span><div><strong>Open a local folder<\/strong><p>Use a project that’s already on your Mac.<\/p><\/div><button type="button" class="doan-button" data-ui-variant="subtle">Choose folder<\/button><\/div>/);
+  // New folder follows Choose folder in one row (and in Tab order), both subtle sm, without an ellipsis.
+  expect(html).toMatch(/<div class="doan-panel ob-local-option"><span class="ob-folder-icon"><svg[^>]*lucide-folder[^>]*>.*?<\/svg><\/span><div><strong>Use a folder on your Mac<\/strong><p>Choose a project folder you already have, or create a new one\.<\/p><\/div><div class="ob-local-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose folder<\/button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-new-folder="">New folder<\/button><\/div><\/div>/);
   expect(html).toContain('<div class="ob-divider"><span>or use GitHub</span></div><label class="ob-field-label" for="ob-project-url">Repository URL</label>');
-  expect(html).toMatch(/<div class="ob-url-action"><button type="button" class="doan-button" data-ui-variant="prominent" disabled="">Find repository<svg/);
+  expect(html).toMatch(/<div class="ob-url-action"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled="">Find repository<svg/);
   expect(html).toMatch(/data-ui-variant="prominent" disabled="" data-consent="">Open Doan<svg/);
   expect(html).not.toContain("Your projects");
   expect(html).not.toMatch(/…/);
@@ -250,7 +251,7 @@ test("Your projects lists registered projects with the sidebar thumbnail rule", 
   expect(html).toContain('data-ui-size="sm">Use this folder</button>');
 });
 
-test("an invalid URL marks the field and keeps Find repository disabled; an access failure offers Retry", () => {
+test("an invalid URL marks the field and keeps Find repository disabled; an access failure offers Retry inside its notice", () => {
   const invalid = screen({ url: "github.com/acme", error: { code: "invalid_url" } });
   expect(invalid).toContain('aria-invalid="true" aria-describedby="ob-project-error"');
   expect(invalid).toContain('role="alert" tabindex="-1" id="ob-project-error"');
@@ -258,9 +259,13 @@ test("an invalid URL marks the field and keeps Find repository disabled; an acce
   expect(invalid).toContain('<div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled="">Find repository</button></div>');
   const access = screen({ url: "https://github.com/acme/private-studio", error: { code: "access_failed" } });
   expect(access).toContain('<strong class="ob-notice-title">Couldn’t access this repository</strong><span class="ob-notice-body">Check your account and repository access with gh auth login, then try again.</span>');
-  expect(access).toContain('<div class="ob-recovery"><button type="button" class="doan-button" data-ui-variant="subtle">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-consent="">Retry</button></div>');
+  // Both recoveries sit inside the notice, stacked at its end and sm, at one weight (first run's white notice: subtle).
+  expect(access).toMatch(/<div class="doan-notice error doan-panel stacked ob-project-notice" role="alert" tabindex="-1" id="ob-project-error"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable"><strong class="ob-notice-title">Couldn’t access this repository<\/strong><span class="ob-notice-body">[^<]*<\/span><\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose local folder<\/button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-consent="">Retry<\/button><\/div><\/div>/);
+  expect(access).not.toContain("ob-recovery");
+  expect(access).not.toContain("ob-state-actions");
   // The draft's error frame keeps the screen to the URL and its recovery.
-  expect(access).not.toContain("Open a local folder");
+  expect(access).not.toContain("Use a folder on your Mac");
+  expect(access).not.toContain("New folder");
 });
 
 test("looking for a repository shows a status with Cancel", () => {
@@ -325,7 +330,9 @@ test("ready: Your project is ready with Open doan; no ready agent blocks it with
   expect(ready).toMatch(/data-ui-variant="prominent" data-consent="">Open Doan<svg/);
   const blocked = screen({ phase: { kind: "ready", root: "/Users/ada/code/doan-design" } }, { agentReady: false });
   expect(blocked).toContain("No agent is ready. Go back and connect an agent to finish setup.");
-  expect(blocked).toContain('<p class="ob-provider-help">Your project selection stays here.</p>');
+  // The note is the notice's second line; its one action sits beside the text.
+  expect(blocked).toMatch(/No agent is ready\. Go back and connect an agent to finish setup\.<span class="ob-notice-reason selectable">Your project selection stays here\.<\/span><\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Back to agents<\/button><\/div><\/div>/);
+  expect(blocked).not.toContain("ob-provider-help");
   expect(blocked).toContain('data-ui-size="sm">Back to agents</button>');
   expect(blocked).toMatch(/disabled="" data-consent="">Open Doan<svg/);
 });
@@ -343,21 +350,23 @@ test("completion: saving holds the footer, a failed save offers Retry, a newer m
 });
 
 test("every project error has the draft's copy and actions", () => {
-  const view = (code: Parameters<typeof projectNotice>[0]) => { const n = projectNotice(code, "main message", "~/code/studio"); return [n.body, n.actions.map(a => `${a.variant}:${a.label}`)]; };
-  expect(view("remote_mismatch")).toEqual(["This folder belongs to a different repository.", ["prominent:Choose another folder"]]);
-  expect(view("project_unavailable")).toEqual(["This folder is no longer available. Choose it again or select another folder.", ["prominent:Choose folder"]]);
-  expect(view("destination_exists")).toEqual(["A folder already exists at this destination. Choose another location or use the existing folder.", ["subtle:Change location", "prominent:Use existing folder"]]);
-  expect(view("init_failed")).toEqual(["Couldn’t set up this folder. Check folder access and try again.", ["subtle:Choose another folder", "prominent:Retry"]]);
-  expect(view("config_invalid")).toEqual(["This folder’s Doan configuration couldn’t be read. Fix it and retry, or choose another folder.", ["subtle:Choose another folder", "prominent:Retry"]]);
-  expect(view("clone_failed")).toEqual(["Couldn’t clone this repository. Check your connection and folder access, then retry.", ["subtle:Change location", "prominent:Retry"]]);
+  const view = (code: Parameters<typeof projectNotice>[0]) => { const n = projectNotice(code, "main message", "~/code/studio"); return [n.body, n.actions.map(a => a.label)]; };
+  expect(view("remote_mismatch")).toEqual(["This folder belongs to a different repository.", ["Choose another folder"]]);
+  expect(view("project_unavailable")).toEqual(["This folder is no longer available. Choose it again or select another folder.", ["Choose folder"]]);
+  expect(view("destination_exists")).toEqual(["A folder already exists at this destination. Choose another location or use the existing folder.", ["Change location", "Use existing folder"]]);
+  expect(view("init_failed")).toEqual(["Couldn’t set up this folder. Check folder access and try again.", ["Choose another folder", "Retry"]]);
+  expect(view("config_invalid")).toEqual(["This folder’s Doan configuration couldn’t be read. Fix it and retry, or choose another folder.", ["Choose another folder", "Retry"]]);
+  expect(view("clone_failed")).toEqual(["Couldn’t clone this repository. Check your connection and folder access, then retry.", ["Change location", "Retry"]]);
   expect(projectNotice("clone_failed", undefined, "~/code/studio").detail).toBe("~/code/studio");
-  expect(view("project_unreadable")).toEqual(["Doan couldn’t read this folder. Fix the problem shown below and retry, or choose another folder.", ["subtle:Choose another folder", "prominent:Retry"]]);
+  expect(view("project_unreadable")).toEqual(["Doan couldn’t read this folder. Fix the problem shown below and retry, or choose another folder.", ["Choose another folder", "Retry"]]);
   const reason = "open /Users/ada/code/studio/.doan/canvases/sub: permission denied";
   expect(projectNotice("project_unreadable", "The project folder cannot be read.", null, false, null, null, reason).detail).toBe(reason);
   // The socket's fixed message is never shown in its place.
   expect(projectNotice("project_unreadable", "The project folder cannot be read.", null)).not.toHaveProperty("detail");
-  expect(view("git_missing")).toEqual(["Install Git to clone a repository, or choose a local folder.", ["subtle:Choose local folder", "prominent:Check again"]]);
-  expect(view("cleanup_failed")).toEqual(["main message", ["prominent:Retry"]]);
+  expect(view("git_missing")).toEqual(["Install Git to clone a repository, or choose a local folder.", ["Choose local folder", "Check again"]]);
+  expect(view("cleanup_failed")).toEqual(["main message", ["Retry"]]);
+  // An unreachable repository's recoveries are the notice's own now.
+  expect(view("access_failed")[1]).toEqual(["Choose local folder", "Retry"]);
 });
 
 test("the Project step's lost focus goes to the error, else the progress notice, else the first usable action", () => {
@@ -397,7 +406,7 @@ test("Cancel waits until main names the clone", () => {
 
 test("a folder of another repository offers Edit repository URL and Choose another folder", () => {
   const n = projectNotice("remote_mismatch", "x", null, true);
-  expect([n.body, n.actions.map(a => `${a.variant}:${a.label}:${a.command}`)]).toEqual(["This folder belongs to a different repository.", ["subtle:Edit repository URL:edit", "prominent:Choose another folder:chooseExisting"]]);
+  expect([n.body, n.actions.map(a => `${a.label}:${a.command}`)]).toEqual(["This folder belongs to a different repository.", ["Edit repository URL:edit", "Choose another folder:chooseExisting"]]);
   const plain = projectNotice("remote_mismatch", "x", null, false);
   expect(plain.actions.map(a => a.command)).toEqual(["chooseFolder"]);
 });
@@ -410,9 +419,9 @@ test("folder recoveries on a URL screen choose an existing folder of that reposi
   }
 });
 
-test("a cancelled clone offers Edit repository URL under its Choose local folder / Retry row", () => {
+test("first run's cancelled clone keeps Choose local folder and Retry inside its notice, with Edit repository URL under it", () => {
   const html = screen({ url: "https://github.com/acme/studio", phase: { kind: "cloneCancelled", url: "https://github.com/acme/studio", destination: "/Users/ada/code/studio" } });
-  expect(html).toContain('data-ui-variant="subtle" data-ui-size="sm">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="">Retry</button></div><div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Edit repository URL</button></div>');
+  expect(html).toContain('<div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-consent="">Retry</button></div></div><div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Edit repository URL</button></div>');
   const failed = screen({ url: "https://github.com/acme/studio", phase: { kind: "clone", url: "https://github.com/acme/studio", inspectionId: null, destination: "/Users/ada/code/studio" }, error: { code: "clone_failed" } });
   expect(failed).toContain(">Edit repository URL</button>");
 });
@@ -453,7 +462,7 @@ test("buttons that write or consent are marked, so focus recovery skips them", (
   expect(clone).toMatch(/data-ui-variant="prominent" data-consent="">Clone and continue<svg/);
   expect(screen({ phase: { kind: "ready", root: "/r" } })).toMatch(/data-ui-variant="prominent" data-consent="">Open Doan<svg/);
   expect(screen({ phase: { kind: "cloneCancelled", url: "u", destination: "/d" } })).toContain('data-ui-size="sm" data-consent="">Retry</button>');
-  expect(screen({ url: "u", error: { code: "access_failed" } })).toContain('data-ui-variant="prominent" data-consent="">Retry</button>');
+  expect(screen({ url: "u", error: { code: "access_failed" } })).toContain('data-ui-size="sm" data-consent="">Retry</button>');
   const stop = renderToStaticMarkup(<StopDialog view={stopDialog("claude", "signOut")} busy={false} confirm={noop} close={noop} />);
   expect(stop).toContain('data-ui-size="sm" data-consent="">Stop and sign out</button>');
   expect(stop).not.toMatch(/data-consent="" autofocus|autofocus="" data-consent/);
@@ -480,7 +489,7 @@ test("an agent row's recovery skips Sign out, which signs out at once", async ()
 
 test("UX: a clone destination inside a doan project names it and offers Change location", () => {
   const n = projectNotice("path_unavailable", "x", "/Users/ada/code/doan-design/studio", true, "doan-design");
-  expect([n.body, n.actions.map(a => `${a.variant}:${a.label}:${a.command}`)]).toEqual(["This location is inside the Doan project doan-design. Choose a location outside it.", ["prominent:Change location:changeLocation"]]);
+  expect([n.body, n.actions.map(a => `${a.label}:${a.command}`)]).toEqual(["This location is inside the Doan project doan-design. Choose a location outside it.", ["Change location:changeLocation"]]);
   const html = screen({ url: "https://github.com/acme/studio", phase: { kind: "clone", url: "https://github.com/acme/studio", inspectionId: null, destination: "/Users/ada/code/doan-design/studio" }, error: { code: "path_unavailable" } },
     { projects: ["/Users/ada/code/doan-design"] });
   expect(html).toContain("This location is inside the Doan project doan-design. Choose a location outside it.");
@@ -518,7 +527,7 @@ test("spacing: a project notice keeps the step's 16px gap wherever it stacks, al
   const html = screen({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/p", changes: [".doan/config.json"] }, error: { code: "init_failed" } });
   // The notice follows the chosen card inside .ob-setup, where .ob-scene > .doan-notice does not reach.
   // On the white setup panel the notice keeps the inset fill, even on first run's overlay.
-  expect(html).toMatch(/<div class="doan-panel ob-chosen">.*?<\/div><div class="doan-notice error ob-project-notice"/);
+  expect(html).toMatch(/<div class="doan-panel ob-chosen">.*?<\/div><div class="doan-notice error stacked ob-project-notice"/);
 });
 
 test("a notice's recovery actions and the screen's own actions never repeat", () => {
@@ -526,7 +535,7 @@ test("a notice's recovery actions and the screen's own actions never repeat", ()
   const url = "https://github.com/acme/studio";
   const clone = { url, phase: { kind: "clone" as const, url, inspectionId: null, destination: "/Users/ada/code/studio" } };
   // 56: the notice keeps only Back to agents; the screen keeps its Choose another folder.
-  expect(projectNotice("no_ready_agent", undefined, null).actions.map(a => `${a.variant}:${a.label}`)).toEqual(["prominent:Back to agents"]);
+  expect(projectNotice("no_ready_agent", undefined, null).actions.map(a => a.label)).toEqual(["Back to agents"]);
   const blocked = screen({ phase: { kind: "ready", root: "/Users/ada/code/doan-design" } }, { agentReady: false });
   expect(count(blocked, "Choose another folder")).toBe(1);
   expect(count(blocked, "Back to agents")).toBe(1);
@@ -575,10 +584,11 @@ test("a mismatch names the chosen folder on both URL screens", () => {
   expect(found).toContain("other belongs to a different repository.");
 });
 
-test("Cloning was cancelled is a status notice panel like the other states", () => {
+test("Cloning was cancelled is a status notice panel like the other states, holding its actions", () => {
   const url = "https://github.com/acme/studio";
   const cancelled = screen({ url, phase: { kind: "cloneCancelled", url, destination: "/Users/ada/code/studio" } });
-  expect(cancelled).toMatch(/<div class="doan-notice doan-panel ob-project-notice" role="status" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="selectable">Cloning was cancelled\. Choose a folder or try again\.<\/span><\/div>/);
+  expect(cancelled).toMatch(/<div class="doan-notice doan-panel stacked ob-project-notice" role="status" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">Cloning was cancelled\. Choose a folder or try again\.<\/span><div class="ob-notice-actions">/);
+  expect(cancelled).not.toContain("ob-state-actions");
   expect(cancelled).not.toContain('<p class="ob-provider-help">Cloning was cancelled');
 });
 
@@ -624,26 +634,25 @@ test("selectable: a provider row's detail line, a notice's text, and no button",
 });
 
 // Drafts project-unreadable (candidates) and project-unreadable-setup (setup panel) in config-error-source.html.
-test("a folder Doan couldn’t read shows the CLI's message as the selectable detail under the notice, on both screens", () => {
+test("a folder Doan couldn’t read shows the CLI's message as the notice's selectable second line, on both screens", () => {
   const reason = "open /Users/ada/code/studio/.doan/canvases/sub: permission denied";
   const error = { code: "project_unreadable" as const, message: "The project folder cannot be read.", detail: reason };
-  const notice = '<span class="selectable">Doan couldn’t read this folder. Fix the problem shown below and retry, or choose another folder.</span></div>'
-    + `<p class="ob-path ob-notice-detail selectable">${reason}</p>`
-    + '<div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="">Retry</button></div>';
-  const candidates = screen({ phase: { kind: "candidates", inspectionId: "i", url: null, candidates: [{ path: "/Users/ada/code/studio", changes: [] }], choice: "/Users/ada/code/studio" }, error });
+  const notice = `<span class="ob-notice-text selectable">Doan couldn’t read this folder. Fix the problem shown below and retry, or choose another folder.<span class="ob-notice-reason selectable">${reason}</span></span>`
+    + '<div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Choose another folder</button><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" data-consent="">Retry</button></div></div>';
+  const candidates = screen({ phase: { kind: "candidates", inspectionId: "i", url: null, candidates: [{ path: "/Users/ada/code/studio", changes: [] }], choice: "/Users/ada/code/studio" }, error }, { use: "addPage" });
   expect(candidates).toContain(notice);
   expect(candidates).not.toContain("The project folder cannot be read.");
   noSelectableButton(candidates);
   const setup = screen({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/Users/ada/code/studio", changes: [".doan/config.json"] }, error });
   expect(setup).toContain(notice);
-  expect(setup).toContain('<div class="doan-notice error ob-project-notice" role="alert"');
+  expect(setup).toContain('<div class="doan-notice error stacked ob-project-notice" role="alert"');
 });
 
 test("selectable: a project notice's text and detail path, a clone's progress text, and no button", () => {
   const url = "https://github.com/acme/studio";
   const failed = screen({ url, phase: { kind: "clone", url, inspectionId: null, destination: "/Users/ada/code/studio" }, error: { code: "clone_failed" } });
-  expect(failed).toMatch(/<span class="selectable">(<strong class="ob-notice-title">[^<]*<\/strong><span class="ob-notice-body">)?Couldn’t clone this repository/);
-  expect(failed).toContain('<p class="ob-path ob-notice-detail selectable">');
+  expect(failed).toMatch(/<span class="ob-notice-text selectable">(<strong class="ob-notice-title">[^<]*<\/strong><span class="ob-notice-body">)?Couldn’t clone this repository/);
+  expect(failed).toContain('<span class="ob-notice-reason selectable">/Users/ada/code/studio</span>');
   noSelectableButton(failed);
   const cloning = screen({ phase: { kind: "cloning", url, destination: "/Users/ada/code/studio", operationId: "o", cancelling: false } }, { busy: true });
   expect(cloning).toContain('<span class="selectable"><strong class="ob-notice-title">Cloning studio</strong>');
@@ -702,6 +711,142 @@ test("a failed repository creation is told in the panel's words, with its comman
   expect(projectNotice("local_not_git", home, null).body).toBe(home);
   expect(projectNotice("local_not_git", "That folder is not a Git repository, so Doan cannot keep its files out of Git. Set it up with storage repo, or run git init there first.", null).body).toBe("This folder isn’t a Git repository, so Doan can’t keep its files out of Git. Choose Include in Git, or run git init here first.");
   const html = screen({ storage: "local", phase: { ...NEW_REPO, changes: [".doan/canvases/", ".doan/config.json", ".git/info/exclude"] }, error: { code: "cleanup_failed", message: left } }, { use: "addPage" });
-  expect(html).toContain('<span class="selectable">Setup failed, and Doan couldn’t remove the Git repository it created at <code>/Users/ada/moodboard/.git</code>. Remove it or keep it, then try again.</span>');
+  expect(html).toContain('<span class="ob-notice-text selectable">Setup failed, and Doan couldn’t remove the Git repository it created at <code>/Users/ada/moodboard/.git</code>. Remove it or keep it, then try again.</span>');
   expect(screen({ storage: "local", phase: NEW_REPO, error: { code: "git_missing", message: "Git is not installed." } })).toContain("with <code>xcode-select --install</code>, then check again");
+});
+
+// Every Project notice holds the actions it offers: one beside its text, two or more stacked on their own row at its
+// end. All carry one weight, picked by the surface: panel on the inset fill, subtle on first run's white notice.
+test("a project notice's actions: one sits beside the text, more stack; panel on the inset fill, subtle on the white notice; Retry consents", () => {
+  const one = projectNotice("project_unavailable", undefined, null);
+  expect(projectNoticeActions(one, false)).toEqual({ stacked: false, buttons: [{ command: "chooseFolder", label: "Choose folder", variant: "panel", consent: false }] });
+  expect(projectNoticeActions(one, true).buttons[0]!.variant).toBe("subtle");
+  const two = projectNotice("init_failed", undefined, null);
+  expect(projectNoticeActions(two, false)).toEqual({ stacked: true, buttons: [
+    { command: "chooseFolder", label: "Choose another folder", variant: "panel", consent: false },
+    { command: "retry", label: "Retry", variant: "panel", consent: true },
+  ] });
+  expect(projectNoticeActions(projectNotice("invalid_url", undefined, null), false)).toEqual({ stacked: false, buttons: [] });
+  // Use existing folder and Retry, once prominent, carry the same weight as the rest.
+  expect(projectNoticeActions(projectNotice("destination_exists", undefined, "/d", true), false).buttons.map(b => b.variant)).toEqual(["panel", "panel"]);
+});
+
+test("a notice with one action keeps the shipped one-row layout, with the action inside it", () => {
+  const html = screen({ phase: { kind: "candidates", inspectionId: "i", url: null, candidates: [{ path: "/a", changes: [] }, { path: "/b", changes: [] }], choice: "/a" }, error: { code: "project_unavailable", source: "folder" } }, { use: "addPage" });
+  expect(html).toMatch(/<div class="doan-notice error ob-project-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">This folder is no longer available\. Choose it again or select another folder\.<\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Choose folder<\/button><\/div><\/div>/);
+  expect(html).not.toContain("ob-state-actions");
+});
+
+// Decision 1: a folder's failure sits under the card, where the drop notice sits; a URL's stays after the URL field.
+test("on the choose screen a folder's failure sits under the card and a URL's after the URL field", () => {
+  const folder = screen({ error: { code: "config_invalid", source: "folder" } }, { use: "addPage" });
+  expect(folder).toMatch(/New folder<\/button><\/div><\/div><div class="doan-notice error stacked ob-project-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">This folder’s Doan configuration couldn’t be read\./);
+  expect(folder.indexOf("config")).toBeLessThan(folder.indexOf("or use GitHub"));
+  const url = screen({ url: "https://github.com/acme/studio", error: { code: "project_unavailable", source: "url" } }, { use: "addPage" });
+  expect(url.indexOf("This folder is no longer available")).toBeGreaterThan(url.indexOf('id="ob-project-url"'));
+  expect(url).toMatch(/This folder is no longer available[^]*<\/div><\/div><div class="ob-url-action">/);
+  // First run's 'Your projects' pick is a folder: its failure sits under the card too, on the white notice.
+  const listed = screen({ listChoice: "/Users/ada/code/gone", error: { code: "project_unavailable", source: "folder" } }, { projects: ["/Users/ada/code/gone"] });
+  expect(listed).toMatch(/New folder<\/button><\/div><\/div><div class="doan-notice error doan-panel ob-project-notice" role="alert" tabindex="-1">/);
+  expect(listed).toContain('data-ui-variant="prominent" data-ui-size="sm">Use this folder</button>');
+});
+
+test("the drop notice takes the notice text's class and keeps its own marker, so focus skips it", () => {
+  const html = screen({}, { use: "addPage", drop: { notice: "Drop one folder at a time.", allowed: () => true, started: noop, dropped: noop } });
+  expect(html).toMatch(/<div class="doan-notice error ob-project-notice ob-drop-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">Drop one folder at a time\.<\/span><\/div>/);
+});
+
+// Decision 7: the step's intermediate buttons are sm; the footer keeps its size.
+test("Choose folder, New folder and Find repository are sm, the footer buttons keep the default size", () => {
+  const html = screen({ url: "https://github.com/acme/studio" }, { use: "addPage" });
+  expect(html).toContain('data-ui-variant="subtle" data-ui-size="sm">Choose folder</button>');
+  expect(html).toContain('data-ui-variant="subtle" data-ui-size="sm" data-new-folder="">New folder</button>');
+  expect(html).toMatch(/<div class="ob-url-action"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Find repository<svg/);
+  expect(html).toMatch(/<div class="ob-footer add-footer"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel<\/button><button type="button" class="doan-button" data-ui-variant="prominent" disabled="" data-consent="">Add project<svg/);
+});
+
+test("the cancelled clone's notice: the page keeps only Choose local folder, first run keeps Retry too", () => {
+  expect(cancelledNotice("addPage")).toEqual({ status: true, body: "Cloning was cancelled. Choose a folder or try again.", actions: [{ command: "chooseExisting", label: "Choose local folder" }] });
+  expect(cancelledNotice("onboarding").actions).toEqual([{ command: "chooseExisting", label: "Choose local folder" }, { command: "retry", label: "Retry" }]);
+});
+
+test("the notice's text, actions and second line, the stacked layout's design-system rule, and no orphan rows", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".ob-notice-text { flex: 1 1 240px; min-width: 0; }");
+  expect(css).toContain(".ob-notice-actions { flex: none; display: flex; flex-wrap: wrap; gap: var(--space-2); }");
+  expect(css).toContain(".ob-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }");
+  expect(css).not.toMatch(/\.ob-recovery|\.ob-notice-detail/);
+});
+
+test("first run: after a cancelled clone, a chosen folder's failure shows its own alert instead of the cancelled status", () => {
+  const url = "https://github.com/acme/studio";
+  const html = screen({ url, phase: { kind: "cloneCancelled", url, destination: "/Users/ada/code/studio" }, error: { code: "remote_mismatch", path: "/Users/ada/code/other", source: "folder" } });
+  expect(html).toMatch(/<div class="doan-notice error doan-panel stacked ob-project-notice" role="alert" tabindex="-1">.*?other belongs to a different repository\.<\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Edit repository URL<\/button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder<\/button><\/div><\/div>/);
+  expect(html).not.toContain("Cloning was cancelled");
+});
+
+// New folder (.doan/canvases/new-project-folder.html 'card-busy', 'notice-exists-folder', 'notice-exists-file',
+// 'notice-inside-project', 'notice-create-failed'): busy disables both card buttons; its notices are the folder
+// source's, under the card, with their actions inside.
+test("the card's New folder is disabled with Choose folder while the step is busy", () => {
+  const html = screen({}, { use: "addPage", busy: true });
+  expect(html).toContain('data-ui-size="sm" disabled="">Choose folder</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled="" data-new-folder="">New folder</button>');
+});
+
+test("New folder's notices: copy, actions, and the attempted path as the failure's second line", () => {
+  const home = "/Users/ada";
+  const exists = projectNotice("folder_exists", undefined, null, false, null, "/Users/ada/code/landing-page", null, home, true);
+  expect(exists).toEqual({ body: "A folder named “landing-page” already exists in ~/code. Doan didn’t replace it. Choose another name or use the existing folder.",
+    actions: [{ command: "chooseAnotherName", label: "Choose another name" }, { command: "useExistingFolder", label: "Use existing folder" }] });
+  const file = projectNotice("folder_exists", undefined, null, false, null, "/Users/ada/code/landing-page", null, home, false);
+  expect(file).toEqual({ body: "An item named “landing-page” already exists in ~/code and isn’t a folder. Doan didn’t replace it. Choose another name.",
+    actions: [{ command: "chooseAnotherName", label: "Choose another name" }] });
+  // Outside HOME the location is named as it is; HOME itself is ~.
+  expect(projectNotice("folder_exists", undefined, null, false, null, "/Volumes/work/a", null, home, true).body).toContain("already exists in /Volumes/work.");
+  expect(projectNotice("folder_exists", undefined, null, false, null, "/Users/ada/a", null, home, true).body).toContain("already exists in ~.");
+  expect(projectNotice("folder_inside_project", undefined, null, false, "studio", "/Users/ada/code/studio/designs/a")).toEqual({
+    body: "This location is inside the Doan project studio. Choose a location outside it.", actions: [{ command: "newFolderElsewhere", label: "Change location" }] });
+  expect(projectNotice("folder_create_failed", undefined, null, false, null, "/Volumes/Archive/landing-page")).toEqual({
+    body: "Couldn’t create this folder. Check folder access, then choose another location.", detail: "/Volumes/Archive/landing-page", actions: [{ command: "newFolderElsewhere", label: "Change location" }] });
+});
+
+test("New folder's notices render under the card, take the stacked row with two actions, and show the failed path raw", () => {
+  const exists = { code: "folder_exists", path: "/Users/ada/code/landing-page", directory: true, source: "folder" } as const;
+  const page = screen({ error: exists }, { use: "addPage" });
+  expect(page).toMatch(/New folder<\/button><\/div><\/div><div class="doan-notice error stacked ob-project-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">A folder named “landing-page” already exists in ~\/code\. Doan didn’t replace it\. Choose another name or use the existing folder\.<\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Choose another name<\/button><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Use existing folder<\/button><\/div><\/div><div class="ob-divider">/);
+  // First run's white notice takes subtle actions.
+  expect(screen({ error: exists })).toMatch(/<div class="doan-notice error doan-panel stacked ob-project-notice" role="alert" tabindex="-1">[^]*?data-ui-variant="subtle" data-ui-size="sm">Choose another name<\/button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Use existing folder<\/button>/);
+  const file = screen({ error: { ...exists, directory: false } }, { use: "addPage" });
+  expect(file).toMatch(/<div class="doan-notice error ob-project-notice" role="alert" tabindex="-1">[^]*?isn’t a folder\. Doan didn’t replace it\. Choose another name\.<\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Choose another name<\/button><\/div><\/div>/);
+  const inside = screen({ error: { code: "folder_inside_project", path: "/Users/ada/code/studio/designs/a", project: "studio", source: "folder" } }, { use: "addPage" });
+  expect(inside).toMatch(/New folder<\/button><\/div><\/div><div class="doan-notice error ob-project-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span class="ob-notice-text selectable">This location is inside the Doan project studio\. Choose a location outside it\.<\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Change location<\/button><\/div><\/div>/);
+  const failed = screen({ error: { code: "folder_create_failed", path: "/Volumes/Archive/landing-page", source: "folder" } }, { use: "addPage" });
+  expect(failed).toMatch(/<span class="ob-notice-text selectable">Couldn’t create this folder\. Check folder access, then choose another location\.<span class="ob-notice-reason selectable">\/Volumes\/Archive\/landing-page<\/span><\/span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Change location<\/button><\/div><\/div><div class="ob-divider">/);
+  // None of them leaves the footer's Add project on.
+  for (const html of [page, file, inside, failed]) expect(html).toMatch(/data-ui-variant="prominent" disabled="" data-consent="">Add project<svg/);
+});
+
+// The notice's buttons run the step's own commands.
+test("New folder's notice actions reach chooseAnotherName, useExistingFolder and newFolderElsewhere", () => {
+  const calls: string[] = [];
+  const spy = new Proxy({} as ProjectScreenProps["on"], { get: (_t, name: string) => () => calls.push(name) });
+  const tree = ProjectScreen({ state: { ...base2, error: { code: "folder_exists", path: "/Users/ada/a", directory: true, source: "folder" } }, busy: false, agentReady: true, projects: [], home: "/Users/ada", urlValid: false, heading: noop, on: spy, use: "addPage" });
+  const found: { props: Record<string, unknown> }[] = [];
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (!node || typeof node !== "object" || !("props" in node)) return;
+    const element = node as { props: Record<string, unknown> };
+    found.push(element);
+    Object.values(element.props).forEach(walk);
+  };
+  walk(tree);
+  const notice = found.find(element => typeof element.props.run === "function" && "notice" in element.props)!;
+  const run = notice.props.run as (command: string) => void;
+  for (const command of ["chooseAnotherName", "useExistingFolder", "newFolderElsewhere"]) run(command);
+  expect(calls).toEqual(["chooseAnotherName", "useExistingFolder", "newFolderElsewhere"]);
+  // The card's New folder opens the panel through the step.
+  const card = found.find(element => typeof element.props.newFolder === "function")!;
+  (card.props.newFolder as () => void)();
+  expect(calls.at(-1)).toBe("newFolder");
 });

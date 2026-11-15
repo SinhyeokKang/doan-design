@@ -100,7 +100,7 @@ function reset() {
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
-    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), answerOpenRequest: vi.fn(async () => {}),
+    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
@@ -535,7 +535,7 @@ test("Project Settings opens as a page from Home, a workspace or Add Projects: t
   expect(page.props.sidebar.props.home).toBe(true);
   expect(page.props.sidebar.props.settings).toBeUndefined();
   expect(homeRowCurrent(page.props.sidebar)).toBe(false);
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, projectSettings: true });
   // Nothing modal: the page is a screen, so the toast keeps running.
   expect(harness.toast.setModal).toHaveBeenLastCalledWith(false);
   // From a workspace the workspace is the origin; from Add Projects the origin stays.
@@ -649,14 +649,14 @@ test("while the page holds a picker, a confirmation or a write, every way out an
   const bar = topBar(projectPage()!.props.header);
   for (const button of [bar.add, bar.projects, bar.settings, bar.back]) expect(button.props["aria-disabled"]).toBe(true);
   expect(projectPage()!.props.sidebar.props.locked).toBe(true);
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, locked: true });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, projectSettings: true, locked: true });
   expect(harness.toast.setModal).toHaveBeenLastCalledWith(true);
   // A Settings target that came in while locked was dropped, not queued.
   cmdComma({ section: "about" });
   lockPage(false);
   expect(onSettings()).toBe(false);
   expect(harness.toast.setModal).toHaveBeenLastCalledWith(false);
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, projectSettings: true });
   click(topBar(projectPage()!.props.header).projects);
   expect(projectPage()).toBeUndefined();
 });
@@ -926,7 +926,7 @@ test("with a running conversation only its Stop and Remove confirmation shows", 
   folders([listed("/w/a"), listed("/w/c")]);
   doan.removeProjects = removed();
   const run = hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as InstanceType<typeof HomeRun>;
-  vi.spyOn(run as unknown as { merged(): Map<string, unknown[]> }, "merged").mockReturnValue(new Map([["/w/a", [{ conversationId: "c1", state: "current", working: true, phase: "running" }]]]));
+  vi.spyOn(run as unknown as { merged(): Map<string, unknown[]> }, "merged").mockReturnValue(new Map([["/w/a", [{ conversationId: "c1", working: true, phase: "running" }]]]));
   doan.interruptConversation = vi.fn(async () => {});
   find<{ remove(roots: string[]): void }>(ShellSidebar)[0]!.props.remove(["/w/a"]); render();
   expect(all(tree).filter(element => element.type === "dialog")).toHaveLength(1);

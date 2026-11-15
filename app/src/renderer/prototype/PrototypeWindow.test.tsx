@@ -40,6 +40,7 @@ vi.mock("react", async original => {
   };
 });
 const { PrototypeWindow } = await import("./PrototypeWindow");
+const { deleteRefusalText } = await import("../conversationDelete");
 type Shell = import("./PrototypeWindow").ShellProps;
 type PrototypeApi = import("./PrototypeWindow").PrototypeApi;
 
@@ -90,7 +91,7 @@ beforeEach(() => {
     onWindowVisible: vi.fn((listener: (visible: boolean) => void) => { listener(true); return () => {}; }),
     // The conversation panel's calls; the panel itself has its own tests (PrototypeConversation*.test.tsx).
     setPanel: vi.fn(async () => {}), setShowing: vi.fn(async () => {}), reveal: vi.fn(async () => {}), rememberChoice: vi.fn(async () => {}),
-    readComposerSettings: vi.fn(async () => null), readTargetEntry: vi.fn(async () => null), readDrawing: vi.fn(async () => null), readPromoted: vi.fn(async () => null), getWork: vi.fn(async () => []), listConversations: vi.fn(() => new Promise(() => {})),
+    readComposerSettings: vi.fn(async () => null), readTargetEntry: vi.fn(async () => null), readDrawing: vi.fn(async () => null), readPromoted: vi.fn(async () => null), rememberedConversation: vi.fn(async () => null), getWork: vi.fn(async () => []), listConversations: vi.fn(() => new Promise(() => {})),
     conversationResumeTarget: vi.fn(() => new Promise(() => {})),
     ...Object.fromEntries(["onComposerSettings", "onTargetEntry", "onWorkChanged", "onConversationEvent", "onConversationStage", "onConversationListChanged", "onConversationHandoff", "onAgentAuth", "onDrawing", "onPromoted"].map(name => [name, vi.fn(() => () => {})])),
   };
@@ -606,11 +607,12 @@ describe("the conversation panel", () => {
     expect(button.focus).toHaveBeenCalledOnce();
   });
 
-  // Before the first view the panel has no composer: focus goes to the head's title, not the hidden header button.
-  test("opened before the first view, focus goes to the head's title, then once to the composer the view brings", () => {
+  // Before the first view the panel has no composer: focus goes to the head's menu button (aria-disabled, still
+  // focusable), not the hidden header button.
+  test("opened before the first view, focus goes to the head's menu button, then once to the composer the view brings", () => {
     const head = field(), input = field();
     let composer: typeof input | null = null;
-    conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? composer : selector === ".rp-head" ? head : null, contains: () => false } as never;
+    conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? composer : selector === ".doan-conv-title .ov-title" ? head : null, contains: () => false } as never;
     conversation().onToggle();
     show(view({ panel: { open: true, width: 280 } }));
     expect(head.focus).toHaveBeenCalledOnce();
@@ -624,10 +626,10 @@ describe("the conversation panel", () => {
     expect(input.focus).toHaveBeenCalledOnce();
   });
 
-  test("focus the person moved off the head's title before the composer came stays where it is", () => {
+  test("focus the person moved off the head's menu button before the composer came stays where it is", () => {
     const head = field(), input = field(), elsewhere = field();
     let composer: typeof input | null = null;
-    conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? composer : selector === ".rp-head" ? head : null, contains: () => false } as never;
+    conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? composer : selector === ".doan-conv-title .ov-title" ? head : null, contains: () => false } as never;
     conversation().onToggle();
     show(view({ panel: { open: true, width: 280 } }));
     expect(head.focus).toHaveBeenCalledOnce();
@@ -689,6 +691,55 @@ describe("the conversation panel", () => {
 
 // Each press decides from the state main's view shows, so a request main never answered (or refused) cannot turn the
 // next press into the opposite one; focus moves once main's view shows what this window last asked for.
+// Spec: the head menu's Delete in this window asks first, as the main window's does; afterwards focus goes to the head's
+// menu button, whatever the panel shows next.
+describe("Delete from the head menu", () => {
+  type Head = ReactElement<{ onDelete(target: unknown, trigger: HTMLElement | null): boolean }>;
+  type Dialog = ReactElement<{ view: { title: string }; pending: boolean; confirm(): void; cancel(): void }>;
+  const target = { conversationId: "c1", root: "/r", title: "Ideas", provider: "claude", from: "canvas" };
+  const settle = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); return render(); };
+  const toastText = () => (shell.toast as ReactElement<{ children: [ReactElement<{ children: string }>] }> | null | undefined)?.props.children[0].props.children ?? null;
+  function asked(): { trigger: InstanceType<typeof FakeElement>; dialog: () => Dialog | undefined } {
+    show(view({ panel: { open: true, width: 280 } }));
+    const trigger = new FakeElement();
+    expect((shell.conversation!.title as Head).props.onDelete(target, trigger as never)).toBe(true);
+    return { trigger, dialog: () => render().dialog as Dialog | undefined };
+  }
+
+  test("asks first; confirming asks main, closes the alert and puts focus on the head's menu button", async () => {
+    api.deleteConversation = vi.fn(async () => undefined);
+    const { trigger, dialog } = asked();
+    expect(dialog()!.props.view.title).toContain("Ideas");
+    expect(api.deleteConversation).not.toHaveBeenCalled();
+    dialog()!.props.confirm();
+    expect(dialog()!.props.pending).toBe(true);
+    await settle();
+    expect(api.deleteConversation).toHaveBeenCalledExactlyOnceWith({ conversationId: "c1" });
+    expect(dialog()).toBeFalsy();
+    expect(trigger.focus).toHaveBeenCalledOnce();
+    expect(toastText()).toBeNull();
+  });
+
+  test("Cancel closes the alert onto the head's menu button and asks main nothing", () => {
+    api.deleteConversation = vi.fn(async () => undefined);
+    const { trigger, dialog } = asked();
+    dialog()!.props.cancel();
+    expect(dialog()).toBeFalsy();
+    expect(trigger.focus).toHaveBeenCalledOnce();
+    expect(api.deleteConversation).not.toHaveBeenCalled();
+  });
+
+  test("a refusal closes the alert and says why", async () => {
+    api.deleteConversation = vi.fn(async () => ({ error: "busy" }));
+    const { trigger, dialog } = asked();
+    dialog()!.props.confirm();
+    await settle();
+    expect(dialog()).toBeFalsy();
+    expect(trigger.focus).toHaveBeenCalledOnce();
+    expect(toastText()).toBe(deleteRefusalText("busy", "Ideas"));
+  });
+});
+
 describe("presses before main answers", () => {
   test("two presses before an answer both ask to open; the open then puts focus in the composer once", () => {
     const conversation = () => shell.conversation!;

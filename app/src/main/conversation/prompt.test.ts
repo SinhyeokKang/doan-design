@@ -76,8 +76,7 @@ it("teaches the reply link form next to the open rule, outside the data, and say
   expect(LINK_GUIDANCE).not.toContain("\n");
 });
 it("puts only the folder and canvas of the conversation in the prompt's context", () => {
-  const metadata = { conversationId: "c", root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, title: "Secret title", state: "current",
-    owner: { kind: "doan", provider: "claude", connectionId: "conn-1", accountId: "acct-1", workspaceId: "org-1", profile: "profile-1" },
+  const metadata = { conversationId: "c", root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, title: "Secret title", owner: { kind: "doan", provider: "claude", connectionId: "conn-1", accountId: "acct-1", workspaceId: "org-1", profile: "profile-1" },
     session: { runtime: "claude", origin: "new", sessionId: "sess-1", configDir: "/config-dir", cwd: "/repo" }, model: "sonnet", effort: "high" };
   const prompt = turnPrompt([], "hello", metadata as unknown as { root: string })!;
   expect(JSON.parse(prompt.split("\n\n")[1]!).context).toEqual({ root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" } });

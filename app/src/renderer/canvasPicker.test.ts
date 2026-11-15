@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Anchor } from "../main/conversation/types";
-import { ANCHOR_LIMIT_TEXT, PICKER_UNAVAILABLE, pickerAvailability, pointAnchor, resolveChipTarget, targetAnchor, type ChipReply } from "./canvasPicker";
+import { ADD_TO_MESSAGE_CAPTURING, ADD_TO_MESSAGE_OUTSIDE_FRAMES, ADD_TO_MESSAGE_UNAVAILABLE, ANCHOR_LIMIT_TEXT, bubbleAddAvailability, PICKER_UNAVAILABLE, pickerAvailability, pointAnchor, resolveChipTarget, targetAnchor, type ChipReply } from "./canvasPicker";
 
 describe("pickerAvailability", () => {
   test("on while the composer takes input and the canvas is loaded", () => {
@@ -110,5 +110,51 @@ describe("targetAnchor", () => {
 
   test("a target that is neither gives no anchor", () => {
     expect(targetAnchor({ tag: "div", path: [] })).toBeNull();
+  });
+});
+
+// The size bubble's Add to message: Pick from canvas's judgement for the same chip, after two reasons of its own.
+describe("bubbleAddAvailability", () => {
+  const inFrame: Anchor = { frame: { id: "shipping" }, element: { selector: "#pay", tag: "button" } };
+  const note: Anchor = { element: { selector: "body > p:nth-of-type(1)", tag: "p" } };
+  const ready = { enabled: true, reason: null };
+  const unlisted = "This canvas isn’t listed in acme-web, so its conversation can’t continue.";
+
+  test("on for a frame or what is in it while the Picker is", () => {
+    expect(bubbleAddAvailability({ capturing: false, anchor: inFrame, picker: ready, unlisted: null })).toEqual({ enabled: true, reason: null });
+    expect(bubbleAddAvailability({ capturing: false, anchor: { frame: { id: "shipping" } }, picker: ready, unlisted: null })).toEqual({ enabled: true, reason: null });
+  });
+
+  test("capture mode gives its own reason", () => {
+    expect(bubbleAddAvailability({ capturing: true, anchor: inFrame, picker: ready, unlisted: null })).toEqual({ enabled: false, reason: ADD_TO_MESSAGE_CAPTURING });
+    expect(ADD_TO_MESSAGE_CAPTURING).toBe("Finish or cancel the capture first.");
+  });
+
+  test("a note outside every frame, or no anchor at all, gives the frames reason", () => {
+    expect(bubbleAddAvailability({ capturing: false, anchor: note, picker: ready, unlisted: null })).toEqual({ enabled: false, reason: ADD_TO_MESSAGE_OUTSIDE_FRAMES });
+    expect(bubbleAddAvailability({ capturing: false, anchor: null, picker: ready, unlisted: null })).toEqual({ enabled: false, reason: ADD_TO_MESSAGE_OUTSIDE_FRAMES });
+    expect(ADD_TO_MESSAGE_OUTSIDE_FRAMES).toBe("Only frames and what’s in them can go in a message.");
+  });
+
+  test("the composer's reasons are the Picker's own lines", () => {
+    const composer = "acme-web isn’t available. Fix it from its menu in the sidebar.";
+    expect(bubbleAddAvailability({ capturing: false, anchor: inFrame, picker: pickerAvailability(composer, "loaded", 0), unlisted: null })).toEqual({ enabled: false, reason: composer });
+    expect(bubbleAddAvailability({ capturing: false, anchor: inFrame, picker: pickerAvailability(null, "loaded", 32), unlisted: null })).toEqual({ enabled: false, reason: ANCHOR_LIMIT_TEXT });
+  });
+
+  test.each(["loading", "failed", "noWidth"] as const)("a canvas that can't be shown (%s) gives the bubble's canvas reason, never the Picker's name", load => {
+    expect(bubbleAddAvailability({ capturing: false, anchor: inFrame, picker: pickerAvailability(null, load, 0), unlisted: null })).toEqual({ enabled: false, reason: ADD_TO_MESSAGE_UNAVAILABLE });
+    expect(ADD_TO_MESSAGE_UNAVAILABLE).toBe("Add to message isn’t available while the canvas can’t be shown.");
+  });
+
+  test("an unlisted canvas gives its own notice", () => {
+    expect(bubbleAddAvailability({ capturing: false, anchor: inFrame, picker: pickerAvailability(unlisted, "unlisted", 0), unlisted })).toEqual({ enabled: false, reason: unlisted });
+  });
+
+  test("capture mode comes before a note, and a note before the Picker's reasons", () => {
+    const blocked = pickerAvailability(null, "failed", 0);
+    expect(bubbleAddAvailability({ capturing: true, anchor: note, picker: blocked, unlisted: null }).reason).toBe(ADD_TO_MESSAGE_CAPTURING);
+    expect(bubbleAddAvailability({ capturing: false, anchor: note, picker: blocked, unlisted: null }).reason).toBe(ADD_TO_MESSAGE_OUTSIDE_FRAMES);
+    expect(bubbleAddAvailability({ capturing: false, anchor: note, picker: pickerAvailability(null, "loaded", 32), unlisted: null }).reason).toBe(ADD_TO_MESSAGE_OUTSIDE_FRAMES);
   });
 });

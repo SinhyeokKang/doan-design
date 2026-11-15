@@ -17,7 +17,7 @@ const ROOT = "/code/doan", OTHER = "/code/doan-wt";
 const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "aaaaaaaa-0000-4000-8000-000000000002", C = "aaaaaaaa-0000-4000-8000-000000000003";
 const CANVAS: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
 const summary = (conversationId: string, extra: Partial<ConversationSummary> = {}): ConversationSummary => ({
-  conversationId, title: `Title ${conversationId.slice(-1)}`, state: "current", owner: "doan", provider: "claude", fromHome: true,
+  conversationId, title: `Title ${conversationId.slice(-1)}`, owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...extra,
 });
 let seq = 0;
@@ -565,13 +565,6 @@ test("an unseen turn end (window unfocused) is not marked at promotion", async (
   expect(h.host.markSeen).not.toHaveBeenCalled();
 });
 
-test("a promoted conversation that is already archived still resets and notifies", async () => {
-  const h = promotedSetup(true);
-  await flush();
-  h.answer(ROOT, [summary(A, { canvas: CANVAS, state: "archived" })]);
-  expect(h.run.view(ROOT)).toMatchObject({ kind: "new", moved: { conversationId: A } });
-});
-
 test("a returned draft's chips join the current draft's as chips, so neither side's markers are renumbered", async () => {
   const h = harness();
   histories.set(A, ended(A));
@@ -587,7 +580,7 @@ test("a returned draft's chips join the current draft's as chips, so neither sid
   expect(h.run.drafts.get(`conversation:${A}`)?.segments).toEqual([{ kind: "text", text: "Fix " }, { kind: "chip", anchor: mine }, { kind: "text", text: "\n\nand " }, { kind: "chip", anchor: theirs }]);
 });
 
-test("a shown conversation archived without a canvas, or gone, resets without a notice", async () => {
+test("a shown conversation that is gone resets without a notice", async () => {
   const h = promotedSetup(true);
   h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, draft("kept")));
   h.answer(ROOT, []);

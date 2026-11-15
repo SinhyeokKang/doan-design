@@ -218,12 +218,13 @@ export function mountBuddy(buddy: Buddy, host: HTMLButtonElement, still: HTMLIma
 }
 
 // `size` is the drawing slot in CSS px (Home 114, Welcome 142.5); it includes the hop headroom. A new buddy is a new
-// mount (a context of its own, released on unmount), so the slot is keyed by the buddy.
-export function Buddy({ buddy, size, ref }: { buddy: BuddyId; size: number; ref?: Ref<BuddyHandle> }) {
-  return <BuddySlot key={buddy} buddy={registry(buddy)} size={size} ref={ref} />;
+// mount (a context of its own, released on unmount), so the slot is keyed by the buddy. describedBy: the ids of text
+// beside the slot that the button reads with its name (Settings > General's lock countdown).
+export function Buddy({ buddy, size, describedBy, ref }: { buddy: BuddyId; size: number; describedBy?: string; ref?: Ref<BuddyHandle> }) {
+  return <BuddySlot key={buddy} buddy={registry(buddy)} size={size} describedBy={describedBy} ref={ref} />;
 }
 
-function BuddySlot({ buddy, size, ref }: { buddy: Buddy; size: number; ref?: Ref<BuddyHandle> | undefined }) {
+function BuddySlot({ buddy, size, describedBy, ref }: { buddy: Buddy; size: number; describedBy?: string | undefined; ref?: Ref<BuddyHandle> | undefined }) {
   const host = useRef<HTMLButtonElement>(null), still = useRef<HTMLImageElement>(null), canvas = useRef<HTMLCanvasElement>(null);
   const rig = useRef<DoanyRig | null>(null);
   useImperativeHandle(ref, () => ({ hop: () => rig.current?.hop(), typing: () => rig.current?.typing() }), []);
@@ -234,7 +235,7 @@ function BuddySlot({ buddy, size, ref }: { buddy: Buddy; size: number; ref?: Ref
   }, [buddy]);
   const [x, y] = buddy.rig.contact;
   return (
-    <button ref={host} type="button" className="doany" aria-label={`Make ${buddy.name} hop`} style={{ width: size, height: size }}>
+    <button ref={host} type="button" className="doany" aria-label={`Make ${buddy.name} hop`} aria-describedby={describedBy} style={{ width: size, height: size }}>
       <img ref={still} src={buddy.assets.still} alt="" />
       {/* The shadow stays on the floor while the buddy hops: it shrinks about the ground contact as --hop-lift rises. */}
       <img className="buddy-shadow" src={buddy.assets.shadow} alt="" aria-hidden="true" style={{ transformOrigin: `calc(16.5% + 67% * ${x}) calc(16.5% + 67% * ${y})` }} />

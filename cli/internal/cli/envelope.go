@@ -40,7 +40,9 @@ func ExitCode(code string) int {
 		"sign_in_failed", "network", "storage_failed", "check_failed", "account_mismatch", "cli_install_failed", "repository_unreachable", "git_missing",
 		"remote_mismatch", "clone_failed", "cleanup_failed", "config_invalid", "init_failed", "local_not_git", "local_exclude_failed", "project_unavailable", "project_unreadable", "completion_save_failed", "completion_unsupported_version",
 		// Handoff refusals the conversation's state decides.
-		"not_running", "not_canvas_conversation", "plan_mode", "handoff_turn", "already_requested", "same_canvas":
+		"not_running", "not_canvas_conversation", "plan_mode", "handoff_turn", "already_requested", "same_canvas",
+		// A remove refusal the app's conversations decide.
+		"conversation_running":
 		return 5
 	default:
 		return 1

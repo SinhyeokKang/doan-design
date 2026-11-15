@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doan.design/schema/app-socket.v7.schema.json",
+  "$comment": "Remove-project requests (`doan remove`) on the app's local socket, beside app-socket.v1 (active), v2 (onboarding), v3 (work), v4 (open), v5 (handoff) and v6 (prototype), which are unchanged. A separate v: an older app answers v7 with its v1 bad_request, which the CLI reads as app_protocol_mismatch. The reader dispatches on numeric v before validating. Use the $defs; the root constrains nothing. The reply says what the app decided, not what the CLI prints: the CLI builds its own messages and next steps from the code, except busy, whose app message names what blocks.",
+  "$defs": {
+    "token": {
+      "type": "string",
+      "$comment": "Not pattern-checked so a wrong token reaches the app's bad_token answer instead of bad_request."
+    },
+    "absolutePath": {
+      "type": "string",
+      "pattern": "^/",
+      "$comment": "Absolute POSIX path; the app is macOS-only."
+    },
+    "request": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 7
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "root": {
+          "$ref": "#/$defs/absolutePath",
+          "$comment": "The root the CLI discovered; the app compares it with its registered roots as a string and removes that root's whole project group."
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "root"
+      ],
+      "additionalProperties": false
+    },
+    "errorCode": {
+      "enum": [
+        "bad_request",
+        "bad_token",
+        "project_not_open",
+        "busy",
+        "conversation_running"
+      ],
+      "$comment": "In the app's check order after the schema and token: project_not_open (the root is not registered, or the removal found nothing to remove), busy (still loading, first run or the buddy screen, a dialog, a locked page), conversation_running (a turn of any conversation in the group's roots is running, including one waiting on a permission request or a question). Every refusal changes nothing."
+    },
+    "response": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 7
+            },
+            "ok": {
+              "const": true
+            },
+            "removed": {
+              "const": true
+            },
+            "project": {
+              "type": "string",
+              "minLength": 1,
+              "$comment": "The group's name as the sidebar shows it: the main worktree's folder name."
+            },
+            "roots": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/absolutePath"
+              },
+              "minItems": 1,
+              "uniqueItems": true,
+              "$comment": "Every registered root of the group that left the list, absolute, in stored order."
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "removed",
+            "project",
+            "roots"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 7
+            },
+            "ok": {
+              "const": false
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "$ref": "#/$defs/errorCode"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

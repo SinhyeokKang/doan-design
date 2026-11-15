@@ -257,8 +257,7 @@ it("keeps a send on a login state with an account_mismatch error as not_logged_i
   const state: AuthState = { ...initialAuthState("claude", connection), verified: true, generation: 1, error: { code: "account_mismatch" } };
   mocks.run.mockResolvedValue({ exitCode: 0, timedOut: false, stdout: "2.1.312 (Claude Code)" });
   const stored = {
-    conversationId: "c1", root, canvas: { path: ".doan/canvases/a.html" }, title: "t", state: "current" as const,
-    owner: { kind: "doan" as const, provider: "claude" as const, connectionId: "conn-1", accountId: "acct-1", workspaceId: "org-1", profile: "claude" },
+    conversationId: "c1", root, canvas: { path: ".doan/canvases/a.html" }, title: "t", owner: { kind: "doan" as const, provider: "claude" as const, connectionId: "conn-1", accountId: "acct-1", workspaceId: "org-1", profile: "claude" },
     session: { runtime: "claude" as const, origin: "new" as const, sessionId, configDir: profile, cwd: root },
   };
   const lease = async (): Promise<Lease> => ({ command: "/bin/claude", env: { PATH: "/shell/bin" }, profileDir: profile, release: async () => {} });

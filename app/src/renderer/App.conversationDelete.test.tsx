@@ -89,16 +89,19 @@ let doan: Record<string, ReturnType<typeof vi.fn>>;
 let tree: ReactNode;
 let calls: string[];
 const FIELDS: Record<string, { field: string }> = { ".workspace .ov-main .composer-input": { field: "overview" }, ".doan-conv-panel .composer-input": { field: "canvas" } };
+// The canvas panel's title menu trigger, where focus goes after the shown conversation is deleted (draft frame delete-shown).
+const TITLE_TRIGGER = ".doan-conv-panel .doan-conv-title .ov-title";
 
 function reset() {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   listeners = {}; calls = []; focused.calls.length = 0;
+  FIELDS[TITLE_TRIGGER] = { field: "title", focus: vi.fn() } as never;
   harness.toast.show.mockClear(); harness.toast.setModal.mockClear();
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationStage: on("stage"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
-    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: on("quitting"), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), answerOpenRequest: vi.fn(async () => {}),
+    onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: on("quitting"), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
@@ -141,7 +144,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 const find = <P,>(type: unknown) => all(tree).filter(element => element.type === type) as unknown as ReactElement<P>[];
 const flushAll = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); render(); };
-const summary = (conversationId: string, patch: Record<string, unknown> = {}) => ({ conversationId, title: `Title ${conversationId}`, state: "current", owner: "doan", provider: "claude",
+const summary = (conversationId: string, patch: Record<string, unknown> = {}) => ({ conversationId, title: `Title ${conversationId}`, owner: "doan", provider: "claude",
   fromHome: true, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch });
 const onCanvas = (conversationId: string, patch: Record<string, unknown> = {}) => summary(conversationId, { canvas: { path: rowA.path, id: "a" }, fromHome: false, ...patch });
 type Target = { conversationId: string; root: string; title: string; provider: string; from: "overview" | "canvas" };
@@ -167,8 +170,8 @@ async function openOverview(list: unknown[] = [summary("c1"), summary("c2")]) {
   await flushAll();
   expect(overview()!.run.view("/w/a")).toEqual({ kind: "conversation", conversationId: "c1" });
 }
-// The canvas page on a, its panel showing c1 (current on a), with archived c2.
-async function openCanvasPanel(list: unknown[] = [onCanvas("c1"), onCanvas("c2", { state: "archived" })]) {
+// The canvas page on a, its panel showing c1 (the most recent on a), with c2 also on a.
+async function openCanvasPanel(list: unknown[] = [onCanvas("c1", { lastActivityAt: "2026-11-01T00:02:00.000Z" }), onCanvas("c2")]) {
   doan.listConversations!.mockResolvedValue(list);
   render();
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: true, width: 400 } }); await flushAll();
@@ -286,17 +289,29 @@ test("not_found cleans up as a deletion and says it was already deleted", async 
   expect(focused.calls).toEqual([FIELDS[".workspace .ov-main .composer-input"]]);
 });
 
-test("deleting the canvas's current conversation from its Title menu shows the new conversation state, not the archived one, and focuses the panel's composer", async () => {
+// Deleting the shown conversation: the next conversation by the shared rule, else the new conversation state; focus on the title menu button.
+test("deleting the shown conversation from its Title menu shows the next one and focuses the title menu button", async () => {
   await openCanvasPanel();
   doan.deleteConversation = vi.fn(async () => undefined);
   ask(target("c1", "canvas"));
   dialog()!.confirm(); await flushAll();
-  expect(title()!.run.view()).toMatchObject({ kind: "new" });
-  doan.listConversations!.mockResolvedValue([onCanvas("c2", { state: "archived" })]);
+  expect(title()!.run.view()).toMatchObject({ kind: "conversation", conversationId: "c2" });
+  doan.listConversations!.mockResolvedValue([onCanvas("c2")]);
   listeners.conversationList!({ root: "/w/a" } as never); await flushAll();
-  expect(title()!.run.view()).toMatchObject({ kind: "new" });
+  expect(title()!.run.view()).toMatchObject({ kind: "conversation", conversationId: "c2" });
   expect(harness.toast.show).not.toHaveBeenCalled();
-  expect(focused.calls).toEqual([FIELDS[".doan-conv-panel .composer-input"]]);
+  expect(focused.calls).toEqual([]);
+  expect((FIELDS[TITLE_TRIGGER] as unknown as { focus: ReturnType<typeof vi.fn> }).focus).toHaveBeenCalledOnce();
+});
+
+test("deleting the last conversation of the canvas leaves the new conversation state, focus on the title menu button", async () => {
+  await openCanvasPanel([onCanvas("c1")]);
+  doan.deleteConversation = vi.fn(async () => undefined);
+  ask(target("c1", "canvas"));
+  dialog()!.confirm(); await flushAll();
+  expect(title()!.run.view()).toMatchObject({ kind: "new" });
+  expect(focused.calls).toEqual([]);
+  expect((FIELDS[TITLE_TRIGGER] as unknown as { focus: ReturnType<typeof vi.fn> }).focus).toHaveBeenCalledOnce();
 });
 
 // PRODUCT item 3 'Deep links': a busy dialog refuses its cancel. Cancelling here would stop nothing, and a second
@@ -462,4 +477,123 @@ test("a Canvas conversations deletion whose next row also left sends focus to th
     expect(button.focus).not.toHaveBeenCalled();
     expect(head.focus).toHaveBeenCalledOnce();
   } finally { delete FIELDS[".ov-right .rp-head"]; }
+});
+
+// sidebar-canvas-conversations: the viewed canvas's conversation rows in the sidebar.
+type SidebarTarget = { conversationId: string; root: string; title: string; provider: string; from: "sidebar"; after: string; canvasRow: string };
+type SidebarConversations = { shown: string | null; folded: boolean; fold(folded: boolean): void; open(root: string, row: CanvasRow, conversationId: string): void; remove(target: SidebarTarget, trash: unknown): void };
+const sidebarConversations = () => find<{ conversations: SidebarConversations; open(root: string, row: CanvasRow, listed?: boolean): void }>(ShellSidebar)[0]!.props;
+const ROW_KEY = `/w/a\n${rowA.path}`;
+const conversationKey = (conversationId: string) => `${ROW_KEY}\n${conversationId}`;
+const treeItem = (key: string) => `.shell-side [role="treeitem"][data-key="${key}"]`;
+const fromSidebar = (conversationId: string, after: string, button = trigger()) => {
+  sidebarConversations().conversations.remove({ conversationId, root: "/w/a", title: `Title ${conversationId}`, provider: "claude", from: "sidebar", after, canvasRow: ROW_KEY }, button); render();
+  return button;
+};
+function sidebarTargets() {
+  const next = { isConnected: true, focus: vi.fn() }, canvasRow = { isConnected: true, focus: vi.fn() };
+  FIELDS[treeItem(conversationKey("c3"))] = next as never;
+  FIELDS[treeItem(ROW_KEY)] = canvasRow as never;
+  vi.stubGlobal("CSS", { escape: (value: string) => value });
+  return { next, canvasRow, cleanup: () => { delete FIELDS[treeItem(conversationKey("c3"))]; delete FIELDS[treeItem(ROW_KEY)]; } };
+}
+const three = () => [onCanvas("c1", { lastActivityAt: "2026-11-01T00:02:00.000Z" }), onCanvas("c2", { lastActivityAt: "2026-11-01T00:01:00.000Z" }), onCanvas("c3")];
+
+test("a sidebar conversation row's Delete asks first and sends focus to the row the sidebar gave, even for the shown conversation", async () => {
+  const { next, cleanup } = sidebarTargets();
+  try {
+    await openCanvasPanel(three());
+    doan.deleteConversation = vi.fn(async () => undefined);
+    const button = fromSidebar("c1", conversationKey("c3"));
+    expect(dialog()!.view.title).toBe("Delete “Title c1”?");
+    dialog()!.confirm(); await flushAll();
+    expect(doan.deleteConversation).toHaveBeenCalledWith({ conversationId: "c1" });
+    expect(next.focus).toHaveBeenCalledOnce();
+    expect((FIELDS[TITLE_TRIGGER] as unknown as { focus: ReturnType<typeof vi.fn> }).focus).not.toHaveBeenCalled();
+    expect(button.focus).not.toHaveBeenCalled();
+  } finally { cleanup(); }
+});
+
+test("a sidebar Delete whose next row also left sends focus to the canvas row", async () => {
+  const { next, canvasRow, cleanup } = sidebarTargets();
+  delete FIELDS[treeItem(conversationKey("c3"))];
+  try {
+    await openCanvasPanel(three());
+    doan.deleteConversation = vi.fn(async () => undefined);
+    fromSidebar("c2", conversationKey("c3"));
+    dialog()!.confirm(); await flushAll();
+    expect(next.focus).not.toHaveBeenCalled();
+    expect(canvasRow.focus).toHaveBeenCalledOnce();
+  } finally { cleanup(); }
+});
+
+test.each([["a refusal", true], ["Cancel", false]])("sidebar Delete, %s: focus returns to the row's Delete", async (_name, confirm) => {
+  const { next, canvasRow, cleanup } = sidebarTargets();
+  try {
+    await openCanvasPanel(three());
+    doan.deleteConversation = vi.fn(async () => ({ error: "busy" }));
+    const button = fromSidebar("c2", conversationKey("c3"));
+    if (confirm) { dialog()!.confirm(); await flushAll(); } else { dialog()!.cancel(); render(); }
+    expect(dialog()).toBeUndefined();
+    expect(button.focus).toHaveBeenCalledOnce();
+    expect(next.focus).not.toHaveBeenCalled();
+    expect(canvasRow.focus).not.toHaveBeenCalled();
+  } finally { cleanup(); }
+});
+
+test("the sidebar's alert reads the same unavailable reason while the conversation works", async () => {
+  await openCanvasPanel([onCanvas("c1", { lastActivityAt: "2026-11-01T00:02:00.000Z" }), onCanvas("c2", { phase: "running", working: true })]);
+  fromSidebar("c2", ROW_KEY);
+  expect(dialog()!.reason).toBe("The agent is working on this conversation.");
+});
+
+// The canvas page on a with its panel folded, showing c1 (the most recent; nothing waits for an answer).
+async function openCanvasFolded(list: unknown[]) {
+  doan.listConversations!.mockResolvedValue(list);
+  render();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } }); await flushAll();
+  listeners.folders!([listed("/w/a")] as never); render();
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, message: "", layout: { frames: [], width: 800 } });
+  render(); await flushAll();
+}
+const panelOpen = () => (doan.saveUiState!.mock.lastCall?.[0] as { rightPanel?: { open: boolean } }).rightPanel?.open;
+
+test("the sidebar lists the canvas's conversations with the one the folded panel would show as current", async () => {
+  await openCanvasFolded(three());
+  expect(sidebarConversations().conversations.shown).toBe("c1");
+  expect(sidebarConversations().conversations.folded).toBe(false);
+});
+
+test("a conversation row unfolds the panel on that conversation without a move, so Back/Forward gain nothing", async () => {
+  await openCanvasFolded(three());
+  harness.controller!.openCanvas!.mockClear();
+  sidebarConversations().conversations.open("/w/a", rowA, "c2"); render(); await flushAll();
+  expect(panelOpen()).toBe(true);
+  expect(sidebarConversations().conversations.shown).toBe("c2");
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  // The row already shown only unfolds.
+  sidebarConversations().conversations.open("/w/a", rowA, "c2"); render(); await flushAll();
+  expect(sidebarConversations().conversations.shown).toBe("c2");
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+});
+
+// The sidebar says whether the pressed row's list shows (review R2): App follows what the row shows, not its own guess.
+test("with the list unfolded the viewed canvas row's press keeps the panel; folded, its slot opens the conversation it stands for", async () => {
+  await openCanvasFolded([onCanvas("c1", { lastActivityAt: "2026-11-01T00:02:00.000Z" }), onCanvas("c2", { unseen: true })]);
+  sidebarConversations().open("/w/a", rowA, true); render(); await flushAll();
+  expect(panelOpen()).toBe(false);
+  expect(sidebarConversations().conversations.shown).toBe("c1");
+  sidebarConversations().conversations.fold(true); render();
+  sidebarConversations().open("/w/a", rowA); render(); await flushAll();
+  // A conversation started in the canvas panel answers the row's slot (sidebarRowRequest's scope is the slot's).
+  expect(panelOpen()).toBe(true);
+  expect(sidebarConversations().conversations.shown).toBe("c2");
+});
+
+test("a canvas row whose list shows elsewhere (held above it) uses its own slot, though it is the viewed canvas", async () => {
+  await openCanvasFolded([onCanvas("c1", { lastActivityAt: "2026-11-01T00:02:00.000Z" }), onCanvas("c2", { unseen: true })]);
+  sidebarConversations().open("/w/a", rowA, false); render(); await flushAll();
+  expect(panelOpen()).toBe(true);
+  expect(sidebarConversations().conversations.shown).toBe("c2");
 });

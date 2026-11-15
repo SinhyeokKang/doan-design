@@ -30,7 +30,7 @@ export type ThreadItem =
   | { kind: "question"; key: string; seq: number; requestId: string; questions: Question[]; status: "pending" | QuestionOutcome; answers: Record<string, StoredAnswer> | null }
   // seq is null for the end a crash-folded turn never wrote; its key is the turn's, so it stays when later turns arrive.
   | { kind: "end"; key: string; seq: number | null; end: TurnEnd }
-  | { kind: "marker"; key: string; seq: number; marker: "bound" | "archived" | "restored"; canvas: Canvas | null }
+  | { kind: "marker"; key: string; seq: number; marker: "bound"; canvas: Canvas }
   // A turn's handoff, one line per requested path: the line sits where the request was made, and its resolution, which
   // comes after the turn's end, replaces it there. "missed": a new canvas the turn edited and asked no handoff for, with
   // its ID so a later rename or removal is judged as for a target; it sits after the turn's last handoff line.
@@ -183,9 +183,11 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
 
   for (const event of events) {
     switch (event.type) {
-      case "conversation.archived": case "conversation.bound": case "conversation.restored":
-        push({ kind: "marker", key: `k${event.seq}`, seq: event.seq, marker: event.type === "conversation.archived" ? "archived" : event.type === "conversation.bound" ? "bound" : "restored", canvas: event.type === "conversation.bound" ? event.canvas : null });
+      case "conversation.bound":
+        push({ kind: "marker", key: `k${event.seq}`, seq: event.seq, marker: "bound", canvas: event.canvas });
         continue;
+      // An earlier build's archive and restore lines: nothing is archived any more, so they draw nothing.
+      case "conversation.archived": case "conversation.restored": continue;
       case "user.message": {
         // The next turn's message comes before its turn.started: an unfinished turn before it was folded.
         if (turn !== null && event.turnId !== turn && !ended.has(turn)) foldCrashed(turn);

@@ -1,9 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Square } from "lucide-react";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
-import { agentNoticeView, canvasAgent, canvasWorkTarget, workFrameTitle, type TitleCache, listForPresence, pickWork, settleStopping, siblingWork, stopTurn, type AgentNoticeView, type CanvasAgentState, type WorkingCanvas } from "./agentIndicator";
+import { agentNoticeView, canvasAgent, canvasWorkTarget, workFrameTitle, type TitleCache, listForPresence, pickWork, siblingWork, type AgentNoticeView, type CanvasAgentState, type WorkingCanvas } from "./agentIndicator";
 import type { ConversationWork } from "../main/conversationWork";
 import type { CanvasWorkTarget } from "./CanvasController";
 import type { CanvasFrameRect } from "./canvasMessage";
@@ -12,7 +11,7 @@ import type { DotFieldMessage, DotFieldSize } from "./dotField";
 import { crossesBoundary, NoticeTyping, typesOn, type NoticeMoment, type TypedText } from "./noticeTyping";
 import { pickArtist, type BuddyId } from "./buddies";
 
-// The agent indicator on the board while this canvas's current conversation works or waits (PRODUCT §5 item 2 'Agent indicator',
+// The agent indicator on the board while one of this canvas's conversations works or waits (PRODUCT §5 item 2 'Agent indicator',
 // .doan/canvases/doan-canvas.html 'agent-working', 'agent-waiting'). The glow and the dot field take
 // no pointer input; the notice floats at the board's top centre with one button. Reference: ego lite's agent tab as the
 // user described it (2026-11-01); its values live in a native view and were not read.
@@ -26,23 +25,24 @@ import { pickArtist, type BuddyId } from "./buddies";
 // `onOpenSibling` gets that worktree's root.
 // work-update (draft .doan/canvases/work-update.html 'notice-states', 'notice-typing'): `doan work update` content words
 // the notice. `conversationWork` is app conversations' content (a project conversation, or a canvas conversation naming
-// another canvas, shows the indicator without Stop); `frames` is the open document's layout, for the frame's title.
+// another canvas, shows the indicator too); `frames` is the open document's layout, for the frame's title.
 // `onWork` gets the open canvas's work for the controller's marker and following, once per change. `buddy` is the
 // chosen buddy, whose painter the notice shows.
-export function CanvasAgent({ list, canvas, buddy, running, work, conversationWork = [], frames = null, entries, onOpen, onOpenSibling, onStopFailed, onWork, children }: {
-  list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[];
+// .doan/canvases/canvas-concurrent-conversations.html 'board-notice', 'board-stop': the notice follows one conversation of the
+// canvas, the one the panel shows (`shown`, also while folded) while it works or waits, else another. Working shows no
+// button: stopping is the composer's Stop, tied to one conversation (user decision). Open gets the followed
+// conversation that waits.
+export function CanvasAgent({ list, shown = null, canvas, buddy, running, work, conversationWork = [], frames = null, entries, onOpen, onOpenSibling, onWork, children }: {
+  list: readonly ConversationSummary[] | "loading" | "error" | undefined; shown?: string | null; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[];
   conversationWork?: readonly ConversationWork[]; frames?: readonly CanvasFrameRect[] | null;
-  entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void;
+  entries: readonly FolderEntry[]; onOpen(conversationId: string): void; onOpenSibling(root: string): void;
   onWork?(target: CanvasWorkTarget | null): void; children?: ReactNode;
 }) {
-  // The last answer, kept across a failed list read (agentPresence).
+  // The last answer, kept across a failed list read (boardPresence).
   const previous = useRef<CanvasAgentState | null>(null);
-  const agent = canvasAgent(listForPresence(list), canvas, previous.current, work, conversationWork);
+  const agent = canvasAgent(listForPresence(list), canvas, previous.current, work, conversationWork, shown);
   previous.current = agent;
   const presence = agent?.presence ?? null;
-  const [stopping, setStopping] = useState<string | null>(null);
-  const held = settleStopping(stopping, presence);
-  useEffect(() => { if (stopping !== null && held === null) setStopping(null); }, [stopping, held]);
   const picked = agent ? pickWork(canvas, presence, conversationWork, work) : null;
   const target = canvasWorkTarget(canvas, picked, conversationWork, work);
   const targetKey = JSON.stringify(target);
@@ -53,7 +53,7 @@ export function CanvasAgent({ list, canvas, buddy, running, work, conversationWo
   const named = workFrameTitle(title.current, canvas, picked, frames);
   title.current = named.cache;
   const name = named.title;
-  const view = agentNoticeView(presence, held, agent !== null && agent.presence === null, picked && { ...picked, ...(name === undefined ? {} : { title: name }) });
+  const view = agentNoticeView(presence, agent !== null && agent.presence === null, picked && { ...picked, ...(name === undefined ? {} : { title: name }) });
   const moment: NoticeMoment = {
     canvas: canvas && `${canvas.root}\0${canvas.canvas.path}`, visible: running,
     content: picked ? `${picked.source}@${picked.touched}` : presence ? `presence:${presence.conversationId}` : null, waiting: presence?.kind === "waiting",
@@ -61,16 +61,6 @@ export function CanvasAgent({ list, canvas, buddy, running, work, conversationWo
   // This checkout's own work, app or terminal, wins the column.
   const sibling = agent === null ? siblingWork(work, canvas, entries) : null;
 
-  const stop = () => {
-    if (!agent?.presence || view?.action?.kind !== "stop" || view.action.disabled) return;
-    const { conversationId } = agent.presence;
-    setStopping(conversationId);
-    void stopTurn(conversationId, agent.provider, request => window.doan.interruptConversation(request)).then(failed => {
-      if (failed === null) return;
-      setStopping(current => current === conversationId ? null : current);
-      onStopFailed(failed);
-    });
-  };
   const action = view?.action;
   // One return shape, so the notices below keep their nodes when the indicator comes and goes.
   return <>
@@ -79,12 +69,7 @@ export function CanvasAgent({ list, canvas, buddy, running, work, conversationWo
       {view && <div className={action ? "doan-agent" : "doan-agent doan-agent-terminal"}>
         <BuddyArtist buddy={buddy} still={view.steady || !running} />
         <WorkWords view={view} moment={moment} />
-        {!action ? null : action.kind === "stop"
-          // aria-disabled, not disabled: "Stopping" keeps focus.
-          // The composer's Stop glyph; "Stopping" spins in its place.
-          ? <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-disabled={action.disabled || undefined} onClick={stop}>
-            {action.disabled ? <span className="doan-spinner" aria-hidden="true" /> : <Square fill="currentColor" stroke="none" aria-hidden="true" />}{action.label}</button>
-          : <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={action.name} onClick={onOpen}>{action.label}</button>}
+        {action && <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={action.name} onClick={() => { if (presence) onOpen(presence.conversationId); }}>{action.label}</button>}
       </div>}
       {/* The text ellipsizes a long label; its tooltip and Open's name carry it whole. The tooltip opens below: the
           notice sits near the board's top edge, and above it a two-line sentence crossed into the canvas header.
@@ -136,7 +121,7 @@ function WorkWords({ view, moment }: { view: AgentNoticeView; moment: NoticeMome
     if (crossed) typing.current?.settle(view.text);
     else typing.current?.set(view.text, animate);
   });
-  // The caret's own width and gap (--space-1 together) are added to the text floor, never measured with the text.
+  // The caret's own width and gap (1.5 + 2px, within --space-1) are added to the text floor, never measured with the text.
   const floor = typed.minWidth === null ? undefined : cap.current === null ? `calc(${typed.minWidth}px + var(--space-1))` : `min(calc(${typed.minWidth}px + var(--space-1)), ${cap.current}px)`;
   const cut = () => { const node = text.current; return !!node && node.scrollWidth > node.clientWidth; };
   return <>

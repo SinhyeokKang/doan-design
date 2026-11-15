@@ -1,4 +1,3 @@
-import { sameCanvas } from "./sessions";
 import type { QuestionOutcome } from "./question";
 import type { Canvas, ConversationBinding, ConversationEvent, TurnState } from "./types";
 // A turn's handoff: the canvas it asked for and how it ended. pending: still judged by this run. missed: a new canvas
@@ -26,7 +25,7 @@ export function mergeEvents(snapshot: readonly ConversationEvent[], buffered: re
   return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
 }
 export interface FoldedConversation {
-  turn: TurnState; turnId: string | null; archived: boolean; lastSeq: number;
+  turn: TurnState; turnId: string | null; lastSeq: number;
   interruption: "user" | "appQuit" | "crashed" | null;
   permissions: Record<string, string>;
   questions: Record<string, "pending" | QuestionOutcome>;
@@ -35,7 +34,7 @@ export interface FoldedConversation {
   handoffs: Record<string, HandoffFold[]>;
 }
 export function foldConversation(input: readonly ConversationEvent[], conversationId: string, restarting = true): FoldedConversation {
-  const state: FoldedConversation = { turn: "idle", turnId: null, archived: false, lastSeq: 0, interruption: null, permissions: {}, questions: {}, messages: [], handoffs: {} };
+  const state: FoldedConversation = { turn: "idle", turnId: null, lastSeq: 0, interruption: null, permissions: {}, questions: {}, messages: [], handoffs: {} };
   // Keyed by kind and id: a resolution settles only a request of its own kind, so a permission.resolved never answers a
   // question that shares its id.
   const pending = new Map<string, { kind: "permission" | "question"; id: string }>();
@@ -47,7 +46,7 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
   };
   for (const event of mergeEvents(input, [], conversationId)) {
     state.lastSeq = event.seq;
-    // Before the archive and turn checks: the resolution comes after the turn's end, also after an archive.
+    // Before the turn checks: the resolution comes after the turn's end, also after an earlier build's archive line.
     if (event.type === "handoff.requested") { (state.handoffs[event.turnId] ??= []).push({ canvas: { path: event.canvas.path }, outcome: "pending" }); continue; }
     if (event.type === "handoff.missed") { (state.handoffs[event.turnId] ??= []).push({ canvas: event.canvas, outcome: "missed" }); continue; }
     if (event.type === "handoff.resolved") {
@@ -58,9 +57,11 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
         ...(event.outcome === "started" ? { target: event.target } : event.outcome === "refused" ? { reason: event.reason } : {}) });
       continue;
     }
-    if (event.type === "conversation.archived") { state.archived = true; expire(); continue; }
-    if (event.type === "conversation.restored") { state.archived = false; continue; }
-    if (state.archived || event.type === "conversation.bound") continue;
+    // An earlier build archived a conversation with this line, and its requests could no longer be answered. Nothing is
+    // archived any more, so the turn's later events fold as any others. A history whose archive ended the turn (the
+    // replacement wrote an interruption before it) reads the same as before.
+    if (event.type === "conversation.archived") { expire(); continue; }
+    if (event.type === "conversation.restored" || event.type === "conversation.bound") continue;
     if (event.type === "turn.started") {
       expire(); state.turnId = event.turnId; state.turn = "starting"; state.interruption = null; terminal = false;
       continue;
@@ -106,10 +107,5 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
   return state;
 }
 export function bindFirstCanvas(binding: ConversationBinding, root: string, canvas: Canvas): ConversationBinding {
-  return binding.origin === "newDesign" && binding.state === "current" && !binding.canvas && binding.root === root ? { ...binding, canvas } : binding;
-}
-export function archiveForStart(existing: readonly ConversationBinding[], replacement: ConversationBinding, accepted: boolean): ConversationBinding[] {
-  if (!accepted) return [...existing];
-  return existing.map(binding => binding.conversationId !== replacement.conversationId && binding.root === replacement.root &&
-    binding.canvas && replacement.canvas && sameCanvas(binding.canvas, replacement.canvas) ? { ...binding, state: "archived" } : binding);
+  return binding.origin === "newDesign" && !binding.canvas && binding.root === root ? { ...binding, canvas } : binding;
 }

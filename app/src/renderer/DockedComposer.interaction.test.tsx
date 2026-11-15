@@ -261,8 +261,8 @@ test("a refusal belongs to the draft it was sent from: another conversation does
   expect(button(render(), "Send").disabled).toBe(false);
 });
 
-test("a restore refused because the canvas is gone replaces the composer", async () => {
-  const archived: DockedMode = { kind: "archived", conversationId: "a", provider: "claude" };
+test("a send refused because the canvas is gone replaces the composer", async () => {
+  const archived: DockedMode = { kind: "existing", conversationId: "a", provider: "claude" };
   const { draw, render } = setup({ mode: archived, onSend: async () => ({ error: "canvas_not_found" }) }, [["conversation:a", draft("Go back")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();

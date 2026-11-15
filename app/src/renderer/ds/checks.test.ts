@@ -84,6 +84,15 @@ const violetAllowed = [
   "@keyframes doan-work-glow",
   // Select's canvas text range: the accent at 30 % alpha over the glyphs (canvas-text-copy draft, confirmed 2026-11-13).
   ".text-range > .text-rect",
+  // The canvas's selection and hover line, in the accent icon colour, and the size bubble as an accent capsule whose
+  // buttons (Play, Add to message) take its ink for their icon, hover fill, focus ring and unavailable ink
+  // (canvas-mark-accent draft).
+  ".mark",
+  ".dims",
+  ".bubble-button",
+  '.overlay .dims .bubble-button:is(:hover, :active):not([aria-disabled="true"])',
+  ".bubble-button:focus-visible",
+  '.bubble-button[aria-disabled="true"]',
 ];
 
 function compareAllowed(found: string[], allowed: string[]) {

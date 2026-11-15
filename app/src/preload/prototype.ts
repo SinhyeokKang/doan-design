@@ -28,12 +28,13 @@ import type { DoanApi } from "./index";
 // preload as its calls object. onAgentAuth, getWork and onWorkChanged keep the main preload's shape over narrower data:
 // readiness without the account's identity, and only the terminal work of the session the playing canvas would resume.
 export type SharedWithMain =
-  | "conversationResumeTarget" | "conversationForCanvas" | "startConversation" | "sendConversation" | "scheduledMessages" | "queueConversation"
+  | "conversationResumeTarget" | "startConversation" | "sendConversation" | "scheduledMessages" | "queueConversation"
   | "setConversationPermissionMode" | "removeQueuedMessage" | "sendQueuedNow" | "takeConversationDraft" | "markConversationSeen"
   | "onConversationListChanged" | "onConversationHandoff" | "openLink" | "interruptConversation" | "answerConversationPermission"
   | "answerConversationQuestion" | "readConversation" | "listConversationModels" | "listConversationSkills"
   | "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "removeAttachment" | "recheckAttachments" | "attachmentsFromPaths" | "releaseAttachments"
-  | "onConversationEvent" | "onConversationStage" | "onAgentAuth" | "getWork" | "onWorkChanged" | "designSkills" | "onWindowVisible" | "droppedPath";
+  | "onConversationEvent" | "onConversationStage" | "onAgentAuth" | "getWork" | "onWorkChanged" | "designSkills" | "onWindowVisible" | "droppedPath"
+  | "deleteConversation";
 
 function listen<T>(channel: string, listener: (value: T) => void): () => void {
   const receive = (_event: Electron.IpcRendererEvent, value: T) => listener(value);
@@ -91,6 +92,9 @@ const api = {
   reveal: (request: RevealPayload): Promise<void> => ipcRenderer.invoke("prototype:reveal", request),
   // The New conversations default, Last used and buddy, then each change.
   readComposerSettings: (): Promise<PrototypeComposerSettings | null> => ipcRenderer.invoke("prototype:composer"),
+  // The conversation the main window last showed on the playing canvas, or null (read only; ui-state is the main
+  // window's).
+  rememberedConversation: (): Promise<string | null> => ipcRenderer.invoke("prototype:rememberedConversation"),
   onComposerSettings: (listener: (settings: PrototypeComposerSettings) => void): (() => void) => listen("prototype:composerChanged", listener),
   // A composer pick, remembered as Last used by the main window as its own composer's.
   rememberChoice: (choice: ComposerChoice): Promise<void> => ipcRenderer.invoke("prototype:remember", choice),
@@ -128,7 +132,6 @@ const api = {
   onWorkChanged: (listener: (items: WorkItem[]) => void): (() => void) => listen("prototype:workChanged", listener),
 
   conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string; session?: string } | { available: false; reason: "no_record" | UnavailableReason; runtime?: Runtime; session?: string } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
-  conversationForCanvas: (request: { root: string; canvas: Canvas }): Promise<ReturnType<ConversationService["forCanvas"]> | ConversationError> => ipcRenderer.invoke("conversation:forCanvas", request),
   // Only `new` and `resume` on the playing canvas; main refuses newDesign here.
   startConversation: (request: Omit<StartRequest, "anchors" | "attachments"> & { anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ conversationId: string } | ConversationError> => ipcRenderer.invoke("conversation:start", request),
   sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: { id: string }[] }): Promise<void | ScheduledSend | ConversationError> => ipcRenderer.invoke("conversation:send", request),
@@ -138,6 +141,8 @@ const api = {
   removeQueuedMessage: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:removeQueued", request),
   sendQueuedNow: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:sendQueuedNow", request),
   takeConversationDraft: (request: { conversationId: string }): Promise<TakenDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
+  // The head menu's Delete; main answers bad_request for a conversation outside the playing canvas.
+  deleteConversation: (request: { conversationId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:delete", request),
   // The named canvas's conversations, while it plays.
   listConversations: (request: { root: string; canvas: Canvas }): Promise<ConversationSummary[] | ConversationError> => ipcRenderer.invoke("conversation:list", request),
   markConversationSeen: (request: { conversationId: string; seq: number }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:markSeen", request),

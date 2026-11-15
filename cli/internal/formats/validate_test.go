@@ -61,6 +61,8 @@ func TestValidationFixtures(t *testing.T) {
 		{"app-socket-v5/response", ValidateHandoffResponse},
 		{"app-socket-v6/request", ValidatePrototypeRequest},
 		{"app-socket-v6/response", ValidatePrototypeResponse},
+		{"app-socket-v7/request", ValidateRemoveRequest},
+		{"app-socket-v7/response", ValidateRemoveResponse},
 	}
 	for _, group := range groups {
 		for _, validity := range []string{"valid", "invalid"} {
@@ -248,6 +250,42 @@ func TestPrototypeSocketStaysApart(t *testing.T) {
 		for _, file := range fixtureFiles(t, "app-socket-v6/"+other.kind, "valid") {
 			if other.validate(readJSON(t, file)) == nil {
 				t.Errorf("v6 %s %s validates as %s", other.kind, filepath.Base(file), other.label)
+			}
+		}
+	}
+}
+
+func TestRemoveSocketStaysApart(t *testing.T) {
+	others := []struct {
+		kind, label, dir string
+		validate         func(any) error
+	}{
+		{"request", "v1", "app-socket/request", ValidateSocketRequest},
+		{"request", "v2", "app-socket-v2/request", ValidateOnboardingRequest},
+		{"request", "v3", "app-socket-v3/request", ValidateWorkRequest},
+		{"request", "v4", "app-socket-v4/request", ValidateOpenRequest},
+		{"request", "v5", "app-socket-v5/request", ValidateHandoffRequest},
+		{"request", "v6", "app-socket-v6/request", ValidatePrototypeRequest},
+		{"response", "v1", "app-socket/response", ValidateSocketResponse},
+		{"response", "v2", "app-socket-v2/response", ValidateOnboardingResponse},
+		{"response", "v3", "app-socket-v3/response", ValidateWorkResponse},
+		{"response", "v4", "app-socket-v4/response", ValidateOpenResponse},
+		{"response", "v5", "app-socket-v5/response", ValidateHandoffResponse},
+		{"response", "v6", "app-socket-v6/response", ValidatePrototypeResponse},
+	}
+	for _, other := range others {
+		v7 := ValidateRemoveRequest
+		if other.kind == "response" {
+			v7 = ValidateRemoveResponse
+		}
+		for _, file := range fixtureFiles(t, other.dir, "valid") {
+			if v7(readJSON(t, file)) == nil {
+				t.Errorf("%s %s %s validates as v7", other.label, other.kind, filepath.Base(file))
+			}
+		}
+		for _, file := range fixtureFiles(t, "app-socket-v7/"+other.kind, "valid") {
+			if other.validate(readJSON(t, file)) == nil {
+				t.Errorf("v7 %s %s validates as %s", other.kind, filepath.Base(file), other.label)
 			}
 		}
 	}

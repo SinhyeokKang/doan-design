@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://doan.design/schema/app-socket.v3.schema.json",
-  "$comment": "Agent work signals on the app's local socket, beside app-socket.v1 (active) and v2 (onboarding), which are unchanged. update was added without a new v: an older app rejects it as bad_request and the CLI reports delivered false, so no CLI/app pairing blocks an agent. The reader dispatches on numeric v before validating. Use the $defs; the root constrains nothing. The reply says only whether the signal was accepted; the CLI's delivered flag is a CLI-side result and is not part of this format.",
+  "$comment": "Agent work signals on the app's local socket, beside app-socket.v1 (active) and v2 (onboarding), which are unchanged. update was added without a new v: an older app rejects it as bad_request and the CLI reports delivered false, so no CLI/app pairing blocks an agent. The reader dispatches on numeric v before validating. Use the $defs; the root constrains nothing. Requests are unchanged; only the reply grows with optional others. An older CLI reading a reply with others fails its older schema and reports delivered: false, although the app already accepted the signal. A new CLI reading an older app's reply sees no others and proceeds with no information. The reply says whether the signal was accepted and may describe other sessions on the same canvas; the CLI's delivered flag is a CLI-side result and is not part of this format.",
   "$defs": {
     "token": {
       "type": "string",
@@ -68,11 +68,8 @@
           "$comment": "update only. Absent clears the working frame."
         },
         "note": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120,
-          "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u2028\u2029]+$",
-          "$comment": "update only. One line the agent wrote about what it is doing; lengths are code points. Excludes every Unicode control character (C0, DEL, C1) and the line and paragraph separators so it renders as one line. Absent clears the note."
+          "$ref": "#/$defs/note",
+          "$comment": "update only. One line the agent wrote about what it is doing. Absent clears the note."
         },
         "conversation": {
           "$ref": "#/$defs/opaqueId",
@@ -162,6 +159,42 @@
             },
             "ok": {
               "const": true
+            },
+            "others": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "$comment": "Never add id or handle fields: other sessions are described only, not individually tracked.",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "terminal",
+                      "conversation"
+                    ]
+                  },
+                  "provider": {
+                    "enum": [
+                      "claude",
+                      "codex",
+                      "cursor",
+                      "antigravity",
+                      "copilot"
+                    ]
+                  },
+                  "frame": {
+                    "$ref": "https://doan.design/schema/app-socket.v4.schema.json#/$defs/frameId"
+                  },
+                  "note": {
+                    "$ref": "#/$defs/note"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
             }
           },
           "required": [
@@ -204,6 +237,13 @@
           "additionalProperties": false
         }
       ]
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "^[^\\x00-\\x1f\\x7f-\\x9f\u2028\u2029]+$",
+      "$comment": "Lengths are code points. Excludes every Unicode control character (C0, DEL, C1) and the line and paragraph separators so it renders as one line."
     }
   }
 }

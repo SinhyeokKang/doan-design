@@ -3,6 +3,7 @@ import type {
 } from "../formats/types";
 import type { AddPageResponse, AddPageState, DoanApi } from "../preload";
 import type { FolderEntry } from "../main/view";
+import type { NewFolderResult } from "../main/index";
 import { parseGitHubUrl } from "../main/onboarding/repository";
 import { leaveLocked } from "./addProjectsNav";
 import { dropFolder } from "./folderDrop";
@@ -20,8 +21,10 @@ interface Api {
   cancelOnboardingOperation(request: Request<"cancelOnboardingOperation">): Promise<OnboardingResponse | AddPageResponse>;
   completeOnboarding(request: Request<"completeOnboarding">): Promise<OnboardingResponse | AddPageResponse>;
   chooseOnboardingFolder(purpose: "project" | "destination"): Promise<string | null>;
+  newOnboardingFolder(parent: string, token: string): Promise<NewFolderResult>;
+  cancelOnboardingFolder(token: string): Promise<boolean>;
 }
-type PageCalls = Pick<DoanApi, "readAddPage" | "onAddPageSession" | "inspectAddPageProject" | "selectAddPageProject" | "cloneAddPageProject" | "cancelAddPageOperation" | "chooseOnboardingFolder">;
+type PageCalls = Pick<DoanApi, "readAddPage" | "onAddPageSession" | "inspectAddPageProject" | "selectAddPageProject" | "cloneAddPageProject" | "cancelAddPageOperation" | "chooseOnboardingFolder" | "newOnboardingFolder" | "cancelOnboardingFolder">;
 export function addPageApi(doan: PageCalls): Api {
   return {
     readOnboardingSession: request => doan.readAddPage(request),
@@ -33,6 +36,8 @@ export function addPageApi(doan: PageCalls): Api {
     // The page has no completion record; a registered project is handed over at once (`use`).
     completeOnboarding: () => Promise.reject(new Error("The Add Projects page has no completion")),
     chooseOnboardingFolder: purpose => doan.chooseOnboardingFolder(purpose),
+    newOnboardingFolder: (parent, token) => doan.newOnboardingFolder(parent, token),
+    cancelOnboardingFolder: token => doan.cancelOnboardingFolder(token),
   };
 }
 export interface ProjectStepDeps {
@@ -58,7 +63,10 @@ export function isMainCheckout(entries: readonly FolderEntry[], path: string): b
   return entry?.kind === "list" && !!entry.git && (entry.git.main === path || entry.git.common === `${path}/.git`);
 }
 
-export type ProjectError = OnboardingOperationErrorCode | OnboardingSocketErrorCode | "access_failed";
+// New folder's failures are the window's own, like access_failed: main answers them to New folder only, so they are
+// not socket codes (app-socket v2) and no CLI reads them.
+export type ProjectError = OnboardingOperationErrorCode | OnboardingSocketErrorCode | "access_failed" | "folder_exists" | "folder_inside_project" | "folder_create_failed";
+export type ProjectSource = "folder" | "url";
 // A candidate as the inspection showed it; storage "local" is set up or planned out of Git (app-socket v2).
 export interface ProjectCandidate { path: string; changes: OnboardingChange[]; storage?: "local" }
 // What the Project step shows. Each user action advances `generation`; a result for an older one is dropped.
@@ -84,7 +92,11 @@ export interface ProjectStepState {
   inspectedUrl: string | null;
   // path: the folder whose inspection failed, so a mismatch can name it.
   // detail: the failure's own account main gives the window only (the CLI's message for project_unreadable).
-  error: { code: ProjectError; message?: string; path?: string; detail?: string } | null;
+  // source: whether a folder or a URL led to it, which decides where the choose screen shows it. Set by the caller,
+  // since the same codes come from both.
+  // directory: New folder's existing name is a folder (Use existing folder); project: the Doan project its location
+  // is inside.
+  error: { code: ProjectError; message?: string; path?: string; detail?: string; source?: ProjectSource; directory?: boolean; project?: string } | null;
   // The registered project picked in 'Your projects', before it is inspected.
   listChoice: string | null;
   // Where the Doan files of a setup or clone go (absent: Include in Git, the default). It outlives a refused or failed
@@ -95,6 +107,12 @@ export interface ProjectStepState {
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 const basename = (path: string) => path.replace(/\/+$/, "").split("/").at(-1) ?? path;
 const parent = (path: string) => path.replace(/\/+$/, "").split("/").slice(0, -1).join("/") || "/";
+// Where a clone and New folder's save panel go by default: the last registered project's parent, else HOME, else the
+// root (2026-10-29 user).
+export function defaultProjectParent(projects: readonly string[], home: string | null): string {
+  const last = projects.at(-1);
+  return last ? parent(last) : (home ?? "/").replace(/\/+$/, "") || "/";
+}
 // url on a path inspection: a folder chosen for that repository, so main checks its remote.
 type Inspect = { path: string; url?: string } | { url: string; destination?: string };
 type Reply = { ok: true; operation: OnboardingOperation } | { ok: false; code: ProjectError; message?: string; detail?: string };
@@ -125,6 +143,8 @@ export class ProjectStepSession {
   }
   dispose(): void {
     this.live = false;
+    // The step is going with its save panel open: main makes nothing when Create returns.
+    if (this.folderRequest !== null) { void this.deps.api.cancelOnboardingFolder(this.folderRequest).catch(() => false); this.folderRequest = null; }
     for (const stop of this.stops.splice(0)) stop();
     this.waiting.clear();
   }
@@ -171,7 +191,8 @@ export class ProjectStepSession {
   drop(items: readonly { isDirectory: boolean; path: string }[]): Promise<void> {
     if (!this.canDrop()) return Promise.resolve();
     const judged = dropFolder(items);
-    if (judged.kind === "notice") { this.dropNotice = judged.text; this.deps.changed(); return Promise.resolve(); }
+    // The drop notice and a folder's failure share the slot under the card; the later one replaces the earlier.
+    if (judged.kind === "notice") { this.dropNotice = judged.text; this.set(this.state.error?.source === "folder" ? { error: null } : {}); return Promise.resolve(); }
     this.clearDropNotice();
     const path = items[judged.index]!.path;
     return this.act(() => this.inspectPath(path));
@@ -184,6 +205,20 @@ export class ProjectStepSession {
       const picked = await this.pick("project");
       if (this.live && picked !== null) await this.inspectPath(picked);
     });
+  }
+  // New folder: main's save panel opens at the default location; main makes the folder at the path it returns, and a
+  // made folder is inspected like a chosen one. Choose another name reopens where the clashing name was; Change
+  // location opens at the default again, since the location was the problem.
+  newFolder(): Promise<void> { this.clearDropNotice(); return this.act(() => this.createFolder(this.defaultParent())); }
+  chooseAnotherName(): Promise<void> {
+    const clash = this.state.error?.code === "folder_exists" ? this.state.error.path : undefined;
+    return this.act(() => this.createFolder(clash ? parent(clash) : this.defaultParent()));
+  }
+  newFolderElsewhere(): Promise<void> { return this.act(() => this.createFolder(this.defaultParent())); }
+  useExistingFolder(): Promise<void> {
+    const error = this.state.error;
+    const path = error?.code === "folder_exists" && error.directory ? error.path : undefined;
+    return path ? this.act(() => this.inspectPath(path)) : Promise.resolve();
   }
   useListed(): Promise<void> { const path = this.state.listChoice; return path ? this.act(() => this.inspectPath(path)) : Promise.resolve(); }
   findRepository(): Promise<void> { this.clearDropNotice(); return this.act(() => this.inspectUrl()); }
@@ -247,6 +282,25 @@ export class ProjectStepSession {
     this.choosing = true;
     try { return await this.deps.api.chooseOnboardingFolder(purpose).catch(() => null); } finally { this.choosing = false; }
   }
+  // A cancelled panel changes nothing, a notice it opened from included. Its answer is dropped once the step is gone.
+  private folderRequest: string | null = null;
+  private async createFolder(at: string): Promise<void> {
+    let made: NewFolderResult;
+    const token = this.deps.requestId();
+    this.folderRequest = token;
+    this.choosing = true;
+    try { made = await this.deps.api.newOnboardingFolder(at, token).catch((): NewFolderResult => ({ kind: "cancelled" })); } finally {
+      this.choosing = false;
+      if (this.folderRequest === token) this.folderRequest = null;
+    }
+    if (!this.live || made.kind === "cancelled") return;
+    if (made.kind === "created") { await this.inspectPath(made.path); return; }
+    // The notice sits under the card, in the drop notice's slot, which it takes over.
+    this.dropNotice = null;
+    const code: ProjectError = made.kind === "exists" ? "folder_exists" : made.kind === "inside_project" ? "folder_inside_project" : "folder_create_failed";
+    this.set({ error: { code, path: made.path, source: "folder", ...(made.kind === "exists" ? { directory: made.directory } : {}), ...(made.kind === "inside_project" ? { project: made.project } : {}) } });
+  }
+  private defaultParent(): string { return defaultProjectParent(this.deps.projects(), this.deps.homeDirectory()); }
   private async act(work: () => Promise<void>): Promise<void> {
     if (this.busy() || !this.live) return;
     const token = {};
@@ -259,12 +313,12 @@ export class ProjectStepSession {
 
   private async inspectUrl(): Promise<void> {
     const url = this.state.url.trim();
-    if (parseGitHubUrl(url) === null) { this.set({ error: { code: "invalid_url" } }); return; }
+    if (parseGitHubUrl(url) === null) { this.set({ error: { code: "invalid_url", source: "url" } }); return; }
     const at = this.fence();
     this.set({ phase: { kind: "inspecting", url }, error: null, inspectedUrl: url });
     const reply = await this.inspect({ url });
     if (!this.current(at)) return;
-    if (!reply.ok) { this.failed(reply, { kind: "choose" }, () => this.inspectUrl()); return; }
+    if (!reply.ok) { this.failed(reply, { kind: "choose" }, () => this.inspectUrl(), undefined, "url"); return; }
     const inspection = reply.operation.inspection!;
     if (inspection.candidates.length > 0) { this.offer(inspection.inspectionId, url, inspection.candidates, { url }); return; }
     await this.planClone(url, this.defaultDestination(url), at);
@@ -277,13 +331,14 @@ export class ProjectStepSession {
     const source: Inspect = url === undefined ? { path } : { path, url };
     const reply = await this.inspect(source);
     if (!this.current(at)) return;
-    if (!reply.ok) { this.failed(reply, back, () => { this.set({ phase: back }); return this.inspectPath(path, url); }, path); return; }
+    if (!reply.ok) { this.failed(reply, back, () => { this.set({ phase: back }); return this.inspectPath(path, url); }, path, "folder"); return; }
     const inspection = reply.operation.inspection!;
-    if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, back, () => { this.set({ phase: back }); return this.inspectPath(path, url); }, path); return; }
+    if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, back, () => { this.set({ phase: back }); return this.inspectPath(path, url); }, path, "folder"); return; }
     this.offer(inspection.inspectionId, url ?? null, inspection.candidates, source);
-    // One candidate with nothing to set up goes straight to selection, as Choose folder always did.
+    // First run takes one candidate with nothing to set up at once, as Choose folder always did. The page adds
+    // nothing until Add project is pressed.
     const p = this.state.phase;
-    if (p.kind === "candidates" && p.candidates.length === 1 && p.candidates[0]!.changes.length === 0) await this.runSelect();
+    if (this.deps.use !== "addPage" && p.kind === "candidates" && p.candidates.length === 1 && p.candidates[0]!.changes.length === 0) await this.runSelect();
   }
   // The inspection each candidate list came from, so a stale one is inspected again rather than retried.
   private source: Inspect | null = null;
@@ -310,9 +365,10 @@ export class ProjectStepSession {
     const at = this.fence();
     const reply = await this.inspect(source);
     if (!this.current(at)) return;
-    if (!reply.ok) { this.failed(reply, failure, () => this.reinspect(keep, failure)); return; }
+    const from: ProjectSource = "path" in source ? "folder" : "url";
+    if (!reply.ok) { this.failed(reply, failure, () => this.reinspect(keep, failure), undefined, from); return; }
     const inspection = reply.operation.inspection!;
-    if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, failure, () => this.reinspect(keep, failure)); return; }
+    if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, failure, () => this.reinspect(keep, failure), undefined, from); return; }
     this.offer(inspection.inspectionId, "url" in source ? source.url : null, inspection.candidates, source);
     const p = this.state.phase;
     if (p.kind === "candidates" && keep.path && p.candidates.some(c => c.path === keep.path)) this.set({ phase: { ...p, choice: keep.path } });
@@ -427,9 +483,7 @@ export class ProjectStepSession {
 
   private defaultDestination(url: string): string {
     const repo = parseGitHubUrl(url)!.repository;
-    const last = this.deps.projects().at(-1);
-    const home = this.deps.homeDirectory() ?? "/";
-    return `${last ? parent(last) : home.replace(/\/+$/, "")}/${repo}`;
+    return `${this.defaultParent().replace(/\/+$/, "")}/${repo}`;
   }
   private async inspect(target: Inspect): Promise<Reply> {
     // Always with storage: this app's own window speaks the field, so the reply shows which candidates are out of Git.
@@ -479,11 +533,13 @@ export class ProjectStepSession {
     const resolve = this.waiting.get(operation.operationId);
     if (resolve) { this.waiting.delete(operation.operationId); resolve(operation); }
   }
-  private failed(reply: Reply & { ok: false }, phase: ProjectPhase, again: () => Promise<void>, path?: string): void {
+  // source: what led to the failure (a folder or a URL); a failure off the choose screen keeps its screen's place.
+  private failed(reply: Reply & { ok: false }, phase: ProjectPhase, again: () => Promise<void>, path?: string, source?: ProjectSource): void {
     this.again = again;
     // A repository Git could not reach is shown on the first screen with the URL kept (draft 'repository-error').
-    if (reply.code === "repository_unreachable") { this.set({ phase: { kind: "choose" }, error: { code: "access_failed" } }); return; }
-    this.set({ phase, error: { code: reply.code, ...(reply.message ? { message: reply.message } : {}), ...(path ? { path } : {}), ...(reply.detail ? { detail: reply.detail } : {}) } });
+    if (reply.code === "repository_unreachable") { this.set({ phase: { kind: "choose" }, error: { code: "access_failed", source: "url" } }); return; }
+    if (source === "folder") this.dropNotice = null;
+    this.set({ phase, error: { code: reply.code, ...(reply.message ? { message: reply.message } : {}), ...(path ? { path } : {}), ...(reply.detail ? { detail: reply.detail } : {}), ...(source ? { source } : {}) } });
   }
   private fence(): number { return ++this.generation; }
   private current(at: number): boolean { return this.live && at === this.generation; }
@@ -498,18 +554,29 @@ export class ProjectStepSession {
 export type ProjectUse = "onboarding" | "addPage";
 export interface ProjectFooter {
   back: { label: "Back" | "Cancel"; disabled: boolean };
-  primary: { label: string; action: "select" | "clone" | "complete" | "retry"; disabled: boolean } | null;
+  // action null: nothing to add yet (the page's Add project, disabled). setUp carries the inspection the screen was
+  // rendered with, so a press consents to that plan only (ARCHITECTURE §7 'Settings IPC').
+  primary: { label: string; action: "select" | "setUp" | "clone" | "complete" | "retry" | null; inspectionId?: string; disabled: boolean } | null;
 }
 
 // First run keeps Back and its always-shown primary (Open Doan until the step has an action). The page's Cancel
 // returns to the origin and also drops an inspection in flight, so it stays usable; a locked phase has no footer.
+// The page submits through one Add project in every unlocked phase, enabled only when there is something to add and
+// no error shows. A cancelled clone can still be cloned, so its press clones again.
 export function projectFooter(use: ProjectUse, state: ProjectStepState, { busy, agentReady }: { busy: boolean; agentReady: boolean }): ProjectFooter | null {
   const p = state.phase, error = state.error;
   const clone = (label: string) => ({ label, action: "clone" as const, disabled: busy || p.kind !== "clone" || p.inspectionId === null || error !== null });
   const select = { label: "Use this folder", action: "select" as const, disabled: busy };
   if (use === "addPage") {
     if (leaveLocked(p)) return null;
-    return { back: { label: "Cancel", disabled: false }, primary: p.kind === "candidates" ? select : p.kind === "clone" ? clone("Clone and add") : null };
+    const off = busy || error !== null;
+    const label = "Add project";
+    const primary = p.kind === "candidates" ? { label, action: "select" as const, disabled: off }
+      : p.kind === "setup" ? { label, action: "setUp" as const, inspectionId: p.inspectionId, disabled: off }
+      : p.kind === "clone" ? { label, action: "clone" as const, disabled: off || p.inspectionId === null }
+      : p.kind === "cloneCancelled" ? { label, action: "clone" as const, disabled: off }
+      : { label, action: null, disabled: true };
+    return { back: { label: "Cancel", disabled: false }, primary };
   }
   const primary = p.kind === "candidates" ? select
     : p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? clone("Clone and continue")
@@ -518,8 +585,12 @@ export function projectFooter(use: ProjectUse, state: ProjectStepState, { busy, 
   return { back: { label: "Back", disabled: busy }, primary };
 }
 
-export function setUpLabel(use: ProjectUse): string {
-  return use === "onboarding" ? "Set up and continue" : "Set up and add";
+// Where the choose screen shows the notice: a folder's failure under the card (the drop notice's slot), a URL's after
+// the URL field. Every other screen keeps its notice in its own place.
+export function projectNoticeSlot(state: ProjectStepState): "card" | "url" | "screen" | null {
+  if (!state.error) return null;
+  if (state.phase.kind !== "choose" && state.phase.kind !== "inspecting") return "screen";
+  return state.error.source === "folder" ? "card" : "url";
 }
 
 // Adding a project needs no agent, so the page never shows first run's no-agent notice.

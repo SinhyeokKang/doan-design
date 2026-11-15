@@ -79,6 +79,8 @@ function PageBody({ sessionId, projects, homeDirectory, mainCheckout, choose, ch
         pickListed: () => {}, useListed: () => {}, pickCandidate: path => p.pickCandidate(path), setStorage: storage => keepFocus(() => p.setStorage(storage)), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),
         changeDestination: () => openPicker(() => void p.changeDestination()), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
         complete: () => {}, retry: () => void p.retry(),
+        newFolder: () => openPicker(() => void p.newFolder()), chooseAnotherName: () => openPicker(() => void p.chooseAnotherName()),
+        useExistingFolder: () => void p.useExistingFolder(), newFolderElsewhere: () => openPicker(() => void p.newFolderElsewhere()),
       }} />
   </div>;
 }

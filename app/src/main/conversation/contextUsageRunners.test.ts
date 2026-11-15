@@ -224,7 +224,7 @@ describe("history readers", () => {
       ...(usage ? [{ type: "context.usage", used: 84_000, size: 200_000 } as EventPayload] : []), { type: "turn.done" }];
     return bodies.map((body, index) => event(index + 1, body));
   };
-  const meta = (seenSeq: number): ConversationMetadata => ({ conversationId: "c", root: "/repo", title: "c", canvas: { path: ".doan/canvases/a.html" }, state: "current", owner: { kind: "legacy-external" }, session: { runtime: "claude", origin: "new", sessionId: "s", configDir: "/profile", cwd: "/repo" }, seenSeq });
+  const meta = (seenSeq: number): ConversationMetadata => ({ conversationId: "c", root: "/repo", title: "c", canvas: { path: ".doan/canvases/a.html" }, owner: { kind: "legacy-external" }, session: { runtime: "claude", origin: "new", sessionId: "s", configDir: "/profile", cwd: "/repo" }, seenSeq });
   it("folds, summarizes and draws a turn with a value as it does the same turn without one", () => {
     const { lastSeq: withSeq, ...withValue } = foldConversation(turn(true), "c", false);
     const { lastSeq: withoutSeq, ...without } = foldConversation(turn(false), "c", false);

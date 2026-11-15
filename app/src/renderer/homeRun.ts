@@ -62,7 +62,7 @@ function isText(event: ConversationEvent) { return event.type === "message.delta
 // project limit does. working also covers what the history cannot show: a turn waiting for its
 // judgement, a queue about to go out, a send waiting for the previous process. Main binds a canvas only after a turn
 // ends, so a working conversation with a canvas is a canvas one.
-const holdsRoot = (c: ConversationSummary) => c.state === "current" && c.working && !c.canvas;
+const holdsRoot = (c: ConversationSummary) => c.working && !c.canvas;
 // What keeps Home from starting another project conversation in the root: one that holds it, unless it waits for the
 // person's answer (main's projectBusy). The removal guard still counts a waiting one, which it stops first.
 export const blocksStart = (c: ConversationSummary) => holdsRoot(c) && c.phase !== "waiting";
@@ -371,7 +371,7 @@ export class HomeRun {
   visit(keys: readonly string[]): void {
     for (const [root, list] of this.lists) {
       for (const c of list) {
-        if (!c.fromHome || !c.canvas || c.phase !== "ended" || !c.unseen || this.seen.has(c.conversationId)) continue;
+        if (!c.canvas || c.phase !== "ended" || !c.unseen || this.seen.has(c.conversationId)) continue;
         const key = slotKeyOf(root, c, this.rows(root));
         if (key === slotKey(root) && keys.includes(key)) this.markSeen(c.conversationId);
       }
@@ -577,7 +577,7 @@ export class HomeRun {
       const at = list.findIndex(s => s.conversationId === c.conversationId);
       // A turn the events say runs is worked on whatever the lagging list says; after it, main says when work ends.
       if (at !== -1) list[at] = { ...list[at]!, phase, working: list[at]!.working || phase !== "ended" };
-      else list.push({ conversationId: c.conversationId, title: "", state: "current", owner: "doan", provider: c.provider, fromHome: true, phase, unseen: false, queued: 0, working: phase !== "ended", lastActivityAt: this.events.get(c.conversationId)?.at(-1)?.at ?? "", preview: "" });
+      else list.push({ conversationId: c.conversationId, title: "", owner: "doan", provider: c.provider, fromHome: true, phase, unseen: false, queued: 0, working: phase !== "ended", lastActivityAt: this.events.get(c.conversationId)?.at(-1)?.at ?? "", preview: "" });
       merged.set(c.root, list);
     }
     return merged;

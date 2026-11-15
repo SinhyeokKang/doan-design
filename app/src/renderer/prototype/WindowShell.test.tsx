@@ -544,7 +544,7 @@ describe("the conversation button and panel", () => {
     button: { label: "Show conversation", badge: null, name: "Show conversation" }, open: false, width: 280, bounds: { min: 280, max: 280 },
     onToggle: noop, onResize: noop, preview: noop, ...over,
   });
-  const opened = (over: Partial<ShellConversation> = {}) => conv({ open: true, title: <h2 className="phead rp-head" tabIndex={-1}><span className="pw-side-title">Checkout</span></h2>, ...over });
+  const opened = (over: Partial<ShellConversation> = {}) => conv({ open: true, title: <h2 className="phead rp-head" tabIndex={-1}><span>Checkout</span></h2>, ...over });
   const stops = (html: string) => [...html.matchAll(/<(button|div|h2)[^>]*>/g)].map(([open]) => open)
     .filter(open => !/ hidden=""/.test(open) && (/^<button/.test(open) && !/ disabled=""/.test(open) && !/tabindex="-1"/.test(open) || /tabindex="0"/.test(open)));
 
@@ -578,7 +578,7 @@ describe("the conversation button and panel", () => {
     expect(hide).toMatch(/^<button type="button" class="doan-icon-button doan-panel-hide"/);
     expect(hide).toContain('aria-expanded="true"');
     expect(hide).toContain('aria-controls="doan-conversation-panel"');
-    expect(html).toMatch(/<div class="doan-conv-head"><h2 class="phead rp-head" tabindex="-1"><span class="pw-side-title">Checkout<\/span><\/h2><button[^>]*aria-label="Hide conversation"/);
+    expect(html).toMatch(/<div class="doan-conv-head"><h2 class="phead rp-head" tabindex="-1"><span>Checkout<\/span><\/h2><button[^>]*aria-label="Hide conversation"/);
     expect(html).toContain("lucide-panel-right-close");
   });
 
@@ -733,9 +733,8 @@ describe("the conversation panel's styles", () => {
     expect(css).not.toMatch(/:not\(:has\(\.doan-conv-head\)\)/);
   });
 
-  test("the hidden header button takes no box; the head's title ends in an ellipsis; the playing chip sits in the chip row", () => {
+  test("the hidden header button takes no box; the playing chip sits in the chip row", () => {
     expect(rule(".pw-conv[hidden]")).toContain("display: none;");
-    expect(rule(".pw-side-title")).toMatch(/min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/);
     expect(css).toMatch(/\.composer-chips\s*>\s*\.pw-playing\s*\{[^}]*font-size:\s*var\(--type-body-sm-size\)/);
     expect(css).toMatch(/\.badge-working\s*\{[^}]*position:\s*absolute/);
   });

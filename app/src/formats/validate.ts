@@ -5,16 +5,17 @@ import appSocketV3Schema from "../../../schema/app-socket.v3.schema.json";
 import appSocketV4Schema from "../../../schema/app-socket.v4.schema.json";
 import appSocketV5Schema from "../../../schema/app-socket.v5.schema.json";
 import appSocketV6Schema from "../../../schema/app-socket.v6.schema.json";
+import appSocketV7Schema from "../../../schema/app-socket.v7.schema.json";
 import configSchema from "../../../schema/config.v1.schema.json";
 import envelopeSchema from "../../../schema/cli-envelope.v1.schema.json";
 import runtimeSchema from "../../../schema/runtime.v1.schema.json";
 import sessionsSchema from "../../../schema/sessions.v1.schema.json";
-import type { HandoffRequest, HandoffResponse, OpenRequest, OpenResponse, PrototypeRequest, PrototypeResponse, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketRequest, SocketResponse } from "./types";
+import type { HandoffRequest, HandoffResponse, OpenRequest, OpenResponse, PrototypeRequest, PrototypeResponse, RemoveRequest, RemoveResponse, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketRequest, SocketResponse } from "./types";
 
 const ajv = new Ajv2020();
 
 // addSchema every file before the first getSchema: app-socket v3 and v6 $ref v4 by its absolute $id.
-for (const schema of [configSchema, envelopeSchema, runtimeSchema, appSocketSchema, appSocketV2Schema, appSocketV3Schema, appSocketV4Schema, appSocketV5Schema, appSocketV6Schema, sessionsSchema]) {
+for (const schema of [configSchema, envelopeSchema, runtimeSchema, appSocketSchema, appSocketV2Schema, appSocketV3Schema, appSocketV4Schema, appSocketV5Schema, appSocketV6Schema, appSocketV7Schema, sessionsSchema]) {
   ajv.addSchema(schema);
 }
 
@@ -42,5 +43,7 @@ export const validateHandoffRequest = load<HandoffRequest>(`${idOf(appSocketV5Sc
 export const validateHandoffResponse = load<HandoffResponse>(`${idOf(appSocketV5Schema)}#/$defs/response`);
 export const validatePrototypeRequest = load<PrototypeRequest>(`${idOf(appSocketV6Schema)}#/$defs/request`);
 export const validatePrototypeResponse = load<PrototypeResponse>(`${idOf(appSocketV6Schema)}#/$defs/response`);
+export const validateRemoveRequest = load<RemoveRequest>(`${idOf(appSocketV7Schema)}#/$defs/request`);
+export const validateRemoveResponse = load<RemoveResponse>(`${idOf(appSocketV7Schema)}#/$defs/response`);
 
 export const validateSessionRecord = load(idOf(sessionsSchema));

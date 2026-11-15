@@ -57,7 +57,7 @@ const ROOT = "/code/doan";
 const A = "aaaaaaaa-0000-4000-8000-000000000001", B = "bbbbbbbb-0000-4000-8000-000000000002", C = "cccccccc-0000-4000-8000-000000000003";
 const CANVAS: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
 const entry = { kind: "list", path: ROOT, servedRev: 0, canvases: [{ path: CANVAS.path, id: "checkout", url: "u" }], git: { branch: "main", common: "/code/doan/.git" } } as unknown as FolderEntry;
-const summary = (conversationId: string, title: string, extra: Partial<ConversationSummary> = {}): ConversationSummary => ({ conversationId, title, state: "current", owner: "doan", provider: "claude",
+const summary = (conversationId: string, title: string, extra: Partial<ConversationSummary> = {}): ConversationSummary => ({ conversationId, title, owner: "doan", provider: "claude",
   fromHome: true, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...extra });
 const FIELD = { field: true };
 

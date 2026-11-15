@@ -206,6 +206,10 @@
    sits between the lines while the icon stays on the first; the negative margins let a sm button reach
    into the padding, so a one-line notice keeps its height. */
 .doan-notice > :is(.doan-button, :has(> .doan-button)) { flex: none; align-self: center; margin-block: calc((var(--type-body-sm-line-height) - var(--size-control-sm)) / 2); }
+/* Two or more actions stack: the group takes its own row at the notice's end, under the text, --space-2 below it. On
+   its own row the negative margins above would eat the bottom padding, so the stacked row drops them. */
+.doan-notice.stacked { flex-wrap: wrap; row-gap: var(--space-2); }
+.doan-notice.stacked > :has(> .doan-button) { flex-basis: 100%; justify-content: flex-end; margin-block: 0; }
 /* On a backdrop that is not plain opaque white (first run's transparent overlay, Home's gradient)
    the notice takes the white panel surface and shadow (from doan-panel); nothing else changes. */
 .doan-notice.doan-panel { background: var(--surface-panel); }

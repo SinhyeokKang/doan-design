@@ -261,12 +261,10 @@ describe("thread items", () => {
     expect(out).toContain(">Edit and resend</button>");
   });
 
-  test("markers: promotion with Open, turned off once the canvas is gone; archive and restore", () => {
+  test("markers: promotion with Open, turned off once the canvas is gone", () => {
     const bound: ThreadItem = { kind: "marker", key: "k5", seq: 5, marker: "bound", canvas: { path: ".doan/canvases/doan-settings.html", id: "s" } };
     expect(html([bound])).toMatch(/Moved to doan-settings.html<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button>/);
     expect(html([bound], { canvasListed: () => false })).toMatch(/Moved to doan-settings.html · No longer in doan-design<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled="">Open<\/button>/);
-    expect(html([{ kind: "marker", key: "k6", seq: 6, marker: "archived", canvas: null }])).toContain("Archived when another conversation became current on this canvas. Send a message to make it current again.");
-    expect(html([{ kind: "marker", key: "k7", seq: 7, marker: "restored", canvas: null }])).toContain("Made current again");
   });
 
   test("two messages with footnotes never share an id", () => {

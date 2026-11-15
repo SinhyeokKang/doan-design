@@ -384,8 +384,8 @@ test("only a project conversation waiting for an answer of those that hold the r
     ["ended, not judged yet", { phase: "ended", working: true }, true],
     ["queue about to go out", { phase: "ended", working: true, queued: 1 }, true],
     ["ended and judged", { phase: "ended", working: false }, false],
+    // Several canvas conversations may work at once; only project conversations hold the root.
     ["a canvas conversation", { phase: "running", working: true, canvas: { path: ".doan/canvases/a.html", id: "a" } }, false],
-    ["archived", { phase: "running", working: true, state: "archived" }, false],
   ];
   for (const [state, patch, blocks] of table) expect([state, blocksStart(summary(patch))]).toEqual([state, blocks]);
 });
@@ -414,7 +414,7 @@ test("a new canvas in a root with two live project turns neither opens nor toast
 // What survives a reload comes from main's list.
 // working follows the phase unless a test sets it: main also works after a turn ended (judgement, exit wait).
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "",
   working: patch.phase !== undefined && patch.phase !== "ended", ...patch,
 });
@@ -596,6 +596,21 @@ test("visiting the project row leaves project conversations unseen and marks onl
   expect(doan.markConversationSeen).toHaveBeenCalledTimes(1);
   expect(doan.markConversationSeen).toHaveBeenCalledWith({ conversationId: "gone", seq: 7 });
   expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
+});
+
+// A canvas-panel conversation's slot moves to the project row too once its canvas leaves (sidebar-canvas-conversations
+// decision 7), so the project row's visit must clear it as it clears a Home one's.
+test("visiting the project row marks a canvas-panel conversation's ending seen once its canvas left", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "panel", unseen: true, fromHome: false, canvas: { path: ".doan/canvases/gone.html", id: "gone" } })] });
+  doan.readConversation!.mockResolvedValue({ events: [event("x", { type: "turn.done" })], lastSeq: 5, turn: "idle" });
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  await flush(); await flush();
+  h.run.visit([ROOT]);
+  await flush(); await flush();
+  expect(doan.markConversationSeen).toHaveBeenCalledWith({ conversationId: "panel", seq: 5 });
+  expect(h.run.slots().size).toBe(0);
 });
 
 test("the Overview's seen marks go through the run: a later seq waits for one still pending and then follows it", async () => {

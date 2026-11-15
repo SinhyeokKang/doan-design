@@ -53,6 +53,9 @@ export const PROTOTYPE_CHANNELS = {
   workChanged: "prototype:workChanged",
   composer: "prototype:composer",
   composerChanged: "prototype:composerChanged",
+  // The conversation the main window last showed on the playing canvas (its ui-state), by id only; the window reads
+  // nothing else of ui-state and never writes it.
+  rememberedConversation: "prototype:rememberedConversation",
   // A composer pick to remember as Last used. Main hands it to the main window, which owns ui-state and applies it
   // as its own composer's (rememberChoice, preferenceAfterPick); a write from main would be lost to the main
   // window's next whole-file save.
@@ -84,7 +87,7 @@ export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
   PROTOTYPE_CHANNELS.mode, PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible,
   PROTOTYPE_CHANNELS.panel, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
   PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember, PROTOTYPE_CHANNELS.entry,
-  PROTOTYPE_CHANNELS.drawing, PROTOTYPE_CHANNELS.promoted,
+  PROTOTYPE_CHANNELS.drawing, PROTOTYPE_CHANNELS.promoted, PROTOTYPE_CHANNELS.rememberedConversation,
 ];
 
 // From the moment the host sets the iframe's src to the run's result. The slowest measured canvas answered in under
@@ -257,6 +260,7 @@ export interface PrototypeWindowApi {
   // Main answers nothing back: the main window shows the outcome.
   reveal(request: RevealPayload): Promise<void>;
   readComposerSettings(): Promise<PrototypeComposerSettings | null>;
+  rememberedConversation(): Promise<string | null>;
   onComposerSettings(listener: (settings: PrototypeComposerSettings) => void): () => void;
   rememberChoice(choice: ComposerChoice): Promise<void>;
   readTargetEntry(): Promise<FolderEntry | null>;

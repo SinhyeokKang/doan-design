@@ -4,7 +4,7 @@ const root = "/repo", path = ".doan/canvases/a.html";
 const update = (extra: Partial<{ conversation: string; root: string; path: string; frame: string; note: string }> = {}): ConversationUpdate =>
   ({ v: 3, token: "t", root, action: "update", path, conversation: "c1", ...extra });
 const live = (turns: Record<string, LiveTurn>): ReadonlyMap<string, LiveTurn> => new Map(Object.entries(turns));
-const running = (turnId = "t1", at = root): LiveTurn => ({ root: at, turnId, running: true });
+const running = (turnId = "t1", at = root): LiveTurn => ({ root: at, turnId, running: true, provider: "claude" });
 const none: readonly ConversationWork[] = [];
 
 describe("applyConversationWork", () => {
@@ -36,7 +36,7 @@ describe("applyConversationWork", () => {
   // An unknown id, an ended turn or another root is answered ok and dropped, with no change.
   test.each<[string, ReadonlyMap<string, LiveTurn>]>([
     ["an unknown conversation", live({ other: running() })],
-    ["a turn that ended", live({ c1: { root, turnId: "t1", running: false } })],
+    ["a turn that ended", live({ c1: { root, turnId: "t1", running: false, provider: "claude" } })],
     ["a conversation of another root", live({ c1: running("t1", "/other") })],
   ])("%s changes nothing", (_label, turns) => {
     const state: readonly ConversationWork[] = [{ conversationId: "c1", root: "/other", path, touched: 0, turnId: "t0" }];
@@ -47,7 +47,7 @@ describe("applyConversationWork", () => {
     let state = applyConversationWork(none, update({ frame: "a" }), live({ c1: running("t1") }), 1);
     state = endConversationWork(state, "c1");
     expect(state).toEqual([]);
-    const between = applyConversationWork(state, update({ frame: "late" }), live({ c1: { root, turnId: "t1", running: false } }), 2);
+    const between = applyConversationWork(state, update({ frame: "late" }), live({ c1: { root, turnId: "t1", running: false, provider: "claude" } }), 2);
     expect(between).toBe(state);
   });
   // Accepted by the person: the request names no turn, so once the next turn is accepted the

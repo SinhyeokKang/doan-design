@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ConversationStore, parseIndex, restoreEntries, type ConversationMetadata } from "./store";
+import { ConversationStore, parseIndex, type ConversationMetadata } from "./store";
 import { FOLDER_ATTACHMENT, IMAGE_NAMED_FOLDER, LEGACY_ATTACHMENTS } from "./attachmentRecords.fixture";
 const hooks = vi.hoisted(() => ({ failRename: false, journals: [] as string[] }));
 vi.mock("node:fs", async original => {
@@ -23,9 +23,9 @@ function seed(files: Record<string, string> = {}) {
   for (const [name, text] of Object.entries(files)) writeFileSync(join(directory, name), text);
   return { root, directory, index: join(directory, "index.json"), journal: join(directory, "start-undo.json"), path: (id: string) => join(directory, `${id}.jsonl`) };
 }
-const legacy = (id: string): ConversationMetadata => ({ conversationId: id, root: "/repo", title: id, canvas: { path: `.doan/canvases/${id}.html` }, state: "current", owner: { kind: "legacy-external" },
+const legacy = (id: string): ConversationMetadata => ({ conversationId: id, root: "/repo", title: id, canvas: { path: `.doan/canvases/${id}.html` }, owner: { kind: "legacy-external" },
   session: { runtime: "codex", origin: "new", sessionId: id, configDir: "/profiles/codex", cwd: "/repo" } });
-const owned = (id: string): ConversationMetadata => ({ conversationId: id, root: "/repo", title: id, state: "current",
+const owned = (id: string): ConversationMetadata => ({ conversationId: id, root: "/repo", title: id,
   owner: { kind: "doan", provider: "antigravity", connectionId: "conn-1", accountId: "acct-1", workspaceId: null, profile: "antigravity" },
   session: { runtime: "antigravity", origin: "newDesign", sessionId: id, configDir: "/profiles/antigravity", cwd: "/repo" } });
 const line = (id: string, seq: number, type: string) => JSON.stringify({ type, v: 1, conversationId: id, turnId: "t", seq, at: "2026-10-27T00:00:00.000Z" }) + "\n";
@@ -38,11 +38,11 @@ describe("index version interpretation", () => {
     expect(result.entries[1]).not.toHaveProperty("owner.provider");
   });
   it("reads the v2 fixture with both owner kinds", () => {
-    expect(parseIndex(fixture("index-v2.json"))).toEqual({ ok: true, entries: JSON.parse(fixture("index-v2.json")).conversations });
+    expect(parseIndex(fixture("index-v2.json"))).toEqual({ ok: true, entries: JSON.parse(fixture("index-v2.json")).conversations.map(({ state: _s, ...rest }: { state: string }) => rest) });
   });
   it("separates unknown versions from corrupt and invalid indexes", () => {
     const v2 = JSON.parse(fixture("index-v2.json"));
-    expect(parseIndex(JSON.stringify({ ...v2, v: 3 }))).toEqual({ ok: false, code: "unknown_version" });
+    expect(parseIndex(JSON.stringify({ ...v2, v: 4 }))).toEqual({ ok: false, code: "unknown_version" });
     expect(parseIndex(JSON.stringify({ conversations: [] }))).toEqual({ ok: false, code: "unknown_version" });
     for (const text of ["broken", "", "null", "[]", fixture("index-v2.json").slice(0, 200)]) expect(parseIndex(text)).toEqual({ ok: false, code: "corrupt" });
     const invalid = [
@@ -51,6 +51,9 @@ describe("index version interpretation", () => {
       (m: any) => { m.session.runtime = "claude"; },
       (m: any) => { m.owner.profile = "/profiles/cursor"; },
       (m: any) => { m.owner = { kind: "legacy-external" }; },
+      // v1 and v2 knew two states; any other value, or none, came from no build that wrote them.
+      (m: any) => { m.state = "pinned"; },
+      (m: any) => { delete m.state; },
     ];
     for (const mutate of invalid) {
       const copy = JSON.parse(fixture("index-v2.json")); mutate(copy.conversations[1]);
@@ -61,21 +64,99 @@ describe("index version interpretation", () => {
   });
 });
 
+// v3 drops the state field: no conversation is archived any more. v1 and v2 are read into the v3 shape in memory and
+// the first save writes v3.
+describe("index v3 and migration", () => {
+  const ids = (read: ReturnType<typeof parseIndex>) => { if (!read.ok) throw new Error(read.code); return read.entries; };
+  it("reads the v3 fixture with every field and no state", () => {
+    const raw = JSON.parse(fixture("index-v3.json"));
+    expect(raw.v).toBe(3);
+    expect(raw.conversations.some((m: object) => "state" in m)).toBe(false);
+    expect(ids(parseIndex(fixture("index-v3.json")))).toEqual(raw.conversations);
+  });
+  it("reads two conversations of one canvas as two ordinary conversations", () => {
+    const entries = ids(parseIndex(fixture("index-v3.json")));
+    expect(entries.filter(m => m.canvas?.id === "a").map(m => m.conversationId)).toEqual(["legacy-1", "doan-1"]);
+  });
+  it("migrates v2 archived conversations into ordinary ones that count as seen", () => {
+    const raw = JSON.parse(fixture("index-v2-archived.json"));
+    const entries = ids(parseIndex(fixture("index-v2-archived.json")));
+    expect(entries.every(m => !("state" in m))).toBe(true);
+    // An entry without seenSeq has had its whole history seen (summary.ts), so the interruption recorded when it was
+    // archived does not light up as an unseen end.
+    expect(entries[0]).not.toHaveProperty("seenSeq");
+    expect(entries[0]).toEqual((({ state: _s, seenSeq: _seen, ...rest }) => rest)(raw.conversations[0]));
+    expect(entries[1]).toEqual((({ state: _s, ...rest }) => rest)(raw.conversations[1]));
+    expect(entries[2]).toEqual((({ state: _s, ...rest }) => rest)(raw.conversations[2]));
+  });
+  it("migrates v1 archived conversations the same way", () => {
+    const entries = ids(parseIndex(fixture("index-v1.json")));
+    expect(entries.map(m => m.conversationId)).toEqual(["legacy-1", "legacy-2"]);
+  });
+  it("reads the v2 Home fixture into the v3 shape without changing its fields", () => {
+    expect(ids(parseIndex(fixture("index-v2-home.json")))).toEqual(JSON.parse(fixture("index-v2-home.json")).conversations.map(({ state: _s, ...rest }: { state: string }) => rest));
+  });
+  it("ignores a state field in v3 like any other unknown field", () => {
+    const copy = JSON.parse(fixture("index-v3.json")); copy.conversations[0].state = "ignored";
+    expect(ids(parseIndex(JSON.stringify(copy)))[0]).not.toHaveProperty("state");
+  });
+  it("rejects malformed v3 entries like v2 ones", () => {
+    const invalid = [
+      (m: any) => { delete m.owner; },
+      (m: any) => { m.session.runtime = "claude"; },
+      (m: any) => { m.seenSeq = -1; },
+      (m: any) => { m.canvas = { path: "a.html" }; },
+    ];
+    for (const mutate of invalid) {
+      const copy = JSON.parse(fixture("index-v3.json")); mutate(copy.conversations[1]);
+      expect(parseIndex(JSON.stringify(copy))).toEqual({ ok: false, code: "invalid" });
+    }
+    const duplicate = JSON.parse(fixture("index-v3.json")); duplicate.conversations[1].conversationId = "legacy-1";
+    expect(parseIndex(JSON.stringify(duplicate))).toEqual({ ok: false, code: "invalid" });
+  });
+  it("keeps v4 an unknown version", () => {
+    expect(parseIndex(JSON.stringify({ ...JSON.parse(fixture("index-v3.json")), v: 4 }))).toEqual({ ok: false, code: "unknown_version" });
+  });
+  // Earlier builds accept only v1 and v2 and refuse anything else as an unsupported version, so they never read a v3
+  // index as if it were v2.
+  it("writes v3 without the state field on the first save of a v2 index", () => {
+    const f = seed({ "index.json": fixture("index-v2-archived.json") });
+    const store = new ConversationStore(f.root);
+    expect(readFileSync(f.index, "utf8")).toBe(fixture("index-v2-archived.json"));
+    store.save(store.list());
+    const saved = JSON.parse(readFileSync(f.index, "utf8"));
+    expect(saved.v).toBe(3);
+    expect(saved.conversations.some((m: object) => "state" in m)).toBe(false);
+    expect(saved.conversations[0]).not.toHaveProperty("seenSeq");
+    expect(new ConversationStore(f.root).list()).toEqual(store.list());
+  });
+  it("keeps the v2 index as it was when the first v3 save is interrupted", () => {
+    const f = seed({ "index.json": fixture("index-v2-archived.json") });
+    const store = new ConversationStore(f.root);
+    hooks.failRename = true;
+    expect(() => store.save(store.list())).toThrow("EIO");
+    expect(readFileSync(f.index, "utf8")).toBe(fixture("index-v2-archived.json"));
+    expect(readdirSync(f.directory).filter(name => name.endsWith(".tmp"))).toEqual([]);
+    expect(store.list().every(m => !("state" in m))).toBe(true);
+  });
+});
+
 describe("conversation index v2 storage", () => {
-  it("lists a v1 index as legacy-external and writes v2 on the next save", () => {
+  it("lists a v1 index as legacy-external and writes v3 on the next save", () => {
     const f = seed({ "index.json": fixture("index-v1.json") });
     const store = new ConversationStore(f.root);
     expect(store.list().every(m => m.owner.kind === "legacy-external")).toBe(true);
     expect(readFileSync(f.index, "utf8")).toBe(fixture("index-v1.json"));
     store.save(store.list());
     const saved = JSON.parse(readFileSync(f.index, "utf8"));
-    expect(saved.v).toBe(2);
+    expect(saved.v).toBe(3);
     expect(saved.conversations.map((m: ConversationMetadata) => m.owner)).toEqual([{ kind: "legacy-external" }, { kind: "legacy-external" }]);
   });
   it("round-trips legacy and doan-owned entries", () => {
     const f = seed(); const store = new ConversationStore(f.root);
     store.save([legacy("old"), owned("new")]);
     expect(new ConversationStore(f.root).list()).toEqual([legacy("old"), owned("new")]);
+    expect(JSON.parse(readFileSync(f.index, "utf8")).conversations.some((m: object) => "state" in m)).toBe(false);
   });
   it("rejects invalid entries before replacing the index", () => {
     const f = seed(); const store = new ConversationStore(f.root); store.save([legacy("old")]);
@@ -85,7 +166,7 @@ describe("conversation index v2 storage", () => {
     expect(readFileSync(f.index)).toEqual(before);
   });
   it("refuses unknown versions without overwriting the index or touching history", () => {
-    const future = JSON.stringify({ v: 3, conversations: [] });
+    const future = JSON.stringify({ v: 4, conversations: [] });
     const f = seed({ "index.json": future, "old.jsonl": line("old", 1, "turn.done") });
     const store = new ConversationStore(f.root);
     expect(() => store.list()).toThrow("Unsupported conversation index version");
@@ -109,16 +190,21 @@ describe("conversation index v2 storage", () => {
     expect(readdirSync(f.directory).filter(name => name.endsWith(".tmp"))).toEqual([]);
     expect(store.list().map(m => m.owner.kind)).toEqual(["legacy-external", "legacy-external"]);
   });
+  // A start beside another conversation of the same canvas leaves that conversation alone, so its journal pins no
+  // other history.
   it("writes the undo journal with its version, kind and file identity only", () => {
     const f = seed(); const store = new ConversationStore(f.root);
-    store.save([owned("old")]); store.append("old", "t", { type: "turn.done" });
-    store.acceptStart([{ ...owned("old"), state: "archived" }, legacy("new")], "new", [{ id: "old", turn: "t", body: { type: "conversation.archived" } }, { id: "new", turn: "t", body: { type: "turn.started" } }]);
+    const old = legacy("old"), next = { ...legacy("new"), canvas: { path: ".doan/canvases/old.html" } };
+    store.save([old]); store.append("old", "t", { type: "turn.done" });
+    const before = readFileSync(f.path("old"));
+    store.acceptStart([old, next], "new", [{ id: "new", turn: "t", body: { type: "turn.started" } }]);
     expect(hooks.journals).toHaveLength(1);
     const journal = JSON.parse(hooks.journals[0]!);
     expect(Object.keys(journal)).toEqual(["v", "kind", "id", "previous"]);
-    expect([journal.v, journal.kind]).toEqual([1, "start"]);
-    expect(Object.keys(journal.previous[0])).toEqual(["id", "size", "ino", "dev"]);
-    expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(2);
+    expect([journal.v, journal.kind, journal.previous]).toEqual([1, "start", []]);
+    expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(3);
+    expect(readFileSync(f.path("old"))).toEqual(before);
+    expect(store.list().map(m => m.conversationId)).toEqual(["old", "new"]);
   });
 });
 
@@ -139,22 +225,32 @@ describe("start recovery across index versions", () => {
     expect(readFileSync(f.index, "utf8")).toBe(fixture("index-v1.json"));
     expect(store.list().map(m => m.owner.kind)).toEqual(["legacy-external", "legacy-external"]);
   });
-  it("keeps a start committed by a v2 index rename that replaced a v1 index", () => {
+  it("keeps a start committed by an earlier build's v2 index rename that replaced a v1 index", () => {
     const committed = JSON.parse(fixture("index-v2.json"));
     committed.conversations[0].state = "archived";
-    committed.conversations.push({ ...legacy("new"), canvas: { path: ".doan/canvases/a.html", id: "a" } });
+    committed.conversations.push({ ...legacy("new"), state: "current", canvas: { path: ".doan/canvases/a.html", id: "a" } });
     const f = interrupted(JSON.stringify(committed));
     const logs = [f.path("legacy-1"), f.path("new")].map(path => readFileSync(path));
     const store = new ConversationStore(f.root);
     expect(existsSync(f.journal)).toBe(false);
     expect([f.path("legacy-1"), f.path("new")].map(path => readFileSync(path))).toEqual(logs);
-    expect(store.list().map(m => [m.conversationId, m.state, m.owner.kind])).toEqual([["legacy-1", "archived", "legacy-external"], ["doan-1", "current", "doan"], ["new", "current", "legacy-external"]]);
+    expect(readFileSync(f.index, "utf8")).toBe(JSON.stringify(committed));
+    expect(store.list().map(m => [m.conversationId, m.owner.kind])).toEqual([["legacy-1", "legacy-external"], ["doan-1", "doan"], ["new", "legacy-external"]]);
   });
   it("blocks recovery without truncating history when the index version is unknown", () => {
-    const f = interrupted(JSON.stringify({ v: 3, conversations: [] }));
+    const f = interrupted(JSON.stringify({ v: 4, conversations: [] }));
     const logs = [f.path("legacy-1"), f.path("new"), f.journal].map(path => readFileSync(path));
     expect(() => new ConversationStore(f.root)).toThrow("Unsupported conversation index version");
     expect([f.path("legacy-1"), f.path("new"), f.journal].map(path => readFileSync(path))).toEqual(logs);
+  });
+  // A start that archived another conversation was written by an earlier build, which never writes v3: beside a v3
+  // index it is damaged, and nothing is truncated.
+  it("refuses an earlier build's archiving start beside a v3 index without touching history", () => {
+    const v3 = JSON.parse(fixture("index-v3.json"));
+    const f = interrupted(JSON.stringify(v3));
+    const logs = [f.path("legacy-1"), f.path("new"), f.journal, f.index].map(path => readFileSync(path));
+    expect(() => new ConversationStore(f.root)).toThrow("Invalid start recovery record");
+    expect([f.path("legacy-1"), f.path("new"), f.journal, f.index].map(path => readFileSync(path))).toEqual(logs);
   });
 });
 
@@ -162,7 +258,7 @@ describe("home conversation fields in index v2", () => {
   it("reads the optional model, effort and start canvases without changing the version", () => {
     const raw = JSON.parse(fixture("index-v2-home.json"));
     expect(raw.v).toBe(2);
-    expect(parseIndex(fixture("index-v2-home.json"))).toEqual({ ok: true, entries: raw.conversations });
+    expect(parseIndex(fixture("index-v2-home.json"))).toEqual({ ok: true, entries: raw.conversations.map(({ state: _s, ...rest }: { state: string }) => rest) });
   });
   it("round-trips the fields and leaves entries without them unchanged", () => {
     const f = seed(); const store = new ConversationStore(f.root);
@@ -201,7 +297,7 @@ describe("home conversation fields in index v2", () => {
     const f = seed(); const store = new ConversationStore(f.root);
     const modes = (["acceptEdits", "plan", "bypass"] as const).map(permissionMode => ({ ...owned(`mode-${permissionMode.toLowerCase()}`), permissionMode }));
     store.save([legacy("old"), ...modes]);
-    expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(2);
+    expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(3);
     expect(new ConversationStore(f.root).list()).toEqual([legacy("old"), ...modes]);
   });
   // A later build may add a mode: that one field reads as Default instead of making the whole index invalid.
@@ -209,12 +305,12 @@ describe("home conversation fields in index v2", () => {
     const copy = JSON.parse(fixture("index-v2-home.json")); copy.conversations[1].permissionMode = permissionMode;
     const read = parseIndex(JSON.stringify(copy));
     if (!read.ok) throw new Error(read.code);
-    const { permissionMode: _dropped, ...expected } = copy.conversations[1];
+    const { permissionMode: _dropped, state: _state, ...expected } = copy.conversations[1];
     expect(read.entries[1]).toEqual(expected);
-    expect(read.entries[0]).toEqual(copy.conversations[0]);
+    expect(read.entries[0]).toEqual((({ state: _state, ...rest }) => rest)(copy.conversations[0]));
   });
-  it("keeps a v3 index with the new fields as an unknown version and never overwrites it", () => {
-    const future = JSON.stringify({ ...JSON.parse(fixture("index-v2-home.json")), v: 3 });
+  it("keeps a v4 index with the new fields as an unknown version and never overwrites it", () => {
+    const future = JSON.stringify({ ...JSON.parse(fixture("index-v2-home.json")), v: 4 });
     expect(parseIndex(future)).toEqual({ ok: false, code: "unknown_version" });
     const f = seed({ "index.json": future }); const store = new ConversationStore(f.root);
     expect(() => store.save([legacy("old")])).toThrow("Unsupported conversation index version");
@@ -278,12 +374,12 @@ it("reads the optional Home mark only as true and keeps reading entries without 
   expect(parseIndex(JSON.stringify({ v: 2, conversations: [{ ...entry, fromHome: "yes" }] }))).toEqual({ ok: false, code: "invalid" });
 });
 
-describe("seen marker in index v2", () => {
+describe("seen marker in the index", () => {
   it("round-trips seenSeq and reads entries without it", () => {
     const f = seed(); const store = new ConversationStore(f.root);
     store.save([legacy("old"), { ...owned("seen"), seenSeq: 0 }, { ...owned("later"), seenSeq: 12 }]);
     expect(new ConversationStore(f.root).list()).toEqual([legacy("old"), { ...owned("seen"), seenSeq: 0 }, { ...owned("later"), seenSeq: 12 }]);
-    expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(2);
+    expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(3);
     expect(new ConversationStore(f.root).list()[0]).not.toHaveProperty("seenSeq");
   });
   it.each([-1, 1.5, "3", null, Number.MAX_SAFE_INTEGER + 1])("rejects seenSeq %s", seenSeq => {
@@ -292,21 +388,6 @@ describe("seen marker in index v2", () => {
   });
 });
 
-describe("restoreEntries", () => {
-  const canvas = { path: ".doan/canvases/a.html", id: "a" };
-  it("swaps the archived conversation with the current one of its canvas and leaves the rest", () => {
-    const current = { ...legacy("now"), canvas }, archived = { ...legacy("then"), canvas, state: "archived" as const }, other = legacy("other"), older = { ...legacy("older"), canvas, state: "archived" as const };
-    expect(restoreEntries([current, archived, other, older], "then")).toEqual({ entries: [{ ...current, state: "archived" }, { ...archived, state: "current" }, other, older], replaced: ["now"] });
-  });
-  it("matches the canvas by ID across a move", () => {
-    const current = { ...legacy("now"), canvas: { path: ".doan/canvases/moved.html", id: "a" } }, archived = { ...legacy("then"), canvas, state: "archived" as const };
-    expect(restoreEntries([current, archived], "then")?.replaced).toEqual(["now"]);
-  });
-  it("refuses a target that is not an archived canvas conversation", () => {
-    expect(restoreEntries([legacy("now")], "now")).toBeNull();
-    expect(restoreEntries([legacy("now")], "missing")).toBeNull();
-  });
-});
 // The successor's first user.message carries its origin and the agent's text
 // as written, markers included; the earlier conversation keeps its request and resolution.
 describe("handoff events in event v1", () => {
@@ -378,7 +459,7 @@ describe("Fast metadata", () => {
     const fast = { ...owned("fast"), fast: true as const };
     store.save([fast, owned("old")]);
     expect(new ConversationStore(f.root).list()).toEqual([fast, owned("old")]);
-    expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(2);
+    expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(3);
     expect(new ConversationStore(f.root).list()[1]).not.toHaveProperty("fast");
   });
   it.each(["yes", false, null, 1, {}])("rejects invalid Fast metadata: %j", fast => {

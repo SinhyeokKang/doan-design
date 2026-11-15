@@ -7,7 +7,7 @@ import { slotKey, type Slot } from "./homeConversations";
 import { projectSlot } from "./ShellSidebar";
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
-  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
+  conversationId: "c1", title: "Draw it", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch,
 });
 const rows = new Map([["/r/doan", [{ path: ".doan/canvases/a.html", id: "a" }, { path: ".doan/canvases/plain.html" }]]]);
@@ -52,9 +52,30 @@ describe("slotsFromList", () => {
     ]));
   });
 
-  test("only Home conversations count, as before the list existed", () => {
+  test("a project conversation counts only when it was started from Home", () => {
     const lists = new Map([["/r/doan", [summary({ phase: "running", fromHome: false })]]]);
     expect(slotsFromList(lists, none, canvases).size).toBe(0);
+  });
+
+  // A conversation started in a canvas panel counts on its canvas row too (sidebar-canvas-conversations decision 7).
+  test("a canvas-panel conversation shows on its canvas row, whatever started it", () => {
+    const lists = new Map([["/r/doan", [summary({ conversationId: "panel", phase: "waiting", fromHome: false, canvas: { path: ".doan/canvases/a.html", id: "a" } })]]]);
+    expect(slotsFromList(lists, none, canvases)).toEqual(new Map([[slotKey("/r/doan", ".doan/canvases/a.html"), { kind: "permission", label: "Claude Code needs your answer" }]]));
+  });
+
+  test("a canvas-panel conversation whose canvas left the project shows on the project row", () => {
+    const lists = new Map([["/r/doan", [summary({ conversationId: "panel", unseen: true, fromHome: false, canvas: { path: ".doan/canvases/gone.html", id: "gone" } })]]]);
+    expect(slotsFromList(lists, none, canvases)).toEqual(new Map([["/r/doan", { kind: "unseen", label: "Conversation finished — unread" }]]));
+  });
+
+  test("the strongest signal of a canvas row ranks a usage limit's wait above an unseen ending", () => {
+    const bound = { path: ".doan/canvases/a.html", id: "a" };
+    const scheduledAt = new Date(Date.now() + 30 * 60_000).toISOString();
+    const lists = new Map([["/r/doan", [
+      summary({ conversationId: "u", unseen: true, fromHome: false, canvas: bound }),
+      summary({ conversationId: "s", fromHome: false, canvas: bound, scheduledAt, queued: 1 }),
+    ]]]);
+    expect(slotsFromList(lists, none, canvases).get(slotKey("/r/doan", bound.path))?.kind).toBe("scheduled");
   });
 });
 

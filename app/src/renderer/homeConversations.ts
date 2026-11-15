@@ -94,7 +94,7 @@ export function restoreRequest(draft: ComposerDraft, last: LastRequest, project:
   };
 }
 
-// Rows to ask main about (conversation:forCanvas): absent when the request was sent and not asked about yet (§7.3).
+// The canvas rows a Home turn may have drawn: absent when the request was sent and not looked at yet (§7.3).
 export function newCanvasCandidates<T extends { path: string }>(rows: readonly T[], atStart: readonly string[], checked: readonly string[]): T[] {
   return rows.filter(row => !atStart.includes(row.path) && !checked.includes(row.path));
 }

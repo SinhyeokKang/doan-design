@@ -7,18 +7,20 @@ import { canvasConversationTitle, type ConversationCalls } from "../CanvasConver
 import { CanvasRun, canvasKey, type ResumeCalls } from "../canvasRun";
 import { ConversationStore, type ListView, type StoreCalls } from "../conversationStore";
 import { DockedSupport, type DockedSupportCalls } from "../dockedSupport";
+import { canvasStrongestSignal, type CanvasSignal } from "../rightPanelOpen";
 import type { VisibleCalls } from "../visibleClock";
-import { carryPrototypeDraft, conversationButton, playingFrameChip, prototypeHeadTitle, prototypeShownConversation, type ConversationButton, type PlayingFrameChip, type PrototypeConversationTarget, type PrototypeShown } from "./conversation";
+import { conversationButton, playingFrameChip, prototypeHeadTitle, prototypeShown, type ConversationButton, type PlayingFrameChip, type PrototypeConversationTarget, type PrototypeShown } from "./conversation";
 
 // The prototype window's conversation host without a DOM. It keeps this window's own store (so its drafts, question
-// picks and attachment chips are its own), reads the playing canvas's conversations (main answers only that canvas's
-// rows), and always shows that canvas's current conversation. The main window's runs are not here: nothing this
-// window does reaches its selection, panel or drafts.
+// picks and attachment chips are its own) and its own canvas run (so it picks, follows and keeps what it shows by the
+// main window's rules, independently of the main window), and reads the playing canvas's conversations (main answers
+// only that canvas's rows). The main window's runs are not here: nothing this window does reaches its selection,
+// panel or drafts.
 
 // Everything the panel calls: `window.doanPrototype`'s members of the same names as `window.doan`'s, and its own.
 export type PrototypeConversationCalls = ConversationCalls & StoreCalls & DockedSupportCalls & ResumeCalls & VisibleCalls
-  & Pick<DoanApi, "markConversationSeen" | "onConversationEvent" | "onConversationStage" | "onConversationListChanged" | "getWork" | "onWorkChanged">
-  & Pick<PrototypeWindowApi, "listConversations" | "setShowing" | "reveal" | "rememberChoice" | "readComposerSettings" | "onComposerSettings" | "readTargetEntry" | "onTargetEntry" | "readDrawing" | "onDrawing" | "readPromoted" | "onPromoted">;
+  & Pick<DoanApi, "deleteConversation" | "markConversationSeen" | "onConversationEvent" | "onConversationStage" | "onConversationListChanged" | "getWork" | "onWorkChanged">
+  & Pick<PrototypeWindowApi, "listConversations" | "setShowing" | "reveal" | "rememberChoice" | "readComposerSettings" | "onComposerSettings" | "readTargetEntry" | "onTargetEntry" | "readDrawing" | "onDrawing" | "readPromoted" | "onPromoted" | "rememberedConversation">;
 
 export interface PrototypeRunHost {
   changed(): void;
@@ -30,10 +32,9 @@ export class PrototypeConversationRun {
   readonly store: ConversationStore;
   readonly run: CanvasRun;
   readonly support: DockedSupport;
-  // The calls the panel body makes: this window's, with its starts, sends and queues counted by the draft key they
-  // left from until main answers, so a list read never moves a draft whose send can still be in flight.
+  // The calls the panel body makes: this window's, with its starts held in the canvas run until main answers, so a
+  // conversation that appears meanwhile never takes the draft being sent.
   readonly bodyCalls: PrototypeConversationCalls;
-  private inFlight = new Map<string, number>();
   private view: PrototypeView | null = null;
   // The playing canvas whose list is held: main answers a list with that canvas's rows only, so a switch of canvas
   // (or root, worktrees sharing ids and paths) starts over.
@@ -67,6 +68,12 @@ export class PrototypeConversationRun {
   // The project conversation main saw become the playing canvas's current one, by id, likewise relayed.
   private promotedId: string | null = null;
   private promotedTurn = 0;
+  // The conversation last seen on the playing canvas on this device, as main reads it from ui-state (the main window
+  // is its only writer, so this window never writes it): undefined until the read for this canvas settles, which holds
+  // the first pick; null for none, or a failed read. Moves with every switch of canvas, so a late answer for the canvas
+  // left behind is dropped.
+  private rememberedId: string | null | undefined = undefined;
+  private rememberedTurn = 0;
 
   constructor(private readonly calls: PrototypeConversationCalls, private readonly host: PrototypeRunHost) {
     const list = (root: string): ListView => (this.view?.root === root ? this.listView : "loading");
@@ -79,6 +86,7 @@ export class PrototypeConversationRun {
       focused: () => host.focused(),
       drawing: root => (this.view?.root === root ? this.drawingId : null),
       promoted: root => (this.view?.root === root ? this.promotedId : null),
+      remembered: (root, canvas) => (this.key !== null && canvasKey({ root, canvas }) === this.key ? this.rememberedId : undefined),
       changed: () => this.changed(),
     }, this.store, calls);
     this.support = new DockedSupport(() => host.changed(), calls);
@@ -87,22 +95,11 @@ export class PrototypeConversationRun {
       // Main starts only canvas conversations for this window; a start without a canvas has no draft here to guard.
       startConversation: request => {
         if (!request.canvas) return calls.startConversation(request);
-        const target = { root: request.root, canvas: request.canvas };
         // The canvas run holds its new state's draft back too while this start is in flight.
-        const sending = this.run.startSending(target);
-        return this.track(canvasKey(target), calls.startConversation(request)).finally(sending);
+        const sending = this.run.startSending({ root: request.root, canvas: request.canvas });
+        return calls.startConversation(request).finally(sending);
       },
-      sendConversation: request => this.track(`conversation:${request.conversationId}`, calls.sendConversation(request)),
-      queueConversation: request => this.track(`conversation:${request.conversationId}`, calls.queueConversation(request)),
     };
-  }
-
-  private track<T>(key: string, sent: Promise<T>): Promise<T> {
-    this.inFlight.set(key, (this.inFlight.get(key) ?? 0) + 1);
-    return sent.finally(() => {
-      const left = (this.inFlight.get(key) ?? 1) - 1;
-      if (left > 0) this.inFlight.set(key, left); else this.inFlight.delete(key);
-    });
   }
 
   // Subscribe first, then read (ARCHITECTURE §7 'Events'): every read this window makes, the first and each one after
@@ -145,6 +142,7 @@ export class PrototypeConversationRun {
       // again: its answer is for the target playing now.
       // (The first target's were read at connect.)
       if (switched) { this.drawingId = null; this.promotedId = null; this.readRelayed(); }
+      this.readRemembered();
     }
     this.last = playingFrameChip(view, this.last);
     // A row back from being read again (a folder reload) reads the list again: list changes meanwhile were dropped.
@@ -161,6 +159,27 @@ export class PrototypeConversationRun {
   focusChanged(): void { this.run.focusChanged(); this.changed(); }
   retry(): void { this.read(); }
 
+  // The head menu's Delete, as the main window's: the store marks the conversation as being deleted before main is
+  // asked, so no list read picks it meanwhile, and the mark ends exactly once, deleted (success, or not_found: main has
+  // none either) or cancelled. Answers main's refusal code, null on success.
+  async deleteConversation(conversationId: string): Promise<string | null> {
+    this.store.startDelete(conversationId);
+    let code: string | null = "unknown";
+    try {
+      const reply = await this.calls.deleteConversation({ conversationId });
+      code = reply && "error" in reply ? reply.error : null;
+    } catch (error) { console.error(error); }
+    // The cleanup may throw (a run's defect); the mark still ends once and the answer still comes back, or the
+    // window's alert would stay open until a reload.
+    try {
+      if (code === null || code === "not_found") {
+        try { this.run.deleted(conversationId); } finally { this.store.deleted(conversationId); }
+      } else { this.store.cancelDelete(conversationId); this.run.sync(); }
+      this.changed();
+    } catch (error) { console.error(error); }
+    return code;
+  }
+
   currentView(): PrototypeView | null { return this.view; }
   target(): PrototypeConversationTarget | null {
     const view = this.view;
@@ -171,8 +190,8 @@ export class PrototypeConversationRun {
   list(): ListView { return this.listView; }
   shown(): PrototypeShown {
     const target = this.target();
-    if (!target || this.view?.canvasRow === "loading") return { kind: "list_loading" };
-    return prototypeShownConversation(this.listView, target);
+    if (!target) return { kind: "list_loading" };
+    return prototypeShown(this.run.view(), target, this.view?.canvasRow === "loading");
   }
   playing(): PlayingFrameChip | null { return this.last; }
   entry(): FolderEntry | null { return this.entryValue; }
@@ -181,10 +200,24 @@ export class PrototypeConversationRun {
   seen(): ReadonlySet<string> { return this.seenIds; }
   // The panel head's title: the main window's title for the conversation shown, or the shell's own "Conversation".
   headTitle(): string { return prototypeHeadTitle(this.shown(), canvasConversationTitle(this.run, this.listView).title); }
+  // The folded panel's button stands for the strongest signal across the playing canvas's conversations, as the main
+  // window's: its conversation's own mark, in this window's order (an answer needed, working, an unread ending), is that
+  // signal's kind.
   button(): ConversationButton {
-    const shown = this.shown();
-    const summary = shown.kind === "conversation" && Array.isArray(this.listView) ? this.listView.find(c => c.conversationId === shown.conversationId) : undefined;
+    const signal = this.signal();
+    const summary = signal && Array.isArray(this.listView) ? this.listView.find(c => c.conversationId === signal.conversationId) : undefined;
     return conversationButton(summary, this.seenIds);
+  }
+  // Show conversation with a badge opens on the conversation the badge stands for; without one the panel keeps what it
+  // showed. Called just before the window asks main to open the panel.
+  unfoldTarget(): void {
+    const target = this.target(), signal = this.signal();
+    if (!target || !signal || this.view?.panel.open) return;
+    this.run.request({ root: target.root, canvas: target.canvas }, signal.conversationId, signal.kind === "permission" ? "permission" : null);
+  }
+  private signal(): CanvasSignal | null {
+    const target = this.target();
+    return target && Array.isArray(this.listView) ? canvasStrongestSignal(this.listView, target.canvas, this.seenIds) : null;
   }
 
   // The request names the canvas this view shows: main answers its rows only while it still plays that canvas.
@@ -225,19 +258,8 @@ export class PrototypeConversationRun {
     this.applied = n;
   }
 
-  // CanvasRun keeps showing what it showed while it is listed; this window shows the canvas's current conversation
-  // only, so a new current one started in the main window takes over. The draft this window wrote for what it showed
-  // follows, when the new conversation has none (user decision), unless its own send or start from that draft is still
-  // in flight: a list naming the conversation that start made can come before the start's reply, and the composer
-  // empties only the key it sent from.
   private sync(): void {
     this.run.sync();
-    const shown = this.shown(), view = this.run.view(), from = this.run.composerKey();
-    if (shown.kind === "conversation" && (view?.kind === "new" || (view?.kind === "conversation" && view.conversationId !== shown.conversationId))) {
-      const to = `conversation:${shown.conversationId}`;
-      if (from !== null && !this.inFlight.has(from)) this.store.setDrafts(drafts => carryPrototypeDraft(drafts, from, to));
-      this.run.select(shown.conversationId);
-    }
     this.changed();
   }
 
@@ -248,10 +270,22 @@ export class PrototypeConversationRun {
     void this.calls.readPromoted().then(conversationId => { if (promoted === this.promotedTurn) this.setPromoted(conversationId); }, console.error);
   }
 
+  // Main answers for the canvas it plays; the answer applies only while this window still holds the canvas it asked for.
+  private readRemembered(): void {
+    const turn = ++this.rememberedTurn;
+    this.rememberedId = undefined;
+    void this.calls.rememberedConversation().catch((error: unknown) => { console.error(error); return null; }).then(conversationId => {
+      if (turn !== this.rememberedTurn) return;
+      this.rememberedId = conversationId;
+      this.sync();
+    });
+  }
+
+  // The canvas run decides the notice from it with the list, so it picks again.
   private setPromoted(conversationId: string | null): void {
     if (conversationId === this.promotedId) return;
     this.promotedId = conversationId;
-    this.changed();
+    this.sync();
   }
 
   private setDrawing(conversationId: string | null): void {

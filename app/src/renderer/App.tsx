@@ -6,6 +6,7 @@ import { useBuddyIntroLock } from "./buddyIntroLock";
 import type { BuddyPaint } from "./buddyPaint";
 import type { BuddyId } from "./buddies";
 import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, shownFolders, type Visit } from "./shellNavigation";
+import { afterRemoved, type RemovedState } from "./afterRemoved";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
@@ -60,10 +61,11 @@ import { CanvasConversations } from "./RightPanel";
 import { CanvasRun, type CanvasTarget } from "./canvasRun";
 import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, composerFixed, settleChips } from "./CanvasConversationPanel";
 import { captureAvailability } from "./canvasCapture";
-import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT } from "./canvasConversation";
-import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
+import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT, sidebarRowRequest } from "./canvasConversation";
+import { canvasStrongestSignal, panelOpenFor, type CanvasSignal, type PanelArrival, type PanelFocus, type PanelTrigger } from "./rightPanelOpen";
 import { HANDOFF_WAIT_MS, handoffArrival, handoffGoneText, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
-import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad, type Rect } from "./canvasPicker";
+import { bubbleAddAvailability, PICKER_UNAVAILABLE, pickerAvailability, targetAnchor, type CanvasLoad, type Rect } from "./canvasPicker";
+import { BubbleAdd } from "./BubbleAdd";
 import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
 import type { PrototypeReveal } from "../main/prototype/ipc";
@@ -91,7 +93,7 @@ import { QuickOpen } from "./QuickOpenDialog";
 import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, sameShownConversation, unavailableCanvasMessage, type ConversationLists, type SearchResult, type ShownConversation } from "./quickOpen";
 import { blockedLinkMessage, decideOpen, type OpenPage } from "./openDecision";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
-import { withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
+import { conversationCanvasKey, withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
 import { attachmentLimit, defaultProject, type AttachmentDraft } from "./homeComposer";
 import { OverviewRun } from "./overviewRun";
@@ -137,6 +139,10 @@ export class FocusIntent {
   end(): void { this.live = false; window.removeEventListener("focusin", this.moved, true); }
 }
 
+// Add to message's chip while a folded panel unfolds: the composer (and canvas) it was pressed for, and the focus it
+// may still take.
+interface WaitingChip { anchor: Anchor; composer: string | null; panel: string | null; focus: FocusIntent }
+
 // Main replaces the main window's ui-state wholesale on each save, so every save carries Home's memory, and none is
 // sent before that memory was read (it would be dropped).
 // A project's closed groups after `change`; no field when every group is open, as ui-state stores them.
@@ -144,21 +150,31 @@ function withGroups(project: ShellProject, change: (groups: ShellProject["groups
   const { groups, ...rest } = project, next = change(groups);
   return next ? { ...rest, groups: next } : rest;
 }
-export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; rightPanel?: UiState["rightPanel"]; overviewPanel?: UiState["overviewPanel"]; sidebar?: UiState["sidebar"]; canvasTool?: CanvasState["tool"] }): UiState | null {
+export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; conversationByCanvas?: Record<string, Record<string, string>> | null; rightPanel?: UiState["rightPanel"]; overviewPanel?: UiState["overviewPanel"]; sidebar?: UiState["sidebar"]; canvasTool?: CanvasState["tool"] }): UiState | null {
   const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel, overviewPanel, sidebar, canvasTool } = input;
   const conversationByRoot = input.conversationByRoot && Object.keys(input.conversationByRoot).length ? input.conversationByRoot : undefined;
+  const conversationByCanvas = input.conversationByCanvas && Object.keys(input.conversationByCanvas).length ? input.conversationByCanvas : undefined;
   if (home === null) return null;
   const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
   const canvasId = canvas ? open?.row.id : undefined;
   // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
   const lastByRoot = { ...input.memory, ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(rightPanel ? { rightPanel } : {}), ...(overviewPanel ? { overviewPanel } : {}), ...(sidebar ? { sidebar } : {}), ...(canvasTool === "hand" ? { canvasTool } : {}) };
+  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(conversationByCanvas ? { conversationByCanvas } : {}), ...(rightPanel ? { rightPanel } : {}), ...(overviewPanel ? { overviewPanel } : {}), ...(sidebar ? { sidebar } : {}), ...(canvasTool === "hand" ? { canvasTool } : {}) };
 }
 
 // The start's ui-state read under what the run wrote before it: a root the run set, cleared (New) or
 // removed keeps the run's word, so a late read never brings back a cleared memory.
 export function mergeConversationMemory(saved: Readonly<Record<string, string>> | undefined, current: Readonly<Record<string, string>>, touched: ReadonlySet<string>): Record<string, string> {
   return { ...Object.fromEntries(Object.entries(saved ?? {}).filter(([root]) => !touched.has(root))), ...current };
+}
+
+// The same for the canvas memory (ui-state conversationByCanvas), per canvas: a canvas seen before the read keeps the
+// run's word, and a root removed before it keeps none of the read memory.
+export function mergeCanvasMemory(saved: Readonly<Record<string, Readonly<Record<string, string>>>> | undefined, current: Readonly<Record<string, Readonly<Record<string, string>>>>, removed: ReadonlySet<string>): Record<string, Record<string, string>> {
+  const merged: Record<string, Record<string, string>> = {};
+  for (const [root, canvases] of Object.entries(saved ?? {})) if (!removed.has(root)) merged[root] = { ...canvases };
+  for (const [root, canvases] of Object.entries(current)) merged[root] = { ...merged[root], ...canvases };
+  return merged;
 }
 
 // First run's project handoff puts focus in the Home composer, ahead of the focus held before the wizard (§4.9).
@@ -276,6 +292,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // last render.
   const playButton = useRef<HTMLButtonElement | null>(null);
   const playNext = useRef<PlayRequest | null>(null);
+  // The size bubble's Add to message: the controller's host it renders into (once the bubble is built), its button,
+  // the toolbar's Picker that focus goes to when the bubble goes, and the chip waiting for a folded panel to unfold.
+  const [bubbleHost, setBubbleHost] = useState<HTMLElement | null>(null);
+  const bubbleAddButton = useRef<HTMLButtonElement | null>(null);
+  const pickerButton = useRef<HTMLButtonElement | null>(null);
+  const waitingChip = useRef<WaitingChip | null>(null);
   const [reroot, setReroot] = useState<(FolderFocus & { seq: number }) | null>(null);
   // `rerootSeq` counts the re-root focuses seen; Set Up keeps the count at its start so a re-root from before it is not
   // taken for its own. `locateFrom` is the root a Locate is waiting on: main reports that move as a re-root focus too,
@@ -294,6 +316,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const navigationIntent = useRef(0);
   const entriesRef = useRef(entries); entriesRef.current = entries;
   const shellRef = useRef(shellProjects); shellRef.current = shellProjects;
+  const expandedRef = useRef(expanded); expandedRef.current = expanded;
   // Why the open canvas was closed (its ID now shared by another canvas), shown on its project's Overview until another
   // canvas opens or the Overview is left, so the person learns why the canvas page went away.
   const [overviewNotice, setOverviewNotice] = useState<{ root: string; text: string } | null>(null);
@@ -360,6 +383,16 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const fastOffPending = useRef(new Map<string, number>());
   // Roots the run wrote, cleared or removed before that read.
   const memoryTouched = useRef(new Set<string>());
+  // The canvas conversation last seen on each canvas (ui-state conversationByCanvas): CanvasRun writes it on Seen from
+  // the start and reads it only once ui-state was read (memoryRead), merged under what it wrote before.
+  const conversationByCanvas = useRef<Record<string, Record<string, string>>>({});
+  // Roots removed before that read: the read's memory for them is dropped by the merge.
+  const canvasMemoryRemoved = useRef(new Set<string>());
+  // A canvas whose id another listed canvas shares has no memory: neither of the two can tell it is the one meant.
+  const sharedCanvasId = (root: string, canvas: Canvas) => {
+    const listed = entriesRef.current.find(entry => entry.path === root);
+    return canvas.id !== undefined && listed?.kind === "list" && listed.canvases.filter(row => row.id === canvas.id).length > 1;
+  };
   const [memoryTick, setMemoryTick] = useState(0);
   // The canvas page's conversation panel: open state and width on this device. A change the
   // person made before the ui-state read wins over the read value.
@@ -381,6 +414,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const [sidebarHidden, setSidebarHidden] = useState(false);
   const sidebarHiddenRef = useRef(sidebarHidden); sidebarHiddenRef.current = sidebarHidden;
   const sidebarHiddenTouched = useRef(false);
+  // The viewed canvas's conversation list under its sidebar row, folded for every canvas at once and remembered with the
+  // sidebar's other values; a fold before the read wins.
+  const [conversationsFolded, setConversationsFolded] = useState(false);
+  const conversationsFoldTouched = useRef(false);
   // Focus was in the sidebar (or one of its menus) when it was hidden: the header's Show sidebar button takes it.
   const sidebarFocus = useRef(false);
   // Only a toggle animates the shells' first column; the startup read and a resize do not.
@@ -441,6 +478,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     markSeen: (id, seq) => homeRun.current.markSeenThrough(id, seq),
     focused: () => document.hasFocus(),
     drawing: (root, canvas) => homeRun.current.drawing(root, canvas),
+    remembered: (root, canvas) => !memoryRead.current ? undefined : sharedCanvasId(root, canvas) ? null : conversationByCanvas.current[root]?.[conversationCanvasKey(canvas)] ?? null,
+    remember: (root, canvas, conversationId) => {
+      const key = conversationCanvasKey(canvas), current = conversationByCanvas.current;
+      if (sharedCanvasId(root, canvas) || current[root]?.[key] === conversationId) return;
+      conversationByCanvas.current = { ...current, [root]: { ...current[root], [key]: conversationId } }; setMemoryTick(tick => tick + 1);
+    },
     changed: () => setRunTick(tick => tick + 1),
   }, overviewRun.current.store, window.doan);
   // Where focus goes once the panel shows what an entry asked for; a new seq per entry.
@@ -553,6 +596,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       // The bubble went while it had focus: the toolbar's Play is the visible control for the same action.
       onFocusLost: () => { (playButton.current?.isConnected ? playButton.current : viewport.current)?.focus({ preventScroll: true }); },
     };
+    instance.bubbleAdd = {
+      host: element => setBubbleHost(element),
+      onAdd: () => live.current.addToMessage(),
+      button: () => bubbleAddButton.current,
+      // The bubble went while Add to message had focus: the toolbar's Picker is the visible control that adds a chip.
+      onFocusLost: () => { (pickerButton.current?.isConnected ? pickerButton.current : viewport.current)?.focus({ preventScroll: true }); },
+    };
     // The overlay covers the canvas, so its view commands do nothing meanwhile (ARCHITECTURE §7 'Problem overlay').
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace" && !overlaidRef.current) instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
@@ -638,12 +688,17 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
         return { ...state?.home, ...previous, ...(fast ? { fast } : {}) };
       });
       // The same for the Overview's memory: a conversation shown before the read keeps its newer entry.
-      if (active) { conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current); memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); }
+      if (active) {
+        conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current);
+        conversationByCanvas.current = mergeCanvasMemory(state?.conversationByCanvas, conversationByCanvas.current, canvasMemoryRemoved.current);
+        memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); canvasRun.current?.sync();
+      }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
       if (active && state?.rightPanel && !panelTouched.current) setRightPanelState(state.rightPanel);
       if (active && state?.overviewPanel && !overviewTouched.current) setOverviewSaved(state.overviewPanel.width);
       if (active && state?.sidebar && !sidebarTouched.current) setSidebarSaved(state.sidebar.width);
       if (active && state?.sidebar?.hidden && !sidebarHiddenTouched.current) setSidebarHidden(true);
+      if (active && state?.sidebar?.conversationsFolded && !conversationsFoldTouched.current) setConversationsFolded(true);
       // The controller keeps a tool the person chose before this read.
       if (active && state?.canvasTool) controller.current?.restoreTool(state.canvasTool);
       if (active && !restoreCancelled.current) setRestore({ state, started: performance.now() });
@@ -689,18 +744,18 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (restore !== "done" || !memoryRead.current) return;
     const instance = controller.current;
     if (!instance) return;
-    const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory(), conversationByRoot: conversationByRoot.current });
+    const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory(), conversationByRoot: conversationByRoot.current, conversationByCanvas: conversationByCanvas.current });
     if (state) void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);
   };
   // A page is never restored; a restart opens the screen it came from. Settings keeps only its last category.
   const savedScreen = screen === "addProjects" || screen === "settings" || screen === "projectSettings" ? page.origin.screen : screen;
-  const sidebarState = sidebarSaved === undefined && !sidebarHidden ? undefined
-    : { ...(sidebarSaved === undefined ? {} : { width: sidebarSaved }), ...(sidebarHidden ? { hidden: true as const } : {}) };
+  const sidebarState = sidebarSaved === undefined && !sidebarHidden && !conversationsFolded ? undefined
+    : { ...(sidebarSaved === undefined ? {} : { width: sidebarSaved }), ...(sidebarHidden ? { hidden: true as const } : {}), ...(conversationsFolded ? { conversationsFolded: true as const } : {}) };
   const overviewPanelState = overviewSaved === undefined ? undefined : { width: overviewSaved };
   const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, overviewPanel: overviewPanelState, sidebar: sidebarState, canvasTool: state.tool });
   persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, overviewPanel: overviewPanelState, sidebar: sidebarState, canvasTool: state.tool };
   // At commit, so a change already on screen has been sent.
-  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, overviewSaved, sidebarSaved, sidebarHidden, state.tool]);
+  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, overviewSaved, sidebarSaved, sidebarHidden, conversationsFolded, state.tool]);
   const completeNavigation = (root: string, cursor?: number) => {
     const visit = controller.current?.destination(root);
     if (!visit || !entriesRef.current.some(entry => entry.path === root)) return;
@@ -752,16 +807,26 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The conversation slots with the terminal sessions' spinners over them, as the sidebar shows them.
   const shownSlots = () => withTerminalSlots(homeRun.current.slots(), work, entriesRef.current);
   // A sidebar canvas row: its slot decides whether the panel unfolds. A row that needs an
-  // answer or has an unseen ending shows the canvas's current conversation; working or no mark keeps the panel as is.
-  // The slot is the one the row shows, so a terminal spinner over an unseen ending keeps the panel.
-  function openSidebarCanvas(root: string, row: CanvasRow, cursor?: number) {
-    const slot = shownSlots().get(canvasSlotKey(root, row.path)) ?? null;
+  // answer or has an unseen ending shows that slot's conversation; working or no mark keeps the panel as is, and the
+  // panel picks by its shared rule (pickShownConversation). The slot is the one the row shows, so a terminal spinner over
+  // an unseen ending keeps the panel.
+  // `listed`: the sidebar shows the canvas's conversation list under this row, so the row carries no conversation
+  // signal and its press keeps the panel as an empty slot would.
+  function openSidebarCanvas(root: string, row: CanvasRow, cursor?: number, listed = false) {
+    const slot = listed ? null : shownSlots().get(canvasSlotKey(root, row.path)) ?? null;
     const open = panelOpenFor({ kind: "sidebarRow" }, slot?.kind ?? null);
     const list = homeRun.current.listState(root);
     const target = { path: row.path, ...(row.id ? { id: row.id } : {}) };
-    const current = open.open === true && Array.isArray(list) ? list.find(c => c.state === "current" && c.canvas !== undefined && sameCanvas(c.canvas, target)) : undefined;
-    if (current) openCanvasConversation(root, row, current.conversationId, { kind: "sidebarRow" }, slot?.kind ?? null);
+    const requested = open.open === true && Array.isArray(list) ? sidebarRowRequest(list, target, slot?.kind ?? null, homeRun.current.seenPending()) : null;
+    if (requested) openCanvasConversation(root, row, requested, { kind: "sidebarRow" }, slot?.kind ?? null);
     else openShellCanvas(root, row, cursor);
+  }
+  // A sidebar conversation row: the panel shows that conversation and unfolds, focusing its waiting request, else the
+  // composer, as a notification's Open does (PRODUCT §5 item 2 'Opening'). On the canvas already shown it adds no visit.
+  function openSidebarConversation(root: string, row: CanvasRow, conversationId: string) {
+    const list = homeRun.current.listState(root);
+    const waiting = Array.isArray(list) && list.some(c => c.conversationId === conversationId && c.phase === "waiting");
+    openCanvasConversation(root, row, conversationId, { kind: "notification", permission: waiting });
   }
   // An entry to one of a canvas's conversations: the canvas opens with that
   // conversation asked for in its panel, and the panel unfolds when the trigger opens it.
@@ -814,8 +879,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     }
   }
   function forgetConversations(roots: readonly string[]) {
-    if (!memoryRead.current) for (const root of roots) memoryTouched.current.add(root);
-    conversationByRoot.current = withoutRoots(conversationByRoot.current, roots); setMemoryTick(tick => tick + 1);
+    if (!memoryRead.current) for (const root of roots) { memoryTouched.current.add(root); canvasMemoryRemoved.current.add(root); }
+    conversationByRoot.current = withoutRoots(conversationByRoot.current, roots);
+    conversationByCanvas.current = withoutRoots(conversationByCanvas.current, roots); setMemoryTick(tick => tick + 1);
     overviewRun.current?.forgetRoots(roots);
   }
   const cards = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
@@ -951,8 +1017,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, captured, followMode, openLink, openCanvasRequest, prototypeReveal, prototypeLastUsed, conversationHandoff, handoffCheck };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, addToMessage: () => {}, captured: (_rect: Rect): (() => Promise<unknown>) | null => null, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {}, prototypeReveal: (_request: PrototypeReveal) => {}, prototypeLastUsed: (_choice: ComposerChoice) => {}, conversationHandoff: (_notice: ConversationHandoffNotice) => {}, handoffCheck: () => {}, forgetRemoved: (_paths: readonly string[]) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, addToMessage, captured, followMode, openLink, openCanvasRequest, prototypeReveal, prototypeLastUsed, conversationHandoff, handoffCheck, forgetRemoved };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -985,6 +1051,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useLayoutEffect(() => {
     for (const node of document.querySelectorAll<HTMLElement>(".workspace > :is(.ov-main, .doan-overview-handle, .doan-conv-column)"))
       node.toggleAttribute("inert", overlaidRef.current || (node.matches(".doan-conv-column") && !rightPanelRef.current.open));
+  });
+  // Add to message's chip for a folded panel, once the inert above is off: a focus call before it would fail.
+  useLayoutEffect(() => {
+    const pending = waitingChip.current;
+    if (pending === null || !rightPanelRef.current.open) return;
+    waitingChip.current = null;
+    insertAdd(pending);
   });
   // The overlay just went with focus in it (focus fell to the page): it goes to the uncovered body instead (PRODUCT §5 item 3
   // 'Problem states'). After the inert above comes off, or the composer still refuses focus; ahead of the recovery focus below,
@@ -1197,6 +1270,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   useEffect(() => window.doan.onOpenRequest(request => live.current.openCanvasRequest(request)), []);
   // A started handoff, and every later render's check of the one still waiting for its read.
   useEffect(() => window.doan.onConversationHandoff(notice => live.current.conversationHandoff(notice)), []);
+  useEffect(() => window.doan.onFoldersRemoved(paths => live.current.forgetRemoved(paths)), []);
   useEffect(() => { live.current.handoffCheck(); });
   // Ready once the launch restore is applied (or cancelled) and the first folders are in, so a link's canvas opens over
   // the restored screen (ARCHITECTURE §7 'Deep links').
@@ -1296,7 +1370,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
   }, []);
-  // Only the Open a local folder card takes a file drop. Elsewhere the window refuses files, so the cursor shows no
+  // Only the 'Use a folder on your Mac' card takes a file drop. Elsewhere the window refuses files, so the cursor shows no
   // drop and the window never opens the file; a target that took the drag has already prevented the default. Text
   // and links are left to the fields that take them.
   useEffect(() => {
@@ -1318,19 +1392,20 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   async function removeNow(paths: string[]) {
     cancelRestore();
     const result = await window.doan.removeProjects(paths);
-    if (result.kind === "removed") {
-      setShellProjects(previous => Object.fromEntries(Object.entries(previous).flatMap(([key, project]) => {
-        const roots = project.roots.filter(root => !paths.includes(root));
-        return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}), ...(project.groups ? { groups: project.groups } : {}) }]] : [];
-      })));
-      setExpanded(previous => Object.fromEntries(Object.entries(previous).filter(([root]) => !paths.includes(root))));
-      for (const root of paths) controller.current?.remember(root, null);
-      forgetConversations(paths);
-      const previous = historyRef.current;
-      const before = previous.visits.slice(0, previous.cursor + 1).filter(visit => !paths.includes(visit.root));
-      const nextHistory = { visits: previous.visits.filter(visit => !paths.includes(visit.root)), cursor: before.length - 1 };
-      historyRef.current = nextHistory; setHistory(nextHistory);
-    }
+    if (result.kind === "removed") forgetRemoved(paths);
+  }
+  // What the window forgets about roots it or `doan remove` (folders:removed) took out of the list. Going Home is the
+  // entries effect's, as for any vanished root. A second pass for the same roots sets no state, so the CLI's event for
+  // roots this window's own Remove already tidied changes nothing.
+  function forgetRemoved(paths: readonly string[]) {
+    const current: RemovedState = { shellProjects: shellRef.current, expanded: expandedRef.current, history: historyRef.current };
+    const next = afterRemoved(current, paths);
+    setShellProjects(next.shellProjects); setExpanded(next.expanded);
+    if (next.history !== current.history) { historyRef.current = next.history; setHistory(next.history); }
+    for (const root of paths) controller.current?.remember(root, null);
+    // Only while something is left to forget, so a second pass bumps no memory tick and saves nothing: before ui-state
+    // is read every removal is marked (memoryTouched), and after it a root's conversation memory or Overview draft.
+    if (!memoryRead.current || paths.some(root => root in conversationByRoot.current || root in conversationByCanvas.current || overviewRun.current?.drafts.has(`root:${root}`))) forgetConversations(paths);
   }
   // The dialog asks main for its plan before it can be
   // confirmed. A busy plan keeps it open with its working line; any other refusal closes it with that refusal's toast.
@@ -1408,7 +1483,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           if (target.from === "canvasList") afterDelete.current = target.after.kind === "row"
             ? { field: false, selector: `.ov-right .cv-row[data-key="${CSS.escape(target.after.key)}"]`, fallback: ".ov-right .rp-head" }
             : { field: false, selector: ".ov-right .rp-head" };
-          else if (shown) afterDelete.current = { field: true, selector: from === "overview" ? ".workspace .ov-main .composer-input" : ".doan-conv-panel .composer-input" };
+          // The canvas panel moves on to the next conversation (or the new state) under the title menu button, which takes
+          // focus (draft frame delete-shown).
+          // A sidebar Delete's row comes first even for the shown conversation: focus stays in the list it was pressed in.
+          else if (target.from === "sidebar") afterDelete.current = { field: false, selector: sidebarRow(target.after), fallback: sidebarRow(target.canvasRow) };
+          else if (shown) afterDelete.current = from === "overview" ? { field: true, selector: ".workspace .ov-main .composer-input" } : { field: false, selector: ".doan-conv-panel .doan-conv-title .ov-title" };
         } finally { store.deleted(conversationId); }
       } else { store.cancelDelete(conversationId); overviewRuns.sync(); canvasRuns.sync(); }
     } catch (error) { console.error(error); }
@@ -1417,6 +1496,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       if (code !== null && !quitting()) live.current.toast.show(deleteRefusalText(code, title));
     }
   }
+  function sidebarRow(key: string): string { return `.shell-side [role="treeitem"][data-key="${CSS.escape(key)}"]`; }
   // What keeps Move to Trash unavailable, for the menu and the open dialog alike (main judges again).
   function trashWorking(root: string, row: CanvasRow) {
     const list = homeRun.current.listState(root);
@@ -1836,13 +1916,25 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const duplicated = panelCanvas?.row.id !== undefined && entry?.kind === "list" && entry.canvases.filter(row => row.id === panelCanvas.row.id).length > 1;
   const panelProject = panelTarget ? cards.find(card => card.rows.some(row => row.path === panelTarget.root))?.name ?? projectNames(entries.map(entry => entry.path)).get(panelTarget.root) ?? panelTarget.root : "";
   const panelBlocked = !panelTarget ? null : state.unlisted ? canvasUnlistedText(panelProject) : duplicated ? DUPLICATE_CANVAS_TEXT : null;
-  const panelCurrent = panelTarget && Array.isArray(panelList) ? panelList.find(c => c.state === "current" && c.canvas !== undefined && sameCanvas(c.canvas, panelTarget.canvas)) : undefined;
-  const panelBadge = openButtonBadge(panelCurrent, rightPanel.open, homeRun.current.seenPending());
+  // The folded panel's badge: the strongest signal across the canvas's conversations, working included.
+  const panelBadge = panelTarget && Array.isArray(panelList) && !rightPanel.open ? canvasStrongestSignal(panelList, panelTarget.canvas, homeRun.current.seenPending()) : null;
+  // Show conversation: with a badge the panel unfolds on the conversation it stands for, focus on its request when it
+  // waits for an answer; without one it unfolds on what it showed.
+  const showPanel = () => {
+    const target = panelTargetRef.current;
+    if (!target || !panelBadge) { foldPanel(true); return; }
+    const waits = panelBadge.kind === "permission";
+    canvasRun.current!.request(target, panelBadge.conversationId, waits ? "permission" : null);
+    if (waits) revealPanel("permission"); else foldPanel(true);
+  };
   const canvasLoad: CanvasLoad = state.unlisted ? "unlisted" : state.status === null && state.layout ? "loaded" : state.status === "failed" ? "failed" : state.status === "noWidth" ? "noWidth" : "loading";
   const composerKey = canvasRun.current!.composerKey();
   const composerChips = composerKey ? distinctTargets(overviewRun.current!.store.drafts.get(composerKey)?.segments ?? []) : 0;
   const pickerView = panelTarget !== null ? pickerAvailability(panelBlocked, canvasLoad, composerChips) : { enabled: false, reason: PICKER_UNAVAILABLE };
   const pickerReady = pickerView.enabled;
+  // The size bubble's Add to message makes the chip a pick of the selection would; the selection itself stays.
+  const bubbleAnchor = state.selection ? targetAnchor(state.selection) : null;
+  const bubbleAddView = bubbleAddAvailability({ capturing: state.capturing, anchor: bubbleAnchor, picker: pickerView, unlisted: panelTarget !== null && state.unlisted ? canvasUnlistedText(panelProject) : null });
   // Edit > Pick from Canvas follows the canvas toolbar's Picker: the canvas page, with the picker available (the
   // composer takes input and the canvas is loaded).
   const canvasPageShown = screen === "workspace" && !!state.open && shownOverview === null;
@@ -1885,7 +1977,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The pick's start: the composer field it will put the chip in, where focus was, and whether focus may go back.
   // `pressed`: the pick ends because the person pressed a control (the Picker, Pick, ⌘L, Select or Hand), which keeps
   // focus where that press left it.
-  const pickIntent = useRef<{ field: HTMLElement | null; from: Element | null; focus: FocusIntent; pressed?: boolean } | null>(null);
+  // `bubble`: the pick started from a size bubble button, which the pick's clear of the selection takes away.
+  const pickIntent = useRef<{ field: HTMLElement | null; from: Element | null; focus: FocusIntent; pressed?: boolean; bubble: boolean } | null>(null);
   // The shown composer's field, which the panel's composer registers (DockedFieldLink).
   const composerLink = useRef<DockedFieldLink | null>(null);
   const togglePick = () => {
@@ -1894,11 +1987,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (picking) { pressedCancel(); instance.cancelPick(); return; }
     if (!pickerReady) return;
     const from = document.activeElement, field = composerLink.current?.element() ?? null;
+    const bubble = from !== null && (from === bubbleAddButton.current || from === instance.bubblePlayButton());
     // The picker, the page, the canvas and the field itself are where a pick leaves focus; anything else ends it.
     const focus = new FocusIntent(target => !target || target === from || target === document.body || target === field
       || (target instanceof Node && !!viewport.current?.contains(target)));
     pickIntent.current?.focus.end();
-    pickIntent.current = { field, from, focus };
+    pickIntent.current = { field, from, focus, bubble };
     if (!instance.pick()) { focus.end(); pickIntent.current = null; }
   };
   const pressedCancel = () => { if (pickIntent.current) pickIntent.current.pressed = true; };
@@ -1908,6 +2002,29 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (overlaidRef.current) return;
     if (!picking && pickerReady && !rightPanelRef.current.open && panelOpenFor({ kind: "picker" }, null).open === true) foldPanel(true, "content");
     togglePick();
+  }
+  // The size bubble's Add to message: the selection's chip at the panel composer's caret, as a pick of it would put it,
+  // with the selection, the bubble and `doan active` left as they are. A folded panel unfolds as for the Picker; its
+  // composer stays mounted but inert until that commit, so the chip waits for it (the layout effect after the inert one).
+  function addToMessage() {
+    if (overlaidRef.current || !bubbleAddView.enabled || bubbleAnchor === null) return;
+    waitingChip.current?.focus.end();
+    waitingChip.current = null;
+    const from = document.activeElement, field = composerLink.current?.element() ?? null;
+    const focus = new FocusIntent(target => !target || target === from || target === document.body || target === field);
+    const pending: WaitingChip = { anchor: bubbleAnchor, composer: composerKey, panel: panelKey, focus };
+    if (!rightPanelRef.current.open && panelOpenFor({ kind: "picker" }, null).open === true) { waitingChip.current = pending; foldPanel(true, "content"); return; }
+    insertAdd(pending);
+  }
+  // Focus first, then the chip, for pickEnded's reason; a composing field gets the chip once the composition ends and no
+  // focus call. A chip for another canvas, another conversation or a composer that stopped taking input is dropped.
+  function insertAdd(pending: WaitingChip) {
+    const holds = pending.focus.holds();
+    pending.focus.end();
+    const link = composerLink.current;
+    if (!link || pending.panel !== panelKey || pending.composer !== canvasRun.current!.composerKey() || panelBlocked !== null) return;
+    if (holds && !link.composing()) link.focus();
+    link.insert(pending.anchor);
   }
   // The toolbar's Select and Hand cancel a pick, then switch (the controller); focus stays on the pressed tool.
   const chooseTool = (tool: CanvasState["tool"]) => {
@@ -1930,8 +2047,13 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       // A cancel by a press leaves focus on what was pressed. Esc and the other cancels go back to where focus was
       // before the pick, or the field when that was the page itself (spec 3: never the page body), but only from where
       // the pick left focus: focus the person moved meanwhile, such as into the field, stays.
+      if (!returns || intent.pressed) return;
+      // A pick from a size bubble button cleared the selection and took the button with it (Add to message hidden, Play
+      // removed), so focus waited on the toolbar where the bubble handed it: the field is where it goes back to. The
+      // cancel comes after the commit that unfolded a folded panel, so the field takes focus.
+      if (intent.bubble) { link.focus(); return; }
       const left = !active || active === document.body || active === intent.from || (active instanceof Node && !!viewport.current?.contains(active));
-      if (!returns || intent.pressed || !left) return;
+      if (!left) return;
       const from = intent.from;
       if (from instanceof HTMLElement && from !== document.body && from.isConnected) from.focus({ preventScroll: true });
       else link.focus();
@@ -1979,12 +2101,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   });
   useEffect(() => {
     // The Project Settings page enables the menu as Settings does (no canvas items, no New Conversation), so main's
-    // menu state needs no screen of its own.
+    // menu state needs no screen of its own; its flag only names the page in `doan remove`'s busy sentence.
     // Under the overlay the workspace has no canvas or Overview items: they would act on what it covers (ARCHITECTURE §7 'Problem overlay').
     void window.doan.setMenuState({ screen: onPage ? "addProjects" : onSettings || onProjectSettings ? "settings" : screen === "home" ? "home" : state.open && !overlaid ? "canvas" : "workspace", modal,
       ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null && !overlaid ? { overview: true } : {}),
-      ...(menuPicker && !overlaid ? { pickerAvailable: true } : {}), ...(sidebarHidden ? { sidebarHidden: true } : {}) });
-  }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuPicker, sidebarHidden, overlaid]);
+      ...(menuPicker && !overlaid ? { pickerAvailable: true } : {}), ...(sidebarHidden ? { sidebarHidden: true } : {}), ...(onProjectSettings ? { projectSettings: true } : {}) });
+  }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuPicker, sidebarHidden, overlaid, onProjectSettings]);
   // A covered Overview's thread is not seen (PRODUCT §5 item 3 'Problem states').
   useLayoutEffect(() => { overviewRun.current!.show(overlaid ? null : shownOverview); }, [shownOverview, overlaid]);
   // The window's focus decides whether the shown conversation is seen; the focus listener is the
@@ -2124,12 +2246,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     controller.current?.cancelPick();
     openNotice({ root, path: state.open.canvas });
   };
-  // The work capsule's Open while the agent waits for an answer: the panel shows that conversation, scrolled
+  // The work capsule's Open while the agent waits for an answer: the panel shows the followed conversation, scrolled
   // to its request with focus on the first choice.
-  const openRequest = () => {
+  const openRequest = (conversationId: string) => {
     const target = panelTargetRef.current;
     const list = target ? homeRun.current.listState(target.root) : null;
-    const waiting = target && Array.isArray(list) ? list.find(c => c.state === "current" && c.phase === "waiting" && c.canvas && sameCanvas(c.canvas, target.canvas)) : undefined;
+    const waiting = target && Array.isArray(list) ? list.find(c => c.conversationId === conversationId && c.phase === "waiting" && c.canvas && sameCanvas(c.canvas, target.canvas)) : undefined;
     if (!target || !waiting) { if (rightPanel.open) focusPanel(); else foldPanel(true, "panel"); return; }
     canvasRun.current!.request(target, waiting.conversationId, "permission");
     revealPanel(panelOpenFor({ kind: "capsule" }, null).open === true ? "permission" : "composer");
@@ -2261,11 +2383,14 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const shellSlots = sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas);
   const sidebarId = (home: boolean) => home ? "doan-page-sidebar" : "doan-workspace-sidebar";
-  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
+  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={(root, row, listed) => openSidebarCanvas(root, row, undefined, listed)} overview={showShellOverview} action={action} remove={remove}
     projectSettings={root => openProjectSettings(root)}
     canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash }}
     home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection, mcp: mcpShown !== false } } : {})}
-    resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }} />;
+    resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }}
+    conversations={{ list: root => run.listState(root), shown: canvasRun.current!.showing()?.conversationId ?? null, seen: run.seenPending(), now: clock, folded: conversationsFolded,
+      bare: sidebarSlots(withTerminalSlots(new Map(), work, entries), entries, shownCanvas), fold: folded => { conversationsFoldTouched.current = true; setConversationsFolded(folded); },
+      open: openSidebarConversation, remove: openDelete }} />;
   // The Project Settings page sits under the Projects tab (page null) but leaves like the other pages.
   const anyPage = onPage || onSettings || onProjectSettings;
   const sidebarToggle = sidebarToggleView(sidebarHidden, shellSlots);
@@ -2306,11 +2431,12 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {sidebar(false)}
     {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} view={canvasView.current} command={command} covered={overview !== null || overlaid} overlaid={overlaid}
-      zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
-      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
+      zoomTo={scale => controller.current?.zoomTo(scale)} onToolbarEscape={event => controller.current?.toolbarEscape(event)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: showPanel, badge: panelBadge }}
+      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, shown: canvasRun.current!.showing()?.conversationId ?? null, canvas: workingCanvas(state.open, state.unlisted, entry), buddy: buddySelection.shown, running: screen === "workspace" && overview === null, work, entries,
         conversationWork, frames: state.layout?.frames ?? null, onWork: target => controller.current?.setWork(target),
-        onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
-      picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} capture={capture} player={player} exporter={exporter} />
+        onOpen: openRequest, onOpenSibling }}
+      picking={picking} capturing={state.capturing} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas, button: pickerButton }} capture={capture} player={player} exporter={exporter} />
+    {bubbleHost && <BubbleAdd host={bubbleHost} enabled={bubbleAddView.enabled} reason={bubbleAddView.reason} button={bubbleAddButton} onEscape={event => controller.current?.toolbarEscape(event)} />}
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={null}
@@ -2404,8 +2530,8 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
   </header>;
 }
 
-type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
-  conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
+type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; shown: string | null; canvas: WorkingCanvas | null; buddy: BuddyId; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[];
+  conversationWork: readonly ConversationWork[]; frames: readonly CanvasFrameRect[] | null; onWork(target: CanvasWorkTarget | null): void; onOpen(conversationId: string): void; onOpenSibling(root: string): void };
 
 function sendPlay(request: PlayRequest | null): void {
   if (request !== null) prototypeMainCalls().playPrototype(request);
@@ -2415,7 +2541,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
   state: CanvasState; view: CanvasViewStore; command: (name: ViewCommand) => void; covered: boolean; overlaid: boolean;
-  zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: OpenBadge | null }; agent: AgentProps;
+  zoomTo(scale: number): void; onToolbarEscape(event: KeyboardEvent): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: CanvasSignal | null }; agent: AgentProps;
   picking: boolean; capturing: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; capture: CaptureTool; player: PlayTool; exporter: ExportTool;
 }) {
   const panel = useRef<HTMLDivElement>(null);

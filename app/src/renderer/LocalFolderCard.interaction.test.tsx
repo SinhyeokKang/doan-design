@@ -19,9 +19,9 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function render(props: { busy?: boolean; drop: ProjectDrop }) {
+function render(props: { busy?: boolean; drop: ProjectDrop; choose?: () => void; newFolder?: () => void }) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = [];
-  const tree = LocalFolderCard({ busy: props.busy ?? false, choose: () => {}, drop: props.drop });
+  const tree = LocalFolderCard({ busy: props.busy ?? false, choose: props.choose ?? (() => {}), newFolder: props.newFolder ?? (() => {}), drop: props.drop });
   for (const effect of hooks.effects) effect();
   return tree;
 }
@@ -89,4 +89,23 @@ test("the target goes when the window loses focus, and a drag without files is n
   const text = drag([], ["text/plain"]);
   card(render({ drop: props })).onDragEnter!(text);
   expect(text.preventDefault).not.toHaveBeenCalled();
+});
+
+// The card's two buttons: Choose folder, then New folder, each running its own command.
+test("Choose folder and New folder each run their own command", () => {
+  const choose = vi.fn(), newFolder = vi.fn();
+  const buttons: { props: { children?: unknown; onClick?: () => void } }[] = [];
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (!isValidElement<{ children?: unknown; onClick?: () => void }>(node)) return;
+    if (node.type === "button") buttons.push(node);
+    walk(node.props.children);
+  };
+  walk(render({ drop: drop(), choose, newFolder }));
+  expect(buttons.map(button => button.props.children)).toEqual(["Choose folder", "New folder"]);
+  buttons[1]!.props.onClick!();
+  expect(newFolder).toHaveBeenCalledOnce();
+  expect(choose).not.toHaveBeenCalled();
+  buttons[0]!.props.onClick!();
+  expect(choose).toHaveBeenCalledOnce();
 });

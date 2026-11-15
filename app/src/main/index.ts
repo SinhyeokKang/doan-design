@@ -31,14 +31,14 @@ import { addPageRequest } from "./addPageRequest";
 import { onboardingComplete, readCompletion, writeCompletion } from "./onboarding/completion";
 import { cloneEnv, locateGit } from "./onboarding/clone";
 import { readGitRemotes } from "./onboarding/gitConfig";
-import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, leftoverPresent, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
+import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, leftoverPresent, inspectUrl, newFolderTarget, selectProject, type NewFolderTarget, type ProjectDeps } from "./onboarding/projects";
 import { groupRoots, projectKeepsLocal } from "./storage";
 import { DocumentBindings } from "./document/bindings";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, powerMonitor, screen, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions, type Session } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, lstatSync, readlinkSync, realpathSync, statSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile } from "node:fs/promises";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { PrototypeRequest, PrototypeResponse, Selection } from "../formats/types";
 import { validateSelection } from "../formats/validate";
@@ -61,6 +61,7 @@ import type { NotificationTarget } from "./notifications";
 import { conversationNames, createNotifyService } from "./notifyService";
 import { createPreferencesStore, windowBuddy } from "./preferences";
 import { buddyIntroShown } from "./buddyIntro";
+import { answerCliRemove } from "./cliRemove";
 import type { BuddyId } from "../renderer/buddies";
 import { createLocalSeen, type LocalSeen } from "./canvasSeen";
 import { createReadState, type ReadState } from "./readState";
@@ -93,9 +94,10 @@ import { linkTarget } from "./openLink";
 import { openLinkQueue, openRequests, resolveOpenLink } from "./deepLinks";
 import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, workItemsChanged, type WorkState } from "./workState";
 import { applyConversationWork, endConversationWork, type ConversationWork } from "./conversationWork";
+import { othersOnCanvas } from "./workOthers";
 import { PROTOTYPE_CHANNELS, PROTOTYPE_WINDOW_REQUESTS } from "./prototype/ipc";
 import {
-  prototypeAuthSnapshot, prototypeConversationScope, prototypeEntry, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRevealRequest, prototypeWorkItems,
+  prototypeAuthSnapshot, prototypeConversationScope, prototypeEntry, prototypeListElsewhere, prototypeListRows, prototypeReceives, prototypeRememberedConversation, prototypeRevealRequest, prototypeWorkItems,
   type ConversationBroadcast, type ResumeSession, type ScopedConversation,
 } from "./prototype/conversationScope";
 import { canvasKeyString } from "./prototype/targets";
@@ -127,12 +129,24 @@ export type MenuCommand = "home" | "quickOpen" | "newConversation" | "pickFromCa
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
 // `overview`: a project Overview shows (File > New Conversation).
 // `pickerAvailable`: the composer takes input and the canvas is loaded, so the menu follows the canvas toolbar's Picker.
-export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; sidebarHidden?: boolean }
+// projectSettings: the "settings" screen is the Project Settings page, which enables the menu as Settings does; only
+// `doan remove`'s busy sentence tells the two apart.
+export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; pickerAvailable?: boolean; sidebarHidden?: boolean; projectSettings?: boolean }
 export type RemoveResult = { kind: "removed" } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
 // The onboarding Project step's folder picker: a path only. Inspection, registration and setup go through the
 // onboarding session, so picking a folder changes nothing.
 export type FolderPurpose = "project" | "destination";
+// New folder's answer: newFolderTarget's judgment of the panel's path, or cancelled when the panel was, or the step or
+// window that asked went first.
+export type NewFolderResult = NewFolderTarget;
+// New folder requests in flight, by the token the Project step gave, with the id of the webContents that sent it (only
+// its top frame may, `fromWindow`). The step cancels its own when it goes (the page left, first run closed) while the
+// window stays, so a Create that returns later makes nothing.
+const folderRequests = new Map<string, number>();
+function dropFolderRequests(contentsId: number): void {
+  for (const [token, owner] of folderRequests) if (owner === contentsId) folderRequests.delete(token);
+}
 
 // The window only ever shows the bundled UI; canvases live in a sandboxed
 // iframe whose navigation stays on the local server. Anything else a page tries
@@ -561,12 +575,12 @@ const realHomeDirectory = (): string => realHome(homeDirectory());
 function setMenuInputs(next: MenuInputs): void {
   if (next.screen === menuInputs.screen && next.modal === menuInputs.modal &&
     next.choose === menuInputs.choose && next.locked === menuInputs.locked && next.overview === menuInputs.overview &&
-    next.pickerAvailable === menuInputs.pickerAvailable && next.sidebarHidden === menuInputs.sidebarHidden) return;
+    next.pickerAvailable === menuInputs.pickerAvailable && next.sidebarHidden === menuInputs.sidebarHidden && next.projectSettings === menuInputs.projectSettings) return;
   menuInputs = next;
   setMenu();
 }
 
-const MENU_FLAGS = ["choose", "locked", "overview", "pickerAvailable", "sidebarHidden"] as const;
+const MENU_FLAGS = ["choose", "locked", "overview", "pickerAvailable", "sidebarHidden", "projectSettings"] as const;
 function parseMenuInputs(value: unknown): MenuInputs | null {
   if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value)) return null;
   const flags = MENU_FLAGS.filter(flag => flag in value);
@@ -650,6 +664,11 @@ function createWindow(buddy: BuddyId): BrowserWindow {
   // it keeps running.
   window.webContents.on("render-process-gone", () => addPage?.rendererGone());
   window.webContents.on("did-navigate", () => addPage?.rendererGone());
+  // A reloaded or crashed renderer never disposes its Project step, so it cannot cancel a New folder request whose
+  // save panel is still open; its requests go with it, and a Create that returns later makes nothing.
+  const contentsId = window.webContents.id;
+  window.webContents.on("render-process-gone", () => dropFolderRequests(contentsId));
+  window.webContents.on("did-navigate", () => dropFolderRequests(contentsId));
   // Read after destroy, webContents throws, so the id is kept now.
   const owner = window.webContents.id;
   // A sign-in belongs to the renderer that started it; a lost renderer cannot cancel it any more.
@@ -688,6 +707,7 @@ function createWindow(buddy: BuddyId): BrowserWindow {
     void agentAuth?.ownerClosed(owner);
     cancelPendingHide();
     if (win === window) win = undefined;
+    folderRequests.clear();
   });
   return window;
 }
@@ -757,7 +777,7 @@ async function chooseFolder(purpose: unknown): Promise<string | null> {
   showWindow(window);
   const picked = await dialog.showOpenDialog(window, {
     title: purpose === "project" ? "Choose Project Folder" : "Choose Where to Clone",
-    properties: purpose === "project" ? ["openDirectory"] : ["openDirectory", "createDirectory"],
+    properties: ["openDirectory", "createDirectory"],
   });
   const path = picked.filePaths[0];
   return picked.canceled || path === undefined ? null : path;
@@ -775,6 +795,11 @@ function openAddProjects(): void {
 // Whether anything is at the path, a link included; nothing is read.
 function exists(path: string): boolean {
   try { lstatSync(path); return true; } catch { return false; }
+}
+
+// A folder, or a link to one, is at the path.
+function isFolder(path: string): boolean {
+  try { return statSync(path).isDirectory(); } catch { return false; }
 }
 
 function storedPath(value: unknown): string | null {
@@ -881,7 +906,7 @@ async function start(): Promise<void> {
   const hostRequests: ReadonlySet<string> = new Set([
     PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
     PROTOTYPE_CHANNELS.auth, PROTOTYPE_CHANNELS.work, PROTOTYPE_CHANNELS.composer, PROTOTYPE_CHANNELS.remember, PROTOTYPE_CHANNELS.entry,
-    PROTOTYPE_CHANNELS.drawing, PROTOTYPE_CHANNELS.promoted,
+    PROTOTYPE_CHANNELS.drawing, PROTOTYPE_CHANNELS.promoted, PROTOTYPE_CHANNELS.rememberedConversation,
   ]);
   handle(PROTOTYPE_CHANNELS.visible, null, (_event, value: unknown) => value === undefined ? { visible: prototype.visible() } : null);
   for (const channel of PROTOTYPE_WINDOW_REQUESTS) {
@@ -956,6 +981,8 @@ async function start(): Promise<void> {
     work(request) { updateWork(applyWork(workState, request, Date.now())); },
     // Before the conversation service exists no turn runs, so every update is dropped.
     conversationWork(request) { updateConversationWork(applyConversationWork(conversationWork, request, conversations?.liveTurns() ?? new Map(), Date.now())); },
+    workOthers: request => request.action === "done" ? []
+      : othersOnCanvas({ request, now: Date.now(), work: workItems(workState), conversationWork, liveTurns: conversations?.liveTurns() ?? new Map() }),
     roots: () => ready.entries().map(entry => entry.path),
     // Only runLs's default 10 s timeout applies, not the answer deadline: a start past it still registers
     // (runtime.ts AUTO_REGISTER_WAIT_MS).
@@ -966,6 +993,20 @@ async function start(): Promise<void> {
     // Before the conversation service exists no conversation holds a key.
     handoff: request => conversations ? conversations.requestHandoff(request) : "not_app_conversation",
     playPrototype,
+    // Main judges and removes without asking the renderer; the window learns which roots went afterwards and tidies its
+    // own state for them. The window does not come forward.
+    remove: request => answerCliRemove(request, {
+      ready: openLinksReady,
+      firstRun: () => onboardingOpen || buddyIntroOpen,
+      entries: () => ready.entries(),
+      menu: () => menuInputs,
+      liveTurns: () => conversations?.liveTurns() ?? new Map(),
+      async removeRoots(roots) {
+        const removed = await removeRoots(roots);
+        if (removed.kind === "removed") send("folders:removed", { paths: removed.paths });
+        return removed;
+      },
+    }),
     async onboarding(request) {
       const service = await onboardingStarted;
       // start keeps the session and its input; the window comes forward only when Doan is
@@ -1109,6 +1150,32 @@ async function start(): Promise<void> {
       },
     }, commit, storage),
   };
+  // New folder on the Project step. The renderer names only where the save panel opens and a token for the request;
+  // the folder's path comes from the panel and main makes it, so no path the renderer sends is created. It registers
+  // nothing: the new folder is inspected like a chosen one. No createDirectory: a New Folder made in this panel would
+  // move it inside, and Create would nest the project there.
+  const cancelled: NewFolderResult = { kind: "cancelled" };
+  handle("onboarding:new-folder", cancelled, async (event, value: unknown): Promise<NewFolderResult> => {
+    const window = win;
+    if (!fromWindow(event) || !window || typeof value !== "object" || value === null || Object.keys(value).length !== 2 || !("parent" in value) || typeof value.parent !== "string"
+      || !("token" in value) || typeof value.token !== "string" || value.token === "" || value.token.length > 200 || folderRequests.has(value.token)) return cancelled;
+    const token = value.token;
+    folderRequests.set(token, event.sender.id);
+    try {
+      const at = isAbsolute(value.parent) && isFolder(value.parent) ? value.parent : realHomeDirectory();
+      showWindow(window);
+      const picked = await dialog.showSaveDialog(window, { message: "Name your new project folder and choose where to create it.", buttonLabel: "Create", nameFieldLabel: "Name:", defaultPath: at, showsTagField: false });
+      // The step that asked, or the window, may have gone while the panel was open or while the location is checked.
+      const wanted = () => folderRequests.has(token) && fromWindow(event);
+      if (picked.canceled || !picked.filePath || !wanted()) return cancelled;
+      return await newFolderTarget(picked.filePath, projectDeps, wanted);
+    } finally { folderRequests.delete(token); }
+  });
+  // true: that request was still open and now makes nothing. Only the frame that sent it may cancel it.
+  handle("onboarding:new-folder-cancel", false, (event, value: unknown) => {
+    if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("token" in value) || typeof value.token !== "string") return false;
+    return folderRequests.get(value.token) === event.sender.id && folderRequests.delete(value.token);
+  });
   const onboardingService = new OnboardingService({
     auth: authIpc ?? null,
     mainOwner: () => win && !win.isDestroyed() ? win.webContents.id : null,
@@ -1194,7 +1261,7 @@ async function start(): Promise<void> {
   // plays there (prototypeReceives).
   const broadcast = (message: ConversationBroadcast): void => {
     send(message.channel, message.value);
-    if (message.channel === "conversation:listChanged" || (message.channel === "conversation:event" && ["conversation.bound", "conversation.archived", "conversation.restored"].includes(message.value.type))) known = null;
+    if (message.channel === "conversation:listChanged" || (message.channel === "conversation:event" && message.value.type === "conversation.bound")) known = null;
     if (prototype.window() === undefined) return;
     const list = message.channel === "conversation:event" || message.channel === "conversation:stage" ? knownFor(message.value.conversationId) : known ?? [];
     if (prototypeReceives(message, prototype.controller.playing(), list)) prototype.send(message.channel, message.value);
@@ -1337,6 +1404,19 @@ async function start(): Promise<void> {
     store: (paths) => ready.store(paths),
   });
   addFlow = flow;
+  // Every path that takes stored roots out by request (the menu's Remove from Doan, `doan remove`) goes through here, so
+  // state keyed by those roots is cleared in one place (POSTMORTEM 2026-10-25 'Locating a project kept the old root's
+  // selection'). The store reads its list before the first await, so the removal starts within the request.
+  async function removeRoots(roots: readonly string[]): Promise<{ kind: "removed"; paths: string[] } | { kind: "unavailable" }> {
+    const before = ready.entries();
+    if (selection && roots.includes(selection.root)) selection = null;
+    const removed = await ready.remove(roots);
+    if (removed.paths.length === 0) return { kind: "unavailable" };
+    // Background work a done turn left in a removed project stops without asking, as on sign-out.
+    conversations?.stopBackground(removed.paths);
+    void thumbs.removed(removed.paths, before);
+    return { kind: "removed", paths: removed.paths };
+  }
   // A row or a whole card.
   handle("folders:remove", { kind: "unavailable" }, (event, value: unknown): Promise<RemoveResult> | RemoveResult => {
     if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("paths" in value)) return { kind: "unavailable" };
@@ -1344,18 +1424,7 @@ async function start(): Promise<void> {
     const stored = ready.entries();
     if (!Array.isArray(paths) || paths.length === 0 || new Set(paths).size !== paths.length ||
       !paths.every((path) => stored.some((entry) => entry.path === path))) return { kind: "unavailable" };
-    const roots = paths.map(String);
-    const before = ready.entries();
-    if (selection && roots.includes(selection.root)) selection = null;
-    return new Promise((resolve) => {
-      void ready.remove(roots).then((removed) => {
-        if (removed.paths.length === 0) { resolve({ kind: "unavailable" }); return; }
-        // Background work a done turn left in a removed project stops without asking, as on sign-out.
-        conversations?.stopBackground(removed.paths);
-        void thumbs.removed(removed.paths, before);
-        resolve({ kind: "removed" });
-      });
-    });
+    return removeRoots(paths.map(String)).then((removed): RemoveResult => removed.kind === "removed" ? { kind: "removed" } : removed);
   });
   handle("folders:locate", { kind: "unavailable" }, async (event, value: unknown): Promise<LocateResult> => {
     const from = storedPath(value);
@@ -1401,8 +1470,12 @@ async function start(): Promise<void> {
     read: () => store.read(), preferences: () => preferences.current(), open: () => prototype.window() !== undefined,
     send: settings => prototype.send(PROTOTYPE_CHANNELS.composerChanged, settings),
   });
+  // The main window's last accepted save, as it sent it: its write to disk may still wait for the debounce, and main's
+  // own parse would drop a field it does not know yet.
+  let lastUiSave: unknown;
   handle("ui-state:save", false, (event, value: unknown) => {
     if (!fromWindow(event) || !store.save(value)) return false;
+    lastUiSave = value;
     // No root spellings: the composer settings leave out Home's last project, the one field they would change.
     void composerSettings.saved(parseUiState(JSON.stringify(value), ready.entries().map(entry => entry.path)));
     return true;
@@ -1457,6 +1530,13 @@ async function start(): Promise<void> {
   });
   handle(PROTOTYPE_CHANNELS.work, [], (_event, value: unknown) => value === undefined ? prototypeWorkItems(workItems(workState), prototypeHeldSession()) : []);
   handle(PROTOTYPE_CHANNELS.composer, null, (_event, value: unknown) => value === undefined ? composerSettings.read() : null);
+  // The main window's remembered conversation of the playing canvas: its last save in this run, else ui-state.json as
+  // the previous run left it. Only that one id leaves ui-state (conversationScope.ts prototypeRememberedConversation).
+  handle(PROTOTYPE_CHANNELS.rememberedConversation, null, async (_event, value: unknown) => {
+    if (value !== undefined) return null;
+    const saved = lastUiSave !== undefined ? lastUiSave : await readFile(join(userData, "ui-state.json"), "utf8").then(text => JSON.parse(text) as unknown, () => null);
+    return prototypeRememberedConversation(saved, prototype.controller.playing(), ready.entries());
+  });
   // Last used is the main window's ui-state: it remembers the pick as its own composer's, so its next whole-file save
   // keeps it.
   handle(PROTOTYPE_CHANNELS.remember, undefined, (_event, value: unknown, kind) => {

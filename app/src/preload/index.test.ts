@@ -26,6 +26,10 @@ beforeEach(async () => {
   api = exposed;
 });
 
+test("has no conversationForCanvas, which main no longer answers", () => {
+  expect(api).not.toHaveProperty("conversationForCanvas");
+});
+
 test("reads the clock's hour cycle main passed to the window, 12-hour by default", async () => {
   expect(api.clockHour12).toBe(true);
   const argv = process.argv;
@@ -386,6 +390,10 @@ test("Add Projects page calls use their own fixed channels and pass the request 
   await api.cancelAddPageOperation({ ...ids, operationId: "o" }); expect(mocks.invoke).toHaveBeenLastCalledWith("add-projects:cancel", { ...ids, operationId: "o" });
   // The folder sheet is first run's, which belongs to no session.
   await api.chooseOnboardingFolder("project"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:choose-folder", "project");
+  // New folder: only where the save panel opens; main makes the folder and answers what happened.
+  // The token names the request, so a step that goes away can cancel it before main makes anything.
+  await api.newOnboardingFolder("/Users/ada/code", "t1"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:new-folder", { parent: "/Users/ada/code", token: "t1" });
+  await api.cancelOnboardingFolder("t1"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:new-folder-cancel", { token: "t1" });
 });
 
 test("Add Projects page changes and the menu's open request are subscriptions that unsubscribe", () => {
@@ -586,6 +594,16 @@ test("exposes conversation handoffs as their own event with cleanup", () => {
   emitter.emit("conversation:handoff", {}, notice);
   stop(); stop(); emitter.emit("conversation:handoff", {}, notice);
   expect(notices).toEqual([notice]); expect(emitter.listenerCount("conversation:handoff")).toBe(0);
+});
+
+// `doan remove` took these roots out of the list; the renderer tidies its own state for them.
+test("folders:removed arrives on its own event with the removed paths, and stops cleanly", () => {
+  const removed: unknown[] = [];
+  const stop = api.onFoldersRemoved(paths => removed.push(paths));
+  emitter.emit("folders:removed", {}, { paths: ["/w/app", "/w/app-fix"] });
+  stop(); stop(); emitter.emit("folders:removed", {}, { paths: ["/w/other"] });
+  expect(removed).toEqual([["/w/app", "/w/app-fix"]]);
+  expect(emitter.listenerCount("folders:removed")).toBe(0);
 });
 
 test("work and deep links expose dedicated events with independent cleanup", async () => {

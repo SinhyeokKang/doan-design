@@ -23,21 +23,18 @@ function seed(files: Record<string, string> = {}) {
   for (const [name, text] of Object.entries(files)) writeFileSync(join(directory, name), text);
   return { root, directory, index: join(directory, "index.json"), journal: join(directory, "start-undo.json"), record: join(directory, "deletions.json"), path: (id: string) => join(directory, `${id}.jsonl`) };
 }
-const meta = (id: string, state: "current" | "archived" = "current", canvas = ".doan/canvases/a.html"): ConversationMetadata => ({ conversationId: id, root: "/repo", title: id, canvas: { path: canvas }, state,
+const meta = (id: string, canvas = ".doan/canvases/a.html"): ConversationMetadata => ({ conversationId: id, root: "/repo", title: id, canvas: { path: canvas },
   owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "new", sessionId: id, configDir: "/profile", cwd: "/repo" } });
 const line = (id: string, seq: number, type: string) => JSON.stringify({ type, v: 1, conversationId: id, turnId: "t", seq, at: "2026-11-03T00:00:00.000Z" }) + "\n";
-const index = (...entries: ConversationMetadata[]) => JSON.stringify({ v: 2, conversations: entries });
+const index = (...entries: ConversationMetadata[]) => JSON.stringify({ v: 3, conversations: entries });
 const recorded = (...ids: string[]) => JSON.stringify({ v: 1, ids });
 // One app start: the store recovers in its constructor and the service then finishes recorded deletions.
 function launch(root: string, discard: (id: string) => void = () => {}) { const store = new ConversationStore(root); store.finishDeletions(discard); return store; }
 
 describe("deleteEntries", () => {
   it("leaves out only the deleted conversation and keeps every other entry as it was", () => {
-    const entries = [meta("cur"), meta("old", "archived"), meta("other", "current", ".doan/canvases/b.html")];
-    expect(deleteEntries(entries, "cur")).toEqual([meta("old", "archived"), meta("other", "current", ".doan/canvases/b.html")]);
-  });
-  it("does not make an archived conversation of the same canvas current", () => {
-    expect(deleteEntries([meta("cur"), meta("old", "archived")], "cur")?.[0]).toEqual(meta("old", "archived"));
+    const entries = [meta("cur"), meta("same"), meta("other", ".doan/canvases/b.html")];
+    expect(deleteEntries(entries, "cur")).toEqual([meta("same"), meta("other", ".doan/canvases/b.html")]);
   });
   it("is null for a conversation the index does not hold", () => {
     expect(deleteEntries([meta("a")], "b")).toBeNull();
@@ -58,19 +55,29 @@ describe("committedDeletions", () => {
 
 describe("ConversationStore.delete", () => {
   it("removes the index entry and the history, leaving other conversations as they were", () => {
-    const f = seed({ "index.json": index(meta("cur"), meta("old", "archived")), "cur.jsonl": line("cur", 1, "turn.started"), "old.jsonl": line("old", 1, "turn.started") });
+    const f = seed({ "index.json": index(meta("cur"), meta("old")), "cur.jsonl": line("cur", 1, "turn.started"), "old.jsonl": line("old", 1, "turn.started") });
     const store = new ConversationStore(f.root);
     store.delete("cur");
-    expect(store.list()).toEqual([meta("old", "archived")]);
+    expect(store.list()).toEqual([meta("old")]);
     expect(existsSync(f.path("cur"))).toBe(false);
     expect(store.read("cur")).toEqual([]);
     expect(store.read("old")).toHaveLength(1);
-    expect(new ConversationStore(f.root).list()).toEqual([meta("old", "archived")]);
+    expect(new ConversationStore(f.root).list()).toEqual([meta("old")]);
+  });
+  // A v2 index's archived entry reads as an ordinary conversation, and the deletion is the first save, so it writes v3.
+  it("deletes from a v2 index holding an archived conversation and writes v3 without the state field", () => {
+    const f = seed({ "index.json": JSON.stringify({ v: 2, conversations: [{ ...meta("cur"), state: "current" }, { ...meta("old"), state: "archived" }] }), "cur.jsonl": line("cur", 1, "turn.started"), "old.jsonl": line("old", 1, "turn.started") });
+    new ConversationStore(f.root).delete("cur");
+    const saved = JSON.parse(readFileSync(f.index, "utf8"));
+    expect(saved.v).toBe(3);
+    expect(saved.conversations).toHaveLength(1);
+    expect(saved.conversations[0]).not.toHaveProperty("state");
+    expect(new ConversationStore(f.root).list()).toEqual([meta("old")]);
   });
   it("saves an empty index when the last conversation is deleted", () => {
     const f = seed({ "index.json": index(meta("only")), "only.jsonl": line("only", 1, "turn.started") });
     new ConversationStore(f.root).delete("only");
-    expect(JSON.parse(readFileSync(f.index, "utf8"))).toEqual({ v: 2, conversations: [] });
+    expect(JSON.parse(readFileSync(f.index, "utf8"))).toEqual({ v: 3, conversations: [] });
   });
   it("refuses an id the index does not hold as not_found and changes nothing", () => {
     const f = seed({ "index.json": index(meta("a")), "a.jsonl": line("a", 1, "turn.started") });
@@ -85,7 +92,7 @@ describe("ConversationStore.delete", () => {
     expect(JSON.parse(readFileSync(f.index, "utf8")).conversations).toEqual([]);
   });
   it("commits the index before the history and still succeeds when the unlink fails; the next start removes it", () => {
-    const f = seed({ "index.json": index(meta("a"), meta("b", "current", ".doan/canvases/b.html")), "a.jsonl": line("a", 1, "turn.started"), "b.jsonl": line("b", 1, "turn.started") });
+    const f = seed({ "index.json": index(meta("a"), meta("b", ".doan/canvases/b.html")), "a.jsonl": line("a", 1, "turn.started"), "b.jsonl": line("b", 1, "turn.started") });
     const store = new ConversationStore(f.root);
     vi.spyOn(console, "error").mockImplementation(() => {});
     hooks.failUnlink = "a.jsonl";
@@ -109,7 +116,7 @@ describe("ConversationStore.delete", () => {
     expect(readFileSync(f.path("a"), "utf8")).toBe(history);
     expect(existsSync(f.record)).toBe(false);
     // An earlier deletion of this run stays recorded; only the failed one leaves.
-    const g = seed({ "index.json": index(meta("a"), meta("b", "current", ".doan/canvases/b.html")), "a.jsonl": line("a", 1, "turn.started"), "b.jsonl": line("b", 1, "turn.started") });
+    const g = seed({ "index.json": index(meta("a"), meta("b", ".doan/canvases/b.html")), "a.jsonl": line("a", 1, "turn.started"), "b.jsonl": line("b", 1, "turn.started") });
     const other = new ConversationStore(g.root);
     other.delete("b");
     hooks.failRename = "index.json";
@@ -150,7 +157,7 @@ describe("ConversationStore.delete", () => {
     expect(existsSync(f.path("a"))).toBe(true);
   });
   it("adds each deletion to the record until the next start finishes them", () => {
-    const f = seed({ "index.json": index(meta("a"), meta("b", "current", ".doan/canvases/b.html")), "a.jsonl": line("a", 1, "turn.started"), "b.jsonl": line("b", 1, "turn.started") });
+    const f = seed({ "index.json": index(meta("a"), meta("b", ".doan/canvases/b.html")), "a.jsonl": line("a", 1, "turn.started"), "b.jsonl": line("b", 1, "turn.started") });
     const store = new ConversationStore(f.root);
     store.delete("a"); store.delete("b");
     expect(JSON.parse(readFileSync(f.record, "utf8"))).toEqual({ v: 1, ids: ["a", "b"] });
@@ -220,7 +227,7 @@ describe("finishing recorded deletions at start", () => {
   });
   it("does nothing and keeps the record when index.json is missing, damaged or of a newer version", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    for (const files of [{}, { "index.json": "broken" }, { "index.json": JSON.stringify({ v: 3, conversations: [] }) }, { "index.json": JSON.stringify({ v: 2, conversations: [{ bad: true }] }) }]) {
+    for (const files of [{}, { "index.json": "broken" }, { "index.json": JSON.stringify({ v: 4, conversations: [] }) }, { "index.json": JSON.stringify({ v: 2, conversations: [{ bad: true }] }) }]) {
       const f = seed({ ...files, "a.jsonl": line("a", 1, "turn.started"), "deletions.json": recorded("a") });
       const discarded: string[] = [];
       launch(f.root, id => discarded.push(id));

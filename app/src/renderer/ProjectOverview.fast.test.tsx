@@ -25,7 +25,7 @@ const ROOT = "/code/doan";
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
 const entry = { kind: "list", path: ROOT, servedRev: 0, canvases: [], git: { branch: "main", common: "/code/doan/.git" } } as unknown as FolderEntry;
 const summary = (patch: Partial<ConversationSummary> = {}): ConversationSummary => ({
-  conversationId: A, title: "Checkout copy", state: "current", owner: "doan", provider: "claude", model: "opus",
+  conversationId: A, title: "Checkout copy", owner: "doan", provider: "claude", model: "opus",
   fromHome: true, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...patch,
 });
 function status(provider: Provider) {

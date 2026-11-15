@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { ReactNode } from "react";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
@@ -35,7 +35,7 @@ vi.mock("react", async original => {
   };
 });
 
-const { CanvasConversation } = await import("./CanvasConversationPanel");
+const { CanvasConversation, CanvasConversationTitle } = await import("./CanvasConversationPanel");
 const { CanvasRun } = await import("./canvasRun");
 const { ConversationStore } = await import("./conversationStore");
 const { DockedSupport, modelsKey } = await import("./dockedSupport");
@@ -198,7 +198,7 @@ test("the panel hands the page's canvas press signal to its composer", async () 
 test("a handoff arrival waits for the receiving canvas and conversation, then is applied once", async () => {
   const DRAFTS: Canvas = { path: ".doan/canvases/drafts.html", id: "drafts" };
   const entry: FolderEntry = { path: ROOT, kind: "list", servedRev: 0, canvases: [{ path: DRAFTS.path, id: "drafts", url: "d" }, { path: CANVAS.path, id: "checkout", url: "u" }] };
-  const row = (conversationId: string, canvas: Canvas) => ({ conversationId, title: "t", state: "current", owner: "doan", provider: "claude", fromHome: false, canvas,
+  const row = (conversationId: string, canvas: Canvas) => ({ conversationId, title: "t", owner: "doan", provider: "claude", fromHome: false, canvas,
     phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" });
   const list = [row("c-src", DRAFTS), row("c-recv", CANVAS)] as never[];
   const card = { v: 1, conversationId: "c-recv", seq: 1, turnId: "r1", at: "2026-11-01T00:00:00Z", type: "user.message", text: "Continue.", anchors: [], origin: { kind: "handoff", conversationId: "c-src", canvas: DRAFTS } };
@@ -272,4 +272,79 @@ test("a new conversation started from the panel sends the Fast it shows and reme
   expect(start.mock.calls[0]![0]).toMatchObject({ mode: "new", runtime: "claude", model: "opus", fast: true });
   expect(onRemember).toHaveBeenCalled();
   for (const [choice] of onRemember.mock.calls) expect(choice).not.toHaveProperty("fast");
+});
+
+// The title menu lists every conversation of the canvas by latest activity, the shown one pressed;
+// while it is open the order holds and a conversation that appears goes at the end.
+test("the title menu keeps the order it opened with while open; a new conversation joins at the end", () => {
+  const summary = (conversationId: string, lastActivityAt: string) => ({ conversationId, title: conversationId, owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
+    phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt, preview: "" }) as const;
+  let list: import("./conversationStore").ListView = [summary("a", "2026-11-01T00:01:00.000Z"), summary("b", "2026-11-01T00:02:00.000Z")];
+  const calls = { ...window.doan, readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null) } as unknown as typeof window.doan;
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, remembered: () => null, changed: vi.fn() }, store, calls);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  run.select("a");
+  const all = (node: ReactNode): ReactElement<Record<string, unknown>>[] => {
+    if (Array.isArray(node)) return node.flatMap(all);
+    if (!isValidElement<Record<string, unknown>>(node)) return [];
+    return [node, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
+  };
+  const draw = () => render(() => CanvasConversationTitle({ run, list, canvasName: "checkout", now: Date.parse("2026-11-01T00:05:00.000Z"), seen: new Set(), title: "a", current: "a", onPicked: vi.fn() }));
+  const rows = (tree: ReactNode) => all(tree).filter(element => typeof element.props["className"] === "string" && (element.props["className"] as string).startsWith("doan-menu-item conv-item")).map(element => [element.props["value"], (element.props["className"] as string).endsWith(" current")]);
+  const root = (tree: ReactNode) => all(tree).find(element => "onOpenChange" in element.props)!.props as { onOpenChange(open: boolean): void };
+  let tree = draw();
+  expect(rows(tree)).toEqual([["b", false], ["a", true]]);
+  root(tree).onOpenChange(true);
+  tree = draw();
+  // a gets newer activity and c appears while the menu is open: a keeps its place, c goes last.
+  list = [summary("a", "2026-11-01T00:04:00.000Z"), summary("b", "2026-11-01T00:02:00.000Z"), summary("c", "2026-11-01T00:03:00.000Z")];
+  run.sync();
+  tree = draw();
+  expect(rows(tree)).toEqual([["b", false], ["a", true], ["c", false]]);
+  // Closed and opened again: by latest activity.
+  root(tree).onOpenChange(false);
+  tree = draw();
+  root(tree).onOpenChange(true);
+  tree = draw();
+  expect(rows(tree)).toEqual([["a", true], ["c", false], ["b", false]]);
+});
+
+// Conversations that appear while the menu is open keep the places they were drawn at: a later, more recent one goes
+// after them, and their own activity moves nothing (B and its Delete must not move under the pointer).
+test("rows added while the title menu is open keep their places across later list updates", () => {
+  const summary = (conversationId: string, lastActivityAt: string) => ({ conversationId, title: conversationId, owner: "doan", provider: "claude", fromHome: false, canvas: CANVAS,
+    phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt, preview: "" }) as const;
+  let list: import("./conversationStore").ListView = [summary("a", "2026-11-01T00:01:00.000Z")];
+  const calls = { ...window.doan, readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null) } as unknown as typeof window.doan;
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, calls);
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, remembered: () => null, changed: vi.fn() }, store, calls);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  const all = (node: ReactNode): ReactElement<Record<string, unknown>>[] => {
+    if (Array.isArray(node)) return node.flatMap(all);
+    if (!isValidElement<Record<string, unknown>>(node)) return [];
+    return [node, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
+  };
+  const draw = () => render(() => CanvasConversationTitle({ run, list, canvasName: "checkout", now: Date.parse("2026-11-01T00:09:00.000Z"), seen: new Set(), title: "a", current: "a", onPicked: vi.fn() }));
+  const rows = (tree: ReactNode) => all(tree).filter(element => typeof element.props["className"] === "string" && (element.props["className"] as string).startsWith("doan-menu-item conv-item")).map(element => element.props["value"]);
+  const root = (tree: ReactNode) => all(tree).find(element => "onOpenChange" in element.props)!.props as { onOpenChange(open: boolean): void };
+  let tree = draw();
+  root(tree).onOpenChange(true);
+  tree = draw();
+  expect(rows(tree)).toEqual(["a"]);
+  list = [summary("a", "2026-11-01T00:01:00.000Z"), summary("b", "2026-11-01T00:02:00.000Z")];
+  tree = draw();
+  expect(rows(tree)).toEqual(["a", "b"]);
+  list = [...list, summary("c", "2026-11-01T00:03:00.000Z")];
+  tree = draw();
+  expect(rows(tree)).toEqual(["a", "b", "c"]);
+  list = [summary("a", "2026-11-01T00:01:00.000Z"), summary("b", "2026-11-01T00:04:00.000Z"), summary("c", "2026-11-01T00:03:00.000Z")];
+  tree = draw();
+  expect(rows(tree)).toEqual(["a", "b", "c"]);
+  // A conversation deleted meanwhile leaves its place; the rest stay.
+  list = [summary("a", "2026-11-01T00:01:00.000Z"), summary("c", "2026-11-01T00:03:00.000Z")];
+  tree = draw();
+  expect(rows(tree)).toEqual(["a", "c"]);
 });

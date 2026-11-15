@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
-import { ConversationStore, restoreEntries, type ConversationMetadata, type JournalWrite } from "./store";
+import { ConversationStore, type ConversationMetadata, type JournalWrite } from "./store";
 import { foldConversation } from "./state";
 import { promoteReservation, releaseReservation, reserveSession } from "./ownership";
 import { transportError } from "./transport";
@@ -27,11 +27,10 @@ import type { UsageWindow } from "../agentAuth/usageTypes";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
 // model and effort: a choice from the list this run delivered (ipc checks it). attachments: files main rechecked just now.
 // permissionMode: one of the common ids (ipc checks it); Default is never stored.
-// A start a handoff makes, never one ipc makes: the earlier conversation, the handoff text
-// for the prompt (never read for markers) and the rule that the target has no current conversation at acceptance.
-// turnId and path: the asking turn and its request, which a cancel meanwhile resolves and a later turn of the same
-// conversation may ask again (checkHandoffSource).
-export interface HandoffStart { origin: HandoffOrigin; requireNoCurrent: true; handoffText: string; turnId: string; path: string }
+// A start a handoff makes, never one ipc makes: the earlier conversation and the handoff text for the prompt (never read
+// for markers). turnId and path: the asking turn and its request, which a cancel meanwhile resolves and a later turn of
+// the same conversation may ask again (checkHandoffSource).
+export interface HandoffStart { origin: HandoffOrigin; handoffText: string; turnId: string; path: string }
 // defaultEffort: as SendExtras's, the level the first turn names when its model has no effort; it is never stored.
 export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Provider; canvas?: Canvas; text: string; anchors: Anchor[]; model?: string; effort?: string; fast?: boolean; permissionMode?: PermissionModeId; attachments?: AttachmentRecord[]; defaultEffort?: string }
 export interface Prepared {
@@ -167,7 +166,7 @@ interface Schedule { at: number; reset: number; provider: Provider; connectionId
 // since: the stopRuns count when this start or send began; a later stop of its provider stops it once it spawns.
 // endedAt: when the accepted turn's terminal event arrived, for binding.
 // project: the root of this turn when it belongs to a conversation without a canvas (project.ts projectBusy).
-// closed: the conversation was archived and its runner is closing; it is never reused (a restore opens a new one).
+// closed: its runner is closing (a deletion, or a Codex server that must reopen under another fence); it is never reused.
 // holding: queued messages wait to go out after this turn; each hold is its own object, so a flush that ends late
 // never lets go of the hold a later turn set.
 // mcpGeneration: the provider's connector generation the runner's MCP servers were read at (its opening or last reload).
@@ -183,7 +182,7 @@ interface Schedule { at: number; reset: number; provider: Provider; connectionId
 // stopping: the person's Stop of the running turn was taken. quiet: the run's lease stops counting as a running
 // conversation. transcript: a Claude turn's session transcript, and its size at the turn's first Send now (Steer lookup).
 // held: a Claude turn's end kept back until the group is gone, to look for its unreported steers in the transcript.
-// lookup: an archive or quit ended the turn with steers unreported; found ones leave the queue once the group is gone.
+// lookup: a quit ended the turn with steers unreported; found ones leave the queue once the group is gone.
 // unheld: the held end is being written, so it is not held again.
 interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string>; done?: boolean; handoffKey?: string; lastSeq?: number; stage?: StageSignal; stageRev?: number; pastedStore?: string;
   exitedAt?: number; cleaned?: boolean; background?: { turnId: string; stopping?: true }; stopping?: true; quiet?: (on: boolean) => void;
@@ -192,10 +191,18 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   // A turn the usage limit stopped: its connection's usage is being read to learn the reset. Working until then, so its
   // queue stays and no send goes first.
   limitLookup?: LimitLookup;
+  // The accepted turn's conversation as liveTurns reports it, kept here so `doan work` replies read no index on main's
+  // loop inside the CLI's 2 s deadline. A conversation's root never changes; every save of a new canvas (promoteTo,
+  // refreshCanvas) updates it here too, since a running turn keeps this entry across a send refused as busy.
+  turnOf?: TurnOf;
   // A Stop came while this send was prepared, before acceptance: the send is refused at its next check and never runs.
   cancelled?: true }
+interface TurnOf { root: string; provider: Provider; canvas?: Canvas }
+function turnOf(m: ConversationMetadata): TurnOf {
+  return { root: m.root, provider: m.owner.kind === "doan" ? m.owner.provider : m.session.runtime, ...(m.canvas ? { canvas: m.canvas } : {}) };
+}
 // The usage read after a turn the usage limit stopped (limitEnded). A Stop, a stop of the provider's runs, a sign-out
-// or replacement and an archive end it (cancelLimit). since: the stops count when it began. told: its deferred failure
+// or replacement and a deletion end it (cancelLimit). since: the stops count when it began. told: its deferred failure
 // notice was delivered, which happens once unless the turn's own message goes out again.
 interface LimitLookup { turnId: string; provider: Provider; connectionId: string; since: number; saved: Extract<ConversationEvent, { type: "turn.failed" }>; told: boolean }
 // A project turn's grounds for promotion: the canvas list when the turn was accepted, the paths of its own
@@ -251,7 +258,7 @@ export class ConversationService {
   // By messageId, until the agent reads it or its turn ends; a refused one stays, since its read may still come.
   private steers = new Map<string, Steer>();
   // Claude's suggestion for each conversation's next message, in memory only: kept
-  // until the next turn is accepted, the conversation is archived or deleted, or its Claude connection signs out or
+  // until the next turn is accepted, the conversation is deleted, or its Claude connection signs out or
   // changes. connectionId: the doan connection the turn ran on; none for a legacy external run.
   private suggestions = new Map<string, { text: string; root: string; provider?: Provider; connectionId?: string }>();
   // Each provider's connection as auth last reported it (connectionChanged; undefined: signed out). A run on another
@@ -274,7 +281,7 @@ export class ConversationService {
   private repeats = new Map<string, { owner: string; turnId: string }>();
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
   // deleted: a conversation deleted (delete), once its index entry is gone.
-  // workEnded: the conversation's turn can no longer take a `doan work update` (its end, an archive or deletion, a
+  // workEnded: the conversation's turn can no longer take a `doan work update` (its end, a deletion, a
   // history that stopped taking writes, the app quitting), so main drops its work (conversationWork.ts).
   // handedOff: a turn's handoffs started one or more conversations (conversation:handoff, main window only), once all of
   // them were resolved.
@@ -325,6 +332,7 @@ export class ConversationService {
       if (input.owner) live.provider = input.owner.provider;
       if (input.quiet) live.quiet = input.quiet;
       if (this.quitting) throw new Error("busy");
+      if (request.mode === "resume") this.checkSessionFree(input.runtime, input.configDir, input.sessionId);
       // A handoff cancelled while this was prepared opens no runner and holds no lease (POSTMORTEM 2026-10-27).
       if (handoff) this.checkHandoffSource(handoff.origin.conversationId, handoff.turnId, handoff.path);
       if (input.sessionId) this.promote(id, input, input.sessionId);
@@ -344,39 +352,32 @@ export class ConversationService {
       const fromHome = request.mode === "newDesign";
       // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen. The title leaves out the
       // fixed preset and skill lines, which would otherwise fill the sidebar; a preset-only request is titled by the preset.
-      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: messageLine(requestTitleText(request.text), request.anchors), state: "current" as const,
+      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: messageLine(requestTitleText(request.text), request.anchors),
         ...choice(request), ...fastOf(request), ...mode(request.permissionMode), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.snapshot(request.root) } : {}), seenSeq: 0 };
       const runtime = input.runtime;
       // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.
       if (!input.owner && runtime !== "claude" && runtime !== "codex") throw new Error("session_unavailable");
       const metadata: ConversationMetadata = input.owner ? { ...base, owner: input.owner, session }
         : { ...base, owner: { kind: "legacy-external" }, session: { ...session, runtime: runtime === "claude" ? "claude" : "codex" } };
+      // The canvas's other conversations stay as they are and keep running: a start only adds one beside them.
       const entries = this.store.list();
-      const replaced = entries.filter(m => m.state === "current" && m.root === request.root && m.canvas && request.canvas && sameCanvas(m.canvas, request.canvas));
-      // A handoff archives nothing: a current conversation that appeared since the judgement refuses it, and so does an
-      // earlier conversation archived meanwhile (POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn').
-      if (handoff) { if (replaced.length) throw new Error("has_conversation"); this.checkHandoffSource(handoff.origin.conversationId, handoff.turnId, handoff.path); }
+      if (request.mode === "resume") this.checkSessionFree(input.runtime, input.configDir, runner.sessionId);
+      // A handoff cancelled meanwhile does not start (POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn').
+      if (handoff) this.checkHandoffSource(handoff.origin.conversationId, handoff.turnId, handoff.path);
       // The files may have moved while the runner was prepared and opened; the prompt and history use this check.
       const attachments = attached ? attached.recheck() : request.attachments ?? [];
       const guided = !handoff && handoffGuidanceFor(metadata, mode(request.permissionMode));
       const prompt = handoff ? handoffPrompt(handoff.handoffText, metadata, handoff.origin.canvas)
         : turnPrompt(request.anchors, request.text, metadata, { home: fromHome, attachments, handoff: guided });
       if (prompt === null) throw new Error("bad_request");
-      const writes: { id: string; turn: string; body: EventPayload }[] = [];
-      for (const old of replaced) {
-        const running = this.live.get(old.conversationId); const turn = running?.turnId || randomUUID();
-        if (running?.accepted && running.busy && !running.terminal) writes.push({ id: old.conversationId, turn, body: { type: "interrupted", reason: "user" } });
-        writes.push({ id: old.conversationId, turn, body: { type: "conversation.archived" } });
-      }
-      writes.push({ id, turn: live.turnId, body: { type: "user.message", text: request.text, anchors: request.anchors, ...(attachments.length ? { attachments } : {}), ...(handoff ? { origin: handoff.origin } : {}) } }, { id, turn: live.turnId, body: { type: "turn.started" } });
+      const writes: JournalWrite[] = [{ id, turn: live.turnId, body: { type: "user.message", text: request.text, anchors: request.anchors, ...(attachments.length ? { attachments } : {}), ...(handoff ? { origin: handoff.origin } : {}) } }, { id, turn: live.turnId, body: { type: "turn.started" } }];
       attached?.sent();
-      const saved = this.store.acceptStart([...entries.map(m => replaced.includes(m) ? { ...m, state: "archived" as const } : m), metadata], id, writes);
-      live.accepted = true; this.noteTranscript(live, input, runner.sessionId);
+      const saved = this.store.acceptStart([...entries, metadata], id, writes);
+      live.accepted = true; live.turnOf = turnOf(metadata); this.noteTranscript(live, input, runner.sessionId);
       if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: request.root, turnId: live.turnId, snapshot: this.snapshot(request.root), requests: [], guided, edits: new Set(), waiters: [], ...(handoff ? { startedBy: "handoff" as const } : {}) });
-      // As a promotion's write: a project turn judged later must not take this canvas over and archive this conversation.
+      // As a promotion's write: the asking turn made this canvas, so a project turn judged later is not promoted to it.
       if (handoff && request.canvas) for (const grounds of this.evidence.values()) if (grounds.root === request.root) grounds.taken.push(request.canvas);
-      for (const old of replaced) this.archive(old.conversationId);
       for (const event of saved) this.deliver(event);
       this.changed(request.root);
       for (const event of live.events.splice(0)) this.receive(id, event);
@@ -393,9 +394,7 @@ export class ConversationService {
   }
   // extras: a model (with its effort, if any) replaces the stored choice from this turn on; attachments were checked by
   // ipc, and attached rechecks them right before acceptance and marks pasted ones sent.
-  // A send to an archived conversation restores it: its canvas is found again by ID, the canvas's current
-  // conversation must not be working, and both are swapped through the journal at acceptance. Whether a send restores
-  // is decided at admission; a conversation archived while its send prepared is refused as busy.
+  // The canvas's other conversations do not matter: they may run meanwhile, and none of them is touched.
   // A conversation whose queue is about to go out takes no other send first: the queued messages keep their place.
   send(id: string, text: string, anchors: Anchor[], extras: SendExtras = {}, attached?: StartAttachments): Promise<void> {
     if (this.live.get(id)?.holding) return Promise.reject(new Error("busy"));
@@ -410,17 +409,14 @@ export class ConversationService {
     this.switchCodexServer(id, extras);
     const exiting = this.previousExit(id); if (exiting) await exiting;
     let metadata = this.metadata(id); if (this.quitting) throw new Error("busy");
-    const restoring = metadata.state === "archived";
-    let replacing: string[] = [];
-    if (restoring) { metadata = this.restoreTarget(metadata); replacing = this.replacing(metadata, id); }
-    else metadata = this.refreshCanvas(metadata);
+    metadata = this.refreshCanvas(metadata);
     const runtime = metadata.session.runtime;
     // A history that stopped taking writes is left behind once its process is gone (releaseFailed): the send starts a
     // new turn on a new entry, and is refused like any first write when the history still takes none.
     const existing = this.live.get(id); if (existing?.busy || (existing?.failedPersistence && !existing.exited)) throw new Error("busy");
     const project = metadata.canvas ? undefined : metadata.root;
     if (project) this.checkProject(project, id);
-    // An archived conversation's runner is closing; previousExit waited for its process, so a new one opens.
+    // A closed runner is closing; previousExit waited for its process, so a new one opens.
     const live: Live = (existing?.runner && !existing.closed ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: 0 };
     live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; delete live.closed; delete live.stage; live.turnId = randomUUID(); live.since = this.stops; this.live.set(id, live);
     delete live.exitedAt; delete live.cleaned; delete live.background; delete live.stopping; delete live.transcript; delete live.unheld; delete live.cancelled;
@@ -429,7 +425,6 @@ export class ConversationService {
     // The mode is judged apart from the model: a send may change either alone.
     const chosen = { ...extras.model ? choice(extras) : choice(metadata), ...mode(extras.permissionMode !== undefined ? extras.permissionMode : metadata.permissionMode) };
     const admittedMode = metadata.permissionMode;
-    const expected = restoring ? "archived" : "current";
     let reserved = false, opening = false, input: Prepared | undefined, leased = false;
     try {
       const reusing = runtime === "codex" && !!live.runner;
@@ -439,20 +434,15 @@ export class ConversationService {
       input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors, ...(extras.attachments?.length ? { attachments: extras.attachments } : {}) }, metadata, undefined, reusing), ...chosen, ...(extras.fastTurn ? { fast: true as const } : {}), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage), backgroundChanged: running => this.backgroundChanged(id, live, turnId, running) };
       if (input.owner) live.provider = input.owner.provider;
       if (input.quiet) live.quiet = input.quiet; else delete live.quiet;
-      this.checkSend(id, live, expected);
+      this.checkSend(id, live);
       if (live.exited) throw new Error("process_exited");
       if (!live.runner) { opening = true; leased = true; live.mcpGeneration = input.mcp?.generation(); live.runner = await this.openRunner(id, live, input); }
       if (live.exited) throw new Error("process_exited");
       if (live.runner.sessionId !== metadata.session.sessionId) throw new Error("session_unavailable");
-      this.checkSend(id, live, expected);
+      this.checkSend(id, live);
       if (project) this.checkProject(project, id);
       input.recheck?.();
-      if (restoring) {
-        // The canvas's current conversation must be the one seen at admission and still not working.
-        metadata = this.restoreTarget(this.metadata(id));
-        const now = this.replacing(metadata, id);
-        if (now.length !== replacing.length || now.some(other => !replacing.includes(other))) throw new Error("busy");
-      } else metadata = this.refreshCanvas(this.metadata(id));
+      metadata = this.refreshCanvas(this.metadata(id));
       // The same account signed in again under a new connection; judgeConnection already proved account, profile and session.
       const owner = input.owner;
       const rebound = !!owner && metadata.owner.kind === "doan" && metadata.owner.connectionId !== owner.connectionId;
@@ -474,23 +464,12 @@ export class ConversationService {
       const updated: ConversationMetadata = { ...rest, ...choice(chosen), ...fast, ...stored, ...(canvasesAtStart ? { canvasesAtStart } : {}), seenSeq };
       const message: EventPayload = { type: "user.message", text, anchors, ...(attachments.length ? { attachments } : {}) };
       attached?.sent();
-      if (restoring) {
-        const swap = restoreEntries(this.store.list(), id); if (!swap) throw new Error("busy");
-        const writes: JournalWrite[] = swap.replaced.map(old => ({ id: old, turn: this.live.get(old)?.turnId || randomUUID(), body: { type: "conversation.archived" } }));
-        writes.push({ id, turn: live.turnId, body: { type: "conversation.restored" } }, { id, turn: live.turnId, body: message }, { id, turn: live.turnId, body: { type: "turn.started" } });
-        const saved = this.store.acceptChange({ kind: "restore", id, replaced: swap.replaced }, swap.entries.map(m => m.conversationId === id ? { ...updated, state: "current" } : m), writes);
-        live.accepted = true; this.suggestions.delete(id); this.noteTranscript(live, input, live.runner.sessionId);
-        for (const old of swap.replaced) this.archive(old);
-        for (const event of saved) this.deliver(event);
-        this.changed(metadata.root);
-      } else {
-        if (rebound || chosen.model !== metadata.model || chosen.effort !== metadata.effort || fast.fast !== metadata.fast || stored.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
-          this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m));
-        // One write: a turn.started refused by validation, the size limit or a failed open or read must not leave the
-        // message, which would read as a turn that runs. A short write is not rolled back (no journal here).
-        for (const event of this.store.appendAll(id, live.turnId, [message, { type: "turn.started" }])) this.deliver(event);
-        this.changedOf(id); live.accepted = true; this.suggestions.delete(id); this.noteTranscript(live, input, live.runner.sessionId);
-      }
+      if (rebound || chosen.model !== metadata.model || chosen.effort !== metadata.effort || fast.fast !== metadata.fast || stored.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
+        this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m));
+      // One write: a turn.started refused by validation, the size limit or a failed open or read must not leave the
+      // message, which would read as a turn that runs. A short write is not rolled back (no journal here).
+      for (const event of this.store.appendAll(id, live.turnId, [message, { type: "turn.started" }])) this.deliver(event);
+      this.changedOf(id); live.accepted = true; live.turnOf = turnOf(updated); this.suggestions.delete(id); this.noteTranscript(live, input, live.runner.sessionId);
       if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       // The previous turn's handoff was resolved before this send went on (handoffWait).
       if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: metadata.root, turnId: live.turnId, snapshot: this.snapshot(metadata.root), requests: [], guided, edits: new Set(), waiters: [] });
@@ -514,23 +493,9 @@ export class ConversationService {
       if (opening) void live.runner?.close(); throw error;
     }
   }
-  // The archived conversation with its canvas found again by stable ID (moved: the new path, not saved until the restore
-  // is accepted); canvas_not_found when it is gone or its ID is listed twice.
-  private restoreTarget(metadata: ConversationMetadata): ConversationMetadata {
-    if (metadata.state !== "archived" || !metadata.canvas) throw new Error("busy");
-    const canvas = this.admit(metadata.root, metadata.canvas);
-    return canvas ? { ...metadata, canvas } : metadata;
-  }
-  // The current conversations a restore of this one archives; busy when one of them is working.
-  private replacing(metadata: ConversationMetadata, id: string): string[] {
-    const canvas = metadata.canvas; if (!canvas) throw new Error("busy");
-    const ids = this.store.list().filter(m => m.conversationId !== id && m.state === "current" && m.root === metadata.root && m.canvas && sameCanvas(m.canvas, canvas)).map(m => m.conversationId);
-    if (ids.some(other => this.working(other))) throw new Error("busy");
-    return ids;
-  }
   // A Codex server's fence holds only the modes of its mechanism: Full access runs inside the outer sandbox-exec, the
-  // other modes on Doan's permission profiles. A send that needs the other one closes the idle server, waits for it as
-  // for an archived one (previousExit) and opens a new one, which resumes the thread.
+  // other modes on Doan's permission profiles. A send that needs the other one closes the idle server, waits for it
+  // (previousExit) and opens a new one, which resumes the thread.
   private switchCodexServer(id: string, extras: SendExtras): void {
     const live = this.live.get(id), metadata = this.store.list().find(m => m.conversationId === id);
     if (!live?.runner || live.busy || live.closed || metadata?.session.runtime !== "codex") return;
@@ -544,8 +509,8 @@ export class ConversationService {
     const live = this.live.get(id), metadata = this.store.list().find(m => m.conversationId === id);
     // A turn whose history stopped taking writes is still busy while its closed run's group exits; the send waits for it.
     if (!metadata || (live?.busy && !live.failedPersistence) || this.quitting || !this.reservations.some(r => r.owner === id)) return;
-    // A Codex server is reused while its conversation stays current; an archived one's server, or one closed because its
-    // history stopped taking writes, is closing.
+    // A Codex server is reused between turns; a closed one, or one closed because its history stopped taking writes, is
+    // closing.
     if (metadata.session.runtime === "codex" && live?.runner && !live.closed && !live.failedPersistence) return;
     if (this.waits.has(id)) throw new Error("busy");
     // A finished Claude turn's process may go on with its suggestion (up to 30 s) or background work after its input
@@ -631,7 +596,7 @@ export class ConversationService {
     const m = this.store.list().find(e => e.conversationId === id); if (!m) return "not_app_conversation";
     const live = this.live.get(id), turn = this.handoffTurns.get(id);
     const running = !!live && !!turn && live.handoffKey === request.handoff && turn.turnId === live.turnId && live.accepted && live.busy && !live.terminal &&
-      !live.closed && !live.failedPersistence && !this.quitting && m.state === "current";
+      !live.closed && !live.failedPersistence && !this.quitting;
     const refused = handoffEligibility(request, { root: m.root, ...(m.canvas ? { canvas: m.canvas } : {}), ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}),
       running, ...(turn?.startedBy ? { startedBy: turn.startedBy } : {}), requested: turn?.requests.map(r => r.path) ?? [] });
     if (refused) return refused;
@@ -694,21 +659,20 @@ export class ConversationService {
     this.store.save(entries.map(e => e === m ? rest : e));
   }
   // Each conversation's current turn for `doan work update` (conversationWork.ts): running from its acceptance until
-  // its terminal event, archive, a history that stopped taking writes, or the quit. A send being prepared is not
+  // its terminal event, a history that stopped taking writes, or the quit. A send being prepared is not
   // running yet, so a previous turn's late update is dropped until the next turn is accepted.
   liveTurns(): ReadonlyMap<string, LiveTurn> {
-    const roots = new Map(this.store.list().map(m => [m.conversationId, m.root]));
     const turns = new Map<string, LiveTurn>();
     for (const [id, live] of this.live) {
-      const root = roots.get(id); if (root === undefined) continue;
-      turns.set(id, { root, turnId: live.turnId, running: !this.quitting && live.accepted && live.busy && !live.terminal && !live.closed && !live.failedPersistence });
+      if (!live.turnOf) continue;
+      turns.set(id, { ...live.turnOf, turnId: live.turnId, running: !this.quitting && live.accepted && live.busy && !live.terminal && !live.closed && !live.failedPersistence });
     }
     return turns;
   }
   // What holds Restart to Update back (update installGate): turns running as liveTurns counts them, and the permission
-  // requests and questions they wait on. Memory only, since main asks on every conversation event. An archive or a
-  // history that stopped taking writes ends a turn without clearing `asking`, so only a turn still open counts its
-  // requests.
+  // requests and questions they wait on, of every conversation, several of one canvas included. Memory only, since main
+  // asks on every conversation event. A history that stopped taking writes ends a turn without clearing `asking`, so
+  // only a turn still open counts its requests.
   restartHolds(): { liveTurns: number; pendingAnswers: number } {
     let liveTurns = 0, pendingAnswers = 0;
     for (const live of this.live.values()) {
@@ -727,15 +691,6 @@ export class ConversationService {
     // The running turn's last stage, so a renderer that reads again need not wait for the next one; absent otherwise.
     const live = this.live.get(id), stage = live && this.staging(id, live) ? live.stage : undefined;
     return { events, lastSeq: state.lastSeq, turn: state.turn, ...(pendingPermission ? { pendingPermission } : {}), ...(stage ? { stage } : {}) };
-  }
-  forCanvas(root: string, canvas: Canvas) {
-    for (const m of this.store.list()) if (m.root === root && m.canvas && sameCanvas(m.canvas, canvas)) this.refreshCanvas(m);
-    const summaries = this.store.list().filter(m => m.root === root && m.canvas && sameCanvas(m.canvas, canvas)).map(m => {
-      const read = this.read(m.conversationId); return { conversationId: m.conversationId, canvas: m.canvas, title: m.title, state: m.state,
-        turn: read.turn === "waitingPermission" ? "waitingPermission" : ["starting", "streaming"].includes(read.turn) ? "running" : read.turn === "failed" ? "failed" : "idle",
-        session: { runtime: m.session.runtime, origin: m.session.origin }, lastAt: read.events.at(-1)?.at ?? "" };
-    });
-    return { current: summaries.find(m => m.state === "current") ?? null, archived: summaries.filter(m => m.state === "archived") };
   }
   // The grounds of this root's project turns not judged yet (running, or ended within the binding
   // window), for Move to Trash's busy check (canvasTrash.ts trashBusy). Exactly this root, as copies.
@@ -996,11 +951,11 @@ export class ConversationService {
     this.changed(m.root);
     return ids.some(heldId => heldId !== null) ? { ...draft, ids } : draft;
   }
-  // A send that waits for its usage limit (ipc routes it to schedule): an existing, current Doan Claude Code or Codex
+  // A send that waits for its usage limit (ipc routes it to schedule): an existing Doan Claude Code or Codex
   // conversation that is not working, while its connection's limit holds or its messages already wait for a reset.
   scheduling(id: string): boolean {
     const m = this.metadata(id);
-    if (this.quitting || m.state !== "current") return false;
+    if (this.quitting) return false;
     const provider = m.owner.kind === "doan" ? m.owner.provider : m.session.runtime;
     return sendDecision({ provider, owner: m.owner.kind, start: false, limit: this.limitOf(m), working: this.working(id), scheduled: this.schedules.has(id), now: this.clock.now() }) === "schedule";
   }
@@ -1030,9 +985,9 @@ export class ConversationService {
   private connectionOf(owner: Extract<ConversationOwner, { kind: "doan" }>): string | undefined {
     return this.connections.has(owner.provider) ? this.connections.get(owner.provider) : owner.connectionId;
   }
-  // The reset of the limit a current Doan Claude Code or Codex conversation's connection holds now, else null.
+  // The reset of the limit a Doan Claude Code or Codex conversation's connection holds now, else null.
   private limitOf(m: ConversationMetadata): number | null {
-    if (m.owner.kind !== "doan" || m.state !== "current" || (m.owner.provider !== "claude" && m.owner.provider !== "codex")) return null;
+    if (m.owner.kind !== "doan" || (m.owner.provider !== "claude" && m.owner.provider !== "codex")) return null;
     const connectionId = this.connectionOf(m.owner), entry = connectionId === undefined ? undefined : this.limits.get(connectionId);
     return entry && entry.resetsAt > this.clock.now() ? entry.resetsAt : null;
   }
@@ -1040,11 +995,11 @@ export class ConversationService {
   private limitCandidate(id: string, event: EventPayload): boolean {
     if (event.type !== "turn.failed" || event.code !== "rate_limited" || this.quitting || !this.queueOptions.limitWindows) return false;
     const m = this.store.list().find(e => e.conversationId === id);
-    return m?.state === "current" && m.owner.kind === "doan" && (m.owner.provider === "claude" || m.owner.provider === "codex");
+    return !!m && m.owner.kind === "doan" && (m.owner.provider === "claude" || m.owner.provider === "codex");
   }
   // Reads the connection's usage after the turn (the runner started that read right after it emitted the end, so this
   // waits for it), then decides (settleLimit). The checks run again once the read is back (POSTMORTEM 2026-10-27
-  // 'Awaited conversation work outlived its current turn'): an archive, a deletion or the quit took the queue already.
+  // 'Awaited conversation work outlived its current turn'): a deletion or the quit took the queue already.
   private limitEnded(id: string, live: Live, saved: Extract<ConversationEvent, { type: "turn.failed" }>, resent: { reset: number; retried: boolean } | undefined): void {
     const m = this.store.list().find(e => e.conversationId === id); if (m?.owner.kind !== "doan") return;
     const owner = m.owner, read = this.queueOptions.limitWindows!;
@@ -1094,7 +1049,8 @@ export class ConversationService {
     // A sign-out or replacement meanwhile: this connection is no longer the one the person uses.
     if (this.connectionOf(owner) !== owner.connectionId) return none;
     if (reset !== null && reset > now) { this.limits = limitState(this.limits, owner.connectionId, { provider: owner.provider, resetsAt: reset }, now); this.limitChanged(owner.provider); }
-    const m = this.metadata(id); if (m.state !== "current") return none;
+    // Deleted meanwhile: nothing is left to send at the reset.
+    if (!this.store.list().some(e => e.conversationId === id)) return none;
     const events = this.store.read(id).filter(e => e.turnId === saved.turnId);
     // A turn that also took a message by Send now holds more than one message of the person's: sending the first again
     // would drop the other, so it fails as before (the queue behind it still waits).
@@ -1150,7 +1106,7 @@ export class ConversationService {
   private sendDue(id: string, schedule: Schedule): void {
     if (this.schedules.get(id) !== schedule || this.quitting) return;
     const m = this.store.list().find(e => e.conversationId === id);
-    if (!m || m.state !== "current" || !this.drafts.queued(id).length) { this.disarm(id); this.changedOf(id); return; }
+    if (!m || !this.drafts.queued(id).length) { this.disarm(id); this.changedOf(id); return; }
     if (this.working(id)) return;
     if (!m.canvas) { try { this.checkProject(m.root, id); } catch { return; } }
     this.disarm(id);
@@ -1204,15 +1160,18 @@ export class ConversationService {
   // Deleting removes Doan's own record of the conversation on this device: its index entry, history, queue and returned
   // draft. The agent's session files stay. Refused (busy) while it works or the app quits. The check and the deletion
   // run in one tick, so no send starts between them; an awaiting send is working, and later calls find no metadata.
-  // The run is closed as an archived one's (archive): its live entry stays, so its process's exit callback still
-  // releases the reservation (POSTMORTEM 2026-10-28), and terminal keeps a late event from recreating the history
-  // (store.append creates the file). The index commit is the result; cleanup after it only logs a failure.
+  // The canvas's other conversations go on: only this one's run is closed (closeRun). Its live entry stays, so its
+  // process's exit callback still releases the reservation (POSTMORTEM 2026-10-28), and terminal keeps a late event from
+  // recreating the history (store.append creates the file). The index commit is the result; cleanup after it only logs
+  // a failure.
   delete(id: string): void {
     if (this.quitting || this.working(id)) throw new Error("busy");
     const m = this.metadata(id);
-    this.archive(id);
+    this.closeRun(id);
     this.dropHandoff(id);
     this.store.delete(id);
+    // Its live entry stays for the exit callback, but the conversation no longer has a turn.
+    const live = this.live.get(id); if (live) delete live.turnOf;
     this.disarm(id); this.resent.delete(id);
     this.drafts.discard(id);
     const held = this.returnedHeld.get(id); this.returnedHeld.delete(id);
@@ -1274,7 +1233,7 @@ export class ConversationService {
       const contested = listed.filter(row => others.some(other => !other.snapshot.some(old => sameCanvas(old, row))) ||
         handoffs.some(turn => turn.requests.some(r => r.path === row.path) || !turn.snapshot.some(old => sameCanvas(old, row))));
       const turn = { root: evidence.root, edits: [...evidence.edits], changed: [...evidence.changed], taken: evidence.taken, contested };
-      const target = promotionTarget(turn, listed, evidence.snapshot, canvas => this.canvasWorking(evidence.root, canvas, id));
+      const target = promotionTarget(turn, listed, evidence.snapshot);
       if (target) this.promoteTo(id, evidence, target);
       const left = contestedCanvas(turn, listed, evidence.snapshot);
       if (left) for (const other of others) if (!other.snapshot.some(old => sameCanvas(old, left))) other.taken.push(left);
@@ -1292,15 +1251,14 @@ export class ConversationService {
   private judgeHandoff(id: string, settled: boolean): void {
     const turn = this.handoffTurns.get(id); if (turn?.state !== "judging") return;
     const m = this.store.list().find(e => e.conversationId === id);
-    if (!m || m.state !== "current") { this.cancelHandoff(id, turn); return; }
+    if (!m) { this.cancelHandoff(id, turn); return; }
     let listed: Canvas[] | undefined;
     for (const request of turn.requests) {
       if (request.decision) continue;
       let decision: HandoffDecision;
       try {
         listed ??= this.snapshot(m.root);
-        decision = handoffDecision({ done: true, path: request.path, listed, snapshot: turn.snapshot, ...(m.canvas ? { source: m.canvas } : {}), settled,
-          current: canvas => this.store.list().some(e => e.state === "current" && e.root === m.root && !!e.canvas && sameCanvas(e.canvas, canvas)) });
+        decision = handoffDecision({ done: true, path: request.path, listed, snapshot: turn.snapshot, ...(m.canvas ? { source: m.canvas } : {}), settled });
       } catch (error) { console.error("doan: handoff judgement failed", error); decision = { kind: "refused", reason: "not_listed" }; }
       if (decision.kind !== "wait") request.decision = decision;
     }
@@ -1315,7 +1273,7 @@ export class ConversationService {
     }
     if (turn.state === "starting") void this.startHandoffs(id, turn, m);
   }
-  // The decided starts, one at a time in request order. A cancel meanwhile (a stop, a sign-out, an archive) resolved the
+  // The decided starts, one at a time in request order. A cancel meanwhile (a stop, a sign-out) resolved the
   // ones left, and a quit dropped the turn: each start is checked again after the one before (POSTMORTEM 2026-10-27).
   private async startHandoffs(id: string, turn: HandoffTurn, m: ConversationMetadata): Promise<void> {
     for (const request of turn.requests) {
@@ -1334,26 +1292,26 @@ export class ConversationService {
       // The model's default level when it has no stored effort, as a queued turn's.
       const defaultEffort = m.model && !m.effort ? this.queueOptions.defaultEffort?.(m.root, m.session.runtime, m.model) : undefined;
       const { conversationId } = await this.start({ root: m.root, mode: "new", runtime: m.session.runtime, canvas: target, text: request.text, anchors: [], ...choice(m), ...fastOf(m), ...mode(m.permissionMode), ...(defaultEffort ? { defaultEffort } : {}) },
-        undefined, { origin, requireNoCurrent: true, handoffText: request.text, turnId: turn.turnId, path: request.path });
+        undefined, { origin, handoffText: request.text, turnId: turn.turnId, path: request.path });
       resolution = { outcome: "started", target: { conversationId, canvas: this.store.list().find(e => e.conversationId === conversationId)?.canvas ?? target } };
     } catch (error) {
       const code = reason(error);
       // A stop of its provider meanwhile is the person's cancel, whatever the start then failed with.
       resolution = code === "handoff_cancelled" || this.stopped({ ...(provider ? { provider } : {}), since }) ? { outcome: "cancelled" } : { outcome: "refused", reason: code };
     }
-    // An archive meanwhile resolved it as cancelled already, and a quit dropped the turn.
+    // A cancel meanwhile resolved it already, and a quit dropped the turn.
     if (request.state !== "starting" || this.handoffTurns.get(id) !== turn) return;
     this.resolveHandoff(id, turn, request, resolution);
   }
-  // The asking turn must still be the conversation's handoff turn: after a cancel, a restore and a later turn may ask
-  // for the same path, whose request must not lend this start its state (POSTMORTEM 2026-10-27).
+  // The asking turn must still be the conversation's handoff turn: after a cancel, a later turn may ask for the same path,
+  // whose request must not lend this start its state; and the conversation must not be deleted (POSTMORTEM 2026-10-27).
   private checkHandoffSource(id: string, turnId: string, path: string): void {
-    const turn = this.handoffTurns.get(id), m = this.store.list().find(e => e.conversationId === id);
+    const turn = this.handoffTurns.get(id), exists = this.store.list().some(e => e.conversationId === id);
     const request = turn?.turnId === turnId ? turn.requests.find(r => r.path === path) : undefined;
-    if (request?.state !== "starting" || m?.state !== "current") throw new Error("handoff_cancelled");
+    if (request?.state !== "starting" || !exists) throw new Error("handoff_cancelled");
   }
-  // Every request not resolved yet is cancelled: a turn that did not end done, a stop or sign-out of its provider, an
-  // archive. Conversations already started stay.
+  // Every request not resolved yet is cancelled: a turn that did not end done, a stop or sign-out of its provider, a
+  // deletion. Conversations already started stay.
   private cancelHandoff(id: string, turn: HandoffTurn): void {
     for (const request of turn.requests) if (request.state !== "resolved") this.resolveHandoff(id, turn, request, { outcome: "cancelled" });
   }
@@ -1392,14 +1350,13 @@ export class ConversationService {
   }
   // A queue moved to a conversation whose turn already ended (its first turn's end came before the start was accepted):
   // handled as that end handles a queue (ended), so nothing is left waiting. A usage-limit read that end started takes
-  // the queue when it is over (limitEnded), and a send scheduled for the reset sends it then (sendDue). A conversation no
-  // longer current, closed or whose history stopped taking writes gets it back as a draft, as an archive hands a queue
-  // back: a send would restore an archived one over the canvas's current conversation.
+  // the queue when it is over (limitEnded), and a send scheduled for the reset sends it then (sendDue). A conversation
+  // deleted, closed or whose history stopped taking writes gets it back as a draft.
   private queueAfterEnd(id: string): void {
     const live = this.live.get(id);
     if (!live?.terminal || live.busy || live.holding || live.limitLookup || this.schedules.has(id) || !this.drafts.queued(id).length) return;
     const m = this.store.list().find(e => e.conversationId === id);
-    if (m?.state !== "current" || live.closed || live.failedPersistence) { this.giveBack(id, "interrupted"); return; }
+    if (!m || live.closed || live.failedPersistence) { this.giveBack(id, "interrupted"); return; }
     if (live.done) { live.holding = {}; this.endAfterTurn(id); this.flush(id, live); return; }
     let interrupted = false;
     try { interrupted = [...this.store.read(id)].reverse().find(e => e.turnId === live.turnId && (e.type === "turn.failed" || e.type === "interrupted"))?.type === "interrupted"; }
@@ -1420,26 +1377,22 @@ export class ConversationService {
     for (const item of moved) { const held = this.queuedExtras.get(item.itemId); if (held) held.owner = to; }
     if (moved.length) this.changedOf(from);
   }
-  private canvasWorking(root: string, canvas: Canvas, except: string): boolean {
-    return this.store.list().some(m => m.conversationId !== except && m.state === "current" && m.root === root && m.canvas && sameCanvas(m.canvas, canvas) && this.working(m.conversationId));
-  }
+  // The conversation joins the canvas's conversations, which stay as they are and keep running.
   private promoteTo(id: string, evidence: Evidence, target: Canvas): void {
     const entries = this.store.list(), me = entries.find(m => m.conversationId === id);
-    if (!me || me.state !== "current" || me.canvas) return;
-    const replaced = entries.filter(m => m.state === "current" && m.root === me.root && m.canvas && sameCanvas(m.canvas, target)).map(m => m.conversationId);
-    const writes: JournalWrite[] = replaced.map(old => ({ id: old, turn: this.live.get(old)?.turnId || randomUUID(), body: { type: "conversation.archived" } }));
-    writes.push({ id, turn: evidence.turnId, body: { type: "conversation.bound", canvas: target } });
+    if (!me || me.canvas) return;
+    const writes: JournalWrite[] = [{ id, turn: evidence.turnId, body: { type: "conversation.bound", canvas: target } }];
     const kind = evidence.snapshot.some(c => sameCanvas(c, target)) ? "promote" : "bind";
-    const saved = this.store.acceptChange({ kind, id, canvas: target, replaced }, entries.map(m => m.conversationId === id ? { ...m, canvas: target } : replaced.includes(m.conversationId) ? { ...m, state: "archived" } : m), writes);
-    // An overlapping turn judged later must not take this canvas over and archive this conversation.
+    const saved = this.store.acceptChange({ kind, id, canvas: target, replaced: [] }, entries.map(m => m.conversationId === id ? { ...m, canvas: target } : m), writes);
+    // One turn's grounds name one canvas: an overlapping turn judged later is not promoted to the same one.
     for (const [other, grounds] of this.evidence) if (other !== id && grounds.root === me.root) grounds.taken.push(target);
-    for (const old of replaced) this.archive(old);
+    const turn = this.live.get(id)?.turnOf; if (turn) turn.canvas = target;
     for (const event of saved) this.deliver(event);
     this.changed(me.root);
   }
-  // A conversation that stopped being current: its run is closed as a replaced start's is, a send waiting for its
-  // previous process is refused, and its queue comes back as a draft.
-  private archive(id: string): void {
+  // A deleted conversation's run: it is closed, a send waiting for its previous process is refused, and its queue comes
+  // back as a draft before the deletion discards it.
+  private closeRun(id: string): void {
     this.suggestions.delete(id);
     this.endWork(id);
     const running = this.live.get(id);
@@ -1495,10 +1448,11 @@ export class ConversationService {
     this.changedOf(id);
     // After the terminal event's own handling: the send changes this conversation's live state.
     void Promise.resolve().then(async () => {
-      // Taken back meanwhile: every path that hands the queue back as a draft (an archive, a stop) first drops this hold,
-      // so the copy captured above is not sent. A conversation no longer current gets its queue back instead.
+      // Taken back meanwhile: every path that hands the queue back as a draft (a Stop, a stop of its provider, a deletion)
+      // first drops this hold, so the copy captured above is not sent (POSTMORTEM 2026-11-14). A conversation deleted
+      // meanwhile gets its queue back instead.
       if (this.live.get(id) !== live || live.holding !== hold) return;
-      if (this.store.list().find(e => e.conversationId === id)?.state !== "current") { this.giveBack(id, "interrupted"); this.release(id, live, hold); return; }
+      if (!this.store.list().some(e => e.conversationId === id)) { this.giveBack(id, "interrupted"); this.release(id, live, hold); return; }
       try {
         const files = this.queueOptions.files;
         const attached = ids.length && files ? files.reclaim(ids) : undefined;
@@ -1529,7 +1483,7 @@ export class ConversationService {
   private steerable(id: string, live: Live): boolean {
     const m = this.store.list().find(entry => entry.conversationId === id);
     return !this.quitting && this.live.get(id) === live && live.accepted && live.busy && !live.terminal && !live.closed && !live.failedPersistence &&
-      !live.exited && !this.stopped(live) && m?.state === "current" && typeof live.runner?.steer === "function";
+      !live.exited && !this.stopped(live) && !!m && typeof live.runner?.steer === "function";
   }
   private steering(id: string): [string, Steer][] { return [...this.steers].filter(([, steer]) => steer.id === id); }
   // The agent read a steered message: it joins its turn's history at this point and leaves the queue. The read decides,
@@ -1569,6 +1523,8 @@ export class ConversationService {
     if (!metadata.canvas.id || canvas.id !== metadata.canvas.id) throw new Error("canvas_not_found");
     const refreshed = { ...metadata, canvas };
     this.store.save(this.store.list().map(m => m.conversationId === metadata.conversationId ? refreshed : m));
+    // Before submit's busy check: a running turn keeps working on the moved file.
+    const turn = this.live.get(metadata.conversationId)?.turnOf; if (turn) turn.canvas = canvas;
     this.changed(metadata.root);
     return refreshed;
   }
@@ -1581,12 +1537,12 @@ export class ConversationService {
     try { this.storeMode(id, reported); } catch (error) { console.error("doan: the permission mode after a plan approval could not be saved", error); }
   }
   // A turn's suggestion counts only while nothing has moved past that turn: the same run and turn, ended done, no
-  // later send started or waiting (a queue about to go out included), not archived, deleted or quitting
+  // later send started or waiting (a queue about to go out included), not deleted or quitting
   // (POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn').
   private suggested(id: string, live: Live, turnId: string, text: string): void {
     if (this.quitting || this.live.get(id) !== live || live.turnId !== turnId || !live.accepted || !live.terminal || !live.done || live.busy ||
         live.closed || live.failedPersistence || live.holding || this.waits.has(id) || this.judging.has(id)) return;
-    const m = this.store.list().find(e => e.conversationId === id); if (!m || m.state !== "current") return;
+    const m = this.store.list().find(e => e.conversationId === id); if (!m) return;
     // The turn's own connection: a later send that rebinds the owner has a new turnId, refused above. A legacy external
     // run has no doan connection to compare.
     if (m.owner.kind === "doan" && this.connections.has(m.owner.provider) && this.connections.get(m.owner.provider) !== m.owner.connectionId) return;
@@ -1653,8 +1609,21 @@ export class ConversationService {
     if (projectBusy(this.live, root, exceptId, now) || [...this.evidence].some(([id, evidence]) => id !== exceptId && evidence.root === root && !(evidence.endedAt === undefined && asking(id)))) throw new Error("project_busy");
   }
   private snapshot(root: string): Canvas[] { return this.canvases(root).map(c => c.id === undefined ? { path: c.path } : { path: c.path, id: c.id }); }
-  private checkSend(id: string, live: Live, state: "current" | "archived"): void {
-    if (this.quitting || this.live.get(id) !== live || live.terminal || live.cancelled || this.metadata(id).state !== state) throw new Error("busy");
+  // One session is one conversation: a terminal session resume is refused while a conversation in the index holds it,
+  // whether or not its process still runs (two conversations sending to one agent session would mix their histories).
+  // A deleted conversation no longer holds it.
+  private checkSessionFree(runtime: Provider, configDir: string, sessionId: string | undefined): void {
+    if (sessionId !== undefined && this.sessionHeld(runtime, configDir, sessionId)) throw new Error("session_in_use");
+  }
+  // Whether a conversation in the index holds this agent session. configDir undefined: any profile (a terminal process's
+  // occupancy names no profile; session ids are unique per agent).
+  sessionHeld(runtime: Provider, configDir: string | undefined, sessionId: string): boolean {
+    return this.store.list().some(m => m.session.runtime === runtime && (configDir === undefined || m.session.configDir === configDir) && m.session.sessionId === sessionId);
+  }
+  // metadata throws not_found for a conversation deleted meanwhile.
+  private checkSend(id: string, live: Live): void {
+    if (this.quitting || this.live.get(id) !== live || live.terminal || live.cancelled) throw new Error("busy");
+    this.metadata(id);
   }
   private metadata(id: string): ConversationMetadata { const m = this.store.list().find(m => m.conversationId === id); if (!m) throw new Error("not_found"); return m; }
   private append(id: string, turn: string, event: EventPayload): ConversationEvent {
@@ -1729,16 +1698,16 @@ export class ConversationService {
     wait.timer = setTimeout(() => this.writeMissed(turnId), Math.max(0, this.deadline(wait.endedAt, wait.exitedAt) - Date.now()));
     wait.timer.unref?.();
   }
-  // Checked again right before the write: an archive or a deletion meanwhile drops the wait, and store.append would
-  // recreate a deleted history. A history that stopped taking writes takes none.
+  // Checked again right before the write: a deletion meanwhile drops the wait, and store.append would recreate a deleted
+  // history. A history that stopped taking writes takes none. A new canvas that has conversations of its own still
+  // counts: the turn could have handed off to it.
   private writeMissed(turnId: string): void {
     const wait = this.missedWaits.get(turnId); if (!wait) return;
     this.missedWaits.delete(turnId);
     const m = this.store.list().find(e => e.conversationId === wait.id), live = this.live.get(wait.id);
-    if (this.quitting || !m?.canvas || m.state !== "current" || live?.failedPersistence) return;
+    if (this.quitting || !m?.canvas || live?.failedPersistence) return;
     try {
-      const missed = missedHandoffs({ root: wait.root, edits: wait.edits, listed: this.snapshot(wait.root), snapshot: wait.snapshot, requested: wait.requested, source: m.canvas,
-        current: canvas => this.store.list().some(e => e.state === "current" && e.root === wait.root && !!e.canvas && sameCanvas(e.canvas, canvas)) });
+      const missed = missedHandoffs({ root: wait.root, edits: wait.edits, listed: this.snapshot(wait.root), snapshot: wait.snapshot, requested: wait.requested, source: m.canvas });
       for (const canvas of missed) this.append(wait.id, turnId, { type: "handoff.missed", canvas });
     } catch (error) { console.error("doan: missed handoffs could not be saved", error); }
   }
@@ -1790,8 +1759,8 @@ export class ConversationService {
     if (lookup) for (const messageId of this.foundSteers(live, this.steering(id).map(([key]) => key))) this.steerConsumed(id, messageId);
     live.unheld = true; this.receive(id, held.event);
   }
-  // An archive or quit ends the turn at once; a steer the transcript shows later leaves the queue unwritten, and an
-  // archive hands the rest back then. True when there is something to look for.
+  // A quit or a deletion ends the turn at once; a steer the transcript shows later leaves the queue unwritten, and a
+  // deletion hands the rest back then. True when there is something to look for.
   private lookLater(id: string, live: Live, giveBack: boolean): boolean {
     const steers = this.steering(id).map(([messageId, steer]) => ({ messageId, itemId: steer.itemId }));
     if (!live.transcript || live.exited || !steers.length) return false;

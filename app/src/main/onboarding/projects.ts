@@ -1,5 +1,5 @@
-import { lstat, readFile, realpath, stat } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { lstat, mkdir, readFile, realpath, stat } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import type { OnboardingChange, OnboardingOperationErrorCode, OnboardingStorage } from "../../formats/types";
 import { gitChildren, hasGitEntry } from "../addProjects";
 import type { LsTarget } from "../cli";
@@ -73,6 +73,35 @@ export async function cloneDestination(path: string, deps: ProjectDeps): Promise
   const parent = await canonicalFolder(dirname(path));
   if (parent === null) return { state: "no_parent" };
   return (await deps.ls({ cwd: parent })).kind === "list" ? { state: "inside_project" } : { state: "absent", path: join(parent, basename(path)) };
+}
+
+// New folder: the path the save panel returned, judged before anything is made. A location inside a set-up project
+// comes first, registered or not, as for a clone: the folder would be read as that project. An existing name, even a
+// broken link, is reported and never replaced (macOS may already have asked to replace it); mkdir is not recursive, so
+// nothing is nested either. Only EEXIST from mkdir reads as existing; every other error is a folder that cannot be made.
+// wanted: whether the step that asked is still there. It is read again right before mkdir, since the location's checks
+// (a CLI read of up to 10 s) leave time for the step to go; then nothing is made.
+export type NewFolderTarget =
+  | { kind: "cancelled" }
+  | { kind: "created" | "failed"; path: string }
+  | { kind: "exists"; path: string; directory: boolean }
+  | { kind: "inside_project"; path: string; project: string };
+export async function newFolderTarget(path: string, deps: Pick<ProjectDeps, "ls">, wanted: () => boolean = () => true): Promise<NewFolderTarget> {
+  if (!isAbsolute(path)) return { kind: "failed", path };
+  const parent = await canonicalFolder(dirname(path));
+  if (parent === null) return { kind: "failed", path };
+  const target = join(parent, basename(path));
+  const state = await deps.ls({ cwd: parent });
+  if (state.kind === "list") return { kind: "inside_project", path: target, project: basename(state.root) };
+  try { return { kind: "exists", path: target, directory: (await lstat(target)).isDirectory() }; } catch { /* absent, or unreadable: mkdir decides */ }
+  if (!wanted()) return { kind: "cancelled" };
+  try {
+    await mkdir(target);
+    return { kind: "created", path: target };
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "EEXIST") return { kind: "exists", path: target, directory: (await lstat(target).catch(() => null))?.isDirectory() ?? false };
+    return { kind: "failed", path: target };
+  }
 }
 
 // How a setup would keep the Doan files: "repo" commits them; "local" adds the exclude entry instead of the

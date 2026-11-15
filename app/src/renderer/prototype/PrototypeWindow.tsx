@@ -14,7 +14,10 @@ import type { PanelBounds } from "../rightPanelSize";
 import type { ConversationButton } from "./conversation";
 import { PrototypeConversationRun, type PrototypeConversationCalls } from "./conversationRun";
 import { ColumnFocusGuard } from "./focusGuard";
-import { PrototypeConversationPanel, PrototypeHeadTitle } from "./PrototypeConversation";
+import { PrototypeConversationPanel, PrototypeHeadMenu } from "./PrototypeConversation";
+import { ConversationDeleteDialog, unsentDraft, type DeleteTarget } from "../ConversationDeleteDialog";
+import { deleteAvailability, deleteDialogView, deleteRefusalText } from "../conversationDelete";
+import { draftKey } from "../dockedRules";
 import { applyBuddy } from "../buddyPaint";
 import { dockedBuddy } from "../dockedBuddyShell";
 import { useVisibleClock } from "../visibleClock";
@@ -138,15 +141,16 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const panelWidth = clampPanel(dragWidth ?? view?.panel.width ?? panelBounds.default);
   const togglePanel = () => {
     const open = !panelOpen;
+    if (open) run.unfoldTarget();
     panelAsked.current = open;
     void api.setPanel({ open });
   };
-  // Opening puts focus in the composer, or on the head's title before the first view, when there is no composer yet: the
-  // header's button it was on is hidden now. Closing puts it on that button, which has its box again by this effect.
+  // Opening puts focus in the composer, or on the head's menu button before the first view, when there is no composer
+  // yet: the header's button it was on is hidden now. Closing puts it on that button, which has its box again by this effect.
   // A composer blocked while open keeps focus itself (readOnly), so nothing moves then.
   const headFallback = useRef(false);
   const composer = () => column.current?.querySelector<HTMLElement>(".composer-input") ?? null;
-  const headTitle = () => column.current?.querySelector<HTMLElement>(".rp-head") ?? null;
+  const headTitle = () => column.current?.querySelector<HTMLElement>(".doan-conv-title .ov-title") ?? null;
   useEffect(() => {
     if (!panelOpen) headFallback.current = false;
     if (panelAsked.current !== panelOpen) return;
@@ -157,8 +161,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     headFallback.current = true;
     headTitle()?.focus();
   }, [panelOpen]);
-  // Once the first view brings the composer, focus left on the head's title moves to it, once; focus the person put
-  // elsewhere meanwhile stays.
+  // Once the first view brings the composer, focus left on the head's menu button moves to it, once; focus the person
+  // put elsewhere meanwhile stays.
   useEffect(() => {
     if (!headFallback.current) return;
     const field = composer();
@@ -310,14 +314,53 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     api.export(run.target).then(done, () => done({ kind: "failed", reason: "failed" }));
   };
 
+  // The head menu's Delete asks first, as the main window's does. Cancel, the delete and a refusal all return focus to
+  // the menu's button, whatever the panel shows next; the move waits for the render that closes the modal alert
+  // (POSTMORTEM 2026-11-14 'A failed buddy switch dropped focus'), since the page behind it takes no focus.
+  const [deleting, setDeleting] = useState<{ target: DeleteTarget; pending: boolean } | null>(null);
+  const deleteReturn = useRef<HTMLElement | null>(null);
+  const deleteLanding = useRef(false);
+  useEffect(() => {
+    if (!deleteLanding.current || deleting !== null) return;
+    deleteLanding.current = false;
+    deleteReturn.current?.focus();
+    deleteReturn.current = null;
+  });
+  const openDelete = (target: DeleteTarget, trigger: HTMLElement | null) => {
+    if (deleting !== null) return false;
+    deleteReturn.current = trigger;
+    setDeleting({ target, pending: false });
+    return true;
+  };
+  const closeDelete = () => { deleteLanding.current = true; setDeleting(null); };
+  const confirmDelete = async () => {
+    if (deleting === null || deleting.pending) return;
+    const { target } = deleting;
+    setDeleting({ target, pending: true });
+    const code = await run.deleteConversation(target.conversationId);
+    closeDelete();
+    if (code !== null) toastRef.current.show(deleteRefusalText(code, target.title));
+  };
+  const deleteDialog = (() => {
+    if (deleting === null) return null;
+    const { target, pending } = deleting, list = run.list();
+    const summary = Array.isArray(list) ? list.find(c => c.conversationId === target.conversationId) : undefined;
+    const draft = unsentDraft(run.store.drafts.get(draftKey({ kind: "existing", conversationId: target.conversationId, provider: target.provider }))) || summary?.returnedDraft === true;
+    const availability = summary ? deleteAvailability(summary) : { available: true as const };
+    // Not working with messages queued: they wait for the usage limit's reset, and go with the conversation.
+    const queued = summary && !summary.working ? summary.queued : 0;
+    return <ConversationDeleteDialog view={deleteDialogView(target.title, target.provider, draft, queued)} reason={availability.available ? null : availability.reason} pending={pending}
+      cancel={closeDelete} confirm={() => void confirmDelete()} />;
+  })();
+
   const readingShown = phase === "loading" && readingGen === gen;
   return <WindowShell view={view} layers={layers} readingShown={readingShown} details={details} live={liveText(view, readingShown)}
     width={width} menuOpen={menuOpen} content={content} heading={heading} name={name} frames={frames.current}
     onBack={() => void api.back()} onForward={() => void api.forward()} onReload={() => { if (gen !== null) void api.reload(gen); }} onReloadPress={onReloadPress} onReloadClick={onReloadClick}
-    onMode={mode => void api.setMode(mode)} onMenuOpen={setMenuOpen} exporting={exporting} onExport={onExport} toast={toast.element}
+    onMode={mode => void api.setMode(mode)} onMenuOpen={setMenuOpen} exporting={exporting} onExport={onExport} toast={toast.element} dialog={deleteDialog}
     onChoose={frame => void api.choose(frame)} onClose={() => void api.close()} onDetails={() => setDetails(open => !open)}
     conversation={{ button: run.button(), open: panelOpen, width: panelWidth, bounds: { min: panelBounds.min, max: panelBounds.max }, buttonRef: convButton, column,
-      title: <PrototypeHeadTitle run={run} />,
+      title: <PrototypeHeadMenu run={run} now={clock} onPicked={() => composer()?.focus()} onDelete={openDelete} />,
       body: <PrototypeConversationPanel run={run} calls={api} now={clock} onNotice={text => toastRef.current.show(text)} />,
       onToggle: togglePanel, preview: setDragWidth, onFocusOut: onColumnFocusOut,
       // The renderer cuts the width to the window's range; main fits the window, not the width.
@@ -357,6 +400,8 @@ export interface ShellProps {
   exporting: boolean;
   // The toast host: one per window, at its bottom right, after everything else in the Tab order.
   toast?: ReactNode;
+  // A modal alert the window shows (the head menu's Delete confirmation).
+  dialog?: ReactNode;
   content?: RefObject<HTMLDivElement | null>;
   heading?: RefObject<HTMLHeadingElement | null>;
   name?: RefObject<HTMLButtonElement | null>;
@@ -372,7 +417,7 @@ export interface ShellProps {
 // them, so neither the frame's Tab stops nor a focus trap in it keeps the panel out of reach; the state overlay covers
 // the content panel only, so they stay usable over it. Every control keeps one element tree in every state (no view
 // yet, pressed or not, either row) so a focused control or the open frame menu survives the change.
-export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, exporting, toast, content, heading, name, frames, conversation: conv = FOLDED, onBack, onForward, onReload, onReloadPress, onReloadClick, onMode, onMenuOpen, onChoose, onClose, onDetails, onExport }: ShellProps) {
+export function WindowShell({ view, layers, readingShown, details, live, width, menuOpen, exporting, toast, dialog, content, heading, name, frames, conversation: conv = FOLDED, onBack, onForward, onReload, onReloadPress, onReloadClick, onMode, onMenuOpen, onChoose, onClose, onDetails, onExport }: ShellProps) {
   const scene = view === null ? null : stateScene(view);
   // Export's rule is the canvas toolbar's: disabled with no reason before the first view, otherwise aria-disabled with
   // its reason, so it keeps its Tab stop and stays the same element (and focus) through an export.
@@ -451,6 +496,7 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
         </div>
       </div>}
     </ContentPanel>
+    {dialog}
     {toast}
     <p className="sr-only" role="status" aria-live="polite">{live}</p>
   </div>;

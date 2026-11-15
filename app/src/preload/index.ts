@@ -24,7 +24,7 @@ import type {
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { Selection } from "../formats/types";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
-import type { FolderPurpose, LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, TokenCssChoice, ViewCommand } from "../main/index";
+import type { FolderPurpose, LocateResult, NewFolderResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, TokenCssChoice, ViewCommand } from "../main/index";
 import type { ExternalTarget, SettingsPageTarget, SettingsSection } from "../main/settings";
 import type { InstallResult } from "../main/installCommand";
 import type { ConfigChoice, ConfigKind, ConfigReply } from "../main/configBridge";
@@ -118,7 +118,6 @@ const api = {
   },
   answerOpenRequest: (answer: OpenAnswer): Promise<void> => ipcRenderer.invoke("doan-open:answer", answer),
   conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string; session?: string } | { available: false; reason: "no_record" | UnavailableReason; runtime?: Runtime; session?: string } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
-  conversationForCanvas: (request: { root: string; canvas: Canvas }): Promise<ReturnType<ConversationService["forCanvas"]> | ConversationError> => ipcRenderer.invoke("conversation:forCanvas", request),
   // newDesign takes `text`. model and effort only from the list listConversationModels
   // returned in this run for that root and runtime; permissionMode one of the common ids (resume takes none); attachments by the ids the attachment calls returned. A moved or
   // deleted attachment refuses the start with attachment_missing and its ids in `missing`.
@@ -128,8 +127,7 @@ const api = {
   // the model ("default" clears the stored mode); fast only when this run's list says that model has Fast; attachments
   // by ids as for a start. A legacy external conversation takes none of them,
   // and no request names a provider. project_busy: another conversation of this project without a canvas is working.
-  // A send to an archived conversation restores it: busy while the canvas's current conversation works,
-  // canvas_not_found when its canvas is gone or its ID is listed twice.
+  // canvas_not_found: the conversation's canvas is gone or its ID is listed twice.
   // While the conversation's usage limit holds, or it is scheduled (list row limitResetsAt or scheduledAt), main keeps
   // the message as a queued item and answers { scheduled }; such a send takes no model, effort, fast or permissionMode
   // (bad_request), as a queue does. rate_limited carries resetsAt when main knows it.
@@ -163,7 +161,7 @@ const api = {
   // agent's own session files stay. busy while it works or the app quits; not_found when it is already gone; unknown
   // when the index cannot be read, and then nothing is deleted. A success is announced with onConversationListChanged.
   deleteConversation: (request: { conversationId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:delete", request),
-  // One summary per conversation main keeps for this project, current and archived; a row whose history cannot be
+  // One summary per conversation main keeps for this project, several per canvas; a row whose history cannot be
   // read carries readError. Read it again on onConversationListChanged, in whatever order the reply and change arrive.
   // working: main still works on it (preparing, running, waiting for an answer, judging its turn, about to send its
   // queue, waiting for its previous process); a project conversation that works holds its root. phase is the history's.
@@ -174,6 +172,12 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, change: { root: string }) => listener(change);
     ipcRenderer.on("conversation:listChanged", receive);
     return () => ipcRenderer.removeListener("conversation:listChanged", receive);
+  },
+  // `doan remove` took these roots out of the list; the folder list itself arrives on `folders` as for any change.
+  onFoldersRemoved(listener: (paths: string[]) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, value: { paths: string[] }) => listener(value.paths);
+    ipcRenderer.on("folders:removed", receive);
+    return () => ipcRenderer.removeListener("folders:removed", receive);
   },
   // A handoff started a conversation on another canvas: its root, the earlier conversation
   // and its canvas, and the new one and its canvas. The renderer decides whether to move there or show a toast.
@@ -339,6 +343,11 @@ const api = {
   // The Project step's folder picker: a path only, null when cancelled. The session inspects and registers it.
   // The Add Projects page uses it too; it belongs to no session.
   chooseOnboardingFolder: (purpose: FolderPurpose): Promise<string | null> => ipcRenderer.invoke("onboarding:choose-folder", purpose),
+  // New folder on the Project step: parent is only where the save panel opens. Main makes the folder at the panel's
+  // path and answers what happened; the session inspects a created folder like a chosen one. token names the request,
+  // which the step cancels when it goes before the panel answers, so nothing is made then.
+  newOnboardingFolder: (parent: string, token: string): Promise<NewFolderResult> => ipcRenderer.invoke("onboarding:new-folder", { parent, token }),
+  cancelOnboardingFolder: (token: string): Promise<boolean> => ipcRenderer.invoke("onboarding:new-folder-cancel", { token }),
   // The Add Projects page's project session: the onboarding session's project calls and DTOs on channels of its own,
   // with no agents, completion or CLI. Without a request the read answers the current state and its sessionId;
   // with one it is the session's status (session_stale for another session).

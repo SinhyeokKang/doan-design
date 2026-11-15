@@ -1,0 +1,13 @@
+{
+  "v": 3,
+  "ok": false,
+  "others": [
+    {
+      "kind": "terminal"
+    }
+  ],
+  "error": {
+    "code": "bad_token",
+    "message": "Wrong token"
+  }
+}

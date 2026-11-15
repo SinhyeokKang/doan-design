@@ -123,7 +123,7 @@ it("builds no fence for a send to a reused Codex server", async () => {
 });
 it("tells the Doan-account prepare when a send reuses the live Codex server", async () => {
   const account = vi.fn<AccountPrepare>(async () => ({ runtime: "codex", configDir: "/p", cwd: "/r", command: "/c", env: {} }));
-  const stored = { conversationId: "c", root: "/r", title: "t", state: "current" as const, owner: { kind: "doan" as const, provider: "codex" as const, connectionId: "x", accountId: "a", workspaceId: null, profile: "codex" },
+  const stored = { conversationId: "c", root: "/r", title: "t", owner: { kind: "doan" as const, provider: "codex" as const, connectionId: "x", accountId: "a", workspaceId: null, profile: "codex" },
     session: { runtime: "codex" as const, origin: "new" as const, sessionId: "s", configDir: "/p", cwd: "/r" } };
   await routePrepare(vi.fn(), account)({ root: "/r", mode: "resume", text: "", anchors: [] }, stored, undefined, true);
   expect(account.mock.calls[0]?.[3]).toBe(true);
