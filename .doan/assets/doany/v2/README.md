@@ -26,8 +26,8 @@ Use the SAME canvas, `../../../canvases/doan-mascot.html`:
 - `doany-v2-selected`: selected still, scale references and delivery status.
 - `doany-v2-motion-spec`: static motion storyboard, timings and runtime rules.
 
-Current rules: `docs/PRODUCT.md` §5 item 1 'Doany', `docs/ARCHITECTURE.md` §7
-'Doany' and `docs/DESIGN.md` (Home, 'Doany motion in the app').
+Current rules: `docs/PRODUCT.md` §5 item 1 'Buddy', `docs/ARCHITECTURE.md` §7
+'Buddy (mascot)' and `docs/DESIGN.md` (Home, 'Doany motion in the app').
 
 ## Asset inventory
 
@@ -66,7 +66,7 @@ The canvas reuses V1 screen CSS. V2 fallback padding is 16.5%; shader scale is
 Both textures use the same UV coordinates with no extra hat scaling. Eye centers
 are (.421,.550) and (.619,.550), radii (.035,.056). The app uses the same
 anchors; `doanyRender.test.ts` checks them against the shipped artwork (padding,
-eyes, hop headroom). The app's port is described in ARCHITECTURE §7 'Doany (mascot)'.
+eyes, hop headroom). The app's port is described in ARCHITECTURE §7 'Buddy (mascot)'.
 
 ## Motion contract
 

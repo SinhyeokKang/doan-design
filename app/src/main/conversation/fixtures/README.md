@@ -181,3 +181,8 @@ transcript is not the SDK stream: a test that feeds the assistant line through `
 (`~/.codex/sessions`) with `used_percent: 100.0`; only its timestamp and `rate_limits` are kept. The rollout uses
 snake_case; `account/rateLimits/read` answers the same fields in camelCase (`agentAuth/fixtures/codex-usage.json`), and
 `rate_limit_reached_type` was null although the window was full.
+
+`claude-transcript-<cli>-<case>.jsonl` (cases `folded`, `followup`, `stop-kill`, `stop-term`) and
+`claude-frames-<cli>-next-turn-after-stop.jsonl`, for Claude Code 2.1.284 and 2.1.322, are PoC session transcript lines
+and raw SDK frames with paths and account and environment ids removed; each `.meta.json` names its CLI version, case,
+the prompt ids and what was filtered. `transcript.test.ts` reads the transcripts.
