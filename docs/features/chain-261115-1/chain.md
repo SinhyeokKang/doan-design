@@ -81,3 +81,4 @@
   - `isolate.js`는 프로토타입 창과 같은 링크 의미를 따라야 한다(capture 단계 리스너, `closest("[data-doan-goto]")`, 재생 중인 프레임 안의 링크만, `setTimeout(0)` 뒤 `defaultPrevented`로 판정, 200 단위를 넘는 값은 재생할 수 없음).
   - 실제 앱에서 확인하지 못한 항목(VoiceOver 실제 읽기 등)은 BACKLOG 'Not verified in the real app'에 있다.
 - 2026-11-15 새 리드 세션: 링크 3을 `origin/develop`(링크 2 병합 뒤)에서 시작했다.
+- 2026-11-15 새 리드 세션: 사용자 지시. 링크 3을 병합하고 체인을 정리한 뒤, 릴리스 전에 `/doc-check`를 3라운드 직렬로 돌린다. 1라운드는 Claude Opus high, 2라운드는 Codex gpt-6-astra high(사용자가 이 라운드에 모델 경계를 넘는 것을 허가했다), 3라운드는 Claude Opus high다. 리드가 중개한다. 라운드마다 최신 develop에서 `docs/doc-check-r<n>` 워크트리와 세션을 만들고, 라운드는 develop 대상 PR로 끝난다. 리드가 리뷰와 `gate` 뒤 병합하고, 다음 라운드는 그 위에서 시작한다.
