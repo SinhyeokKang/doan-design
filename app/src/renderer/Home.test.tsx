@@ -160,6 +160,17 @@ test("Home CSS keeps the draft's measured icon sizes, popover status type, chip 
   expect(css).not.toMatch(/\.composer-send[^{]*\{[^}]*background/);
 });
 
+// Body panels draw no edge shadow, as the workspace's Overview and Canvas do; Home, Add Projects, Settings and Project
+// Settings share .home-panel. Floating material keeps the panel shadow as its edge.
+test("Home CSS: the body panel has the white fill and container corners and no edge shadow", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const panel = css.match(/\n\.home-panel \{[^}]*\}/)![0];
+  expect(panel).toContain("border-radius: var(--radius-container); background: var(--surface-panel);");
+  expect(panel).not.toContain("box-shadow");
+  expect(css).not.toMatch(/\.home-panel[^{]*\{[^}]*box-shadow/);
+  expect(readFileSync(new URL("./ds/surfaces.css", import.meta.url), "utf8")).toMatch(/\.doan-floating \{[^}]*box-shadow: var\(--shadow-panel\);/);
+});
+
 // The composer's focused border and the disabled ink of its tools.
 test("Home CSS: the focused composer uses the field-focus border with shadow-sm; disabled Attach and Presets take the disabled ink", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");

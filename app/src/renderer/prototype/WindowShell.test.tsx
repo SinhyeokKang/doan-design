@@ -455,6 +455,13 @@ describe("prototype window styles", () => {
     expect(css).toMatch(/\.pw-content\[data-mode="fit"\] \.pw-box \{ box-shadow: var\(--shadow-panel\); \}/);
   });
 
+  // Body panels draw no edge shadow, as the main window's Overview and Canvas do; the Fit frame's box is a frame on the
+  // inset stage, not a body panel, so it keeps the panel shadow above.
+  test("the content panel draws no edge shadow", () => {
+    expect(css).toMatch(/^\.pw-panel \{[^}]*background: var\(--surface-panel\);/m);
+    expect(css).not.toMatch(/^\.pw-panel \{[^}]*box-shadow/m);
+  });
+
   // The panel no longer clips, so the overlay rounds its own corners over the panel's.
   test("the state overlay keeps the panel's corners", () => {
     expect(css).toMatch(/\.pw-panel > \.problem-overlay \{[^}]*border-radius: inherit;/);
@@ -726,8 +733,8 @@ describe("the conversation panel's styles", () => {
     expect(rule('.pw:not([data-panel="open"]) > .doan-conv-column')).toContain("display: none;");
   });
 
-  test("the panel is an independent surface: four 24 corners, the panel shadow, no start edge; the head keeps 56", () => {
-    expect(rule(".pw .right.doan-conv-panel")).toBe(" border-left: 0; border-radius: var(--radius-container); box-shadow: var(--shadow-panel); ");
+  test("the panel is an independent surface: four 24 corners, no edge shadow, no start edge; the head keeps 56", () => {
+    expect(rule(".pw .right.doan-conv-panel")).toBe(" border-left: 0; border-radius: var(--radius-container); ");
     expect(css).toMatch(/^\.doan-conv-head \{[^}]*min-height: var\(--size-chrome\);/m);
     expect(css).not.toMatch(/\.pw[^{]*\.doan-conv-head[^{]*\{[^}]*(min-height|height)/);
     expect(css).not.toMatch(/:not\(:has\(\.doan-conv-head\)\)/);
