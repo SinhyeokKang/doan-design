@@ -1,0 +1,469 @@
+{
+  "description": "Cases for the link attribute data-doan-goto=\"<frame id>\". Read by Go (canvas parser, doan check, link groups) and by TypeScript (link groups; later the injected prototype script and the export, which run the html in a DOM). A frame can play when its data-doan-frame id is not empty, no other frame outside <template> has the same id, the id is at most 200 UTF-16 units and its data-doan-prototype mark is valid. placements: a body fragment with what a parser must report outside <template>: frames lists every data-doan-frame element in document order with its raw mark (null when absent); gotos lists every data-doan-goto element in document order with its raw value and the ids of the frames that enclose it, outermost first, including the element itself when it is a frame (a repeated attribute counts only its first value); codes lists the doan check codes about links the fragment must produce, in doan check output order (by code, then innermost enclosing frame, then value); groups lists the link groups. Each link gets at most one target code, judged in order: an empty value or no frame with that id is goto_target_not_found; two or more frames with it is goto_target_shared; one frame whose id is longer than 200 UTF-16 units, or whose mark is missing or invalid, is goto_target_not_prototype. A link with no playable frame among its enclosing frames (including none at all) is also goto_outside_prototype. Values are compared exactly, with no trimming, case folding or Unicode normalization. Link groups: the nodes are the playable frames; each link adds an edge from every playable frame enclosing it to its target when the target can play; a group is a connected set of nodes ignoring direction, its frames in document order, the groups ordered by their first frame. groups: frames and gotos given directly, without html, with the groups they make; frames may leave out frames that cannot play without changing the result. Frames and links inside <template> do not count.",
+  "placements": [
+    {
+      "name": "one-way-link",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }],
+      "codes": [],
+      "groups": [["a", "b"]]
+    },
+    {
+      "name": "link-back-to-earlier-frame",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"a\"></a></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }],
+      "gotos": [{ "value": "a", "frames": ["b"] }],
+      "codes": [],
+      "groups": [["a", "b"]]
+    },
+    {
+      "name": "round-trip",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"a\"></a></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }, { "value": "a", "frames": ["b"] }],
+      "codes": [],
+      "groups": [["a", "b"]]
+    },
+    {
+      "name": "chain",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"c\"></a></div><div data-doan-frame=\"c\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }, { "id": "c", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }, { "value": "c", "frames": ["b"] }],
+      "codes": [],
+      "groups": [["a", "b", "c"]]
+    },
+    {
+      "name": "two-separate-groups-interleaved",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\"></a></div><div data-doan-frame=\"c\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"d\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"d\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "c", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }, { "id": "d", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }, { "value": "d", "frames": ["c"] }],
+      "codes": [],
+      "groups": [["a", "b"], ["c", "d"]]
+    },
+    {
+      "name": "several-links-in-one-frame",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\"></a><a data-doan-goto=\"c\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"c\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }, { "id": "c", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }, { "value": "c", "frames": ["a"] }],
+      "codes": [],
+      "groups": [["a", "b", "c"]]
+    },
+    {
+      "name": "link-to-own-frame",
+      "html": "<div data-doan-frame=\"home\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"home\"></a></div>",
+      "frames": [{ "id": "home", "prototype": "390x844" }],
+      "gotos": [{ "value": "home", "frames": ["home"] }],
+      "codes": [],
+      "groups": [["home"]]
+    },
+    {
+      "name": "target-missing",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"nope\"></a></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "nope", "frames": ["a"] }],
+      "codes": ["goto_target_not_found"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "empty-value",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"\"></a></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "", "frames": ["a"] }],
+      "codes": ["goto_target_not_found"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "empty-value-with-one-marked-empty-id-frame",
+      "html": "<div data-doan-frame=\"\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"\"></a></div>",
+      "frames": [{ "id": "", "prototype": "390x844" }, { "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "", "frames": ["a"] }],
+      "codes": ["goto_target_not_found"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "empty-value-with-two-marked-empty-id-frames",
+      "html": "<div data-doan-frame=\"\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"\"></a></div>",
+      "frames": [{ "id": "", "prototype": "390x844" }, { "id": "", "prototype": "390x844" }, { "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "", "frames": ["a"] }],
+      "codes": ["goto_target_not_found"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "target-shared",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }],
+      "codes": ["goto_target_shared"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "target-unmarked",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\"></a></div><div data-doan-frame=\"b\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": null }],
+      "gotos": [{ "value": "b", "frames": ["a"] }],
+      "codes": ["goto_target_not_prototype"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "target-invalid-mark",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }],
+      "codes": ["goto_target_not_prototype"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "value-201-units-no-target",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"></a></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "frames": ["a"] }],
+      "codes": ["goto_target_not_found"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "target-id-201-units-shared",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"></a></div><div data-doan-frame=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "prototype": "390x844" }, { "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "prototype": "390x844" }],
+      "gotos": [{ "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "frames": ["a"] }],
+      "codes": ["goto_target_shared"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "target-id-201-units-unmarked",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"></a></div><div data-doan-frame=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "prototype": null }],
+      "gotos": [{ "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "frames": ["a"] }],
+      "codes": ["goto_target_not_prototype"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "target-id-201-units-marked",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"></a></div><div data-doan-frame=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "prototype": "390x844" }],
+      "gotos": [{ "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "frames": ["a"] }],
+      "codes": ["goto_target_not_prototype"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "target-id-100-astral-is-200-units",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊\"></a></div><div data-doan-frame=\"🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊", "prototype": "390x844" }],
+      "gotos": [{ "value": "🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊", "frames": ["a"] }],
+      "codes": [],
+      "groups": [["a", "🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊"]]
+    },
+    {
+      "name": "target-id-101-astral-is-202-units",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊\"></a></div><div data-doan-frame=\"🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊", "prototype": "390x844" }],
+      "gotos": [{ "value": "🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊🦊", "frames": ["a"] }],
+      "codes": ["goto_target_not_prototype"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "target-id-200-code-points-is-201-units",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa🦊\"></a></div><div data-doan-frame=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa🦊\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa🦊", "prototype": "390x844" }],
+      "gotos": [{ "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa🦊", "frames": ["a"] }],
+      "codes": ["goto_target_not_prototype"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "link-inside-201-unit-frame-is-outside",
+      "html": "<div data-doan-frame=\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"a\"></a></div><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "prototype": "390x844" }, { "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "a", "frames": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] }],
+      "codes": ["goto_outside_prototype"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "case-differs",
+      "html": "<div data-doan-frame=\"Home\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"home\"></a></div>",
+      "frames": [{ "id": "Home", "prototype": "390x844" }, { "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "home", "frames": ["a"] }],
+      "codes": ["goto_target_not_found"],
+      "groups": [["Home"], ["a"]]
+    },
+    {
+      "name": "surrounding-spaces",
+      "html": "<div data-doan-frame=\"home\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\" home\"></a><a data-doan-goto=\"home \"></a></div>",
+      "frames": [{ "id": "home", "prototype": "390x844" }, { "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": " home", "frames": ["a"] }, { "value": "home ", "frames": ["a"] }],
+      "codes": ["goto_target_not_found", "goto_target_not_found"],
+      "groups": [["home"], ["a"]]
+    },
+    {
+      "name": "nbsp",
+      "html": "<div data-doan-frame=\"home\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"home \"></a></div>",
+      "frames": [{ "id": "home", "prototype": "390x844" }, { "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "home ", "frames": ["a"] }],
+      "codes": ["goto_target_not_found"],
+      "groups": [["home"], ["a"]]
+    },
+    {
+      "name": "nfc-frame-nfd-value",
+      "html": "<div data-doan-frame=\"café\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"café\"></a></div>",
+      "frames": [{ "id": "café", "prototype": "390x844" }, { "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "café", "frames": ["a"] }],
+      "codes": ["goto_target_not_found"],
+      "groups": [["café"], ["a"]]
+    },
+    {
+      "name": "nfd-frame-nfc-value",
+      "html": "<div data-doan-frame=\"café\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"café\"></a></div>",
+      "frames": [{ "id": "café", "prototype": "390x844" }, { "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "café", "frames": ["a"] }],
+      "codes": ["goto_target_not_found"],
+      "groups": [["café"], ["a"]]
+    },
+    {
+      "name": "outside-frames-and-inside-unmarked-frame",
+      "html": "<a data-doan-goto=\"a\"></a><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"b\"><a data-doan-goto=\"a\"></a></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": null }],
+      "gotos": [{ "value": "a", "frames": [] }, { "value": "a", "frames": ["b"] }],
+      "codes": ["goto_outside_prototype", "goto_outside_prototype"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "marked-unmarked-marked-nesting",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><div data-doan-frame=\"b\"><div data-doan-frame=\"c\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"d\"></a></div></div></div><div data-doan-frame=\"d\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": null }, { "id": "c", "prototype": "390x844" }, { "id": "d", "prototype": "390x844" }],
+      "gotos": [{ "value": "d", "frames": ["a", "b", "c"] }],
+      "codes": [],
+      "groups": [["a", "c", "d"]]
+    },
+    {
+      "name": "marked-marked-unmarked-nesting",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><div data-doan-frame=\"c\" data-doan-prototype=\"390x844\"><div data-doan-frame=\"b\"><a data-doan-goto=\"a\"></a></div></div></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "c", "prototype": "390x844" }, { "id": "b", "prototype": null }],
+      "gotos": [{ "value": "a", "frames": ["a", "c", "b"] }],
+      "codes": [],
+      "groups": [["a", "c"]]
+    },
+    {
+      "name": "two-marked-nested-frames-give-two-edges",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"c\"></a></div></div><div data-doan-frame=\"c\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }, { "id": "c", "prototype": "390x844" }],
+      "gotos": [{ "value": "c", "frames": ["a", "b"] }],
+      "codes": [],
+      "groups": [["a", "b", "c"]]
+    },
+    {
+      "name": "sibling-frames-with-nested-frames",
+      "html": "<div data-doan-frame=\"p\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"x\"></a></div><div data-doan-frame=\"q\" data-doan-prototype=\"390x844\"><div data-doan-frame=\"r\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"y\"></a></div></div><div data-doan-frame=\"s\" data-doan-prototype=\"390x844\"><div data-doan-frame=\"t\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"z\"></a></div></div><div data-doan-frame=\"x\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"y\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"z\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "p", "prototype": "390x844" }, { "id": "q", "prototype": "390x844" }, { "id": "r", "prototype": "390x844" }, { "id": "s", "prototype": "390x844" }, { "id": "t", "prototype": "390x844" }, { "id": "x", "prototype": "390x844" }, { "id": "y", "prototype": "390x844" }, { "id": "z", "prototype": "390x844" }],
+      "gotos": [{ "value": "x", "frames": ["p"] }, { "value": "y", "frames": ["q", "r"] }, { "value": "z", "frames": ["s", "t"] }],
+      "codes": [],
+      "groups": [["p", "x"], ["q", "r", "y"], ["s", "t", "z"]]
+    },
+    {
+      "name": "sibling-frames-deep-in-shared-ancestors",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"><div data-doan-frame=\"c\" data-doan-prototype=\"390x844\"><div data-doan-frame=\"d\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"x\"></a></div><div data-doan-frame=\"e\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"y\"></a></div></div></div></div><div data-doan-frame=\"x\" data-doan-prototype=\"390x844\"></div><div data-doan-frame=\"y\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }, { "id": "c", "prototype": "390x844" }, { "id": "d", "prototype": "390x844" }, { "id": "e", "prototype": "390x844" }, { "id": "x", "prototype": "390x844" }, { "id": "y", "prototype": "390x844" }],
+      "gotos": [{ "value": "x", "frames": ["a", "b", "c", "d"] }, { "value": "y", "frames": ["a", "b", "c", "e"] }],
+      "codes": [],
+      "groups": [["a", "b", "c", "d", "e", "x", "y"]]
+    },
+    {
+      "name": "link-on-frame-element",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\" data-doan-goto=\"b\"></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }],
+      "codes": [],
+      "groups": [["a", "b"]]
+    },
+    {
+      "name": "link-on-unmarked-frame-element",
+      "html": "<div data-doan-frame=\"a\" data-doan-goto=\"b\"></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": null }, { "id": "b", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }],
+      "codes": ["goto_outside_prototype"],
+      "groups": [["b"]]
+    },
+    {
+      "name": "repeated-attribute-first-wins",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\" data-doan-goto=\"c\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }],
+      "codes": [],
+      "groups": [["a", "b"]]
+    },
+    {
+      "name": "uppercase-attribute-name",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a DATA-DOAN-GOTO=\"b\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }],
+      "codes": [],
+      "groups": [["a", "b"]]
+    },
+    {
+      "name": "canvas-without-frames",
+      "html": "<a data-doan-goto=\"home\"></a>",
+      "frames": [],
+      "gotos": [{ "value": "home", "frames": [] }],
+      "codes": ["goto_outside_prototype", "goto_target_not_found"],
+      "groups": []
+    },
+    {
+      "name": "same-value-in-two-frames",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"nope\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"nope\"></a></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }],
+      "gotos": [{ "value": "nope", "frames": ["a"] }, { "value": "nope", "frames": ["b"] }],
+      "codes": ["goto_target_not_found", "goto_target_not_found"],
+      "groups": [["a"], ["b"]]
+    },
+    {
+      "name": "same-value-twice-in-one-frame",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"nope\"></a><a data-doan-goto=\"nope\"></a></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "nope", "frames": ["a"] }, { "value": "nope", "frames": ["a"] }],
+      "codes": ["goto_target_not_found"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "frame-with-link-in-template",
+      "html": "<template><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\"></a></div></template><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "b", "prototype": "390x844" }],
+      "gotos": [],
+      "codes": [],
+      "groups": [["b"]]
+    },
+    {
+      "name": "link-in-template-inside-frame",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><template><a data-doan-goto=\"nope\"></a></template></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }],
+      "gotos": [],
+      "codes": [],
+      "groups": [["a"]]
+    },
+    {
+      "name": "target-frame-only-in-template",
+      "html": "<template><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div></template><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\"></a></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }],
+      "codes": ["goto_target_not_found"],
+      "groups": [["a"]]
+    },
+    {
+      "name": "nested-template",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><template><template><a data-doan-goto=\"x\"></a></template><a data-doan-goto=\"y\"></a></template><a data-doan-goto=\"a\"></a></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "a", "frames": ["a"] }],
+      "codes": [],
+      "groups": [["a"]]
+    },
+    {
+      "name": "self-closing-template-at-top-level",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"></div><template/><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"a\"></a></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }],
+      "gotos": [],
+      "codes": [],
+      "groups": [["a"]]
+    },
+    {
+      "name": "self-closing-template-closed-later",
+      "html": "<template/><div data-doan-frame=\"x\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"nope\"></a></div></template><div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"a\"></a></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "a", "frames": ["a"] }],
+      "codes": [],
+      "groups": [["a"]]
+    },
+    {
+      "name": "self-closing-template-nested",
+      "html": "<template><template/></template><div data-doan-frame=\"x\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"nope\"></a></div></template><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"><a data-doan-goto=\"b\"></a></div>",
+      "frames": [{ "id": "b", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["b"] }],
+      "codes": [],
+      "groups": [["b"]]
+    },
+    {
+      "name": "self-closing-template-inside-frame",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"><template/><a data-doan-goto=\"nope\"></a></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }],
+      "gotos": [],
+      "codes": [],
+      "groups": [["a"]]
+    },
+    {
+      "name": "empty-canvas",
+      "html": "",
+      "frames": [],
+      "gotos": [],
+      "codes": [],
+      "groups": []
+    },
+    {
+      "name": "marked-frame-without-links",
+      "html": "<div data-doan-frame=\"a\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": "390x844" }],
+      "gotos": [],
+      "codes": [],
+      "groups": [["a"]]
+    },
+    {
+      "name": "unmarked-frame-is-in-no-group",
+      "html": "<div data-doan-frame=\"a\"></div><div data-doan-frame=\"b\" data-doan-prototype=\"390x844\"></div>",
+      "frames": [{ "id": "a", "prototype": null }, { "id": "b", "prototype": "390x844" }],
+      "gotos": [],
+      "codes": [],
+      "groups": [["b"]]
+    }
+  ],
+  "groups": [
+    {
+      "name": "empty",
+      "frames": [],
+      "gotos": [],
+      "groups": []
+    },
+    {
+      "name": "marked-unmarked-marked-nesting",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": null }, { "id": "c", "prototype": "390x844" }, { "id": "d", "prototype": "390x844" }],
+      "gotos": [{ "value": "d", "frames": ["a", "b", "c"] }],
+      "groups": [["a", "c", "d"]]
+    },
+    {
+      "name": "marked-unmarked-marked-nesting-playable-only",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "c", "prototype": "390x844" }, { "id": "d", "prototype": "390x844" }],
+      "gotos": [{ "value": "d", "frames": ["a", "b", "c"] }],
+      "groups": [["a", "c", "d"]]
+    },
+    {
+      "name": "shared-target",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "x", "prototype": "390x844" }, { "id": "x", "prototype": null }],
+      "gotos": [{ "value": "x", "frames": ["a"] }],
+      "groups": [["a"]]
+    },
+    {
+      "name": "shared-target-playable-only",
+      "frames": [{ "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "x", "frames": ["a"] }],
+      "groups": [["a"]]
+    },
+    {
+      "name": "invalid-mark-is-not-a-node",
+      "frames": [{ "id": "a", "prototype": "390" }, { "id": "b", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["a"] }],
+      "groups": [["b"]]
+    },
+    {
+      "name": "link-from-frame-not-listed",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["z"] }, { "value": "a", "frames": [] }],
+      "groups": [["a"], ["b"]]
+    },
+    {
+      "name": "empty-id-frame-is-not-a-node",
+      "frames": [{ "id": "", "prototype": "390x844" }, { "id": "a", "prototype": "390x844" }],
+      "gotos": [{ "value": "", "frames": ["a"] }, { "value": "a", "frames": [""] }],
+      "groups": [["a"]]
+    },
+    {
+      "name": "groups-ordered-by-first-frame",
+      "frames": [{ "id": "a", "prototype": "390x844" }, { "id": "b", "prototype": "390x844" }, { "id": "c", "prototype": "390x844" }, { "id": "d", "prototype": "390x844" }, { "id": "e", "prototype": "390x844" }],
+      "gotos": [{ "value": "b", "frames": ["e"] }, { "value": "d", "frames": ["c"] }, { "value": "a", "frames": ["c"] }],
+      "groups": [["a", "c", "d"], ["b", "e"]]
+    }
+  ]
+}
