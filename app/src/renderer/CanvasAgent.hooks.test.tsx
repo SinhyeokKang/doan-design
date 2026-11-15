@@ -119,7 +119,7 @@ describe("CanvasAgent follows one conversation", () => {
   });
 });
 
-// DESIGN 'Terminal work in another worktree': the other worktree's notice. Open hands its root to App; the text's tooltip says
+// docs/design/canvas.md 'Terminal work in another worktree': the other worktree's notice. Open hands its root to App; the text's tooltip says
 // the whole sentence, so a long label cut by the ellipsis stays readable.
 describe("CanvasAgent another worktree", () => {
   const LONG = "feat/checkout-redesign-with-saved-payment-methods-and-guest-flow";

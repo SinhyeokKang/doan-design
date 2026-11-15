@@ -177,7 +177,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     const head = headTitle();
     if (head !== null && document.activeElement === head) field.focus();
   });
-  // The column's docked buddy, its accent and the reasons it reads (DESIGN.md 'Docked buddy').
+  // The column's docked buddy, its accent and the reasons it reads (docs/design/project.md 'Docked buddy').
   const buddy = run.settings()?.buddy;
   useEffect(() => {
     const node = column.current;

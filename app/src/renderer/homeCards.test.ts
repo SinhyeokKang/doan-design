@@ -83,7 +83,7 @@ describe("cardRow", () => {
     expect(ROW_ACTION_ICONS).toEqual({ retry: RotateCw, details: Info });
   });
 
-  // DESIGN 'Documented differences' (status chips in menus): Home's and the Overview's menus share the toned chip.
+  // docs/design/home.md 'Documented differences' (status chips in menus): Home's and the Overview's menus share the toned chip.
   test("a problem chip takes the shipped status chip's tone", () => {
     expect(chipClass("Missing")).toBe("ob-chip warn");
     expect(chipClass("CLI error")).toBe("ob-chip warn");
