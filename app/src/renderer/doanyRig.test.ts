@@ -24,6 +24,7 @@ function harness(options: { reduced?: boolean; dpr?: number; width?: number; ran
   let lost: (() => void) | null = null;
   let settle!: { resolve: (value: unknown) => void; reject: (error: unknown) => void };
   const textures = new Promise((resolve, reject) => { settle = { resolve, reject }; });
+  const failures: boolean[] = [];
   const step = { draws: [] as { u: number[]; mode: string }[], states: [] as string[], random: [] as number[] };
   const lifts: number[] = [];
   const randoms = [...options.random ?? []];
@@ -50,9 +51,10 @@ function harness(options: { reduced?: boolean; dpr?: number; width?: number; ran
     reduced: () => world.reduced,
     random: () => { const value = randoms.length ? randoms.shift()! : 0.5; step.random.push(value); return value; },
     connect: () => () => { calls.push("disconnect"); },
+    failed: ready => { failures.push(ready); },
   });
   return {
-    rig, world, calls, step, settle, lifts,
+    rig, world, calls, step, settle, lifts, failures,
     frame(now: number) { const run = tick!; tick = null; run(now); },
     pending: () => tick !== null,
     loseContext() { world.contextLost = true; lost?.(); },
@@ -175,6 +177,22 @@ test("a lost context shows the still image as static and stops drawing", async (
   expect(h.world.view).toEqual([false, true]);
   h.frame(1000); h.rig.resize();
   expect(h.take()).toEqual({ draws: [], states: [], random: [] });
+});
+
+// Doany.tsx mounts a buddy again from these: only one that had drawn is retried on its own.
+test("a lost context or failed textures report the failure, with whether the rig had drawn", async () => {
+  const early = harness();
+  early.loseContext();
+  const drawn = harness();
+  drawn.settle.resolve([]); await flush();
+  drawn.loseContext();
+  const textures = harness();
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  textures.settle.reject(new Error("Could not load body.png")); await flush();
+  expect([early.failures, drawn.failures, textures.failures]).toEqual([[false], [true], [false]]);
+  // Releasing on dispose reports a loss too; the rig must not take it for a failure.
+  drawn.rig.dispose(); textures.rig.dispose();
+  expect([drawn.failures, textures.failures]).toEqual([[true], [false]]);
 });
 
 test("dispose removes the lost listener, then the frame, then listeners, then releases the context", async () => {

@@ -44,12 +44,11 @@ const noop = () => {};
 
 // The header the name sits in, and the name's text, whose widths say whether it is cut short.
 let bar: { style: { setProperty: ReturnType<typeof vi.fn>; removeProperty: ReturnType<typeof vi.fn> } };
-const text = { scrollWidth: 100, clientWidth: 100 };
+const text = { scrollWidth: 100, clientWidth: 100, closest: (selector: string) => selector === "header" ? bar : null };
 let resized: (() => void) | null = null;
-const name = { current: { closest: (selector: string) => selector === "header" ? bar : null } };
 
 function render(open: boolean): { tip: El } {
-  const props = { view, layers: { frames: [], visible: null, snapshot: null }, readingShown: false, details: false, live: "", width: 640, menuOpen: open, exporting: false, name,
+  const props = { view, layers: { frames: [], visible: null, snapshot: null }, readingShown: false, details: false, live: "", width: 640, menuOpen: open, exporting: false,
     onBack: noop, onExport: noop, onForward: noop, onReload: noop, onReloadPress: noop, onReloadClick: noop, onMode: noop, onMenuOpen: noop, onChoose: noop, onClose: noop, onDetails: noop } as unknown as ShellProps;
   const menu = all(WindowShell(props) as El).find(element => typeof element.type === "function" && element.type.name === "FrameMenu")!;
   let rendered: El[] = [];

@@ -177,8 +177,8 @@ test("dispose removes the lost listener, the frame and every listener before rel
   mounted.dispose();
   expect(env.log[0]).toBe("canvas off webglcontextlost");
   expect(env.log[1]).toBe("cancel frame");
-  expect(env.log.slice(2, -3).sort()).toEqual(["document off pointermove", "host off click", "host off keydown", "intersect disconnect", "media off change", "resize disconnect"]);
-  expect(env.log.slice(-3)).toEqual(["loseContext", "still off error", "replace clone with canvas"]);
+  expect(env.log.slice(2, -4).sort()).toEqual(["document off pointermove", "host off click", "host off keydown", "intersect disconnect", "media off change", "resize disconnect"]);
+  expect(env.log.slice(-4)).toEqual(["loseContext", "canvas off webglcontextrestored", "still off error", "replace clone with canvas"]);
   expect(env.host.dataset.state).toBe("idle");
 });
 

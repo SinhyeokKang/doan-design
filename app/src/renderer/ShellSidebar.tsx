@@ -316,7 +316,7 @@ export function ShellSidebar(props: Props) {
           else if (action === "firstConversation") focus(listFirst);
           else if (action === "head") focus(head);
         };
-        rows.push({ key, parent: head, canvas: true, name: row.path.split("/").at(-1)!.replace(/\.html$/, ""), activate: () => { pressedRow.current = null; openCanvasRow(entry!.path, row, key); }, right: () => step("ArrowRight"), left: () => step("ArrowLeft") });
+        rows.push({ key, parent: head, canvas: true, name: canvasStem(row.path), activate: () => { pressedRow.current = null; openCanvasRow(entry!.path, row, key); }, right: () => step("ArrowRight"), left: () => step("ArrowLeft") });
       }
     }
   }
