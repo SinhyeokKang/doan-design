@@ -19,8 +19,8 @@
 | 배치 | 항목 | 맡는 파일 | 선행 | 모델·effort와 이유 | 검증 | 상태 |
 |---|---|---|---|---|---|---|
 | P | 작업 1 PoC | `.scratch/prototype-link-play/` | — | 컨덕터 | `node .scratch/prototype-link-play/poc.mjs` exit 0 | 완료(세 번 연속 exit 0, design.md 'PoC 관찰') |
-| G | 작업 4 가이드·eval | `cli/internal/cli/skill.md`, `skill_test.go`, `eval/scenarios/W11/`, 필요하면 `eval/lib/` | 결정 1 | Codex `gpt-6.1-sol` medium: 문구가 정해졌고 W7 시나리오를 본뜨는 기계적 작업이다 | `go test ./...`, `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W11` | 대기 |
-| S | 작업 2 스크립트·보고 | `prototypeScript.ts`, `canvasScript.ts`, `canvasMessage.ts`, `requests.ts`의 `gotos` 검증과 각 테스트 | P | Claude Opus high: DOM 수집과 클릭 판정이 하위 1·3과 드리프트 없이 맞아야 한다 | `npm --prefix app test`, `typecheck`, `lint` | 대기 |
+| G | 작업 4 가이드·eval | `cli/internal/cli/skill.md`, `skill_test.go`, `eval/scenarios/W11/`, 필요하면 `eval/lib/` | 결정 1 | Codex `gpt-6.1-sol` medium: 문구가 정해졌고 W7 시나리오를 본뜨는 기계적 작업이다 | `go test ./...`, `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W11` | 진행(`plp-g`, dispatch `ctx_a7c76682d132`) |
+| S | 작업 2 스크립트·보고 | `prototypeScript.ts`, `canvasScript.ts`, `canvasMessage.ts`, `requests.ts`의 `gotos` 검증과 각 테스트 | P | Claude Opus high: DOM 수집과 클릭 판정이 하위 1·3과 드리프트 없이 맞아야 한다 | `npm --prefix app test`, `typecheck`, `lint` | 진행(`plp-s`, dispatch `ctx_262bc9dc41f8`) |
 | L | 작업 3 판단·전이 | `playability.ts`, `prototypePlay.ts`, `requests.ts`의 `goto` 검증, `windowState.ts`, `history.ts`와 각 테스트 | S | Claude Opus high: gen·phase 판단과 기록 전이가 틀리면 창 상태가 엇갈린다(POSTMORTEM 2026-11-14) | `npm --prefix app test`, `typecheck`, `lint` | 대기 |
 | W | 작업 5 창·툴바 | `CanvasHeader.tsx`, `frameDrawer.ts`, `host.ts`, `PrototypeWindow.tsx`, `view.ts`, `ipc.ts`, `preload/prototype.ts`, `controller.ts`, 꺼낸 서랍 본문, `CanvasTools.tsx`, `canvasTool.ts`, `App.tsx`와 각 테스트 | S, L | Claude Opus high: 포커스·접근성·Radix 트리거 정체성이 걸린 넓은 UI 배치 | `npm --prefix app test`, `typecheck`, `lint`, `build` | 대기 |
 | R-* | 배치별 독립 리뷰(`/code-review`) | 보고만 | 각 배치 | S·L·W: Codex `gpt-6-astra` medium(다른 계열의 판단 리뷰). G: Claude Opus medium | 🔴 0 | 대기 |
