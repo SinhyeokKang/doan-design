@@ -101,6 +101,18 @@ it("refuses a fenced version check that sandbox-exec could not start as process_
     }
   }
 });
+// A CLI that exits 65 or 71 by itself, with its own stderr, failed as a CLI: the tools refresh and the refusal stay.
+it("keeps a fenced version check that the CLI itself failed with 65 or 71 as a CLI failure", async () => {
+  for (const exitCode of [65, 71]) {
+    const w = world("copilot"), toolsFailed = vi.fn();
+    const { runtime, release } = prepare("copilot", w);
+    mocks.run.mockResolvedValue({ timedOut: false, stdout: "", stderr: "copilot: internal error\n", exitCode });
+    const run = createAccountPrepare(runtime, "/Applications/doan.app/Contents/Resources/bin/doan", toolsFailed, undefined, undefined, { userData: w.userData, socket: () => w.socket });
+    await expect(run({ root: w.project, mode: "new", runtime: "copilot", text: "", anchors: [] })).rejects.toThrow(/^runtime_unsupported$/);
+    expect(toolsFailed).toHaveBeenCalledWith("copilot");
+    expect(release).toHaveBeenCalled();
+  }
+});
 it("refuses a Copilot run whose version check cannot be fenced as unknown and frees the lease", async () => {
   const w = world("copilot");
   const outside = mkdtempSync(join(tmpdir(), "doan-fence-outside-")); roots.push(outside);

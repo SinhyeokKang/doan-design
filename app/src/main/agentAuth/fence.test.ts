@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { codexMechanism, codexProfileArgs, codexRestart, codexTurnPermission, fenceArgs, fenceDenied, fencedCommand, fenceListingDirs, fencePolicy, fencedEverywhere, profileFencedCommand, resolveFencePaths, SANDBOX_EXEC, type FenceListing, type FencePaths } from "./fence";
+import { codexMechanism, codexProfileArgs, codexRestart, codexTurnPermission, fenceArgs, fenceDenied, fencedCommand, fenceListingDirs, fencePolicy, fencedEverywhere, profileFencedCommand, resolveFencePaths, SANDBOX_EXEC, sandboxRefused, type FenceListing, type FencePaths } from "./fence";
 import { PERMISSION_MODES } from "../conversation/permissionMode";
 import type { Provider } from "./types";
 
@@ -19,7 +19,7 @@ const HOOK = `(allow file-read* (literal (param "BROWSER_HOOK")))
 // any sandbox, so the agent must not plant them.
 const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")) (subpath (param "PROVIDER_PROJECT")) (literal (param "PROVIDER_MCP")))
 `;
-const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))
+const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (literal (param "CODEX_ENV")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))
 `;
 const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")))
 (allow file-read* (subpath (param "AGENT_RUNTIME")))
@@ -68,7 +68,7 @@ describe("fenceArgs", () => {
   it("names Codex's settings files in its own profile", () => {
     const profile = `${U}/agent-auth/profiles/codex-7`;
     expect(params(fenceArgs("codex", { userData: U, profile, attachments: [`${U}/attachments`] }))).toMatchObject({
-      CODEX_CONFIG: `${profile}/config.toml`, CODEX_HOOKS: `${profile}/hooks.json`, CODEX_MANAGED: `${profile}/managed_config.toml`, CODEX_RULES: `${profile}/rules`,
+      CODEX_CONFIG: `${profile}/config.toml`, CODEX_HOOKS: `${profile}/hooks.json`, CODEX_MANAGED: `${profile}/managed_config.toml`, CODEX_ENV: `${profile}/.env`, CODEX_RULES: `${profile}/rules`,
       CODEX_SKILLS: `${profile}/skills`, CODEX_PLUGINS: `${profile}/plugins` });
   });
   it("gives Antigravity its agent runtime and its own profile's skill paths", () => {
@@ -180,6 +180,18 @@ it("fences every process of Copilot and Cursor and of no other provider", () => 
   expect((["claude", "codex", "cursor", "antigravity", "copilot"] as const).filter(fencedEverywhere)).toEqual(["cursor", "copilot"]);
 });
 
+// sandbox-exec exits 65 for a policy error and 71 when it cannot exec the command, each with its own "sandbox-exec:"
+// line; a CLI that exits 65 or 71 by itself writes no such line.
+describe("sandboxRefused", () => {
+  it("is sandbox-exec's own refusal only: exit 65 or 71 with its stderr line", () => {
+    expect(sandboxRefused({ exitCode: 71, stderr: "sandbox-exec: execvp() of '/bin/cli' failed: No such file or directory\n" })).toBe(true);
+    expect(sandboxRefused({ exitCode: 65, stderr: "warn\nsandbox-exec: invalid policy\n" })).toBe(true);
+    expect(sandboxRefused({ exitCode: 71, stderr: "cli: internal error\n" })).toBe(false);
+    expect(sandboxRefused({ exitCode: 65, stderr: "" })).toBe(false);
+    expect(sandboxRefused({ exitCode: 1, stderr: "sandbox-exec: invalid policy\n" })).toBe(false);
+    expect(sandboxRefused({ exitCode: null, stderr: "sandbox-exec: invalid policy\n" })).toBe(false);
+  });
+});
 describe("fencedCommand", () => {
   it("runs the original command and arguments, in order, under sandbox-exec", () => {
     expect(fencedCommand("/bin/agent", ["-c", "a=b", "app-server"], ["-p", "X", "-D", "A=/a"]))
@@ -230,7 +242,7 @@ describe("codexProfileArgs", () => {
   const denied = [{ path: `${U}/conversations`, directory: true }, { path: `${U}/agent-auth/profiles/cursor`, directory: true }];
   const sock = "/private/var/folders/x/T/doan-AbC123";
   it("defines Doan's two permission profiles and makes the read-only one the default", () => {
-    const entries = `{"${U}/conversations"="deny","${U}/agent-auth/profiles/cursor"="deny","${profile}/config.toml"="deny","${profile}/hooks.json"="deny","${profile}/managed_config.toml"="deny","${profile}/rules"="deny","${profile}"="write","${U}/runtime.json"="read","${U}/attachments"="read","${profile}/skills"="read","${profile}/plugins"="read"}`;
+    const entries = `{"${U}/conversations"="deny","${U}/agent-auth/profiles/cursor"="deny","${profile}/config.toml"="deny","${profile}/hooks.json"="deny","${profile}/managed_config.toml"="deny","${profile}/.env"="deny","${profile}/rules"="deny","${profile}"="write","${U}/runtime.json"="read","${U}/attachments"="read","${profile}/skills"="read","${profile}/plugins"="read"}`;
     const network = `network={enabled=true,unix_sockets={"${sock}"="allow"}}`;
     expect(codexProfileArgs(codex, denied, sock)).toEqual([
       "-c", 'default_permissions="doan"',
@@ -238,12 +250,14 @@ describe("codexProfileArgs", () => {
       "-c", `permissions.doan-workspace={extends=":workspace",filesystem=${entries},${network}}`,
     ]);
   });
+  // Every Codex process loads <CODEX_HOME>/.env into its own environment (codex-cli 0.169.0, probe), and a planted PATH
+  // there decides what the harness's own unsandboxed children (git) run, so it is closed like the settings files.
   // MCP servers and notify from config.toml run outside the Codex sandbox (codex-cli 0.166.0, probe), and an escalated
   // command keeps only deny entries, so the settings files are denied rather than read-only.
   // A skill's agents/openai.yaml can name MCP dependencies and a plugin can carry hooks and MCP servers.
   it("denies the profile's own settings files, skills and plugins", () => {
     const text = codexProfileArgs(codex, denied, sock).join(" ");
-    for (const file of ["config.toml", "hooks.json", "managed_config.toml", "rules"]) expect(text).toContain(`"${profile}/${file}"="deny"`);
+    for (const file of ["config.toml", "hooks.json", "managed_config.toml", ".env", "rules"]) expect(text).toContain(`"${profile}/${file}"="deny"`);
   });
   // The model opens a skill's SKILL.md with shell tools, so a deny kept the doan stub from sandboxed commands; read-only
   // still keeps them from writing there (codex sandbox probe). An approved escalated command keeps only deny entries,

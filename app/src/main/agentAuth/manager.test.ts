@@ -1533,6 +1533,24 @@ describe("owned auth process", () => {
     await child.gone;
     expect(out.join("")).toContain("hi");
   });
+  // The group can be gone in the same tick as the leader's exit while its output is still in the pipe; a writer that
+  // left the group and writes a moment later holds that race open every time.
+  it("reports the group gone only after its output pipes close", async () => {
+    const late = "perl -MPOSIX -e 'exit if fork; POSIX::setsid(); select undef, undef, undef, 0.2; print \"late\\n\"'";
+    const child = spawnAuthProcess("/bin/sh", ["-c", `${late}; echo early`], options());
+    const out: string[] = []; child.onOutput(text => out.push(text));
+    expect(await child.exit).toBe(0);
+    await child.gone;
+    expect(out.join("")).toBe("early\nlate\n");
+  });
+  it("reports the group gone soon after when a process outside it keeps the pipes open", async () => {
+    const child = spawnAuthProcess("/bin/sh", ["-c", "perl -MPOSIX -e 'exit if fork; POSIX::setsid(); sleep 30'; echo x"], options());
+    const out: string[] = []; child.onOutput(text => out.push(text));
+    const started = Date.now();
+    await child.exit; await child.gone;
+    expect(Date.now() - started).toBeLessThan(3000);
+    expect(out.join("")).toBe("x\n");
+  });
   it("stops the whole group on request", async () => {
     const child = spawnAuthProcess("/bin/sh", ["-c", "sleep 30 & sleep 30"], options());
     child.stop();
@@ -1543,6 +1561,34 @@ describe("owned auth process", () => {
     const child = spawnAuthProcess("/nonexistent/cli", [], options());
     expect(await child.exit).toBeNull();
     await child.gone;
+  });
+});
+
+// Every Codex process loads <CODEX_HOME>/.env into its environment (codex-cli 0.169.0, probe); one a turn planted before
+// the fence closed it would still set PATH for the harness's unsandboxed children, so it goes before any Codex process.
+describe("a planted Codex .env", () => {
+  it("is removed before a Codex sign-in, check and run starts, a link without touching its target", async () => {
+    const m = manager(); await m.load();
+    const env = join(storage.profileDir("codex"), ".env"), decoy = join(root, "decoy.env");
+    mkdirSync(storage.profileDir("codex"), { recursive: true });
+    writeFileSync(env, "PATH=/tmp/planted:/usr/bin:/bin\n");
+    const run = started(await m.signIn("codex", 7));
+    keychain = { status: "connected", account: { id: "acct", workspace: null } };
+    await finish("login", 0, () => expect(existsSync(env)).toBe(false));
+    await finish("status", 0);
+    expect(await run.done).toMatchObject({ phase: "connected" });
+    writeFileSync(decoy, "KEEP=1\n"); symlinkSync(decoy, env);
+    const lease = await m.acquire("codex");
+    expect(readdirSync(lease.profileDir)).not.toContain(".env");
+    expect(readFileSync(decoy, "utf8")).toBe("KEEP=1\n");
+    await lease.release();
+  });
+  it("is left alone in another provider's profile", async () => {
+    const m = manager(); await m.load();
+    mkdirSync(storage.profileDir("cursor"), { recursive: true });
+    writeFileSync(join(storage.profileDir("cursor"), ".env"), "A=1\n");
+    await signedInCursor(m);
+    expect(readFileSync(join(storage.profileDir("cursor"), ".env"), "utf8")).toBe("A=1\n");
   });
 });
 
