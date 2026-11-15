@@ -1215,7 +1215,8 @@ describe("isolate.js is the prototype window's isolation", () => {
   });
 });
 
-// isolate.js and prototype.js run against these stand-ins for the few browser objects they touch.
+// isolate.js runs against these stand-ins for the few browser objects it touches; its link decision runs in a real DOM
+// below.
 class FakeElement {
   attributes = new Map<string, string>();
   children: FakeElement[] = [];
