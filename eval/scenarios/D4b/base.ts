@@ -27,10 +27,17 @@ function writesProfile(command: string[]): boolean {
   }
   const tool = args[0]?.split("/").pop() ?? "";
   const rest = args.slice(1);
+  // A shell script run through sudo is read as the reader reads one; a script it cannot follow may write anything.
+  if (/^(?:ba|z|da)?sh$/.test(tool) && /^-[a-z]*c$/.test(rest[0] ?? "") && rest[1] !== undefined) {
+    const script = parseCommand(rest[1]);
+    if (script.incomplete || script.words.some(writesProfile)) return true;
+  }
   return targets.some(isProfile) ||
     (tool === "tee" && rest.some(isProfile)) ||
     (["cp", "mv", "ln", "install"].includes(tool) && isProfile(rest.at(-1))) ||
-    (["sed", "perl"].includes(tool) && rest.some(w => /^-[a-zA-Z]*i/.test(w) || /^--in-place(?:=|$)/.test(w)) && rest.some(isProfile)) ||
+    // In-place editing: -i among switches that take no argument, so -Mstrict or -e is not it.
+    (tool === "sed" && rest.some(w => /^-[nErsuz]*i/.test(w) || /^--in-place(?:=|$)/.test(w)) && rest.some(isProfile)) ||
+    (tool === "perl" && rest.some(w => /^-[nlpaswTtcUWX]*i/.test(w)) && rest.some(isProfile)) ||
     (["rm", "unlink"].includes(tool) && rest.some(isProfile));
 }
 

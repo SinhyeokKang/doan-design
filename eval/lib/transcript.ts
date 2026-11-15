@@ -39,8 +39,8 @@ function shapeAccepted(positionals: string[], flags: DoanArgs["flags"]): boolean
   const prototype = last("prototype") !== undefined && (last("prototype")!.value === undefined || TRUE.test(last("prototype")!.value!));
   const operands = positionals.length - 1;
   switch (positionals[0]) {
-    case "open": return operands === 1 && frames <= 1 && (frames === 1 || !prototype);
-    case "export": return operands === 1 && !!last("o")?.value && frames <= 1 && prototype === (frames === 1);
+    case "open": return operands === 1 && frames <= 1 && last("frame")?.value !== "" && (frames === 1 || !prototype);
+    case "export": return operands === 1 && !!last("o")?.value && frames <= 1 && last("frame")?.value !== "" && prototype === (frames === 1);
     case "design-skill": return operands <= 1;
     default: return true;
   }
@@ -219,10 +219,12 @@ export function shellCommands(transcript: string): string[] {
 
 // A heredoc body (the lines after `<<TAG`, `<<'TAG'`, `<<"TAG"` or `<<-TAG` up to the line that is the tag) is data for
 // the command, such as a handoff message that may well contain a line starting with `doan open`. Quoted text is kept
-// whole, so a `<<` inside a string starts nothing and `bash -c "…<<EOF…"` is read when its script is.
-function withoutHeredocBodies(command: string): string {
-  let out = "", quote: string | null = null;
-  const pending: { tag: string; indented: boolean }[] = [];
+// whole, so a `<<` inside a string starts nothing and `bash -c "…<<EOF…"` is read when its script is. A comment (a `#`
+// starting a word outside quotes) goes too: the shell drops it, and a quote inside it opens no string. `unread` is set
+// when an unquoted body holds a substitution, which the shell runs and this reader does not follow there.
+function withoutHeredocsAndComments(command: string): { text: string; unread: boolean } {
+  let out = "", quote: string | null = null, unread = false;
+  const pending: { tag: string; indented: boolean; quoted: boolean }[] = [];
   for (let i = 0; i < command.length; i++) {
     const c = command[i]!;
     if (quote) {
@@ -234,28 +236,32 @@ function withoutHeredocBodies(command: string): string {
     } else if (c === "'" || c === '"') {
       quote = c;
       out += c;
+    } else if (c === "#" && (i === 0 || /[\s;&|()<>]/.test(command[i - 1]!))) {
+      const end = command.indexOf("\n", i);
+      i = (end === -1 ? command.length : end) - 1;
     } else if (c === "<" && command.startsWith("<<<", i)) {
       out += "<<<";
       i += 2;
     } else if (c === "<" && command[i + 1] === "<" && /^<<(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s;&|<>()'"]+))/.test(command.slice(i))) {
       const m = /^<<(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s;&|<>()'"]+))/.exec(command.slice(i))!;
-      pending.push({ tag: m[2] ?? m[3] ?? m[4]!, indented: m[1] === "-" });
+      pending.push({ tag: m[2] ?? m[3] ?? m[4]!, indented: m[1] === "-", quoted: m[4] === undefined });
       out += m[0];
       i += m[0].length - 1;
     } else if (c === "\n" && pending.length) {
       out += c;
-      for (const { tag, indented } of pending.splice(0)) {
+      for (const { tag, indented, quoted } of pending.splice(0)) {
         // An unterminated body runs to the end, as the shell reads it.
         while (i + 1 < command.length) {
           const end = command.indexOf("\n", i + 1);
           const line = command.slice(i + 1, end === -1 ? command.length : end);
           i = end === -1 ? command.length : end;
           if ((indented ? line.replace(/^\t+/, "") : line) === tag) break;
+          if (!quoted && /\$\(|`/.test(line)) unread = true;
         }
       }
     } else out += c;
   }
-  return out;
+  return { text: out, unread };
 }
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z_0-9]*=/;
@@ -264,13 +270,15 @@ const SUBSTITUTED = /\$\(\0(\d+)\)/g;
 
 // The index of the `)` that closes a `$(` or `(` opened before `from`, or -1. Quotes, escapes, backticks and nested
 // substitutions inside are skipped, so a `)` in them does not close it.
-function closing(text: string, from: number): number {
+function closing(text: string, from: number, nesting = 0): number {
+  // Deeper nesting than any real command is not followed, so a transcript cannot exhaust the stack.
+  if (nesting > 32) return -1;
   let depth = 1, quote: string | null = null;
   for (let i = from; i < text.length; i++) {
     const c = text[i]!;
     if (quote === "'") { if (c === "'") quote = null; continue; }
     if (c === "\\") { i++; continue; }
-    if (c === "$" && text[i + 1] === "(") { i = closing(text, i + 2); if (i < 0) return -1; continue; }
+    if (c === "$" && text[i + 1] === "(") { i = closing(text, i + 2, nesting + 1); if (i < 0) return -1; continue; }
     if (c === "`") { i = text.indexOf("`", i + 1); if (i < 0) return -1; continue; }
     if (quote === '"') { if (c === '"') quote = null; continue; }
     if (c === "'" || c === '"') quote = c;
@@ -283,7 +291,7 @@ function closing(text: string, from: number): number {
 // Takes each outermost `$(…)` and backtick substitution out of a command: its body runs as a command of its own (in
 // runGroups, where the variables are known), and what it printed is unknown, so it stands as an unresolved word.
 // Single quotes and an escape keep a `$(` or backtick literal, and `$((…))` is arithmetic, not a command. `null` when a
-// substitution never closes: the shell would not run the command as written.
+// substitution never closes (the shell would not run the command as written) or holds one this reader does not follow.
 function substitutions(command: string): { text: string; bodies: string[] } | null {
   const bodies: string[] = [];
   let text = "", quote: string | null = null;
@@ -295,9 +303,12 @@ function substitutions(command: string): { text: string; bodies: string[] } | nu
       const end = closing(command, i + 2);
       if (end < 0) return null;
       const body = command.slice(i + 2, end);
-      // Arithmetic yields a number; a substitution inside it is not followed, so it is left in to be unresolved.
-      if (body.startsWith("(") && body.endsWith(")")) text += /\$\(|`/.test(body) ? command.slice(i, end + 1) : "$(())";
-      else { bodies.push(body); text += `$(\0${bodies.length - 1})`; }
+      // `$((…))` is arithmetic when its inner `(` closes right before the outer `)`; `$((a) && (b))` is a substitution
+      // whose body starts with a subshell. Arithmetic yields a number, and a substitution inside it is not followed.
+      if (body.startsWith("(") && closing(command, i + 3) === end - 1) {
+        if (/\$\(|`/.test(body)) return null;
+        text += "$(())";
+      } else { bodies.push(body); text += `$(\0${bodies.length - 1})`; }
       i = end;
       continue;
     }
@@ -320,9 +331,9 @@ function substitutions(command: string): { text: string; bodies: string[] } | nu
 // Wrappers that run their operand as the command. The index where that command starts, null when the words are not
 // such a wrapper (or `command -v`, a lookup), and undefined when an option is one the reader does not know, so where
 // the command starts is unknown.
-const WRAPPER = /^(?:.*\/)?(env|timeout|nohup|nice)$/;
+const WRAPPER = /^(?:.*\/)?(env|timeout|nohup|nice|time)$/;
 function wrappedAt(words: string[]): number | null | undefined {
-  const name = words[0] === "command" ? "command" : WRAPPER.exec(words[0] ?? "")?.[1];
+  const name = ["command", "exec"].includes(words[0] ?? "") ? words[0] : WRAPPER.exec(words[0] ?? "")?.[1];
   let k = 1;
   const options = (plain: string[], valued: string[], joined: RegExp): number | undefined => {
     for (; k < words.length; k++) {
@@ -354,6 +365,9 @@ function wrappedAt(words: string[]): number | null | undefined {
     }
     case "nohup": return words[1] === "--" ? 2 : words[1]?.startsWith("-") ? undefined : 1;
     case "nice": return options([], ["-n", "--adjustment"], /^(?:-n.+|--adjustment=.*|-\d+)$/);
+    // The shell keyword takes -p; /usr/bin/time also -l, -h, -a and -o <file>.
+    case "time": return options(["-p", "-l", "-h", "-a"], ["-o"], /^-o.+$/);
+    case "exec": return options(["-c", "-l"], ["-a"], /^-a.+$/);
     default: return null;
   }
 }
@@ -435,7 +449,6 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
       i += 2 + done - rest.length;
       continue;
     }
-    substitute(group);
     let skipped = 0;
     while (ASSIGNMENT.test(group[skipped] ?? "")) skipped++;
     // Assignments before a command belong to that command alone; a group of only assignments sets them for the rest.
@@ -448,21 +461,29 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     }
     // Where such a construct ends is not known, so nothing after it is read and no variable is trusted past it.
     if (UNSUPPORTED.test(group[skipped] ?? "") || group[skipped + 1] === "()") { state.incomplete = true; vars.clear(); return out; }
+    // Only after that check: a substitution in a function or case body may never run.
+    substitute(group);
     const expanded = group.slice(skipped).map(token => expandToken(token, vars));
     let words = expanded.flatMap(token => token.words);
     let open = expanded.flatMap(token => token.words.map(() => token.unresolved));
     let at: number | null | undefined = null;
     while (!open[0] && (at = wrappedAt(words)) !== null) {
-      if (at === undefined) break;
+      // An option value the shell may expand to no word or several moves where the command starts.
+      if (at === undefined || words.slice(0, at).some((word, index) => open[index] && !ASSIGNMENT.test(word))) { at = undefined; break; }
       words = words.slice(at);
       open = open.slice(at);
     }
     if (at === undefined) { state.incomplete = true; continue; }
     if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0] ?? "") && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) { append(parse(words[2], state)); continue; }
+    // eval runs its words, joined, as a command of this shell.
+    if (words[0] === "eval") {
+      if (open.some(Boolean)) state.incomplete = true; else append(parse(words.slice(1).join(" "), state, vars));
+      continue;
+    }
     if (!words.length) continue;
     // xargs adds words read from its input to the command it runs, so a doan run (or a shell or wrapper that may run
     // one) through it cannot be read.
-    if (/^(?:.*\/)?xargs$/.test(words[0]!) && (open.some(Boolean) || words.slice(1).some(word => /^(?:.*\/)?(?:doan|(?:ba|z|da)?sh|env|timeout|nohup|nice|command|xargs)$/.test(word)))) { state.incomplete = true; continue; }
+    if (/^(?:.*\/)?xargs$/.test(words[0]!) && (open.some(Boolean) || words.slice(1).some(word => /^(?:.*\/)?(?:doan|(?:ba|z|da)?sh|env|timeout|nohup|nice|time|command|exec|eval|xargs)$/.test(word)))) { state.incomplete = true; continue; }
     // A program or a doan operand the reader could not resolve may be anything, including a lookup.
     let known = !open[0];
     if (known && /^(?:.*\/)?doan$/.test(words[0]!)) {
@@ -476,7 +497,9 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
 }
 
 function parse(command: string, state: ReadState, vars = new Map<string, string>()): string[][] {
-  const taken = substitutions(withoutHeredocBodies(command));
+  const plain = withoutHeredocsAndComments(command);
+  if (plain.unread) state.incomplete = true;
+  const taken = substitutions(plain.text);
   if (taken === null) { state.incomplete = true; return []; }
   const groups: string[][] = [[]];
   for (const token of taken.text.matchAll(/[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s;&|"'])+/g)) {
