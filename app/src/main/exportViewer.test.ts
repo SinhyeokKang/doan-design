@@ -3,7 +3,9 @@ import { runInNewContext, Script } from "node:vm";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Hand, MousePointer2 } from "lucide-react";
-import { describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import type { Frame } from "playwright";
+import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
 import { MAX_FRAMES, MAX_HREF, MAX_STRING, parseCanvasMessage } from "../renderer/canvasMessage";
 import { INITIAL_HEIGHT, layoutHeight as appLayoutHeight, MAX_HEIGHT } from "../renderer/canvasView";
 import { frameLabel } from "../renderer/canvasTree";
@@ -1214,7 +1216,8 @@ describe("isolate.js is the prototype window's isolation", () => {
   });
 });
 
-// isolate.js and prototype.js run against these stand-ins for the few browser objects they touch.
+// isolate.js runs against these stand-ins for the few browser objects it touches; its link decision runs in a real DOM
+// below.
 class FakeElement {
   attributes = new Map<string, string>();
   children: FakeElement[] = [];
@@ -1271,12 +1274,14 @@ function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId
     },
   };
   const window = {
+    // prototype.js names each iframe after the frame it shows.
+    name: frameId,
     parent: { postMessage: (message: unknown, target: string) => posts.push({ message, target }) },
     addEventListener: (type: string, fn: (e: unknown) => void, opts?: ListenerOptions) => windowListeners.push(listener(type, fn, opts)),
   };
   const history = new FakeHistory();
   class CSSStyleSheet { text = ""; replaceSync(text: string) { this.text = text; } }
-  runInNewContext(`(function () {\nconst FRAME = ${JSON.stringify(frameId)};\n${isolateJs}\n})();`, {
+  runInNewContext(`(function () {\n${isolateJs}\n})();`, {
     window, document, location, history, CSSStyleSheet, Element: FakeElement, Array, Set,
     setTimeout: (fn: () => void) => { timers.push(fn); return timers.length; },
   });
@@ -1371,8 +1376,9 @@ describe("isolate.js reports once and keeps the canvas in its document", () => {
 
   test("a link to another document does nothing; a # link moves within the document", () => {
     const run = runIsolate(() => []);
-    // Bubble phase: a capture listener would cancel the click before a router's handler sees it.
-    expect(run.windowListeners.filter(l => l.type === "click").map(l => l.capture)).toEqual([false]);
+    // Bubble phase: a capture listener would cancel the click before a router's handler sees it. The capture
+    // listener is the link decision, which cancels nothing.
+    expect(run.windowListeners.filter(l => l.type === "click").map(l => l.capture)).toEqual([true, false]);
     const span = new FakeElement("SPAN");
     for (const href of ["other.html", "https://example.com/", "", "?q"]) {
       const event = navEvent([span, new FakeElement("A", { href }), new FakeElement("BODY")]);
@@ -1394,7 +1400,7 @@ describe("isolate.js reports once and keeps the canvas in its document", () => {
 
   test("a click the canvas already handled, or one on no link, is left alone", () => {
     const run = runIsolate(() => []);
-    expect(run.windowListeners.filter(l => l.type === "click")).toHaveLength(1);
+    expect(run.windowListeners.filter(l => l.type === "click" && !l.capture)).toHaveLength(1);
     const handled = navEvent([new FakeElement("A", { href: "#x" })], true);
     run.dispatch("click", handled);
     expect(handled.prevented).toBe(0);
@@ -1454,8 +1460,302 @@ describe("isolate.js keeps History calls with a URL from stopping the canvas", (
   });
 });
 
-describe("prototype.js shows the frame only once it is isolated", () => {
-  const fns = () => loadFunctions(protoJs, ["nextPhase", "phaseView", "acceptState"]);
+// isolate.js decides a link click the way the prototype window's injected script does (prototypeScript.ts), on the
+// same shared table and in the same real DOM. prototype.js names each iframe after the frame it plays; here a script
+// before isolate.js sets that name, since the test document is not the page's iframe.
+interface ClickCase {
+  name: string;
+  html: string;
+  playing: string;
+  click: string;
+  shadowHost?: string;
+  iframe?: string;
+  posts: { goto: string | null } | null;
+}
+const clicks = JSON.parse(readFileSync(new URL("../../../schema/fixtures/prototype-links/clicks.json", import.meta.url), "utf8")) as { cases: ClickCase[] };
+
+const isolateDocument = (frame: string, body: string) =>
+  `<!doctype html><html><head><script>window.name = ${JSON.stringify(frame)};</script><script>(function () {\n${isolateJs}\n})();</script></head><body>${body}</body></html>`;
+
+describe("isolate.js follows links in a real DOM", () => {
+  let dom: ElectronDom;
+  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
+  afterAll(async () => { await dom?.close(); }, 30_000);
+
+  // Loads the document, checks the frame played, clicks `selector` and returns what the click posted.
+  const clickIn = async (frameId: string, html: string, selector: string, host: string | null = null, iframe?: string) => {
+    const frame = await dom.load(isolateDocument(frameId, html));
+    const before = await dom.flush(frame);
+    expect(before).toEqual([{ type: "doan-prototype", state: "ready" }]);
+    const target = iframe === undefined ? frame : await (await frame.$(iframe))?.contentFrame();
+    if (!target) throw new Error(`no iframe ${iframe}`);
+    await target.evaluate(({ selector, host }) => {
+      const root = host === null ? document : document.querySelector(host)!.shadowRoot!;
+      (root.querySelector(selector) as HTMLElement).click();
+    }, { selector, host });
+    return { frame, posted: (await dom.flush(target)).slice(before.length) };
+  };
+
+  describe("click decisions of the shared table", () => {
+    test.each(clicks.cases)("$name", async ({ html, playing, click, shadowHost, iframe, posts }) => {
+      const { posted } = await clickIn(playing, html, click, shadowHost ?? null, iframe);
+      expect(posted).toEqual(posts === null ? [] : [{ type: "doan-prototype", ...posts }]);
+    });
+  });
+
+  const frames = (link: string, script = "") =>
+    `<div data-doan-frame="a" data-doan-prototype="390x844">${link}</div><div data-doan-frame="b" data-doan-prototype="390x844"></div>${script}`;
+
+  // isolate.js takes a followed link's href off while the browser would act on it, so the document stays without
+  // isolate.js cancelling the click.
+  test("a link on <a href> to another document is followed, and the document stays", async () => {
+    const { frame, posted } = await clickIn("a", frames(`<a id="x" href="other.html" data-doan-goto="b">Next</a>`), "#x");
+    expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
+    expect(await frame.evaluate(() => [location.href, document.querySelector("[data-doan-proto-frame]")?.getAttribute("data-doan-frame")])).toEqual(["about:srcdoc", "a"]);
+  });
+
+  test("a link on <a href=\"#…\"> is followed without moving to the fragment", async () => {
+    const { frame, posted } = await clickIn("a", frames(`<a id="x" href="#sec" data-doan-goto="b">Next</a>`), "#x");
+    expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
+    expect(await frame.evaluate(() => location.hash)).toBe("");
+  });
+
+  test("an <a href=\"#…\"> with no link still moves to the fragment and posts nothing", async () => {
+    const { frame, posted } = await clickIn("a", frames(`<a id="x" href="#sec">Section</a>`), "#x");
+    expect(posted).toEqual([]);
+    expect(await frame.evaluate(() => location.hash)).toBe("#sec");
+  });
+
+  test("the canvas's own preventDefault on a link with an href still stops it, and the fragment stays", async () => {
+    const script = `<script>document.getElementById("x").addEventListener("click", event => event.preventDefault());</script>`;
+    const { frame, posted } = await clickIn("a", frames(`<a id="x" href="#sec" data-doan-goto="b">Next</a>`, script), "#x");
+    expect(posted).toEqual([]);
+    expect(await frame.evaluate(() => location.hash)).toBe("");
+  });
+
+  test("nothing is followed when the frame did not play", async () => {
+    const frame = await dom.load(isolateDocument("zz", frames(`<a id="x" data-doan-goto="b">Next</a>`)));
+    const before = await dom.flush(frame);
+    expect(before).toEqual([{ type: "doan-prototype", state: "missing" }]);
+    await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
+    expect((await dom.flush(frame)).slice(before.length)).toEqual([]);
+  });
+
+  // A click whose bubble phase never reaches the window still posts, and leaves nothing behind for the next click, which
+  // is decided on its own. No href here: the href comes off only in the window's bubble phase, so on an <a href> a canvas
+  // that stops propagation leaves the browser's navigation as it was before, and the test frame would leave.
+  test("a canvas listener that stops propagation does not stop a link, and the next click is decided on its own", async () => {
+    const script = `<script>let n = 0;
+      document.getElementById("x").addEventListener("click", event => { n += 1; if (n === 1) event.stopPropagation(); });
+      window.addEventListener("click", event => { if (n === 2) event.preventDefault(); });</script>`;
+    const { frame, posted } = await clickIn("a", frames(`<a id="x" data-doan-goto="b">Next</a>`, script), "#x");
+    expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
+    const before = await dom.flush(frame);
+    await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
+    expect((await dom.flush(frame)).slice(before.length)).toEqual([]);
+    await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
+    expect((await dom.flush(frame)).slice(before.length)).toEqual([{ type: "doan-prototype", goto: "b" }]);
+  });
+
+  // The canvas's cancel is judged as in the prototype window, by the final defaultPrevented: isolate.js cancels no
+  // followed click itself, so no way of cancelling is mistaken or missed. Every case runs on an href in the document,
+  // an href to another one and no href, and checks that the document stayed and the href is back after the timer.
+  describe.each([["#sec"], ["other.html"], [null]])("a link with href %s", href => {
+    // The href's attribute node as the page parsed it, to check that the same node comes back.
+    const link = `<a id="x"${href === null ? "" : ` href="${href}"`} data-doan-goto="b">Next</a>` +
+      `<script>window.parsedHref = document.getElementById("x").getAttributeNode("href");</script>`;
+    const before = (body: string) => `<script>${body}</script>`;
+    const during = (body: string) => `<script>document.getElementById("x").addEventListener("click", event => { ${body} });</script>`;
+    // The URL, the frame playing, the href, and whether it is the parsed node, with no namespace.
+    const after = (frame: Frame) => frame.evaluate(() => {
+      const node = document.getElementById("x")!.getAttributeNode("href");
+      const parsed = (window as unknown as { parsedHref: Attr | null }).parsedHref;
+      return [location.href, document.querySelector("[data-doan-proto-frame]")?.getAttribute("data-doan-frame"), node?.value ?? null, node === parsed, node?.namespaceURI ?? null];
+    });
+
+    test.each([
+      ["element preventDefault()", during("event.preventDefault();")],
+      ["document bubble preventDefault()", before(`document.addEventListener("click", event => event.preventDefault());`)],
+      ["window bubble preventDefault()", before(`window.addEventListener("click", event => event.preventDefault());`)],
+      ["window capture preventDefault()", before(`window.addEventListener("click", event => event.preventDefault(), true);`)],
+      ["window bubble returnValue = false", before(`window.addEventListener("click", event => { event.returnValue = false; });`)],
+      ["window.onclick returning false", before("window.onclick = () => false;")],
+      ["window preventDefault() added during the click", during(`window.addEventListener("click", e => e.preventDefault(), { once: true });`)],
+      ["window returnValue = false added during the click", during(`window.addEventListener("click", e => { e.returnValue = false; }, { once: true });`)],
+      ["window.onclick returning false, set during the click", during("window.onclick = () => false;")],
+      ["a preventDefault bound during the click, called from a later listener", during(`const cancel = event.preventDefault.bind(event); window.addEventListener("click", () => cancel(), { once: true });`)],
+      ["Event.prototype.preventDefault.call(event) from a listener added during the click", during(`window.addEventListener("click", e => Event.prototype.preventDefault.call(e), { once: true });`)],
+      ["Object.preventExtensions, then preventDefault() from a listener added during the click", during(`Object.preventExtensions(event); window.addEventListener("click", e => e.preventDefault(), { once: true });`)],
+    ])("cancelled by %s: no goto, the document stays and keeps its href", async (_name, script) => {
+      const { frame, posted } = await clickIn("a", frames(link, script), "#x");
+      expect(posted).toEqual([]);
+      expect(await after(frame)).toEqual(["about:srcdoc", "a", href, true, null]);
+    });
+
+    test.each([
+      ["no canvas handler", ""],
+      // The browser ignores a cancel from a passive listener, so it is no cancel.
+      ["a passive window listener added during the click calling preventDefault()", during(`window.addEventListener("click", e => e.preventDefault(), { once: true, passive: true });`)],
+    ])("followed with %s: the goto, and the document stays and keeps its href", async (_name, script) => {
+      const { frame, posted } = await clickIn("a", frames(link, script), "#x");
+      expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
+      expect(await after(frame)).toEqual(["about:srcdoc", "a", href, true, null]);
+    });
+
+    test("an href the canvas sets during the click, with a cancel, is kept", async () => {
+      const script = during(`window.addEventListener("click", e => { document.getElementById("x").setAttribute("href", "#new"); e.preventDefault(); }, { once: true });`);
+      const { frame, posted } = await clickIn("a", frames(link, script), "#x");
+      expect(posted).toEqual([]);
+      expect(await after(frame)).toEqual(["about:srcdoc", "a", "#new", false, null]);
+    });
+  });
+
+  test("an href the canvas adds during the click is no cancel: the link is followed and the document stays", async () => {
+    const script = `<script>document.getElementById("x").addEventListener("click", event => event.currentTarget.setAttribute("href", "other.html"));</script>`;
+    const { frame, posted } = await clickIn("a", frames(`<a id="x" data-doan-goto="b">Next</a>`, script), "#x");
+    expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
+    expect(await frame.evaluate(() => [location.href, document.getElementById("x")!.getAttribute("href")])).toEqual(["about:srcdoc", "other.html"]);
+  });
+
+  // An SVG link activates its href, else its href in the XLink namespace, whatever the prefix: every one comes off and
+  // the same attribute node goes back.
+  describe("SVG links", () => {
+    const XLINK = "http://www.w3.org/1999/xlink";
+    // Clicks #x (an SVG element has no click(); a dispatched click runs the same activation) and returns the posts, the
+    // URL, and for each href node saved before the click: its value, whether it is back as the same node, its namespace.
+    const clickSvg = async (svg: string, setup = "") => {
+      const frame = await dom.load(isolateDocument("a", frames(svg, `<script>${setup}
+        window.savedHrefs = [...document.getElementById("x").attributes].filter(a => a.localName === "href");</script>`)));
+      const loaded = await dom.flush(frame);
+      await frame.evaluate(() => document.getElementById("x")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, composed: true })));
+      const posted = (await dom.flush(frame)).slice(loaded.length);
+      const facts = await frame.evaluate(() => {
+        const x = document.getElementById("x")!;
+        const saved = (window as unknown as { savedHrefs: Attr[] }).savedHrefs;
+        return { url: location.href, hrefs: saved.map(a => [a.name, a.value, x.getAttributeNodeNS(a.namespaceURI, "href") === a, a.namespaceURI]) };
+      });
+      return { posted, ...facts };
+    };
+    const both = `<svg><a id="x" href="#one" xlink:href="#two" data-doan-goto="b"><text y="10">Next</text></a></svg>`;
+
+    test("with both href and xlink:href, followed: both come off and back, and the document stays", async () => {
+      expect(await clickSvg(both)).toEqual({
+        posted: [{ type: "doan-prototype", goto: "b" }], url: "about:srcdoc",
+        hrefs: [["href", "#one", true, null], ["xlink:href", "#two", true, XLINK]],
+      });
+    });
+
+    test("with both href and xlink:href, cancelled: no goto and both are back", async () => {
+      const cancel = `document.getElementById("x").addEventListener("click", event => event.preventDefault());`;
+      expect(await clickSvg(both, cancel)).toEqual({
+        posted: [], url: "about:srcdoc",
+        hrefs: [["href", "#one", true, null], ["xlink:href", "#two", true, XLINK]],
+      });
+    });
+
+    test("xlink:href alone comes off and back", async () => {
+      const svg = `<svg><a id="x" xlink:href="other.html" data-doan-goto="b"><text y="10">Next</text></a></svg>`;
+      expect(await clickSvg(svg)).toEqual({ posted: [{ type: "doan-prototype", goto: "b" }], url: "about:srcdoc", hrefs: [["xlink:href", "other.html", true, XLINK]] });
+    });
+
+    test("an XLink href written with another prefix comes off and back", async () => {
+      const svg = `<svg><a id="x" data-doan-goto="b"><text y="10">Next</text></a></svg>`;
+      const setup = `document.getElementById("x").setAttributeNS("${XLINK}", "l:href", "other.html");`;
+      expect(await clickSvg(svg, setup)).toEqual({ posted: [{ type: "doan-prototype", goto: "b" }], url: "about:srcdoc", hrefs: [["l:href", "other.html", true, XLINK]] });
+    });
+  });
+
+  // Only the hrefs a browser follows come off: the one with no namespace and the XLink one. An href attribute in another
+  // namespace is the canvas's own state, which a listener added during the click still reads, and may cancel on.
+  test.each([[null], ["#sec"]])("an href in another namespace stays on the link during the click (href %s)", async href => {
+    const html = `<a id="x"${href === null ? "" : ` href="${href}"`} data-doan-goto="b">Next</a>`;
+    const script = `<script>const x = document.getElementById("x");
+      x.setAttributeNS("urn:canvas", "state:href", "blocked"); window.state = x.getAttributeNodeNS("urn:canvas", "href"); window.seen = [];
+      x.addEventListener("click", () => window.addEventListener("click", event => {
+        const value = x.getAttributeNS("urn:canvas", "href"); seen.push(value); if (value === "blocked") event.preventDefault();
+      }, { once: true }));</script>`;
+    const { frame, posted } = await clickIn("a", frames(html, script), "#x");
+    expect(posted).toEqual([]);
+    expect(await frame.evaluate(() => {
+      const w = window as unknown as { seen: unknown[]; state: Attr };
+      const x = document.getElementById("x")!;
+      return [location.href, w.seen, x.getAttributeNodeNS("urn:canvas", "href") === w.state, x.getAttribute("href")];
+    })).toEqual(["about:srcdoc", ["blocked"], true, href]);
+  });
+
+  // The canvas may take the detached href node during the click and put it on another element; it keeps it there, and
+  // the click is still decided.
+  test.each([[false], [true]])("an href node the canvas moves to another element during the click stays there (cancelled: %s)", async cancelled => {
+    const html = `<a id="x" href="#sec" data-doan-goto="b">Next</a><a id="y">Other</a>`;
+    const script = `<script>window.errors = []; window.addEventListener("error", event => errors.push(event.message));
+      const node = document.getElementById("x").getAttributeNode("href"); window.moved = node;
+      document.getElementById("x").addEventListener("click", () => window.addEventListener("click", event => {
+        document.getElementById("y").setAttributeNode(node);${cancelled ? " event.preventDefault();" : ""}
+      }, { once: true }));</script>`;
+    const { frame, posted } = await clickIn("a", frames(html, script), "#x");
+    expect(posted).toEqual(cancelled ? [] : [{ type: "doan-prototype", goto: "b" }]);
+    expect(await frame.evaluate(() => {
+      const w = window as unknown as { errors: string[]; moved: Attr };
+      return [location.href, w.errors, document.getElementById("x")!.hasAttribute("href"), document.getElementById("y")!.getAttributeNode("href") === w.moved];
+    })).toEqual(["about:srcdoc", [], false, true]);
+  });
+
+  // A documented limit: a listener the canvas adds during the click that runs after ours and sets the href again gives
+  // the browser something to follow, so the frame navigates while the link is still followed. The document is gone by
+  // then, so the page around it (the test's top window) reads what happened.
+  test("an href the canvas sets again after ours came off is followed by the browser too", async () => {
+    const script = `<script>document.getElementById("x").addEventListener("click", () =>
+      window.addEventListener("click", () => document.getElementById("x").setAttribute("href", "#new"), { once: true }));</script>`;
+    const frame = await dom.load(isolateDocument("a", frames(`<a id="x" href="#sec" data-doan-goto="b">Next</a>`, script)));
+    const top = frame.parentFrame()!;
+    await dom.flush(frame);
+    await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
+    const seen = await top.evaluate(() => new Promise<{ posted: unknown[]; url: string }>(resolve => {
+      const w = window as unknown as { doanPosted: unknown[]; doanFrame: HTMLIFrameElement };
+      const check = () => {
+        const url = w.doanFrame.contentWindow!.location.href;
+        if (url !== "about:srcdoc" && w.doanPosted.some(m => (m as { goto?: string }).goto !== undefined)) resolve({ posted: w.doanPosted, url });
+        else setTimeout(check, 10);
+      };
+      check();
+    }));
+    expect(seen.posted.filter(m => (m as { goto?: string }).goto !== undefined)).toEqual([{ type: "doan-prototype", goto: "b" }]);
+    expect(seen.url).not.toBe("about:srcdoc");
+    expect(seen.url.endsWith("#new")).toBe(true);
+  });
+
+  test("a click() the canvas makes from its handler is decided on its own, and so is the outer click", async () => {
+    const script = `<script>
+      document.getElementById("x").addEventListener("click", () => document.getElementById("y").click());
+      window.addEventListener("click", event => { if (event.target === document.getElementById("y")) event.preventDefault(); });</script>`;
+    for (const href of ["#sec", "other.html", null]) {
+      const outer = `<a id="x"${href === null ? "" : ` href="${href}"`} data-doan-goto="b">Next</a><a id="y" href="#sec" data-doan-goto="c">Inner</a>`;
+      const { frame, posted } = await clickIn("a", frames(outer, script), "#x");
+      expect(posted, String(href)).toEqual([{ type: "doan-prototype", goto: "b" }]);
+      expect(await frame.evaluate(() => [location.href, document.getElementById("y")!.getAttribute("href")])).toEqual(["about:srcdoc", "#sec"]);
+    }
+  });
+
+  // Links isolate.js does not follow keep the handling every link had: the default is stopped, a # link moves within
+  // the document.
+  test("a link to another document that is not followed is still stopped", async () => {
+    for (const html of [`<a id="x" href="other.html">Other</a>`, `</div><div data-doan-frame="c" data-doan-prototype="1x1"><a id="x" href="other.html" data-doan-goto="b">Other</a>`]) {
+      const { frame, posted } = await clickIn("a", frames(html), "#x");
+      expect(posted, html).toEqual([]);
+      expect(await frame.evaluate(() => [location.href, document.getElementById("x")!.getAttribute("href")]), html).toEqual(["about:srcdoc", "other.html"]);
+    }
+  });
+
+  test("a # link outside the playing frame moves within the document, as an ordinary link", async () => {
+    const html = `</div><div data-doan-frame="c" data-doan-prototype="1x1"><a id="x" href="#sec" data-doan-goto="b">Other</a>`;
+    const { frame, posted } = await clickIn("a", frames(html), "#x");
+    expect(posted).toEqual([]);
+    expect(await frame.evaluate(() => location.hash)).toBe("#sec");
+  });
+});
+
+describe("prototype.js plays the group one frame at a time", () => {
+  const fns = () => loadFunctions(protoJs, ["nextPhase", "phaseView", "acceptMessage", "resolveHash", "hashFor", "gotoTarget", "pageTitle"]);
 
   test("waiting hides both; ready shows the frame; missing and the timeout show the line with the frame hidden", () => {
     const { nextPhase, phaseView } = fns();
@@ -1479,75 +1779,324 @@ describe("prototype.js shows the frame only once it is isolated", () => {
     expect(nextPhase(nextPhase("waiting", "timeout"), "timeout")).toBe("late");
   });
 
-  test("only the iframe's own window with the opaque origin, and only the two states, count", () => {
-    const { acceptState } = fns();
+  test("only the iframe's own window with the opaque origin counts, with one of the two states or a goto value", () => {
+    const { acceptMessage } = fns();
     const win = {};
-    const ok = (data: unknown, source: unknown = win, origin = "null") => acceptState({ source, origin, data }, win);
-    expect(ok({ type: "doan-prototype", state: "ready" })).toBe("ready");
-    expect(ok({ type: "doan-prototype", state: "missing" })).toBe("missing");
+    const ok = (data: unknown, source: unknown = win, origin = "null") => acceptMessage({ source, origin, data }, win);
+    expect(ok({ type: "doan-prototype", state: "ready" })).toEqual({ state: "ready" });
+    expect(ok({ type: "doan-prototype", state: "missing" })).toEqual({ state: "missing" });
+    expect(ok({ type: "doan-prototype", goto: "b" })).toEqual({ goto: "b" });
+    expect(ok({ type: "doan-prototype", goto: "" })).toEqual({ goto: "" });
     expect(ok({ type: "doan-prototype", state: "ready" }, {})).toBeNull();
+    expect(ok({ type: "doan-prototype", goto: "b" }, {})).toBeNull();
     expect(ok({ type: "doan-prototype", state: "ready" }, win, "file://")).toBeNull();
-    for (const data of [null, "ready", { state: "ready" }, { type: "layout", state: "ready" }, { type: "doan-prototype", state: "timeout" }, { type: "doan-prototype" }]) {
+    for (const data of [null, "ready", { state: "ready" }, { goto: "b" }, { type: "layout", state: "ready" }, { type: "doan-prototype", state: "timeout" }, { type: "doan-prototype" },
+      { type: "doan-prototype", goto: null }, { type: "doan-prototype", goto: 1 }, { type: "doan-prototype", goto: ["b"] }]) {
       expect(ok(data), JSON.stringify(data)).toBeNull();
     }
   });
 
-  // The page as prototype.js drives it: the iframe's class and the line's hidden flag.
-  function runPage() {
-    const frameWindow = {};
-    const classes = new Set<string>();
-    const frame = { contentWindow: frameWindow, classList: { toggle: (name: string, on: boolean) => (on ? classes.add(name) : classes.delete(name)) } };
+  // The hash is the public address of a frame: `#<encodeURIComponent(id)>`, read the same way on opening and on every
+  // hash change.
+  test("resolveHash: an empty, undecodable or unknown hash is the start frame; an encoded id of the group is that frame", () => {
+    const { resolveHash, hashFor } = fns();
+    const fox = "\u{1F98A}".repeat(100);
+    const ids = ["start", "a b", "a%20b", "#x", "%", "ü", "?q&r=1/2", fox];
+    for (const hash of ["", "#", "#%E0", "#%", "#%zz", "#nope", "#START", "#start%20", "#a+b"]) expect(resolveHash(hash, ids, "start"), hash).toBe("start");
+    expect(resolveHash("#a%20b", ids, "start")).toBe("a b");
+    expect(resolveHash("#a%2520b", ids, "start")).toBe("a%20b");
+    expect(resolveHash("#%23x", ids, "start")).toBe("#x");
+    expect(resolveHash("#%25", ids, "start")).toBe("%");
+    expect(resolveHash("#%C3%BC", ids, "start")).toBe("ü");
+    // A browser may show a non-ASCII hash decoded, as typed: it is still the same frame.
+    expect(resolveHash("#ü", ids, "start")).toBe("ü");
+    for (const id of ids) {
+      expect(hashFor(id), id).toBe(`#${encodeURIComponent(id)}`);
+      expect(resolveHash(hashFor(id), ids, "start"), id).toBe(id);
+    }
+    expect(fox.length).toBe(200);
+    expect(resolveHash(hashFor(fox), ids.filter(id => id !== fox), "start")).toBe("start");
+  });
+
+  test("gotoTarget: only the first goto of a ready frame, to a frame of the group, is followed; its own frame included", () => {
+    const { gotoTarget } = fns();
+    const ids = ["a", "b", "c"];
+    const run = (phase: string, followed = false) => ({ id: "a", phase, followed });
+    expect(gotoTarget("b", run("ready"), ids)).toBe("b");
+    expect(gotoTarget("a", run("ready"), ids)).toBe("a");
+    for (const phase of ["waiting", "late", "missing"]) expect(gotoTarget("b", run(phase), ids), phase).toBeNull();
+    expect(gotoTarget("b", run("ready", true), ids)).toBeNull();
+    for (const value of ["", "nope", "B", " b"]) expect(gotoTarget(value, run("ready"), ids), value).toBeNull();
+  });
+
+  test("the tab title names the frame shown", () => {
+    expect(fns().pageTitle("Sign up (phone)")).toBe("Sign up (phone) — Prototype");
+  });
+
+  // The page as prototype.js drives it, over stand-ins for the few browser objects it touches: iframes it makes,
+  // their classes and inert flags, the line, the tab title, focus, the location's hash and the timers.
+  interface PageFrame {
+    log: string[]; attributes: Map<string, string>; className: string; title: string; name: string; srcdoc: string; inert: boolean;
+    contentWindow: object; classes: Set<string>; removed: boolean; appended: boolean;
+  }
+  const GROUP = [{ id: "a", title: "A" }, { id: "b", title: "Basket" }, { id: "c d", title: "c d" }];
+  function runPage(hash = "", start = "a", frames = GROUP) {
+    const iframes: PageFrame[] = [];
+    const log: string[] = [];
     const line = { hidden: true };
-    let onMessage: ((event: unknown) => void) | null = null;
-    const timers: { fn: () => void; ms: number }[] = [];
+    const listeners = new Map<string, (event: unknown) => void>();
+    const timers: { fn: () => void; ms: number; cleared: boolean; done: boolean }[] = [];
+    const location = {
+      current: hash, assigned: [] as string[], replaced: [] as string[],
+      get hash() { return this.current; },
+      set hash(value: string) { this.assigned.push(value); this.current = value; },
+      replace(url: string) { this.replaced.push(url); this.current = url; },
+    };
+    const body = {};
+    const document = {
+      title: `${frames.find(frame => frame.id === start)!.title} — Prototype`,
+      activeElement: body as unknown,
+      body: { append: (el: PageFrame) => { el.appended = true; log.push(`append ${el.name}`); } },
+      getElementById: (id: string) => ({
+        "doan-prototype": { textContent: JSON.stringify({ start, frames }) },
+        canvas: { getAttribute: (name: string) => (name === "data-srcdoc" ? "<p>canvas</p>" : null) },
+        line,
+      } as Record<string, unknown>)[id] ?? null,
+      createElement: (tag: string) => {
+        if (tag !== "iframe") throw new Error(tag);
+        const state = { log, attributes: new Map<string, string>(), className: "", title: "", name: "", srcdoc: "", inert: false, contentWindow: {}, classes: new Set<string>(), removed: false, appended: false };
+        const el = {
+          get log() { return state.log; }, get attributes() { return state.attributes; }, get contentWindow() { return state.contentWindow; },
+          get classes() { return state.classes; }, get removed() { return state.removed; }, get appended() { return state.appended; }, set appended(v: boolean) { state.appended = v; },
+          get className() { return state.className; }, set className(v: string) { state.className = v; },
+          get title() { return state.title; }, set title(v: string) { state.title = v; },
+          get inert() { return state.inert; }, set inert(v: boolean) { state.inert = v; },
+          get name() { return state.name; }, set name(v: string) { log.push(`name ${v}`); state.name = v; },
+          get srcdoc() { return state.srcdoc; }, set srcdoc(v: string) { log.push("srcdoc"); state.srcdoc = v; },
+          setAttribute(name: string, value: string) { log.push(name); state.attributes.set(name, value); },
+          classList: { toggle: (name: string, on: boolean) => { if (on) state.classes.add(name); else state.classes.delete(name); } },
+          remove() { state.removed = true; },
+          focus() { document.activeElement = el; },
+        };
+        iframes.push(el as unknown as PageFrame);
+        return el;
+      },
+    };
     runInNewContext(`(function () {\n${protoJs}\n})();`, {
-      document: { getElementById: (id: string) => (id === "prototype" ? frame : id === "line" ? line : null) },
-      window: { addEventListener: (type: string, fn: (e: unknown) => void) => { if (type === "message") onMessage = fn; } },
-      setTimeout: (fn: () => void, ms: number) => { timers.push({ fn, ms }); return timers.length; },
+      JSON, document, location, encodeURIComponent, decodeURIComponent,
+      window: { addEventListener: (type: string, fn: (e: unknown) => void) => listeners.set(type, fn) },
+      setTimeout: (fn: () => void, ms: number) => timers.push({ fn, ms, cleared: false, done: false }),
+      clearTimeout: (id: number) => { if (timers[id - 1]) timers[id - 1]!.cleared = true; },
     });
+    const live = () => iframes.filter(frame => !frame.removed);
     return {
-      timers,
-      shown: () => classes.has("shown"),
+      iframes, log, location, document, timers, live,
+      // The iframes still in the page, by frame, and which one shows.
+      view: () => live().map(frame => `${frame.name}${frame.classes.has("shown") ? " shown" : ""}${frame.inert ? " inert" : ""}`),
       line: () => !line.hidden,
-      send: (state: string, source: unknown = frameWindow) => onMessage!({ source, origin: "null", data: { type: "doan-prototype", state } }),
-      timeout: () => timers.shift()!.fn(),
+      send: (frame: PageFrame, data: object) => listeners.get("message")!({ source: frame.contentWindow, origin: "null", data: { type: "doan-prototype", ...data } }),
+      ready: (frame: PageFrame) => listeners.get("message")!({ source: frame.contentWindow, origin: "null", data: { type: "doan-prototype", state: "ready" } }),
+      hashchange: (to?: string) => { if (to !== undefined) location.current = to; listeners.get("hashchange")!({}); },
+      // The timers still pending, run once.
+      timeouts: () => { for (const timer of timers.filter(t => !t.cleared && !t.done)) { timer.done = true; timer.fn(); } },
+      pending: () => timers.filter(t => !t.cleared && !t.done).map(t => t.ms),
     };
   }
 
-  test("the page starts hidden and waits LOAD_TIMEOUT_MS (10 s) once", () => {
-    const page = runPage();
-    expect(page.shown()).toBe(false);
+  test("opening with no hash plays the start frame and sets its hash without a history entry", () => {
+    const page = runPage("", "b");
+    expect(page.location.replaced).toEqual(["#b"]);
+    expect(page.location.assigned).toEqual([]);
+    expect(page.iframes).toHaveLength(1);
+    const [frame] = page.iframes;
+    // sandbox before the name and the canvas, and all three before the iframe is in the page.
+    expect(page.log).toEqual(["sandbox", "name b", "srcdoc", "append b"]);
+    expect(frame!.attributes.get("sandbox")).toBe("allow-scripts allow-forms");
+    expect([frame!.className, frame!.title, frame!.srcdoc]).toEqual(["proto-frame", "Basket", "<p>canvas</p>"]);
+    expect(page.document.title).toBe("Basket — Prototype");
+    expect(page.view()).toEqual(["b"]);
+    expect(page.pending()).toEqual([10000]);
+    page.ready(frame!);
+    expect(page.view()).toEqual(["b shown"]);
     expect(page.line()).toBe(false);
-    expect(page.timers.map(t => t.ms)).toEqual([10000]);
+    // The hash change the replace makes finds the frame already shown.
+    page.hashchange();
+    expect(page.iframes).toHaveLength(1);
   });
 
-  test("ready shows the frame; the timeout after it changes nothing", () => {
-    const page = runPage();
-    page.send("ready");
-    expect([page.shown(), page.line()]).toEqual([true, false]);
-    page.timeout();
-    expect([page.shown(), page.line()]).toEqual([true, false]);
+  test("opening with a hash plays the frame it names, or the start frame when it names none of the group", () => {
+    for (const [hash, id, title] of [["#c%20d", "c d", "c d"], ["#b", "b", "Basket"], ["#zz", "a", "A"], ["#%E0", "a", "A"], ["#", "a", "A"], ["#c d", "c d", "c d"]] as const) {
+      const page = runPage(hash);
+      expect(page.iframes.map(frame => frame.name), hash).toEqual([id]);
+      expect(page.location.replaced, hash).toEqual([`#${encodeURIComponent(id)}`]);
+      expect(page.document.title, hash).toBe(`${title} — Prototype`);
+    }
   });
 
-  test("missing keeps the frame hidden and shows the line at once", () => {
+  test("a goto changes the hash and the title at once; the hash change plays the frame, the old one shown and inert until it is ready", () => {
     const page = runPage();
-    page.send("missing");
-    expect([page.shown(), page.line()]).toEqual([false, true]);
+    const [a] = page.iframes;
+    page.ready(a!);
+    page.send(a!, { goto: "b" });
+    expect(page.location.assigned).toEqual(["#b"]);
+    expect(page.document.title).toBe("Basket — Prototype");
+    expect(page.iframes).toHaveLength(1);
+    page.hashchange();
+    const b = page.iframes[1]!;
+    expect([b.name, b.title, b.attributes.get("sandbox")]).toEqual(["b", "Basket", "allow-scripts allow-forms"]);
+    expect(page.view()).toEqual(["a shown inert", "b"]);
+    page.ready(b);
+    expect(page.view()).toEqual(["b shown"]);
+    expect(page.line()).toBe(false);
   });
 
-  test("a document that never answers: the line at the timeout, the frame still hidden", () => {
+  test("a goto counts only from the current iframe once its frame is ready, only the first one, and only into the group", () => {
     const page = runPage();
-    page.send("ready", {});
-    expect([page.shown(), page.line()]).toEqual([false, false]);
-    page.timeout();
-    expect([page.shown(), page.line()]).toEqual([false, true]);
+    const [a] = page.iframes;
+    page.send(a!, { goto: "b" });
+    expect(page.location.assigned).toEqual([]);
+    page.ready(a!);
+    page.send(a!, { goto: "nope" });
+    page.send(a!, { goto: "" });
+    page.send(a!, { goto: null });
+    expect(page.location.assigned).toEqual([]);
+    page.send(a!, { goto: "c d" });
+    page.send(a!, { goto: "b" });
+    expect(page.location.assigned).toEqual(["#c%20d"]);
+    page.hashchange();
+    const c = page.iframes[1]!;
+    // The old document's messages, a ready included, no longer count.
+    page.ready(a!);
+    page.send(a!, { goto: "b" });
+    expect(page.view()).toEqual(["a shown inert", "c d"]);
+    expect(page.location.assigned).toEqual(["#c%20d"]);
+    page.ready(c);
+    page.send(c, { goto: "a" });
+    expect(page.location.assigned).toEqual(["#c%20d", "#a"]);
   });
 
-  test("a ready after the timeout clears the line and shows the frame", () => {
+  test("a goto to the frame playing restarts it without a hash entry", () => {
+    const page = runPage("#b");
+    const [b] = page.iframes;
+    page.ready(b!);
+    page.send(b!, { goto: "b" });
+    expect(page.location.assigned).toEqual([]);
+    expect(page.iframes).toHaveLength(2);
+    const again = page.iframes[1]!;
+    expect(page.view()).toEqual(["b shown inert", "b"]);
+    page.ready(again);
+    expect(page.view()).toEqual(["b shown"]);
+    expect(page.document.title).toBe("Basket — Prototype");
+  });
+
+  test("Back and Forward replay the frame of the hash, each time new; a hash change to the frame shown does nothing", () => {
     const page = runPage();
-    page.timeout();
-    page.send("ready");
-    expect([page.shown(), page.line()]).toEqual([true, false]);
+    page.ready(page.iframes[0]!);
+    page.send(page.iframes[0]!, { goto: "b" });
+    page.hashchange();
+    page.ready(page.iframes[1]!);
+    page.hashchange("#a");
+    expect(page.document.title).toBe("A — Prototype");
+    expect(page.view()).toEqual(["b shown inert", "a"]);
+    page.ready(page.iframes[2]!);
+    page.hashchange("#a");
+    page.hashchange("#nope");
+    expect(page.iframes).toHaveLength(3);
+    page.hashchange("#b");
+    expect(page.iframes.map(frame => frame.name)).toEqual(["a", "b", "a", "b"]);
+    expect(page.location.assigned).toEqual(["#b"]);
+  });
+
+  test("an address the group does not name plays the start frame, unless it already plays", () => {
+    const page = runPage("#b");
+    page.ready(page.iframes[0]!);
+    page.hashchange("#zz");
+    expect(page.iframes.map(frame => frame.name)).toEqual(["b", "a"]);
+    page.ready(page.iframes[1]!);
+    page.hashchange("");
+    expect(page.iframes).toHaveLength(2);
+  });
+
+  test("each frame shown has its own 10 s timer: the line at its timeout, a late ready still shows it", () => {
+    const page = runPage();
+    page.ready(page.iframes[0]!);
+    page.send(page.iframes[0]!, { goto: "b" });
+    page.hashchange();
+    expect(page.pending()).toEqual([10000]);
+    page.timeouts();
+    expect(page.view()).toEqual(["b"]);
+    expect(page.line()).toBe(true);
+    page.ready(page.iframes[1]!);
+    expect(page.view()).toEqual(["b shown"]);
+    expect(page.line()).toBe(false);
+  });
+
+  test("a frame missing from its document shows the line at once, in place of the old frame", () => {
+    const page = runPage();
+    page.ready(page.iframes[0]!);
+    page.send(page.iframes[0]!, { goto: "b" });
+    page.hashchange();
+    page.send(page.iframes[1]!, { state: "missing" });
+    expect(page.view()).toEqual(["b"]);
+    expect(page.line()).toBe(true);
+    // Back from a frame that did not load plays and shows again.
+    page.hashchange("#a");
+    expect(page.line()).toBe(true);
+    page.ready(page.iframes[2]!);
+    expect(page.view()).toEqual(["a shown"]);
+    expect(page.line()).toBe(false);
+  });
+
+  test("a move while another loads drops the loading one; the shown one stays until the newest is ready", () => {
+    const page = runPage();
+    const [a] = page.iframes;
+    page.ready(a!);
+    page.send(a!, { goto: "b" });
+    page.hashchange();
+    const b = page.iframes[1]!;
+    page.hashchange("#c%20d");
+    expect(b.removed).toBe(true);
+    expect(page.view()).toEqual(["a shown inert", "c d"]);
+    page.ready(b);
+    expect(page.view()).toEqual(["a shown inert", "c d"]);
+    page.ready(page.iframes[2]!);
+    expect(page.view()).toEqual(["c d shown"]);
+    expect(page.pending()).toEqual([]);
+  });
+
+  test("focus in the old iframe moves to the new one once it is ready; focus elsewhere stays", () => {
+    const page = runPage();
+    const [a] = page.iframes;
+    page.ready(a!);
+    page.document.activeElement = a;
+    page.send(a!, { goto: "b" });
+    page.hashchange();
+    const b = page.iframes[1]!;
+    expect(page.document.activeElement).toBe(a);
+    page.ready(b);
+    expect(page.document.activeElement).toBe(b);
+    const elsewhere = {};
+    page.document.activeElement = elsewhere;
+    page.send(b, { goto: "a" });
+    page.hashchange();
+    page.ready(page.iframes[2]!);
+    expect(page.document.activeElement).toBe(elsewhere);
+  });
+
+  // The old iframe turns inert at the first move, which takes focus out of it; a second move before the first frame
+  // is ready must still hand focus to the frame that ends up shown.
+  test("focus follows through a move made while another frame loads", () => {
+    const page = runPage();
+    const [a] = page.iframes;
+    page.ready(a!);
+    page.document.activeElement = a;
+    page.send(a!, { goto: "b" });
+    page.hashchange();
+    page.document.activeElement = {};
+    page.hashchange("#c%20d");
+    const c = page.iframes[2]!;
+    page.ready(c);
+    expect(page.document.activeElement).toBe(c);
   });
 });
 
@@ -1556,7 +2105,7 @@ describe("prototype viewer files", () => {
 
   test("the scripts compile in one function each and inline safely into <script>", () => {
     expect(() => new Script(`(function () {\n${protoJs}\n})();`)).not.toThrow();
-    expect(() => new Script(`(function () {\nconst FRAME = "x";\n${isolateJs}\n})();`)).not.toThrow();
+    expect(() => new Script(`(function () {\n${isolateJs}\n})();`)).not.toThrow();
     for (const [name, source] of Object.entries({ "prototype.js": protoJs, "isolate.js": isolateJs })) {
       expect(source.length, name).toBeGreaterThan(100);
       expect(source, name).not.toMatch(/<\/script/i);
@@ -1565,35 +2114,52 @@ describe("prototype viewer files", () => {
     }
   });
 
+  // The XLink namespace is an identifier, not an address: isolate.js names it to find an SVG link's fallback href. That
+  // one literal, quoted as written, is the only exception.
+  const ALLOWED_URLS = ['"http://www.w3.org/1999/xlink"'];
+  const URL_LIKE = /https?:|@import|url\(/i;
+  const withoutAllowed = (source: string) => ALLOWED_URLS.reduce((text, literal) => text.split(literal).join(""), source.replace(/<!--[\s\S]*?-->/, ""));
+
   test("no file makes a request or carries a URL", () => {
     for (const [name, source] of Object.entries(files)) {
       expect(source.length, name).toBeGreaterThan(100);
       expect(source, name).not.toMatch(/\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b|\bimport\s*\(/);
-      expect(source.replace(/<!--[\s\S]*?-->/, ""), name).not.toMatch(/https?:|@import|url\(/i);
+      expect(withoutAllowed(source), name).not.toMatch(URL_LIKE);
     }
   });
 
-  test("prototype.html has no CSP, one iframe with allow-scripts allow-forms, and exactly the documented placeholders", () => {
+  test("the URL check allows exactly the XLink namespace literal and nothing else", () => {
+    expect(ALLOWED_URLS).toEqual(['"http://www.w3.org/1999/xlink"']);
+    expect(withoutAllowed('const XLINK = "http://www.w3.org/1999/xlink";')).not.toMatch(URL_LIKE);
+    for (const other of ['"http://example.com/"', "'http://www.w3.org/1999/xlink'", '"https://www.w3.org/1999/xlink"', "http://www.w3.org/1999/xlink", '"http://www.w3.org/1999/xlink/x"']) {
+      expect(withoutAllowed(`const a = ${other};`), other).toMatch(URL_LIKE);
+    }
+  });
+
+  test("prototype.html has no CSP and no iframe, prototype.js sandboxes its iframes with allow-scripts allow-forms, and the page has exactly the documented placeholders", () => {
     expect(protoHtml).not.toMatch(/Content-Security-Policy/i);
-    expect([...protoHtml.matchAll(/\bsandbox="([^"]*)"/g)].map(m => m[1])).toEqual(["allow-scripts allow-forms"]);
-    expect(protoHtml).not.toMatch(/allow-(same-origin|top-navigation|popups|modals)/);
+    expect(protoHtml.replace(/<!--[\s\S]*?-->/, "")).not.toMatch(/<iframe|sandbox=/);
+    expect([...protoJs.matchAll(/setAttribute\("sandbox", "([^"]*)"\)/g)].map(m => m[1])).toEqual(["allow-scripts allow-forms"]);
+    expect(protoJs).not.toMatch(/allow-(same-origin|top-navigation|popups|modals)/);
     const body = protoHtml.replace(/<!--[\s\S]*?-->/, "");
     const counts = new Map<string, number>();
     for (const m of body.matchAll(/\{\{([A-Za-z_]+)\}\}/g)) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
-    expect(Object.fromEntries(counts)).toEqual({ NAME: 2, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
+    expect(Object.fromEntries(counts)).toEqual({ NAME: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
     expect(protoHtml.match(/<!--[\s\S]*?-->/)?.[0]).not.toContain("{{");
     for (const name of ["prototype.css", "prototype.js", "isolate.js"]) expect(files[name], name).not.toContain("{{");
   });
 
   test("the placeholders sit where their escaping rule applies", () => {
     expect(protoHtml).toContain("<title>{{NAME}} — Prototype</title>");
-    expect(protoHtml).toMatch(/<iframe class="proto-frame" id="prototype" title="\{\{NAME\}\}" sandbox="allow-scripts allow-forms" srcdoc="\{\{SRCDOC\}\}"><\/iframe>/);
+    expect(protoHtml).toContain('<script type="application/json" id="doan-prototype">{{META}}</script>');
+    expect(protoHtml).toContain('<div id="canvas" hidden data-srcdoc="{{SRCDOC}}"></div>');
   });
 
-  test("the page script is in the head, so its listener is there before the iframe can answer", () => {
-    const head = /<head>([\s\S]*?)<\/head>/.exec(protoHtml)?.[1] ?? "";
-    expect(head).toContain("<script>\n{{SCRIPT}}\n</script>");
-    expect(protoHtml.indexOf('id="line"')).toBeLessThan(protoHtml.indexOf('id="prototype"'));
+  test("the page script is the body's last element, after the line and the canvas holder it reads", () => {
+    const body = /<body>([\s\S]*?)<\/body>/.exec(protoHtml)?.[1] ?? "";
+    expect(body.trimEnd().endsWith("<script>\n{{SCRIPT}}\n</script>")).toBe(true);
+    expect(body.indexOf('id="line"')).toBeLessThan(body.indexOf('id="canvas"'));
+    expect(body.indexOf('id="canvas"')).toBeLessThan(body.indexOf("{{SCRIPT}}"));
   });
 
   test("the iframe fills the viewport and starts hidden; only .shown shows it", () => {

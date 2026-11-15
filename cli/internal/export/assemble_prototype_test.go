@@ -1,6 +1,7 @@
 package export
 
 import (
+	"encoding/json"
 	"html"
 	"regexp"
 	"strings"
@@ -10,10 +11,22 @@ import (
 	"golang.org/x/net/html/atom"
 )
 
-// prototypeParts decodes a prototype page the way a browser would.
+// prototypeParts decodes a prototype page the way a browser would: the start frame's static title and
+// no-JavaScript lines, the group JSON, and the canvas held in the holder's data attribute.
 type prototypeParts struct {
-	title, iframeTitle, sandbox, srcdoc string
-	iframes                             int
+	title, meta, canvas string
+	noscripts           []string
+	iframes, holders    int
+	metas               int
+}
+
+// The page's group JSON, as prototype.js reads it.
+type prototypeMeta struct {
+	Start  string `json:"start"`
+	Frames []struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	} `json:"frames"`
 }
 
 func parsePrototype(t *testing.T, page []byte) prototypeParts {
@@ -26,14 +39,38 @@ func parsePrototype(t *testing.T, page []byte) prototypeParts {
 	var visit func(*nethtml.Node)
 	visit = func(n *nethtml.Node) {
 		if n.Type == nethtml.ElementNode {
-			switch n.DataAtom {
-			case atom.Iframe:
+			switch {
+			case n.DataAtom == atom.Iframe:
 				p.iframes++
-				p.iframeTitle, p.sandbox, p.srcdoc = attr(n, "title"), attr(n, "sandbox"), attr(n, "srcdoc")
-			case atom.Title:
+			case n.DataAtom == atom.Div && attr(n, "id") == "canvas":
+				p.holders++
+				p.canvas = attr(n, "data-srcdoc")
+			case n.DataAtom == atom.Script && attr(n, "id") == "doan-prototype":
+				p.metas++
+				if attr(n, "type") != "application/json" {
+					t.Fatalf("group script type %q", attr(n, "type"))
+				}
+				if n.FirstChild != nil {
+					p.meta = n.FirstChild.Data
+				}
+			case n.DataAtom == atom.Title:
 				if p.title == "" && n.FirstChild != nil {
 					p.title = n.FirstChild.Data
 				}
+			case n.DataAtom == atom.Noscript:
+				var text strings.Builder
+				var collect func(*nethtml.Node)
+				collect = func(c *nethtml.Node) {
+					if c.Type == nethtml.TextNode {
+						text.WriteString(c.Data)
+					}
+					for k := c.FirstChild; k != nil; k = k.NextSibling {
+						collect(k)
+					}
+				}
+				collect(n)
+				// The parser keeps a <noscript>'s content as text (scripting on); the tags inside it go.
+				p.noscripts = append(p.noscripts, regexp.MustCompile(`<[^>]*>`).ReplaceAllString(text.String(), ""))
 			}
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -44,24 +81,33 @@ func parsePrototype(t *testing.T, page []byte) prototypeParts {
 	return p
 }
 
+func (p prototypeParts) group(t *testing.T) prototypeMeta {
+	t.Helper()
+	var m prototypeMeta
+	if err := json.Unmarshal([]byte(p.meta), &m); err != nil {
+		t.Fatalf("group JSON %q: %v", p.meta, err)
+	}
+	return m
+}
+
 // isolateScript returns the injected isolation <script>...</script> of a prototype srcdoc.
 func isolateScript(t *testing.T, srcdoc string) string {
 	t.Helper()
-	i := strings.Index(srcdoc, "<script>(function () {\nconst FRAME = ")
-	if i < 0 {
+	want := "<script>(function () {\n" + viewerFile(t, "isolate.js") + "\n})();</script>"
+	if !strings.Contains(srcdoc, want) {
 		t.Fatalf("no isolation script: %.200s", srcdoc)
 	}
-	j := strings.Index(srcdoc[i:], "\n})();</script>")
-	if j < 0 {
-		t.Fatal("isolation script does not end")
-	}
-	return srcdoc[i : i+j+len("\n})();</script>")]
+	return want
 }
 
-var checkout = Proto{Frame: "checkout", Title: "Checkout"}
+var checkout = Proto{Frame: "checkout", Frames: []ProtoFrame{{ID: "checkout", Title: "Checkout"}}}
 
-func TestAssemblePrototypeReplacesEveryPlaceholderOnce(t *testing.T) {
-	page, err := AssemblePrototype(Meta{Name: "board", Width: 1280}, checkout, []byte(simpleCanvas))
+// The page shape a recipient's browser and X2's markers rely on, checked on the page itself rather than against a
+// regenerated export (POSTMORTEM 2026-11-14 'An eval check that compared a prototype export only with a regenerated
+// one accepted the canvas viewer').
+func TestAssemblePrototypePageShape(t *testing.T) {
+	proto := Proto{Frame: "cart", Frames: []ProtoFrame{{ID: "home", Title: "Home"}, {ID: "cart", Title: "Cart"}, {ID: "pay"}}}
+	page, err := AssemblePrototype(Meta{Name: "board", Width: 1280}, proto, []byte(simpleCanvas))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,84 +115,117 @@ func TestAssemblePrototypeReplacesEveryPlaceholderOnce(t *testing.T) {
 		t.Fatalf("placeholder left: %s", left)
 	}
 	p := parsePrototype(t, page)
-	if p.iframes != 1 || p.sandbox != "allow-scripts allow-forms" {
-		t.Fatalf("iframes %d sandbox %q", p.iframes, p.sandbox)
+	// No iframe in the file itself: prototype.js makes one per frame shown.
+	if p.iframes != 0 || p.holders != 1 || p.metas != 1 {
+		t.Fatalf("iframes %d holders %d group scripts %d", p.iframes, p.holders, p.metas)
 	}
-	// The tab names the frame, not the canvas, and carries no mark size.
-	if p.title != "Checkout — Prototype" || p.iframeTitle != "Checkout" {
-		t.Fatalf("title %q iframe title %q", p.title, p.iframeTitle)
+	// The tab names the start frame, not the canvas, and carries no mark size.
+	if p.title != "Cart — Prototype" {
+		t.Fatalf("title %q", p.title)
 	}
 	if strings.Contains(string(page), "board") {
 		t.Fatal("the canvas name is in the page")
 	}
+	g := p.group(t)
+	if g.Start != "cart" || len(g.Frames) != 3 {
+		t.Fatalf("group %+v", g)
+	}
+	// Each frame's name as the page shows it: its title, else its id.
+	for i, want := range [][2]string{{"home", "Home"}, {"cart", "Cart"}, {"pay", "pay"}} {
+		if g.Frames[i].ID != want[0] || g.Frames[i].Title != want[1] {
+			t.Fatalf("frame %d: %+v, want %v", i, g.Frames[i], want)
+		}
+	}
+	if !reflectEqual(p.noscripts, []string{".proto-frame { display: none; }", "Open this file in a web browser to play this prototype."}) {
+		t.Fatalf("noscripts %q", p.noscripts)
+	}
+	if !strings.Contains(string(page), "<noscript><style>.proto-frame { display: none; }</style></noscript>") {
+		t.Fatal("the head's noscript style changed")
+	}
+	if strings.Contains(string(page), `id="doan-meta"`) {
+		t.Fatal("the prototype page carries the canvas viewer's marker")
+	}
+}
+
+func reflectEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestAssemblePrototypeNamesAnUntitledFrameByItsID(t *testing.T) {
-	page, err := AssemblePrototype(Meta{Name: "n", Width: 100}, Proto{Frame: "step-2"}, []byte(simpleCanvas))
+	page, err := AssemblePrototype(Meta{Name: "n", Width: 100}, Proto{Frame: "step-2", Frames: []ProtoFrame{{ID: "step-2"}}}, []byte(simpleCanvas))
 	if err != nil {
 		t.Fatal(err)
 	}
 	p := parsePrototype(t, page)
-	if p.title != "step-2 — Prototype" || p.iframeTitle != "step-2" {
-		t.Fatalf("title %q iframe title %q", p.title, p.iframeTitle)
+	if p.title != "step-2 — Prototype" || p.group(t).Frames[0].Title != "step-2" {
+		t.Fatalf("title %q group %q", p.title, p.meta)
 	}
 }
 
 // A canvas, a title or a frame id that contains a placeholder must come through untouched.
 func TestAssemblePrototypeDoesNotExpandPlaceholders(t *testing.T) {
 	canvas := "<!doctype html><html><head></head><body>{{NAME}} {{WIDTH}} {{META}} {{STYLE}} {{SCRIPT}} {{SRCDOC}}</body></html>"
-	page, err := AssemblePrototype(Meta{Name: "{{STYLE}}", Width: 640}, Proto{Frame: "{{SCRIPT}}", Title: "{{SRCDOC}}"}, []byte(canvas))
+	page, err := AssemblePrototype(Meta{Name: "{{STYLE}}", Width: 640}, Proto{Frame: "{{SCRIPT}}", Frames: []ProtoFrame{{ID: "{{SCRIPT}}", Title: "{{SRCDOC}}"}}}, []byte(canvas))
 	if err != nil {
 		t.Fatal(err)
 	}
 	p := parsePrototype(t, page)
-	if !strings.Contains(p.srcdoc, "{{NAME}} {{WIDTH}} {{META}} {{STYLE}} {{SCRIPT}} {{SRCDOC}}") {
-		t.Fatalf("canvas placeholders changed: %.300s", p.srcdoc)
+	if !strings.Contains(p.canvas, "{{NAME}} {{WIDTH}} {{META}} {{STYLE}} {{SCRIPT}} {{SRCDOC}}") {
+		t.Fatalf("canvas placeholders changed: %.300s", p.canvas)
 	}
-	if p.title != "{{SRCDOC}} — Prototype" || p.iframeTitle != "{{SRCDOC}}" {
-		t.Fatalf("a title that looks like a placeholder was expanded: %q / %q", p.title, p.iframeTitle)
+	if p.title != "{{SRCDOC}} — Prototype" {
+		t.Fatalf("a title that looks like a placeholder was expanded: %q", p.title)
 	}
-	if !strings.Contains(isolateScript(t, p.srcdoc), `const FRAME = "{{SCRIPT}}";`) {
-		t.Fatal("a frame id that looks like a placeholder was expanded")
+	if g := p.group(t); g.Start != "{{SCRIPT}}" || g.Frames[0].Title != "{{SRCDOC}}" {
+		t.Fatalf("a frame id or title that looks like a placeholder was expanded: %q", p.meta)
 	}
 }
 
-func TestAssemblePrototypeEscapesTheTitleAndFrameID(t *testing.T) {
+func TestAssemblePrototypeEscapesTitlesAndFrameIDs(t *testing.T) {
 	title := `</title><script>alert(1)</script> & "q" 'a' <!-- 공백`
 	id := `</script><!-- "x" & 'y'` + "\u2028"
-	page, err := AssemblePrototype(Meta{Name: "n", Width: 100}, Proto{Frame: id, Title: title}, []byte(simpleCanvas))
+	other := `a b%20#?` + strings.Repeat("\U0001F98A", 2)
+	page, err := AssemblePrototype(Meta{Name: "n", Width: 100}, Proto{Frame: id, Frames: []ProtoFrame{{ID: id, Title: title}, {ID: other, Title: "</SCRIPT >"}}}, []byte(simpleCanvas))
 	if err != nil {
 		t.Fatal(err)
 	}
 	p := parsePrototype(t, page)
-	if p.title != title+" — Prototype" || p.iframeTitle != title {
-		t.Fatalf("title decodes to %q / %q", p.title, p.iframeTitle)
+	if p.title != title+" — Prototype" {
+		t.Fatalf("title decodes to %q", p.title)
 	}
 	if strings.Contains(string(page), "<script>alert(1)") || strings.Contains(string(page), "</title><script>") {
 		t.Fatal("the title opened a tag")
 	}
-	// The id is JSON in a script inside the srcdoc: it can neither end that script nor open a comment.
-	script := isolateScript(t, p.srcdoc)
-	if strings.Count(script, "</script") != 1 || strings.Contains(script, "<!--") || strings.Contains(script, "\u2028") {
-		t.Fatalf("the frame id could end the isolation script: %.200s", script)
+	// The group is JSON in a script: no id or title can end that script or open a comment in it.
+	if strings.ContainsAny(p.meta, "<>&") || strings.Contains(p.meta, "\u2028") {
+		t.Fatalf("the group JSON could end its script: %q", p.meta)
 	}
-	if !strings.Contains(script, `const FRAME = "\u003c/script\u003e\u003c!-- \"x\" \u0026 'y'\u2028";`) {
-		t.Fatalf("frame id not written as escaped JSON: %.200s", script)
+	g := p.group(t)
+	if g.Start != id || g.Frames[0].ID != id || g.Frames[0].Title != title || g.Frames[1].ID != other || g.Frames[1].Title != "</SCRIPT >" {
+		t.Fatalf("group decodes to %+v", g)
 	}
 }
 
-func TestAssemblePrototypeSrcdocIsTheCanvasWithTheIsolationScriptInItsHead(t *testing.T) {
+func TestAssemblePrototypeHoldsTheCanvasWithTheIsolationScriptInItsHead(t *testing.T) {
 	canvas := "<!doctype html>\n<html><head><title>a &amp; b</title></head><body>" +
 		`<p title="say &quot;x&quot;">it's "q" &lt;tag&gt; &amp; 한글</p><template/><div data-doan-frame="checkout"></div></body></html>` + "\n"
 	page, err := AssemblePrototype(Meta{Name: "n", Width: 100}, checkout, []byte(canvas))
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := parsePrototype(t, page).srcdoc
+	got := parsePrototype(t, page).canvas
 	script := isolateScript(t, got)
-	want := "<script>(function () {\nconst FRAME = \"checkout\";\n" + viewerFile(t, "isolate.js") + "\n})();</script>"
-	if script != want {
-		t.Fatalf("the isolation script is not the frame id and isolate.js in one function (%d bytes, want %d)", len(script), len(want))
+	// The frame is not written into the script: isolate.js reads it from the iframe's name.
+	if strings.Contains(got, "const FRAME = \"") {
+		t.Fatal("the frame id is written into the srcdoc")
 	}
 	i := strings.Index(got, script)
 	if got[:i] != "<!doctype html>\n<html><head>" {
@@ -156,14 +235,69 @@ func TestAssemblePrototypeSrcdocIsTheCanvasWithTheIsolationScriptInItsHead(t *te
 		t.Fatalf("canvas bytes changed: %q", got)
 	}
 	raw := string(page)
-	start := strings.Index(raw, `srcdoc="`) + len(`srcdoc="`)
+	start := strings.Index(raw, `data-srcdoc="`) + len(`data-srcdoc="`)
 	end := strings.Index(raw[start:], `"`)
 	if html.UnescapeString(raw[start:start+end]) != got {
-		t.Fatal("srcdoc attribute ends early")
+		t.Fatal("the canvas attribute ends early")
 	}
 	// The measure script is the canvas viewer's, not the prototype's.
 	if strings.Contains(got, viewerFile(t, "measure.js")) {
-		t.Fatal("the prototype srcdoc carries the board's measure script")
+		t.Fatal("the prototype canvas carries the board's measure script")
+	}
+}
+
+// A file with a group holds the canvas once, escaped with the srcdoc rule, whatever the number of frames.
+func TestAssemblePrototypeHoldsTheCanvasOnce(t *testing.T) {
+	marker := `<p class="once">&amp; "x" ` + strings.Repeat("y", 4096) + `</p>`
+	canvas := "<!doctype html><html><head></head><body>" + marker + "</body></html>"
+	var frames []ProtoFrame
+	for _, id := range []string{"a", "b", "c", "d"} {
+		frames = append(frames, ProtoFrame{ID: id})
+	}
+	page, err := AssemblePrototype(Meta{Name: "n", Width: 100}, Proto{Frame: "b", Frames: frames}, []byte(canvas))
+	if err != nil {
+		t.Fatal(err)
+	}
+	escaped := attributeEscaper.Replace(marker)
+	if n := strings.Count(string(page), escaped); n != 1 {
+		t.Fatalf("the canvas is in the page %d times", n)
+	}
+	if strings.Contains(string(page), marker) {
+		t.Fatal("an unescaped copy of the canvas is in the page")
+	}
+	if n := strings.Count(string(page), attributeEscaper.Replace(viewerFile(t, "isolate.js"))); n != 1 {
+		t.Fatalf("isolate.js is in the page %d times", n)
+	}
+}
+
+// Markup that ends a script or a template in the canvas stays inside the attribute (POSTMORTEM 2026-11-09 'Export
+// inlined the wrong file after a nested self-closing `<template/>`').
+func TestAssemblePrototypeKeepsCanvasMarkupInsideTheAttribute(t *testing.T) {
+	for _, body := range []string{
+		`<script>const s = "</script" + ">";</script></script>`,
+		`<template/><template><p>x</p></template></template>`,
+		`</template><div data-doan-frame="checkout"></div><!-- </div> -->`,
+		`<script type="application/json" id="doan-prototype">{"start":"evil"}</script><div id="canvas" data-srcdoc="x"></div>`,
+	} {
+		canvas := "<!doctype html><html><head></head><body>" + body + "</body></html>"
+		page, err := AssemblePrototype(Meta{Name: "n", Width: 100}, checkout, []byte(canvas))
+		if err != nil {
+			t.Fatal(err)
+		}
+		p := parsePrototype(t, page)
+		if p.holders != 1 || p.metas != 1 || p.iframes != 0 {
+			t.Fatalf("%q: holders %d group scripts %d iframes %d", body, p.holders, p.metas, p.iframes)
+		}
+		if g := p.group(t); g.Start != "checkout" {
+			t.Fatalf("%q: group %+v", body, g)
+		}
+		script := isolateScript(t, p.canvas)
+		if strings.Replace(p.canvas, script, "", 1) != canvas {
+			t.Fatalf("%q: canvas bytes changed: %q", body, p.canvas)
+		}
+		if p.title != "Checkout — Prototype" || len(p.noscripts) != 2 {
+			t.Fatalf("%q: title %q noscripts %q", body, p.title, p.noscripts)
+		}
 	}
 }
 
@@ -190,14 +324,20 @@ func TestAssemblePrototypeStripsALeadingByteOrderMark(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(parsePrototype(t, page).srcdoc, "\ufeff") {
+	if strings.Contains(parsePrototype(t, page).canvas, "\ufeff") {
 		t.Fatal("the BOM survived")
 	}
 }
 
-func TestAssemblePrototypeRefusesAnEmptyFrameID(t *testing.T) {
-	if _, err := AssemblePrototype(Meta{Name: "n", Width: 100}, Proto{Title: "Checkout"}, []byte(simpleCanvas)); err == nil {
-		t.Fatal("an empty frame id was accepted")
+func TestAssemblePrototypeRefusesAStartOutsideItsGroup(t *testing.T) {
+	for _, p := range []Proto{
+		{Frames: []ProtoFrame{{ID: "checkout", Title: "Checkout"}}},
+		{Frame: "checkout"},
+		{Frame: "checkout", Frames: []ProtoFrame{{ID: "cart"}}},
+	} {
+		if _, err := AssemblePrototype(Meta{Name: "n", Width: 100}, p, []byte(simpleCanvas)); err == nil {
+			t.Fatalf("%+v was accepted", p)
+		}
 	}
 }
 
@@ -217,9 +357,10 @@ func TestAssemblePrototypeOutputIsPinned(t *testing.T) {
 		proto        Proto
 		want         string
 	}{
-		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", Proto{Frame: "a", Title: `a "&" <b>`}, "f35f507e1b170a501d2c91709c056537e66fce7f6dc7d9277515b3b69a7b5dc7"},
-		{"bare", "<p>a & \"b\"</p>", Proto{Frame: "x</script>"}, "f1cd7d7af5598b77ad11481ef72ba7120f4c4390a4321eeb0939a2283154e7be"},
-		{"empty", "", Proto{Frame: "checkout", Title: "Checkout"}, "1107ab0cbbe8fa63dcced92ad58e55ebe0f9a0b4ef475d72546a1ed17c806ffd"},
+		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", Proto{Frame: "a", Frames: []ProtoFrame{{ID: "a", Title: `a "&" <b>`}}}, "2c97071ea4606c2670f685eaa1bb7c2982d3888c565d45be23f631dc0d57b892"},
+		{"bare", "<p>a & \"b\"</p>", Proto{Frame: "x</script>", Frames: []ProtoFrame{{ID: "x</script>"}}}, "c9692bba6b5ab7a3bc176d1ac1b9fae0e8a38c8f8af7c1a00c293fc64cc2ba83"},
+		{"empty", "", checkout, "6b2c8bf6653d5adb8bd46fa30f4edbf4d1e5b228e9b1340ceddc38c353d7c669"},
+		{"group", "<p>g</p>", Proto{Frame: "b", Frames: []ProtoFrame{{ID: "a", Title: "A"}, {ID: "b"}, {ID: "c d", Title: "C & D"}}}, "9c6df8ed9a955d2aa5fadc2582b37aaee2f5a75d0a2cd55b90df44604c3ae453"},
 	} {
 		page, err := AssemblePrototype(Meta{Name: "pinned", Width: 320}, c.proto, []byte(c.canvas))
 		if err != nil {

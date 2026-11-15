@@ -1,14 +1,17 @@
 // The first script in an exported prototype's canvas document (srcdoc), wrapped in a function by
-// AssemblePrototype after `const FRAME = <frame id as JSON>;`. It isolates that one frame as the
-// app's prototype window does (app/src/main/prototypeScript.ts), keeps the canvas from leaving its
-// document, and tells the page around it, once, whether the frame is there.
+// AssemblePrototype. It isolates one frame as the app's prototype window does
+// (app/src/main/prototypeScript.ts), keeps the canvas from leaving its document, tells the page
+// around it, once, whether the frame is there, and tells it which link a click in the frame follows.
 //
-// The CLI already judged the frame from the file, so the mark is not read again: a frame a script
-// removes, or duplicates, before the frame is found is reported as missing.
+// The frame is the iframe's name, which prototype.js sets before the document loads: the canvas is
+// held once in the page for every frame of the group. The CLI already judged the group from the
+// file, so the mark is not read again: a frame a script removes, or duplicates, before the frame is
+// found is reported as missing.
 
-// Taken before any canvas script runs, so a canvas name cannot shadow it.
+// Taken before any canvas script runs, so a canvas name cannot shadow them.
+const FRAME = window.name;
 const host = window.parent;
-const post = (state) => host.postMessage({ type: "doan-prototype", state }, "*");
+const post = (message) => host.postMessage({ type: "doan-prototype", ...message }, "*");
 
 // A srcdoc document's URL is about:srcdoc while its base is the page's file URL, so a fragment or a
 // path given to pushState or replaceState resolves against that file URL and the browser refuses it
@@ -35,25 +38,102 @@ function sameDocument(href) {
   return href.startsWith("#");
 }
 
+// A click on a data-doan-goto link inside the playing frame posts its value, as the prototype
+// window's injected script decides it (the shared table in schema/fixtures/prototype-links/clicks.json
+// holds both to it). The listener is on the window's capture phase and registered before the
+// canvas's own scripts run, so a canvas stopping the click's propagation cannot keep it from us. The
+// click's target is the one the window sees, so a link inside a shadow root (retargeted to its host)
+// or a nested iframe (its clicks never reach this window) does nothing. A value over 200 UTF-16 units
+// is posted as null, as the window's script does; the page follows neither it nor a value naming no
+// frame of its group.
+//
+// Only the canvas cancelling the click stops it, judged as the window's script judges it: by the
+// final defaultPrevented, after a 0 ms timer. So isolate.js never cancels such a click itself. Yet the
+// browser must not follow the link's own href (another document, or a fragment a srcdoc document
+// resolves against the page's file URL). So the capture listener adds a one-time window listener for
+// the click, which runs in the window's bubble phase after every listener the canvas registered
+// before the click (each phase invokes a fresh copy of the window's list). It takes every href the
+// browser could follow off the nearest <a> or <area> (an SVG link falls back to its XLink href), and
+// the browser's activation finds nothing to follow. The timer decides the click first, then puts each
+// node back unless the canvas set that href again or moved the node elsewhere meanwhile. Limits: a
+// listener the canvas adds during the click that runs after ours sees the link without its href, and
+// one that sets the href again there makes the browser follow it, so the frame navigates while the
+// link is still followed; a MutationObserver on the href sees it removed and restored; and a canvas
+// that stops the click's propagation before the window's bubble phase keeps the href, so the browser
+// navigates the frame as it did before, while the link is still followed.
+const GOTO_ATTRIBUTE = "data-doan-goto";
+const MAX_GOTO = 200;
+let playing = null;
+// Followed clicks, which the ordinary link handling below leaves alone.
+const followed = new WeakSet();
+window.addEventListener("click", (event) => {
+  const target = event.target;
+  if (playing === null || !(target instanceof Element)) return;
+  const link = target.closest(`[${GOTO_ATTRIBUTE}]`);
+  if (link === null || !playing.contains(link)) return;
+  const value = link.getAttribute(GOTO_ATTRIBUTE) ?? "";
+  followed.add(event);
+  let taken = [];
+  // The guard: a click the canvas dispatches from its own handler (a nested click()) reaches this
+  // listener before the outer click's bubble phase does.
+  const late = (other) => {
+    if (other !== event) return;
+    window.removeEventListener("click", late);
+    taken = takeHref(event);
+  };
+  window.addEventListener("click", late);
+  setTimeout(() => {
+    window.removeEventListener("click", late);
+    if (!event.defaultPrevented) post({ goto: value.length <= MAX_GOTO ? value : null });
+    for (const { node, attr } of taken) {
+      if (attr.ownerElement === null && node.getAttributeNodeNS(attr.namespaceURI, attr.localName) === null) node.setAttributeNode(attr);
+    }
+  }, 0);
+}, true);
+
+// The nearest <a> or <area> in the click's path, as a browser follows it.
+function linkElement(event) {
+  for (const node of event.composedPath()) {
+    if (node instanceof Element && (node.localName === "a" || node.localName === "area")) return node;
+  }
+  return null;
+}
+
+// A namespace name, not an address: nothing is fetched from it.
+const XLINK = "http://www.w3.org/1999/xlink";
+
+// Removes the hrefs a browser follows, the one with no namespace and the XLink one an SVG link falls
+// back to (matched by namespace, whatever its prefix), and returns them as attribute nodes, which
+// keep their namespace and prefix for the way back. An href in any other namespace is the canvas's.
+function takeHref(event) {
+  const node = linkElement(event);
+  if (node === null) return [];
+  const taken = [];
+  for (const namespace of [null, XLINK]) {
+    const attr = node.getAttributeNodeNS(namespace, "href");
+    if (attr === null) continue;
+    node.removeAttributeNode(attr);
+    taken.push({ node, attr });
+  }
+  return taken;
+}
+
 // Bubble phase, so the canvas's own handlers run first and a handler that checks defaultPrevented
 // (a client-side router's link) still sees its own event. A handler that stops propagation keeps
-// its default.
+// its default. A followed click is left alone.
 window.addEventListener("submit", (event) => {
   event.preventDefault();
 });
 window.addEventListener("click", (event) => {
-  if (event.defaultPrevented) return;
-  for (const node of event.composedPath()) {
-    if (!(node instanceof Element) || (node.localName !== "a" && node.localName !== "area")) continue;
-    const href = node.getAttribute("href") ?? node.getAttribute("xlink:href");
-    if (href === null) return;
-    event.preventDefault();
-    // A srcdoc document resolves "#id" against the page's file URL, not its own, so the browser's
-    // own handling leaves it: WebKit loads the page around the frame into the frame, and Chromium
-    // drops the click. Setting the hash moves within the document, as the link would in the app.
-    if (sameDocument(href)) location.hash = href;
-    return;
-  }
+  if (event.defaultPrevented || followed.has(event)) return;
+  const node = linkElement(event);
+  const href = node?.getAttribute("href") ?? node?.getAttribute("xlink:href") ?? null;
+  if (href === null) return;
+  event.preventDefault();
+  // A srcdoc document resolves "#id" against the page's file URL, not its own, so the browser's
+  // own handling leaves it: WebKit loads the page around the frame into the frame, and Chromium
+  // drops the click. Setting the hash moves within the document, as the link would in the app.
+  if (sameDocument(href)) location.hash = href;
 });
 
 // The same list and sheet as prototypeScript.ts's isolate (exportViewer.test.ts compares them).
@@ -93,8 +173,9 @@ function finish(final) {
   done = true;
   if (matches.length === 1) {
     isolate(matches[0]);
-    post("ready");
-  } else post("missing");
+    playing = matches[0];
+    post({ state: "ready" });
+  } else post({ state: "missing" });
   return true;
 }
 const afterLoad = (then) => window.addEventListener("load", () => setTimeout(then, 0), { once: true });

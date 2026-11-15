@@ -74,11 +74,20 @@ describe("interpretExport", () => {
   });
 
   test("a prototype export counts only with the CLI's prototype result", () => {
-    expect(interpretExport(ok(result({ prototype: true, external: ["https://cdn.example/x.css"] })), OUT, true)).toEqual({ kind: "exported", external: 1 });
+    expect(interpretExport(ok(result({ prototype: true, external: ["https://cdn.example/x.css"], linkedFrames: 0 })), OUT, true)).toEqual({ kind: "exported", external: 1, linkedFrames: 0 });
     expect(interpretExport(ok(result()), OUT, true)).toEqual({ kind: "failed", reason: "failed" });
     expect(interpretExport(ok(result({ prototype: "yes" })), OUT, true)).toEqual({ kind: "failed", reason: "failed" });
     // The canvas export does not look at it.
-    expect(interpretExport(ok(result({ prototype: true })), OUT)).toEqual({ kind: "exported", external: 0 });
+    expect(interpretExport(ok(result({ prototype: true, linkedFrames: 2 })), OUT)).toEqual({ kind: "exported", external: 0 });
+  });
+
+  // The frames of the start frame's link group besides it, for the toast. A value that is not a count reads as none:
+  // the file is written, so the export still succeeds.
+  test("a prototype export reads how many linked frames the file holds", () => {
+    expect(interpretExport(ok(result({ prototype: true, linkedFrames: 3 })), OUT, true)).toEqual({ kind: "exported", external: 0, linkedFrames: 3 });
+    for (const linkedFrames of [undefined, -1, 1.5, "2", null, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(interpretExport(ok(result({ prototype: true, linkedFrames })), OUT, true), String(linkedFrames)).toEqual({ kind: "exported", external: 0, linkedFrames: 0 });
+    }
   });
 
   test("anything else is a plain failure: other codes, no CLI, a crash, a timeout, output that is not an envelope", () => {
@@ -237,7 +246,7 @@ describe("createPrototypeExport", () => {
 
   test("asks for <stem>-<frame>.html and runs the CLI on the clicked frame, telling the window it runs in between", async () => {
     const h = harness();
-    expect(await h.exporter.export("prototype", target)).toEqual({ kind: "exported", external: 0, reveal: expect.any(String) });
+    expect(await h.exporter.export("prototype", target)).toEqual({ kind: "exported", external: 0, linkedFrames: 0, reveal: expect.any(String) });
     expect(h.targetOf).toHaveBeenCalledExactlyOnceWith("prototype", target);
     expect(h.choose).toHaveBeenCalledExactlyOnceWith("flows-checkout.html");
     expect(h.running).toHaveBeenCalledExactlyOnceWith(target);
@@ -274,8 +283,8 @@ describe("createPrototypeExport", () => {
     h.run.mockImplementationOnce(() => new Promise<CliRun>(resolve => { finish = resolve; }));
     const first = h.exporter.export("prototype", target);
     await vi.waitFor(() => expect(finish).toBeDefined());
-    finish(done({ external: ["https://cdn.example/a.css"] }));
-    expect(await first).toEqual({ kind: "exported", external: 1, reveal: expect.any(String) });
+    finish(done({ external: ["https://cdn.example/a.css"], linkedFrames: 2 }));
+    expect(await first).toEqual({ kind: "exported", external: 1, linkedFrames: 2, reveal: expect.any(String) });
     expect(await h.exporter.export("prototype", target)).toMatchObject({ kind: "exported" });
   });
 

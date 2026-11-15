@@ -75,22 +75,49 @@ func Assemble(m Meta, canvasHTML []byte) ([]byte, error) {
 	return fillPage(shell, values, srcdoc), nil
 }
 
-// Proto names the one frame an exported prototype plays. The CLI judged it from
-// the canvas file before assembling (it exists once and is marked).
-type Proto struct {
-	Frame string // data-doan-frame
+// ProtoFrame is one frame of an exported prototype's group.
+type ProtoFrame struct {
+	ID    string // data-doan-frame
 	Title string // data-doan-title, "" when the frame has none
 }
 
-// AssemblePrototype wraps the rewritten canvas HTML in the prototype page: the
-// whole canvas in a sandboxed iframe that fills the browser window, with
-// isolate.js first in its head to hide everything but the frame. It shares
-// Assemble's one-pass placeholder filling, srcdoc escaping, script placement
-// and byte order mark removal; only the shell differs. The page shows neither
-// the canvas name nor its width, but takes the same Meta as Assemble.
+// Proto names what an exported prototype plays: the frame it starts on and that frame's link group, the frames a
+// recipient can reach from it. The CLI judged both from the canvas file before assembling (each frame exists once and
+// is marked).
+type Proto struct {
+	Frame  string       // the start frame's id
+	Frames []ProtoFrame // the start frame's link group in document order, the start frame among them
+}
+
+// AssemblePrototype wraps the rewritten canvas HTML in the prototype page. The page holds the whole canvas once, with
+// isolate.js first in its head, in a hidden element's data-srcdoc attribute; prototype.js puts it into a new sandboxed
+// iframe for every frame it shows, naming the iframe after the frame, which isolate.js reads to hide everything else.
+// The group goes into the page as JSON, each frame with the name the page shows (its title, else its id). The static
+// tab title names the start frame. It shares Assemble's one-pass placeholder filling, srcdoc escaping, script placement
+// and byte order mark removal; only the shell differs. The page shows neither the canvas name nor its width, but takes
+// the same Meta as Assemble.
 func AssemblePrototype(m Meta, p Proto, canvasHTML []byte) ([]byte, error) {
 	if p.Frame == "" {
 		return nil, errors.New("prototype frame id must not be empty")
+	}
+	type frame struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}
+	frames := make([]frame, 0, len(p.Frames))
+	label := ""
+	for _, f := range p.Frames {
+		name := f.Title
+		if name == "" {
+			name = f.ID
+		}
+		frames = append(frames, frame{f.ID, name})
+		if f.ID == p.Frame {
+			label = name
+		}
+	}
+	if label == "" {
+		return nil, errors.New("prototype start frame must be in its group")
 	}
 	files := map[string]string{}
 	for _, name := range []string{"prototype.html", "prototype.css", "prototype.js", "isolate.js"} {
@@ -100,23 +127,23 @@ func AssemblePrototype(m Meta, p Proto, canvasHTML []byte) ([]byte, error) {
 		}
 		files[name] = string(b)
 	}
-	frame, err := json.Marshal(p.Frame)
+	// json.Marshal writes "<", ">", "&", U+2028 and U+2029 as escapes, so no id or title can end the script element
+	// the group sits in or open an HTML comment in it.
+	meta, err := json.Marshal(struct {
+		Start  string  `json:"start"`
+		Frames []frame `json:"frames"`
+	}{p.Frame, frames})
 	if err != nil {
 		return nil, err
 	}
-	label := p.Title
-	if label == "" {
-		label = p.Frame
-	}
-	// json.Marshal writes "<", ">", "&", U+2028 and U+2029 as escapes, so the id
-	// can neither end the script nor open an HTML comment in it.
-	isolateScript := "<script>(function () {\nconst FRAME = " + string(frame) + ";\n" + files["isolate.js"] + "\n})();</script>"
+	isolateScript := "<script>(function () {\n" + files["isolate.js"] + "\n})();</script>"
 
 	canvas := bytes.TrimPrefix(canvasHTML, byteOrderMark)
 	at := measureOffset(canvas)
 	srcdoc := [][]byte{canvas[:at], []byte(isolateScript), canvas[at:]}
 	values := map[string]string{
 		"{{NAME}}":   html.EscapeString(label),
+		"{{META}}":   string(meta),
 		"{{STYLE}}":  files["prototype.css"],
 		"{{SCRIPT}}": "(function () {\n" + files["prototype.js"] + "\n})();",
 	}
