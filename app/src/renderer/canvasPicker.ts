@@ -18,6 +18,22 @@ export function pickerAvailability(composer: string | null, canvas: CanvasLoad, 
   return { enabled: true, reason: null };
 }
 
+// The size bubble's Add to message: the same chip as a pick of the selection, so after its own two reasons it takes the
+// Picker's judgement. The Picker's canvas reason names that other button, so the bubble says it in its own words; an
+// unlisted canvas keeps its notice (`unlisted`, null for a listed one).
+export const ADD_TO_MESSAGE_CAPTURING = "Finish or cancel the capture first.";
+export const ADD_TO_MESSAGE_OUTSIDE_FRAMES = "Only frames and what’s in them can go in a message.";
+export const ADD_TO_MESSAGE_UNAVAILABLE = "Add to message isn’t available while the canvas can’t be shown.";
+
+export function bubbleAddAvailability(input: { capturing: boolean; anchor: Anchor | null; picker: { enabled: boolean; reason: string | null }; unlisted: string | null }): { enabled: boolean; reason: string | null } {
+  if (input.capturing) return { enabled: false, reason: ADD_TO_MESSAGE_CAPTURING };
+  // A pick never makes a chip of what is outside every frame (receivePicked), so neither does the bubble.
+  if (!input.anchor?.frame) return { enabled: false, reason: ADD_TO_MESSAGE_OUTSIDE_FRAMES };
+  if (input.picker.enabled) return { enabled: true, reason: null };
+  if (input.picker.reason === PICKER_UNAVAILABLE) return { enabled: false, reason: input.unlisted ?? ADD_TO_MESSAGE_UNAVAILABLE };
+  return { enabled: false, reason: input.picker.reason };
+}
+
 export interface Rect { x: number; y: number; width: number; height: number }
 export interface PickFrame extends Rect { id: string; title?: string }
 

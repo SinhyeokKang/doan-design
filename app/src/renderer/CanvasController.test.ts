@@ -7,6 +7,7 @@ import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState
 import { elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, screenToBoard } from "./viewport";
 import { unavailableCanvasMessage } from "./quickOpen";
 import { SELECTION_LOST } from "./selection";
+import { ADD_TO_MESSAGE_OUTSIDE_FRAMES, bubbleAddAvailability, targetAnchor } from "./canvasPicker";
 import { activityFor } from "./activity";
 import { CanvasTools } from "./CanvasTools";
 import { TooltipContent } from "./components/ui/tooltip";
@@ -146,6 +147,9 @@ interface FakeMark {
   style: Record<string, string>;
   children: FakeMark[];
   append(...children: FakeMark[]): void;
+  prepend(...children: FakeMark[]): void;
+  remove(): void;
+  focus(): void;
   // The pointers a fake element holds (the capture layer's drag).
   captured?: Set<number>;
 }
@@ -161,6 +165,13 @@ function selectionHarness() {
   const nextFrame = () => { for (const callback of animationFrames.splice(0)) callback(0); };
   const frames: (EventTarget & { contentWindow: { postMessage: ReturnType<typeof vi.fn> }; style: Record<string, string> })[] = [];
   const marks: FakeMark[] = [];
+  const parents = new WeakMap<FakeMark, FakeMark>();
+  const detach = (child: FakeMark) => {
+    const parent = parents.get(child);
+    if (!parent) return;
+    parent.children.splice(parent.children.indexOf(child), 1);
+    parents.delete(child);
+  };
   // What the hand tool reads: which element has focus, and whether the app window has it.
   // The document root carries the capture snapshot's attribute.
   const rootAttributes = new Map<string, string>();
@@ -175,8 +186,13 @@ function selectionHarness() {
     createElement: (tag: string) => {
       if (tag !== "iframe") {
         const captured = new Set<number>();
-        const mark: FakeMark = Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", style: {}, children: [] as FakeMark[], append: (...children: FakeMark[]) => mark.children.push(...children), setAttribute: vi.fn(), remove: vi.fn(),
+        // Children know their parent, so moving or removing one takes it out of the old parent's list as the DOM does.
+        const mark: FakeMark = Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", style: {}, children: [] as FakeMark[],
+          append: (...children: FakeMark[]) => { for (const child of children) detach(child); for (const child of children) parents.set(child, mark); mark.children.push(...children); },
+          prepend: (...children: FakeMark[]) => { for (const child of children) detach(child); for (const child of children) parents.set(child, mark); mark.children.unshift(...children); },
+          setAttribute: vi.fn(), remove: vi.fn(() => detach(mark)), focus: vi.fn(() => { doc.activeElement = mark; }),
           captured, setPointerCapture: (id: number) => { captured.add(id); }, releasePointerCapture: (id: number) => { captured.delete(id); }, hasPointerCapture: (id: number) => captured.has(id) });
+
         marks.push(mark);
         return mark;
       }
@@ -235,19 +251,22 @@ describe("selection", () => {
       const play = { onPlay: vi.fn(), onFocusLost: vi.fn() };
       h.controller.bubblePlay = play;
       h.layout({ frames: marked });
-      return { h, play, dims: () => h.markOf("dims")!, button: () => h.marks.find(mark => mark.className.includes("bubble-play")) };
+      return { h, play, dims: () => h.markOf("dims")!, button: () => h.marks.find(mark => mark.className.includes("bubble-play")),
+        label: () => h.markOf("dims")!.children.find(child => child.className === "")!, host: () => h.markOf("bubble-host")! };
     };
 
-    it("shows beside the size label only while the marked frame itself is selected", () => {
-      const { h, dims, button } = setup();
+    it("shows before the size label only while the marked frame itself is selected", () => {
+      const { h, dims, button, label, host } = setup();
       try {
         h.select(1, { target: frameTarget("intro") });
         expect(dims().className).toBe("dims playable");
-        expect(dims().children).toEqual([expect.objectContaining({ textContent: "320 × 180" }), button()]);
+        expect(dims().children).toEqual([button(), label(), host()]);
+        expect(label().textContent).toBe("320 × 180");
         expect(h.controller.bubblePlayButton()).toBe(button());
         h.select(2, { target: frameTarget("hero") });
         expect(dims().className).toBe("dims");
-        expect(dims().textContent).toBe("320 × 180");
+        expect(dims().children).toEqual([label(), host()]);
+        expect(label().textContent).toBe("320 × 180");
         expect(h.controller.bubblePlayButton()).toBeNull();
         h.select(3, { target: { ...h.target, frame: { id: "intro" }, frameIndex: 0 } });
         expect(dims().className).toBe("dims");
@@ -323,18 +342,216 @@ describe("selection", () => {
       } finally { h.controller.dispose(); }
     });
 
-    it("hands focus on when it goes away while focused, and not when it goes unfocused", () => {
+    // Play alone going leaves the bubble, whose Add to message is the next control; the whole bubble going hands
+    // focus to the toolbar's Play (App's onFocusLost).
+    it("hands focus to Add to message when Play alone goes, to App when the bubble goes, and nowhere when it went unfocused", () => {
       const { h, play, button } = setup();
+      const addButton = { focus: vi.fn(() => { h.doc.activeElement = addButton; }) };
+      h.controller.bubbleAdd = { host: vi.fn(), onAdd: vi.fn(), button: () => addButton as unknown as HTMLElement, onFocusLost: vi.fn() };
       try {
         h.select(1, { target: frameTarget("intro") });
         h.doc.activeElement = button();
         h.select(2, { target: frameTarget("hero") });
-        expect(play.onFocusLost).toHaveBeenCalledOnce();
+        expect(addButton.focus).toHaveBeenCalledOnce();
+        expect(play.onFocusLost).not.toHaveBeenCalled();
         h.select(3, { target: frameTarget("intro") });
-        h.doc.activeElement = null;
-        h.select(4, { target: frameTarget("hero") });
+        h.doc.activeElement = button();
+        h.receive({ type: "clear", seq: 4 });
         expect(play.onFocusLost).toHaveBeenCalledOnce();
+        expect(h.controller.bubbleAdd.onFocusLost).not.toHaveBeenCalled();
+        h.select(5, { target: frameTarget("intro") });
+        h.doc.activeElement = null;
+        h.select(6, { target: frameTarget("hero") });
+        h.receive({ type: "clear", seq: 7 });
+        expect(play.onFocusLost).toHaveBeenCalledOnce();
+        expect(addButton.focus).toHaveBeenCalledOnce();
       } finally { h.controller.dispose(); }
+    });
+  });
+
+  // The mark's padding box is the element's rect and its line grows outward by the line's own width. Chromium floors
+  // a border to whole device pixels (1.5px → 1 at 1x) but not a margin, so at 1x a −1.5 margin under a 1px line left a
+  // pixel gap on one side and put the line over the element's last pixel on the other (runtime probe at 1x, 100 %).
+  // Each resolution's margin, and the bubble's distance from the line, must match the width drawn there.
+  it("grows the selection box by the line width actually drawn, at 2x and at 1x", () => {
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    const rule = (text: string, selector: string) => { const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); return text.match(new RegExp(`(?:^|\\n|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? null; };
+    const low = css.match(/@media \(resolution < 2dppx\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    expect(rule(css, ".mark")).toContain("border: 1.5px solid var(--text-accent)");
+    expect(rule(css, ".mark:not(.jump-point)")).toContain("margin: -1.5px");
+    expect(rule(css, ".dims")).toContain("top: calc(100% + 1.5px + 5px)");
+    expect(rule(css, ".dims.above")).toContain("bottom: calc(100% + 1.5px + 5px)");
+    expect(rule(low, ".mark")).toContain("border-width: 1px");
+    expect(rule(low, ".mark:not(.jump-point)")).toContain("margin: -1px");
+    expect(rule(low, ".dims")).toContain("top: calc(100% + 1px + 5px)");
+    expect(rule(low, ".dims.above")).toContain("bottom: calc(100% + 1px + 5px)");
+  });
+
+  // Add to message ends the size bubble whenever there is a selection. The controller owns a fixed host at the bubble's
+  // end and App portals the button into it, so availability, its reason and the tooltip stay React's, while the press
+  // is the host's own native listener: the viewport's listeners would act on it before any React handler.
+  describe("the size bubble's Add to message", () => {
+    const frameTarget = (id: string) => ({ rect: { x: 0, y: 0, width: 320, height: 180 }, tag: "section", frame: { id }, frameIndex: 0, path: [] });
+    const setup = () => {
+      const h = selectionHarness();
+      const addButton = { focus: vi.fn(() => { h.doc.activeElement = addButton; }) };
+      const add = { host: vi.fn(), onAdd: vi.fn(), button: () => addButton as unknown as HTMLElement, onFocusLost: vi.fn(() => { h.doc.activeElement = holder; }) };
+      // Where App's onFocusLost puts focus: the toolbar's Picker.
+      const holder = { name: "Picker" };
+      const play = { onPlay: vi.fn(), onFocusLost: vi.fn() };
+      h.controller.bubbleAdd = add;
+      h.controller.bubblePlay = play;
+      h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }] });
+      const dims = () => h.markOf("dims")!;
+      return { h, add, addButton, holder, play, dims, host: () => h.markOf("bubble-host")!, label: () => dims().children.find(child => child.className === "")!, playButton: () => h.marks.find(mark => mark.className.includes("bubble-play")) };
+    };
+
+    it("ends the bubble after the size, hands its host to App once, and keeps the same host as Play comes and goes", () => {
+      const { h, add, dims, host, label, playButton } = setup();
+      try {
+        h.select(1);
+        expect(dims().children).toEqual([label(), host()]);
+        expect(label().textContent).toBe("60 × 18");
+        expect(add.host).toHaveBeenCalledExactlyOnceWith(host());
+        const first = host();
+        h.select(2, { target: frameTarget("intro") });
+        expect(dims().children).toEqual([playButton(), label(), first]);
+        h.select(3);
+        expect(dims().children).toEqual([label(), first]);
+        expect(first.remove).not.toHaveBeenCalled();
+        expect(add.host).toHaveBeenCalledOnce();
+      } finally { h.controller.dispose(); }
+    });
+
+    it("presses on a click in its host, and keeps the press and click from reaching the canvas or the board", () => {
+      const { h, add, host } = setup();
+      try {
+        h.select(1);
+        for (const type of ["pointerdown", "mousedown", "click"]) {
+          const event = new Event(type, { bubbles: true });
+          (host() as unknown as EventTarget).dispatchEvent(event);
+          expect(event.cancelBubble, type).toBe(true);
+        }
+        expect(add.onAdd).toHaveBeenCalledOnce();
+        // A selection is never touched by the press.
+        expect(h.state().selection).not.toBeNull();
+        // Without a selection the bubble is hidden, and a click that still reaches it does nothing.
+        h.receive({ type: "clear", seq: 2 });
+        (host() as unknown as EventTarget).dispatchEvent(new Event("click", { bubbles: true }));
+        expect(add.onAdd).toHaveBeenCalledOnce();
+      } finally { h.controller.dispose(); }
+    });
+
+    it("hands focus to App when the bubble goes while Add to message has it, and not otherwise", () => {
+      const { h, add, addButton, play } = setup();
+      try {
+        h.select(1);
+        h.doc.activeElement = addButton;
+        h.receive({ type: "clear", seq: 2 });
+        expect(add.onFocusLost).toHaveBeenCalledOnce();
+        expect(play.onFocusLost).not.toHaveBeenCalled();
+        h.select(3);
+        h.doc.activeElement = null;
+        h.receive({ type: "clear", seq: 4 });
+        expect(add.onFocusLost).toHaveBeenCalledOnce();
+        // Hand drops the selection too.
+        h.select(5);
+        h.doc.activeElement = addButton;
+        h.controller.setTool("hand");
+        expect(add.onFocusLost).toHaveBeenCalledTimes(2);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("keeps focus on Add to message while Play comes and goes", () => {
+      const { h, add, addButton, play } = setup();
+      try {
+        h.select(1, { target: frameTarget("intro") });
+        h.doc.activeElement = addButton;
+        h.select(2, { target: frameTarget("hero") });
+        h.select(3, { target: frameTarget("intro") });
+        expect(h.doc.activeElement).toBe(addButton);
+        expect(add.onFocusLost).not.toHaveBeenCalled();
+        expect(play.onFocusLost).not.toHaveBeenCalled();
+      } finally { h.controller.dispose(); }
+    });
+
+    // A reload hides the bubble while the new document is asked for the same selection; focus waits on the toolbar and
+    // comes back to the same button once the selection is found, unless the person moved it meanwhile.
+    // ARCHITECTURE §3: a waiting focus move ends for good the moment focus goes anywhere else, even if it comes back.
+    it("gives up bringing focus back for good once focus went elsewhere during the reload, even back to the holder", () => {
+      const frames = [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }];
+      for (const which of ["add", "play"] as const) {
+        const { h, addButton, holder, play, playButton } = setup();
+        play.onFocusLost.mockImplementation(() => { h.doc.activeElement = holder; });
+        const focusin = (target: unknown) => {
+          h.doc.activeElement = target;
+          const event = new Event("focusin");
+          Object.defineProperty(event, "target", { get: () => target });
+          h.host.dispatchEvent(event);
+        };
+        try {
+          const target = which === "play" ? frameTarget("intro") : h.target;
+          h.select(1, { target });
+          const button = which === "play" ? playButton()! : addButton;
+          h.doc.activeElement = button;
+          h.controller.command("reload");
+          expect(h.doc.activeElement, which).toBe(holder);
+          focusin({ name: "sidebar row" });
+          focusin(holder);
+          h.layout({ frames });
+          h.select(1, { target });
+          expect(h.doc.activeElement, which).toBe(holder);
+          expect(button.focus, which).not.toHaveBeenCalled();
+        } finally { h.controller.dispose(); }
+      }
+    });
+
+    // The wait listens for focus moves only while it can still bring focus back.
+    it("stops watching focus once the wait ends: focus came back, the selection was cleared, or the controller went", () => {
+      const frames = [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }];
+      for (const end of ["found", "cleared", "disposed"] as const) {
+        const { h, addButton } = setup();
+        const added = vi.spyOn(h.host, "addEventListener"), removed = vi.spyOn(h.host, "removeEventListener");
+        const watching = () => added.mock.calls.filter(call => call[0] === "focusin").length - removed.mock.calls.filter(call => call[0] === "focusin").length;
+        try {
+          h.select(1);
+          h.doc.activeElement = addButton;
+          h.controller.command("reload");
+          expect(watching(), end).toBe(1);
+          h.layout({ frames });
+          if (end === "found") h.select(1);
+          else if (end === "cleared") h.select(1, { target: null });
+          else h.controller.dispose();
+          expect(watching(), end).toBe(0);
+        } finally { h.controller.dispose(); }
+      }
+    });
+
+    it("brings focus back to the same button once a reload finds the selection again, unless it moved meanwhile", () => {
+      for (const which of ["add", "play"] as const) {
+        const { h, add, addButton, holder, play, playButton } = setup();
+        play.onFocusLost.mockImplementation(() => { h.doc.activeElement = holder; });
+        try {
+          const target = which === "play" ? frameTarget("intro") : h.target;
+          h.select(1, { target });
+          const button = which === "play" ? playButton()! : addButton;
+          h.doc.activeElement = button;
+          h.controller.command("reload");
+          expect(h.state().reanchoring, which).toBe(true);
+          expect((which === "play" ? play : add).onFocusLost, which).toHaveBeenCalledOnce();
+          expect(h.doc.activeElement, which).toBe(holder);
+          h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }] });
+          h.select(1, { target });
+          expect(h.state().reanchoring, which).toBe(false);
+          expect(h.doc.activeElement, which).toBe(button);
+          // Moved meanwhile: focus stays where the person put it.
+          h.controller.command("reload");
+          h.doc.activeElement = { name: "sidebar row" };
+          h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }] });
+          h.select(1, { target });
+          expect(h.doc.activeElement, which).toEqual({ name: "sidebar row" });
+        } finally { h.controller.dispose(); }
+      }
     });
   });
 
@@ -357,7 +574,7 @@ describe("selection", () => {
       const { rect: _rect, ...view } = h.target;
       expect(h.state().selection).toEqual(view);
       expect(h.send).toHaveBeenLastCalledWith({ root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, frame: { id: "hero" }, element: h.target.element });
-      expect(h.markOf("dims")?.textContent).toBe("60 × 18");
+      expect(h.markOf("dims")?.children.find(child => child.className === "")?.textContent).toBe("60 × 18");
       expect(h.markOf("selected")?.children).toEqual([h.markOf("dims")]);
       expect(h.overlay.append).toHaveBeenCalledWith(h.markOf("hover"), h.markOf("selected"));
       expect(h.markOf("selected")?.hidden).toBe(false);
@@ -2118,6 +2335,38 @@ describe("picking", () => {
       expect(h.controller.pick()).toBe(true);
       expect(picks(h)).toHaveLength(1);
     } finally { h.controller.dispose(); }
+  });
+
+  // The size bubble's Add to message makes its chip from the selection in state (App's targetAnchor of it); a pick of
+  // the same thing must give the same chip, and a note, which a pick never makes a chip of, leaves the bubble unavailable.
+  it("the selection's anchor for Add to message is the pick's anchor for the same target, and a note has none to add", () => {
+    const ready = { enabled: true, reason: null };
+    const element = { doanId: "pay", selector: '[data-doan-id="pay"]', html: "<button>Pay</button>", text: "Pay" };
+    const targets = {
+      inFrame: { rect: { x: 1, y: 22, width: 8, height: 4 }, tag: "button", frame: { id: "hero", title: "Hero" }, frameIndex: 1, element, path: [] },
+      // A frame inside a frame: the script names the innermost one.
+      nested: { rect: { x: 1, y: 22, width: 8, height: 4 }, tag: "button", frame: { id: "card" }, frameIndex: 2, element, path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }, { label: "card", selector: '[data-doan-frame="card"]' }] },
+      note: { rect: { x: 40, y: 40, width: 30, height: 10 }, tag: "p", element: { selector: "body > p:nth-of-type(1)", html: "<p>Note</p>" }, path: [] },
+    };
+    for (const [name, target] of Object.entries(targets)) {
+      const h = harness();
+      try {
+        h.layout({ document: "doc", frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }, { id: "card", x: 0, y: 21, width: 9, height: 6 }] });
+        h.select(1, { target });
+        const selected = targetAnchor(h.state().selection);
+        const results = started(h);
+        picked(h, { target });
+        const add = bubbleAddAvailability({ capturing: false, anchor: selected, picker: ready, unlisted: null });
+        if (name === "note") {
+          expect(results, name).not.toHaveBeenCalled();
+          expect(h.state().picking, name).toBe(true);
+          expect(add, name).toEqual({ enabled: false, reason: ADD_TO_MESSAGE_OUTSIDE_FRAMES });
+        } else {
+          expect(results.mock.calls[0]?.[0]?.anchor, name).toEqual(selected);
+          expect(add, name).toEqual(ready);
+        }
+      } finally { h.controller.dispose(); }
+    }
   });
 
   it("a picked element ends picking and hands its anchor and the frames to the callback; the selection stays cleared", () => {
@@ -4091,6 +4340,27 @@ describe("capture", () => {
         h.controller.startCapture();
         escapeOnce(h, { tooltip });
         expect(h.state(), `tooltip ${tooltip}`).toMatchObject({ capturing: false, tool: "hand" });
+      } finally { h.controller.dispose(); }
+    }
+  });
+
+  // The size bubble's Add to message carries the toolbar's tooltip Escape rule: one Escape on it, tooltip open or not,
+  // steps the selection out one level and closes the tooltip.
+  it("with Add to message's tooltip open, one Escape on it steps the selection out once, as with no tooltip", async () => {
+    const { BubbleAddButton } = await import("./BubbleAdd");
+    for (const tooltip of [false, true]) {
+      const h = harness();
+      try {
+        h.select(1);
+        const event = keyEvent("keydown", "Escape", { target: BUTTON });
+        if (tooltip) {
+          const bubble = BubbleAddButton({ enabled: true, reason: null, button: { current: null }, onEscape: (escape: KeyboardEvent) => h.controller.toolbarEscape(escape) });
+          const content = walk(bubble).find(element => element.type === TooltipContent)!;
+          (content.props.onEscapeKeyDown as (event: Event) => void)(event);
+          if (!event.defaultPrevented) event.preventDefault();
+        }
+        h.host.dispatchEvent(event);
+        expect(steps(h), `tooltip ${tooltip}`).toBe(1);
       } finally { h.controller.dispose(); }
     }
   });

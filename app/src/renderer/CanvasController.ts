@@ -9,7 +9,7 @@ import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGH
 import { switchTarget } from "./switchTarget";
 import { activityKey, activityKind, pushActivity, type ActivityEvent } from "./activity";
 import { canvasPlayability } from "./prototypePlay";
-import { sizeBubblePlace, type BubbleRoom } from "./sizeBubble";
+import { SIZE_BUBBLE, sizeBubblePlace, type BubbleRoom } from "./sizeBubble";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
@@ -154,10 +154,6 @@ export interface AnchorTarget { id: string; doanId?: string; selector?: string; 
 export type OpenTarget = { frame: string } | { element: string } | { anchor: Anchor };
 
 // React owns the surrounding shell; only this controller owns the board's children.
-// The size bubble as styles.css draws it: 24px tall (a caption line and 4px padding, or the xs Play button) and hung
-// 5px from the selection.
-const SIZE_BUBBLE = { height: 24, gap: 5 };
-
 export class CanvasController {
   private state = initialCanvasState();
   private entries: FolderEntry[] = [];
@@ -433,6 +429,7 @@ export class CanvasController {
   };
 
   dispose(): void {
+    this.dropBubbleReturn();
     clearTimeout(this.workSlideTimer);
     clearTimeout(this.followTimer);
     this.pickListener = null;
@@ -602,14 +599,26 @@ export class CanvasController {
   viewChanged: (() => void) | null = null;
   linkedCanvas: ((root: string) => void) | null = null;
   // The size bubble's Play prototype, shown while the selected frame itself can play (the toolbar Play's judgement).
-  // `onFocusLost`: the button had focus and is going away, so App can hand focus to another visible control first.
+  // `onFocusLost`: the button had focus and the whole bubble is going away, so App can hand focus to another visible
+  // control first.
   bubblePlay: { onPlay(): void; onFocusLost(): void } | null = null;
+  // The size bubble's Add to message, which App renders into `host` (handed over once, when the bubble is first built):
+  // the controller keeps the bubble's DOM and its press, App the button, its availability and its tooltip. `onAdd`: a
+  // press while the bubble shows, available or not (App checks). `button`: App's button, to read and move focus.
+  // `onFocusLost` as Play's.
+  bubbleAdd: { host(element: HTMLElement): void; onAdd(): void; button(): HTMLElement | null; onFocusLost(): void } | null = null;
   // The band the size bubble may sit in, in the canvas area's coordinates: from its top to the floating tools' top.
   // Without it the whole area counts.
   bubbleRoom: (() => BubbleRoom | null) | null = null;
-  private bubble: { label: HTMLElement; button: HTMLButtonElement; shown: boolean } | null = null;
+  // The bubble's parts, in order: Play (only while the selected frame can play), the size label, and the host of Add
+  // to message. The host is never moved or rebuilt, so a focused Add to message stays the same element.
+  private bubble: { play: HTMLButtonElement | null; label: HTMLElement; host: HTMLElement; playShown: boolean } | null = null;
+  // A reload hid the bubble while one of its buttons had focus, and App's onFocusLost put focus on `holder`: once the
+  // selection is found again, focus comes back to the same button if it never left the holder meanwhile. Any focus move
+  // elsewhere ends the wait for good, even one that comes back to the holder (ARCHITECTURE §3, as `FocusIntent`).
+  private bubbleReturn: { button: "play" | "add"; holder: Element | null; moved: (event: FocusEvent) => void } | null = null;
   // The bubble's Play while it is on screen, for focus to come back to when the prototype window closes.
-  bubblePlayButton(): HTMLButtonElement | null { return this.bubble?.shown ? this.bubble.button : null; }
+  bubblePlayButton(): HTMLButtonElement | null { return this.bubble?.playShown ? this.bubble.play : null; }
   currentView(): View { return { ...this.view }; }
   // Per-root memory as saved to and restored from `ui-state.json` (`lastByRoot`).
   memory(): Record<string, { canvas: string; view: View }> {
@@ -2106,6 +2115,7 @@ export class CanvasController {
       this.marks = { hover: node("mark hover"), selected: node("mark selected"), size: node("dims") };
       this.marks.selected.append(this.marks.size);
       this.overlay.append(this.marks.hover, this.marks.selected);
+      this.bubble = this.makeBubble(this.marks.size);
     }
     const place = (element: HTMLElement, rect: CanvasRect | null) => {
       element.hidden = rect === null;
@@ -2125,35 +2135,82 @@ export class CanvasController {
     return this.bubbleRoom?.() ?? { top: 0, bottom: this.viewportSize().height };
   }
 
-  // The size label, and Play prototype beside it while the selected frame can play. The button is the overlay's only
-  // pointer target: its press and click stop at it, so they never select through to the canvas or start a board drag.
+  // The size label, Play prototype before it while the selected frame can play, and Add to message after it. The
+  // buttons are the overlay's only pointer targets: their press and click stop at them, so they never select through
+  // to the canvas or start a board drag.
   private placeSize(size: HTMLElement, selected: CanvasRect | null, room: BubbleRoom | null): void {
     const bubble = this.bubble;
-    const focused = bubble !== null && bubble.shown && document.activeElement === bubble.button;
+    if (bubble === null) return;
+    const active = document.activeElement;
+    const onPlay = bubble.playShown && active === bubble.play;
+    const onAdd = active !== null && this.bubbleAdd !== null && active === this.bubbleAdd.button();
     const play = selected !== null && this.bubblePlay !== null && canvasPlayability(this.state).enabled;
+    if (play !== bubble.playShown) {
+      if (play) size.prepend(bubble.play ??= this.makePlay());
+      else bubble.play?.remove();
+      bubble.playShown = play;
+    }
     if (selected !== null) {
-      if (play) {
-        const shown = bubble ?? this.makeBubble();
-        if (!shown.shown) { size.textContent = ""; size.append(shown.label, shown.button); }
-        shown.label.textContent = sizeLabel(selected);
-        shown.shown = true;
-      } else {
-        size.textContent = sizeLabel(selected);
-        if (bubble !== null) bubble.shown = false;
-      }
+      bubble.label.textContent = sizeLabel(selected);
       const screen = boardRectToScreen(this.view, selected);
       const place = sizeBubblePlace(screen, SIZE_BUBBLE, room ?? this.sizeBubbleRoom());
       size.className = `dims${play ? " playable" : ""}${place.kind === "above" ? " above" : ""}`;
       size.style.top = place.kind === "inside" ? `${place.top - screen.y}px` : "";
-    } else if (bubble !== null) bubble.shown = false;
-    if (focused && !play) this.bubblePlay?.onFocusLost();
+    }
+    this.moveBubbleFocus(selected !== null, onPlay ? "play" : onAdd ? "add" : null);
   }
 
-  private makeBubble(): { label: HTMLElement; button: HTMLButtonElement; shown: boolean } {
+  // Focus never falls to the page body when a bubble button goes (PRODUCT §5 item 2 'Play controls'): Play alone
+  // going hands it to Add to message beside it; the whole bubble going hands it to App's control for the same action.
+  private moveBubbleFocus(shown: boolean, had: "play" | "add" | null): void {
+    const bubble = this.bubble!;
+    if (!shown) {
+      // Gone for good (not a reload's wait): nothing to come back to.
+      if (had === null) { if (this.reanchor === null) this.dropBubbleReturn(); return; }
+      (had === "play" ? this.bubblePlay : this.bubbleAdd)?.onFocusLost();
+      this.dropBubbleReturn();
+      // Hidden while a reload looks for the same selection: focus may come back to this button.
+      if (this.reanchor !== null) this.awaitBubbleReturn(had, document.activeElement);
+      return;
+    }
+    if (had === "play" && !bubble.playShown) this.bubbleAdd?.button()?.focus({ preventScroll: true });
+    const back = this.reanchor === null ? this.bubbleReturn : null;
+    if (back === null) return;
+    this.dropBubbleReturn();
+    if (document.activeElement !== back.holder) return;
+    (back.button === "play" && bubble.playShown ? bubble.play : this.bubbleAdd?.button())?.focus({ preventScroll: true });
+  }
+
+  private awaitBubbleReturn(button: "play" | "add", holder: Element | null): void {
+    const moved = (event: FocusEvent) => { if (event.target !== holder) this.dropBubbleReturn(); };
+    window.addEventListener("focusin", moved, true);
+    this.bubbleReturn = { button, holder, moved };
+  }
+
+  private dropBubbleReturn(): void {
+    if (this.bubbleReturn === null) return;
+    window.removeEventListener("focusin", this.bubbleReturn.moved, true);
+    this.bubbleReturn = null;
+  }
+
+  private makeBubble(size: HTMLElement): NonNullable<CanvasController["bubble"]> {
     const label = document.createElement("span");
+    const host = document.createElement("span");
+    host.className = "bubble-host";
+    const stop = (event: Event) => event.stopPropagation();
+    host.addEventListener("pointerdown", stop);
+    host.addEventListener("mousedown", stop);
+    // Enter and Space on the button arrive here as its click. A hidden bubble (no selection) takes no press.
+    host.addEventListener("click", event => { event.stopPropagation(); if (this.marks !== null && !this.marks.selected.hidden) this.bubbleAdd?.onAdd(); });
+    size.append(label, host);
+    this.bubbleAdd?.host(host);
+    return { play: null, label, host, playShown: false };
+  }
+
+  private makePlay(): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "doan-icon-button bubble-play";
+    button.className = "doan-icon-button bubble-button bubble-play";
     button.setAttribute("data-ui-size", "xs");
     button.setAttribute("aria-label", "Play prototype");
     // lucide's Play, as the toolbar's button draws it.
@@ -2161,9 +2218,8 @@ export class CanvasController {
     const stop = (event: Event) => event.stopPropagation();
     button.addEventListener("pointerdown", stop);
     button.addEventListener("mousedown", stop);
-    button.addEventListener("click", event => { event.stopPropagation(); if (this.bubble?.shown) this.bubblePlay?.onPlay(); });
-    this.bubble = { label, button, shown: false };
-    return this.bubble;
+    button.addEventListener("click", event => { event.stopPropagation(); if (this.bubble?.playShown) this.bubblePlay?.onPlay(); });
+    return button;
   }
 
   private setFrameWidth(width: number): void { this.frameWidth = width; if (this.frame) this.frame.style.width = `${width}px`; }
