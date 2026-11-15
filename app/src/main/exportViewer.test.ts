@@ -1283,8 +1283,6 @@ function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId
   class CSSStyleSheet { text = ""; replaceSync(text: string) { this.text = text; } }
   runInNewContext(`(function () {\n${isolateJs}\n})();`, {
     window, document, location, history, CSSStyleSheet, Element: FakeElement, Array, Set,
-    // Read once at load; these stand-in events never reach the code that uses it.
-    Event: class { preventDefault() {} get returnValue() { return true; } set returnValue(_value: boolean) {} },
     setTimeout: (fn: () => void) => { timers.push(fn); return timers.length; },
   });
   const fire = (list: Listener[], type: string, event: unknown = {}) => {
