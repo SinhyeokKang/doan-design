@@ -8,8 +8,9 @@ icon resized from `v2/white.png` (`app/resources/icon.png`, used by drafts), the
 macOS app icon built from `v2/doany.png` (`app/resources/icon.icon`, see `v2/README.md`)
 and its rendered 256 px copy for the README (`app/resources/icon-rounded.png`); the files here are
 the sources, not loaded by the app. `shape-study/` holds the shape explorations
-that led to V2, and `artist/` holds Doany the artist (`painting.gif`, `rest.png`) for the
-agent notice in `.doan/canvases/doany-artist.html`; the app ships cropped copies
+that led to V2, and `artist/` holds Doany the artist for the agent notice: `painting.gif` and `rest.png`
+(`.doan/canvases/doany-artist.html`), plus the `typing` and `reading` variants with their `-rest.png` first frames
+(`.doan/canvases/doany-family.html`); the app ships cropped copies
 (`app/src/renderer/public/doany/artist-*`). Everything else in this directory is the V1 six-lobed mascot,
 kept as a record; the sections below describe V1.
 
