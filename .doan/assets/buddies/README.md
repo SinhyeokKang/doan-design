@@ -122,8 +122,9 @@ against its reading box instead. No box clips the character.
 ## Puri layers and rig
 
 `puri/still.png`, `body.png` and `accessory.png` are 1254 × 1254 RGBA with transparent backgrounds and no floor
-shadow. Built-in image_gen made three edits: card → transparent still, still → eyeless body, and still → sprout.
-`puri/prompts.json` preserves all three prompts. ImageMagick removes isolated alpha noise and near-white fringe,
+shadow. Built-in image_gen made three edits: card → transparent still, still → eyeless body, and still → sprout; a
+fourth filled the two blurred patches where the body's eyes were removed with matching looped yarn texture. `puri/prompts.json`
+preserves all four prompts. ImageMagick removes isolated alpha noise and near-white fringe,
 keeps the still's visible pixels for the final body and accessory boundaries, and uses the generated body only to
 fill the eyes and restore the mint plush hidden by the stem. The generated accessory guides the extraction;
 the final accessory retains the still's own pixels rather than the redrawn sprout. The supplied card is unchanged.
