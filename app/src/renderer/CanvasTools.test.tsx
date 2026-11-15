@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Popover } from "radix-ui";
 import { CanvasTools, type PlayTool } from "./CanvasTools";
 import { FrameListBody } from "./FrameListBody";
+import { drawerKey } from "./frameDrawerList";
 import { TooltipContent, TooltipProvider } from "./components/ui/tooltip";
 import type { CanvasTool } from "./canvasTool";
 
@@ -269,6 +270,28 @@ describe("CanvasTools", () => {
     expect(body.props).toMatchObject({ label: "Prototype frames in Shop", groups: GROUPS, open: true, side: "top" });
     expect(body.props.onPick).toBe(DRAWER.drawer!.onPick);
     expect(all(CanvasTools(props())).some(element => element.type === FrameListBody)).toBe(false);
+  });
+
+  // The drawer's list sits in a portal, but React still bubbles its keys to the toolbar's handler. Arrows there are the
+  // list's (or nobody's), V and H are swallowed by the list so the canvas tools ignore them, and Esc is Radix's.
+  it("keys from a drawer row that reach the toolbar move no tool", () => {
+    const tree = CanvasTools(props({ player: { ...DRAWER, open: true } }));
+    const toolbar = all(tree).find(element => element.props.role === "toolbar")!;
+    const tools = ["Select", "Hand", "Picker", "Capture", "Play", "Export"].map(name => ({ name, focus: vi.fn() }));
+    const row = { name: "Checkout row", focus: vi.fn() };
+    vi.stubGlobal("document", { activeElement: row });
+    try {
+      for (const key of ["ArrowRight", "ArrowLeft", "v", "h", "Escape"]) {
+        const event = { key, currentTarget: { querySelectorAll: () => tools }, preventDefault: vi.fn() };
+        (toolbar.props.onKeyDown as (event: unknown) => void)(event);
+        expect(event.preventDefault, key).not.toHaveBeenCalled();
+      }
+      for (const tool of tools) expect(tool.focus, tool.name).not.toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); }
+    const rows = DRAWER.drawer!.groups[0]!.rows;
+    const key = (name: string) => drawerKey(rows, "checkout", { key: name, metaKey: false, ctrlKey: false, altKey: false }, { text: "", at: 0 }, 1000);
+    expect([key("v").prevent, key("h").prevent]).toEqual([true, true]);
+    expect([key("ArrowRight").prevent, key("ArrowLeft").prevent, key("Escape").prevent]).toEqual([false, false, false]);
   });
 
   // POSTMORTEM 2026-11-13: a control whose state changes while focused keeps one element tree.

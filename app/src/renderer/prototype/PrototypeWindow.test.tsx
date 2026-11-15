@@ -474,6 +474,24 @@ describe("link moves", () => {
     expect(shell.live).toBe("");
   });
 
+  // Main holds the loading view behind its still of A, so this window still shows A ready when a second link follows:
+  // main refuses that one (its gen is old), and the first move's announcement must survive it.
+  test("a second link sent before the first move's view arrives keeps the first move's announcement", () => {
+    for (const second of ["settings", "checkout"]) {
+      hooks.states = []; hooks.refs = []; hooks.effects = []; messages = [];
+      render();
+      const frames = [...LISTED, { id: "settings", title: "Settings", size: "390x844", number: 3 }];
+      playing({ frames });
+      click("account");
+      click(second);
+      expect(api.goto.mock.calls.slice(-2), second).toEqual([[{ gen: 1, goto: "account" }], [{ gen: 1, goto: second }]]);
+      show(at({ gen: 2, phase: "loading", frame: "account", title: "Account", frames }));
+      shell.frames!.set(2, iframe() as never);
+      show(at({ gen: 2, frame: "account", title: "Account", frames }));
+      expect(shell.live, second).toBe("Account");
+    }
+  });
+
   test("a link to a frame the run does not list shows one toast, replaced by the next, and does not ask main", () => {
     playing();
     click("receipt");

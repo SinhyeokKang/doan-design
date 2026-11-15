@@ -159,6 +159,16 @@ describe("forwardedMessage", () => {
     expect(forwardedMessage(event({ gen: 3, goto: null }), run)).toEqual({ kind: "goto", message: { gen: 3, goto: null } });
     expect(forwardedMessage(event({ gen: 2, goto: "account" }), run)).toBeNull();
     expect(forwardedMessage(event({ gen: 3, goto: "account" }, { source: other }), run)).toBeNull();
+    expect(forwardedMessage(event({ gen: 3, goto: "x".repeat(200) }), run)).toEqual({ kind: "goto", message: { gen: 3, goto: "x".repeat(200) } });
+  });
+
+  // The window itself shows a broken link's value in its toast before main sees it, so it takes only the shape the
+  // prototype script posts; a document of the current gen could post anything structured clone carries.
+  test("drops a followed link that is not exactly {gen, goto} with a string of at most 200 UTF-16 units or null", () => {
+    for (const goto of [{ toString: null, valueOf: null }, "x".repeat(201), 3, undefined, ["a"], true]) {
+      expect(forwardedMessage(event({ gen: 3, goto }), run), JSON.stringify(goto)).toBeNull();
+    }
+    expect(forwardedMessage(event({ gen: 3, goto: "a", extra: 1 }), run)).toBeNull();
   });
 
   test("drops another window's, another origin's, an old gen's or a non-object message", () => {
