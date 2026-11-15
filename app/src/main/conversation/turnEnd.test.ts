@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { BIND_GRACE_MS, PROMOTION_SETTLE_MS, promotionDeadline } from "./project";
 import { backgroundTasks, endPromptWait, endSteerWait, initialTransport, normalizeClaude, promptTransport, steerTransport } from "./transport";
 import { afterTurnCleanup } from "./process";
@@ -83,6 +84,22 @@ describe("a Claude turn's prompt read", () => {
   it("leaves a turn without a prompt uuid (other callers, older tests) as it was", () => {
     const r = run([meta], initialTransport());
     expect(r.events).toContainEqual({ type: "turn.done" });
+  });
+  // The recorded frames of a turn sent after a stop: the stopped turn's background task closes with its own success
+  // result before the CLI reads the new prompt, and only the prompt's result ends the turn.
+  it.each(["2.1.284", "2.1.322"])("ends a turn sent after a stop at its own result, not the earlier one (Claude Code %s)", version => {
+    const fixture = (ext: string) => readFileSync(new URL(`./fixtures/claude-frames-${version}-next-turn-after-stop.${ext}`, import.meta.url), "utf8");
+    const { promptUuids } = JSON.parse(fixture("meta.json")) as { promptUuids: string[] };
+    const frames = fixture("jsonl").split("\n").filter(Boolean).map(line => (JSON.parse(line) as { raw: Record<string, unknown> }).raw);
+    let state = promptTransport(initialTransport(), promptUuids[0]!);
+    const ends: { index: number; type: string }[] = [];
+    frames.forEach((raw, index) => {
+      const r = normalizeClaude(state, raw, "/repo"); state = r.state;
+      for (const event of r.events) if (event.type === "turn.done" || event.type === "turn.failed") ends.push({ index, type: event.type });
+    });
+    const own = frames.findIndex(raw => raw.type === "result" && raw.num_turns === 1);
+    expect(frames.findIndex(raw => raw.type === "result")).toBeLessThan(own);
+    expect(ends).toEqual([{ index: own, type: "turn.done" }]);
   });
 });
 
