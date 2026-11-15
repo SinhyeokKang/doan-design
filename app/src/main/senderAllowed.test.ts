@@ -18,9 +18,9 @@ const mainOnly = [
   "window:visible",
   // The header drops the traffic-light space in fullscreen.
   "window:fullscreen",
-  // The session the CLI shares; Settings never drives first-run.
+  // The session the CLI shares; the prototype window has no first run.
   "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
-  // Preset reads for the home; Settings has no preset UI.
+  // Preset reads for the home (the prototype window's composer has its own entry).
   "design-skills:list", "design-skills:get",
   // Home attachments.
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
@@ -32,7 +32,7 @@ const mainOnly = [
   "pointer:get",
   // Move to Trash and Export from the sidebar's canvas row menu.
   "canvas:trashPlan", "canvas:trash", "canvas:export", "canvas:revealExport",
-  // The existing-user buddy screen; Settings is locked while it shows.
+  // The existing-user buddy screen.
   "buddy-intro:read", "buddy-intro:close",
 ];
 const setupAndAuth = ["setup:open-external", "setup:open-install",
@@ -102,7 +102,7 @@ test("restricts every onboarding session request channel to main", () => {
   expect(requests.filter(channel => !mainOnly.includes(channel))).toEqual([]);
   for (const channel of requests) expect(senderAllowed(channel, "settings")).toBe(false);
 });
-// The Add Projects page's session is the main window's; Settings has no Add Projects page.
+// The Add Projects page's session is the main window's.
 test("restricts every Add Projects page request channel to main", async () => {
   const { ADD_PAGE_CHANNELS } = await import("./addPage");
   const requests = Object.values(ADD_PAGE_CHANNELS).filter(channel => channel !== ADD_PAGE_CHANNELS.changed && channel !== ADD_PAGE_CHANNELS.open);
