@@ -4,15 +4,16 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { CLAUDE_ALLOW_RULES, codexRuleText } from "./plan";
 import { adminCommand, runAgentSetup, setupEligibility, type AdminResult, type AgentSetupOptions } from "./runner";
 
-// The race test swaps one symlink call; everything else is the real file system.
+// The race tests swap one call; everything else is the real file system.
 vi.mock("node:fs", async importOriginal => {
   const real = await importOriginal<typeof import("node:fs")>();
-  return { ...real, symlinkSync: vi.fn(real.symlinkSync), renameSync: vi.fn(real.renameSync), linkSync: vi.fn(real.linkSync), writeFileSync: vi.fn(real.writeFileSync) };
+  return { ...real, symlinkSync: vi.fn(real.symlinkSync), renameSync: vi.fn(real.renameSync), linkSync: vi.fn(real.linkSync), writeFileSync: vi.fn(real.writeFileSync), lstatSync: vi.fn(real.lstatSync), statSync: vi.fn(real.statSync) };
 });
-const { symlinkSync: realSymlink, renameSync: realRename, linkSync: realLink, writeFileSync: realWrite } = await vi.importActual<typeof import("node:fs")>("node:fs");
+const { symlinkSync: realSymlink, renameSync: realRename, linkSync: realLink, writeFileSync: realWrite, lstatSync: realLstat, statSync: realStat } = await vi.importActual<typeof import("node:fs")>("node:fs");
 
 let temp: string, home: string, userData: string, systemBin: string, resources: string;
 const ALL = ["claude", "codex", "cursor", "antigravity", "copilot"];
@@ -57,7 +58,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.mocked(fs.symlinkSync).mockImplementation(realSymlink); vi.mocked(fs.renameSync).mockImplementation(realRename); vi.mocked(fs.linkSync).mockImplementation(realLink);
-  vi.mocked(fs.writeFileSync).mockImplementation(realWrite);
+  vi.mocked(fs.writeFileSync).mockImplementation(realWrite); vi.mocked(fs.lstatSync).mockImplementation(realLstat); vi.mocked(fs.statSync).mockImplementation(realStat);
   for (const dir of [join(home, ".local/bin"), join(home, ".agents/skills")]) if (existsSync(dir)) chmodSync(dir, 0o755);
   rmSync(temp, { recursive: true, force: true });
 });
@@ -344,6 +345,26 @@ describe("the Claude Code allow rule", () => {
     mkdirSync(join(home, ".claude")); execFileSync("/usr/bin/mkfifo", [join(home, "pipe")]);
     symlinkSync(join(home, "pipe"), settings());
     expect((await runAgentSetup(options())).items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "claude-settings", problem: "link" }]);
+  });
+
+  // An lstat or stat that still saw a file before something swapped a FIFO in must not lead to a blocking read.
+  it("does not block on a FIFO that replaces the settings file after Doan's lstat", async () => {
+    mkdirSync(join(home, ".claude")); writeFileSync(join(home, "plain.json"), "{}");
+    vi.mocked(fs.lstatSync).mockImplementation(((path: fs.PathLike, opts?: fs.StatSyncOptions) => realLstat(String(path) === settings() ? join(home, "plain.json") : path, opts)) as typeof fs.lstatSync);
+    const main = await withFifo(settings(), () => runAgentSetup(options()));
+    vi.mocked(fs.lstatSync).mockImplementation(realLstat);
+    expect(main.ms).toBeLessThan(PROMPT_MS);
+    expect(main.value.items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "write-failed", cause: "other", at: join(home, ".claude"), code: "UNKNOWN" }]);
+    expect(lstatSync(settings()).isFIFO()).toBe(true);
+  });
+
+  it("does not block on a FIFO that a link to the settings comes to name after Doan's stat", async () => {
+    mkdirSync(join(home, ".claude")); writeFileSync(join(home, "plain.json"), "{}"); symlinkSync(join(home, "pipe"), settings());
+    vi.mocked(fs.statSync).mockImplementation(((path: fs.PathLike, opts?: fs.StatSyncOptions) => realStat(String(path) === settings() ? join(home, "plain.json") : path, opts)) as typeof fs.statSync);
+    const main = await withFifo(join(home, "pipe"), () => runAgentSetup(options()));
+    vi.mocked(fs.statSync).mockImplementation(realStat);
+    expect(main.ms).toBeLessThan(PROMPT_MS);
+    expect(main.value.items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "claude-settings", problem: "link" }]);
   });
 
   it("leaves a folder in its place alone", async () => {

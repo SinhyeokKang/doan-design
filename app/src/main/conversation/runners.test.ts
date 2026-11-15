@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, renameSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PROMPT_MS, withFifo } from "../fifo.fixture";
 import { claudeFastSettings, codexServiceTierForTurn, listModels, listSkills, openRunner } from "./runners";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
@@ -1036,6 +1037,16 @@ it("does not wait for a run on an external profile, which Doan registered nothin
   const runner = await openRunner({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env }, e => events.push(e), () => {}, () => {});
   try { await runner.send("hello", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" })); expect(events.filter(e => e.type === "activity")).toEqual([]); }
   finally { await runner.close(); h.cleanup(); }
+}, 15000);
+// The profile's config.toml is read on main for every turn, and the agent running in the profile can replace it.
+it("names no servers for a FIFO in place of the profile's config.toml, without blocking main", async () => {
+  const h = mcpCodex({ readyMs: null }); const events: EventPayload[] = [];
+  const runner = await openRunner({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env, owner: h.owner, mcp: MCP_RUN }, e => events.push(e), () => {}, () => {});
+  try {
+    rmSync(join(h.root, "config.toml"));
+    const main = await withFifo(join(h.root, "config.toml"), async () => { await runner.send("hello", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" })); });
+    expect(main.ms).toBeLessThan(PROMPT_MS);
+  } finally { await runner.close(); h.cleanup(); }
 }, 15000);
 it("a Stop while the turn waits for its servers ends it as interrupted without starting it or losing the server", async () => {
   const h = mcpCodex({ readyMs: null }); const events: EventPayload[] = []; const exited = vi.fn();

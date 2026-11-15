@@ -8,7 +8,7 @@ import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
-import { fenceDenied, fenceListingDirs, resolveFencePaths, type FenceEntry, type FencePaths } from "../agentAuth/fence";
+import { fenceDenied, fencedEverywhere, fenceListingDirs, profileFencedCommand, resolveFencePaths, type FenceEntry, type FencePaths } from "../agentAuth/fence";
 import type { Lease, Started } from "../agentAuth/manager";
 import type { AuthState, ConnectionJudgment, Provider } from "../agentAuth/types";
 import type { McpRun, Prepare, Prepared, StartRequest } from "./service";
@@ -218,7 +218,11 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
     try {
       recheck();
       if (provider !== "antigravity") {
-        const version = await runProcess(lease.command, ["--version"], lease.env, 5000);
+        // Copilot's --version imports a newer package from the profile's cache when one is there, like its other
+        // processes (fencedEverywhere), so it runs in the outer fence; one that cannot be built starts nothing.
+        const check = fence && fencedEverywhere(provider) ? profileFencedCommand(provider, fence, lease.profileDir, lease.command, ["--version"]) : { command: lease.command, args: ["--version"] };
+        if (!check) throw new Error("unknown");
+        const version = await runProcess(check.command, check.args, lease.env, 5000);
         recheck();
         installed = version.exitCode === 0 && !version.timedOut ? parseCliVersion(version.stdout)?.installed : undefined;
         if (installed) versions?.versionRead(provider, installed);
@@ -244,9 +248,11 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         const judgment = judgeConnection(stored.owner, adapter.verifyByRun && !current.error ? { ...current, verified: true } : current, { exists, occupancy });
         if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment, provider));
       }
-      // Every conversation run, Claude's per turn: this turn's pasted images may differ. Of the list reads only Claude's
-      // start the repository's own hooks and MCP servers; the others run no model tool.
-      const fenced = fence && !reusing && (use === "run" || provider === "claude") ? runFence(fence, provider, configDir, request.attachments ?? []) : undefined;
+      // Every conversation run, Claude's per turn: this turn's pasted images may differ. Every list read but Codex's too:
+      // Claude's starts the repository's hooks and MCP servers, and an ACP server's session/new those its profile names
+      // (Copilot, Cursor; probe), which the provider's own fenced turn can write. Codex reads neither: its profile's
+      // settings are closed to its turns and an untrusted project's .codex/ is not loaded.
+      const fenced = fence && !reusing && (use === "run" || provider !== "codex") ? runFence(fence, provider, configDir, request.attachments ?? []) : undefined;
       const connection = recheck(), ran = installed;
       const mcp: McpRun | undefined = (MCP_PROVIDERS as readonly Provider[]).includes(provider) ? { generation: () => connectors.generation(provider as McpProvider), labels: () => connectors.labels() } : undefined;
       const runArgs = provider === "claude" || provider === "codex" ? RUN_ARGS[provider] : adapter.acp!.args;

@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ACP_PROTOCOL_VERSION, AcpConnection, AcpError } from "../conversation/acp";
@@ -10,7 +10,8 @@ import { object } from "../conversation/sessions";
 import { AUTH_LINK_FILE, BROWSER_HOOK, callbackAddress, INSTALL_FAILED, forwardCallback, signInLink, type SignInLink } from "./antigravity";
 import { probeShell } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
-import { claudeFencedCommand } from "./fence";
+import { readRegularFileNoFollowSync } from "../regularFile";
+import { fencedEverywhere, profileFencedCommand } from "./fence";
 import { providerEnv } from "./environment";
 import { codexAccountEmail, GOOGLE_USERINFO_URL, googleAccessToken, googleEmail, googleRefreshRequest, withIdentity } from "./identity";
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
@@ -54,9 +55,9 @@ export interface AuthManagerOptions {
   mcpLogout?(provider: Provider, request: McpLogoutRequest): Promise<{ failed: string[] }>;
   // Antigravity's account lookup (Google token and userinfo requests); globalThis.fetch when absent.
   fetch?: typeof globalThis.fetch;
-  // The outer fence for Claude's MCP logout commands (claudeFencedCommand): `claude mcp list` starts the stdio servers
-  // the profile's .claude.json names, which an agent in the outer fence can write. Sign-in, status and the provider's own
-  // logout stay unfenced.
+  // The outer fence (profileFencedCommand) for Claude's MCP logout commands, since `claude mcp list` starts the stdio
+  // servers the profile's .claude.json names, which an agent in the outer fence can write; and for every Copilot process
+  // (fencedEverywhere). The other providers' sign-in, status and own logout stay unfenced.
   fence?: { userData: string; exec?: string };
 }
 export interface WriteOptions { stop?: boolean }
@@ -819,7 +820,7 @@ export class AuthManager {
     // A cancel, window close or quit can arrive while the CLI is located, before there is a process to stop.
     if (this.stopRequests.has(attemptId)) throw new Cancelled();
     const full = [...this.adapters[provider].args, ...args];
-    const launch = fenced && this.options.fence ? claudeFencedCommand(this.options.fence, profileDir, command, full) : { command, args: full };
+    const launch = (fenced || fencedEverywhere(provider)) && this.options.fence ? profileFencedCommand(provider, this.options.fence, profileDir, command, full) : { command, args: full };
     if (!launch) throw new Error("the fence could not be built");
     const child = this.options.spawn(launch.command, launch.args, { cwd: profileDir, env });
     const owned = this.processes.get(attemptId) ?? new Set();
@@ -936,7 +937,9 @@ export function hookLinks(onLink: (raw: string) => void): { env: Record<string, 
   let read = 0;
   const timer = setInterval(() => {
     let text: string;
-    try { text = readFileSync(file, "utf8"); } catch { return; }
+    // Any process of the person's can put a FIFO, a link or a huge file at this path, and main polls it: such a file
+    // reads as no link yet. The cap only bounds what main reads; a real file holds a few links.
+    try { text = readRegularFileNoFollowSync(file, 1024 * 1024).toString("utf8"); } catch { return; }
     const end = text.lastIndexOf("\n");
     if (end < read) return;
     for (const line of text.slice(read, end).split("\n")) if (line) onLink(line);

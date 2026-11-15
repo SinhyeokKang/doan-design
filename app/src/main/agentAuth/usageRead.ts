@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { OwnedGroup } from "../conversation/process";
 import { readRegularFileNoFollowSync } from "../regularFile";
-import { claudeFencedCommand } from "./fence";
+import { profileFencedCommand } from "./fence";
 import type { AuthProcess, Lease, Spawn } from "./manager";
 import { PROVIDER_AUTH } from "./providers";
 import { claudeUsage, codexUsage, copilotUsage, cursorUsage, usageNotSupported } from "./usageParse";
@@ -28,9 +28,10 @@ export interface UsageReadOptions {
   // A provider process in its own group; resolves gone once the group is gone (manager.ts spawnAuthProcess).
   spawn: Spawn;
   // A Doan-owned empty folder under userData: the Claude and Copilot reads must not pick up a repo's settings. A fenced
-  // Claude read runs from its profile instead, since the fence closes userData.
+  // read runs from its profile instead, since the fence closes userData.
   probeDir: string;
-  // The outer fence for the Claude read (claudeFencedCommand); without it the read runs unfenced, which only tests use.
+  // The outer fence for the Claude and Copilot reads (profileFencedCommand); without it they run unfenced, which only
+  // tests use.
   fence?: { userData: string; exec?: string };
   fetch?: typeof globalThis.fetch; now?: () => number; openMs?: number; readMs?: number;
 }
@@ -58,8 +59,9 @@ export async function readUsage(provider: UsageProvider, lease: Pick<Lease, "com
         read: ["account/rateLimits/read", undefined],
       })
       : provider === "copilot" ? await rpcRead(lease, options, signal, {
-        // The SDK's server mode: Doan's ACP mode answers account.getQuota with Method not found (PoC).
-        args: [...PROVIDER_AUTH.copilot.args, "--headless", "--no-auto-update", "--stdio"], cwd: options.probeDir, framed: true,
+        // The SDK's server mode: Doan's ACP mode answers account.getQuota with Method not found (PoC). It imports the
+        // profile's package-cache JavaScript like every Copilot process, so it runs in the outer fence (fencedEverywhere).
+        args: [...PROVIDER_AUTH.copilot.args, "--headless", "--no-auto-update", "--stdio"], cwd: options.fence ? lease.profileDir : options.probeDir, framed: true, fenced: "copilot",
         open: ["connect", { supportedTaskKinds: ["agent", "client", "shell"] }], initialized: false,
         read: ["account.getQuota", {}],
       })
@@ -154,9 +156,12 @@ class StdioRpc {
   }
 }
 
-interface RpcPlan { args: string[]; cwd: string; framed: boolean; open: [string, unknown]; initialized: boolean; read: [string, unknown] }
-async function rpcRead(lease: Pick<Lease, "command" | "env">, options: UsageReadOptions, signal: AbortSignal | undefined, plan: RpcPlan): Promise<unknown> {
-  const child = options.spawn(lease.command, plan.args, { cwd: plan.cwd, env: lease.env, input: true });
+// fenced: the provider whose outer fence the read runs in when a fence is set.
+interface RpcPlan { args: string[]; cwd: string; framed: boolean; open: [string, unknown]; initialized: boolean; read: [string, unknown]; fenced?: Provider }
+async function rpcRead(lease: Pick<Lease, "command" | "env" | "profileDir">, options: UsageReadOptions, signal: AbortSignal | undefined, plan: RpcPlan): Promise<unknown> {
+  const launch = plan.fenced && options.fence ? profileFencedCommand(plan.fenced, options.fence, lease.profileDir, lease.command, plan.args) : { command: lease.command, args: plan.args };
+  if (!launch) throw new ReadFailure("the fence could not be built");
+  const child = options.spawn(launch.command, launch.args, { cwd: plan.cwd, env: lease.env, input: true });
   const rpc = new StdioRpc(child, plan.framed), stop = stopped(signal);
   const exchange = async () => {
     await within(rpc.request(...plan.open), options.openMs ?? USAGE_OPEN_MS, plan.open[0]);
@@ -176,7 +181,7 @@ async function rpcRead(lease: Pick<Lease, "command" | "env">, options: UsageRead
 async function claudeRead(lease: Pick<Lease, "command" | "env" | "profileDir"> & { organization?: string }, options: UsageReadOptions, signal: AbortSignal | undefined): Promise<unknown> {
   const fence = options.fence;
   // Checked before the SDK starts anything: a fence that cannot be built starts no process.
-  if (fence && !claudeFencedCommand(fence, lease.profileDir, lease.command, [])) throw new ReadFailure("the fence could not be built");
+  if (fence && !profileFencedCommand("claude", fence, lease.profileDir, lease.command, [])) throw new ReadFailure("the fence could not be built");
   const controller = new AbortController(), stop = stopped(signal);
   let group: OwnedGroup | undefined, gone: Promise<void> = Promise.resolve();
   async function* idle() { await new Promise(resolve => { if (controller.signal.aborted) resolve(null); else controller.signal.addEventListener("abort", resolve, { once: true }); }); }
@@ -187,7 +192,7 @@ async function claudeRead(lease: Pick<Lease, "command" | "env" | "profileDir"> &
     // makes Claude Code refuse (read_failed) instead of reading an API key's usage as "no usage limits".
     ...(lease.organization ? { managedSettings: { forceLoginOrgUUID: lease.organization } } : {}),
     spawnClaudeCodeProcess(spawned) {
-      const launch = fence ? claudeFencedCommand(fence, lease.profileDir, spawned.command, spawned.args) : { command: spawned.command, args: spawned.args };
+      const launch = fence ? profileFencedCommand("claude", fence, lease.profileDir, spawned.command, spawned.args) : { command: spawned.command, args: spawned.args };
       if (!launch) throw new ReadFailure("the fence could not be built");
       const child = spawnChild(launch.command, launch.args, { cwd: spawned.cwd, env: spawned.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
       let release!: () => void;

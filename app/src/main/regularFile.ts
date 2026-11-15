@@ -8,7 +8,12 @@ const MAX_BYTES = 16 * 1024 * 1024;
 // the cap is read. Links are followed: dotfile setups link git config and include files. Throws as readFileSync does
 // (ENOENT for a missing file); a special or oversized file throws without a code.
 export function readRegularFileSync(path: string): string {
-  return readOpened(openSync(path, constants.O_RDONLY | constants.O_NONBLOCK), MAX_BYTES).toString("utf8");
+  return readRegularBytesSync(path).toString("utf8");
+}
+
+// As readRegularFileSync, for a caller that must tell bytes that are not UTF-8 from text a lossy decode would make.
+export function readRegularBytesSync(path: string): Buffer {
+  return readOpened(openSync(path, constants.O_RDONLY | constants.O_NONBLOCK), MAX_BYTES);
 }
 
 // As readRegularFileSync, for a file whose link must be refused (a credential an agent could point elsewhere): the

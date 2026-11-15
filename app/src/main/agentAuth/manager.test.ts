@@ -1,9 +1,10 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn as spawnChild } from "node:child_process";
 import { accessSync, chmodSync, constants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "node:http";
+import { FIFO_RESCUE_MS, PROMPT_MS, withFifo } from "../fifo.fixture";
 import { AUTH_LINK_MARKER, BROWSER_HOOK } from "./antigravity";
 import { AuthManager, hookLinks, removeStaleLinkDirs, spawnAuthProcess, type AuthProcess, type McpLogoutRequest, type Spawn } from "./manager";
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
@@ -2086,6 +2087,32 @@ describe("MCP connector steps", () => {
     await finish("status", 0);
     expect(await out.done).toMatchObject({ phase: "disconnected" });
   });
+  // Every Copilot process imports the JavaScript in its profile's package cache, which a fenced Copilot turn can rewrite,
+  // so its sign-in and check run in the outer fence; the other providers' do not.
+  it("runs Copilot's sign-in and check in the outer fence and Cursor's outside it", async () => {
+    const userData = join(root, "ud"); storage = new AuthStorage(join(userData, "agent-auth"), cipher);
+    const m = manager({ fence: { userData, exec: "/fence/sandbox-exec" } }); await m.load();
+    const run = started(await m.signIn("copilot", 7));
+    const login = await next("login");
+    const [command, args, options] = spawn.mock.calls.at(-1)!;
+    expect(command).toBe("/fence/sandbox-exec");
+    expect(args).toContain(`PROFILE=${realpathSync.native(storage.profileDir("copilot"))}`);
+    expect(args.slice(-2)).toEqual(["/bin/fake-cli", "login"]);
+    expect(options.cwd).toBe(storage.profileDir("copilot"));
+    settledSet.add(login); writeToken(login, { id: "u1" }); login.finish(0);
+    await finish("status", 0);
+    expect(spawn.mock.calls.at(-1)![0]).toBe("/fence/sandbox-exec");
+    expect(spawn.mock.calls.at(-1)![1].slice(-2)).toEqual(["/bin/fake-cli", "status"]);
+    expect(await run.done).toMatchObject({ phase: "connected" });
+    await signedInCursor(m);
+    expect(spawn.mock.calls.slice(-2).map(call => call[0])).toEqual(["/bin/fake-cli", "/bin/fake-cli"]);
+  });
+  it("starts no Copilot process when its fence cannot be built", async () => {
+    const m = manager({ fence: { userData: join(root, "elsewhere") } }); await m.load();
+    const run = started(await m.signIn("copilot", 7));
+    expect(await run.done).toMatchObject({ phase: "error", connection: null, error: { code: "sign_in_failed" } });
+    expect(spawn).not.toHaveBeenCalled();
+  });
   it("finishes a sign-out whose MCP logout throws", async () => {
     const m = manager({ mcpLogout: async () => { throw new Error("list failed"); } }); await m.load();
     await signedInClaude(m, "a1");
@@ -2195,6 +2222,32 @@ describe("MCP connector steps", () => {
     const hooked = hookLinks(() => {});
     expect(hooked.env.DOAN_AUTH_LINK).toMatch(/doan-auth-link-.*\/links$/);
     hooked.close();
+  });
+});
+
+// The link file sits in a temporary directory any process of the same user can write, and main polls it.
+describe("the sign-in link file", () => {
+  const settle = () => new Promise(resolve => setTimeout(resolve, 350));
+  it("delivers each complete line once", async () => {
+    const links: string[] = [], hooked = hookLinks(raw => links.push(raw));
+    try {
+      writeFileSync(hooked.env.DOAN_AUTH_LINK!, "https://a.example/1\nhttps://a.example/2\nhttps://a.exa");
+      await settle();
+      expect(links).toEqual(["https://a.example/1", "https://a.example/2"]);
+    } finally { hooked.close(); }
+  });
+  it("skips a FIFO there without blocking main, and still reads a file that replaces it", async () => {
+    const links: string[] = [], hooked = hookLinks(raw => links.push(raw)), file = hooked.env.DOAN_AUTH_LINK!;
+    // A blocking poll reopens the FIFO on its next tick, after withFifo's one rescue, so this keeps releasing it from
+    // then on and a regression fails the timing check instead of hanging the worker.
+    const releaser = spawnChild("/bin/sh", ["-c", `sleep ${FIFO_RESCUE_MS / 1000}; while [ -p "$1" ]; do : > "$1"; done`, "sh", file], { stdio: "ignore" });
+    try {
+      const main = await withFifo(file, settle).finally(() => releaser.kill("SIGKILL"));
+      expect(main.ms).toBeLessThan(PROMPT_MS);
+      rmSync(file); writeFileSync(file, "https://a.example/1\n");
+      await settle();
+      expect(links).toEqual(["https://a.example/1"]);
+    } finally { hooked.close(); }
   });
 });
 

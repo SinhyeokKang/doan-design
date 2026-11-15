@@ -21,6 +21,10 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 // provider grew cannot stall main or flood the vault.
 const WORKING_FILE_LIMIT = 16 * 1024 * 1024;
 function absent(error: unknown): boolean { return typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "ENOENT"; }
+// What readRegularFileNoFollowSync throws for a link, a special file or a file past its cap: not a file Doan can read.
+function notRegular(error: unknown): boolean { return error instanceof Error && ((error as NodeJS.ErrnoException).code === undefined || (error as NodeJS.ErrnoException).code === "ELOOP"); }
+// fsync and rename would publish whatever part of the bytes a short write left.
+function writeAll(fd: number, bytes: Buffer): void { if (writeSync(fd, bytes) !== bytes.length) throw new Error("Incomplete write"); }
 
 // Layout under <userData>/agent-auth: metadata.json, cleanup.json, vault/<provider>.bin, profiles/<profile>/. A profile
 // is the provider's name, or <provider>-<id> for a replacement staged apart from the stored login (Codex).
@@ -125,8 +129,12 @@ export class AuthStorage {
   writeSetting(provider: Provider, rel: string, text: string | SettingMerge, profile: string = provider): void {
     const path = this.working(provider, rel, profile);
     if (typeof text !== "string") return this.mergeSetting(path, text);
-    try { if (readFileSync(path, "utf8") === text) return; } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
-    this.replace(path, Buffer.from(text));
+    const bytes = Buffer.from(text);
+    // The provider process can leave a FIFO, a link or a huge file here, none of which is the text Doan owns: the
+    // rename replaces each of them without opening or following it.
+    try { if (readRegularFileNoFollowSync(path, WORKING_FILE_LIMIT).equals(bytes)) return; }
+    catch (error) { if (!absent(error) && !notRegular(error)) throw new StorageError("unreadable", message(error)); }
+    this.replace(path, bytes);
   }
   // Claude Code saves this file too, so Doan never renames its merge over a file it has not just re-verified
   // (agentSetup/swap.ts swapFile): a file that is not the one Doan read, by identity and bytes, stays and the next run
@@ -138,9 +146,10 @@ export class AuthStorage {
     if (seen !== null && !seen.isFile()) return;
     let bytes: Buffer | null = null, current: string | null = null;
     if (seen !== null) {
-      try { bytes = readFileSync(path); current = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
+      // The file can be swapped after the lstat; one that is no longer a regular file stays, as it would have at lstat.
+      try { bytes = readRegularFileNoFollowSync(path, WORKING_FILE_LIMIT); current = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
       // Bytes that are not UTF-8 would be changed by a text round trip, so the file stays as it is.
-      catch (error) { if (error instanceof TypeError || absent(error)) return; throw new StorageError("unreadable", message(error)); }
+      catch (error) { if (error instanceof TypeError || absent(error) || notRegular(error)) return; throw new StorageError("unreadable", message(error)); }
     }
     const next = merge(current);
     if (next === null || next === current) return;
@@ -169,7 +178,7 @@ export class AuthStorage {
   private stage(path: string, bytes: Buffer, mode: number): void {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     const fd = openSync(path, "wx", mode);
-    try { writeSync(fd, bytes); fchmodSync(fd, mode); fsyncSync(fd); } finally { closeSync(fd); }
+    try { writeAll(fd, bytes); fchmodSync(fd, mode); fsyncSync(fd); } finally { closeSync(fd); }
   }
   hasWorkingCopy(provider: Provider, rels: readonly string[]): boolean {
     return rels.some(rel => {
@@ -228,7 +237,7 @@ export class AuthStorage {
     try {
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
       const fd = openSync(temp, "wx", 0o600);
-      try { writeSync(fd, bytes); fsyncSync(fd); } finally { closeSync(fd); }
+      try { writeAll(fd, bytes); fsyncSync(fd); } finally { closeSync(fd); }
       renameSync(temp, path);
     } catch (error) {
       try { rmSync(temp, { force: true }); } catch { /* The write already failed; a stray temp file is scrubbed with leftovers. */ }
