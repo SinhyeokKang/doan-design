@@ -1,4 +1,5 @@
-import type { PrototypeMode, PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
+import type { GotoMessage, PrototypeMode, PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
+import { groupDrawer, type DrawerGroup } from "../frameDrawerList";
 
 // What the prototype window draws from main's view: the window title, the state scene over the content panel, the
 // live region's line and the frame drawer's rows. Pure, so every state's copy and rule is tested without a window.
@@ -43,11 +44,13 @@ export function stateScene(view: Pick<PrototypeView, "phase" | "detail" | "frame
   }
 }
 
-// The always-mounted polite live region: the reading line once it shows, a scene's heading and body, nothing when the
-// prototype runs (a restored frame needs no announcement of success).
-export function liveText(view: Pick<PrototypeView, "phase" | "detail" | "frames"> | null, readingShown: boolean): string {
+// The always-mounted polite live region: the reading line once it shows, a scene's heading and body, and for a running
+// prototype only the name of the frame a link moved to (`moved`, true for that run alone); a restored frame or a reload
+// needs no announcement of success.
+export function liveText(view: Pick<PrototypeView, "phase" | "detail" | "frames" | "title"> | null, readingShown: boolean, moved = false): string {
   if (view === null) return "";
   if (view.phase === "loading") return readingShown ? LOADING_LABEL : "";
+  if (view.phase === "ready") return moved ? view.title : "";
   const scene = stateScene(view);
   return scene === null ? "" : `${scene.heading}. ${scene.body}`;
 }
@@ -63,17 +66,9 @@ export function modeTooltip(mode: PrototypeMode, run: { markWidth: number; markH
   return run != null && run.markWidth > 0 && run.markHeight > 0 ? `Fit ${run.markWidth} × ${run.markHeight} to the window` : "Fit to the window";
 }
 
-export interface DrawerRow {
-  key: string;
-  id: string;
-  number: number;
-  name: string;
-  current: boolean;
-}
-
-// The frames the run listed, in document order; the playing frame is current while it is still listed.
-export function drawerRows(view: Pick<PrototypeView, "frames" | "frame">): DrawerRow[] {
-  return view.frames.map(frame => ({ key: frame.id, id: frame.id, number: frame.number, name: frame.title ?? frame.id, current: frame.id === view.frame }));
+// The frames the run listed, in link groups (groupDrawer); the playing frame is current while it is still listed.
+export function drawerGroups(view: Pick<PrototypeView, "frames" | "frame" | "gotos">): DrawerGroup[] {
+  return groupDrawer(view.frames.map(frame => ({ key: frame.id, id: frame.id, number: frame.number, name: frame.title ?? frame.id, current: frame.id === view.frame, mark: frame.size })), view.gotos);
 }
 
 export function drawerLabel(view: Pick<PrototypeView, "canvas">): string {
@@ -95,4 +90,22 @@ export function exportAvailability(view: Pick<PrototypeView, "phase"> | null, ex
     case "prototype-unavailable": return { available: false, reason: "Export isn’t available while this prototype can’t play." };
     default: return { available: true };
   }
+}
+
+// A link to a frame this run cannot play. A value over 200 UTF-16 units comes as null: no frame can have it, and it is
+// not quoted.
+export function linkToast(id: string | null): string {
+  return id === null ? "Can’t go to this link’s frame. Ask your agent to fix this link." : `Can’t go to “${id}”. Ask your agent to fix this link.`;
+}
+
+export type LinkMove = { kind: "move"; frame: string } | { kind: "toast"; text: string } | { kind: "drop" };
+
+// A link the run's document followed, judged by the view this window shows (main judges it again by its own state): only
+// a ready run of that gen moves; a link to a frame the run did not list gets one toast, unless an export's progress or
+// result toast is on screen, which it would replace.
+export function linkMove(view: Pick<PrototypeView, "gen" | "phase" | "frames"> | null, message: GotoMessage, exportToast: boolean): LinkMove {
+  if (view === null || view.phase !== "ready" || message.gen !== view.gen) return { kind: "drop" };
+  const value = message.goto;
+  if (value !== null && view.frames.some(frame => frame.id === value)) return { kind: "move", frame: value };
+  return exportToast ? { kind: "drop" } : { kind: "toast", text: linkToast(value) };
 }

@@ -1,5 +1,5 @@
 import type { Rect } from "../../main/prototype/fit";
-import type { FramesMessage, PrototypePhase, RunMessage } from "../../main/prototype/ipc";
+import type { FramesMessage, GotoMessage, PrototypePhase, RunMessage } from "../../main/prototype/ipc";
 
 // The prototype window's content layers: one iframe per run (a new element for every `gen` that starts a load) and the
 // still image main captures whenever a run leaves a ready phase. Pure, so the window's order of events is tested
@@ -71,14 +71,15 @@ export function currentRun(layers: HostLayers, gen: number | null): RunFrame | n
   return newest !== undefined && newest.gen === gen ? newest : null;
 }
 
-export type Forward = { kind: "result"; message: RunMessage } | { kind: "frames"; message: FramesMessage };
+export type Forward = { kind: "result"; message: RunMessage } | { kind: "frames"; message: FramesMessage } | { kind: "goto"; message: GotoMessage };
 
 // A message from the run's document. Only the current iframe's own window, at the opaque origin a sandboxed canvas
-// has, for the current gen, gets through; main validates every field again. A result carries `state`; the drawer list
-// a run sends after its `load` handlers does not.
+// has, for the current gen, gets through; main validates every field again. A result carries `state`, a followed link
+// `goto`; the drawer list a run sends after its `load` handlers has neither.
 export function forwardedMessage(event: { source: unknown; origin: string; data: unknown }, run: { gen: number; window: unknown } | null): Forward | null {
   if (run === null || event.source === null || event.source !== run.window || event.origin !== "null") return null;
   const data = event.data;
   if (typeof data !== "object" || data === null || Array.isArray(data) || (data as { gen?: unknown }).gen !== run.gen) return null;
-  return "state" in data ? { kind: "result", message: data as RunMessage } : { kind: "frames", message: data as FramesMessage };
+  if ("state" in data) return { kind: "result", message: data as RunMessage };
+  return "goto" in data ? { kind: "goto", message: data as GotoMessage } : { kind: "frames", message: data as FramesMessage };
 }

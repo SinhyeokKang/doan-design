@@ -1,11 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { Popover } from "radix-ui";
 import { ArrowLeft, ArrowRight, ChevronDown, CircleSlash, Download, Expand, FileWarning, MessageCircle, PanelRightOpen, Proportions, RotateCw, SquareDashed, TriangleAlert, type LucideIcon } from "lucide-react";
 import type { ExportReply } from "../../main/canvasExport";
-import { PROTOTYPE_LOAD_TIMEOUT_MS, type ExportTarget, type FramesMessage, type PrototypeMode, type PrototypeSnapshot, type PrototypeView, type PrototypeWindowApi, type RunMessage } from "../../main/prototype/ipc";
+import { PROTOTYPE_LOAD_TIMEOUT_MS, type ExportTarget, type GotoMessage, type PrototypeMode, type PrototypeSnapshot, type PrototypeView, type PrototypeWindowApi } from "../../main/prototype/ipc";
 import { prototypePanelBounds, prototypeSideLayout, prototypeViewportBox, type Rect, type ViewportBox } from "../../main/prototype/fit";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
-import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "../frameDrawerList";
 import { moveBetweenTools } from "../toolbarKeys";
 import { currentRun, forwardedMessage, layersForSnapshot, layersForView, NO_LAYERS, type HostLayers } from "./host";
 import { exportProgress, exportToast } from "../canvasRowMessages";
@@ -22,7 +21,8 @@ import { applyBuddy } from "../buddyPaint";
 import { dockedBuddy } from "../dockedBuddyShell";
 import { useVisibleClock } from "../visibleClock";
 import { useToast } from "../Toast";
-import { CLOSE, covered, DETAILS, drawerLabel, drawerRows, EMPTY_DRAWER, exportAvailability, liveText, LOADING_LABEL, modeTooltip, RETRY, stateScene, windowTitle, type DrawerRow, type SceneIcon } from "./view";
+import { CLOSE, covered, DETAILS, drawerGroups, drawerLabel, EMPTY_DRAWER, exportAvailability, linkMove, liveText, LOADING_LABEL, modeTooltip, RETRY, stateScene, windowTitle, type SceneIcon } from "./view";
+import { FrameListBody } from "../FrameListBody";
 
 // The prototype window (PRODUCT §3 Show, one frame): the main window's shell without a sidebar, a header of Back,
 // Forward and Reload, the playing frame's name, the Fit/Responsive toggle and Export, and the frame's own document in a
@@ -71,7 +71,12 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   // click), and the gen a pointer Reload then left (null otherwise).
   const pressedInFrame = useRef<boolean | null>(null);
   const reloadFocus = useRef<number | null>(null);
+  // A link move sent to main (the gen it left, the frame it asked for), and the gen whose ready run is announced.
+  const moving = useRef<{ gen: number; frame: string } | null>(null);
+  const [announced, setAnnounced] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
+  // The text of the export toast this window last showed: while it is the toast on screen, a link's toast waits.
+  const exportToastShown = useRef<string | null>(null);
   const exportRun = useRef<ExportRun | null>(null);
   const toast = useToast(previous => {
     const active = document.activeElement;
@@ -192,6 +197,29 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   const runGen = currentRun(layers, gen)?.gen ?? null;
   const loadingRun = phase === "loading" ? runGen : null;
 
+  // A link the run's document followed. A move arms the pointer Reload's focus return when focus was in the frame (the
+  // new run's iframe takes it once ready) and names the frame it moves to once that view comes, for the live region.
+  // The broken link's toast stays off an export's progress or result toast, which it would replace.
+  const followLink = (message: GotoMessage) => {
+    const current = viewRef.current;
+    const shown = toastRef.current.toast?.message;
+    const move = linkMove(current, message, shown !== undefined && shown === exportToastShown.current);
+    if (move.kind === "drop" || current === null) return;
+    if (move.kind === "toast") { toastRef.current.show(move.text); return; }
+    const active = document.activeElement;
+    if (active !== null && [...frames.current.values()].some(frame => frame === active)) reloadFocus.current = current.gen;
+    moving.current = move.frame === current.frame ? null : { gen: current.gen, frame: move.frame };
+    void api.goto(message);
+  };
+  const followRef = useRef(followLink); followRef.current = followLink;
+  // The first view after a move names the gen whose ready run is announced, if it is the frame the link moved to.
+  useEffect(() => {
+    const pending = moving.current;
+    if (view === null || pending === null || view.gen <= pending.gen) return;
+    moving.current = null;
+    setAnnounced(view.frame === pending.frame ? view.gen : null);
+  }, [view]);
+
   // The host's own limit, from the moment the iframe's src is set to the run's result (PROTOTYPE_LOAD_TIMEOUT_MS).
   useEffect(() => {
     if (loadingRun === null) return;
@@ -205,8 +233,9 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
       const element = frames.current.get(runGen);
       const forward = forwardedMessage(event, element ? { gen: runGen, window: element.contentWindow } : null);
       if (forward === null) return;
-      if (forward.kind === "result") void api.reportResult(forward.message as RunMessage);
-      else void api.reportFrames(forward.message as FramesMessage);
+      if (forward.kind === "result") void api.reportResult(forward.message);
+      else if (forward.kind === "frames") void api.reportFrames(forward.message);
+      else followRef.current(forward.message);
     };
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
@@ -284,13 +313,17 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     const active = document.activeElement;
     if (before !== null && (active === null || active === document.body) && before.isConnected) before.focus({ preventScroll: true });
   };
+  const showExportToast = (text: string, label?: string, action?: () => void) => {
+    exportToastShown.current = text;
+    toastRef.current.show(text, label, action);
+  };
   useEffect(() => api.onExportRunning(target => {
     const run = exportRun.current;
     if (run === null || !sameTarget(run.target, target)) return;
     setExporting(true);
     returnExportFocus(run);
     clearTimeout(run.timer);
-    run.timer = setTimeout(() => toastRef.current.show(exportProgress(run.title)), EXPORT_PROGRESS_DELAY_MS);
+    run.timer = setTimeout(() => showExportToast(exportProgress(run.title)), EXPORT_PROGRESS_DELAY_MS);
   }), [api]);
   useEffect(() => () => clearTimeout(exportRun.current?.timer), []);
   // The frame and title at the click: main exports it only if it still plays, and the result names it even if another
@@ -308,8 +341,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
       const result = exportToast(run.title, reply, true);
       if (result === null) return;
       const reveal = result.reveal;
-      if (reveal !== undefined) toastRef.current.show(result.text, "Show in Finder", () => { void api.revealExport(reveal).catch(console.error); });
-      else toastRef.current.show(result.text);
+      if (reveal !== undefined) showExportToast(result.text, "Show in Finder", () => { void api.revealExport(reveal).catch(console.error); });
+      else showExportToast(result.text);
     };
     api.export(run.target).then(done, () => done({ kind: "failed", reason: "failed" }));
   };
@@ -354,7 +387,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   })();
 
   const readingShown = phase === "loading" && readingGen === gen;
-  return <WindowShell view={view} layers={layers} readingShown={readingShown} details={details} live={liveText(view, readingShown)}
+  return <WindowShell view={view} layers={layers} readingShown={readingShown} details={details} live={liveText(view, readingShown, view !== null && announced === view.gen)}
     width={width} menuOpen={menuOpen} content={content} heading={heading} name={name} frames={frames.current}
     onBack={() => void api.back()} onForward={() => void api.forward()} onReload={() => { if (gen !== null) void api.reload(gen); }} onReloadPress={onReloadPress} onReloadClick={onReloadClick}
     onMode={mode => void api.setMode(mode)} onMenuOpen={setMenuOpen} exporting={exporting} onExport={onExport} toast={toast.element} dialog={deleteDialog}
@@ -555,19 +588,14 @@ function ContentPanel({ view, layers, covered, content, frames, children }: { vi
   </div>;
 }
 
-// The frame name, centred between the header's groups, opens this canvas's marked frames. It names the whole title in
-// the shared Tooltip only while the name is cut short. The shell holds the menu's open state, which its other header
-// tooltips close on Esc too.
+// The frame name, centred between the header's groups, opens this canvas's marked frames in their link groups. It names
+// the whole title in the shared Tooltip only while the name is cut short. The shell holds the menu's open state, which
+// its other header tooltips close on Esc too.
 function FrameMenu({ view, open, onOpenChange, trigger: triggerRef, onTipEscape, onChoose }: { view: PrototypeView; open: boolean; onOpenChange(open: boolean): void; trigger?: RefObject<HTMLButtonElement | null> | undefined; onTipEscape(): void; onChoose(frame: string): void }) {
-  const [focused, setFocused] = useState<string | null>(null);
   const [cut, setCut] = useState(false);
   const [tip, setTip] = useState(false);
   const text = useRef<HTMLSpanElement>(null);
-  const list = useRef<HTMLDivElement>(null);
-  const nodes = useRef(new Map<string, HTMLElement>());
-  const typed = useRef({ text: "", at: 0 });
-  const rows = drawerRows(view);
-  const active = focusedRowAfter(rows, focused);
+  const groups = drawerGroups(view);
 
   useLayoutEffect(() => {
     const node = text.current;
@@ -580,67 +608,13 @@ function FrameMenu({ view, open, onOpenChange, trigger: triggerRef, onTipEscape,
     return () => observer.disconnect();
   }, [view.title]);
 
-  const move = (key: string | null, center = false) => {
-    const node = key === null ? undefined : nodes.current.get(key);
-    const box = list.current;
-    if (!node || !box) return;
-    setFocused(key);
-    node.focus({ preventScroll: true });
-    const row = node.getBoundingClientRect(), area = box.getBoundingClientRect();
-    if (center) box.scrollTop += row.top + row.height / 2 - (area.top + area.height / 2);
-    else if (row.top < area.top) box.scrollTop += row.top - area.top;
-    else if (row.bottom > area.bottom) box.scrollTop += row.bottom - area.bottom;
-  };
-
-  // A run that lists other frames while the drawer is open keeps the focused frame, else the playing one.
-  useEffect(() => {
-    if (!open) return;
-    const next = focusedRowAfter(rows, focused);
-    if (next !== focused) move(next);
-  });
-
-  const pick = (row: DrawerRow) => { onOpenChange(false); onChoose(row.id); };
-  const keydown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Tab") { event.preventDefault(); return; }
-    if (event.key === "Enter" || event.key === " ") {
-      const row = rows.find(candidate => candidate.key === active);
-      if (row) { event.preventDefault(); pick(row); }
-      return;
-    }
-    const target = drawerKeyTarget(rows, active, event.key);
-    if (target !== null) { event.preventDefault(); move(target); return; }
-    if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
-      const now = Date.now();
-      typed.current = { text: (now - typed.current.at < 500 ? typed.current.text : "") + event.key.toLowerCase(), at: now };
-      const match = drawerTypeahead(rows, active, typed.current.text);
-      if (match !== null) { event.preventDefault(); move(match); }
-    }
-  };
-
   // With no marked frame the drawer holds a line of text, not a list: it is then a labelled dialog.
-  const empty = rows.length === 0;
+  const empty = groups.length === 0;
   const trigger = <button type="button" className="shell-search pw-name" ref={triggerRef} aria-haspopup={empty ? "dialog" : "listbox"}>
     <span className="pw-name-text" ref={text}>{view.title}</span><ChevronDown className="chev" aria-hidden="true" /></button>;
-  return <><Popover.Root open={open} onOpenChange={next => { onOpenChange(next); if (next) setFocused(null); }}>
+  return <><Popover.Root open={open} onOpenChange={onOpenChange}>
     <Tooltip open={cut && tip} onOpenChange={setTip}><TooltipTrigger asChild><Popover.Trigger asChild {...(empty ? { "aria-describedby": EMPTY_DRAWER_ID } : {})}>{trigger}</Popover.Trigger></TooltipTrigger><TooltipContent onEscapeKeyDown={onTipEscape}>{view.title}</TooltipContent></Tooltip>
-    <Popover.Portal><Popover.Content ref={list} role={empty ? "dialog" : undefined} aria-label={empty ? drawerLabel(view) : undefined} className="doan-floating doan-menu doan-frame-list pw-drawer" align="center" sideOffset={4} collisionPadding={8}
-      onOpenAutoFocus={event => {
-        event.preventDefault();
-        const start = focusedRowAfter(rows, null);
-        move(start, true);
-        requestAnimationFrame(() => { const node = start === null ? undefined : nodes.current.get(start); if (node && document.activeElement === node) move(start, true); });
-      }}>
-      {empty ? <p className="doan-menu-head pw-drawer-empty">{EMPTY_DRAWER}</p>
-        : <div role="listbox" aria-label={drawerLabel(view)} onKeyDown={keydown}>
-          {rows.map(row => <div key={row.key} role="option" aria-current={row.current ? "location" : undefined}
-            tabIndex={row.key === active ? 0 : -1} title={row.name} className="doan-menu-item doan-frame-row"
-            ref={node => { if (node) nodes.current.set(row.key, node); else nodes.current.delete(row.key); }}
-            onFocus={() => setFocused(row.key)}
-            onPointerMove={event => { if (document.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }); }}
-            onClick={() => pick(row)}>
-            <span className="doan-frame-num">{row.number}</span><span className="doan-frame-name">{row.name}</span>{row.current && <span className="doan-frame-viewing">Playing</span>}
-          </div>)}
-        </div>}
-    </Popover.Content></Popover.Portal>
+    <FrameListBody label={drawerLabel(view)} groups={groups} open={open} empty={EMPTY_DRAWER} className="doan-floating doan-menu doan-frame-list pw-drawer" align="center"
+      onPick={row => { onOpenChange(false); onChoose(row.id); }} />
   </Popover.Root>{empty && <span className="sr-only" id={EMPTY_DRAWER_ID}>{EMPTY_DRAWER}</span>}</>;
 }

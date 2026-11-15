@@ -47,7 +47,7 @@ type PrototypeApi = import("./PrototypeWindow").PrototypeApi;
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
 const BOX = { x: 0, y: 0, width: 390, height: 844 };
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 1, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present", ...over,
+  gen: 1, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [], gotos: [], canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present", ...over,
 });
 
 let changed: (view: PrototypeView | null) => void;
@@ -410,7 +410,9 @@ describe("link moves", () => {
     for (const listener of [...messages]) listener({ source: element?.contentWindow, origin: "null", data: { gen, goto } });
     return render();
   }
+  // A run mounts its iframe while it loads; only then does the window hear its messages.
   function playing(over: Partial<PrototypeView> = {}) {
+    show(at({ ...over, phase: "loading" }));
     const s = show(at(over));
     const old = iframe();
     s.frames!.set(over.gen ?? 1, old as never);

@@ -63,6 +63,8 @@ const mainOnly = new Set([
   PROTOTYPE_CHANNELS.play,
   // The prototype window's playing target, and the project conversation the main window says draws it.
   PROTOTYPE_CHANNELS.readTarget, PROTOTYPE_CHANNELS.setDrawing,
+  // The frame the prototype window plays, for the toolbar's frame drawer.
+  PROTOTYPE_CHANNELS.playing,
 ]);
 
 // The panel's composer: preset reads, its own attachments (no capture: the window has no board) and agent reply links.

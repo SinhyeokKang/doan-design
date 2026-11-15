@@ -18,6 +18,7 @@ const DRAWER: PlayTool = { kind: "drawer", tooltip: "Choose a prototype to play"
 const DISABLED: PlayTool = { kind: "disabled", tooltip: "Finish the capture first.", onPlay: () => {}, open: false, onOpenChange: () => {}, drawer: null };
 const props = (over: Partial<Props> = {}): Props => ({ tool: "select", picking: false, capturing: false, onTool: () => {}, picker: PICKER, capture: CAPTURE, player: PLAYER, exporter: { reason: null, onExport: () => {} }, onEscape: () => {}, ...over });
 const markup = (over: Partial<Props> = {}) => renderToStaticMarkup(<TooltipProvider><CanvasTools {...props(over)} /></TooltipProvider>);
+const withoutPlayLine = (html: string) => html.replace(' aria-describedby="canvas-play-reason"', "").replace(/<span class="sr-only" id="canvas-play-reason">[^<]*<\/span>/, "");
 const UNAVAILABLE = "Pick from canvas isn’t available while the canvas can’t be shown.";
 
 // Walks the element tree through children only, so no component (and no Radix hook) runs.
@@ -153,7 +154,8 @@ describe("CanvasTools", () => {
     expect(id).toBeTruthy();
     expect(html).toMatch(new RegExp(`<span class="sr-only" id="${id}">${reason}</span>`));
     expect(html.match(/<button[^>]*aria-label="Export canvas"[^>]*>/)?.[0]).not.toContain("aria-describedby");
-    expect(markup()).not.toMatch(/aria-describedby|sr-only/);
+    // Play describes every state with its own line; no other control has one while available.
+    expect(withoutPlayLine(markup())).not.toMatch(/aria-describedby|sr-only/);
   });
 
   // Availability can change during capture mode (a paste fills the draft); the pressed button still ends it.
@@ -196,7 +198,8 @@ describe("CanvasTools", () => {
     const id = tag.match(/aria-describedby="([^"]+)"/)?.[1];
     expect(id).toBeTruthy();
     expect(html).toMatch(new RegExp(`<span class="sr-only" id="${id}">This page is not a listed canvas.</span>`));
-    expect(markup()).not.toMatch(/aria-describedby|sr-only/);
+    // Play describes every state with its own line; no other control has one while available.
+    expect(withoutPlayLine(markup())).not.toMatch(/aria-describedby|sr-only/);
   });
 
   it("Play prototype is an action with no pressed state or Tab stop that plays while it can", () => {

@@ -32,7 +32,7 @@ describe("DrawerListbox", () => {
   it("keeps the canvas numbers, gives the active row the one tab stop and marks the playing row with the Eye", () => {
     const html = list(GROUPS);
     expect(html.match(/tabindex="0"/g)).toHaveLength(1);
-    expect(html).toMatch(/<div role="option" aria-current="location" tabindex="0" title="Checkout" class="doan-menu-item doan-frame-row"><span class="doan-frame-num">3<\/span><span class="doan-frame-name">Checkout<\/span><span class="doan-frame-current" title="Playing"><svg[^>]*><\/svg><span class="sr-only">Playing<\/span><\/span><\/div>/);
+    expect(html).toMatch(/<div role="option" aria-current="location" tabindex="0" title="Checkout" class="doan-menu-item doan-frame-row"><span class="doan-frame-num">3<\/span><span class="doan-frame-name">Checkout<\/span><span class="doan-frame-current" title="Playing"><svg[^>]*class="lucide lucide-eye"[^>]*>.*?<\/svg><span class="sr-only">Playing<\/span><\/span><\/div>/);
     expect(html.match(/aria-current/g)).toHaveLength(1);
     expect(html.match(/doan-frame-current/g)).toHaveLength(1);
     expect(list(GROUPS, "settings")).toMatch(/tabindex="0" title="Settings"/);
@@ -44,8 +44,8 @@ describe("FrameRowMarks", () => {
 
   it("shows the current row as a 14 px Eye with its word for assistive technology, before the Prototype mark", () => {
     const html = marks("Viewing", true);
-    expect(html).toMatch(/^<span class="doan-frame-current" title="Viewing"><svg[^>]*class="lucide lucide-eye[^"]*"[^>]*><\/svg><span class="sr-only">Viewing<\/span><\/span>/);
-    expect(html).toMatch(/<span class="doan-frame-current prototype-meta-icon" title="Prototype supported"><svg[^>]*class="lucide lucide-play[^"]*"[^>]*><\/svg><span class="sr-only">Prototype<\/span><\/span>$/);
+    expect(html).toMatch(/^<span class="doan-frame-current" title="Viewing"><svg[^>]*class="lucide lucide-eye"[^>]*>.*?<\/svg><span class="sr-only">Viewing<\/span><\/span>/);
+    expect(html).toMatch(/<span class="doan-frame-current prototype-meta-icon" title="Prototype supported"><svg[^>]*class="lucide lucide-play"[^>]*>.*?<\/svg><span class="sr-only">Prototype<\/span><\/span>$/);
     expect(html).toMatch(/<svg[^>]*aria-hidden="true"/);
   });
 

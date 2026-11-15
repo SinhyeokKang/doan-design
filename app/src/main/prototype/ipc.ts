@@ -21,6 +21,8 @@ export const PROTOTYPE_CHANNELS = {
   changed: "prototype:changed",
   result: "prototype:result",
   frames: "prototype:frames",
+  // A link the run's document followed (GotoMessage); main judges it against its own run.
+  goto: "prototype:goto",
   reload: "prototype:reload",
   back: "prototype:back",
   forward: "prototype:forward",
@@ -79,10 +81,13 @@ export const PROTOTYPE_CHANNELS = {
   // and its read.
   promoted: "prototype:promoted",
   promotedChanged: "prototype:promotedChanged",
+  // To the main window: the frame the window plays (PrototypePlaying | null) whenever it changes, and the main window's
+  // read of it. The toolbar's frame drawer marks that row while it is a frame of the canvas the main window shows.
+  playing: "prototype:playing",
 } as const;
 
 export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
-  PROTOTYPE_CHANNELS.read, PROTOTYPE_CHANNELS.result, PROTOTYPE_CHANNELS.frames, PROTOTYPE_CHANNELS.reload,
+  PROTOTYPE_CHANNELS.read, PROTOTYPE_CHANNELS.result, PROTOTYPE_CHANNELS.frames, PROTOTYPE_CHANNELS.goto, PROTOTYPE_CHANNELS.reload,
   PROTOTYPE_CHANNELS.back, PROTOTYPE_CHANNELS.forward, PROTOTYPE_CHANNELS.choose, PROTOTYPE_CHANNELS.close,
   PROTOTYPE_CHANNELS.mode, PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible,
   PROTOTYPE_CHANNELS.panel, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
@@ -187,6 +192,8 @@ export interface PrototypeView {
   // (re-sent under this `gen` before this view). False again once a run is ready.
   previousStopped: boolean;
   frames: PrototypeFrame[];
+  // The current run's links, for the drawer's groups; kept and cleared with `frames`.
+  gotos: PrototypeGoto[];
   canGoBack: boolean;
   canGoForward: boolean;
   // Main keeps it across runs and close, for as long as the app runs.
@@ -195,6 +202,14 @@ export interface PrototypeView {
   // unregistered root or a failed list) or its ID shared by two rows. The panel's composer refuses input while it is
   // gone or shared.
   canvasRow: "present" | "loading" | "gone" | "duplicate";
+}
+
+// `prototype:playing`: the playing target as the main window names a canvas (its root, its row's last listed path and
+// its ID when it has one) and the frame.
+export interface PrototypePlaying {
+  root: string;
+  canvas: { path: string; id?: string };
+  frame: string;
 }
 
 // The conversation panel. `width` is null until the panel first opened; main fits it to the window when it opens.
@@ -261,6 +276,7 @@ export interface PrototypeWindowApi {
   onChanged(listener: (view: PrototypeView | null) => void): () => void;
   reportResult(message: RunMessage): Promise<void>;
   reportFrames(message: FramesMessage): Promise<void>;
+  goto(message: GotoMessage): Promise<void>;
   reload(gen: number): Promise<void>;
   back(): Promise<void>;
   forward(): Promise<void>;

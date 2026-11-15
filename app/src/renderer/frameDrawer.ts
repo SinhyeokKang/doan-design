@@ -1,7 +1,7 @@
 import type { LayoutMessage } from "./canvasMessage";
 import type { CanvasState } from "./CanvasController";
 import { frameLabel } from "./canvasView";
-import { markedForPrototype } from "../main/prototype/playability";
+import { playableFrames } from "../main/prototype/playability";
 
 export const TRUNCATED_NOTE = "Showing the first 1,000 frames. Search all with Quick Open (⌘K).";
 
@@ -29,7 +29,7 @@ export interface FrameDrawerRow {
   number: number;
   name: string;
   current: boolean;
-  // The `Prototype` caption: metadata only, the row still moves to and selects the frame.
+  // The Prototype mark: metadata only, the row still moves to and selects the frame.
   prototype: boolean;
 }
 
@@ -70,10 +70,11 @@ export function frameDrawerView(state: BoardState): FrameDrawerView {
   const keys = rowKeys(layout.frames.map(frame => frame.id));
   // A stale index (the layout changed since it was computed) is no current frame.
   const current = state.currentFrame !== null && layout.frames[state.currentFrame] !== undefined ? state.currentFrame : null;
+  const playable = playableFrames(layout.frames);
   const rows = layout.frames.map((frame, index): FrameDrawerRow => {
     const label = frameLabel(frame);
     return { key: keys[index]!, index, id: frame.id, number: index + 1, name: label.title ?? label.id, current: index === current,
-      prototype: markedForPrototype(frame.id, layout.frames) };
+      prototype: playable[index]! };
   });
   const viewing = current === null ? null : rows[current]!;
   return {

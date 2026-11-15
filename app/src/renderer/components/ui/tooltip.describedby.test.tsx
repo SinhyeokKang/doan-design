@@ -31,7 +31,7 @@ const noop = () => {};
 test("an unavailable control's open tooltip leaves its own aria-describedby alone, in every place", () => {
   const tools = open(<CanvasTools tool="select" picking={false} capturing={false} onTool={noop} onEscape={noop}
     picker={{ enabled: true, reason: null, onToggle: noop }} capture={{ enabled: false, reason: "Open a canvas to capture an area.", onToggle: noop }}
-    player={{ reason: "Select a supported frame to play its prototype.", onPlay: noop }} exporter={{ reason: "No canvas is open.", onExport: noop }} />);
+    player={{ kind: "disabled", tooltip: "Finish the capture first.", onPlay: noop, open: false, onOpenChange: noop, drawer: null }} exporter={{ reason: "No canvas is open.", onExport: noop }} />);
   expect(describedBy(tools, 'aria-label="Capture area"')).toBe("canvas-capture-reason");
   expect(describedBy(tools, 'aria-label="Play prototype"')).toBe("canvas-play-reason");
   expect(describedBy(tools, 'aria-label="Export canvas"')).toBe("canvas-export-reason");
@@ -49,16 +49,18 @@ test("an unavailable control's open tooltip leaves its own aria-describedby alon
   expect(describedBy(button, 'aria-label="Connect Figma for Codex"')).toBe("mcp-figma-reason");
 
   // The prototype window's Export while its canvas can't be read.
-  const view = { gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "a", phase: "read-failed", mode: "fit", run: null, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present" } as const;
-  const shell = open(<WindowShell view={{ ...view, frames: [] }} layers={{ frames: [], visible: null, snapshot: null }} readingShown={false} details={false} live="" width={640} menuOpen={false} exporting={false}
+  const view = { gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "a", phase: "read-failed", mode: "fit", run: null, frames: [], gotos: [], canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present" } as const;
+  const shell = open(<WindowShell view={{ ...view, frames: [], gotos: [] }} layers={{ frames: [], visible: null, snapshot: null }} readingShown={false} details={false} live="" width={640} menuOpen={false} exporting={false}
     onBack={noop} onForward={noop} onReload={noop} onReloadPress={noop} onReloadClick={noop} onMode={noop} onMenuOpen={noop} onChoose={noop} onClose={noop} onDetails={noop} onExport={noop} />);
   expect(describedBy(shell, 'aria-label="Export prototype"')).toBe("prototype-export-reason");
 });
 
 test("an available control still gets the open tooltip's id, as Radix gives it", () => {
   const tools = open(<CanvasTools tool="select" picking={false} capturing={false} onTool={noop} onEscape={noop}
-    picker={{ enabled: true, reason: null, onToggle: noop }} capture={{ enabled: true, reason: null, onToggle: noop }} player={{ reason: null, onPlay: noop }} exporter={{ reason: null, onExport: noop }} />);
-  for (const label of ["Select", "Capture area", "Play prototype", "Export canvas"]) expect(describedBy(tools, `aria-label="${label}"`), label).toMatch(/^radix-\S+$/);
+    picker={{ enabled: true, reason: null, onToggle: noop }} capture={{ enabled: true, reason: null, onToggle: noop }} player={{ kind: "play", tooltip: "Play “Checkout”", onPlay: noop, open: false, onOpenChange: noop, drawer: null }} exporter={{ reason: null, onExport: noop }} />);
+  for (const label of ["Select", "Capture area", "Export canvas"]) expect(describedBy(tools, `aria-label="${label}"`), label).toMatch(/^radix-\S+$/);
+  // Play describes every state with its own sr-only line, which its tooltip repeats, so Radix's id is left off.
+  expect(describedBy(tools, 'aria-label="Play prototype"')).toBe("canvas-play-reason");
 });
 
 // Only an unavailable control keeps its description alone: an enabled one that names a description of its own (a queued

@@ -37,27 +37,10 @@ export interface PlayInput {
 // `frame` and `broken` are indexes into the input's frames. `broken` is a selected frame whose mark cannot play.
 export type Playability = { kind: "play"; frame: number } | { kind: "drawer"; broken?: number } | { kind: "disabled"; reason: string };
 
-function only(id: string, frames: readonly LayoutFrameMark[]): LayoutFrameMark | null {
-  if (id === "") return null;
-  let found: LayoutFrameMark | null = null;
-  for (const frame of frames) {
-    if (frame.id !== id) continue;
-    // The prototype window refuses a duplicated id rather than pick one, so the board must not offer it either.
-    if (found !== null) return null;
-    found = frame;
-  }
-  return found;
-}
-
-// The frame drawer's `Prototype` meta.
-export function markedForPrototype(id: string, frames: readonly LayoutFrameMark[]): boolean {
-  const frame = only(id, frames);
-  return frame !== null && parsePrototypeMark(frame.prototype) !== null;
-}
-
-// Child 1's playable frame as the board can see it. A cut id is not the frame's own, so it neither plays nor shares
-// another frame's genuine 200-unit id.
-function playableFrames(frames: readonly PlayFrame[]): boolean[] {
+// Per frame, whether the prototype window can play it as far as the board can tell; also the frame drawers' Prototype
+// mark. The window refuses a shared id rather than pick one, so the board must not offer it either. A cut id is not the
+// frame's own, so it neither plays nor shares another frame's genuine 200-unit id.
+export function playableFrames(frames: readonly PlayFrame[]): boolean[] {
   const counts = new Map<string, number>();
   for (const frame of frames) if (frame.cut === undefined) counts.set(frame.id, (counts.get(frame.id) ?? 0) + 1);
   return frames.map(frame => frame.cut === undefined && frame.id !== "" && counts.get(frame.id) === 1 && parsePrototypeMark(frame.prototype) !== null);
