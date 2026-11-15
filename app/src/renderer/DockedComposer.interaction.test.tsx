@@ -267,7 +267,7 @@ test("a send refused because the canvas is gone replaces the composer", async ()
   (button(render(), "Send").onClick as () => void)();
   await flush();
   const shown = draw() as ReactElement<{ className: string }>;
-  expect(shown.props.className).toBe("canvas-gone");
+  expect(shown.props.className).toBe("doan-notice");
 });
 
 test("attachment_missing marks the moved chip instead of a notice", async () => {
@@ -482,6 +482,9 @@ test("a notice with Retry sends the same draft again", async () => {
   await flush();
   // The notice's text can be selected and copied, as the Home composer's can; Retry stays a plain button.
   expect(find(render(), item => item.children === "Couldn’t start with Codex: it is rate limited.").className).toBe("grow-text selectable");
+  // The docked composer sits on a white panel, so the notice keeps the inset fill and the panel Retry keeps its own.
+  expect(find(render(), item => item.role === "alert").className).toBe("doan-notice error composer-notice");
+  expect(find(render(), item => item.children === "Retry")["data-ui-variant"]).toBe("panel");
   (find(render(), item => item.children === "Retry").onClick as () => void)();
   await flush();
   expect(send).toHaveBeenCalledTimes(2);

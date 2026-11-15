@@ -299,6 +299,10 @@ test("Edit on Home asks before replacing a different draft, and fills an empty o
   busy.render(); for (const effect of hooks.effects) effect();
   expect(hooks.states.some(state => (state as { title?: string } | null)?.title === "Replace your draft?")).toBe(true);
   expect(busy.box.current.text).toBe("Another idea");
+  // Its two actions take the default size, as every confirmation does.
+  const shown = busy.render(), actions = shown.slice(shown.findIndex(props => props.className === "doan-dialog-actions") + 1).filter(props => props.className === "doan-button");
+  expect(actions.length).toBeGreaterThanOrEqual(2);
+  expect(actions.slice(0, 2).map(props => props["data-ui-size"])).toEqual([undefined, undefined]);
   const empty = setup({}, { restore: { request: last, seq: 1 } });
   empty.render(); for (const effect of hooks.effects) effect();
   expect(empty.box.current.text).toBe("Polish it.");

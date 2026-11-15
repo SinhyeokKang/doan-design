@@ -871,6 +871,8 @@ test("Remove from Doan on the page asks first for the page's whole group; Cancel
   expect(removalTitle()).toBe("Remove a from Doan?");
   expect(removalDialog()!.props["aria-describedby"]).toBe("project-remove-body");
   expect(dialogButton("Remove from Doan")).toBeDefined();
+  // Confirmation actions take the default size, as every other confirmation does.
+  expect([dialogButton("Cancel"), dialogButton("Remove from Doan")].map(button => button.props["data-ui-size"])).toEqual([undefined, undefined]);
   expect(doan.removeProjects).not.toHaveBeenCalled();
   expect(projectPage()).toBeDefined();
   click(dialogButton("Cancel"));

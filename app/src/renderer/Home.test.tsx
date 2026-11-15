@@ -169,6 +169,13 @@ test("Home CSS: the body panel has the white fill and container corners and no e
   expect(panel).not.toContain("box-shadow");
   expect(css).not.toMatch(/\.home-panel[^{]*\{[^}]*box-shadow/);
   expect(readFileSync(new URL("./ds/surfaces.css", import.meta.url), "utf8")).toMatch(/\.doan-floating \{[^}]*box-shadow: var\(--shadow-panel\);/);
+  // The workspace's body panels spell the same corner and gutter with the same tokens.
+  for (const selector of [".workspace > .doan-canvas-panel", ".workspace > .ov"]) {
+    const body = css.match(new RegExp(`\\n${selector.replace(/[.>]/g, m => `\\${m}`)} \\{([^}]*)\\}`))![1]!;
+    expect(body).toContain("margin-left: var(--space-2);");
+    expect(body).toContain("border-radius: var(--radius-container) 0 0 var(--radius-container);");
+  }
+  expect(css).toContain(".workspace > .right-stack { border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }");
 });
 
 // The composer's focused border and the disabled ink of its tools.

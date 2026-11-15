@@ -681,6 +681,23 @@ test("Back to a project now in a problem enters its Overview with the overlay in
   }
 });
 
+// A panel-level failure is DESIGN's status block: the alert icon, a title, a line and a centred action. The block is
+// white, so Reload is subtle (a panel button would lose its fill on it).
+test("a canvas that failed to load shows the status block with the alert icon, its title and line, and Reload", async () => {
+  const { AlertIcon } = await import("./AlertIcon");
+  render(); folders([listed("/w/a")]);
+  canvasOpen();
+  harness.setState!({ ...initialCanvasState(), status: "failed", message: "" }); render();
+  const status = all((pane()!.type as (props: unknown) => ReactNode)(pane()!.props)).find(element => element.props.className === "canvas-status")!;
+  const block = all(status).find(element => element.props.className === "canvas-status-block")!;
+  const inside = all(block);
+  expect(inside.find(element => element.type === AlertIcon)?.props.size).toBe(20);
+  expect(inside.find(element => element.type === "h2")?.props.children).toBe("Couldn’t load the canvas");
+  expect(inside.find(element => element.type === "p")?.props.children).toBe("Run doan check in a terminal.");
+  const reload = inside.find(element => element.type === "button")!;
+  expect(reload.props).toMatchObject({ "data-ui-variant": "subtle", "data-ui-size": "sm", children: "Reload" });
+});
+
 test("a canvas closed for a missing or not set up root leaves no empty canvas status block", () => {
   render(); folders([listed("/w/a")]);
   canvasOpen();

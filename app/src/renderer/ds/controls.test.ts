@@ -227,6 +227,19 @@ test("menus share the quiet scrollbar and keep its track inside their corners", 
   expect(css).toContain('.doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin-block: var(--radius-row); }');
 });
 
+// A dialog is its own scroll container (overflow: auto), so in a short window it shows the same quiet thumb as every
+// other scrolling body; .doan-scroll is the one name for it.
+test("every modal dialog scrolls with the quiet scrollbar, and there is no second scrollbar class", async () => {
+  const { readdirSync } = await import("node:fs");
+  const dir = new URL("../", import.meta.url);
+  const sources = readdirSync(dir).filter(name => name.endsWith(".tsx") && !name.includes(".test.")).map(name => [name, readFileSync(new URL(name, dir), "utf8")] as const);
+  const dialogs = sources.flatMap(([name, text]) => [...text.matchAll(/<dialog [^>]*?className=(?:"([^"]*)"|\{([^}]*)\})/g)].map(match => [name, match[1] ?? match[2] ?? ""] as const)).filter(([, names]) => names.includes("doan-dialog"));
+  expect(dialogs.length).toBeGreaterThanOrEqual(10);
+  for (const [name, names] of dialogs) expect(`${name}: ${names}`).toContain("doan-scroll");
+  for (const [, text] of sources) expect(text).not.toContain("native-scroll");
+  expect(read("../styles.css")).not.toContain("native-scroll");
+});
+
 // A listbox row is not a Radix item, so it takes the menu row's fill from focus, which the pointer carries once focus is in the
 // list (the frame list does the same); with focus elsewhere, such as the popover's search box, it fills on hover alone.
 // The `/` list keeps its rows unfocusable and moves its one highlight instead.

@@ -128,7 +128,7 @@ test("the paste modal: one bounded input, Cancel and Submit; Escape closes only 
   expect(html).not.toContain("maxLength");
   expect(html).not.toContain("too long");
   expect(html).toContain('<input class="doan-input" aria-label="Page address" placeholder="Page address from your browser" spellCheck="false" autofocus="" value=""/>');
-  expect(html).toContain('<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Cancel</button><button type="submit" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled="">Submit</button></div>');
+  expect(html).toContain('<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button><button type="submit" class="doan-button" data-ui-variant="prominent" disabled="">Submit</button></div>');
   const element = PasteDialog({ view: pasteDialog(), value: "", submittable: false, tooLong: false, busy: false, change: noop, submit: noop, close }) as ReactElement<DialogProps>;
   const escape = keyEvent("Escape");
   element.props.onKeyDown(escape);
@@ -141,9 +141,9 @@ test("the paste modal: one bounded input, Cancel and Submit; Escape closes only 
 
 test("the stop dialog is an alertdialog with Cancel and the confirm verb on the right", () => {
   const html = renderToStaticMarkup(<StopDialog view={stopDialog("claude", "signOut")} busy={false} confirm={noop} close={noop} />);
-  expect(html).toMatch(/^<dialog class="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="ob-stop-title"/);
+  expect(html).toMatch(/^<dialog class="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="ob-stop-title"/);
   expect(html).toContain('<h3 class="doan-dialog-title" id="ob-stop-title">Stop Claude Code conversations?</h3>');
-  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" autofocus="">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="">Stop and sign out</button>');
+  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" autofocus="">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-consent="">Stop and sign out</button>');
   const close = vi.fn();
   const element = StopDialog({ view: stopDialog("claude", "signIn"), busy: false, confirm: noop, close }) as ReactElement<DialogProps>;
   element.props.onKeyDown(keyEvent("Escape"));
@@ -464,7 +464,7 @@ test("buttons that write or consent are marked, so focus recovery skips them", (
   expect(screen({ phase: { kind: "cloneCancelled", url: "u", destination: "/d" } })).toContain('data-ui-size="sm" data-consent="">Retry</button>');
   expect(screen({ url: "u", error: { code: "access_failed" } })).toContain('data-ui-size="sm" data-consent="">Retry</button>');
   const stop = renderToStaticMarkup(<StopDialog view={stopDialog("claude", "signOut")} busy={false} confirm={noop} close={noop} />);
-  expect(stop).toContain('data-ui-size="sm" data-consent="">Stop and sign out</button>');
+  expect(stop).toContain('data-ui-variant="prominent" data-consent="">Stop and sign out</button>');
   expect(stop).not.toMatch(/data-consent="" autofocus|autofocus="" data-consent/);
 });
 
