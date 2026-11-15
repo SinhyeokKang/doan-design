@@ -154,3 +154,42 @@
   - 대화 수명주기: L-1, L-2, L-3
   - CLI 계약: C-3, M-4, M-16
   - app 정리: B-4, C-2, M-2, M-3, M-5, M-6, M-7, M-9, M-11, M-14, M-15, M-17, M-18, M-19, M-21, M-22(lint 설정 제외), M-23
+
+## 1라운드 결과 (2026-11-16 마감)
+
+**검증하지 못한 것**
+- 실제 앱에서 보지 못하고 단위 테스트로만 확인한 것:
+  - #219: prototype 헤더 메뉴를 연 채 누르는 경우(M-11), 실제 포인터로 띄운 툴팁(M-14), 스크롤바 모양(M-15), 실제 GPU reset에서 Home buddy가 복구되는지(M-12)
+  - #220: docked composer 오류 notice, 추천 프롬프트 Tooltip, Settings Permission 메뉴, canvas-gone notice, Set Up 대화상자 focus ring, 캔버스 로드 실패 블록(CSS만 실측)
+  - #213: runner가 살아 있는 상태의 quit
+- B-1 probe에서 확인하지 못한 것: `apiKeyHelper` 외의 env 변수, Copilot 워크스페이스 MCP 파일, 승인된 Cursor MCP, trusted Codex 프로젝트
+- 로컬 gate: 컨덕터 여러 개가 동시에 돌아 부하가 높았고, 그래서 여러 번 타이밍 테스트에서 실패했다. 모든 PR은 CI `gate`를 기준으로 병합했다.
+
+**병합한 PR** (모두 develop)
+- #212 real-state 가드: B-2/C-4/M-13, M-10, M-20
+- #213 대화 수명주기: L-1, L-2, L-3
+- #214 main FIFO 읽기: B-3
+- #215 Claude 저장소 fence: B-1. 사용자 결정은 "저장소에 hook·MCP가 있으면 바깥 fence"다. probe에서 찾은 `.mcp.json` 단독 경로, AWS helper, `apiKeyHelper`도 같은 규칙으로 막았다. profile의 `.claude/`와 `.mcp.json`은 쓰기를 막았다.
+- #216 CLI 계약: C-3, M-4, M-16, C-1. 사용자 결정에 따라 소문자 `.html`만 canvas로 본다.
+- #217 eval 검사: C-5, M-1, M-8, M-12(R10), M-22(eval)
+- #218 주석·고아 정리: B-4, M-2, M-3, M-5, M-6, M-7, M-17, M-19, M-22(app). 사용자 결정에 따라 `noUnusedLocals`와 `noUnusedParameters`를 켰다.
+- #219 app 재발: C-2, M-9, M-11, M-14, M-15, M-18, M-21, M-23, M-12(Home buddy). 사용자 결정으로 고쳤다.
+- #220 본문 패널 외곽선 통일과 화면 간 시각 drift 9건. 출처는 `.scratch/audit/261115-r1/visual-drift.md`다.
+  - 사용자 결정: 본문 패널은 외곽선을 없애고, 떠 있는 요소는 외곽선을 유지한다. 확인 대화상자 버튼은 40px, Settings 메뉴는 standard 밀도다.
+
+**BACKLOG**: B-1을 올렸다가 #215에서 닫았다. 새로 남긴 항목은 없다.
+
+**probe에서 반증돼 수용된 한계로 둔 것**
+- 다른 provider의 목록 읽기와 Codex 턴은 저장소의 MCP·hook을 실행하지 않았다.
+- `statusLine`과 `otelHeadersHelper`는 실행되지 않았다.
+- 상위·하위 폴더의 `.claude/`는 로드되지 않았다.
+
+**다음 라운드 후보** (PR이 범위 밖으로 남긴 것)
+- `conversation/runners.ts`와 `mcpConnectors/service.ts`의 `profileServers`가 FIFO를 막지 않는 동기 읽기를 쓴다.
+- `onboarding/projects.ts`의 `.gitattributes`를 FIFO를 막지 않고 읽는다.
+- `usageRead.ts`가 stat 뒤에 읽어 경쟁 조건이 있다.
+- `UpdateHeaderButton.tsx`의 `open={open && shown !== null}`이 M-14와 같은 유형으로 보인다.
+- `ds/surfaces.css`의 `.doan-panel` 주석이 낡았다.
+- eval 시나리오에 단일 id를 `includes`로 확인하는 실패 케이스 36개가 남았고, 플래그 drift 테스트는 한 방향만 본다.
+- 앱 테스트가 `$TMPDIR`에 `doan-acp-*`와 `doan-auth-manager*` 폴더를 남겨(약 6만 개) Go 테스트를 느리게 한다.
+- `shell.test.ts`의 "setting up the same folder again"이 로컬에서만 실패한다.
