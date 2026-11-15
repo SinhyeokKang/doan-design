@@ -1,6 +1,6 @@
 # Agent usability evaluation
 
-How we find and fix places where coding agents struggle to write and read Doan designs (2026-10-24 user). Bugs and regressions go to [POSTMORTEM.md](./POSTMORTEM.md); this document tracks usability for agents — guide text, CLI output, `doan check` rules and product behavior as agents experience them.
+How we find and fix places where coding agents struggle to write and read Doan designs. Bugs and regressions go to [POSTMORTEM.md](./POSTMORTEM.md); this document tracks usability for agents — guide text, CLI output, `doan check` rules and product behavior as agents experience them.
 
 ## Loop
 
@@ -8,7 +8,7 @@ How we find and fix places where coding agents struggle to write and read Doan d
 2. **Record** — one issue row below: how it was found, the layer, evidence.
 3. **Improve** — guide or output wording through `/ship`; product changes through `/feature`.
 4. **Re-measure** — run the same scenario again with `/agent-eval <id>`.
-5. **Pin** — a fixed issue gets a scenario so a later round catches a regression. Scenarios are fixed after their first recorded round: a change to the task, seed or intent gets a new id; a checker fix that only corrects false results, or a rubric clarification that only makes existing intent explicit, may be applied in place with a note on the affected round (ARCHITECTURE §14).
+5. **Pin** — a fixed issue gets a scenario so a later round catches a regression. Scenarios stay fixed after their first recorded round (ARCHITECTURE §14 'Agent evaluation').
 
 Layers: `guide` (the `doan skill` body or the stub), `output` (CLI results, error messages, `nextSteps`; earlier rows also cover the removed MCP tool descriptions), `check` (`doan check` rules), `product` (app or CLI behavior).
 
@@ -55,7 +55,11 @@ Layers: `guide` (the `doan skill` body or the stub), `output` (CLI results, erro
 | U-024 | 2026-11-06 | agent-eval canvas-handoff (R10) | product (with guide) | A Codex agent that sends the handoff message the way `HANDOFF_GUIDANCE` says (`doan handoff <path> --message -` with the message on standard input) writes it as a heredoc, and that call did not reach the app: exit 3, `Cannot connect to Doan` with the sandbox hint, no v5 request in the fake app's log. In the same run plain calls (`doan work start/update/done`) were delivered, including `doan work done`, which ran in the same `exec` script just before the failing call and returned `delivered:true`. Likely cause, not verified: the eval workspace's Codex rule is `prefix_rule(pattern=["doan"], decision="allow")`, which Codex applies to plain command lines, so a script with a heredoc is not matched and runs inside the sandbox, whose socket access is blocked (U-001). The Codex profile rule `rules/doan-handoff.rules` (`prompt` for `doan handoff`) has the same pattern shape, so a heredoc would probably get no approval request either; this is for R1 to confirm in the real app. The agent did not retry and told the person "Handoff failed because the CLI couldn’t connect to Doan; open Doan and ask to retry", which does not fit a conversation that already runs inside Doan. A missing or wrong `DOAN_HANDOFF` key is ruled out: the CLI answers `not_app_conversation` before it connects when the key is absent, and the run printed `Cannot connect`. | R10-codex 1/1 fail (4 handoff checks; judge `product`). Claude ran the same heredoc through its own Bash tool and the request reached the fake app. `.scratch/agent-eval/canvas-handoff/R10-codex/` (`codex-rollout.jsonl`: the `doan handoff … <<'EOF'` call returned exit 3; `work.jsonl`: `start`, `update`, `done` delivered). `codex execpolicy check` on the raw tokens of a `bash -lc` heredoc matched no rule, which is not proof of what Codex does at run time | fixed (`rc-fix-261108`: R10 codex pass/pass, claude pass/pass). Main round `rc-full-261108` before the fix: R10 codex fail (the heredoc `doan handoff` returned `Cannot connect to Doan` while plain `doan work` calls were delivered). | `4144551b` (`HANDOFF_GUIDANCE`: one plain command with the message as a single quoted argument, no heredoc, pipe or redirection; Codex's `doan` prefix rule does not match those, so they ran sandboxed). | R10 |
 | U-025 | 2026-11-06 | agent-eval canvas-handoff (R10) | guide (with product) | `HANDOFF_GUIDANCE` ends with "Say the result in one line." A Claude agent that handed off correctly still answered in five paragraphs and a bullet list (the `adapt` preset's reporting wording is the judge's explanation). The handoff itself was complete: one request after the canvas was written, a message with the request, what was made and what is left. Only the judge scored it (partial, layer `guide`); one run. | R10-claude 1/1 judge-only partial. `.scratch/agent-eval/canvas-handoff/R10-claude/` (`stdout.log` final result, `handoff.jsonl`) | fixed (`rc-fix-261108`: R10 claude pass/pass). Main round `rc-full-261108` before the fix: R10 claude partial (judge: multiple paragraphs after the handoff). | `0f3f425e` (`HANDOFF_GUIDANCE`: reply with the result in one line even if a design preset asks for a fuller report). | R10 |
 
-### Documentation corrections (2026-11-15)
+## Documentation corrections
+
+Corrections to earlier rounds, by the date they were made; the round records themselves stay unchanged.
+
+### 2026-11-15
 
 - The project-settings guide round (2026-11-03) did not run H5; its statement that guide rule 7 had no scenario is incorrect. H5 already covered out-of-scope CSS, configuration restraint and final-answer disclosure at the measured commit `3e13d1ed`, but that round did not re-measure it.
 - The 2026-10-29 final-round table row is internally inconsistent: 59 pass, 6 partial, 5 known-condition fails and 1 other fail total 71, while it says 70 runs and names five partial runs. The original result files were unavailable for this review, so the aggregate was not recomputed and the recorded verdicts remain unchanged.
