@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
-import { USER_DATA } from "./real-state.ts";
+const { USER_DATA }: typeof import("./real-state") = await import(new URL("./real-state.ts", import.meta.url).href);
 
 for (const relative of ["agent-setup.json", "sessions.jsonl", "conversations/index.json", "conversations/start-undo.json", "conversations/nested/session.jsonl", "agent-auth/vault/cursor.bin",
   "preferences.json", "auto-folders.json", "canvas-seen.json", "mcp-connectors.json", "mcp-connectors-pending.json", "star-prompt.json", "attachments/0f4e/pasted.png",

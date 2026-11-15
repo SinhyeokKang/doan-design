@@ -84,6 +84,25 @@ export async function codexMcpAccounts(): Promise<string[] | string> {
   return dump.split(/^keychain: /m).filter(block => /"svce"<blob>="Codex MCP Credentials"/.test(block))
     .map(block => block.match(/"acct"<blob>="([^"]*)"/)?.[1] ?? "").sort();
 }
+// Every userData entry the app writes; real-state.test.ts fails when main joins a name to userData that is missing here.
+export const USER_DATA = ["folders.json", "auto-folders.json", "runtime.json", "onboarding.json", "ui-state.json", "preferences.json", "canvas-seen.json", "star-prompt.json",
+  "agent-setup.json", "mcp-connectors.json", "mcp-connectors-pending.json", "thumbnails", "sessions.jsonl", "conversations", "attachments", "agent-auth",
+  "agent-runtimes", "terminal", "usage-probe"];
+// The Antigravity server install is hundreds of MB: hashing it could outlast the snapshot bound, and an install or update
+// replaces files, which their size, time and inode show.
+const METADATA_ONLY = new Set(["agent-runtimes"]);
+async function metaTree(path: string): Promise<unknown> {
+  try {
+    const info = await lstat(path);
+    const meta = { mode: info.mode, ino: info.ino, dev: info.dev, size: info.size, mtimeMs: info.mtimeMs };
+    if (info.isSymbolicLink()) return { ...meta, link: await readlink(path) };
+    if (info.isDirectory()) return { ...meta, children: await Promise.all((await readdir(path)).sort().map(async name => [name, await metaTree(join(path, name))])) };
+    return meta;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "absent";
+    throw error;
+  }
+}
 async function snapshot(): Promise<Record<string, string>> {
   const home = homedir();
   const result: Record<string, string> = {};
@@ -92,9 +111,8 @@ async function snapshot(): Promise<Record<string, string>> {
   const support = join(home, "Library/Application Support");
   for (const path of new Set([join(home, ".local/bin/doan"), join(home, ".agents/skills/doan"), join(home, ".claude/skills/doan"), ...agentSetup,
     ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, "skills/doan")] : []),
-    ...["folders.json", "auto-folders.json", "runtime.json", "onboarding.json", "ui-state.json", "preferences.json", "canvas-seen.json", "star-prompt.json",
-      "agent-setup.json", "mcp-connectors.json", "mcp-connectors-pending.json", "thumbnails", "sessions.jsonl", "conversations", "attachments", "agent-auth"]
-      .map(name => join(support, "doan", name))])) result[path] = hash(JSON.stringify(await tree(path)));
+    ...USER_DATA.filter(name => !METADATA_ONLY.has(name)).map(name => join(support, "doan", name))])) result[path] = hash(JSON.stringify(await tree(path)));
+  for (const name of METADATA_ONLY) result[`${join(support, "doan", name)}:meta`] = hash(JSON.stringify(await metaTree(join(support, "doan", name))));
   result[`${join(support, "doan*")}:names`] = await siblings(support);
   for (const path of new Set([join(home, ".claude/settings.json"), ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, "settings.json")] : [])]))
     result[`${path}:permissions.allow(doan)`] = await claudeAllow(path);

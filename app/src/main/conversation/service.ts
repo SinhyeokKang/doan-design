@@ -852,16 +852,18 @@ export class ConversationService {
     // conversation's work content or run may outlive it.
     for (const id of this.live.keys()) this.endWork(id);
     for (const live of this.live.values()) if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
+    // Which conversations still need their appQuit write, decided before the pass below marks every one ended.
+    const interrupted = [...this.live].filter(([, live]) => live.accepted && live.busy && !live.terminal && !live.failedPersistence).map(([id, live]) => ({ id, turnId: live.turnId }));
     for (const [id, live] of this.live) {
       if (live.held) { clearTimeout(live.held.timer); delete live.held; }
-      // As for a Stop, a history that already stopped taking writes takes no interrupted event: its known refusal is
-      // no new persistence failure to cancel the quit for.
-      if (live.accepted && live.busy && !live.terminal && !live.failedPersistence) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
       live.terminal = true; live.busy = false; delete live.stage;
       // Nothing more is written, but a message the agent already has must not come back from the queue at the next start.
       this.lookLater(id, live, false);
       this.dropSteers(id);
     }
+    // Last, since a write can throw. As for a Stop, a history that already stopped taking writes takes no interrupted
+    // event: its known refusal is no new persistence failure to cancel the quit for.
+    for (const { id, turnId } of interrupted) this.append(id, turnId, { type: "interrupted", reason: "appQuit" });
     return Promise.all(closing).then(() => undefined);
   }
   // A folder listing of root was read again. changed: root-relative canvas paths whose files the watcher saw change since
