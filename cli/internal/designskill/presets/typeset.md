@@ -56,7 +56,7 @@ Use the fewest roles and families that make the hierarchy unmistakable. Combine 
 
 - Take sizes, families, weights, and line heights from the project's token CSS variables. If a role needs a value the tokens do not have, propose a new type token instead of hard-coding it; adding it to the project's token CSS is the user's decision.
 - Keep body copy readable and zoomable. Use 1rem (16px) as the ordinary web body floor unless a dense role, platform convention, or user setting justifies otherwise.
-- Keep prose in the 45 to 75 character range. Tune line height inversely with measure: wider lines generally need more leading.
+- Keep prose in the 45 to 75 character range. Tune line height to measure: wider lines generally need more leading.
 - Compensate light text on dark surfaces on three axes: slightly more line height, a touch more tracking, and one step more weight when the face needs it.
 - Tune line height to the face, width, language, and contrast, not a universal ratio.
 - Keep repeated roles consistent across screens and states.
