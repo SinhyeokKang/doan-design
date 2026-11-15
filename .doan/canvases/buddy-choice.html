@@ -302,7 +302,7 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
 @media (hover: hover) and (pointer: fine) { .shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:hover:not(:disabled) { background: var(--affordance-backdrop-pressed); } }
 .shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:is(:active, [aria-haspopup][aria-expanded="true"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }
 .shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:disabled { color: var(--text-disabled); cursor: default; }
-.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }
 .doan-settings-group > .doan-preference-row-extra { margin-top: 0; padding: var(--space-3) 0; }
 .doan-agent-glow { position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 0 0 0 var(--radius-container); box-shadow: inset 0 0 calc(var(--space-3) * 3) color-mix(in srgb, var(--affordance-accent) 85%, transparent), inset 0 0 calc(var(--space-6) * 4.5) color-mix(in srgb, var(--affordance-accent) 50%, transparent); animation: doan-agent-glow 8s var(--ease-state) infinite; }
 @keyframes doan-agent-glow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }

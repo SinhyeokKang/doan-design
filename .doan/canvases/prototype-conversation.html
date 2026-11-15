@@ -275,7 +275,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .pw-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pw-name .chev { flex: none; color: var(--text-metadata); }
 @media (max-width: 519.98px) { .pw-name { right: var(--space-2); } }
-.pw-panel { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+.pw-panel { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }
 .pw-content { position: absolute; inset: 0; }
 .pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
 @media (prefers-reduced-transparency: reduce) { .pw-panel > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
@@ -365,12 +365,12 @@ body,body:has(.shell-top){width:2200px;height:auto;overflow:visible;padding:var(
 /* ── New, not in code: the conversation column ──
    Beside the content panel, from under the header to 8 above the window's bottom, the same height as the content
    panel. Content panel and column are one surface as on the main canvas page: the content panel keeps its start
-   corners, the column its end corners, and the shipped 1 px start edge divides them. Both keep the prototype content
-   panel's --shadow-panel. */
+   corners, the column its end corners, and the shipped 1 px start edge divides them. Neither draws an edge shadow:
+   body panels have none. */
 .pw[data-panel="open"]{grid-template-columns:minmax(0,1fr) var(--pw-panel)}
 .pw[data-panel="open"]>.pw-panel{border-radius:var(--radius-container) 0 0 var(--radius-container)}
 .pw>.doan-conv-column{grid-column:2;grid-row:2;position:relative;display:flex;min-width:0;min-height:0}
-:is(.pw,.pslice:not(.main)) .right.doan-conv-panel{border-radius:0 var(--radius-container) var(--radius-container) 0;box-shadow:var(--shadow-panel)}
+:is(.pw,.pslice:not(.main)) .right.doan-conv-panel{border-radius:0 var(--radius-container) var(--radius-container) 0}
 /* Without the head the thread and the panel's own lines start 16 below the column's top, its side inset. */
 .doan-conv-panel:not(:has(.doan-conv-head)) .thread-scroll{padding-top:var(--space-4)}
 .doan-conv-panel:not(:has(.doan-conv-head)) .cp-scroll:not(:has(> .conversation-thread)){padding-top:var(--space-4)}
@@ -388,7 +388,8 @@ body,body:has(.shell-top){width:2200px;height:auto;overflow:visible;padding:var(
 /* Board crops: a conversation column at 280 (the prototype panel) or 347 (the main window's default, shipped). */
 .pslice{position:relative;display:flex}
 .pslice>.doan-conv-column{flex:1;display:flex;min-width:0;min-height:0}
-.pslice.main .right.doan-conv-panel{box-shadow:var(--shadow-panel)}
+/* A crop lies on the board's inset ground, so it keeps the panel shadow as its edge there; in a window the panel has none. */
+.pslice .right.doan-conv-panel{box-shadow:var(--shadow-panel)}
 .pslice.foot{display:block;padding-top:var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
 
 /* A work area narrower than 640: its edge drawn dashed around the window. */

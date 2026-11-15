@@ -381,7 +381,7 @@ body:has(.shell-top) { background: transparent; }
 }
 .home-shell { position: absolute; inset: 0; display: grid; grid-template-columns: var(--doan-sidebar-width) minmax(0, 1fr); grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); background: transparent; overflow: hidden; }
 @media (prefers-reduced-transparency: reduce) { .home-shell { background: var(--bg-app); } }
-.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }
 .add-panel { display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
 .shell-modes button[aria-disabled="true"], .shell-search[aria-disabled="true"], .shell-side .row[aria-disabled="true"], .shell-side .row[aria-disabled="true"] :is(.shell-project-name, .shell-branch), .shell-top .shell-history .doan-icon-button[aria-disabled="true"], .doan-menu-item[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
 .shell-modes button[aria-disabled="true"]:not(.current):hover, .shell-search[aria-disabled="true"]:hover, .shell-side .row[aria-disabled="true"]:hover, .shell-top .shell-history .doan-icon-button[aria-disabled="true"]:hover { background: transparent; }
