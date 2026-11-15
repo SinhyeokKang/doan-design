@@ -104,3 +104,29 @@
   - `fix/provider-fence-gaps`: B3-1, B3-2, B3-3(probe로 먼저 확인), G1, L3-7, G2, G3, M3-3, M3-4, B3-4 (a)
   - `fix/lifecycle-3`: L3-1, L3-8, L3-10, L3-11, G7
   - `fix/eval-checks-3`: G4, G5, G6, C3-7, M3-10, M3-11, M3-12
+
+## 3라운드 결과 (2026-11-16 마감)
+
+**검증하지 못한 것**
+- 실제 로그인이 필요해서 확인하지 못한 것: fence 안에서 Copilot sign-in을 끝까지 하는 것, Cursor·Antigravity sign-in. 이 항목은 BACKLOG 'Not verified in the real app'에 올렸다.
+- quit과 skill 다시 읽기(#225)는 단위 테스트로만 확인했다.
+- `watch.test.ts` 실패 원인은 여전히 추정이다. 다만 테스트가 marker를 기다리도록 바꿔서, 그 원인이 맞다면 더는 걸리지 않는다.
+- probe 부작용: 손으로 실행한 `copilot login`이 기본 브라우저에 GitHub 인증 탭을 열었다. 또 테스트 Claude profile의 `.claude.json`이 한 번 덮어써졌다. 컨덕터가 CLI 백업으로 되돌렸고, 그 뒤 usage가 정상으로 읽혔다.
+
+**병합한 PR** (모두 develop)
+- #225 수명주기: L3-1, L3-8, L3-10, L3-11, G7
+  - L3-1: 재시도해도 고쳐지지 않는 appQuit 거부, 그리고 같은 거부의 두 번째 실패는 quit을 취소하지 않는다.
+- #226 eval 검사: M3-10, G4, G5, G6, C3-7, M3-11, M3-12. 판정 기준이 바뀌어 이후 eval 라운드는 이전 라운드와 그대로 비교할 수 없다.
+- #227 provider fence와 FIFO: B3-1, B3-2, B3-3, G1, L3-7, G2, G3, M3-3, M3-4, B3-4 (a)
+  - probe로 확인된 것: Copilot 패키지 캐시 JS, hook, `mcp-config`. 그래서 Copilot의 모든 프로세스를 fence 안에서 돌린다.
+  - probe로 확인된 것: Cursor profile `mcp.json`이 목록 읽기에서 실행됐다. 그래서 모든 ACP 목록 읽기를 fence 안에서 돌린다.
+  - 반증돼 수용된 한계로 문서화한 것: Antigravity, Cursor status, B3-3
+
+**BACKLOG**
+- 'Undecided'에 B3-4 (b)를 올렸다(Doan이 fence 밖에서 직접 띄우는 셸, 바이너리, git).
+- 'Not verified'에 fence 안 sign-in을 올렸다.
+
+**다음 라운드 후보**
+- `agentSetup/swap.ts`가 lstat한 뒤 주입된 `readFileSync`로 읽는다.
+- eval: 공용 reader가 `sudo doan`을 풀지 않는다. D4b가 인용된 `'>'`를 redirect로 읽고, 변수 경로나 상대 경로, `apply_patch`로 쓴 profile을 놓친다. `--frame` 규칙을 모델링하지 않는다.
+- tool-fact `--version` 실행이 사용자 HOME의 Copilot 패키지 캐시를 쓴다. B3-4 (b)에 속한다.
