@@ -52,13 +52,15 @@ function sameDocument(href) {
 // browser must not follow the link's own href (another document, or a fragment a srcdoc document
 // resolves against the page's file URL). So the capture listener adds a one-time window listener for
 // the click, which runs in the window's bubble phase after every listener the canvas registered
-// before the click (each phase invokes a fresh copy of the window's list). It takes the href off the
-// nearest <a> or <area>, if it has one then, and the browser's activation finds nothing to follow;
-// the timer puts it back, unless the canvas has set one meanwhile. Limits: a listener the canvas
-// adds during the click that runs after ours sees the link without its href; a MutationObserver on
-// the href sees it removed and restored; and a canvas that stops the click's propagation before the
-// window's bubble phase keeps the href, so the browser navigates the frame as it did before, while
-// the link is still followed.
+// before the click (each phase invokes a fresh copy of the window's list). It takes every href the
+// browser could follow off the nearest <a> or <area> (an SVG link falls back to its XLink href), and
+// the browser's activation finds nothing to follow. The timer decides the click first, then puts each
+// node back unless the canvas set that href again or moved the node elsewhere meanwhile. Limits: a
+// listener the canvas adds during the click that runs after ours sees the link without its href, and
+// one that sets the href again there makes the browser follow it, so the frame navigates while the
+// link is still followed; a MutationObserver on the href sees it removed and restored; and a canvas
+// that stops the click's propagation before the window's bubble phase keeps the href, so the browser
+// navigates the frame as it did before, while the link is still followed.
 const GOTO_ATTRIBUTE = "data-doan-goto";
 const MAX_GOTO = 200;
 let playing = null;
@@ -71,7 +73,7 @@ window.addEventListener("click", (event) => {
   if (link === null || !playing.contains(link)) return;
   const value = link.getAttribute(GOTO_ATTRIBUTE) ?? "";
   followed.add(event);
-  let taken = null;
+  let taken = [];
   // The guard: a click the canvas dispatches from its own handler (a nested click()) reaches this
   // listener before the outer click's bubble phase does.
   const late = (other) => {
@@ -82,10 +84,10 @@ window.addEventListener("click", (event) => {
   window.addEventListener("click", late);
   setTimeout(() => {
     window.removeEventListener("click", late);
-    if (taken !== null && taken.node.getAttributeNodeNS(taken.attr.namespaceURI, taken.attr.localName) === null) {
-      taken.node.setAttributeNode(taken.attr);
-    }
     if (!event.defaultPrevented) post({ goto: value.length <= MAX_GOTO ? value : null });
+    for (const { node, attr } of taken) {
+      if (attr.ownerElement === null && node.getAttributeNodeNS(attr.namespaceURI, attr.localName) === null) node.setAttributeNode(attr);
+    }
   }, 0);
 }, true);
 
@@ -97,14 +99,15 @@ function linkElement(event) {
   return null;
 }
 
-// Removes the link's href (or an SVG link's xlink:href) and returns it as an attribute node, which
-// keeps its namespace for the way back; null when the link has none.
+// Removes every attribute named href in any namespace (the href, and the XLink href an SVG link
+// falls back to, whatever its prefix) and returns them as attribute nodes, which keep their namespace
+// and prefix for the way back.
 function takeHref(event) {
   const node = linkElement(event);
-  const attr = node?.getAttributeNode("href") ?? node?.getAttributeNode("xlink:href") ?? null;
-  if (attr === null) return null;
-  node.removeAttributeNode(attr);
-  return { node, attr };
+  if (node === null) return [];
+  const taken = Array.from(node.attributes).filter((attr) => attr.localName === "href").map((attr) => ({ node, attr }));
+  for (const { attr } of taken) node.removeAttributeNode(attr);
+  return taken;
 }
 
 // Bubble phase, so the canvas's own handlers run first and a handler that checks defaultPrevented
