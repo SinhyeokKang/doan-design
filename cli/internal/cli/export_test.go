@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/url"
@@ -849,13 +850,14 @@ func TestExportPrototypeReportsPrototype(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]any{
-		"path":      ".doan/canvases/proto.html",
-		"output":    out,
-		"bytes":     float64(len(page)),
-		"frames":    float64(7),
-		"external":  []any{},
-		"links":     []any{},
-		"prototype": true,
+		"path":         ".doan/canvases/proto.html",
+		"output":       out,
+		"bytes":        float64(len(page)),
+		"frames":       float64(7),
+		"external":     []any{},
+		"links":        []any{},
+		"prototype":    true,
+		"linkedFrames": float64(0),
 	}
 	if !reflect.DeepEqual(got["result"], want) {
 		t.Fatalf("result\n got %v\nwant %v", got["result"], want)
@@ -870,12 +872,14 @@ func TestExportPrototypeReportsPrototype(t *testing.T) {
 	}
 }
 
-// Without --prototype the result keeps its shape: no prototype key.
+// Without --prototype the result keeps its shape: no prototype or linkedFrames key.
 func TestExportWithoutPrototypeHasNoPrototypeKey(t *testing.T) {
 	root := prototypeExportSeed(t)
 	got := exportRun(t, root, 0, ".doan/canvases/proto.html", "-o", filepath.Join(exportOutput(t), "x.html"))
-	if _, ok := got["result"].(map[string]any)["prototype"]; ok {
-		t.Fatal(got["result"])
+	for _, key := range []string{"prototype", "linkedFrames"} {
+		if _, ok := got["result"].(map[string]any)[key]; ok {
+			t.Fatal(key, got["result"])
+		}
 	}
 }
 
@@ -952,9 +956,16 @@ func TestExportPrototypeRefusalOrder(t *testing.T) {
 	}
 }
 
-type prototypePage struct{ title, frameTitle, sandbox, srcdoc string }
+// prototypePage is what `doan export --prototype` writes, as a browser parses it: the start frame's tab title, the
+// group the file plays, and the canvas the page puts in each frame's iframe.
+type prototypePage struct {
+	title, srcdoc string
+	start         string
+	frames        []struct{ ID, Title string }
+}
 
-// parsePrototypePage reads the outer page `doan export --prototype` writes: its tab title and the one iframe.
+// parsePrototypePage reads the outer page `doan export --prototype` writes. The file holds no iframe; prototype.js
+// makes one per frame shown, from the holder's data-srcdoc.
 func parsePrototypePage(t *testing.T, page []byte) prototypePage {
 	t.Helper()
 	doc, err := html.Parse(bytes.NewReader(page))
@@ -962,30 +973,37 @@ func parsePrototypePage(t *testing.T, page []byte) prototypePage {
 		t.Fatal(err)
 	}
 	var p prototypePage
-	frames := 0
+	holders, metas := 0, 0
+	attrOf := func(n *html.Node, key string) string {
+		for _, a := range n.Attr {
+			if a.Key == key {
+				return a.Val
+			}
+		}
+		return ""
+	}
 	var visit func(*html.Node)
 	visit = func(n *html.Node) {
 		if n.Type == html.ElementNode {
-			switch n.Data {
-			case "iframe":
-				frames++
-				for _, a := range n.Attr {
-					switch a.Key {
-					case "srcdoc":
-						p.srcdoc = a.Val
-					case "title":
-						p.frameTitle = a.Val
-					case "sandbox":
-						p.sandbox = a.Val
-					}
+			switch {
+			case n.Data == "iframe":
+				t.Fatal("the prototype file has a static iframe")
+			case n.Data == "div" && attrOf(n, "id") == "canvas":
+				holders++
+				p.srcdoc = attrOf(n, "data-srcdoc")
+			case n.Data == "script" && attrOf(n, "id") == "doan-meta":
+				t.Fatal("the prototype file is the canvas viewer page")
+			case n.Data == "script" && attrOf(n, "id") == "doan-prototype":
+				metas++
+				var meta struct {
+					Start  string                       `json:"start"`
+					Frames []struct{ ID, Title string } `json:"frames"`
 				}
-			case "script":
-				for _, a := range n.Attr {
-					if a.Key == "id" && a.Val == "doan-meta" {
-						t.Fatal("the prototype file is the canvas viewer page")
-					}
+				if err := json.Unmarshal([]byte(n.FirstChild.Data), &meta); err != nil {
+					t.Fatal(err)
 				}
-			case "title":
+				p.start, p.frames = meta.Start, meta.Frames
+			case n.Data == "title":
 				if p.title == "" && n.FirstChild != nil {
 					p.title = n.FirstChild.Data
 				}
@@ -996,8 +1014,8 @@ func parsePrototypePage(t *testing.T, page []byte) prototypePage {
 		}
 	}
 	visit(doc)
-	if frames != 1 {
-		t.Fatalf("%d iframes", frames)
+	if holders != 1 || metas != 1 {
+		t.Fatalf("%d canvas holders, %d group scripts", holders, metas)
 	}
 	return p
 }
@@ -1019,15 +1037,14 @@ func TestExportPrototypeWritesThePrototypePage(t *testing.T) {
 				t.Fatal(err)
 			}
 			page := parsePrototypePage(t, data)
-			if page.title != tt.label+" — Prototype" || page.frameTitle != tt.label {
-				t.Fatalf("title %q, iframe title %q", page.title, page.frameTitle)
+			if page.title != tt.label+" — Prototype" {
+				t.Fatalf("title %q", page.title)
 			}
-			if page.sandbox != "allow-scripts allow-forms" {
-				t.Fatalf("sandbox %q", page.sandbox)
+			if page.start != tt.frame || len(page.frames) != 1 || page.frames[0].ID != tt.frame || page.frames[0].Title != tt.label {
+				t.Fatalf("start %q frames %+v", page.start, page.frames)
 			}
-			frame, _ := json.Marshal(tt.frame)
-			if !strings.Contains(page.srcdoc, "const FRAME = "+string(frame)+";") {
-				t.Fatalf("srcdoc does not name frame %s", frame)
+			if !strings.HasPrefix(page.srcdoc, "<!doctype html><html><head><meta name=\"doan:canvas\"") || strings.Contains(page.srcdoc, "const FRAME = ") {
+				t.Fatalf("srcdoc %.200s", page.srcdoc)
 			}
 			// The whole canvas is in the file: the other frames are hidden by the page, not removed.
 			if !strings.Contains(page.srcdoc, `data-doan-frame="plain"`) {
@@ -1054,17 +1071,138 @@ func TestExportPrototypeFrameFlagWithEquals(t *testing.T) {
 	}
 }
 
-// The assembled prototype page is checked against the size limit like the canvas page.
+// The assembled prototype page is checked against the size limit like the canvas page. A group in the file does not
+// change the limit: the frames share the one canvas.
 func TestExportPrototypeTooLargeAfterEncoding(t *testing.T) {
 	root := exporttest.Seed(t)
 	if err := os.WriteFile(filepath.Join(root, ".doan/assets/blob.bin"), bytes.Repeat([]byte{0}, 40<<20), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	exporttest.Put(t, root, ".doan/canvases/blob.html", `<!doctype html><html><head><meta name="doan:canvas" content="blob"><meta name="doan:width" content="800"></head><body><div data-doan-frame="a" data-doan-prototype="390x844"><img src="../assets/blob.bin"></div></body></html>`)
+	exporttest.Put(t, root, ".doan/canvases/blob.html", `<!doctype html><html><head><meta name="doan:canvas" content="blob"><meta name="doan:width" content="800"></head><body><div data-doan-frame="a" data-doan-prototype="390x844"><img src="../assets/blob.bin"><a data-doan-goto="b"></a></div><div data-doan-frame="b" data-doan-prototype="390x844"></div></body></html>`)
 	dir := exportOutput(t)
 	e := exportFailure(t, root, "export_too_large", ".doan/canvases/blob.html", "--frame", "a", "--prototype", "-o", filepath.Join(dir, "x.html"))
 	if got := appLines(e.Message); len(got) == 0 || got[0] != ".doan/assets/blob.bin" {
 		t.Fatalf("lines %q in %q", got, e.Message)
 	}
 	noOutputFiles(t, dir)
+}
+
+// linkSeed holds two link groups, {home, cart, pay} and {about, team}, an unlinked frame and links that join no group:
+// one to a frame that cannot play, one outside every frame, one to an id no frame has.
+func linkSeed(t *testing.T) string {
+	t.Helper()
+	root := exporttest.Seed(t)
+	exporttest.Put(t, root, ".doan/canvases/flow.html", `<!doctype html><html><head><meta name="doan:canvas" content="flow"><meta name="doan:width" content="800"></head><body>`+
+		`<div data-doan-frame="about" data-doan-title="About" data-doan-prototype="390x844"><a data-doan-goto="team">Team</a></div>`+
+		`<div data-doan-frame="pay" data-doan-prototype="390x844"><button data-doan-goto="plain">Draft</button></div>`+
+		`<div data-doan-frame="home" data-doan-title="Home" data-doan-prototype="390x844"><a data-doan-goto="cart">Cart</a><a data-doan-goto="nope">Gone</a></div>`+
+		`<div data-doan-frame="team" data-doan-prototype="390x844"></div>`+
+		`<div data-doan-frame="cart" data-doan-title="Cart &amp; bag" data-doan-prototype="390x844"><a data-doan-goto="pay">Pay</a></div>`+
+		`<div data-doan-frame="alone" data-doan-title="Alone" data-doan-prototype="390x844"></div>`+
+		`<div data-doan-frame="plain"><a data-doan-goto="alone">Alone</a></div>`+
+		`<a data-doan-goto="home">Outside</a>`+
+		`</body></html>`)
+	return root
+}
+
+// The file holds the start frame's link group, in document order, and starts on that frame; linkedFrames counts the
+// others. A frame with no link exports as before, alone.
+func TestExportPrototypeHoldsTheStartFramesGroup(t *testing.T) {
+	root := linkSeed(t)
+	type frame struct{ ID, Title string }
+	for _, tt := range []struct {
+		name, start, title string
+		frames             []frame
+	}{
+		{"start in the middle of a group", "cart", "Cart & bag", []frame{{"pay", "pay"}, {"home", "Home"}, {"cart", "Cart & bag"}}},
+		{"first frame of a group", "home", "Home", []frame{{"pay", "pay"}, {"home", "Home"}, {"cart", "Cart & bag"}}},
+		{"the other group only", "team", "team", []frame{{"about", "About"}, {"team", "team"}}},
+		// A link from a frame that cannot play joins nothing.
+		{"unlinked frame", "alone", "Alone", []frame{{"alone", "Alone"}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			out := filepath.Join(exportOutput(t), "p.html")
+			got := exportRun(t, root, 0, ".doan/canvases/flow.html", "--frame", tt.start, "--prototype", "-o", out)
+			result := got["result"].(map[string]any)
+			if result["linkedFrames"] != float64(len(tt.frames)-1) || result["prototype"] != true || result["frames"] != float64(7) {
+				t.Fatalf("result %v", result)
+			}
+			data, err := os.ReadFile(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			page := parsePrototypePage(t, data)
+			if page.start != tt.start || page.title != tt.title+" — Prototype" {
+				t.Fatalf("start %q title %q", page.start, page.title)
+			}
+			var frames []frame
+			for _, f := range page.frames {
+				frames = append(frames, frame{f.ID, f.Title})
+			}
+			if !reflect.DeepEqual(frames, tt.frames) {
+				t.Fatalf("frames %v, want %v", frames, tt.frames)
+			}
+		})
+	}
+}
+
+// The human text output stays as it was: the frame and the file, not the group.
+func TestExportPrototypeTextOutputNamesOnlyTheStartFrame(t *testing.T) {
+	root := linkSeed(t)
+	var stdout, stderr bytes.Buffer
+	out := filepath.Join(exportOutput(t), "x.html")
+	if code := Run([]string{"export", ".doan/canvases/flow.html", "--frame", "cart", "--prototype", "-o", out, "--repo", root}, strings.NewReader(""), &stdout, &stderr); code != 0 || stderr.Len() != 0 {
+		t.Fatal(code, &stdout, &stderr)
+	}
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := fmt.Sprintf("Exported .doan/canvases/flow.html frame cart to %s (%d bytes)\n", out, len(data)); stdout.String() != want {
+		t.Fatalf("stdout %q, want %q", &stdout, want)
+	}
+}
+
+// The prototype window's frame drawer stops at 1,000 frames; the file does not cut a group.
+func TestExportPrototypeKeepsAGroupOverAThousandFrames(t *testing.T) {
+	root := exporttest.Seed(t)
+	var body strings.Builder
+	for i := 0; i < 1001; i++ {
+		fmt.Fprintf(&body, `<div data-doan-frame="f%d" data-doan-prototype="1x1"><a data-doan-goto="f%d"></a></div>`, i, (i+1)%1001)
+	}
+	exporttest.Put(t, root, ".doan/canvases/long.html", `<!doctype html><html><head><meta name="doan:canvas" content="long"><meta name="doan:width" content="800"></head><body>`+body.String()+`</body></html>`)
+	out := filepath.Join(exportOutput(t), "p.html")
+	got := exportRun(t, root, 0, ".doan/canvases/long.html", "--frame", "f500", "--prototype", "-o", out)
+	if got["result"].(map[string]any)["linkedFrames"] != float64(1000) {
+		t.Fatal(got["result"])
+	}
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := parsePrototypePage(t, data)
+	if page.start != "f500" || len(page.frames) != 1001 || page.frames[0].ID != "f0" || page.frames[1000].ID != "f1000" {
+		t.Fatalf("start %q, %d frames", page.start, len(page.frames))
+	}
+}
+
+// A page that holds the canvas once fits the limit even when two copies would not: 20 MiB of bytes is about 27 MiB
+// as base64, so the file stays under 50 MiB with any number of frames in its group.
+func TestExportPrototypeGroupHoldsTheCanvasOnceUnderTheLimit(t *testing.T) {
+	root := exporttest.Seed(t)
+	if err := os.WriteFile(filepath.Join(root, ".doan/assets/blob.bin"), bytes.Repeat([]byte{0}, 20<<20), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exporttest.Put(t, root, ".doan/canvases/blob.html", `<!doctype html><html><head><meta name="doan:canvas" content="blob"><meta name="doan:width" content="800"></head><body>`+
+		`<div data-doan-frame="a" data-doan-prototype="390x844"><img src="../assets/blob.bin"><a data-doan-goto="b"></a></div>`+
+		`<div data-doan-frame="b" data-doan-prototype="390x844"><a data-doan-goto="c"></a></div><div data-doan-frame="c" data-doan-prototype="390x844"></div></body></html>`)
+	out := filepath.Join(exportOutput(t), "p.html")
+	got := exportRun(t, root, 0, ".doan/canvases/blob.html", "--frame", "b", "--prototype", "-o", out)
+	result := got["result"].(map[string]any)
+	if result["linkedFrames"] != float64(2) {
+		t.Fatal(result)
+	}
+	if bytes := result["bytes"].(float64); bytes > 30<<20 {
+		t.Fatalf("the page is %v bytes: the canvas is in it more than once", bytes)
+	}
 }
