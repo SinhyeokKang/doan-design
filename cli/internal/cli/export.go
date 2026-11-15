@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -97,11 +98,9 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	stem := strings.TrimSuffix(path.Base(canvasPath), path.Ext(canvasPath))
 	meta := export.Meta{Name: stem, Width: model.Width}
 	var page []byte
+	var proto export.Proto
 	if frame != nil {
-		proto := export.Proto{Frame: played.ID}
-		if played.Title != nil {
-			proto.Title = *played.Title
-		}
+		proto = prototypeGroup(model, played.ID)
 		page, err = export.AssemblePrototype(meta, proto, inlined.HTML)
 	} else {
 		page, err = export.Assemble(meta, inlined.HTML)
@@ -118,9 +117,29 @@ func Export(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	result := map[string]any{"path": canvasPath, "output": output, "bytes": len(page), "frames": len(model.Frames), "external": inlined.External, "links": inlined.Links}
 	if frame != nil {
 		result["prototype"] = true
+		result["linkedFrames"] = len(proto.Frames) - 1
 		return Outcome{Result: result, Text: fmt.Sprintf("Exported %s frame %s to %s (%d bytes)", canvasPath, *frame, output, len(page))}, nil
 	}
 	return Outcome{Result: result, Text: fmt.Sprintf("Exported %s to %s (%d bytes)", canvasPath, output, len(page))}, nil
+}
+
+// prototypeGroup is what an exported prototype plays: the start frame's link group as the file states it, uncut. A
+// playable start frame is in exactly one group, and each id in it names one frame, so its title is not ambiguous.
+func prototypeGroup(model canvas.Canvas, start string) export.Proto {
+	proto := export.Proto{Frame: start}
+	for _, group := range canvas.LinkGroups(model) {
+		if !slices.Contains(group, start) {
+			continue
+		}
+		for _, id := range group {
+			f := export.ProtoFrame{ID: id}
+			if played, _ := canvas.PrototypeTarget(model, id); played.Title != nil {
+				f.Title = *played.Title
+			}
+			proto.Frames = append(proto.Frames, f)
+		}
+	}
+	return proto
 }
 
 // canvasArgLabel names the canvas argument without an absolute path, which an export message must not hold:

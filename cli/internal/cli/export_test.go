@@ -1043,7 +1043,8 @@ func TestExportPrototypeWritesThePrototypePage(t *testing.T) {
 			if page.start != tt.frame || len(page.frames) != 1 || page.frames[0].ID != tt.frame || page.frames[0].Title != tt.label {
 				t.Fatalf("start %q frames %+v", page.start, page.frames)
 			}
-			if !strings.HasPrefix(page.srcdoc, "<!doctype html><html><head><meta name=\"doan:canvas\"") || strings.Contains(page.srcdoc, "const FRAME = ") {
+			// The isolation script first in the canvas's head, with no frame id written into it: it reads the iframe's name.
+			if !strings.HasPrefix(page.srcdoc, "<!doctype html><html><head><script>(function () {\n") || strings.Contains(page.srcdoc, "const FRAME = \"") {
 				t.Fatalf("srcdoc %.200s", page.srcdoc)
 			}
 			// The whole canvas is in the file: the other frames are hidden by the page, not removed.

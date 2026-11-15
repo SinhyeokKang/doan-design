@@ -265,7 +265,7 @@ func TestAssemblePrototypeHoldsTheCanvasOnce(t *testing.T) {
 	if strings.Contains(string(page), marker) {
 		t.Fatal("an unescaped copy of the canvas is in the page")
 	}
-	if n := strings.Count(string(page), viewerFile(t, "isolate.js")); n != 1 {
+	if n := strings.Count(string(page), attributeEscaper.Replace(viewerFile(t, "isolate.js"))); n != 1 {
 		t.Fatalf("isolate.js is in the page %d times", n)
 	}
 }
@@ -357,10 +357,10 @@ func TestAssemblePrototypeOutputIsPinned(t *testing.T) {
 		proto        Proto
 		want         string
 	}{
-		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", Proto{Frame: "a", Frames: []ProtoFrame{{ID: "a", Title: `a "&" <b>`}}}, "pending"},
-		{"bare", "<p>a & \"b\"</p>", Proto{Frame: "x</script>", Frames: []ProtoFrame{{ID: "x</script>"}}}, "pending"},
-		{"empty", "", checkout, "pending"},
-		{"group", "<p>g</p>", Proto{Frame: "b", Frames: []ProtoFrame{{ID: "a", Title: "A"}, {ID: "b"}, {ID: "c d", Title: "C & D"}}}, "pending"},
+		{"bom", "\xef\xbb\xbf<!doctype html><p title='\"&amp;'>{{NAME}}</p>", Proto{Frame: "a", Frames: []ProtoFrame{{ID: "a", Title: `a "&" <b>`}}}, "7cd9f468f1b17aac2b4714726d785fed62a56b20a478bd8fb0d4879474c16bdf"},
+		{"bare", "<p>a & \"b\"</p>", Proto{Frame: "x</script>", Frames: []ProtoFrame{{ID: "x</script>"}}}, "3b0eb8ab0f93bf9ec0dfe0fd9e0bfd6144a6d127623a8f24306c8988f2146dc9"},
+		{"empty", "", checkout, "ea1b6b2f13a764e9b082440ddab0fb170025f07c29e2ab0426e0af2e2b64843b"},
+		{"group", "<p>g</p>", Proto{Frame: "b", Frames: []ProtoFrame{{ID: "a", Title: "A"}, {ID: "b"}, {ID: "c d", Title: "C & D"}}}, "d3c0cd1858c60bc9bb44f3fe30fbf9bfc8cdc4cc6bece6a93a448937cf783d53"},
 	} {
 		page, err := AssemblePrototype(Meta{Name: "pinned", Width: 320}, c.proto, []byte(c.canvas))
 		if err != nil {

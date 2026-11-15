@@ -1271,12 +1271,14 @@ function runIsolate(frames: () => FakeElement[], readyState = "loading", frameId
     },
   };
   const window = {
+    // prototype.js names each iframe after the frame it shows.
+    name: frameId,
     parent: { postMessage: (message: unknown, target: string) => posts.push({ message, target }) },
     addEventListener: (type: string, fn: (e: unknown) => void, opts?: ListenerOptions) => windowListeners.push(listener(type, fn, opts)),
   };
   const history = new FakeHistory();
   class CSSStyleSheet { text = ""; replaceSync(text: string) { this.text = text; } }
-  runInNewContext(`(function () {\nconst FRAME = ${JSON.stringify(frameId)};\n${isolateJs}\n})();`, {
+  runInNewContext(`(function () {\n${isolateJs}\n})();`, {
     window, document, location, history, CSSStyleSheet, Element: FakeElement, Array, Set,
     setTimeout: (fn: () => void) => { timers.push(fn); return timers.length; },
   });
@@ -1492,27 +1494,44 @@ describe("prototype.js shows the frame only once it is isolated", () => {
     }
   });
 
-  // The page as prototype.js drives it: the iframe's class and the line's hidden flag.
+  // The page as prototype.js drives it: the iframe it makes, its class and the line's hidden flag.
   function runPage() {
     const frameWindow = {};
     const classes = new Set<string>();
-    const frame = { contentWindow: frameWindow, classList: { toggle: (name: string, on: boolean) => (on ? classes.add(name) : classes.delete(name)) } };
+    const frame = { contentWindow: frameWindow, attributes: new Map<string, string>(), className: "", title: "", name: "", srcdoc: "",
+      setAttribute(name: string, value: string) { this.attributes.set(name, value); },
+      classList: { toggle: (name: string, on: boolean) => (on ? classes.add(name) : classes.delete(name)) } };
     const line = { hidden: true };
+    const appended: unknown[] = [];
     let onMessage: ((event: unknown) => void) | null = null;
     const timers: { fn: () => void; ms: number }[] = [];
+    const meta = { textContent: JSON.stringify({ start: "b", frames: [{ id: "a", title: "A" }, { id: "b", title: "Checkout" }] }) };
+    const holder = { getAttribute: (name: string) => (name === "data-srcdoc" ? "<p>canvas</p>" : null) };
     runInNewContext(`(function () {\n${protoJs}\n})();`, {
-      document: { getElementById: (id: string) => (id === "prototype" ? frame : id === "line" ? line : null) },
+      JSON,
+      document: {
+        getElementById: (id: string) => ({ "doan-prototype": meta, canvas: holder, line }[id] ?? null),
+        createElement: (tag: string) => { if (tag !== "iframe") throw new Error(tag); return frame; },
+        body: { append: (el: unknown) => appended.push(el) },
+      },
       window: { addEventListener: (type: string, fn: (e: unknown) => void) => { if (type === "message") onMessage = fn; } },
       setTimeout: (fn: () => void, ms: number) => { timers.push({ fn, ms }); return timers.length; },
     });
     return {
-      timers,
+      timers, frame, appended,
       shown: () => classes.has("shown"),
       line: () => !line.hidden,
       send: (state: string, source: unknown = frameWindow) => onMessage!({ source, origin: "null", data: { type: "doan-prototype", state } }),
       timeout: () => timers.shift()!.fn(),
     };
   }
+
+  test("the start frame's iframe is sandboxed, named after it and given the canvas before it is appended", () => {
+    const page = runPage();
+    expect(page.appended).toEqual([page.frame]);
+    expect(page.frame.attributes.get("sandbox")).toBe("allow-scripts allow-forms");
+    expect([page.frame.className, page.frame.name, page.frame.title, page.frame.srcdoc]).toEqual(["proto-frame", "b", "Checkout", "<p>canvas</p>"]);
+  });
 
   test("the page starts hidden and waits LOAD_TIMEOUT_MS (10 s) once", () => {
     const page = runPage();
@@ -1556,7 +1575,7 @@ describe("prototype viewer files", () => {
 
   test("the scripts compile in one function each and inline safely into <script>", () => {
     expect(() => new Script(`(function () {\n${protoJs}\n})();`)).not.toThrow();
-    expect(() => new Script(`(function () {\nconst FRAME = "x";\n${isolateJs}\n})();`)).not.toThrow();
+    expect(() => new Script(`(function () {\n${isolateJs}\n})();`)).not.toThrow();
     for (const [name, source] of Object.entries({ "prototype.js": protoJs, "isolate.js": isolateJs })) {
       expect(source.length, name).toBeGreaterThan(100);
       expect(source, name).not.toMatch(/<\/script/i);
@@ -1573,27 +1592,30 @@ describe("prototype viewer files", () => {
     }
   });
 
-  test("prototype.html has no CSP, one iframe with allow-scripts allow-forms, and exactly the documented placeholders", () => {
+  test("prototype.html has no CSP and no iframe, prototype.js sandboxes its iframes with allow-scripts allow-forms, and the page has exactly the documented placeholders", () => {
     expect(protoHtml).not.toMatch(/Content-Security-Policy/i);
-    expect([...protoHtml.matchAll(/\bsandbox="([^"]*)"/g)].map(m => m[1])).toEqual(["allow-scripts allow-forms"]);
-    expect(protoHtml).not.toMatch(/allow-(same-origin|top-navigation|popups|modals)/);
+    expect(protoHtml.replace(/<!--[\s\S]*?-->/, "")).not.toMatch(/<iframe|sandbox=/);
+    expect([...protoJs.matchAll(/setAttribute\("sandbox", "([^"]*)"\)/g)].map(m => m[1])).toEqual(["allow-scripts allow-forms"]);
+    expect(protoJs).not.toMatch(/allow-(same-origin|top-navigation|popups|modals)/);
     const body = protoHtml.replace(/<!--[\s\S]*?-->/, "");
     const counts = new Map<string, number>();
     for (const m of body.matchAll(/\{\{([A-Za-z_]+)\}\}/g)) counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
-    expect(Object.fromEntries(counts)).toEqual({ NAME: 2, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
+    expect(Object.fromEntries(counts)).toEqual({ NAME: 1, META: 1, STYLE: 1, SCRIPT: 1, SRCDOC: 1 });
     expect(protoHtml.match(/<!--[\s\S]*?-->/)?.[0]).not.toContain("{{");
     for (const name of ["prototype.css", "prototype.js", "isolate.js"]) expect(files[name], name).not.toContain("{{");
   });
 
   test("the placeholders sit where their escaping rule applies", () => {
     expect(protoHtml).toContain("<title>{{NAME}} — Prototype</title>");
-    expect(protoHtml).toMatch(/<iframe class="proto-frame" id="prototype" title="\{\{NAME\}\}" sandbox="allow-scripts allow-forms" srcdoc="\{\{SRCDOC\}\}"><\/iframe>/);
+    expect(protoHtml).toContain('<script type="application/json" id="doan-prototype">{{META}}</script>');
+    expect(protoHtml).toContain('<div id="canvas" hidden data-srcdoc="{{SRCDOC}}"></div>');
   });
 
-  test("the page script is in the head, so its listener is there before the iframe can answer", () => {
-    const head = /<head>([\s\S]*?)<\/head>/.exec(protoHtml)?.[1] ?? "";
-    expect(head).toContain("<script>\n{{SCRIPT}}\n</script>");
-    expect(protoHtml.indexOf('id="line"')).toBeLessThan(protoHtml.indexOf('id="prototype"'));
+  test("the page script is the body's last element, after the line and the canvas holder it reads", () => {
+    const body = /<body>([\s\S]*?)<\/body>/.exec(protoHtml)?.[1] ?? "";
+    expect(body.trimEnd().endsWith("<script>\n{{SCRIPT}}\n</script>")).toBe(true);
+    expect(body.indexOf('id="line"')).toBeLessThan(body.indexOf('id="canvas"'));
+    expect(body.indexOf('id="canvas"')).toBeLessThan(body.indexOf("{{SCRIPT}}"));
   });
 
   test("the iframe fills the viewport and starts hidden; only .shown shows it", () => {

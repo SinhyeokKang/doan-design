@@ -1,12 +1,15 @@
 // The first script in an exported prototype's canvas document (srcdoc), wrapped in a function by
-// AssemblePrototype after `const FRAME = <frame id as JSON>;`. It isolates that one frame as the
-// app's prototype window does (app/src/main/prototypeScript.ts), keeps the canvas from leaving its
-// document, and tells the page around it, once, whether the frame is there.
+// AssemblePrototype. It isolates one frame as the app's prototype window does
+// (app/src/main/prototypeScript.ts), keeps the canvas from leaving its document, and tells the page
+// around it, once, whether the frame is there.
 //
-// The CLI already judged the frame from the file, so the mark is not read again: a frame a script
-// removes, or duplicates, before the frame is found is reported as missing.
+// The frame is the iframe's name, which prototype.js sets before the document loads: the canvas is
+// held once in the page for every frame of the group. The CLI already judged the group from the
+// file, so the mark is not read again: a frame a script removes, or duplicates, before the frame is
+// found is reported as missing.
 
-// Taken before any canvas script runs, so a canvas name cannot shadow it.
+// Taken before any canvas script runs, so a canvas name cannot shadow them.
+const FRAME = window.name;
 const host = window.parent;
 const post = (state) => host.postMessage({ type: "doan-prototype", state }, "*");
 

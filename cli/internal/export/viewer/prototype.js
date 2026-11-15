@@ -27,17 +27,28 @@ function acceptState(event, frameWindow) {
   return data.state === "ready" || data.state === "missing" ? data.state : null;
 }
 
-// This script runs in the head, before the line and the iframe are parsed: the listener has to be in
-// place before the iframe can answer. Both elements exist by the time anything arrives.
+// The page's last script: the holder and the line are parsed. The iframe is made here, with the
+// listener already in place, so nothing it posts can come before it.
+const page = JSON.parse(document.getElementById("doan-prototype").textContent);
+const label = page.frames.find((frame) => frame.id === page.start).title;
+const iframe = document.createElement("iframe");
+iframe.className = "proto-frame";
+iframe.title = label;
+// sandbox before anything loads: the flags apply from the iframe's first document on.
+iframe.setAttribute("sandbox", "allow-scripts allow-forms");
+iframe.name = page.start;
+iframe.srcdoc = document.getElementById("canvas").getAttribute("data-srcdoc");
+
 let phase = "waiting";
 function apply(input) {
   phase = nextPhase(phase, input);
   const view = phaseView(phase);
-  document.getElementById("prototype").classList.toggle("shown", view.frameShown);
+  iframe.classList.toggle("shown", view.frameShown);
   document.getElementById("line").hidden = !view.lineShown;
 }
 window.addEventListener("message", (event) => {
-  const state = acceptState(event, document.getElementById("prototype")?.contentWindow);
+  const state = acceptState(event, iframe.contentWindow);
   if (state !== null) apply(state);
 });
+document.body.append(iframe);
 setTimeout(() => apply("timeout"), LOAD_TIMEOUT_MS);
