@@ -849,12 +849,14 @@ export class ConversationService {
     for (const id of [...this.waits.keys(), ...this.judging.keys()]) this.cancelWait(id);
     for (const listing of this.listings) if (listing.cleanup) closing.push(listing.cleanup());
     // Before the appQuit writes: one that throws ends this loop, and the quit's failure is reported, but no
-    // conversation's work content may outlive it.
+    // conversation's work content or run may outlive it.
     for (const id of this.live.keys()) this.endWork(id);
+    for (const live of this.live.values()) if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
     for (const [id, live] of this.live) {
-      if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
       if (live.held) { clearTimeout(live.held.timer); delete live.held; }
-      if (live.accepted && live.busy && !live.terminal) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
+      // As for a Stop, a history that already stopped taking writes takes no interrupted event: its known refusal is
+      // no new persistence failure to cancel the quit for.
+      if (live.accepted && live.busy && !live.terminal && !live.failedPersistence) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
       live.terminal = true; live.busy = false; delete live.stage;
       // Nothing more is written, but a message the agent already has must not come back from the queue at the next start.
       this.lookLater(id, live, false);

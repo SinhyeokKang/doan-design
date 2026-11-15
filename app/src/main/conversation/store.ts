@@ -267,7 +267,7 @@ export class ConversationStore {
   private replace(name: string, text: string): void {
     const path = join(this.directory, `${name}-${randomUUID()}.tmp`);
     const fd = openRegular(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL);
-    try { this.write(fd, text); } finally { closeSync(fd); }
+    this.fill(fd, path, text);
     try { renameSync(path, join(this.directory, `${name}.json`)); } catch (error) { unlinkSync(path); throw error; }
   }
   // The index rename is the commit point. An undo record survives interrupted log writes.
@@ -294,8 +294,8 @@ export class ConversationStore {
     const journal = join(this.directory, "start-undo.json");
     const temp = join(this.directory, `undo-${randomUUID()}.tmp`);
     const fd = openRegular(temp, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL);
-    try { this.write(fd, JSON.stringify({ v: 1, ...change, previous })); } finally { closeSync(fd); }
-    renameSync(temp, journal);
+    this.fill(fd, temp, JSON.stringify({ v: 1, ...change, previous }));
+    try { renameSync(temp, journal); } catch (error) { unlinkSync(temp); throw error; }
     let saved: ConversationEvent[];
     this.accepting = true;
     try {
@@ -448,6 +448,11 @@ export class ConversationStore {
       this.write(fd, serialized);
       return saved;
     } finally { closeSync(fd); }
+  }
+  // Nothing lists the conversations directory at start, so a temporary file a failed write leaves would stay for good.
+  private fill(fd: number, temp: string, text: string): void {
+    try { this.write(fd, text); } catch (error) { closeSync(fd); unlinkSync(temp); throw error; }
+    closeSync(fd);
   }
   private write(fd: number, text: string): void {
     const bytes = Buffer.from(text); if (writeSync(fd, bytes) !== bytes.length) throw new Error("Incomplete conversation write");
