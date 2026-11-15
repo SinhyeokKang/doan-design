@@ -67,20 +67,39 @@ it("runs the ACP providers' list reads under the outer fence", async () => {
     expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] } });
   }
 });
-// Copilot's --version imports a newer package from the profile's cache when one is there (probe), so it runs in the
-// outer fence too; the other providers' --version stays outside it.
-it("checks Copilot's version in the outer fence and Cursor's outside it", async () => {
-  const w = world("copilot");
-  await prepare("copilot", w).run({ root: w.project, mode: "new", runtime: "copilot", text: "", anchors: [] }, undefined, "listing");
-  const [command, args, env] = mocks.run.mock.calls[0]!;
-  expect(command).toBe("/usr/bin/sandbox-exec");
-  expect(args).toContain(`PROFILE=${realpathSync.native(w.profile)}`);
-  expect(args.slice(-2)).toEqual(["/bin/copilot", "--version"]);
-  expect(env).toEqual({ PATH: "/shell/bin" });
+// Copilot's --version imports a newer package from the profile's cache when one is there, and Cursor's runs Node with a
+// compile cache in the profile (probe), so both run in the outer fence; Claude's and Codex's stay outside it.
+it("checks Copilot's and Cursor's version in the outer fence and Claude's outside it", async () => {
+  for (const provider of ["copilot", "cursor"] as const) {
+    vi.clearAllMocks();
+    const w = world(provider);
+    await prepare(provider, w).run({ root: w.project, mode: "new", runtime: provider, text: "", anchors: [] }, undefined, "listing");
+    const [command, args, env] = mocks.run.mock.calls[0]!;
+    expect(command).toBe("/usr/bin/sandbox-exec");
+    expect(args).toContain(`PROFILE=${realpathSync.native(w.profile)}`);
+    expect(args.slice(-2)).toEqual([`/bin/${provider}`, "--version"]);
+    expect(env).toEqual({ PATH: "/shell/bin" });
+  }
   vi.clearAllMocks();
-  const c = world("cursor");
-  await prepare("cursor", c).run({ root: c.project, mode: "new", runtime: "cursor", text: "", anchors: [] }, undefined, "listing");
-  expect(mocks.run.mock.calls[0]!.slice(0, 2)).toEqual(["/bin/cursor", ["--version"]]);
+  const c = world("claude");
+  await prepare("claude", c).run({ root: c.project, mode: "new", runtime: "claude", text: "", anchors: [] }, undefined, "listing");
+  expect(mocks.run.mock.calls[0]!.slice(0, 2)).toEqual(["/bin/claude", ["--version"]]);
+});
+// sandbox-exec's own failure (missing, 65 for a policy error, 71) says nothing about the CLI's version.
+it("refuses a fenced version check that sandbox-exec could not start as process_exited, without a tool refresh", async () => {
+  for (const failed of [{ exitCode: null, spawnError: "spawn /usr/bin/sandbox-exec ENOENT" }, { exitCode: 65 }, { exitCode: 71 }]) {
+    for (const stored of [false, true]) {
+      const w = world("copilot"), toolsFailed = vi.fn();
+      const { runtime, release } = prepare("copilot", w);
+      mocks.run.mockResolvedValue({ timedOut: false, stdout: "", stderr: "sandbox-exec: failed", ...failed });
+      const run = createAccountPrepare(runtime, "/Applications/doan.app/Contents/Resources/bin/doan", toolsFailed, undefined, undefined, { userData: w.userData, socket: () => w.socket });
+      const record = stored ? { conversationId: "c", root: w.project, title: "t", owner: { kind: "doan" as const, provider: "copilot" as const, connectionId: "conn-1", accountId: "acct-1", workspaceId: null, profile: "copilot" },
+        session: { runtime: "copilot" as const, origin: "new" as const, sessionId: "s", configDir: w.profile, cwd: w.project } } : undefined;
+      await expect(run({ root: w.project, mode: stored ? "resume" : "new", runtime: "copilot", text: "", anchors: [] }, record)).rejects.toThrow(/^process_exited$/);
+      expect(toolsFailed).not.toHaveBeenCalled();
+      expect(release).toHaveBeenCalled();
+    }
+  }
 });
 it("refuses a Copilot run whose version check cannot be fenced as unknown and frees the lease", async () => {
   const w = world("copilot");

@@ -176,8 +176,8 @@ describe("profileFencedCommand", () => {
 
 // Every Copilot process imports the JavaScript in the profile's package cache, which its own fenced turn can rewrite;
 // the other providers' sign-in and status commands ran nothing planted in their profiles (probe).
-it("fences every process of Copilot and of no other provider", () => {
-  expect((["claude", "codex", "cursor", "antigravity", "copilot"] as const).filter(fencedEverywhere)).toEqual(["copilot"]);
+it("fences every process of Copilot and Cursor and of no other provider", () => {
+  expect((["claude", "codex", "cursor", "antigravity", "copilot"] as const).filter(fencedEverywhere)).toEqual(["cursor", "copilot"]);
 });
 
 describe("fencedCommand", () => {
