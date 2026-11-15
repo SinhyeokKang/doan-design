@@ -51,6 +51,8 @@ test("H5 flags config writes in either runtime, including an add that is later r
   }
   const revert = `${claude("doan config --add-serve brand")}\n${claude("doan config --remove-serve brand")}`;
   assert.ok(failures(setup("pass", answer + "\n" + revert)).includes("no_config_write_call"));
+  // A write inside a construct the reader does not follow cannot be ruled out.
+  assert.deepEqual(failures(setup("pass", `${answer}\nOpenAI Codex v0.164.0\n${codex("if [ -d brand ]; then doan config --add-serve brand; fi")}`)), ["no_config_write_call"]);
   for (const read of ["doan config --json", "doan --repo . config", "echo 'doan config --add-serve brand'"])
     assert.deepEqual(failures(setup("pass", `${answer}\nOpenAI Codex v0.164.0\n${codex(read)}`)), []);
 });

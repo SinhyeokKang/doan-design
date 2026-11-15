@@ -20,6 +20,7 @@ const checks: Checks = ctx => {
   const accepted = requests.filter(e => e.response.ok);
   const asked = accepted[0];
   const once = accepted.length === 1;
+  const forTarget = target === null ? [] : accepted.filter(e => e.request.path === target);
   const text = asked?.request.text ?? "";
   const html = target === null ? "" : ctx.read(target) ?? "";
   // The task's content, as the seed's own copy: both screens' text must be on the new canvas, in whatever frames.
@@ -32,7 +33,8 @@ const checks: Checks = ctx => {
     { id: "handoff_requested_once", pass: once, detail: `${accepted.length} accepted; v5 requests the app received: ${JSON.stringify(requests.map(e => ({ path: e.request.path, ok: e.response.ok, error: e.response.ok ? undefined : e.response.error.code })))}` },
     { id: "handoff_path_is_new_canvas", pass: target !== null && asked?.request.path === target, detail: `requested ${JSON.stringify(asked?.request.path ?? null)}; new canvas ${JSON.stringify(target)}` },
     // The app judges a handoff when the turn ends, so the canvas has to be complete by the time it is asked for.
-    { id: "canvas_written_before_request", pass: target !== null && once && asked!.hashes[target] === contentHash(ctx.read(target)), detail: `hash at the request ${JSON.stringify(asked?.hashes ?? null)}` },
+    // Judged over every accepted request for the new canvas; how many there were is handoff_requested_once's.
+    { id: "canvas_written_before_request", pass: forTarget.length > 0 && forTarget.every(e => e.hashes[e.request.path] === contentHash(ctx.read(e.request.path))), detail: `hashes at the requests ${JSON.stringify(accepted.map(e => e.hashes))}` },
     // The start of the message is in the detail so the judge sees what was delivered even when its transcript cuts the command.
     { id: "handoff_message_not_empty", pass: text.trim().length > 0, detail: `message of ${[...text].length} characters: ${JSON.stringify([...text].slice(0, 300).join(""))}` },
     // The turn prompt tells the agent this conversation is inside Doan, so it neither offers nor runs `doan open`.

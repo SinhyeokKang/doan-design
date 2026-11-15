@@ -46,6 +46,13 @@ test("noOpen fails on a command or on a request the app received, and passes on 
   assert.equal(noOpen(ctx([], [exchange({}, found, null)])).pass, false);
 });
 
+test("noOpen fails beside a command the reader could not follow, which may have run doan open", () => {
+  const check = noOpen(ctx([`if [ -f ${path} ]; then doan open ${path} --frame profile-form; fi`], []));
+  assert.equal(check.pass, false);
+  assert.match(check.detail, /could not be read completely/);
+  assert.equal(noOpen(ctx([`test -f ${path} && doan ls --json`], [])).pass, true);
+});
+
 test("openChecks need the call and an accepted request that arrived after the final edit", () => {
   const command = `doan open ${path} --frame profile-form --json`;
   const verdict = (commands: string[], log: OpenExchange[]) => Object.fromEntries(openChecks(ctx(commands, log), path, "profile-form").map(c => [c.id, c.pass]));

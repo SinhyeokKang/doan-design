@@ -144,9 +144,11 @@ const INSTALLERS = ["brew", "npm", "pnpm", "yarn", "pip", "pip3", "pipx", "go", 
 const SOURCE = /designskill\/presets\/|cli\/internal\/designskill\b|cli\/internal\/cli\/skill\.md/;
 
 export function otherDoanCheck(ctx: CheckContext): Check {
-  const words = ctx.calls.commands.flatMap(commandWords);
-  const other = words.filter(w => /\/doan$/.test(w[0]) || (/(?:^|\/)go$/.test(w[0]) && ["run", "build", "install"].includes(w[1]) && w.some(a => /cmd\/doan\b/.test(a))));
-  return { id: "no_other_doan_binary", pass: other.length === 0, detail: other.map(w => w.join(" ")).join("; ") || "(none)" };
+  const parsed = ctx.calls.commands.map(parseCommand);
+  // A command the reader could not follow may have run another binary, so the absence is not established beside it.
+  const incomplete = parsed.some(read => read.incomplete);
+  const other = parsed.flatMap(read => read.words).filter(w => /\/doan$/.test(w[0]) || (/(?:^|\/)go$/.test(w[0]) && ["run", "build", "install"].includes(w[1]) && w.some(a => /cmd\/doan\b/.test(a))));
+  return { id: "no_other_doan_binary", pass: other.length === 0 && !incomplete, detail: [...other.map(w => w.join(" ")), ...(incomplete ? ["a command could not be read completely"] : [])].join("; ") || "(none)" };
 }
 
 export function sourceReadCheck(ctx: CheckContext): Check {

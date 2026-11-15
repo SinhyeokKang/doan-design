@@ -163,5 +163,6 @@ export function createContext(o: ContextOptions): CheckContext {
       return readFileSync(o.handoffLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
     run: (cmd, args) => sh(cmd, args, o.repo, o.env),
+    git: args => git(args),
   };
 }

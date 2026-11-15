@@ -2,9 +2,9 @@ import type { Checks } from "../../lib/types.ts";
 
 const checks: Checks = ctx => {
   const config = ctx.doan(["config"]);
-  const status = ctx.run("git", ["status", "--porcelain", "--untracked-files=all"]);
-  const commits = ctx.run("git", ["rev-list", "--count", "HEAD"]);
-  const tracked = ctx.run("git", ["ls-files", ".doan"]);
+  const status = ctx.git(["status", "--porcelain", "--untracked-files=all"]);
+  const commits = ctx.git(["rev-list", "--count", "HEAD"]);
+  const tracked = ctx.git(["ls-files", ".doan"]);
   return [
     { id: "no_commit", pass: commits.code === 0 && commits.stdout.trim() === "1", detail: commits.stdout },
     { id: "initialized_local", pass: config.code === 0 && config.json?.result?.storage === "local", detail: JSON.stringify(config.json) },
