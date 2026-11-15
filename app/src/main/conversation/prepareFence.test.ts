@@ -67,6 +67,29 @@ it("runs the ACP providers' list reads under the outer fence", async () => {
     expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] } });
   }
 });
+// Copilot's --version imports a newer package from the profile's cache when one is there (probe), so it runs in the
+// outer fence too; the other providers' --version stays outside it.
+it("checks Copilot's version in the outer fence and Cursor's outside it", async () => {
+  const w = world("copilot");
+  await prepare("copilot", w).run({ root: w.project, mode: "new", runtime: "copilot", text: "", anchors: [] }, undefined, "listing");
+  const [command, args, env] = mocks.run.mock.calls[0]!;
+  expect(command).toBe("/usr/bin/sandbox-exec");
+  expect(args).toContain(`PROFILE=${realpathSync.native(w.profile)}`);
+  expect(args.slice(-2)).toEqual(["/bin/copilot", "--version"]);
+  expect(env).toEqual({ PATH: "/shell/bin" });
+  vi.clearAllMocks();
+  const c = world("cursor");
+  await prepare("cursor", c).run({ root: c.project, mode: "new", runtime: "cursor", text: "", anchors: [] }, undefined, "listing");
+  expect(mocks.run.mock.calls[0]!.slice(0, 2)).toEqual(["/bin/cursor", ["--version"]]);
+});
+it("refuses a Copilot run whose version check cannot be fenced as unknown and frees the lease", async () => {
+  const w = world("copilot");
+  const outside = mkdtempSync(join(tmpdir(), "doan-fence-outside-")); roots.push(outside);
+  const { run, release } = prepare("copilot", { ...w, profile: outside });
+  await expect(run({ root: w.project, mode: "new", runtime: "copilot", text: "", anchors: [] }, undefined, "listing")).rejects.toThrow(/^unknown$/);
+  expect(mocks.run).not.toHaveBeenCalled();
+  expect(release).toHaveBeenCalled();
+});
 it("leaves a Codex list read unfenced", async () => {
   const w = world("codex");
   expect((await prepare("codex", w).run({ root: w.project, mode: "new", runtime: "codex", text: "", anchors: [] }, undefined, "listing")).fence).toBeUndefined();
