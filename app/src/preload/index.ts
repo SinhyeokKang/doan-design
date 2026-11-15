@@ -326,8 +326,8 @@ const api = {
     ipcRenderer.on("onboarding:changed", receive);
     return () => ipcRenderer.removeListener("onboarding:changed", receive);
   },
-  // Doan design presets from the bundled CLI (the prototype window's composer reads them too). A reply is the CLI's v1 envelope: a CLI failure
-  // (usage_error included) comes back unchanged; an app failure has code request_refused, or cli_error with a reason.
+  // Doan design presets from the bundled CLI (the prototype window's composer reads them too). A reply is the CLI's v1
+  // envelope: a CLI failure (usage_error included) comes back unchanged; an app failure has code request_refused, or cli_error with a reason.
   // A list usage_error means this CLI has no presets; a get usage_error after a successful list is an unknown id.
   designSkills: {
     list: (): Promise<DesignSkillReply<DesignSkillList>> => ipcRenderer.invoke("design-skills:list"),
