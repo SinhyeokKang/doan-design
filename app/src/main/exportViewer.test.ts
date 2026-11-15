@@ -250,7 +250,8 @@ describe("message validation", () => {
       const app = parseCanvasMessage(input);
       expect(mine === null).toBe(app === null);
       if (mine !== null && app !== null && app.type === "layout") {
-        expect(mine.frames).toEqual(app.frames);
+        // `cut` and `parent` serve the app's link groups, which the viewer does not show.
+        expect(mine.frames).toEqual(app.frames.map(({ cut: _cut, parent: _parent, ...shown }) => shown));
         expect(mine.height).toBe(app.height);
         expect(mine.viewport).toBe(app.viewport);
       }

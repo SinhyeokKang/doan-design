@@ -6,6 +6,7 @@ import type { CanvasState, CanvasViewStore } from "./CanvasController";
 import { canvasLabel } from "./canvasTree";
 import { frameDrawerView, type FrameDrawerRow, type FrameDrawerView } from "./frameDrawer";
 import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "./frameDrawerList";
+import { FrameRowMarks } from "./FrameListBody";
 import { menuCloseFocus, menuCloseNow } from "./canvasFocus";
 import { zoomControlView, type ZoomControlView } from "./zoomControl";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -71,8 +72,8 @@ function IconTip({ label, children }: { label: string; children: ReactElement })
   return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
 }
 
-// A popover list rather than a Radix menu: the rows keep focus by frame id across a reload, mark the viewed frame
-// without a fill and share the sidebar tree's 500 ms typeahead. Radix still closes it on Esc
+// A popover list rather than a Radix menu: the rows keep focus by frame id across a reload, mark the viewed frame with
+// its Eye, without a fill and share the sidebar tree's 500 ms typeahead. Radix still closes it on Esc
 // (preventing the default, so the canvas selection stays) and returns focus to the trigger.
 function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: FrameDrawerView; label: string; canvasKey: string | null; fallbackFocus(): void; select(index: number, id: string): void }) {
   const [open, setOpen] = useState(false);
@@ -145,7 +146,7 @@ function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: 
           onFocus={() => setFocused(row.key)}
           onPointerMove={event => { if (document.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }); }}
           onClick={() => pick(row)}>
-          <span className="doan-frame-num">{row.number}</span><span className="doan-frame-name">{row.name}</span>{row.prototype && <span className="prototype-meta">Prototype</span>}{row.current && <span className="doan-frame-viewing">Viewing</span>}
+          <span className="doan-frame-num">{row.number}</span><span className="doan-frame-name">{row.name}</span><FrameRowMarks current={row.current ? "Viewing" : null} prototype={row.prototype} />
         </div>)}
       </div>
       {view.truncatedNote && <p className="doan-menu-head doan-frame-note">{view.truncatedNote}</p>}

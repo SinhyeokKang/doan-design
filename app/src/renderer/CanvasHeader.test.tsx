@@ -12,7 +12,7 @@ import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
 // PRODUCT §5 item 2 'Canvas header', 'Zoom controller' and item 3 'Frame drawer'.
 const row: CanvasRow = { path: ".doan/canvases/checkout.html", url: "doan://checkout", width: 1280 };
 const frames = ["Cart", "Shipping", "Payment"].map((title, index) => ({ id: title.toLowerCase(), title, x: 0, y: index * 900, width: 1280, height: 800 }));
-const layout = (over: Partial<LayoutMessage> = {}): LayoutMessage => ({ type: "layout", href: row.url, height: 2700, viewport: 2700, frames, truncated: false, ...over });
+const layout = (over: Partial<LayoutMessage> = {}): LayoutMessage => ({ type: "layout", href: row.url, height: 2700, viewport: 2700, frames, truncated: false, gotos: [], ...over });
 const opened = (over: Partial<CanvasState> = {}): CanvasState => ({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, message: "", hasFrame: true, layout: layout(), currentFrame: 2, zoom: 64, scale: 0.64, ...over });
 
 const html = (state: CanvasState, panel?: { open: boolean; show(): void; badge?: Pick<CanvasSignal, "kind" | "label"> | null }, view: CanvasViewFields = canvasViewFields(state)) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={state} view={new CanvasViewStore(view)} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} /> as ReactElement}</TooltipProvider>);

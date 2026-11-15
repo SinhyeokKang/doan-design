@@ -1,0 +1,9 @@
+{
+  "id": "W11",
+  "title": "Link three onboarding prototype screens",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": "selection.json"
+}

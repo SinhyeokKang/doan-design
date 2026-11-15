@@ -33,10 +33,11 @@ import { useVisibleClock } from "./visibleClock";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool, type PlayTool } from "./CanvasTools";
-import { canvasPlayability, playRequest } from "./prototypePlay";
+import { canvasPlayability, drawerPlayRequest, playDrawer, playRequest, playTooltip } from "./prototypePlay";
 import { prototypeMainCalls } from "./prototype/mainCalls";
 import { PrototypeClosedFocus } from "./PrototypeClosedFocus";
-import type { PlayRequest } from "../main/prototype/ipc";
+import { PrototypePlaying } from "./PrototypePlaying";
+import type { PlayRequest, PrototypePlaying as Playing } from "../main/prototype/ipc";
 import { dockedBuddy } from "./dockedBuddyShell";
 import { AlertIcon } from "./AlertIcon";
 import { noticeToast } from "./selection";
@@ -292,6 +293,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // last render.
   const playButton = useRef<HTMLButtonElement | null>(null);
   const playNext = useRef<PlayRequest | null>(null);
+  // The toolbar Play's frame drawer, open only in its drawer state, and the frame the prototype window plays, which
+  // that drawer marks.
+  const [playOpen, setPlayOpen] = useState(false);
+  const [playing, setPlaying] = useState<Playing | null>(null);
   // The size bubble's Add to message: the controller's host it renders into (once the bubble is built), its button,
   // the toolbar's Picker that focus goes to when the bubble goes, and the chip waiting for a folded panel to unfold.
   const [bubbleHost, setBubbleHost] = useState<HTMLElement | null>(null);
@@ -1950,8 +1955,14 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // window and nothing here changes the canvas.
   const playable = canvasPlayability(state);
   playNext.current = playRequest(state);
-  const player: PlayTool = { reason: playable.enabled ? null : playable.reason, button: playButton,
-    onPlay: () => sendPlay(playNext.current) };
+  // A drawer whose state went (a pick or capture started, a playable frame got selected) closes its own open state, so
+  // it does not come back by itself when the drawer state does (POSTMORTEM 2026-11-01).
+  const playDrawerState = playable.kind === "drawer";
+  useEffect(() => { if (!playDrawerState) setPlayOpen(false); }, [playDrawerState]);
+  // A pick plays that frame only: the selection, the view and `doan active` stay as they are.
+  const player: PlayTool = { kind: playable.kind, tooltip: playTooltip(state), button: playButton, onPlay: () => sendPlay(playNext.current),
+    open: playOpen && playDrawerState, onOpenChange: setPlayOpen,
+    drawer: playDrawerState ? { ...playDrawer(state, playing), onPick: row => { setPlayOpen(false); sendPlay(drawerPlayRequest(state, row.id)); } } : null };
   const picking = state.picking;
   // Capture area: the canvas, the composer's input, its Attach rule and its attachment count,
   // first match wins. Without the panel's composer the canvas counts as not shown, as for the Picker.
@@ -2489,6 +2500,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row))} cancel={closeTrash} confirm={confirmTrash} />}
   {toast.element}
   <PrototypeClosedFocus controller={controller} toolbar={playButton} />
+  <PrototypePlaying onChange={setPlaying} />
   <StarPrompt onboarding={wizard !== null || buddyIntro.open} pickOrCapture={state.picking || state.capturing} restoreFocus={restoreFloatingFocus} />
   {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} buddy={buddySelection} preferences={preferences}

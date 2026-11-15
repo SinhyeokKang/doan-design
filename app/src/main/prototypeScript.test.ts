@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
-import { describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
 import { parseRunReport, parseFramesReport } from "./prototype/requests";
 import { parsePrototypeMark } from "./prototype/mark";
 import { prototypeScriptSource } from "./prototypeScript";
@@ -174,7 +175,7 @@ describe("resolving and isolating the frame", () => {
     page.run("phone");
     expect(page.posted).toEqual([]);
     page.contentLoaded();
-    expect(page.posted).toEqual([{ gen: 7, state: "ready", size: "390x844", frames: [{ id: "phone", title: "Phone", size: "390x844", number: 1 }] }]);
+    expect(page.posted).toEqual([{ gen: 7, state: "ready", size: "390x844", frames: [{ id: "phone", title: "Phone", size: "390x844", number: 1 }], gotos: [] }]);
     expect(phone.hasAttribute("data-doan-proto-frame")).toBe(true);
     expect(wrap.hasAttribute("data-doan-proto-path")).toBe(true);
     expect(page.body.hasAttribute("data-doan-proto-path")).toBe(true);
@@ -191,7 +192,7 @@ describe("resolving and isolating the frame", () => {
     page.loaded();
     page.timers();
     expect(modal.hasAttribute("data-doan-proto-hidden")).toBe(false);
-    expect(page.posted[1]).toEqual({ gen: 7, frames: [{ id: "phone", title: "Phone", size: "390x844", number: 1 }, { id: "tablet", size: "820x1180", number: 2 }] });
+    expect(page.posted[1]).toEqual({ gen: 7, frames: [{ id: "phone", title: "Phone", size: "390x844", number: 1 }, { id: "tablet", size: "820x1180", number: 2 }], gotos: [] });
     expect(parseFramesReport("prototype", page.posted[1])).not.toBeNull();
     expect(page.posted).toHaveLength(2);
   });
@@ -205,7 +206,7 @@ describe("resolving and isolating the frame", () => {
     page.loaded();
     expect(page.posted).toEqual([]);
     page.timers();
-    expect(page.posted).toEqual([{ gen: 7, state: "ready", size: "320x568", frames: [{ id: "late", size: "320x568", number: 1 }] }]);
+    expect(page.posted).toEqual([{ gen: 7, state: "ready", size: "320x568", frames: [{ id: "late", size: "320x568", number: 1 }], gotos: [] }]);
   });
 
   test("a frame that never appears is missing after the load handlers", () => {
@@ -213,7 +214,7 @@ describe("resolving and isolating the frame", () => {
     append(page.body, frameEl("other", "1x1"));
     page.run("phone");
     page.finish();
-    expect(page.posted).toEqual([{ gen: 7, state: "missing", frames: [{ id: "other", size: "1x1", number: 1 }] }]);
+    expect(page.posted).toEqual([{ gen: 7, state: "missing", frames: [{ id: "other", size: "1x1", number: 1 }], gotos: [] }]);
   });
 
   test("a duplicated or unmarked frame is reported at DOMContentLoaded and nothing is isolated", () => {
@@ -222,7 +223,7 @@ describe("resolving and isolating the frame", () => {
       for (const el of els) append(page.body, el);
       page.run("phone");
       page.contentLoaded();
-      expect(page.posted).toEqual([{ gen: 7, state, frames: [] }]);
+      expect(page.posted).toEqual([{ gen: 7, state, frames: [], gotos: [] }]);
       expect(page.document.adoptedStyleSheets).toHaveLength(0);
     }
   });
@@ -236,10 +237,38 @@ describe("resolving and isolating the frame", () => {
     page.run("long");
     page.finish();
     const message = page.posted[0] as { frames: { id: string; title?: string; number: number }[] };
-    expect(message.frames).toHaveLength(1000);
+    // The first 1,000 frames of the document, as the board lists them: `plain`, the long ID, `long` and f0–f996.
+    expect(message.frames).toHaveLength(998);
     expect(message.frames[0]).toEqual({ id: "long", title: "t".repeat(199), size: "1x1", number: 3 });
     expect(message.frames[1]!.number).toBe(4);
+    expect(message.frames.at(-1)).toEqual({ id: "f996", size: "1x1", number: 1000 });
     expect(parseRunReport("prototype", message)).not.toBeNull();
+  });
+
+  test("a frame past the 1,000th of the document is neither listed nor an enclosing frame of a link, whatever is marked", () => {
+    const page = fakeDocument();
+    const first = frameEl("f0", "1x1");
+    append(first, element("a", [["data-doan-goto", "f1000"]]));
+    append(page.body, first);
+    for (let i = 1; i < 1000; i += 1) append(page.body, frameEl(`f${i}`));
+    const last = frameEl("f1000", "1x1");
+    append(last, element("a", [["data-doan-goto", "f0"]]));
+    append(page.body, last);
+    page.run("f0");
+    page.finish();
+    const message = page.posted[0] as { frames: { id: string; number: number }[]; gotos: { value: string; frames: string[] }[] };
+    expect(message.frames).toEqual([{ id: "f0", size: "1x1", number: 1 }]);
+    expect(message.gotos).toEqual([{ value: "f1000", frames: ["f0"] }, { value: "f0", frames: [] }]);
+  });
+
+  test("a frame past the 1,000th still counts toward a shared ID", () => {
+    const page = fakeDocument();
+    append(page.body, frameEl("dup", "1x1"));
+    for (let i = 1; i < 1000; i += 1) append(page.body, frameEl(`f${i}`));
+    append(page.body, frameEl("dup", "1x1"));
+    page.run("f1");
+    page.finish();
+    expect((page.posted[0] as { frames: unknown[] }).frames).toEqual([]);
   });
 
   test("runs only in the window's direct child at the run's URL, and once", () => {
@@ -256,6 +285,120 @@ describe("resolving and isolating the frame", () => {
     page.run("phone", 8);
     page.finish();
     const frames = [{ id: "phone", size: "1x1", number: 1 }];
-    expect(page.posted).toEqual([{ gen: 7, state: "ready", size: "1x1", frames }, { gen: 7, frames }]);
+    expect(page.posted).toEqual([{ gen: 7, state: "ready", size: "1x1", frames, gotos: [] }, { gen: 7, frames, gotos: [] }]);
+  });
+});
+
+interface LinkPlacement {
+  name: string;
+  html: string;
+  frames: { id: string; prototype: string | null }[];
+  gotos: { value: string; frames: string[] }[];
+}
+
+interface ClickCase {
+  name: string;
+  html: string;
+  playing: string;
+  click: string;
+  shadowHost?: string;
+  iframe?: string;
+  posts: { goto: string | null } | null;
+}
+
+const links = JSON.parse(readFileSync(new URL("../../../schema/fixtures/prototype-links/cases.json", import.meta.url), "utf8")) as { placements: LinkPlacement[] };
+const clicks = JSON.parse(readFileSync(new URL("../../../schema/fixtures/prototype-links/clicks.json", import.meta.url), "utf8")) as { cases: ClickCase[] };
+
+// The injected script runs first in the document, as the prototype window's CDP injection puts it.
+const canvasDocument = (target: string, body: string, gen = 7) =>
+  `<!doctype html><html><head><script>${prototypeScriptSource(target, gen, "about:srcdoc")}</script></head><body>${body}</body></html>`;
+// No fixture frame has this ID, so the run reports `missing` once, after the load handlers, with the whole document.
+const NO_FRAME = "\u0000";
+
+type Report = { gen: number; state?: string; frames: unknown[]; gotos: { value: string; frames: string[] }[]; goto?: string | null };
+
+describe("in a real DOM", () => {
+  let dom: ElectronDom;
+  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
+  afterAll(async () => { await dom?.close(); }, 30_000);
+
+  const report = async (body: string): Promise<Report> => {
+    const posted = await dom.flush(await dom.load(canvasDocument(NO_FRAME, body)));
+    expect(posted).toHaveLength(1);
+    return posted[0] as Report;
+  };
+
+  describe("link placements of the shared fixture", () => {
+    test.each(links.placements)("$name", async ({ html, frames, gotos }) => {
+      const counts = new Map<string, number>();
+      for (const frame of frames) counts.set(frame.id, (counts.get(frame.id) ?? 0) + 1);
+      const drawer = frames.flatMap((frame, index) => frame.id !== "" && frame.id.length <= 200 && counts.get(frame.id) === 1 && parsePrototypeMark(frame.prototype) !== null
+        ? [{ id: frame.id, size: frame.prototype, number: index + 1 }] : []);
+      // Over the report's 200 units, a value is left out and so is an enclosing frame's id; neither is cut.
+      const reported = gotos.filter(goto => goto.value.length <= 200).map(goto => ({ value: goto.value, frames: goto.frames.filter(id => id.length <= 200) }));
+      const message = await report(html);
+      expect(message.state).toBe("missing");
+      expect(message.frames).toEqual(drawer);
+      expect(message.gotos).toEqual(reported);
+      // What main accepts from the host, unchanged.
+      expect(parseRunReport("prototype", message)).toEqual(message);
+    });
+  });
+
+  describe("link report limits", () => {
+    const frame = (inner: string) => `<div data-doan-frame="a" data-doan-prototype="1x1">${inner}</div>`;
+
+    test("links stop at 1,000, counting only the ones reported", async () => {
+      const many = Array.from({ length: 1001 }, (_, i) => `<a data-doan-goto="v${i}"></a>`).join("");
+      const message = await report(frame(`<a data-doan-goto="${"x".repeat(201)}"></a>${many}`));
+      expect(message.gotos).toHaveLength(1000);
+      expect(message.gotos[0]).toEqual({ value: "v0", frames: ["a"] });
+      expect(message.gotos[999]).toEqual({ value: "v999", frames: ["a"] });
+      expect(parseRunReport("prototype", message)).not.toBeNull();
+    });
+
+    test("a link's enclosing frames stop at the document's first 1,000 frames", async () => {
+      const nest = `<script>{
+        let el = document.body;
+        for (let i = 0; i < 1001; i++) { const next = document.createElement("div"); next.setAttribute("data-doan-frame", "f" + i); el.append(next); el = next; }
+        const link = document.createElement("a"); link.setAttribute("data-doan-goto", "deep"); el.append(link);
+      }</script>`;
+      const message = await report(nest);
+      expect(message.gotos).toEqual([{ value: "deep", frames: Array.from({ length: 1000 }, (_, i) => `f${i}`) }]);
+      expect(parseRunReport("prototype", message)).not.toBeNull();
+    });
+
+    test("frames past the 1,000th are not listed, and links past 1,000 are not reported", async () => {
+      const body = Array.from({ length: 1001 }, (_, i) => `<div data-doan-frame="f${i}" data-doan-prototype="1x1"><a data-doan-goto="f0"></a></div>`).join("");
+      const message = await report(body);
+      expect(message.frames).toHaveLength(1000);
+      expect(message.gotos).toHaveLength(1000);
+      expect(message.gotos.at(-1)).toEqual({ value: "f0", frames: ["f999"] });
+    });
+  });
+
+  describe("click decisions of the shared table", () => {
+    test.each(clicks.cases)("$name", async ({ html, playing, click, shadowHost, iframe, posts }) => {
+      const frame = await dom.load(canvasDocument(playing, html, 9));
+      const before = await dom.flush(frame) as Report[];
+      expect(before[0]).toMatchObject({ gen: 9, state: "ready" });
+      const target = iframe === undefined ? frame : await (await frame.$(iframe))?.contentFrame();
+      if (!target) throw new Error(`no iframe ${iframe}`);
+      await target.evaluate(({ selector, host }) => {
+        const root = host === null ? document : document.querySelector(host)!.shadowRoot!;
+        (root.querySelector(selector) as HTMLElement).click();
+      }, { selector: click, host: shadowHost ?? null });
+      const after = (await dom.flush(target)).slice(before.length);
+      expect(after).toEqual(posts === null ? [] : [{ gen: 9, ...posts }]);
+    });
+
+    test("nothing is followed while no frame plays", async () => {
+      const html = `<div data-doan-frame="a"><a id="x" data-doan-goto="b"></a></div><div data-doan-frame="b" data-doan-prototype="1x1"></div>`;
+      const frame = await dom.load(canvasDocument("a", html, 9));
+      const before = await dom.flush(frame) as Report[];
+      expect(before[0]).toMatchObject({ gen: 9, state: "unmarked" });
+      await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
+      expect((await dom.flush(frame)).slice(before.length)).toEqual([]);
+    });
   });
 });

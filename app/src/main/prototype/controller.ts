@@ -8,7 +8,7 @@ import { prototypePanelWidth, type Rect } from "./fit";
 import { PROTOTYPE_CHANNELS, type ExportTarget, type PrototypeMode, type PrototypeSnapshot, type PrototypeView } from "./ipc";
 import type { PrototypeSize } from "./mark";
 import type { PlayingCanvas } from "./conversationScope";
-import { exportTargetMatches, parseChooseRequest, parseExportRequest, parseFramesReport, parseModeRequest, parsePanelRequest, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
+import { exportTargetMatches, parseChooseRequest, parseExportRequest, parseFramesReport, parseGotoRequest, parseModeRequest, parsePanelRequest, parseReloadRequest, parseRunReport, validatePlay, windowRequest } from "./requests";
 import { canvasKeyString, resolveTarget, type PrototypeTarget } from "./targets";
 import * as transitions from "./windowState";
 import { CLOSED, type PrototypeState, type Resolve, type Step } from "./windowState";
@@ -65,6 +65,8 @@ export interface PrototypeController {
   windowClosing(): void;
   // The canvas the window plays now, for the conversation scope; null while closed.
   playing(): PlayingCanvas | null;
+  // The frame the window plays now; null while closed.
+  playingFrame(): string | null;
   // The conversation panel is open now.
   panelOpen(): boolean;
   // Counts changes of the playing canvas (to another, back to an earlier one, or to none); another frame of the same
@@ -197,7 +199,12 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
         }
         case PROTOTYPE_CHANNELS.frames: {
           const message = parseFramesReport(kind, value);
-          if (message !== null) apply(transitions.framesReported(state, message.gen, message.frames));
+          if (message !== null) apply(transitions.framesReported(state, message.gen, message.frames, message.gotos));
+          return undefined;
+        }
+        case PROTOTYPE_CHANNELS.goto: {
+          const message = parseGotoRequest(kind, value);
+          if (message !== null) apply(transitions.goto(state, message, resolve));
           return undefined;
         }
         case PROTOTYPE_CHANNELS.reload: {
@@ -246,6 +253,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     playing() {
       return state.open ? { root: state.target.root, canvas: state.target.canvas, path: state.path } : null;
     },
+    playingFrame() { return state.open ? state.target.frame : null; },
     panelOpen() { return state.open && state.panel.open; },
     canvasGeneration() { return canvasGeneration; },
   };

@@ -1,7 +1,10 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { CanvasTools } from "./CanvasTools";
+import { Popover } from "radix-ui";
+import { CanvasTools, type PlayTool } from "./CanvasTools";
+import { FrameListBody } from "./FrameListBody";
+import { drawerKey } from "./frameDrawerList";
 import { TooltipContent, TooltipProvider } from "./components/ui/tooltip";
 import type { CanvasTool } from "./canvasTool";
 
@@ -10,8 +13,13 @@ import type { CanvasTool } from "./canvasTool";
 const PICKER = { enabled: true, reason: null, onToggle: () => {} };
 const CAPTURE = { enabled: true, reason: null, onToggle: () => {} };
 type Props = Parameters<typeof CanvasTools>[0];
-const props = (over: Partial<Props> = {}): Props => ({ tool: "select", picking: false, capturing: false, onTool: () => {}, picker: PICKER, capture: CAPTURE, player: { reason: null, onPlay: () => {} }, exporter: { reason: null, onExport: () => {} }, onEscape: () => {}, ...over });
+const PLAYER: PlayTool = { kind: "play", tooltip: "Play “Checkout”", onPlay: () => {}, open: false, onOpenChange: () => {}, drawer: null };
+const GROUPS = [{ label: "Cart and 1 more", rows: [{ key: "cart", id: "cart", number: 2, name: "Cart", current: false, group: 0 }, { key: "checkout", id: "checkout", number: 3, name: "Checkout", current: true, group: 0 }] }];
+const DRAWER: PlayTool = { kind: "drawer", tooltip: "Choose a prototype to play", onPlay: () => {}, open: false, onOpenChange: () => {}, drawer: { label: "Prototype frames in Shop", groups: GROUPS, onPick: () => {} } };
+const DISABLED: PlayTool = { kind: "disabled", tooltip: "Finish the capture first.", onPlay: () => {}, open: false, onOpenChange: () => {}, drawer: null };
+const props = (over: Partial<Props> = {}): Props => ({ tool: "select", picking: false, capturing: false, onTool: () => {}, picker: PICKER, capture: CAPTURE, player: PLAYER, exporter: { reason: null, onExport: () => {} }, onEscape: () => {}, ...over });
 const markup = (over: Partial<Props> = {}) => renderToStaticMarkup(<TooltipProvider><CanvasTools {...props(over)} /></TooltipProvider>);
+const withoutPlayLine = (html: string) => html.replace(' aria-describedby="canvas-play-reason"', "").replace(/<span class="sr-only" id="canvas-play-reason">[^<]*<\/span>/, "");
 const UNAVAILABLE = "Pick from canvas isn’t available while the canvas can’t be shown.";
 
 // Walks the element tree through children only, so no component (and no Radix hook) runs.
@@ -99,7 +107,7 @@ describe("CanvasTools", () => {
     expect(capture?.props["aria-label"]).toBe("Capture area");
     expect(capture?.props).not.toHaveProperty("aria-keyshortcuts");
     const tips = all(tree).filter(element => element.type === TooltipContent);
-    expect(tips.map(tip => text(tip.props.children as ReactNode))).toEqual(["SelectV", "HandH", "Pick from canvas⌘L", "Capture area", "Play prototype", "Export canvas"]);
+    expect(tips.map(tip => text(tip.props.children as ReactNode))).toEqual(["SelectV", "HandH", "Pick from canvas⌘L", "Capture area", "Play “Checkout”", "Export canvas"]);
     expect(tips[3]!.props.className).toBeUndefined();
     for (const [index, key] of [[0, "V"], [1, "H"], [2, "⌘L"]] as const) {
       const kbd = all(tips[index]!.props.children as ReactNode).find(element => element.props.className === "doan-kbd");
@@ -147,7 +155,8 @@ describe("CanvasTools", () => {
     expect(id).toBeTruthy();
     expect(html).toMatch(new RegExp(`<span class="sr-only" id="${id}">${reason}</span>`));
     expect(html.match(/<button[^>]*aria-label="Export canvas"[^>]*>/)?.[0]).not.toContain("aria-describedby");
-    expect(markup()).not.toMatch(/aria-describedby|sr-only/);
+    // Play describes every state with its own line; no other control has one while available.
+    expect(withoutPlayLine(markup())).not.toMatch(/aria-describedby|sr-only/);
   });
 
   // Availability can change during capture mode (a paste fills the draft); the pressed button still ends it.
@@ -190,12 +199,13 @@ describe("CanvasTools", () => {
     const id = tag.match(/aria-describedby="([^"]+)"/)?.[1];
     expect(id).toBeTruthy();
     expect(html).toMatch(new RegExp(`<span class="sr-only" id="${id}">This page is not a listed canvas.</span>`));
-    expect(markup()).not.toMatch(/aria-describedby|sr-only/);
+    // Play describes every state with its own line; no other control has one while available.
+    expect(withoutPlayLine(markup())).not.toMatch(/aria-describedby|sr-only/);
   });
 
-  it("Play prototype is an action with no pressed state or Tab stop that plays while available", () => {
+  it("Play prototype is an action with no pressed state or Tab stop that plays while it can", () => {
     let played = 0;
-    const tree = CanvasTools(props({ player: { reason: null, onPlay: () => played++ } }));
+    const tree = CanvasTools(props({ player: { ...PLAYER, onPlay: () => played++ } }));
     const play = buttons(tree)[4]!;
     expect(play.props["aria-label"]).toBe("Play prototype");
     expect(play.props).not.toHaveProperty("aria-pressed");
@@ -203,29 +213,111 @@ describe("CanvasTools", () => {
     expect(play.props["aria-disabled"]).toBeUndefined();
     (play.props.onClick as () => void)();
     expect(played).toBe(1);
-    expect(text(all(tree).filter(element => element.type === TooltipContent)[4]!.props.children as ReactNode)).toBe("Play prototype");
+    expect(text(all(tree).filter(element => element.type === TooltipContent)[4]!.props.children as ReactNode)).toBe("Play “Checkout”");
   });
 
-  it("an unavailable Play stays focusable, does nothing and names its reason as the tooltip and the description", () => {
+  // The name stays "Play prototype"; the tooltip and the description say what a press does now.
+  it.each([["play", PLAYER], ["drawer", DRAWER], ["disabled", DISABLED]] as const)("names Play the same and describes its %s state with its tooltip", (_kind, player) => {
+    const html = markup({ player });
+    const tag = html.match(/<button[^>]*aria-label="Play prototype"[^>]*>/)?.[0] ?? "";
+    expect(tag.match(/aria-describedby="([^"]+)"/)?.[1]).toBe("canvas-play-reason");
+    expect(html).toContain(`<span class="sr-only" id="canvas-play-reason">${player.tooltip}</span>`);
+    expect(text(all(CanvasTools(props({ player }))).filter(element => element.type === TooltipContent)[4]!.props.children as ReactNode)).toBe(player.tooltip);
+  });
+
+  it("an unavailable Play stays focusable and does nothing", () => {
     let played = 0;
-    const reason = "Select the frame itself to play its prototype.";
-    const tree = CanvasTools(props({ player: { reason, onPlay: () => played++ } }));
-    const play = buttons(tree)[4]!;
+    const play = buttons(CanvasTools(props({ player: { ...DISABLED, onPlay: () => played++ } })))[4]!;
     (play.props.onClick as () => void)();
     expect(played).toBe(0);
     expect(play.props["aria-disabled"]).toBe(true);
     expect(play.props.disabled).toBeUndefined();
-    expect(text(all(tree).filter(element => element.type === TooltipContent)[4]!.props.children as ReactNode)).toBe(reason);
-    const html = markup({ player: { reason, onPlay: () => {} } });
-    const tag = html.match(/<button[^>]*aria-label="Play prototype"[^>]*>/)?.[0] ?? "";
-    const id = tag.match(/aria-describedby="([^"]+)"/)?.[1];
-    expect(id).toBe("canvas-play-reason");
-    expect(html).toContain(`<span class="sr-only" id="canvas-play-reason">${reason}</span>`);
+  });
+
+  it("only the drawer state says Play opens a list, and a press there plays nothing", () => {
+    let played = 0;
+    for (const player of [PLAYER, DISABLED]) {
+      const tag = markup({ player }).match(/<button[^>]*aria-label="Play prototype"[^>]*>/)?.[0] ?? "";
+      expect(tag).not.toMatch(/aria-haspopup|aria-expanded|aria-controls/);
+    }
+    const drawer = markup({ player: DRAWER }).match(/<button[^>]*aria-label="Play prototype"[^>]*>/)?.[0] ?? "";
+    expect(drawer).toContain('aria-haspopup="listbox"');
+    expect(drawer).toContain('aria-expanded="false"');
+    expect(drawer).not.toContain("aria-disabled");
+    const open = markup({ player: { ...DRAWER, open: true } }).match(/<button[^>]*aria-label="Play prototype"[^>]*>/)?.[0] ?? "";
+    expect(open).toContain('aria-expanded="true"');
+    (buttons(CanvasTools(props({ player: { ...DRAWER, onPlay: () => played++ } })))[4]!.props.onClick as () => void)();
+    expect(played).toBe(0);
+  });
+
+  // The popover's trigger toggles on every press; outside the drawer state that must not open anything.
+  it("the drawer opens and closes only in the drawer state", () => {
+    for (const player of [PLAYER, DISABLED, DRAWER]) {
+      const onOpenChange = vi.fn();
+      const root = all(CanvasTools(props({ player: { ...player, onOpenChange } }))).find(element => element.type === Popover.Root)!;
+      expect(root.props.open).toBe(false);
+      (root.props.onOpenChange as (open: boolean) => void)(true);
+      (root.props.onOpenChange as (open: boolean) => void)(false);
+      expect(onOpenChange.mock.calls, player.kind).toEqual(player.kind === "drawer" ? [[true], [false]] : [[false]]);
+    }
+    const open = all(CanvasTools(props({ player: { ...DRAWER, open: true } }))).find(element => element.type === Popover.Root)!;
+    expect(open.props.open).toBe(true);
+    expect(all(CanvasTools(props({ player: { ...PLAYER, open: true } }))).find(element => element.type === Popover.Root)!.props.open).toBe(false);
+  });
+
+  it("the drawer holds the prototype window's list body above Play", () => {
+    const body = all(CanvasTools(props({ player: { ...DRAWER, open: true } }))).find(element => element.type === FrameListBody)!;
+    expect(body.props).toMatchObject({ label: "Prototype frames in Shop", groups: GROUPS, open: true, side: "top" });
+    expect(body.props.onPick).toBe(DRAWER.drawer!.onPick);
+    expect(all(CanvasTools(props())).some(element => element.type === FrameListBody)).toBe(false);
+  });
+
+  // The drawer's list sits in a portal, but React still bubbles its keys to the toolbar's handler. Arrows there are the
+  // list's (or nobody's), V and H are swallowed by the list so the canvas tools ignore them, and Esc is Radix's.
+  it("keys from a drawer row that reach the toolbar move no tool", () => {
+    const tree = CanvasTools(props({ player: { ...DRAWER, open: true } }));
+    const toolbar = all(tree).find(element => element.props.role === "toolbar")!;
+    const tools = ["Select", "Hand", "Picker", "Capture", "Play", "Export"].map(name => ({ name, focus: vi.fn() }));
+    const row = { name: "Checkout row", focus: vi.fn() };
+    vi.stubGlobal("document", { activeElement: row });
+    try {
+      for (const key of ["ArrowRight", "ArrowLeft", "v", "h", "Escape"]) {
+        const event = { key, currentTarget: { querySelectorAll: () => tools }, preventDefault: vi.fn() };
+        (toolbar.props.onKeyDown as (event: unknown) => void)(event);
+        expect(event.preventDefault, key).not.toHaveBeenCalled();
+      }
+      for (const tool of tools) expect(tool.focus, tool.name).not.toHaveBeenCalled();
+    } finally { vi.unstubAllGlobals(); }
+    const rows = DRAWER.drawer!.groups[0]!.rows;
+    const key = (name: string) => drawerKey(rows, "checkout", { key: name, metaKey: false, ctrlKey: false, altKey: false }, { text: "", at: 0 }, 1000);
+    expect([key("v").prevent, key("h").prevent]).toEqual([true, true]);
+    expect([key("ArrowRight").prevent, key("ArrowLeft").prevent, key("Escape").prevent]).toEqual([false, false, false]);
+  });
+
+  // POSTMORTEM 2026-11-13: a control whose state changes while focused keeps one element tree.
+  it("keeps Play the same element in every state", () => {
+    const path = (player: PlayTool) => {
+      const chain: unknown[] = [];
+      const walk = (node: ReactNode): boolean => {
+        if (Array.isArray(node)) return node.some(walk);
+        if (!isValidElement<Record<string, unknown>>(node)) return false;
+        if (node.type === "button" && node.props["aria-label"] === "Play prototype") { chain.push(node.type); return true; }
+        chain.push(node.type);
+        if (walk(node.props.children as ReactNode)) return true;
+        chain.pop();
+        return false;
+      };
+      walk(CanvasTools(props({ player })));
+      return chain;
+    };
+    expect(path(DRAWER)).toEqual(path(PLAYER));
+    expect(path(DISABLED)).toEqual(path(PLAYER));
+    expect(path({ ...DRAWER, open: true })).toEqual(path(PLAYER));
   });
 
   it("hands Play's button ref to App, which focuses it when the bubble's Play goes or the window closes", () => {
     const ref = { current: null };
-    const play = buttons(CanvasTools(props({ player: { reason: null, onPlay: () => {}, button: ref } })))[4]!;
+    const play = buttons(CanvasTools(props({ player: { ...PLAYER, button: ref } })))[4]!;
     expect(play.props.ref).toBe(ref);
   });
 
@@ -253,7 +345,7 @@ describe("CanvasTools", () => {
   // Escape to the canvas's next step and leaves it unprevented, so Radix still closes the tooltip on the same press.
   it("an Escape that closes any tool's tooltip also takes the canvas's next Escape step", () => {
     const onEscape = vi.fn();
-    for (const over of [{}, { picking: true }, { capturing: true }, { picker: { ...PICKER, enabled: false, reason: UNAVAILABLE } }, { exporter: { reason: "No canvas", onExport: () => {} } }, { player: { reason: "Select a supported frame to play its prototype.", onPlay: () => {} } }] as Partial<Props>[]) {
+    for (const over of [{}, { picking: true }, { capturing: true }, { picker: { ...PICKER, enabled: false, reason: UNAVAILABLE } }, { exporter: { reason: "No canvas", onExport: () => {} } }, { player: DISABLED }, { player: DRAWER }] as Partial<Props>[]) {
       const contents = all(CanvasTools(props({ ...over, onEscape }))).filter(element => element.type === TooltipContent);
       expect(contents).toHaveLength(6);
       for (const content of contents) {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { CanvasRow, FolderEntry } from "../view";
-import { exportTargetMatches, MAX_REPORT_FRAMES, MAX_REPORT_STRING, parseChooseRequest, parseComposerChoice, parseExportRequest, parseFramesReport, parseModeRequest, parsePanelRequest, parseReloadRequest, parseRevealRequest, parseRunReport, parseShowingRequest, playTarget, validateCliPlay, validatePlay, windowRequest } from "./requests";
+import { exportTargetMatches, MAX_GOTO_FRAMES, MAX_REPORT_FRAMES, MAX_REPORT_GOTOS, MAX_REPORT_STRING, parseChooseRequest, parseComposerChoice, parseExportRequest, parseFramesReport, parseGotoRequest, parseModeRequest, parsePanelRequest, parseReloadRequest, parseRevealRequest, parseRunReport, parseShowingRequest, playTarget, validateCliPlay, validatePlay, windowRequest } from "./requests";
 
 const base = "http://127.0.0.1:5123/t/tok/";
 function row(path: string, patch: Partial<CanvasRow> = {}): CanvasRow {
@@ -74,6 +74,20 @@ describe("prototype window requests", () => {
     expect(parseReloadRequest("main", { gen: 3 })).toBeNull();
   });
 
+  test("a followed link names its run and the link's raw value, or null for a value no frame can have", () => {
+    expect(parseGotoRequest("prototype", { gen: 3, goto: "tablet" })).toEqual({ gen: 3, goto: "tablet" });
+    expect(parseGotoRequest("prototype", { gen: 3, goto: null })).toEqual({ gen: 3, goto: null });
+    // Empty and unknown values are judged against the run's list, not here.
+    expect(parseGotoRequest("prototype", { gen: 3, goto: "" })).toEqual({ gen: 3, goto: "" });
+    expect(parseGotoRequest("prototype", { gen: 3, goto: "x".repeat(MAX_REPORT_STRING) })).toEqual({ gen: 3, goto: "x".repeat(MAX_REPORT_STRING) });
+    for (const value of [
+      { gen: 3, goto: "x".repeat(MAX_REPORT_STRING + 1) }, { gen: 3, goto: 1 }, { gen: 3, goto: ["tablet"] }, { gen: 3, goto: { value: "tablet" } }, { gen: 3 },
+      { goto: "tablet" }, { gen: 0, goto: "tablet" }, { gen: -1, goto: "tablet" }, { gen: 1.5, goto: "tablet" }, { gen: "3", goto: "tablet" },
+      { gen: Number.MAX_SAFE_INTEGER + 1, goto: "tablet" }, { gen: 3, goto: "tablet", frame: "phone" }, null, undefined, "tablet", [3, "tablet"],
+    ]) expect(parseGotoRequest("prototype", value), JSON.stringify(value)).toBeNull();
+    for (const kind of ["main", "settings", undefined, null, ""]) expect(parseGotoRequest(kind, { gen: 3, goto: "tablet" })).toBeNull();
+  });
+
   test("the viewport toggle names Fit or Responsive and nothing else", () => {
     expect(parseModeRequest("prototype", { mode: "fit" })).toBe("fit");
     expect(parseModeRequest("prototype", { mode: "responsive" })).toBe("responsive");
@@ -91,29 +105,31 @@ describe("prototype window requests", () => {
 
 describe("parseRunReport", () => {
   const frames = [{ id: "phone", title: "Phone", size: "390x844", number: 1 }, { id: "tablet", size: "820x1180", number: 3 }];
+  const gotos = [{ value: "tablet", frames: ["phone"] }, { value: "", frames: [] }];
 
-  test("a ready run reports its size and the canvas's marked frames", () => {
-    expect(parseRunReport("prototype", { gen: 2, state: "ready", size: "390x844", frames })).toEqual({ gen: 2, state: "ready", size: { width: 390, height: 844 }, frames });
+  test("a ready run reports its size, the canvas's marked frames and its links", () => {
+    expect(parseRunReport("prototype", { gen: 2, state: "ready", size: "390x844", frames, gotos })).toEqual({ gen: 2, state: "ready", size: { width: 390, height: 844 }, frames, gotos });
   });
 
-  test("a lost frame still reports the marked frames for the drawer", () => {
-    for (const state of ["missing", "duplicate", "unmarked", "invalid"]) {
-      expect(parseRunReport("prototype", { gen: 2, state, frames })).toEqual({ gen: 2, state, frames });
+  test("a lost frame still reports the marked frames and links for the drawer", () => {
+    for (const state of ["missing", "duplicate", "unmarked", "invalid"] as const) {
+      expect(parseRunReport("prototype", { gen: 2, state, frames, gotos })).toEqual({ gen: 2, state, frames, gotos });
     }
   });
 
   test("a timeout carries nothing else", () => {
     expect(parseRunReport("prototype", { gen: 2, state: "timeout" })).toEqual({ gen: 2, state: "timeout" });
     expect(parseRunReport("prototype", { gen: 2, state: "timeout", frames })).toBeNull();
+    expect(parseRunReport("prototype", { gen: 2, state: "timeout", gotos })).toBeNull();
   });
 
   test("refuses other senders, unknown states, bad generations and bad sizes", () => {
-    expect(parseRunReport("main", { gen: 2, state: "ready", size: "390x844", frames })).toBeNull();
-    expect(parseRunReport("prototype", { gen: 2, state: "loading", frames })).toBeNull();
-    expect(parseRunReport("prototype", { gen: 0, state: "missing", frames })).toBeNull();
-    expect(parseRunReport("prototype", { gen: 2, state: "ready", size: "390", frames })).toBeNull();
-    expect(parseRunReport("prototype", { gen: 2, state: "ready", frames })).toBeNull();
-    expect(parseRunReport("prototype", { gen: 2, state: "missing", size: "390x844", frames })).toBeNull();
+    expect(parseRunReport("main", { gen: 2, state: "ready", size: "390x844", frames, gotos })).toBeNull();
+    expect(parseRunReport("prototype", { gen: 2, state: "loading", frames, gotos })).toBeNull();
+    expect(parseRunReport("prototype", { gen: 0, state: "missing", frames, gotos })).toBeNull();
+    expect(parseRunReport("prototype", { gen: 2, state: "ready", size: "390", frames, gotos })).toBeNull();
+    expect(parseRunReport("prototype", { gen: 2, state: "ready", frames, gotos })).toBeNull();
+    expect(parseRunReport("prototype", { gen: 2, state: "missing", size: "390x844", frames, gotos })).toBeNull();
   });
 
   test("refuses a frame list that is not unique, marked and within the caps", () => {
@@ -134,20 +150,77 @@ describe("parseRunReport", () => {
       [{ id: "a", size: "390x844", number: 3 }, { id: "b", size: "390x844", number: 1 }],
       "phone",
     ];
-    for (const list of bad) expect(parseRunReport("prototype", { gen: 2, state: "missing", frames: list })).toBeNull();
-    expect(parseRunReport("prototype", { gen: 2, state: "missing", frames: [] })).toEqual({ gen: 2, state: "missing", frames: [] });
+    for (const list of bad) expect(parseRunReport("prototype", { gen: 2, state: "missing", frames: list, gotos: [] })).toBeNull();
+    expect(parseRunReport("prototype", { gen: 2, state: "missing", frames: [], gotos: [] })).toEqual({ gen: 2, state: "missing", frames: [], gotos: [] });
+  });
+
+  test("links: raw values and enclosing frame ids, empty allowed, within the caps", () => {
+    const edge = "x".repeat(MAX_REPORT_STRING);
+    const ok = [
+      [],
+      [{ value: edge, frames: [edge, "", "unmarked"] }],
+      // The same link twice, and a link no frame encloses, are both reports the drawer can take.
+      [{ value: "a", frames: ["b"] }, { value: "a", frames: ["b"] }, { value: "a", frames: [] }],
+      Array.from({ length: MAX_REPORT_GOTOS }, () => ({ value: "a", frames: [] })),
+      [{ value: "a", frames: Array.from({ length: MAX_GOTO_FRAMES }, (_, i) => `f${i}`) }],
+    ];
+    for (const list of ok) expect(parseRunReport("prototype", { gen: 2, state: "missing", frames: [], gotos: list })).toEqual({ gen: 2, state: "missing", frames: [], gotos: list });
+  });
+
+  test("refuses links that are missing, malformed or over a cap", () => {
+    expect(parseRunReport("prototype", { gen: 2, state: "missing", frames: [] })).toBeNull();
+    expect(parseRunReport("prototype", { gen: 2, state: "ready", size: "1x1", frames: [] })).toBeNull();
+    const bad = [
+      "a",
+      {},
+      [null],
+      ["a"],
+      [{ value: "a" }],
+      [{ frames: [] }],
+      [{ value: "a", frames: [], extra: true }],
+      [{ value: 1, frames: [] }],
+      [{ value: "x".repeat(MAX_REPORT_STRING + 1), frames: [] }],
+      [{ value: "a", frames: "b" }],
+      [{ value: "a", frames: [1] }],
+      [{ value: "a", frames: ["x".repeat(MAX_REPORT_STRING + 1)] }],
+      [{ value: "a", frames: Array.from({ length: MAX_GOTO_FRAMES + 1 }, (_, i) => `f${i}`) }],
+      Array.from({ length: MAX_REPORT_GOTOS + 1 }, () => ({ value: "a", frames: [] })),
+    ];
+    for (const list of bad) {
+      expect(parseRunReport("prototype", { gen: 2, state: "missing", frames: [], gotos: list }), JSON.stringify(list).slice(0, 80)).toBeNull();
+      expect(parseFramesReport("prototype", { gen: 2, frames: [], gotos: list }), JSON.stringify(list).slice(0, 80)).toBeNull();
+    }
+  });
+});
+
+describe("sparse report arrays", () => {
+  // Structured clone keeps holes, and a hole is not a string or a record, whichever list it is in.
+  test("a hole in the frames, the links or a link's frames is refused by both report parsers", () => {
+    const holes = [
+      { frames: new Array(1), gotos: [] },
+      { frames: [], gotos: new Array(1) },
+      { frames: [], gotos: [{ value: "b", frames: new Array(1) }] },
+      { frames: [], gotos: [{ value: "b", frames: ["a", , "c"] }] },
+    ];
+    for (const lists of holes) {
+      const label = JSON.stringify(lists, (_key, value: unknown) => value === undefined ? "<hole>" : value);
+      expect(parseRunReport("prototype", structuredClone({ gen: 1, state: "missing", ...lists })), label).toBeNull();
+      expect(parseFramesReport("prototype", structuredClone({ gen: 1, ...lists })), label).toBeNull();
+    }
   });
 });
 
 describe("parseFramesReport", () => {
-  test("the list the run sends after load", () => {
-    expect(parseFramesReport("prototype", { gen: 4, frames: [{ id: "a", size: "1x1", number: 2 }] })).toEqual({ gen: 4, frames: [{ id: "a", size: "1x1", number: 2 }] });
-    expect(parseFramesReport("main", { gen: 4, frames: [] })).toBeNull();
+  test("the list and links the run sends after load", () => {
+    const gotos = [{ value: "b", frames: ["a"] }];
+    expect(parseFramesReport("prototype", { gen: 4, frames: [{ id: "a", size: "1x1", number: 2 }], gotos })).toEqual({ gen: 4, frames: [{ id: "a", size: "1x1", number: 2 }], gotos });
+    expect(parseFramesReport("main", { gen: 4, frames: [], gotos: [] })).toBeNull();
     expect(parseFramesReport("prototype", { gen: 4 })).toBeNull();
+    expect(parseFramesReport("prototype", { gen: 4, frames: [] })).toBeNull();
+    expect(parseFramesReport("prototype", { gen: 4, gotos: [] })).toBeNull();
   });
 });
 
-// The row and canvas key a play names, shared by the main window's Play and `doan open --prototype` (app-socket v6).
 describe("playTarget", () => {
   test("a listed row and a valid mark give the target and the mark's size", () => {
     expect(playTarget("/r", proto.path, "phone", "390x844", entries)).toEqual({ target: { root: "/r", canvas: { id: "proto" }, frame: "phone" }, size: { width: 390, height: 844 } });

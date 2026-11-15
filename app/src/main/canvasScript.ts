@@ -221,6 +221,8 @@ interface CanvasLib {
 
 export function canvasScript(lib: CanvasLib): void {
   const MAX_FRAMES = 1000;
+  // canvasMessage.ts's MAX_GOTOS.
+  const MAX_GOTOS = 1000;
   const MAX_STRING = 200;
   // mark.ts's MAX_PROTOTYPE_MARK: the longest valid mark is 11 characters, so a cut value stays invalid.
   const MAX_PROTOTYPE_MARK = 32;
@@ -246,8 +248,18 @@ export function canvasScript(lib: CanvasLib): void {
   let started = false;
   const documentToken = `${Date.now()}-${Math.random()}`;
 
+  // `parent` is the nearest enclosing frame's index in the list; a frame's ancestors come before it in document order,
+  // so a listed frame's enclosing frames are all listed. `gotos` name the innermost listed frame around each link.
   const frames = () => {
-    const list: { id: string; title?: string; prototype?: string; x: number; y: number; width: number; height: number }[] = [];
+    const list: { id: string; title?: string; prototype?: string; cut?: true; parent?: number; x: number; y: number; width: number; height: number }[] = [];
+    const listed = new Map<Element, number>();
+    const listedAround = (el: Element | null) => {
+      for (let node = el; node !== null; node = node.parentElement) {
+        const index = listed.get(node);
+        if (index !== undefined) return index;
+      }
+      return undefined;
+    };
     let truncated = false;
     const clip = (text: string) => {
       const kept = lib.clipText(text, MAX_STRING);
@@ -277,15 +289,31 @@ export function canvasScript(lib: CanvasLib): void {
         truncated = true;
         continue;
       }
-      const frame: (typeof list)[number] = { id: clip(el.getAttribute("data-doan-frame") ?? ""), x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height };
+      const id = el.getAttribute("data-doan-frame") ?? "";
+      const frame: (typeof list)[number] = { id: clip(id), x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height };
       const title = el.getAttribute("data-doan-title");
       if (title !== null) frame.title = clip(title);
+      // A cut ID is not the frame's, so the frame cannot play: `cut` keeps it out of play and out of link groups (which
+      // compare raw ids), while its place, number and mark stay, so Play can say a marked frame can't play.
+      if (frame.id !== id) frame.cut = true;
       // The raw prototype mark, judged by the renderer; cutting a junk value does not make the list truncated.
       const mark = el.getAttribute("data-doan-prototype");
       if (mark !== null) frame.prototype = lib.clipText(mark, MAX_PROTOTYPE_MARK);
+      const parentIndex = listedAround(el.parentElement);
+      if (parentIndex !== undefined) frame.parent = parentIndex;
+      listed.set(el, list.length);
       list.push(frame);
     }
-    return { list, truncated, bottom };
+    // A value over the cap is left out, not cut: no frame can have it, and a cut one could name another frame.
+    const gotos: { value: string; frame?: number }[] = [];
+    for (const el of document.querySelectorAll("[data-doan-goto]")) {
+      if (gotos.length === MAX_GOTOS) break;
+      const value = el.getAttribute("data-doan-goto") ?? "";
+      if (value.length > MAX_STRING) continue;
+      const frame = listedAround(el);
+      gotos.push(frame === undefined ? { value } : { value, frame });
+    }
+    return { list, truncated, bottom, gotos };
   };
 
   // Selection state. `seq` is the last command seq from the renderer, raised by
@@ -588,12 +616,12 @@ export function canvasScript(lib: CanvasLib): void {
     if (firstLayoutAt === null) firstLayoutAt = performance.now();
     tryPending();
     const html = document.documentElement;
-    const { list, truncated, bottom } = frames();
+    const { list, truncated, bottom, gotos } = frames();
     const measured = lib.documentHeight(Math.ceil(html.getBoundingClientRect().height), html.scrollHeight, innerHeight, bottom);
     height = lib.nextHeight(height, measured, innerHeight, fontLoads);
     // `viewport` lets the renderer drop a layout measured before its last
     // resize of the iframe reached this document.
-    const message: Record<string, unknown> = { type: "layout", document: documentToken, href: location.href, height: height.sent, viewport: innerHeight, frames: list, truncated };
+    const message: Record<string, unknown> = { type: "layout", document: documentToken, href: location.href, height: height.sent, viewport: innerHeight, frames: list, truncated, gotos };
     if (selected !== null) {
       // A framework may swap the node for an equal one; look once more by the
       // same anchor before giving the selection up.

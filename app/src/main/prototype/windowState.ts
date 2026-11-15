@@ -2,7 +2,7 @@
 // and run results, runs the returned effects in order and sends `prototypeView` to the window whenever the state
 // object changes. Main-window navigation and hiding are not events here, so they cannot change the run.
 import { EMPTY_HISTORY, canStep, recordEntry, stepHistory, type Direction, type History } from "./history";
-import type { PanelRequest, PrototypeFrame, PrototypeMode, PrototypePanel, PrototypePhase, PrototypeView, RunReport } from "./ipc";
+import type { GotoMessage, PanelRequest, PrototypeFrame, PrototypeGoto, PrototypeMode, PrototypePanel, PrototypePhase, PrototypeView, RunReport } from "./ipc";
 import { parsePrototypeMark, type PrototypeSize } from "./mark";
 import { canvasKeyString, sameCanvas, sameTarget, type CanvasRef, type PrototypeTarget, type Resolution } from "./targets";
 
@@ -64,6 +64,8 @@ export interface OpenState {
   readonly previousStopped: boolean;
   // The drawer list of the target's canvas, from the current run.
   readonly frames: readonly PrototypeFrame[];
+  // That run's links, for the drawer's groups; they come and go with `frames`.
+  readonly gotos: readonly PrototypeGoto[];
   // The last listed frame IDs per canvas seen in this window: `doan ls` has no marks, so Back/Forward know a canvas's
   // marked frames only from its runs. A canvas never reported is played and judged by its run.
   readonly reports: Readonly<Record<string, readonly string[]>>;
@@ -109,10 +111,10 @@ function latestTitle(frames: readonly { id: string; title?: string }[], state: O
 }
 
 // A new run of `target`. `fit` is set for a play that changes the target (or opens the window); a reload, Retry or
-// restore keeps the window's size and does not activate it.
-function start(state: PrototypeState, target: PrototypeTarget, resolved: Present, fit: { size: PrototypeSize; create: boolean } | null, history: History<HistoryEntry>): Step {
+// restore keeps the window's size and does not activate it. `quiet` fits without activating (a link move).
+function start(state: PrototypeState, target: PrototypeTarget, resolved: Present, fit: { size: PrototypeSize; create: boolean; quiet?: true } | null, history: History<HistoryEntry>): Step {
   const effects: Effect[] = [];
-  if (fit !== null) effects.push(fit.create ? { kind: "create", size: fit.size } : { kind: "fit", size: fit.size }, ...(fit.create ? [] : [{ kind: "activate" } as const]));
+  if (fit !== null) effects.push(fit.create ? { kind: "create", size: fit.size } : { kind: "fit", size: fit.size }, ...(fit.create || fit.quiet ? [] : [{ kind: "activate" } as const]));
   const killed = leaving(state);
   effects.push(...killed);
   const gen = state.gen + 1;
@@ -127,7 +129,7 @@ function start(state: PrototypeState, target: PrototypeTarget, resolved: Present
     open: true as const, gen, history, mode: state.mode, panel: state.panel, target, source: resolved.source, url: resolved.url, label: resolved.label, path: resolved.path,
     title: listedTitle !== undefined ? listedTitle : sameFrame && state.open ? state.title : null,
     previousStopped: killed.length > 0 || (state.open && state.previousStopped),
-    frames: keepFrames && state.open ? state.frames : [], reports: state.open ? state.reports : {}, fitHint: fit?.size ?? null,
+    frames: keepFrames && state.open ? state.frames : [], gotos: keepFrames && state.open ? state.gotos : [], reports: state.open ? state.reports : {}, fitHint: fit?.size ?? null,
   };
   if (resolved.error) {
     return { state: { ...base, phase: "read-failed", listed: "error", run: state.open ? state.run : null }, effects };
@@ -168,6 +170,24 @@ export function choose(state: PrototypeState, frame: string, resolve: Resolve): 
   return playTarget(state, { ...state.target, frame }, size, resolve);
 }
 
+// A link the playing frame followed. Main judges it again by its own run: the canvas can post a current-gen message
+// itself, and the window's view can trail main's state. Only a frame the ready run listed moves; the playing frame
+// starts over as Reload does. A move does not activate: a canvas whose timer clicks a link would otherwise show a
+// hidden app and take focus from another app.
+export function goto(state: PrototypeState, message: GotoMessage, resolve: Resolve): Step | null {
+  if (!state.open || state.phase !== "ready" || message.gen !== state.gen || message.goto === null) return null;
+  const frame = message.goto;
+  const listed = state.frames.find(candidate => candidate.id === frame);
+  const size = listed === undefined ? null : parsePrototypeMark(listed.size);
+  if (size === null) return null;
+  const target = { ...state.target, frame };
+  // Before the self-link branch too: Reload restarts from the last URL without asking, which a gone canvas must refuse.
+  const resolved = resolve(target);
+  if (resolved.kind !== "present") return null;
+  if (frame === state.target.frame) return reload(state, state.gen);
+  return start(state, target, resolved, { size, create: false, quiet: true }, recordEntry(state.history, { target, size }, same));
+}
+
 function go(state: PrototypeState, direction: Direction, resolve: Resolve): Step | null {
   if (!state.open) return null;
   const history = stepHistory(state.history, direction, usable(state, resolve));
@@ -195,7 +215,7 @@ export function listChanged(state: PrototypeState, resolve: Resolve): Step {
     if (state.listed === "absent") return none(state);
     const { detail: _detail, ...rest } = state;
     const killed = leaving(state);
-    return { state: { ...rest, phase: "frame-unavailable", listed: "absent", frames: [], fitHint: null, previousStopped: killed.length > 0 || state.previousStopped }, effects: killed };
+    return { state: { ...rest, phase: "frame-unavailable", listed: "absent", frames: [], gotos: [], fitHint: null, previousStopped: killed.length > 0 || state.previousStopped }, effects: killed };
   }
   if (state.listed !== "absent" && resolved.source === state.source && resolved.error === (state.listed === "error")) return none(state);
   return start(state, state.target, resolved, null, state.history);
@@ -221,19 +241,19 @@ export function report(state: PrototypeState, result: RunReport): Step {
   const title = latestTitle(result.frames, state);
   if (result.state !== "ready") {
     const phase = result.state === "missing" || result.state === "duplicate" ? "frame-unavailable" : "prototype-unavailable";
-    return { state: { ...state, phase, frames: result.frames, reports, title, fitHint: null }, effects: [] };
+    return { state: { ...state, phase, frames: result.frames, gotos: result.gotos, reports, title, fitHint: null }, effects: [] };
   }
   const { size } = result;
   const hint = state.fitHint;
   const effects: Effect[] = hint !== null && (hint.width !== size.width || hint.height !== size.height) ? [{ kind: "fit", size }] : [];
   const entries = state.history.entries.map(entry => (sameTarget(entry.target, state.target) ? { ...entry, size } : entry));
   const run = state.run === null ? null : { ...state.run, markWidth: size.width, markHeight: size.height };
-  return { state: { ...state, phase: "ready", run, frames: result.frames, reports, title, previousStopped: false, fitHint: null, history: { entries, index: state.history.index } }, effects };
+  return { state: { ...state, phase: "ready", run, frames: result.frames, gotos: result.gotos, reports, title, previousStopped: false, fitHint: null, history: { entries, index: state.history.index } }, effects };
 }
 
-export function framesReported(state: PrototypeState, gen: number, frames: PrototypeFrame[]): Step {
+export function framesReported(state: PrototypeState, gen: number, frames: PrototypeFrame[], gotos: PrototypeGoto[]): Step {
   if (!state.open || gen !== state.gen || state.listed !== "ok") return none(state);
-  return { state: { ...state, frames, title: latestTitle(frames, state), reports: { ...state.reports, [canvasKeyString(state.target)]: frames.map(frame => frame.id) } }, effects: [] };
+  return { state: { ...state, frames, gotos, title: latestTitle(frames, state), reports: { ...state.reports, [canvasKeyString(state.target)]: frames.map(frame => frame.id) } }, effects: [] };
 }
 
 // The server could not give the run's document (main sees the iframe's failed load).
@@ -270,7 +290,7 @@ export function prototypeView(state: PrototypeState, resolve: Resolve): Prototyp
   const ok = usable(state, resolve);
   return {
     gen: state.gen, root: state.target.root, path: resolved.kind === "present" ? resolved.path : state.path, ...("id" in state.target.canvas ? { canvasId: state.target.canvas.id } : {}), frame, title, canvas: resolved.kind === "present" ? resolved.label : state.label, phase: state.phase, ...(state.detail === undefined ? {} : { detail: state.detail }),
-    run: state.run, mode: state.mode, previousStopped: state.previousStopped, frames: [...state.frames], canGoBack: canStep(state.history, "back", ok), canGoForward: canStep(state.history, "forward", ok),
+    run: state.run, mode: state.mode, previousStopped: state.previousStopped, frames: [...state.frames], gotos: state.gotos.map(link => ({ value: link.value, frames: [...link.frames] })), canGoBack: canStep(state.history, "back", ok), canGoForward: canStep(state.history, "forward", ok),
     panel: { ...state.panel },
     canvasRow: resolved.kind === "present" ? "present" : resolved.kind === "unknown" ? "loading" : resolved.duplicate ? "duplicate" : "gone",
   };

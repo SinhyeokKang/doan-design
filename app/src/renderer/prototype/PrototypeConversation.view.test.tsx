@@ -50,7 +50,7 @@ const summary = (patch: Partial<ConversationSummary> = {}): ConversationSummary 
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
   gen: 1, root: ROOT, path: CHECKOUT.path, canvasId: "checkout", frame: "pay", title: "Pay", canvas: "checkout", phase: "ready", mode: "fit",
   run: { url: "http://x/a.html", markWidth: 390, markHeight: 844 }, frames: [{ id: "pay", title: "Pay", size: "390x844", number: 1 }],
-  canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: true, width: 280 }, canvasRow: "present", ...over,
+  gotos: [], canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: true, width: 280 }, canvasRow: "present", ...over,
 });
 const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 

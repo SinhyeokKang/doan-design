@@ -4299,7 +4299,7 @@ describe("capture", () => {
     const event = keyEvent("keydown", "Escape", { target, ...over });
     if (tooltip) {
       const toolbar = CanvasTools({ tool: "select", picking: false, capturing: h.state().capturing, onTool: () => {}, picker: { enabled: true, reason: null, onToggle: () => {} },
-        capture: { enabled: true, reason: null, onToggle: () => {} }, player: { reason: null, onPlay: () => {} }, exporter: { reason: null, onExport: () => {} }, onEscape: (escape: KeyboardEvent) => h.controller.toolbarEscape(escape) });
+        capture: { enabled: true, reason: null, onToggle: () => {} }, player: { kind: "play", tooltip: "Play prototype", onPlay: () => {}, open: false, onOpenChange: () => {}, drawer: null }, exporter: { reason: null, onExport: () => {} }, onEscape: (escape: KeyboardEvent) => h.controller.toolbarEscape(escape) });
       const content = walk(toolbar).find(element => element.type === TooltipContent)!;
       (content.props.onEscapeKeyDown as ((event: Event) => void) | undefined)?.(event);
       // Radix dismisses the tooltip.

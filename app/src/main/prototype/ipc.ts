@@ -21,6 +21,8 @@ export const PROTOTYPE_CHANNELS = {
   changed: "prototype:changed",
   result: "prototype:result",
   frames: "prototype:frames",
+  // A link the run's document followed (GotoMessage); main judges it against its own run.
+  goto: "prototype:goto",
   reload: "prototype:reload",
   back: "prototype:back",
   forward: "prototype:forward",
@@ -79,10 +81,13 @@ export const PROTOTYPE_CHANNELS = {
   // and its read.
   promoted: "prototype:promoted",
   promotedChanged: "prototype:promotedChanged",
+  // To the main window: the frame the window plays (PrototypePlaying | null) whenever it changes, and the main window's
+  // read of it. The toolbar's frame drawer marks that row while it is a frame of the canvas the main window shows.
+  playing: "prototype:playing",
 } as const;
 
 export const PROTOTYPE_WINDOW_REQUESTS: readonly string[] = [
-  PROTOTYPE_CHANNELS.read, PROTOTYPE_CHANNELS.result, PROTOTYPE_CHANNELS.frames, PROTOTYPE_CHANNELS.reload,
+  PROTOTYPE_CHANNELS.read, PROTOTYPE_CHANNELS.result, PROTOTYPE_CHANNELS.frames, PROTOTYPE_CHANNELS.goto, PROTOTYPE_CHANNELS.reload,
   PROTOTYPE_CHANNELS.back, PROTOTYPE_CHANNELS.forward, PROTOTYPE_CHANNELS.choose, PROTOTYPE_CHANNELS.close,
   PROTOTYPE_CHANNELS.mode, PROTOTYPE_CHANNELS.export, PROTOTYPE_CHANNELS.revealExport, PROTOTYPE_CHANNELS.visible,
   PROTOTYPE_CHANNELS.panel, PROTOTYPE_CHANNELS.showing, PROTOTYPE_CHANNELS.reveal,
@@ -115,6 +120,15 @@ export interface PrototypeFrame {
 
 export type LostState = "missing" | "duplicate" | "unmarked" | "invalid";
 
+// A `data-doan-goto` link of the run's document outside `<template>`, in document order: its raw value and the raw ids
+// of the frames around it, outermost first, the element itself last when it is a frame. A value or id over 200 UTF-16
+// units is left out rather than cut (a link with such a value is not reported, such a frame is not in `frames`), so the
+// link groups are computed from raw ids as the shared fixture defines them.
+export interface PrototypeGoto {
+  value: string;
+  frames: string[];
+}
+
 // The prototype script in the run's document posts a RunMessage once and, when that went out before the `load`
 // handlers, one FramesMessage after them, both exactly as typed here (a RunMessage has `state`, a FramesMessage does
 // not). The host accepts only its current iframe's window, origin "null" and the current `gen`, then forwards the data
@@ -122,20 +136,28 @@ export type LostState = "missing" | "duplicate" | "unmarked" | "invalid";
 // `prototype:result`, sent once per run by the host. `ready` and the lost states come from the prototype script in the
 // run's document (at DOMContentLoaded, or after the `load` handlers); `timeout` is the host's own 10 s timer.
 export type RunMessage =
-  | { gen: number; state: "ready"; size: string; frames: PrototypeFrame[] }
-  | { gen: number; state: LostState; frames: PrototypeFrame[] }
+  | { gen: number; state: "ready"; size: string; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
+  | { gen: number; state: LostState; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
   | { gen: number; state: "timeout" };
 
 // What main acts on once a message is validated.
 export type RunReport =
-  | { gen: number; state: "ready"; size: PrototypeSize; frames: PrototypeFrame[] }
-  | { gen: number; state: LostState; frames: PrototypeFrame[] }
+  | { gen: number; state: "ready"; size: PrototypeSize; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
+  | { gen: number; state: LostState; frames: PrototypeFrame[]; gotos: PrototypeGoto[] }
   | { gen: number; state: "timeout" };
 
 // `prototype:frames`: the drawer list the run sends after the `load` handlers, when its result went out earlier.
 export interface FramesMessage {
   gen: number;
   frames: PrototypeFrame[];
+  gotos: PrototypeGoto[];
+}
+
+// A click on a link inside the playing frame that the canvas did not default-prevent, posted by the prototype script
+// after a 0 ms timer. `goto` is the link's raw value, or null when it is over 200 UTF-16 units (no frame can have it).
+export interface GotoMessage {
+  gen: number;
+  goto: string | null;
 }
 
 // Fit keeps the frame's viewport at its mark and scales it down to the panel; Responsive makes the panel the viewport.
@@ -170,6 +192,8 @@ export interface PrototypeView {
   // (re-sent under this `gen` before this view). False again once a run is ready.
   previousStopped: boolean;
   frames: PrototypeFrame[];
+  // The current run's links, for the drawer's groups; kept and cleared with `frames`.
+  gotos: PrototypeGoto[];
   canGoBack: boolean;
   canGoForward: boolean;
   // Main keeps it across runs and close, for as long as the app runs.
@@ -178,6 +202,14 @@ export interface PrototypeView {
   // unregistered root or a failed list) or its ID shared by two rows. The panel's composer refuses input while it is
   // gone or shared.
   canvasRow: "present" | "loading" | "gone" | "duplicate";
+}
+
+// `prototype:playing`: the playing target as the main window names a canvas (its root, its row's last listed path and
+// its ID when it has one) and the frame.
+export interface PrototypePlaying {
+  root: string;
+  canvas: { path: string; id?: string };
+  frame: string;
 }
 
 // The conversation panel. `width` is null until the panel first opened; main fits it to the window when it opens.
@@ -244,6 +276,7 @@ export interface PrototypeWindowApi {
   onChanged(listener: (view: PrototypeView | null) => void): () => void;
   reportResult(message: RunMessage): Promise<void>;
   reportFrames(message: FramesMessage): Promise<void>;
+  goto(message: GotoMessage): Promise<void>;
   reload(gen: number): Promise<void>;
   back(): Promise<void>;
   forward(): Promise<void>;

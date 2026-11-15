@@ -8,7 +8,7 @@ import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem
 import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, TrashMarks, type OpenCanvas } from "./canvasView";
 import { switchTarget } from "./switchTarget";
 import { activityKey, activityKind, pushActivity, type ActivityEvent } from "./activity";
-import { canvasPlayability } from "./prototypePlay";
+import { sizeBubblePlay } from "./prototypePlay";
 import { SIZE_BUBBLE, sizeBubblePlace, type BubbleRoom } from "./sizeBubble";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
 import { boardRectToScreen, boardToScreen, screenToBoard, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
@@ -2144,7 +2144,7 @@ export class CanvasController {
     const active = document.activeElement;
     const onPlay = bubble.playShown && active === bubble.play;
     const onAdd = active !== null && this.bubbleAdd !== null && active === this.bubbleAdd.button();
-    const play = selected !== null && this.bubblePlay !== null && canvasPlayability(this.state).enabled;
+    const play = selected !== null && this.bubblePlay !== null && sizeBubblePlay(this.state);
     if (play !== bubble.playShown) {
       if (play) size.prepend(bubble.play ??= this.makePlay());
       else bubble.play?.remove();

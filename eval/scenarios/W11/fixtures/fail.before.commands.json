@@ -1,0 +1,46 @@
+[
+  [
+    "work",
+    "start",
+    ".doan/canvases/onboarding.html",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ],
+  [
+    "work",
+    "update",
+    ".doan/canvases/onboarding.html",
+    "--frame",
+    "welcome",
+    "--note",
+    "Linking onboarding screens",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ],
+  [
+    "work",
+    "update",
+    ".doan/canvases/onboarding.html",
+    "--frame",
+    "signup",
+    "--note",
+    "Linking onboarding screens",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ],
+  [
+    "work",
+    "update",
+    ".doan/canvases/onboarding.html",
+    "--frame",
+    "done",
+    "--note",
+    "Linking onboarding screens",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

@@ -3,7 +3,7 @@ import type { PrototypeFrame } from "./ipc";
 import type { CanvasRow } from "../view";
 import { canvasKeyString, resolveTarget, type PrototypeTarget, type Resolution } from "./targets";
 import {
-  CLOSED, back, choose, close, forward, framesReported, listChanged, play, prototypeView, readFailed, reload, report, setMode, setPanel, type PrototypeState, type Resolve, type Step,
+  CLOSED, back, choose, close, forward, framesReported, goto, listChanged, play, prototypeView, readFailed, reload, report, setMode, setPanel, type PrototypeState, type Resolve, type Step,
 } from "./windowState";
 
 const A: PrototypeTarget = { root: "/r", canvas: { id: "proto" }, frame: "phone" };
@@ -32,7 +32,7 @@ function ok(step: Step | null): Step {
 }
 
 function ready(state: PrototypeState, size = "390x844", frames = listed): Step {
-  return report(state, { gen: state.gen, state: "ready", size: parse(size), frames });
+  return report(state, { gen: state.gen, state: "ready", size: parse(size), frames, gotos: [] });
 }
 function parse(size: string) {
   const [w, h] = size.split("x").map(Number);
@@ -188,7 +188,7 @@ describe("source changes and loss", () => {
     const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
     const cases = [["missing", "frame-unavailable"], ["duplicate", "frame-unavailable"], ["unmarked", "prototype-unavailable"], ["invalid", "prototype-unavailable"]] as const;
     for (const [state, phase] of cases) {
-      const step = report(loading, { gen: 1, state, frames: listed.slice(1) });
+      const step = report(loading, { gen: 1, state, frames: listed.slice(1), gotos: [] });
       expect(step.effects).toEqual([]);
       expect(prototypeView(step.state, w.resolve)).toMatchObject({ phase, frames: listed.slice(1) });
     }
@@ -245,7 +245,7 @@ describe("review round 1", () => {
     // The frame's ID changes in the file: doan ls and the next run no longer list it.
     w.set(A, w.present("http://h/t/tok/k1/proto.html", "s2", [{ id: "phone-gone", title: "Phone" }]));
     const reloading = listChanged(shown, w.resolve).state;
-    const missing = report(reloading, { gen: reloading.gen, state: "missing", frames: [] }).state;
+    const missing = report(reloading, { gen: reloading.gen, state: "missing", frames: [], gotos: [] }).state;
     expect(prototypeView(missing, w.resolve)).toMatchObject({ phase: "frame-unavailable", title: "Phone" });
     w.set(A, { kind: "absent" });
     expect(prototypeView(listChanged(shown, w.resolve).state, w.resolve)).toMatchObject({ phase: "frame-unavailable", title: "Phone" });
@@ -282,7 +282,7 @@ describe("the frame's title", () => {
     const reloading = listChanged(shown, w.resolve).state;
     expect(prototypeView(reloading, w.resolve)?.title).toBe("phone");
     const untitled = [{ id: "phone", size: "390x844", number: 1 }];
-    const plain = report(reloading, { gen: reloading.gen, state: "ready", size: phone, frames: untitled }).state;
+    const plain = report(reloading, { gen: reloading.gen, state: "ready", size: phone, frames: untitled, gotos: [] }).state;
     expect(prototypeView(plain, w.resolve)?.title).toBe("phone");
     // Then the frame goes: no older title comes back.
     w.set(A, { kind: "absent" });
@@ -293,7 +293,7 @@ describe("the frame's title", () => {
     const w = world();
     const shown = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
     w.set(A, w.present("http://h/t/tok/k1/proto.html", "s1", [{ id: "phone" }]));
-    const step = framesReported(shown, shown.gen, [{ id: "phone", size: "390x844", number: 1 }]);
+    const step = framesReported(shown, shown.gen, [{ id: "phone", size: "390x844", number: 1 }], []);
     expect(prototypeView(step.state, w.resolve)?.title).toBe("phone");
   });
 });
@@ -343,10 +343,10 @@ describe("failures, retry and stale results", () => {
     const { state } = loading();
     const second = reload(state, 1).state;
     for (const late of [
-      report(second, { gen: 1, state: "ready", size: phone, frames: listed }),
+      report(second, { gen: 1, state: "ready", size: phone, frames: listed, gotos: [] }),
       report(second, { gen: 1, state: "timeout" }),
       readFailed(second, 1, "x"),
-      framesReported(second, 1, listed),
+      framesReported(second, 1, listed, []),
     ]) expect(late).toEqual({ state: second, effects: [] });
   });
 
@@ -360,7 +360,7 @@ describe("failures, retry and stale results", () => {
   test("the list sent after load updates the drawer of the current run", () => {
     const { w, state } = loading();
     const shown = ready(state, "390x844", []).state;
-    const step = framesReported(shown, 1, listed);
+    const step = framesReported(shown, 1, listed, []);
     expect(prototypeView(step.state, w.resolve)?.frames).toEqual(listed);
   });
 });
@@ -422,6 +422,117 @@ describe("Back and Forward", () => {
     expect(choose(state, "ghost", w.resolve)).toBeNull();
     expect(play(state, { target: { ...A, canvas: { id: "gone" } }, size: phone }, w.resolve)).toBeNull();
     expect(state.history.entries).toHaveLength(3);
+  });
+});
+
+describe("link moves", () => {
+  function opened() {
+    const w = world();
+    const state = ready(ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state).state;
+    return { w, state };
+  }
+
+  test("another listed frame fits to its listed mark, starts a new run and is recorded, without activating", () => {
+    const { w, state } = opened();
+    const step = ok(goto(state, { gen: state.gen, goto: "tablet" }, w.resolve));
+    // No activate: a canvas's timer click must not show a hidden app or take focus from another app.
+    expect(step.effects).toEqual([{ kind: "fit", size: tablet }, { kind: "load", gen: 2, url: "http://h/t/tok/k1/proto.html", frame: "tablet" }]);
+    expect(step.state.history.entries.map(entry => entry.target)).toEqual([A, B]);
+    expect(prototypeView(step.state, w.resolve)).toMatchObject({ gen: 2, phase: "loading", frame: "tablet", title: "Tablet", frames: listed, canGoBack: true, canGoForward: false });
+  });
+
+  test("a move drops the Forward entries, as any new play does", () => {
+    const { w, state } = opened();
+    const atTablet = ready(ok(goto(state, { gen: 1, goto: "tablet" }, w.resolve)).state, "820x1180").state;
+    const backAtPhone = ready(ok(back(atTablet, w.resolve)).state).state;
+    expect(prototypeView(backAtPhone, w.resolve)?.canGoForward).toBe(true);
+    const moved = ok(goto(backAtPhone, { gen: backAtPhone.gen, goto: "tablet" }, w.resolve)).state;
+    expect(moved.history.entries.map(entry => entry.target)).toEqual([A, B]);
+    expect(prototypeView(moved, w.resolve)?.canGoForward).toBe(false);
+  });
+
+  test("the playing frame starts over like Reload, without history or a refit", () => {
+    const { w, state } = opened();
+    const step = ok(goto(state, { gen: state.gen, goto: "phone" }, w.resolve));
+    expect(step).toEqual(reload(state, state.gen));
+    expect(step.effects).toEqual([{ kind: "load", gen: 2, url: "http://h/t/tok/k1/proto.html", frame: "phone" }]);
+    expect(step.state.history).toBe(state.history);
+  });
+
+  test("a value the run did not list, or none, is refused", () => {
+    const { w, state } = opened();
+    for (const value of ["ghost", "", null]) expect(goto(state, { gen: state.gen, goto: value }, w.resolve)).toBeNull();
+  });
+
+  test("an older run's move is refused", () => {
+    const { w, state } = opened();
+    const second = ready(reload(state, state.gen).state).state;
+    expect(goto(second, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
+    expect(goto(second, { gen: 3, goto: "tablet" }, w.resolve)).toBeNull();
+  });
+
+  test("a move is refused unless the run is ready: loading, failed or lost", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    expect(goto(loading, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
+    // The list sent after load gives a loading run frames, still without a move.
+    expect(goto(framesReported(loading, 1, listed, []).state, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
+    const lost = report(loading, { gen: 1, state: "missing", frames: listed, gotos: [] }).state;
+    expect(goto(lost, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
+    const failed = report(loading, { gen: 1, state: "timeout" }).state;
+    expect(goto(failed, { gen: 1, goto: "tablet" }, w.resolve)).toBeNull();
+    expect(goto(CLOSED, { gen: 0, goto: "tablet" }, w.resolve)).toBeNull();
+  });
+
+  test("a move, to another frame or the playing one, is refused while the canvas is gone or its root is still being read", () => {
+    for (const resolution of [{ kind: "absent" as const }, { kind: "unknown" as const }]) {
+      const { w, state } = opened();
+      w.set(A, resolution);
+      for (const value of ["tablet", "phone"]) expect(goto(state, { gen: state.gen, goto: value }, w.resolve), `${resolution.kind} ${value}`).toBeNull();
+    }
+  });
+
+  test("Back after a move plays the previous frame again", () => {
+    const { w, state } = opened();
+    const atTablet = ready(ok(goto(state, { gen: 1, goto: "tablet" }, w.resolve)).state, "820x1180").state;
+    const step = ok(back(atTablet, w.resolve));
+    expect(prototypeView(step.state, w.resolve)).toMatchObject({ frame: "phone", canGoForward: true });
+  });
+
+  test("Back skips a frame that could no longer play once the move's run reported", () => {
+    const { w, state } = opened();
+    const moving = ok(goto(state, { gen: 1, goto: "tablet" }, w.resolve)).state;
+    // The moved-to run no longer lists phone (its mark broke meanwhile).
+    const atTablet = ready(moving, "820x1180", [listed[1]!]).state;
+    expect(prototypeView(atTablet, w.resolve)?.canGoBack).toBe(false);
+    expect(back(atTablet, w.resolve)).toBeNull();
+  });
+});
+
+// The run's links, kept beside its frames for the drawer's groups: replaced by every report, kept for a reload of the
+// same canvas as its frames are, and gone with them.
+describe("the run's links", () => {
+  const links = [{ value: "tablet", frames: ["phone"] }];
+  test("a ready or lost report and a late drawer list set them, and the view carries them", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    const atReady = report(loading, { gen: 1, state: "ready", size: phone, frames: listed, gotos: links }).state;
+    expect(prototypeView(atReady, w.resolve)?.gotos).toEqual(links);
+    const late = framesReported(atReady, 1, listed, []).state;
+    expect(prototypeView(late, w.resolve)?.gotos).toEqual([]);
+    const lost = report(loading, { gen: 1, state: "missing", frames: listed, gotos: links }).state;
+    expect(prototypeView(lost, w.resolve)?.gotos).toEqual(links);
+  });
+
+  test("a run of the same canvas keeps them until it reports, another canvas or a lost canvas clears them", () => {
+    const w = world();
+    const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
+    const atReady = report(loading, { gen: 1, state: "ready", size: phone, frames: listed, gotos: links }).state;
+    expect(prototypeView(ok(goto(atReady, { gen: 1, goto: "tablet" }, w.resolve)).state, w.resolve)?.gotos).toEqual(links);
+    expect(prototypeView(reload(atReady, 1).state, w.resolve)?.gotos).toEqual(links);
+    expect(prototypeView(ok(play(atReady, { target: C, size: phone }, w.resolve)).state, w.resolve)?.gotos).toEqual([]);
+    w.set(A, { kind: "absent" });
+    expect(prototypeView(listChanged(atReady, w.resolve).state, w.resolve)?.gotos).toEqual([]);
   });
 });
 
@@ -654,7 +765,7 @@ describe("the target canvas row in the view", () => {
   test("a frame the run lost leaves the row present", () => {
     const w = world();
     const loading = ok(play(CLOSED, { target: A, size: phone }, w.resolve)).state;
-    const lost = report(loading, { gen: loading.gen, state: "missing", frames: [] }).state;
+    const lost = report(loading, { gen: loading.gen, state: "missing", frames: [], gotos: [] }).state;
     expect(prototypeView(lost, w.resolve)).toMatchObject({ phase: "frame-unavailable", canvasRow: "present" });
   });
 });

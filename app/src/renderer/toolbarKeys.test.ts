@@ -2,13 +2,13 @@ import { expect, it, vi } from "vitest";
 import { moveBetweenTools } from "./toolbarKeys";
 
 // ←/→ move focus along enabled buttons only: no wrap at either end, and any other key is left alone.
-function press(key: string, buttons: string[], active: number) {
+function press(key: string, buttons: string[], active: number | object) {
   const focused: string[] = [];
   const nodes = buttons.map(name => ({ name, focus: () => focused.push(name) }));
   const preventDefault = vi.fn();
   const selectors: string[] = [];
   const currentTarget = { querySelectorAll: (selector: string) => { selectors.push(selector); return nodes; } };
-  vi.stubGlobal("document", { activeElement: nodes[active] });
+  vi.stubGlobal("document", { activeElement: typeof active === "number" ? nodes[active] : active });
   try { moveBetweenTools({ key, currentTarget, preventDefault } as never); } finally { vi.unstubAllGlobals(); }
   return { focused, preventDefault, selectors };
 }
@@ -32,4 +32,14 @@ it("ignores other keys", () => {
   const other = press("Enter", ["a", "b"], 0);
   expect(other.focused).toEqual([]);
   expect(other.preventDefault).not.toHaveBeenCalled();
+});
+
+// React carries a portal's keys to the toolbar too: an arrow in the Play drawer's list (rendered in a portal under the
+// toolbar's Play) must stay the list's, not move focus to a tool.
+it("leaves an arrow from outside its own buttons alone", () => {
+  for (const key of ["ArrowRight", "ArrowLeft"]) {
+    const fromRow = press(key, ["a", "b", "c"], { name: "drawer row" });
+    expect(fromRow.focused, key).toEqual([]);
+    expect(fromRow.preventDefault, key).not.toHaveBeenCalled();
+  }
 });

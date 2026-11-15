@@ -389,9 +389,10 @@ const prototypeDrawing = createPrototypeDrawing({ playing: () => prototype.contr
 const prototypePromoted = createPrototypePromoted({ playing: () => prototype.controller.playing(), generation: () => prototype.controller.canvasGeneration() });
 // The target push to the main window and the id relays to the prototype window (targetRelay.ts).
 const prototypeRelay = createTargetRelay({
-  playing: () => prototype.controller.playing(), generation: () => prototype.controller.canvasGeneration(), open: () => prototype.window() !== undefined,
+  playing: () => prototype.controller.playing(), frame: () => prototype.controller.playingFrame(), generation: () => prototype.controller.canvasGeneration(), open: () => prototype.window() !== undefined,
   drawing: () => prototypeDrawing.current(), promoted: () => prototypePromoted.current(),
   sendTarget: target => send(PROTOTYPE_CHANNELS.target, target),
+  sendPlaying: playing => send(PROTOTYPE_CHANNELS.playing, playing),
   sendDrawing: conversationId => prototype.send(PROTOTYPE_CHANNELS.drawingChanged, { conversationId }),
   sendPromoted: conversationId => prototype.send(PROTOTYPE_CHANNELS.promotedChanged, { conversationId }),
 });
@@ -1503,6 +1504,7 @@ async function start(): Promise<void> {
   // The drawing project conversation: the target read and the report are the main window's requests (mainOnly), the
   // id read the prototype window's (drawing.ts checks the role again).
   handle(PROTOTYPE_CHANNELS.readTarget, null, (_event, value: unknown) => value === undefined ? prototypeRelay.target() : null);
+  handle(PROTOTYPE_CHANNELS.playing, null, (_event, value: unknown) => value === undefined ? prototypeRelay.playingTarget() : null);
   handle(PROTOTYPE_CHANNELS.setDrawing, false, (_event, value: unknown, kind) => {
     const taken = prototypeDrawing.set(kind, value);
     if (taken) prototypeRelay.drawing();
