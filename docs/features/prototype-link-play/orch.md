@@ -30,6 +30,7 @@
 | RT | 작업 8 `/runtime-test` | 보고만 | DS | 컨덕터가 정한다(별도 Claude 워커 가능) | probe exit 0, 스크린샷 | 진행(`plp-rt`, Claude Opus medium, `ctx_b650040d3bf2`) |
 | E | 작업 9 `/agent-eval` 전체 라운드 | `docs/USABILITY-EVAL.md` | 통합, package | 컨덕터가 정한다 | `--repeat 2` 뒤 자동 검사 | 진행: 0a47bc399에서 package 후 라운드 `plp-261115`(Claude Code 2.1.325, Codex 0.167.2). 그 HEAD에서 `verify.mjs --eval` PASS |
 | — | 작업 6 통합 확인, 작업 10 승격 | 문서별 커밋 | 모든 배치 | 컨덕터 | `verify.mjs --eval`, tasks.md 작업 10 grep | 대기 |
+| D | 작업 10 승격(PRODUCT·ARCHITECTURE·DIRECTORY) | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DIRECTORY.md` | 모든 배치 | Claude Opus high: 코드와 대조해 현재 규칙으로 다시 써야 한다 | 작업 10 grep | 통합(9bb713dfe, 1c33abf54, 334b307ef). grep: 옛 문구 0, `data-doan-goto` 3, 토스트 1, ARCHITECTURE `goto` 11(시작 5). 워크트리 제거, 브랜치 `SinhyeokKang/plp-d` 유지. feature 디렉터리 삭제와 USABILITY-EVAL은 컨덕터 |
 
 ## 파일 겹침과 순서
 
