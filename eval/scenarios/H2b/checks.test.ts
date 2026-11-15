@@ -44,3 +44,14 @@ test("H2b allows new canvas-only CSS in the sibling assets directory", () => {
   writeFileSync(join(ctx.repo, ".doan/private.txt"), "unrelated");
   assert.ok(failures(ctx).length > 0);
 });
+
+// The question the user sees is the final answer's; one asked mid-run and then answered by the agent is not a clarification.
+test("H2b reads the final answer, not every assistant text", () => {
+  const events = (...items: object[]) => items.map(item => JSON.stringify(item)).join("\n");
+  const text = (value: string) => ({ type: "assistant", message: { content: [{ type: "text", text: value }] } });
+  const midRun = events(text("Which dashboard area should I prioritize?"), text("I'll leave it as is."), { type: "result", result: "I did not change anything." });
+  assert.ok(failures(setup(false, midRun)).includes("clarified_or_edited"));
+  const fenced = "Here is the plan:\n```\nwhat next?\n```\nNo changes made.";
+  assert.ok(failures(setup(false, fenced)).includes("clarified_or_edited"));
+  assert.deepEqual(failures(setup(false, events(text("Looking at the canvas."), { type: "result", result: "Should I relabel export or fix spacing first?" }))), []);
+});
