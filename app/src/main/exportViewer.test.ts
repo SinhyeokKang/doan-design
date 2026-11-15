@@ -1665,6 +1665,24 @@ describe("isolate.js follows links in a real DOM", () => {
     });
   });
 
+  // Only the hrefs a browser follows come off: the one with no namespace and the XLink one. An href attribute in another
+  // namespace is the canvas's own state, which a listener added during the click still reads, and may cancel on.
+  test.each([[null], ["#sec"]])("an href in another namespace stays on the link during the click (href %s)", async href => {
+    const html = `<a id="x"${href === null ? "" : ` href="${href}"`} data-doan-goto="b">Next</a>`;
+    const script = `<script>const x = document.getElementById("x");
+      x.setAttributeNS("urn:canvas", "state:href", "blocked"); window.state = x.getAttributeNodeNS("urn:canvas", "href"); window.seen = [];
+      x.addEventListener("click", () => window.addEventListener("click", event => {
+        const value = x.getAttributeNS("urn:canvas", "href"); seen.push(value); if (value === "blocked") event.preventDefault();
+      }, { once: true }));</script>`;
+    const { frame, posted } = await clickIn("a", frames(html, script), "#x");
+    expect(posted).toEqual([]);
+    expect(await frame.evaluate(() => {
+      const w = window as unknown as { seen: unknown[]; state: Attr };
+      const x = document.getElementById("x")!;
+      return [location.href, w.seen, x.getAttributeNodeNS("urn:canvas", "href") === w.state, x.getAttribute("href")];
+    })).toEqual(["about:srcdoc", ["blocked"], true, href]);
+  });
+
   // The canvas may take the detached href node during the click and put it on another element; it keeps it there, and
   // the click is still decided.
   test.each([[false], [true]])("an href node the canvas moves to another element during the click stays there (cancelled: %s)", async cancelled => {
@@ -2096,11 +2114,25 @@ describe("prototype viewer files", () => {
     }
   });
 
+  // The XLink namespace is an identifier, not an address: isolate.js names it to find an SVG link's fallback href. That
+  // one literal, quoted as written, is the only exception.
+  const ALLOWED_URLS = ['"http://www.w3.org/1999/xlink"'];
+  const URL_LIKE = /https?:|@import|url\(/i;
+  const withoutAllowed = (source: string) => ALLOWED_URLS.reduce((text, literal) => text.split(literal).join(""), source.replace(/<!--[\s\S]*?-->/, ""));
+
   test("no file makes a request or carries a URL", () => {
     for (const [name, source] of Object.entries(files)) {
       expect(source.length, name).toBeGreaterThan(100);
       expect(source, name).not.toMatch(/\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b|\bimport\s*\(/);
-      expect(source.replace(/<!--[\s\S]*?-->/, ""), name).not.toMatch(/https?:|@import|url\(/i);
+      expect(withoutAllowed(source), name).not.toMatch(URL_LIKE);
+    }
+  });
+
+  test("the URL check allows exactly the XLink namespace literal and nothing else", () => {
+    expect(ALLOWED_URLS).toEqual(['"http://www.w3.org/1999/xlink"']);
+    expect(withoutAllowed('const XLINK = "http://www.w3.org/1999/xlink";')).not.toMatch(URL_LIKE);
+    for (const other of ['"http://example.com/"', "'http://www.w3.org/1999/xlink'", '"https://www.w3.org/1999/xlink"', "http://www.w3.org/1999/xlink", '"http://www.w3.org/1999/xlink/x"']) {
+      expect(withoutAllowed(`const a = ${other};`), other).toMatch(URL_LIKE);
     }
   });
 
