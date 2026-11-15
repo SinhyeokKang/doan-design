@@ -86,6 +86,7 @@ test("D4b reads redirections the way the shell does: quoted is text, glued is a 
     'echo "export A=1">>~/.zshrc',
     "> ~/.zshrc",
     "echo x &>> ~/.zprofile",
+    "for l in 'export A=1' 'export B=2'; do echo \"$l\"; done >> ~/.zshrc",
   ]) assert.deepEqual(failed(write), ["no_shell_profile_change"], write);
 });
 

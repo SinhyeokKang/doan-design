@@ -528,6 +528,11 @@ test("readCommands gives each command's redirections with their targets as the s
     { op: ">", target: "/tmp/x", unresolved: false },
     { op: ">", target: "$g", unresolved: true },
   ]);
+  // A redirection on a loop's done applies to every command the loop ran.
+  assert.deepEqual(readCommands("for p in a b; do echo $p; done >> /tmp/x").commands, [
+    { words: ["echo", "a"], redirects: [{ op: ">>", target: "/tmp/x", unresolved: false }] },
+    { words: ["echo", "b"], redirects: [{ op: ">>", target: "/tmp/x", unresolved: false }] },
+  ]);
   // A command that is only a redirection still writes its target.
   assert.deepEqual(readCommands("> ~/.zshrc").commands, [{ words: [], redirects: [{ op: ">", target: "~/.zshrc", unresolved: false }] }]);
   assert.deepEqual(parseCommand("> ~/.zshrc"), { words: [], incomplete: false });

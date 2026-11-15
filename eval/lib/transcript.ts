@@ -441,6 +441,11 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
   const substitute = (tokens: string[]) => {
     for (const token of tokens) for (const m of token.matchAll(SUBSTITUTED)) append(parse(bodies[Number(m[1])]!, state, new Map(vars)));
   };
+  const redirectsOf = (tokens: string[]): Redirect[] => tokens.filter(token => token.startsWith(MARK)).map(token => {
+    const [, op = "", target = ""] = token.split(MARK);
+    const expanded = expandToken(target, vars);
+    return { op, target: expanded.words.join(" "), unresolved: expanded.unresolved };
+  });
   for (let i = 0; i < groups.length; i++) {
     const raw = groups[i]!;
     const group = raw.filter(token => !token.startsWith(MARK));
@@ -464,7 +469,13 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
         vars.clear();
       } else {
         state.left -= values.length;
-        for (const value of values) { vars.set(group[1]!, value); append(runGroups(body.slice(0, done), vars, state, bodies)); }
+        // A redirection on `done` is set up once, before the body runs, and applies to every command in it.
+        substitute(body[done]!);
+        const loop = redirectsOf(body[done]!);
+        for (const value of values) {
+          vars.set(group[1]!, value);
+          append(runGroups(body.slice(0, done), vars, state, bodies).map(entry => ({ ...entry, redirects: [...entry.redirects, ...loop] })));
+        }
       }
       // Continue after the loop's `done`.
       i += 2 + done - rest.length;
@@ -484,11 +495,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     if (UNSUPPORTED.test(group[skipped] ?? "") || group[skipped + 1] === "()") { state.incomplete = true; vars.clear(); return out; }
     // Only after that check: a substitution in a function or case body may never run. One in a redirection target runs too.
     substitute(raw);
-    const redirects = raw.filter(token => token.startsWith(MARK)).map(token => {
-      const [, op = "", target = ""] = token.split(MARK);
-      const expanded = expandToken(target, vars);
-      return { op, target: expanded.words.join(" "), unresolved: expanded.unresolved };
-    });
+    const redirects = redirectsOf(raw);
     const expanded = group.slice(skipped).map(token => expandToken(token, vars));
     let words = expanded.flatMap(token => token.words);
     let open = expanded.flatMap(token => token.words.map(() => token.unresolved));
