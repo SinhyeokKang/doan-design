@@ -126,5 +126,9 @@ test("D4b reads a profile write the way the shell expands it", () => {
     'H="$HOME"; cp /tmp/x $H/.bashrc',
     'D=$HOME; E=$D; echo x >> "${E}/.zshrc"',
     "echo x >> ~/.zshrc",
+    "for f in .zshrc .zprofile; do echo x >> ~/$f; done",
+    'export D=$HOME; echo x >> "$D/.zshrc"',
+    "local D=$HOME; echo x >> ${D}/.zprofile",
   ]) assert.deepEqual(failed(write), ["no_shell_profile_change"], write);
+  assert.deepEqual(failed('echo x > "$TMPDIR/zshrc.bak"'), []);
 });

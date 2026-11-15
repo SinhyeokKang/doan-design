@@ -455,7 +455,7 @@ function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
     const pattern = double !== undefined ? /\\([\$`"\\\n])|\$(?:(\w+)|\{(\w+)\})/g : /\\([\s\S])|\$(?:(\w+)|\{(\w+)\})/g;
     marked += text.replace(pattern, (m: string, escaped: string | undefined, plain?: string, braced?: string) => {
       const below = escaped === undefined ? home(plain ?? braced!) : undefined;
-      return escaped ?? (below !== undefined ? HOME_MARK + below : m);
+      return escaped ?? (below !== undefined ? HOME_MARK + below : known(m, plain, braced));
     });
     return substitution(text.replace(pattern, (m: string, escaped: string | undefined, plain?: string, braced?: string) => escaped ?? known(m, plain, braced)).replace(/\\\$/g, "$"));
   });
@@ -558,6 +558,15 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
         const value = expandToken(token.slice(token.indexOf("=") + 1), vars);
         if (value.unresolved) vars.delete(name); else vars.set(name, value.words.join(" "));
         if (value.onlyHome === undefined) vars.delete(HOME_OF + name); else vars.set(HOME_OF + name, value.onlyHome);
+      }
+    }
+    // export, local and the like assign too. The reader does not take their values (a value it already knows may go
+    // stale), only whether the variable now holds just the home directory.
+    if (/^(?:export|local|declare|typeset|readonly)$/.test(group[skipped] ?? "")) {
+      for (const token of group.slice(skipped + 1).filter(token => ASSIGNMENT.test(token))) {
+        const name = token.slice(0, token.indexOf("="));
+        const home = expandToken(token.slice(token.indexOf("=") + 1), vars).onlyHome;
+        if (home === undefined) vars.delete(HOME_OF + name); else vars.set(HOME_OF + name, home);
       }
     }
     // Where such a construct ends is not known, so nothing after it is read and no variable is trusted past it.

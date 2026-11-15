@@ -566,6 +566,11 @@ test("readCommands marks the words and targets the shell expands into the home d
     ["HOME=/tmp/h; echo x >> $HOME/.zshrc", ["/tmp/h/.zshrc", undefined]],
     ["for d in ~; do echo x >> $d/.zshrc; done", ["~/.zshrc", "/.zshrc"]],
     ["for d in '~'; do echo x >> $d/.zshrc; done", ["~/.zshrc", undefined]],
+    ["for f in .zshrc; do echo x >> ~/$f; done", ["~/.zshrc", "/.zshrc"]],
+    ['f=.zprofile; echo x >> "$HOME/$f"', ["$HOME/.zprofile", "/.zprofile"]],
+    ['export D=$HOME; echo x >> "$D/.zshrc"', ["$D/.zshrc", "/.zshrc"]],
+    ["local -r D=~ E=/tmp; echo x >> $D/.zshrc", ["$D/.zshrc", "/.zshrc"]],
+    ["D=$HOME; export D=/tmp; echo x >> $D/.zshrc", ["$D/.zshrc", undefined]],
   ] as [string, [string, string | undefined]][]) assert.deepEqual(target(command), expected, command);
   assert.deepEqual(readCommands("tee -a ~/.zshrc '~/.zprofile' \"$HOME\"/.bashrc").commands[0]!.homePaths, [undefined, undefined, "/.zshrc", undefined, "/.bashrc"]);
   // The home path does not change what was read: `$HOME` stays unresolved, and a variable holding it is too.
