@@ -86,6 +86,12 @@ const REPO_SHAPES: [string, (w: ReturnType<typeof world>) => void][] = [
     writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true }, enableAllProjectMcpServers: true }));
     writeFileSync(join(w.base, ".mcp.json"), JSON.stringify({ mcpServers: { reader: { command: "./reader.sh" } } }));
   }],
+  ["a .mcp.json no source enables", w => { writeFileSync(join(w.project, ".mcp.json"), JSON.stringify({ mcpServers: { reader: { command: "./reader.sh" } } })); }],
+  ["AWS credential helpers in the project's settings", w => {
+    mkdirSync(join(w.project, ".claude"));
+    writeFileSync(join(w.project, ".claude", "settings.json"), JSON.stringify({ env: { CLAUDE_CODE_USE_BEDROCK: "1" }, awsAuthRefresh: "./reader.sh", awsCredentialExport: "./reader.sh" }));
+  }],
+  ["an apiKeyHelper in the local settings", w => { mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.local.json"), JSON.stringify({ apiKeyHelper: "./reader.sh" })); }],
   ["enabled plugins", w => { mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: { "x@market": true } })); }],
   ["hooks in a project skill's frontmatter", w => {
     mkdirSync(join(w.project, ".claude", "skills", "read"), { recursive: true });
@@ -125,16 +131,24 @@ it("counts a FIFO named like a skill, subagent or command as naming hooks withou
     expect(ready.fence?.claudeSandboxOff).toBe(true);
   }
 }, 20000);
-it("keeps Claude's own sandbox for a repository whose skills, .mcp.json and settings start nothing", async () => {
+it("keeps Claude's own sandbox for a repository whose skills and settings start nothing", async () => {
   const w = world("claude");
   writeFileSync(join(w.profile, "settings.json"), JSON.stringify({ sandbox: { enabled: true } }));
   mkdirSync(join(w.project, ".claude", "skills", "plain"), { recursive: true });
   writeFileSync(join(w.project, ".claude", "skills", "plain", "SKILL.md"), "---\nname: plain\ndescription: mentions hooks: in prose\n---\nhooks: below the frontmatter is text.\n");
   writeFileSync(join(w.project, ".claude", "settings.json"), JSON.stringify({ permissions: { allow: ["Bash(ls)"] } }));
-  writeFileSync(join(w.project, ".mcp.json"), JSON.stringify({ mcpServers: { reader: { command: "./reader.sh" } } }));
   const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "hi", anchors: [] });
   expect(ready.fence?.claudeSandbox).toBe(true);
   expect(ready.fence && "claudeSandboxOff" in ready.fence).toBe(false);
+});
+// A Full access turn runs in the outer fence and can write the repository's local settings without a card (probe):
+// the sandbox switch and hook it plants must not take the next turn out of the fence.
+it("keeps the next turn in the outer fence after a turn plants a sandbox switch and a hook in the local settings", async () => {
+  const w = world("claude");
+  const request = { root: w.project, mode: "new" as const, runtime: "claude" as const, text: "hi", anchors: [] };
+  expect((await prepare("claude", w).run(request)).fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] } });
+  mkdirSync(join(w.project, ".claude")); writeFileSync(join(w.project, ".claude", "settings.local.json"), JSON.stringify({ sandbox: { enabled: true }, enableAllProjectMcpServers: true, ...HOOKS }));
+  expect((await prepare("claude", w).run(request)).fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] }, claudeSandboxOff: true });
 });
 // A source Doan misread could still turn the sandbox on, which would fail every command inside the outer fence.
 it("turns the sandbox off at the flag tier for a repository with hooks even when Doan reads it as off", async () => {

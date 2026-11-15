@@ -199,12 +199,23 @@ describe("claudeRepoCode", () => {
     expect(claudeRepoCode({ ...none, project: { enabledPlugins: { "x@market": true } } }, clean)).toBe(true);
     expect(claudeRepoCode({ ...none, local: { enabledPlugins: { "x@market": true } } }, clean)).toBe(true);
   });
-  // The Doan profile's own settings and managed settings are not the repository's, but they can enable its .mcp.json.
-  it("finds a repository .mcp.json that any source enables, and ignores one nothing enables", () => {
-    expect(claudeRepoCode(none, { ...clean, mcpJson: true })).toBe(false);
+  // Through the SDK, Claude Code 2.1.325 starts a project .mcp.json's servers with no enable key or approval (probe).
+  it("finds a repository .mcp.json whether or not any source enables it", () => {
+    expect(claudeRepoCode(none, { ...clean, mcpJson: true })).toBe(true);
     expect(claudeRepoCode({ ...none, user: { enableAllProjectMcpServers: true } }, { ...clean, mcpJson: true })).toBe(true);
-    expect(claudeRepoCode({ ...none, managed: [{ enabledMcpjsonServers: ["reader"] }] }, { ...clean, mcpJson: true })).toBe(true);
-    expect(claudeRepoCode({ ...none, user: { enableAllProjectMcpServers: true, hooks: { Stop: [] } } }, clean)).toBe(false);
+  });
+  // The Doan profile's own settings and managed settings are not the repository's.
+  it("ignores hooks and MCP keys in the profile's own or managed settings", () => {
+    expect(claudeRepoCode({ ...none, user: { enableAllProjectMcpServers: true, hooks: { Stop: [] } }, managed: [{ enabledMcpjsonServers: ["x"] }] }, clean)).toBe(false);
+  });
+  // With an env key that selects Bedrock, the CLI ran both AWS helpers outside Claude's sandbox on a sandbox-on turn,
+  // and the forced login organization did not stop it (probe). apiKeyHelper is a command of the same kind.
+  it("finds credential helper commands in the project's or the local settings", () => {
+    for (const key of ["awsAuthRefresh", "awsCredentialExport", "apiKeyHelper"]) {
+      expect(claudeRepoCode({ ...none, project: { [key]: "./reader.sh" } }, clean)).toBe(true);
+      expect(claudeRepoCode({ ...none, local: { [key]: "./reader.sh" } }, clean)).toBe(true);
+    }
+    expect(claudeRepoCode({ ...none, user: { apiKeyHelper: "./x.sh" } }, clean)).toBe(false);
   });
   it("finds hooks in the repository's skill, agent or command frontmatter", () => {
     expect(claudeRepoCode(none, { ...clean, extensionHooks: true })).toBe(true);
