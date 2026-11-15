@@ -133,6 +133,26 @@ describe("Copilot usage read", () => {
     expect(messages.every(m => m.jsonrpc === "2.0")).toBe(true);
     expect(gone(Number(start!.pid))).toBe(true);
   }, 20_000);
+  // Every Copilot process imports the JavaScript in the profile's package cache, which a fenced Copilot turn can rewrite,
+  // so the read runs in the outer fence, from the profile (userData itself is closed).
+  it("runs under the outer fence from the profile when a fence is set", async () => {
+    const userData = join(root, "ud"), profile = join(userData, "agent-auth", "profiles", "copilot"); mkdirSync(profile, { recursive: true });
+    const exec = join(root, "sandbox-exec"), seen = join(root, "exec-args");
+    writeFileSync(exec, `#!/bin/sh\nprintf '%s\\n' "$@" > ${JSON.stringify(seen)}\nwhile [ "$1" = "-p" ] || [ "$1" = "-D" ]; do shift 2; done\nexec "$@"\n`, { mode: 0o700 });
+    const command = copilot();
+    const reading = await readUsage("copilot", { ...lease(command), profileDir: profile }, options({ fence: { userData, exec } }));
+    expect(reading).toMatchObject({ status: "ok" });
+    const args = readFileSync(seen, "utf8").split("\n");
+    expect(args[0]).toBe("-p");
+    expect(args).toContain(`PROFILE=${realpathSync.native(profile)}`);
+    expect(args.slice(-5, -1)).toEqual([command, "--headless", "--no-auto-update", "--stdio"]);
+    expect(logged()[0]!.cwd).toBe(realpathSync.native(profile));
+  }, 20_000);
+  it("starts nothing and reads as read_failed when the fence cannot be built", async () => {
+    const reading = await readUsage("copilot", lease(copilot()), options({ fence: { userData: join(root, "ud") } }));
+    expect(reading).toMatchObject({ status: "unavailable", reason: "read_failed" });
+    expect(() => logged()).toThrow();
+  });
   it("reads a missing connect answer as read_failed and Method not found as not_supported", async () => {
     expect(await readUsage("copilot", lease(copilot(), "silent-init"), options({ openMs: 3000 }))).toMatchObject({ status: "unavailable", reason: "read_failed" });
     expect(await readUsage("copilot", lease(copilot(), "not-found"), options())).toMatchObject({ status: "unavailable", reason: "not_supported" });

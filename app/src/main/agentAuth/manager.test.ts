@@ -2086,6 +2086,32 @@ describe("MCP connector steps", () => {
     await finish("status", 0);
     expect(await out.done).toMatchObject({ phase: "disconnected" });
   });
+  // Every Copilot process imports the JavaScript in its profile's package cache, which a fenced Copilot turn can rewrite,
+  // so its sign-in and check run in the outer fence; the other providers' do not.
+  it("runs Copilot's sign-in and check in the outer fence and Cursor's outside it", async () => {
+    const userData = join(root, "ud"); storage = new AuthStorage(join(userData, "agent-auth"), cipher);
+    const m = manager({ fence: { userData, exec: "/fence/sandbox-exec" } }); await m.load();
+    const run = started(await m.signIn("copilot", 7));
+    const login = await next("login");
+    const [command, args, options] = spawn.mock.calls.at(-1)!;
+    expect(command).toBe("/fence/sandbox-exec");
+    expect(args).toContain(`PROFILE=${realpathSync.native(storage.profileDir("copilot"))}`);
+    expect(args.slice(-2)).toEqual(["/bin/fake-cli", "login"]);
+    expect(options.cwd).toBe(storage.profileDir("copilot"));
+    settledSet.add(login); writeToken(login, { id: "u1" }); login.finish(0);
+    await finish("status", 0);
+    expect(spawn.mock.calls.at(-1)![0]).toBe("/fence/sandbox-exec");
+    expect(spawn.mock.calls.at(-1)![1].slice(-2)).toEqual(["/bin/fake-cli", "status"]);
+    expect(await run.done).toMatchObject({ phase: "connected" });
+    await signedInCursor(m);
+    expect(spawn.mock.calls.slice(-2).map(call => call[0])).toEqual(["/bin/fake-cli", "/bin/fake-cli"]);
+  });
+  it("starts no Copilot process when its fence cannot be built", async () => {
+    const m = manager({ fence: { userData: join(root, "elsewhere") } }); await m.load();
+    const run = started(await m.signIn("copilot", 7));
+    expect(await run.done).toMatchObject({ phase: "disconnected" });
+    expect(spawn).not.toHaveBeenCalled();
+  });
   it("finishes a sign-out whose MCP logout throws", async () => {
     const m = manager({ mcpLogout: async () => { throw new Error("list failed"); } }); await m.load();
     await signedInClaude(m, "a1");

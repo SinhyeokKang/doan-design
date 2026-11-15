@@ -12,7 +12,7 @@ import type { AccountConnection, AuthState, Provider } from "../agentAuth/types"
 import type { AttachmentRecord } from "./types";
 
 const roots: string[] = []; afterEach(() => { vi.clearAllMocks(); roots.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
-const VERSION: Partial<Record<Provider, string>> = { claude: "2.1.312 (Claude Code)", codex: "codex-cli 0.164.0" };
+const VERSION: Partial<Record<Provider, string>> = { claude: "2.1.312 (Claude Code)", codex: "codex-cli 0.164.0", cursor: "2026.10.22-27dcf5f", copilot: "GitHub Copilot CLI 1.0.105." };
 // A userData with two providers' profiles, Doan's own files and a pasted image, reached through an unresolved
 // /var path so the fence must resolve it (Seatbelt compares /private/var).
 function world(provider: Provider, profileName: string = provider) {
@@ -59,11 +59,17 @@ it("runs a Claude list read under the outer fence, even when the settings turn t
   const ready = await prepare("claude", w).run({ root: w.project, mode: "new", runtime: "claude", text: "", anchors: [] }, undefined, "listing");
   expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] } });
 });
-it("leaves the other providers' list reads unfenced", async () => {
-  for (const provider of ["codex", "antigravity"] as const) {
+// An ACP list read opens a session like a run, and Copilot's and Cursor's start the MCP servers the profile names (probe).
+it("runs the ACP providers' list reads under the outer fence", async () => {
+  for (const provider of ["cursor", "antigravity", "copilot"] as const) {
     const w = world(provider);
-    expect((await prepare(provider, w).run({ root: w.project, mode: "new", runtime: provider, text: "", anchors: [] }, undefined, "listing")).fence).toBeUndefined();
+    const ready = await prepare(provider, w).run({ root: w.project, mode: "new", runtime: provider, text: "", anchors: [] }, undefined, "listing");
+    expect(ready.fence).toEqual({ paths: { userData: w.real, profile: realpathSync.native(w.profile), attachments: [] } });
   }
+});
+it("leaves a Codex list read unfenced", async () => {
+  const w = world("codex");
+  expect((await prepare("codex", w).run({ root: w.project, mode: "new", runtime: "codex", text: "", anchors: [] }, undefined, "listing")).fence).toBeUndefined();
 });
 it("refuses a Claude list read whose fence cannot be built as unknown and frees the lease", async () => {
   const w = world("claude");

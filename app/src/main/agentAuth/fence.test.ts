@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claudeFencedCommand, codexMechanism, codexProfileArgs, codexRestart, codexTurnPermission, fenceArgs, fenceDenied, fencedCommand, fenceListingDirs, fencePolicy, resolveFencePaths, SANDBOX_EXEC, type FenceListing, type FencePaths } from "./fence";
+import { codexMechanism, codexProfileArgs, codexRestart, codexTurnPermission, fenceArgs, fenceDenied, fencedCommand, fenceListingDirs, fencePolicy, fencedEverywhere, profileFencedCommand, resolveFencePaths, SANDBOX_EXEC, type FenceListing, type FencePaths } from "./fence";
 import { PERMISSION_MODES } from "../conversation/permissionMode";
 import type { Provider } from "./types";
 
@@ -145,24 +145,39 @@ describe("resolveFencePaths", () => {
   });
 });
 
-// Claude processes Doan starts outside a conversation (usage reads, MCP connector commands) load the profile's
-// .claude.json servers and a .mcp.json from their folder up, which an agent can write, so they run in the outer fence.
-describe("claudeFencedCommand", () => {
+// Processes Doan starts outside a conversation load files an agent in that provider's outer fence can write: Claude's
+// usage read and MCP connector commands the MCP servers its .claude.json names, every Copilot process the JavaScript in
+// its profile's package cache. They run in the outer fence.
+describe("profileFencedCommand", () => {
   const real = (path: string) => path.replace("/link", "");
   it("runs the command under sandbox-exec with Claude's policy and the resolved profile", () => {
-    const launch = claudeFencedCommand({ userData: `/link${U}` }, `/link${P}`, "/bin/claude", ["mcp", "list"], real)!;
+    const launch = profileFencedCommand("claude", { userData: `/link${U}` }, `/link${P}`, "/bin/claude", ["mcp", "list"], real)!;
     expect(launch.command).toBe(SANDBOX_EXEC);
     expect(launch.args.slice(-3)).toEqual(["/bin/claude", "mcp", "list"]);
     expect(launch.args[1]).toBe(fencePolicy("claude"));
     expect(params(launch.args)).toMatchObject({ USERDATA: U, PROFILE: P, PROVIDER_SETTINGS: `${P}/settings.json`, BROWSER_HOOK: `${U}/agent-auth/browser-hook` });
   });
+  it("runs a Copilot command under Copilot's policy in its own profile", () => {
+    const copilot = `${U}/agent-auth/profiles/copilot`;
+    const launch = profileFencedCommand("copilot", { userData: U }, copilot, "/bin/copilot", ["login"], real)!;
+    expect(launch.command).toBe(SANDBOX_EXEC);
+    expect(launch.args.slice(-2)).toEqual(["/bin/copilot", "login"]);
+    expect(launch.args[1]).toBe(fencePolicy("copilot"));
+    expect(params(launch.args)).toEqual({ USERDATA: U, AGENT_AUTH: `${U}/agent-auth`, PROFILES: `${U}/agent-auth/profiles`, PROFILE: copilot, RUNTIME: `${U}/runtime.json`, ATTACHMENTS: copilot });
+  });
   it("takes another sandbox-exec path", () => {
-    expect(claudeFencedCommand({ userData: U, exec: "/tmp/exec" }, P, "/bin/claude", [], real)!.command).toBe("/tmp/exec");
+    expect(profileFencedCommand("claude", { userData: U, exec: "/tmp/exec" }, P, "/bin/claude", [], real)!.command).toBe("/tmp/exec");
   });
   it("is null when the fence cannot be built, so nothing starts unfenced", () => {
-    expect(claudeFencedCommand({ userData: U }, "/elsewhere/claude", "/bin/claude", [], real)).toBeNull();
-    expect(claudeFencedCommand({ userData: U }, P, "/bin/claude", [], () => { throw new Error("ENOENT"); })).toBeNull();
+    expect(profileFencedCommand("claude", { userData: U }, "/elsewhere/claude", "/bin/claude", [], real)).toBeNull();
+    expect(profileFencedCommand("copilot", { userData: U }, P, "/bin/copilot", [], () => { throw new Error("ENOENT"); })).toBeNull();
   });
+});
+
+// Every Copilot process imports the JavaScript in the profile's package cache, which its own fenced turn can rewrite;
+// the other providers' sign-in and status commands ran nothing planted in their profiles (probe).
+it("fences every process of Copilot and of no other provider", () => {
+  expect((["claude", "codex", "cursor", "antigravity", "copilot"] as const).filter(fencedEverywhere)).toEqual(["copilot"]);
 });
 
 describe("fencedCommand", () => {
