@@ -8,7 +8,7 @@ import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
-import { fenceDenied, fencedEverywhere, fenceListingDirs, profileFencedCommand, resolveFencePaths, type FenceEntry, type FencePaths } from "../agentAuth/fence";
+import { fenceDenied, fencedEverywhere, fenceListingDirs, profileFencedCommand, resolveFencePaths, sandboxRefused, type FenceEntry, type FencePaths } from "../agentAuth/fence";
 import type { Lease, Started } from "../agentAuth/manager";
 import type { AuthState, ConnectionJudgment, Provider } from "../agentAuth/types";
 import type { McpRun, Prepare, Prepared, StartRequest } from "./service";
@@ -225,9 +225,8 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         if (!check) throw new Error("unknown");
         const version = await runProcess(check.command, check.args, lease.env, 5000);
         recheck();
-        // sandbox-exec missing, or exiting at once (65 policy error, 71) before the CLI printed anything, says nothing
-        // about the CLI's version.
-        if (fencedCheck && !version.timedOut && !version.stdout && (version.spawnError !== undefined || version.exitCode === 65 || version.exitCode === 71)) throw new Error("process_exited");
+        // sandbox-exec missing, or refusing before the CLI printed anything, says nothing about the CLI's version.
+        if (fencedCheck && !version.timedOut && !version.stdout && (version.spawnError !== undefined || sandboxRefused(version))) throw new Error("process_exited");
         installed = version.exitCode === 0 && !version.timedOut ? parseCliVersion(version.stdout)?.installed : undefined;
         if (installed) versions?.versionRead(provider, installed);
         if (version.exitCode !== 0 || version.timedOut || versionStatus(provider, version.stdout) !== "supported") { toolsFailed(provider); throw new Error(stored ? "session_unavailable" : "runtime_unsupported"); }

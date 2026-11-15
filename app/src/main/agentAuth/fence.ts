@@ -49,10 +49,14 @@ const ANTIGRAVITY = `(allow file-read-metadata (literal (param "AGENT_RUNTIMES")
 // servers planted in its profile and loaded no user site-packages (probe); its sign-in was not probed.
 const CLAUDE_SETTINGS = `(deny file-write* (literal (param "PROVIDER_SETTINGS")) (subpath (param "PROVIDER_SKILLS")) (subpath (param "PROVIDER_AGENTS")) (subpath (param "PROVIDER_PLUGINS")) (subpath (param "PROVIDER_COMMANDS")) (subpath (param "PROVIDER_PROJECT")) (literal (param "PROVIDER_MCP")))
 `;
-const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))
+const CODEX_SETTINGS = `(deny file-write* (literal (param "CODEX_CONFIG")) (literal (param "CODEX_HOOKS")) (literal (param "CODEX_MANAGED")) (literal (param "CODEX_ENV")) (subpath (param "CODEX_RULES")) (subpath (param "CODEX_SKILLS")) (subpath (param "CODEX_PLUGINS")))
 `;
 const hooked = (provider: Provider) => provider === "claude" || provider === "antigravity";
-const codexSettingsFiles = (profile: string) => [`${profile}/config.toml`, `${profile}/hooks.json`, `${profile}/managed_config.toml`, `${profile}/rules`];
+// Every Codex process loads <CODEX_HOME>/.env into its own environment (codex-cli 0.169.0, probe): a PATH there decides
+// what the harness's unsandboxed children (git) run, so the agent must not write it, and AuthManager removes one before
+// any Codex process starts.
+export const CODEX_DOTENV = ".env";
+const codexSettingsFiles = (profile: string) => [`${profile}/config.toml`, `${profile}/hooks.json`, `${profile}/managed_config.toml`, `${profile}/${CODEX_DOTENV}`, `${profile}/rules`];
 const codexSettingsDirs = (profile: string) => [`${profile}/skills`, `${profile}/plugins`];
 // commands/ is the older skill format and takes the same frontmatter, hooks included. .claude/ and .mcp.json are the
 // profile's project settings and project MCP servers for a process Doan starts with the profile as its folder (the
@@ -78,14 +82,19 @@ export function fenceArgs(provider: Provider, paths: FencePaths): string[] {
       ["PROVIDER_PROJECT", project!], ["PROVIDER_MCP", mcp!]);
   }
   if (provider === "codex") {
-    const [config, hooks, managed, rules] = codexSettingsFiles(p), [skills, plugins] = codexSettingsDirs(p);
-    params.push(["CODEX_CONFIG", config!], ["CODEX_HOOKS", hooks!], ["CODEX_MANAGED", managed!], ["CODEX_RULES", rules!], ["CODEX_SKILLS", skills!], ["CODEX_PLUGINS", plugins!]);
+    const [config, hooks, managed, dotenv, rules] = codexSettingsFiles(p), [skills, plugins] = codexSettingsDirs(p);
+    params.push(["CODEX_CONFIG", config!], ["CODEX_HOOKS", hooks!], ["CODEX_MANAGED", managed!], ["CODEX_ENV", dotenv!], ["CODEX_RULES", rules!], ["CODEX_SKILLS", skills!], ["CODEX_PLUGINS", plugins!]);
   }
   if (provider === "antigravity") params.push(["AGENT_RUNTIMES", `${u}/agent-runtimes`], ["AGENT_RUNTIME", `${u}/agent-runtimes/antigravity-acp`],
     ["SKILLS_CONFIG", `${p}/.gemini/config/skills`], ["SKILLS_CLI", `${p}/.gemini/antigravity-cli/skills`]);
   attachments.slice(1).forEach((dir, i) => params.push([`ATTACHMENTS_${i + 2}`, dir]));
   // Paths go in -D, never into the policy text, so quotes or parentheses in a path cannot change the policy.
   return ["-p", fencePolicy(provider, attachments.length), ...params.flatMap(([name, value]) => ["-D", `${name}=${value}`])];
+}
+// sandbox-exec's own refusal (65 for a policy error, 71 when it cannot exec the command) comes with its own
+// "sandbox-exec:" line; a CLI that exits 65 or 71 by itself writes none, and failed as a CLI.
+export function sandboxRefused(run: { exitCode: number | null; stderr: string }): boolean {
+  return (run.exitCode === 65 || run.exitCode === 71) && /^sandbox-exec: /m.test(run.stderr);
 }
 export function fencedCommand(command: string, args: readonly string[], fence?: readonly string[], exec = SANDBOX_EXEC): { command: string; args: string[] } {
   return fence ? { command: exec, args: [...fence, command, ...args] } : { command, args: [...args] };

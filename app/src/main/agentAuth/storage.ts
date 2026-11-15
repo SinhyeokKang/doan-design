@@ -162,7 +162,7 @@ export class AuthStorage {
       // swapFile moves the file aside before it links and restores with link(2) too, so a filesystem that refuses links
       // would lose the settings path. Probe with the staged file first; a failure leaves the original where it is.
       const probe = join(this.root, `.setting-${randomUUID()}.probe`);
-      try { linkSync(staged, probe); } finally { try { rmSync(probe, { force: true }); } catch { /* Scrubbed with leftovers. */ } }
+      try { linkSync(staged, probe); } finally { try { rmSync(probe, { force: true }); } catch { /* Nothing sweeps .setting-* names: it stays until removed by hand. */ } }
       const dir = lstatSync(dirname(path));
       const result = swapFile(
         { lstatSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync },
@@ -175,7 +175,7 @@ export class AuthStorage {
       if (error instanceof StorageError) throw error;
       if (typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "EEXIST") return;
       throw new StorageError("write_failed", message(error));
-    } finally { try { rmSync(staged, { force: true }); } catch { /* A stray temp file is scrubbed with leftovers. */ } }
+    } finally { try { rmSync(staged, { force: true }); } catch { /* Nothing sweeps .setting-* names: a stray one stays until removed by hand. */ } }
   }
   private stage(path: string, bytes: Buffer, mode: number): void {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
@@ -194,6 +194,9 @@ export class AuthStorage {
     try { return readRegularFileNoFollowSync(this.working(provider, rel, profile), WORKING_FILE_LIMIT); }
     catch (error) { if (error instanceof StorageError) throw error; if (absent(error)) return null; throw new StorageError("unreadable", message(error)); }
   }
+  // A profile file no one but an agent would write and a later provider process loads (Codex's .env): unlinked, a link
+  // without following it; anything rmSync cannot unlink (a directory) fails the start.
+  removePlanted(provider: Provider, rel: string, profile: string = provider): void { this.remove(this.working(provider, rel, profile)); }
   scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.remove(path); }
   private collect(provider: Provider, rels: readonly string[]): VaultFiles {
     const current: VaultFiles = {};
@@ -242,7 +245,7 @@ export class AuthStorage {
       try { writeAll(fd, bytes); fsyncSync(fd); } finally { closeSync(fd); }
       renameSync(temp, path);
     } catch (error) {
-      try { rmSync(temp, { force: true }); } catch { /* The write already failed; a stray temp file is scrubbed with leftovers. */ }
+      try { rmSync(temp, { force: true }); } catch { /* The write already failed; scrub removes a stray one beside a vault file, others stay. */ }
       throw new StorageError("write_failed", message(error));
     }
   }
