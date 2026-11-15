@@ -1,4 +1,4 @@
-import { commandWords, doanCommand, parseCommand } from "./transcript.ts";
+import { commandWords, doanCommand, incompleteRead } from "./transcript.ts";
 import { contentHash } from "./work.ts";
 import type { Check, CheckContext } from "./types.ts";
 
@@ -13,7 +13,7 @@ export function handoffCommands(ctx: Pick<CheckContext, "calls">): string[][] {
 // one that the CLI refused before sending, so the absence is not established beside it.
 export function noHandoff(ctx: Pick<CheckContext, "calls" | "handoff">): Check {
   const commands = handoffCommands(ctx), received = ctx.handoff();
-  const incomplete = ctx.calls.commands.some(command => parseCommand(command).incomplete);
+  const incomplete = incompleteRead(ctx.calls.commands);
   const none = commands.length === 0 && received.length === 0 && !incomplete;
   return {
     id: "no_handoff",

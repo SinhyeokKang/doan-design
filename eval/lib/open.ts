@@ -1,4 +1,4 @@
-import { commandWords, doanCommand, doanPositionals, parseCommand } from "./transcript.ts";
+import { commandWords, doanCommand, doanPositionals, incompleteRead } from "./transcript.ts";
 import { contentHash } from "./work.ts";
 import type { Check, CheckContext } from "./types.ts";
 
@@ -22,7 +22,7 @@ export function openCalls(ctx: Pick<CheckContext, "calls">): OpenCall[] {
 // established beside it.
 export function noOpen(ctx: Pick<CheckContext, "calls" | "open" | "prototype">): Check {
   const calls = openCalls(ctx), received = ctx.open(), prototypes = ctx.prototype();
-  const incomplete = ctx.calls.commands.some(command => parseCommand(command).incomplete);
+  const incomplete = incompleteRead(ctx.calls.commands);
   const none = calls.length === 0 && received.length === 0 && prototypes.length === 0 && !incomplete;
   return {
     id: "no_doan_open",

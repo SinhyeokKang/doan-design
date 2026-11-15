@@ -301,6 +301,12 @@ export function parseCommand(command: string): { words: string[][]; incomplete: 
   return { words, incomplete: state.incomplete };
 }
 
+// Whether any command could not be read to the end. Its missing words may have been anything, so a check that needs
+// the full list of what ran (an absence check) never holds beside one.
+export function incompleteRead(commands: string[]): boolean {
+  return commands.some(command => parseCommand(command).incomplete);
+}
+
 // Preserve quoted arguments so echoing a command cannot count as invoking it.
 export function commandWords(command: string): string[][] {
   return parseCommand(command).words;

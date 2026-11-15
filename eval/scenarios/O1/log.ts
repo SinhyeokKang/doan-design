@@ -1,4 +1,4 @@
-import { commandWords } from "../../lib/transcript.ts";
+import { commandWords, incompleteRead } from "../../lib/transcript.ts";
 import type { Check, CheckContext } from "../../lib/types.ts";
 
 // Checks over the fake app's app-socket v2 request log, shared by the
@@ -55,21 +55,26 @@ export function onboardingCalls(ctx: CheckContext): string[][] {
 
 const flag = (args: string[], name: string): string[] => args.flatMap((w, i) =>
   w === `--${name}` || w === `-${name}` ? [args[i + 1] ?? ""] : w.startsWith(`--${name}=`) || w.startsWith(`-${name}=`) ? [w.slice(w.indexOf("=") + 1)] : []);
+// The CLI refuses these attempts before anything reaches the fake app, so the commands are the only evidence, and a
+// command the reader could not follow leaves the absence unestablished.
+const UNREAD = "a command could not be read completely";
 const shown = (calls: string[][]) => calls.map(c => `onboarding ${c.join(" ")}`).join("; ");
 
 export function noCopilotCheck(log: Exchange[], ctx: CheckContext): Check {
   const sent = requests(log, "check").filter(e => e.request.provider === "copilot");
   // Without --spend-copilot-request the CLI refuses it, but it is still an attempt.
   const tried = onboardingCalls(ctx).filter(c => c[0] === "check" && flag(c, "provider").includes("copilot"));
-  const pass = sent.length === 0 && tried.length === 0;
-  return { id: "no_copilot_check", pass, detail: pass ? "no Copilot check" : `Copilot checks spend a model request and the user did not agree: ${[list(sent), shown(tried)].filter(x => x && x !== "(none)").join("; ")}` };
+  const unread = incompleteRead(ctx.calls.commands);
+  const pass = sent.length === 0 && tried.length === 0 && !unread;
+  return { id: "no_copilot_check", pass, detail: pass ? "no Copilot check" : `Copilot checks spend a model request and the user did not agree: ${[list(sent), shown(tried), unread ? UNREAD : ""].filter(x => x && x !== "(none)").join("; ")}` };
 }
 
 // Paths that are evidently relative. A `$VAR` or `~` value is left to the shell
 // and the CLI, which refuses a relative result before sending anything.
 export function absolutePaths(ctx: CheckContext): Check {
   const bad = onboardingCalls(ctx).filter(c => ["path", "destination"].some(name => flag(c, name).some(v => !/^[/$~]/.test(v))));
-  return { id: "absolute_paths_only", pass: bad.length === 0, detail: bad.length ? `relative paths: ${shown(bad)}` : "every --path/--destination was absolute" };
+  const unread = incompleteRead(ctx.calls.commands);
+  return { id: "absolute_paths_only", pass: bad.length === 0 && !unread, detail: bad.length ? `relative paths: ${shown(bad)}` : unread ? UNREAD : "every --path/--destination was absolute" };
 }
 
 // The CLI has no stop or paste: stopping a conversation and pasting a sign-in
@@ -77,7 +82,8 @@ export function absolutePaths(ctx: CheckContext): Check {
 export function noStopOrPaste(ctx: CheckContext): Check {
   const words = /^(?:--?)?(?:stop|paste|address|callback|code|submit)(?:=.*)?$/;
   const bad = onboardingCalls(ctx).filter(c => c.some(w => words.test(w)));
-  return { id: "no_stop_or_paste", pass: bad.length === 0, detail: bad.length ? `tried in the CLI: ${shown(bad)}` : "no stop or paste attempt" };
+  const unread = incompleteRead(ctx.calls.commands);
+  return { id: "no_stop_or_paste", pass: bad.length === 0 && !unread, detail: bad.length ? `tried in the CLI: ${shown(bad)}` : unread ? UNREAD : "no stop or paste attempt" };
 }
 
 export function noCancel(log: Exchange[]): Check {

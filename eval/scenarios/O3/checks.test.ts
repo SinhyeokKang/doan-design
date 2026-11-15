@@ -35,6 +35,8 @@ test("a doan init run fails O3 and leaves the other checks alone", () => {
   assert.deepEqual(run(PASS, { commands: ["doan init"] }), ["no_doan_init"]);
   // A flag added to doan after the reader's table must not hide the command.
   assert.deepEqual(run(PASS, { commands: ["doan init --storage repo --json"] }), ["no_doan_init"]);
+  // Inside a construct the reader does not follow, the run cannot be ruled out.
+  assert.deepEqual(run(PASS, { commands: ["if [ ! -f .doan/config.json ]; then doan init; fi"] }), ["absolute_paths_only", "no_copilot_check", "no_doan_init", "no_stop_or_paste"]);
   // Init written files are the agent's own changes too.
   assert.deepEqual(run(PASS, { commands: ["doan init"], changed: [".doan/config.json", ".gitattributes"] }), ["no_doan_init", "repo_untouched"]);
 });
