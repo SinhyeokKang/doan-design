@@ -178,10 +178,11 @@ export function goto(state: PrototypeState, message: GotoMessage, resolve: Resol
   const listed = state.frames.find(candidate => candidate.id === frame);
   const size = listed === undefined ? null : parsePrototypeMark(listed.size);
   if (size === null) return null;
-  if (frame === state.target.frame) return reload(state, state.gen);
   const target = { ...state.target, frame };
+  // Before the self-link branch too: Reload restarts from the last URL without asking, which a gone canvas must refuse.
   const resolved = resolve(target);
   if (resolved.kind !== "present") return null;
+  if (frame === state.target.frame) return reload(state, state.gen);
   return start(state, target, resolved, { size, create: false, quiet: true }, recordEntry(state.history, { target, size }, same));
 }
 
