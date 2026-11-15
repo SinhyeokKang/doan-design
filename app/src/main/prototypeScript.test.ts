@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
-import { parseRunReport, parseFramesReport } from "./prototype/requests";
+import { MAX_REPORT_FRAMES, MAX_REPORT_GOTOS, MAX_REPORT_STRING, parseRunReport, parseFramesReport } from "./prototype/requests";
 import { parsePrototypeMark } from "./prototype/mark";
 import { prototypeScriptSource } from "./prototypeScript";
 
@@ -114,6 +114,17 @@ function fakeDocument(options: { url?: string; nested?: boolean; top?: boolean; 
 function frameEl(id: string, mark?: string, title?: string): FakeElement {
   return element("div", [["data-doan-frame", id], ...(mark === undefined ? [] : [["data-doan-prototype", mark] as [string, string]]), ...(title === undefined ? [] : [["data-doan-title", title] as [string, string]])]);
 }
+
+// The injected script cannot import, so it repeats the caps requests.ts refuses a report over; a lower cap on the
+// app's side would refuse every report the script clipped to its own.
+describe("report caps", () => {
+  test("the script leaves out what the app's parser would refuse, by the same caps", () => {
+    const source = prototypeScriptSource("t", 1, "about:srcdoc");
+    const value = (name: string) => Number(new RegExp(`const ${name} = ([0-9_.e]+);`).exec(source)?.[1]?.replaceAll("_", ""));
+    expect({ MAX_STRING: value("MAX_STRING"), MAX_FRAMES: value("MAX_FRAMES"), MAX_GOTOS: value("MAX_GOTOS") })
+      .toEqual({ MAX_STRING: MAX_REPORT_STRING, MAX_FRAMES: MAX_REPORT_FRAMES, MAX_GOTOS: MAX_REPORT_GOTOS });
+  });
+});
 
 describe("the mark grammar", () => {
   test("the injected script uses mark.ts's regex literal", () => {

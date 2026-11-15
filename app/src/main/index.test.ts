@@ -113,6 +113,8 @@ const mocks = await vi.hoisted(async () => {
     uiState: { read: vi.fn(), save: vi.fn(), flushSync: vi.fn(), idle: vi.fn() },
     // Spied around the real canvas-seen store, so its IPC checks stay real.
     canvasSeenFlushSync: vi.fn(),
+    // Spied around the real prototype window, so a test can make its native teardown fail.
+    prototypeDestroyForQuit: vi.fn(),
     createUiStateStore: vi.fn(),
     thumbnails: { get: vi.fn(), visible: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
     createThumbnails: vi.fn(),
@@ -189,6 +191,13 @@ vi.mock("./canvasSeen", async (importOriginal) => {
   } };
 });
 vi.mock("./thumbnails", () => ({ createThumbnails: mocks.createThumbnails }));
+vi.mock("./prototypeWindow", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./prototypeWindow")>();
+  return { ...original, createPrototypeWindow: (deps: Parameters<typeof original.createPrototypeWindow>[0]) => {
+    const prototype = original.createPrototypeWindow(deps);
+    return { ...prototype, destroyForQuit: () => { mocks.prototypeDestroyForQuit(); prototype.destroyForQuit(); } };
+  } };
+});
 vi.mock("./onboarding/projects", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/projects")>(), ...mocks.projects }));
 const actualProjects = await vi.importActual<typeof import("./onboarding/projects")>("./onboarding/projects");
 
@@ -1494,6 +1503,22 @@ describe("ui state", () => {
     expect(mocks.uiState.flushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.thumbnails.dispose.mock.invocationCallOrder[0] ?? 0);
     expect(mocks.canvasSeenFlushSync).toHaveBeenCalledOnce();
     expect(mocks.canvasSeenFlushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.thumbnails.dispose.mock.invocationCallOrder[0] ?? 0);
+  });
+
+  // Destroying the prototype window is native teardown too: the state is on disk before it runs, and its failure
+  // skips nothing that keeps state.
+  test("an approved quit flushes the state before the prototype window is destroyed, even when destroying it throws", async () => {
+    mocks.prototypeDestroyForQuit.mockImplementationOnce(() => { throw new Error("destroy failed"); });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+      await new Promise<void>(resolve => setImmediate(resolve));
+      expect(mocks.prototypeDestroyForQuit).toHaveBeenCalledOnce();
+      expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
+      expect(mocks.canvasSeenFlushSync).toHaveBeenCalledOnce();
+      expect(mocks.uiState.flushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.prototypeDestroyForQuit.mock.invocationCallOrder[0] ?? 0);
+      expect(mocks.canvasSeenFlushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.prototypeDestroyForQuit.mock.invocationCallOrder[0] ?? 0);
+    } finally { error.mockRestore(); }
   });
 });
 
