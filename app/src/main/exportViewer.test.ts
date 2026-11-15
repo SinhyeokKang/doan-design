@@ -1561,12 +1561,17 @@ describe("isolate.js follows links in a real DOM", () => {
   // followed click itself, so no way of cancelling is mistaken or missed. Every case runs on an href in the document,
   // an href to another one and no href, and checks that the document stayed and the href is back after the timer.
   describe.each([["#sec"], ["other.html"], [null]])("a link with href %s", href => {
-    const link = `<a id="x"${href === null ? "" : ` href="${href}"`} data-doan-goto="b">Next</a>`;
+    // The href's attribute node as the page parsed it, to check that the same node comes back.
+    const link = `<a id="x"${href === null ? "" : ` href="${href}"`} data-doan-goto="b">Next</a>` +
+      `<script>window.parsedHref = document.getElementById("x").getAttributeNode("href");</script>`;
     const before = (body: string) => `<script>${body}</script>`;
     const during = (body: string) => `<script>document.getElementById("x").addEventListener("click", event => { ${body} });</script>`;
-    const after = (frame: Frame) => frame.evaluate(() => [
-      location.href, document.querySelector("[data-doan-proto-frame]")?.getAttribute("data-doan-frame"), document.getElementById("x")!.getAttribute("href"),
-    ]);
+    // The URL, the frame playing, the href, and whether it is the parsed node, with no namespace.
+    const after = (frame: Frame) => frame.evaluate(() => {
+      const node = document.getElementById("x")!.getAttributeNode("href");
+      const parsed = (window as unknown as { parsedHref: Attr | null }).parsedHref;
+      return [location.href, document.querySelector("[data-doan-proto-frame]")?.getAttribute("data-doan-frame"), node?.value ?? null, node === parsed, node?.namespaceURI ?? null];
+    });
 
     test.each([
       ["element preventDefault()", during("event.preventDefault();")],
@@ -1584,7 +1589,7 @@ describe("isolate.js follows links in a real DOM", () => {
     ])("cancelled by %s: no goto, the document stays and keeps its href", async (_name, script) => {
       const { frame, posted } = await clickIn("a", frames(link, script), "#x");
       expect(posted).toEqual([]);
-      expect(await after(frame)).toEqual(["about:srcdoc", "a", href]);
+      expect(await after(frame)).toEqual(["about:srcdoc", "a", href, true, null]);
     });
 
     test.each([
@@ -1594,14 +1599,14 @@ describe("isolate.js follows links in a real DOM", () => {
     ])("followed with %s: the goto, and the document stays and keeps its href", async (_name, script) => {
       const { frame, posted } = await clickIn("a", frames(link, script), "#x");
       expect(posted).toEqual([{ type: "doan-prototype", goto: "b" }]);
-      expect(await after(frame)).toEqual(["about:srcdoc", "a", href]);
+      expect(await after(frame)).toEqual(["about:srcdoc", "a", href, true, null]);
     });
 
     test("an href the canvas sets during the click, with a cancel, is kept", async () => {
       const script = during(`window.addEventListener("click", e => { document.getElementById("x").setAttribute("href", "#new"); e.preventDefault(); }, { once: true });`);
       const { frame, posted } = await clickIn("a", frames(link, script), "#x");
       expect(posted).toEqual([]);
-      expect(await after(frame)).toEqual(["about:srcdoc", "a", "#new"]);
+      expect(await after(frame)).toEqual(["about:srcdoc", "a", "#new", false, null]);
     });
   });
 
@@ -1612,14 +1617,93 @@ describe("isolate.js follows links in a real DOM", () => {
     expect(await frame.evaluate(() => [location.href, document.getElementById("x")!.getAttribute("href")])).toEqual(["about:srcdoc", "other.html"]);
   });
 
-  test("an <svg> link's xlink:href comes off and back the same way", async () => {
-    const svg = `<svg><a id="x" xlink:href="other.html" data-doan-goto="b"><text y="10">Next</text></a></svg>`;
-    const frame = await dom.load(isolateDocument("a", frames(svg)));
-    const loaded = await dom.flush(frame);
-    // An SVG element has no click(); a dispatched click runs the same activation.
-    await frame.evaluate(() => document.getElementById("x")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, composed: true })));
-    expect((await dom.flush(frame)).slice(loaded.length)).toEqual([{ type: "doan-prototype", goto: "b" }]);
-    expect(await frame.evaluate(() => [location.href, document.getElementById("x")!.getAttributeNS("http://www.w3.org/1999/xlink", "href")])).toEqual(["about:srcdoc", "other.html"]);
+  // An SVG link activates its href, else its href in the XLink namespace, whatever the prefix: every one comes off and
+  // the same attribute node goes back.
+  describe("SVG links", () => {
+    const XLINK = "http://www.w3.org/1999/xlink";
+    // Clicks #x (an SVG element has no click(); a dispatched click runs the same activation) and returns the posts, the
+    // URL, and for each href node saved before the click: its value, whether it is back as the same node, its namespace.
+    const clickSvg = async (svg: string, setup = "") => {
+      const frame = await dom.load(isolateDocument("a", frames(svg, `<script>${setup}
+        window.savedHrefs = [...document.getElementById("x").attributes].filter(a => a.localName === "href");</script>`)));
+      const loaded = await dom.flush(frame);
+      await frame.evaluate(() => document.getElementById("x")!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, composed: true })));
+      const posted = (await dom.flush(frame)).slice(loaded.length);
+      const facts = await frame.evaluate(() => {
+        const x = document.getElementById("x")!;
+        const saved = (window as unknown as { savedHrefs: Attr[] }).savedHrefs;
+        return { url: location.href, hrefs: saved.map(a => [a.name, a.value, x.getAttributeNodeNS(a.namespaceURI, "href") === a, a.namespaceURI]) };
+      });
+      return { posted, ...facts };
+    };
+    const both = `<svg><a id="x" href="#one" xlink:href="#two" data-doan-goto="b"><text y="10">Next</text></a></svg>`;
+
+    test("with both href and xlink:href, followed: both come off and back, and the document stays", async () => {
+      expect(await clickSvg(both)).toEqual({
+        posted: [{ type: "doan-prototype", goto: "b" }], url: "about:srcdoc",
+        hrefs: [["href", "#one", true, null], ["xlink:href", "#two", true, XLINK]],
+      });
+    });
+
+    test("with both href and xlink:href, cancelled: no goto and both are back", async () => {
+      const cancel = `document.getElementById("x").addEventListener("click", event => event.preventDefault());`;
+      expect(await clickSvg(both, cancel)).toEqual({
+        posted: [], url: "about:srcdoc",
+        hrefs: [["href", "#one", true, null], ["xlink:href", "#two", true, XLINK]],
+      });
+    });
+
+    test("xlink:href alone comes off and back", async () => {
+      const svg = `<svg><a id="x" xlink:href="other.html" data-doan-goto="b"><text y="10">Next</text></a></svg>`;
+      expect(await clickSvg(svg)).toEqual({ posted: [{ type: "doan-prototype", goto: "b" }], url: "about:srcdoc", hrefs: [["xlink:href", "other.html", true, XLINK]] });
+    });
+
+    test("an XLink href written with another prefix comes off and back", async () => {
+      const svg = `<svg><a id="x" data-doan-goto="b"><text y="10">Next</text></a></svg>`;
+      const setup = `document.getElementById("x").setAttributeNS("${XLINK}", "l:href", "other.html");`;
+      expect(await clickSvg(svg, setup)).toEqual({ posted: [{ type: "doan-prototype", goto: "b" }], url: "about:srcdoc", hrefs: [["l:href", "other.html", true, XLINK]] });
+    });
+  });
+
+  // The canvas may take the detached href node during the click and put it on another element; it keeps it there, and
+  // the click is still decided.
+  test.each([[false], [true]])("an href node the canvas moves to another element during the click stays there (cancelled: %s)", async cancelled => {
+    const html = `<a id="x" href="#sec" data-doan-goto="b">Next</a><a id="y">Other</a>`;
+    const script = `<script>window.errors = []; window.addEventListener("error", event => errors.push(event.message));
+      const node = document.getElementById("x").getAttributeNode("href"); window.moved = node;
+      document.getElementById("x").addEventListener("click", () => window.addEventListener("click", event => {
+        document.getElementById("y").setAttributeNode(node);${cancelled ? " event.preventDefault();" : ""}
+      }, { once: true }));</script>`;
+    const { frame, posted } = await clickIn("a", frames(html, script), "#x");
+    expect(posted).toEqual(cancelled ? [] : [{ type: "doan-prototype", goto: "b" }]);
+    expect(await frame.evaluate(() => {
+      const w = window as unknown as { errors: string[]; moved: Attr };
+      return [location.href, w.errors, document.getElementById("x")!.hasAttribute("href"), document.getElementById("y")!.getAttributeNode("href") === w.moved];
+    })).toEqual(["about:srcdoc", [], false, true]);
+  });
+
+  // A documented limit: a listener the canvas adds during the click that runs after ours and sets the href again gives
+  // the browser something to follow, so the frame navigates while the link is still followed. The document is gone by
+  // then, so the page around it (the test's top window) reads what happened.
+  test("an href the canvas sets again after ours came off is followed by the browser too", async () => {
+    const script = `<script>document.getElementById("x").addEventListener("click", () =>
+      window.addEventListener("click", () => document.getElementById("x").setAttribute("href", "#new"), { once: true }));</script>`;
+    const frame = await dom.load(isolateDocument("a", frames(`<a id="x" href="#sec" data-doan-goto="b">Next</a>`, script)));
+    const top = frame.parentFrame()!;
+    await dom.flush(frame);
+    await frame.evaluate(() => (document.getElementById("x") as HTMLElement).click());
+    const seen = await top.evaluate(() => new Promise<{ posted: unknown[]; url: string }>(resolve => {
+      const w = window as unknown as { doanPosted: unknown[]; doanFrame: HTMLIFrameElement };
+      const check = () => {
+        const url = w.doanFrame.contentWindow!.location.href;
+        if (url !== "about:srcdoc" && w.doanPosted.some(m => (m as { goto?: string }).goto !== undefined)) resolve({ posted: w.doanPosted, url });
+        else setTimeout(check, 10);
+      };
+      check();
+    }));
+    expect(seen.posted.filter(m => (m as { goto?: string }).goto !== undefined)).toEqual([{ type: "doan-prototype", goto: "b" }]);
+    expect(seen.url).not.toBe("about:srcdoc");
+    expect(seen.url.endsWith("#new")).toBe(true);
   });
 
   test("a click() the canvas makes from its handler is decided on its own, and so is the outer click", async () => {
