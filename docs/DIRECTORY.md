@@ -16,13 +16,13 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 ## CLI (Go)
 
 - `cli/cmd/doan/`: the `doan` binary; `main` only calls `cli.Run`.
-- `cli/internal/cli/`: command dispatch, flags, envelopes and exit codes, command bodies, the embedded `doan skill` guide (`skill.md`), the app socket clients (`active`, `work`, `open`, `handoff`, `onboarding`) and shell check session records.
+- `cli/internal/cli/`: command dispatch, flags, envelopes and exit codes, command bodies, the embedded `doan skill` guide (`skill.md`), the app socket clients (`active`, `work`, `open`, `handoff`, `remove`, `onboarding`) and shell check session records.
 - `cli/internal/designskill/`: the embedded design presets — `catalog.json`, `presets/`, `notices/` — and their loader; `SOURCES.md` maps upstream sources to presets and is not embedded.
-- `cli/internal/repo/`: repo discovery, config, storage mode, path resolution, canvas listing, the serving scope and read-only Git metadata.
+- `cli/internal/repo/`: repo discovery, config, storage mode, path resolution, canvas listing, the serving scope, read-only Git metadata, and the `git init` (with rollback) that `--git-init` runs.
 - `cli/internal/canvas/`: the pure HTML canvas model and CSS scanner.
 - `cli/internal/check/`: the pure `doan check` rules.
 - `cli/internal/export/`: the `doan export` pipeline — local references resolved against the serving scope, HTML and CSS rewritten into data, the size cap and the viewer page assembly (`ARCHITECTURE.md` §3 'Exported canvas and viewer').
-  - `viewer/`: the embedded viewer page files (`shell.html`, `shell.css`, `lib.js`, `shell.js`, `measure.js`); `app/src/main/exportViewer.test.ts` pins their copies of app code.
+  - `viewer/`: the embedded page files of the exported canvas viewer and the exported prototype player; `app/src/main/exportViewer.test.ts` pins their copies of app code.
   - `exporttest/`: seed repository fixtures that only tests import.
 - `cli/internal/formats/`: Go validation.
 
@@ -34,7 +34,7 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 ## App (Electron + TypeScript)
 
 - `app/`: the npm project, build and test configuration (`package.json` also carries the electron-builder settings), `components.json` (shadcn), `.npmrc` (exact pins) and `.oxlintrc.json` (lint configuration).
-- `app/scripts/`: packaging (`package.mjs`) and the release checks the signing workflows, `/tester-build` and `/release` run (`checkReleaseVersion.mjs`, `verifySignedPackage.mjs`, and the pure checks they share in `releaseChecks.mjs`). `app/resources/`: the packaged app icon source, the installer disk background and the signing entitlements.
+- `app/scripts/`: packaging (`package.mjs`) and the release checks the signing workflows, `/tester-build` and `/release` run (`checkReleaseVersion.mjs`, `verifySignedPackage.mjs`, and the pure checks they share in `releaseChecks.mjs`), and the buddy motion golden generators (`doanyGolden.mjs`, `dockedBuddyGolden.mjs`). `app/resources/`: the packaged app icon source, the installer disk background and the signing entitlements.
 - `app/src/main/`: the Electron main process (`index.ts` is the entry) — window, menus, IPC, local server wiring, folder lifecycle, CLI runner, persistence and notifications. Subdirectories:
   - `agentAuth/`: Doan-owned agent sign-in, vault, profiles and provider usage reads, with usage and metadata `fixtures/`.
   - `agentSetup/`: launch-time agent setup for sessions outside Doan.
@@ -55,8 +55,8 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 
 - `.doan/canvases/`: draft canvases of Doan's own UI.
 - `.doan/ds/`: design-system canvases, one per token group, shared component or shared surface.
-- `.doan/assets/`: canvas-only assets (`mock.css`, `ds-canvas.css`, `onboarding-grain.svg`, provider and MCP server marks, Doany sources, fonts).
-  - `buddies/`: the buddies' sources (cards, transparent stills and layers, contact shadows, painter GIFs, generation prompts), the shared eye, the group photo and `motion-preview.js`, the motion draft the app's golden comes from; rig numbers and provenance in its `README.md`.
+- `.doan/assets/`: canvas-only assets (`mock.css`, `ds-canvas.css`, the docked buddy draft styles, `onboarding-grain.svg`, provider and MCP server marks, installer icons, Doany sources, fonts).
+  - `buddies/`: the buddies' sources (cards, transparent stills and layers, contact shadows, painter GIFs, generation prompts), the shared eye, the group photo, `motion-preview.js`, the motion draft the app's golden comes from, and `docked-poc.js`, the docked buddy draft core the docked golden comes from; rig numbers and provenance in its `README.md`.
 - `.doan/config.json`: token CSS and extra serve paths for this repo.
 
 ## Agent evaluation
