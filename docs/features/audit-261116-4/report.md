@@ -75,3 +75,18 @@
 - **컨덕터로 고친다**:
   - `fix/fence-output-r5`: B5-1(probe 먼저), G1, L5-2, M5-6, C5-4, M5-3, M5-4
   - `fix/eval-d4b-r5`: G2, C5-3
+
+## 5라운드 결과 (2026-11-16 마감)
+
+**검증하지 못한 것**
+- 실제 앱에서 Codex 대화 턴을 돌려 보지 못했다. 모델 턴이 필요하기 때문이다. Codex status check, usage 읽기, CLI로 B5-1을 확인했다.
+- `exit`에서 끝나는 다른 지점은 마지막 줄을 잃는지 확인하지 않았다. 대상은 `runners.ts`·`acpRunner.ts`의 `transportDied`와 `clone.ts`다.
+
+**병합한 PR** (모두 develop)
+- #230 fence·프로세스 출력: B5-1, G1, L5-2, M5-6, C5-4, M5-3, M5-4
+  - B5-1은 probe로 확인했다. Codex `.env`에 심은 `PATH`가 sandbox 밖의 `git`을 바꿔치기했다. `.env`를 쓰기 금지 목록에 넣었고, Codex를 띄우기 전에 이미 있는 `.env`는 지운다.
+  - G1: `runProcess`가 `close`에서 끝나도록 고쳤다. 부하를 걸고 6번 돌려 모두 통과했다. 불안정하던 `machine.test.ts`의 원인이 이것이었고, postmortem을 남겼다.
+  - M5-3: 시작할 때 지우는 sweep 대신 주석을 고쳤다. sweep을 넣으면 Claude settings 복구용 aside까지 지우게 된다.
+- #231 eval D4b·reader: G2, C5-3. 기록된 실행 957건을 다시 돌렸다. incomplete 판정이 뒤집힌 실행은 0건, D4b 결과가 바뀐 실행도 0건이다.
+
+**BACKLOG**: 새로 올린 것은 없다.
