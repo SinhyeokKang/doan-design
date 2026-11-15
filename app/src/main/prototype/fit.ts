@@ -53,7 +53,7 @@ function placed(width: number, size: PrototypeSize, header: number, workArea: Re
   return { x: place(x, width, workArea.x, workArea.width), y: place(y, height, workArea.y, workArea.height), width, height };
 }
 
-// The canvas panel's rule (DESIGN.md 'Panel width'): at most half the window and never leaving the frame column under
+// The canvas panel's rule (docs/design/canvas.md 'Panel width'): at most half the window and never leaving the frame column under
 // 360; the default max(320, 28%) is cut to that. Below a 640 window the two limits cross and the panel keeps 280 with no
 // range at all, which is why the shipped panelBounds (where the maximum wins) is not used here.
 export function prototypePanelBounds(windowWidth: number): { min: number; max: number; default: number } {

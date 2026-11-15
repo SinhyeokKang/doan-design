@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
 import type { PrototypePhase, PrototypeView } from "../../main/prototype/ipc";
-import { covered, drawerLabel, exportAvailability, drawerRows, liveText, LOADING_LABEL, modeTooltip, stateScene, TIMEOUT_DETAIL, windowTitle } from "./view";
+import { covered, drawerGroups, drawerLabel, exportAvailability, linkMove, linkToast, liveText, LOADING_LABEL, modeTooltip, stateScene, TIMEOUT_DETAIL, windowTitle } from "./view";
 
 const frames = [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }, { id: "account", size: "390x844", number: 3 }];
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", mode: "fit", run: { url: "http://127.0.0.1/a.html", markWidth: 390, markHeight: 844 }, frames, canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present", ...over,
+  gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "ready", mode: "fit", run: { url: "http://127.0.0.1/a.html", markWidth: 390, markHeight: 844 }, frames, gotos: [], canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present", ...over,
 });
 
 describe("windowTitle", () => {
@@ -46,6 +46,13 @@ describe("liveText", () => {
     expect(liveText(view(), true)).toBe("");
     expect(liveText(null, false)).toBe("");
   });
+
+  // A link move announces the frame it moved to once, when that run is ready; a scene or a load says its own line.
+  test("names the frame a link moved to once its run is ready", () => {
+    expect(liveText(view(), false, true)).toBe("Checkout");
+    expect(liveText(view({ phase: "loading" }), false, true)).toBe("");
+    expect(liveText(view({ phase: "init-failed" }), false, true)).toBe(liveText(view({ phase: "init-failed" }), false));
+  });
 });
 
 describe("covered", () => {
@@ -55,20 +62,62 @@ describe("covered", () => {
   });
 });
 
-describe("drawerRows", () => {
+describe("drawerGroups", () => {
   test("lists the run's frames in its order with their canvas numbers, the playing one current", () => {
-    expect(drawerRows(view())).toEqual([
-      { key: "checkout", id: "checkout", number: 1, name: "Checkout", current: true },
-      { key: "account", id: "account", number: 3, name: "account", current: false },
-    ]);
+    expect(drawerGroups(view())).toEqual([{ label: "Frames without links", rows: [
+      { key: "checkout", id: "checkout", number: 1, name: "Checkout", current: true, group: 0 },
+      { key: "account", id: "account", number: 3, name: "account", current: false, group: 0 },
+    ] }]);
+  });
+
+  test("groups the run's frames by its links, linked groups first", () => {
+    const frames = [{ id: "home", size: "390x844", number: 1 }, { id: "checkout", title: "Checkout", size: "390x844", number: 2 }, { id: "done", title: "Done", size: "390x844", number: 4 }];
+    const groups = drawerGroups(view({ frames, gotos: [{ value: "done", frames: ["checkout"] }] }));
+    expect(groups.map(group => [group.label, group.rows.map(row => row.id)])).toEqual([["Checkout and 1 more", ["checkout", "done"]], ["Frames without links", ["home"]]]);
   });
 
   test("no row is current once the playing frame left the list", () => {
-    expect(drawerRows(view({ frame: "gone" })).some(row => row.current)).toBe(false);
+    expect(drawerGroups(view({ frame: "gone" })).flatMap(group => group.rows).some(row => row.current)).toBe(false);
+  });
+
+  test("an empty list has no group", () => {
+    expect(drawerGroups(view({ frames: [] }))).toEqual([]);
   });
 
   test("names the list after the canvas", () => {
     expect(drawerLabel(view())).toBe("Prototype frames in Checkout flow");
+  });
+});
+
+// The renderer's half of a link click: judged by the view it shows (its gen and phase), before main judges again.
+describe("linkMove", () => {
+  test("moves to a frame the run lists", () => {
+    expect(linkMove(view(), { gen: 2, goto: "account" }, false)).toEqual({ kind: "move", frame: "account" });
+    expect(linkMove(view(), { gen: 2, goto: "checkout" }, false)).toEqual({ kind: "move", frame: "checkout" });
+  });
+
+  test("a frame the run does not list, or a value too long to be one, gets the toast", () => {
+    expect(linkMove(view(), { gen: 2, goto: "receipt" }, false)).toEqual({ kind: "toast", text: "Can’t go to “receipt”. Ask your agent to fix this link." });
+    expect(linkMove(view(), { gen: 2, goto: "" }, false)).toEqual({ kind: "toast", text: "Can’t go to “”. Ask your agent to fix this link." });
+    expect(linkMove(view(), { gen: 2, goto: null }, false)).toEqual({ kind: "toast", text: "Can’t go to this link’s frame. Ask your agent to fix this link." });
+  });
+
+  test("an export's toast on screen keeps the link's toast away, but not the move", () => {
+    expect(linkMove(view(), { gen: 2, goto: "receipt" }, true)).toEqual({ kind: "drop" });
+    expect(linkMove(view(), { gen: 2, goto: "account" }, true)).toEqual({ kind: "move", frame: "account" });
+  });
+
+  test("does nothing while the run loads, failed or was lost, for another gen, or before the first view", () => {
+    for (const phase of ["loading", "read-failed", "init-failed", "frame-unavailable", "prototype-unavailable"] as const) {
+      expect(linkMove(view({ phase }), { gen: 2, goto: "account" }, false), phase).toEqual({ kind: "drop" });
+      expect(linkMove(view({ phase }), { gen: 2, goto: "receipt" }, false), phase).toEqual({ kind: "drop" });
+    }
+    expect(linkMove(view(), { gen: 1, goto: "account" }, false)).toEqual({ kind: "drop" });
+    expect(linkMove(null, { gen: 2, goto: "account" }, false)).toEqual({ kind: "drop" });
+  });
+
+  test("the toast quotes the id as written", () => {
+    expect(linkToast("order-confirmation-step-three")).toBe("Can’t go to “order-confirmation-step-three”. Ask your agent to fix this link.");
   });
 });
 

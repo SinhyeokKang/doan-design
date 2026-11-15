@@ -8,6 +8,7 @@ These helpers support short checks of changed behavior in the real Electron app.
 - `desktop.ts`, `windows.ts`: unlocked-desktop/native-focus checks and explicit window/menu targeting. A hidden thumbnail window is not the main app window.
 - `clipboard.ts`: snapshot and restore the native clipboard when testing clipboard behavior.
 - `intrinsic.ts`: compare a control's actual and natural height in one renderer.
+- `electronDom.ts`: a real Chromium DOM for app Vitest tests (not a probe of the app): `launchElectronDom()` starts the app's Electron binary with a minimal main script of its own, a temporary user data folder and no network, and loads documents into one srcdoc iframe. The drift tests of the scripts injected into canvases and of the exported prototype's `isolate.js` run there. `close()` confirms the process exited before removing its folder and throws otherwise; call it in `afterAll`. The binary must already be downloaded (`node -e "require('electron')"` in `app/`); a missing one fails the test.
 
 Build the app and a temporary CLI before launching. Use Playwright `_electron.launch` with `--user-data-dir=<temp>`, the isolated environment, temporary repositories and explicit `DOAN_RUNTIME` for CLI calls. Capture screenshots, inspect the relevant state, require exit 0 plus an explicit completion marker, and report the behavior actually checked. Never treat successful cleanup as proof of a passed assertion. Avoid concurrent GUI probes.
 

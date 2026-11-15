@@ -17,7 +17,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { Anchor, Canvas, ConversationEvent, Runtime, SkillSummary, StageSignal, UnavailableReason } from "../main/conversation/types";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
 import type {
-  ExportTarget, FramesMessage, PanelRequest, PrototypeComposerSettings, PrototypeMode, PrototypeSnapshot, PrototypeView, PrototypeWindowApi, RevealPayload, RunMessage,
+  ExportTarget, FramesMessage, GotoMessage, PanelRequest, PrototypeComposerSettings, PrototypeMode, PrototypeSnapshot, PrototypeView, PrototypeWindowApi, RevealPayload, RunMessage,
 } from "../main/prototype/ipc";
 import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
@@ -54,6 +54,7 @@ const api = {
   // Forward only messages from the current iframe's window, origin "null" and the current gen; main checks again.
   reportResult: (message: RunMessage): Promise<void> => ipcRenderer.invoke("prototype:result", message),
   reportFrames: (message: FramesMessage): Promise<void> => ipcRenderer.invoke("prototype:frames", message),
+  goto: (message: GotoMessage): Promise<void> => ipcRenderer.invoke("prototype:goto", message),
   reload: (gen: number): Promise<void> => ipcRenderer.invoke("prototype:reload", { gen }),
   back: (): Promise<void> => ipcRenderer.invoke("prototype:back"),
   forward: (): Promise<void> => ipcRenderer.invoke("prototype:forward"),

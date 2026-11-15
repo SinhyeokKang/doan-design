@@ -5,7 +5,7 @@ Byte-for-byte copies of the V2 draft's `.doan/assets/doany/v2/` files (canvas `.
 - `doany.png`: from `v2/doany.png`, the selected Pebble. The still image shown while the textures load and whenever WebGL is unavailable, fails or loses its context.
 - `body.png`, `hat.png`: from `v2/body.png` and `v2/hat.png`. The eyeless body and the beret textures that `Doany.tsx` draws with WebGL, in the still image's coordinates.
 
-The artwork was made with the built-in image_gen tool from the earlier six-lobed mascot as a material, face and beret reference; the eyes are drawn by the shader, not stored here. The motion code (`doanyMotion.ts`, `doanyRig.ts`, `Doany.tsx`, ported from `motion/mascot.js` and `v2/mascot.js`) is MIT-licensed (`v2/LICENSE`, Doan contributors); that license covers the code only, not this artwork.
+The artwork was made with the built-in image_gen tool from the earlier six-lobed mascot as a material, face and beret reference; the eyes are drawn by the shader, not stored here. The motion code (`doanyMotion.ts`, `doanyRig.ts`, `Doany.tsx`, ported from `.doan/assets/buddies/motion-preview.js`, which grew out of `motion/mascot.js` and `v2/mascot.js`) is MIT-licensed (`v2/LICENSE`, Doan contributors); that license covers the code only, not this artwork.
 
 ## Doany the artist (canvas notices)
 
@@ -33,4 +33,4 @@ Doany's motion files stay here; `public/buddies/` holds everything else the budd
 | `eye.png` | `eye.png`, 118 × 193 RGBA | Byte copy: the one eye every buddy's shader draws |
 | `group/` | `group/group.png`, 1478 × 789 | The Welcome group photo, recompressed losslessly |
 
-PNGs are recompressed losslessly (oxipng, colour type kept); the folder apart from `group/` stays under 6 MB, which `buddyAssets.test.ts` checks with the sizes, frames and timings above.
+PNGs are recompressed losslessly (oxipng, colour type kept, except the fully opaque group photo, stored as RGB); the folder apart from `group/` stays under 6 MB, which `buddyAssets.test.ts` checks with the sizes, frames and timings above.

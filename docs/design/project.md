@@ -1,0 +1,220 @@
+# Design measurements — Project pages and Doan files
+
+> Part of [DESIGN.md](../DESIGN.md), which holds the evidence and verification policy, the design system and the index of every screen section.
+
+## Project Overview
+
+Reference: `.doan/canvases/doan-project.html` (nine frames: `overview-thread`, `overview-new`, `overview-empty`, `overview-dropdown`, `overview-worktrees`, `overview-list-states`, `overview-promoted`, `overview-notice`, `overview-narrow`) and, for the thread and docked composer placed here for the first time, `.doan/canvases/doan-conversation.html` (`docked-composer`, `thread-messages`, `thread-activity`, `thread-states`, `thread-moves`). Measured at 1238 × 780 and 960 × 600; states without a provider from stored conversation records in an isolated app, running turns, permission requests, the queue, suggestions and a promotion from real Claude Code turns on the signed-in test profile.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Panels | Main `.ov-main` 714 × 716 at 1238 × 780 (white, `--radius-container` start corners); right panel 280 by default (resizable, see 'Resize handle' below) with its 1 px `--border-standard` start edge and end corners on the shipped `.right-stack` (the `aside.ov-right` inside it is 279) | Equal to the draft's boxes. |
+| Header | `min-height` `--size-chrome`, padding 8 / 16, gap 8: project (16 px thumbnail, name label-sm 500, branch chip), "/" in `--text-metadata`, conversation title as an sm `trigger` button (label-sm 500, 16 px chevron) | Every offset equal. |
+| Header button | New conversation: a 32 × 32 `doan-icon-button` (`SquarePen`) at the header's end (`margin-left: auto`, no shrink), the same markup as the canvas panel's; the title cell ellipsizes first (472 wide at 1238, 194 at 960 with three worktrees and a long title), no overlap | The canvas panel's button. |
+| Resize handle | `.doan-overview-handle`, a grid child of the shell in column 3 on the right column's start edge, the canvas panel's handle (8 px, `Resize canvas conversations`). It is not inside `.right-stack`, which clips overflow. It takes the pointer at the boundary and a worktree portal menu draws above it. Default 280, limits as the canvas panel's ('Panel width'); drag 280 → 420, ← widens and → narrows by 16, Home is the maximum (619 at 1238), End 280, a double-click restores 280; the width is saved apart from the canvas panel's and survives a restart | Same limits for both panels. |
+| Narrow window | At 960 × 600 the title gives way first: project and branch keep their widths, the title ellipsizes (197 px with a three-worktree chip) | `overview-narrow`. |
+| Worktree chip | With two or more worktrees a `button` chip with a 14 px chevron opening `.wt-menu` (280, `.shell-worktree` rows); open fill `--affordance-backdrop-pressed` | `button.doan-chip`'s open fill (`data-state="open"`) is more specific than the chip's own rule, so the pressed fill is set as `.ov-project button.wt-chip[aria-expanded="true"]`. |
+| Thread column | 720 px maximum (666 at 1238 × 780) with a 24 px inset; items 24 apart and 32 under the last item at the bottom of the scroll (room for the docked buddy, 'Docked buddy'); bubbles, Markdown (paragraphs, lists with disc / circle / decimal markers 24 px in, inline and block code, table, blockquote), activity rows, permission and end notices equal the boards in type, colour, radius and spacing | The inset sits on `.thread-scroll` and `.ov-col` rather than the draft's `.ov-scroll`; every child offset matches. |
+| Streaming caret | While a reply streams, a 1 px `--text-standard` caret ends its last text block (paragraph, list item, heading, table cell, or a code block's last line, before its final line break), 1 px after the last character, one line tall and top-aligned: 24 high in the Overview, 20 in the canvas panel and on a code line; the block keeps its height with or without it (measured in both places); blinks on and off once a second (`steps(1)`), steady under reduced motion; none on a finished reply. With no text block yet it sits after the blocks | `.msg-agent` is a flex column, so a caret beside the blocks would be blockified onto its own line; drawn inside the text it must not grow the line, or the reply shrinks when streaming ends. |
+| Notice glyphs | Thread end notices and the moved line draw 16 px glyphs | Bare lucide icons render 24 px unless sized; `AlertIcon` and the agent mark size themselves. |
+| Notice text | A thread notice's body wraps and is not clipped (`overflow: visible`) | The strip's one-line rule (`overflow: hidden`, ellipsis) would clip glyphs on a wrapped line. |
+| Docked composer | Capsule (padding 8, `--radius-pill`) while one line; box (padding 16 / 12 / 12 / 16, radius 24) once wrapped or with chips; 32 px Presets and accent Send / Stop / Queue in the card; the tray starts with xs Attach (and Pick from canvas in the canvas panel only) in `--text-subtle`, then the xs `trigger` model, effort and permission at its end, 14 px logo; focus ring as Home's; placeholder `--text-metadata` | Measured empty, one line, wrapped, running (Stop), queueing (Queue with a queued item) and waiting for a permission answer. |
+| Queued messages | Above the composer, one white capsule per message (`--radius-pill`) with a 1 px `--border-standard` inset ring: padding 8 / 8 / 8 / 16, label 16/24, 16 px lucide `message-square-dashed` in `--text-metadata`, then the xs `subtle` capsule Send now when the conversation can steer, then the X icon button Remove; 40 high, 4 apart, 8 above the card. A row sent now leaves the queue at the press and shows as the thread's sending message; it has no in-flight state in the queue. A refusal returns it to its place and fills an always-present `role="status"` caption line under its row (`--text-subtle`, 16 px icon, 4 above, inset 16). Under the list sits one always-present polite `role="status"` line for the usage limit's queue (see 'Usage-limit queue'), empty and taking no space otherwise; while Send now is available the field carries `aria-keyshortcuts="Control+Enter"`. Measured in 'Canvas tools, Send now in the thread and Canvas conversations Delete' ('Queued row', 'Sending message', 'Refused Send now') and, for the capsule, icon and missing caption, against `.doan/canvases/queue-capsule.html` (`running`, `no-send-now`, `single-row`, `refused`) at 1238 × 780 with states from replaced main IPC handlers: radius 9999px, 40 high, icon 16 × 16 at x 16 in rgb(95,95,95), rows 44 apart, 8 to the card, no `.queue-key`. | Larger than a chip so a queued message reads as text. The status line sits inside the row's listitem so the list owns only listitems and the live region exists before its text. |
+| Suggestions and moved line | Suggestions: the Home suggestion rows ('Home' 'Suggestions': up to three lines, the 1 px line between rows, the name highlight), one column 4 apart at the column's width (388 at 960 × 600, 666 at 1238 × 780), 32 above the composer, so the last row clears the docked buddy standing on the card (1238 × 780: last row bottom 632, buddy hit box top 632; at 12 they overlap by 20). Moved line: the default `doan-notice` (its Open centred vertically, as on every notice), 16 px icon, one line (44 px) where only the title ellipsizes before "moved to <canvas>.", sm `panel` Open, 12 above the suggestions; at 960 × 600 the line is 388 wide with Open inside it | Measured after real promotions. A title is the whole first message (up to 512 characters); the full sentence stays in the text (read by assistive tech) and the tooltip. |
+| Right rows | Row padding 12 / 8, gap 8, `--radius-row`; thumbnail 72 × 48, `--radius-toolbar-icon`, inset 1 px border, empty style `--surface-inset`; one row per conversation; first line 14 px logo, the conversation's title ("Conversation" when empty) body-sm 500 ellipsized, status mark 16, time caption `--text-metadata` flush right, where each row's Delete shows on hover or focus (measured in 'Canvas tools, Send now in the thread and Canvas conversations Delete', 'Row Delete') (now, Nm, Nh, 1d for the first day, then the date, "Oct 28"; another year adds it; the spelled-out label is for screen readers); under the first line the canvas name as a caption line (`.cv-canvas`, 12/16 `--text-metadata`), then the preview caption `--text-subtle`, two lines (measured against `.doan/canvases/canvas-concurrent-conversations.html` `overview-rows`: rows of one canvas each carry its name); hairline separators inset 8, hidden beside a hovered openable row; hover fill `--affordance-backdrop-hover`; problem rows: the title, then "<canvas> · <reason>" in the caption (`--text-danger`, or metadata for an unreadable canvas) | Equal, including the hover and the row states of `overview-list-states`. |
+| Status marks | Needs your answer: hand icon 16 in `--text-accent`; Working: 14 px spinner; Conversation finished — unread: the round speech bubble of the sidebar slot (16 px, `--text-accent`) | The shipped sidebar slot; working and permission were measured in dropdown items (see Not verified). |
+| Conversation menu | 360 wide; New with 16 px icon, separator, "Conversations in <project>" head, items drawn like right rows with a one-line preview, hairlines inset 12 hidden around the current and highlighted items, current item `--affordance-backdrop-pressed` | |
+| Empty panel | A dashed box like the sidebar's empty groups: 1px dashed `--border-standard`, `--radius-chip`, margins 0 8 8, padding 16, centred; "No canvas conversations yet." body-sm `--text-subtle`, then the caption line in `--text-metadata` (263×94px in the Overview's 280px column) | |
+| Duplicate-ID notice | The shared `doan-notice` under the header, margin 0 16 8 | Measured after the open canvas moved onto a duplicate ID. |
+| Numerals | `.ov-main`, the right panel, the conversation menu and the worktree menu set `font-variant-numeric: normal`; the docked composer's portalled menus (model, effort, presets) and the sidebar project menu keep the body's tabular figures | The app body's tabular figures widened every "1" (short times "12m", "1d" by 2.5–2.8 px). The composer menus were not measured here. |
+
+### Documented deviations from the draft
+
+- **Streaming caret height.** The drafts draw the caret 24 high with a −6 px bottom margin in every type size; the app draws it one line tall (20 in the canvas panel's 14/20 text), because the drafts' caret makes a 14/20 line 23 high.
+- **Conversation menu width.** 360 px is the menu's component constant; the draft's own rule asks for 360 but the shared `.doan-menu` `max-width` caps its render at 320.
+- **Current worktree check.** The chip's worktree menu marks the current worktree with a check like the shipped sidebar project menu's rows (the draft fills it but draws no check).
+- **Worktree status.** A worktree that is not set up, missing or failing shows Home's status chip in place of the check (see 'Home' 'Status chips in menus'; measured in the same probe).
+- **Moved line alignment.** The draft centres the moved line's icon and text on the Open button's row; the app uses the shared notice, whose inline action centres vertically in the notice while the icon stays on the first line (screens set only outer margins on a notice, `ds/controls.test.ts`). The line never wraps, so its first line is the whole notice and both render the same 44 px row (measured).
+- **Notice actions.** The app's `.grow-text` (`flex: 1`) puts a notice's actions (moved line Open) at the row's end; the draft's text hugs its content.
+- **Running canvas row.** `overview-thread` draws a canvas row as Working while the project conversation runs. A promotion binds its canvas when the turn ends, so the row appears after that turn; the draft's state cannot occur.
+- **Cursor.** Plain buttons (activity head, rows) take the app-wide `button { cursor: pointer }`; the draft's plain buttons keep the default cursor.
+- **Provider text.** Model and effort labels, activity summaries ("Using a tool") and permission option labels ("Allow", "Allow with suggested permissions") come from the provider; the draft's samples are "Opus 5.5", "High", "Editing …", "Allow once".
+- **Thumbnails.** The app shows the captured canvas (`object-fit: cover`, top); the draft draws a mock fill.
+- **Empty-title Delete name.** A conversation with no title names its row's Delete "Delete this conversation" (the shared `deleteItemLabel`, as the title menu); `canvas-concurrent-conversations.html` `overview-rows` draws "Delete “Conversation”".
+- **Unreadable canvas row.** A conversation whose canvas file cannot be read keeps an openable row with the metadata caption: it opens the canvas page, which shows the read error. The `overview-rows` problem tile draws all three problem rows unavailable with the danger caption; the gone and duplicate-ID rows match it.
+- **Narrow placeholder.** The capsule's placeholder stays on one line, so the empty capsule is as tall as one with a typed character; at narrow widths it ends in an ellipsis. The full text stays the field's `aria-placeholder`. A next-message suggestion follows the same rule, and the box's empty placeholder (an attachments-only draft) is one ellipsized line too, so the field stays one line tall (24 px) with no scroll when a suggestion comes or goes (measured in the real app).
+
+### Not verified
+
+- Right-panel rows in Working or Needs your answer (see 'Running canvas row'). The same status marks were measured in conversation-menu items.
+- Docked composer with preset chips and no text, Sending, and blocked by another project conversation (running); the bubble's preset line; an expired permission; the promoted marker (canvas conversations, shown on the canvas page); Jump to latest; the 300 ms loading line; the action rows of a failed or sign-in notice that is not the latest end (only the latest end offers actions).
+- Keyboard focus rings.
+- A real conversation's long title in the Overview header (a DOM-injected title was measured); the switch from a shown conversation to a new one through the header button is unit-tested only.
+
+### Regression pointers
+
+`app/src/renderer/ProjectOverview.test.tsx` pins the numerals, the open chip's pressed fill, the 16 px notice glyphs, the wrapped notice body and the one-line moved line. `ConversationThread.test.tsx` pins the streaming caret inside the last text block; its geometry is a `.scratch/` probe only. `canvasConversationRows.test.ts` pins an unreadable canvas (listed without its id) matching its conversation by path; `overviewConversation.test.ts` pins the short times. Geometry above is a `.scratch/` probe only.
+
+## Docked buddy
+
+Reference: `.doan/canvases/buddy-docked-motion.html` (canvas `buddy-docked-poc`; frames `component-doany`, `component-puri`, `component-dungdung`, `component-popo`, `component-dori` for the dock, `narrow-doany` and `narrow-puri` for the toolbar, `overview-*` and `canvas-*` for the thread's end). Measured at 1238 × 780, draft and app both under emulated reduced motion so every buddy rests at its first x with a still pose; the app's dock was the Overview composer of an isolated project, the toolbar the canvas page with the conversation panel folded, each buddy chosen through the saved preference and a renderer reload; no mismatch.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Slot and ground | `.docked-buddy-slot`: absolute, 0 high along the surface's padding box top (the composer card, or the toolbar inside its 1 px transparent border), z-index 2, `pointer-events: none`; the ground `.docked-buddy` 1 px above that edge, as wide as the padding box (666 on the Overview card, 227 in the toolbar) | Out of the card's grid and the toolbar's flex row: the card stays 666 × 48 and the toolbar 229 × 50 with or without the slot, and Send and Select take the pointer at their centres. |
+| Clip window | `.docked-buddy-window` 88 high, its bottom on the ground, `overflow: hidden`, `pointer-events: none` | It clips only the buddy as it hides 52 px down behind the floor. |
+| Host | 56 × 56, at x 16 on the dock's first visit and centred on the toolbar's (85.5 in a 227 toolbar); top from the ground and pivot from the buddy's foot contact: Doany −44.55 (origin 28px 44.5463px), Puri −41.02, Dungdung −41.51, Popo −41.44, Dori −42.56; still image padding 16.5 %, `object-fit: contain`; canvas 56 | The feet meet the edge for every buddy without per-buddy CSS (`dockedGeometry`). |
+| Floor shadow | 16 × 2, radius 9999px, `--text-subtle` (rgb(82,82,82)), `blur(2px)`, opacity .34 at rest, 1 px above the ground; centre from the host's left: Doany 26.42, Puri 27.92, Dungdung 27.77, Popo 27.77, Dori 28.15 | Centred under the feet (`56 × (.165 + .67 × contact[0])`). The 2 px blur is a contact-shadow constant; the smallest shared blur (8 px) erases a 16 px shadow. |
+| Pointer | The ground, window, host and shadow take no pointer; a transparent corner of the host hands the pointer to the thread under it (`.ov-scroll` measured). One `.docked-buddy-hit` span over the host (`pointer-events: auto`, `cursor: pointer`, no tabindex, under the ground's `aria-hidden`) is clipped by a `clip-path: path()` of the still image's opaque pixels and shown only while the buddy is fully shown; a press on it keeps the composer's focus | Only the painted body takes a click, over the board's iframe too, since the browser hit-tests the clip-path. Measured: an opaque point hits `.docked-buddy-hit` on the Overview card and on the toolbar over the board (pointer cursor; a real click under Select moves the buddy), while the host's transparent corner hits `.ov-scroll` and the board. |
+| Layers | Queue pills `position: relative; z-index: 3` the thread's Jump to latest and the canvas panel's notice rows (`.cp-scroll > .doan-notice`) (`z-index: 3`, the slot's stacking context) over the slot's 2; the slot stays under portalled menus and tooltips (50), toasts (6) and the problem overlay (5). `[data-capture-snapshot]` makes `.docked-buddy` transparent like the other app marks | A queued row's text is never drawn over; a capture has no buddy. |
+| Thread end | 32 under the last item, Overview and canvas panel (`.thread-scroll` bottom padding) | Room above the buddy's 56 px box; the docked backdrop does not grow. |
+| Frame cost | While shown and moving it draws at most about 60 frames a second: on a 120 Hz display the frame loop keeps 120 callbacks a second and advances and draws every other one; at 60 Hz it draws all 60. It parks (0 callbacks) while the window is closed with the app running or the app is hidden, though `document.hidden` stays false there. A frame writes only the styles and attributes that changed. Compositing layers the buddy adds (CDP LayerTree): the WebGL canvas (`112×112 [Canvas]`) and, on the Overview only, a `1432×1436` mask layer for `.ov-main`'s rounded clip (`border-radius: 24px 0 0 24px`) over that canvas; the hit span is the host's first child, painted before the canvas, so it needs no layer | Measured at 1238 × 780 on the built-in 120 Hz display, 3 × 10 s: Overview idle 120 → 60 drawn frames/s, GPU process CPU 4.8 → 3.1 %; window closed 120 → 0. The Overview mask goes only with a uniform radius or no radius on `.ov-main`, which would change its right corners. |
+| Focus ring | With the field focused the card keeps its 1 px rgb(204,204,204) ring; the floor shadow lies on 16 of the card's 666 px top edge, translucent and blurred, and the ring reads through it | Checked on a zoomed screenshot only; there is no computed value for "visible". |
+
+### Documented deviations from the draft
+
+- **Toolbar specimens.** The draft draws only Doany and Puri on a toolbar (`narrow-doany`, `narrow-puri`); Dungdung, Popo and Dori were measured on the app's toolbar alone, with the same ground, window and shadow rules and their dock offsets.
+
+### Not verified
+
+- Motion values in the real app (hop heights, hide and reveal timings, blinks): they are pinned by the golden replay, not measured here.
+- Frame rate on a display other than 60 or 120 Hz, and a minimized window (Playwright keeps `document.hidden` false there).
+- Real Radix tooltip and popover positions over the buddy's box, the picking and capture hints, and the slash popover in the app.
+- Keyboard focus rings other than the composer card's.
+
+### Regression pointers
+
+`dockedBuddyShell.test.ts` pins the ground structure (the hit span first), one WebGL context across slots, StrictMode and buddy swaps, the parked frame loop (native window visibility included), the 60 fps cap at 120 and 60 Hz, unchanged frames writing nothing, floating-element reads and each buddy's measured offset, pivot and shadow centre. `DockedComposer.test.tsx` pins the slot's attributes and the layer rules; `ProjectOverview.test.tsx` the 32 px thread end; `ds/controls.test.ts` the capture snapshot list. Geometry above is a `.scratch/` probe only.
+
+## Project Settings page
+
+Reference: `.doan/canvases/doan-project-settings.html`, the frames `alt-2-page`, `alt-2-page-problem`, `alt-2-states` (nine tiles), `alt-2-states-problem` (six tiles), plus `workspace-status`, superseded by the problem overlay (see Projects home). Measured at 1238 × 780, parts paired by tag and position because the draft's `v-*` and `v2-*` classes are draft-local. Every state was reached for real: settings with token CSS and two shared paths; Saving (a held `doan config`), Saved, a refused Token CSS pick and a refused Shared path; the Share confirmation; no token CSS and nothing shared; Reading settings (held `doan config`); Read failed (failing `doan config`); Missing and a refused Locate; Not set up; Config error with Details open; CLI error; Still reading (held `doan ls`). The header, sidebar and status line parts were paired by selector.
+
+The page is Settings' column (see Settings: panel, column, header, sections, group, row) around a project header, in the shell of Home and the workspace.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Header | `h1` 24 / 26.4 / 500 as a flex row with a 12px gap: a 32 × 32 thumbnail (8px corner, 14 / 600 initial, the sidebar's hue) and the project name, then the branch chip (`doan-chip`, 12 / 16, regular weight); the lead 12 / 16 `--text-subtle`, 8px below: the `~/…` path and, only once the settings are read, " · Stored in `.doan/config.json` in this worktree. Commit it so your team gets these settings." (the file name a white 4px-corner code chip). Show in Finder sits at the right, `sm` subtle, 32px high | The heading takes focus on arrival; Missing and Still reading hide Show in Finder. |
+| Token CSS | One group with a 48px row (8px block padding, 8px gap, no border of its own): a 16px file icon in `--text-subtle`, the path 14 / 20, a spacer, the Saving or Saved status, Change (subtle) and Clear (ghost). With no value: "No token CSS. `doan check` won’t flag hardcoded colors." in `--text-subtle` and Choose (subtle) | |
+| Shared with canvases | One group of 56px rows (12px block padding, hairlines between): a 16px folder icon in `--text-subtle` and the path, Remove (ghost, accessible name "Remove <path> from Shared with canvases"); a last 57px row (hairline above) with Add File or Folder (subtle) and the Saving or Saved status beside it | |
+| Saving and Saved | `.settings-saved`, `role="status"`, 12 / 16 with a 4px gap: Saving in rgb(95,95,95), Saved in rgb(25,59,45) with a 14px check. Saving disables Change, Clear, Remove and Add File or Folder, not Show in Finder or Remove from Doan | The status is on the row that was written. |
+| Write error | A row of its own under the Token CSS row or the Shared list (`.doan-preference-row-extra`): 12px block padding, 45px with one line; `p.settings-msg.error`, `role="alert"`, 14 / 20 in rgb(100,23,35) with a 16px icon (2px margins) and a 6px gap | 'Lines under a row'. |
+| Notice | Missing, Not set up, Config error, CLI error and Read failed show one `doan-notice` (warning for the first two, error for the rest) in place of the two sections: 12 / 16 padding, 16px corner, 6px gap, 32px above the next section; the sentence 14 / 20 and the recovery buttons at its end (`sm`: Locate, Set Up and Retry panel, Details ghost with `aria-expanded`). Read failed adds the reason on a second line, 12 / 16 `--text-subtle`, 4px below | |
+| Details and Locate feedback | Details: `pre.project-settings-details` under the notice on `--surface-inset`, 12 / 16 padding, 16px corner, 12 / 16 `--text-subtle`, wrapping, pulled up 20px under the notice and 32px above the next section. A refused Locate: `p.settings-msg.error` (`role="alert"`) in the same place, padding 8px 17px 4px | |
+| Reading | `p.settings-loading` 14 / 20 `--text-subtle`, 17px inline inset, 8px gap, a 16px spinner; no Remove from Doan section while Reading or Still reading | |
+| Remove from Doan | One group with a 56px row: "Doan stops listing <name> and its worktrees. Files and Git worktrees stay on disk." in caption `--text-subtle`, Remove from Doan (subtle, `sm`) at the end | The button removes the whole project group, as the sidebar menu does. |
+| Share confirmation | `SettingsDialog` (alertdialog), compact ('Design system' Dialogs); "Share <path> with canvases?" with the path a code chip, repo-relative inside the worktree and as picked outside it; Cancel and Share (prominent) at default size | main answers an absolute path; the config stores a worktree path repo-relative. |
+| Lock | While a pick, confirmation or write runs, header tabs, Back, Search, the Home row, sidebar rows and the project menu's Overview, worktree and Project Settings items are `aria-disabled` and the page cannot be left (Add Projects 'Lock ink' for the ink); Show in Finder, Remove from Doan and the project disclosure stay usable; the native menu's Settings…, Add Project… and Home are off | Navigation is ignored, not queued. |
+| Sidebar and menu | No sidebar row is current, not even Home; the Projects tab is current. The native menu behind the page keeps New Conversation and Zoom / Reload Canvas off and Add Project…, Home and Settings… on | |
+
+### Documented differences from the draft
+
+- **Sidebar.** The page reuses the shipped Home sidebar: 220px wide where the draft draws 260 ('App shell'), with its Home row above the project tree (the draft's sidebar predates it), so the centred 768px column has 20px more margin on each side than drawn and the sidebar's project rows sit 44px lower.
+- **Numerals.** The white panel sets plain numerals ('Settings' Panel); the draft canvas inherits the body's tabular numerals.
+- **Tiles.** The draft tiles' 816px stage gives 24px side margins to the column; the app's 994px panel centres it with 113px. Offsets inside the column are unaffected.
+- **Share confirmation.** A native modal `<dialog>` inside the page column (position fixed, margin auto), with no body-sm tracking ('Settings' Confirmations) and the shared dialog shadow; the tile draws a static specimen beside the page, with the stage's panel shadow and no accessible name.
+- **Controls behind the confirmation** are drawn enabled, as the tile draws them: the modal dialog makes the page inert, and the lock is separate. Picks and writes disable them.
+- **Content that is fixture or product text.** The first sentence of a refused Token CSS pick or Shared path is the CLI's own message ("Config path is outside the repository."); the guidance sentence equals the draft's. Read failed's reason, Config error's detail and a Locate refusal are the CLI's or main's text. Project names, paths and file names differ from the draft's illustrative ones.
+
+### Behaviour beyond the measured draft
+
+- **Locate follows the project.** Choosing a folder for a missing project moves the page to the new root and keeps the origin (main reports the move as a re-root focus). Set Up does the same.
+- **Origin.** Escape (probed in the real app), the Projects tab and Back (unit tests) return to the screen the page was opened from; a workspace origin is returned to as that workspace, and Remove from Doan from a page opened on Home returns to Home after its confirmation, with no toast.
+- **Held writes expire.** A write that waits on `doan config` ends with the CLI's 10 second timeout, which also ends the lock; a probe that needs the lock acts within that.
+
+### Not verified
+
+- Hover, pressed and keyboard-focus rings of the page's buttons; widths below 960px; very long paths, branches and error messages.
+- Roles and names were read from DOM attributes, not the accessibility tree.
+
+### Regression pointers
+
+`ProjectSettingsPage.test.tsx` (states, writes, the confirmation, lock), `projectSettingsRules.test.ts` (view and message rules), `addProjectsNav.test.ts`, `App.settings.test.tsx` (entry, origin, lock, re-root), `ShellSidebar.interaction.test.tsx` (locked item), `shell.test.ts` (the re-root focus). The measured values above are unpinned.
+
+## Where Doan files are kept
+
+Reference: `.doan/canvases/local-doan-files.html`, frames `setup-dialog`, `setup-panel`, `clone`, `settings-modes`, `settings-changes`, `settings-disabled` and `not-set-up`, the draft opened in a second window of the app. Every state was reached for real with temporary repositories and the CLI:
+
+- a non-Git folder, a Git repository and a `git worktree add` checkout;
+- an exclude file that is a link (the dialog's exclude failure and `exclude_unwritable`) and a `.git` file that points nowhere (`git_unreadable`);
+- a slowed `doan config --storage` (Saving) and a read-only exclude file (a failed write);
+- a public GitHub clone, held by a slowed `git clone` for the disabled options;
+- real keyboard focus (Tab onto the chosen radio, `:focus-visible` on both sides), pointer hover, and a press released elsewhere.
+
+Code chips were paired one by one. The radios, radio groups and Copy button read through CDP have the same role, name, checked and disabled state on both sides.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Set Up dialog field | A "Doan files" `.ob-field.storage-field` between Token CSS and Will add, aligned to the top; `.storage-options` spans the value columns with a `--space-3` gap. Each `.storage-option` is a two-column grid (16px `.ob-radio` across both lines, then a label-sm medium label and a caption `--text-subtle` description, `--space-half`/`--space-2` gaps); the native radio covers the whole option | The dialog's hairline card already groups the options, so they have no row box. |
+| Will add | The third line is `.git/info/exclude` (a code chip) in place of `.gitattributes` when Keep out of Git is chosen or the project already keeps its files out of Git | The label is fixed: in a linked worktree or submodule it is not the real path. |
+| Fact | In place of the options, `.storage-fact` with the label as `.value` and the sentence as `.ob-helper` (dialog), or one `.ob-provider` row in the provider-list card (setup panel) | Setup follows the project's mode and never turns other worktrees back into Git. |
+| Refusal | The dialog's `.ob-msg.error` line; `git init` is a code chip | |
+| Setup panel and clone | "Doan files" field label (`.storage-label`, `--space-6` above it in the setup panel; `.ob-spaced` under Save to on the clone screen), then one `.ob-provider-list.storage-list` card: rows split by the provider list's 1px divider, the radio in the 32px mark slot on the label line, label-sm label, caption description with code chips (`--surface-inset`, `--space-1` radius and side padding, no wrap) | The Agent step's provider card, so the screen keeps one card style. |
+| Disabled while cloning | The clone screen's options keep their value with `disabled`; label and description take `--text-disabled`, the radio the disabled fills | Like Save to's Change. |
+| Project Settings section | "Doan files" after Shared with canvases and above Remove from Doan, description "Applies to every worktree of this project."; two `.doan-preference-row.storage-pref` rows with the radio in the icon slot, the native radio covering the row, focus as the inset row ring | The thread's settings radio row, outside the thread. |
+| Result line | Under the options in its own `.doan-preference-row-extra.storage-result` (`role="status"`): Saving (pending ink), then Saved with its check and a caption `--text-subtle` line about what changed outside Doan | |
+| Write failure | The page's `.settings-msg-row` error line (`role="alert"`) in the same place; the options go back to the mode on disk | |
+| Guidance | Out of Git, always: `.doan-notice.storage-guidance` with code chips on `--surface-panel`, the command as a block code chip and a `panel` Copy button that reads Copied with a check for 2 s | Doan cannot know whether `.doan/` was ever committed. |
+| Reason line | `.storage-reason` body-sm `--text-subtle` with the alert icon; warning ink when the mode is unknown. Disabled rows (`data-disabled`) take `--text-disabled` text and the disabled radio fills | One sentence per reason. |
+| Path line | "Stored in `.doan/config.json` in this worktree" + the commit sentence (in Git), ", on this Mac only." (out of Git), or nothing more (unknown) | |
+| Not set up | The shipped notice; its sentence names the project's out-of-Git mode | |
+
+### Documented differences from the draft
+
+- **The native radio's user-agent values.** The `opacity: 0` input over each option reads Arial and black ink in the canvas and the app's font and ink in the app. It is transparent, so none of it paints.
+- **The dialog's position.** The draft draws the modal in place (`position: static`); the app centres it as a fixed modal.
+- **Icon-slot ink of disabled rows.** In a disabled row, `.ob-radio`'s `color` is `--text-disabled` (the shipped `.doan-preference-row[data-disabled] .doan-preference-row-icon` rule). The draft reads `--text-subtle` there. The radio paints only its border, fill and dot, which match.
+- **Sample messages.** The draft's failed-write line is a sample CLI message. The app shows the CLI's message, "Cannot read or write the Git exclude file for Doan storage". The second sentence of the dialog's exclude failure is a sample too ("The file is a link…"). The app gives the recovery for every exclude failure instead, so that line wraps once more.
+
+### Not verified
+
+- First run's setup panel and clone tiles. The Project step needs a signed-in agent, which an isolated run cannot have. The Add Projects page renders the same Project screen, and its tiles were measured.
+
+### Regression pointers
+
+`ProjectSetupDialog.test.tsx` (the field, Will add, chips), `AddProjectsPage.test.tsx` (card, fact, disabled clone options), `ProjectSettingsPage.test.tsx` (section, result, guidance, reasons), `storageRules.test.ts` (the rules). Focus return was checked by a real-app probe only.
+
+## Keep out of Git outside a Git repository
+
+Reference: `.doan/canvases/keep-out-git-init.html`, frames `setup-form`, `setup-panel` and `project-settings`; the draft in a hidden second window of the same Electron, the app window hidden throughout. States were reached for real with temporary folders outside Git, the isolated home folder and the built CLI; a wrapper around the CLI answered a `--git-init` run with `git_missing`, `git_init_failed` or `cleanup_failed` (the last after a real `git init`, so the re-read finds a repository), or held it until the Saving state was read. The long-path tiles used the draft's own path, `~/Documents/clients/northwind/2026/spring-campaign/moodboard-and-reference-collection`, created under the isolated home folder. Keyboard focus was reached with real Tab, Shift+Tab, arrow and Escape key presses. The confirmation's role, name and description were read through CDP.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Will add, outside Git | With Keep out of Git chosen and the folder outside Git (`notGit`, never the home folder or above it), the first line is `.git/` (code chip) “— a new Git repository”, with no “, if missing”; Set Up Project has `aria-describedby` on the list in every state | The line is the consent `--git-init` stands for. |
+| Setup panel line | `.ob-provider-help.storage-git-init` under the Doan files card: body-sm 14/20, `--text-subtle`, `--space-3` above; `git init` a nowrap chip on `--surface-inset`. Present only while Keep out of Git is chosen and the plan names `.git/`; the setup consent is described by it: first run's Set up and continue in the panel, the Add Projects page's footer Add project | The panel has no change list. |
+| Panel notices | Code chips in `.ob-project-notice` take `--surface-panel` on the notice's inset fill, and `--surface-inset` in first run's notices, which are the panel fill themselves; `git_missing` and `cleanup_failed` of a setup keep Choose another folder, then Check again or Retry | A chip needs a fill other than its notice's. |
+| Reason line outside Git | `.storage-reason` without the alert icon, “This folder isn’t a Git repository. Choosing Keep out of Git creates one here.”; Keep out of Git enabled. In the home folder the option stays disabled with the alert icon and “Doan doesn’t create a Git repository in your home folder.” | Informational, not a disabled reason. |
+| Confirmation | The shared `SettingsDialog`: compact `alertdialog`, title “Create a Git repository in `<~ path>`?” with the path as a chip, description with `git init` and `.doan/` chips and wired by `aria-describedby`, subtle Cancel and prominent Create Repository; Escape and Cancel return focus to the chosen radio | The Share confirmation gains the same description link. |
+| Result and errors | Saved’s caption line reads “Created a Git repository here. Doan’s lines stay in `.gitattributes`.” when the write’s `written` has `.git/`; the page’s error line chips `xcode-select --install` and the left `.git` path | |
+| After a failed creation | The folder is read again: a `.git` left behind removes the `.git/` line, the panel line and the reason line while the error stays | |
+| Saving | While the confirmed write runs, both options are disabled with Keep out of Git checked, the result row reads Saving and the reason line stays | As the shipped switch. |
+| Long paths | The Project Settings lead, the confirmation's title and the Set Up form's error wrap the draft's long path inside their boxes; nothing scrolls sideways | |
+| Keyboard focus | Create Repository and Cancel take the outer 2px `--border-focus` ring at a 2px offset; the panel's storage rows and Project Settings' rows the inset ring at −2px. An arrow key on the panel's storage radios plans the folder again, which disables the radios meanwhile; focus returns to the chosen radio once the plan is made | Without the return, focus fell to the heading. |
+
+### Documented differences from the draft
+
+- **The page's consent.** The draft draws a button in the panel; on the Add Projects page the consent is the footer's Add project and the panel draws none. First run keeps Set up and continue in the panel.
+- **The dialog’s position.** The draft draws the confirmation in place; the app centres it as a fixed modal (297px auto margins at this window size).
+- **Panel notices chip commands everywhere.** The `local_not_git` and `local_exclude_failed` notices on the setup panel (first run and Add Projects) show `git init` and `.git/info/exclude` as code chips, as the Set Up form shows the same sentences. The wording is unchanged; the draft's copy table drew them without chips.
+- **Whitespace in the dialog’s text.** The draft’s markup puts a line break between the description and the buttons, so its `textContent` has one more space.
+- **Sample paths.** Text that names a folder was compared with the draft’s sample path put in place of the temporary one.
+
+### Not verified
+
+- First run’s panel (`sp-1`; it needs a signed-in agent): measured on the Add Projects page, which shares the screen. The chip fill in first run's notices is pinned only by the stylesheet test.
+- Hover on the new elements.
+- Covered by unit tests only: a deep link dropped while the confirmation is open, and the confirmation closing when the project goes Missing, is re-rooted or becomes a repository outside Doan.
+
+### Regression pointers
+
+`ProjectSetupDialog.test.tsx` (the `.git/` line, `gitInit`, chips), `Onboarding.test.tsx` and `projectStep.test.ts` (panel line, re-plan, consent, re-read, notice chips), `projectFocus.test.ts` (focus across the re-plan), `ProjectSettingsPage.test.tsx`, `storageRules.test.ts` and `SettingsDialog.test.tsx` (confirmation, reasons, description link), `codeChips.test.tsx`.

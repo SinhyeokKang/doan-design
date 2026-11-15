@@ -40,6 +40,16 @@ test("a prototype export says the file also holds the rest of the canvas", () =>
   expect(exportToast("Checkout", { kind: "exported", external: 1, reveal: "r2" }, true)).toEqual({ text: "Exported “Checkout”. The file also contains the rest of the canvas. Parts of it load from the internet.", reveal: "r2" });
 });
 
+// The file holds the start frame's link group; the toast counts the frames besides it. No linked frame reads as before.
+test("a prototype export with linked frames says how many came with it", () => {
+  expect(exportToast("Checkout", { kind: "exported", external: 0, reveal: "r1", linkedFrames: 2 }, true)).toEqual({ text: "Exported “Checkout” and 2 linked frames. The file also contains the rest of the canvas.", reveal: "r1" });
+  expect(exportToast("Checkout", { kind: "exported", external: 0, reveal: "r1", linkedFrames: 1 }, true)?.text).toBe("Exported “Checkout” and 1 linked frame. The file also contains the rest of the canvas.");
+  expect(exportToast("Checkout", { kind: "exported", external: 3, reveal: "r1", linkedFrames: 1000 }, true)?.text).toBe("Exported “Checkout” and 1000 linked frames. The file also contains the rest of the canvas. Parts of it load from the internet.");
+  expect(exportToast("Checkout", { kind: "exported", external: 0, reveal: "r1", linkedFrames: 0 }, true)?.text).toBe("Exported “Checkout”. The file also contains the rest of the canvas.");
+  // The canvas row's Export has no group.
+  expect(exportToast("checkout", { kind: "exported", external: 0, reveal: "r1", linkedFrames: 2 })?.text).toBe("Exported “checkout”.");
+});
+
 test("a prototype export names the frame the file cannot hold or play", () => {
   expect(exportToast("Checkout", { kind: "failed", reason: "notFound" }, true)?.text).toBe("Couldn’t export “Checkout”. Doan can export only a frame written in the canvas file, not one a script adds. Ask your agent to write it into the canvas file.");
   expect(exportToast("Checkout", { kind: "failed", reason: "notMarked" }, true)?.text).toBe("Couldn’t export “Checkout”. It isn’t marked for prototyping in the canvas file. Ask your agent to mark it.");

@@ -1,0 +1,16 @@
+[
+  [
+    "check",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ],
+  [
+    "work",
+    "done",
+    ".doan/canvases/onboarding.html",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

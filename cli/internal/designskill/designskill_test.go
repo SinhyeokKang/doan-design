@@ -384,8 +384,8 @@ func TestValidID(t *testing.T) {
 	}
 }
 
-// The upstream engine check from SOURCES.md. Go's regexp has no lookbehind, so the three exact source-notice tokens
-// are blanked first and every remaining "impeccable" is caught, which matches the rg pattern there.
+// The upstream engine check that SOURCES.md describes. Go's regexp has no lookbehind, so the three exact source-notice
+// tokens are blanked first and every remaining "impeccable" is caught.
 var (
 	engineAllowed = []string{
 		"pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860",

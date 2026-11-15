@@ -1,5 +1,5 @@
 import type { Rect } from "../../main/prototype/fit";
-import type { FramesMessage, PrototypePhase, RunMessage } from "../../main/prototype/ipc";
+import type { FramesMessage, GotoMessage, PrototypePhase, RunMessage } from "../../main/prototype/ipc";
 
 // The prototype window's content layers: one iframe per run (a new element for every `gen` that starts a load) and the
 // still image main captures whenever a run leaves a ready phase. Pure, so the window's order of events is tested
@@ -71,14 +71,28 @@ export function currentRun(layers: HostLayers, gen: number | null): RunFrame | n
   return newest !== undefined && newest.gen === gen ? newest : null;
 }
 
-export type Forward = { kind: "result"; message: RunMessage } | { kind: "frames"; message: FramesMessage };
+// Unlike a result or a list, which only main reads, a followed link's value is used here first: its toast quotes it.
+// So it is taken only in the shape the prototype script posts (exactly `{gen, goto}`, a value of at most 200 UTF-16
+// units or null); main still checks it again.
+function gotoMessage(data: object): GotoMessage | null {
+  const keys = Object.keys(data);
+  if (keys.length !== 2 || !keys.includes("gen") || !keys.includes("goto")) return null;
+  const { gen, goto } = data as { gen: unknown; goto: unknown };
+  if (typeof gen !== "number" || (goto !== null && (typeof goto !== "string" || goto.length > 200))) return null;
+  return { gen, goto };
+}
+
+export type Forward = { kind: "result"; message: RunMessage } | { kind: "frames"; message: FramesMessage } | { kind: "goto"; message: GotoMessage };
 
 // A message from the run's document. Only the current iframe's own window, at the opaque origin a sandboxed canvas
-// has, for the current gen, gets through; main validates every field again. A result carries `state`; the drawer list
-// a run sends after its `load` handlers does not.
+// has, for the current gen, gets through; main validates every field again. A result carries `state`, a followed link
+// `goto`; the drawer list a run sends after its `load` handlers has neither.
 export function forwardedMessage(event: { source: unknown; origin: string; data: unknown }, run: { gen: number; window: unknown } | null): Forward | null {
   if (run === null || event.source === null || event.source !== run.window || event.origin !== "null") return null;
   const data = event.data;
   if (typeof data !== "object" || data === null || Array.isArray(data) || (data as { gen?: unknown }).gen !== run.gen) return null;
-  return "state" in data ? { kind: "result", message: data as RunMessage } : { kind: "frames", message: data as FramesMessage };
+  if ("state" in data) return { kind: "result", message: data as RunMessage };
+  if (!("goto" in data)) return { kind: "frames", message: data as FramesMessage };
+  const message = gotoMessage(data);
+  return message === null ? null : { kind: "goto", message };
 }

@@ -107,7 +107,7 @@ export function canvasAgent(list: readonly ConversationSummary[] | null, target:
   return work.some(on) || conversations.some(on) ? { root: target.root, presence: null, terminal: true } : null;
 }
 
-// A terminal session on the open canvas's path in another worktree of the same project (DESIGN 'Terminal work in another worktree').
+// A terminal session on the open canvas's path in another worktree of the same project (docs/design/canvas.md 'Terminal work in another worktree').
 // The group is the sidebar's (`groupProjects`), so the notice never names a worktree the sidebar puts elsewhere.
 // Only a list worktree that lists the path counts: its Open needs that row. With several, the last in `work` wins
 // (WorkItem has no time). This root's own session wins, and the caller lets an app conversation win too. The label is

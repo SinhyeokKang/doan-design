@@ -17,6 +17,7 @@ interface PinRect { x: number; y: number; width: number; height: number }
 export interface PinGeometry extends PinRect { clip?: PinRect }
 
 export const MAX_FRAMES = 1000;
+export const MAX_GOTOS = 1000;
 export const MAX_STRING = 200;
 // UTF-16 code units, as `String.length` counts them.
 export const MAX_HREF = 8192;
@@ -37,8 +38,13 @@ export const MAX_TEXT_RECTS = 2000;
 export interface CanvasFrameRect {
   id: string;
   title?: string;
-  // The frame's raw `data-doan-prototype` value; playability parses it.
+  // The frame's raw `data-doan-prototype` value; playability parses it. A `cut` frame keeps it but never plays.
   prototype?: string;
+  // The ID was cut at 200 UTF-16 units, so it is not the frame's: the frame cannot play, and link groups, which compare
+  // raw ids, must leave it out rather than take the cut ID for another frame's.
+  cut?: true;
+  // The nearest enclosing frame's index in `frames`; it always comes earlier.
+  parent?: number;
   x: number;
   y: number;
   width: number;
@@ -54,6 +60,14 @@ export interface CanvasRect {
   height: number;
 }
 
+// A `data-doan-goto` link outside `<template>`, in document order: its raw value (one over 200 units is not reported)
+// and the index in `frames` of the innermost listed frame around it, absent when none is. Its enclosing frames are that
+// frame and its `parent` chain.
+export interface CanvasGoto {
+  value: string;
+  frame?: number;
+}
+
 export interface LayoutMessage {
   type: "layout";
   document?: string;
@@ -63,6 +77,7 @@ export interface LayoutMessage {
   viewport: number;
   frames: CanvasFrameRect[];
   truncated: boolean;
+  gotos: CanvasGoto[];
   // Only while the script has a selection; null once it lost the element.
   seq?: number;
   selected?: CanvasRect | null;
@@ -371,14 +386,36 @@ function parseLayout(data: Record<string, unknown>): LayoutMessage | null {
   // long path look like an unknown document; an oversized one is dropped whole.
   if (href.length > MAX_HREF) return null;
   let truncated = data.truncated === true || frames.length > MAX_FRAMES;
+  if (data.gotos !== undefined && !Array.isArray(data.gotos)) return null;
   const kept: CanvasFrameRect[] = [];
-  for (const raw of frames.slice(0, MAX_FRAMES)) {
+  // Indexes the script sent refer to its list; a dropped frame shifts the rest, so they are mapped to the kept list.
+  const keptAt: (number | undefined)[] = [];
+  const keptIndex = (value: unknown, before: number) =>
+    typeof value === "number" && Number.isInteger(value) && value >= 0 && value < before ? keptAt[value] : undefined;
+  for (const [index, raw] of frames.slice(0, MAX_FRAMES).entries()) {
     const parsed = parseFrame(raw);
-    if (parsed === null) continue;
+    if (parsed === null) {
+      keptAt.push(undefined);
+      continue;
+    }
     if (parsed.cut) truncated = true;
+    const parent = isRecord(raw) ? keptIndex(raw.parent, index) : undefined;
+    if (parent !== undefined) parsed.frame.parent = parent;
+    keptAt.push(kept.length);
     kept.push(parsed.frame);
   }
-  const parsed: LayoutMessage = { type: "layout", href, height, viewport, frames: kept, truncated };
+  const gotos: CanvasGoto[] = [];
+  for (const raw of (data.gotos ?? []).slice(0, MAX_GOTOS)) {
+    if (!isRecord(raw) || !within(raw.value, MAX_STRING)) continue;
+    if (raw.frame === undefined) {
+      gotos.push({ value: raw.value });
+      continue;
+    }
+    // A link in a frame that is not in the kept list is left out, as the script leaves out what it cannot report.
+    const frame = keptIndex(raw.frame, keptAt.length);
+    if (frame !== undefined) gotos.push({ value: raw.value, frame });
+  }
+  const parsed: LayoutMessage = { type: "layout", href, height, viewport, frames: kept, truncated, gotos };
   if (data.document !== undefined) {
     if (!within(data.document, MAX_STRING)) return null;
     parsed.document = data.document;
@@ -399,6 +436,7 @@ function parseFrame(raw: unknown): { frame: CanvasFrameRect; cut: boolean } | nu
   if (!finite(x) || !finite(y) || !nonNegative(width) || !nonNegative(height)) return null;
   const clippedId = clip(id);
   const frame: CanvasFrameRect = { id: clippedId.text, x, y, width, height };
+  if (clippedId.cut || raw.cut === true) frame.cut = true;
   // A mark that is not a string or is over the cap is dropped, not the frame: the frame stays listed, unmarked.
   if (typeof prototype === "string" && prototype.length <= MAX_PROTOTYPE_MARK) frame.prototype = prototype;
   let cut = clippedId.cut;

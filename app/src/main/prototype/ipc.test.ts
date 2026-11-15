@@ -10,6 +10,7 @@ describe("prototype channels", () => {
       changed: "prototype:changed",
       result: "prototype:result",
       frames: "prototype:frames",
+      goto: "prototype:goto",
       reload: "prototype:reload",
       back: "prototype:back",
       forward: "prototype:forward",
@@ -44,8 +45,9 @@ describe("prototype channels", () => {
       drawingChanged: "prototype:drawingChanged",
       promoted: "prototype:promoted",
       promotedChanged: "prototype:promotedChanged",
+      playing: "prototype:playing",
     });
-    expect(PROTOTYPE_WINDOW_REQUESTS).toEqual(["prototype:read", "prototype:result", "prototype:frames", "prototype:reload", "prototype:back", "prototype:forward", "prototype:choose", "prototype:close", "prototype:mode",
+    expect(PROTOTYPE_WINDOW_REQUESTS).toEqual(["prototype:read", "prototype:result", "prototype:frames", "prototype:goto", "prototype:reload", "prototype:back", "prototype:forward", "prototype:choose", "prototype:close", "prototype:mode",
       "prototype:export", "prototype:revealExport", "prototype:visible", "prototype:panel", "prototype:showing", "prototype:reveal",
       "prototype:auth", "prototype:work", "prototype:composer", "prototype:remember", "prototype:entry", "prototype:drawing", "prototype:promoted",
       "prototype:rememberedConversation"]);

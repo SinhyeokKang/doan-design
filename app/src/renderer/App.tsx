@@ -33,10 +33,11 @@ import { useVisibleClock } from "./visibleClock";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool, type PlayTool } from "./CanvasTools";
-import { canvasPlayability, playRequest } from "./prototypePlay";
+import { canvasPlayability, drawerPlayRequest, playDrawer, playRequest, playTooltip } from "./prototypePlay";
 import { prototypeMainCalls } from "./prototype/mainCalls";
 import { PrototypeClosedFocus } from "./PrototypeClosedFocus";
-import type { PlayRequest } from "../main/prototype/ipc";
+import { PrototypePlaying } from "./PrototypePlaying";
+import type { PlayRequest, PrototypePlaying as Playing } from "../main/prototype/ipc";
 import { dockedBuddy } from "./dockedBuddyShell";
 import { AlertIcon } from "./AlertIcon";
 import { noticeToast } from "./selection";
@@ -292,6 +293,10 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // last render.
   const playButton = useRef<HTMLButtonElement | null>(null);
   const playNext = useRef<PlayRequest | null>(null);
+  // The toolbar Play's frame drawer, open only in its drawer state, and the frame the prototype window plays, which
+  // that drawer marks.
+  const [playOpen, setPlayOpen] = useState(false);
+  const [playing, setPlaying] = useState<Playing | null>(null);
   // The size bubble's Add to message: the controller's host it renders into (once the bubble is built), its button,
   // the toolbar's Picker that focus goes to when the bubble goes, and the chip waiting for a folded panel to unfold.
   const [bubbleHost, setBubbleHost] = useState<HTMLElement | null>(null);
@@ -1950,8 +1955,14 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // window and nothing here changes the canvas.
   const playable = canvasPlayability(state);
   playNext.current = playRequest(state);
-  const player: PlayTool = { reason: playable.enabled ? null : playable.reason, button: playButton,
-    onPlay: () => sendPlay(playNext.current) };
+  // A drawer whose state went (a pick or capture started, a playable frame got selected) closes its own open state, so
+  // it does not come back by itself when the drawer state does (POSTMORTEM 2026-11-01).
+  const playDrawerState = playable.kind === "drawer";
+  useEffect(() => { if (!playDrawerState) setPlayOpen(false); }, [playDrawerState]);
+  // A pick plays that frame only: the selection, the view and `doan active` stay as they are.
+  const player: PlayTool = { kind: playable.kind, tooltip: playTooltip(state), button: playButton, onPlay: () => sendPlay(playNext.current),
+    open: playOpen && playDrawerState, onOpenChange: setPlayOpen,
+    drawer: playDrawerState ? { ...playDrawer(state, playing), onPick: row => { setPlayOpen(false); sendPlay(drawerPlayRequest(state, row.id)); } } : null };
   const picking = state.picking;
   // Capture area: the canvas, the composer's input, its Attach rule and its attachment count,
   // first match wins. Without the panel's composer the canvas counts as not shown, as for the Picker.
@@ -2239,7 +2250,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (!rightPanelRef.current.open) foldPanel(true, "content");
     setArrival({ focus, seq: ++panelArrivals.current, ...(handoff ? { handoff } : {}) });
   }
-  // The other worktree notice's Open (DESIGN 'Terminal work in another worktree'): opens W's same canvas,
+  // The other worktree notice's Open (docs/design/canvas.md 'Terminal work in another worktree'): opens W's same canvas,
   // which makes W the selected worktree and leaves one canvas visit. A pick on this canvas ends first.
   const onOpenSibling = (root: string) => {
     if (!state.open) return;
@@ -2489,6 +2500,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row))} cancel={closeTrash} confirm={confirmTrash} />}
   {toast.element}
   <PrototypeClosedFocus controller={controller} toolbar={playButton} />
+  <PrototypePlaying onChange={setPlaying} />
   <StarPrompt onboarding={wizard !== null || buddyIntro.open} pickOrCapture={state.picking || state.capturing} restoreFocus={restoreFloatingFocus} />
   {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} buddy={buddySelection} preferences={preferences}
@@ -2524,7 +2536,7 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
         <TooltipContent className="has-key">{sidebar.view.icon === "hide" ? "Hide sidebar" : "Show sidebar"}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘B</span></TooltipContent></Tooltip>
       <button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} aria-disabled={unavailable} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
     <div className="shell-modes"><button {...tab("addProjects")} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button {...tab(null)} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button {...tab("settings")} aria-disabled={unavailable} onClick={settings}><Settings />Settings</button></div>
-    {/* Beside the tabs (docs/DESIGN.md 'Agent usage'), then the update button at the right end. */}
+    {/* Beside the tabs (docs/design/shell.md 'Agent usage'), then the update button at the right end. */}
     <AgentUsageButton openSettings={usage.openSettings} canvasPress={usage.canvasPress} />
     <UpdateHeaderButton disabled={updateDisabled} canvasPress={usage.canvasPress} />
   </header>;
@@ -2568,7 +2580,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
         : <p className="selectable">{state.message}</p>}
     </div>}
     {/* Picking is a mode the person turned on, so its hint sits by the tools, out of the agent notices' column: their
-        coming and going never moves it (DESIGN 'Terminal work in another worktree'). The composer pick button's glyph leads it. */}
+        coming and going never moves it (docs/design/canvas.md 'Terminal work in another worktree'). The composer pick button's glyph leads it. */}
     <div className="doan-canvas-bottom">
       {picking && <div className="doan-agent doan-picking" role="status"><Crosshair className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
         <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}

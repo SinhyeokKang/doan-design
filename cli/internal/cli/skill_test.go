@@ -359,9 +359,7 @@ func TestSkillGuideOpenCommand(t *testing.T) {
 	for _, required := range []string{
 		"- `doan open <canvas path> [--frame <id> [--prototype]] --json`",
 		"`.doan/canvases/*.html` or `.doan/ds/*.html`",
-		"it only navigates",
 		"`--prototype` plays that marked frame alone in its window (`prototype: true`)",
-		"refusals: `frame_not_found`, `not_prototype`, `canvas_unreadable`",
 		"Returns `{opened, frame}` where `frame` is `found`, `missing` (no such frame; say only the canvas opened) or `none`",
 		"On failure: `canvas_not_found`",
 		"`project_not_open` (name the folder; they add it with Add Project…, then ask again)",
@@ -392,8 +390,8 @@ func TestSkillGuideExportCommand(t *testing.T) {
 		"only if asked",
 		"PATH theirs, not in `.doan/`",
 		"Say `external` needs internet, `links` break",
-		// The prototype file hides the other frames and notes but still carries them; the person must know before sending it.
-		"`--prototype`: plays only that frame, but holds the whole canvas; say so.",
+		// The prototype file still carries the whole canvas; the person must know before sending it.
+		"`--prototype`: holds the whole canvas; say so.",
 	} {
 		if !strings.Contains(command[0], required) {
 			t.Errorf("doan export guidance is missing: %s", required)
@@ -484,6 +482,14 @@ func TestSkillGuideOnboardingStorage(t *testing.T) {
 	for _, required := range []string{"Onboarding `project inspect`/`select`/`clone` take the same mode", "absent=repo"} {
 		if !strings.Contains(storage, required) {
 			t.Errorf("storage paragraph is missing: %s", required)
+		}
+	}
+}
+
+func TestSkillGuideFrameLinks(t *testing.T) {
+	for _, required := range []string{"data-doan-goto", "goto_*"} {
+		if !strings.Contains(skillBody, required) {
+			t.Errorf("missing frame link guidance: %s", required)
 		}
 	}
 }

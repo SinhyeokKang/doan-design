@@ -5,7 +5,7 @@ description: Check the changed behavior in the real Electron app with a short is
 
 # Focused runtime verification
 
-There is no screen-specific e2e suite. Until the app is complete, use static/unit verification plus a short real-app check of the changed behavior. Do not rebuild a full workflow suite or require unrelated screens to pass. Future end-to-end scenarios must be designed against the completed app, not restored from the retired scripts.
+There is no screen-specific e2e suite (AGENTS.md 'Workflow' verification policy): check the changed behavior with a short real-app probe. Do not rebuild a full workflow suite or require unrelated screens to pass.
 
 ## Scope
 
@@ -16,9 +16,9 @@ There is no screen-specific e2e suite. Until the app is complete, use static/uni
 ## Run safely
 
 - Write one-off probes under `.scratch/runtime-test/<task>/`; use Playwright `_electron` or native computer-use when OS behavior matters. Keep screen selectors and fixtures in the probe, not in the reusable foundation.
-- Reuse `app/runtime/environment.ts` (`isolatedEnv`), `harness.ts` (bounded waits, owned-app cleanup), `real-state.ts` (before/after fingerprints), `desktop.ts` (unlocked desktop/native focus), `windows.ts` (native window/menu targeting), and `clipboard.ts` when touching the clipboard. `intrinsic.ts` supports same-renderer size comparisons.
-- Create a temporary parent directory, userData and repos. `isolatedEnv(userData, cli)` isolates HOME, TMPDIR, SHELL, agent config directories, DOAN_CLI and DOAN_RUNTIME and writes the v1 onboarding completion record (`{v: 1, completed: true, projectRoot}`), so first run does not open. Remove that record only when testing first run. Pass `--user-data-dir=<temp>` on every app launch and explicit temp repo/runtime paths to CLI calls.
-- `real-state.ts` needs `python3.12` for TOML. Run its before/after checks even when the behavior assertion fails. Close owned apps before deleting temporary files; retain fixtures if exit is unconfirmed. Never use real user setup targets for convenience.
+- Reuse the isolation, cleanup, real-state, desktop, window and clipboard helpers that `app/runtime/README.md` describes.
+- Create a temporary parent directory, userData and repos. `isolatedEnv(userData, cli)` isolates the environment and writes the onboarding completion record, so first run does not open. Remove that record only when testing first run. Pass `--user-data-dir=<temp>` on every app launch and explicit temp repo/runtime paths to CLI calls.
+- Run the `real-state.ts` before/after checks even when the behavior assertion fails. Close owned apps before deleting temporary files; retain fixtures if exit is unconfirmed. Never use real user setup targets for convenience.
 - Check desktop availability before native interactions. DOM screenshots/focus do not establish native material, window dragging or AppKit input. Avoid overlapping GUI probes.
 - **Stay out of the user's way.** The user may be working on the same machine, so a probe does not take focus or cover their windows unless the check needs it:
   - Default: do not call `showMain`, `app.show()`, `app.focus()` or `window.focus()`, and drive the app through Playwright, whose CDP input needs no OS focus. A Playwright launch can still activate the app and show its window; if it does, give focus back at once with `app.hide()` (DOM state, computed styles and accessibility reads keep working; `capturePage` of a hidden window comes back blank). Electron 45 has no `webContents.incrementCapturerCount`.

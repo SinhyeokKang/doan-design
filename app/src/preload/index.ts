@@ -41,7 +41,7 @@ import type { ExportReply } from "../main/canvasExport";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
 import type { AddPageResponse, AddPageState } from "../main/addPage";
-import type { PlayRequest, PrototypeReveal } from "../main/prototype/ipc";
+import type { PlayRequest, PrototypePlaying, PrototypeReveal } from "../main/prototype/ipc";
 import type { DrawingReport, PrototypeTargetRef } from "../main/prototype/drawing";
 import type { ComposerChoice } from "../renderer/rememberChoice";
 
@@ -555,6 +555,14 @@ const api = {
     return () => ipcRenderer.removeListener("prototype:target", receive);
   },
   readPrototypeTarget: (): Promise<PrototypeTargetRef | null> => ipcRenderer.invoke("prototype:readTarget"),
+  // The frame the prototype window plays (null while it is closed), then each change, for the toolbar's frame drawer.
+  // Subscribe first, then read.
+  onPrototypePlaying(listener: (playing: PrototypePlaying | null) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, playing: PrototypePlaying | null) => listener(playing);
+    ipcRenderer.on("prototype:playing", receive);
+    return () => ipcRenderer.removeListener("prototype:playing", receive);
+  },
+  readPrototypePlaying: (): Promise<PrototypePlaying | null> => ipcRenderer.invoke("prototype:playing"),
   // The project conversation drawing that target, or null. Main takes it only for the target playing now and only a
   // project conversation of its root, and relays the id alone to the prototype window.
   setPrototypeDrawing: (report: DrawingReport): Promise<boolean> => ipcRenderer.invoke("prototype:setDrawing", report),

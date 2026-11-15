@@ -2,7 +2,8 @@
 
 Doany and four friends, one asset set each. The app's copies and how they were made are in
 `app/src/renderer/public/doany/README.md`; drafts are `.doan/canvases/buddy-accent.html`, `buddy-choice.html`,
-`buddy-home.html`, `buddy-assets.html`, `buddy-welcome.html` and `buddy-installer.html`.
+`buddy-home.html`, `buddy-assets.html`, `buddy-welcome.html`, `buddy-installer.html`, `buddy-change-cooldown.html` and
+`buddy-docked-motion.html`.
 
 | id | Name | Colour | Accessory |
 |---|---|---|---|
@@ -32,7 +33,8 @@ Doany's equivalent of each file is in brackets.
 Rig numbers (eye centres and radii, body and accessory pivots, accessory tilt range, hop scale; Doany's are in
 `../doany/v2/README.md`) are in this README per buddy. `motion-preview.js` is the motion draft for all five (shaders,
 rig numbers and time model): `buddy-assets.html` previews it, and `app/scripts/doanyGolden.mjs` regenerates the app's
-golden from it.
+golden from it. `docked-poc.js` is the docked buddy's motion draft: `buddy-docked-motion.html` previews it, and
+`app/scripts/dockedBuddyGolden.mjs` regenerates the app's docked golden from its DOM-free core.
 
 ## Provenance
 
@@ -120,8 +122,9 @@ against its reading box instead. No box clips the character.
 ## Puri layers and rig
 
 `puri/still.png`, `body.png` and `accessory.png` are 1254 × 1254 RGBA with transparent backgrounds and no floor
-shadow. Built-in image_gen made three edits: card → transparent still, still → eyeless body, and still → sprout.
-`puri/prompts.json` preserves all three prompts. ImageMagick removes isolated alpha noise and near-white fringe,
+shadow. Built-in image_gen made three edits: card → transparent still, still → eyeless body, and still → sprout; a
+fourth filled the two blurred patches where the body's eyes were removed with matching looped yarn texture. `puri/prompts.json`
+preserves all four prompts. ImageMagick removes isolated alpha noise and near-white fringe,
 keeps the still's visible pixels for the final body and accessory boundaries, and uses the generated body only to
 fill the eyes and restore the mint plush hidden by the stem. The generated accessory guides the extraction;
 the final accessory retains the still's own pixels rather than the redrawn sprout. The supplied card is unchanged.
@@ -150,7 +153,7 @@ Measured: body + accessory stays within 1 source px of the still's 50% alpha bou
 pixels differ, all within 1 px); both eye windows in the body contain zero dark eye pixels. Maximum eye UV rounding
 error is `.000489`; the shared radius differs by at most `.001` UV. No opaque near-white pixels remain in any layer.
 Measurement scripts, source generations and results are local in `.scratch/buddy-assets/`. The maintainer approved
-the layers; the app has not implemented this buddy yet. CPU headroom verification uses the actual alpha hulls and
+the layers; the app ships them (`app/src/renderer/buddies.ts`). CPU headroom verification uses the actual alpha hulls and
 `doanyRender.test.ts`'s motion sequences: 735,160 poses retained at least 6.57 device px in Home's 228 px buffer
 and 8.24 in the 286 px buffer. It does not establish WebGL rendering parity.
 

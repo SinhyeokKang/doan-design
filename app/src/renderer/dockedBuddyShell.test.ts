@@ -756,7 +756,7 @@ test("an idle trip comes only after a rest: the person's thread scrolling and co
   expect(away.ground().parentElement).toBe(away.dock);
 });
 
-// Measured against the draft in the real app (docs/DESIGN.md 'Docked buddy'): each buddy's feet meet the floor and the
+// Measured against the draft in the real app (docs/design/project.md 'Docked buddy'): each buddy's feet meet the floor and the
 // shadow's centre sits under them, from the registry's foot contact alone.
 test("each buddy's host offset, pivot and shadow centre are the measured rest values", async () => {
   const measured = { doany: [-44.54632, 26.42], puri: [-41.01944, 27.92], dungdung: [-41.5072, 27.77], popo: [-41.43216, 27.77], dori: [-42.55776, 28.15] } as const;

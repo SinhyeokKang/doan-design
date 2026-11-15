@@ -145,7 +145,7 @@ Pick a design preset — shape, critique, harden, clarify and more — and the a
 | `doan open <canvas> --frame <id>` | Open a canvas in the app, at a frame; with `--prototype`, play that frame alone in the prototype window |
 | `doan handoff <canvas> --message <text>` | From a Doan canvas conversation, hand the work to a new conversation on a new canvas the turn created, once per new canvas |
 | `doan remove` | Take this project out of Doan's list when you ask; its files and Git worktrees stay on disk |
-| `doan export <canvas> -o <file>` | Save a canvas as one HTML file that opens in any browser; with `--frame <id> --prototype`, a file that plays only that frame |
+| `doan export <canvas> -o <file>` | Save a canvas as one HTML file that opens in any browser; with `--frame <id> --prototype`, a file that plays that frame and the frames linked to it |
 | `doan skill` · `doan design-skill [<id>]` | Print the guide agents follow, and the design presets |
 | `doan onboarding` | Let an agent run first-time setup for you |
 
@@ -153,9 +153,11 @@ A typical agent turn:
 
 ```sh
 doan work start .doan/canvases/tasks.html --json
+doan work update .doan/canvases/tasks.html --frame approval --note "Update the approval frame" --json
 # … the agent edits the canvas …
 doan check --json
 doan work done .doan/canvases/tasks.html --json
+# Only when the person asks to open it:
 doan open .doan/canvases/tasks.html --frame approval --json
 ```
 

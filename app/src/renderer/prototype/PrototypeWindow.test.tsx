@@ -47,7 +47,7 @@ type PrototypeApi = import("./PrototypeWindow").PrototypeApi;
 const A = "http://127.0.0.1:4000/t/k/a/.doan/canvases/a.html";
 const BOX = { x: 0, y: 0, width: 390, height: 844 };
 const view = (over: Partial<PrototypeView> = {}): PrototypeView => ({
-  gen: 1, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [], canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present", ...over,
+  gen: 1, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "Checkout flow", phase: "loading", mode: "fit", run: { url: A, markWidth: 390, markHeight: 844 }, frames: [], gotos: [], canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present", ...over,
 });
 
 let changed: (view: PrototypeView | null) => void;
@@ -84,7 +84,7 @@ beforeEach(() => {
     read: vi.fn(async () => null),
     onChanged: vi.fn((listener: typeof changed) => { changed = listener; return () => {}; }),
     onSnapshot: vi.fn((listener: typeof snapshot) => { snapshot = listener; return () => {}; }),
-    reportResult: vi.fn(async () => {}), reportFrames: vi.fn(async () => {}), reload: vi.fn(async () => {}),
+    reportResult: vi.fn(async () => {}), reportFrames: vi.fn(async () => {}), goto: vi.fn(async () => {}), reload: vi.fn(async () => {}),
     back: vi.fn(async () => {}), forward: vi.fn(async () => {}), choose: vi.fn(async () => {}), close: vi.fn(async () => {}), setMode: vi.fn(async () => {}),
     export: vi.fn(async () => ({ kind: "cancelled" })), revealExport: vi.fn(async () => {}),
     onExportRunning: vi.fn((listener: typeof running) => { running = listener; return () => {}; }),
@@ -392,6 +392,149 @@ describe("focus after a pointer Reload", () => {
     show(view({ gen: 3, phase: "ready" }));
     expect(next.focus).not.toHaveBeenCalled();
     expect(third.focus).not.toHaveBeenCalled();
+  });
+});
+
+// A link click in the playing frame: the script posts `{gen, goto}`, the window judges it by its own view
+// and either asks main to move, shows the broken link's toast or drops it.
+describe("link moves", () => {
+  const LISTED = [{ id: "checkout", title: "Checkout", size: "390x844", number: 1 }, { id: "account", title: "Account", size: "390x844", number: 2 }];
+  const at = (over: Partial<PrototypeView> = {}) => view({ phase: "ready", frames: LISTED, ...over });
+  const iframe = () => ({ focus: vi.fn(), contentWindow: {} });
+  const toastText = () => {
+    const element = shell.toast as ReactElement<{ children: [ReactElement<{ children: string }>, unknown] }> | null | undefined;
+    return element ? element.props.children[0].props.children : null;
+  };
+  function click(goto: string | null, gen = 1) {
+    const element = shell.frames!.get(gen) as unknown as { contentWindow: unknown } | undefined;
+    for (const listener of [...messages]) listener({ source: element?.contentWindow, origin: "null", data: { gen, goto } });
+    return render();
+  }
+  // A run mounts its iframe while it loads; only then does the window hear its messages.
+  function playing(over: Partial<PrototypeView> = {}) {
+    show(at({ ...over, phase: "loading" }));
+    const s = show(at(over));
+    const old = iframe();
+    s.frames!.set(over.gen ?? 1, old as never);
+    return old;
+  }
+
+  test("a link to a listed frame asks main to move; the title, the drawer and the panel follow main's view", () => {
+    playing();
+    click("account");
+    expect(api.goto).toHaveBeenCalledExactlyOnceWith({ gen: 1, goto: "account" });
+    show(at({ gen: 2, phase: "loading", frame: "account", title: "Account" }));
+    expect(doc.title).toBe("Account — Prototype");
+    expect(shell.view).toMatchObject({ frame: "account", title: "Account" });
+  });
+
+  test("focus in the frame at the click goes to the new frame once it is ready, and the live region names it once", () => {
+    const old = playing();
+    doc.activeElement = old;
+    click("account");
+    show(at({ gen: 2, phase: "loading", frame: "account", title: "Account" }));
+    const next = iframe();
+    shell.frames!.set(2, next as never);
+    doc.activeElement = doc.body;
+    expect(shell.live).toBe("");
+    show(at({ gen: 2, frame: "account", title: "Account" }));
+    expect(next.focus).toHaveBeenCalledOnce();
+    expect(shell.live).toBe("Account");
+    // A Reload of the frame it moved to is no move: nothing is announced again.
+    show(at({ gen: 3, phase: "loading", frame: "account", title: "Account" }));
+    shell.frames!.set(3, iframe() as never);
+    show(at({ gen: 3, frame: "account", title: "Account" }));
+    expect(shell.live).toBe("");
+    expect(next.focus).toHaveBeenCalledOnce();
+  });
+
+  test("focus outside the frame at the click stays where it is", () => {
+    playing();
+    doc.activeElement = { name: "Back" };
+    click("account");
+    show(at({ gen: 2, phase: "loading", frame: "account", title: "Account" }));
+    const next = iframe();
+    shell.frames!.set(2, next as never);
+    show(at({ gen: 2, frame: "account", title: "Account" }));
+    expect(next.focus).not.toHaveBeenCalled();
+    expect(shell.live).toBe("Account");
+  });
+
+  test("a link to the playing frame restarts it with focus back in it and no announcement", () => {
+    const old = playing();
+    doc.activeElement = old;
+    click("checkout");
+    expect(api.goto).toHaveBeenCalledExactlyOnceWith({ gen: 1, goto: "checkout" });
+    show(at({ gen: 2, phase: "loading" }));
+    const next = iframe();
+    shell.frames!.set(2, next as never);
+    doc.activeElement = doc.body;
+    show(at({ gen: 2 }));
+    expect(next.focus).toHaveBeenCalledOnce();
+    expect(shell.live).toBe("");
+  });
+
+  // Main holds the loading view behind its still of A, so this window still shows A ready when a second link follows:
+  // main refuses that one (its gen is old), and the first move's announcement must survive it.
+  test("a second link sent before the first move's view arrives keeps the first move's announcement", () => {
+    for (const second of ["settings", "checkout"]) {
+      hooks.states = []; hooks.refs = []; hooks.effects = []; messages = [];
+      render();
+      const frames = [...LISTED, { id: "settings", title: "Settings", size: "390x844", number: 3 }];
+      playing({ frames });
+      click("account");
+      click(second);
+      expect(api.goto!.mock.calls.slice(-2), second).toEqual([[{ gen: 1, goto: "account" }], [{ gen: 1, goto: second }]]);
+      show(at({ gen: 2, phase: "loading", frame: "account", title: "Account", frames }));
+      shell.frames!.set(2, iframe() as never);
+      show(at({ gen: 2, frame: "account", title: "Account", frames }));
+      expect(shell.live, second).toBe("Account");
+    }
+  });
+
+  test("a link to a frame the run does not list shows one toast, replaced by the next, and does not ask main", () => {
+    playing();
+    click("receipt");
+    expect(toastText()).toBe("Can’t go to “receipt”. Ask your agent to fix this link.");
+    click(null);
+    expect(toastText()).toBe("Can’t go to this link’s frame. Ask your agent to fix this link.");
+    expect(api.goto).not.toHaveBeenCalled();
+  });
+
+  test("an export's toast on screen keeps the link's toast away", async () => {
+    playing();
+    let answer!: (reply: unknown) => void;
+    api.export!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+    shell.onExport();
+    running({ root: "/r", path: ".doan/canvases/a.html", frame: "checkout" });
+    vi.advanceTimersByTime(1000);
+    render();
+    expect(toastText()).toBe("Exporting “Checkout”");
+    click("receipt");
+    expect(toastText()).toBe("Exporting “Checkout”");
+    answer({ kind: "exported", external: 0, reveal: "id-1" });
+    for (let i = 0; i < 6; i++) await Promise.resolve();
+    render();
+    const result = toastText();
+    expect(result).toMatch(/^Exported “Checkout”/);
+    click("receipt");
+    expect(toastText()).toBe(result);
+    // A listed frame still moves.
+    click("account");
+    expect(api.goto).toHaveBeenCalledExactlyOnceWith({ gen: 1, goto: "account" });
+  });
+
+  test("a click while the run loads, failed or was lost does nothing", () => {
+    for (const phase of ["loading", "init-failed", "frame-unavailable"] as const) {
+      hooks.states = []; hooks.refs = []; hooks.effects = []; messages = [];
+      render();
+      show(at({ phase }));
+      shell.frames!.set(1, iframe() as never);
+      click("account");
+      click("receipt");
+      expect(api.goto, phase).not.toHaveBeenCalled();
+      expect(toastText(), phase).toBeNull();
+    }
   });
 });
 

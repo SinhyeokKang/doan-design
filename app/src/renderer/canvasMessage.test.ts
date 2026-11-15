@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { MAX_PROTOTYPE_MARK } from "../main/prototype/mark";
 import type { LayoutMessage } from "./canvasMessage";
-import { MAX_COPY_TEXT, MAX_FRAMES, MAX_HREF, MAX_STRING, MAX_TEXT_RECTS, acceptCanvasMessage, parseCanvasMessage } from "./canvasMessage";
+import { MAX_COPY_TEXT, MAX_FRAMES, MAX_GOTOS, MAX_HREF, MAX_STRING, MAX_TEXT_RECTS, acceptCanvasMessage, parseCanvasMessage } from "./canvasMessage";
 
 const frame = { id: "login", title: "Login", x: 0, y: 10, width: 375, height: 800 };
 const layout = (over: Record<string, unknown> = {}) => ({
@@ -41,6 +41,7 @@ describe("parseCanvasMessage: layout", () => {
       viewport: 150,
       frames: [frame],
       truncated: false,
+      gotos: [],
     });
   });
 
@@ -213,6 +214,57 @@ describe("parseCanvasMessage: layout", () => {
   test("counts the href bound in UTF-16 code units, not characters", () => {
     expect(parseCanvasMessage(layout({ href: "😀".repeat(4096) }))).not.toBeNull();
     expect(parseCanvasMessage(layout({ href: "😀".repeat(4097) }))).toBeNull();
+  });
+});
+
+describe("parseCanvasMessage: layout parents and links", () => {
+  const f = (id: string, over: Record<string, unknown> = {}) => ({ ...frame, id, ...over });
+  const parsed = (over: Record<string, unknown>) => parseCanvasMessage(layout(over)) as LayoutMessage;
+
+  test("keeps each frame's parent and each link's innermost frame as indexes into the list", () => {
+    const message = parsed({ frames: [f("a"), f("b", { parent: 0 }), f("c", { parent: 1 })], gotos: [{ value: "a", frame: 2 }, { value: "", frame: 0 }, { value: "x" }] });
+    expect(message.frames.map(({ id, parent }) => ({ id, parent }))).toEqual([{ id: "a", parent: undefined }, { id: "b", parent: 0 }, { id: "c", parent: 1 }]);
+    expect(message.frames[0]).not.toHaveProperty("parent");
+    expect(message.gotos).toEqual([{ value: "a", frame: 2 }, { value: "", frame: 0 }, { value: "x" }]);
+  });
+
+  test("treats missing links as none and refuses links that are not an array", () => {
+    expect(parsed({ gotos: undefined }).gotos).toEqual([]);
+    for (const gotos of [{}, "a", null]) expect(parseCanvasMessage(layout({ gotos }))).toBeNull();
+  });
+
+  test("drops a parent that is not an earlier frame of the list", () => {
+    for (const parent of [-1, 1, 2, 0.5, "0", null]) {
+      expect(parsed({ frames: [f("a"), f("b", { parent })] }).frames[1], String(parent)).not.toHaveProperty("parent");
+    }
+  });
+
+  test("drops a link with a bad value or frame, keeps the rest, and stops at the cap", () => {
+    const bad = [{ value: 1, frame: 0 }, { value: "x".repeat(MAX_STRING + 1), frame: 0 }, { value: "a", frame: 1 }, { value: "a", frame: -1 }, { value: "a", frame: "0" }, "a", null];
+    expect(parsed({ gotos: [...bad, { value: "ok", frame: 0 }] }).gotos).toEqual([{ value: "ok", frame: 0 }]);
+    expect(parsed({ gotos: [{ value: "x".repeat(MAX_STRING), frame: 0 }] }).gotos).toEqual([{ value: "x".repeat(MAX_STRING), frame: 0 }]);
+    const many = Array.from({ length: MAX_GOTOS + 1 }, (_, i) => ({ value: `v${i}`, frame: 0 }));
+    expect(parsed({ gotos: many }).gotos).toEqual(many.slice(0, MAX_GOTOS));
+  });
+
+  test("indexes follow the frames kept when a malformed frame is dropped, and a link in it is left out", () => {
+    const message = parsed({ frames: [f("a"), { id: 5 }, f("c", { parent: 0 }), f("d", { parent: 2 }), f("e", { parent: 1 })], gotos: [{ value: "a", frame: 3 }, { value: "a", frame: 1 }] });
+    expect(message.frames.map(({ id, parent }) => [id, parent])).toEqual([["a", undefined], ["c", 0], ["d", 1], ["e", undefined]]);
+    // The second link sat in the dropped frame, which the kept list cannot name.
+    expect(message.gotos).toEqual([{ value: "a", frame: 2 }]);
+  });
+
+  test("a frame whose ID the script or the parser cut is marked cut and keeps its mark", () => {
+    const exact = "a".repeat(MAX_STRING);
+    const message = parsed({ frames: [f(exact, { prototype: "1x1", cut: true }), f("a".repeat(MAX_STRING + 1), { prototype: "1x1" }), f(exact, { prototype: "1x1" }), f("b", { prototype: "1x1", cut: "yes" })] });
+    expect(message.frames.map(({ id, prototype, cut }) => ({ id, prototype, cut }))).toEqual([
+      { id: exact, prototype: "1x1", cut: true },
+      { id: exact, prototype: "1x1", cut: true },
+      { id: exact, prototype: "1x1", cut: undefined },
+      { id: "b", prototype: "1x1", cut: undefined },
+    ]);
+    expect(message.frames[2]).not.toHaveProperty("cut");
+    expect(message.truncated).toBe(true);
   });
 });
 

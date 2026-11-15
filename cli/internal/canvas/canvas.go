@@ -18,6 +18,14 @@ type Frame struct {
 	// Prototype is the raw data-doan-prototype value, nil when absent.
 	Prototype *string
 }
+
+// Goto is one data-doan-goto element outside <template>.
+type Goto struct {
+	Value string
+	// Frames holds the ids of the frames enclosing the element, outermost first, including the element
+	// itself when it is a frame.
+	Frames []string
+}
 type Canvas struct {
 	Path, ID, Title, WidthRaw        string
 	HasID, IDDup, HasWidth, WidthDup bool
@@ -35,6 +43,8 @@ type Canvas struct {
 	// StrayPrototypes holds the raw data-doan-prototype value of each element
 	// outside <template> that is not a data-doan-frame element.
 	StrayPrototypes []string
+	// Gotos holds each data-doan-goto element in document order.
+	Gotos []Goto
 }
 
 var prototypePattern = regexp.MustCompile(`^[1-9][0-9]{0,4}x[1-9][0-9]{0,4}$`)
@@ -102,7 +112,7 @@ func words(s string) []string {
 	return strings.FieldsFunc(s, func(r rune) bool { return r < 128 && asciiSpace(byte(r)) })
 }
 func Parse(path string, data []byte) (Canvas, error) {
-	c := Canvas{Path: path, BodyMeta: map[string]bool{}, Frames: []Frame{}, StrayPrototypes: []string{}, DoanIDs: []string{}, Links: []string{}, ExternalURLs: []string{}, Styles: Scan{Defs: map[string]bool{}},
+	c := Canvas{Path: path, BodyMeta: map[string]bool{}, Frames: []Frame{}, StrayPrototypes: []string{}, Gotos: []Goto{}, DoanIDs: []string{}, Links: []string{}, ExternalURLs: []string{}, Styles: Scan{Defs: map[string]bool{}},
 		Custom: CustomText{Uses: CustomUse{Used: map[string]bool{}, Hops: map[string]map[string]bool{}, URLSyntax: map[string]bool{}}}}
 	// Parser resource limits can fail even when the reader cannot.
 	root, err := html.Parse(bytes.NewReader(data))
@@ -116,8 +126,8 @@ func Parse(path string, data []byte) (Canvas, error) {
 		}
 	}
 	titleSeen := false
-	var visit func(*html.Node, bool)
-	visit = func(n *html.Node, inHead bool) {
+	var visit func(*html.Node, bool, []string)
+	visit = func(n *html.Node, inHead bool, frames []string) {
 		if n.Type == html.ElementNode {
 			if n.Data == "template" {
 				return
@@ -179,8 +189,14 @@ func Parse(path string, data []byte) (Canvas, error) {
 					f.Prototype = &v
 				}
 				c.Frames = append(c.Frames, f)
+				frames = append(frames, id)
 			} else if v, ok := attrs["data-doan-prototype"]; ok {
 				c.StrayPrototypes = append(c.StrayPrototypes, v)
+			}
+			if v, ok := attrs["data-doan-goto"]; ok {
+				// Copied: siblings append to the same parent stack, so a shared backing array would let a
+				// later sibling overwrite this link's frames.
+				c.Gotos = append(c.Gotos, Goto{Value: v, Frames: append([]string{}, frames...)})
 			}
 			if id, ok := attrs["data-doan-id"]; ok {
 				c.DoanIDs = append(c.DoanIDs, id)
@@ -238,10 +254,10 @@ func Parse(path string, data []byte) (Canvas, error) {
 			}
 		}
 		for child := n.FirstChild; child != nil; child = child.NextSibling {
-			visit(child, inHead)
+			visit(child, inHead, frames)
 		}
 	}
-	visit(root, false)
+	visit(root, false, nil)
 	for _, u := range c.Styles.URLs {
 		addURL(u)
 	}

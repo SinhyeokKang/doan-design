@@ -5,12 +5,12 @@ description: Audit cross-screen UX consistency with specialist subagents for wor
 
 # Cross-screen UX audit
 
-Read [AGENTS.md](../../../AGENTS.md), [PRODUCT.md](../../../docs/PRODUCT.md), [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md), and [DESIGN.md](../../../docs/DESIGN.md). Inspect relevant POSTMORTEM entries. Product decisions define expected behavior; DESIGN separates measured facts from unverified surfaces.
+Read [AGENTS.md](../../../AGENTS.md), [PRODUCT.md](../../../docs/PRODUCT.md), [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md), [DESIGN.md](../../../docs/DESIGN.md) with the screen files it indexes under `docs/design/`. Inspect relevant POSTMORTEM entries (`grep -rn <pattern> docs/postmortem/`). Product decisions define expected behavior; DESIGN separates measured facts from unverified surfaces.
 
 ## Establish coverage
 
 - `/ux-audit` covers all implemented surfaces unless the user narrows it. Record HEAD, worktree status, and a screen/state inventory before comparing.
-- Include Home (composer and project picker), Add Projects, project Overview, workspace/sidebar and its status slots, the canvas page and its conversation panel (chips, picking, locate), the conversation strip, Quick Open, Settings (including About and its update states), Project Settings, the header's update control, the canvas row menu (Move to Trash, Export), first-run onboarding, shared dialogs, alerts, menus, and toasts where implemented. Follow current entry points rather than assuming this list is exhaustive.
+- Build the inventory from the renderer entry points (the renderer inputs in `app/electron.vite.config.ts`: `app/src/renderer/index.html` and `prototype.html`) and the screens in PRODUCT §5 'App (Mac)'. Every dialog, alert, menu, toast and error state where implemented is in scope.
 - Map shared concepts across surfaces: project identity and availability, agent connection/setup state, selection, loading/waiting, errors and recovery. Record which source determines each state and which component presents it.
 - Separate source inspection from live observation. Existing screenshots and measured tables retain their original date and scope; they do not prove the current app matches.
 
@@ -20,7 +20,7 @@ The lead launches four read-only reviewers for perspectives 1–4 below; each al
 
 Give every reviewer the complete screen/state inventory, source-of-truth documents, relevant postmortems, its perspective, and a distinct report path under `.scratch/ux-audit/<run>/`. Each reviewer compares equivalent concepts across all applicable screens, rather than reviewing one screen in isolation. Its output pairs both sides' source evidence, traces component variants to actual styles/state rules, and records coverage and omissions. Reviewers write only their own evidence files; no fixes, commits, tests, or independent app launches.
 
-Each reviewer also reads the doan design presets that match its perspective as a checklist: `doan design-skill --json` lists them and `doan design-skill <id> --json` reads one — for example `clarify` for wording, `harden` and `onboard` for actions, recovery and states, `audit` and `critique` for presentation. Presets inform what to look for; findings still need cross-screen evidence, and this skill stays report-only. If the command is unavailable, say so and continue.
+Each reviewer also reads the doan design presets that match its perspective as a checklist (AGENTS.md 'Design presets in development skills') — for example `clarify` for wording, `harden` and `onboard` for actions, recovery and states, `audit` and `critique` for presentation. Presets inform what to look for; findings still need cross-screen evidence, and this skill stays report-only. If the command is unavailable, say so and continue.
 
 Maintain a screen/state-by-perspective coverage table with owners. Existing tests inform coverage but do not replace source inspection or prove a current pass. Reading component names or a few screenshots does not complete a cell.
 
@@ -54,4 +54,4 @@ Put missing observations and unchecked states first. For each finding include af
 
 Report only: the lead may write the designated report under `docs/features/`; no UI/code/other docs fixes, token redesign, new feature decisions, commits, or push. Store reviewer notes and raw evidence under `.scratch/ux-audit/<run>/`. An audit report is not an approved feature plan and does not require placeholder spec/design/tasks files. Route approved fixes through the normal implementation workflow; do not run an unrequested redesign.
 
-Adapted from `~/code/malmoi/.claude/commands/ux-audit.md`, inspected on 2026-10-25: parallel perspective reviewers, comparison inventories and lead deduplication. doan groups the perspectives into four reviewers with an explicit coverage completion gate; its Electron surfaces, measured design evidence and isolation rules replace malmoi-specific screens.
+Adapted from `~/code/malmoi/.claude/commands/ux-audit.md` (inspected 2026-10-25); doan applies its parallel perspective reviewers, comparison inventories and lead deduplication as four reviewers with an explicit coverage completion gate.

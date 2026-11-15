@@ -752,6 +752,22 @@ test("the prototype target arrives from its pushes; the drawing conversation goe
   expect(mocks.invoke.mock.calls).toEqual([["prototype:readTarget"], ["prototype:setDrawing", { root: "/r", canvas: { path: ".doan/canvases/loose.html" }, generation: 2, conversationId: "p1" }]]);
 });
 
+// The frame the prototype window plays, which the toolbar's frame drawer marks: main's answer unless a push came first.
+test("the playing frame arrives from its pushes and its read", async () => {
+  const playing = { root: "/r", canvas: { id: "proto", path: ".doan/canvases/proto.html" }, frame: "phone" };
+  const seen = vi.fn();
+  const stop = api.onPrototypePlaying(seen);
+  emitter.emit("prototype:playing", {}, playing);
+  emitter.emit("prototype:playing", {}, null);
+  stop();
+  emitter.emit("prototype:playing", {}, playing);
+  expect(seen.mock.calls).toEqual([[playing], [null]]);
+  mocks.invoke.mockClear();
+  mocks.invoke.mockResolvedValueOnce(playing);
+  expect(await api.readPrototypePlaying()).toEqual(playing);
+  expect(mocks.invoke.mock.calls).toEqual([["prototype:playing"]]);
+});
+
 // Settings without a provider ("Sign in to an agent…", "Manage agents…" in the prototype window) reaches the main window.
 test("a prototype reveal of Settings without a provider reaches its listener", () => {
   const reveals = vi.fn();

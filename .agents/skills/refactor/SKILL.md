@@ -21,7 +21,7 @@ Pick the items from the preceding report. If only ⚪ remain, skip and report. D
 
 ### 3. Fix
 - One item at a time. If you mix them, you cannot tell what broke what.
-- If `docs/POSTMORTEM.md` exists, grep it for the area you will fix.
+- If `docs/postmortem/` exists, grep every month file in it (`grep -rn <pattern> docs/postmortem/`) for the area you will fix.
 - If the code touches ARCHITECTURE's structural decisions, read the relevant section first.
 - Comments in English, "why" only.
 

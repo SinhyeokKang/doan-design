@@ -66,8 +66,9 @@ recorded interruption is not an unseen end.
 
 `acp-cursor.json` and `acp-copilot.json` are ACP traffic recorded by the B3
 exploration probe on 2026-10-28 (each file's `source` field).
-`fake-acp-server.cjs` replays one of them for `acpRunner.test.ts`; its header
-lists the test-only `FAKE_ACP` modes.
+`fake-acp-server.cjs` replays one of them, or a test's edited copy, for
+`acpRunner.test.ts`, `runners.fence.test.ts`, `contextUsageRunners.test.ts` and
+`stageRunners.test.ts`; its header lists the test-only `FAKE_ACP` modes.
 
 On 2026-10-29 (doan-home) `fake-acp-server.cjs` gained `FAKE_ACP_MODELS`, a
 `models` member for session/new and session/load in the shape the P1 PoC
@@ -181,3 +182,8 @@ transcript is not the SDK stream: a test that feeds the assistant line through `
 (`~/.codex/sessions`) with `used_percent: 100.0`; only its timestamp and `rate_limits` are kept. The rollout uses
 snake_case; `account/rateLimits/read` answers the same fields in camelCase (`agentAuth/fixtures/codex-usage.json`), and
 `rate_limit_reached_type` was null although the window was full.
+
+`claude-transcript-<cli>-<case>.jsonl` (cases `folded`, `followup`, `stop-kill`, `stop-term`) and
+`claude-frames-<cli>-next-turn-after-stop.jsonl`, for Claude Code 2.1.284 and 2.1.322, are PoC session transcript lines
+and raw SDK frames with paths and account and environment ids removed; each `.meta.json` names its CLI version, case,
+the prompt ids and what was filtered. `transcript.test.ts` reads the transcripts.

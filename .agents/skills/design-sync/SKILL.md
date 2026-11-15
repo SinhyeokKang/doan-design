@@ -1,17 +1,17 @@
 ---
 name: design-sync
-description: Use when a doan app screen is implemented for the first time from a design draft canvas in this repo's .doan/canvases/. Measures the draft and the implementation as computed styles in the real app, fixes the implementation until they match, has it reviewed, pins regressions with tests, and records measured values in docs/DESIGN.md. Does not push.
+description: Use when a doan app screen is implemented for the first time from a design draft canvas in this repo's .doan/canvases/. Measures the draft and the implementation as computed styles in the real app, fixes the implementation until they match, has it reviewed, pins regressions with tests, and records measured values in docs/design/<group>.md (indexed in docs/DESIGN.md). Does not push.
 ---
 
 Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in this repo's `.doan/canvases/`, and this skill compares a screen's implementation with its draft by computed style. Ported from malmoi `.claude/commands/design-sync.md`; the DesignSync / Codex input split and the BugShot step were dropped because the drafts are local files in this repo.
 
-> **The draft is the source of truth only for a screen's initial implementation**. Once that implementation is integrated on develop (not when it is released), the code and `docs/DESIGN.md` are the source of truth. A new draft for an implemented screen is a change request (`/feature` or ordinary work), not a rerun of this loop.
+> **The draft is the source of truth only for a screen's initial implementation**. Once that implementation is integrated on develop (not when it is released), the code and `docs/DESIGN.md` and `docs/design/` are the source of truth. A new draft for an implemented screen is a change request (`/feature` or ordinary work), not a rerun of this loop.
 >
 > **Exception — redesign features**: when a redesign feature (AGENTS.md 'Workflow' `/design-draft`: a child of a parent feature, or a standalone follow-up) draws a new draft file for a screen already on develop, that new draft is the source of truth for the redesigned screen until the feature's branch is merged, and this loop runs against it. The old draft stays untouched as history.
 
 Why the loop exists: in malmoi (2026-09-13) a modal fixed to the pixel in its draft was implemented with 29 deviations while 3,000 unit tests were green. Values that are right but rendered wrong are invisible to unit tests.
 
-**Language**: the report to the user is in Korean. `docs/DESIGN.md`, code comments and commits are English.
+**Language**: the report to the user is in Korean. The design docs (`docs/DESIGN.md`, `docs/design/`), code comments and commits are English.
 
 ## Usage
 
@@ -24,7 +24,7 @@ Why the loop exists: in malmoi (2026-09-13) a modal fixed to the pixel in its dr
 - The draft changed during that initial implementation.
 - A redesign feature is implementing its new draft for a screen already on develop (see the exception above).
 
-**Not for**: screens without a draft, and screens already on develop (even if a draft remains) unless a redesign feature drew a new draft for them. For those, `docs/DESIGN.md` and the code are the reference; check the window with `/runtime-test`.
+**Not for**: screens without a draft, and screens already on develop (even if a draft remains) unless a redesign feature drew a new draft for them. For those, `docs/DESIGN.md` and `docs/design/` and the code are the reference; check the window with `/runtime-test`.
 
 ## Prerequisites (stop if any fails)
 
@@ -49,16 +49,16 @@ Pair each draft element with its implementation element per run, as selector pai
 
 Properties to cover: size, padding, gap, border and radius, colors (text, background, border, divider rules), font family / size / weight / line-height / letter-spacing, and hover, focus, selected and disabled states.
 
-- **Pair children, not only containers**: a child that carries its own text style, background or spacing (`<code>`, `<b>`, chips, glyphs) gets its own row, and every row records `textContent` on both sides. In app-ui a styled `<code>` inside a paired `<p>` passed a 0-mismatch table (POSTMORTEM). Grep `docs/POSTMORTEM.md` for `design-sync` before step 2.
+- **Pair children, not only containers**: a child that carries its own text style, background or spacing (`<code>`, `<b>`, chips, glyphs) gets its own row, and every row records `textContent` on both sides. In app-ui a styled `<code>` inside a paired `<p>` passed a 0-mismatch table (POSTMORTEM). Grep `docs/postmortem/` (`grep -rn design-sync docs/postmortem/`) before step 2.
 
-- **A documented deviation is not a deviation.** When a feature document or `docs/DESIGN.md` records why the implementation differs on purpose, mark the row "documented" with the source. Without such a record, it is a real deviation.
+- **A documented deviation is not a deviation.** When a feature document or the design docs (`docs/DESIGN.md`, `docs/design/`) record why the implementation differs on purpose, mark the row "documented" with the source. Without such a record, it is a real deviation.
 - **A shared primitive beats one screen.** If one screen's draft differs from a shared component, keep the component, unless the drafts draw every screen with the same new value; then change the component and list the other screens it moves in the report.
 
 ### 3. Measure — computed style on both sides, in the real app
 
 Both sides are read with `getComputedStyle` in the same Electron/Chromium build, so units, fonts and token variables resolve the same way.
 
-- Write the script at `.scratch/design-sync/<screen>/measure.mjs`, using `app/runtime/environment.ts` and `harness.ts`: `npm --prefix app run build`, `go build -o <temp>/doan ./cli/cmd/doan`, Playwright `_electron.launch` with a temporary `--user-data-dir`, `DOAN_CLI` and `isolatedEnv` from `app/runtime/environment.ts` (temp `HOME`, `TMPDIR`, fake `SHELL`, `CLAUDE_CONFIG_DIR`/`CODEX_HOME` under that HOME, pre-written `onboarding.json`), the folder dialog replaced through `electronApp.evaluate`, then add this repo with Add Project… and open the canvas. Wrap the whole script in `realState()` / `assertRealState()` from `app/runtime/real-state.ts` (needs `python3.12`), not only the Playwright launches, and treat any `electron-vite dev` run as an app launch with the same isolation (POSTMORTEM 2026-10-30).
+- Write the script at `.scratch/design-sync/<screen>/measure.mjs` with the `app/runtime/` helpers (`app/runtime/README.md`): build the app and a temporary CLI, launch Playwright `_electron` with a temporary `--user-data-dir`, `DOAN_CLI` and `isolatedEnv` (isolated environment, pre-written onboarding completion record), replace the folder dialog through `electronApp.evaluate`, then add this repo with Add Project… and open the canvas. Wrap the whole script in `realState()` / `assertRealState()` from `app/runtime/real-state.ts` (needs `python3.12`), not only the Playwright launches, and treat any `electron-vite dev` run as an app launch with the same isolation (POSTMORTEM 2026-10-30).
 - Keep the app window out of the user's way as [/runtime-test](../runtime-test/SKILL.md) 'Stay out of the user's way' says: computed-style reads work on the hidden window; take focus only for a row that needs it in front.
 - **Draft side**: the canvas iframe is a Playwright `Frame`; read styles and `getBoundingClientRect()` inside it. Do not use `boundingBox()` for elements inside the iframe — it ignores the board scale. Computed styles do not depend on the zoom.
 - **Implementation side**: the app window's renderer page, brought to the state of each row.
@@ -72,7 +72,7 @@ Both sides are read with `getComputedStyle` in the same Electron/Chromium build,
 - Before changing UI, check Doan's own design presets as AGENTS.md 'Design presets in development skills' says, and name the presets read in the report.
 - Bulk replacements assert that they matched; a replacement that silently matched nothing must not be reported as fixed.
 - Comments say why the value matters (what breaks without it), not which draft it came from.
-- Do not change how screens you did not measure look. If a shared primitive must change, prefer the call site, and record it in `docs/DESIGN.md`.
+- Do not change how screens you did not measure look. If a shared primitive must change, prefer the call site, and record it in the screen's `docs/design/<group>.md` section.
 
 ### 5. Re-measure
 
@@ -88,7 +88,7 @@ Pin logic regressions with focused unit tests where practical. Keep geometry, in
 
 ### 8. Record and commit
 
-- `docs/DESIGN.md` (English; create it on the first run, AGENTS.md 'Documents'): the measured values the screen relies on and why, and every documented deviation. Write only what is true in the code now.
+- The screen's section in `docs/design/<group>.md` (English; AGENTS.md 'Documents'): the measured values the screen relies on and why, and every documented deviation. A new screen gets a `## <screen>` section in the group file it belongs to and a row in the 'Screen sections' table of `docs/DESIGN.md`. Write only what is true in the code now.
 - Gates: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run lint` (oxlint), `npm --prefix app run build`, then `/runtime-test`.
 - Commits: code first, then one commit per document. No push.
 
@@ -101,7 +101,7 @@ Table: <rows: frame/state · property · draft · implementation · match / fixe
 Fixes: <commits>
 Review: <rounds, findings resolved>
 Pinned: <tests added, red confirmed>
-DESIGN.md: <sections added>
+DESIGN: <docs/design/<group>.md sections added>
 Commands: <each with result>
 ```
 

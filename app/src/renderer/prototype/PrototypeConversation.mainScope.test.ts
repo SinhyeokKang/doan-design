@@ -22,7 +22,7 @@ const summary = (conversationId: string, canvas: Canvas): ConversationSummary =>
 const view = (canvas: Canvas, gen: number): PrototypeView => ({
   gen, root: ROOT, path: canvas.path, canvasId: canvas.id!, frame: "f", title: "F", canvas: canvas.id!, phase: "ready", mode: "fit",
   run: { url: `http://x/${canvas.id}`, markWidth: 390, markHeight: 844 }, frames: [{ id: "f", title: "F", size: "390x844", number: 1 }],
-  canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: true, width: 280 }, canvasRow: "present",
+  gotos: [], canGoBack: false, canGoForward: false, previousStopped: false, panel: { open: true, width: 280 }, canvasRow: "present",
 });
 const draft = (text: string) => ({ segments: [{ kind: "text" as const, text }], preset: null, attachments: [], shape: "capsule" as const });
 const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
