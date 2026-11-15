@@ -12,6 +12,7 @@ vi.mock("node:child_process", async original => {
   return { ...actual, spawn: record("spawn"), spawnSync: record("spawnSync"), exec: record("exec"), execSync: record("execSync"), execFile: record("execFile"), execFileSync: record("execFileSync"), fork: record("fork") };
 });
 const { parseGitConfig, readGitRemotes } = await import("./gitConfig");
+const { PROMPT_MS, withFifo } = await import("../fifo.fixture");
 
 let temp: string, home: string;
 beforeEach(() => { temp = realpathSync(mkdtempSync(join(tmpdir(), "doan-gitconfig-"))); home = join(temp, "home"); mkdirSync(home); spawned.length = 0; });
@@ -171,4 +172,45 @@ test("config features doan does not resolve make the read uncertain instead of c
 
 test("a repository with no remotes reads as an empty list", () => {
   expect(readGitRemotes(repo("empty", "[core]\n\tbare = false\n"), home)).toEqual({ ok: true, urls: [], uncertain: false });
+});
+
+// A FIFO or device in repository metadata must not stall or flood main: it reads as unreadable (or makes an include
+// uncertain) at once.
+test("a FIFO .git file, commondir or config is unreadable without blocking", async () => {
+  const dotGit = join(temp, "fifo-dotgit"); mkdirSync(dotGit);
+  const asDotGit = await withFifo(join(dotGit, ".git"), () => readGitRemotes(dotGit, home));
+  expect(asDotGit.value).toEqual({ ok: false, reason: "unreadable" });
+  expect(asDotGit.ms).toBeLessThan(PROMPT_MS);
+
+  const main = repo("fifo-main", "[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  const gitdir = join(main, ".git", "worktrees", "wt"); mkdirSync(gitdir, { recursive: true });
+  const worktree = join(temp, "fifo-wt"); file(join(worktree, ".git"), `gitdir: ${gitdir}\n`);
+  const asCommondir = await withFifo(join(gitdir, "commondir"), () => readGitRemotes(worktree, home));
+  expect(asCommondir.value).toEqual({ ok: false, reason: "unreadable" });
+  expect(asCommondir.ms).toBeLessThan(PROMPT_MS);
+
+  const config = join(temp, "fifo-config"); mkdirSync(join(config, ".git"), { recursive: true });
+  const asConfig = await withFifo(join(config, ".git", "config"), () => readGitRemotes(config, home));
+  expect(asConfig.value).toEqual({ ok: false, reason: "unreadable" });
+  expect(asConfig.ms).toBeLessThan(PROMPT_MS);
+});
+
+test("a FIFO, device or oversized include makes the read uncertain without blocking", async () => {
+  const fifo = repo("fifo-inc", "[include]\n\tpath = pipe.inc\n[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  const read = await withFifo(join(fifo, ".git", "pipe.inc"), () => readGitRemotes(fifo, home));
+  expect(read.value).toEqual({ ok: true, urls: ["https://github.com/acme/studio"], uncertain: true });
+  expect(read.ms).toBeLessThan(PROMPT_MS);
+  const device = repo("dev-inc", "[include]\n\tpath = /dev/null\n[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  expect(readGitRemotes(device, home)).toEqual({ ok: true, urls: ["https://github.com/acme/studio"], uncertain: true });
+  const big = repo("big-inc", "[include]\n\tpath = big.inc\n[remote \"origin\"]\n\turl = https://github.com/acme/studio\n");
+  file(join(big, ".git", "big.inc"), `[remote "big"]\n\turl = https://github.com/acme/big\n${"#".repeat(16 * 1024 * 1024)}\n`);
+  expect(readGitRemotes(big, home)).toEqual({ ok: true, urls: ["https://github.com/acme/studio"], uncertain: true });
+});
+
+// Dotfile setups link their git config; following the link keeps such a regular file readable.
+test("an include reached through a link is still read", () => {
+  const root = repo("linked-inc", "[include]\n\tpath = ~/.gitconfig-linked\n");
+  file(join(home, "dotfiles", "gitconfig"), "[remote \"linked\"]\n\turl = https://github.com/acme/linked\n");
+  symlinkSync(join(home, "dotfiles", "gitconfig"), join(home, ".gitconfig-linked"));
+  expect(readGitRemotes(root, home)).toEqual({ ok: true, urls: ["https://github.com/acme/linked"], uncertain: false });
 });

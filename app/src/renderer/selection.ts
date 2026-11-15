@@ -82,19 +82,6 @@ export function mainSelection(open: { folder: string; canvas: string; row: Pick<
   return selection;
 }
 
-// Who the selection is, across a reload
-// or a move: the path is left out, and an element is its doanId when it has
-// one, so a selector rewritten by the agent is still the same element.
-export function selectionIdentity(selection: Selection | null): string | null {
-  if (selection === null) return null;
-  const canvas = [selection.root, selection.canvas.id ?? null];
-  if (selection.element) {
-    const { doanId, selector } = selection.element;
-    return JSON.stringify(["element", ...canvas, ...(doanId === undefined ? ["selector", selector] : ["doanId", doanId])]);
-  }
-  return JSON.stringify(["frame", ...canvas, selection.frame?.id ?? null]);
-}
-
 // Esc and a blank click change nothing without a selection or one being found
 // again, so they neither ask about the draft nor take Esc's default action.
 export function shouldGuardEscape(selection: SelectionView | null, reanchor: AnchorRequest | null): boolean {

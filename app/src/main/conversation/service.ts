@@ -12,7 +12,7 @@ import { requestTitleText } from "./requestLines";
 import { BIND_GRACE_MS, contestedCanvas, PROMOTION_SETTLE_MS, projectBusy, promotionDeadline, promotionTarget } from "./project";
 import { clampSeen, conversationSummary, type ConversationSummary } from "./summary";
 import { combineQueued } from "./queue";
-import { DraftStore, joined, type ReturnedDraft } from "./drafts";
+import { DraftStore, type ReturnedDraft } from "./drafts";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import { codexRestart, type FenceEntry, type FenceMechanism, type FencePaths } from "../agentAuth/fence";
 import type { ModelList } from "./models";
@@ -283,9 +283,9 @@ export class ConversationService {
   // deleted: a conversation deleted (delete), once its index entry is gone.
   // workEnded: the conversation's turn can no longer take a `doan work update` (its end, a deletion, a
   // history that stopped taking writes, the app quitting), so main drops its work (conversationWork.ts).
-  // handedOff: a turn's handoffs started one or more conversations (conversation:handoff, main window only), once all of
-  // them were resolved.
-  // staged: a running turn's stage changed (conversation:stage, main window only); never written to the history.
+  // handedOff: a turn's handoffs started one or more conversations (conversation:handoff, to the main window and, about the
+  // playing canvas, the prototype window), once all of them were resolved.
+  // staged: a running turn's stage changed (conversation:stage, routed like events); never written to the history.
   // publish's deferNotice: a turn.failed whose notification waits until main knows the turn was not scheduled again
   // (QueueOptions.notice).
   constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent, deferNotice?: true) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}, private workEnded: (id: string) => void = () => {}, private handedOff: (notice: ConversationHandoffNotice) => void = () => {}, private staged: (signal: StageSignal) => void = () => {}) {
@@ -847,12 +847,14 @@ export class ConversationService {
     for (const id of [...this.waits.keys(), ...this.judging.keys()]) this.cancelWait(id);
     for (const listing of this.listings) if (listing.cleanup) closing.push(listing.cleanup());
     // Before the appQuit writes: one that throws ends this loop, and the quit's failure is reported, but no
-    // conversation's work content may outlive it.
+    // conversation's work content or run may outlive it.
     for (const id of this.live.keys()) this.endWork(id);
+    for (const live of this.live.values()) if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
     for (const [id, live] of this.live) {
-      if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
       if (live.held) { clearTimeout(live.held.timer); delete live.held; }
-      if (live.accepted && live.busy && !live.terminal) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
+      // As for a Stop, a history that already stopped taking writes takes no interrupted event: its known refusal is
+      // no new persistence failure to cancel the quit for.
+      if (live.accepted && live.busy && !live.terminal && !live.failedPersistence) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
       live.terminal = true; live.busy = false; delete live.stage;
       // Nothing more is written, but a message the agent already has must not come back from the queue at the next start.
       this.lookLater(id, live, false);

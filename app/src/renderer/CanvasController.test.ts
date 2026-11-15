@@ -537,12 +537,10 @@ describe("selection", () => {
           const button = which === "play" ? playButton()! : addButton;
           h.doc.activeElement = button;
           h.controller.command("reload");
-          expect(h.state().reanchoring, which).toBe(true);
           expect((which === "play" ? play : add).onFocusLost, which).toHaveBeenCalledOnce();
           expect(h.doc.activeElement, which).toBe(holder);
           h.layout({ frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10, prototype: "390x844" }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }] });
           h.select(1, { target });
-          expect(h.state().reanchoring, which).toBe(false);
           expect(h.doc.activeElement, which).toBe(button);
           // Moved meanwhile: focus stays where the person put it.
           h.controller.command("reload");
@@ -880,23 +878,20 @@ describe("selection wiring", () => {
     } finally { h.controller.dispose(); }
   });
 
-  // The previous layout stays shown with a null status, so only `reloading`
-  // tells the Comments panel the new document is not known yet.
-  it("reports a reload of the open canvas as reloading until its first layout or the timeout", () => {
+  // A reload of a laid-out canvas keeps the previous layout with a null status; a reload of a failed one loads afresh.
+  it("keeps a null status through a reload of the open canvas until its first layout or the timeout", () => {
     vi.useFakeTimers();
     const h = selectionHarness();
     try {
-      expect(h.state()).toMatchObject({ status: null, reloading: false });
       h.controller.command("reload");
-      expect(h.state()).toMatchObject({ status: null, reloading: true });
+      expect(h.state().status).toBeNull();
       h.layout({ document: "two" });
-      expect(h.state()).toMatchObject({ status: null, reloading: false });
+      expect(h.state().status).toBeNull();
       h.controller.command("reload");
-      expect(h.state().reloading).toBe(true);
       vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
-      expect(h.state()).toMatchObject({ status: "failed", reloading: false });
+      expect(h.state().status).toBe("failed");
       h.controller.command("reload");
-      expect(h.state()).toMatchObject({ status: "loading", reloading: false });
+      expect(h.state().status).toBe("loading");
     } finally { h.controller.dispose(); }
   });
 
@@ -1224,20 +1219,6 @@ describe("anchors channel", () => {
 });
 
 
-it("reports reanchoring while a reloaded canvas looks for the selection", () => {
-  const h = selectionHarness();
-  try {
-    expect(h.state().reanchoring).toBe(false);
-    h.select(1);
-    h.controller.command("reload");
-    expect(h.state().reanchoring).toBe(true);
-    h.layout();
-    expect(h.state().reanchoring).toBe(true);
-    h.select(1);
-    expect(h.state().reanchoring).toBe(false);
-  } finally { h.controller.dispose(); }
-});
-
 // POSTMORTEM 2026-10-23 draft guards: opening stays synchronous, so Loading shows within the call.
 it("opens another canvas synchronously", () => {
   const h = selectionHarness();
@@ -1274,16 +1255,6 @@ describe("canvas open, select, reload and move without a draft guard", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("shows a reload as reloading within the Reload command", () => {
-    const h = selectionHarness();
-    try {
-      h.changed.mockClear();
-      h.controller.command("reload");
-      expect(h.changed).toHaveBeenCalled();
-      expect(h.state()).toMatchObject({ status: null, reloading: true });
-    } finally { h.controller.dispose(); }
-  });
-
   it("follows a moved canvas within the folder update and asks the new document for the selection", () => {
     const h = selectionHarness();
     try {
@@ -1294,7 +1265,7 @@ describe("canvas open, select, reload and move without a draft guard", () => {
       h.select(1);
       h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [moved, h.other] }]);
       expect(followed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", from: h.row.path, row: moved });
-      expect(h.state()).toMatchObject({ open: { canvas: moved.path }, reanchoring: true });
+      expect(h.state()).toMatchObject({ open: { canvas: moved.path } });
       h.layout({ href: moved.url });
       expect(h.current().contentWindow.postMessage).toHaveBeenCalledWith({ type: "select-anchor", seq: 1, doanId: "cta", selector: '[data-doan-id="cta"]' }, "*");
     } finally { h.controller.dispose(); }
@@ -1728,7 +1699,7 @@ describe("a canvas moved with the same id", () => {
       h.controller.updateEntries(h.list(h.moved, h.other));
       expect(h.current()).not.toBe(old);
       expect(h.board.style.transform).toBe(transform);
-      expect(h.state()).toMatchObject({ open: { folder: "/repo", canvas: h.moved.path, row: h.moved }, shown: h.moved.path, reanchoring: true, status: null });
+      expect(h.state()).toMatchObject({ open: { folder: "/repo", canvas: h.moved.path, row: h.moved }, shown: h.moved.path, status: null });
       expect(h.removed).not.toHaveBeenCalled();
       expect(h.followed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", from: h.row.path, row: h.moved });
       // While the new document is asked for the anchor, main already has the new path with the old selectors.
@@ -1736,7 +1707,7 @@ describe("a canvas moved with the same id", () => {
       h.layout({ href: h.moved.url });
       expect(h.current().contentWindow.postMessage).toHaveBeenCalledWith({ type: "select-anchor", seq: 1, doanId: "cta", selector: '[data-doan-id="cta"]' }, "*");
       h.select(1, { href: h.moved.url });
-      expect(h.state()).toMatchObject({ reanchoring: false, notice: "" });
+      expect(h.state()).toMatchObject({ notice: "" });
       expect(h.state().selection).toMatchObject({ element: h.target.element });
       expect(h.board.style.transform).toBe(transform);
       const frames = h.frames.length;
@@ -1792,7 +1763,7 @@ describe("a canvas moved with the same id", () => {
       h.controller.updateEntries(h.list(h.moved, h.other));
       h.layout({ href: h.moved.url });
       h.select(1, { href: h.moved.url, target: null });
-      expect(h.state()).toMatchObject({ selection: null, notice: SELECTION_LOST, reanchoring: false });
+      expect(h.state()).toMatchObject({ selection: null, notice: SELECTION_LOST });
     } finally { h.controller.dispose(); }
   });
 
@@ -1825,7 +1796,7 @@ describe("a canvas moved with the same id", () => {
       const old = h.current();
       h.controller.updateEntries(h.list({ ...h.row, id: "replaced" }, h.other));
       expect(h.current()).not.toBe(old);
-      expect(h.state()).toMatchObject({ selection: null, notice: "", reanchoring: false, open: { canvas: h.row.path, row: { id: "replaced" } } });
+      expect(h.state()).toMatchObject({ selection: null, notice: "", open: { canvas: h.row.path, row: { id: "replaced" } } });
       expect(h.send).toHaveBeenLastCalledWith(null);
       expect(h.followed).not.toHaveBeenCalled();
       expect(h.removed).not.toHaveBeenCalled();
@@ -1963,11 +1934,9 @@ describe("Escape and a blank click without a selection (L-17)", () => {
     try {
       h.select(1);
       h.controller.command("reload");
-      expect(h.state().reanchoring).toBe(true);
       const event = escapeKey();
       h.host.dispatchEvent(event);
       expect(event.defaultPrevented).toBe(false);
-      expect(h.state().reanchoring).toBe(false);
       expect(h.state().selection).toBeNull();
     } finally { h.controller.dispose(); }
   });
@@ -2515,9 +2484,8 @@ describe("picking", () => {
     try {
       h.select(1);
       h.controller.command("reload");
-      expect(h.state().reanchoring).toBe(true);
       started(h);
-      expect(h.state()).toMatchObject({ selection: null, reanchoring: false });
+      expect(h.state()).toMatchObject({ selection: null });
       h.layout({ document: "doc2" });
       expect(posted(h).some(m => m.type === "select-anchor")).toBe(false);
       expect(h.state().selection).toBeNull();
@@ -4618,7 +4586,7 @@ describe("capture", () => {
       h.controller.startCapture();
       pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
       h.controller.command("reload");
-      expect(h.state()).toMatchObject({ capturing: true, reloading: true });
+      expect(h.state()).toMatchObject({ capturing: true });
       expect(captureShown(h)).toBe(true);
       expect(captureLayer(h).captured?.has(1)).toBe(true);
       pointer(h, "pointermove", { clientX: 300, clientY: 250 });
@@ -4914,7 +4882,6 @@ describe("working-frame marker", () => {
       for (let rev = 1; rev <= 3; rev++) {
         // An agent write: main serves the canvas again.
         h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: rev, canvases: [h.row, h.other] }]);
-        expect(h.state().reloading).toBe(true);
         expect(marker(h)).toBe(mark);
         expect(mark).toMatchObject({ hidden: false, style: { left: "100px", top: "100px" } });
         h.layout();

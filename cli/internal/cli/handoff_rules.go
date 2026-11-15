@@ -7,6 +7,7 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/formats"
@@ -36,12 +37,14 @@ func handoffKey(value string) string {
 }
 
 // handoffText trims the message and refuses rather than cuts it, so the agent can resend a shorter one.
-// The control-character rule is the schema's: only \n and \t are allowed.
+// The control-character rule is the schema's: only \n and \t are allowed. The trim adds U+FEFF to Go's
+// unicode.IsSpace because the app's String.trim and /\S/u count it as whitespace: a message the app would read
+// as blank must be refused here, since the CLI can only report the app's bad_request as internal_error.
 func handoffText(raw string) (string, *Error) {
 	if !utf8.ValidString(raw) {
 		return "", usageError("--message must be UTF-8 text")
 	}
-	text := strings.TrimSpace(raw)
+	text := strings.TrimFunc(raw, func(r rune) bool { return unicode.IsSpace(r) || r == '\ufeff' })
 	if text == "" {
 		return "", usageError("--message needs the handoff message; use - to read it from stdin")
 	}

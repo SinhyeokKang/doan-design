@@ -1,4 +1,4 @@
-import { commandWords, doanCommand } from "./transcript.ts";
+import { commandWords, doanCommand, incompleteRead } from "./transcript.ts";
 import { contentHash } from "./work.ts";
 import type { Check, CheckContext } from "./types.ts";
 
@@ -9,14 +9,16 @@ export function handoffCommands(ctx: Pick<CheckContext, "calls">): string[][] {
 }
 
 // For scenarios where nothing asks to continue on another canvas: the turn prompt still carries the handoff line, so
-// neither a `doan handoff` command nor a v5 request may show up.
+// neither a `doan handoff` command nor a v5 request may show up. A command the reader could not follow may have run
+// one that the CLI refused before sending, so the absence is not established beside it.
 export function noHandoff(ctx: Pick<CheckContext, "calls" | "handoff">): Check {
   const commands = handoffCommands(ctx), received = ctx.handoff();
-  const none = commands.length === 0 && received.length === 0;
+  const incomplete = incompleteRead(ctx.calls.commands);
+  const none = commands.length === 0 && received.length === 0 && !incomplete;
   return {
     id: "no_handoff",
     pass: none,
-    detail: none ? "no doan handoff command and no v5 request reached the app" : `doan handoff commands: ${JSON.stringify(commands.map(words => words.slice(0, 3)))}; v5 requests the app received: ${received.length}`,
+    detail: none ? "no doan handoff command and no v5 request reached the app" : `doan handoff commands: ${JSON.stringify(commands.map(words => words.slice(0, 3)))}; v5 requests the app received: ${received.length}${incomplete ? "; a command could not be read completely" : ""}`,
   };
 }
 

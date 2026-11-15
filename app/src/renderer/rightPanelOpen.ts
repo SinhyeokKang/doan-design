@@ -67,9 +67,3 @@ export function canvasStrongestSignal(list: readonly ConversationSummary[], canv
   const unseen = mine.find(c => conversationWork(c, seen)?.kind === "unseen");
   return unseen ? { kind: "unseen", label: "Show conversation, conversation finished unread", conversationId: unseen.conversationId } : null;
 }
-
-// The work capsule stops a working turn; while the agent waits for an answer it offers Open, and stopping is the
-// permission card's Stop.
-export function capsuleAction(phase: "running" | "waiting"): "stop" | "open" {
-  return phase === "waiting" ? "open" : "stop";
-}

@@ -16,7 +16,7 @@ function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
   const store = new ConversationStore(dir); const runners: Runner[] = []; const exits: (() => void)[] = [];
   let hold: (() => void) | undefined;
-  const open = vi.fn<OpenRunner>(async (input, emit, exited) => {
+  const open = vi.fn<OpenRunner>(async (input, _emit, exited) => {
     exits.push(exited); if (hold) await new Promise<void>(resolve => { hold = resolve; });
     const runner: Runner = { sessionId: input.sessionId ?? "new-session", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) };
     runners.push(runner); return runner;
@@ -1047,7 +1047,7 @@ describe("promotion", () => {
     expect(h.changes).toContain("/repo");
   });
   it("keeps a turn whose edit was refused (no file change) or whose file changed without its edit a project conversation", async () => {
-    const h = homeFixture([a, b]); const { current, project } = await withCurrent(h);
+    const h = homeFixture([a, b]); const { project } = await withCurrent(h);
     h.service.receive(project, edit(a.path));
     h.service.refreshed("/repo", [b.path]);
     h.service.receive(project, { type: "turn.done" });
@@ -1078,7 +1078,7 @@ describe("promotion", () => {
     expect(entry(h, project).canvas).toBeUndefined();
   });
   it("prefers a new canvas over an edited existing one", async () => {
-    const h = homeFixture([a]); const { current, project } = await withCurrent(h);
+    const h = homeFixture([a]); const { project } = await withCurrent(h);
     h.service.receive(project, edit(a.path));
     h.listed.push({ path: ".doan/canvases/new.html", id: "new" });
     h.service.refreshed("/repo", [a.path, ".doan/canvases/new.html"]);
@@ -1136,7 +1136,7 @@ describe("promotion", () => {
     expect(h.store.read(id).filter(e => e.type === "user.message")).toHaveLength(2);
   });
   it("never crosses one turn's refused edit with a change made during the next turn", async () => {
-    const h = homeFixture([a]); const { current, project } = await withCurrent(h);
+    const h = homeFixture([a]); const { project } = await withCurrent(h);
     // T1 asks to edit a.html; the edit is refused, so the file never changes.
     h.service.receive(project, edit(a.path));
     h.service.receive(project, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
@@ -1718,7 +1718,7 @@ describe("permission mode", () => {
   });
   it("stores the mode Claude reports after a plan approval and announces the list change", async () => {
     const h = homeFixture();
-    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" })).conversationId;
+    await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" });
     const report = h.open.mock.calls[0]![0].planApproved!;
     h.changes.length = 0;
     report("acceptEdits");
@@ -2675,6 +2675,28 @@ describe("conversation work", () => {
     });
     expect(() => h.service.quit()).toThrow("File exceeds limit");
     expect(h.ended).toEqual(expect.arrayContaining([first, second]));
+    // The aborted quit leaves the conversations stopped, so no runner after the failed write may be left open.
+    expect(h.runners).toHaveLength(2);
+    for (const runner of h.runners) expect(runner.close).toHaveBeenCalled();
+  });
+  // Like Stop, quit writes no interrupted event to a history that already refused one; that known refusal must not
+  // abort the quit or keep a later conversation's runner open.
+  it("a quit skips the appQuit write of a history that stopped taking writes and closes every runner", async () => {
+    const h = fixture(); vi.spyOn(console, "error").mockImplementation(() => {});
+    const first = (await h.service.start(request)).conversationId;
+    h.prepare.mockResolvedValueOnce({ ...prepared(), sessionId: "second-session" });
+    const second = (await h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).conversationId;
+    const append = h.store.append.bind(h.store);
+    vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
+      if (cid === first) throw new Error("File exceeds limit");
+      return append(cid, turn, body);
+    });
+    // The process is still alive, so the conversation stays busy until its group is observed gone.
+    h.service.receive(first, { type: "activity", kind: "read", summary: "Read a.html" });
+    await h.service.quit();
+    for (const runner of h.runners) expect(runner.close).toHaveBeenCalled();
+    expect(h.store.read(first).some(e => e.type === "interrupted")).toBe(false);
+    expect(h.store.read(second).at(-1)).toMatchObject({ type: "interrupted", reason: "appQuit" });
   });
   it("a deletion clears the conversation's work", async () => {
     const h = fixture(); const id = (await h.service.start(request)).conversationId;

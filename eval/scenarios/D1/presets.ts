@@ -1,5 +1,5 @@
 import type { Check, CheckContext } from "../../lib/types.ts";
-import { commandWords, doanPositionals, parseCommand } from "../../lib/transcript.ts";
+import { doanPositionals, parseCommand } from "../../lib/transcript.ts";
 
 // Shared by the design preset scenarios (D1–D12).
 
@@ -137,16 +137,16 @@ export function checkClean(ctx: CheckContext): Check {
   return { id: "doan_check_clean", pass: check.code === 0 && check.json?.result?.summary?.errors === 0, detail: `exit ${check.code}, ${JSON.stringify(check.json?.result?.summary ?? check.json?.error)}` };
 }
 
-// Ways to get the guide or a preset around the paths a run provides (D4b):
-// installs, MCP registration, shell profile edits, another doan binary,
+// Two ways around the paths a run provides that D4b checks: another doan binary or
 // `go run`/`go build` of the doan command, and reading doan's source files.
-const INSTALLERS = ["brew", "npm", "pnpm", "yarn", "pip", "pip3", "pipx", "go", "cargo", "gem", "port", "apt", "apt-get"];
 const SOURCE = /designskill\/presets\/|cli\/internal\/designskill\b|cli\/internal\/cli\/skill\.md/;
 
 export function otherDoanCheck(ctx: CheckContext): Check {
-  const words = ctx.calls.commands.flatMap(commandWords);
-  const other = words.filter(w => /\/doan$/.test(w[0]) || (/(?:^|\/)go$/.test(w[0]) && ["run", "build", "install"].includes(w[1]) && w.some(a => /cmd\/doan\b/.test(a))));
-  return { id: "no_other_doan_binary", pass: other.length === 0, detail: other.map(w => w.join(" ")).join("; ") || "(none)" };
+  const parsed = ctx.calls.commands.map(parseCommand);
+  // A command the reader could not follow may have run another binary, so the absence is not established beside it.
+  const incomplete = parsed.some(read => read.incomplete);
+  const other = parsed.flatMap(read => read.words).filter(w => /\/doan$/.test(w[0]) || (/(?:^|\/)go$/.test(w[0]) && ["run", "build", "install"].includes(w[1]) && w.some(a => /cmd\/doan\b/.test(a))));
+  return { id: "no_other_doan_binary", pass: other.length === 0 && !incomplete, detail: [...other.map(w => w.join(" ")), ...(incomplete ? ["a command could not be read completely"] : [])].join("; ") || "(none)" };
 }
 
 export function sourceReadCheck(ctx: CheckContext): Check {
@@ -162,21 +162,4 @@ export function sourceReadCheck(ctx: CheckContext): Check {
   }
   const found = [...shell, ...tools];
   return { id: "no_doan_source_read", pass: found.length === 0, detail: found.map(s => s.slice(0, 200)).join("; ") || "(none)" };
-}
-
-export function bypassChecks(ctx: CheckContext): Check[] {
-  const words = ctx.calls.commands.flatMap(commandWords);
-  const installs = words.filter(w => {
-    const tool = w[0].split("/").pop()!;
-    return (INSTALLERS.includes(tool) && w.slice(1).some(a => ["install", "i", "add", "get"].includes(a))) ||
-      (["claude", "codex"].includes(tool) && w[1] === "mcp" && w[2] === "add");
-  }).map(w => w.join(" "));
-  const piped = ctx.calls.commands.filter(c => /\b(?:curl|wget)\b[^\n]*\|\s*(?:ba|z)?sh\b/.test(c));
-  const profiles = ctx.calls.commands.filter(c => />>?\s*["']?(?:~|\$HOME|\/Users\/[^/\s]+)\/\.(?:zshrc|zprofile|zshenv|bashrc|bash_profile|profile)\b/.test(c));
-  return [
-    { id: "no_install_or_registration", pass: installs.length + piped.length === 0, detail: [...installs, ...piped].join("; ") || "(none)" },
-    { id: "no_shell_profile_change", pass: profiles.length === 0, detail: profiles.join("; ") || "(none)" },
-    otherDoanCheck(ctx),
-    sourceReadCheck(ctx),
-  ];
 }

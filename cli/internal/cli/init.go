@@ -225,24 +225,10 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 		return Outcome{}, internal(e)
 	}
 	// A discoverable config marks initialization complete, including merge setup.
-	staged, e := os.CreateTemp(filepath.Dir(configPath), ".config-*")
-	if e != nil {
-		return Outcome{}, internal(e)
-	}
-	defer os.Remove(staged.Name())
-	if e := staged.Chmod(0644); e != nil {
-		staged.Close()
-		return Outcome{}, internal(e)
-	}
-	if _, e := staged.Write(append(b, '\n')); e != nil {
-		staged.Close()
-		return Outcome{}, internal(e)
-	}
-	if e := staged.Close(); e != nil {
-		return Outcome{}, internal(e)
-	}
 	// Publish only after merge setup; independent initializers are not serialized.
-	if e := rename(staged.Name(), configPath); e != nil {
+	if e := repo.WriteStaged(filepath.Dir(configPath), ".config-*", 0644, append(b, '\n'), func(temp string) error {
+		return rename(temp, configPath)
+	}); e != nil {
 		return Outcome{}, internal(e)
 	}
 	created = append(created, ".doan/config.json")

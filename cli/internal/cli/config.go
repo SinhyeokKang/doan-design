@@ -166,24 +166,9 @@ func writeConfig(path string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(path), ".config-*")
-	if err != nil {
-		return err
-	}
-	name := temp.Name()
-	defer os.Remove(name)
-	if err := temp.Chmod(info.Mode().Perm()); err != nil {
-		temp.Close()
-		return err
-	}
-	if _, err := temp.Write(data); err != nil {
-		temp.Close()
-		return err
-	}
-	if err := temp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(name, path)
+	return repo.WriteStaged(filepath.Dir(path), ".config-*", info.Mode().Perm(), data, func(temp string) error {
+		return os.Rename(temp, path)
+	})
 }
 
 // Removal compares stored identities even after a build deletes their targets.

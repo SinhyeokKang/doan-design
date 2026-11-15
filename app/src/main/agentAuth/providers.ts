@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { codexRuleText, mergeClaudeAllow } from "../agentSetup/plan";
+import { readRegularFileSync } from "../regularFile";
 import stub from "../onboarding/SKILL.md?raw";
 import { ANTIGRAVITY_COMMAND, ANTIGRAVITY_SERVER } from "./antigravity";
 import type { SettingMerge } from "./storage";
@@ -59,7 +59,7 @@ function claudeStatus(run: StatusRun): CheckResult {
   if (!status.loggedIn) return { status: "disconnected" };
   if (run.code !== 0) return failed;
   let oauth: Record<string, unknown> = {};
-  try { const doc = json(readFileSync(join(run.profileDir, ".claude.json"), "utf8")); if (doc && typeof doc.oauthAccount === "object" && doc.oauthAccount) oauth = doc.oauthAccount as Record<string, unknown>; }
+  try { const doc = json(readRegularFileSync(join(run.profileDir, ".claude.json"))); if (doc && typeof doc.oauthAccount === "object" && doc.oauthAccount) oauth = doc.oauthAccount as Record<string, unknown>; }
   catch { /* Without the record the connection has no stable ID; resume then refuses as account_unverifiable. */ }
   return { status: "connected", account: account(oauth.accountUuid, oauth.organizationUuid ?? status.orgId, oauth.displayName, oauth.emailAddress ?? status.email) };
 }
@@ -98,7 +98,7 @@ function copilotStatus(run: StatusRun): CheckResult {
   if (run.code !== 0) return failed;
   let user: Record<string, unknown> = {};
   try {
-    const text = readFileSync(join(run.profileDir, ".copilot/config.json"), "utf8").split("\n").filter(line => !line.trimStart().startsWith("//")).join("\n");
+    const text = readRegularFileSync(join(run.profileDir, ".copilot/config.json")).split("\n").filter(line => !line.trimStart().startsWith("//")).join("\n");
     const doc = json(text);
     if (doc && typeof doc.lastLoggedInUser === "object" && doc.lastLoggedInUser) user = doc.lastLoggedInUser as Record<string, unknown>;
   } catch { /* No record: the connection runs but cannot resume (account_unverifiable). */ }

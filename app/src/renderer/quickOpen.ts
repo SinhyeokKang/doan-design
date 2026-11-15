@@ -343,11 +343,6 @@ export function outsideDialog(
   return down.button === 0 && outside(down) && outside(up);
 }
 
-export function pickTarget(result: CanvasResult, loadedRoot: string | null, openCanvas: string | null): "switch" | "open" | "jump" {
-  if (result.root !== loadedRoot) return "switch";
-  return result.path === openCanvas ? "jump" : "open";
-}
-
 // The directory a listed canvas was in: `.doan/ds/`, or else `.doan/canvases/`.
 const listedIn = (path: string) => (canvasDir(path) === "ds" ? ".doan/ds/" : ".doan/canvases/");
 

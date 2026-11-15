@@ -17,17 +17,6 @@ export function appWindowCount(app: ElectronApplication): Promise<number> {
   return app.evaluate(({ BrowserWindow }, title) => BrowserWindow.getAllWindows().filter((window) => window.getTitle() !== title).length, CAPTURE_WINDOW_TITLE);
 }
 
-// Wait for the page URL, including a window still navigating from about:blank.
-export async function settingsPage(app: ElectronApplication): Promise<Page> {
-  const deadline = Date.now() + 10_000;
-  for (;;) {
-    const page = app.windows().find(page => /\/settings\.html(?:[?#]|$)/.test(page.url()));
-    if (page) return page;
-    if (Date.now() >= deadline) throw new Error("Settings window did not load settings.html");
-    await new Promise(resolve => setTimeout(resolve, 20));
-  }
-}
-
 // Serialized by Playwright, so this callback must stay self-contained.
 export function clickMenu({ Menu }: Pick<typeof import("electron"), "Menu">, [label, window]: readonly [string, BrowserWindow]): boolean {
   const find = (items: Electron.MenuItem[]): Electron.MenuItem | undefined => {

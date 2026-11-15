@@ -3,7 +3,7 @@ import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, FailureCode, 
 import { fastReason, splitRequest, type PresetRef } from "./homeComposer";
 import { PRESETS } from "../main/mcpConnectors/presets";
 
-// A conversation's merged events (conversationStrip's mergeConversationEvents) as the thread draws them.
+// A conversation's merged events (main's state.ts mergeEvents) as the thread draws them.
 // Every item has a key that stays the same while later events arrive.
 
 // The person's text in order, with each anchor token `{{n}}` kept where it was typed.

@@ -128,11 +128,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   return [node, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
 }
 const find = <P,>(type: unknown) => all(tree).filter(element => element.type === type) as unknown as ReactElement<P>[];
-type Sidebar = ReactElement<{ locked?: boolean; settings?: { section: string; select(section: string): void } } & Record<string, (...args: never[]) => void>>;
-type PageProps = { section: string; arrival: { focus: { kind: string; provider?: string }; seq: number } | null; onState(report: { locked: boolean }): void; header: ReactElement; sidebar: Sidebar;
-  agents: { preferences: PreferencesSnapshot | null; save(patch: unknown): Promise<unknown>; project: { root: string; name: string } | null } };
 function folders(entries: FolderEntry[]) { listeners.folders!(entries as never); render(); }
-const click = (element: ReactElement<Record<string, unknown>>) => { (element.props.onClick as () => void)(); render(); };
 const clearController = () => { for (const mock of Object.values(harness.controller!)) if (vi.isMockFunction(mock)) mock.mockClear(); };
 
 

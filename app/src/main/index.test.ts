@@ -1600,7 +1600,7 @@ describe("thumbnails", () => {
     return hidden;
   }
 
-  // The stage goes to the main window only, never to the capture window main also owns.
+  // The stage goes to the conversation windows, never to the capture window main also owns.
   test("a conversation stage reaches the main window and not the capture window", async () => {
     const hidden = await captureWindow();
     window().webContents.send.mockClear(); hidden.webContents.send.mockClear();
