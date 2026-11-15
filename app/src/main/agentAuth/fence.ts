@@ -129,19 +129,19 @@ const record = (value: unknown): value is Record<string, unknown> => typeof valu
 // CLI looks for project MCP servers. extensionHooks: a project skill, subagent or command whose frontmatter names hooks,
 // or one Doan could not read. unreadable: a project or local settings file that exists but Doan could not read or parse.
 export interface ClaudeRepoSources { mcpJson: boolean; extensionHooks: boolean; unreadable: boolean }
-// Whether the repository makes the CLI start its own code beside the model: hooks, project MCP servers, or plugins
-// (which carry both). Claude's sandbox holds only the model's commands, so this code would run outside every fence on a
-// sandbox-on turn. A key in an unexpected shape counts, since the CLI may still read part of it. The Doan profile's own
-// settings and managed settings are not the repository's (the fence keeps the agent from writing the profile's), but
-// they can enable the repository's .mcp.json.
+// Whether the repository makes the CLI start its own code beside the model: hooks, project MCP servers, plugins (which
+// carry both) or credential helper commands. Claude's sandbox holds only the model's commands, so this code would run
+// outside every fence on a sandbox-on turn. A .mcp.json counts on its own: through the SDK, Claude Code 2.1.325 starts
+// its servers with no enable key or approval. The AWS helpers ran once the settings' env selected Bedrock, which the
+// forced login organization did not stop; apiKeyHelper is a command of the same kind. A key in an unexpected shape
+// counts, since the CLI may still read part of it. The Doan profile's own settings and managed settings are not the
+// repository's (the fence keeps the agent from writing the profile's).
+const REPO_CODE_KEYS = ["hooks", "enabledPlugins", "enabledMcpjsonServers", "awsAuthRefresh", "awsCredentialExport", "apiKeyHelper"];
 export function claudeRepoCode(sources: ClaudeSettingSources, repo: ClaudeRepoSources): boolean {
-  if (repo.unreadable || repo.extensionHooks) return true;
-  const named = (value: unknown) => value !== undefined && !(record(value) && !Object.keys(value).length) && !(Array.isArray(value) && !value.length);
-  const enablesMcp = (source: unknown) => record(source) && ((source.enableAllProjectMcpServers !== undefined && source.enableAllProjectMcpServers !== false) || named(source.enabledMcpjsonServers));
-  for (const source of [sources.project, sources.local]) {
-    if (record(source) && (named(source.hooks) || named(source.enabledPlugins) || enablesMcp(source))) return true;
-  }
-  return repo.mcpJson && [sources.user, ...sources.managed].some(enablesMcp);
+  if (repo.unreadable || repo.extensionHooks || repo.mcpJson) return true;
+  const named = (value: unknown) => value !== undefined && !(record(value) && !Object.keys(value).length) && !(Array.isArray(value) && !value.length) && value !== "";
+  return [sources.project, sources.local].some(source => record(source) &&
+    (REPO_CODE_KEYS.some(key => named(source[key])) || (source.enableAllProjectMcpServers !== undefined && source.enableAllProjectMcpServers !== false)));
 }
 
 // Each listed directory's entries, as fenceListingDirs names them.
