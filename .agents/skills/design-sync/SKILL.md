@@ -11,7 +11,7 @@ Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in
 
 Why the loop exists: in malmoi (2026-09-13) a modal fixed to the pixel in its draft was implemented with 29 deviations while 3,000 unit tests were green. Values that are right but rendered wrong are invisible to unit tests.
 
-**Language**: the report to the user is in Korean. `docs/DESIGN.md` and `docs/design/`, code comments and commits are English.
+**Language**: the report to the user is in Korean. The design docs (`docs/DESIGN.md`, `docs/design/`), code comments and commits are English.
 
 ## Usage
 
@@ -51,7 +51,7 @@ Properties to cover: size, padding, gap, border and radius, colors (text, backgr
 
 - **Pair children, not only containers**: a child that carries its own text style, background or spacing (`<code>`, `<b>`, chips, glyphs) gets its own row, and every row records `textContent` on both sides. In app-ui a styled `<code>` inside a paired `<p>` passed a 0-mismatch table (POSTMORTEM). Grep `docs/postmortem/` (`grep -rn design-sync docs/postmortem/`) before step 2.
 
-- **A documented deviation is not a deviation.** When a feature document or `docs/DESIGN.md` and `docs/design/` records why the implementation differs on purpose, mark the row "documented" with the source. Without such a record, it is a real deviation.
+- **A documented deviation is not a deviation.** When a feature document or the design docs (`docs/DESIGN.md`, `docs/design/`) record why the implementation differs on purpose, mark the row "documented" with the source. Without such a record, it is a real deviation.
 - **A shared primitive beats one screen.** If one screen's draft differs from a shared component, keep the component, unless the drafts draw every screen with the same new value; then change the component and list the other screens it moves in the report.
 
 ### 3. Measure — computed style on both sides, in the real app
