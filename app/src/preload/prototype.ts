@@ -1,7 +1,8 @@
 // The prototype window's preload: its host page drives its own run, and its conversation panel calls main the way the
 // main window's panel does, on the same channels with the same payloads. Main scopes every conversation request to the
-// playing canvas and checks the window role on every channel again; the window has no delete, no capture and no full
-// account, settings or terminal work read.
+// playing canvas and checks the window role on every channel again, so its delete reaches only a conversation of that
+// canvas; the window has no canvas deletion (Move to Trash), no capture and no full account, settings or terminal work
+// read.
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";

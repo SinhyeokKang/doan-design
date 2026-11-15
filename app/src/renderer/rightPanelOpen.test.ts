@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
-import { canvasStrongestSignal, capsuleAction, openButtonBadge, panelOpenFor } from "./rightPanelOpen";
+import { canvasStrongestSignal, openButtonBadge, panelOpenFor } from "./rightPanelOpen";
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   conversationId: "c1", canvas: { path: ".doan/canvases/billing.html", id: "billing" }, title: "Ideas", owner: "doan",
@@ -86,9 +86,4 @@ describe("canvasStrongestSignal", () => {
     expect(canvasStrongestSignal([project], billing)).toBeNull();
     expect(canvasStrongestSignal([], billing)).toBeNull();
   });
-});
-
-test("the capsule stops a working turn and opens a waiting one", () => {
-  expect(capsuleAction("running")).toBe("stop");
-  expect(capsuleAction("waiting")).toBe("open");
 });

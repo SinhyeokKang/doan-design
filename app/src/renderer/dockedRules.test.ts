@@ -8,7 +8,7 @@ import { textSegments } from "./anchorField";
 import { composerAction } from "./composerRules";
 import {
   canvasGoneText, composerPlaceholder, composerTurn, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
-  type DockedBusy, type DockedMode, type PlaceholderInput,
+  type DockedBusy, type PlaceholderInput,
 } from "./dockedRules";
 import { presetPlaceholder, type AttachmentDraft, type ModelPickerView, type PresetSummary } from "./homeComposer";
 

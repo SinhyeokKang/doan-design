@@ -13,19 +13,12 @@ export interface HomeConversation {
   canvas?: string;
 }
 
-const RUNNING: readonly StripState["kind"][] = ["starting", "working", "permission", "question"];
-
 // One sidebar row: a canvas row when the conversation is bound, else its project row.
 export function slotKey(root: string, canvas?: string): string { return canvas === undefined ? root : `${root}\n${canvas}`; }
 
 // `source`: a terminal session's `doan work`; absent for an app conversation. scheduled: messages waiting for the usage
 // limit's reset (limitReset.ts scheduledSlot).
 export interface Slot { kind: "permission" | "working" | "scheduled" | "unseen"; label: string; source?: "terminal" }
-
-// One Home conversation per root while the strip can show only one, so no permission request hides behind another.
-export function runningInRoot(conversations: readonly HomeConversation[], root: string): string | null {
-  return conversations.find(c => c.root === root && RUNNING.includes(c.phase))?.conversationId ?? null;
-}
 
 // Home's reason line and the removal confirmation: project conversations started outside Home count
 // too, so the sentence no longer says where the conversation came from. The removal dialog has no conversation of its

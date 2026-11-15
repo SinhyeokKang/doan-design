@@ -21,19 +21,19 @@ const mainOnly = new Set([
   "window:visible",
   // The header drops the traffic-light space in fullscreen.
   "window:fullscreen",
-  // The first-run session the CLI shares; Settings never drives first-run.
+  // The first-run session the CLI shares; the prototype window has no first run.
   "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
-  // Preset reads for the home; Settings has no preset UI.
+  // Preset reads for the home (the prototype window's composer has its own entry below).
   "design-skills:list", "design-skills:get",
-  // Home attachments; Settings has no composer.
+  // Home attachments (the prototype window's composer has its own entry below).
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
   // Edit on Home re-issues recorded attachment paths, and agent replies open https links.
   "attachments:fromPaths", "shell:openLink",
-  // The canvas page captures an area of the board; Settings has no canvas.
+  // The canvas page captures an area of the board; the prototype window has no board.
   "attachments:capture",
-  // Where the OS cursor is, for a canvas click's focus; Settings has no canvas.
+  // Where the OS cursor is, for a canvas click's focus; the prototype window has no board.
   "pointer:get",
-  // The Add Projects page's project session; Settings has no such page.
+  // The Add Projects page's project session.
   "add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel",
   // The Settings page and the Project Settings page. Main fixes every URL, clipboard text and
   // notification itself; these carry choices and requests only.
@@ -57,7 +57,7 @@ const mainOnly = new Set([
   "config:read", "config:write", "config:choose",
   // The sidebar's canvas row menu; Show in Finder takes only an id main gave for a file it wrote.
   "canvas:trashPlan", "canvas:trash", "canvas:export", "canvas:revealExport",
-  // The existing-user buddy screen; Settings is locked while it shows.
+  // The existing-user buddy screen.
   "buddy-intro:read", "buddy-intro:close",
   // Play prototype from the toolbar and the size bubble; prototype:changed is an event main sends the prototype window.
   PROTOTYPE_CHANNELS.play,

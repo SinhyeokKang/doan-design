@@ -105,7 +105,7 @@ it("refuses a start whose account changed while the version check awaited, befor
 
 it("refuses acceptance when the account changed while the runner was opening and releases only after the group exits", async () => {
   const h = harness("codex");
-  h.open.mockImplementationOnce(async (input, _emit, exited, registerStop) => {
+  h.open.mockImplementationOnce(async (_input, _emit, exited, registerStop) => {
     registerStop(async () => {}); h.exits.push(exited);
     h.auth.set({ expired: true });
     const runner: Runner = { sessionId: CODEX_SESSION, send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) };

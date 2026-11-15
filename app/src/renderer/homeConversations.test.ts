@@ -2,18 +2,9 @@ import { expect, test } from "vitest";
 import type { FolderEntry } from "../main/view";
 import type { AttachmentDraft, PresetSummary } from "./homeComposer";
 import {
-  anotherConversation, newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm, removalQuestionLabel, restoreRequest, runningInRoot,
-  type HomeConversation, type LastRequest,
+  anotherConversation, newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm, removalQuestionLabel, restoreRequest,
+  type LastRequest,
 } from "./homeConversations";
-
-const conv = (over: Partial<HomeConversation> = {}): HomeConversation => ({ conversationId: "c1", root: "/r/doan", provider: "claude", phase: "working", ...over });
-test("one running Home conversation per root: starting, working and asking count, finished ones do not", () => {
-  const list = [conv({ conversationId: "old", phase: "done" }), conv({ conversationId: "other", root: "/r/malmoi", phase: "permission" })];
-  expect(runningInRoot(list, "/r/doan")).toBeNull();
-  expect(runningInRoot(list, "/r/malmoi")).toBe("other");
-  for (const phase of ["starting", "working", "permission"] as const) expect(runningInRoot([conv({ phase })], "/r/doan")).toBe("c1");
-  for (const phase of ["done", "failed", "interrupted"] as const) expect(runningInRoot([conv({ phase })], "/r/doan")).toBeNull();
-});
 
 // Only a running conversation blocks, so the reason line has one sentence.
 test("Home's reason line names only a running conversation", () => {
@@ -113,7 +104,4 @@ test("a waiting question toasts like a permission request, once per request and 
   expect(permissionToastKey(question, question, false)).toBeNull();
   expect(permissionToastKey(question, { kind: "working", activity: null }, true)).toBeNull();
   expect(permissionToastKey({ ...question, requestId: "q2" }, question, false)).toBe("q2");
-});
-test("a Home conversation waiting for a question's answer still holds its root's strip", () => {
-  expect(runningInRoot([conv({ phase: "question" })], "/r/doan")).toBe("c1");
 });

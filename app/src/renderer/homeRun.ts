@@ -7,7 +7,8 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { conversationCanvasMatch } from "./canvasConversationRows";
 import { conversationWork, scheduledOf, slotKeyOf, slotsFromList } from "./conversationList";
-import { asksPerson, mergeConversationEvents, stripState, type StripState } from "./conversationStrip";
+import { asksPerson, stripState, type StripState } from "./conversationStrip";
+import { mergeEvents } from "../main/conversation/state";
 import { newCanvasText } from "./newCanvasText";
 import { issuedAttachment, sendRefusal, splitRequest, type AttachmentDraft } from "./homeComposer";
 import {
@@ -131,7 +132,7 @@ export class HomeRun {
     const tracked = this.events.get(event.conversationId);
     if (!tracked) { this.unclaimed = [...this.unclaimed, event].slice(-500); return; }
     if (isText(event) && tracked.some(item => isText(item) && item.turnId === event.turnId)) return;
-    this.events.set(event.conversationId, mergeConversationEvents(tracked, [event], event.conversationId));
+    this.events.set(event.conversationId, mergeEvents(tracked, [event], event.conversationId));
     this.refresh(event.conversationId);
   }
 
@@ -189,7 +190,7 @@ export class HomeRun {
     this.refresh(conversationId);
     void this.history(conversationId).then(read => {
       if (!read) return;
-      this.events.set(conversationId, mergeConversationEvents(read.events, this.events.get(conversationId) ?? [], conversationId));
+      this.events.set(conversationId, mergeEvents(read.events, this.events.get(conversationId) ?? [], conversationId));
       this.refresh(conversationId);
     });
     this.lastRequests = rememberRequest(this.lastRequests, { ...last, conversationId });
@@ -251,7 +252,7 @@ export class HomeRun {
       this.conversations = [...this.conversations, { conversationId: id, root, provider, phase }];
       void this.history(id).then(read => {
         if (!read) return;
-        this.events.set(id, mergeConversationEvents(read.events, this.events.get(id) ?? [], id));
+        this.events.set(id, mergeEvents(read.events, this.events.get(id) ?? [], id));
         this.refresh(id);
       });
     } else this.conversations = this.conversations.map(item => item.conversationId === id ? { ...item, phase } : item);
@@ -544,7 +545,7 @@ export class HomeRun {
         this.claiming.delete(id);
         // Deleted while its history was read: the claim lapses.
         if (!read || this.deletedIds.has(id) || this.conversations.some(item => item.conversationId === id)) return;
-        this.events.set(id, mergeConversationEvents(read.events, this.events.get(id) ?? [], id));
+        this.events.set(id, mergeEvents(read.events, this.events.get(id) ?? [], id));
         this.claimed.add(id);
         this.conversations = [...this.conversations, { conversationId: id, root, provider: summary.provider, phase: "starting", ...(summary.canvas ? { canvas: summary.canvas.path } : {}) }];
         this.refresh(id);
@@ -694,7 +695,7 @@ export class HomeRun {
   }
 
   private track(conversationId: string): void {
-    this.events.set(conversationId, mergeConversationEvents(this.events.get(conversationId) ?? [], this.unclaimed, conversationId));
+    this.events.set(conversationId, mergeEvents(this.events.get(conversationId) ?? [], this.unclaimed, conversationId));
     this.unclaimed = this.unclaimed.filter(event => event.conversationId !== conversationId);
   }
   private viewing(root: string): boolean {

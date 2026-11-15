@@ -69,8 +69,6 @@ vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), 
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
-const { ConversationPanel } = await import("./ConversationPanel");
-const { CanvasConversation } = await import("./CanvasConversationPanel");
 const { initialCanvasState } = await import("./CanvasController");
 const { PrototypePlaying } = await import("./PrototypePlaying");
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };

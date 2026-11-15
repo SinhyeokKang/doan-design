@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { sharedShell, toolFacts, type FactsDeps } from "./facts";
-import type { Provider } from "./types";
 import { DOCK, TERMINAL } from "../launchEnv.fixture";
 
 const CLI = "/Applications/doan.app/Contents/Resources/bin/doan";
