@@ -147,6 +147,29 @@ test("doan handoff --message takes a value, so its message is never a positional
   assert.deepEqual(doanPositionals(["doan", "handoff", "--message=Continue here", ".doan/canvases/next.html"]), ["handoff", ".doan/canvases/next.html"]);
   assert.equal(doanPositionals(["doan", "handoff", ".doan/canvases/next.html", "--message"]), undefined);
 });
+// The reader mirrors doan's flag set: a flag it does not know makes the whole command unreadable, so a check would
+// miss a command that only adds a newer flag (`doan init --storage repo`). Compared against run.go so a new flag fails here.
+test("doanPositionals knows every flag doan's flag set defines, with its arity", () => {
+  const source = readFileSync(new URL("../../cli/internal/cli/run.go", import.meta.url), "utf8");
+  const body = source.slice(source.indexOf("func Run("), source.indexOf("SplitArgs(args, fs)"));
+  const count = (pattern: RegExp) => [...body.matchAll(pattern)].length;
+  const names = (pattern: RegExp) => [...body.matchAll(pattern)].map(m => m[1]!);
+  assert.deepEqual([...new Set(names(/\bfs\.(\w+)\(/g))].sort(), ["BoolVar", "Func", "StringVar"], "a new way of defining a flag needs reading here");
+  const booleans = names(/\bfs\.BoolVar\(&[\w.]+, "([\w-]+)"/g);
+  const looped = /\bfor name, target := range map\[string\]\*string\{([^}]*)\}/.exec(body)?.[1] ?? "";
+  const values = [...names(/\bfs\.StringVar\(&[\w.]+, "([\w-]+)"/g), ...names(/\bfs\.Func\("([\w-]+)"/g), ...[...looped.matchAll(/"([\w-]+)":/g)].map(m => m[1]!)];
+  assert.equal(booleans.length, count(/\bfs\.BoolVar\(/g), "every BoolVar has a literal name");
+  assert.equal(values.length - [...looped.matchAll(/"([\w-]+)":/g)].length + (looped ? 1 : 0), count(/\bfs\.(?:StringVar|Func)\(/g), "every StringVar and Func has a literal name");
+  for (const name of ["json", "storage", "session", "initialize", "o"]) assert.ok([...booleans, ...values].includes(name), name);
+  for (const name of values) {
+    assert.deepEqual(doanPositionals(["doan", "x", `--${name}`, "v", "y"]), ["x", "y"], name);
+    assert.deepEqual(doanPositionals(["doan", "x", `-${name}=v`, "y"]), ["x", "y"], name);
+  }
+  for (const name of booleans) {
+    assert.deepEqual(doanPositionals(["doan", "x", `--${name}`, "y"]), ["x", "y"], name);
+    assert.deepEqual(doanPositionals(["doan", "x", `-${name}=false`, "y"]), ["x", "y"], name);
+  }
+});
 
 // A command run through a shell variable or `for` loop is still run, so a preset read through them is still a read;
 // only the words the shell would execute count, never an echoed or quoted example.
