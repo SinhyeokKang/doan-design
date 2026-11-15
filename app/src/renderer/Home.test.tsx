@@ -7,7 +7,8 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { emptyComposer, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
-import type { PresetListReply, PresetSummary } from "./homeComposer";
+import { suggestedPrompts, type PresetListReply, type PresetSummary, type SuggestedPrompt } from "./homeComposer";
+import { SuggestionButton } from "./ComposerParts";
 import { ShellSidebar } from "./ShellSidebar";
 import { groupProjects } from "./homeCards";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -82,6 +83,16 @@ test("an empty composer for a project with canvases: project above, tray below, 
   expect(html.replace(/<[^>]+>/g, "")).toContain("Review the doan-onboarding canvas");
   expect(html.match(/suggestion-go/g)).toHaveLength(3);
   expect(html).not.toContain("composer-reason");
+});
+
+// The rows are the shared SuggestionButton, so the three surfaces cannot drift apart again.
+const suggestionButtons = (html: string) => html.match(/<button type="button" class="suggestion".*?<\/button>/g) ?? [];
+const sharedSuggestions = (prompts: readonly SuggestedPrompt[]) => prompts.map(prompt => renderToStaticMarkup(<TooltipProvider><SuggestionButton prompt={prompt} onPick={() => {}} /></TooltipProvider>));
+test("Home's suggested prompts are the shared suggestion button", () => {
+  const entry = project("/code/doan-design");
+  const prompts = suggestedPrompts(entry, "doan-design", PRESETS);
+  expect(prompts).toHaveLength(3);
+  expect(suggestionButtons(render([entry]))).toEqual(sharedSuggestions(prompts));
 });
 
 test("with no project the picker is Add Projects…, the tray and suggestions are gone and Send explains why", () => {
