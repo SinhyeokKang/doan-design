@@ -184,6 +184,45 @@ func Run(in Input) []Finding {
 			f.Message = "data-doan-prototype=\"" + v + "\" is on an element without data-doan-frame; move it to the frame element or remove it."
 			add(f)
 		}
+		for _, g := range c.Gotos {
+			// The message depends only on the code and the value, so add folds the same broken link
+			// repeated inside one frame into one finding.
+			report := func(code, message string) {
+				f := base
+				f.Code = code
+				f.Value = g.Value
+				if len(g.Frames) > 0 {
+					f.Frame = g.Frames[len(g.Frames)-1]
+				}
+				f.Message = "data-doan-goto=\"" + g.Value + "\" " + message
+				add(f)
+			}
+			// Empty and shared ids are judged before PrototypeTarget, which checks the length first and
+			// accepts the empty id; with exactly one frame left, its order (length, then mark) is the rule's.
+			switch n := frames[g.Value]; {
+			case g.Value == "" || n == 0:
+				report("goto_target_not_found", "names no frame in this canvas; use the data-doan-frame id of a marked frame.")
+			case n > 1:
+				report("goto_target_shared", "names a frame id that two or more frames share; give each frame its own id.")
+			default:
+				switch _, refusal := canvas.PrototypeTarget(c, g.Value); refusal {
+				case canvas.PrototypeTooLong:
+					report("goto_target_not_prototype", "names a frame whose id is longer than 200 characters; shorten the id.")
+				case canvas.PrototypeNotMarked:
+					report("goto_target_not_prototype", "names a frame that is not marked for prototyping; add data-doan-prototype to that frame.")
+				}
+			}
+			inside := false
+			for _, id := range g.Frames {
+				if canvas.Playable(c, id) {
+					inside = true
+					break
+				}
+			}
+			if !inside {
+				report("goto_outside_prototype", "is not inside a frame that can play; put it inside a frame marked with data-doan-prototype.")
+			}
+		}
 		for _, frame := range c.Frames {
 			if frame.Implements == nil {
 				continue
