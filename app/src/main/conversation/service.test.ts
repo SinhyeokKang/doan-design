@@ -2702,6 +2702,26 @@ describe("conversation work", () => {
     expect(h.runners).toHaveLength(2);
     for (const runner of h.runners) expect(runner.close).toHaveBeenCalled();
   });
+  // One history's failed appQuit write cancels the quit, but the others still get theirs, and the next quit writes it again.
+  it("a quit writes every other conversation's appQuit past a failed one and writes the failed one at the next quit", async () => {
+    const h = fixture();
+    const first = (await h.service.start(request)).conversationId;
+    h.prepare.mockResolvedValueOnce({ ...prepared(), sessionId: "second-session" });
+    const second = (await h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).conversationId;
+    const append = h.store.append.bind(h.store);
+    let failed: string | undefined;
+    const spy = vi.spyOn(h.store, "append").mockImplementation((cid, turn, body) => {
+      if (body.type === "interrupted" && failed === undefined) { failed = cid; throw new Error("File exceeds limit"); }
+      return append(cid, turn, body);
+    });
+    expect(() => h.service.quit()).toThrow("File exceeds limit");
+    const other = failed === first ? second : first;
+    expect(h.store.read(other).filter(e => e.type === "interrupted")).toEqual([expect.objectContaining({ reason: "appQuit" })]);
+    expect(h.store.read(failed!).some(e => e.type === "interrupted")).toBe(false);
+    spy.mockRestore();
+    await h.service.quit();
+    for (const id of [first, second]) expect(h.store.read(id).filter(e => e.type === "interrupted")).toEqual([expect.objectContaining({ reason: "appQuit" })]);
+  });
   // Like Stop, quit writes no interrupted event to a history that already refused one; that known refusal must not
   // abort the quit or keep a later conversation's runner open.
   it("a quit skips the appQuit write of a history that stopped taking writes and closes every runner", async () => {
