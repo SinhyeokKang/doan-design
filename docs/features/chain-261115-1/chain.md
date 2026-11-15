@@ -82,3 +82,4 @@
   - 실제 앱에서 확인하지 못한 항목(VoiceOver 실제 읽기 등)은 BACKLOG 'Not verified in the real app'에 있다.
 - 2026-11-15 새 리드 세션: 링크 3을 `origin/develop`(링크 2 병합 뒤)에서 시작했다.
 - 2026-11-15 새 리드 세션: 사용자 지시. 링크 3을 병합하고 체인을 정리한 뒤, 릴리스 전에 `/doc-check`를 3라운드 직렬로 돌린다. 1라운드는 Claude Opus high, 2라운드는 Codex gpt-6-astra high(사용자가 이 라운드에 모델 경계를 넘는 것을 허가했다), 3라운드는 Claude Opus high다. 리드가 중개한다. 라운드마다 최신 develop에서 `docs/doc-check-r<n>` 워크트리와 세션을 만들고, 라운드는 develop 대상 PR로 끝난다. 리드가 리뷰와 `gate` 뒤 병합하고, 다음 라운드는 그 위에서 시작한다.
+- 2026-11-15 새 리드 세션: 사용자 지시. `/doc-check` 라운드에서 비대해진 하네스 문서를 줄일 방법도 확인한다. 각 라운드 리뷰어는 문서별로 줄일 후보를 근거와 함께 보고만 한다(코드가 이미 말하는 모양·목록·상수, 문서 사이 중복, 현재 상태 문서에 남은 경위). 리드가 세 라운드 결과를 한 제안으로 모으고, 사용자가 승인한 것만 적용한다. 측정(7afb6ba72 기준, 바이트): DESIGN 465K, ARCHITECTURE 431K, POSTMORTEM 394K, USABILITY-EVAL 327K, PRODUCT 244K, BACKLOG 75K, AGENTS.md 36K, 스킬 전체 154K.
