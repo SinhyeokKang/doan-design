@@ -1,5 +1,5 @@
 import type { QuestionOutcome } from "./question";
-import type { Canvas, ConversationBinding, ConversationEvent, TurnState } from "./types";
+import type { Canvas, ConversationEvent, TurnState } from "./types";
 // A turn's handoff: the canvas it asked for and how it ended. pending: still judged by this run. missed: a new canvas
 // the turn edited and asked no handoff for.
 export interface HandoffFold { canvas: Canvas; outcome: "pending" | "started" | "refused" | "cancelled" | "missed"; target?: { conversationId: string; canvas: Canvas }; reason?: string }
@@ -105,7 +105,4 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
     }
   }
   return state;
-}
-export function bindFirstCanvas(binding: ConversationBinding, root: string, canvas: Canvas): ConversationBinding {
-  return binding.origin === "newDesign" && !binding.canvas && binding.root === root ? { ...binding, canvas } : binding;
 }

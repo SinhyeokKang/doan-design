@@ -1,7 +1,7 @@
 import { posix } from "node:path";
 import { validateSessionRecord } from "../../formats/validate";
 import { MINIMUM_VERSIONS } from "./minimumVersions";
-import type { AvailabilityFacts, Canvas, Runtime, SessionRecord, UnavailableReason } from "./types";
+import type { Canvas, SessionRecord, UnavailableReason } from "./types";
 
 export { MINIMUM_VERSIONS };
 
@@ -114,16 +114,4 @@ export function absolutePath(value: string | null): value is string {
 export function insideRoot(root: string, path: string): boolean {
   const rel = posix.relative(root, path);
   return rel === "" || (rel !== ".." && !rel.startsWith("../") && !posix.isAbsolute(rel));
-}
-export function supportedRuntime(runtime: Runtime, version: string | null): boolean {
-  return version !== null && versionStatus(runtime, version) === "supported";
-}
-export function sessionAvailability(record: SessionRecord, facts: AvailabilityFacts): UnavailableReason | null {
-  if (!facts.cli) return "cli_missing";
-  if (!supportedRuntime(record.runtime, facts.version)) return "session_unavailable";
-  if (!absolutePath(facts.root) || !absolutePath(facts.cwd) || !absolutePath(facts.configDir) ||
-      facts.root !== record.root || facts.configDir !== record.configDir || facts.configDir !== facts.selectedConfigDir) return "session_unavailable";
-  if (!insideRoot(facts.root, facts.cwd)) return "outside_root";
-  if (!facts.sessionExists || facts.occupancy === "unknown") return "session_unavailable";
-  return facts.occupancy === "occupied" ? "session_in_use" : null;
 }

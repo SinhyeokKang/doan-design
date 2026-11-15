@@ -18,6 +18,8 @@ describe("installEligibility", () => {
     [`${HOME}/code/doan/app/dist/mac-arm64/Doan.app`, true, "outside-applications"],
     ["/Users/other/Applications/Doan.app", true, "outside-applications"],
     ["/private/var/folders/x/AppTranslocation/1234/d/Doan.app", true, "translocated"],
+    // Only the exact path segment is translocation.
+    ["/Applications/AppTranslocation-copy/Doan.app", true, "outside-applications"],
   ] as const)("%s packaged=%s is %s", (bundle, packaged, expected) => {
     expect(installEligibility(bundle, HOME, packaged)).toBe(expected);
   });

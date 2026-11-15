@@ -6,7 +6,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import {
   attachmentChipView, attachmentLimit, chosenAttachments, chipRemoval, composeRequest, defaultEffort, defaultFast, defaultModel, fastToSend, defaultProject, defaultProvider, fixedPreference,
   GREETINGS, greetingText, foldRows, olderOrder, lockedOlderSide, heldScrollTop, NO_OLDER, olderLabel, olderOpened, olderToggled, groupIcon, groupLabel, isSubmitKey, steerKey, takesSuggestion, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
-  draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, sendRefusal, slashQuery, startErrorView, suggestedPresets,
+  draftProblem, presetPlaceholder, rootForProject, searchDrawer, selectableProvider, sendAvailability, sendRefusal, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT, attachRefusal, markRefused, queueAttachmentSummary, readyAttachment, recordedAttachment, sentFileView,
   type AttachmentDraft, type ModelsState, type PresetListReply, type PresetSummary, type SendInput,
 } from "./homeComposer";
@@ -511,15 +511,16 @@ test("suggested prompt parts join back to the label and mark only the project an
 });
 
 test("search matches every token over title, id, scope and description, NFC and case-insensitive, prefix first", () => {
-  expect(searchPresets(PRESETS, "cri").map(p => p.id)).toEqual(["critique"]);
+  const ids = (presets: readonly PresetSummary[], query: string) => searchDrawer(presets, [], query).map(r => r.id);
+  expect(ids(PRESETS, "cri")).toEqual(["critique"]);
   // Equal scores keep catalog order; "the" inside "Gather" is only a substring.
-  expect(searchPresets(PRESETS, "THE DESIGN").map(p => p.id)).toEqual(["document", "critique", "context"]);
-  expect(searchPresets(PRESETS, "  ").map(p => p.id)).toEqual(PRESETS.map(p => p.id));
-  expect(searchPresets(PRESETS, "edge-case").map(p => p.id)).toEqual([]);
-  expect(searchPresets([{ id: "cafe", title: "Café", description: "", scope: "" }], "café".normalize("NFD")).map(p => p.id)).toEqual(["cafe"]);
+  expect(ids(PRESETS, "THE DESIGN")).toEqual(["document", "critique", "context"]);
+  expect(ids(PRESETS, "  ")).toEqual(PRESETS.map(p => p.id));
+  expect(ids(PRESETS, "edge-case")).toEqual([]);
+  expect(ids([{ id: "cafe", title: "Café", description: "", scope: "" }], "café".normalize("NFD"))).toEqual(["cafe"]);
   // Word start ranks above a substring.
   const rows: PresetSummary[] = [{ id: "a", title: "Overlay", description: "", scope: "" }, { id: "b", title: "Fix the layout", description: "", scope: "" }];
-  expect(searchPresets(rows, "lay").map(p => p.id)).toEqual(["b", "a"]);
+  expect(ids(rows, "lay")).toEqual(["b", "a"]);
 });
 
 test("the list view is loading until the first reply", () => {

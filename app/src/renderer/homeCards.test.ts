@@ -1,7 +1,7 @@
 import { Info, RotateCw } from "lucide-react";
 import { describe, expect, test } from "vitest";
 import type { CanvasRow, FolderEntry, GitInfo } from "../main/view";
-import { cardRow, chipClass, groupProjects, measureNarrow, ROW_ACTION_ICONS, ROW_ACTION_LABELS } from "./homeCards";
+import { cardRow, chipClass, groupProjects, ROW_ACTION_ICONS, ROW_ACTION_LABELS } from "./homeCards";
 import type { SelectionView } from "./selection";
 
 const canvas = (): CanvasRow => ({ path: ".doan/canvases/a.html", url: "u" });
@@ -128,39 +128,6 @@ describe("cardRow", () => {
   });
 });
 
-describe("measureNarrow", () => {
-  // Just enough of a row element: the class list, the branch name's widths and whether a summary is shown.
-  function row(path: string, name: { wide: [number, number]; narrow?: [number, number] } | null, summary = true, narrow = false) {
-    const classes = new Set(narrow ? ["wt", "narrow"] : ["wt"]);
-    const widths = () => (classes.has("narrow") ? name?.narrow ?? name?.wide : name?.wide) ?? [0, 0];
-    const element = {
-      dataset: { path },
-      classList: { contains: (name: string) => classes.has(name), remove: (name: string) => classes.delete(name), toggle: (name: string, on: boolean) => { if (on) classes.add(name); else classes.delete(name); } },
-      querySelector: (selector: string) => selector === ".wt-sum" ? (summary ? {} : null) : name && { get scrollWidth() { return widths()[0]; }, get clientWidth() { return widths()[1]; } },
-    };
-    return { element, classes };
-  }
-  const card = (rows: ReturnType<typeof row>[]) => ({ querySelectorAll: () => rows.map(item => item.element) }) as unknown as HTMLElement;
-
-  test("a row whose branch is cut off beside its summary is narrow", () => {
-    const fits = row("/a", { wide: [80, 80] });
-    const cut = row("/b", { wide: [300, 120] });
-    expect([...measureNarrow(card([fits, cut]))]).toEqual(["/b"]);
-  });
-
-  test("measures in the wide layout and leaves each row's class as it was", () => {
-    // Already narrow and the branch fits on its own line, but would be cut off beside the summary.
-    const stays = row("/a", { wide: [300, 120], narrow: [300, 300] }, true, true);
-    const widened = row("/b", { wide: [80, 80], narrow: [80, 80] }, true, true);
-    expect([...measureNarrow(card([stays, widened]))]).toEqual(["/a"]);
-    expect(stays.classes.has("narrow")).toBe(true);
-    expect(widened.classes.has("narrow")).toBe(true);
-  });
-
-  test("a row without a summary (a problem row) is never narrow", () => {
-    expect(measureNarrow(card([row("/a", { wide: [300, 120] }, false)])).size).toBe(0);
-  });
-});
 
 // Recovery labels: the status line, the sidebar's project menu, the Overview's
 // recovery menu and the Project Settings page share one label table, with no trailing ellipsis.

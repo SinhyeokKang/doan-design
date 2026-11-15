@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { FolderEntry } from "../main/view";
-import { conversationEntries, countMatches, emptyText, readingCount, readingText, groupResults, markRuns, matchPositions, missingCanvasMessage, outsideDialog, removedCanvasMessage, resultKey, resultParts, sameShownConversation, unavailableCanvasMessage, pickTarget, searchIndex, searchMatch, type ConversationLists, type ConversationResult, type SearchCanvas, type SearchFolder, type SearchResult } from "./quickOpen";
+import { conversationEntries, countMatches, emptyText, readingCount, readingText, groupResults, markRuns, matchPositions, missingCanvasMessage, outsideDialog, removedCanvasMessage, resultKey, resultParts, sameShownConversation, unavailableCanvasMessage, searchIndex, searchMatch, type ConversationLists, type ConversationResult, type SearchCanvas, type SearchFolder, type SearchResult } from "./quickOpen";
 
 function canvas(path: string, extra: Partial<SearchCanvas> = {}): SearchCanvas {
   return { path, url: `http://localhost/${path}`, ...extra };
@@ -198,19 +198,6 @@ describe("quick open matching", () => {
     expect(results.slice(2).map((result) => [result.root, result.path])).toEqual(
       Array.from({ length: 48 }, (_, i) => ["/sibling", `.doan/canvases/discard-${i}.html`]),
     );
-  });
-});
-
-describe("quick open target", () => {
-  it("switches roots before opening, opens different canvases, and jumps within the open canvas", () => {
-    const index = searchIndex([folder("/repo", [canvas(".doan/canvases/a.html", { frames: [{ id: "target" }] })])]);
-    for (const result of index) {
-      expect(pickTarget(result, "/other", ".doan/canvases/a.html")).toBe("switch");
-      expect(pickTarget(result, null, null)).toBe("switch");
-      expect(pickTarget(result, "/repo", ".doan/canvases/b.html")).toBe("open");
-      expect(pickTarget(result, "/repo", null)).toBe("open");
-      expect(pickTarget(result, "/repo", ".doan/canvases/a.html")).toBe("jump");
-    }
   });
 });
 

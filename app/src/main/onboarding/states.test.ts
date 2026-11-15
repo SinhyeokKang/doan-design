@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { parseShellProbe, findOnPath, isTranslocated, initArgs } from "./states";
+import { parseShellProbe, findOnPath, initArgs } from "./states";
 
 describe("shell helpers", () => {
   test("reads exactly the four probe lines between nonce markers amid noise", () => {
@@ -34,10 +34,6 @@ describe("shell helpers", () => {
     expect(checked).toEqual(["/first/codex", "/second/codex"]);
     expect(findOnPath("", "claude", () => true)).toBeNull();
     expect(findOnPath("/bin", "../claude", () => true)).toBeNull();
-  });
-  test("detects the exact translocation segment", () => {
-    expect(isTranslocated("/private/var/folders/a/AppTranslocation/id/d/doan.app")).toBe(true);
-    expect(isTranslocated("/Applications/AppTranslocation-copy/doan.app")).toBe(false);
   });
 });
 

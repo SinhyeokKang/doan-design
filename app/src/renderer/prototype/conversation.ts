@@ -1,7 +1,7 @@
 import type { ConversationSummary } from "../../main/conversation/summary";
 import type { Anchor, Canvas } from "../../main/conversation/types";
 import type { PrototypeView } from "../../main/prototype/ipc";
-import { distinctTargets, sameTarget, toMessage, type FieldSegment } from "../anchorField";
+import { sameTarget, toMessage, type FieldSegment } from "../anchorField";
 import type { CanvasView } from "../canvasRun";
 import { openButtonBadge } from "../rightPanelOpen";
 
@@ -41,11 +41,6 @@ export function withPlayingFrame(segments: readonly FieldSegment[], frame: Playi
   // A space after the chip, so the message and its title read as words; text that starts with one takes none more.
   const gap: FieldSegment[] = first && !(first.kind === "text" && /^\s/.test(first.text)) ? [{ kind: "text", text: " " }] : [];
   return toMessage([chip, ...gap, ...segments]);
-}
-
-// The places a send would point at, the playing frame among them, for the field's own limit.
-export function playingFrameCount(segments: readonly FieldSegment[], frame: PlayingFrame | null): number {
-  return distinctTargets(frame ? [chipOf(frame), ...segments] : segments);
 }
 
 export interface PlayingFrameChip { frame: PlayingFrame; name: string; description: string }

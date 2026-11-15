@@ -1,8 +1,6 @@
 // Roving focus for a list with one Tab stop. Rows that cannot be opened are still keys:
 // they take focus so their reason can be read.
 
-export type ListKey = "ArrowUp" | "ArrowDown" | "Home" | "End";
-
 // The row a key moves focus to, stopping at the ends; null for any other key or an empty list. A focused key no longer
 // listed starts from the first row.
 export function listKeyTarget(keys: readonly string[], focused: string | null, key: string): string | null {
