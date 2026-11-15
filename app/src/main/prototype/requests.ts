@@ -7,7 +7,7 @@ import { parseReplyAnchor, type ReplyAnchor } from "../conversation/replyAnchor"
 import type { FolderEntry } from "../view";
 import type { WindowKind } from "../senderAllowed";
 import { PROTOTYPE_PANEL_MIN_WIDTH } from "./fit";
-import type { ExportTarget, FramesMessage, LostState, PanelRequest, PrototypeFrame, PrototypeGoto, PrototypeMode, RevealPayload, RunReport } from "./ipc";
+import type { ExportTarget, FramesMessage, GotoMessage, LostState, PanelRequest, PrototypeFrame, PrototypeGoto, PrototypeMode, RevealPayload, RunReport } from "./ipc";
 import { parsePrototypeMark, type PrototypeSize } from "./mark";
 import { canvasKeyFor, type PrototypeTarget } from "./targets";
 
@@ -129,6 +129,16 @@ export function parseReloadRequest(kind: unknown, value: unknown): number | null
   if (!windowRequest(kind)) return null;
   const request = record(value, ["gen"]);
   return request !== null && gen(request.gen) ? request.gen : null;
+}
+
+// A followed link as the prototype script posted it (GotoMessage). Only the shape is checked here: whether the run is
+// current and ready and lists the value is windowState's `goto`, against main's own state.
+export function parseGotoRequest(kind: unknown, value: unknown): GotoMessage | null {
+  if (!windowRequest(kind)) return null;
+  const request = record(value, ["gen", "goto"]);
+  if (request === null || !gen(request.gen)) return null;
+  if (request.goto !== null && (typeof request.goto !== "string" || request.goto.length > MAX_REPORT_STRING)) return null;
+  return { gen: request.gen, goto: request.goto };
 }
 
 export function parseModeRequest(kind: unknown, value: unknown): PrototypeMode | null {

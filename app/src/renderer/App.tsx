@@ -33,7 +33,7 @@ import { useVisibleClock } from "./visibleClock";
 import { CanvasController, CanvasViewStore, canvasViewFields, initialCanvasState, routeCanvasPublish, type CanvasState, type CanvasWorkTarget, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type CaptureTool, type ExportTool, type PickerTool, type PlayTool } from "./CanvasTools";
-import { canvasPlayability, playRequest } from "./prototypePlay";
+import { canvasPlayability, playRequest, playTooltip } from "./prototypePlay";
 import { prototypeMainCalls } from "./prototype/mainCalls";
 import { PrototypeClosedFocus } from "./PrototypeClosedFocus";
 import type { PlayRequest } from "../main/prototype/ipc";
@@ -1950,7 +1950,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // window and nothing here changes the canvas.
   const playable = canvasPlayability(state);
   playNext.current = playRequest(state);
-  const player: PlayTool = { reason: playable.enabled ? null : playable.reason, button: playButton,
+  // Until the toolbar opens the frame drawer, its drawer state stays unavailable with the drawer's tooltip.
+  const player: PlayTool = { reason: playable.kind === "play" ? null : playTooltip(state), button: playButton,
     onPlay: () => sendPlay(playNext.current) };
   const picking = state.picking;
   // Capture area: the canvas, the composer's input, its Attach rule and its attachment count,

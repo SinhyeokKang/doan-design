@@ -2,7 +2,7 @@
 // and run results, runs the returned effects in order and sends `prototypeView` to the window whenever the state
 // object changes. Main-window navigation and hiding are not events here, so they cannot change the run.
 import { EMPTY_HISTORY, canStep, recordEntry, stepHistory, type Direction, type History } from "./history";
-import type { PanelRequest, PrototypeFrame, PrototypeMode, PrototypePanel, PrototypePhase, PrototypeView, RunReport } from "./ipc";
+import type { GotoMessage, PanelRequest, PrototypeFrame, PrototypeMode, PrototypePanel, PrototypePhase, PrototypeView, RunReport } from "./ipc";
 import { parsePrototypeMark, type PrototypeSize } from "./mark";
 import { canvasKeyString, sameCanvas, sameTarget, type CanvasRef, type PrototypeTarget, type Resolution } from "./targets";
 
@@ -109,10 +109,10 @@ function latestTitle(frames: readonly { id: string; title?: string }[], state: O
 }
 
 // A new run of `target`. `fit` is set for a play that changes the target (or opens the window); a reload, Retry or
-// restore keeps the window's size and does not activate it.
-function start(state: PrototypeState, target: PrototypeTarget, resolved: Present, fit: { size: PrototypeSize; create: boolean } | null, history: History<HistoryEntry>): Step {
+// restore keeps the window's size and does not activate it. `quiet` fits without activating (a link move).
+function start(state: PrototypeState, target: PrototypeTarget, resolved: Present, fit: { size: PrototypeSize; create: boolean; quiet?: true } | null, history: History<HistoryEntry>): Step {
   const effects: Effect[] = [];
-  if (fit !== null) effects.push(fit.create ? { kind: "create", size: fit.size } : { kind: "fit", size: fit.size }, ...(fit.create ? [] : [{ kind: "activate" } as const]));
+  if (fit !== null) effects.push(fit.create ? { kind: "create", size: fit.size } : { kind: "fit", size: fit.size }, ...(fit.create || fit.quiet ? [] : [{ kind: "activate" } as const]));
   const killed = leaving(state);
   effects.push(...killed);
   const gen = state.gen + 1;
@@ -166,6 +166,23 @@ export function choose(state: PrototypeState, frame: string, resolve: Resolve): 
   const size = listed === undefined ? null : parsePrototypeMark(listed.size);
   if (size === null) return null;
   return playTarget(state, { ...state.target, frame }, size, resolve);
+}
+
+// A link the playing frame followed. Main judges it again by its own run: the canvas can post a current-gen message
+// itself, and the window's view can trail main's state. Only a frame the ready run listed moves; the playing frame
+// starts over as Reload does. A move does not activate: a canvas whose timer clicks a link would otherwise show a
+// hidden app and take focus from another app.
+export function goto(state: PrototypeState, message: GotoMessage, resolve: Resolve): Step | null {
+  if (!state.open || state.phase !== "ready" || message.gen !== state.gen || message.goto === null) return null;
+  const frame = message.goto;
+  const listed = state.frames.find(candidate => candidate.id === frame);
+  const size = listed === undefined ? null : parsePrototypeMark(listed.size);
+  if (size === null) return null;
+  if (frame === state.target.frame) return reload(state, state.gen);
+  const target = { ...state.target, frame };
+  const resolved = resolve(target);
+  if (resolved.kind !== "present") return null;
+  return start(state, target, resolved, { size, create: false, quiet: true }, recordEntry(state.history, { target, size }, same));
 }
 
 function go(state: PrototypeState, direction: Direction, resolve: Resolve): Step | null {
