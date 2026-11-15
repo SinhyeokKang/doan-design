@@ -381,6 +381,14 @@ it("matches group heads by their label in typeahead, through the shared helper",
   } finally { now.mockRestore(); }
 });
 
+// A bare `.html` keeps its full file name as its label (canvasLabel); typeahead matches the label the row shows.
+it("names canvas rows and matches typeahead by the sidebar's label", () => {
+  const tree = groupsFixture(undefined, ["canvases/checkout", "canvases/"]);
+  expect(tree.rows.map(row => row["aria-label"])).toEqual(["demo", "Design system", "Canvases", ".html", "checkout"]);
+  tree.press("demo", ".");
+  expect(tree.active()).toBe(".html");
+});
+
 it("still opens and closes groups while the page is locked, showing their heads unavailable", () => {
   const tree = groupsFixture(undefined, undefined, { locked: true });
   const head = tree.row("Design system");

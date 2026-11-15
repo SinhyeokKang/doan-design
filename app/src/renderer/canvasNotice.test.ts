@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { canvasNoticeLabel, readStateToast, shownIntent, sidebarSlots } from "./canvasNotice";
+import { canvasNoticeLabel, readStateFailedLabel, readStateToast, shownIntent, sidebarSlots } from "./canvasNotice";
 import type { Slot } from "./homeConversations";
 
 const A = ".doan/canvases/a.html", B = ".doan/canvases/b.html", C = ".doan/ds/c.html";
@@ -13,6 +13,11 @@ test("an unseen canvas gets a canvas notice on its row", () => {
     [`/r\n${B}`, { kind: "canvas", label: canvasNoticeLabel(B, "changed") }],
     [`/r\n${A}`, { kind: "canvas", label: canvasNoticeLabel(A, "new") }],
   ]);
+});
+
+test("a notice names the canvas by the sidebar's label, whatever the extension's case", () => {
+  expect(canvasNoticeLabel(".doan/canvases/Checkout.HTML", "new")).toBe("Checkout is new");
+  expect(readStateFailedLabel(".doan/canvases/Checkout.HTML")).toBe("Read state could not be saved for Checkout");
 });
 
 test("conversation slots win on the same row and keep their own entries", () => {

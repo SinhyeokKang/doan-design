@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { MAX_COPY_TEXT, MAX_TEXT_RECTS } from "../renderer/canvasMessage";
+import { MAX_COPY_TEXT, MAX_FRAMES, MAX_GOTOS, MAX_HTML, MAX_SELECTOR, MAX_STRING, MAX_TEXT, MAX_TEXT_RECTS, MAX_VALUE } from "../renderer/canvasMessage";
 import { MAX_PROTOTYPE_MARK } from "./prototype/mark";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
 import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, escapeTarget, frameBottom, frameStep, nextHeight, textBoundary, textDragState, textQuote, type ChainLink } from "./canvasScript";
@@ -2489,15 +2489,15 @@ describe("textBoundary", () => {
   });
 });
 
-// The injected script cannot import, so it repeats the caps canvasMessage.ts drops a text range over; a lower cap on
-// the app's side would silently drop every clipped range.
-describe("text range caps", () => {
+// The injected script cannot import, so it repeats the caps canvasMessage.ts drops a message over; a lower cap on the
+// app's side would silently drop every message the script clipped to its own.
+describe("message caps", () => {
   test("the script clips to the same caps the app's parser accepts", () => {
     const source = canvasScriptSource();
     // The bundler may print a literal as 1e5; Number reads either form.
     const value = (name: string) => Number(new RegExp(`const ${name} = ([0-9_.e]+);`).exec(source)?.[1]?.replaceAll("_", ""));
-    expect(value("MAX_COPY_TEXT")).toBe(MAX_COPY_TEXT);
-    expect(value("MAX_TEXT_RECTS")).toBe(MAX_TEXT_RECTS);
+    const caps = { MAX_FRAMES, MAX_GOTOS, MAX_STRING, MAX_PROTOTYPE_MARK, MAX_SELECTOR, MAX_HTML, MAX_TEXT, MAX_VALUE, MAX_COPY_TEXT, MAX_TEXT_RECTS };
+    expect(Object.fromEntries(Object.keys(caps).map(name => [name, value(name)]))).toEqual(caps);
   });
 });
 

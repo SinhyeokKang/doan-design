@@ -16,7 +16,7 @@ node .agents/skills/verify/scripts/verify.mjs
 node .agents/skills/verify/scripts/verify.mjs --eval
 ```
 
-- Default: runner and runtime-support regression tests, `go test ./...`, `go vet ./...`, app typecheck, app lint, app tests, and app build, sequentially.
+- Default: runner and runtime-support regression tests, the buddy golden checks (`doanyGolden.mjs --check`, `dockedBuddyGolden.mjs --check`), `go test ./...`, `go vet ./...`, app typecheck, app lint, app tests, and app build, sequentially.
 - CI runs the same command without `--eval` on pull requests to and pushes to develop and main, as three `--shard <i>/3` jobs of `.github/workflows/ci.yml`: `--shard` passes Vitest's shard to app tests and runs every other step only in shard 1. The `gate` job passes only when every shard passes. Run locally without `--shard`.
 - No full e2e gate and no `--runtime` flag. App changes use a short affected-behavior check under [/runtime-test](../runtime-test/SKILL.md), separately from this static/unit/build runner. Do not add screen-specific e2e scripts during feature work. Reuse unaffected runtime evidence; report the scope actually checked.
 - Add `--eval` when `eval/` changed or runner validation is requested. It runs the runner unit tests and `node eval/run.ts --self-test` with fake agents; it never calls real models.

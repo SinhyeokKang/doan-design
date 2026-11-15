@@ -46,7 +46,7 @@ test("Home is the shell with the sidebar and a composer body: no project cards, 
   expect(html).not.toContain("Finish setting up doan");
   expect(html).not.toContain("Connection problem");
   expect(html).toContain('<main class="app-shell home-shell"><header class="top shell-top"></header><aside class="side shell-side"');
-  expect(html).toContain('<section class="home-panel" aria-label="Home"><div class="home-stage"><button type="button" class="doany" aria-label="Make Doany hop" style="width:114px;height:114px"><img src="doany/doany.png" alt=""/><img class="buddy-shadow" src="buddies/doany/shadow.png" alt="" aria-hidden="true" style="transform-origin:calc(16.5% + 67% * 0.458) calc(16.5% + 67% * 0.941)"/><canvas hidden="" aria-hidden="true"></canvas></button><h1 class="home-greeting">');
+  expect(html).toContain('<section class="home-panel doan-scroll" aria-label="Home"><div class="home-stage"><button type="button" class="doany" aria-label="Make Doany hop" style="width:114px;height:114px"><img src="doany/doany.png" alt=""/><img class="buddy-shadow" src="buddies/doany/shadow.png" alt="" aria-hidden="true" style="transform-origin:calc(16.5% + 67% * 0.458) calc(16.5% + 67% * 0.941)"/><canvas hidden="" aria-hidden="true"></canvas></button><h1 class="home-greeting">');
   // The sidebar marks no current project or canvas on Home.
   expect(html).not.toContain("aria-current=\"location\"");
 });

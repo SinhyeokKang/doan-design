@@ -47,6 +47,8 @@ export function createDoanyRig(deps: {
   random: () => number;
   // Wires observers and listeners to the rig; the returned function removes them.
   connect: (rig: DoanyRig) => () => void;
+  // WebGL is gone for this rig: its context was lost (ready: after it had drawn) or its textures failed.
+  failed: (ready: boolean) => void;
 }): DoanyRig {
   const { target, view, frames } = deps;
   const state = initialState();
@@ -95,7 +97,7 @@ export function createDoanyRig(deps: {
     },
   };
   // The still image stands on the floor, so its shadow is at rest.
-  const offLost = target.onLost(() => { view.showStatic(); view.setState("static"); view.setLift(0); });
+  const offLost = target.onLost(() => { view.showStatic(); view.setState("static"); view.setLift(0); deps.failed(ready); });
   const disconnect = deps.connect(rig);
   deps.textures.then(() => {
     if (disposed) return;
@@ -106,6 +108,7 @@ export function createDoanyRig(deps: {
     if (disposed) return;
     view.setState("static");
     console.error(error);
+    deps.failed(false);
   });
   let frame = frames.request(tick);
   return rig;
