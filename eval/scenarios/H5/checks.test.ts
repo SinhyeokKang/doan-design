@@ -73,3 +73,9 @@ test("H5 allows new canvas-only CSS in the sibling assets directory", () => {
   writeFileSync(join(ctx.repo, ".doan/private.txt"), "unrelated");
   assert.ok(failures(ctx).length > 0);
 });
+
+// The CLI refuses --git-init without --storage local before writing anything, so it alone is not a write.
+test("H5 does not count a --git-init the CLI refuses as a config write", () => {
+  assert.deepEqual(failures(setup("pass", `${answer}\nOpenAI Codex v0.164.0\n${codex("doan config --git-init --json")}`)), []);
+  assert.deepEqual(failures(setup("pass", `${answer}\nOpenAI Codex v0.164.0\n${codex("doan config --storage local --git-init --json")}`)), ["no_config_write_call"]);
+});

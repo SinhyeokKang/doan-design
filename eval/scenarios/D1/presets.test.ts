@@ -91,3 +91,17 @@ test("CATALOG lists exactly the presets the CLI's catalog embeds", () => {
   const catalog = JSON.parse(readFileSync(new URL("../../../cli/internal/designskill/catalog.json", import.meta.url), "utf8"));
   assert.deepEqual([...CATALOG].sort(), catalog.presets.map((p: { id: string }) => p.id).sort());
 });
+
+test("a preset read inside a command substitution counts, and one the CLI refuses does not", () => {
+  assert.deepEqual(presetLookups(ran('body=$(doan design-skill clarify --json); echo "$body" | head')).ids, ["clarify"]);
+  assert.deepEqual(presetLookups(ran("doan design-skill clarify quieter --json")).ids, []);
+  assert.deepEqual(presetLookups(ran("doan design-skill clarify --frame x")).ids, []);
+});
+
+test("preset reads fed through xargs or a wrapper are followed or fail the full-list checks", () => {
+  const xargs = ran("doan design-skill --json | jq -r '.result.presets[].id' | xargs -I{} doan design-skill {} --json");
+  assert.equal(presetLookups(xargs).incomplete, true);
+  assert.deepEqual(presetChecks(xargs, { required: [], allowed: [] }).map(c => [c.id, c.pass]), [["no_preset_body_read", false]]);
+  assert.deepEqual(presetLookups(ran("timeout 30 doan design-skill polish --json")).ids, ["polish"]);
+  assert.deepEqual(presetLookups(ran("env DOAN_RUNTIME=/tmp/r doan design-skill polish --json")).ids, ["polish"]);
+});

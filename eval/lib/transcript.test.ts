@@ -1,7 +1,10 @@
-import { test } from "node:test";
+import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { shellCommands, commandWords, parseCommand, doanArgs, doanCommand, doanPositionals, incompleteRead, mcpTools, toolCalls, DOAN_BOOLEAN_FLAGS, DOAN_VALUE_FLAGS } from "./transcript.ts";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { shellCommands, commandWords, parseCommand, doanArgs, doanCommand, doanPositionals, incompleteRead, mcpTools, toolCalls, DOAN_BOOLEAN_FLAGS, DOAN_COMMAND_FLAGS, DOAN_COMMANDS, DOAN_VALUE_FLAGS } from "./transcript.ts";
 test("only Bash tool_use and Codex exec headers yield shell commands", () => {
   assert.deepEqual(shellCommands('guide: doan active\n{"type":"user","message":{"content":[{"type":"tool_result","content":"doan active"}]}}'), []);
   assert.deepEqual(shellCommands('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"doan active"}}]}}'), ["doan active"]);
@@ -161,13 +164,14 @@ test("doanPositionals knows every flag doan's flag set defines, with its arity",
   assert.equal(booleans.length, count(/\bfs\.BoolVar\(/g), "every BoolVar has a literal name");
   assert.equal(values.length - [...looped.matchAll(/"([\w-]+)":/g)].length + (looped ? 1 : 0), count(/\bfs\.(?:StringVar|Func)\(/g), "every StringVar and Func has a literal name");
   for (const name of ["json", "storage", "session", "initialize", "o"]) assert.ok([...booleans, ...values].includes(name), name);
+  // Which command takes which flag is a separate rule (the test below), so only the arity is read here.
   for (const name of values) {
-    assert.deepEqual(doanPositionals(["doan", "x", `--${name}`, "v", "y"]), ["x", "y"], name);
-    assert.deepEqual(doanPositionals(["doan", "x", `-${name}=v`, "y"]), ["x", "y"], name);
+    assert.deepEqual(doanArgs(["doan", "x", `--${name}`, "v", "y"])?.positionals, ["x", "y"], name);
+    assert.deepEqual(doanArgs(["doan", "x", `-${name}=v`, "y"])?.positionals, ["x", "y"], name);
   }
   for (const name of booleans) {
-    assert.deepEqual(doanPositionals(["doan", "x", `--${name}`, "y"]), ["x", "y"], name);
-    assert.deepEqual(doanPositionals(["doan", "x", `-${name}=false`, "y"]), ["x", "y"], name);
+    assert.deepEqual(doanArgs(["doan", "x", `--${name}`, "y"])?.positionals, ["x", "y"], name);
+    assert.deepEqual(doanArgs(["doan", "x", `-${name}=false`, "y"])?.positionals, ["x", "y"], name);
   }
   // The other direction: a flag the CLI no longer defines would make the reader skip a word the CLI refuses on.
   assert.deepEqual([...DOAN_VALUE_FLAGS].sort(), [...new Set(values)].sort(), "value flags");
@@ -180,8 +184,8 @@ test("doanArgs reads flags wherever doan's flag set does, and marks a command th
   assert.deepEqual(doanArgs(["doan", "--provider", "copilot", "onboarding", "-session=s", "check", "--json"]),
     { positionals: ["onboarding", "check"], flags: [{ name: "provider", value: "copilot" }, { name: "session", value: "s" }, { name: "json", value: undefined }], refused: false });
   // A value flag takes the next word whatever it looks like.
-  assert.deepEqual(doanArgs(["doan", "open", "a.html", "--note", "--prototype"]),
-    { positionals: ["open", "a.html"], flags: [{ name: "note", value: "--prototype" }], refused: false });
+  assert.deepEqual(doanArgs(["doan", "work", "update", "a.html", "--note", "--prototype"]),
+    { positionals: ["work", "update", "a.html"], flags: [{ name: "note", value: "--prototype" }], refused: false });
   assert.deepEqual(doanArgs(["doan", "config", "--", "--add-serve", "x"]), { positionals: ["config", "--add-serve", "x"], flags: [], refused: false });
   // Unknown flags, a missing value and a bad boolean are refused by the CLI; the words are still there for an attempt check.
   assert.deepEqual(doanArgs(["doan", "onboarding", "sign-in", "--stop", "--provider", "claude"]),
@@ -239,8 +243,11 @@ test("commandWords keeps a single-quoted or escaped $ as a literal and reads it 
   assert.deepEqual(literal("doan active --repo $REPO --json"), { words: [["doan", "active", "--repo", "$REPO", "--json"]], incomplete: false });
 });
 test("a command whose program or doan operand is unresolved is incomplete and yields no words for it", () => {
-  for (const command of ["doan design-skill $p", "p=harden doan design-skill $p", "$c design-skill polish", "doan $c", 'doan design-skill "$p"', "doan design-skill $(echo harden)", "doan design-skill `echo harden`"])
+  for (const command of ["doan design-skill $p", "p=harden doan design-skill $p", "$c design-skill polish", "doan $c", 'doan design-skill "$p"'])
     assert.deepEqual(parseCommand(command), { words: [], incomplete: true }, command);
+  // A substitution's own command runs and is read; the word it produces is still unknown.
+  for (const command of ["doan design-skill $(echo harden)", "doan design-skill `echo harden`"])
+    assert.deepEqual(parseCommand(command), { words: [["echo", "harden"]], incomplete: true }, command);
   // The rest of the command is still read.
   assert.deepEqual(parseCommand("doan design-skill harden; $c design-skill polish"), { words: [["doan", "design-skill", "harden"]], incomplete: true });
   assert.deepEqual(parseCommand("for p in $ids; do doan design-skill $p; done"), { words: [], incomplete: true });
@@ -300,4 +307,182 @@ test("a shell compound or reserved word the reader does not follow makes the res
   unread("p=harden; for x in 1; do while true; do p=polish; done; done; doan design-skill $p", []);
   // Quoted or non-leading reserved words are arguments.
   assert.deepEqual(parseCommand("echo if then while; doan 'if'"), { words: [["echo", "if", "then", "while"], ["doan", "if"]], incomplete: false });
+});
+
+// The command names checks compare with are the CLI's: a renamed command would otherwise leave an absence check that
+// can never fail. Compared with run.go's dispatch switch both ways, and every compared literal in eval/ with the list.
+test("DOAN_COMMANDS is run.go's command switch, and eval compares only with those names", () => {
+  const source = readFileSync(new URL("../../cli/internal/cli/run.go", import.meta.url), "utf8");
+  const end = source.indexOf('usageError("Unknown command: " + cmd)');
+  const body = source.slice(source.lastIndexOf("switch cmd {", end), end);
+  assert.ok(end > 0 && body.length > 0, "run.go's dispatch switch needs reading here");
+  assert.deepEqual([...DOAN_COMMANDS].sort(), [...body.matchAll(/^\s*case "([\w-]+)":/gm)].map(m => m[1]!).sort());
+  const sources = (dir: string): string[] => readdirSync(dir).flatMap(name => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return name === "fixtures" || name === "seed" ? [] : sources(path);
+    return /\.ts$/.test(name) && !/\.test\.ts$/.test(name) ? [path] : [];
+  });
+  const compared = new Set<string>();
+  for (const path of sources(join(import.meta.dirname, ".."))) {
+    const text = readFileSync(path, "utf8");
+    for (const m of text.matchAll(/(?:doanCommand\([^)]*\)|positionals\[0\]|args\??\.?\[0\])\s*[!=]==\s*"([\w-]+)"/g)) compared.add(m[1]!);
+    for (const m of text.matchAll(/command: ("[\w-]+"(?:\s*\|\s*"[\w-]+")*)/g)) for (const name of m[1]!.matchAll(/"([\w-]+)"/g)) compared.add(name[1]!);
+  }
+  // The search above must keep finding the comparisons it was written for.
+  for (const name of ["active", "config", "design-skill", "export", "handoff", "init", "onboarding", "open"]) assert.ok(compared.has(name), `no comparison with ${name} found`);
+  for (const name of compared) assert.ok(DOAN_COMMANDS.includes(name), `eval compares with ${name}, which run.go does not dispatch`);
+});
+
+// Run refuses a flag its command does not take before anything runs, so such a command is refused like an unknown flag.
+test("DOAN_COMMAND_FLAGS is run.go's per-command flag table", () => {
+  const source = readFileSync(new URL("../../cli/internal/cli/run.go", import.meta.url), "utf8");
+  const start = source.indexOf('allowed := map[string]bool{"json": true, "repo": true}');
+  const table = source.slice(start, source.indexOf("fs.Visit(", start));
+  assert.ok(start > 0, "run.go's flag table needs reading here");
+  const read: Record<string, string[]> = {};
+  const cases = table.split(/^\s*case "/m).slice(1);
+  for (const block of cases) {
+    const name = block.slice(0, block.indexOf('"'));
+    const flags = [...block.matchAll(/allowed\["([\w-]+)"\] = true/g)].map(m => m[1]!);
+    if (/pos\[1\] == "update"/.test(block)) read[`${name} update`] = flags;
+    else if (/allowed = map\[string\]bool\{"json": true\}/.test(block) && /range onboardingFlags/.test(block)) {
+      const onboarding = readFileSync(new URL("../../cli/internal/cli/onboarding.go", import.meta.url), "utf8");
+      const map = /var onboardingFlags = map\[string\]string\{([^}]*)\}/.exec(onboarding)?.[1] ?? "";
+      read[name] = [...map.matchAll(/"([\w-]+)":/g)].map(m => m[1]!);
+    } else read[name] = flags;
+  }
+  assert.equal(cases.length, Object.keys(read).length);
+  // Every entry is a literal name, or onboarding's loop over its own table.
+  assert.equal([...table.matchAll(/allowed\[/g)].length, [...table.matchAll(/allowed\["/g)].length + [...table.matchAll(/allowed\[name\] = true/g)].length, "every allowed flag is read here");
+  const model = Object.fromEntries(Object.entries(DOAN_COMMAND_FLAGS).map(([name, flags]) => [name, [...flags].sort()]));
+  assert.deepEqual(model, Object.fromEntries(Object.entries(read).map(([name, flags]) => [name, flags.sort()])));
+  // What the table means for a command.
+  assert.equal(doanArgs(["doan", "design-skill", "clarify", "--repo", ".", "--json"])?.refused, false);
+  assert.equal(doanArgs(["doan", "design-skill", "clarify", "--frame", "x"])?.refused, true);
+  assert.equal(doanArgs(["doan", "work", "update", "a.html", "--frame", "f", "--note", "n"])?.refused, false);
+  assert.equal(doanArgs(["doan", "work", "start", "a.html", "--frame", "f"])?.refused, true);
+  assert.equal(doanArgs(["doan", "onboarding", "status", "--session", "s", "--json"])?.refused, false);
+  assert.equal(doanArgs(["doan", "--repo", ".", "onboarding", "status"])?.refused, true);
+});
+
+// What a command does with its positionals and repeated flags is the CLI's to say: each case runs the real CLI, and
+// the reader must refuse exactly the ones the CLI answers with a usage error.
+const cliRoot = mkdtempSync(join(tmpdir(), "doan-transcript-"));
+const cli = join(cliRoot, "doan");
+before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
+after(() => rmSync(cliRoot, { recursive: true, force: true }));
+test("the reader refuses the argument shapes the CLI refuses as usage errors", () => {
+  const env = { ...process.env, HOME: cliRoot, DOAN_RUNTIME: join(cliRoot, "runtime.json") };
+  const usage = (args: string[]) => {
+    let stdout: string;
+    try { stdout = execFileSync(cli, [...args, "--json"], { cwd: cliRoot, env, stdio: ["ignore", "pipe", "pipe"], timeout: 10_000 }).toString(); }
+    catch (error) { stdout = String((error as { stdout?: Buffer }).stdout ?? ""); }
+    return JSON.parse(stdout).error?.code === "usage_error";
+  };
+  for (const args of [
+    ["open", ".doan/canvases/a.html", "--frame", "f"],
+    ["open", ".doan/canvases/a.html", "--frame", "x", "--frame", "f"],
+    ["open", ".doan/canvases/a.html", ".doan/canvases/b.html"],
+    ["open"],
+    ["open", ".doan/canvases/a.html", "--prototype"],
+    ["open", ".doan/canvases/a.html", "--frame", ""],
+    ["export", ".doan/canvases/a.html", "-o", "out.html"],
+    ["export", ".doan/canvases/a.html", "-o", "out.html", "--frame", "x", "--frame", "f", "--prototype"],
+    ["export", ".doan/canvases/a.html"],
+    ["export", ".doan/canvases/a.html", "-o", "out.html", "--frame", "f"],
+    ["export", ".doan/canvases/a.html", "-o", "out.html", "--prototype"],
+    ["export", ".doan/canvases/a.html", "b.html", "-o", "out.html"],
+    ["design-skill", "clarify"],
+    ["design-skill", "clarify", "quieter"],
+    ["design-skill"],
+  ]) assert.equal(doanArgs(["doan", ...args, "--json"])?.refused, usage(args), args.join(" "));
+});
+
+// A substitution runs its command before the command around it; what it prints is unknown.
+test("commands inside $(…) and backticks are read, also in assignments and double quotes", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  read('body=$(doan design-skill clarify --json); echo "$body" | jq .', [["doan", "design-skill", "clarify", "--json"], ["echo", "$body"], ["jq", "."]]);
+  read("sel=$(doan active --json)", [["doan", "active", "--json"]]);
+  read("sel=`doan active --json`", [["doan", "active", "--json"]]);
+  read('echo "$(doan design-skill clarify --json)"', [["doan", "design-skill", "clarify", "--json"], ["echo", "$()"]]);
+  read("x=$(cd /tmp && doan active)", [["cd", "/tmp"], ["doan", "active"]]);
+  read("x=$(echo $(doan active))", [["doan", "active"], ["echo", "$()"]]);
+  read("for p in harden clarify; do x=$(doan design-skill $p --json); done", [["doan", "design-skill", "harden", "--json"], ["doan", "design-skill", "clarify", "--json"]]);
+  // A substitution in a sh -c script was run by the outer shell, once.
+  read('bash -c "echo $(doan active)"', [["doan", "active"], ["echo", "$()"]]);
+  // Quoted or escaped, it is text; $((…)) is arithmetic.
+  read("echo '$(doan active)'", [["echo", "$(doan active)"]]);
+  read('echo "\\$(doan active)"', [["echo", "$(doan active)"]]);
+  read("echo $((1 + 2)); doan active", [["echo", "$(())"], ["doan", "active"]]);
+  // The substitution as the program: its command is read, what runs then is unknown.
+  read("$(doan design-skill --json)", [["doan", "design-skill", "--json"]], true);
+  // An unterminated substitution is not followed.
+  read("x=$(doan design-skill clarify", [], true);
+});
+
+// A wrapper runs its operand: the reader takes the operand as the command, and refuses to guess past an option it
+// does not know. xargs adds words from its input, so a doan run through it is never read completely.
+test("env, timeout, nohup and nice run their operand; xargs into doan is incomplete", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  read("env DOAN_RUNTIME=/tmp/r doan onboarding status --json", [["doan", "onboarding", "status", "--json"]]);
+  read("env -i PATH=/bin -u FOO -- doan active", [["doan", "active"]]);
+  read("/usr/bin/env doan active", [["doan", "active"]]);
+  read("timeout 30 doan active --json", [["doan", "active", "--json"]]);
+  read("timeout -s KILL -k 5 10s doan active", [["doan", "active"]]);
+  read("timeout --signal=KILL --preserve-status 10 doan active", [["doan", "active"]]);
+  read("nohup doan active & echo started", [["doan", "active"], ["echo", "started"]]);
+  read("nice -n 10 doan active", [["doan", "active"]]);
+  read("nice env timeout 5 nohup doan active", [["doan", "active"]]);
+  read("env -S 'doan active'", [], true);
+  read("timeout --bogus 5 doan active", [], true);
+  read("doan design-skill --json | jq -r '.result.presets[].id' | xargs -I{} doan design-skill {} --json",
+    [["doan", "design-skill", "--json"], ["jq", "-r", ".result.presets[].id"]], true);
+  read("echo x | xargs sh -c 'doan active'", [["echo", "x"]], true);
+  read("ls | xargs cat", [["ls"], ["xargs", "cat"]]);
+});
+
+// An unknown flag before the command may or may not take the next word, so which word is the command is unknown.
+test("an unknown flag before the command leaves the command unknown, so the read is incomplete", () => {
+  assert.deepEqual(parseCommand("doan --stop s1 onboarding cancel"), { words: [], incomplete: true });
+  assert.deepEqual(parseCommand("doan --provider claude --stop onboarding sign-in"), { words: [], incomplete: true });
+  // Inline or after the command, the command is still known.
+  assert.deepEqual(parseCommand("doan --stop=s1 onboarding cancel"), { words: [["doan", "--stop=s1", "onboarding", "cancel"]], incomplete: false });
+  assert.deepEqual(parseCommand("doan onboarding --stop s1 cancel"), { words: [["doan", "onboarding", "--stop", "s1", "cancel"]], incomplete: false });
+});
+
+// The shell drops a comment before it runs anything, so neither its words nor its quotes are part of a command.
+test("a comment is not part of the command, and its quotes do not open a string", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  read("doan design-skill polish  # read the polish preset", [["doan", "design-skill", "polish"]]);
+  assert.equal(doanArgs(parseCommand("doan design-skill polish # read it").words[0]!)?.refused, false);
+  read("# Next: `doan design-skill harden` if needed\ndoan active", [["doan", "active"]]);
+  read("# Let's read the preset\nx=$(doan design-skill polish)", [["doan", "design-skill", "polish"]]);
+  // Not at the start of a word, or quoted, it is text.
+  read("echo a#b '#c' \"#d\"", [["echo", "a#b", "#c", "#d"]]);
+});
+
+test("command substitutions the reader cannot follow make the read incomplete", () => {
+  // $( ( … ) … ) is a substitution whose body starts with a subshell, not arithmetic.
+  assert.equal(parseCommand("echo $((doan design-skill polish) && (true))").incomplete, true);
+  assert.deepEqual(parseCommand("echo $(( $(doan design-skill polish | wc -l) + 1 ))"), { words: [], incomplete: true });
+  // An unquoted heredoc body runs its substitutions; a quoted one is data.
+  assert.equal(parseCommand("cat <<EOF\n$(doan design-skill polish)\nEOF").incomplete, true);
+  assert.deepEqual(parseCommand("cat <<'EOF'\n$(doan design-skill polish)\nEOF"), { words: [["cat", "<<EOF"]], incomplete: false });
+  // A function or case body may never run, so its substitutions are not runs either.
+  for (const command of ['f() { echo "$(doan open x.html)"; }', 'case "$1" in run) out=$(doan active);; esac'])
+    assert.deepEqual(parseCommand(command), { words: [], incomplete: true }, command);
+  // Nesting past what the reader follows is incomplete, not a crash.
+  const deep = "echo " + "$(echo ".repeat(2000) + "x" + ")".repeat(2000);
+  assert.equal(parseCommand(deep).incomplete, true);
+});
+
+test("a wrapper option the shell may expand to nothing makes the read incomplete; time, exec and eval run their operand", () => {
+  const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
+  for (const command of ["timeout $T doan design-skill polish", "nice -n $N doan active", "env -u $V doan active"]) read(command, [], true);
+  read("env DOAN_RUNTIME=$RT doan active", [["doan", "active"]]);
+  read("time doan design-skill polish", [["doan", "design-skill", "polish"]]);
+  read("/usr/bin/time -p doan active", [["doan", "active"]]);
+  read("exec doan active", [["doan", "active"]]);
+  read("eval 'doan design-skill polish'", [["doan", "design-skill", "polish"]]);
+  read('eval "doan design-skill $p"', [], true);
 });

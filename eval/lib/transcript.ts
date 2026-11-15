@@ -9,17 +9,51 @@ export function scriptTokens(source: string): string[] {
 export const DOAN_VALUE_FLAGS: readonly string[] = ["repo", "storage", "token-css", "add-serve", "remove-serve", "frame", "note", "message", "session", "operation", "provider", "request", "path", "url", "destination", "inspection", "o"];
 export const DOAN_BOOLEAN_FLAGS: readonly string[] = ["json", "clear-token-css", "spend-copilot-request", "initialize", "git-init", "force", "prototype"];
 
+// The commands run.go dispatches (compared both ways by transcript.test.ts). A check that looks for a command names one
+// of these, so a renamed command fails that test instead of leaving an absence check that can never fail.
+export const DOAN_COMMANDS: readonly string[] = ["init", "config", "ls", "skill", "design-skill", "check", "work", "active", "onboarding", "open", "handoff", "remove", "export"];
+
+// The flags each command takes besides json and repo (run.go's table, compared by transcript.test.ts); work takes its
+// flags only as `work update`, and onboarding takes json and its own flags, not repo.
+export const DOAN_COMMAND_FLAGS: Readonly<Record<string, readonly string[]>> = {
+  config: ["storage", "git-init", "token-css", "clear-token-css", "add-serve", "remove-serve"],
+  init: ["storage", "git-init", "token-css"],
+  open: ["frame", "prototype"],
+  handoff: ["message"],
+  "work update": ["frame", "note"],
+  export: ["o", "force", "frame", "prototype"],
+  onboarding: ["session", "operation", "provider", "request", "path", "url", "destination", "inspection", "storage", "spend-copilot-request", "initialize"],
+};
+
 export interface DoanArgs { positionals: string[]; flags: { name: string; value: string | undefined }[]; refused: boolean }
 
-// doan's argv read as SplitArgs reads it: flags before, between and after the positionals, a value flag taking the
-// next word whatever it looks like. `refused` marks what the CLI rejects before running anything (an unknown flag,
-// a value flag with no value, a boolean that is not one); such a command ran nothing, but an attempt check may still
-// want its words, so an unknown flag is kept as a flag that takes no value.
-export function doanArgs(words: string[]): DoanArgs | undefined {
+const TRUE = /^(?:1|t|T|true|TRUE|True)$/;
+
+// The argument shapes the commands the checks read refuse with a usage error before doing anything (openInput,
+// exportInput, DesignSkill; tied to the CLI by transcript.test.ts). --frame accumulates in the flag set, and these
+// commands refuse a second one.
+function shapeAccepted(positionals: string[], flags: DoanArgs["flags"]): boolean {
+  const all = (name: string) => flags.filter(flag => flag.name === name);
+  const frames = all("frame").length;
+  const last = (name: string) => all(name).at(-1);
+  const prototype = last("prototype") !== undefined && (last("prototype")!.value === undefined || TRUE.test(last("prototype")!.value!));
+  const operands = positionals.length - 1;
+  switch (positionals[0]) {
+    case "open": return operands === 1 && frames <= 1 && last("frame")?.value !== "" && (frames === 1 || !prototype);
+    case "export": return operands === 1 && !!last("o")?.value && frames <= 1 && last("frame")?.value !== "" && prototype === (frames === 1);
+    case "design-skill": return operands <= 1;
+    default: return true;
+  }
+}
+
+// doan's argv read as SplitArgs and Run read it: flags before, between and after the positionals, a value flag taking
+// the next word whatever it looks like. `ambiguous` marks an unknown flag before the command with a word after it: the
+// reader cannot tell whether that word is its value or the command, so it cannot tell which command this is.
+function readDoanArgs(words: string[]): { args: DoanArgs; ambiguous: boolean } | undefined {
   if (!/^(?:.*\/)?doan$/.test(words[0] ?? "")) return undefined;
   const positionals: string[] = [];
   const flags: DoanArgs["flags"] = [];
-  let refused = false;
+  let refused = false, ambiguous = false;
   for (let i = 1; i < words.length; i++) {
     const word = words[i]!;
     if (word === "--") { positionals.push(...words.slice(i + 1)); break; }
@@ -33,13 +67,29 @@ export function doanArgs(words: string[]): DoanArgs | undefined {
       flags.push({ name, value });
       continue;
     }
-    if (!DOAN_BOOLEAN_FLAGS.includes(name) || (inline !== undefined && !/^(?:1|0|t|T|true|TRUE|True|f|F|false|FALSE|False)$/.test(inline))) refused = true;
+    const known = DOAN_BOOLEAN_FLAGS.includes(name);
+    if (!known && inline === undefined && positionals.length === 0 && i + 1 < words.length && !words[i + 1]!.startsWith("-")) ambiguous = true;
+    if (!known || (inline !== undefined && !/^(?:1|0|t|T|true|TRUE|True|f|F|false|FALSE|False)$/.test(inline))) refused = true;
     flags.push({ name, value: inline });
   }
-  return { positionals, flags, refused };
+  const command = positionals[0];
+  if (command !== undefined) {
+    const own = DOAN_COMMAND_FLAGS[command === "work" && positionals[1] === "update" ? "work update" : command] ?? [];
+    const allowed = command === "onboarding" ? ["json", ...own] : ["json", "repo", ...own];
+    if (flags.some(flag => !allowed.includes(flag.name)) || !shapeAccepted(positionals, flags)) refused = true;
+  }
+  return { args: { positionals, flags, refused }, ambiguous };
 }
 
-// The flag as the CLI ends up with it: Go's flag set keeps the last of a repeated flag.
+// `refused` marks what the CLI rejects before running anything (an unknown flag or one the command does not take, a
+// value flag with no value, a boolean that is not one, an argument shape the command refuses); such a command ran
+// nothing, but an attempt check may still want its words, so an unknown flag is kept as a flag that takes no value.
+export function doanArgs(words: string[]): DoanArgs | undefined {
+  return readDoanArgs(words)?.args;
+}
+
+// The flag as the CLI ends up with it: Go's flag set keeps the last of a repeated string or boolean flag (--frame
+// accumulates instead, and the commands that read it refuse a second one, see shapeAccepted).
 export function lastFlag(args: DoanArgs, name: string): DoanArgs["flags"][number] | undefined {
   return args.flags.filter(flag => flag.name === name).at(-1);
 }
@@ -59,7 +109,7 @@ interface ExtractedCall { name: string; command?: string; patchCandidate?: strin
 // Stands in for an exec_command whose command is not a plain string (a template, a variable, an expression): it ran
 // something the reader cannot see. parseCommand reads it as incomplete, so no absence check holds beside it, and it
 // yields no words, so it is never evidence of a particular command either.
-const UNREADABLE_EXEC = "$(exec_command with a cmd that is not a string literal)";
+const UNREADABLE_EXEC = "$exec_command_with_a_cmd_that_is_not_a_string_literal";
 
 function execCalls(source: string): ExtractedCall[] {
   const tokens = scriptTokens(source);
@@ -169,10 +219,12 @@ export function shellCommands(transcript: string): string[] {
 
 // A heredoc body (the lines after `<<TAG`, `<<'TAG'`, `<<"TAG"` or `<<-TAG` up to the line that is the tag) is data for
 // the command, such as a handoff message that may well contain a line starting with `doan open`. Quoted text is kept
-// whole, so a `<<` inside a string starts nothing and `bash -c "…<<EOF…"` is read when its script is.
-function withoutHeredocBodies(command: string): string {
-  let out = "", quote: string | null = null;
-  const pending: { tag: string; indented: boolean }[] = [];
+// whole, so a `<<` inside a string starts nothing and `bash -c "…<<EOF…"` is read when its script is. A comment (a `#`
+// starting a word outside quotes) goes too: the shell drops it, and a quote inside it opens no string. `unread` is set
+// when an unquoted body holds a substitution, which the shell runs and this reader does not follow there.
+function withoutHeredocsAndComments(command: string): { text: string; unread: boolean } {
+  let out = "", quote: string | null = null, unread = false;
+  const pending: { tag: string; indented: boolean; quoted: boolean }[] = [];
   for (let i = 0; i < command.length; i++) {
     const c = command[i]!;
     if (quote) {
@@ -184,31 +236,141 @@ function withoutHeredocBodies(command: string): string {
     } else if (c === "'" || c === '"') {
       quote = c;
       out += c;
+    } else if (c === "#" && (i === 0 || /[\s;&|()<>]/.test(command[i - 1]!))) {
+      const end = command.indexOf("\n", i);
+      i = (end === -1 ? command.length : end) - 1;
     } else if (c === "<" && command.startsWith("<<<", i)) {
       out += "<<<";
       i += 2;
     } else if (c === "<" && command[i + 1] === "<" && /^<<(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s;&|<>()'"]+))/.test(command.slice(i))) {
       const m = /^<<(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s;&|<>()'"]+))/.exec(command.slice(i))!;
-      pending.push({ tag: m[2] ?? m[3] ?? m[4]!, indented: m[1] === "-" });
+      pending.push({ tag: m[2] ?? m[3] ?? m[4]!, indented: m[1] === "-", quoted: m[4] === undefined });
       out += m[0];
       i += m[0].length - 1;
     } else if (c === "\n" && pending.length) {
       out += c;
-      for (const { tag, indented } of pending.splice(0)) {
+      for (const { tag, indented, quoted } of pending.splice(0)) {
         // An unterminated body runs to the end, as the shell reads it.
         while (i + 1 < command.length) {
           const end = command.indexOf("\n", i + 1);
           const line = command.slice(i + 1, end === -1 ? command.length : end);
           i = end === -1 ? command.length : end;
           if ((indented ? line.replace(/^\t+/, "") : line) === tag) break;
+          if (!quoted && /\$\(|`/.test(line)) unread = true;
         }
       }
     } else out += c;
   }
-  return out;
+  return { text: out, unread };
 }
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z_0-9]*=/;
+// Where substitutions(n) took the nth command substitution out of a command; NUL never occurs in a shell command.
+const SUBSTITUTED = /\$\(\0(\d+)\)/g;
+
+// The index of the `)` that closes a `$(` or `(` opened before `from`, or -1. Quotes, escapes, backticks and nested
+// substitutions inside are skipped, so a `)` in them does not close it.
+function closing(text: string, from: number, nesting = 0): number {
+  // Deeper nesting than any real command is not followed, so a transcript cannot exhaust the stack.
+  if (nesting > 32) return -1;
+  let depth = 1, quote: string | null = null;
+  for (let i = from; i < text.length; i++) {
+    const c = text[i]!;
+    if (quote === "'") { if (c === "'") quote = null; continue; }
+    if (c === "\\") { i++; continue; }
+    if (c === "$" && text[i + 1] === "(") { i = closing(text, i + 2, nesting + 1); if (i < 0) return -1; continue; }
+    if (c === "`") { i = text.indexOf("`", i + 1); if (i < 0) return -1; continue; }
+    if (quote === '"') { if (c === '"') quote = null; continue; }
+    if (c === "'" || c === '"') quote = c;
+    else if (c === "(") depth++;
+    else if (c === ")" && --depth === 0) return i;
+  }
+  return -1;
+}
+
+// Takes each outermost `$(…)` and backtick substitution out of a command: its body runs as a command of its own (in
+// runGroups, where the variables are known), and what it printed is unknown, so it stands as an unresolved word.
+// Single quotes and an escape keep a `$(` or backtick literal, and `$((…))` is arithmetic, not a command. `null` when a
+// substitution never closes (the shell would not run the command as written) or holds one this reader does not follow.
+function substitutions(command: string): { text: string; bodies: string[] } | null {
+  const bodies: string[] = [];
+  let text = "", quote: string | null = null;
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i]!;
+    if (quote === "'") { text += c; if (c === "'") quote = null; continue; }
+    if (c === "\\") { text += c + (command[i + 1] ?? ""); i++; continue; }
+    if (c === "$" && command[i + 1] === "(") {
+      const end = closing(command, i + 2);
+      if (end < 0) return null;
+      const body = command.slice(i + 2, end);
+      // `$((…))` is arithmetic when its inner `(` closes right before the outer `)`; `$((a) && (b))` is a substitution
+      // whose body starts with a subshell. Arithmetic yields a number, and a substitution inside it is not followed.
+      if (body.startsWith("(") && closing(command, i + 3) === end - 1) {
+        if (/\$\(|`/.test(body)) return null;
+        text += "$(())";
+      } else { bodies.push(body); text += `$(\0${bodies.length - 1})`; }
+      i = end;
+      continue;
+    }
+    if (c === "`") {
+      const end = command.indexOf("`", i + 1);
+      if (end < 0) return null;
+      // Inside backticks a backslash quotes only $, ` and itself.
+      bodies.push(command.slice(i + 1, end).replace(/\\([$`\\])/g, "$1"));
+      text += `$(\0${bodies.length - 1})`;
+      i = end;
+      continue;
+    }
+    if (quote === null && (c === "'" || c === '"')) quote = c;
+    else if (quote === '"' && c === '"') quote = null;
+    text += c;
+  }
+  return { text, bodies };
+}
+
+// Wrappers that run their operand as the command. The index where that command starts, null when the words are not
+// such a wrapper (or `command -v`, a lookup), and undefined when an option is one the reader does not know, so where
+// the command starts is unknown.
+const WRAPPER = /^(?:.*\/)?(env|timeout|nohup|nice|time)$/;
+function wrappedAt(words: string[]): number | null | undefined {
+  const name = ["command", "exec"].includes(words[0] ?? "") ? words[0] : WRAPPER.exec(words[0] ?? "")?.[1];
+  let k = 1;
+  const options = (plain: string[], valued: string[], joined: RegExp): number | undefined => {
+    for (; k < words.length; k++) {
+      const word = words[k]!;
+      if (word === "--") return k + 1;
+      if (plain.includes(word) || joined.test(word)) continue;
+      if (valued.includes(word)) { k++; continue; }
+      if (word.startsWith("-") && word !== "-") return undefined;
+      return k;
+    }
+    return k;
+  };
+  switch (name) {
+    case "command":
+      // The command builtin runs its operand, except -v/-V, which only look the name up.
+      while (/^-[pvV]+$/.test(words[k] ?? "")) k++;
+      if (/[vV]/.test(words.slice(1, k).join(""))) return null;
+      return words[k] === "--" ? k + 1 : k;
+    case "env": {
+      // NAME=value words set the command's environment, like a prefix assignment.
+      let at = options(["-", "-i", "--ignore-environment", "-0", "--null", "-v", "--debug"], ["-u", "--unset", "-C", "--chdir"], /^(?:-u.+|--unset=.*|-C.+|--chdir=.*|[A-Za-z_][A-Za-z_0-9]*=.*)$/);
+      while (at !== undefined && ASSIGNMENT.test(words[at] ?? "")) at++;
+      return at;
+    }
+    case "timeout": {
+      const at = options(["--preserve-status", "--foreground", "-v", "--verbose", "-f", "-p"], ["-s", "-k", "--signal", "--kill-after"], /^(?:-[sk].+|--(?:signal|kill-after)=.*)$/);
+      // The duration comes before the command.
+      return at === undefined ? undefined : at + 1;
+    }
+    case "nohup": return words[1] === "--" ? 2 : words[1]?.startsWith("-") ? undefined : 1;
+    case "nice": return options([], ["-n", "--adjustment"], /^(?:-n.+|--adjustment=.*|-\d+)$/);
+    // The shell keyword takes -p; /usr/bin/time also -l, -h, -a and -o <file>.
+    case "time": return options(["-p", "-l", "-h", "-a"], ["-o"], /^-o.+$/);
+    case "exec": return options(["-c", "-l"], ["-a"], /^-a.+$/);
+    default: return null;
+  }
+}
 // Reserved words and group openers that start a construct the reader does not follow (it follows plain commands,
 // `NAME=value` and `for … do … done` only). A `do`/`done` that no parsed `for` consumed belongs here too.
 const UNSUPPORTED = /^(?:if|then|elif|else|fi|while|until|do|done|case|esac|select|function|for|\{|\}|!)$|^[()]|^[A-Za-z_]\w*\(\)?$/;
@@ -241,7 +403,8 @@ function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
     const pattern = double !== undefined ? /\\([\$`"\\\n])|\$(?:(\w+)|\{(\w+)\})/g : /\\(\$)|\$(?:(\w+)|\{(\w+)\})/g;
     return substitution(text.replace(pattern, (m: string, escaped: string | undefined, plain?: string, braced?: string) => escaped ?? known(m, plain, braced)).replace(/\\\$/g, "$"));
   });
-  return { words: [word], unresolved };
+  // A substitution the reader has already read (see substitutions) leaves only that it was there.
+  return { words: [word.replace(SUBSTITUTED, "$()")], unresolved };
 }
 
 // Executes the words of raw token groups the way the shell would, for what a transcript can show: `NAME=value`
@@ -251,9 +414,13 @@ function expandToken(raw: string, env: ReadonlyMap<string, string>): Expanded {
 // unresolved word) sets `state.incomplete` and yields no words, and so does a simple command whose program or doan
 // operand is unresolved: the read is then not complete and must not be taken for the whole list of what ran.
 // Any other compound or reserved word (UNSUPPORTED) stops the read there, as incomplete.
-function runGroups(groups: string[][], vars: Map<string, string>, state: ReadState): string[][] {
+function runGroups(groups: string[][], vars: Map<string, string>, state: ReadState, bodies: string[]): string[][] {
   const out: string[][] = [];
   const append = (words: string[][]) => { for (const entry of words) out.push(entry); };
+  // A substitution runs before the command it is in, in a subshell that sees the variables set so far.
+  const substitute = (tokens: string[]) => {
+    for (const token of tokens) for (const m of token.matchAll(SUBSTITUTED)) append(parse(bodies[Number(m[1])]!, state, new Map(vars)));
+  };
   for (let i = 0; i < groups.length; i++) {
     const group = groups[i]!;
     if (group[0] === "for" && /^[A-Za-z_]\w*$/.test(group[1] ?? "") && group[2] === "in") {
@@ -267,6 +434,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
         if (body[j]![0] === "done" && --depth === 0) done = j;
       }
       if (done < 0) { state.incomplete = true; return out; }
+      substitute(group.slice(3));
       const lists = group.slice(3).map(token => expandToken(token, vars));
       const values = lists.flatMap(list => list.words);
       if (lists.some(list => list.unresolved) || values.length > state.left) {
@@ -275,7 +443,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
         vars.clear();
       } else {
         state.left -= values.length;
-        for (const value of values) { vars.set(group[1]!, value); append(runGroups(body.slice(0, done), vars, state)); }
+        for (const value of values) { vars.set(group[1]!, value); append(runGroups(body.slice(0, done), vars, state, bodies)); }
       }
       // Continue after the loop's `done`.
       i += 2 + done - rest.length;
@@ -293,37 +461,53 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     }
     // Where such a construct ends is not known, so nothing after it is read and no variable is trusted past it.
     if (UNSUPPORTED.test(group[skipped] ?? "") || group[skipped + 1] === "()") { state.incomplete = true; vars.clear(); return out; }
+    // Only after that check: a substitution in a function or case body may never run.
+    substitute(group);
     const expanded = group.slice(skipped).map(token => expandToken(token, vars));
     let words = expanded.flatMap(token => token.words);
     let open = expanded.flatMap(token => token.words.map(() => token.unresolved));
-    // The `command` builtin runs its operand, except -v/-V, which only look the name up.
-    if (words[0] === "command") {
-      let k = 1;
-      while (/^-[pvV]+$/.test(words[k] ?? "")) k++;
-      if (!/[vV]/.test(words.slice(1, k).join(""))) {
-        const from = words[k] === "--" ? k + 1 : k;
-        words = words.slice(from);
-        open = open.slice(from);
-      }
+    let at: number | null | undefined = null;
+    while (!open[0] && (at = wrappedAt(words)) !== null) {
+      // An option value the shell may expand to no word or several moves where the command starts.
+      if (at === undefined || words.slice(0, at).some((word, index) => open[index] && !ASSIGNMENT.test(word))) { at = undefined; break; }
+      words = words.slice(at);
+      open = open.slice(at);
     }
+    if (at === undefined) { state.incomplete = true; continue; }
     if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0] ?? "") && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) { append(parse(words[2], state)); continue; }
+    // eval runs its words, joined, as a command of this shell.
+    if (words[0] === "eval") {
+      if (open.some(Boolean)) state.incomplete = true; else append(parse(words.slice(1).join(" "), state, vars));
+      continue;
+    }
     if (!words.length) continue;
+    // xargs adds words read from its input to the command it runs, so a doan run (or a shell or wrapper that may run
+    // one) through it cannot be read.
+    if (/^(?:.*\/)?xargs$/.test(words[0]!) && (open.some(Boolean) || words.slice(1).some(word => /^(?:.*\/)?(?:doan|(?:ba|z|da)?sh|env|timeout|nohup|nice|time|command|exec|eval|xargs)$/.test(word)))) { state.incomplete = true; continue; }
     // A program or a doan operand the reader could not resolve may be anything, including a lookup.
     let known = !open[0];
-    if (known && /^(?:.*\/)?doan$/.test(words[0]!)) known = !doanPositionals(words.map((word, index) => open[index] ? "\0" : word))?.some(operand => operand.includes("\0"));
+    if (known && /^(?:.*\/)?doan$/.test(words[0]!)) {
+      // An unresolved word may stand for no word or several, so a command that reads as refused may not be one.
+      const read = readDoanArgs(words.map((word, index) => open[index] ? "\0" : word))!;
+      known = !read.ambiguous && (read.args.refused ? !open.some(Boolean) : !read.args.positionals.some(operand => operand.includes("\0")));
+    }
     if (known) out.push(words); else state.incomplete = true;
   }
   return out;
 }
 
-function parse(command: string, state: ReadState): string[][] {
+function parse(command: string, state: ReadState, vars = new Map<string, string>()): string[][] {
+  const plain = withoutHeredocsAndComments(command);
+  if (plain.unread) state.incomplete = true;
+  const taken = substitutions(plain.text);
+  if (taken === null) { state.incomplete = true; return []; }
   const groups: string[][] = [[]];
-  for (const token of withoutHeredocBodies(command).matchAll(/[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s;&|"'])+/g)) {
+  for (const token of taken.text.matchAll(/[;&|\n]+|(?:"(?:\\.|[^"\\])*"|'[^']*'|[^\s;&|"'])+/g)) {
     const value = token[0];
     if (/^[;&|\n]+$/.test(value)) groups.push([]);
     else groups.at(-1)!.push(value);
   }
-  return runGroups(groups.filter(g => g.length), new Map(), state);
+  return runGroups(groups.filter(g => g.length), vars, state, taken.bodies);
 }
 
 // The words of what a command runs, and whether the read is complete. An incomplete read lacks the commands it
