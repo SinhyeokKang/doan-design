@@ -582,10 +582,12 @@ describe("sign-in", () => {
   });
   it("allows one sign-in or sign-out write across all providers but still allows checks", async () => {
     const m = manager(); await m.load();
-    started(await m.signIn("cursor", 7));
+    const run = started(await m.signIn("cursor", 7));
     expect(await m.signIn("claude", 8)).toEqual(expect.objectContaining({ ok: false, reason: "busy" }));
     expect(await m.signIn("cursor", 8)).toEqual(expect.objectContaining({ ok: false, reason: "busy" }));
-    expect((await m.check("claude")).ok).toBe(true);
+    const check = started(await m.check("claude"));
+    // Left running, both would write the profile after the test removed its folder.
+    await m.quit(); await run.done; await check.done;
   });
   it("reports a spawn failure or missing CLI as a failed sign-in and releases the write lock", async () => {
     const m = manager({ locate: async () => null }); await m.load();
@@ -1165,7 +1167,9 @@ describe("sign-out", () => {
     expect(await m.signOut("cursor")).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
     expect(await m.signIn("cursor", 7)).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
     await lease.release();
-    expect((await m.signOut("cursor")).ok).toBe(true);
+    const out = started(await m.signOut("cursor"));
+    await finish("status", 0);
+    expect(await out.done).toMatchObject({ phase: "disconnected" });
   });
   it("deletes the dedicated credential without a provider logout and confirms the profile is unauthenticated", async () => {
     const m = manager(); await m.load();
@@ -1385,6 +1389,18 @@ describe("leases and recovery", () => {
     await b.release(); await b.release();
     expect(existsSync(tokenFile("cursor"))).toBe(false);
     expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", refreshed: 2 })) });
+  });
+  // A lease whose group outlived quit's wait is released later, when the group is observed gone.
+  it("keeps the credential quit absorbed when a lease is released after quit", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    const a = await m.acquire("cursor"), b = await m.acquire("cursor");
+    writeFileSync(tokenFile("cursor"), JSON.stringify({ id: "u1", refreshed: 3 }));
+    await m.quit();
+    expect(existsSync(tokenFile("cursor"))).toBe(false);
+    await a.release(); await b.release();
+    expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1", refreshed: 3 })) });
+    expect(existsSync(tokenFile("cursor"))).toBe(false);
   });
   it("refuses a lease when a sign-in starts while the CLI is being located", async () => {
     let locating = false, resume!: () => void;

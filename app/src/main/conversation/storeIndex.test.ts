@@ -4,12 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore, parseIndex, type ConversationMetadata } from "./store";
 import { FOLDER_ATTACHMENT, IMAGE_NAMED_FOLDER, LEGACY_ATTACHMENTS } from "./attachmentRecords.fixture";
-const hooks = vi.hoisted(() => ({ failRename: false, shortWrite: false, journals: [] as string[] }));
+const hooks = vi.hoisted(() => ({ failRename: false, shortWrite: false, failClose: false, closing: null as number | null, journals: [] as string[] }));
 vi.mock("node:fs", async original => {
   const fs = await original<typeof import("node:fs")>();
   return { ...fs, writeSync: (...args: Parameters<typeof fs.writeSync>) => {
     if (hooks.shortWrite) { hooks.shortWrite = false; return 0; }
+    // The descriptor just written to fully is the one whose close fails.
+    if (hooks.failClose) { hooks.failClose = false; hooks.closing = args[0]; }
     return (fs.writeSync as (...a: Parameters<typeof fs.writeSync>) => number)(...args);
+  }, closeSync: (fd: number) => {
+    fs.closeSync(fd);
+    if (fd === hooks.closing) { hooks.closing = null; throw Object.assign(new Error("EIO"), { code: "EIO" }); }
   }, renameSync: (from: import("node:fs").PathLike, to: import("node:fs").PathLike) => {
     if (String(to).endsWith("start-undo.json")) hooks.journals.push(fs.readFileSync(from, "utf8"));
     if (hooks.failRename && String(to).endsWith("index.json")) { hooks.failRename = false; throw Object.assign(new Error("EIO"), { code: "EIO" }); }
@@ -18,7 +23,7 @@ vi.mock("node:fs", async original => {
 });
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 const roots: string[] = [];
-afterEach(() => { hooks.failRename = false; hooks.shortWrite = false; hooks.journals = []; roots.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
+afterEach(() => { hooks.failRename = false; hooks.shortWrite = false; hooks.failClose = false; hooks.closing = null; hooks.journals = []; roots.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 // Seeds files before the store opens so construction-time recovery sees them.
 function seed(files: Record<string, string> = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "doan-index-"))); roots.push(root);
@@ -224,6 +229,24 @@ describe("conversation index v2 storage", () => {
     store.save([old]);
     hooks.shortWrite = true;
     expect(() => store.acceptStart([old, next], "new", [{ id: "new", turn: "t", body: { type: "turn.started" } }])).toThrow("Incomplete conversation write");
+    expect(existsSync(f.journal)).toBe(false); expect(existsSync(f.path("new"))).toBe(false);
+    expect(readdirSync(f.directory).filter(name => name.endsWith(".tmp"))).toEqual([]);
+    expect(store.list().map(m => m.conversationId)).toEqual(["old"]);
+  });
+  it("removes the index's temporary file when its close fails after a full write", () => {
+    const f = seed(); const store = new ConversationStore(f.root); store.save([legacy("old")]);
+    const before = readFileSync(f.index);
+    hooks.failClose = true;
+    expect(() => store.save([legacy("old"), legacy("new")])).toThrow("EIO");
+    expect(readFileSync(f.index)).toEqual(before);
+    expect(readdirSync(f.directory).filter(name => name.endsWith(".tmp"))).toEqual([]);
+  });
+  it("removes the undo record's temporary file when its close fails after a full write", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    const old = legacy("old"), next = { ...legacy("new"), canvas: { path: ".doan/canvases/old.html" } };
+    store.save([old]);
+    hooks.failClose = true;
+    expect(() => store.acceptStart([old, next], "new", [{ id: "new", turn: "t", body: { type: "turn.started" } }])).toThrow("EIO");
     expect(existsSync(f.journal)).toBe(false); expect(existsSync(f.path("new"))).toBe(false);
     expect(readdirSync(f.directory).filter(name => name.endsWith(".tmp"))).toEqual([]);
     expect(store.list().map(m => m.conversationId)).toEqual(["old"]);
