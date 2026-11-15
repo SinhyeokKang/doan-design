@@ -66,8 +66,9 @@ recorded interruption is not an unseen end.
 
 `acp-cursor.json` and `acp-copilot.json` are ACP traffic recorded by the B3
 exploration probe on 2026-10-28 (each file's `source` field).
-`fake-acp-server.cjs` replays one of them for `acpRunner.test.ts`; its header
-lists the test-only `FAKE_ACP` modes.
+`fake-acp-server.cjs` replays one of them, or a test's edited copy, for
+`acpRunner.test.ts`, `runners.fence.test.ts`, `contextUsageRunners.test.ts` and
+`stageRunners.test.ts`; its header lists the test-only `FAKE_ACP` modes.
 
 On 2026-10-29 (doan-home) `fake-acp-server.cjs` gained `FAKE_ACP_MODELS`, a
 `models` member for session/new and session/load in the shape the P1 PoC
