@@ -105,12 +105,12 @@ describe("UsagePanel", () => {
     expect(markup).toContain('<div class="usage-window"><div class="usage-window-line"><span class="usage-window-label">5-hour</span><span class="usage-window-text">42% used · resets in 2h 10m</span></div><span class="usage-bar" aria-hidden="true"><i style="width:42%"></i></span></div>');
     expect(markup).toContain('<div class="usage-window" data-limited=""><div class="usage-window-line"><span class="usage-window-label">30-day</span><span class="usage-window-text">Limit reached · resets in 2h 10m</span></div><span class="usage-bar" data-band="full" aria-hidden="true"><i style="width:100%"></i></span></div>');
     expect(markup).toMatch(/<p class="usage-note" data-kind="error"><svg[^>]*class="[^"]*\bdoan-alert-icon\b[^"]*"[^>]*>.*?<\/svg><span>Couldn’t read usage\. Doan tries again when you open this\.<\/span><\/p>/);
-    expect(markup).toContain('<div class="usage-row-head"><img class="logo" src="provider-logos/copilot.svg" alt=""/><span class="usage-name">GitHub Copilot</span></div><div class="usage-row-body"><p class="usage-note"><span>Reading usage…</span></p>');
+    expect(markup).toContain('<div class="usage-row-head"><img class="logo" src="provider-logos/copilot.svg" alt=""/><span class="usage-name">GitHub Copilot</span></div><div class="usage-row-body"><p class="usage-note"><span>Reading usage</span></p>');
   });
 
   it("draws a reset window's empty bar and a can't-be-used warning", () => {
     const markup = html(<UsagePanel {...props([ok("copilot", [win({ label: "Chat", resetsAt: NOW - MIN })], { inFlight: true }), { provider: "codex", inFlight: false, blocked: { readiness: { ready: false, cause: "version_unsupported", action: "update" }, phase: "connected" } }])} />);
-    expect(markup).toContain('<span class="usage-read">Updating…</span>');
+    expect(markup).toContain('<span class="usage-read">Updating</span>');
     expect(markup).toContain('<span class="usage-window-text">Reset · updating</span></div><span class="usage-bar" aria-hidden="true"></span>');
     expect(markup).toMatch(/<p class="usage-note" data-kind="warn"><svg[^>]*class="[^"]*\bdoan-alert-icon\b[^"]*"[^>]*>.*?<\/svg><span>This version is older than Doan supports\.<\/span><\/p>/);
   });

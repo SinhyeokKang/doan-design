@@ -54,7 +54,9 @@ function disable(view: ProviderView): ProviderView {
 // The cost is shown, not only announced; the unverified row carries it in its detail line instead.
 function check(provider: Provider, label: string, free: boolean): AuthButton {
   if (provider !== "copilot" || free) return button("check", label);
-  return { ...button("check", label, "prominent", false, `Check ${PROVIDER_NAMES[provider]} again, uses one Copilot request`), note: "Uses one Copilot request" };
+  // The accessible name starts with the visible label (WCAG 2.5.3), so voice control finds it.
+  const name = label === "Retry" ? `Retry checking ${PROVIDER_NAMES[provider]}` : `Check ${PROVIDER_NAMES[provider]} again`;
+  return { ...button("check", label, "prominent", false, `${name}, uses one Copilot request`), note: "Uses one Copilot request" };
 }
 function errorNotice(status: AuthStatusDto, ctx: ProviderContext): Notice | null {
   const name = PROVIDER_NAMES[status.provider], connected = status.account !== null;
@@ -107,7 +109,7 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
       };
       return {
         ...view, detail: copilot ? "Connected · not checked · Retry uses one Copilot request" : "Connected · not checked",
-        button: button("check", "Retry", "prominent", false, copilot ? `Check ${name} again, uses one Copilot request` : `Check ${name} again`),
+        button: button("check", "Retry", "prominent", false, copilot ? `Retry checking ${name}, uses one Copilot request` : `Retry checking ${name}`),
         helper: !copilot && ctx.autoCheck ? "Doan checks this automatically when you open this step." : null,
       };
     }
@@ -247,16 +249,16 @@ export function pickerAction(status: AuthStatusDto): SettingsAction | null {
   const r = status.readiness;
   if (status.account === null || r.ready || r.cause === "unverified") return null;
   const target: SettingsTarget = { section: "agents", provider: status.provider };
-  if (r.cause === "reauth_required" && status.phase === "reauthRequired") return { label: "Sign in again…", target };
-  if (r.cause === "version_unsupported" || r.cause === "version_incompatible") return { label: "Update…", target };
-  return { label: "Open Agents settings…", target };
+  if (r.cause === "reauth_required" && status.phase === "reauthRequired") return { label: "Sign in again", target };
+  if (r.cause === "version_unsupported" || r.cause === "version_incompatible") return { label: "Update", target };
+  return { label: "Open Agents settings", target };
 }
 // Providers without a connection are not listed, so the last item is how a new one is added; with nothing able to run
 // it is the menu's only focus target.
 export function pickerFooter(anyRunnable: boolean): { note: string | null; action: SettingsAction } {
   return anyRunnable
-    ? { note: null, action: { label: "Manage agents…", target: { section: "agents" } } }
-    : { note: "No agent is ready to run.", action: { label: "Sign in to an agent…", target: { section: "agents" } } };
+    ? { note: null, action: { label: "Manage agents", target: { section: "agents" } } }
+    : { note: "No agent is ready to run.", action: { label: "Sign in to an agent", target: { section: "agents" } } };
 }
 
 // A sign-in that ends while Settings > Agents is not shown; the window is not raised.
@@ -283,8 +285,9 @@ export function stopDialog(provider: Provider, intent: "signIn" | "signOut"): { 
   return {
     title: `Stop ${name} conversations?`,
     // Signing out also logs the agent out of its MCP servers; only Claude Code and Codex have them.
-    body: `${name} is running a conversation. ${intent === "signOut" ? "Signing out" : "Signing in again"} stops it. Your conversation history stays.${intent === "signOut" && (provider === "claude" || provider === "codex") ? " Its MCP connectors need connecting again." : ""}`,
-    cancel: button("dismiss", "Cancel", "subtle"), confirm: button(intent, intent === "signOut" ? "Stop and sign out" : "Stop and sign in"),
+    // Doan does not pass how many run, so the body counts none: "every running" reads right for one or several.
+    body: `${intent === "signOut" ? "Signing out" : "Signing in again"} stops every running ${name} conversation. Your conversation history stays.${intent === "signOut" && (provider === "claude" || provider === "codex") ? " Its MCP connectors need connecting again." : ""}`,
+    cancel: button("dismiss", "Cancel", "subtle"), confirm: button(intent, intent === "signOut" ? "Stop and sign out" : "Stop and sign in again"),
   };
 }
 

@@ -227,7 +227,7 @@ test("the canvas error notice's text is selectable", async () => {
 });
 
 test.each([
-  ["noWidth", "Could not read a valid board width. Set a width on the board."],
+  ["noWidth", "Couldn’t read a valid board width. Set a width on the board."],
   ["plain message", "Open timed out."],
 ])("the canvas status paragraph for %s is selectable, its Reload button and heading are not", async (name, message) => {
   await start(rows({}), [], workspace);

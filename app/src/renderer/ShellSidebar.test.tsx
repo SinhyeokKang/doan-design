@@ -30,7 +30,7 @@ it("shows only the remembered worktree and keeps other projects collapsed", () =
 });
 it("shows an unreadable canvas's sentence and Details under its row", () => {
   const html = render("/repo", "/repo", true, true);
-  expect(html).toContain("Can&#x27;t read this canvas — run doan check");
+  expect(html).toContain("Can’t read this canvas. Run doan check in a terminal.");
   expect(html).toContain('aria-label="Details"');
 });
 

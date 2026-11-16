@@ -48,7 +48,7 @@ import { ArrowLeft, ArrowRight, Crosshair, Plus, Scan, Settings, LayoutGrid, Mes
 import { Home } from "./Home";
 import { ProblemOverlay } from "./ProblemOverlay";
 import { problemView, resolvedFocus, workspaceBody, type ProblemKind, type ShownOverlay } from "./problemView";
-import { LOADING_DELAY_MS, LOCATE_MISSING_TEXT } from "./ConversationThread";
+import { LOADING_DELAY_MS } from "./ConversationThread";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsPage } from "./ProjectSettingsPage";
 import { useToast } from "./Toast";
@@ -1630,7 +1630,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.path));
     if (!row) { unavailable(target); return; }
     const frameId = result.kind === "frame" ? result.frameId : undefined;
-    const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is not in the rendered canvas"); };
+    const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is no longer in the canvas."); };
     controller.current?.openCanvas(result.root, row, frameId === undefined ? undefined : { frame: frameId }, { unavailable, ...(result.kind === "frame" ? { found, index: result.frameIndex } : {}), opened: () => completeNavigation(result.root) });
   }
   // A doan:// link (ARCHITECTURE §7 'Deep links'): Quick Open's move. A frame moves the view as Quick Open's
@@ -1673,7 +1673,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   function prototypeReveal(request: PrototypeReveal) {
     const page = openPage();
     const step = revealDecision(request, { locked: page.locked, firstRun: page.firstRun, dialog: topDialog() !== null, onScreen: panelTargetRef.current, entries: entriesRef.current });
-    const missing = (outcome: string | null) => { if (outcome === "missing") live.current.toast.show(LOCATE_MISSING_TEXT); };
+    const missing = (outcome: string | null) => { if (outcome === "missing") live.current.toast.show(`Couldn’t show ${revealName(request, entriesRef.current)}. It’s no longer in the canvas.`); };
     switch (step.kind) {
       case "blocked": live.current.toast.showIn(topDialog(), step.text); return;
       case "locate": void locateChip(step.anchor).then(outcome => {
@@ -2577,7 +2577,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
       {state.status === "loading" ? <p><span className="doan-spinner" aria-hidden="true" />Loading</p>
         : state.status === "failed" ? <div className="canvas-status-block"><AlertIcon size={20} /><h2>Couldn’t load the canvas</h2><p>Run doan check in a terminal.</p>
           <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => command("reload")}>Reload</button></div>
-        : state.status === "noWidth" ? <p className="selectable"><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
+        : state.status === "noWidth" ? <p className="selectable"><b>Couldn’t read a valid board width.</b>{state.message.slice("Couldn’t read a valid board width.".length)}</p>
         : <p className="selectable">{state.message}</p>}
     </div>}
     {/* Picking is a mode the person turned on, so its hint sits by the tools, out of the agent notices' column: their

@@ -106,11 +106,11 @@ function providerProblem(auth: AuthSnapshot | null | undefined, provider: Provid
   if (!auth) return null;
   const status = auth.providers.find(item => item.provider === provider);
   const name = PROVIDER_NAMES[provider];
-  if (!status || status.account === null) return { text: `${name} isn’t connected.`, action: { label: "Open Agents settings…", target: { section: "agents", provider } } };
+  if (!status || status.account === null) return { text: `${name} isn’t connected.`, action: { label: "Open Agents settings", target: { section: "agents", provider } } };
   const action = pickerAction(status);
   if (!action) return null;
-  if (action.label === "Sign in again…") return { text: `${name}’s sign-in expired.`, action };
-  if (action.label === "Update…") return { text: `${name} needs an update.`, action };
+  if (action.label === "Sign in again") return { text: `${name}’s sign-in expired.`, action };
+  if (action.label === "Update") return { text: `${name} needs an update.`, action };
   return { text: `${name} can’t run right now.`, action };
 }
 

@@ -110,7 +110,7 @@ describe("canvas conversation list", () => {
   test("a deleted canvas and a shared id are disabled, their reason the description", () => {
     // Draft frame overview-rows: the head is the conversation's title; the caption line carries the canvas name and
     // the reason.
-    for (const [key, name, reason] of [["g", "invoice", "No longer in acme-web"], ["t", "tax", "2 canvases use this ID — run doan check"]] as const) {
+    for (const [key, name, reason] of [["g", "invoice", "No longer in acme-web"], ["t", "tax", "2 canvases use this ID. Run doan check in a terminal."]] as const) {
       const li = item(html, key);
       expect(li).toContain('aria-disabled="true"');
       const why = /aria-describedby="([^"]+)"/.exec(li)![1]!;
@@ -123,7 +123,7 @@ describe("canvas conversation list", () => {
   test("an unreadable canvas opens, with the sidebar's sentence", () => {
     const li = item(html, "l");
     expect(li).not.toContain("aria-disabled");
-    expect(li).toContain('class="cv-canvas note">legacy · Can&#x27;t read this canvas — run doan check</small>');
+    expect(li).toContain('class="cv-canvas note">legacy · Can’t read this canvas. Run doan check in a terminal.</small>');
   });
 
   // Draft frames cv-delete, cv-special: the title menu's Delete on every row.

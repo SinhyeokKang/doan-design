@@ -830,7 +830,7 @@ export class CanvasController {
       this.pendingFrame?.found?.(false);
       this.dropFrame();
       this.state.status = "noWidth";
-      this.state.message = "Could not read a valid board width. Run doan check in a terminal to diagnose the canvas.";
+      this.state.message = "Couldn’t read a valid board width. Run doan check in a terminal to diagnose the canvas.";
       this.publish();
       return;
     }
@@ -1007,7 +1007,7 @@ export class CanvasController {
   private requestRows(view: SelectionView): void {
     const tag = ++this.inspectTag;
     const selector = view.element?.selector ?? view.path.at(-1)?.selector;
-    if (selector === undefined) { this.state.inspector = { status: "failed", reason: "The canvas could not be inspected." }; return; }
+    if (selector === undefined) { this.state.inspector = { status: "failed", reason: "The canvas couldn’t be inspected." }; return; }
     this.state.inspector = { status: "loading" };
     const settle = (inspector: InspectorView) => {
       if (tag !== this.inspectTag) return;
@@ -1018,7 +1018,7 @@ export class CanvasController {
       result => settle(result.ok ? { status: "ready", rows: result.rows } : { status: "failed", reason: result.reason }),
       (error: unknown) => {
         console.error("inspect:get failed", error);
-        settle({ status: "failed", reason: "The canvas could not be inspected." });
+        settle({ status: "failed", reason: "The canvas couldn’t be inspected." });
       },
     );
   }

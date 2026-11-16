@@ -1077,7 +1077,7 @@ async function start(): Promise<void> {
       publish: usagePublisher({ main: send, prototype: (channel, value) => prototype.send(channel, value) }),
     });
     // App start: once the tool facts are read, which readiness needs. A failed probe also ends the pre-facts hold, or
-    // blocked providers would read "Reading usage…" forever.
+    // blocked providers would read "Reading usage" forever.
     const started = usage;
     void ipc.read().then(() => started.trigger({ kind: "start" }), (error: unknown) => {
       console.error("doan: agent usage could not start", error);

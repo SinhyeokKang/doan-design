@@ -34,11 +34,11 @@ const AUTO_CHECK_DESCRIPTION = "Checks GitHub when Doan opens and every 6 hours,
 
 // Exported for a press answered blocked, which can arrive before the push that carries the gate.
 export const UPDATE_BLOCKED: UpdateNotice = { title: "Can’t restart yet", text: "A conversation is running or waiting for your answer. Restart after it finishes, or Doan updates when you quit." };
-const STOPPED: UpdateNotice = { title: "Couldn’t restart Doan.", text: "Try again, or quit and open it again." };
+const STOPPED: UpdateNotice = { title: "Couldn’t restart Doan", text: "Try again, or quit and open it again." };
 // The gate covers every conversation and any question waiting for an answer, and a stopped turn counts too, so this
 // does not say a conversation finished.
 const UNBLOCKED: UpdateNotice = { title: "Ready to restart", text: "No conversation is running or waiting anymore. Restart now, or Doan updates when you quit." };
-const STOPPED_LINE = `${STOPPED.title} ${STOPPED.text}`;
+const STOPPED_LINE = `${STOPPED.title}. ${STOPPED.text}`;
 // The line under a failed row says why only as far as the code knows, and how to recover.
 const ERROR_LINES: Record<UpdateErrorCode, string> = {
   offline: "Couldn’t reach GitHub. Check your internet connection, then try again.",
@@ -97,8 +97,8 @@ function settledRow(state: SettledUpdateState, snapshot: UpdateSnapshot, now: nu
     case "failed": {
       const title = failureTitle(state);
       const line = ERROR_LINES[state.code];
-      const actions = state.stage === "check" ? [{ ...CHECK, label: "Retry", ariaLabel: "Check for updates again" }]
-        : state.stage === "download" ? [NOTES, { ...CHECK, label: "Retry", ariaLabel: `Download Doan ${state.version} again` }]
+      const actions = state.stage === "check" ? [{ ...CHECK, label: "Retry", ariaLabel: "Retry checking for updates" }]
+        : state.stage === "download" ? [NOTES, { ...CHECK, label: "Retry", ariaLabel: `Retry downloading Doan ${state.version}` }]
         : [NOTES, RESTART];
       const notice = state.stage === "install" && snapshot.gate.kind === "blocked" ? UPDATE_BLOCKED : null;
       return { ...EMPTY_ROW, description: withVersion(title), actions, notice, error: line, announcement: `${title} ${line}` };

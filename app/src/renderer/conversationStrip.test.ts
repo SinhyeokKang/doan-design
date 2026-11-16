@@ -78,8 +78,8 @@ test("failure codes without a row of their own read as an unexpected stop", () =
 test("stopped offers Edit on Home; a stop the person did not make says so", () => {
   const stopped = stripState(events(...started, { type: "activity", kind: "edit", summary: "x" }, { type: "interrupted", reason: "user" }));
   expect(stopped).toEqual({ kind: "interrupted", reason: "user" });
-  expect(stripView(stopped, CTX)).toEqual({ title: "Stopped", body: "You stopped this conversation.", live: "status", alertKey: null, actions: recover });
-  expect(stripView({ kind: "interrupted", reason: "crashed" }, CTX).body).toBe("This conversation stopped before it finished.");
+  expect(stripView(stopped, CTX)).toEqual({ title: "Stopped", body: "You stopped the agent.", live: "status", alertKey: null, actions: recover });
+  expect(stripView({ kind: "interrupted", reason: "crashed" }, CTX).body).toBe("The agent stopped before it finished.");
 });
 
 test("done names the new canvas with Open; without one only Dismiss", () => {

@@ -39,14 +39,14 @@ export function removalConfirm(running: readonly { conversationId: string; waiti
   if (running.length === 0) return {
     conversations: [],
     title: `Remove ${label} from Doan?`,
-    body: `This removes ${count > 1 ? `its ${count} worktrees` : "it"} from Doan's project list only. Files and Git worktrees stay on disk.`,
+    body: `This removes ${count > 1 ? `its ${count} worktrees` : "it"} from Doan’s project list only. Files and Git worktrees stay on disk.`,
     cancel: "Cancel", confirm: "Remove from Doan",
   };
   return {
     conversations: running.map(c => c.conversationId),
     title: `Stop the conversation and remove ${label}?`,
     body: `${aConversation(label, running.every(c => c.waiting))} Doan stops it, then removes the project from the list. Files and Git worktrees stay on disk.`,
-    cancel: "Cancel", confirm: "Stop and Remove",
+    cancel: "Cancel", confirm: "Stop and remove",
   };
 }
 
@@ -83,7 +83,7 @@ export function restoreRequest(draft: ComposerDraft, last: LastRequest, project:
     && draft.attachments.length === last.attachments.length && draft.attachments.every((a, i) => a.key === last.attachments[i]!.key);
   return {
     request,
-    confirm: empty || same ? null : { title: "Replace your draft?", body: `Your draft will be replaced by the last request you sent to ${project}.`, cancel: "Keep Draft", confirm: "Replace" },
+    confirm: empty || same ? null : { title: "Replace your draft?", body: `Your draft will be replaced by the last request you sent to ${project}.`, cancel: "Keep draft", confirm: "Replace" },
   };
 }
 

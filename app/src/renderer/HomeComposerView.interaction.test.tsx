@@ -391,6 +391,8 @@ test("projects and worktrees that are still being read are disabled with their s
   const worktrees = tree.filter(props => props.className === "doan-menu-item shell-worktree");
   expect(worktrees.map(props => !!props.disabled)).toEqual([false, true]);
   expect(tree.filter(props => props.className === "ob-chip").map(props => props.children)).toEqual(["Reading", "Reading"]);
+  // Its menu has nothing to fix while it is read, so the note sends nobody there.
+  expect(tree.filter(props => props.className === "menu-note").map(words)).toEqual(["only is still being read."]);
   function render3(entries: FolderEntry[]) { return setup({}, { entries }).render(); }
 });
 
@@ -522,12 +524,12 @@ function status(provider: Provider, patch: { expired?: boolean; facts?: Partial<
 const words = (props: Record<string, unknown>): string => [props.children].flat(Infinity).map(child => typeof child === "string" ? child : isValidElement<Record<string, unknown>>(child) ? words(child.props) : "").join("");
 const item = (tree: Record<string, unknown>[], label: string) => find(tree, props => typeof props.onSelect === "function" && words(props) === label);
 
-test("settings action: a group that cannot run offers its fix, and Manage agents… opens Agents, each after the menu closes", () => {
+test("settings action: a group that cannot run offers its fix, and Manage agents opens Agents, each after the menu closes", () => {
   const openSettings = vi.fn();
   const { render } = setup({ auth: { revision: 1, providers: [dto("claude"), status("codex", { expired: true }), status("copilot", { facts: { version: "unsupported" } })] } }, { openSettings });
   const tree = render();
   expect(tree.some(props => props.className === "agent-note" && words(props) === "Sign-in expired")).toBe(true);
-  for (const [label, target] of [["Sign in again…", { section: "agents", provider: "codex" }], ["Update…", { section: "agents", provider: "copilot" }], ["Manage agents…", { section: "agents" }]] as const) {
+  for (const [label, target] of [["Sign in again", { section: "agents", provider: "codex" }], ["Update", { section: "agents", provider: "copilot" }], ["Manage agents", { section: "agents" }]] as const) {
     openSettings.mockClear();
     const select = item(tree, label);
     expect(select.disabled).toBeFalsy();
@@ -537,13 +539,13 @@ test("settings action: a group that cannot run offers its fix, and Manage agents
   }
 });
 
-test("settings action: with no agent able to run, Sign in to an agent… sits under the note", () => {
+test("settings action: with no agent able to run, Sign in to an agent sits under the note", () => {
   for (const providers of [[], [status("codex", { expired: true })]]) {
     const openSettings = vi.fn();
     const tree = setup({ auth: { revision: 1, providers } }, { openSettings }).render();
     expect(tree.some(props => props.className === "menu-note" && words(props) === "No agent is ready to run.")).toBe(true);
-    expect(() => item(tree, "Manage agents…")).toThrow();
-    (item(tree, "Sign in to an agent…").onSelect as () => void)();
+    expect(() => item(tree, "Manage agents")).toThrow();
+    (item(tree, "Sign in to an agent").onSelect as () => void)();
     expect(openSettings).toHaveBeenCalledWith({ section: "agents" });
   }
 });

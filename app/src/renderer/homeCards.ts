@@ -34,7 +34,7 @@ export function groupProjects(entries: readonly FolderEntry[], lastCommon: Reado
 export type RowAction = "setUp" | "locate" | "remove" | "showInFinder" | "retry" | "details";
 // One label per recovery action for the workspace status line, the sidebar's project menu, the Overview's recovery
 // menu and the Project Settings page: no trailing ellipsis, since each acts or opens its own surface at once.
-export const ROW_ACTION_LABELS: Record<RowAction, string> = { setUp: "Set Up", locate: "Locate", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
+export const ROW_ACTION_LABELS: Record<RowAction, string> = { setUp: "Set up", locate: "Locate", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
 // The icons the project menus (sidebar, Overview recovery menu) draw before those labels; Set Up and Locate have none.
 export const ROW_ACTION_ICONS: Partial<Record<RowAction, LucideIcon>> = { retry: RotateCw, details: Info };
 

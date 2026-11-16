@@ -108,16 +108,16 @@ describe("rowView", () => {
     expect(rowView(ok("copilot", [win({ label: "Chat", usedPercent: 90, resetsAt: NOW - MIN, limited: true })]), NOW).windows[0]).toEqual({ id: "five_hour", label: "Chat", text: "Reset · updating", bar: null, full: false, limited: false });
   });
 
-  it("keeps the previous values while reading again and says Updating…", () => {
+  it("keeps the previous values while reading again and says Updating", () => {
     const row = rowView(ok("codex", [win({ usedPercent: 38 })], { inFlight: true }), NOW);
-    expect(row.read).toBe("Updating…");
+    expect(row.read).toBe("Updating");
     expect(row.windows[0]!.text).toBe("38% used · resets in 2h 10m");
   });
 
   it("gives one line for each reason instead of windows", () => {
     const note = (entry: UsageEntry) => { const row = rowView(entry, NOW); return [row.note, row.read, row.windows.length]; };
     const reading = (reason: "not_supported" | "no_plan_limits" | "read_failed") => ({ status: "unavailable" as const, reason, readAt: NOW });
-    expect(note({ provider: "copilot", inFlight: true })).toEqual([{ text: "Reading usage…" }, null, 0]);
+    expect(note({ provider: "copilot", inFlight: true })).toEqual([{ text: "Reading usage" }, null, 0]);
     expect(note({ provider: "copilot", reading: { status: "ok", windows: [], unlimited: true, readAt: NOW }, inFlight: false })).toEqual([{ text: "Unlimited" }, "Updated just now", 0]);
     expect(note({ provider: "codex", reading: reading("not_supported"), inFlight: false })).toEqual([{ text: "Usage isn’t available for Codex." }, null, 0]);
     expect(note({ provider: "claude", reading: reading("no_plan_limits"), inFlight: false })).toEqual([{ text: "Claude Code isn’t on a plan with usage limits." }, null, 0]);

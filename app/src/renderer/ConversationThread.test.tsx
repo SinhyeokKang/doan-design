@@ -184,7 +184,7 @@ describe("thread items", () => {
     const user: ThreadItem = { kind: "user", key: "u1", seq: 1, anchors: [], preset: null, parts: [{ text: "go" }], attachments: [] };
     const out = html([user, failed]);
     expect(out).toMatch(/<span class="strip-text selectable"><b>/);
-    expect(out).toContain(">Sign in again…</button>");
+    expect(out).toContain(">Sign in again</button>");
     expect(out).not.toMatch(/<button[^>]*class="[^"]*selectable/);
     expect(out).not.toMatch(/<span class="strip-actions[^"]*selectable/);
   });
@@ -199,12 +199,12 @@ describe("thread items", () => {
     expect(out).not.toContain("<button");
   });
 
-  test("turn ends: Edit and resend only on the last turn's end; sign-in expiry adds Sign in again…", () => {
+  test("turn ends: Edit and resend only on the last turn's end; sign-in expiry adds Sign in again", () => {
     const failed: ThreadItem = { kind: "end", key: "e5", seq: 5, end: { kind: "failed", code: "not_logged_in" } };
     const out = html([failed]);
     expect(out).toContain('<div class="doan-notice error thread-notice">');
     expect(out).toContain("<b>Claude Code’s sign-in expired</b><span>Sign in again, then resend your request.</span>");
-    expect(out).toContain(">Sign in again…</button>");
+    expect(out).toContain(">Sign in again</button>");
     expect(out).toContain(">Edit and resend</button>");
     const later = html([failed, { kind: "user", key: "u6", seq: 6, anchors: [], preset: null, parts: [{ text: "Again" }], attachments: [] }]);
     expect(later).not.toContain("Edit and resend");
@@ -668,7 +668,7 @@ describe("the end of a handoff card's turn", () => {
     const signIn = html([card, { kind: "end", key: "x1", seq: null, end: { kind: "interrupted", reason: "crashed" } }]);
     expect(signIn).not.toContain("Edit and resend");
     const expired = html([card, failed("not_logged_in")]);
-    expect(expired).toContain(">Sign in again…</button>");
+    expect(expired).toContain(">Sign in again</button>");
     expect(expired).not.toContain("Edit and resend");
   });
   test("a later turn of the person's still offers it", () => {

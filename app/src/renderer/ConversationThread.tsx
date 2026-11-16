@@ -881,7 +881,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
           {view.tone ? <AlertIcon /> : <CircleStop className="doan-alert-icon" aria-hidden="true" />}
           <span className="strip-text selectable"><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
           {isLast && (view.signIn || resend) && <span className="strip-actions">
-            {view.signIn && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => latest.current.onSignIn()}>Sign in again…</button>}
+            {view.signIn && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => latest.current.onSignIn()}>Sign in again</button>}
             {resend && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => latest.current.onEditAndResend()}>Edit and resend</button>}
           </span>}
         </div>;

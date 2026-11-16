@@ -176,7 +176,7 @@ test("a chip whose target is gone says so in the main window", async () => {
   await onDrafts();
   harness.controller!.locate!.mockImplementation((_anchor: unknown, settle: (outcome: string) => void) => { settle("missing"); return true; });
   await reveal({ kind: "chip", root: "/w/a", canvas: { path: D, id: "drafts" }, conversationId: "c1", anchor: { frame: { id: "gone" } } });
-  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("No longer in the canvas");
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("Couldn’t show gone. It’s no longer in the canvas.");
 });
 
 // The main window's own chips are unavailable then (locateDisabled); this one came from elsewhere, so it says why.
@@ -199,7 +199,7 @@ test("a chip into another canvas opens it as a deep link does, then locates the 
   options.opened(); render();
   expect(back()).toBe(true);
   options.located!("missing");
-  expect(harness.toast.show).toHaveBeenLastCalledWith("No longer in the canvas");
+  expect(harness.toast.show).toHaveBeenLastCalledWith("Couldn’t show Point in payment. It’s no longer in the canvas.");
 });
 
 test("a chip whose canvas the list does not name shows the canvas-not-found toast", async () => {

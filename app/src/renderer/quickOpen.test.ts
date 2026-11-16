@@ -208,7 +208,7 @@ it("uses the tree fallback for blank frame labels", () => {
 
 it("only calls a canvas missing when its project was successfully listed", () => {
   expect(unavailableCanvasMessage({ kind: "list", path: "/p", servedRev: 0, canvases: [] }, ".doan/canvases/moved.html")).toBe("moved is no longer in .doan/canvases/");
-  expect(unavailableCanvasMessage({ kind: "loading", path: "/p" }, ".doan/canvases/moved.html")).toBe("Project is still being read. Try Open again shortly.");
+  expect(unavailableCanvasMessage({ kind: "loading", path: "/p" }, ".doan/canvases/moved.html")).toBe("Project is still being read. Try again shortly.");
   expect(unavailableCanvasMessage({ kind: "cliError", path: "/p", reason: "failed" }, ".doan/canvases/moved.html")).toBe("Project is unavailable. Fix it from its menu in the sidebar, then try again.");
   expect(unavailableCanvasMessage(undefined, ".doan/canvases/moved.html")).toBe("Project is unavailable. Fix it from its menu in the sidebar, then try again.");
 });
@@ -441,9 +441,9 @@ describe("quick open reading row", () => {
   });
 
   it("names the count, singular for one project", () => {
-    expect(readingText(1)).toBe("Still reading 1 project…");
-    expect(readingText(2)).toBe("Still reading 2 projects…");
-    expect(readingText(12)).toBe("Still reading 12 projects…");
+    expect(readingText(1)).toBe("Still reading 1 project");
+    expect(readingText(2)).toBe("Still reading 2 projects");
+    expect(readingText(12)).toBe("Still reading 12 projects");
   });
 });
 

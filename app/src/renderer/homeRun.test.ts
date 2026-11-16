@@ -277,7 +277,7 @@ test("a permission slot stays until it is answered, whatever happened to its toa
   expect(h.run.slots().get(ROOT)?.kind).toBe("working");
 });
 
-test("removing a project asks; with a running Home conversation Cancel keeps both, Stop and Remove interrupts and then removes", async () => {
+test("removing a project asks; with a running Home conversation Cancel keeps both, Stop and remove interrupts and then removes", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
   await h.run.remove([ROOT], "doan");

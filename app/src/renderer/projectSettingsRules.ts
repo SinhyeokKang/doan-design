@@ -117,7 +117,7 @@ export function sharedPathLabel(root: string, path: string): string {
 // 'Storage writes'): its options are disabled while Saving, so focus would otherwise fall to <body>.
 export type FocusAfterWrite = { kind: "pressed" } | { kind: "tokenPrimary" } | { kind: "sharedAdd" } | { kind: "sharedRemove"; path: string } | { kind: "storageChosen" };
 // Where focus goes once the page's controls re-enable: the button that was pressed while it is still
-// there; else its section's main button: Change or Choose for Token CSS (Clear removes itself), Add File or Folder for
+// there; else its section's main button: Change or Choose for Token CSS (Clear removes itself), Add file or folder for
 // Shared, or the Remove of the path after a removed one.
 export function projectSettingsFocusAfter(done: { section: ConfigKind | "storage"; pressedAlive: boolean; removed?: { path: string; before: readonly string[]; after: readonly string[] } }): FocusAfterWrite {
   if (done.section === "storage") return { kind: "storageChosen" };

@@ -132,7 +132,7 @@ test("focus after a write: the pressed button while it lives, else its section's
   expect(projectSettingsFocusAfter({ section: "serve", pressedAlive: false })).toEqual({ kind: "sharedAdd" });
 });
 
-test("focus after removing a shared path: the next path's Remove, else Add File or Folder", () => {
+test("focus after removing a shared path: the next path's Remove, else Add file or folder", () => {
   const before = ["a", "b", "c"];
   expect(projectSettingsFocusAfter({ section: "serve", pressedAlive: false, removed: { path: "a", before, after: ["b", "c"] } })).toEqual({ kind: "sharedRemove", path: "b" });
   expect(projectSettingsFocusAfter({ section: "serve", pressedAlive: false, removed: { path: "b", before, after: ["a", "c"] } })).toEqual({ kind: "sharedRemove", path: "c" });

@@ -111,7 +111,7 @@ export function duplicateIdText(row: CanvasRow, count: number): string {
 }
 
 export function cliErrorText(reason: string): string {
-  return reason ? `doan CLI error: ${reason}` : "doan CLI error";
+  return reason ? `doan command error: ${reason}` : "doan command error";
 }
 
 export const INITIAL_HEIGHT = 150;

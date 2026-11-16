@@ -194,7 +194,7 @@ const readingRow = (html: string) => html.match(/<\/div><div role="status" class
 const listbox = (html: string) => html.match(/role="listbox"[\s\S]*?(?=<div role="status" class="qo-live">)/)?.[0] ?? "";
 
 test("a reading project adds the reading row after the results on Home and in a workspace, with or without a query", () => {
-  const row = '<p class="qo-reading"><span class="doan-spinner" aria-hidden="true"></span>Still reading 1 project…</p>';
+  const row = '<p class="qo-reading"><span class="doan-spinner" aria-hidden="true"></span>Still reading 1 project</p>';
   // Home: the listed projects' canvases and the reading row.
   const home = render(null);
   expect(options(home).length).toBeGreaterThan(0);
@@ -209,13 +209,13 @@ test("a reading project adds the reading row after the results on Home and in a 
   expect(own).not.toContain("Project is still being read");
   expect(own).not.toContain("No canvases to show");
   const two = renderToStaticMarkup(<QuickOpen entries={[...entries, { kind: "loading", path: "/code/other" }]} currentRoot={null} pick={() => {}} close={() => {}} />);
-  expect(readingRow(two)).toContain("Still reading 2 projects…");
+  expect(readingRow(two)).toContain("Still reading 2 projects");
 });
 
 test("a query that matches nothing shows its sentence and the reading row together", () => {
   const html = renderToStaticMarkup(<QuickOpenList emptyText="No canvases match" id="r" query="zzz" groups={[]} active={0} pick={() => {}} activate={() => {}} reading={3} />);
   expect(html).toContain('<p class="qo-none" role="status">No canvases match</p>');
-  expect(readingRow(html)).toBe('<p class="qo-reading"><span class="doan-spinner" aria-hidden="true"></span>Still reading 3 projects…</p>');
+  expect(readingRow(html)).toBe('<p class="qo-reading"><span class="doan-spinner" aria-hidden="true"></span>Still reading 3 projects</p>');
   // Nothing to say and nothing reading: no sentence, and the status stays in place, empty.
   const quiet = renderToStaticMarkup(<QuickOpenList emptyText={null} id="r" query="" groups={[]} active={0} pick={() => {}} activate={() => {}} reading={0} />);
   expect(quiet).not.toContain("qo-none");
