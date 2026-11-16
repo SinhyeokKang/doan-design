@@ -194,6 +194,13 @@ a{color:inherit;text-decoration:none}
 .page:not(.vs) .video .track i{width:0;animation:seek 90s linear forwards;animation-play-state:paused}
 .page:not(.vs) .video[data-state="playing"] .track i{animation-play-state:running}
 @media (prefers-reduced-motion:reduce){.i-spin svg{animation:none}}
+/* Scroll reveal, after buzz.xyz: each element starts 32px low and transparent and rises in as it
+   enters the viewport, staggered by its order in its section (--i). The class is set by the script,
+   so without it (or on the board, where every element is in view) nothing stays hidden. */
+[data-reveal]{--i:0}
+.reveal [data-reveal]{opacity:0;transform:translateY(32px);transition:opacity 700ms var(--ease-enter),transform 700ms var(--ease-enter);transition-delay:calc(var(--i) * 90ms)}
+.reveal [data-reveal].in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.reveal [data-reveal]{transform:none;transition-property:opacity}}
 .vbar{position:absolute;left:var(--space-3);right:var(--space-3);bottom:var(--space-3);display:flex;align-items:center;gap:var(--space-2);padding:var(--space-1) var(--space-2);border-radius:var(--radius-pill);background:var(--surface-panel);box-shadow:var(--shadow-floating)}
 .vbtn{width:var(--size-control-sm);height:var(--size-control-sm);display:grid;place-items:center;padding:0;border:0;border-radius:var(--radius-pill);background:transparent;color:var(--text-standard);cursor:pointer}
 .vbtn svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
@@ -442,6 +449,7 @@ a{color:inherit;text-decoration:none}
 <h3>Prototype</h3>
 <ul>
 <li>Desktop (1440x810, a 16:9 screen), tablet (1024x768), mobile (390x844) and not-a-Mac (1440x810) play in Doan's prototype window. Scroll the page; the nav stays at the top (sticky, as on both references). Features jumps to the cards; the logo scrolls back to the top.</li>
+<li>Scroll reveal, after buzz.xyz (measured there: headings, ledes, the video and the cards start transparent and 24–44 px low and rise in as they enter the screen): every element of a section rises 32 px and fades in over 700 ms on <code>--ease-enter</code> as it enters the viewport (12% above its bottom edge), 90 ms after the one before it in that section; the hero plays it on load. Under reduced motion only the fade remains.</li>
 <li>The demo player plays on its poster: Play → loading (0.9 s) → playing, with the seek bar filling; the bar's first button pauses and resumes. The failed state is drawn in <code>landing-video-states</code> only; nothing in the page triggers it.</li>
 <li>Download, GitHub and the footer links go nowhere in the prototype: what Download leads to (the dmg directly, or a page after it) is not decided.</li>
 </ul>
@@ -449,7 +457,7 @@ a{color:inherit;text-decoration:none}
 <ul>
 <li>Rhythm: buzz.xyz gives each section its own screen. Here every section's minimum height is the viewport less the sticky nav, a gap of empty ground follows it (320 desktop, 240 tablet, 160 mobile), and a jump to a section lands it under the nav. The draft fixes the viewport at the mark height (play it in Fit); the site uses <code>100svh</code>. <code>var(--doan-viewport-height)</code> would follow the window, but the installed <code>doan check</code> (0.1.14) reports it as an undefined token.</li>
 <li>Hero: buzz.xyz's oversized wordmark, centred the way Welcome already is; the group photo takes the height the copy leaves and runs off the screen's bottom, as Welcome's bottom bleed does, with every buddy's eyes in view. The wordmark is the page's <code>h1</code>; the tagline is a paragraph.</li>
-<li>Video: buzz.xyz's two-line heading, one-sentence lede and a large framed app video. The README hero image stands in as the poster (<code>.doan/assets/landing/video-poster.png</code>, a copy of <code>docs/assets/readme/hero.png</code>). Click to play; the states are in <code>landing-video-states</code>.</li>
+<li>Video: buzz.xyz's two-line heading, one-sentence lede and a large framed app video. The poster is the app window alone, on the page's own ground with no gradient behind it (<code>.doan/assets/landing/video-poster.png</code>: the window of <code>readme-features.html</code>'s hero frame, captured with the frame's gradient and the window's vibrancy replaced by the plain shell, 2016×1260). Click to play; the states are in <code>landing-video-states</code>.</li>
 <li>Features: buzz.xyz's character cards, five in one row at desktop and tablet, a list of rows on mobile. Each buddy does its feature: Doany paints, Puri types, Popo reads (existing GIFs); Dungdung listens and Dori delivers still use their stills.</li>
 <li>Closing: aside.com's rounded CTA panel, in Doany's violet (step 4) with the dot grid, and Doany back on stage so the page ends on a buddy as it began.</li>
 </ul>
@@ -463,13 +471,26 @@ a{color:inherit;text-decoration:none}
 <li>Assets are drawing sources, not web files: <code>group.png</code> is 2.0 MB, each card still 1.4–2.2 MB at 1254², the GIFs 0.56–1.0 MB. Ship resized WebP or AVIF with <code>srcset</code> and fixed dimensions, short looping muted mp4/webm instead of GIFs (paused under <code>prefers-reduced-motion</code>), and lazy-load the cards and video.</li>
 <li>Card pictures share one baseline: each image is pulled down by its own transparent margin under the character (measured from the alpha: Doany .055, Dungdung .139, Puri .123, Popo .119, Dori .109 of the image). New poses should be cut to one margin instead.</li>
 <li>Play, the player controls and Try again are buttons; the nav and footer link groups are labelled navigation landmarks.</li>
-<li>Literals with no token, all page constants: mark heights 810 / 768 / 844 as the screen height, section gaps 320 / 240 / 160, nav 72 / 64, wordmark 120 / 112 / 96 at −.075em (Welcome's tracking), display 64 / 56 (video heading) / 48 (features) at 1.05 and −.03em, tablet 48 / 40, logo 28 / 24, side insets 80, page widths 1440 / 1024 / 1280 / 960, group photo 620 / 560 / 358 with its bottom 12% faded, player 760 / 720, card picture 232 + 208 / 168 + 152 / 120 + 112, closing Doany 120 / 112 / 96, play button 80 / 72 / 56 / 64 with icons 28 / 20, video-state tile 560, the dot radius 1px, the failed poster's .35 opacity, the 0.9 s loading and 90 s seek in the prototype.</li>
+<li>Literals with no token, all page constants: mark heights 810 / 768 / 844 as the screen height, section gaps 320 / 240 / 160, nav 72 / 64, wordmark 120 / 112 / 96 at −.075em (Welcome's tracking), display 64 / 56 (video heading) / 48 (features) at 1.05 and −.03em, tablet 48 / 40, logo 28 / 24, side insets 80, page widths 1440 / 1024 / 1280 / 960, group photo 620 / 560 / 358 with its bottom 12% faded, player 760 / 720, card picture 232 + 208 / 168 + 152 / 120 + 112, closing Doany 120 / 112 / 96, play button 80 / 72 / 56 / 64 with icons 28 / 20, video-state tile 560, the dot radius 1px, the failed poster's .35 opacity, the 0.9 s loading and 90 s seek in the prototype, the reveal's 32 px, 700 ms, 90 ms step and 12% margin.</li>
 </ul>
 </section>
 <script>
 // Prototype behaviour for the playable page frames. The site's real links go nowhere here:
 // "#" links stay put, the logo scrolls to the top, and the demo player walks through its
 // states on the poster (the video itself is not recorded yet).
+const REVEAL = {
+  hero: ".wordmark, .tagline, .lede, .ctas, .fine, .notice, .groupwrap",
+  sect: ".display, .lede, .video, .card",
+  end: ".closer, .closing .display, .closing .ctas, .closing .fine, .footer",
+};
+const seen = new IntersectionObserver((entries) => {
+  for (const en of entries) if (en.isIntersecting) { en.target.classList.add("in"); seen.unobserve(en.target); }
+}, { rootMargin: "0px 0px -12% 0px" });
+for (const sc of document.querySelectorAll(".page:not(.vs) > .screen")) {
+  const kind = sc.classList.contains("hero") ? "hero" : sc.classList.contains("end") ? "end" : "sect";
+  sc.querySelectorAll(REVEAL[kind]).forEach((el, i) => { el.dataset.reveal = ""; el.style.setProperty("--i", i); seen.observe(el); });
+}
+document.documentElement.classList.add("reveal");
 document.addEventListener("click", (e) => {
   const a = e.target.closest('a[href="#"]');
   if (a) { e.preventDefault(); if (a.classList.contains("logo")) window.scrollTo({ top: 0, behavior: "smooth" }); return; }
