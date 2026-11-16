@@ -70,7 +70,8 @@ export class McpConnectorsWatch {
   // reads its sentence (its notices carry no live role).
   openAnswered(provider: McpProvider, name: string, failed: boolean): void {
     const key = `${provider}\0${name}`;
-    if (failed === this.openFailures.has(key)) return;
+    // Every failure is read, a repeated one too; a working open only clears a shown alert.
+    if (!failed && !this.openFailures.has(key)) return;
     if (failed) { this.openFailures.add(key); this.announcement = { seq: ++this.seq, text: OPEN_FAILED_TEXT }; }
     else this.openFailures.delete(key);
     this.changed();

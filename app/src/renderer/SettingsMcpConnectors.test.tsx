@@ -502,7 +502,13 @@ test("a failed Open again shows the alert with Open browser and reads it; a work
   expect(words(live()[0]?.props.children).replace(/​/g, "")).toBe("Couldn’t open your browser. Try again.");
   const again = byLabel("Open browser to connect Notion for Claude Code");
   expect(again).toBeDefined();
+  // A second failure is read again: the live region changes for it.
+  const said = watch.announcementSeq();
+  api.openMcpLink!.mockResolvedValueOnce({ ok: false, reason: "open_failed" });
   click(again);
+  await settle();
+  expect(watch.announcementSeq()).toBe(said + 1);
+  click(byLabel("Open browser to connect Notion for Claude Code"));
   expect(api.openMcpLink).toHaveBeenLastCalledWith("claude", "doan-notion");
   await settle();
   expect(shown()).toContain("Finish connecting to Notion");
