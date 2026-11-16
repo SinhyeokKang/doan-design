@@ -32,3 +32,5 @@
 
 - Run `run_a7fabeaa16df`. T는 현재 워크트리에서 바로 커밋했다(작아서 cherry-pick 없이). 테스트 13433개, typecheck, lint 통과. types.ts 주석의 "guided turn"은 모든 턴이 쓰므로 A가 고친다.
 - A, B를 `feat/canvas-drawing-cards`(e4123acf) 기준 child worktree로 시작했다(Opus high, launch.effective 확인).
+- A 질문: 편집 경로를 `insideDesign`으로 거르면 `/tmp`로 보고된 경로가 빠진다. 컨덕터 판단 — 모든 `edit` 경로를 모으고 `canvasesAt`과 목록 행 필터에 맡긴다(missed 줄과 같은 근거, 결과는 design 의도와 같다).
+- A 완료(21e57afd, a51ec2a5, 1259e74f). 계획과 다른 점: 진행 중 턴에 `canvas.drawn`이 쓰이면 renderer가 실행 단계를 잃으므로, main이 쓰기 뒤 현재 단계를 새 seq로 다시 보낸다. 독립 리뷰 R-A(ctx_5599e919110c, Opus high)에 맡겼다. A 워커는 수정 라운드를 위해 남겨 둔다(retain).
