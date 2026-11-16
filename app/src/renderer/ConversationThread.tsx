@@ -471,15 +471,22 @@ const CARD_ICONS = { check: Check, forward: Forward, ban: Ban } as const;
 // A canvas of a turn (draft canvas-drawing-cards.html): the state icon, the canvas icon and name over the status, and
 // Open. The status changes in place (the card's key holds), so focus on Open stays. No live region: the thread's status
 // line says the new canvases once the turn ends.
-export function CanvasCard({ entry, project, provider, canvasListed, onOpen }: { entry: Extract<ThreadItem, { kind: "canvasCard" }>; project: string; provider: Provider;
+export function CanvasCard({ entry, rows, project, provider, canvasListed, onOpen }: { entry: Extract<ThreadItem, { kind: "canvasCard" }>; rows: readonly CanvasRow[]; project: string; provider: Provider;
   canvasListed(canvas: Canvas): boolean; onOpen?: ((canvas: Canvas, conversationId?: string) => void) | undefined }) {
-  const view = canvasCardText(entry, { project, provider, listed: canvasListed }), open = view.open;
+  const view = canvasCardText({ ...entry, canvas: withRowId(entry.canvas, rows) }, { project, provider, listed: canvasListed }), open = view.open;
   const Icon = view.icon === "spinner" ? null : CARD_ICONS[view.icon];
   return <div className="canvas-card" role="group" aria-label={view.label}>
     <span className="cc-icon">{Icon ? <Icon aria-hidden="true" /> : <span className="doan-spinner" aria-hidden="true" />}</span>
     <span className="cc-text"><CardName name={view.name} /><span className="cc-status">{view.status}</span></span>
     {open && onOpen && <button type="button" className="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label={open.label} onClick={() => onOpen(open.canvas, open.conversationId)}>Open</button>}
   </div>;
+}
+// A handoff request names a path alone, while listing and Open find a canvas by its ID once its row has one
+// (sameCanvas), so an existing canvas would read as gone: the root's one row with that path lends its ID.
+function withRowId(canvas: Canvas, rows: readonly CanvasRow[]): Canvas {
+  if (canvas.id !== undefined) return canvas;
+  const same = rows.filter(row => row.path === canvas.path);
+  return same.length === 1 && same[0]!.id !== undefined ? { path: canvas.path, id: same[0]!.id } : canvas;
 }
 // The text width the name's computed font gives, for the middle cut; CSS can only cut a line's end.
 let measuring: CanvasRenderingContext2D | null | undefined;
@@ -813,7 +820,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "permission": return [provider, entry.seq > props.liveAfter, unanswered.has(entry.requestId)];
       case "question": return entry.status === "pending" ? [provider, entry.seq > props.liveAfter, draftOf(entry.requestId)] : [];
       case "end": return [provider, entry.key === last?.key, entry.key === last?.key && last.resend, entry.key === last?.key ? props.limitResets ?? null : null, entry.key === last?.key && !!props.resendHidden];
-      case "canvasCard": return [provider, props.project, props.canvasListed(entry.handoff?.outcome === "started" ? entry.handoff.target.canvas : entry.canvas), !!props.onOpenHandoff];
+      case "canvasCard": {
+        const canvas = entry.handoff?.outcome === "started" ? entry.handoff.target.canvas : withRowId(entry.canvas, props.canvasRows ?? []);
+        return [provider, props.project, canvas, props.canvasListed(canvas), !!props.onOpenHandoff];
+      }
       case "handoffCard": return [props.project, props.canvasListed(entry.origin.canvas), !!props.onOpenHandoff];
       case "marker": return [props.project, props.canvasListed(entry.canvas)];
       default: return [];
@@ -868,7 +878,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
           </span>}
         </div>;
       }
-      case "canvasCard": return <CanvasCard entry={entry} project={props.project} provider={provider} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
+      case "canvasCard": return <CanvasCard entry={entry} rows={latest.current.canvasRows ?? []} project={props.project} provider={provider} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
       case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
       case "marker": {
         const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvas.path.split("/").at(-1) ?? canvas.path;
