@@ -154,11 +154,17 @@ function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: 
   </Popover.Root>;
 }
 
+// A zoom button its own press brings to a limit stays focusable (aria-disabled, its press ignored), so a keyboard press
+// to the limit keeps focus; native disabled only while the whole controller is off (no canvas drawn).
+function limit(enabled: boolean, atLimit: boolean): { disabled?: true; "aria-disabled"?: true } {
+  return !enabled ? { disabled: true } : atLimit ? { "aria-disabled": true } : {};
+}
+
 function ZoomControl({ view, canvasKey, fallbackFocus, command, zoomTo }: { view: ZoomControlView; canvasKey: string | null; fallbackFocus(): void; command(name: ViewCommand): void; zoomTo(scale: number): void }) {
   const [open, setOpen] = useState(false);
   const { trigger, onCloseAutoFocus } = useMenuFocus(canvasKey, open, view.enabled, () => setOpen(false), fallbackFocus);
   return <span className="doan-canvas-zoom">
-    <IconTip label={view.zoomOut.tooltip}><button type="button" className="doan-icon-button" aria-label="Zoom out" disabled={view.zoomOut.disabled} onClick={() => command("zoomOut")}><Minus aria-hidden="true" /></button></IconTip>
+    <IconTip label={view.zoomOut.tooltip}><button type="button" className="doan-icon-button" aria-label="Zoom out" {...limit(view.enabled, view.zoomOut.disabled)} onClick={() => { if (!view.zoomOut.disabled) command("zoomOut"); }}><Minus aria-hidden="true" /></button></IconTip>
     <DropdownMenu.Root open={open && view.enabled} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label={view.triggerLabel} disabled={!view.enabled}>
         {view.value}<ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
@@ -176,6 +182,6 @@ function ZoomControl({ view, canvasKey, fallbackFocus, command, zoomTo }: { view
         })}
       </DropdownMenu.Content></DropdownMenu.Portal>
     </DropdownMenu.Root>
-    <IconTip label={view.zoomIn.tooltip}><button type="button" className="doan-icon-button" aria-label="Zoom in" disabled={view.zoomIn.disabled} onClick={() => command("zoomIn")}><Plus aria-hidden="true" /></button></IconTip>
+    <IconTip label={view.zoomIn.tooltip}><button type="button" className="doan-icon-button" aria-label="Zoom in" {...limit(view.enabled, view.zoomIn.disabled)} onClick={() => { if (!view.zoomIn.disabled) command("zoomIn"); }}><Plus aria-hidden="true" /></button></IconTip>
   </span>;
 }

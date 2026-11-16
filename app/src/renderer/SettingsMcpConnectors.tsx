@@ -246,7 +246,10 @@ function AddServerDialog({ dialog, change, submit, close }: { dialog: Extract<Di
       <div className="doan-dialog-actions">
         {/* Default-size actions, as the compact dialogs are drawn (40px); Settings' row buttons stay sm. */}
         <button type="button" className="doan-button" data-ui-variant="subtle" onClick={close}>Cancel</button>
-        <button type="submit" className="doan-button" data-ui-variant="prominent" disabled={!dialog.value.trim() || dialog.busy}>Add</button>
+        {/* Busy keeps Add focusable (aria-disabled) with the spinner inside; only an empty field disables it. submitAdd
+            ignores a press while busy. */}
+        <button type="submit" className="doan-button" data-ui-variant="prominent" disabled={!dialog.busy && !dialog.value.trim()} aria-disabled={dialog.busy || undefined} aria-busy={dialog.busy || undefined}>
+          {dialog.busy && <span className="doan-spinner" aria-hidden="true" />}Add</button>
       </div>
     </form>
   </dialog>;

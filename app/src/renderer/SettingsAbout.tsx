@@ -26,8 +26,10 @@ function versionRow(row: UpdateRowView | null, notesFailed: string | null, state
   else if (row.busy !== null) trailing = <span className="settings-loading"><span className="doan-spinner" aria-hidden="true" />{row.busy}</span>;
   else if (row.progress !== null) trailing = <span className="settings-value" aria-hidden="true">{`${row.progress}%`}</span>;
   else if (row.actions.length > 0) {
+    // A busy check keeps its button and focus (aria-disabled, not disabled) with the spinner inside.
     const buttons = row.actions.map(button => <button key={button.action} type="button" className="doan-button"
-      data-ui-variant={button.prominent ? "prominent" : "subtle"} data-ui-size="sm" aria-label={button.ariaLabel} onClick={() => press(button)}>{button.label}</button>);
+      data-ui-variant={button.prominent ? "prominent" : "subtle"} data-ui-size="sm" aria-label={button.ariaLabel} aria-disabled={button.busy} aria-busy={button.busy}
+      onClick={() => { if (!button.busy) press(button); }}>{button.busy ? <><span className="doan-spinner" aria-hidden="true" />{button.label}</> : button.label}</button>);
     // A lone Check for Updates sits in the trailing column as the shipped rows' single control does; a pair, or an
     // action answering the line under the row, sit together in the actions group.
     trailing = row.actions.length === 1 && row.error === null ? buttons : <span className="update-msg-actions">{buttons}</span>;

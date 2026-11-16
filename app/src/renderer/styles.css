@@ -386,8 +386,6 @@ code, kbd { font-family: var(--type-family); }
 /* The countdown ticks every second; equal-width digits keep it from shifting. */
 .buddy-lock .ob-heading h3 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); font-variant-numeric: tabular-nums; }
 .buddy-lock .ob-heading p { text-wrap: balance; }
-/* A busy confirmation's verb: the small spinner in the label's colour (as the problem overlay's busy action). */
-.doan-dialog-actions .doan-button > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
 /* Shared settings-style group: a hairline container whose rows are split by hairlines. */
 .ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
 .ob-card > :first-child { border-top: 0; }
@@ -718,6 +716,7 @@ body:has(.shell-top) { background: transparent; }
    order; they take the disabled ink and no hover (draft frames cloning and selecting). */
 .shell-modes button[aria-disabled="true"], .shell-search[aria-disabled="true"], .shell-side .row[aria-disabled="true"], .shell-side .row[aria-disabled="true"] :is(.shell-project-name, .shell-branch), .shell-top .shell-history .doan-icon-button[aria-disabled="true"], .doan-menu-item[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
 .shell-modes button[aria-disabled="true"]:not(.current):hover, .shell-search[aria-disabled="true"]:hover, .shell-side .row[aria-disabled="true"]:hover, .shell-top .shell-history .doan-icon-button[aria-disabled="true"]:hover { background: transparent; }
+.shell-top .shell-history .doan-icon-button[aria-disabled="true"]:active { background: transparent; }
 /* Radix still highlights an aria-disabled menu item under the pointer and keyboard; the selected worktree keeps its
    own fill and check. */
 .doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }
@@ -791,7 +790,6 @@ body:has(.shell-top) { background: transparent; }
 /* Two classes: the tray's subtle ink (.composer-tray .doan-button) would otherwise win. */
 :is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"] { color: var(--text-danger); }
 :is(.composer-permission, .settings-select)[data-mode="bypass"] .chev { color: currentColor; }
-.composer-send .doan-spinner { color: var(--text-on-accent); }
 .composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
 .composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }
 .composer-tray :is(.doan-button, .tray-branch) svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
@@ -1302,7 +1300,6 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .bg-line .bg-icon { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-metadata); margin-block: calc((var(--type-label-line-height) - var(--size-icon-sm)) / 2); }
 .conversation-thread .bg-line .bg-text { min-width: 0; overflow-wrap: anywhere; }
 .conversation-thread .bg-line .bg-stop { grid-column: 2; justify-self: start; color: var(--text-standard); }
-.conversation-thread .bg-line .bg-stop .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .conversation-thread .bg-line .bg-stop[data-disabled] { color: var(--text-disabled); }
 
 /* doan-project: the Overview as the project conversation screen (.doan/canvases/doan-project.html, confirmed 2026-10-31).
@@ -1330,6 +1327,10 @@ body:has(.shell-top) { background: transparent; }
 :is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 .ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
 .ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* While its list is read the title trigger is aria-disabled (still focusable): the disabled ink and no hover or pressed
+   fill, outweighing the shared trigger rules. */
+.ov-title.doan-button[aria-disabled="true"] { color: var(--text-disabled); }
+.ov-title.doan-button[data-ui-variant="trigger"][aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 .ov-notice { margin: 0 var(--space-4) var(--space-2); }
 .ov-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; }
 .ov-scroll > .conversation-thread { flex: 1; }
@@ -1459,6 +1460,11 @@ body:has(.shell-top) { background: transparent; }
 .doan-canvas-head .chev { flex: none; }
 .doan-canvas-head-tools { display: flex; align-items: center; gap: var(--space-1); flex: none; margin-left: auto; }
 .doan-canvas-zoom { display: flex; align-items: center; gap: var(--space-half); }
+/* Zoom out / Zoom in at a limit are aria-disabled (still focusable): the disabled ink and no fill under the pointer or
+   while pressed. Prefixed by the tools group so it outweighs the shared pressed rule, whose :is() counts its
+   two-attribute argument. */
+.doan-canvas-zoom > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); }
+.doan-canvas-head-tools .doan-canvas-zoom > .doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 .doan-zoom-value { min-width: 72px; gap: var(--space-1); font-variant-numeric: tabular-nums; }
 .doan-canvas-head .doan-icon-button { color: var(--text-standard); }
 .doan-canvas-head :is(.doan-icon-button, .doan-button):disabled, .doan-canvas-head .doan-button:disabled .chev { color: var(--text-disabled); }
@@ -1601,7 +1607,6 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .docked .composer-tray :is(.composer-attach, .composer-pick):is(:disabled, [aria-disabled="true"]) { color: var(--text-disabled); }
 /* aria-disabled (not disabled) keeps these controls hoverable for their reason tooltip, so they take the disabled
    look: without it the terminal session's Attach and an unavailable Picker or Export read as working buttons. */
-:is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"] { cursor: not-allowed; }
 @media (hover: hover) and (pointer: fine) { :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:hover { background: transparent; } }
 :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
 /* The context ring (draft frame ring-geometry): the tray's last child, which the tray's
@@ -1664,10 +1669,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .conversation-thread .q-input { position: relative; z-index: 1; width: 100%; background: var(--surface-panel); }
 .conversation-thread .q-pref .q-input { background: var(--surface-inset); }
 /* Send while it cannot send: aria-disabled keeps its focus and tooltip, with the shared disabled fill. */
-.conversation-thread .q-card .q-send[aria-disabled="true"]:not(:disabled) { background: var(--affordance-disabled); color: var(--text-disabled); cursor: default; }
-.conversation-thread .q-card .q-send[aria-busy="true"] { cursor: progress; }
-/* On the black Send the ring is the on-prominent ink at 30% (no translucent token exists), its turning quarter at full. */
-.conversation-thread .q-send .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, var(--text-on-prominent) 30%, transparent); border-top-color: var(--text-on-prominent); }
+.conversation-thread .q-card .q-send[aria-disabled="true"]:not(:disabled, [aria-busy="true"]) { background: var(--affordance-disabled); color: var(--text-disabled); }
 .conversation-thread .q-card.is-locked :is(.q-pref, .q-pref > input) { cursor: default; }
 .conversation-thread .q-card [aria-disabled="true"]:not(.q-send, input) { color: var(--text-disabled); cursor: default; }
 /* A folded question's lines are spaced as the thread's own items. */
@@ -1933,9 +1935,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .problem-overlay .doan-button[data-ui-variant="subtle"]:not(:hover, :active) { background: var(--affordance-backdrop-hover); }
 /* Busy while a recovery reads the project again: every action is unavailable but focusable; the pressed, filled one
    keeps its fill and shows the spinner. */
-.problem-actions .doan-button[aria-disabled="true"] { cursor: default; }
 .problem-actions .doan-button[aria-disabled="true"]:not([data-ui-variant="prominent"]) { color: var(--text-disabled); }
-.problem-busy .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
 /* Project Settings' details block (.project-settings-details), under the actions. */
 .problem-detail { width: 100%; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; text-align: start; }
 .problem-reading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
@@ -1966,7 +1966,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    miss it. It takes their ink and cursor itself, and no chrome fill under the pointer or while pressed. The shared
    pressed rule weighs (0,5,0), since its :is() counts [aria-haspopup][aria-expanded], so this one is scoped by .pw and
    .pw-top to (0,6,0) to outweigh it rather than rely on coming later. */
-.pw-right > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: not-allowed; }
+.pw-right > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); }
 .pw .pw-top > .pw-right > .doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 /* The panel paints its rounded corners without clipping; the content clips its top corners and the stage inside it its
    bottom ones. No ancestor of the cross-origin run iframe may clip with four equal radii: Chromium then draws it only

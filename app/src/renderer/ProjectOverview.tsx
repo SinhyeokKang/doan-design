@@ -312,6 +312,10 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const deleting = useRef(false);
   // Controlled, so a Delete tooltip's Escape closes the menu too.
   const [menuOpen, setMenuOpen] = useState(false);
+  // While the list is read the trigger is unavailable but stays focusable (aria-disabled, not Radix disabled, which
+  // would drop a focused trigger's focus): the menu is held closed, and one open when the read began closes for good.
+  const loading = list === "loading";
+  useEffect(() => { if (loading) setMenuOpen(false); }, [loading]);
   const choose = (value: string) => {
     picked.current = true;
     run.select(root, value === NEW ? null : value);
@@ -371,8 +375,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       </span>
       <span className="ov-sep" aria-hidden="true">/</span>
       <span className="ov-title-wrap">
-        <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
-          <DropdownMenu.Trigger asChild disabled={list === "loading"}><button ref={titleTrigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title}>
+        <DropdownMenu.Root open={menuOpen && !loading} onOpenChange={open => setMenuOpen(open && !loading)}>
+          <DropdownMenu.Trigger asChild><button ref={titleTrigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title} aria-disabled={loading || undefined}>
             <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
           <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label="Project conversations" align="start" sideOffset={4} collisionPadding={8}
             onCloseAutoFocus={event => {

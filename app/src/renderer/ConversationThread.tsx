@@ -405,8 +405,9 @@ export function QuestionCard({ item, provider, live, base, draft, onDraft, onSen
     </label>;
   };
   const busy = draft.sending === "answer";
-  // aria-disabled, as New conversation: Send keeps focus and its tooltip says what is missing.
-  const send = <button type="button" className="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled={(!ready && !busy) || undefined} aria-busy={busy || undefined}
+  // aria-disabled, as New conversation: Send keeps focus and its tooltip says what is missing. While sending it is busy
+  // too (aria-busy), keeping its fill with the spinner, as every busy confirm does.
+  const send = <button type="button" className="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled={(!ready || busy) || undefined} aria-busy={busy || undefined}
     onClick={() => { if (ready) onSend(); }}>{busy && <span className="doan-spinner" aria-hidden="true" />}Send</button>;
   return <div className={`doan-notice thread-notice q-card${locked ? " is-locked" : ""}`}
     onPointerDown={() => { arrowing = false; }}

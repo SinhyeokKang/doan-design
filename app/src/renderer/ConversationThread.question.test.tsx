@@ -183,7 +183,7 @@ describe("question card", () => {
     const draft = questionDraft(draftOf({ type: "choose", question: layout, option: 1 }), { type: "sending", how: "answer" });
     const out = card({ draft });
     expect(out).toContain('<div class="doan-notice thread-notice q-card is-locked">');
-    expect(out).toContain('<button type="button" class="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Send</button>');
+    expect(out).toContain('<button type="button" class="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Send</button>');
     expect(out).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled="true">Skip</button>');
     const els = tree({ draft, onSend, onSkip, onStop });
     (button(els, "Send").props.onClick as () => void)();

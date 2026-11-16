@@ -131,11 +131,14 @@ export function PasteDialog({ view, value, submittable, tooLong, busy, change, s
     onCancel={event => { event.preventDefault(); close(); }} onKeyDown={dialogKeys(close)}>
     <form className="ob-dialog-form" onSubmit={event => { event.preventDefault(); if (submittable) submit(); }}>
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="ob-paste-title">{view.title}</h3><p className="doan-dialog-description">{view.body}</p></div></div>
-      <input className="doan-input" aria-label={view.inputLabel} placeholder={view.placeholder} spellCheck={false} value={value} autoFocus disabled={busy} onChange={event => change(event.target.value)} />
+      {/* While submitting nothing is natively disabled, so focus stays where Enter or the press left it: the field turns
+          read-only, Cancel dims (closeDialog refuses it) and Submit spins. */}
+      <input className="doan-input" aria-label={view.inputLabel} placeholder={view.placeholder} spellCheck={false} value={value} autoFocus readOnly={busy} onChange={event => change(event.target.value)} />
       {tooLong && <p className="ob-field-error" role="alert">This address is too long to submit.</p>}
       <div className="doan-dialog-actions">
-        <button type="button" className="doan-button" data-ui-variant={view.cancel.variant} disabled={busy} onClick={close}>{view.cancel.label}</button>
-        <button type="submit" className="doan-button" data-ui-variant={view.submit.variant} disabled={!submittable}>{view.submit.label}</button>
+        <button type="button" className="doan-button" data-ui-variant={view.cancel.variant} aria-disabled={busy || undefined} data-disabled={busy ? "" : undefined} onClick={close}>{view.cancel.label}</button>
+        <button type="submit" className="doan-button" data-ui-variant={view.submit.variant} disabled={!busy && !submittable} aria-disabled={busy || undefined} aria-busy={busy || undefined}>
+          {busy && <span className="doan-spinner" aria-hidden="true" />}{view.submit.label}</button>
       </div>
     </form>
   </dialog>;

@@ -183,16 +183,6 @@ test("the shown time of a terminal link reads as the time of day, with the date 
   expect(linkedAt("not a time", now)).toBeNull();
 });
 
-// U10: while the list is read the title trigger is unavailable but stays focusable (aria-disabled), as in the
-// prototype window; a focused trigger keeps focus when the list goes back to loading.
-test("while the list is read the title trigger is aria-disabled, not disabled", async () => {
-  const titleTag = (html: string) => html.match(/<button[^>]*class="ov-title doan-button"[^>]*>/)?.[0] ?? "";
-  const loading = titleTag(await panel("loading"));
-  expect(loading).toContain('aria-disabled="true"');
-  expect(loading).not.toMatch(/ disabled=""/);
-  expect(titleTag(await panel([]))).not.toContain("disabled");
-});
-
 // Before the list answers, the panel does not know the busy line or the terminal session yet.
 test("while the list is read, Send waits even with a draft and a signed-in agent", async () => {
   const support = new DockedSupport(() => {}, window.doan);

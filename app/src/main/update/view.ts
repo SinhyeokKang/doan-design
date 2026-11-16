@@ -5,10 +5,11 @@ import type { SettledUpdateState, UpdateErrorCode, UpdateSnapshot, UpdateState }
 // like it: no validator, no Node built-in, no Electron (rendererImports.test.ts).
 
 // `action` is what a press asks main for: a manual check, Restart to Update, or the release page. Retry is a manual
-// check, named for what it repeats.
-export interface UpdateButton { action: "check" | "restart" | "notes"; label: string; ariaLabel?: string; prominent: boolean }
+// check, named for what it repeats. `busy`: the manual check it asked for is running; the button stays in place,
+// spinning, so focus stays on it.
+export interface UpdateButton { action: "check" | "restart" | "notes"; label: string; ariaLabel?: string; prominent: boolean; busy?: true }
 export interface UpdateNotice { title: string; text: string }
-// `busy` is the spinner's label in place of the buttons; `progress` the download's whole percent. `notice` is the
+// `busy` is the spinner's label in place of the buttons (Restarting); `progress` the download's whole percent. `notice` is the
 // reason Restart to Update cannot run now, `error` the line under the row. `announcement` is what the page's live
 // region reads when it changes; null for states nobody asked about (progress, an automatic check's answer).
 export interface UpdateRowView {
@@ -116,8 +117,11 @@ function row(snapshot: UpdateSnapshot, now: number): UpdateRowView {
       return settledRow(state, snapshot, now);
     case "checking": {
       const last = settledRow(state.last, snapshot, now);
-      // An automatic check is quiet, so its failure can go back to this row unchanged.
-      return state.manual ? { ...EMPTY_ROW, description: last.description, busy: "Checking for updates" } : last;
+      // An automatic check is quiet, so its failure can go back to this row unchanged. A manual one keeps the check
+      // button that asked for it (Check for Updates or a Retry), busy; a row that had none shows Check for Updates.
+      if (!state.manual) return last;
+      const pressed = last.actions.find(button => button.action === "check") ?? CHECK;
+      return { ...EMPTY_ROW, description: last.description, actions: [{ ...pressed, busy: true }] };
     }
     case "downloading":
       return { ...EMPTY_ROW, description: `${version} · Downloading Doan ${state.version}`, progress: state.percent };
