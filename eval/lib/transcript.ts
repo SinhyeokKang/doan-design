@@ -284,8 +284,10 @@ export function shellCommands(transcript: string): string[] {
 // The index of that last header line, searched up to the next `exec`. Without that end in the log (a cut-off stderr,
 // or an older status-less format) it is the first line, as before: a multi-line command's first line leaves its quote
 // open, so the reader takes it as incomplete rather than as all that ran.
-const EXEC_STATUS = /^ (?:succeeded|exited -?\d+) in \d+(?:\.\d+)?m?s:$/;
-const INLINE_EXEC_STATUS = / in \/.* (?:succeeded|exited -?\d+) in \d+(?:\.\d+)?m?s:$/;
+// Any status of that shape ends the header (` declined in 0ms:` too), so a status this list does not name cannot let
+// the scan run on into the command's output.
+const EXEC_STATUS = /^ [a-z]+(?: -?\d+)? in \d+(?:\.\d+)?m?s:$/;
+const INLINE_EXEC_STATUS = / in \/.* [a-z]+(?: -?\d+)? in \d+(?:\.\d+)?m?s:$/;
 function execHeaderEnd(lines: string[], first: number): number {
   for (let j = first; j < lines.length && lines[j] !== "exec"; j++) {
     if (INLINE_EXEC_STATUS.test(lines[j]!)) return j;
@@ -358,7 +360,7 @@ const STARTS_PROCESS = /\b(?:subprocess|child_process|execa|commands\.getoutput|
 // Where withoutHeredocsAndComments marked a heredoc whose body names doan; U+0004 never occurs in a shell command.
 const NAMES_DOAN_BODY = "\u0004";
 // A key in the reader's variables for one assigned just the home directory, holding what followed it (`/` or
-// nothing); no shell name holds U+0002.
+// nothing), or for a function's argument that expands below it, holding the path below it; no shell name holds U+0002.
 const HOME_OF = "\u0002";
 // The home directory in expandToken's copy of a word, so where it stands can be checked; U+0003 never occurs in a
 // shell command.
@@ -731,11 +733,16 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     // the like look the name up as a program).
     const called = !open[0] ? functions.get(words[0] ?? "") : undefined;
     if (called) {
-      // $@, $*, $#, shift, a return before the body's end and an assignment before the call change what runs or what
-      // the body sees in ways this reader does not track, and the budget bounds a function that calls itself.
-      const tokens = [...called.body.flat(), ...called.close];
-      if (skipped > 0 || state.left <= 0 || tokens.some(token => /\$\{?[@*#]/.test(token)) ||
-        called.body.some((body, k) => body[0] === "shift" || (body[0] === "return" && k < called.body.length - 1))) { state.incomplete = true; continue; }
+      // What would change the body's scope, arguments or flow in ways this reader does not track, anywhere in it
+      // (inside a loop, a group or a substitution too): $@, $*, $#, $10 (which is ${1}0), ${1:-x} and the like,
+      // local/declare/typeset/set/shift/trap, a return or exit (except a return that ends the body); also an
+      // assignment before the call, and the budget, which bounds a function that calls itself. A quoted mention of
+      // one of those words only costs a complete read.
+      const last = called.body.at(-1);
+      const groups = last?.[0] === "return" && last.length <= 2 ? called.body.slice(0, -1) : called.body;
+      const text = [...groups.flat(), ...called.close].join(" ").replace(SUBSTITUTED, (_, n: string) => ` ${bodies[Number(n)]} `);
+      if (skipped > 0 || state.left <= 0 || /\$\{?[@*#]|\$\d\d|\$\{\d+[^}\d]/.test(text) ||
+        /(?:^|[\s;&|(){}'"`])(?:local|declare|typeset|set|shift|trap|return|exit)(?=$|[\s;&|(){}'"`])/.test(text)) { state.incomplete = true; continue; }
       state.left--;
       // Positional parameters ($1 …, and HOME_OF entries for those holding just the home directory) belong to the call.
       const positional = (name: string) => /^\u0002?\d+$/.test(name);
@@ -745,7 +752,8 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
       // An unresolved argument may be no word or several, so which argument is $n is then unknown.
       if (open.some(Boolean)) state.incomplete = true;
       else {
-        const args = expanded.flatMap(token => token.words.map(word => ({ word, home: token.onlyHome }))).slice(1);
+        // HOME_OF holds the path below the home directory, so `$1/x` expands into it just as the argument did.
+        const args = expanded.flatMap(token => token.words.map(word => ({ word, home: token.words.length === 1 ? token.homePath : undefined }))).slice(1);
         args.forEach((arg, index) => {
           vars.set(String(index + 1), arg.word);
           if (arg.home !== undefined) vars.set(HOME_OF + String(index + 1), arg.home);
@@ -759,6 +767,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
       continue;
     }
     let at: number | null | undefined = null;
+    const unwrapped = words.length;
     while (!open[0] && (at = wrappedAt(words)) !== null) {
       // An option value the shell may expand to no word or several moves where the command starts.
       if (at === undefined || words.slice(0, at).some((word, index) => open[index] && !ASSIGNMENT.test(word))) { at = undefined; break; }
@@ -767,6 +776,9 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
       homePaths = homePaths.slice(at);
     }
     if (at === undefined) { state.incomplete = true; continue; }
+    // `time f` runs the function; env, command and exec run a program of that name. Which one a wrapper does is not
+    // tracked here.
+    if (words.length !== unwrapped && functions.has(words[0] ?? "")) { state.incomplete = true; continue; }
     if (/^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[0] ?? "") && /^-[a-z]*c$/.test(words[1] ?? "") && words[2]) { append(parse(words[2], state)); continue; }
     // A script the reader cannot see into may run doan: a shell reading a file or its input, a sourced or executed
     // script file, or a script of another language that may (see interpreterMayRunDoan).

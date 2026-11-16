@@ -807,3 +807,40 @@ test("a function the reader cannot track past its call or definition makes the r
   assert.deepEqual(parseCommand("f() { doan open a.html; }; unset -f f; f"), { words: [["unset", "-f", "f"], ["f"]], incomplete: false });
   assert.deepEqual(parseCommand("f() { doan active; return; }; f"), { words: [["doan", "active"], ["return"]], incomplete: false });
 });
+
+// Counterexamples from an independent review: each read as complete with the wrong commands, words or home paths.
+test("a function argument below the home directory keeps its home path in the body", () => {
+  for (const command of ["w() { echo x > \"$1\"; }; w ~/.zshrc", "w() { echo x > $1; }; w ~/.zshrc"]) {
+    const read = readCommands(command);
+    assert.equal(read.incomplete, false, command);
+    assert.deepEqual(read.commands.map(entry => entry.redirects.map(redirect => redirect.homePath)), [["/.zshrc"]], command);
+  }
+  assert.deepEqual(readCommands("w() { cp a \"$1/x\"; }; w ~/.config").commands.map(entry => entry.homePaths), [[undefined, undefined, "/.config/x"]]);
+});
+
+test("a function body that changes its scope, arguments or flow anywhere is not followed", () => {
+  for (const command of [
+    "x=open; f() { local x; x=ls; }; f; doan $x a",
+    "x=ls; f() { declare x=open; }; f; doan $x a",
+    "f() { set -- open; doan $1 a; }; f x",
+    "f() { for x in 1; do shift; done; doan open $1; }; f a b",
+    "f() { { shift; }; doan open \"$1\"; }; f a b",
+    "f() { for x in 1; do return; done; doan open a; }; f",
+    "f() { { return; }; doan open a; }; f",
+    "f() { exit; doan open a; }; f",
+    "f() { trap 'doan open a' EXIT; }; f",
+    "f() { echo $(doan open \"$@\"); }; f a",
+    "f() { echo $(doan open $#); }; f a",
+    "f() { doan $10 a; }; f 1 2 3 4 5 6 7 8 9 open",
+    "f() { doan ${1:-open} a; }; f",
+    "f() { doan open a; }; time f",
+    "f() { doan open a; }; nohup f",
+  ]) assert.equal(parseCommand(command).incomplete, true, command);
+  // ${N} braced is the Nth argument, and a return that ends the body skips nothing.
+  assert.deepEqual(parseCommand("f() { doan ${10} a; }; f 1 2 3 4 5 6 7 8 9 open"), { words: [["doan", "open", "a"]], incomplete: false });
+});
+
+test("a Codex exec header ends at any status line, so its output is never read as the command", () => {
+  const commands = shellCommands("exec\n/bin/zsh -lc 'doan active' in /tmp/repo\n declined in 0ms:\ncopied\nresult in /x\n succeeded in 1ms:\n");
+  assert.deepEqual(commands, ["/bin/zsh -lc 'doan active'"]);
+});

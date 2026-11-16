@@ -14,7 +14,7 @@ import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand,
 import { summary, type RoundMeta, type RunRecord } from "./lib/record.ts";
 import { loadScenario, renderPrompt, scenarioIds, selectIds, type LoadedScenario } from "./lib/scenario.ts";
 import type { Check, Checks } from "./lib/types.ts";
-import { copyRepo, keepOnboardingLog, prepareWorkspace, type Workspace } from "./lib/workspace.ts";
+import { copyRepo, keepCodexSessions, keepOnboardingLog, prepareWorkspace, type Workspace } from "./lib/workspace.ts";
 
 const ROOT = dirname(import.meta.dirname);
 const SCENARIOS = join(ROOT, "eval/scenarios");
@@ -165,6 +165,7 @@ export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, ki
 // Also for a failed or broken run; a copy error must not hide the run's own error.
 function keepEvidence(ws: Workspace, dir: string): void {
   try { keepOnboardingLog(ws, dir); } catch (error) { writeFileSync(join(dir, "onboarding-log-error.txt"), `${(error as Error).stack}\n`); }
+  try { keepCodexSessions(ws, dir); } catch (error) { writeFileSync(join(dir, "codex-sessions-error.txt"), `${(error as Error).stack}\n`); }
 }
 
 async function main(): Promise<number> {

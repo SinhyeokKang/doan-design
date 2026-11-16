@@ -128,6 +128,15 @@ export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial
   if (ws.handoffLog && existsSync(ws.handoffLog)) cpSync(ws.handoffLog, join(dir, "handoff.jsonl"));
 }
 
+// A Codex run's own CODEX_HOME (isolateUserInstructions) goes with the workspace; when readAgentTranscript could not
+// copy the run's rollout, its sessions are kept so the rollout can still be found by hand. Only that home is copied:
+// any other CODEX_HOME may hold the user's own sessions.
+export function keepCodexSessions(ws: Pick<Workspace, "base" | "env">, dir: string): void {
+  const sessions = join(ws.base, "codex-home", "sessions");
+  if (ws.env.CODEX_HOME !== join(ws.base, "codex-home") || existsSync(join(dir, "codex-rollout.jsonl")) || !existsSync(sessions)) return;
+  cpSync(sessions, join(dir, "codex-sessions"), { recursive: true });
+}
+
 export function copyRepo(repo: string, dest: string): void {
   const git = join(repo, ".git");
   cpSync(repo, dest, { recursive: true, verbatimSymlinks: true, filter: source => source !== git && !source.startsWith(`${git}/`) });
