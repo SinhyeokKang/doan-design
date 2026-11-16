@@ -5,7 +5,7 @@ PRODUCT §5 'Deferred'에 따르면 웹(doan.design)의 스택은 앱이 완성�
 ## 드래프트 요청
 
 - 캔버스: `.doan/canvases/doan-landing.html`, id `doan-landing`
-- 프레임: `landing-desktop`(1440), `landing-mobile`(390), `landing-notes`
+- 프레임: `landing-desktop`(1440), `landing-mobile`(390), `landing-tablet`(1024), `landing-video-states`, `landing-not-mac`, `landing-notes`
 - `data-doan-implements` 없음(구현할 파일이 아직 없다)
 
 ## 방향 (사용자 지시)
@@ -23,6 +23,14 @@ PRODUCT §5 'Deferred'에 따르면 웹(doan.design)의 스택은 앱이 완성�
 4. Feature 5개: Doany·Dungdung·Puri·Popo·Dori가 한 기능씩 맡는다
 5. 마무리 CTA: 다운로드 + GitHub
 6. 푸터: 오픈소스 표기와 링크
+
+## 결정 (critique·audit 검토 후)
+
+- Feature 카드는 데스크톱과 태블릿 모두 한 줄 5열이다. 모바일에서만 행 목록으로 바꾼다.
+- Mac에서는 Download가 기본 행동이고, 레이블에 요건을 넣는다("Download for Mac (Apple silicon)"). 브라우저는 Apple silicon과 Intel을 확실히 구분하지 못해서 레이블로 안내한다.
+- Mac이 아니면(폰, Windows, Linux, iPad) GitHub이 기본 행동이다. Download 대신 "Doan runs on Macs with Apple silicon. Open this page on your Mac to download it." 안내를 보여 준다.
+- 데모 영상은 클릭해야 재생한다. 준비, 로딩, 재생, 실패 상태를 그린다.
+- 마무리 패널에 Doany를 다시 등장시킨다.
 
 ## 카피 출처
 
