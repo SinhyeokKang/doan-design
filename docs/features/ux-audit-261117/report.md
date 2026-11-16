@@ -352,27 +352,205 @@ U2와 D1–D20에 대해 같은 날 사용자가 정했다. 아직 구현하지 
 
 ## 7. 구현 배치
 
-배치 하나를 컨덕터 하나가 맡는다. 리드 세션이 각 PR을 develop에 머지한다. 배치는 서로 고치는 파일이 되도록 겹치지 않게 나눴다. 다만 `styles.css`는 B2, B3, B5, B6이 함께 고친다. 그러니 이 넷을 동시에 돌리면 리드가 머지할 때 충돌을 풀어야 한다.
+배치 하나를 컨덕터 하나가 맡는다. 리드 세션이 각 PR을 develop에 머지한다. 리드가 컨덕터를 띄울 때 주는 실행 프롬프트가 브리프다. 브리프에는 배치 번호, 이 절의 작업 목록, 3절(근거)·6절(결정), 그 배치의 캔버스, 파일이 겹치는 컨덕터를 적는다. 컨덕터는 `/ship`으로 진행한다. 내보내기 뷰어(`cli/internal/export/viewer`)를 고치는 항목은 B7로 따로 뗐다. 그래서 B1–B6은 앱 하나 안에서만 바뀐다.
 
-스타일이 바뀌는 항목은 배치별 캔버스에 as is / to be로 그렸다. 컨덕터는 이 캔버스를 to be의 기준으로 쓰고, `/runtime-test`나 `/design-sync`로 결과를 확인할 때 대조한다. B4는 문구만 바뀌므로 캔버스 없이 아래 항목을 기준으로 삼는다.
+스타일이 바뀌는 항목은 배치별 캔버스에 as is / to be로 그렸다. 컨덕터는 캔버스를 to be의 기준으로 쓰고, `/runtime-test`로 결과를 확인할 때 대조한다. 캔버스 노트에는 근거 줄 번호, 바꿀 속성, 테스트할 상태가 있다. 캔버스와 이 절이 다르면 6절 결정을 따른다.
 
-| 배치 | 브랜치 예 | 항목 | 캔버스 |
+| 배치 | 브랜치 | 항목 | 캔버스 |
 |---|---|---|---|
-| B1 상태 판정·복구 | `fix/ux-state-recovery` | U1, U2, U3, U6(BACKLOG:164 제거), U8, U12, U13, U14, U15, D7, D8, D10 | `.doan/canvases/ux-audit-261117-b1.html` (U2, U14, U15, D7, D8, D10) |
-| B2 포커스·처리 중 컨트롤 | `fix/ux-focus-busy` | U4, U5(내보내기 뷰어 포함), U9·D1, U10, U11, U28(버튼 안 스피너), D15 | `.doan/canvases/ux-audit-261117-b2.html` (D1·U9, U10, U11, U28, D15) |
-| B3 알림·복구 표시 | `fix/ux-notices` | U7, U16, U30, U31, U38, U39, D11, D12, D13, D20(알림 동작 위치) | `.doan/canvases/ux-audit-261117-b3.html` (전 항목) |
-| B4 문구 | `fix/ux-wording` | U17–U27, D2, D3(PRODUCT 문구 포함), D4, D5 | 없음 (문구만 바뀐다) |
-| B5 컴포넌트 표현 | `fix/ux-components` | U29, U32, U33, U36, U40, U41, D18, D20(뷰어 Eye) | `.doan/canvases/ux-audit-261117-b5.html` (전 항목) |
-| B6 툴팁·타입·토큰 | `fix/ux-tokens` | U34, U35, U37, D14, D16, D17, D19, D20(radius 토큰) | `.doan/canvases/ux-audit-261117-b6.html` (전 항목) |
+| B1 상태 판정·복구 | `fix/ux-state-recovery` | U1, U2, U3, U6, U8, U12, U13, U14, U15, D7, D8, D10 | `ux-audit-261117-b1` |
+| B2 포커스·처리 중 컨트롤 | `fix/ux-focus-busy` | U4, U5(앱), U9·D1, U10, U11, U28, D15(앱) | `ux-audit-261117-b2` |
+| B3 알림·복구 표시 | `fix/ux-notices` | U7, U16, U30, U31, U38, U39, D6, D11, D12, D13, D20(알림 동작) | `ux-audit-261117-b3` |
+| B4 문구 | `fix/ux-wording` | U17–U27, D2, D3, D4, D5 | 없음 |
+| B5 컴포넌트 표현 | `fix/ux-components` | U29, U32, U33, U36, U40, U41, D18 | `ux-audit-261117-b5` |
+| B6 툴팁·타입·토큰 | `fix/ux-tokens` | U34, U35, U37, D14, D16, D17, D19, D20(radius) | `ux-audit-261117-b6` |
+| B7 내보내기 뷰어 | `fix/ux-export-viewer` | U5(뷰어), D15(뷰어), D20(뷰어 Eye) | `ux-audit-261117-b2` Index, `ux-audit-261117-b5` `d20-viewer-eye` |
 
-- 각 배치는 마지막에 PRODUCT, ARCHITECTURE, DESIGN과 `docs/design/*.md`를 고쳐 지금 상태를 적는다(6절 결정 포함).
-- 확인할 것:
-  - 모든 배치: `/verify`.
-  - 1절에 런타임 미확인으로 적힌 항목: 그 배치의 `/runtime-test`로 확인한다.
-  - B4: 문구를 바꾼 뒤 `/agent-eval` 대상인지 확인한다. 대상은 CLI 출력이나 가이드가 바뀐 경우다.
-- 권장 순서: B1과 B4를 먼저 진행한다. 이 둘은 `styles.css`를 거의 고치지 않아 다른 배치와 겹치지 않는다. 그다음 B2 → B3 → B5 → B6 순으로 진행한다. B2를 먼저 하는 이유는 B2의 스피너 규칙(U28)과 처리 중 패턴(D1)이 B3 알림 버튼의 기준이 되기 때문이다.
+**순서와 겹침.**
+- B1, B4, B7은 `styles.css`를 거의 건드리지 않는다. 그래서 바로 서로 동시에 돌려도 된다.
+- B2 → B3 → B5 → B6은 차례로 돌린다. 넷 모두 `styles.css`를 고치기 때문이다.
+- B2가 먼저인 이유: B2의 스피너 규칙(U28), 처리 중 패턴(D1), 커서 규칙(D15)을 B3가 그대로 쓴다.
+- B1의 U2 확인창은 Home의 "Keep Draft" 문자열을 함께 쓴다. B4가 D4로 이 문구를 "Keep draft"로 바꾸므로, 나중에 머지되는 쪽이 맞춘다.
 
-## 8. 범위 밖 관찰
+**모든 배치 공통.**
+- 끝나면 `/verify`를 돌린다.
+- 1절에서 런타임 미확인으로 분류된 항목은 그 배치의 `/runtime-test`로 확인한다.
+- 마지막 단계에서 6절 결정을 PRODUCT, ARCHITECTURE, DESIGN, `docs/design/*.md`에 지금 규칙으로 적는다.
+- 버그 수정은 `/postmortem` 대상인지 판단한다.
+
+### B1 상태 판정·복구
+1. U1: 실패한 모델 목록을 다시 읽게 한다.
+   - `homeComposer.ts` `modelPickerView`: 오류 그룹을 `read: true`로 둔다.
+   - `dockedSupport.ts`와 `HomeComposerView.tsx`의 `readModels`: `{ error }` 값이면 다시 읽는다.
+   - 확인: 단위 테스트.
+2. U2: 도킹 컴포저의 Edit and resend도 다른 초안이 있으면 먼저 묻는다.
+   - `conversationStore.editAndResend`에 `homeConversations.ts` `restoreRequest`의 확인을 붙인다.
+   - Overview, 캔버스 패널, 프로토타입 창이 확인창을 띄운다.
+3. U3: `conversationList.ts` `conversationWork`가 `c.working`도 작업 중으로 본다.
+   - 확인: `{ phase: "ended", working: true, unseen: true }` 단위 테스트.
+4. U6: 문제 오버레이의 Remove from Doan이 그룹 전체를 지운다(`App.tsx` `overlayAction`).
+   - `docs/design/onboarding.md:195`를 고친다.
+   - `docs/BACKLOG.md:164` 항목을 지운다.
+5. U8: Overview 새 대화 거부에도 Retry를 보인다.
+   - `dockedRules.ts` `dockedRefusal`의 `new` 분기가 `retry`를 넘기게 하거나, 캔버스 패널의 `refuse` 매핑을 쓴다.
+   - 재시도 대상 코드에 `runtime_unsupported`, `session_in_use`를 포함한다.
+6. U12: `prototype/PrototypeWindow.tsx`에서 삭제 확인창이 열려 있는 동안 `toast.setModal`로 토스트를 멈춘다.
+7. U13: `thumbnails.ts`에서 reject된 요청을 `failed`로 둔다.
+8. U14: 스레드 Copy가 실패하면 "Couldn’t copy the code. Select it and copy it yourself."를 U31 모양으로 보인다(`ConversationThread.tsx`).
+9. U15: MCP 연결 중 Open again이 `open_failed`를 받으면 sign-in 행과 같은 알림을 알림 안(`.stacked`)에 보인다(`SettingsMcpConnectors.tsx`, `mcpConnectorsView.ts`).
+10. D7: `folders.json` 저장 실패를 renderer에 알린다(`main/shell.ts`, `App.tsx`).
+    - 토스트: "Couldn’t save the project list. Doan may show the earlier list after it restarts." + Retry
+    - Retry가 현재 목록을 다시 쓰는 경로를 만든다.
+    - ARCHITECTURE §7과 PRODUCT 221의 "with no toast" 문장을 고친다.
+11. D8: 답장 링크 열기가 실패하면 토스트를 띄운다(`ProjectOverview.tsx`, `CanvasConversationPanel.tsx`의 `onOpenLink`).
+    - 문구: "Couldn’t open the link in your browser. Try again, or open it at <url>"
+12. D10: 질문 카드의 Skip 실패를 답 실패와 나눈다.
+    - `questionDraft.ts`가 실패한 동작을 기억하게 한다.
+    - `ConversationThread.tsx:412`에 "Couldn’t skip the question. Try again."을 넣는다.
+- 고칠 문서: PRODUCT item 3(U2, D8, D10), ARCHITECTURE §7(D7), `docs/design/conversation.md`.
+
+### B2 포커스·처리 중 컨트롤
+1. U4: Home 초안 교체 확인창의 `onCancel`(Esc)이 Cancel과 같은 처리를 하게 한다(`HomeComposerView.tsx:594`).
+2. U5(앱): 줌과 Back/Forward를 `aria-disabled`와 클릭 가드로 바꾼다.
+   - 대상: `CanvasHeader.tsx:161,179`, `App.tsx:2537`, `prototype/PrototypeWindow.tsx:489-490`.
+   - 캔버스가 없어 헤더 전체가 꺼질 때는 지금처럼 `disabled`를 유지한다.
+3. D1·U9: 처리 중인 버튼은 채움을 유지하고, 스피너·`aria-busy`·`aria-disabled`를 붙이고, 처리기가 아무 일도 하지 않게 한다.
+   - 대상: 대화 Delete, Set Up("Setting up"), MCP Add, paste 대화상자(입력란은 `readOnly`), Project Settings Retry, About Check for Updates.
+   - 첫 실행 Stop은 대상이 아니다.
+4. U10: 대화 제목 트리거 세 곳이 목록을 읽는 동안 `aria-disabled`와 비활성 모양을 쓴다(`CanvasConversationPanel.tsx:181`, `ProjectOverview.tsx:367`, `prototype/PrototypeConversation.tsx`).
+5. U11: Home 프로젝트·워크트리 피커에서 쓸 수 없는 행도 화살표로 닿게 한다(`HomeComposerView.tsx:529-578`).
+   - `aria-disabled`를 쓰고, `onSelect`에서 막는다.
+   - 프로젝트 행은 이유 줄을 `aria-describedby`로 잇는다.
+6. U28: 버튼 안 스피너 규칙을 하나로 합친다.
+   - 규칙: `:is(.doan-button, .doan-icon-button) > .doan-spinner`, 14px, `currentColor` 30% 트랙.
+   - `styles.css:390, 794, 1305, 1668, 1936`을 지운다.
+   - Refresh usage, 컨텍스트 Refresh, 업데이트 헤더의 스피너도 함께 바뀐다.
+7. D15(앱): `[aria-disabled="true"]`인 컨트롤의 커서를 `default`로 둔다.
+   - `not-allowed` 규칙들과 질문 Send의 `progress`를 바꾼다.
+   - `WindowShell.test.tsx:431-432`를 고친다.
+- 진행 중 Retry 규칙(6절): 알림·페이지 안에서는 채움과 "Retry"를 유지하고, 토스트에서만 "Retrying"을 쓴다.
+- 고칠 문서: DESIGN 68(커서), `docs/design/shell.md:41,203,253`, `home.md:29`, `conversation.md:292`, `canvas-conversation.md:13,22,23`, `prototype.md:63`.
+
+### B3 알림·복구 표시
+1. U7: 대화 목록 첫 읽기가 실패하면 Overview `.ov-new` 열에 캔버스 패널의 `thread-notice`와 Retry를 보인다(`ProjectOverview.tsx`).
+2. U16: 도킹 컴포저의 첨부 거부를 토스트 대신 컴포저 알림에 보인다(`ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `DockedComposer.tsx`).
+3. U30: Project Settings의 Details에 ▸/▾를 붙인다(`ProjectSettingsPage.tsx:379-381`).
+4. U31: 오류 줄을 `settings-msg error`와 AlertIcon으로 바꾼다.
+   - 대상: `.ask-error`(`ConversationThread.tsx:412,867`)와 `.ob-field-error`(`Onboarding.tsx:135`).
+   - paste·MCP 대화상자: 입력과 오류를 한 그룹(gap 8)으로 묶고, 음수 마진을 지운다.
+5. U38: 버디 실패 Retry의 변형을 놓인 곳에 따라 정한다(`BuddyPicker.tsx`). inset 알림 안에서는 `panel`이다.
+6. U39: 도킹 사유 줄의 동작 버튼과 Overview 오른쪽 패널 Retry를 `subtle`로 바꾼다(`DockedComposer.tsx:527-534`, `CanvasConversationList.tsx:102`).
+7. D6: 새 토스트가 이전 토스트를 바꾼다는 규칙을 DESIGN 'Notices'에 적는다. 코드는 바꾸지 않는다.
+8. D11: 대화 목록 Retry 다섯 곳을 처리 중 모양(D1)으로 바꾼다. 다시 실패하면 줄을 다시 알린다.
+9. D12: 캔버스 페이지의 첫 "Loading"을 300 ms 늦춘다(`CanvasController.ts:846-852`, `App.tsx:2576`).
+10. D13: 알림 이유 줄을 caption과 `--text-metadata` 하나로 맞춘다.
+    - `ds/controls.test.ts` 목록에 클래스를 더한다.
+    - DESIGN 167에 예외로 적는다.
+11. D20(알림 동작): `NoticeView`의 동작을 알림 안(`.stacked`)으로 옮긴다.
+    - 대상: 첫 실행 Agent 단계, Settings › Agents, MCP, Notifications.
+- 고칠 문서: DESIGN 'Notices', `docs/design/onboarding.md`, `project.md`, `shell.md`, `conversation.md`.
+
+### B4 문구
+1. U17·U15(문구): 읽을 수 없는 캔버스 문장을 "Can’t read this canvas. Run doan check in a terminal."로 바꾸고, 곧은 따옴표와 "could not"을 고친다.
+   - 대상: `canvasTree.ts:61`, `canvasConversationRows.ts:75`, `CanvasController.ts:833,1010,1021`, `App.tsx:2580`, `inspector.ts:9`, `homeConversations.ts:42`, `main/onboarding/projectAdder.ts:76-77`, `main/onboarding/projects.ts:55-56`.
+2. U18: strip의 Stopped 문장을 스레드 문장으로 맞춘다(`conversationStrip.ts:110`).
+3. U19: `quickOpen.ts:360`을 "Project is still being read. Try again shortly."로 바꾼다.
+4. U20: 접근성 이름이 보이는 라벨로 시작하게 한다.
+   - 대상: `agentAuthView.ts:110`, `mcpConnectorsView.ts:105`, `main/update/view.ts:100-101`, `DockedComposer.tsx:660`.
+5. U21: `main/aboutView.ts:39`를 "Needs an update"로 바꾼다.
+6. U22: 읽는 중인 프로젝트는 "<name> is still being read."로만 쓴다(`HomeComposerView.tsx:530-537`, `homeComposer.ts:88,136`).
+7. U23: 업데이트 popover 제목의 마침표를 지운다(`main/update/view.ts:37,41`).
+8. U24: 버디 문구를 "You can change it later in Settings."로 바꾸고, 버디 화면 대화상자 이름을 "Choose your buddy"로 바꾼다(`Onboarding.tsx:718,761`).
+9. U25: 대상이 없음을 알리는 토스트를 문장으로 맞춘다(`App.tsx:1633,1676`).
+10. U26: Stop 확인의 제목과 본문 수를 맞추고, 버튼을 "Stop and sign in again"으로 바꾼다(`agentAuthView.ts:284-287`).
+11. U27: Home 프리셋 서랍과 설정 실패 이유를 "the doan command"로 맞춘다(`homeComposer.ts:530-541`, `main/folderState.ts:126`).
+12. D2: Settings로 이동하는 명령에서 말줄임표를 뺀다(`agentAuthView.ts:252`, `dockedRules.ts:109`).
+13. D3: 진행 라벨에서 말줄임표를 뺀다.
+    - 코드: `agentUsageView.ts:63,69`, `limitReset.ts:44`, `quickOpen.ts:252`.
+    - PRODUCT 188, 370, 393의 문구도 고친다.
+14. D4: 버튼을 sentence case로 쓴다. "Keep Draft"를 "Keep draft"로, "Setting Up"을 "Setting up"으로 바꾼다. 예외를 DESIGN에 적는다.
+15. D5: 권한 요청 알림을 "needs your answer"로 바꾼다(`main/notifications.ts:23,36`).
+- 확인: 문구가 CLI 출력이나 가이드에 닿으면 `/agent-eval` 대상이다. 앱 안 문구만 바꾼다면 PR에 그 이유를 적는다.
+
+### B5 컴포넌트 표현
+1. U29: Set Up 대화상자에서 처리 중인 `.storage-option`이 비활성 역할을 쓴다(`styles.css:1852-1860`).
+2. U32: 첫 실행 버디 커버플로의 비활성을 opacity 대신 비활성 역할로 그린다(`styles.css:360`). reduced transparency 규칙(`:356`)도 함께 고친다.
+3. U33: 긴 프로젝트 이름을 자른다.
+   - `.ov-project`: `flex: 0 1 auto; max-width: 40%`, 이름에 말줄임표.
+   - Home 트리거와 `.project-item .model-name`에도 말줄임표.
+   - 드러내는 툴팁은 B6(D17)이 맡는다.
+4. U36: 스레드 화살표의 `120ms`를 토큰으로 바꾸고, Fast 스위치 thumb에 공용 스위치의 전환을 준다(`styles.css:1226,837`).
+5. U40: reduced motion에서 사이드바 화살표 회전을 끈다(`styles.css:596,642`).
+6. U41: 캔버스 에이전트 알림 Open의 포커스 링 색을 `--text-on-prominent`로, offset을 −2로 한다(`styles.css:1735-1737`).
+7. D18: New conversation 메뉴 행 아이콘을 `SquarePen`으로 바꾼다(`ProjectOverview.tsx:375`, `CanvasConversationPanel.tsx:189`, `PrototypeConversation.tsx:103`).
+- 고칠 문서: `docs/design/onboarding.md:84`, `project.md:15,28`, `canvas.md:195`, `canvas-conversation.md:13-14`.
+
+### B6 툴팁·타입·토큰
+1. U34: 코드 블록과 표에 조용한 스크롤바를 준다. `thread-scroll`과 `composer-input`은 `.doan-scroll`을 쓴다.
+2. U35: 타입 역할의 크기를 쓰는 규칙에 자간을 모두 붙인다. 약 55개이며, 목록은 B6 캔버스에 있다.
+   - ds 테스트에 "역할 크기를 쓰면 자간도 쓴다" 검사를 더한다.
+3. U37: `docs/design/onboarding.md:115`의 토큰 이름을 고친다. DESIGN 73의 PathTip 문장을 D17 규칙에 맞게 고친다.
+4. D14: 체계 밖 크기(11/14, 12/18)를 caption 12/16으로 옮긴다.
+   - 대상: 사이드바 워크트리 경로, 사이드바 빈 줄과 오류 줄.
+   - `docs/design/shell.md:21`, `canvas.md:234`, `conversation.md:217`을 고친다.
+5. D16: 아이콘만 있는 버튼에 공용 툴팁을 단다. 문구는 6절에 있다.
+   - 사이드바 펼침 화살표는 예외다.
+   - `aria-disabled`이면 툴팁이 이유를 보인다.
+6. D17: renderer의 native `title`을 모두 공용 툴팁으로 바꾼다.
+   - 이름은 잘렸을 때만, 정보는 항상 보인다.
+   - 대상 목록은 B6 캔버스에 있다. B5 U33이 새로 자르는 이름도 포함한다.
+   - 모달 dialog 안에서는 Portal `container`를 그 dialog로 지정한다.
+   - Send의 겹친 `title`을 지운다.
+7. D19: 캔버스 헤더 툴팁의 단축키를 키 칩으로 바꾼다(`CanvasHeader.tsx:37`, `zoomControl.ts:41-42`).
+8. D20(radius): `--radius-inline` 4px, `--radius-word` 6px, `--radius-thumbnail` 25%를 `tokens.css`에 더한다. 반경으로 쓰던 간격 토큰과 리터럴을 바꾼다.
+- 고칠 문서: DESIGN 36·38·73·138과 툴팁 규칙, 영향받는 `docs/design/*.md` 측정값.
+
+### B7 내보내기 뷰어
+1. U5(뷰어): 뷰어의 Zoom out/in을 `aria-disabled`와 클릭 가드로 바꾼다(`cli/internal/export/viewer/shell.js:228-245`, `lib.js:392-393`).
+2. D15(뷰어): 사용할 수 없는 컨트롤의 커서를 `default`로 둔다(`viewer/shell.css:183`).
+3. D20(뷰어 Eye): 프레임 서랍에서 보고 있는 프레임을 앱처럼 Eye로 표시한다(`viewer/shell.css:251`, `shell.js`). D17은 뷰어에 적용하지 않는다.
+- 고칠 문서: `docs/design/canvas.md` 'Canvas row menu and export viewer'.
+- 확인: `go test ./...`와 `/verify`. 내보낸 HTML을 열어 키보드로 줌 한계까지 눌러 본다.
+
+## 8. 리드 인수인계
+
+새 리드 세션은 이 절부터 읽는다. 이 보고서와 캔버스 5개는 develop에 있다.
+
+**지금 상태 (2026-11-17)**
+- 감사, 사용자 결정(6절), 배치 구성(7절), 캔버스 5개와 독립 리뷰 반영까지 끝났다.
+- 아직 띄운 컨덕터는 없다. 구현한 것도 없다.
+- 남은 사용자 결정은 없다. 구현하다 새 결정이 필요하면 컨덕터가 사용자에게 직접 묻는다.
+
+**리드가 할 일**
+1. 7절 순서대로 배치마다 컨덕터를 하나씩 띄운다. 방법은 `/ship` 'Lead'(`.agents/skills/ship/lead.md`)를 따른다.
+   - 브랜치는 7절 표의 이름을 쓰고, 최신 `origin/develop`에서 만든다.
+   - 브리프에는 다음을 적는다.
+     - `/ship` 대상: 이 보고서의 7절 해당 배치
+     - 읽을 곳: 3절 근거, 6절 결정, 그 배치의 캔버스
+     - 동시에 도는 컨덕터 가운데 파일이 겹치는 것
+2. 동시에 띄울 수 있는 것은 B1, B4, B7이다. B2 → B3 → B5 → B6은 앞 배치의 PR이 머지된 뒤에 띄운다. 넷 모두 `styles.css`를 고치기 때문이다.
+3. PR을 리뷰할 때 다음을 본다.
+   - 범위가 7절 그 배치의 목록과 맞는지
+   - 6절 결정을 PRODUCT, ARCHITECTURE, DESIGN에 지금 규칙으로 적었는지
+   - 1절에서 런타임 미확인으로 분류된 항목을 `/runtime-test`로 확인했는지, 못 했다면 그 사실을 적었는지
+   - B4는 `/agent-eval` 판단을 적었는지
+4. 마지막 배치가 머지되면 이 디렉터리(`docs/features/ux-audit-261117/`)를 지운다. 캔버스 5개도 지울지는 사용자에게 묻는다. 컨덕터가 to be 기준으로만 쓰는 임시 캔버스이기 때문이다.
+
+**리드가 이미 정한 것 (사용자에게 다시 묻지 않는다)**
+- 진행 중 Retry: 알림·페이지 안에서는 채움과 "Retry" 라벨을 유지하고 스피너를 넣는다. 토스트에서만 "Retrying"을 쓴다.
+- 커서: `[aria-disabled="true"]` → `default`. 질문 Send의 `progress`도 포함한다.
+- 첫 실행 Stop 확인은 처리 중 상태가 없으므로 D1 대상이 아니다.
+- D14는 체계 밖 크기(11/14, 12/18)만 옮긴다. body-sm 줄은 그대로 둔다.
+- 내보내기 뷰어는 D17 대상이 아니다. 뷰어 항목은 B7로 뗐다.
+- 필드 오류 줄: 음수 마진을 쓰지 않는다. 입력과 오류를 한 그룹(gap 8)으로 묶는다.
+- 처리 중 표시(D1)는 SettingsDialog 방식을 쓴다. 대상은 7절 B2에 적었다.
+
+**주의**
+- B1의 U2 확인창은 Home의 "Keep Draft"와 같은 문자열을 쓴다. B4(D4)와 나중에 머지되는 쪽이 문구를 맞춘다.
+- 캔버스의 as is는 HEAD `366993b72` 기준이다. 앞 배치가 머지된 뒤에는 뒤 배치의 as is 일부가 이미 바뀌어 있을 수 있다. 이때는 6절 결정과 to be가 기준이다.
+- 원 리뷰어의 자료(`.scratch/ux-audit/261117/`)는 git에 없다. 이 보고서만으로 판단할 수 있게 근거를 옮겨 두었다.
+
+## 9. 범위 밖 관찰
 
 UX 불일치는 아니지만 검토하다 본 것이다.
 
