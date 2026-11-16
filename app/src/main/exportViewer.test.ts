@@ -1167,7 +1167,9 @@ describe("the viewer header in a real DOM", () => {
     await frame.waitForFunction(() => document.documentElement.classList.contains("ready"));
     return frame;
   };
-  const button = (frame: Frame, id: string) => frame.evaluate(id => {
+  // Read once the buttons' 150ms colour and fill transitions have ended.
+  const button = (frame: Frame, id: string) => frame.evaluate(async id => {
+    await Promise.all(document.getAnimations().map(animation => animation.finished));
     const node = document.getElementById(id) as HTMLButtonElement;
     const style = getComputedStyle(node);
     return { active: document.activeElement?.id ?? null, disabled: node.disabled, ariaDisabled: node.getAttribute("aria-disabled"),
@@ -1186,7 +1188,8 @@ describe("the viewer header in a real DOM", () => {
       // The click guard: Enter, Space and a pointer press at the limit change nothing and leave focus on the button.
       await keyboard.press("Enter");
       await keyboard.press(" ");
-      await frame.click(`#${id}`);
+      // Playwright waits for an aria-disabled control to become enabled; the press is the point here.
+      await frame.click(`#${id}`, { force: true });
       expect(await button(frame, id), id).toMatchObject({ active: id, ariaDisabled: "true", value: limit, background: "rgba(0, 0, 0, 0)" });
     }
   }, 60_000);
