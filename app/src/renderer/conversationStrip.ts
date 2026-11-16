@@ -72,9 +72,11 @@ const STOPPED = (p: string) => ({ title: `${p} stopped unexpectedly`, body: "Edi
 // A Skip or a permission answer main did not take (PRODUCT §5 item 1). Its line shows only while that same request is
 // the one shown, so another request or the turn's end takes it away; the next press clears it.
 export interface StripSendError { requestId: string; how: "skip" | "answer" }
+// Shared with the thread's question card, which tells a refused Skip apart the same way.
+export const SKIP_FAILED_TEXT = "Couldn’t skip the question. Try again.";
 export function stripErrorText(error: StripSendError | null, state: StripState): string | null {
   if (error === null || (state.kind !== "permission" && state.kind !== "question") || state.requestId !== error.requestId) return null;
-  return error.how === "skip" ? "Couldn’t skip the question. Try again." : "Couldn’t send your answer. Choose again.";
+  return error.how === "skip" ? SKIP_FAILED_TEXT : "Couldn’t send your answer. Choose again.";
 }
 // The thread's rules (ConversationThread answerReached, settleQuestionSend): any refusal or rejection of an answer
 // fails; a stale Skip means main settled the question already and it folds by itself.

@@ -61,7 +61,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
     };
   }, []);
 
-  const view = mcpPageView(watch.snapshot, signIn.state.auth, (provider, name) => watch.remembered(provider, name));
+  const view = mcpPageView(watch.snapshot, signIn.state.auth, (provider, name) => watch.remembered(provider, name), (provider, name) => watch.openFailed(provider, name));
 
   // The row control focus is on, entered by keyboard or used: when it goes away or becomes disabled (natively or by
   // aria-disabled), its row group takes focus. wasUnusable: it was already off when focused, so only a removal moves it.
@@ -113,7 +113,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
       case "connect": void api.connectMcpServer(row.provider, row.name); break;
       case "disconnect": void api.disconnectMcpServer(row.provider, row.name); break;
       case "cancel": void api.cancelMcpConnect(row.provider, row.name); break;
-      case "openLink": void api.openMcpLink(row.provider, row.name); break;
+      case "openLink": void api.openMcpLink(row.provider, row.name).then(reply => watch.openAnswered(row.provider, row.name, !reply.ok && reply.reason === "open_failed"), () => {}); break;
       case "check": void api.readMcpConnectors({ refresh: true }).then(reply => { if (snapshotReply(reply)) watch.receive(reply); }, () => {}); break;
       case "remove": startRemove(row); break;
     }

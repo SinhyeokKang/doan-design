@@ -147,7 +147,7 @@ test("handoffs, asks and attachments draw again when what they read from outside
   expect(changed({ canvasListed: () => false }, "canvasCard")).toBe(true);
   expect(changed({ canvasListed: () => false }, "handoffCard")).toBe(true);
   expect(changed({ liveAfter: 1000 }, "permission")).toBe(true);
-  expect(changed({ questionDraft: () => ({ choices: {}, sending: "answer", failed: false }) }, "question")).toBe(true);
+  expect(changed({ questionDraft: () => ({ choices: {}, sending: "answer", failed: null }) }, "question")).toBe(true);
 });
 
 // Finds the first element in a drawn item with `prop` and returns its onClick.

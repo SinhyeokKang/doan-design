@@ -83,7 +83,15 @@ export class ThumbnailRequests {
       if (old?.kind === "ready") URL.revokeObjectURL(old.url);
       this.items.set(path, reply.kind === "ready" ? { kind: "ready", url: URL.createObjectURL(new Blob([reply.png as Uint8Array<ArrayBuffer>], { type: "image/png" })) } : reply.kind === "pending" ? { kind: "pending" } : { kind: "failed" });
       this.publish(new Map(this.items));
-    }, (error: unknown) => console.error("thumbnails:get failed", error));
+    }, (error: unknown) => {
+      console.error("thumbnails:get failed", error);
+      // A rejected request is a failure like a failed reply, so the row reads "Preview unavailable", not "Preview loading".
+      if (this.disposed || this.requests.get(path) !== id) return;
+      const old = this.items.get(path);
+      if (old?.kind === "ready") URL.revokeObjectURL(old.url);
+      this.items.set(path, { kind: "failed" });
+      this.publish(new Map(this.items));
+    });
   }
 }
 

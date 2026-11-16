@@ -1866,6 +1866,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     if (!scene || scene.busy || loadedRoot === null) return;
     if (name === "details") { setDetails(detailsOpen ? null : { root: loadedRoot, kind: scene.entryKind }); return; }
     const root = loadedRoot;
+    // The overlay's Remove from Doan is the project's, as the sidebar menu's and Project Settings' are (PRODUCT §5 item
+    // 1): every registered worktree of the group, not only the open one.
+    if (name === "remove") { void remove(cards.find(card => card.rows.some(row => row.path === root))?.rows.map(row => row.path) ?? [root]); return; }
     if (name === "retry" || name === "locate" || name === "setUp") setPressed({ root, name });
     action(name, root, undefined, () => pressEnded(root, name));
   };
@@ -2363,6 +2366,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     });
   };
   const readStateRetryRef = useRef(readStateRetry); readStateRetryRef.current = readStateRetry;
+  // A project list main could not save is a Retry toast on any screen; Retry writes the list again (ARCHITECTURE §7).
+  useEffect(() => window.doan.onFoldersSaveFailed(() => {
+    const message = "Couldn’t save the project list. Doan may show the earlier list after it restarts.";
+    live.current.toast.retry(message, "Retry", "Saving the project list.", "Retrying", async () => await window.doan.saveFoldersAgain() ? null : message);
+  }), []);
   useEffect(() => window.doan.onReadStateProblem(({ root, problem }) => {
     const place = readStatePlace.current;
     if (place.root !== root || ("path" in problem && problem.path !== place.shown)) return;

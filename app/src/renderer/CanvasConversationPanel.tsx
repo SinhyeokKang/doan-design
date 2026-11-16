@@ -25,7 +25,9 @@ import { focusFieldEnd } from "./chipField";
 import { SuggestionButton, type CanvasPress } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
-import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
+import { ReplaceDraftDialog } from "./ReplaceDraftDialog";
+import type { ReplaceDraftConfirm } from "./homeConversations";
+import { ConversationThread, LOADING_DELAY_MS, openReplyLink, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import { dropAttachment, steerPhaseOf, type ConversationStore, type ListView, type QueuedMessage } from "./conversationStore";
 import type { PanelArrival } from "./rightPanelOpen";
 import { copyText } from "./copyText";
@@ -222,6 +224,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const { calls, run, support, target, project, list } = props;
   const store = run.store;
   const root = target.root;
+  // Edit and resend's "Replace your draft?" while it asks, for the conversation it was pressed in.
+  const [replacing, setReplacing] = useState<{ conversationId: string; confirm: ReplaceDraftConfirm } | null>(null);
   const listed = Array.isArray(list) ? list : null;
   const view = run.view() ?? { kind: "wait" as const };
   const conversationId = view.kind === "conversation" ? view.conversationId : null;
@@ -250,6 +254,11 @@ export function CanvasConversation(props: CanvasConversationProps) {
   // The body's own composer: the panel around it differs by window.
   const body = useRef<HTMLDivElement | null>(null);
   const focusField = () => queueMicrotask(() => focusFieldEnd(body.current?.querySelector<HTMLElement>(".composer-input") ?? null));
+  // Focus follows only while the same canvas still shows the same conversation as when it was asked for.
+  const editAndResend = (id: string) => {
+    const shown = run.showing();
+    void store.editAndResend(id).then(applied => { if (applied && shown && run.stillShowing(shown)) focusField(); });
+  };
 
   // The composer's agent, model and effort, as the Overview's: a new conversation picks as Home does; an existing one
   // keeps its provider and starts from its own model.
@@ -476,15 +485,14 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onFocusComposer={focusField}
         onStop={() => void calls.interruptConversation({ conversationId }).catch(console.error)}
         onEditAndResend={() => {
-          // Focus follows only while the same canvas still shows the same conversation as when it was asked for.
-          const shown = run.showing();
-          void store.editAndResend(conversationId).then(applied => { if (applied && shown && run.stillShowing(shown)) focusField(); });
+          const confirm = store.editAndResendConfirm(conversationId);
+          if (confirm) setReplacing({ conversationId, confirm }); else editAndResend(conversationId);
         }}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={store.resendHidden(conversationId)}
         onRetry={() => store.retryThread(conversationId)}
         onOpenCanvas={() => {}} {...(props.onOpenHandoff ? { onOpenHandoff: props.onOpenHandoff } : {})}
-        onOpenLink={url => void calls.openLink(url).catch(console.error)}
+        onOpenLink={url => void openReplyLink(target => calls.openLink(target), url, props.onNotice)}
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
@@ -536,6 +544,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
         }}
         onOpen={openConversation} />
     </div>
+    {replacing && <ReplaceDraftDialog confirm={replacing.confirm} onKeep={() => { setReplacing(null); focusField(); }}
+      onReplace={() => { setReplacing(null); editAndResend(replacing.conversationId); }} />}
   </div>;
 }
 

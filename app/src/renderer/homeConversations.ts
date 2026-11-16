@@ -74,16 +74,20 @@ export function rememberRequest<T extends LastRequest>(requests: ReadonlyMap<str
   return new Map(requests).set(request.root, request);
 }
 
+// Home's Edit and the docked composers' Edit and resend ask the same question; only the body names where the request went.
+export const REPLACE_DRAFT = { title: "Replace your draft?", cancel: "Keep Draft", confirm: "Replace" } as const;
+export type ReplaceDraftConfirm = { title: string; body: string; cancel: string; confirm: string };
+
 // A different draft is never replaced without asking. Attachments keep main's ids: main checks each again when the
 // start is accepted and refuses a moved one (attachment_missing), and the renderer has no other way to check a path.
-export function restoreRequest(draft: ComposerDraft, last: LastRequest, project: string): { request: LastRequest; confirm: { title: string; body: string; cancel: string; confirm: string } | null } {
+export function restoreRequest(draft: ComposerDraft, last: LastRequest, project: string): { request: LastRequest; confirm: ReplaceDraftConfirm | null } {
   const request = last;
   const empty = !draft.text.trim() && !draft.preset && draft.attachments.length === 0;
   const same = draft.text === last.text && draft.preset?.id === last.preset?.id
     && draft.attachments.length === last.attachments.length && draft.attachments.every((a, i) => a.key === last.attachments[i]!.key);
   return {
     request,
-    confirm: empty || same ? null : { title: "Replace your draft?", body: `Your draft will be replaced by the last request you sent to ${project}.`, cancel: "Keep Draft", confirm: "Replace" },
+    confirm: empty || same ? null : { ...REPLACE_DRAFT, body: `Your draft will be replaced by the last request you sent to ${project}.` },
   };
 }
 

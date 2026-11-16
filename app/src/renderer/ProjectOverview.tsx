@@ -21,7 +21,9 @@ import { focusFieldEnd } from "./chipField";
 import { SuggestionButton } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
-import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
+import { ReplaceDraftDialog } from "./ReplaceDraftDialog";
+import type { ReplaceDraftConfirm } from "./homeConversations";
+import { ConversationThread, LOADING_DELAY_MS, openReplyLink, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
@@ -115,6 +117,8 @@ const focusField = () => queueMicrotask(() => focusFieldEnd(document.querySelect
 
 export function ProjectOverview(props: ProjectOverviewProps) {
   const { run, support, root, project, list } = props;
+  // Edit and resend's "Replace your draft?" while it asks, for the conversation it was pressed in.
+  const [replacing, setReplacing] = useState<{ conversationId: string; confirm: ReplaceDraftConfirm } | null>(null);
   const listed = Array.isArray(list) ? list : null;
   const view = run.view(root);
   // A failed first read leaves nothing to wait for: the column is a new conversation.
@@ -198,7 +202,11 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     if (items.some(item => item.key === target.key && item.kind === "question")) handle.current?.focusItem(target.key);
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
   const canvasListed = (canvas: Canvas) => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row));
-  const editAndResend = (id: string) => { void run.editAndResend(root, id).then(focus => { if (focus) focusField(); }); };
+  const resend = (id: string) => { void run.editAndResend(root, id).then(focus => { if (focus) focusField(); }); };
+  const editAndResend = (id: string) => {
+    const confirm = run.store.editAndResendConfirm(id);
+    if (confirm) setReplacing({ conversationId: id, confirm }); else resend(id);
+  };
 
   // Attachments go through main, which checks each file; each answer lands on its chip wherever the draft is now.
   const settle = (keys: string[], results: readonly (AttachmentResult | null)[]) => {
@@ -411,7 +419,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         onRetry={() => run.retryThread(conversationId)}
         onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)} onOpenHandoff={(canvas, id) => props.onOpenCanvas(canvas, id)}
-        onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
+        onOpenLink={url => void openReplyLink(target => window.doan.openLink(target), url, text => props.onNotice?.(text))}
         onCopy={text => Promise.resolve(copyText(text))}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : waiting || conversationId ? <Waiting /> : <div className="ov-col ov-new">
@@ -457,6 +465,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         }}
         onOpen={openOther} />
     </div></div>
+    {replacing && <ReplaceDraftDialog confirm={replacing.confirm} onKeep={() => { setReplacing(null); focusField(); }}
+      onReplace={() => { setReplacing(null); resend(replacing.conversationId); }} />}
   </section>;
 }
 
