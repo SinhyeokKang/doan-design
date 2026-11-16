@@ -348,3 +348,50 @@ test("rows added while the title menu is open keep their places across later lis
   tree = draw();
   expect(rows(tree)).toEqual(["a", "c"]);
 });
+
+// The DockedComposer element the panel renders, found in its element tree (nothing below it renders here).
+function composerProps(node: ReactNode): Record<string, unknown> | null {
+  if (Array.isArray(node)) { for (const child of node) { const found = composerProps(child); if (found) return found; } return null; }
+  if (!isValidElement<{ children?: ReactNode }>(node)) return null;
+  if (typeof node.type === "function" && node.type.name === "DockedComposer") return node.props as Record<string, unknown>;
+  return composerProps(node.props.children);
+}
+
+// The context ring's drawer: the panel subscribes to usage through its calls object (the main window's `window.doan`
+// or the prototype window's preload) and hides it for a conversation that runs on the person's CLI profile.
+test("the panel hands the ring usage from its calls object, hidden for a legacy external conversation", async () => {
+  const doan = (window as unknown as { doan: Record<string, unknown> }).doan;
+  let deliver: (entries: unknown[]) => void = () => {};
+  const unsubscribe = vi.fn();
+  doan.onAgentUsage = vi.fn((listener: (entries: unknown[]) => void) => { deliver = listener; return unsubscribe; });
+  doan.readAgentUsage = vi.fn(async () => []);
+  doan.readConversation = vi.fn(() => new Promise(() => {}));
+  const summary = (owner: "doan" | "legacy-external") => ({ conversationId: "c1", root: ROOT, canvas: CANVAS, title: "t", provider: "claude", owner, fromHome: false, phase: "idle", updatedAt: "2026-11-01T14:00:00Z", lastSeq: 1 });
+  for (const owner of ["doan", "legacy-external"] as const) {
+    hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
+    const list = [summary(owner)] as never;
+    const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+    const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+    run.show({ root: ROOT, canvas: CANVAS });
+    run.sync();
+    run.select("c1");
+    const support = Object.assign(new DockedSupport(() => {}, window.doan), { readPresets: vi.fn(), readModels: vi.fn() });
+    const panel = () => CanvasConversation({
+      calls: window.doan as never, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
+      prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+      onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
+      onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+    });
+    render(panel);
+    const entries = [{ provider: "claude", inFlight: false }];
+    deliver(entries);
+    const usage = composerProps(render(panel))!.usage as { entries: unknown[]; hidden: boolean; read(trigger: string): void };
+    expect(usage.entries).toEqual(entries);
+    expect(usage.hidden).toBe(owner === "legacy-external");
+    usage.read("open");
+    expect(doan.readAgentUsage).toHaveBeenLastCalledWith("open");
+  }
+  expect(doan.onAgentUsage).toHaveBeenCalledTimes(2);
+  for (const effect of hooks.effects) effect?.cleanup?.();
+  expect(unsubscribe).toHaveBeenCalled();
+});

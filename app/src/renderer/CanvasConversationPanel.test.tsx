@@ -336,7 +336,7 @@ test("the shown conversation's last recorded context value reaches the composer'
     const events = conversationId === "now" ? history("now", 84_000) : conversationId === "old" ? history("old", 150_000) : [at(conversationId, 1, { type: "user.message", text: "hi", anchors: [] })];
     return { events, lastSeq: events.at(-1)!.seq, turn: "idle" };
   });
-  const ring = (out: string) => /<span class="context-ring" role="img" aria-label="([^"]+)"/.exec(out)?.[1] ?? null;
+  const ring = (out: string) => /<button type="button" class="context-ring" aria-label="([^"]+)"/.exec(out)?.[1] ?? null;
   // panel() flushes after setup, so the read has settled before the draw.
   const shown = (list: ListView, id: string, setup: (run: CanvasRun) => void = () => {}) => panel(list, run => { setup(run); run.store.track(id); });
   expect(ring(await shown([summary("now")], "now"))).toBe("Context window 42% used · last turn");
