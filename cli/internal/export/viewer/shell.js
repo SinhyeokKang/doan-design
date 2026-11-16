@@ -30,6 +30,7 @@ const zoomMenu = $("zoom-menu");
 const tools = $("tools");
 const toolButtons = Array.from(tools.querySelectorAll("[data-tool]"));
 const tip = $("tool-tip");
+const eyeIcon = $("eye-icon");
 
 $("name").title = meta.name;
 canvas.title = meta.name;
@@ -150,7 +151,9 @@ const jumpTo = (index) => {
   if (frame) setView(fitFrame(frame, viewport(), readView()));
 };
 
-// The frame drawer: rows in document order, the one nearest the view's centre marked "Viewing".
+// The frame drawer: rows in document order, the one nearest the view's centre marked with the app's
+// Eye (FrameRowMarks), its word kept for assistive technology. The icon is cloned from a <template>
+// in shell.html: building it here would need the SVG namespace URL, and the page carries none.
 // Text goes in with textContent only: a frame's id and title come from the canvas.
 const drawerPopup = createPopup({
   button: drawerButton,
@@ -174,10 +177,14 @@ const drawerPopup = createPopup({
       name.textContent = row.name;
       node.append(number, name);
       if (row.current) {
-        const viewing = document.createElement("span");
-        viewing.className = "doan-frame-viewing";
-        viewing.textContent = "Viewing";
-        node.append(viewing);
+        const mark = document.createElement("span");
+        mark.className = "doan-frame-current";
+        mark.title = "Viewing";
+        const word = document.createElement("span");
+        word.className = "sr-only";
+        word.textContent = "Viewing";
+        mark.append(eyeIcon.content.firstElementChild.cloneNode(true), word);
+        node.append(mark);
       }
       hover(node);
       node.addEventListener("click", () => drawerPopup.pick(row.index));
@@ -225,8 +232,21 @@ const zoomPopup = createPopup({
   },
 });
 
-zoomOut.addEventListener("click", () => zoomBy(1 / ZOOM_STEP));
-zoomIn.addEventListener("click", () => zoomBy(ZOOM_STEP));
+// At a zoom limit a button stays focusable and its press does nothing: a native `disabled` set by the
+// button's own press would drop focus to the page (POSTMORTEM 2026-11-13). Before the first view the
+// whole zoom control is off, natively disabled.
+const unavailable = (button) => button.getAttribute("aria-disabled") === "true";
+const setZoomStep = (button, ready, atLimit) => {
+  button.disabled = !ready;
+  if (ready && atLimit) button.setAttribute("aria-disabled", "true");
+  else button.removeAttribute("aria-disabled");
+};
+zoomOut.addEventListener("click", () => {
+  if (!unavailable(zoomOut)) zoomBy(1 / ZOOM_STEP);
+});
+zoomIn.addEventListener("click", () => {
+  if (!unavailable(zoomIn)) zoomBy(ZOOM_STEP);
+});
 
 // ── Header ────────────────────────────────────────────────────────────────────
 
@@ -241,8 +261,8 @@ function refresh() {
   if (!shown.enabled && drawerPopup.isOpen()) drawerPopup.hide("none");
   const zoom = zoomView(scale, ready);
   zoomButton.disabled = !zoom.enabled;
-  zoomOut.disabled = zoom.zoomOutDisabled;
-  zoomIn.disabled = zoom.zoomInDisabled;
+  setZoomStep(zoomOut, zoom.enabled, zoom.zoomOutDisabled);
+  setZoomStep(zoomIn, zoom.enabled, zoom.zoomInDisabled);
   zoomValue.textContent = zoom.value;
   zoomButton.setAttribute("aria-label", zoom.triggerLabel);
   if (!zoom.enabled && zoomPopup.isOpen()) zoomPopup.hide("none");

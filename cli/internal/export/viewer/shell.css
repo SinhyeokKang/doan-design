@@ -56,6 +56,7 @@
   --size-control: 40px;
   --size-chrome: 56px;
   --size-icon: 16px;
+  --size-icon-sm: 14px;
   --radius-row: 16px;
   --radius-container: 24px;
   --radius-icon-button: 18px;
@@ -132,6 +133,9 @@ svg { display: block; flex: none; }
 .doan-canvas-zoom .doan-zoom-value { min-width: 72px; gap: var(--space-1); font-variant-numeric: tabular-nums; }
 .doan-canvas-head .doan-icon-button { color: var(--text-standard); }
 .doan-canvas-head :is(.doan-icon-button, .doan-button):disabled, .doan-canvas-head .doan-button:disabled .chev { color: var(--text-disabled); }
+/* Zoom out and Zoom in at their limit (shell.js): focusable, in the disabled ink, with no hover or press fill. */
+.doan-canvas-head .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+.doan-canvas-head .doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 
 /* Without JavaScript (Quick Look, a mail preview) the header is the canvas name alone: the drawer
    and the zoom controls cannot work there. shell.js adds `js` to <html> first thing. */
@@ -180,7 +184,7 @@ svg { display: block; flex: none; }
 .doan-icon-button:active:not(:disabled), .doan-icon-button[aria-haspopup][aria-expanded="true"]:not(:disabled) { background: var(--affordance-subtle-pressed); }
 .doan-button[data-ui-variant="trigger"][aria-haspopup][aria-expanded="true"]:not(:disabled) { background: var(--affordance-backdrop-hover); }
 .doan-button[data-ui-variant="trigger"]:active:not(:disabled) { background: var(--affordance-backdrop-pressed); }
-:is(.doan-button, .doan-icon-button):disabled { background: transparent; color: var(--text-disabled); cursor: not-allowed; }
+:is(.doan-button, .doan-icon-button):disabled { background: transparent; color: var(--text-disabled); cursor: default; }
 :is(.doan-button, .doan-icon-button):focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   :is(.doan-button, .doan-icon-button) { transition: none; }
@@ -250,7 +254,10 @@ svg { display: block; flex: none; }
 .doan-frame-row { gap: var(--space-2); }
 .doan-frame-num { flex: none; min-width: var(--space-6); color: var(--text-metadata); font-variant-numeric: tabular-nums; }
 .doan-frame-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.doan-frame-viewing { flex: none; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+/* The viewed frame's Eye (styles.css .doan-frame-current). */
+.doan-frame-current { flex: none; display: inline-flex; align-items: center; color: var(--text-metadata); }
+.doan-frame-current svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
 .doan-frame-note { margin: var(--space-1) 0 0; padding-top: var(--space-2); border-top: 1px solid var(--border-standard); white-space: normal; }
 .doan-zoom-key { margin-left: auto; }
 
