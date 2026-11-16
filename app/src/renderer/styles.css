@@ -1497,13 +1497,13 @@ body:has(.shell-top) { background: transparent; }
 /* doan-canvas: the canvas page's right column, the canvas conversation panel shell (.doan/canvases/doan-canvas.html
    'default', 'panel-collapsed', 'panel-resize'). Only folding and unfolding animate the column (data-panel-motion); a
    drag must not, or the handle trails the pointer (malmoi DESIGN '접기'). */
-.workspace.app-shell[data-panel-motion] { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
+.workspace.app-shell[data-panel-motion], .pw[data-panel-motion] { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle), column-gap var(--time-panel-enter) var(--ease-settle); }
 .workspace > .doan-conv-column { position: relative; display: flex; min-width: 0; min-height: 0; }
 .workspace.with-strip > .doan-conv-column { grid-row: -3 / -1; }
 /* Folded, the column keeps its node (the open button's aria-controls) but leaves the page; while it folds it stays
    visible until the column has closed. */
 .doan-conv-column[data-collapsed] { visibility: hidden; }
-.workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: visibility 0s linear var(--time-panel-enter); }
+.workspace[data-panel-motion] > .doan-conv-column[data-collapsed], .pw[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: visibility 0s linear var(--time-panel-enter); }
 .workspace[data-panel="collapsed"] > .doan-canvas-panel { border-top-right-radius: var(--radius-container); border-bottom-right-radius: var(--radius-container); }
 .workspace[data-panel="collapsed"] > .strip-slot { border-top-right-radius: var(--radius-container); }
 .right.doan-conv-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
@@ -1682,6 +1682,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 :root[data-sidebar-motion] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { transition: margin-left var(--time-panel-enter) var(--ease-settle); }
 @media (prefers-reduced-motion: reduce) {
   .workspace.app-shell[data-panel-motion], .workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
+  .pw[data-panel-motion], .pw[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
   :root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell, .workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { transition: none; }
 }
 
@@ -1925,7 +1926,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 :root { --pw-right: 140px; }
 /* The open conversation panel's width: the window sets it on .pw from main's panel state; this is the panel minimum. */
 :root { --pw-panel: 280px; }
-.pw { position: absolute; inset: 0; display: grid; grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); }
+.pw { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 0px; grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); }
 /* The name's second row, when the first leaves it less than 80 (the renderer sets it from the window's width, as main
    does): 36 for the capsule and 8 under it. Both groups stay in the first row. */
 .pw.name-row { grid-template-rows: calc(var(--size-chrome) + 36px + var(--space-2)) minmax(0, 1fr); }
@@ -1976,13 +1977,13 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    padding) and 8 from the content panel. The header and the content panel share the first column, so the header ends 8 before the panel and
    only it drags the window. While open the header's conversation button leaves the right group: --pw-right is then
    fit.ts PROTOTYPE_HEADER_RIGHT_OPEN. The content panel keeps its shipped corners and split clip (exportViewer.test.ts).
-   Folded, the column leaves the grid but stays in the DOM for the button's aria-controls. The head keeps the shipped
-   56 of .doan-conv-head, as the canvas page's and the Overview's panels do. */
+   Folded, the column keeps a 0 wide track with no gap, hidden by [data-collapsed] and in the DOM for the button's
+   aria-controls, so the window's own toggle animates the track both ways with the canvas page's fold motion
+   (data-panel-motion). The head keeps the shipped 56 of .doan-conv-head, as the canvas page's and the Overview's panels do. */
 .pw[data-panel="open"] { --pw-right: 104px; grid-template-columns: minmax(0, 1fr) var(--pw-panel); column-gap: var(--space-2); }
-.pw[data-panel="open"] > .pw-top { grid-column: 1; }
-.pw[data-panel="open"] > .pw-panel { grid-column: 1; grid-row: 2; }
+.pw > .pw-top { grid-column: 1; }
+.pw > .pw-panel { grid-column: 1; grid-row: 2; }
 .pw > .doan-conv-column { grid-column: 2; grid-row: 1 / -1; margin-top: var(--space-2); position: relative; display: flex; min-width: 0; min-height: 0; }
-.pw:not([data-panel="open"]) > .doan-conv-column { display: none; }
 .pw .right.doan-conv-panel { border-left: 0; border-radius: var(--radius-container); }
 /* The header's button stays one element while the panel is open, so focus has a place to come back to on close. A
    deliberate exception to hiding focus targets only visually (POSTMORTEM 2026-11-03): while open it must have no Tab

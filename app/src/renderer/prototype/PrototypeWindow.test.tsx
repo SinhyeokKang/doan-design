@@ -707,7 +707,7 @@ describe("the conversation panel", () => {
     const input = field();
     conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? input : null, contains: () => false } as never;
     conversation().onToggle();
-    // Not before main's view opens the panel: until then the column is display: none and inert, so a focus() there
+    // Not before main's view opens the panel: until then the column is hidden ([data-collapsed]) and inert, so a focus() there
     // does nothing and focus falls to the page (POSTMORTEM 2026-11-03).
     vi.runAllTicks();
     expect(input.focus).not.toHaveBeenCalled();
@@ -780,6 +780,35 @@ describe("the conversation panel", () => {
     composer = input;
     show(view({ panel: { open: true, width: 280 }, phase: "ready" }));
     expect(input.focus).not.toHaveBeenCalled();
+  });
+
+  // The canvas page's fold motion: only this window's own toggle animates the column, both ways, for as long as the
+  // canvas page keeps it (250 ms); main's own state, a drag and a committed width do not.
+  test("the toggle animates the column both ways, then the motion ends", () => {
+    show(view());
+    expect(conversation().motion).toBeFalsy();
+    conversation().onToggle();
+    expect(render().conversation!.motion).toBe(true);
+    show(view({ panel: { open: true, width: 280 } }));
+    expect(conversation().motion).toBe(true);
+    vi.advanceTimersByTime(250);
+    expect(render().conversation!.motion).toBe(false);
+    conversation().onToggle();
+    expect(render().conversation!.motion).toBe(true);
+    show(view({ panel: { open: false, width: 280 } }));
+    vi.advanceTimersByTime(250);
+    expect(render().conversation!.motion).toBe(false);
+  });
+
+  test("a panel main opens or closes by itself, a drag and a committed width do not animate", () => {
+    show(view({ panel: { open: true, width: 280 } }));
+    expect(conversation().motion).toBeFalsy();
+    conversation().preview(300);
+    expect(render().conversation!.motion).toBeFalsy();
+    conversation().onResize(300);
+    expect(render().conversation!.motion).toBeFalsy();
+    show(view({ panel: { open: false, width: 280 } }));
+    expect(conversation().motion).toBeFalsy();
   });
 
   // Main keeps the panel's state across another play, so Back and doan open --prototype leave it open with its head.
