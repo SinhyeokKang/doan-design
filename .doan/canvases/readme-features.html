@@ -2217,6 +2217,9 @@ body{width:1600px;padding:var(--space-8);background:var(--surface-inset);overflo
 .rl-ds-stage .rl-task{background:var(--relay-surface)}
 .cv-thumb .mini,.attach-chip .thumb .mini{background:var(--surface-inset)}
 
+
+/* README artwork is a still: hold the agent glow at its strongest point (the app's doan-agent-glow keyframe 50%). */
+.doan-agent-glow { animation: none; opacity: 1; }
 </style></head><body><header class="intro"><span class="doan-chip" data-ui-variant="translucent">readme-features · README artwork · 9 frames</span>
 <h1>README images, drawn as a canvas.</h1>
 <p>This canvas is README artwork, not a feature draft: <code>/design-sync</code> does not compare it with the app, and nothing here is a proposal. Style: each image shows the whole Doan window (1440 × 900, header, sidebar, body) in the state that demonstrates the feature, centred with margin on a gradient in the palette of Doan’s Pigment horizon (the onboarding atmosphere in <code>styles.css</code>: the accent, <code>--indigo-600</code> and <code>--orange-600</code> mixed with white, <code>--violet-5</code>) spread over the whole background, with rounded corners and a soft shadow. The shell outside the white panels is drawn as the macOS sidebar vibrancy material the app sits on: translucent <code>--bg-app</code> with a <code>--blur-lg</code> backdrop blur and extra saturation, so the gradient tints the header and sidebar. Each frame is one image under <code>docs/assets/readme/</code>, exported by <code>.scratch/readme-features/export.mjs</code> (Playwright, 1.25× scale). When a screen changes, edit its frame and export again.</p>
