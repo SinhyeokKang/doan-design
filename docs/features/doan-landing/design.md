@@ -38,6 +38,6 @@ PRODUCT §5 'Deferred'에 따르면 웹(doan.design)의 스택은 앱이 완성�
 
 ## 열린 질문
 
-- 데모 영상의 내용과 길이, 자동 재생 여부
+- 데모 영상의 내용, 길이, 호스팅 위치
 - Dungdung(듣기)과 Dori(내보내기) 카드에 쓸 새 동작 이미지
 - 도메인(doan.design)·호스팅·스택은 PRODUCT 'Deferred'대로 나중에 정한다
