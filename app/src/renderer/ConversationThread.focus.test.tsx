@@ -218,3 +218,23 @@ test("an answer main refused for another reason still asks to choose again", asy
   draw([permission("a")]);
   expect(alerted()).toBe(true);
 });
+
+// A turn's cards sit above a request still waiting and below it once it folds (threadItems placeCards), so React moves
+// the card stack past the request, and moving a focused control's ancestor drops its focus to the page.
+const card = (path: string): ThreadItem => ({ kind: "canvasCard", key: `ct1:${path}`, canvas: { path }, drawing: true, drawn: true });
+test("a card's Open that held focus keeps it when the stack moves below a request that folded", () => {
+  draw([card("a.html"), permission("p")]);
+  active = inCard("ct1:a.html");
+  draw([permission("p", "expired"), card("a.html")], toBody);
+  expect(focusedOption()).toEqual(["ct1:a.html"]);
+  expect(composer).not.toHaveBeenCalled();
+});
+test("focus is not brought back to a card when the person moved it elsewhere or the card is gone", () => {
+  draw([card("a.html"), permission("p")]);
+  active = inCard("ct1:a.html");
+  draw([permission("p", "expired"), card("a.html")], () => { active = { elsewhere: true }; });
+  expect(focusedOption()).toEqual([]);
+  active = inCard("ct1:a.html");
+  draw([permission("p", "expired")], toBody);
+  expect(focusedOption()).toEqual([]);
+});

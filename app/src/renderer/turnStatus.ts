@@ -28,7 +28,9 @@ export function turnOf(events: readonly ConversationEvent[], live: boolean): Tur
   let lastSeq = started.seq, ended = false;
   for (const event of events) {
     if (event.turnId !== started.turnId) continue;
-    lastSeq = Math.max(lastSeq, event.seq);
+    // main writes canvas.drawn when a folder refresh lists the canvas, not when the agent acts: a stage sent before it
+    // still says what the agent does.
+    if (event.type !== "canvas.drawn") lastSeq = Math.max(lastSeq, event.seq);
     if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") ended = true;
   }
   return { turnId: started.turnId, at: started.at, lastSeq, live, ended };

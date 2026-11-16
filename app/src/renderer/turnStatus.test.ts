@@ -145,6 +145,17 @@ describe("turnStatus", () => {
     expect(statusOf(events)).toEqual({ kind: "reply" });
   });
 
+  // main writes canvas.drawn when a folder refresh lists the canvas, not when the agent acts, so it never makes a stage
+  // older than the turn.
+  test("a canvas.drawn written after a stage leaves that stage current", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "edit", path: `${ROOT}/.doan/canvases/a.html`, summary: "Edit" })];
+    const thinking = signal("t1", { kind: "thinking" }, seq);
+    events.push(ev("t1", { type: "canvas.drawn", canvas: { path: ".doan/canvases/a.html", id: "a" } }));
+    expect(turnOf(events, true)).toMatchObject({ lastSeq: seq - 1 });
+    expect(statusOf(events, thinking)).toEqual({ kind: "thinking" });
+  });
+
   test("a queue starting the next turn at once: the earlier turn's stage is ignored", () => {
     seq = 0;
     const events = [...turn("t1"), ev("t1", { type: "message.done", messageId: "m1", text: "Done." }), ev("t1", { type: "turn.done" }), ...turn("t2")];
