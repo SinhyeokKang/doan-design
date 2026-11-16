@@ -45,6 +45,8 @@ export interface PrototypeWindowDeps {
   viewSent?(): void;
   // The playing canvas changed, before any view of it.
   canvasChanged?(): void;
+  // The window was shown, hidden, minimized, restored or closed: Agent usage reads while either window shows.
+  shownChanged?(): void;
   // A new window with the sidebar material, for the opaque fallback after a GPU compositing loss.
   vibrancyWindow?(window: BrowserWindow): void;
 }
@@ -202,7 +204,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       if (window === created && !created.isDestroyed()) created.destroy();
     });
     // The toast's clock in the page stops while the window is not shown natively.
-    const shownChanged = () => { if (window === created) sendVisible(); };
+    const shownChanged = () => { if (window === created) { sendVisible(); deps.shownChanged?.(); } };
     created.on("show", shownChanged);
     created.on("hide", shownChanged);
     created.on("minimize", shownChanged);
@@ -225,6 +227,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
       runs.clear();
       deps.focusChanged?.(false);
       deps.closed(contentsId);
+      deps.shownChanged?.();
     });
     const devUrl = process.env.ELECTRON_RENDERER_URL;
     const buddy = deps.buddy();

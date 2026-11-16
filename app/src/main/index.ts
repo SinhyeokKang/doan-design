@@ -374,6 +374,8 @@ const prototype = createPrototypeWindow({
   denyPermissions,
   reread: root => shell?.reread([root]),
   appHidden: () => appHidden,
+  // A skipped usage trigger is made up when a window shows again, and a closed prototype window stops counting as one.
+  shownChanged: () => usage?.visibilityChanged(),
   focusChanged(focused) {
     if (focused === prototypeFocused) return;
     prototypeFocused = focused;
