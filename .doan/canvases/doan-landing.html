@@ -89,7 +89,7 @@ a{color:inherit;text-decoration:none}
 .d .lede{margin-top:var(--space-4);max-width:680px;font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing)}
 .d .sect .lede:has(+ .video){max-width:none}
 .m br.wide{display:none}
-.d .video{width:1080px;margin-top:56px;border-radius:var(--radius-container)}
+.d .video{width:960px;margin-top:56px;border-radius:var(--radius-container)}
 .d .play{width:80px;height:80px}.d .play svg{width:28px;height:28px}
 .d .cards{width:1280px;margin-top:var(--space-12);grid-template-columns:repeat(5,1fr);gap:var(--space-4)}
 .d .card{padding:var(--space-6) var(--space-6) var(--space-8)}
@@ -199,7 +199,7 @@ a{color:inherit;text-decoration:none}
 
 <div class="board">
 <section>
-<div class="cap"><h2>Desktop · 1440<span class="badge">Not in code</span></h2><p>Four sections far apart, as on buzz.xyz: hero (64 above the wordmark 120, the whole photo 720 under the actions), video (one-line heading, a two-line lede broken after "repo,", player 1080, 56 below the lede), features (five cards in one row), closing and footer. Each is at least a screen tall with its content centred, and 320 of empty ground follows it. A 16:9 screen (1440x810) is only the yardstick for the spacing; no section is sized to fit it.</p></div>
+<div class="cap"><h2>Desktop · 1440<span class="badge">Not in code</span></h2><p>Four sections far apart, as on buzz.xyz: hero (64 above the wordmark 120, the whole photo 720 under the actions), video (one-line heading, a two-line lede broken after "repo,", player 960, 56 below the lede), features (five cards in one row), closing and footer. Each is at least a screen tall with its content centred, and 320 of empty ground follows it. A 16:9 screen (1440x810) is only the yardstick for the spacing; no section is sized to fit it.</p></div>
 <div class="page d" data-doan-frame="landing-desktop" data-doan-title="Landing · desktop 1440" data-doan-prototype="1440x810">
 <header class="nav" data-doan-id="d-nav">
 <a class="logo" href="#"><img src="../assets/installer/doan-app-icon-32.png" alt="">Doan</a>
@@ -449,7 +449,7 @@ a{color:inherit;text-decoration:none}
 <ul>
 <li>Assets are drawing sources, not web files: <code>group.png</code> is 2.0 MB, each card still 1.4–2.2 MB at 1254² for a 96 px picture. Ship resized WebP or AVIF with <code>srcset</code> and fixed dimensions, and lazy-load the cards and video.</li>
 <li>Play, the player controls and Try again are buttons; the nav and footer link groups are labelled navigation landmarks.</li>
-<li>Literals with no token, all page constants: mark heights 810 / 768 / 844 as the screen height, section gaps 320 / 240 / 160, nav 72 / 64, wordmark 120 / 112 / 96 at −.075em (Welcome's tracking), display 64 / 56 (video heading) / 48 (features) at 1.05 and −.03em, tablet 48 / 40, logo 28 / 24, side insets 80, page widths 1440 / 1024 / 1280 / 960, group photo 720 / 640 / 358, uncropped, player 1080 / 680 / 358 with 56 / 48 / 32 above it, card buddy 96 / 80 / 72 with 64 / 48 / 24 under it, closing Doany 120 / 112 / 96, play button 80 / 72 / 56 / 64 with icons 28 / 20, video-state tile 560, the failed poster's .35 opacity, the 0.9 s loading and 90 s seek in the prototype, the reveal's 32 px, 700 ms, 90 ms step and 12% margin.</li>
+<li>Literals with no token, all page constants: mark heights 810 / 768 / 844 as the screen height, section gaps 320 / 240 / 160, nav 72 / 64, wordmark 120 / 112 / 96 at −.075em (Welcome's tracking), display 64 / 56 (video heading) / 48 (features) at 1.05 and −.03em, tablet 48 / 40, logo 28 / 24, side insets 80, page widths 1440 / 1024 / 1280 / 960, group photo 720 / 640 / 358, uncropped, player 960 / 680 / 358 with 56 / 48 / 32 above it, card buddy 96 / 80 / 72 with 64 / 48 / 24 under it, closing Doany 120 / 112 / 96, play button 80 / 72 / 56 / 64 with icons 28 / 20, video-state tile 560, the failed poster's .35 opacity, the 0.9 s loading and 90 s seek in the prototype, the reveal's 32 px, 700 ms, 90 ms step and 12% margin.</li>
 </ul>
 </section>
 <script>
