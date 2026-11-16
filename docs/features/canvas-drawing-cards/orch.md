@@ -40,3 +40,7 @@
 - R-B: 🔴 0, 🟡 0, ⚪ 4, 결정 2. 사용자 결정 — 요청만 있는 카드(그리지 않은 캔버스)는 턴이 도는 동안 스피너 대신 `forward` 아이콘. 승격 notice는 카드 뒤(답변 → 카드 → moved to). 컨덕터 판단 — sr 상태 줄 "N new canvases"는 턴이 실제로 끝난 뒤에만 알리고, 끝쪽 승격 마커가 있어도 센다(spec 7). B 수정 라운드(Opus medium — 작은 renderer 수정 셋).
 - 실제 턴 runtime-test(tasks 8)를 워커(ctx_9ba97a936cc5, Opus high)에 맡겼다. 리드가 전한 사용자 요청대로 probe 창은 띄운 즉시 주 화면 작업 영역 왼쪽 아래로 옮기고 포커스를 뺏지 않는다.
 - runtime-test: 로그인 userData 복사본은 Claude Code가 로그아웃 상태다(Keychain 항목이 CLAUDE_CONFIG_DIR 경로에 묶임). 사용자 결정 — 원본을 쓰고 probe가 쓰는 파일을 백업했다가 바이트 그대로 복원한다. 로그아웃하지 않는다.
+- B 수정 라운드 통합(f6df7b43, 3792f2c0). verify PASS(.scratch/orch/verify-2.log). B 워크트리를 정리했다(브랜치 SinhyeokKang/cdc-batch-b 유지, tip 5154b574).
+- 승격: PRODUCT(1454c94b), ARCHITECTURE(757c7571), BACKLOG(2474180c), docs/design(B 측정 + 수정 메모). tasks 10 grep에 남은 줄 규칙 문구가 없다.
+- runtime-test(실제 Claude Code 턴, HEAD ea3432fe): 세 probe PROBE PASS. 원본 userData 525개 파일 복원 mismatch 0, real-state 변화 없음, 로그아웃 없음. 남은 것: Stop이 종료 이벤트보다 먼저 스피너를 멈추는지는 떼어 보지 못했다(11 ms 차이). Codex·ACP, 6장 이상, 긴 이름, 권한·질문 카드 배치, same_canvas·취소는 실제 턴으로 보지 않았다(design-sync와 단위 테스트가 고정). B 수정 라운드(요청만 있는 카드의 forward)는 실제 턴 뒤에 들어와 단위 테스트로만 확인했다.
+- runtime-test 발견: 새 카드가 5–7 ms 동안 "Drawing · No longer in <project>"로 그려진다(renderer 목록이 main보다 늦음). 컨덕터 판단 — 그리는 중인 카드에는 사라짐 꼬리를 붙이지 않는다. 수정 F(ctx_fc7280925783, Sonnet medium — 한 함수의 작은 조건).
