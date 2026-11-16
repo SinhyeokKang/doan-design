@@ -50,6 +50,25 @@ const button = (node: ReactNode, label: string) => all(node).find(labelled(label
 const strip = (html: string) => html.replace(/<([a-z0-9]+)[^>]*>/g, "<$1>").replace(/>[^<]+</g, "><");
 
 describe("WindowShell header", () => {
+  // Back or Forward pressed to the end of the history keeps focus: aria-disabled with a press that does nothing.
+  test("Back and Forward at the end of the history are aria-disabled, not disabled, and a press does nothing", () => {
+    const onBack = vi.fn(), onForward = vi.fn();
+    const shell = tree({ view: view({ canGoBack: false, canGoForward: false }), onBack, onForward });
+    for (const label of ["Back", "Forward"]) {
+      expect(button(shell, label).props["aria-disabled"], label).toBe(true);
+      expect(button(shell, label).props.disabled, label).toBeUndefined();
+      (button(shell, label).props.onClick as () => void)();
+    }
+    expect(onBack).not.toHaveBeenCalled();
+    expect(onForward).not.toHaveBeenCalled();
+    const live = tree({ view: view({ canGoBack: true, canGoForward: true }), onBack, onForward });
+    expect(button(live, "Back").props["aria-disabled"]).toBeUndefined();
+    (button(live, "Back").props.onClick as () => void)();
+    (button(live, "Forward").props.onClick as () => void)();
+    expect(onBack).toHaveBeenCalledOnce();
+    expect(onForward).toHaveBeenCalledOnce();
+  });
+
   test("Back, Forward, Reload, the frame name, then the right group's Fit, Responsive and Export, all before the content", () => {
     const html = markup();
     const order = ['aria-label="Back"', 'aria-label="Forward"', 'aria-label="Reload prototype"', 'class="shell-search pw-name"', 'class="pw-right"', 'aria-label="Fit"', 'aria-label="Responsive"', 'aria-label="Export prototype"', "<iframe"].map(marker => html.indexOf(marker));
@@ -425,11 +444,11 @@ describe("prototype window styles", () => {
   });
 
   // An unavailable Export stays focusable (aria-disabled, not disabled), so the shared rules for :disabled never reach
-  // it: it takes the disabled ink and not-allowed cursor itself, and no fill under the pointer or while pressed. The
+  // it: it takes the disabled ink itself (the cursor is the shared aria-disabled rule's), and no fill under the pointer or while pressed. The
   // shared chrome pressed rule counts its :is() by its most specific argument ([aria-haspopup][aria-expanded]), so the
   // Export's rule must outweigh it, not only follow it.
-  test("an unavailable Export takes the disabled ink, a not-allowed cursor and no hover or pressed fill", () => {
-    expect(css).toMatch(/\.pw-right > \.doan-icon-button\[aria-disabled="true"\] \{ color: var\(--text-disabled\); cursor: not-allowed; \}/);
+  test("an unavailable Export takes the disabled ink, the shared default cursor and no hover or pressed fill", () => {
+    expect(css).toMatch(/\.pw-right > \.doan-icon-button\[aria-disabled="true"\] \{ color: var\(--text-disabled\); \}/);
     const none = css.match(/^([^{}\n]*\.pw-right > \.doan-icon-button\[aria-disabled="true"\]:is\(:hover, :active\)) \{ background: transparent; \}$/m)?.[1];
     expect(none).toBeDefined();
     const controls = readFileSync(new URL("../ds/controls.css", import.meta.url), "utf8");

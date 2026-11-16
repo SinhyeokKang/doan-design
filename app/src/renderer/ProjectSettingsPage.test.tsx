@@ -171,6 +171,30 @@ test("Read failed: Retry reads the settings again here, without asking App", asy
   unmount();
 });
 
+// D1: a retry read keeps the failed notice drawn, so the pressed Retry stays mounted with focus, busy with the spinner
+// inside; another failure leaves it in place.
+test("Read failed: while Retry's read is out the notice stays and Retry is busy and aria-disabled; a press does nothing", async () => {
+  doan.readConfig!.mockResolvedValueOnce({ kind: "error", message: "busy" });
+  await open();
+  let answer: (reply: unknown) => void = () => {};
+  doan.readConfig!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  click("Retry"); await flush(); render();
+  expect(text()).toContain("Couldn’t read this worktree’s settings.");
+  expect(text()).not.toContain("Reading settings");
+  const retry = () => all(tree).find(element => element.type === "button" && words(element.props.children) === "Retry")!;
+  expect(retry().props).toMatchObject({ "aria-disabled": true, "aria-busy": true, "data-ui-variant": "panel" });
+  expect(retry().props.disabled).toBeFalsy();
+  expect(all(retry().props.children as ReactNode).some(element => element.props.className === "doan-spinner")).toBe(true);
+  click("Retry");
+  expect(doan.readConfig).toHaveBeenCalledTimes(2);
+  answer({ kind: "error", message: "still busy" });
+  await flush(); render();
+  expect(text()).toContain("Couldn’t read this worktree’s settings.");
+  expect(words(byClass("project-settings-notice-reason")[0]!.props.children)).toBe("still busy");
+  expect(retry().props["aria-busy"]).toBeUndefined();
+  unmount();
+});
+
 test("No token CSS and nothing shared: the empty guidance with Choose, and Add file or folder alone", async () => {
   doan.readConfig!.mockResolvedValue({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: false });
   await open();

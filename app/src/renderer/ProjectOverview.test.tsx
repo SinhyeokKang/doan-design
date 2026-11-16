@@ -125,7 +125,9 @@ test("the duplicate-ID notice shows under the header", () => {
 test("while the list is read the title is unavailable and the composer is a new conversation; a failed read says so", () => {
   const loading = render("loading");
   const titleTag = (html: string) => html.match(/<button[^>]*class="ov-title doan-button"[^>]*>/)?.[0] ?? "";
-  expect(titleTag(loading)).toContain('disabled=""');
+  // aria-disabled, still focusable (U10): a trigger focused when the list goes back to loading keeps focus.
+  expect(titleTag(loading)).toContain('aria-disabled="true"');
+  expect(titleTag(loading)).not.toMatch(/ disabled=""/);
   expect(loading).toContain('placeholder="Ask or describe what to design, / for presets"');
   expect(loading).not.toContain("Loading conversation");
   const failed = render("error");

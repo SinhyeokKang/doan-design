@@ -143,8 +143,8 @@ test("the header tab opens the page: Add Projects is the current page, the sideb
   const bar = topBar(page()!.props.header);
   expect(bar.add.props["aria-current"]).toBe("page");
   expect(bar.projects.props["aria-current"]).toBeUndefined();
-  expect(bar.forward.props.disabled).toBe(true);
-  expect(bar.back.props.disabled).toBe(false);
+  expect(bar.forward.props["aria-disabled"]).toBe(true);
+  expect(bar.back.props["aria-disabled"]).toBeUndefined();
   expect(page()!.props.sidebar.props.home).toBe(true);
   expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "addProjects", modal: false, choose: true });
   // Reopening from the page does nothing; File > Add Project… there runs Choose folder.
@@ -167,7 +167,7 @@ test("Projects tab, Back, Cancel and Escape return to the origin workspace witho
     expect(onPage()).toBe(false);
     expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
     // The workspace's Back still has nowhere to go: the page made no visit.
-    expect(topBar(workspaceHeader()).back.props.disabled).toBe(true);
+    expect(topBar(workspaceHeader()).back.props["aria-disabled"]).toBe(true);
     expect(doan.saveUiState!.mock.lastCall?.[0]).toMatchObject({ screen: "workspace", root: "/w/a" });
   }
 });

@@ -36,9 +36,8 @@ const violetAllowed = [
   '.doan-icon-button[data-ui-variant="accent"]',
   '.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled)',
   '.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled)',
-  // The rest of Home's accent places: Send's spinner ink, the chosen
+  // The rest of Home's accent places: the chosen
   // preset chip, the suggested prompts' group icons, the Home-only glow around the composer (dogfooding moved it from a panel-wide ellipse), the drop outline and the sidebar status slot.
-  ".composer-send .doan-spinner",
   ".preset-chip",
   ".suggestion svg",
   // The suggested prompt's icon tile (suggested-prompt-variants C, confirmed 2026-11-03).

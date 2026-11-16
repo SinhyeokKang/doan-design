@@ -122,6 +122,16 @@ test("the footer: Back with arrow-left on the left, Continue with arrow-right di
 type DialogProps = { onKeyDown: (event: unknown) => void; onCancel: (event: unknown) => void };
 const keyEvent = (key: string) => ({ key, nativeEvent: { isComposing: false }, preventDefault: vi.fn(), stopPropagation: vi.fn() });
 
+// D1: while the address is submitted the field turns read-only (not disabled, so focus stays where Enter left it),
+// Cancel dims and Submit keeps its fill, busy with the spinner inside.
+test("the paste modal while submitting: a read-only field, a dimmed Cancel and a busy Submit, none natively disabled", () => {
+  const html = renderToStaticMarkup(<PasteDialog view={pasteDialog()} value="https://example.com/cb" submittable={false} tooLong={false} busy change={noop} submit={noop} close={noop} />);
+  expect(html).toMatch(/<input class="doan-input"[^>]*readOnly=""[^>]*\/>/);
+  expect(html).not.toMatch(/<input[^>]*disabled=""/);
+  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" aria-disabled="true" data-disabled="">Cancel</button>');
+  expect(html).toContain('<button type="submit" class="doan-button" data-ui-variant="prominent" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Submit</button>');
+});
+
 test("the paste modal: one bounded input, Cancel and Submit; Escape closes only the modal", () => {
   const close = vi.fn();
   const html = renderToStaticMarkup(<PasteDialog view={pasteDialog()} value="" submittable={false} tooLong={false} busy={false} change={noop} submit={noop} close={close} />);
