@@ -51,7 +51,7 @@ async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {},
     onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
   };
   renderToStaticMarkup(<TooltipProvider>{<CanvasConversation {...props} /> as ReactElement}</TooltipProvider>);
-  return { run, store, composer: composers.at(-1)! };
+  return { run, store, composer: composers.at(-1)!, onNotice: props.onNotice as ReturnType<typeof vi.fn> };
 }
 
 test("the composer gets the limit and the schedule, with no Send now", async () => {
@@ -107,3 +107,26 @@ test("the panel's waiting send carries no pick, and the next ordinary send still
   expect(doan.sendConversation.mock.calls.at(-1)![0]).toMatchObject({ conversationId: "now", fast: false, permissionMode: "acceptEdits" });
 });
 
+
+// U16: a refusal of a chosen file goes to the composer's own notice, not the window's toast.
+test("a chosen file main refuses is reported to the composer, not as a toast", async () => {
+  const doan = (window as unknown as { doan: Record<string, unknown> }).doan;
+  doan.chooseAttachments = vi.fn(async () => [{ ok: false, name: "brief.pdf", error: "not_found" }]);
+  const { composer, onNotice } = await panel([]);
+  const report = vi.fn();
+  (composer.onAttach as (report: (text: string) => void) => void)(report);
+  await flush();
+  expect(report).toHaveBeenCalledExactlyOnceWith("brief.pdf wasn’t found, so it wasn’t attached.");
+  expect(onNotice).not.toHaveBeenCalled();
+});
+
+test("files over the limit are reported to the composer, not as a toast", async () => {
+  const { composer, onNotice } = await panel([]);
+  const report = vi.fn();
+  const files = Array.from({ length: 11 }, (_, i) => new File(["x"], `f${i}.md`));
+  const doan = (window as unknown as { doan: Record<string, unknown> }).doan;
+  doan.addAttachmentFiles = vi.fn(() => new Promise(() => {}));
+  (composer.onFiles as (files: File[], pasted: boolean, report: (text: string) => void) => void)(files, false, report);
+  expect(report).toHaveBeenCalledExactlyOnceWith("Only 10 attachments can be added. 1 was left out.");
+  expect(onNotice).not.toHaveBeenCalled();
+});

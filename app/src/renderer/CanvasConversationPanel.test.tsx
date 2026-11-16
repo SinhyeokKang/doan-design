@@ -68,6 +68,14 @@ test("a list that can't be read says so with Retry, and the composer stays a new
   expect(out).toContain('aria-placeholder="Ask, / for presets"');
 });
 
+// D11: the thread notice's Retry is busy while the run reads the list again; a repeated failure is read out again.
+test("the thread notice's Retry runs while the list is read again, and a repeated failure changes its line", async () => {
+  const running = await panel("error", run => { run.listRetry = () => ({ running: true, failures: 1 }); });
+  expect(running).toMatch(/<span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"><\/span>Retry<\/button><\/span>/);
+  const again = await panel("error", run => { run.listRetry = () => ({ running: false, failures: 2 }); });
+  expect(again).toContain("<span>Try again. You can still start a new conversation. </span>");
+});
+
 // DESIGN 'Notices': the panel's agent notice is the shared one (body-sm, 12/16 padding), not the
 // inspector's 11px loading line that shares the canvas-notice class.
 test("a project conversation drawing the canvas is the shared notice with Open, without the inspector's canvas-notice", async () => {

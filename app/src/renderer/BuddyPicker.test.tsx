@@ -268,7 +268,7 @@ test("rowFocusTarget: up/left and down/right go round the rows; other keys are n
 
 test("the failure notice names both buddies; Retry is named by its word and described by the sentence; no live role", () => {
   const retry = vi.fn();
-  const tree = BuddyFailureNotice({ failure: { picked: "popo", kept: "doany" }, id: "ob-buddy-error", className: "doan-panel buddy-step-notice", retry });
+  const tree = BuddyFailureNotice({ failure: { picked: "popo", kept: "doany" }, id: "ob-buddy-error", className: "buddy-step-notice", panel: true, retry });
   const [notice] = all(tree);
   expect(notice!.props.className).toBe("doan-notice error doan-panel buddy-step-notice");
   expect(notice!.props.role).toBeUndefined();
@@ -277,6 +277,16 @@ test("the failure notice names both buddies; Retry is named by its word and desc
   expect(button.props).toMatchObject({ "aria-describedby": "ob-buddy-error", children: "Retry", "data-ui-variant": "subtle", "data-ui-size": "sm" });
   (button.props.onClick as () => void)();
   expect(retry).toHaveBeenCalled();
+});
+
+// U38: on Settings' inset notice a subtle Retry has no fill of its own (both are the inset fill), so it is panel there;
+// first run's white panel notice keeps subtle (DESIGN 'Notices', projectNoticeActions).
+test("the failure notice's Retry is panel on the inset notice and subtle on the panel notice", () => {
+  const inset = BuddyFailureNotice({ failure: { picked: "popo", kept: "doany" }, id: "settings-buddy-error", className: "settings-notice buddy-notice", retry: vi.fn() });
+  expect(all(inset)[0]!.props.className).toBe("doan-notice error settings-notice buddy-notice");
+  expect(all(inset).find(element => element.type === "button")!.props["data-ui-variant"]).toBe("panel");
+  const panel = BuddyFailureNotice({ failure: { picked: "popo", kept: "doany" }, id: "ob-buddy-error", className: "buddy-step-notice", panel: true, retry: vi.fn() });
+  expect(all(panel).find(element => element.type === "button")!.props["data-ui-variant"]).toBe("subtle");
 });
 
 describe("the Buddy step and the existing-user buddy screen", () => {

@@ -448,6 +448,50 @@ test("unlocked, the same drop and paste reach the host as files", () => {
   expect(onFiles).toHaveBeenCalledTimes(2);
 });
 
+// U16: the host's attachment refusals (limit, choose and settle) show under the composer, as Home's do, not as a toast.
+test("an attachment refusal the host reports shows as the composer's notice and goes with the next edit", () => {
+  let notice: (text: string) => void = () => {};
+  const onAttach = vi.fn((report: (text: string) => void) => { notice = report; });
+  const { render } = setup({ onAttach }, [["conversation:a", draft("Tighten the totals")]]);
+  (button(render(), "Attach files or folders").onClick as () => void)();
+  expect(onAttach).toHaveBeenCalledTimes(1);
+  notice("brief.pdf wasn’t found, so it wasn’t attached.");
+  const alert = find(render(), item => item.role === "alert");
+  expect(alert.className).toBe("doan-notice error composer-notice");
+  expect(has(render(), "brief.pdf wasn’t found, so it wasn’t attached.")).toBe(true);
+  expect(render().some(item => item.children === "Retry")).toBe(false);
+  type(render(), "Tighten the totals.");
+  expect(has(render(), "brief.pdf wasn’t found, so it wasn’t attached.")).toBe(false);
+});
+
+test("a dropped or pasted file's refusal lands on the draft it was added to, even after a switch", () => {
+  const reports: ((text: string) => void)[] = [];
+  const onFiles = vi.fn((_files: File[], _pasted: boolean, report: (text: string) => void) => { reports.push(report); });
+  const { props, render } = setup({ onFiles }, [["conversation:a", draft("For A")], ["conversation:b", draft("For B")]]);
+  (input(render()).onPaste as (event: unknown) => void)(fileEvent());
+  props.mode = B;
+  reports[0]!("Only 10 attachments can be added.");
+  expect(has(render(), "Only 10 attachments can be added.")).toBe(false);
+  props.mode = A;
+  expect(has(render(), "Only 10 attachments can be added.")).toBe(true);
+});
+
+// U39: the reason line sits on the white column, not in a notice, so its buttons are subtle (Home's Open is).
+test("the reason line's buttons are subtle", async () => {
+  const busy = setup({ busy: { kind: "project", open: "other" } }, [["conversation:a", draft("Draw it")]]);
+  expect(button(busy.render(), "Open the running conversation")["data-ui-variant"]).toBe("subtle");
+  const refuse = () => ({ kind: "blocked" as const, text: "No agent is ready to run.", action: { label: "Sign in to an agent", target: { section: "agents" as const } } });
+  const blocked = setup({ refuse, onSend: async () => ({ error: "no_agent" }) }, [["conversation:a", draft("Draw it")]]);
+  (button(blocked.render(), "Send").onClick as () => void)();
+  await flush();
+  expect(find(blocked.render(), item => item.children === "Sign in to an agent")["data-ui-variant"]).toBe("subtle");
+  const startNew = () => ({ kind: "notice" as const, text: "This conversation’s session belongs to another account.", startNew: true });
+  const other = setup({ refuse: startNew, onStartNew: vi.fn(), onSend: async () => ({ error: "other_account" }) }, [["conversation:a", draft("Draw it")]]);
+  (button(other.render(), "Send").onClick as () => void)();
+  await flush();
+  expect(find(other.render(), item => item.children === "Start a new conversation")["data-ui-variant"]).toBe("subtle");
+});
+
 test("a terminal session keeps the trigger places, chosen by the terminal, and takes no files", () => {
   const { render } = setup({ mode: RESUME, provider: "codex", fixed: true });
   const agent = button(render(), "Model: set by the terminal session (Codex)");

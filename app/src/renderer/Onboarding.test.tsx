@@ -98,13 +98,21 @@ test("a progress notice puts the spinner in the icon slot and is a status; an er
   const progress: Notice = { role: "status", spinner: true, title: "Finish signing in to Claude Code", body: "Complete sign-in in your browser, then return here.", actions: [
     { command: "cancel", label: "Cancel", variant: "subtle", disabled: false }, { command: "openLink", label: "Open again", variant: "subtle", disabled: false }] };
   const html = renderToStaticMarkup(<NoticeView notice={progress} run={noop} />);
-  expect(renderToStaticMarkup(<NoticeView panel notice={progress} run={noop} />)).toMatch(/^<div class="doan-notice doan-panel" role="status"/);
-  expect(html).toContain('<div class="doan-notice" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span class="selectable"><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span></div>');
-  expect(html).toContain('<div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-command="cancel">Cancel</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-command="openLink">Open again</button></div>');
+  expect(renderToStaticMarkup(<NoticeView panel notice={progress} run={noop} />)).toMatch(/^<div class="doan-notice doan-panel stacked" role="status"/);
+  // D20: the actions sit inside the notice; two or more stack on their own row (DESIGN 'Notices'), and a subtle action
+  // on the inset fill is panel there.
+  expect(html).toBe('<div class="doan-notice stacked" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span class="ob-notice-text selectable"><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span>'
+    + '<div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" data-command="cancel">Cancel</button><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" data-command="openLink">Open again</button></div></div>');
+  // On first run's white panel notice a subtle action keeps subtle.
+  expect(renderToStaticMarkup(<NoticeView panel notice={progress} run={noop} />)).toContain('data-ui-variant="subtle" data-ui-size="sm" data-command="cancel"');
   const error = renderToStaticMarkup(<NoticeView notice={{ role: "alert", spinner: false, body: "Sign-in didn’t finish. Try again.", actions: [{ command: "signIn", label: "Sign in", variant: "prominent", disabled: false }] }} run={noop} />);
   expect(error).toMatch(/^<div class="doan-notice error" role="alert" tabindex="-1"><svg[^>]*class="lucide lucide-circle-alert[^"]* doan-alert-icon" aria-hidden="true">/);
-  expect(error).toContain('<span class="selectable"><span class="ob-notice-body">Sign-in didn’t finish. Try again.</span></span>');
-  expect(error).toContain('<div class="ob-state-actions submit-only">');
+  // One action sits inline at the notice's end; a prominent action stays prominent.
+  expect(error).toContain('<span class="ob-notice-text selectable"><span class="ob-notice-body">Sign-in didn’t finish. Try again.</span></span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-command="signIn">Sign in</button></div></div>');
+  expect(error).not.toContain("ob-state-actions");
+  // The note stays under the notice.
+  const noted = renderToStaticMarkup(<NoticeView notice={{ ...progress, note: "Your project selection stays here." }} run={noop} />);
+  expect(noted).toMatch(/<\/div><\/div><p class="ob-provider-help">Your project selection stays here\.<\/p>$/);
 });
 
 test("Antigravity's paste line sits under the notice, outside its button row", () => {
@@ -182,7 +190,8 @@ test("forward and back leave the Agent step only after its own sign-ins are canc
 
 test("an over-long paste shows the limit line and keeps Submit disabled", () => {
   const html = renderToStaticMarkup(<PasteDialog view={pasteDialog()} value={"x".repeat(16385)} submittable={false} tooLong busy={false} change={noop} submit={noop} close={noop} />);
-  expect(html).toContain('<p class="ob-field-error" role="alert">This address is too long to submit.</p>');
+  // U31: the shared inline error with its icon, grouped with the field 8px under it (no negative margin).
+  expect(html).toMatch(/<div class="field-group"><input class="doan-input"[^>]*\/><p class="settings-msg error" role="alert"><svg[^>]*class="[^"]*doan-alert-icon[^"]*"[^>]*>.*?<\/svg><span>This address is too long to submit\.<\/span><\/p><\/div>/);
   expect(html).toMatch(/<button type="submit"[^>]* disabled="">Submit<\/button>/);
 });
 

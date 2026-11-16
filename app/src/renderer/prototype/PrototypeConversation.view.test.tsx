@@ -353,6 +353,31 @@ describe("the head's conversation menu", () => {
     expect((calls.listConversations as ReturnType<typeof vi.fn>).mock.calls.length).toBe(reads + 1);
   });
 
+  // D11: the row runs while its read is out, the panel's thread Retry with it, and a second failure is read out again.
+  test("a failed read's Retry runs until the read settles, and a repeated failure changes the line", async () => {
+    let fail: (reply: { error: string }) => void = () => {};
+    calls.listConversations = vi.fn(async () => ({ error: "unknown" }));
+    run = new PrototypeConversationRun(calls as never, { changed: () => { hooks.dirty = true; }, notice: () => {}, focused: () => true });
+    await playing();
+    expect(run.listRetry()).toEqual({ running: false, failures: 1 });
+    const firstLine = (all(find(open(), element => element.props.className === "conv-error")!).find(element => element.type === "span")!.props.children);
+    calls.listConversations = vi.fn(() => new Promise(resolve => { fail = resolve; }));
+    run.retry();
+    expect(run.listRetry()).toEqual({ running: true, failures: 1 });
+    const line = find(open(), element => element.props.className === "conv-error")!;
+    const retry = all(line).find(element => element.type === DropdownMenu.Item)!;
+    expect(retry.props).toMatchObject({ "aria-disabled": true, "aria-busy": true });
+    // A press while it runs reads nothing more.
+    (retry.props.onSelect as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
+    expect(calls.listConversations).toHaveBeenCalledTimes(1);
+    fail({ error: "unknown" });
+    await flush();
+    expect(run.listRetry()).toEqual({ running: false, failures: 2 });
+    const againLine = all(find(open(), element => element.props.className === "conv-error")!).find(element => element.type === "span")!.props.children;
+    expect(againLine).not.toBe(firstLine);
+    expect(String(againLine).trim()).toBe(String(firstLine).trim());
+  });
+
   test("choosing a row or New conversation changes what this window shows, and focus goes on once the menu closes", async () => {
     listed = [summary({ conversationId: "a", title: "A", lastActivityAt: at(1) }), summary({ conversationId: "b", title: "B", lastActivityAt: at(5) })];
     await playing();

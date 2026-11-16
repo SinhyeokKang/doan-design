@@ -202,6 +202,18 @@ test("a failed list read shows the new conversation state with Retry; the next r
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
 });
 
+test("the shown canvas's list Retry is the host's for its root; a host without one never runs it", () => {
+  const h = harness();
+  expect(h.run.listRetry()).toEqual({ running: false, failures: 0 });
+  h.run.show(checkout);
+  expect(h.run.listRetry()).toEqual({ running: false, failures: 0 });
+  const listRetry = vi.fn((root: string) => ({ running: root === ROOT, failures: 2 }));
+  const withRetry = new CanvasRun({ ...h.host, listRetry }, h.store, window.doan);
+  withRetry.show(checkout);
+  expect(withRetry.listRetry()).toEqual({ running: true, failures: 2 });
+  expect(listRetry).toHaveBeenCalledWith(ROOT);
+});
+
 // POSTMORTEM 2026-10-26 late replies: a start's reply carries the panel's revision from when it was sent.
 test("a start reply that lands after the person chose another conversation, or another canvas opened, leaves that choice", () => {
   const h = harness();

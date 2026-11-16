@@ -134,6 +134,25 @@ test("while the list is read the title is unavailable and the composer is a new 
   expect(titleTag(failed)).not.toContain("disabled");
 });
 
+// U7: the column leads with the canvas panel's thread notice, before the suggestions, and the composer stays usable.
+test("a failed first read shows the canvas panel's notice with Retry in the new conversation column", () => {
+  const html = render("error");
+  const column = html.slice(html.indexOf('class="ov-col ov-new"'));
+  expect(column).toMatch(/^class="ov-col ov-new"><div class="doan-notice error thread-notice" role="alert"><svg[^>]*class="[^"]*doan-alert-icon[^"]*"/);
+  expect(column).toContain('<span class="strip-text selectable"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>');
+  expect(column).toMatch(/<span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Retry<\/button><\/span><\/div><div class="ov-suggestions"/);
+  expect(render([])).not.toContain("thread-notice");
+  expect(render("loading")).not.toContain("thread-notice");
+});
+
+// D11: while the re-read runs the Retry is busy; a second failure changes the line so it is read again.
+test("the column's Retry runs while the list is read again, and a repeated failure is announced again", () => {
+  const running = render("error", { listRetry: { running: true, failures: 1 } });
+  expect(running).toMatch(/<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"><\/span>Retry<\/button>/);
+  const again = render("error", { listRetry: { running: false, failures: 2 } });
+  expect(again).toContain("<span>Try again. You can still start a new conversation. </span>");
+});
+
 test("a long title is cut by style only, so the trigger's name keeps the whole title", () => {
   const title = "Does the design system cover dark mode? It should explain how tokens map when the app follows the system setting";
   const html = render([summary({ title })]);

@@ -649,6 +649,28 @@ test("each root's list reads are counted, and a failed read shows as an error un
   expect(h.run.readsApplied(ROOT)).toBe(2);
 });
 
+test("a failed list's Retry runs until its read settles, and counts failures in a row until a read answers", async () => {
+  const h = harness();
+  doan.listConversations!.mockResolvedValueOnce({ error: "unknown" });
+  h.run.entriesChanged();
+  // The first read is the loading state, not a retry.
+  expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 0 });
+  await flush();
+  expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 1 });
+  doan.listConversations!.mockResolvedValueOnce({ error: "unknown" });
+  vi.mocked(h.host.changed).mockClear();
+  h.run.retryList(ROOT);
+  // The press shows at once: the host draws again with Retry running.
+  expect(h.run.listRetry(ROOT)).toEqual({ running: true, failures: 1 });
+  expect(h.host.changed).toHaveBeenCalled();
+  await flush();
+  expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 2 });
+  lists({ [ROOT]: [summary({})] });
+  h.run.retryList(ROOT);
+  await flush();
+  expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 0 });
+});
+
 test("a start from the Overview stays there: no move, no started toast, and the run still tracks the conversation", async () => {
   const h = harness();
   h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
