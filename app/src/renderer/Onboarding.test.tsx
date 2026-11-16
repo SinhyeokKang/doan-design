@@ -648,7 +648,7 @@ test("selectable: a provider row's detail line, a notice's text, and no button",
   noSelectableButton(html);
   const notice: Notice = { role: "alert", spinner: false, title: "Sign-in failed", body: "Sign-in didn’t finish. Try again.", actions: [{ command: "signIn", label: "Sign in", variant: "prominent", disabled: false }] };
   const view = renderToStaticMarkup(<NoticeView notice={notice} run={noop} />);
-  expect(view).toContain('<span class="selectable"><strong class="ob-notice-title">Sign-in failed</strong>');
+  expect(view).toContain('<span class="ob-notice-text selectable"><strong class="ob-notice-title">Sign-in failed</strong>');
   noSelectableButton(view);
 });
 

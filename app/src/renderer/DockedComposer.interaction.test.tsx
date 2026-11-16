@@ -481,11 +481,14 @@ test("the reason line's buttons are subtle", async () => {
   const busy = setup({ busy: { kind: "project", open: "other" } }, [["conversation:a", draft("Draw it")]]);
   expect(button(busy.render(), "Open the running conversation")["data-ui-variant"]).toBe("subtle");
   const refuse = () => ({ kind: "blocked" as const, text: "No agent is ready to run.", action: { label: "Sign in to an agent", target: { section: "agents" as const } } });
+  // Each composer below is a fresh one: the harness's hook slots are shared.
+  hooks.states = []; hooks.refs = [];
   const blocked = setup({ refuse, onSend: async () => ({ error: "no_agent" }) }, [["conversation:a", draft("Draw it")]]);
   (button(blocked.render(), "Send").onClick as () => void)();
   await flush();
   expect(find(blocked.render(), item => item.children === "Sign in to an agent")["data-ui-variant"]).toBe("subtle");
   const startNew = () => ({ kind: "notice" as const, text: "This conversation’s session belongs to another account.", startNew: true });
+  hooks.states = []; hooks.refs = [];
   const other = setup({ refuse: startNew, onStartNew: vi.fn(), onSend: async () => ({ error: "other_account" }) }, [["conversation:a", draft("Draw it")]]);
   (button(other.render(), "Send").onClick as () => void)();
   await flush();

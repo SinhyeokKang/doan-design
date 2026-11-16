@@ -88,8 +88,9 @@ export interface DockedComposerProps {
   onPresetsOpen(): void; onPresetsRetry(): void;
   thumbnails: Readonly<Record<string, string>>;
   // Attachments are main's: the host chooses or adds them and writes the chips into the draft; a removed chip's id is
-  // handed back so the host can tell main.
-  onAttach(): void; onFiles(files: File[], pasted: boolean): void; onAttachmentRemoved(attachment: AttachmentDraft): void;
+  // handed back so the host can tell main. `report` shows a refusal (the limit, a file main refused) as this composer's
+  // notice on the draft the files were added to, which may no longer be the one shown when an answer lands.
+  onAttach(report: (text: string) => void): void; onFiles(files: File[], pasted: boolean, report: (text: string) => void): void; onAttachmentRemoved(attachment: AttachmentDraft): void;
   // This conversation's turn. `busy`: another conversation holds the root (from the host's list).
   turn: ComposerTurn;
   busy: DockedBusy | null;
@@ -327,7 +328,9 @@ export function DockedComposer(props: DockedComposerProps) {
     return true;
   };
   // A locked composer keeps its draft but takes no input of any kind: no preset, dropped or pasted file either.
-  const drop = useComposerDrop({ blocked: () => isSending || locked, onFiles: files => props.onFiles(files, false), onNotice: text => setRefusals(previous => {
+  // A refusal of files added to a draft: a notice with no draft, so the chips the host adds or settles keep it.
+  const reportFor = (at: string) => (text: string) => setRefusals(previous => new Map(previous).set(at, { refusal: { kind: "notice", text } }));
+  const drop = useComposerDrop({ blocked: () => isSending || locked, onFiles: files => props.onFiles(files, false, reportFor(key)), onNotice: text => setRefusals(previous => {
     const next = new Map(previous);
     if (text === null) next.delete(key); else next.set(key, { refusal: { kind: "notice", text } });
     return next;
@@ -336,7 +339,7 @@ export function DockedComposer(props: DockedComposerProps) {
     const files = Array.from(event.clipboardData.files);
     if (pasteAction(event.clipboardData.getData("text/plain"), files) !== "files") return;
     event.preventDefault();
-    if (!isSending && !locked) props.onFiles(files, true);
+    if (!isSending && !locked) props.onFiles(files, true, reportFor(key));
   };
 
   const stop = () => { props.onStop(); focus({ kind: "stopped" }); };
@@ -504,7 +507,7 @@ export function DockedComposer(props: DockedComposerProps) {
     </ComposerCard>
     <div className="composer-tray">
       {props.fixed ? <FixedTip label="Attachments can’t be added to a terminal session"><button type="button" className="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
-        : <AttachButton tray disabled={isSending || locked} onClick={props.onAttach} />}
+        : <AttachButton tray disabled={isSending || locked} onClick={() => props.onAttach(reportFor(key))} />}
       {props.pick && <PickButton pick={props.pick} />}
       {props.fixed && fixedProvider ? <>
         <FixedTip label="Set in your terminal"><button type="button" className="composer-agent doan-button is-fixed" data-ui-size="xs" data-ui-variant="trigger" aria-disabled="true"
@@ -524,14 +527,14 @@ export function DockedComposer(props: DockedComposerProps) {
     </div>
     {notice && (notice.startNew
       ? <div className="composer-reason docked-reason reason-stack" role="status"><span>{notice.text}</span>
-        <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => { clearRefusal(key); props.onStartNew?.(); focus({ kind: "restored" }); }}>Start a new conversation</button></div>
+        <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => { clearRefusal(key); props.onStartNew?.(); focus({ kind: "restored" }); }}>Start a new conversation</button></div>
       : <div className="doan-notice error composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable">{notice.text}</span>
         {notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => void send()}>Retry</button>}</div>)}
     {reason && !reason.noAgent && (reason.alert
       ? <div className="doan-notice error composer-notice" role="alert" id={reasonId}><AlertIcon /><span className="grow-text selectable">{reason.text}</span></div>
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>
-        {reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-label="Open the running conversation" onClick={() => props.onOpen(reason.open!)}>Open</button>}
-        {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}
+        {reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.onOpen(reason.open!)}>Open</button>}
+        {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}
     {(limitAt === key || full) && <div className="composer-reason docked-reason" role="status"><span>{ANCHOR_LIMIT_TEXT}</span></div>}
     {noteShown && <span className="chip-missing chip-note" id={noteId} role="status" style={{ left: missingAt.left, top: missingAt.top }}>{LOCATE_MISSING_TEXT}</span>}
     {placeholder.suggestion !== null && <span className="sr-only" id={hintId}>{SUGGESTION_HINT}</span>}

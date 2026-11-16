@@ -8,6 +8,8 @@ import { canvasConversationMenu, canvasUnlistedText, DUPLICATE_CANVAS_TEXT, titl
 import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
 import { ConversationDeleteItem, type DeleteTarget } from "../ConversationDeleteDialog";
 import { ConversationHead } from "../ConversationLine";
+import { announcedAgain } from "../listRetry";
+import { LIST_FAILED_TEXT, listRetryItem } from "../ListRetryButton";
 import type { PrototypeConversationCalls, PrototypeConversationRun } from "./conversationRun";
 
 // The prototype window's conversation panel: the canvas panel's body, under the panel shell's head, on the conversation
@@ -103,8 +105,8 @@ export function PrototypeHeadMenu({ run, now, onPicked, onDelete }: {
           <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${current === null ? " current" : ""}`} textValue="New conversation"><Plus aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
           <DropdownMenu.Separator className="doan-menu-sep" />
           <DropdownMenu.Label className="doan-menu-head">{`Conversations on ${canvasName}`}</DropdownMenu.Label>
-          {list === "error" ? <div className="conv-error" role="status"><span>Couldn’t read conversations</span>
-            <DropdownMenu.Item className="doan-menu-item" onSelect={event => { event.preventDefault(); run.retry(); }}>Retry</DropdownMenu.Item></div>
+          {list === "error" ? <div className="conv-error" role="status"><span>{announcedAgain(LIST_FAILED_TEXT, run.listRetry().failures)}</span>
+            {listRetryItem(run.listRetry(), () => run.retry())}</div>
             : <div className="conv-list">{items.map(item => <div key={item.conversationId} className="conv-row">
               <DropdownMenu.RadioItem value={item.conversationId} textValue={item.title} className={`doan-menu-item conv-item${item.selected ? " current" : ""}`}>
                 <ConversationHead line={item} name={item.title} nameClass="t" />

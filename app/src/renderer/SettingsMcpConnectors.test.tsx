@@ -215,9 +215,9 @@ test("Add server by URL opens a compact dialog that locks the page; a bad URL is
   expect(input().props["aria-invalid"]).toBe(true);
   expect(input().props["aria-describedby"]).toBe(error.props.id);
   // U31: the field and its error are one group (8px apart), so no negative margin pulls the line up.
-  const group = all(tree).find(element => element.props.className === "field-group")!;
-  expect(all(group).includes(input())).toBe(true);
-  expect(all(group).includes(error)).toBe(true);
+  const group = all(all(tree).find(element => element.props.className === "field-group")!);
+  expect(group.some(element => element.type === "input" && element.props["aria-label"] === "Server URL")).toBe(true);
+  expect(group.some(element => element.props.role === "alert" && element.props.id === error.props.id)).toBe(true);
   expect(error.props.className).toBe("settings-msg error selectable");
   (dialog().props.onCancel as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
   render();

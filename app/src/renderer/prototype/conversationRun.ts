@@ -6,6 +6,7 @@ import type { DoanApi } from "../../preload";
 import { canvasConversationTitle, type ConversationCalls } from "../CanvasConversationPanel";
 import { CanvasRun, canvasKey, type ResumeCalls } from "../canvasRun";
 import { ConversationStore, type ListView, type StoreCalls } from "../conversationStore";
+import { LIST_RETRY_IDLE, type ListRetry } from "../listRetry";
 import { DockedSupport, type DockedSupportCalls } from "../dockedSupport";
 import { canvasStrongestSignal, type CanvasSignal } from "../rightPanelOpen";
 import type { VisibleCalls } from "../visibleClock";
@@ -43,6 +44,8 @@ export class PrototypeConversationRun {
   // the same canvas (A, B, A) can answer after a newer one, and its older list would drop what the newer one named.
   private epoch = 0;
   private listView: ListView = "loading";
+  // Reads that failed in a row while the list shows its failure.
+  private listFailures = 0;
   private reading: { epoch: number; views: number; again: boolean } | null = null;
   private views = 0;
   // Main answered a read with "not_playing": it plays a canvas this window has no view of yet, so list changes went
@@ -82,6 +85,7 @@ export class PrototypeConversationRun {
     this.run = new CanvasRun({
       list, readsStarted: () => this.reads, readsApplied: () => this.applied,
       reread: root => { if (this.view?.root === root) this.read(); },
+      listRetry: root => (this.view?.root === root ? this.listRetry() : LIST_RETRY_IDLE),
       markSeen: (conversationId, seq) => { this.seenIds.add(conversationId); void calls.markConversationSeen({ conversationId, seq }).catch(console.error); },
       focused: () => host.focused(),
       drawing: root => (this.view?.root === root ? this.drawingId : null),
@@ -136,6 +140,7 @@ export class PrototypeConversationRun {
       this.epoch++;
       this.missed = false;
       this.listView = "loading";
+      this.listFailures = 0;
       this.last = null;
       // The relayed drawing and promotion belong to a target. Main nulls them for every new target and may push the new
       // one's before this view arrives (views wait behind the still capture), so the old values go and main is asked
@@ -158,6 +163,11 @@ export class PrototypeConversationRun {
 
   focusChanged(): void { this.run.focusChanged(); this.changed(); }
   retry(): void { this.read(); }
+  // The failure line's Retry runs while a read of this canvas is out.
+  listRetry(): ListRetry {
+    if (this.listView !== "error") return LIST_RETRY_IDLE;
+    return { running: this.reading?.epoch === this.epoch, failures: this.listFailures };
+  }
 
   // The head menu's Delete, as the main window's: the store marks the conversation as being deleted before main is
   // asked, so no list read picks it meanwhile, and the mark ends exactly once, deleted (success, or not_found: main has
@@ -230,6 +240,8 @@ export class PrototypeConversationRun {
     const reading = { epoch, views: this.views, again: false };
     this.reading = reading;
     this.missed = false;
+    // A read of a failed list turns its Retry busy at once.
+    if (this.listView === "error") this.changed();
     void this.calls.listConversations({ root: target.root, canvas: target.canvas }).catch(() => ({ error: "unknown" })).then(reply => {
       if (this.reading === reading) this.reading = null;
       if (this.epoch !== epoch) return;
@@ -238,7 +250,7 @@ export class PrototypeConversationRun {
       // this read was out, a read now does.
       else if (reply.error === "not_playing") { if (reading.views !== this.views) reading.again = true; else this.missed = true; }
       // A failed read after a good one keeps the list it had; only a canvas never read shows the failure.
-      else if (!Array.isArray(this.listView)) this.listView = "error";
+      else if (!Array.isArray(this.listView)) { this.listView = "error"; this.listFailures++; }
       if (reading.again) this.read();
       this.sync();
     });
@@ -255,6 +267,7 @@ export class PrototypeConversationRun {
     }
     for (const id of this.seenIds) if (list.some(c => c.conversationId === id && !c.unseen)) this.seenIds.delete(id);
     this.listView = list;
+    this.listFailures = 0;
     this.applied = n;
   }
 

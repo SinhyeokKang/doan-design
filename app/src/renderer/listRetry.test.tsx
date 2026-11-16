@@ -9,6 +9,8 @@ import { listRetryButton, listRetryItem } from "./ListRetryButton";
 
 test("a repeated failure changes the line by a no-break space, so its live region reads the same sentence again", () => {
   const text = "Couldn’t read conversations";
+  // A host that counts nothing (0) draws the plain line.
+  expect(announcedAgain(text, 0)).toBe(text);
   expect(announcedAgain(text, 1)).toBe(text);
   expect(announcedAgain(text, 2)).toBe(`${text} `);
   expect(announcedAgain(text, 3)).toBe(text);

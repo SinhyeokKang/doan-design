@@ -21,6 +21,8 @@ import { focusFieldEnd } from "./chipField";
 import { SuggestionButton } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
+import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
+import { LIST_FAILED_TEXT, listFailedNotice, listRetryItem } from "./ListRetryButton";
 import { ReplaceDraftDialog } from "./ReplaceDraftDialog";
 import type { ReplaceDraftConfirm } from "./homeConversations";
 import { ConversationThread, LOADING_DELAY_MS, openReplyLink, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
@@ -82,6 +84,8 @@ export interface ProjectOverviewProps {
   // A chip in an agent's reply: the host opens its canvas and moves to its target.
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
   onRetryList(): void;
+  // The failed list's Retry while it reads again (HomeRun listRetry).
+  listRetry?: ListRetry;
   onStart(request: StartInput, last: LastRequest): Promise<StartOutcome>;
   // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens.
   onSendConversation(provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | ScheduledSend | { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string }>;
@@ -117,6 +121,7 @@ const focusField = () => queueMicrotask(() => focusFieldEnd(document.querySelect
 
 export function ProjectOverview(props: ProjectOverviewProps) {
   const { run, support, root, project, list } = props;
+  const listRetry = props.listRetry ?? LIST_RETRY_IDLE;
   // Edit and resend's "Replace your draft?" while it asks, for the conversation it was pressed in.
   const [replacing, setReplacing] = useState<{ conversationId: string; confirm: ReplaceDraftConfirm } | null>(null);
   const listed = Array.isArray(list) ? list : null;
@@ -209,25 +214,26 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   };
 
   // Attachments go through main, which checks each file; each answer lands on its chip wherever the draft is now.
-  const settle = (keys: string[], results: readonly (AttachmentResult | null)[]) => {
+  // Refusals go to the composer's own notice (`report`), as Home's go under its composer.
+  const settle = (keys: string[], results: readonly (AttachmentResult | null)[], report: (text: string) => void) => {
     const { notices, images } = run.settleAttachments(keys, results);
     if (typeof URL.createObjectURL === "function") for (const image of images) support.setThumbnail(image.key, URL.createObjectURL(new Blob([new Uint8Array(image.thumbnail)], { type: "image/png" })));
-    if (notices.length) props.onNotice?.(notices.join(" "));
+    if (notices.length) report(notices.join(" "));
   };
   const addChips = (at: string, chips: AttachmentDraft[]) => run.setDrafts(drafts => {
     const current = drafts.get(at) ?? EMPTY_DRAFT;
     return new Map(drafts).set(at, { ...current, attachments: [...current.attachments, ...chips] });
   });
-  const addFiles = (files: File[], pasted: boolean) => {
+  const addFiles = (files: File[], pasted: boolean, report: (text: string) => void) => {
     const at = key;
     const limit = attachmentLimit(draft.attachments.length, files.map(file => ({ pasted: false, size: file.size })));
-    if (limit.notices.length) props.onNotice?.(limit.notices.join(" "));
+    if (limit.notices.length) report(limit.notices.join(" "));
     const accepted = limit.accept.map(i => files[i]!);
     if (!accepted.length) return;
     const keys = accepted.map(() => crypto.randomUUID());
     addChips(at, accepted.map((file, i) => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size })));
     void window.doan.addAttachmentFiles(accepted).catch(() => null).then(async results => {
-      if (!results) { settle(keys, keys.map(() => null)); return; }
+      if (!results) { settle(keys, keys.map(() => null), report); return; }
       // A copied screenshot has no path on disk; it attaches as a pasted image instead. A Finder item main no longer
       // finds keeps main's answer: a folder named x.png has File.type image/png too.
       const final = await Promise.all(results.map(async (result, i) => {
@@ -239,18 +245,18 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         if (!bytes) return result;
         return window.doan.addPastedImage(bytes).catch(() => null);
       }));
-      settle(keys, final);
+      settle(keys, final, report);
     });
   };
-  const chooseFiles = () => {
+  const chooseFiles = (report: (text: string) => void) => {
     const at = key;
     void window.doan.chooseAttachments().catch(() => []).then(results => {
       const { chosen, release, notices } = chosenAttachments((run.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, results);
       for (const id of release) void window.doan.removeAttachment(id);
       const keys = chosen.map(() => crypto.randomUUID());
       addChips(at, chosen.map((result, i) => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" })));
-      settle(keys, chosen);
-      if (notices.length) props.onNotice?.(notices.join(" "));
+      settle(keys, chosen, report);
+      if (notices.length) report(notices.join(" "));
     });
   };
 
@@ -387,8 +393,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
               <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${conversationId === null ? " current" : ""}`} textValue="New conversation"><Plus aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
               <DropdownMenu.Separator className="doan-menu-sep" />
               <DropdownMenu.Label className="doan-menu-head">{`Conversations in ${project}`}</DropdownMenu.Label>
-              {list === "error" ? <div className="conv-error" role="status"><span>Couldn’t read conversations</span>
-                <DropdownMenu.Item className="doan-menu-item" onSelect={event => { event.preventDefault(); props.onRetryList(); }}>Retry</DropdownMenu.Item></div>
+              {list === "error" ? <div className="conv-error" role="status"><span>{announcedAgain(LIST_FAILED_TEXT, listRetry.failures)}</span>
+                {listRetryItem(listRetry, props.onRetryList)}</div>
                 : <div className="conv-list">{menuItems.map(item => <div key={item.conversationId} className="conv-row">
                   <DropdownMenu.RadioItem value={item.conversationId} textValue={item.title}
                     className={`doan-menu-item conv-item${item.conversationId === conversationId ? " current" : ""}`}>
@@ -430,6 +436,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
           {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text moved-text selectable" title={`${moved.title} moved to ${movedCanvas}.`}>
             <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
             <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
+          {list === "error" && listFailedNotice(listRetry, props.onRetryList)}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { run.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }} />)}</div>}
         </div>}

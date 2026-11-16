@@ -378,10 +378,11 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
             <AlertIcon />
             <span className="project-settings-grow selectable">{page.notice.text}{page.notice.reason && <span className="project-settings-notice-reason">{page.notice.reason}</span>}</span>
             <div className="project-settings-notice-actions">{page.notice.actions.map(action => <button key={action} type="button" className="doan-button"
-              data-ui-variant={action === "details" ? "ghost" : "panel"} data-ui-size="sm" aria-expanded={action === "details" ? details : undefined}
+              // Details is a disclosure: its label shows the state with ▸/▾ (as ErrorDetails), its name stays the word.
+              data-ui-variant={action === "details" ? "ghost" : "panel"} data-ui-size="sm" aria-expanded={action === "details" ? details : undefined} aria-label={action === "details" ? LABELS.details : undefined}
               // A running retry read is busy, not unavailable: Retry keeps its fill and focus with the spinner inside.
               aria-disabled={(reading && action === "retry") || undefined} aria-busy={(reading && action === "retry") || undefined}
-              disabled={!reading && disabled && action === "retry"} onClick={() => recover(action)}>{reading && action === "retry" && <span className="doan-spinner" aria-hidden="true" />}{LABELS[action]}</button>)}</div>
+              disabled={!reading && disabled && action === "retry"} onClick={() => recover(action)}>{reading && action === "retry" && <span className="doan-spinner" aria-hidden="true" />}{action === "details" ? `${LABELS.details} ${details ? "▾" : "▸"}` : LABELS[action]}</button>)}</div>
           </div>
           {details && page.notice.detail && <pre className="project-settings-details selectable">{page.notice.detail}</pre>}
           {notice && <p className="settings-msg error project-settings-msg selectable" role="alert"><AlertIcon /><span>{notice}</span></p>}

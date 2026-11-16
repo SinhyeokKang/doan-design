@@ -9,6 +9,7 @@ import { conversationCanvasMatch } from "./canvasConversationRows";
 import { conversationWork, scheduledOf, slotKeyOf, slotsFromList } from "./conversationList";
 import { asksPerson, stripState, type StripState } from "./conversationStrip";
 import { mergeEvents } from "../main/conversation/state";
+import { LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 import { newCanvasText } from "./newCanvasText";
 import { issuedAttachment, sendRefusal, splitRequest, type AttachmentDraft } from "./homeComposer";
 import {
@@ -95,8 +96,9 @@ export class HomeRun {
   private seen = new Map<string, { root: string; from: number | null }>();
   // A later seq the Overview asked to mark while an earlier mark was still waiting for main.
   private laterSeen = new Map<string, number>();
-  // Roots whose last list read failed, and the number of the last read applied per root.
-  private listErrors = new Set<string>();
+  // Roots whose last list read failed, with the reads that failed in a row, and the number of the last read applied
+  // per root.
+  private listErrors = new Map<string, number>();
   private applied = new Map<string, number>();
   // When main last refused a start in a root as project_busy, and the list read last asked for then. The reason line
   // shows without Open until a list read asked for after the refusal arrives, which names the holder or none (at most
@@ -406,6 +408,11 @@ export class HomeRun {
     return this.lists.get(root) ?? (this.listErrors.has(root) ? "error" : "loading");
   }
   retryList(root: string): void { this.readList(root); }
+  // A failed list's Retry runs while a read of that root is out.
+  listRetry(root: string): ListRetry {
+    if (this.listState(root) !== "error") return LIST_RETRY_IDLE;
+    return { running: this.reads.has(root), failures: this.listErrors.get(root) ?? 0 };
+  }
   readsStarted(root: string): number { return this.readCount.get(root) ?? 0; }
   readsApplied(root: string): number { return this.applied.get(root) ?? 0; }
   // The project conversation behind a project row's slot: opening the row's Overview asks
@@ -493,10 +500,12 @@ export class HomeRun {
     this.readCount.set(root, n);
     const state = { again: false };
     this.reads.set(root, state);
+    // A read of a failed list turns its Retry busy at once.
+    if (this.listState(root) === "error") { this.revision++; this.host.changed(); }
     void window.doan.listConversations({ root }).catch(() => ({ error: "unknown" })).then(reply => {
       this.reads.delete(root);
       if (Array.isArray(reply) && this.registered(root)) this.applyList(root, n, reply);
-      else if (!state.again && this.registered(root)) { this.listErrors.add(root); this.revision++; this.host.changed(); }
+      else if (!state.again && this.registered(root)) { this.listErrors.set(root, (this.listErrors.get(root) ?? 0) + 1); this.revision++; this.host.changed(); }
       if (state.again) this.readList(root);
     });
   }

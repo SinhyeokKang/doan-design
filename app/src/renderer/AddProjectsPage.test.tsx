@@ -163,11 +163,11 @@ test("the page panel sets first run's body text and clips sideways", async () =>
 });
 
 // a locked menu item shows no highlight fill, and its icon and path take the disabled ink; the selected
-// worktree keeps its own fill and check.
+// worktree keeps its own fill and check, and a busy row (a running list Retry) keeps its highlight.
 test("locked project-menu items get no highlight fill and disabled ink on their icon and path", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toContain('.doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }');
+  expect(css).toContain('.doan-menu-item[aria-disabled="true"]:not([aria-current="true"], [aria-busy="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }');
   expect(css).toContain('.shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }');
 });
 

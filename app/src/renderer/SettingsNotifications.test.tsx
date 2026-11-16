@@ -126,7 +126,8 @@ test("Send test notification says it was sent, or that Doan isn’t allowed; Ope
   doan.sendTestNotification!.mockResolvedValueOnce({ kind: "failed" });
   click("Send test notification"); await flush(); render();
   const alert = all(tree).find(element => element.props.role === "alert")!;
-  expect(words(alert.props.children)).toBe("Doan isn’t allowed to show notifications. Allow it in System Settings › Notifications.");
+  // The notice's text, beside its actions (D20).
+  expect(words(all(alert).find(element => String(element.props.className).includes("ob-notice-text"))!.props.children)).toBe("Doan isn’t allowed to show notifications. Allow it in System Settings › Notifications.");
   click("Open System Settings ↗");
   expect(doan.openNotificationSettings).toHaveBeenCalledWith();
 });
@@ -143,9 +144,9 @@ test("an unreadable preferences file says defaults apply; a newer one says so an
 test("Settings notices sit on the white page, so they keep the inset notice instead of the panel", () => {
   const notices = () => all(tree).filter(element => typeof element.props.className === "string" && element.props.className.split(" ").includes("doan-notice")).map(element => element.props.className);
   render({ preferences: snapshot({}, "broken") });
-  expect(notices()).toEqual(["doan-notice error settings-notice", "doan-notice"]);
+  expect(notices()).toEqual(["doan-notice error settings-notice", "doan-notice stacked"]);
   render({ preferences: snapshot({}, "newer") });
-  expect(notices()).toEqual(["doan-notice settings-notice", "doan-notice"]);
+  expect(notices()).toEqual(["doan-notice settings-notice", "doan-notice stacked"]);
 });
 
 // Read-only text is selectable (the `selectable` class); buttons are not.

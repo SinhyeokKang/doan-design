@@ -480,6 +480,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     readsStarted: root => homeRun.current.readsStarted(root),
     readsApplied: root => homeRun.current.readsApplied(root),
     reread: root => homeRun.current.retryList(root),
+    listRetry: root => homeRun.current.listRetry(root),
     markSeen: (id, seq) => homeRun.current.markSeenThrough(id, seq),
     focused: () => document.hasFocus(),
     drawing: (root, canvas) => homeRun.current.drawing(root, canvas),
@@ -2463,7 +2464,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={clock} onRemember={rememberPick}
       onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={(canvas, conversationId) => openConversationCanvas(overview.path, canvas, conversationId, { kind: "promotion" })}
       onReplyChip={link => replyChip(overview.path, link)}
-      onRetryList={() => run.retryList(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
+      onRetryList={() => run.retryList(overview.path)} listRetry={run.listRetry(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
       onSendConversation={(provider, request) => run.send(overview.path, provider, request)}
       onAction={(name, root) => action(name, root)}
       onProjectSettings={root => openProjectSettings(root)}
@@ -2471,7 +2472,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     {overview && <ResizeHandle className="doan-overview-handle" label="Resize canvas conversations" width={shownOverviewPanel} bounds={panelLimits} preview={previewPanel}
       onResize={width => { overviewTouched.current = true; setOverviewSaved(width); }} />}
     {overview ? <div className="right-stack" inert={overlaid}><CanvasConversations key={overview.path} list={canvasList} project={projectLabel(overview.path)} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible}
-      open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)}
+      open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)} listRetry={run.listRetry(overview.path)}
       onDelete={(item, button, after) => openDelete({ conversationId: item.conversationId, root: overview.path, title: item.title, provider: item.provider, from: "canvasList", after }, button)} /></div>
       : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
         title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={clock} seen={run.seenPending()}
@@ -2558,6 +2559,14 @@ function sendPlay(request: PlayRequest | null): void {
   if (request !== null) prototypeMainCalls().playPrototype(request);
 }
 
+// The canvas page's first Loading line waits LOADING_DELAY_MS, as the app's other first-load lines do, so a quick load
+// never flashes it; its status region is drawn at once, so the line is read when it appears.
+export function CanvasLoading() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const timer = setTimeout(() => setSlow(true), LOADING_DELAY_MS); return () => clearTimeout(timer); }, []);
+  return slow ? <p><span className="doan-spinner" aria-hidden="true" />Loading</p> : null;
+}
+
 function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command, covered, overlaid, zoomTo, onToolbarEscape, selectFrame, conversation, agent, picking, capturing, tool, onTool, picker, capture, player, exporter }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   // covered: the Overview or a problem's overlay is over the pane. overlaid: the overlay, which names the problem itself.
@@ -2583,7 +2592,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, view, command,
     </CanvasAgent>
     {/* A canvas closed for a missing or not set up root leaves no message: the overlay names the problem. */}
     {state.status && (state.status !== "missing" || state.message) && <div className="canvas-status" role="status">
-      {state.status === "loading" ? <p><span className="doan-spinner" aria-hidden="true" />Loading</p>
+      {state.status === "loading" ? <CanvasLoading />
         : state.status === "failed" ? <div className="canvas-status-block"><AlertIcon size={20} /><h2>Couldn’t load the canvas</h2><p>Run doan check in a terminal.</p>
           <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => command("reload")}>Reload</button></div>
         : state.status === "noWidth" ? <p className="selectable"><b>Couldn’t read a valid board width.</b>{state.message.slice("Couldn’t read a valid board width.".length)}</p>
