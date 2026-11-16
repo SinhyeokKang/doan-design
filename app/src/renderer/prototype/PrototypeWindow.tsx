@@ -490,8 +490,12 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
       <span className="traffic-space" aria-hidden="true" />
       <div className="shell-history">
         {/* The end of the history is aria-disabled, not disabled: a Back or Forward pressed to it keeps focus. */}
-        <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" aria-disabled={!view?.canGoBack || undefined} onClick={() => { if (view?.canGoBack) onBack(); }}><ArrowLeft aria-hidden="true" /></button>
-        <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" aria-disabled={!view?.canGoForward || undefined} onClick={() => { if (view?.canGoForward) onForward(); }}><ArrowRight aria-hidden="true" /></button>
+        <Tooltip><TooltipTrigger asChild>
+          <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" aria-disabled={!view?.canGoBack || undefined} onClick={() => { if (view?.canGoBack) onBack(); }}><ArrowLeft aria-hidden="true" /></button>
+        </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>Back</TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild>
+          <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" aria-disabled={!view?.canGoForward || undefined} onClick={() => { if (view?.canGoForward) onForward(); }}><ArrowRight aria-hidden="true" /></button>
+        </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>Forward</TooltipContent></Tooltip>
         <Tooltip><TooltipTrigger asChild>
           <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Reload prototype" disabled={view === null} onMouseDown={event => { keepFocus(event); if (event.button === 0) onReloadPress(); }} onClick={event => onReloadClick(event.detail > 0)}><RotateCw aria-hidden="true" /></button>
         </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>Reload prototype</TooltipContent></Tooltip>

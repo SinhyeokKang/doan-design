@@ -1,6 +1,7 @@
-import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { Popover } from "radix-ui";
 import { Eye, Play } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { drawerKey, drawerOrder, focusedRowAfter, type DrawerGroup, type DrawerRow, type Typed } from "./frameDrawerList";
 
 // The prototype drawers' list body: the prototype window's frame menu and the canvas toolbar's Play drawer. Each caller
@@ -10,9 +11,18 @@ import { drawerKey, drawerOrder, focusedRowAfter, type DrawerGroup, type DrawerR
 // prototyping, always last so it lines up in every row. The words stay for assistive technology.
 export function FrameRowMarks({ current, prototype }: { current: string | null; prototype: boolean }) {
   return <>
-    {current !== null && <span className="doan-frame-current" title={current}><Eye aria-hidden="true" /><span className="sr-only">{current}</span></span>}
-    {prototype && <span className="doan-frame-current prototype-meta-icon" title="Prototype supported"><Play aria-hidden="true" /><span className="sr-only">Prototype</span></span>}
+    {current !== null && <Mark tip={current}><span className="doan-frame-current"><Eye aria-hidden="true" /><span className="sr-only">{current}</span></span></Mark>}
+    {prototype && <Mark tip="Prototype supported"><span className="doan-frame-current prototype-meta-icon"><Play aria-hidden="true" /><span className="sr-only">Prototype</span></span></Mark>}
   </>;
+}
+function Mark({ tip, children }: { tip: string; children: ReactElement }) {
+  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{tip}</TooltipContent></Tooltip>;
+}
+
+// A frame row's name in the shared tooltip on every hover (DESIGN 'Tooltip'). The name, not the whole row, is the
+// trigger: the row's marks are triggers of their own, and nested triggers would show two capsules at once.
+export function FrameName({ name }: { name: string }) {
+  return <Tooltip><TooltipTrigger asChild><span className="doan-frame-name">{name}</span></TooltipTrigger><TooltipContent>{name}</TooltipContent></Tooltip>;
 }
 
 // The listbox: one named group per link group, with an aria-hidden separator only between groups. `active` holds the
@@ -26,12 +36,12 @@ export function DrawerListbox({ label, groups, active, currentWord, onKeyDown, o
       {index > 0 && <div className="doan-menu-sep" aria-hidden="true" />}
       <div role="group" aria-label={group.label}>
         {group.rows.map(row => <div key={row.key} role="option" aria-current={row.current ? "location" : undefined}
-          tabIndex={row.key === active ? 0 : -1} title={row.name} className="doan-menu-item doan-frame-row"
+          tabIndex={row.key === active ? 0 : -1} className="doan-menu-item doan-frame-row"
           ref={node => { if (node) nodes.set(row.key, node); else nodes.delete(row.key); }}
           onFocus={() => onFocusRow(row.key)}
           onPointerMove={event => { if (document.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }); }}
           onClick={() => onPick(row)}>
-          <span className="doan-frame-num">{row.number}</span><span className="doan-frame-name">{row.name}</span><FrameRowMarks current={row.current ? currentWord : null} prototype={false} />
+          <span className="doan-frame-num">{row.number}</span><FrameName name={row.name} /><FrameRowMarks current={row.current ? currentWord : null} prototype={false} />
         </div>)}
       </div>
     </Fragment>)}

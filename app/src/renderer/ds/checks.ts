@@ -295,6 +295,24 @@ export function edgeStripes(files: SourceFile[]): EdgeStripe[] {
   return found;
 }
 
+export interface TypeRoleUse { path: string; line: number; selector: string; role: string }
+
+const roleSize = /var\(\s*--type-([\w-]+?)-size\s*\)/;
+
+/** Lists CSS rules that set a type role's size (in any declaration) without setting `letter-spacing`: a role is applied whole. */
+export function typeRoleTracking(files: SourceFile[]): TypeRoleUse[] {
+  const found: TypeRoleUse[] = [];
+  for (const file of files) {
+    if (!file.path.endsWith(".css")) continue;
+    for (const block of blocks(file.text)) {
+      if (block.declarations.some(d => d.prop === "letter-spacing")) continue;
+      const sized = block.declarations.find(d => !d.prop.startsWith("--") && roleSize.test(d.value));
+      if (sized) found.push({ path: file.path, line: lineAt(file.text, sized.valueStart), selector: block.prelude, role: roleSize.exec(sized.value)![1]! });
+    }
+  }
+  return found;
+}
+
 /** The inner corner that stays concentric with an outer one: max(0, outer − inset − border). */
 export function nestedRadius(outer: number, inset: number, border: number) {
   return Math.max(0, outer - inset - border);

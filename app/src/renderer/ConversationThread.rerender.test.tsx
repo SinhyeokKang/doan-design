@@ -68,7 +68,8 @@ function run(props: ConversationThreadProps): unknown[] {
   walk(body);
   return values;
 }
-const chip = (canvas: string, id: string) => ReplyChip({ link: { canvas, kind: "frame", id } }) as ReactElement<{ "aria-disabled"?: boolean; "aria-label": string; children: ReactNode }>;
+// The chip inside its detail tooltip.
+const chip = (canvas: string, id: string) => (ReplyChip({ link: { canvas, kind: "frame", id } }) as ReactElement<{ children: ReactElement<{ "aria-disabled"?: boolean; "aria-label": string; children: ReactNode }> }>).props.children;
 
 beforeEach(() => { hooks.slots = []; hooks.contexts.clear(); });
 

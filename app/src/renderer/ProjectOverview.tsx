@@ -50,6 +50,7 @@ import { stopBackground, threadTurn } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import { dropAttachment } from "./conversationStore";
+import { NameTip } from "./NameTip";
 
 // The project Overview as the project conversation screen: the header with the
 // project, its worktree chip and the conversation dropdown, the thread and the docked composer. OverviewRun decides
@@ -346,7 +347,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     <header className="ov-head">
       <span className="ov-project">
         <span className={`shell-thumbnail hue-${projectHue(project)}`} aria-hidden="true">{projectInitial(project)}</span>
-        <span className="ov-project-name">{project}</span>
+        <NameTip text={project}><span className="ov-project-name">{project}</span></NameTip>
         {props.worktrees.length > 1 ? <DropdownMenu.Root onOpenChange={open => { if (open) setRepair(null); }}>
           <DropdownMenu.Trigger asChild><button type="button" className="doan-chip shell-branch wt-chip" data-ui-variant="translucent" aria-label={`Worktree: ${chipLabel}`}>
             <GitBranch aria-hidden="true" /><span>{chipLabel}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
@@ -382,8 +383,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       <span className="ov-sep" aria-hidden="true">/</span>
       <span className="ov-title-wrap">
         <DropdownMenu.Root open={menuOpen && !loading} onOpenChange={open => setMenuOpen(open && !loading)}>
-          <DropdownMenu.Trigger asChild><button ref={titleTrigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title} aria-disabled={loading || undefined}>
-            <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
+          <NameTip text={title}><DropdownMenu.Trigger asChild><button ref={titleTrigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-disabled={loading || undefined}>
+            <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger></NameTip>
           <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label="Project conversations" align="start" sideOffset={4} collisionPadding={8}
             onCloseAutoFocus={event => {
               if (deleting.current) { deleting.current = false; event.preventDefault(); return; }
@@ -433,8 +434,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onCopy={text => Promise.resolve(copyText(text))}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : waiting || conversationId ? <Waiting /> : <div className="ov-col ov-new">
-          {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text moved-text selectable" title={`${moved.title} moved to ${movedCanvas}.`}>
-            <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
+          {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><NameTip text={`${moved.title} moved to ${movedCanvas}.`}><span className="grow-text moved-text selectable">
+            <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span></NameTip>
             <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
           {list === "error" && listFailedNotice(listRetry, props.onRetryList)}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>

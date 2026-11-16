@@ -1,4 +1,8 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
+import { renderToStaticMarkup as serverMarkup } from "react-dom/server";
+import { TooltipProvider } from "./components/ui/tooltip";
+// Names and details show in the shared tooltip, which needs the app's provider.
+const renderToStaticMarkup = (node: ReactNode) => serverMarkup(<TooltipProvider>{node}</TooltipProvider>);
 import { expect, test } from "vitest";
 import type { ProjectForm } from "./onboardingView";
 import { ProjectFields, ProjectSetupDialog, setupRequest, type StorageInput } from "./ProjectSetupDialog";

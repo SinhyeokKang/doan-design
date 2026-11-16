@@ -60,6 +60,7 @@ svg { display: block; flex: none; }
   color: var(--text-standard);
   font-size: var(--type-body-sm-size);
   line-height: var(--type-body-sm-line-height);
+  letter-spacing: var(--type-body-sm-letter-spacing);
   overflow-wrap: anywhere;
 }
 .doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }

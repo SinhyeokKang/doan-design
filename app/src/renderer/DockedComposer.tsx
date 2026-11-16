@@ -491,7 +491,8 @@ export function DockedComposer(props: DockedComposerProps) {
       <div className="docked-buddy-slot" ref={dockedBuddy.dockSlot} aria-hidden="true" data-accepts={locked ? "false" : undefined}
         data-queue={props.queued.length > 0 ? "" : undefined}
         data-waiting={props.stepAside?.waiting ? "" : undefined} data-notice={props.stepAside?.notice ? "" : undefined} data-popover={slashOpen ? "" : undefined} />
-      <ComposerChips lead={playing && <span className="anchor-chip pw-playing" data-kind="frame" title={PLAYING_TITLE}><span className="sr-only">Frame </span><Frame aria-hidden="true" /><span>{playing.name}</span></span>}
+      <ComposerChips lead={playing && <Tooltip><TooltipTrigger asChild><span className="anchor-chip pw-playing" data-kind="frame"><span className="sr-only">Frame </span><Frame aria-hidden="true" /><span>{playing.name}</span></span></TooltipTrigger>
+        <TooltipContent>{PLAYING_TITLE}</TooltipContent></Tooltip>}
         attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
       <ComposerField skillNames={skillNames} key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
@@ -666,8 +667,9 @@ export function QueueRows(props: QueueRowsProps) {
               aria-describedby={describedBy} onClick={() => void sendNow(item.id)}>Send now</button>
           </TooltipTrigger><TooltipContent>{SEND_NOW_TIP}</TooltipContent></Tooltip>}</QueueButtonLife>}
         <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
-          <button type="button" ref={node => { life(node); keep("remove", item.id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"
-            aria-label="Remove queued message" aria-describedby={describedBy} onClick={() => void remove(item.id)}><X aria-hidden="true" /></button>}</QueueButtonLife>
+          <Tooltip><TooltipTrigger asChild><button type="button" ref={node => { life(node); keep("remove", item.id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"
+            aria-label="Remove queued message" aria-describedby={describedBy} onClick={() => void remove(item.id)}><X aria-hidden="true" /></button></TooltipTrigger>
+          <TooltipContent>Remove queued message</TooltipContent></Tooltip>}</QueueButtonLife>
       </div>
       <div className="queue-status" role="status">{refused.has(item.id) && <><AlertIcon /><span>{SEND_NOW_REFUSED_TEXT}</span></>}</div>
     </div>;

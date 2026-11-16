@@ -34,8 +34,8 @@ const violetAllowed = [
   '.side .row[aria-current="location"] :is(.g, .glyph, .d, .tw)',
   // Home's Send, the shared accent icon button (doan-home approved draft, 2026-10-29 user).
   '.doan-icon-button[data-ui-variant="accent"]',
-  '.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled)',
-  '.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled)',
+  '.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled, [data-disabled])',
+  '.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled])',
   // The rest of Home's accent places: the chosen
   // preset chip, the suggested prompts' group icons, the Home-only glow around the composer (dogfooding moved it from a panel-wide ellipse), the drop outline and the sidebar status slot.
   ".preset-chip",

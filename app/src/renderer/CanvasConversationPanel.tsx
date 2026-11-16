@@ -49,6 +49,7 @@ import { stopBackground, threadTurn } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import type { PlayingFrameChip } from "./prototype/conversation";
+import { NameTip } from "./NameTip";
 
 // The canvas page's conversation panel body (draft frames
 // panel-*): the conversation menu in the panel's title row, the thread and the docked composer. CanvasRun decides which
@@ -185,8 +186,8 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
   const startNew = () => startNewConversation(current, isNew, select, onPicked);
   return <><span className="ov-title-wrap doan-conv-title">
     <DropdownMenu.Root open={menuOpen && !loading} onOpenChange={open => setMenuOpen(open && !loading)}>
-      <DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title} aria-disabled={loading || undefined}>
-        <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
+      <NameTip text={title}><DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-disabled={loading || undefined}>
+        <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger></NameTip>
       <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
         onCloseAutoFocus={event => {
           if (deleting.current) { deleting.current = false; event.preventDefault(); return; }

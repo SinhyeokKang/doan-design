@@ -56,7 +56,7 @@ function render(list: ListView, patch: Partial<ProjectOverviewProps> = {}, setup
 
 test("the header names the project, its branch read-only for one worktree, and the conversation's title", () => {
   const html = render([summary()]);
-  expect(html).toContain('<span class="ov-project-name">doan</span>');
+  expect(html).toContain('<span class="ov-project-name" data-state="closed" data-slot="tooltip-trigger">doan</span>');
   expect(html).toMatch(/<span class="doan-chip shell-branch" data-ui-variant="translucent">.*<span>main<\/span><\/span>/);
   expect(html).not.toContain("wt-chip");
   expect(html).toContain('<span class="ov-sep" aria-hidden="true">/</span>');
@@ -106,7 +106,7 @@ test("a promotion leaves the moved line with Open above the suggestions", () => 
     (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
   });
   // One line; only the title gives way, and the whole sentence stays in the text (and the tooltip).
-  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text selectable" title="Checkout copy moved to checkout\."><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
+  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text selectable" data-state="closed" data-slot="tooltip-trigger"><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
 });
 
 test("selectable: the notice text, not the notice's moved line", () => {

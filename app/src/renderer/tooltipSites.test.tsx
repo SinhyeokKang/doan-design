@@ -29,13 +29,25 @@ const { DrawerListbox, FrameRowMarks } = await import("./FrameListBody");
 
 const noop = () => {};
 const html = (node: ReactNode) => renderToStaticMarkup(<>{node}</>);
+// The end of the element opened at `start`, past its matching close tag.
+function elementEnd(markup: string, start: number): number {
+  const name = /^<(\w+)/.exec(markup.slice(start))![1]!, tags = new RegExp(`<(/?)${name}\\b[^>]*>`, "g");
+  tags.lastIndex = start;
+  let depth = 0;
+  for (let match = tags.exec(markup); match; match = tags.exec(markup)) {
+    depth += match[1] ? -1 : 1;
+    if (depth === 0) return match.index + match[0].length;
+  }
+  throw new Error(`unclosed <${name}>`);
+}
 // The tooltip drawn right after the element whose opening tag has `marker`.
 function tipAfter(markup: string, marker: string): string | null {
   const at = markup.indexOf(marker);
   expect(at, marker).toBeGreaterThanOrEqual(0);
-  const tag = markup.lastIndexOf("<", at), name = /^<(\w+)/.exec(markup.slice(tag))![1]!;
-  const close = markup.indexOf(`</${name}>`, at) + name.length + 3;
-  return /^<span data-tip="[^"]*">(.*?)<\/span>/.exec(markup.slice(close))?.[1] ?? null;
+  const end = elementEnd(markup, markup.lastIndexOf("<", at));
+  if (!markup.startsWith("<span data-tip=", end)) return null;
+  const tip = markup.slice(end, elementEnd(markup, end));
+  return tip.slice(tip.indexOf(">") + 1, -"</span>".length);
 }
 const tag = (markup: string, marker: string) => markup.match(new RegExp(`<\\w+[^>]*${marker}[^>]*>`))?.[0] ?? "";
 
@@ -44,7 +56,7 @@ const LOCK = "Settings is in the middle of a change. Finish or cancel it, then t
 // DESIGN 'Tooltip': every icon-only button names its action in the shared tooltip.
 describe("icon-only buttons", () => {
   const topBar = (back: boolean, lockReason: string | null) => html(<TopBar sidebar={{ view: { label: "Hide sidebar", icon: "hide", badge: null }, controls: undefined, toggle: noop }} back={back} forward={false}
-    previous={noop} next={noop} page={null} locked={lockReason !== null} lockReason={lockReason} updateDisabled={false} addProjects={noop} projects={noop} settings={noop} usage={{ openSettings: () => true }} />);
+    previous={noop} next={noop} page={null} locked={lockReason !== null} lockReason={lockReason} reasonId="page-lock-reason" updateDisabled={false} addProjects={noop} projects={noop} settings={noop} usage={{ openSettings: () => true }} />);
 
   test("the main window's Back and Forward", () => {
     const markup = topBar(true, null);
@@ -64,7 +76,7 @@ describe("icon-only buttons", () => {
 
   test("the prototype window's Back and Forward", () => {
     const view = { gen: 2, root: "/r", path: ".doan/canvases/a.html", frame: "checkout", title: "Checkout", canvas: "a", phase: "ready", mode: "fit", run: { url: "u", markWidth: 390, markHeight: 844 }, frames: [], gotos: [], canGoBack: true, canGoForward: true, previousStopped: false, panel: { open: false, width: null }, canvasRow: "present" } as const;
-    const markup = html(<WindowShell view={view} layers={{ frames: [], visible: null, snapshot: null }} readingShown={false} details={false} live="" width={640} menuOpen={false} exporting={false}
+    const markup = html(<WindowShell view={{ ...view, frames: [], gotos: [] }} layers={{ frames: [], visible: null, snapshot: null }} readingShown={false} details={false} live="" width={640} menuOpen={false} exporting={false}
       onBack={noop} onForward={noop} onReload={noop} onReloadPress={noop} onReloadClick={noop} onMode={noop} onMenuOpen={noop} onChoose={noop} onClose={noop} onDetails={noop} onExport={noop} />);
     expect(tipAfter(markup, 'aria-label="Back"')).toBe("Back");
     expect(tipAfter(markup, 'aria-label="Forward"')).toBe("Forward");

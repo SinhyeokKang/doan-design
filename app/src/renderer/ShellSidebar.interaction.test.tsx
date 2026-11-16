@@ -514,7 +514,9 @@ it("an unreadable canvas's open Details block is selectable, its Details button 
 
 it("keeps a locked row's button in the focus order as aria-disabled, and it opens nothing", () => {
   const tree = canvasMenuFixture({}, { locked: true });
-  expect(tree.button()).toMatchObject({ "aria-disabled": true, tabIndex: -1 });
+  // The unavailable state sits on Radix's trigger, which its Slot merges onto the button.
+  const trigger = tree.rendered().find(item => item.asChild === true && (item.children as { props?: Record<string, unknown> } | undefined)?.props?.["aria-label"] === "a menu")!;
+  expect({ ...trigger, ...tree.button() }).toMatchObject({ "aria-disabled": true, tabIndex: -1 });
   expect(tree.button().disabled).toBeUndefined();
   tree.open();
   expect(tree.canvasRoot().open).toBe(false);

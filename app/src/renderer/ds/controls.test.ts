@@ -148,8 +148,9 @@ test("icon button size xs is a 24px pill with the small icon; variant accent is 
   expect(rule(css, '.doan-icon-button[data-ui-size="xs"]')).toBe("width: var(--size-control-xs); height: var(--size-control-xs); border-radius: var(--radius-pill);");
   expect(rule(css, '.doan-icon-button[data-ui-size="xs"] > svg')).toBe("width: var(--size-icon-sm); height: var(--size-icon-sm);");
   expect(rule(css, '.doan-icon-button[data-ui-variant="accent"]')).toBe("border-radius: var(--radius-pill); background: var(--affordance-accent); color: var(--text-on-accent);");
-  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled) { background: var(--affordance-accent-hover); }');
-  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-accent-pressed); }');
+  // An aria-disabled Send drawn disabled (data-disabled, its reason in the tooltip) keeps the disabled fill under the pointer.
+  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled, [data-disabled]) { background: var(--affordance-accent-hover); }');
+  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { background: var(--affordance-accent-pressed); }');
   // The accent resting fill must come before the shared disabled rule of equal weight, which then wins.
   expect(css.indexOf('.doan-icon-button[data-ui-variant="accent"] {')).toBeLessThan(css.indexOf(":is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) {"));
 });

@@ -6,6 +6,7 @@ import { AlertIcon } from "./AlertIcon";
 import { withChips } from "./codeChips";
 import { StorageField } from "./StorageChoice";
 import type { StorageChoice } from "./storageRules";
+import { NameTip } from "./NameTip";
 
 // One project setup form, used by the wizard's Project step and the sidebar's
 // Set Up dialog. Main keeps the picked CSS file; the renderer holds only its ID.
@@ -60,7 +61,7 @@ export function ProjectFields({ root, form, choose, chooseRef, storage }: { root
   return <>
     <div className="ob-field">
       <span className="ob-label">Token CSS</span>
-      <span className={view.token === null ? "value none" : "value token-path selectable"} title={view.token ?? undefined}>{view.token ?? "None"}</span>
+      {view.token === null ? <span className="value none">None</span> : <NameTip text={view.token}><span className="value token-path selectable">{view.token}</span></NameTip>}
       <button type="button" className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={view.choose.disabled} ref={chooseRef} onClick={choose}>Choose…</button>
       {view.helper && <span className="ob-helper">{view.helper}</span>}
     </div>
@@ -95,7 +96,7 @@ export function ProjectSetupDialog({ root, name, kept = false, notGit = false, o
       event.preventDefault(); event.stopPropagation();
       if (!event.nativeEvent.isComposing) close();
     }}>
-    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">Set up {name}</h3><p className="doan-dialog-description ob-project-path selectable" title={root}>{root}</p></div></div>
+    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">Set up {name}</h3><NameTip text={root}><p className="doan-dialog-description ob-project-path selectable">{root}</p></NameTip></div></div>
     <div className="ob-card">
       <ProjectFields root={root} form={form} choose={() => void choose()} chooseRef={node => { chooseButton.current = node; }} storage={storage} />
     </div>

@@ -61,14 +61,17 @@ function TooltipTrigger({
   )
 }
 
+// `container`: a modal dialog sits in the top layer, above anything portalled to the body, so a tooltip inside one is
+// portalled into that dialog.
 function TooltipContent({
   className,
   sideOffset = 4,
+  container,
   children,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+}: React.ComponentProps<typeof TooltipPrimitive.Content> & { container?: Element | null | undefined }) {
   return (
-    <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Portal container={container}>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
         sideOffset={sideOffset}

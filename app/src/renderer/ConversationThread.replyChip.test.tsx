@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { TooltipProvider } from "./components/ui/tooltip";
 import type { ReactElement } from "react";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
@@ -41,7 +42,8 @@ function chip(link: ReplyAnchor, patch: Record<string, unknown>) {
   const asked: ReplyAnchor[] = [], shown: string[] = [];
   stub.context = { openCanvasId: "drafts", frames: [{ id: "editor", title: "Editor" }], rows, disabled: false, pressable: true, shownFor: null,
     show: (key: string) => shown.push(key), replyChip: (at: ReplyAnchor) => { asked.push(at); return Promise.resolve(patch.outcome ?? null); }, ...patch };
-  const element = ReplyChip({ link }) as ReactElement<{ onClick(): void; "aria-describedby"?: string }>;
+  // The chip inside its detail tooltip.
+  const element = (ReplyChip({ link }) as ReactElement<{ children: ReactElement<{ onClick(): void; "aria-describedby"?: string }> }>).props.children;
   return { element, asked, shown };
 }
 const settle = async () => { await Promise.resolve(); await Promise.resolve(); };
@@ -80,8 +82,8 @@ test("the note's chip is described by it", () => {
 test("the note sits under the reply block, not inside it, as a status that describes its chip", () => {
   stub.note = { count: 1, chip: "k" };
   const items: ThreadItem[] = [{ kind: "agent", key: "m1", messageId: "m1", text: "I removed [b](doan:drafts/element/beta-badge).", streaming: false }];
-  const out = renderToStaticMarkup(<ConversationThread conversationId="c1" items={items} provider="claude" project="acme" liveAfter={0} canvasListed={() => true}
+  const out = renderToStaticMarkup(<TooltipProvider><ConversationThread conversationId="c1" items={items} provider="claude" project="acme" liveAfter={0} canvasListed={() => true}
     onAnswer={() => {}} onStop={() => {}} onEditAndResend={() => {}} onSignIn={() => {}} onRetry={() => {}} onOpenCanvas={() => {}} onOpenLink={() => {}}
-    onCopy={async () => true} onReplyChip={async () => "missing"} openCanvasId="drafts" frames={[]} canvasRows={rows} />);
-  expect(out).toMatch(/<div class="thread-item" data-item="m1"><div class="msg-agent md"><p>I removed <button [^>]*aria-describedby="k-missing">.*?<\/button>\.<\/p><\/div><span class="chip-missing" id="k-missing" role="status">No longer in the canvas<\/span><\/div>/);
+    onCopy={async () => true} onReplyChip={async () => "missing"} openCanvasId="drafts" frames={[]} canvasRows={rows} /></TooltipProvider>);
+  expect(out).toMatch(/<div class="thread-item" data-item="m1"><div class="msg-agent md"><p>I removed <button [^>]*aria-describedby="k-missing"[^>]*>.*?<\/button>\.<\/p><\/div><span class="chip-missing" id="k-missing" role="status">No longer in the canvas<\/span><\/div>/);
 });
