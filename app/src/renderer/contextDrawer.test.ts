@@ -92,7 +92,7 @@ describe("contextDrawerView", () => {
     expect(view({ entries: [claude, { provider: "antigravity", inFlight: true }] }).busy).toBe(false);
   });
 
-  it("drops only the row after a sign-out, an account replacement or the last connection going", () => {
+  it("drops only the row after a sign-out or the last connection going", () => {
     const open = view();
     expect(open.usage).not.toBeNull();
     for (const entries of [[codex, copilot], []]) {
@@ -100,8 +100,15 @@ describe("contextDrawerView", () => {
       expect(after.usage).toBeNull();
       expect(after.context).toEqual(open.context);
     }
-    // A replacement drops the old account's value: the new connection reads again.
-    expect(view({ entries: [{ provider: "claude", inFlight: true }] }).usage).toMatchObject({ read: null, note: { text: "Reading usage…" } });
+  });
+
+  // Entries carry no connection ID, so a replacement reads as the header shows it: main drops the old account's value
+  // and reads the new one, and the row (with Refresh) stays through "Reading usage…" to the new values.
+  it("re-reads a replaced account as the header does, keeping the row", () => {
+    const reading = view({ entries: [{ provider: "claude", inFlight: true }] });
+    expect(reading.usage).toMatchObject({ read: null, note: { text: "Reading usage…" } });
+    expect(reading.busy).toBe(true);
+    expect(view({ entries: [ok("claude", [win({ usedPercent: 12 })])] }).usage?.windows[0]).toMatchObject({ text: "12% used · resets in 2h 10m" });
   });
 });
 
