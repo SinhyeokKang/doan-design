@@ -997,7 +997,7 @@ test("Edit and resend asks before replacing a different draft, and not over an e
   const key = `conversation:${A}`;
   const set = (value: DockedDraft) => h.run.setDrafts(drafts => new Map(drafts).set(key, value));
   const chip = (path: string) => ({ key: path, id: path, name: "a.png", kind: "image" as const, pasted: false, status: "ready" as const, size: 1, path });
-  const asks = { title: "Replace your draft?", body: "Your draft will be replaced by the last request you sent in this conversation.", cancel: "Keep Draft", confirm: "Replace" };
+  const asks = { title: "Replace your draft?", body: "Your draft will be replaced by the last request you sent in this conversation.", cancel: "Keep draft", confirm: "Replace" };
   expect(h.run.store.editAndResendConfirm(A)).toBeNull();
   set(draft(""));
   expect(h.run.store.editAndResendConfirm(A)).toBeNull();
