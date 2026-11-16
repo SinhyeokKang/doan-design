@@ -38,3 +38,6 @@
 - B 완료: `e238d5de` → `7e47bb87`. 범위 밖 `cli/internal/export/assemble_prototype_test.go`의 고정 digest 4개를 고쳤다(시트가 바뀌면 따라 바뀐다). 워커 release, 워크트리 제거, 브랜치 `SinhyeokKang/pac-B`는 남김.
 - A 완료: 7커밋 → `a9f708a3..da7f986e`. 워커는 수정 라운드를 위해 retain.
 - 리뷰 1라운드(Opus high): 🔴 0, 🟡 1, ⚪ 9. 보고서는 컨덕터 `.scratch/review-1.md`.
+- 검증: `/verify --eval`의 모든 단계가 통과했다. 첫 실행은 eval-self-test 뒤의 실제 상태 검사에서 멈췄다. 사용자가 쓰는 실제 Doan(`/Applications`)이 `ui-state.json`을 고쳤기 때문이다. self-test(45개 PASS)와 build만 다시 돌렸고 둘 다 종료 코드 0이었다.
+- 실제 앱 probe(tasks 4, Opus high 워커): 12개 모두 통과했고 실제 상태 검사도 통과했다(run-6). 보고서는 컨덕터 `.scratch/runtime-test/pac/report.md`에 있다. 확인하지 못한 것: 실제 휴대폰 Safari, WebKit 모바일 에뮬레이션, 패키지 앱, 변경 전 빌드와의 비교. 창 배치 규칙은 마지막 실행 뒤에 도착해 적용하지 못했다. 앱이 실행과 Play 때 포커스를 가져갔고, 워커가 그때마다 포커스를 돌려줬다.
+- 문서 승격: ARCHITECTURE `d7301824`, PRODUCT `9e5463f7`, BACKLOG `9a4faf48`.
