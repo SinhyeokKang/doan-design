@@ -512,9 +512,11 @@ test("command substitutions the reader cannot follow make the read incomplete", 
   // An unquoted heredoc body runs its substitutions; a quoted one is data.
   assert.equal(parseCommand("cat <<EOF\n$(doan design-skill polish)\nEOF").incomplete, true);
   assert.deepEqual(parseCommand("cat <<'EOF'\n$(doan design-skill polish)\nEOF"), { words: [["cat"]], incomplete: false });
-  // A function or case body may never run, so its substitutions are not runs either.
-  for (const command of ['f() { echo "$(doan open x.html)"; }', 'case "$1" in run) out=$(doan active);; esac'])
-    assert.deepEqual(parseCommand(command), { words: [], incomplete: true }, command);
+  // A function or case body may never run, so its substitutions are not runs either: an uncalled function's body ran
+  // nothing, a called one runs them, and a case is not followed.
+  assert.deepEqual(parseCommand('f() { echo "$(doan open x.html)"; }'), { words: [], incomplete: false });
+  assert.deepEqual(parseCommand('f() { echo "$(doan open x.html)"; }; f'), { words: [["doan", "open", "x.html"], ["echo", "$()"]], incomplete: false });
+  assert.deepEqual(parseCommand('case "$1" in run) out=$(doan active);; esac'), { words: [], incomplete: true });
   // Nesting past what the reader follows is incomplete, not a crash.
   const deep = "echo " + "$(echo ".repeat(2000) + "x" + ")".repeat(2000);
   assert.equal(parseCommand(deep).incomplete, true);
@@ -779,4 +781,29 @@ test("a function call the reader cannot follow is incomplete, and its arguments 
     // $1 belonged to the call; after it the shell's own $1 is not known here.
     "f() { echo $1; }; f polish; doan design-skill $1",
   ]) assert.equal(parseCommand(command).incomplete, true, command);
+});
+
+test("a function's arguments carry where the shell expands them into the home directory", () => {
+  const read = readCommands("w() { echo x >> \"$1/.zshrc\"; cat $1; }; w ~");
+  assert.equal(read.incomplete, false);
+  assert.deepEqual(read.commands.map(entry => [entry.words, entry.homePaths, entry.redirects.map(redirect => redirect.homePath)]), [[["echo", "x"], [undefined, undefined], ["/.zshrc"]], [["cat", "~"], [undefined, ""], []]]);
+  // Outside the call, $1 is not the home directory any more.
+  assert.deepEqual(readCommands("w() { :; }; w ~; echo x >> \"$1/.zshrc\"").commands.at(-1)!.redirects.map(redirect => [redirect.homePath, redirect.unresolved]), [[undefined, true]]);
+});
+
+test("a function the reader cannot track past its call or definition makes the read incomplete", () => {
+  for (const command of [
+    // An exported function runs in a child shell the reader reads fresh.
+    "f() { doan open a.html; }; export -f f; bash -c f",
+    "f() { doan open a.html; }; declare -fx f; bash -c f",
+    // A return before the body's end skips what follows it.
+    "f() { return; doan work start a.html; }; f",
+    "f() { [ -f x ] || return; doan work start a.html; }; f",
+    // unset without -f removes a variable of that name first; whether the function is still there is not known.
+    "f() { doan open a.html; }; unset f; f",
+    // An argument the reader cannot resolve leaves which word is $n unknown.
+    "f() { echo $2; }; f $UNKNOWN polish",
+  ]) assert.equal(parseCommand(command).incomplete, true, command);
+  assert.deepEqual(parseCommand("f() { doan open a.html; }; unset -f f; f"), { words: [["unset", "-f", "f"], ["f"]], incomplete: false });
+  assert.deepEqual(parseCommand("f() { doan active; return; }; f"), { words: [["doan", "active"], ["return"]], incomplete: false });
 });

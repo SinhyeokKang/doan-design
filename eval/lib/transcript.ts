@@ -269,12 +269,29 @@ export function shellCommands(transcript: string): string[] {
       }
     } catch { /* Codex's stderr is text, not stream-json. */ }
     if (lines[i] === "exec" && /^\/\S+\s+-[a-z]*c\s/.test(lines[i + 1] ?? "")) {
-      const header = lines[++i];
+      const end = execHeaderEnd(lines, i + 1);
+      const header = lines.slice(i + 1, end + 1).join("\n");
+      i = end;
       const cwdStart = header.lastIndexOf(" in /");
       commands.push(cwdStart === -1 ? header : header.slice(0, cwdStart));
     }
   }
   return commands;
+}
+
+// Codex prints a multi-line command (a heredoc script, say) over several stderr lines; the header ends on the line
+// with ` in <cwd>`, followed on the same line or the next by the status (` succeeded in 3ms:`, ` exited 1 in 3ms:`).
+// The index of that last header line, searched up to the next `exec`. Without that end in the log (a cut-off stderr,
+// or an older status-less format) it is the first line, as before: a multi-line command's first line leaves its quote
+// open, so the reader takes it as incomplete rather than as all that ran.
+const EXEC_STATUS = /^ (?:succeeded|exited -?\d+) in \d+(?:\.\d+)?m?s:$/;
+const INLINE_EXEC_STATUS = / in \/.* (?:succeeded|exited -?\d+) in \d+(?:\.\d+)?m?s:$/;
+function execHeaderEnd(lines: string[], first: number): number {
+  for (let j = first; j < lines.length && lines[j] !== "exec"; j++) {
+    if (INLINE_EXEC_STATUS.test(lines[j]!)) return j;
+    if (j > first && EXEC_STATUS.test(lines[j]!)) return / in \/\S/.test(lines[j - 1]!) ? j - 1 : first;
+  }
+  return first;
 }
 
 // A heredoc body (the lines after `<<TAG`, `<<'TAG'`, `<<"TAG"` or `<<-TAG` up to the line that is the tag) is data for
@@ -327,7 +344,9 @@ function withoutHeredocsAndComments(command: string): { text: string; unread: bo
       }
     } else out += c;
   }
-  return { text: out, unread };
+  // A quote left open is a command cut off in the transcript (a stderr header missing its end, say); the tokenizer
+  // would drop the lone quote and read the rest as plain words.
+  return { text: out, unread: unread || quote !== null };
 }
 
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z_0-9]*=/;
@@ -455,13 +474,16 @@ function wrappedAt(words: string[]): number | null | undefined {
   }
 }
 // Reserved words and group openers that start a construct the reader does not follow (it follows plain commands,
-// `NAME=value` and `for … do … done` only). A `do`/`done` that no parsed `for` consumed belongs here too.
+// `NAME=value`, `for … do … done`, `{ …; }` and a function whose body is one). A `do`/`done` that no parsed `for`
+// consumed belongs here too, and so does a `{` or `}` that no group or function consumed.
 const UNSUPPORTED = /^(?:if|then|elif|else|fi|while|until|do|done|case|esac|select|function|for|\{|\}|!)$|^[()]|^[A-Za-z_]\w*\(\)?$/;
-// Loop iterations one command may expand in total, nested loops included, so a transcript cannot make the reader
-// work without bound.
+// Loop iterations and function calls one command may expand in total, nested ones included, so a transcript cannot
+// make the reader work without bound (a function that calls itself runs out of it).
 const LOOP_BUDGET = 256;
 
 interface ReadState { left: number; incomplete: boolean }
+// A shell function: the token groups of its body and its closing `}` group, whose redirections apply at each call.
+interface ShellFunction { body: string[][]; close: string[] }
 // `homePath`: the path below the home directory (`/.zshrc`, or "" for the home itself) when the shell expands the word to
 // start there; `onlyHome`: what follows the home directory when the word is just that, for a variable assigned it.
 interface Expanded { words: string[]; unresolved: boolean; homePath: string | undefined; onlyHome: string | undefined }
@@ -553,12 +575,47 @@ function interpreterMayRunDoan(program: string, args: string[], redirects: Redir
 // unresolved word) sets `state.incomplete` and yields no words, and so does a simple command whose program or doan
 // operand is unresolved: the read is then not complete and must not be taken for the whole list of what ran.
 // Any other compound or reserved word (UNSUPPORTED) stops the read there, as incomplete.
-function runGroups(groups: string[][], vars: Map<string, string>, state: ReadState, bodies: string[]): ShellCommand[] {
+// The head of a function definition at the start of a token group (`f()`, `f ()`, `function f`, `function f()`,
+// `function f ()`): its name and where its body's `{` is due.
+function definitionHead(group: string[]): { name: string; at: number } | undefined {
+  const k = group[0] === "function" ? 1 : 0;
+  const word = group[k];
+  if (word === undefined) return undefined;
+  if (/^[A-Za-z_]\w*\(\)$/.test(word)) return { name: word.slice(0, -2), at: k + 1 };
+  if (/^[A-Za-z_]\w*$/.test(word) && group[k + 1] === "()") return { name: word, at: k + 2 };
+  if (k === 1 && /^[A-Za-z_]\w*$/.test(word)) return { name: word, at: 2 };
+  return undefined;
+}
+
+// How many `{` a token group opens at its start: a group, a function body, or one right after `do`, `then` or `else`,
+// each possibly opening another inside it.
+function bracesOpened(group: string[]): number {
+  let opened = 0;
+  for (let rest = group; ;) {
+    const head = definitionHead(rest);
+    const at = rest[0] === "{" ? 0 : ["do", "then", "else"].includes(rest[0] ?? "") && rest[1] === "{" ? 1 : head && rest[head.at] === "{" ? head.at : -1;
+    if (at < 0) return opened;
+    opened++;
+    rest = rest.slice(at + 1);
+  }
+}
+
+// The index of the group starting with the `}` that closes `depth` open braces, scanning from `from`, or -1. A `}`
+// counts only as the first word of a command, as the shell reads it.
+function braceEnd(groups: string[][], from: number, depth: number): number {
+  for (let j = from; j < groups.length; j++) {
+    if (groups[j]![0] === "}" && --depth === 0) return j;
+    depth += bracesOpened(groups[j]!);
+  }
+  return -1;
+}
+
+function runGroups(groups: string[][], vars: Map<string, string>, state: ReadState, bodies: string[], functions: Map<string, ShellFunction>): ShellCommand[] {
   const out: ShellCommand[] = [];
   const append = (commands: ShellCommand[]) => { for (const entry of commands) out.push(entry); };
   // A substitution runs before the command it is in, in a subshell that sees the variables set so far.
   const substitute = (tokens: string[]) => {
-    for (const token of tokens) for (const m of token.matchAll(SUBSTITUTED)) append(parse(bodies[Number(m[1])]!, state, new Map(vars)));
+    for (const token of tokens) for (const m of token.matchAll(SUBSTITUTED)) append(parse(bodies[Number(m[1])]!, state, new Map(vars), new Map(functions)));
   };
   const redirectsOf = (tokens: string[]): Redirect[] => tokens.filter(token => token.startsWith(MARK)).map(token => {
     const [, op = "", target = ""] = token.split(MARK);
@@ -596,7 +653,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
         for (const value of values) {
           vars.set(group[1]!, value.word);
           if (value.home === undefined) vars.delete(HOME_OF + group[1]!); else vars.set(HOME_OF + group[1]!, value.home);
-          append(runGroups(body.slice(0, done), vars, state, bodies).map(entry => ({ ...entry, redirects: [...entry.redirects, ...loop] })));
+          append(runGroups(body.slice(0, done), vars, state, bodies, functions).map(entry => ({ ...entry, redirects: [...entry.redirects, ...loop] })));
         }
       }
       // Continue after the loop's `done`.
@@ -622,6 +679,44 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
         const home = expandToken(token.slice(token.indexOf("=") + 1), vars).onlyHome;
         if (home === undefined) vars.delete(HOME_OF + name); else vars.set(HOME_OF + name, home);
       }
+      // An exported function (`export -f`, `declare -fx`) also runs in child shells, which the reader reads fresh.
+      if (group.slice(skipped + 1).some(token => /^-\w*f/.test(token))) state.incomplete = true;
+    }
+    // unset -f removes a function; a plain unset removes a variable of that name first, so whether the function is
+    // still there is not known.
+    if (group[skipped] === "unset") {
+      const names = group.slice(skipped + 1).filter(token => !token.startsWith("-"));
+      if (group.slice(skipped + 1).some(token => /^-\w*f/.test(token))) for (const name of names) functions.delete(name);
+      else if (names.some(name => functions.has(name))) state.incomplete = true;
+    }
+    // A `{ …; }` group runs its commands in this shell; a function definition (`f() { …; }`) only keeps its body for
+    // the calls below. Either ends at the matching `}`, which may carry redirections and nothing else.
+    if (skipped === 0) {
+      const head = definitionHead(raw);
+      let start = i, at = -1;
+      if (head && raw[head.at] === "{") at = head.at;
+      else if (head && raw.length === head.at && groups[i + 1]?.[0] === "{") { start = i + 1; at = 0; }
+      else if (!head && raw[0] === "{") at = 0;
+      if (at >= 0) {
+        const first = groups[start]!.slice(at + 1);
+        const end = braceEnd(groups, start + 1, 1 + bracesOpened(first));
+        if (end < 0 || groups[end]!.slice(1).some(token => !token.startsWith(MARK))) { state.incomplete = true; vars.clear(); return out; }
+        const body = [...(first.length ? [first] : []), ...groups.slice(start + 1, end)];
+        if (head) functions.set(head.name, { body, close: groups[end]! });
+        else {
+          substitute(groups[end]!);
+          const redirects = redirectsOf(groups[end]!);
+          const was = state.incomplete;
+          state.incomplete = false;
+          append(runGroups(body, vars, state, bodies, functions).map(entry => ({ ...entry, redirects: [...entry.redirects, ...redirects] })));
+          // Where the group ends was matched by its braces; if its body held a construct the reader does not follow,
+          // that match may be wrong, so nothing after it is read.
+          if (state.incomplete) { vars.clear(); return out; }
+          state.incomplete = was;
+        }
+        i = end;
+        continue;
+      }
     }
     // Where such a construct ends is not known, so nothing after it is read and no variable is trusted past it.
     if (UNSUPPORTED.test(group[skipped] ?? "") || group[skipped + 1] === "()") { state.incomplete = true; vars.clear(); return out; }
@@ -632,6 +727,37 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     let words = expanded.flatMap(token => token.words);
     let open = expanded.flatMap(token => token.words.map(() => token.unresolved));
     let homePaths = expanded.flatMap(token => token.words.map(() => token.homePath));
+    // A call runs the function's body with the call's words as $1, $2, …; only a direct call does (env, command and
+    // the like look the name up as a program).
+    const called = !open[0] ? functions.get(words[0] ?? "") : undefined;
+    if (called) {
+      // $@, $*, $#, shift, a return before the body's end and an assignment before the call change what runs or what
+      // the body sees in ways this reader does not track, and the budget bounds a function that calls itself.
+      const tokens = [...called.body.flat(), ...called.close];
+      if (skipped > 0 || state.left <= 0 || tokens.some(token => /\$\{?[@*#]/.test(token)) ||
+        called.body.some((body, k) => body[0] === "shift" || (body[0] === "return" && k < called.body.length - 1))) { state.incomplete = true; continue; }
+      state.left--;
+      // Positional parameters ($1 …, and HOME_OF entries for those holding just the home directory) belong to the call.
+      const positional = (name: string) => /^\u0002?\d+$/.test(name);
+      const outer = [...vars].filter(([name]) => positional(name));
+      const clearPositional = () => { for (const name of [...vars.keys()]) if (positional(name)) vars.delete(name); };
+      clearPositional();
+      // An unresolved argument may be no word or several, so which argument is $n is then unknown.
+      if (open.some(Boolean)) state.incomplete = true;
+      else {
+        const args = expanded.flatMap(token => token.words.map(word => ({ word, home: token.onlyHome }))).slice(1);
+        args.forEach((arg, index) => {
+          vars.set(String(index + 1), arg.word);
+          if (arg.home !== undefined) vars.set(HOME_OF + String(index + 1), arg.home);
+        });
+      }
+      substitute(called.close);
+      const defined = redirectsOf(called.close);
+      append(runGroups(called.body, vars, state, bodies, functions).map(entry => ({ ...entry, redirects: [...entry.redirects, ...defined, ...redirects] })));
+      clearPositional();
+      for (const [name, value] of outer) vars.set(name, value);
+      continue;
+    }
     let at: number | null | undefined = null;
     while (!open[0] && (at = wrappedAt(words)) !== null) {
       // An option value the shell may expand to no word or several moves where the command starts.
@@ -649,7 +775,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
       (INTERPRETER.test(program) && interpreterMayRunDoan(program, words.slice(1), redirects, raw.some(token => token.startsWith(MARK) && token.includes(NAMES_DOAN_BODY))))) { state.incomplete = true; continue; }
     // eval runs its words, joined, as a command of this shell.
     if (words[0] === "eval") {
-      if (open.some(Boolean)) state.incomplete = true; else append(parse(words.slice(1).join(" "), state, vars));
+      if (open.some(Boolean)) state.incomplete = true; else append(parse(words.slice(1).join(" "), state, vars, functions));
       continue;
     }
     if (!words.length) { if (redirects.length) out.push({ words, homePaths, redirects }); continue; }
@@ -678,7 +804,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
   return out;
 }
 
-function parse(command: string, state: ReadState, vars = new Map<string, string>()): ShellCommand[] {
+function parse(command: string, state: ReadState, vars = new Map<string, string>(), functions = new Map<string, ShellFunction>()): ShellCommand[] {
   const plain = withoutHeredocsAndComments(command);
   if (plain.unread) state.incomplete = true;
   const taken = substitutions(plain.text);
@@ -700,7 +826,7 @@ function parse(command: string, state: ReadState, vars = new Map<string, string>
     else groups.at(-1)!.push(value);
   }
   if (operator !== undefined) { state.incomplete = true; return []; }
-  return runGroups(groups.filter(g => g.length), vars, state, taken.bodies);
+  return runGroups(groups.filter(g => g.length), vars, state, taken.bodies, functions);
 }
 
 // Each command a command line runs, with its words and its redirections, and whether the read is complete. An

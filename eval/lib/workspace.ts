@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
 import type { Agent } from "./args.ts";
-import { agentEnvironment } from "./agent.ts";
+import { agentEnvironment, isolateUserInstructions } from "./agent.ts";
 import { CLAUDE_ALLOW_RULES, CODEX_RULE, codexRuleText } from "./codex-rule.ts";
 import { sh } from "./context.ts";
 import { assertOutsideCheckout } from "./isolate.ts";
@@ -71,7 +71,9 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     mkdirSync(join(base, "rt"), { mode: 0o700 });
     // The key the app puts in a canvas conversation's environment; the fake app knows the same one.
     const handoff = o.scenario.handoff ? { key: randomBytes(32).toString("hex"), canvas: o.scenario.handoff.canvas } : null;
-    const env = { ...agentEnvironment(process.env), PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json"), ...(handoff ? { DOAN_HANDOFF: handoff.key } : {}) };
+    const shared = { ...agentEnvironment(process.env), PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json"), ...(handoff ? { DOAN_HANDOFF: handoff.key } : {}) };
+    // Outside repo, so the run's own Codex home never shows up as agent output.
+    const env = o.agent === "fixture" ? shared : isolateUserInstructions(o.agent, shared, join(base, "codex-home"));
     const gitDir = o.scenario.git ? null : join(base, "seed.git");
     const git = (args: string[]) => must(sh("git", [...GIT, "-C", repo, ...(gitDir ? ["--git-dir", gitDir, "--work-tree", repo] : []), ...args], repo, env), `git ${args[0]}`);
     if (gitDir) must(sh("git", [...GIT, "init", "-q", "--bare", gitDir], base, env), "git init");
