@@ -216,7 +216,7 @@ test("the clone screen asks under Save to, and keeps the choice disabled while t
 
 // After a clone landed, a storage or setup failure is told in main's words, which say the clone stayed.
 test("a clone that landed but whose storage failed says so on the clone screen", () => {
-  const message = "The repository was cloned and added, but Doan could not keep its files out of Git, so they stay in Git for now. Choose Keep out of Git in its Project Settings to try again.";
+  const message = "The repository was cloned and added, but Doan couldn’t keep its files out of Git, so they stay in Git for now. Choose Keep out of Git in its Project Settings to try again.";
   for (const code of ["local_exclude_failed", "local_not_git", "init_failed"] as const) {
     const html = page({ storage: "local", phase: { kind: "clone", url: "https://github.com/acme/tokens", inspectionId: null, destination: "/Users/ada/code/tokens" }, error: { code, message } });
     expect(html, code).toContain(message);

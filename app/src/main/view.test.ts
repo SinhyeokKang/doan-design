@@ -255,21 +255,21 @@ describe("openDecision", () => {
 
   // The refusal follows the first run's kind, so a failure that is not about a config file is a CLI error.
   test("a non-config failure that is not a repo root is refused as a CLI error", () => {
-    expect(openDecision(unreadable, "/repo/doan", noRepo)).toEqual({ refuse: "doan CLI error: open /repo/.doan/canvases/sub: permission denied" });
-    expect(openDecision(unreadable, "/repo/doan", noCli)).toEqual({ refuse: "doan CLI error: open /repo/.doan/canvases/sub: permission denied" });
+    expect(openDecision(unreadable, "/repo/doan", noRepo)).toEqual({ refuse: "doan command error: open /repo/.doan/canvases/sub: permission denied" });
+    expect(openDecision(unreadable, "/repo/doan", noCli)).toEqual({ refuse: "doan command error: open /repo/.doan/canvases/sub: permission denied" });
   });
 
   // Without a root the picked folder may be a subfolder; stored as is, it would
   // read as "not initialized" and invite a nested `doan init`.
   test("a failing pick that is not a repo root is refused with the first run's reason", () => {
     expect(openDecision(broken, "/broken/doan", noRepo)).toEqual({ refuse: "bad config" });
-    expect(openDecision(noCli, "/repo/doan", noRepo)).toEqual({ refuse: "doan CLI error: spawn doan ENOENT" });
-    expect(openDecision({ kind: "cliError", reason: "" }, "/repo/doan", noRepo)).toEqual({ refuse: "doan CLI error" });
+    expect(openDecision(noCli, "/repo/doan", noRepo)).toEqual({ refuse: "doan command error: spawn doan ENOENT" });
+    expect(openDecision({ kind: "cliError", reason: "" }, "/repo/doan", noRepo)).toEqual({ refuse: "doan command error" });
   });
 
   test("a failing pick is refused when the CLI cannot say whether it is a root", () => {
     expect(openDecision(broken, "/broken/doan", noCli)).toEqual({ refuse: "bad config" });
-    expect(openDecision(noCli, "/repo", noCli)).toEqual({ refuse: "doan CLI error: spawn doan ENOENT" });
+    expect(openDecision(noCli, "/repo", noCli)).toEqual({ refuse: "doan command error: spawn doan ENOENT" });
   });
 
   test("a failing pick without a second run is refused", () => {

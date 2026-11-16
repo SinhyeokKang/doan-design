@@ -120,7 +120,7 @@ test("Refresh usage reads with the refresh trigger on every press while the rows
   deliver([ok("claude", { inFlight: true })]);
   view = render()!;
   expect(view.busy).toBe(true);
-  expect(view.rows[0]).toMatchObject({ read: "Updating…", windows: [{ text: "42% used · resets in 2h 10m" }] });
+  expect(view.rows[0]).toMatchObject({ read: "Updating", windows: [{ text: "42% used · resets in 2h 10m" }] });
 });
 
 test("Agent settings closes the popover, keeps Radix from taking focus back and opens Settings > Agents", () => {
@@ -234,7 +234,7 @@ test("updates relative times every minute only while open", () => {
   expect(vi.getTimerCount()).toBe(1);
 });
 
-test("a provider signing out loses its row and one signing in starts at Reading usage…", () => {
+test("a provider signing out loses its row and one signing in starts at Reading usage", () => {
   render(); deliver([ok("claude"), ok("codex")]);
   let view = render()!; view.onOpenChange(true); view = render()!;
   deliver([ok("claude")]);
@@ -243,7 +243,7 @@ test("a provider signing out loses its row and one signing in starts at Reading 
   expect(view.open).toBe(true);
   deliver([ok("claude"), { provider: "copilot", inFlight: true }]);
   view = render()!;
-  expect(view.rows.map(row => [row.provider, row.note?.text ?? null])).toEqual([["claude", null], ["copilot", "Reading usage…"]]);
+  expect(view.rows.map(row => [row.provider, row.note?.text ?? null])).toEqual([["claude", null], ["copilot", "Reading usage"]]);
 });
 
 test("when the last provider signs out the popover closes and focus goes to the current header tab", () => {

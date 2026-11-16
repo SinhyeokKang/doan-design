@@ -47,7 +47,7 @@ describe("classifyPick", () => {
     const broken: FolderState = { kind: "error", message: "bad config", config: "/code/picked/.doan/config.json" };
     expect(classifyPick(facts({ ls: broken, asRepo: broken }))).toEqual({ kind: "store", path: "/code/picked" });
     expect(classifyPick(facts({ ls: broken, asRepo: { kind: "uninitialized" } }))).toEqual({ kind: "refuse", message: "bad config" });
-    expect(classifyPick(facts({ ls: { kind: "cliError", reason: "" } }))).toEqual({ kind: "refuse", message: "doan CLI error" });
+    expect(classifyPick(facts({ ls: { kind: "cliError", reason: "" } }))).toEqual({ kind: "refuse", message: "doan command error" });
     expect(classifyPick(facts({ ls: broken, asRepo: broken, saved: ["/code/picked"] }))).toEqual({ kind: "duplicate", path: "/code/picked" });
   });
 
@@ -58,6 +58,6 @@ describe("classifyPick", () => {
     const broken: FolderState = { kind: "error", message: "bad config", config: "/code/picked/.doan/config.json" };
     expect(classifyPick(facts({ ls: unreadable, asRepo: broken }))).toEqual({ kind: "store", path: "/code/picked" });
     expect(classifyPick(facts({ ls: unreadable, asRepo: unreadable }))).toEqual({ kind: "store", path: "/code/picked" });
-    expect(classifyPick(facts({ ls: unreadable, asRepo: noCli }))).toEqual({ kind: "refuse", message: "doan CLI error: open /code/picked/.doan/canvases/sub: permission denied" });
+    expect(classifyPick(facts({ ls: unreadable, asRepo: noCli }))).toEqual({ kind: "refuse", message: "doan command error: open /code/picked/.doan/canvases/sub: permission denied" });
   });
 });

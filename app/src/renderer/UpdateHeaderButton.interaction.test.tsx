@@ -38,7 +38,7 @@ const snap = (state: UpdateState, over: Partial<UpdateSnapshot> = {}): UpdateSna
   ({ version: "0.1.0", state, eligibility: { kind: "enabled" }, gate: { kind: "allowed" }, autoCheck: true, lastCheckedAt: null, ...over });
 const READY: UpdateState = { kind: "ready", version: "0.1.1" };
 const BLOCKED = { title: "Can’t restart yet", text: "A conversation is running or waiting for your answer. Restart after it finishes, or Doan updates when you quit." };
-const STOPPED = { title: "Couldn’t restart Doan.", text: "Try again, or quit and open it again." };
+const STOPPED = { title: "Couldn’t restart Doan", text: "Try again, or quit and open it again." };
 const READY_TO_RESTART = { title: "Ready to restart", text: "No conversation is running or waiting anymore. Restart now, or Doan updates when you quit." };
 const GATE_BLOCKED = { gate: { kind: "blocked", reason: "conversation" } } as const;
 

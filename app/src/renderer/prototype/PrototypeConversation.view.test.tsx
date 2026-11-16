@@ -180,7 +180,7 @@ describe("main-window-only buttons go to main as reveals", () => {
     ]);
   });
 
-  // "Sign in to an agent…" and "Manage agents…" name no provider: Settings > Agents opens at its top.
+  // "Sign in to an agent" and "Manage agents" name no provider: Settings > Agents opens at its top.
   test("a Settings action without a provider still goes to the main window", async () => {
     await playing();
     props(render()).onSettings!({ section: "agents" } as never);

@@ -81,10 +81,10 @@ test("readiness action retry for unverified: Connected · not checked, with the 
   expect(providerView(dto("copilot", { account: ACCOUNT }), { autoCheck: true }).helper).toBeNull();
   expect(authListView({ revision: 1, providers: [dto("codex", { account: ACCOUNT })] }, {}, { autoCheck: true }).providers[0]?.helper).toBe("Doan checks this automatically when you open this step.");
   expect(authListView({ revision: 1, providers: [dto("codex", { account: ACCOUNT })] }).providers[0]?.helper).toBeNull();
-  expect(codex.button?.ariaLabel).toBe("Check Codex again");
+  expect(codex.button?.ariaLabel).toBe("Retry checking Codex");
   const copilot = providerView(dto("copilot", { account: ACCOUNT }));
   expect(only(copilot)).toEqual({ detail: "Connected · not checked · Retry uses one Copilot request", button: "prominent:Retry:check", notice: null, helper: null });
-  expect(copilot.button?.ariaLabel).toBe("Check GitHub Copilot again, uses one Copilot request");
+  expect(copilot.button?.ariaLabel).toBe("Retry checking GitHub Copilot, uses one Copilot request");
   // The unverified row already shows the cost in its detail line, so the button carries no second copy.
   expect(copilot.button?.note).toBeUndefined();
 });
@@ -211,13 +211,13 @@ test("every reply reason has a fixed effect", () => {
 
 test("reply stop_required opens a confirmation for sign-out and for sign-in", () => {
   expect(stopDialog("claude", "signOut")).toEqual({
-    title: "Stop Claude Code conversations?", body: "Claude Code is running a conversation. Signing out stops it. Your conversation history stays. Its MCP connectors need connecting again.",
+    title: "Stop Claude Code conversations?", body: "Signing out stops every running Claude Code conversation. Your conversation history stays. Its MCP connectors need connecting again.",
     cancel: { command: "dismiss", label: "Cancel", variant: "subtle", disabled: false }, confirm: { command: "signOut", label: "Stop and sign out", variant: "prominent", disabled: false },
   });
-  expect(stopDialog("codex", "signIn")).toMatchObject({ title: "Stop Codex conversations?", body: "Codex is running a conversation. Signing in again stops it. Your conversation history stays.", confirm: { command: "signIn", label: "Stop and sign in" } });
+  expect(stopDialog("codex", "signIn")).toMatchObject({ title: "Stop Codex conversations?", body: "Signing in again stops every running Codex conversation. Your conversation history stays.", confirm: { command: "signIn", label: "Stop and sign in again" } });
   // Only Claude Code and Codex have MCP connectors.
-  expect(stopDialog("codex", "signOut").body).toBe("Codex is running a conversation. Signing out stops it. Your conversation history stays. Its MCP connectors need connecting again.");
-  expect(stopDialog("cursor", "signOut").body).toBe("Cursor is running a conversation. Signing out stops it. Your conversation history stays.");
+  expect(stopDialog("codex", "signOut").body).toBe("Signing out stops every running Codex conversation. Your conversation history stays. Its MCP connectors need connecting again.");
+  expect(stopDialog("cursor", "signOut").body).toBe("Signing out stops every running Cursor conversation. Your conversation history stays.");
 });
 
 test("every agent-auth error code maps to its alert and next action", () => {
@@ -235,7 +235,7 @@ test("every agent-auth error code maps to its alert and next action", () => {
   expect(only(connected("check_failed")).notice).toMatchObject({ role: "alert", body: "Couldn’t check your connections.", actions: ["prominent:Retry:check"] });
   expect(only(providerView(dto("copilot", { account: ACCOUNT, error: "check_failed" }))).notice?.actions).toEqual(["prominent:Retry:check"]);
   for (const error of ["check_failed", "network"] as const) {
-    expect(providerView(dto("copilot", { account: ACCOUNT, error })).notice?.actions[0], error).toMatchObject({ ariaLabel: "Check GitHub Copilot again, uses one Copilot request", note: "Uses one Copilot request" });
+    expect(providerView(dto("copilot", { account: ACCOUNT, error })).notice?.actions[0], error).toMatchObject({ ariaLabel: "Retry checking GitHub Copilot, uses one Copilot request", note: "Uses one Copilot request" });
   }
   // A version Retry only re-reads tool facts: no cost anywhere.
   expect(providerView(dto("copilot", { account: ACCOUNT, verified: true, facts: { version: "unknown" } })).notice?.actions[0]?.note).toBeUndefined();
@@ -395,20 +395,20 @@ test("settings context: a provider moves to the other section when its connectio
 
 test("settings context: Home's picker offers one Settings action per group that cannot run", () => {
   const target = (provider: Provider) => ({ section: "agents", provider });
-  expect(pickerAction(dto("codex", { account: ACCOUNT, verified: true, expired: true }))).toEqual({ label: "Sign in again…", target: target("codex") });
-  expect(pickerAction(dto("copilot", { account: ACCOUNT, verified: true, facts: { version: "unsupported" } }))).toEqual({ label: "Update…", target: target("copilot") });
-  expect(pickerAction(dto("cursor", { account: ACCOUNT, verified: true, facts: { version: "incompatible" } }))).toEqual({ label: "Update…", target: target("cursor") });
-  expect(pickerAction(dto("claude", { account: ACCOUNT, verified: true, facts: { tools: "failed" } }))).toEqual({ label: "Open Agents settings…", target: target("claude") });
-  expect(pickerAction(dto("claude", { account: { id: "acct-1", workspace: null, email: "ada@example.com" }, verified: true }))).toEqual({ label: "Open Agents settings…", target: target("claude") });
+  expect(pickerAction(dto("codex", { account: ACCOUNT, verified: true, expired: true }))).toEqual({ label: "Sign in again", target: target("codex") });
+  expect(pickerAction(dto("copilot", { account: ACCOUNT, verified: true, facts: { version: "unsupported" } }))).toEqual({ label: "Update", target: target("copilot") });
+  expect(pickerAction(dto("cursor", { account: ACCOUNT, verified: true, facts: { version: "incompatible" } }))).toEqual({ label: "Update", target: target("cursor") });
+  expect(pickerAction(dto("claude", { account: ACCOUNT, verified: true, facts: { tools: "failed" } }))).toEqual({ label: "Open Agents settings", target: target("claude") });
+  expect(pickerAction(dto("claude", { account: { id: "acct-1", workspace: null, email: "ada@example.com" }, verified: true }))).toEqual({ label: "Open Agents settings", target: target("claude") });
   // Ready and unverified run (main checks on send); a provider without a connection is not in the picker.
   expect(pickerAction(ready("claude"))).toBeNull();
   expect(pickerAction(dto("codex", { account: ACCOUNT }))).toBeNull();
   expect(pickerAction(dto("cursor"))).toBeNull();
 });
 
-test("settings context: the picker ends with Manage agents…, or with no agent ready only Sign in to an agent…", () => {
-  expect(pickerFooter(true)).toEqual({ note: null, action: { label: "Manage agents…", target: { section: "agents" } } });
-  expect(pickerFooter(false)).toEqual({ note: "No agent is ready to run.", action: { label: "Sign in to an agent…", target: { section: "agents" } } });
+test("settings context: the picker ends with Manage agents, or with no agent ready only Sign in to an agent", () => {
+  expect(pickerFooter(true)).toEqual({ note: null, action: { label: "Manage agents", target: { section: "agents" } } });
+  expect(pickerFooter(false)).toEqual({ note: "No agent is ready to run.", action: { label: "Sign in to an agent", target: { section: "agents" } } });
 });
 
 test("settings context: a sign-in that ends while Agents is not shown is told once in a toast", () => {

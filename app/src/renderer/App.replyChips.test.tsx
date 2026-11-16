@@ -274,7 +274,7 @@ test("a chip's canvas the project does not have, or has twice, or whose list is 
   folders([{ path: "/w/a", kind: "notFound" }]);
   await toasts({ canvas: "drafts", kind: "frame", id: "editor" }, "Project is unavailable. Fix it from its menu in the sidebar, then try again.");
   // Quick Open keeps its own copy for a list still being read.
-  expect(unavailableCanvasMessage({ path: "/w/a", kind: "loading" }, D)).toBe("Project is still being read. Try Open again shortly.");
+  expect(unavailableCanvasMessage({ path: "/w/a", kind: "loading" }, D)).toBe("Project is still being read. Try again shortly.");
   for (const name of ["openCanvas", "locate", "showOverview", "openWorkspace"]) expect(harness.controller![name], name).not.toHaveBeenCalled();
 });
 

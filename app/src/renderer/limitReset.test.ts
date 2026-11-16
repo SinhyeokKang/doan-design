@@ -52,16 +52,16 @@ describe("resetTimeText", () => {
 });
 
 describe("queueStatusLine", () => {
-  test("names the reset until it passes, then reads Sending…", () => {
+  test("names the reset until it passes, then reads Sending", () => {
     const reset = at("2026-11-13T15:00:00");
     expect(queueStatusLine(reset, NOW, SEOUL)).toEqual({ kind: "scheduled", text: `Sends when the limit resets at 3:00${NNBSP}PM.` });
     expect(queueStatusLine(at("2026-11-19T15:00:00"), NOW, SEOUL).text).toBe(`Sends when the limit resets Thursday at 3:00${NNBSP}PM.`);
-    expect(queueStatusLine(reset, Date.parse(reset), SEOUL)).toEqual({ kind: "sending", text: "Sending…" });
-    expect(queueStatusLine(reset, Date.parse(reset) + 30_000, SEOUL)).toEqual({ kind: "sending", text: "Sending…" });
+    expect(queueStatusLine(reset, Date.parse(reset), SEOUL)).toEqual({ kind: "sending", text: "Sending" });
+    expect(queueStatusLine(reset, Date.parse(reset) + 30_000, SEOUL)).toEqual({ kind: "sending", text: "Sending" });
   });
 
-  test("an unreadable time reads Sending…, since nothing is known to wait for", () => {
-    expect(queueStatusLine("", NOW, SEOUL)).toEqual({ kind: "sending", text: "Sending…" });
+  test("an unreadable time reads Sending, since nothing is known to wait for", () => {
+    expect(queueStatusLine("", NOW, SEOUL)).toEqual({ kind: "sending", text: "Sending" });
   });
 });
 

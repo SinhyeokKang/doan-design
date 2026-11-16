@@ -84,9 +84,9 @@ describe("canvasViewUpdate", () => {
 
   test("shows an error line and keeps the view on a CLI error", () => {
     expect(canvasViewUpdate(before, [{ path: "/repo", kind: "cliError", reason: "timed out after 10 s" }], open))
-      .toEqual({ kind: "errorLine", message: "doan CLI error: timed out after 10 s" });
+      .toEqual({ kind: "errorLine", message: "doan command error: timed out after 10 s" });
     expect(canvasViewUpdate(before, [{ path: "/repo", kind: "cliError", reason: "" }], open))
-      .toEqual({ kind: "errorLine", message: "doan CLI error" });
+      .toEqual({ kind: "errorLine", message: "doan command error" });
   });
 
   // Served files may have changed while the folder failed, and the shell
@@ -278,8 +278,8 @@ describe("constants", () => {
 
 describe("cliErrorText", () => {
   test("names the reason when there is one", () => {
-    expect(cliErrorText("timed out after 10 s")).toBe("doan CLI error: timed out after 10 s");
-    expect(cliErrorText("")).toBe("doan CLI error");
+    expect(cliErrorText("timed out after 10 s")).toBe("doan command error: timed out after 10 s");
+    expect(cliErrorText("")).toBe("doan command error");
   });
 });
 

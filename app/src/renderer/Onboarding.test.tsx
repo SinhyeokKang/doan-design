@@ -85,7 +85,7 @@ test("a provider row: mark, name, account line and its sm button; Connected is d
 });
 
 test("a button note is shown next to its button, not only in the accessible name", () => {
-  const html = renderToStaticMarkup(<ProviderRow view={{ ...base, provider: "copilot", name: "GitHub Copilot", button: { command: "check", label: "Check again", variant: "prominent", disabled: false, ariaLabel: "Check GitHub Copilot again, uses one Copilot request", note: "Uses one Copilot request" } }} run={noop} />);
+  const html = renderToStaticMarkup(<ProviderRow view={{ ...base, provider: "copilot", name: "GitHub Copilot", button: { command: "check", label: "Check again", variant: "prominent", disabled: false, ariaLabel: "Retry checking GitHub Copilot, uses one Copilot request", note: "Uses one Copilot request" } }} run={noop} />);
   expect(html).toContain('<span class="ob-button-note">Uses one Copilot request</span><button type="button" class="doan-button"');
 });
 
@@ -562,7 +562,7 @@ test("a notice's recovery actions and the screen's own actions never repeat", ()
     expect(html).toContain("Already have this repository?");
   }
   // 72: Retry repeats nothing, so the screen is unchanged.
-  const cleanup = screen({ ...clone, error: { code: "cleanup_failed", message: "Couldn't remove /Users/ada/.studio.doan-clone-x. Remove it, then try again." } });
+  const cleanup = screen({ ...clone, error: { code: "cleanup_failed", message: "Couldn’t remove /Users/ada/.studio.doan-clone-x. Remove it, then try again." } });
   expect(count(cleanup, "Change")).toBe(1);
   expect(cleanup).toContain("Already have this repository?");
   // The same rule wherever a notice sits next to a small-action row.

@@ -12,7 +12,7 @@ test("a plain title names the dialog; a title with markup is named by its label"
   expect(marked).toContain('<h3 class="doan-dialog-title">Share <code>design/brand</code> with canvases?</h3>');
 });
 
-// The description says what the verb does (Share, Create Repository), so a screen reader announces it with the
+// The description says what the verb does (Share, Create repository), so a screen reader announces it with the
 // dialog's name before the person picks a button.
 test("the dialog is described by its description", () => {
   const html = renderToStaticMarkup(<SettingsDialog title="Fix the link?" description="It points elsewhere." verb="Fix" answer={() => {}} />);
