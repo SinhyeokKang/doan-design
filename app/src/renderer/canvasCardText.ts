@@ -39,7 +39,10 @@ export function canvasCardText(card: CanvasCard, ctx: { project: string; provide
   if (handoff?.outcome === "pending") return view(card.drawing && card.drawn ? "spinner" : "forward", "Hands off when this turn ends", ctx.listed(card.canvas) ? own : null);
   const gone = (icon: CanvasCardView["icon"], status: string, open: CanvasCardView["open"], canvas = card.canvas) =>
     ctx.listed(canvas) ? view(icon, status, open) : view(icon, `${status} · No longer in ${ctx.project}`, null);
-  if (!handoff) return gone(card.drawing ? "spinner" : "check", card.drawing ? "Drawing" : "Drawn", own);
+  // Main writes canvas.drawn once main lists the canvas, but the renderer's list can lag a read: while the turn runs, an
+  // unlisted card is not yet listed rather than gone, so it shows no tail and Open waits.
+  if (!handoff && card.drawing) return view("spinner", "Drawing", ctx.listed(card.canvas) ? own : null);
+  if (!handoff) return gone("check", "Drawn", own);
   switch (handoff.outcome) {
     case "started": {
       const target = handoff.target;

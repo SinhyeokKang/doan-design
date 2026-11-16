@@ -68,11 +68,16 @@ describe("canvasCardText", () => {
     expect(view(card({ handoff: { outcome: "missed" } }))).toEqual({ icon: "ban", name: "checkout-flow.html", status: "Didn’t hand off. The agent didn’t ask to.", label: "checkout-flow.html, Didn’t hand off. The agent didn’t ask to.", open: OPEN });
   });
 
+  test("a card still drawing never reads as gone: Open waits until the canvas is listed", () => {
+    const unlisted = { listed: () => false };
+    expect(view(card({ drawing: true }), unlisted)).toEqual({ icon: "spinner", name: "checkout-flow.html", status: "Drawing", label: "checkout-flow.html, Drawing", open: null });
+    expect(view(card({ drawing: true }), { listed: () => true })).toMatchObject({ status: "Drawing", open: OPEN });
+  });
+
   test("a canvas gone since: any status gains “No longer in <project>” and Open goes", () => {
     const asked: unknown[] = [];
     const gone = { listed: (canvas: Canvas) => { asked.push(canvas); return false; } };
     expect(view(card(), gone)).toEqual({ icon: "check", name: "checkout-flow.html", status: "Drawn · No longer in acme-web", label: "checkout-flow.html, Drawn · No longer in acme-web", open: null });
-    expect(view(card({ drawing: true }), gone)).toMatchObject({ status: "Drawing · No longer in acme-web", open: null });
     expect(view(card({ handoff: { outcome: "missed" } }), gone)).toMatchObject({ status: "Didn’t hand off. The agent didn’t ask to. · No longer in acme-web", open: null });
     expect(view(card({ handoff: { outcome: "cancelled" } }), gone)).toMatchObject({ status: "Didn’t hand off. The turn didn’t finish. · No longer in acme-web", open: null });
     // Found by ID, as the promotion marker's canvas is.
