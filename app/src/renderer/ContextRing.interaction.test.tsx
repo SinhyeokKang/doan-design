@@ -265,3 +265,21 @@ test("the window header stops dragging while the drawer is open, and drags again
   unmount();
   expect(header.style.declared.has("-webkit-app-region")).toBe(false);
 });
+
+// Escape on a focused Refresh unmounts it without a blur, so its focus would outlive the drawer; the next open
+// without a row must not take it for a Refresh that just went.
+test("a Refresh focus left from an earlier opening does not move focus on the next one", () => {
+  const { view, body, refresh } = opened();
+  refresh.focus();
+  view.onRefreshFocus(true);
+  view.onEscapeKeyDown(); view.onOpenChange(false);
+  render().onCloseAutoFocus(prevented() as unknown as Event);
+  entries = [];
+  body.focus.mockClear();
+  render().onOpenChange(true);
+  const reopened = render();
+  expect(reopened.open).toBe(true);
+  expect(body.focus).not.toHaveBeenCalled();
+  reopened.onOpenAutoFocus(prevented() as unknown as Event);
+  expect(body.focus).toHaveBeenCalledOnce();
+});

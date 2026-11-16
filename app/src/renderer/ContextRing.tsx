@@ -154,7 +154,8 @@ export function ContextRing({ context, provider, usage = NO_USAGE, canvasPress, 
     onOpenChange={next => {
       setOpen(next);
       if (!next) return;
-      closing.current = null;
+      // Escape on a focused Refresh unmounts it with no blur, so its focus is cleared here, not on close.
+      closing.current = null; refreshFocused.current = false;
       setTip(state => ringTip(state, { type: "drawer", open: true }));
       if (view.usage) usage.read("open");
     }}
