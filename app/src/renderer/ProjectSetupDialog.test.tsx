@@ -100,3 +100,14 @@ test("a failed creation shows its command and the .git it left as code chips", (
   const left = fields({ value: "local" }, { error: "Setup failed, and Doan couldn’t remove the Git repository it created at /Users/ada/a b/new/.git. Remove it or keep it, then try again." }, "/Users/ada/a b/new");
   expect(left).toContain("it created at <code>/Users/ada/a b/new/.git</code>. Remove it or keep it, then try again.");
 });
+
+// While Set Up writes, the Doan files options take the disabled roles, as the setup panel's .storage-row does
+// (DESIGN 'States': disabled is a role, never opacity); a code chip in the description keeps its own ink.
+test("a disabled Doan files option reads disabled: label, description and radio", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".storage-option:has(> input:disabled) :is(strong, small) { color: var(--text-disabled); }");
+  expect(css).toContain(".storage-option:has(> input:disabled) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }");
+  expect(css).toContain(".storage-option:has(> input:disabled:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }");
+  expect(css).toContain(".storage-option:has(> input:disabled:checked) .ob-radio::before { background: var(--text-disabled); }");
+});
