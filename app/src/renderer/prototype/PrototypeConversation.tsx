@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DropdownMenu } from "radix-ui";
-import { ChevronDown, Plus, SquarePen } from "lucide-react";
+import { ChevronDown, SquarePen } from "lucide-react";
 import type { RevealPayload } from "../../main/prototype/ipc";
 import type { FolderEntry } from "../../main/view";
 import { CanvasConversation, startNewConversation } from "../CanvasConversationPanel";
@@ -102,7 +102,7 @@ export function PrototypeHeadMenu({ run, now, onPicked, onDelete }: {
           if (!picked.current) return; picked.current = false; event.preventDefault(); onPicked();
         }}>
         <DropdownMenu.RadioGroup value={current ?? NEW} onValueChange={value => { picked.current = true; select(value === NEW ? null : value); }}>
-          <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${current === null ? " current" : ""}`} textValue="New conversation"><Plus aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
+          <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${current === null ? " current" : ""}`} textValue="New conversation"><SquarePen aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
           <DropdownMenu.Separator className="doan-menu-sep" />
           <DropdownMenu.Label className="doan-menu-head">{`Conversations on ${canvasName}`}</DropdownMenu.Label>
           {list === "error" ? <div className="conv-error" role="status"><span>{announcedAgain(LIST_FAILED_TEXT, run.listRetry().failures)}</span>

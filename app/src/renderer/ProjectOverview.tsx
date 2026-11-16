@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DropdownMenu } from "radix-ui";
-import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Plus, Settings, SquarePen } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Settings, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import { sendNowShown } from "../main/conversation/steerSupport";
@@ -390,7 +390,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
               if (!picked.current) return; picked.current = false; event.preventDefault(); focusField();
             }}>
             <DropdownMenu.RadioGroup value={conversationId ?? NEW} onValueChange={choose}>
-              <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${conversationId === null ? " current" : ""}`} textValue="New conversation"><Plus aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
+              <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${conversationId === null ? " current" : ""}`} textValue="New conversation"><SquarePen aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
               <DropdownMenu.Separator className="doan-menu-sep" />
               <DropdownMenu.Label className="doan-menu-head">{`Conversations in ${project}`}</DropdownMenu.Label>
               {list === "error" ? <div className="conv-error" role="status"><span>{announcedAgain(LIST_FAILED_TEXT, listRetry.failures)}</span>

@@ -358,9 +358,13 @@ code, kbd { font-family: var(--type-family); }
 @media (prefers-reduced-transparency: reduce) { .buddy-card:has(input:checked) { box-shadow: 0 0 0 2px var(--text-accent), 0 0 var(--space-6) 2px color-mix(in srgb, var(--affordance-accent) 15%, transparent); } }
 /* Forced colours drop box shadows, ring and glow alike, so the chosen card takes an outline. */
 @media (forced-colors: active) { .buddy-card:has(input:checked) { outline: 2px solid Highlight; } }
-/* Newer settings: the row shows but is disabled, as Settings disables its controls. */
-.buddy-flow[aria-disabled="true"] { opacity: .55; }
+/* Newer settings: the row shows but is disabled, in Settings' disabled roles rather than opacity. The chosen card's
+   accent ring (an Accent place) and glow give way to the disabled mark's grey ring, so the buddy that applies stays
+   visible; these selectors outrank the reduced-transparency ring too. Pictures keep their colours, as Settings' rows. */
 .buddy-flow[aria-disabled="true"] .buddy-card, .buddy-flow[aria-disabled="true"] .buddy-card input { cursor: default; }
+.buddy-flow[aria-disabled="true"] .buddy-card :is(strong, span) { color: var(--text-disabled); }
+.buddy-flow[aria-disabled="true"] .buddy-card:has(input:checked) { box-shadow: 0 0 0 2px var(--text-disabled); }
+.buddy-flow[aria-disabled="true"] .buddy-card:not(:has(input:checked)):hover { box-shadow: var(--shadow-panel); }
 .buddy-step-notice { margin: var(--space-5) auto 0; max-width: 512px; }
 .buddy-step-notice-top { margin: 0 auto var(--space-5); }
 .buddy-notice .doan-button, .buddy-step-notice .doan-button { margin-left: auto; flex: none; }
@@ -737,7 +741,9 @@ body:has(.shell-top) { background: transparent; }
 .home-credit-link:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .home-greeting { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); color: var(--text-standard); text-align: center; }
 .home-composer { position: relative; width: min(680px, 100%); margin-top: var(--space-10); }
-.home-project { gap: var(--space-2); margin: 0 0 var(--space-2) var(--space-2); font-weight: var(--type-weight-medium); }
+/* A long name ellipsizes inside the composer (less the 8px start margin); the trigger is alone on its line. */
+.home-project { gap: var(--space-2); max-width: calc(100% - var(--space-2)); margin: 0 0 var(--space-2) var(--space-2); font-weight: var(--type-weight-medium); }
+.home-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* A 20px project mark keeps the shipped thumbnail ratio (16/4/10 in the sidebar). */
 :is(.home-project, .project-item) .shell-thumbnail { width: var(--size-icon-lg); height: var(--size-icon-lg); border-radius: 5px; font-size: 11px; line-height: var(--size-icon-lg); }
 .chev { width: var(--space-4); height: var(--space-4); color: var(--text-metadata); }
@@ -834,7 +840,8 @@ body:has(.shell-top) { background: transparent; }
 /* The description wraps and is never ellipsized: it is where the cost shows ("increased usage", "usage credits"). */
 .fast-copy .sub { white-space: normal; overflow: visible; text-overflow: clip; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .fast-switch { display: inline-flex; flex-shrink: 0; align-items: center; box-sizing: border-box; width: 36px; height: 20px; padding: 2px; border: 1px solid var(--border-standard); border-radius: var(--radius-pill); background: var(--affordance-subtle-hover); }
-.fast-switch::before { content: ""; width: 14px; height: 14px; border-radius: var(--radius-pill); background: var(--text-on-prominent); box-shadow: var(--shadow-xs); }
+.fast-switch::before { content: ""; width: 14px; height: 14px; border-radius: var(--radius-pill); background: var(--text-on-prominent); box-shadow: var(--shadow-xs); transition: transform var(--time-settle) var(--ease-settle); }
+@media (prefers-reduced-motion: reduce) { .fast-switch::before { transition: none; } }
 .fast-item[aria-checked="true"] .fast-switch { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
 .fast-item[aria-checked="true"] .fast-switch::before { transform: translateX(16px); }
 /* Unavailable for the account: the shared disabled ink, the switch's own disabled look; the reason keeps the
@@ -881,6 +888,7 @@ body:has(.shell-top) { background: transparent; }
 .agent-note { display: inline-flex; align-items: center; gap: var(--space-1h); margin-left: auto; }
 :is(.model-item, .project-item, .effort-popover .doan-menu-item) { display: flex; align-items: center; gap: var(--space-2); }
 .model-name { flex: 1; min-width: 0; }
+.project-item .model-name { overflow: hidden; text-overflow: ellipsis; }
 /* The provider's default row carries a small "Default" after its name: caption in metadata ink, a mark rather than a
    second name. */
 .model-default { margin-left: var(--space-1h); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
@@ -1221,7 +1229,7 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .activity-head { display: inline-flex; align-items: center; gap: var(--space-2); align-self: flex-start; min-height: var(--size-control-sm); padding: 0 var(--space-2) 0 var(--space-3); margin-left: calc(-1 * var(--space-3)); border-radius: var(--radius-control); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); max-width: 100%; }
 .conversation-thread button.activity-head:hover { background: var(--affordance-backdrop-hover); }
 .conversation-thread .activity-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.conversation-thread .activity-head .chev { transform: rotate(-90deg); transition: transform 120ms; }
+.conversation-thread .activity-head .chev { transform: rotate(-90deg); transition: transform var(--time-fast) var(--ease-state); }
 .conversation-thread .activity-head[aria-expanded="true"] .chev { transform: none; }
 /* A turn that did not run Fast (fast-mode draft frame thread-notice): a folded line with the accent Fast icon; it wraps. */
 .conversation-thread .activity-head.fast-note { align-items: flex-start; padding-block: var(--space-1h); }
@@ -1310,8 +1318,9 @@ body:has(.shell-top) { background: transparent; }
    counts; these surfaces read like the page. The two menus are portalled out of .ov-main, so they are named too. */
 .ov-main, .right.ov-right, .conv-menu, .wt-menu { font-variant-numeric: normal; }
 .ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
-.ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: none; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
-.ov-project-name { font-weight: var(--type-weight-medium); }
+/* A long folder name stops at 40% of the header, as the canvas header's crumb, so New conversation stays in. */
+.ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: 0 1 auto; max-width: 40%; min-width: 0; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
 /* The branch chip as a worktree picker: the translucent chip with a chevron, opening the project menu's worktree rows. */
 .wt-chip { cursor: pointer; -webkit-app-region: no-drag; }
 .wt-chip .chev { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-left: var(--space-half); }
@@ -1712,6 +1721,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
   .workspace.app-shell[data-panel-motion], .workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
   .pw[data-panel-motion], .pw[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
   :root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell, .workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { transition: none; }
+  .shell-disclosure svg, .shell-group-head svg { transition: none; }
 }
 
 /* doan-canvas: the agent indicator while this canvas's current conversation works or waits (.doan/canvases/doan-canvas.html
@@ -1744,6 +1754,9 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-agent .doan-button.doan-agent-action { flex: none; background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); color: var(--text-on-prominent); }
 @media (hover: hover) and (pointer: fine) { .doan-agent .doan-button.doan-agent-action:hover:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 26%, transparent); } }
 .doan-agent .doan-button.doan-agent-action:active:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 34%, transparent); }
+/* The default ring (black, 2px outside) lands on the capsule's edge and nears 1:1 over a dark canvas; Open draws it
+   white and inside, the size bubble's pattern. */
+.doan-agent .doan-button.doan-agent-action:focus-visible { outline-color: var(--text-on-prominent); outline-offset: -2px; }
 /* One accent dot that grows and shrinks, with a ring spreading from it in step; still while the agent waits. */
 /* Doany the artist (.doan/canvases/doany-artist.html): a 32px window in the 40px card, 8px from its start. */
 .doan-agent:has(> .doan-agent-artist) { padding-left: var(--space-2); }
@@ -1867,6 +1880,11 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .storage-option:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
 .storage-option:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
 .storage-option:has(> input:disabled), .storage-option > input:disabled { cursor: default; }
+/* While Set Up writes, the options take the disabled roles as .storage-row does; a code chip keeps its own ink. */
+.storage-option:has(> input:disabled) :is(strong, small) { color: var(--text-disabled); }
+.storage-option:has(> input:disabled) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
+.storage-option:has(> input:disabled:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
+.storage-option:has(> input:disabled:checked) .ob-radio::before { background: var(--text-disabled); }
 /* A command or path chip in a caption description keeps the caption size and never breaks inside itself. */
 :is(.storage-option small, .storage-pref .doan-preference-row-description) code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
 .storage-fact { grid-column: 2 / -1; display: grid; gap: var(--space-half); }

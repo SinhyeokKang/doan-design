@@ -527,7 +527,7 @@ export function HeroComposer(props: HeroComposerProps) {
     <div className="home-composer">
       {hasProjects ? <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild><button type="button" className="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={`Project: ${project}`} disabled={sending}>
-          <span className={`shell-thumbnail hue-${projectHue(project)}`} aria-hidden="true">{projectInitial(project)}</span><span>{project}</span><ChevronDown className="chev" aria-hidden="true" />
+          <span className={`shell-thumbnail hue-${projectHue(project)}`} aria-hidden="true">{projectInitial(project)}</span><span className="home-project-name">{project}</span><ChevronDown className="chev" aria-hidden="true" />
         </button></DropdownMenu.Trigger>
         <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu project-popover" aria-label="Projects" side="bottom" align="start" sideOffset={4} collisionPadding={8}>
           {/* Radix calls onValueChange even for a radio item whose onSelect was prevented, so a down project is ignored here too. */}
