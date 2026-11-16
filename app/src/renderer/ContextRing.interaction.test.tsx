@@ -49,11 +49,14 @@ const canvasPress = vi.fn((listener: () => void) => { pressListener = listener; 
 // What document.activeElement is; null stands for <body>.
 let active: unknown;
 const page = { body: { id: "body" } };
+// The window's header, a drag region whose presses never reach the page.
+let header: { style: { declared: Map<string, string>; setProperty(name: string, value: string): void; removeProperty(name: string): void } };
 beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   vi.useFakeTimers(); vi.setSystemTime(NOW);
   read = vi.fn<(trigger: "open" | "refresh") => void>(); onLost = vi.fn<() => void>(); entries = [claude]; hidden = false; pressListener = null; active = page.body;
-  vi.stubGlobal("document", { get body() { return page.body; }, get activeElement() { return active; } });
+  header = { style: { declared: new Map<string, string>(), setProperty(name: string, value: string) { this.declared.set(name, value); }, removeProperty(name: string) { this.declared.delete(name); } } };
+  vi.stubGlobal("document", { get body() { return page.body; }, get activeElement() { return active; }, querySelector: (selector: string) => selector === "header.top" ? header : null });
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -246,4 +249,19 @@ test("a closed ring going calls nothing", () => {
   mount(view);
   unmount();
   expect(onLost).not.toHaveBeenCalled();
+});
+
+// POSTMORTEM 2026-11-06: a press on the header's empty part (a window drag region) never reaches the page, so the
+// header takes presses while the drawer is open, as it does for the header's own popovers.
+test("the window header stops dragging while the drawer is open, and drags again once it closes or the ring goes", () => {
+  const { view } = opened();
+  expect(header.style.declared.get("-webkit-app-region")).toBe("no-drag");
+  view.onOpenChange(false);
+  render();
+  expect(header.style.declared.has("-webkit-app-region")).toBe(false);
+  render().onOpenChange(true);
+  render();
+  expect(header.style.declared.get("-webkit-app-region")).toBe("no-drag");
+  unmount();
+  expect(header.style.declared.has("-webkit-app-region")).toBe(false);
 });

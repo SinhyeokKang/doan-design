@@ -8,6 +8,7 @@ import type { UsageEntry } from "../main/agentAuth/usageTypes";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { UsageRowBody, UsageWindowLine } from "./AgentUsageButton";
 import type { CanvasPress } from "./ComposerParts";
+import { holdHeaderNoDrag } from "./headerNoDrag";
 import { contextDrawerView, drawerCloseFocus, refreshGoneFocus, RING_TIP, ringButton, ringTip, ringTipOpen, type ContextDrawerView } from "./contextDrawer";
 import type { ContextUsage } from "./contextWindow";
 import { providerLogo } from "./homeComposer";
@@ -126,6 +127,15 @@ export function ContextRing({ context, provider, usage = NO_USAGE, canvasPress, 
     refreshFocused.current = false;
     body.current?.focus();
   }, [open, rowGone]);
+  // The window's header is a drag region whose presses never reach the page, so while the drawer is open it takes
+  // presses and one on its empty part closes the drawer (the ring is not in the header, so useHeaderNoDrag's
+  // closest("header") cannot find it).
+  const noDragOwner = useRef({}).current;
+  useEffect(() => {
+    const bar = open ? document.querySelector<HTMLElement>("header.top") : null;
+    if (!bar) return;
+    return holdHeaderNoDrag(bar, noDragOwner);
+  }, [open, noDragOwner]);
   // A press in the canvas iframe never reaches the app's document, so Radix cannot see it as an outside press.
   useEffect(() => {
     if (!open || !canvasPress) return;
