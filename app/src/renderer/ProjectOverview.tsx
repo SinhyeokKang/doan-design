@@ -132,8 +132,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   // Presets are read once for the run; accounts come from main's snapshots.
   useEffect(() => { if (!support.presets?.ok) support.readPresets(); }, []);
   useEffect(() => window.doan.onAgentAuth(snapshot => support.setAuth(snapshot)), []);
-  // The context ring's drawer: a conversation on the person's CLI profile shows no Doan connection's usage.
-  const ringUsage = useRingUsage(window.doan, summary?.owner === "legacy-external");
+  // The context ring's drawer: a conversation on the person's CLI profile shows no Doan connection's usage. Until the
+  // list holds its summary the owner is unknown, so a legacy conversation's first frame neither shows a row nor reads.
+  const ringUsage = useRingUsage(window.doan, summary === undefined || summary.owner === "legacy-external");
 
   // The composer's agent, model and effort, as Home decides them for a new conversation; an existing one keeps its
   // provider and starts from its own model.

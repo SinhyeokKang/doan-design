@@ -212,3 +212,14 @@ test("a send that waits for the usage limit's reset carries no pick, and the nex
   expect(ordinary.mock.calls.at(-1)![1]).toMatchObject({ conversationId: A, model: "sonnet", effort: "high", fast: false });
 });
 
+
+// The context ring's drawer: until the list holds the shown conversation's summary its owner is unknown, so the usage
+// stays hidden (a legacy conversation's first frame neither shows a Doan connection's row nor reads); a conversation on
+// the person's CLI profile keeps it hidden.
+test("the ring's usage is hidden until the summary arrives and for a legacy external conversation", () => {
+  const hidden = (list: ListView) => (render(list, A).composer as unknown as { usage: { hidden: boolean } }).usage.hidden;
+  expect(hidden("loading")).toBe(true);
+  expect(hidden([])).toBe(true);
+  expect(hidden([summary()])).toBe(false);
+  expect(hidden([summary({ owner: "legacy-external" })])).toBe(true);
+});

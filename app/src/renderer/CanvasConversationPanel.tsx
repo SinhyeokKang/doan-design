@@ -244,8 +244,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   useEffect(() => { if (!support.presets?.ok) support.readPresets(); }, []);
   useEffect(() => calls.onAgentAuth(snapshot => support.setAuth(snapshot)), []);
-  // The context ring's drawer: a conversation on the person's CLI profile shows no Doan connection's usage.
-  const ringUsage = useRingUsage(calls, summary?.owner === "legacy-external");
+  // The context ring's drawer: a conversation on the person's CLI profile shows no Doan connection's usage. Until the
+  // list holds its summary the owner is unknown, so a legacy conversation's first frame neither shows a row nor reads.
+  const ringUsage = useRingUsage(calls, summary === undefined || summary.owner === "legacy-external");
   // The body's own composer: the panel around it differs by window.
   const body = useRef<HTMLDivElement | null>(null);
   const focusField = () => queueMicrotask(() => focusFieldEnd(body.current?.querySelector<HTMLElement>(".composer-input") ?? null));

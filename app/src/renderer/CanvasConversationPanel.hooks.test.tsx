@@ -395,3 +395,30 @@ test("the panel hands the ring usage from its calls object, hidden for a legacy 
   for (const effect of hooks.effects) effect?.cleanup?.();
   expect(unsubscribe).toHaveBeenCalled();
 });
+
+// Before the list holds the shown conversation's summary its owner is unknown, so a legacy conversation's first frame
+// would show a Doan connection's row and read on open: until the summary arrives the usage is hidden.
+test("the ring's usage stays hidden until the shown conversation's summary arrives", () => {
+  const doan = (window as unknown as { doan: Record<string, unknown> }).doan;
+  doan.onAgentUsage = vi.fn(() => () => {});
+  doan.readAgentUsage = vi.fn(async () => []);
+  doan.readConversation = vi.fn(() => new Promise(() => {}));
+  hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
+  const known = [{ conversationId: "c1", root: ROOT, canvas: CANVAS, title: "t", provider: "claude", owner: "legacy-external", fromHome: false, phase: "idle", updatedAt: "2026-11-01T14:00:00Z", lastSeq: 1 }] as never;
+  const store = new ConversationStore({ list: () => known, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }, window.doan);
+  const run = new CanvasRun({ list: () => known, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store, window.doan);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  run.select("c1");
+  const support = Object.assign(new DockedSupport(() => {}, window.doan), { readPresets: vi.fn(), readModels: vi.fn() });
+  const panel = (list: never) => () => CanvasConversation({
+    calls: window.doan as never, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
+    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+  });
+  const usage = (list: never) => (composerProps(render(panel(list)))!.usage as { hidden: boolean }).hidden;
+  expect(run.view()).toMatchObject({ kind: "conversation", conversationId: "c1" });
+  expect(usage([] as never)).toBe(true);
+  expect(usage(known)).toBe(true);
+});
