@@ -45,6 +45,8 @@ export interface PrototypeWindowDeps {
   viewSent?(): void;
   // The playing canvas changed, before any view of it.
   canvasChanged?(): void;
+  // A new window with the sidebar material, for the opaque fallback after a GPU compositing loss.
+  vibrancyWindow?(window: BrowserWindow): void;
 }
 
 export interface PrototypeWindow {
@@ -167,6 +169,7 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     });
     window = created;
     closing = false;
+    deps.vibrancyWindow?.(created);
     created.setContentBounds(bounds);
     injectRuns(created);
     const contents = created.webContents;

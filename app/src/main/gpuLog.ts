@@ -11,7 +11,7 @@ export interface GpuLog {
 }
 
 // Electron reports "enabled", "enabled_on", "enabled_readback", "enabled_force"…; anything else means no GPU compositing.
-const enabled = (status: string) => status.startsWith("enabled");
+export const compositingEnabled = (status: string) => status.startsWith("enabled");
 
 export function createGpuLog(file: string, now: () => Date = () => new Date()): GpuLog {
   const append = (line: string) => {
@@ -28,8 +28,8 @@ export function createGpuLog(file: string, now: () => Date = () => new Date()): 
     compositing(status) {
       const previous = last;
       last = status;
-      if (status === previous || (enabled(status) && enabled(previous))) return;
-      if (!enabled(status)) console.error("doan: GPU compositing is not enabled", status);
+      if (status === previous || (compositingEnabled(status) && compositingEnabled(previous))) return;
+      if (!compositingEnabled(status)) console.error("doan: GPU compositing is not enabled", status);
       append(`GPU compositing: ${status}`);
     },
   };
