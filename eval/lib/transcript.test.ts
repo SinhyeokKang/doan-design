@@ -215,6 +215,41 @@ test("a Codex exec_command whose cmd is not a plain string makes the read incomp
   assert.equal(incompleteRead(toolCalls(exec("await tools.exec_command({cmd: 'doan active --json', workdir: '/tmp'});")).commands), false);
 });
 
+// Codex records each process an exec script ran (item_completed CommandExecution, with no call id) between the
+// script's call and its output, so a template command is read from what actually ran.
+test("a Codex exec script's template commands are read from the commands its run recorded", () => {
+  const rollout = readFileSync(new URL("./fixtures/codex-template-exec.jsonl", import.meta.url), "utf8");
+  const { commands } = toolCalls(rollout);
+  assert.equal(incompleteRead(commands), false);
+  const doan = commands.flatMap(commandWords).filter(words => words[0] === "doan").map(words => words.slice(1, 6).join(" "));
+  for (const frame of ["plan-free", "plan-pro", "plan-team"]) assert.ok(doan.includes(`work update .doan/canvases/pricing.html --frame ${frame}`), frame);
+  assert.ok(doan.includes("work done .doan/canvases/pricing.html --json"));
+});
+
+test("a template command stays unread when the run did not record a command for it", () => {
+  const lines = readFileSync(new URL("./fixtures/codex-template-exec.jsonl", import.meta.url), "utf8").trim().split("\n");
+  const ran = (line: string) => line.includes('"CommandExecution"');
+  const [call, output] = [lines[0]!, lines.at(-1)!];
+  const record = (command: unknown) => JSON.stringify({ type: "event_msg", payload: { type: "item_completed", item: { type: "CommandExecution", command, status: "completed" } } });
+  const literal = (cmd: string) => record(["/bin/zsh", "-c", cmd]);
+  const other = JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", call_id: "call_other", name: "exec", input: "text(await tools.exec_command({cmd:\"doan ls --json\"}));" } });
+  for (const [label, rollout] of [
+    // Nothing ran between the call and its output.
+    ["no record", [call, output]],
+    // Only the literal commands the script names ran, so nothing stands for the template.
+    ["only literals", [call, literal("doan check --json"), literal("git diff -- .doan/canvases/pricing.html"), literal("doan work done .doan/canvases/pricing.html --json"), output]],
+    // The script's output never arrived, so later commands may still be missing.
+    ["no output", lines.slice(0, -1)],
+    // A recorded command this reader cannot turn back into a shell script.
+    ["unknown argv", [call, ...lines.filter(ran), record(["doan", "open", ".doan/canvases/pricing.html"]), output]],
+    // Another script was running too, so a recorded command may be its, not this script's.
+    ["overlapping script", [call, other, ...lines.filter(ran), output]],
+  ] as const) {
+    const { commands } = toolCalls(rollout.join("\n"));
+    assert.equal(incompleteRead(commands), true, label);
+  }
+});
+
 // A command run through a shell variable or `for` loop is still run, so a preset read through them is still a read;
 // only the words the shell would execute count, never an echoed or quoted example.
 test("commandWords expands loop and assigned variables where the shell would", () => {

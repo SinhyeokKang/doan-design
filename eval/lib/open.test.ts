@@ -61,6 +61,17 @@ test("noOpen fails beside a command the reader could not follow, which may have 
   assert.equal(noOpen({ calls: toolCalls(computed), open: () => [], prototype: () => [] }).pass, false);
 });
 
+// W5 Codex: a template `doan work update` in a loop, read from the commands the run recorded, is no longer a gap.
+test("noOpen reads a Codex template exec from the commands its run recorded", () => {
+  const rollout = readFileSync(join(import.meta.dirname, "fixtures/codex-template-exec.jsonl"), "utf8");
+  assert.equal(noOpen({ calls: toolCalls(rollout), open: () => [], prototype: () => [] }).pass, true);
+  // The same script whose recorded command was a doan open is evidence of that open.
+  const opened = rollout.replace("doan check --json\"], \"cwd\"", `doan open ${path}"], "cwd"`);
+  assert.notEqual(opened, rollout);
+  assert.deepEqual(openCalls({ calls: toolCalls(opened) }), [{ path, frame: undefined }]);
+  assert.equal(noOpen({ calls: toolCalls(opened), open: () => [], prototype: () => [] }).pass, false);
+});
+
 test("openChecks need the call and an accepted request that arrived after the final edit", () => {
   const command = `doan open ${path} --frame profile-form --json`;
   const verdict = (commands: string[], log: OpenExchange[]) => Object.fromEntries(openChecks(ctx(commands, log), path, "profile-form").map(c => [c.id, c.pass]));
