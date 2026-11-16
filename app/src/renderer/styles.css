@@ -1625,12 +1625,14 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .context-ring[data-band="full"] .value { stroke: var(--border-danger); }
 /* Its tooltip's two lines, both in the tooltip's caption ink. */
 .doan-tooltip .tip-line { display: block; }
-/* The ring's drawer: one Agent usage row lifted whole on the shared floating popover, head on top (Refresh with the
-   header Refresh's −6 block and end margins), then the body aligned with the name. Plain numerals, as the header
+/* The ring's drawer: one Agent usage row lifted whole on the shared floating popover, head on top, then the body
+   aligned with the name. Refresh follows the body in the DOM (Tab goes body → Refresh) and the grid puts it at the
+   head's end, 8 after the read time, with the header Refresh's −6 block and end margins. Plain numerals, as the header
    popover: the body's tabular figures widen every "1" in the relative times. */
-.context-drawer { display: flex; flex-direction: column; gap: var(--space-2); max-height: var(--radix-popover-content-available-height); overflow-y: auto; text-align: left; font-variant-numeric: normal; }
-.context-drawer-body { outline: none; }
-.context-drawer-refresh { flex: none; margin-block: calc(-1 * var(--space-1h)); margin-inline-end: calc(-1 * var(--space-1h)); }
+.context-drawer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); max-height: var(--radix-popover-content-available-height); overflow-y: auto; text-align: left; font-variant-numeric: normal; }
+.context-drawer-head { grid-column: 1; grid-row: 1; }
+.context-drawer-body { grid-column: 1 / -1; grid-row: 2; outline: none; }
+.context-drawer-refresh { grid-column: 2; grid-row: 1; margin-block: calc(-1 * var(--space-1h)); margin-inline-end: calc(-1 * var(--space-1h)); }
 /* .doan-agent (later, same weight) sets a 4px end inset for its action button; the hint ends in the Esc key instead. */
 .doan-agent.doan-picking { padding-right: var(--space-2); }
 .doan-picking-icon { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }

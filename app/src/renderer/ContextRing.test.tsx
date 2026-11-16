@@ -83,8 +83,10 @@ describe("ContextRingView button", () => {
 describe("ContextDrawerPanel", () => {
   it("lifts the provider's header row whole: head on top, then the Context window line and the windows", () => {
     const markup = html(<ContextDrawerPanel {...props()} />);
-    expect(markup).toMatch(/^<div class="usage-row-head context-drawer-head"><img class="logo" src="provider-logos\/claude.png" alt=""\/><span class="usage-name" id="ct">Claude Code<\/span><span class="usage-read">Updated 2m ago<\/span><button type="button" class="doan-icon-button context-drawer-refresh" aria-label="Refresh usage"/);
-    const body = markup.slice(markup.indexOf('<div class="usage-row-body context-drawer-body" tabindex="-1">'));
+    expect(markup).toMatch(/^<div class="usage-row-head context-drawer-head"><img class="logo" src="provider-logos\/claude.png" alt=""\/><span class="usage-name" id="ct">Claude Code<\/span><span class="usage-read">Updated 2m ago<\/span><\/div><div class="usage-row-body context-drawer-body" tabindex="-1">/);
+    // Refresh comes after the body so Tab goes body → Refresh; the grid draws it at the head's end.
+    expect(markup).toMatch(/<\/div><\/div><button type="button" class="doan-icon-button context-drawer-refresh" aria-label="Refresh usage"[^>]*>[^]*<\/button>$/);
+    const body = markup.slice(markup.indexOf('<div class="usage-row-body context-drawer-body" tabindex="-1">'), markup.indexOf('<button type="button" class="doan-icon-button context-drawer-refresh"'));
     expect(body).toMatch(/^<div class="usage-row-body context-drawer-body" tabindex="-1"><div class="usage-window"><div class="usage-window-line"><span class="usage-window-label">Context window<\/span><span class="usage-window-text">42% used · 84K of 200K<\/span><\/div><span class="usage-bar" aria-hidden="true"><i style="width:42%"><\/i><\/span><\/div>/);
     // The windows are the header row's markup, unchanged.
     expect(body).toContain('<div class="usage-window"><div class="usage-window-line"><span class="usage-window-label">5h</span><span class="usage-window-text">38% used · resets in 2h 10m</span></div><span class="usage-bar" aria-hidden="true"><i style="width:38%"></i></span></div>');
@@ -147,8 +149,9 @@ describe("context ring CSS", () => {
   });
 
   it("lays the drawer out as one lifted row", () => {
-    expect(css).toContain(".context-drawer { display: flex; flex-direction: column; gap: var(--space-2); max-height: var(--radix-popover-content-available-height); overflow-y: auto; text-align: left; font-variant-numeric: normal; }");
-    expect(css).toContain(".context-drawer-body { outline: none; }");
-    expect(css).toContain(".context-drawer-refresh { flex: none; margin-block: calc(-1 * var(--space-1h)); margin-inline-end: calc(-1 * var(--space-1h)); }");
+    expect(css).toContain(".context-drawer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); max-height: var(--radix-popover-content-available-height); overflow-y: auto; text-align: left; font-variant-numeric: normal; }");
+    expect(css).toContain(".context-drawer-head { grid-column: 1; grid-row: 1; }");
+    expect(css).toContain(".context-drawer-body { grid-column: 1 / -1; grid-row: 2; outline: none; }");
+    expect(css).toContain(".context-drawer-refresh { grid-column: 2; grid-row: 1; margin-block: calc(-1 * var(--space-1h)); margin-inline-end: calc(-1 * var(--space-1h)); }");
   });
 });

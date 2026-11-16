@@ -45,22 +45,23 @@ function RefreshTip({ onEscape, children }: { onEscape(): void; children: ReactE
 }
 
 // The drawer body (draft frame drawer): the provider's header row lifted whole, head on top, then the Context window
-// line and the row's windows or reason. Without usage the head keeps only the logo and the name.
+// line and the row's windows or reason. Without usage the head keeps only the logo and the name. Refresh comes after
+// the body so Tab goes body → Refresh (focus starts on the body); the grid draws it at the head's end.
 export function ContextDrawerPanel({ provider, view, titleId, bodyRef, onRefresh, onRefreshFocus, onOpenChange }: Pick<ContextRingViewProps, "provider" | "view" | "titleId" | "bodyRef" | "onRefresh" | "onRefreshFocus" | "onOpenChange">) {
   const { usage, busy } = view;
   return <>
     <div className="usage-row-head context-drawer-head">
       {provider && <img className="logo" src={providerLogo(provider)} alt="" />}<span className="usage-name" id={titleId}>{provider ? PROVIDER_NAMES[provider] : "Context window"}</span>
       {usage?.read && <span className="usage-read">{usage.read}</span>}
-      {/* It stays enabled while reading: a provider already reading joins that read in main. */}
-      {usage && <RefreshTip onEscape={() => onOpenChange(false)}><button type="button" className="doan-icon-button context-drawer-refresh" aria-label="Refresh usage" aria-busy={busy || undefined}
-        onClick={onRefresh} onFocus={() => onRefreshFocus(true)} onBlur={() => onRefreshFocus(false)}>
-        {busy ? <span className="doan-spinner" aria-hidden="true" /> : <RotateCw aria-hidden="true" />}</button></RefreshTip>}
     </div>
     <div className="usage-row-body context-drawer-body" tabIndex={-1} ref={bodyRef}>
       <UsageWindowLine window={{ ...view.context, limited: false }} />
       {usage && <UsageRowBody row={usage} />}
     </div>
+    {/* It stays enabled while reading: a provider already reading joins that read in main. */}
+    {usage && <RefreshTip onEscape={() => onOpenChange(false)}><button type="button" className="doan-icon-button context-drawer-refresh" aria-label="Refresh usage" aria-busy={busy || undefined}
+      onClick={onRefresh} onFocus={() => onRefreshFocus(true)} onBlur={() => onRefreshFocus(false)}>
+      {busy ? <span className="doan-spinner" aria-hidden="true" /> : <RotateCw aria-hidden="true" />}</button></RefreshTip>}
   </>;
 }
 
