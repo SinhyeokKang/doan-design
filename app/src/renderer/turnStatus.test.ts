@@ -154,6 +154,9 @@ describe("turnStatus", () => {
     events.push(ev("t1", { type: "canvas.drawn", canvas: { path: ".doan/canvases/a.html", id: "a" } }));
     expect(turnOf(events, true)).toMatchObject({ lastSeq: seq - 1 });
     expect(statusOf(events, thinking)).toEqual({ kind: "thinking" });
+    // A real event after it still supersedes the stage.
+    events.push(ev("t1", { type: "activity", kind: "command", summary: "Running a command" }));
+    expect(statusOf(events, thinking)).toEqual({ kind: "tool", activity: "command", text: "Running a command", step: `s${seq}` });
   });
 
   test("a queue starting the next turn at once: the earlier turn's stage is ignored", () => {
