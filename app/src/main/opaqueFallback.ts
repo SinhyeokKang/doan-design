@@ -12,6 +12,7 @@ export interface FallbackWindow {
   webContents: {
     debugger: { isAttached(): boolean; attach(): void; sendCommand(method: string, params: object): Promise<unknown> };
     executeJavaScript(code: string): Promise<unknown>;
+    on(event: "did-finish-load", listener: () => void): unknown;
   };
 }
 
@@ -28,10 +29,15 @@ function opaque(window: FallbackWindow): void {
   const contents = window.webContents;
   const failed = (error: unknown) => console.error("doan: cannot make the window opaque", error);
   // Attach fails while DevTools holds the page; the window then keeps its own fills over the plain background.
-  try {
-    if (!contents.debugger.isAttached()) contents.debugger.attach();
-    contents.debugger.sendCommand("Emulation.setEmulatedMedia", REDUCE).catch(failed);
-  } catch (error) { failed(error); }
+  const emulate = () => {
+    try {
+      if (!contents.debugger.isAttached()) contents.debugger.attach();
+      contents.debugger.sendCommand("Emulation.setEmulatedMedia", REDUCE).catch(failed);
+    } catch (error) { failed(error); }
+  };
+  emulate();
+  // A page reloaded after its renderer died comes back with the debugger detached and no emulation.
+  contents.on("did-finish-load", emulate);
   // The page's own token, so the native background behind the page matches it.
   contents.executeJavaScript(`getComputedStyle(document.documentElement).getPropertyValue("--bg-app").trim()`)
     .then(color => { if (typeof color === "string" && color !== "" && !window.isDestroyed()) window.setBackgroundColor(color); })

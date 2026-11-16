@@ -169,9 +169,10 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     });
     window = created;
     closing = false;
-    deps.vibrancyWindow?.(created);
     created.setContentBounds(bounds);
     injectRuns(created);
+    // After injectRuns: an opaque fallback already in force attaches the debugger itself, and a second attach throws.
+    deps.vibrancyWindow?.(created);
     const contents = created.webContents;
     // Read after destroy, webContents throws, so the id is kept now.
     const contentsId = contents.id;

@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { beforeEach, expect, test, vi } from "vitest";
 import { createOpaqueFallback, type FallbackWindow } from "./opaqueFallback";
 
@@ -6,6 +7,7 @@ const REDUCE = { features: [{ name: "prefers-reduced-transparency", value: "redu
 function fakeWindow(options: { attachThrows?: boolean; bg?: string } = {}) {
   let attached = false;
   let destroyed = false;
+  const events = new EventEmitter();
   const window = {
     isDestroyed: () => destroyed,
     setVibrancy: vi.fn<(type: null) => void>(),
@@ -17,9 +19,10 @@ function fakeWindow(options: { attachThrows?: boolean; bg?: string } = {}) {
         sendCommand: vi.fn<(method: string, params: object) => Promise<unknown>>(() => Promise.resolve({})),
       },
       executeJavaScript: vi.fn<(code: string) => Promise<unknown>>(() => Promise.resolve(options.bg ?? "#f1f1f2")),
+      on: (event: "did-finish-load", listener: () => void) => events.on(event, listener),
     },
   } satisfies FallbackWindow;
-  return { window, destroy: () => { destroyed = true; } };
+  return { window, destroy: () => { destroyed = true; }, load: () => events.emit("did-finish-load"), detach: () => { attached = false; } };
 }
 
 beforeEach(() => { vi.restoreAllMocks(); vi.spyOn(console, "error").mockImplementation(() => {}); });
@@ -88,4 +91,16 @@ test("an empty background token leaves the native background as it is", async ()
   await vi.waitFor(() => expect(window.webContents.executeJavaScript).toHaveBeenCalled());
   await Promise.resolve();
   expect(window.setBackgroundColor).not.toHaveBeenCalled();
+});
+
+test("a page loaded again after the fallback, its debugger gone with the old renderer, gets the emulation again", () => {
+  const { window, load, detach } = fakeWindow();
+  const fallback = createOpaqueFallback();
+  fallback.adopt(window);
+  fallback.trigger();
+  detach();
+  load();
+  expect(window.webContents.debugger.attach).toHaveBeenCalledTimes(2);
+  expect(window.webContents.debugger.sendCommand).toHaveBeenCalledTimes(2);
+  expect(window.webContents.debugger.sendCommand).toHaveBeenLastCalledWith("Emulation.setEmulatedMedia", REDUCE);
 });
