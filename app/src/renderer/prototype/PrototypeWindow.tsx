@@ -101,6 +101,9 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   // a request main never answered cannot turn the next press into the opposite one.
   const panelAsked = useRef<boolean | null>(null);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
+  // The canvas page's fold motion, for this window's own toggle only: a drag must not animate, or the handle trails the
+  // pointer, and a panel main opens or closes by itself just shows. Held as long as the canvas page holds it.
+  const [panelMotion, setPanelMotion] = useState(false);
   const focusGuard = useRef<ColumnFocusGuard | null>(null);
   focusGuard.current ??= new ColumnFocusGuard(() => performance.now());
 
@@ -150,6 +153,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     const open = !panelOpen;
     if (open) run.unfoldTarget();
     panelAsked.current = open;
+    setPanelMotion(true);
     void api.setPanel({ open });
   };
   // Opening puts focus in the composer, or on the head's menu button before the first view, when there is no composer
@@ -168,6 +172,11 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     headFallback.current = true;
     headTitle()?.focus();
   }, [panelOpen]);
+  useEffect(() => {
+    if (!panelMotion) return;
+    const timer = setTimeout(() => setPanelMotion(false), 250);
+    return () => clearTimeout(timer);
+  }, [panelMotion, panelOpen]);
   // Once the first view brings the composer, focus left on the head's menu button moves to it, once; focus the person
   // put elsewhere meanwhile stays.
   useEffect(() => {
@@ -398,7 +407,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     onBack={() => void api.back()} onForward={() => void api.forward()} onReload={() => { if (gen !== null) void api.reload(gen); }} onReloadPress={onReloadPress} onReloadClick={onReloadClick}
     onMode={mode => void api.setMode(mode)} onMenuOpen={setMenuOpen} exporting={exporting} onExport={onExport} toast={toast.element} dialog={deleteDialog}
     onChoose={frame => void api.choose(frame)} onClose={() => void api.close()} onDetails={() => setDetails(open => !open)}
-    conversation={{ button: run.button(), open: panelOpen, width: panelWidth, bounds: { min: panelBounds.min, max: panelBounds.max }, buttonRef: convButton, column,
+    conversation={{ button: run.button(), open: panelOpen, motion: panelMotion, width: panelWidth, bounds: { min: panelBounds.min, max: panelBounds.max }, buttonRef: convButton, column,
       title: <PrototypeHeadMenu run={run} now={clock} onPicked={() => composer()?.focus()} onDelete={openDelete} />,
       body: <PrototypeConversationPanel run={run} calls={api} now={clock} onNotice={text => toastRef.current.show(text)} />,
       onToggle: togglePanel, preview: setDragWidth, onFocusOut: onColumnFocusOut,
@@ -412,6 +421,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
 export interface ShellConversation {
   button: ConversationButton;
   open: boolean;
+  // While the window's own toggle folds or unfolds the column.
+  motion?: boolean;
   width: number;
   bounds: PanelBounds;
   title?: ReactNode;
@@ -471,7 +482,7 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
   // The name's row from the header's own width, given rather than measured: the window's while the panel is closed, the
   // area left of it while open (main fits and captures by the same rule).
   const rows = prototypeSideLayout(width, conv.open ? conv.width : null).rows;
-  return <div className={rows === 2 ? "pw name-row" : "pw"} {...(conv.open ? { "data-panel": "open", style: columns } : {})}>
+  return <div className={rows === 2 ? "pw name-row" : "pw"} {...(conv.open ? { "data-panel": "open", style: columns } : {})} data-panel-motion={conv.motion ? "" : undefined}>
     <header className="top shell-top pw-top">
       <span className="traffic-space" aria-hidden="true" />
       <div className="shell-history">

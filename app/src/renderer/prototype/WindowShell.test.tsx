@@ -640,6 +640,13 @@ describe("the conversation button and panel", () => {
     expect(html).toContain('<aside class="right ov-right doan-conv-panel" id="doan-conversation-panel" role="region" aria-label="Conversation">');
   });
 
+  test("while the window's own toggle animates, the shell carries the canvas page's motion flag, open and closed", () => {
+    expect(tag(markup({ conversation: opened({ motion: true }) }), 'class="pw')).toContain('data-panel-motion=""');
+    expect(tag(markup({ conversation: conv({ motion: true }) }), 'class="pw')).toContain('data-panel-motion=""');
+    expect(tag(markup({ conversation: opened() }), 'class="pw')).not.toContain("data-panel-motion");
+    expect(tag(markup({ conversation: conv() }), 'class="pw')).not.toContain("data-panel-motion");
+  });
+
   // The panel's DOM comes before the frame, so the frame's own Tab stops or a focus trap in it cannot keep the panel
   // out of reach; closed, the folded panel is inert.
   test("open, the Tab order is the header, the handle, Hide, the thread and composer, then the frame; closed, the header then the frame", () => {
@@ -727,10 +734,29 @@ describe("the conversation panel's styles", () => {
 
   test("open, two columns 8 apart; the header and the content panel in the first, the panel through both rows 8 below the top", () => {
     expect(rule('.pw[data-panel="open"]')).toMatch(/grid-template-columns: minmax\(0, 1fr\) var\(--pw-panel\); column-gap: var\(--space-2\);/);
-    expect(rule('.pw[data-panel="open"] > .pw-top')).toContain("grid-column: 1;");
-    expect(rule('.pw[data-panel="open"] > .pw-panel')).toMatch(/grid-column: 1; grid-row: 2;/);
+    expect(rule(".pw > .pw-top")).toContain("grid-column: 1;");
+    expect(rule(".pw > .pw-panel")).toMatch(/grid-column: 1; grid-row: 2;/);
     expect(rule(".pw > .doan-conv-column")).toMatch(/grid-column: 2; grid-row: 1 \/ -1; margin-top: var\(--space-2\);/);
-    expect(rule('.pw:not([data-panel="open"]) > .doan-conv-column')).toContain("display: none;");
+  });
+
+  // Folded, the column keeps a 0 wide track with no gap instead of leaving the grid, so the canvas page's fold motion
+  // can animate the track both ways; the shared [data-collapsed] rule hides it.
+  test("folded, a 0 wide second column with no gap; the column is hidden, not taken out of the grid", () => {
+    expect(rule(".pw")).toMatch(/grid-template-columns: minmax\(0, 1fr\) 0px;/);
+    expect(rule(".pw")).not.toMatch(/column-gap/);
+    expect(css).not.toMatch(/\.pw:not\(\[data-panel="open"\]\) > \.doan-conv-column \{[^}]*display: none/);
+    expect(css).toMatch(/^\.doan-conv-column\[data-collapsed\] \{ visibility: hidden; \}/m);
+  });
+
+  // One motion with the canvas page's conversation panel, not a second one: the same rules name both shells.
+  test("open and close share the canvas page's fold motion, and reduced motion drops it", () => {
+    const lists = (body: RegExp) => [...css.matchAll(/^([^{}@\n]+)\{([^}]*)\}/gm)].filter(([, , decls]) => body.test(decls!)).map(([, selectors]) => selectors!.split(",").map(s => s.trim()));
+    const grid = lists(/^ transition: grid-template-columns var\(--time-panel-enter\) var\(--ease-settle\), column-gap var\(--time-panel-enter\) var\(--ease-settle\); $/);
+    expect(grid).toContainEqual([".workspace.app-shell[data-panel-motion]", ".pw[data-panel-motion]"]);
+    const hold = lists(/^ transition: visibility 0s linear var\(--time-panel-enter\); $/);
+    expect(hold).toContainEqual([".workspace[data-panel-motion] > .doan-conv-column[data-collapsed]", ".pw[data-panel-motion] > .doan-conv-column[data-collapsed]"]);
+    const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce) {\n  .workspace.app-shell[data-panel-motion]"));
+    expect(reduced.slice(0, reduced.indexOf("\n}"))).toMatch(/\.pw\[data-panel-motion\], \.pw\[data-panel-motion\] > \.doan-conv-column\[data-collapsed\] \{ transition: none; \}/);
   });
 
   test("the panel is an independent surface: four 24 corners, no edge shadow, no start edge; the head keeps 56", () => {
