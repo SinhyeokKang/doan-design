@@ -215,6 +215,41 @@ test("a Codex exec_command whose cmd is not a plain string makes the read incomp
   assert.equal(incompleteRead(toolCalls(exec("await tools.exec_command({cmd: 'doan active --json', workdir: '/tmp'});")).commands), false);
 });
 
+// Codex records each process an exec script ran (item_completed CommandExecution, with no call id) between the
+// script's call and its output, so a template command is read from what actually ran.
+test("a Codex exec script's template commands are read from the commands its run recorded", () => {
+  const rollout = readFileSync(new URL("./fixtures/codex-template-exec.jsonl", import.meta.url), "utf8");
+  const { commands } = toolCalls(rollout);
+  assert.equal(incompleteRead(commands), false);
+  const doan = commands.flatMap(commandWords).filter(words => words[0] === "doan").map(words => words.slice(1, 6).join(" "));
+  for (const frame of ["plan-free", "plan-pro", "plan-team"]) assert.ok(doan.includes(`work update .doan/canvases/pricing.html --frame ${frame}`), frame);
+  assert.ok(doan.includes("work done .doan/canvases/pricing.html --json"));
+});
+
+test("a template command stays unread when the run did not record a command for it", () => {
+  const lines = readFileSync(new URL("./fixtures/codex-template-exec.jsonl", import.meta.url), "utf8").trim().split("\n");
+  const ran = (line: string) => line.includes('"CommandExecution"');
+  const [call, output] = [lines[0]!, lines.at(-1)!];
+  const record = (command: unknown) => JSON.stringify({ type: "event_msg", payload: { type: "item_completed", item: { type: "CommandExecution", command, status: "completed" } } });
+  const literal = (cmd: string) => record(["/bin/zsh", "-c", cmd]);
+  const other = JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", call_id: "call_other", name: "exec", input: "text(await tools.exec_command({cmd:\"doan ls --json\"}));" } });
+  for (const [label, rollout] of [
+    // Nothing ran between the call and its output.
+    ["no record", [call, output]],
+    // Only the literal commands the script names ran, so nothing stands for the template.
+    ["only literals", [call, literal("doan check --json"), literal("git diff -- .doan/canvases/pricing.html"), literal("doan work done .doan/canvases/pricing.html --json"), output]],
+    // The script's output never arrived, so later commands may still be missing.
+    ["no output", lines.slice(0, -1)],
+    // A recorded command this reader cannot turn back into a shell script.
+    ["unknown argv", [call, ...lines.filter(ran), record(["doan", "open", ".doan/canvases/pricing.html"]), output]],
+    // Another script was running too, so a recorded command may be its, not this script's.
+    ["overlapping script", [call, other, ...lines.filter(ran), output]],
+  ] as const) {
+    const { commands } = toolCalls(rollout.join("\n"));
+    assert.equal(incompleteRead(commands), true, label);
+  }
+});
+
 // A command run through a shell variable or `for` loop is still run, so a preset read through them is still a read;
 // only the words the shell would execute count, never an echoed or quoted example.
 test("commandWords expands loop and assigned variables where the shell would", () => {
@@ -285,7 +320,8 @@ test("a loop past the budget is incomplete and leaves no stale variable behind",
   assert.ok(nested.words.every(w => w[0] === "echo"));
 });
 test("a shell compound or reserved word the reader does not follow makes the rest of the command incomplete", () => {
-  // Only plain commands, NAME=value and a closed for loop are followed; if/while/case/groups are never interpreted.
+  // Only plain commands, NAME=value, a closed for loop, a closed { …; } group and a function with such a body are
+  // followed; if/while/case/subshells are never interpreted.
   const unread = (command: string, words: string[][] = []) => assert.deepEqual(parseCommand(command), { words, incomplete: true }, command);
   unread("p=harden; if true; then p=polish; fi; doan design-skill $p", []);
   unread("if true; then doan design-skill polish; fi");
@@ -294,10 +330,8 @@ test("a shell compound or reserved word the reader does not follow makes the res
   unread("while false; do echo waiting; doan active; done");
   unread("until true; do doan active; done");
   unread("case $x in a) doan active;; esac");
-  unread("{ doan active; }");
   unread("(cd /tmp && doan active)");
-  unread("f() { doan active; }; f");
-  unread("function f { doan active; }");
+  unread("f() ( doan active ); f");
   unread("select p in a b; do doan active; done");
   unread("for ((i=0; i<2; i++)); do doan active; done");
   unread("done; doan active");
@@ -478,9 +512,11 @@ test("command substitutions the reader cannot follow make the read incomplete", 
   // An unquoted heredoc body runs its substitutions; a quoted one is data.
   assert.equal(parseCommand("cat <<EOF\n$(doan design-skill polish)\nEOF").incomplete, true);
   assert.deepEqual(parseCommand("cat <<'EOF'\n$(doan design-skill polish)\nEOF"), { words: [["cat"]], incomplete: false });
-  // A function or case body may never run, so its substitutions are not runs either.
-  for (const command of ['f() { echo "$(doan open x.html)"; }', 'case "$1" in run) out=$(doan active);; esac'])
-    assert.deepEqual(parseCommand(command), { words: [], incomplete: true }, command);
+  // A function or case body may never run, so its substitutions are not runs either: an uncalled function's body ran
+  // nothing, a called one runs them, and a case is not followed.
+  assert.deepEqual(parseCommand('f() { echo "$(doan open x.html)"; }'), { words: [], incomplete: false });
+  assert.deepEqual(parseCommand('f() { echo "$(doan open x.html)"; }; f'), { words: [["doan", "open", "x.html"], ["echo", "$()"]], incomplete: false });
+  assert.deepEqual(parseCommand('case "$1" in run) out=$(doan active);; esac'), { words: [], incomplete: true });
   // Nesting past what the reader follows is incomplete, not a crash.
   const deep = "echo " + "$(echo ".repeat(2000) + "x" + ")".repeat(2000);
   assert.equal(parseCommand(deep).incomplete, true);
@@ -656,4 +692,155 @@ test("an interpreter running a script the reader cannot see, or find -exec into 
   ]) read(command, [], true);
   // find -exec into a shell -c script runs that script, which is read like any sh -c script.
   read("find .agents -type f -exec sh -c 'echo \"== $1\"; cat \"$1\"' _ {} \\;", [["find", ".agents", "-type", "f", "-exec", "sh", "-c", 'echo "== $1"; cat "$1"', "_", "{}", ";"], ["echo", "== $1"], ["cat", "$1"]]);
+});
+
+// Codex prints a multi-line command (a heredoc script, say) across several stderr lines; the header ends at the
+// line with the working directory, before the status line (pac-full R10-codex).
+test("a multi-line Codex exec header is read up to its working directory, not cut at its first line", () => {
+  const stderr = readFileSync(new URL("./fixtures/codex-multiline-exec.stderr.log", import.meta.url), "utf8");
+  const commands = shellCommands(stderr);
+  assert.equal(commands.length, 1);
+  assert.ok(commands[0].startsWith(`/bin/zsh -c "python3 - <<'PY'\nfrom pathlib import Path\n`), commands[0]);
+  assert.ok(commands[0].endsWith(`write_text(mobile)\nPY"`), commands[0]);
+  assert.deepEqual(parseCommand(commands[0]), { words: [["python3", "-"]], incomplete: false });
+  assert.equal(incompleteRead(commands), false);
+  const header = `/bin/zsh -c "python3 - <<'PY'\nprint(\\"in /tmp\\")\nPY"`;
+  for (const status of ["\n succeeded in 0ms:", " succeeded in 0ms:", "\n exited 1 in 4ms:", " exited 1 in 4ms:"])
+    assert.deepEqual(shellCommands(`exec\n${header} in /tmp/doan-eval-R10/repo${status}\nout\n`), [header], status);
+});
+
+test("a command on a later line of a multi-line Codex exec header is read", () => {
+  const commands = shellCommands("exec\n/bin/zsh -c \"echo start\ndoan open .doan/canvases/a.html --json\" in /tmp/repo\n succeeded in 3ms:\nok\n");
+  assert.ok(commands.flatMap(commandWords).some(words => words[0] === "doan" && words[1] === "open"), JSON.stringify(commands));
+  assert.equal(incompleteRead(commands), false);
+});
+
+test("a multi-line Codex exec header whose end is not in the log stays incomplete", () => {
+  for (const tail of ["", "\n", "\nexec\n/bin/zsh -lc 'ls' in /tmp/repo\n succeeded in 1ms:\n"]) {
+    const commands = shellCommands(`exec\n/bin/zsh -c "echo start\ndoan open a.html${tail}`);
+    assert.ok(incompleteRead(commands), JSON.stringify(commands));
+  }
+});
+
+// pac-full H5-claude: a brace group that collects two outputs into one file.
+test("a brace group's commands are read, each with the redirections on its closing brace", () => {
+  const read = readCommands("mkdir -p .doan/assets && { echo '/* source: brand/status.css */'; cat brand/status.css; } > .doan/assets/status.css && doan check --json");
+  assert.equal(read.incomplete, false);
+  assert.deepEqual(read.commands.map(command => command.words), [["mkdir", "-p", ".doan/assets"], ["echo", "/* source: brand/status.css */"], ["cat", "brand/status.css"], ["doan", "check", "--json"]]);
+  for (const inner of [1, 2]) assert.deepEqual(read.commands[inner].redirects.map(redirect => [redirect.op, redirect.target]), [[">", ".doan/assets/status.css"]]);
+  assert.deepEqual(read.commands[3].redirects, []);
+  for (const command of ["{ doan active; }", "{\n  doan active\n}", "{ { doan active; }; }", "x=active; { doan $x; }"])
+    assert.deepEqual(parseCommand(command), { words: [["doan", "active"]], incomplete: false }, command);
+  // A brace group runs in the current shell: its assignments go on after it.
+  assert.deepEqual(parseCommand("{ p=polish; }; doan design-skill $p"), { words: [["doan", "design-skill", "polish"]], incomplete: false });
+  // A loop and a group nest both ways.
+  assert.deepEqual(parseCommand("for p in a b; do { doan design-skill $p; }; done"), { words: [["doan", "design-skill", "a"], ["doan", "design-skill", "b"]], incomplete: false });
+  assert.deepEqual(parseCommand("{ for p in a; do doan design-skill $p; done; } 2>/dev/null"), { words: [["doan", "design-skill", "a"]], incomplete: false });
+});
+
+test("a brace group the reader cannot close, or with words after its closing brace, is incomplete", () => {
+  for (const command of ["{ doan active", "{ doan active }", "{ echo a; } extra; doan active", "}", "echo a; }", "{ if true; then doan active; fi; }"])
+    assert.equal(parseCommand(command).incomplete, true, command);
+  // What ran before it is still read.
+  assert.deepEqual(parseCommand("doan active; { doan open a.html"), { words: [["doan", "active"]], incomplete: true });
+});
+
+// pac-full R11-claude: a helper function writes one canvas per call through a heredoc.
+test("a shell function's body runs where it is called, with the call's arguments", () => {
+  const command = "cd /tmp/r/.doan/canvases && mk() { cat > \"$1-mobile.html\" <<EOF\n<title>$2 (mobile)</title>\n$3\nEOF\n}\nmk profile Profile '  <section data-doan-frame=\"profile-form\">\n  </section>'\nmk billing Billing '  <section data-doan-frame=\"billing-form\">\n  </section>'\ncd ../.. && doan check --json; git status --short";
+  const read = readCommands(command);
+  assert.equal(read.incomplete, false);
+  assert.deepEqual(read.commands.map(entry => entry.words), [["cd", "/tmp/r/.doan/canvases"], ["cat"], ["cat"], ["cd", "../.."], ["doan", "check", "--json"], ["git", "status", "--short"]]);
+  assert.deepEqual(read.commands.filter(entry => entry.words[0] === "cat").map(entry => entry.redirects.map(redirect => [redirect.op, redirect.target, redirect.unresolved])), [[[">", "profile-mobile.html", false], ["<<", "EOF", false]], [[">", "billing-mobile.html", false], ["<<", "EOF", false]]]);
+  for (const form of ["f() { doan active; }; f", "f () { doan active; }; f", "function f { doan active; }; f", "function f() { doan active; }; f", "function f () { doan active; }; f", "f()\n{\n  doan active\n}\nf", "f() {\n  doan $1\n}\nf active"])
+    assert.deepEqual(parseCommand(form), { words: [["doan", "active"]], incomplete: false }, form);
+  // Each call runs the body again.
+  assert.deepEqual(parseCommand("r() { doan design-skill $1 --json; }; r polish; r harden"), { words: [["doan", "design-skill", "polish", "--json"], ["doan", "design-skill", "harden", "--json"]], incomplete: false });
+  // Redirections on the definition's closing brace and on the call apply to the body's commands.
+  const redirected = readCommands("f() { echo a; } > log.txt; f 2>/dev/null");
+  assert.deepEqual(redirected.commands.map(entry => [entry.words, entry.redirects.map(redirect => redirect.target)]), [[["echo", "a"], ["log.txt", "/dev/null"]]]);
+});
+
+test("a function that is defined but never called runs nothing", () => {
+  assert.deepEqual(parseCommand("f() { doan open a.html; }; echo done"), { words: [["echo", "done"]], incomplete: false });
+  assert.deepEqual(parseCommand("function f { doan open a.html; }"), { words: [], incomplete: false });
+  // A call before the definition runs an outside program of that name, not the body.
+  assert.deepEqual(parseCommand("f; f() { doan open a.html; }"), { words: [["f"]], incomplete: false });
+});
+
+test("a function call the reader cannot follow is incomplete, and its arguments do not outlive it", () => {
+  for (const command of [
+    "f() { doan design-skill \"$@\"; }; f polish",
+    "f() { doan design-skill $*; }; f polish",
+    "f() { doan design-skill ${@}; }; f polish",
+    "f() { [ $# -gt 0 ] && doan active; }; f a",
+    "f() { shift; doan design-skill $1; }; f a polish",
+    "f() { doan design-skill $1; }; f $UNKNOWN",
+    "f() { f; }; f",
+    "f() { if true; then doan active; fi; }; f",
+    // $1 belonged to the call; after it the shell's own $1 is not known here.
+    "f() { echo $1; }; f polish; doan design-skill $1",
+  ]) assert.equal(parseCommand(command).incomplete, true, command);
+});
+
+test("a function's arguments carry where the shell expands them into the home directory", () => {
+  const read = readCommands("w() { echo x >> \"$1/.zshrc\"; cat $1; }; w ~");
+  assert.equal(read.incomplete, false);
+  assert.deepEqual(read.commands.map(entry => [entry.words, entry.homePaths, entry.redirects.map(redirect => redirect.homePath)]), [[["echo", "x"], [undefined, undefined], ["/.zshrc"]], [["cat", "~"], [undefined, ""], []]]);
+  // Outside the call, $1 is not the home directory any more.
+  assert.deepEqual(readCommands("w() { :; }; w ~; echo x >> \"$1/.zshrc\"").commands.at(-1)!.redirects.map(redirect => [redirect.homePath, redirect.unresolved]), [[undefined, true]]);
+});
+
+test("a function the reader cannot track past its call or definition makes the read incomplete", () => {
+  for (const command of [
+    // An exported function runs in a child shell the reader reads fresh.
+    "f() { doan open a.html; }; export -f f; bash -c f",
+    "f() { doan open a.html; }; declare -fx f; bash -c f",
+    // A return before the body's end skips what follows it.
+    "f() { return; doan work start a.html; }; f",
+    "f() { [ -f x ] || return; doan work start a.html; }; f",
+    // unset without -f removes a variable of that name first; whether the function is still there is not known.
+    "f() { doan open a.html; }; unset f; f",
+    // An argument the reader cannot resolve leaves which word is $n unknown.
+    "f() { echo $2; }; f $UNKNOWN polish",
+  ]) assert.equal(parseCommand(command).incomplete, true, command);
+  assert.deepEqual(parseCommand("f() { doan open a.html; }; unset -f f; f"), { words: [["unset", "-f", "f"], ["f"]], incomplete: false });
+  assert.deepEqual(parseCommand("f() { doan active; return; }; f"), { words: [["doan", "active"], ["return"]], incomplete: false });
+});
+
+// Counterexamples from an independent review: each read as complete with the wrong commands, words or home paths.
+test("a function argument below the home directory keeps its home path in the body", () => {
+  for (const command of ["w() { echo x > \"$1\"; }; w ~/.zshrc", "w() { echo x > $1; }; w ~/.zshrc"]) {
+    const read = readCommands(command);
+    assert.equal(read.incomplete, false, command);
+    assert.deepEqual(read.commands.map(entry => entry.redirects.map(redirect => redirect.homePath)), [["/.zshrc"]], command);
+  }
+  assert.deepEqual(readCommands("w() { cp a \"$1/x\"; }; w ~/.config").commands.map(entry => entry.homePaths), [[undefined, undefined, "/.config/x"]]);
+});
+
+test("a function body that changes its scope, arguments or flow anywhere is not followed", () => {
+  for (const command of [
+    "x=open; f() { local x; x=ls; }; f; doan $x a",
+    "x=ls; f() { declare x=open; }; f; doan $x a",
+    "f() { set -- open; doan $1 a; }; f x",
+    "f() { for x in 1; do shift; done; doan open $1; }; f a b",
+    "f() { { shift; }; doan open \"$1\"; }; f a b",
+    "f() { for x in 1; do return; done; doan open a; }; f",
+    "f() { { return; }; doan open a; }; f",
+    "f() { exit; doan open a; }; f",
+    "f() { trap 'doan open a' EXIT; }; f",
+    "f() { echo $(doan open \"$@\"); }; f a",
+    "f() { echo $(doan open $#); }; f a",
+    "f() { doan $10 a; }; f 1 2 3 4 5 6 7 8 9 open",
+    "f() { doan ${1:-open} a; }; f",
+    "f() { doan open a; }; time f",
+    "f() { doan open a; }; nohup f",
+  ]) assert.equal(parseCommand(command).incomplete, true, command);
+  // ${N} braced is the Nth argument, and a return that ends the body skips nothing.
+  assert.deepEqual(parseCommand("f() { doan ${10} a; }; f 1 2 3 4 5 6 7 8 9 open"), { words: [["doan", "open", "a"]], incomplete: false });
+});
+
+test("a Codex exec header ends at any status line, so its output is never read as the command", () => {
+  const commands = shellCommands("exec\n/bin/zsh -lc 'doan active' in /tmp/repo\n declined in 0ms:\ncopied\nresult in /x\n succeeded in 1ms:\n");
+  assert.deepEqual(commands, ["/bin/zsh -lc 'doan active'"]);
 });

@@ -324,7 +324,11 @@ func emit(o Outcome, failure *Error, jsonMode bool, stdout, stderr io.Writer) in
 		exit = ExitCode(failure.Code)
 	}
 	if jsonMode {
-		if e := json.NewEncoder(stdout).Encode(Envelope(o.Result, failure)); e != nil {
+		// HTML escaping guards JSON embedded in HTML; stdout is read as JSON, where the six-byte \u003c form of
+		// the guide's many `<…>` placeholders only eats into agents' tool output caps.
+		encoder := json.NewEncoder(stdout)
+		encoder.SetEscapeHTML(false)
+		if e := encoder.Encode(Envelope(o.Result, failure)); e != nil {
 			return 1
 		}
 		return exit

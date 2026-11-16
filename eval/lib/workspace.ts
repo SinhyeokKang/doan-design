@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
 import type { Agent } from "./args.ts";
-import { agentEnvironment } from "./agent.ts";
+import { agentEnvironment, isolateUserInstructions } from "./agent.ts";
 import { CLAUDE_ALLOW_RULES, CODEX_RULE, codexRuleText } from "./codex-rule.ts";
 import { sh } from "./context.ts";
 import { assertOutsideCheckout } from "./isolate.ts";
@@ -71,7 +71,9 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     mkdirSync(join(base, "rt"), { mode: 0o700 });
     // The key the app puts in a canvas conversation's environment; the fake app knows the same one.
     const handoff = o.scenario.handoff ? { key: randomBytes(32).toString("hex"), canvas: o.scenario.handoff.canvas } : null;
-    const env = { ...agentEnvironment(process.env), PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json"), ...(handoff ? { DOAN_HANDOFF: handoff.key } : {}) };
+    const shared = { ...agentEnvironment(process.env), PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json"), ...(handoff ? { DOAN_HANDOFF: handoff.key } : {}) };
+    // Outside repo, so the run's own Codex home never shows up as agent output.
+    const env = o.agent === "fixture" ? shared : isolateUserInstructions(o.agent, shared, join(base, "codex-home"));
     const gitDir = o.scenario.git ? null : join(base, "seed.git");
     const git = (args: string[]) => must(sh("git", [...GIT, "-C", repo, ...(gitDir ? ["--git-dir", gitDir, "--work-tree", repo] : []), ...args], repo, env), `git ${args[0]}`);
     if (gitDir) must(sh("git", [...GIT, "init", "-q", "--bare", gitDir], base, env), "git init");
@@ -124,6 +126,15 @@ export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial
   if (ws.openLog && existsSync(ws.openLog)) cpSync(ws.openLog, join(dir, "open.jsonl"));
   if (ws.prototypeLog && existsSync(ws.prototypeLog)) cpSync(ws.prototypeLog, join(dir, "prototype.jsonl"));
   if (ws.handoffLog && existsSync(ws.handoffLog)) cpSync(ws.handoffLog, join(dir, "handoff.jsonl"));
+}
+
+// A Codex run's own CODEX_HOME (isolateUserInstructions) goes with the workspace; when readAgentTranscript could not
+// copy the run's rollout, its sessions are kept so the rollout can still be found by hand. Only that home is copied:
+// any other CODEX_HOME may hold the user's own sessions.
+export function keepCodexSessions(ws: Pick<Workspace, "base" | "env">, dir: string): void {
+  const sessions = join(ws.base, "codex-home", "sessions");
+  if (ws.env.CODEX_HOME !== join(ws.base, "codex-home") || existsSync(join(dir, "codex-rollout.jsonl")) || !existsSync(sessions)) return;
+  cpSync(sessions, join(dir, "codex-sessions"), { recursive: true });
 }
 
 export function copyRepo(repo: string, dest: string): void {

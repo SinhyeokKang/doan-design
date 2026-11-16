@@ -192,7 +192,7 @@ func TestSkillGuideHasNoComments(t *testing.T) {
 }
 
 // The agent rules are lettered without gaps, so an agent never looks for a missing rule.
-func TestSkillGuideAgentRulesAreAToE(t *testing.T) {
+func TestSkillGuideAgentRulesAreAToF(t *testing.T) {
 	section := skillBody[strings.Index(skillBody, "## Agent rules"):strings.Index(skillBody, "## Commands")]
 	var letters []string
 	for _, l := range strings.Split(section, "\n") {
@@ -200,8 +200,8 @@ func TestSkillGuideAgentRulesAreAToE(t *testing.T) {
 			letters = append(letters, l[:1])
 		}
 	}
-	if strings.Join(letters, "") != "ABCDE" {
-		t.Errorf("agent rules are %v, want A–E", letters)
+	if strings.Join(letters, "") != "ABCDEF" {
+		t.Errorf("agent rules are %v, want A–F", letters)
 	}
 	if !strings.Contains(section, "C. Keep ids unchanged when moving a canvas file: conversation chips (`doan:<canvas-id>/…`) find their target by canvas id.") {
 		t.Error("rule C does not give the conversation chip reason")
@@ -491,5 +491,49 @@ func TestSkillGuideFrameLinks(t *testing.T) {
 		if !strings.Contains(skillBody, required) {
 			t.Errorf("missing frame link guidance: %s", required)
 		}
+	}
+}
+
+// Rules 11 and 14 tell an agent how a marked frame is laid out while it plays, so it writes a window-height app
+// layout once instead of guessing; rule F bounds how far it builds the interactions.
+func TestSkillGuidePrototypeLayout(t *testing.T) {
+	rule := func(prefix string) string {
+		for _, l := range strings.Split(skillBody, "\n") {
+			if strings.HasPrefix(l, prefix) {
+				return l
+			}
+		}
+		t.Fatalf("no line starts with %q", prefix)
+		return ""
+	}
+	if r := rule("11. "); !strings.HasSuffix(r, " In a marked frame, see rule 14.") {
+		t.Errorf("rule 11 does not point marked frames at rule 14: %q", r)
+	}
+	r14 := rule("14. ")
+	at := 0
+	for _, required := range []string{
+		"add `data-doan-prototype=\"390x844\"`",
+		"`doan check` errors on a bad size or a non-frame element.",
+		// The size names the screen, not the content, so an agent does not grow it to fit a long page.
+		"W×H is the target screen's viewport (1440x900 desktop, 390x844 phone), not the content height.",
+		"Playing, the frame fills the viewport width and at least its height and elements outside it are hidden; Fit keeps W×H and only scales down, Responsive and exported files fill the window.",
+		// Only the play scripts define the variable; the fallback is what the board and thumbnails draw.
+		"For a fixed header with inner scroll, give the frame or app root `height: var(--doan-viewport-height, <H>px)`; Doan sets it only while playing, so the board and thumbnails use <H>. Do not define it.",
+		"Suggested: keep modals and toasts inside the frame (`position: absolute`, frame `position: relative`), scope scripts to their frame, give script-made elements no `data-doan-id`; each play restarts from the document.",
+		// The board shows the starting state, so an explained state needs a frame of its own.
+		"Start in the default state; draw an open tooltip or dialog as its own frame.",
+		"Other-page links, form submits and new windows do nothing; hash links and `pushState` work.",
+	} {
+		i := strings.Index(r14[at:], required)
+		if i < 0 {
+			t.Fatalf("rule 14 misses %q in order: %q", required, r14)
+		}
+		at += i + len(required)
+	}
+	if strings.Contains(r14, "The frame fills the viewport and elements outside it are hidden, so keep modals inside it.") {
+		t.Error("rule 14 still has the old one-line layout")
+	}
+	if r := rule("F. "); r != "F. Prototypes: build the interactions the request names, ask only when scope changes the result, and say which are not wired." {
+		t.Errorf("rule F: %q", r)
 	}
 }

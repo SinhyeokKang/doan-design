@@ -309,3 +309,23 @@ func TestCheckCanvasCount(t *testing.T) {
 		})
 	}
 }
+
+// The --json envelope writes <, > and & as themselves: the guide body is full of `<canvas path>`, and
+// the six-byte \u003c form counts against the agent tool's output cap for no gain.
+func TestJSONEnvelopeKeepsHTMLCharacters(t *testing.T) {
+	var out, errout bytes.Buffer
+	if code := Run([]string{"skill", "--json", "--repo", t.TempDir()}, strings.NewReader(""), &out, &errout); code != 0 {
+		t.Fatalf("%d %s", code, &errout)
+	}
+	raw := out.String()
+	if !strings.Contains(raw, "<canvas path>") || strings.Contains(raw, `\u003c`) || strings.Contains(raw, `\u003e`) || strings.Contains(raw, `\u0026`) {
+		t.Fatalf("envelope escapes HTML characters: %.200s", raw)
+	}
+	var value any
+	if err := json.Unmarshal(out.Bytes(), &value); err != nil {
+		t.Fatal(err)
+	}
+	if err := formats.ValidateEnvelope(value); err != nil {
+		t.Fatal(err)
+	}
+}
