@@ -314,6 +314,22 @@ test("Remove from Doan on the overlay asks first, then goes Home from the Overvi
   }
 });
 
+// The overlay's Remove from Doan is the project's, as the sidebar's and Project Settings' are (PRODUCT §5 item 1): every
+// registered worktree of the group goes, and the confirmation names the project, not one worktree of it.
+test("Remove from Doan on the overlay removes the whole project group", async () => {
+  const git = (branch: string) => ({ common: "/w/a/.git", main: "/w/a", branch, worktrees: ["/w/a", "/w/b"] });
+  render(); folders([{ ...listed("/w/a"), git: git("main") }, { ...listed("/w/b"), git: git("feat") }]);
+  toOverview();
+  folders([{ ...cliError("/w/a"), lastCommon: "/w/a/.git" }, { ...listed("/w/b"), git: git("feat") }]);
+  overlay()!.onAction("remove"); render();
+  const dialog = removalDialog();
+  expect(dialog).toBeDefined();
+  const title = all(dialog!).map(element => element.props.children).find(children => typeof children === "string" && children.startsWith("Remove "));
+  expect(title).toMatch(/^Remove [^()]+ from Doan\?$/);
+  (dialogButton("Remove from Doan").props.onClick as () => void)(); await flush();
+  expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a", "/w/b"]);
+});
+
 test("heading focus: on entry; not from the sidebar, where the live region reads the heading; again when the kind changes; from the covered body", () => {
   render(); folders([notFound()]);
   dom(element("row", ["shell-side"]));

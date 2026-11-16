@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { ReactElement } from "react";
 import type { Anchor } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
 import { sameCanvas } from "./canvasConversationRows";
-import { answerReached, CanvasCard, ConversationThread, endView, HandoffCard, httpsUrl, SentChip, type ConversationThreadProps } from "./ConversationThread";
+import { answerReached, CanvasCard, ConversationThread, endView, HandoffCard, httpsUrl, openReplyLink, SentChip, type ConversationThreadProps } from "./ConversationThread";
 import { threadItems, type ThreadItem } from "./threadItems";
 import type { ConversationEvent } from "../main/conversation/types";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -683,4 +683,24 @@ test("a chip ends a preceding skill word but cannot start a following one", () =
   expect(out.match(/class="skill-word"/g)).toHaveLength(2);
   expect(out).toContain('<span class="skill-word">/deploy</span>');
   expect(out).toContain('/deploy <span class="skill-word">/deploy</span>');
+});
+
+// A reply link the browser does not open says so in a toast, in the star card's form: what failed, then the address
+// last with no period, so selecting it copies only the address. An opened link says nothing.
+describe("openReplyLink", () => {
+  const url = "https://developer.mozilla.org/en-US/docs/Web/CSS/clamp";
+  const text = `Couldn’t open the link in your browser. Try again, or open it at ${url}`;
+  test("a browser that did not open, or a failed call, shows the failure with the address", async () => {
+    const notice = vi.fn();
+    await openReplyLink(async () => false, url, notice);
+    expect(notice).toHaveBeenLastCalledWith(text);
+    await openReplyLink(() => Promise.reject(new Error("ipc")), url, notice);
+    expect(notice).toHaveBeenLastCalledWith(text);
+    expect(notice).toHaveBeenCalledTimes(2);
+  });
+  test("an opened link shows nothing", async () => {
+    const notice = vi.fn();
+    await openReplyLink(async () => true, url, notice);
+    expect(notice).not.toHaveBeenCalled();
+  });
 });

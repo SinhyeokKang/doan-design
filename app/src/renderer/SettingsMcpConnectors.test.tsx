@@ -482,3 +482,39 @@ test("selectable: the Add server dialog's field error, but not its buttons", asy
   expect(hasSelectable(error)).toBe(true);
   for (const button of all(tree).filter(element => element.type === "dialog").flatMap(dialog => all(dialog)).filter(element => element.type === "button")) expect(hasSelectable(button)).toBe(false);
 });
+
+// Open again answered open_failed: the row shows the sign-in row's alert in place of the progress notice, the page's
+// live region reads it, and a later open that works, or Cancel, brings the row back.
+const shown = () => all(tree).filter(element => element.type === NoticeView).map(element => { const notice = element.props.notice as { title?: string; body?: string }; return `${notice.title ?? ""} ${notice.body ?? ""}`; }).join("\n");
+test("a failed Open again shows the alert with Open browser and reads it; a working open brings the progress back", async () => {
+  const linked = (rows: Partial<Record<McpProvider, Record<string, Status>>>) => {
+    const next = snap(rows);
+    return { ...next, providers: next.providers.map(p => ({ ...p, rows: p.rows.map(r => p.provider === "claude" && r.name === "doan-notion" ? { ...r, link: true } : r) })) };
+  };
+  feed(linked({ claude: { "doan-notion": "connecting" } }));
+  await settle();
+  api.openMcpLink!.mockResolvedValueOnce({ ok: false, reason: "open_failed" });
+  click(byLabel("Open Notion’s sign-in again for Claude Code"));
+  await settle();
+  const text = shown();
+  expect(text).toContain("Couldn’t open your browser. Try again.");
+  expect(text).not.toContain("Finish connecting to Notion");
+  expect(words(live()[0]?.props.children).replace(/​/g, "")).toBe("Couldn’t open your browser. Try again.");
+  const again = byLabel("Open browser to connect Notion for Claude Code");
+  expect(again).toBeDefined();
+  click(again);
+  expect(api.openMcpLink).toHaveBeenLastCalledWith("claude", "doan-notion");
+  await settle();
+  expect(shown()).toContain("Finish connecting to Notion");
+  expect(shown()).not.toContain("Couldn’t open your browser.");
+  // A new failure, then Cancel: the next attempt starts without the old alert.
+  api.openMcpLink!.mockResolvedValueOnce({ ok: false, reason: "open_failed" });
+  click(byLabel("Open Notion’s sign-in again for Claude Code"));
+  await settle();
+  click(byLabel("Cancel connecting Notion for Claude Code"));
+  feed(linked({ claude: { "doan-notion": "not_connected" } }));
+  await settle();
+  feed(linked({ claude: { "doan-notion": "connecting" } }));
+  await settle();
+  expect(shown()).toContain("Finish connecting to Notion");
+});

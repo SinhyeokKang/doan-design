@@ -166,6 +166,18 @@ describe("dockedRefusal", () => {
       expect(dockedRefusal("workspace_changed", mode, "claude", "doan-design")).toEqual({ kind: "notice", text, startNew: true });
     }
   });
+  // Home and the canvas panel offer Retry for the same start codes; the Overview's refused start does too.
+  test("a refused start offers Retry exactly where Home does", () => {
+    const start = { kind: "new", root: "/r" } as const;
+    for (const code of ["process_exited", "busy", "session_unavailable", "session_in_use", "runtime_unsupported", "cli_install_failed", "unknown"]) {
+      expect(dockedRefusal(code, start, "claude", "doan-design")).toMatchObject({ kind: "notice", retry: true });
+    }
+    for (const code of ["not_logged_in", "cli_missing", "rate_limited", "credential_override", "no_agent"]) {
+      expect(dockedRefusal(code, start, "claude", "doan-design")).not.toHaveProperty("retry");
+    }
+    // A conversation's send keeps its own notices, without Retry.
+    expect(dockedRefusal("busy", EXISTING, "claude", "doan-design")).not.toHaveProperty("retry");
+  });
   test("a terminal session's refusal names the session, not another agent", () => {
     const resume = { kind: "resume", root: "/r", canvas: { path: ".doan/canvases/billing.html" }, provider: "codex" } as const;
     expect(dockedRefusal("session_in_use", resume, "codex", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t continue the terminal session: it’s open elsewhere." });
