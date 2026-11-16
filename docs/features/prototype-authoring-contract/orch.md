@@ -43,3 +43,6 @@
 - 문서 승격: ARCHITECTURE `d7301824`, PRODUCT `9e5463f7`, BACKLOG `9a4faf48`.
 - `/agent-eval` 라운드 pac-1(W 전부, W12, X2, Claude Code 2.1.325, Codex 0.167.1): 자동 검사 실패는 W5-codex 하나다(`no_doan_open`). judge만 partial로 본 실행이 둘이다(W9-codex는 프레임 제목을 쓰지 않았고, W11-claude는 프레임마다 work update를 하지 않았다). W12는 두 에이전트 모두 `var(--doan-viewport-height, 900px)`와 `1440x900`을 썼다. W7·W11·W12에서 질문으로 멈춘 에이전트는 없다. 러너 종료 코드 1은 실제 상태 검사 때문이다. 사용자가 쓰는 실제 Doan의 `ui-state.json`과 Antigravity CLI 메타가 라운드 도중 바뀌었다.
 - W5-codex는 `--repeat 2`(pac-1-repeat)에서도 2/2 실패했다. Codex가 `for` 루프의 템플릿 리터럴로 명령을 실행하면 러너가 그 명령을 읽지 못하고, `doan open`이 없었다는 것도 증명하지 못한다. 사용자가 이 PR에서 러너를 고치기로 했다. A 2라운드(Opus high, 새 세션, pac-A 워크트리)가 맡았다. 이전 A 터미널은 다시 쓸 수 없어(`agent_unconfigured`) release했다.
+- A 2라운드 통합: `c9d0e833`, `bcf9d4af`. W5-codex를 다시 돌린 결과 2/2 통과했다(pac-1-w5-fix). 라운드 기록 `f0d5e9f1`, 이슈 U-039·U-040을 남겼다.
+- origin/develop(링크 1, #234)을 머지했다(`78178a46`, 충돌 없음). 머지 뒤 `/verify --eval`도 통과했다.
+- 사용자 요청으로 전체 라운드 pac-full(45개 시나리오 × 두 에이전트)을 돌렸다. `--repeat 2` 뒤에도 자동 검사 실패 7개가 남았다(D10g·D10h·D5·R10·R11 Codex, H5·R11 Claude). 분류로는 모두 이 브랜치와 무관한 러너 결함이다: Codex stderr의 여러 줄 exec 헤더를 첫 줄만 읽는다, 셸 함수와 중괄호 그룹을 읽지 못한다, 사용자 전역 Codex AGENTS.md가 실행에 들어온다. W11 Claude는 judge만 partial로 봤다(4/4). 사용자가 이 PR에서 러너를 고치기로 했다. 배치 E(Opus high, pac-E 워크트리)가 맡았다.
