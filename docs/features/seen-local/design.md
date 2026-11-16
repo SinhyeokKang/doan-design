@@ -21,7 +21,18 @@
   - 기록이 손상·충돌·읽기 불가·더 새 버전이면 읽을 수 있는 것만 쓰고, 나머지 캔버스는 기준선으로 본다. 판단: 공유 기록이 앞으로 쓰이지 않으므로 복구를 기다리게 하는 Retry를 남길 이유가 없다 → 확인 필요 항목으로 남기지 않고 이 규칙으로 정한다(리뷰에서 바뀔 수 있다).
 - 복사 후 `migrated: true`를 기록하면 이 root는 다시 `.doan/seen/`을 열지 않는다.
 
+## 새 캔버스 점 조이기
+
+- root마다 메모리에만 `watching` 상태를 둔다. 앱 시작이나 root 등록 뒤 첫 목록은 기준선으로 쓴다. 기록이 없는 ID는 그 목록의 지문으로 `html`을 기록해 본 것으로 만든다.
+- 이후 목록에서 기록이 없는 ID가 나타나면 '새 캔버스'로 판정한다. 단, 직전 목록 이후 HEAD 상태가 바뀌었으면 그 목록도 기준선으로 쓴다.
+- HEAD 상태는 `<gitdir>/HEAD` 내용과, 그것이 가리키는 ref 파일(없으면 `packed-refs`의 해당 줄)이다. worktree는 `.git` 파일의 `gitdir:`을 따라간다. git 명령은 실행하지 않는다(PRODUCT §3 Out of scope 6). 읽을 수 없거나 git 저장소가 아니면 HEAD 변화는 없는 것으로 본다.
+- 판단 근거: pull·브랜치 전환·재시작 때 한꺼번에 들어오는 캔버스가 점을 남발한다. 사용자는 앱이 지켜본 것만 켜기로 정했다.
+- 한계: 같은 HEAD에서 사람이 파일을 복사해 넣은 캔버스는 점이 켜진다. 이는 의도한 동작이다.
+
 ## 순수 함수로 뺄 부분 (/tdd 대상)
+
+- `headChanged(prev, next)`와 HEAD 상태 파싱(`HEAD` 내용, ref 경로 해석, `packed-refs` 줄 찾기, `gitdir:` 해석).
+- `absorbNew(rootRecord, rows, fingerprints, reason)` → 기준선으로 쓸 때(첫 목록, HEAD 변화) 기록이 없는 ID를 `html`로 채운 root 기록.
 
 - `migrateRoot(memory, reads, rows)` → 로컬 root 기록: 공유 기록 복사, 기준선, legacy 변환, 손상 기록 처리.
 - `judge(rootRecord, rows, last)` → 판정: 공유 기록 대신 로컬 기록만 입력으로 받는다.
