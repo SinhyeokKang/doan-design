@@ -14,6 +14,8 @@ vi.mock("react", async original => {
       return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (value: unknown) => unknown)(hooks.states[index]) : next; }];
     },
     useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
+    // No TooltipEscape host around these calls.
+    useContext: () => null,
   };
 });
 const { NameTip, isCut } = await import("./NameTip");

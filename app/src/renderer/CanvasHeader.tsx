@@ -10,7 +10,7 @@ import { FrameName, FrameRowMarks } from "./FrameListBody";
 import { NameTip } from "./NameTip";
 import { menuCloseFocus, menuCloseNow } from "./canvasFocus";
 import { zoomControlView, type ZoomControlView } from "./zoomControl";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
 import type { CanvasSignal } from "./rightPanelOpen";
 
@@ -137,7 +137,7 @@ function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: 
     <NameTip text={view.buttonLabel}><Popover.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger"
       aria-haspopup="listbox" aria-label={view.ariaLabel} disabled={!view.enabled}>
       <span>{view.buttonLabel}</span><ChevronDown className="chev" aria-hidden="true" /></button></Popover.Trigger></NameTip>
-    <Popover.Portal><Popover.Content ref={list} role={undefined} className="doan-floating doan-menu doan-frame-list" align="start" sideOffset={4} collisionPadding={8} onCloseAutoFocus={onCloseAutoFocus}
+    <TooltipEscape value={() => setOpen(false)}><Popover.Portal><Popover.Content ref={list} role={undefined} className="doan-floating doan-menu doan-frame-list" align="start" sideOffset={4} collisionPadding={8} onCloseAutoFocus={onCloseAutoFocus}
       onOpenAutoFocus={event => {
         event.preventDefault();
         const start = focusedRowAfter(view.rows, null);
@@ -156,7 +156,7 @@ function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: 
         </div>)}
       </div>
       {view.truncatedNote && <p className="doan-menu-head doan-frame-note">{view.truncatedNote}</p>}
-    </Popover.Content></Popover.Portal>
+    </Popover.Content></Popover.Portal></TooltipEscape>
   </Popover.Root>;
 }
 

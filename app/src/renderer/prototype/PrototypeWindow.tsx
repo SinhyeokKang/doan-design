@@ -644,6 +644,6 @@ function FrameMenu({ view, open, onOpenChange, trigger: triggerRef, onTipEscape,
   return <><Popover.Root open={open} onOpenChange={onOpenChange}>
     <Tooltip open={tip} onOpenChange={next => setTip(next && cut)}><TooltipTrigger asChild><Popover.Trigger asChild {...(empty ? { "aria-describedby": EMPTY_DRAWER_ID } : {})}>{trigger}</Popover.Trigger></TooltipTrigger><TooltipContent onEscapeKeyDown={onTipEscape}>{view.title}</TooltipContent></Tooltip>
     <FrameListBody label={drawerLabel(view)} groups={groups} open={open} empty={EMPTY_DRAWER} className="doan-floating doan-menu doan-frame-list pw-drawer" align="center"
-      onPick={row => { onOpenChange(false); onChoose(row.id); }} />
+      onPick={row => { onOpenChange(false); onChoose(row.id); }} onClose={() => onOpenChange(false)} />
   </Popover.Root>{empty && <span className="sr-only" id={EMPTY_DRAWER_ID}>{EMPTY_DRAWER}</span>}</>;
 }

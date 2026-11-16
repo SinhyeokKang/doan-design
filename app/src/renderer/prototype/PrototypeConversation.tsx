@@ -5,7 +5,7 @@ import type { RevealPayload } from "../../main/prototype/ipc";
 import type { FolderEntry } from "../../main/view";
 import { CanvasConversation, startNewConversation } from "../CanvasConversationPanel";
 import { canvasConversationMenu, canvasUnlistedText, DUPLICATE_CANVAS_TEXT, titleMenuOrder } from "../canvasConversation";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "../components/ui/tooltip";
 import { ConversationDeleteItem, type DeleteTarget } from "../ConversationDeleteDialog";
 import { ConversationHead } from "../ConversationLine";
 import { announcedAgain } from "../listRetry";
@@ -97,7 +97,7 @@ export function PrototypeHeadMenu({ run, now, onPicked, onDelete }: {
     <DropdownMenu.Root open={frozen !== null && !unavailable} onOpenChange={setOpen}>
       <NameTip text={title}><DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-disabled={unavailable || undefined}>
         <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger></NameTip>
-      <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
+      <TooltipEscape value={() => setOpen(false)}><DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
         onCloseAutoFocus={event => {
           if (deleting.current) { deleting.current = false; event.preventDefault(); return; }
           if (!picked.current) return; picked.current = false; event.preventDefault(); onPicked();
@@ -118,7 +118,7 @@ export function PrototypeHeadMenu({ run, now, onPicked, onDelete }: {
               }} onEscape={() => setOpen(false)} />}
             </div>)}</div>}
         </DropdownMenu.RadioGroup>
-      </DropdownMenu.Content></DropdownMenu.Portal>
+      </DropdownMenu.Content></DropdownMenu.Portal></TooltipEscape>
     </DropdownMenu.Root>
   </span>
   <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button doan-conv-new" aria-label="New conversation" aria-disabled={isNew || undefined} onClick={() => startNewConversation(current, isNew, select, onPicked)}><SquarePen aria-hidden="true" /></button></TooltipTrigger>

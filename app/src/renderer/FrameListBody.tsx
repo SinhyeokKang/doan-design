@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { Popover } from "radix-ui";
 import { Eye, Play } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { drawerKey, drawerOrder, focusedRowAfter, type DrawerGroup, type DrawerRow, type Typed } from "./frameDrawerList";
 
 // The prototype drawers' list body: the prototype window's frame menu and the canvas toolbar's Play drawer. Each caller
@@ -50,8 +50,9 @@ export function DrawerListbox({ label, groups, active, currentWord, onKeyDown, o
 
 // Opening focuses the current row, else the first. With no row and an `empty` line, the content is a labelled dialog
 // holding that line instead of a list.
-export function FrameListBody({ label, groups, open, empty, onPick, className, side, align }: {
-  label: string; groups: readonly DrawerGroup[]; open: boolean; empty?: string; onPick(row: DrawerRow): void;
+// `onClose`: the drawer's own close, which an Esc on a row's tooltip also takes (TooltipEscape).
+export function FrameListBody({ label, groups, open, empty, onPick, onClose, className, side, align }: {
+  label: string; groups: readonly DrawerGroup[]; open: boolean; empty?: string; onPick(row: DrawerRow): void; onClose(): void;
   className: string; side?: "top" | "bottom"; align: "start" | "center" | "end";
 }) {
   const [focused, setFocused] = useState<string | null>(null);
@@ -93,7 +94,7 @@ export function FrameListBody({ label, groups, open, empty, onPick, className, s
   };
 
   const dialog = rows.length === 0 && empty !== undefined;
-  return <Popover.Portal><Popover.Content ref={list} role={dialog ? "dialog" : undefined} aria-label={dialog ? label : undefined} className={className}
+  return <TooltipEscape value={onClose}><Popover.Portal><Popover.Content ref={list} role={dialog ? "dialog" : undefined} aria-label={dialog ? label : undefined} className={className}
     side={side} align={align} sideOffset={4} collisionPadding={8}
     onOpenAutoFocus={event => {
       event.preventDefault();
@@ -104,5 +105,5 @@ export function FrameListBody({ label, groups, open, empty, onPick, className, s
     }}>
     {dialog ? <p className="doan-menu-head pw-drawer-empty">{empty}</p>
       : <DrawerListbox label={label} groups={groups} active={active} currentWord="Playing" onKeyDown={keydown} onPick={onPick} onFocusRow={setFocused} nodes={nodes.current} />}
-  </Popover.Content></Popover.Portal>;
+  </Popover.Content></Popover.Portal></TooltipEscape>;
 }

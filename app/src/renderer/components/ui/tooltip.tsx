@@ -61,15 +61,23 @@ function TooltipTrigger({
   )
 }
 
+// A menu, a popover list or a modal dialog that holds tooltips over its rows. While a tooltip is open it is the top
+// dismissable layer, so Radix gives it the first Esc and the host would stay open; a host provides its close here and
+// an Esc on such a tooltip closes the host too. A tooltip's own onEscapeKeyDown still decides for itself.
+const TooltipEscape = React.createContext<(() => void) | null>(null)
+
 // `container`: a modal dialog sits in the top layer, above anything portalled to the body, so a tooltip inside one is
 // portalled into that dialog.
 function TooltipContent({
   className,
   sideOffset = 4,
   container,
+  onEscapeKeyDown,
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content> & { container?: Element | null | undefined }) {
+  const host = React.useContext(TooltipEscape)
+  const escape = onEscapeKeyDown ?? (host ? () => host() : undefined)
   return (
     <TooltipPrimitive.Portal container={container}>
       <TooltipPrimitive.Content
@@ -78,6 +86,7 @@ function TooltipContent({
         // The capsule, its motion and the instant-open rule live in ds/surfaces.css; the
         // capsule has no arrow, so the default offset keeps it off the trigger's edge.
         className={cn("doan-tooltip z-50", className)}
+        {...(escape ? { onEscapeKeyDown: escape } : {})}
         {...props}
       >
         {children}
@@ -86,4 +95,4 @@ function TooltipContent({
   )
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipEscape, TooltipProvider }

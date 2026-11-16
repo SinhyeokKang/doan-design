@@ -15,7 +15,7 @@ import { useProjectSkills } from "./useProjectSkills";
 import { AlertIcon } from "./AlertIcon";
 import { plainText, textSegments } from "./anchorField";
 import { startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { canvasLabel } from "./canvasTree";
 import { focusFieldEnd } from "./chipField";
 import { SuggestionButton } from "./ComposerParts";
@@ -385,7 +385,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         <DropdownMenu.Root open={menuOpen && !loading} onOpenChange={open => setMenuOpen(open && !loading)}>
           <NameTip text={title}><DropdownMenu.Trigger asChild><button ref={titleTrigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-disabled={loading || undefined}>
             <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger></NameTip>
-          <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label="Project conversations" align="start" sideOffset={4} collisionPadding={8}
+          <TooltipEscape value={() => setMenuOpen(false)}><DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label="Project conversations" align="start" sideOffset={4} collisionPadding={8}
             onCloseAutoFocus={event => {
               if (deleting.current) { deleting.current = false; event.preventDefault(); return; }
               if (!picked.current) return; picked.current = false; event.preventDefault(); focusField();
@@ -407,7 +407,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
                   }} onEscape={() => setMenuOpen(false)} />
                 </div>)}</div>}
             </DropdownMenu.RadioGroup>
-          </DropdownMenu.Content></DropdownMenu.Portal>
+          </DropdownMenu.Content></DropdownMenu.Portal></TooltipEscape>
         </DropdownMenu.Root>
       </span>
       {/* The title menu's New conversation one click away, at the header's end so it does not move with the title. */}

@@ -10,7 +10,7 @@ import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView
 import { AlertIcon } from "./AlertIcon";
 import type { FieldSegment } from "./anchorField";
 import { ChipField, type ChipInsert } from "./chipField";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import type { ComposerAction } from "./composerRules";
 import { outsidePresetList } from "./presetOutside";
 import type { SettingsTarget } from "./settingsSections";
@@ -356,14 +356,14 @@ export function PresetsButton(props: {
   const choose = (id: string, kind: PresetRow["kind"]) => { picked.current = true; setOpen(false); props.onChoose(id, kind); };
   return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) { pressed.current = false; setQuery(""); props.onOpen(); } }}>
     <IconTip label="Design presets"><Popover.Trigger asChild><button type="button" className="doan-icon-button composer-presets" aria-label="Design presets" disabled={props.disabled}><PencilSparkles aria-hidden="true" /></button></Popover.Trigger></IconTip>
-    <Popover.Portal><Popover.Content ref={content} onFocusCapture={event => { const target = event.target as HTMLElement; lastFocused.current = target.closest('[role="tab"], [role="listbox"]') ? target : null; }} className={`doan-floating preset-popover${props.skills?.length ? " has-skills" : ""}`} aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
+    <TooltipEscape value={() => setOpen(false)}><Popover.Portal><Popover.Content ref={content} onFocusCapture={event => { const target = event.target as HTMLElement; lastFocused.current = target.closest('[role="tab"], [role="listbox"]') ? target : null; }} className={`doan-floating preset-popover${props.skills?.length ? " has-skills" : ""}`} aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
       onCloseAutoFocus={event => {
         if (picked.current) { picked.current = false; event.preventDefault(); props.onPicked(); }
         else if (pressed.current) { pressed.current = false; event.preventDefault(); }
       }}>
       <SearchField label={drawerSearchLabel(props.skills ?? [])} value={query} slash={false} listId={props.listId} onChange={setQuery} />
       {presetBody(view, false, { listId: props.listId, highlight: 0, onChoose: choose, onRetry: props.onRetry, onTab: setTab })}
-    </Popover.Content></Popover.Portal>
+    </Popover.Content></Popover.Portal></TooltipEscape>
   </Popover.Root>;
 }
 
