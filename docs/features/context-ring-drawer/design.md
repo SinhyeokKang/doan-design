@@ -24,10 +24,10 @@
 
 - **트리거와 히트 영역**
   - 링은 `button`이 되고, `ProgressRing`은 그 안의 장식(`aria-hidden`)이 된다. 접근 이름과 설명은 버튼으로 옮긴다.
-  - 히트 영역은 보이지 않는 `::before`로 넓힌다. tray gap(2px)과 링 margin(2px) 때문에 왼쪽 이웃과의 간격이 4px이므로, 수치 제약은 다음과 같다.
-    - 왼쪽: 최대 -2px까지만 넓힌다(이웃 피커와 겹치지 않게).
-    - 오른쪽: tray 끝 padding(`--space-3`) 안까지 넓힌다.
-    - 세로: `--size-control-sm` 높이까지 넓힌다. tray 아래 padding이 0이므로 아래쪽은 tray 밖으로 나간다.
+  - 히트 영역은 보이지 않는 `::before`로 사방 4px(`--space-1`) 넓힌다. 링을 정중앙에 둔 24×24 정사각형이다(xs 트리거 높이). 사용자 리뷰에서 비대칭 영역의 중심이 링과 어긋난 것을 지적받아 대칭으로 정했다.
+    - 왼쪽: tray gap(2px)과 링 margin(2px)을 합친 4px만큼 넓혀, Permission 트리거의 오른쪽 끝과 맞닿는다(겹치지 않는다).
+    - 오른쪽: tray 끝 padding(`--space-3`) 안에 머문다.
+    - 세로: tray 아래 padding이 0이므로 아래쪽은 tray 밖으로 나간다.
   - hover와 pressed 채움도 같은 `::before`에 그린다. `cursor: default`는 그대로다(macOS 관례).
   - tray의 `container-type: inline-size`는 자르지 않는다. popover는 Portal이라 잘리지 않는다.
 - **역할과 포커스**: 서랍은 dialog(popover)다. 고를 항목이 없으므로 Model/Effort 같은 menu 의미(화살표 이동, 고르면 닫힘)를 쓰지 않는다. 열면 내용 컨테이너(`tabIndex=-1`)로 포커스를 옮긴다. `aria-labelledby`는 "Context window" 머리말이다. `onOpenAutoFocus`를 막지 않으므로 포스트모템 2026-11-09의 포커스 가드는 필요 없다.
