@@ -18,9 +18,9 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| M | tasks 1 | `.scratch/context-ring-drawer/`만(커밋 없음) | 없음 | Sonnet high — 판단보다 단계가 많다(격리 앱, seeded 대화, 7개 구성) | `node .scratch/context-ring-drawer/measure.mjs` exit 0, 구성마다 값 | 진행 (ctx_8a07d7190a84) |
-| P | tasks 2, 3 | 새 순수 함수 파일과 테스트(renderer, main), `main/senderAllowed.ts`, `main/index.ts`(usage publish·visible), `preload/prototype.ts`(+test), `main/agentAuth/usageIpc.ts` 주석 | 없음 | Opus high — sender 허용(보안)과 포커스·툴팁 규칙 판단 | `npm --prefix app test`, typecheck | 진행 (ctx_5be66e43bc7a) |
-| U | tasks 4, 5, 7 | `ContextRing.tsx`, `AgentUsageButton.tsx`(Row), `DockedComposer.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `prototype/PrototypeConversation.tsx` 쪽, `styles.css`, 관련 테스트, `docs/design/canvas-conversation.md`(design-sync 기록) | P 통합, M 완료 | Opus high — UI 상태·포커스가 많고 레이아웃 0px 불변 조건 | typecheck, lint, test, `/design-sync`, 측정 재실행 0px, `/runtime-test` | 대기 |
+| M | tasks 1 | `.scratch/context-ring-drawer/`만(커밋 없음) | 없음 | Sonnet high — 판단보다 단계가 많다(격리 앱, seeded 대화, 7개 구성) | `node .scratch/context-ring-drawer/measure.mjs` exit 0, 구성마다 값 | 완료 — baseline 8구성(커밋 없음, .scratch로 옮김), worktree 정리 |
+| P | tasks 2, 3 | 새 순수 함수 파일과 테스트(renderer, main), `main/senderAllowed.ts`, `main/index.ts`(usage publish·visible), `preload/prototype.ts`(+test), `main/agentAuth/usageIpc.ts` 주석 | 없음 | Opus high — sender 허용(보안)과 포커스·툴팁 규칙 판단 | `npm --prefix app test`, typecheck | 통합 0dc9179d·9758e75a·c9b54b26 |
+| U | tasks 4, 5, 7 | `ContextRing.tsx`, `AgentUsageButton.tsx`(Row), `DockedComposer.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `prototype/PrototypeConversation.tsx` 쪽, `styles.css`, 관련 테스트, `docs/design/canvas-conversation.md`(design-sync 기록) | P 통합, M 완료 | Opus high(P 워커 재사용: 같은 worktree에 순수 함수 맥락이 있다) — UI 상태·포커스가 많고 레이아웃 0px 불변 조건 | typecheck, lint, test, `/design-sync`, 측정 재실행 0px, `/runtime-test` | 대기 |
 | R | tasks 6 | 보고만 | U 통합 | Opus high — IPC 권한과 포커스 규칙을 독립 판단 | 🔴 0(수정은 P·U 소유 워커로) | 대기 |
 | conductor | tasks 8–12 | `docs/ARCHITECTURE.md`, `docs/PRODUCT.md`, `docs/BACKLOG.md`, `docs/DESIGN.md`, feature 디렉터리 삭제 | R 🔴 0 | — | verify exit 0, tasks의 grep | 대기 |
 
@@ -32,3 +32,8 @@
 ## 초안 리뷰
 
 - 해당 없음(초안은 lead 쪽에서 확정됐다).
+
+## 배치 결과 메모
+
+- M: 측정 실행 1회에서 real-state 지문이 어긋났고 이후 6회는 재현되지 않았다(원인 미확인). 프로토타입 창 패널은 기준에 없다(tasks 1 구성 목록에도 없다).
+- P: plan과 다른 점 — `contextDrawerView`의 context가 `{ label, text, bar, full }`이다(확정 초안의 줄 문구가 `contextText`와 달라서). `prototypeWindow.ts`에 `shownChanged`를 더했다(프로토타입 창이 닫힐 때 사용량 visible 재평가). 둘 다 conductor가 받아들였다: 초안과 spec 5의 숨김 규칙을 따르는 변경이다.
