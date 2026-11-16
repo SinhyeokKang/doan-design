@@ -21,13 +21,13 @@ a{color:inherit;text-decoration:none}
 
 /* ---------- The page (shared) ---------- */
 /* clip, not hidden: hidden would make the page a scroll container and stop the sticky nav. */
-.page{position:relative;overflow:clip;flex:none;background:var(--violet-8);border-radius:var(--radius-row);box-shadow:var(--shadow-panel)}
+.page{position:relative;overflow:clip;flex:none;background:var(--surface-panel);border-radius:var(--radius-row);box-shadow:var(--shadow-panel)}
 /* Sticky, as on buzz.xyz and aside.com, so the main action stays one click away while reading. */
-.nav{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between}
+.nav{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;background:var(--surface-panel)}
 .logo{display:flex;align-items:center;gap:var(--space-2);font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);font-weight:var(--type-weight-semibold);letter-spacing:var(--type-body-lg-letter-spacing)}
 .logo img{width:28px;height:28px;display:block}
 .navlinks{display:flex;align-items:center;gap:var(--space-6);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
-.navlinks a:not(.doan-button){color:var(--text-standard)}
+.navlinks a:not(.doan-button){color:var(--text-subtle)}
 .doan-button svg{width:var(--size-icon);height:var(--size-icon);flex:none}
 .wordmark{font-weight:var(--type-weight-medium);line-height:1;letter-spacing:-.075em}
 .hero{text-align:center;display:flex;flex-direction:column;align-items:center}
@@ -36,6 +36,7 @@ a{color:inherit;text-decoration:none}
 /* Shown instead of Download where the visitor cannot run Doan: an inset fill and an icon, no coloured edge. */
 .notice{display:flex;gap:var(--space-2);align-items:flex-start;text-align:left;padding:var(--space-3) var(--space-4);border-radius:var(--radius-row);background:var(--surface-inset);color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
 .notice svg{width:var(--size-icon);height:var(--size-icon);flex:none;margin-top:var(--space-half);color:var(--text-standard)}
+/* The group photo has a pure-white backdrop and sits on the white page as it is. */
 .group{display:block;height:auto}
 .display{font-weight:var(--type-weight-regular);text-align:center;text-wrap:balance}
 .lede{color:var(--text-subtle);text-align:center;text-wrap:balance}
@@ -75,15 +76,7 @@ a{color:inherit;text-decoration:none}
 .m{width:390px;--vh:844px;--navh:64px;--gap:160px}
 .screen{min-height:calc(var(--vh) - var(--navh));scroll-margin-top:var(--navh)}
 /* Empty ground between screens, so a taller window or a loose scroll still shows one section at a time. */
-/* The gap belongs to the screen below it as a transparent top border, where the ground blends
-   from the screen above (--from) into its own (--to), as buzz.xyz's yellow turns pale blue. */
-.page>.screen~.screen{border-top:var(--gap) solid transparent;min-height:calc(var(--vh) - var(--navh) + var(--gap));scroll-margin-top:calc(var(--navh) - var(--gap));background:linear-gradient(to bottom,var(--from),var(--to) var(--gap)) border-box}
-/* Accent ground: Doany's violet step 8 for the hero and the closing, step 4 for the video and the
-   features. On step 8 the subtle text roles step up to violet 12 to keep 4.5:1. */
-.v{--from:var(--violet-8);--to:var(--violet-4)}
-.f{--from:var(--violet-4);--to:var(--violet-4)}
-.end{--from:var(--violet-4);--to:var(--violet-8)}
-.hero,.end{--text-subtle:var(--violet-12);--text-metadata:var(--violet-12)}
+.page>.screen~.screen{margin-top:var(--gap)}
 .nav{height:var(--navh)}
 .hero.screen{height:calc(var(--vh) - var(--navh))}
 /* The photo takes what the copy leaves and runs off the screen's bottom, as Welcome's does. */
@@ -220,7 +213,7 @@ a{color:inherit;text-decoration:none}
 .vmsg{display:flex;flex-direction:column;align-items:center;gap:var(--space-3);padding:var(--space-5) var(--space-6);border-radius:var(--radius-row);background:var(--surface-panel);box-shadow:var(--shadow-floating);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
 </style></head><body>
 
-<header class="intro"><h1>Doan landing · draft first.</h1><p>Exploratory draft for the doan.design download page, drawn before <code>/feature</code> to settle the look (request: <code>docs/features/doan-landing/design.md</code>). One page at three widths, desktop 1440, tablet 1024 and mobile 390, plus the page for a visitor who is not on a Mac and the video player's states. The four pages play as prototypes. Everything here is new and not in code; there is no site yet (PRODUCT §5 'Deferred'). References, checked in a browser on 2026-11-16: <b>buzz.xyz</b> (giant wordmark hero, framed app video under a two-line heading, character cards, closing CTA) and <b>aside.com</b> (one "Download for macOS" action in nav and hero, rounded closing CTA panel, link footer). Brand pieces come from shipped or selected drafts: the wordmark and tagline from <code>buddy-welcome.html</code>, the group photo from <code>buddy-welcome.html</code> / <code>buddy-installer.html</code>. The ground is Doany's violet: step 8 for the hero and the closing, step 4 for the video and the features, blending through the gaps as buzz.xyz's yellow turns pale blue. Revised after a critique and audit with Doan's presets.</p></header>
+<header class="intro"><h1>Doan landing · draft first.</h1><p>Exploratory draft for the doan.design download page, drawn before <code>/feature</code> to settle the look (request: <code>docs/features/doan-landing/design.md</code>). One page at three widths, desktop 1440, tablet 1024 and mobile 390, plus the page for a visitor who is not on a Mac and the video player's states. The four pages play as prototypes. Everything here is new and not in code; there is no site yet (PRODUCT §5 'Deferred'). References, checked in a browser on 2026-11-16: <b>buzz.xyz</b> (giant wordmark hero, framed app video under a two-line heading, character cards, closing CTA) and <b>aside.com</b> (one "Download for macOS" action in nav and hero, rounded closing CTA panel, link footer). Brand pieces come from shipped or selected drafts: the wordmark and tagline from <code>buddy-welcome.html</code>, the group photo from <code>buddy-welcome.html</code> / <code>buddy-installer.html</code>. The ground is plain white. Revised after a critique and audit with Doan's presets.</p></header>
 
 <div class="board">
 <section>
@@ -236,9 +229,9 @@ a{color:inherit;text-decoration:none}
 <p class="lede">A Mac app where Claude Code, Codex, Cursor, Antigravity or GitHub Copilot draws your designs in your repo.</p>
 <div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="d-hero-download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg>Download for Mac (Apple silicon)</a><a class="doan-button" data-ui-variant="subtle" data-ui-size="lg" href="#" data-doan-id="d-hero-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a></div>
 <p class="fine">Open source (Apache-2.0)</p>
-<div class="groupwrap"><img class="group" src="../assets/landing/group-cutout.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="d-hero-group"></div>
+<div class="groupwrap"><img class="group" src="../assets/buddies/group/group.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="d-hero-group"></div>
 </section>
-<section class="sect screen v" data-doan-id="d-video">
+<section class="sect screen" data-doan-id="d-video">
 <h2 class="display oneline">The agent draws. <br>You view and point.</h2>
 <p class="lede">Your agent writes design drafts as HTML canvases in your code repo, and you talk to it about them, pointing at frames and elements.</p>
 <div class="video" data-state="ready" data-doan-id="d-video-player">
@@ -248,7 +241,7 @@ a{color:inherit;text-decoration:none}
 <span class="badge ph">Placeholder poster · demo video not recorded</span>
 </div>
 </section>
-<section class="sect screen f" id="features-d" data-doan-id="d-features">
+<section class="sect screen" id="features-d" data-doan-id="d-features">
 <h2 class="display sub">Design first,<br>then let the agent build.</h2>
 <div class="cards">
 <article class="card doany" data-doan-id="d-card-doany"><div class="pic"><img src="../assets/doany/artist/painting.gif" alt="Doany painting a flower at an easel"></div><div class="txt"><div class="who">Doany draws</div><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></div></article>
@@ -285,9 +278,9 @@ a{color:inherit;text-decoration:none}
 <p class="lede">A Mac app where Claude Code, Codex, Cursor, Antigravity or GitHub Copilot draws your designs in your repo.</p>
 <div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="m-hero-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a></div>
 <p class="notice" data-doan-id="m-hero-notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>Doan runs on Macs with Apple silicon. Open this page on your Mac to download it.</span></p>
-<div class="groupwrap"><img class="group" src="../assets/landing/group-cutout.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="m-hero-group"></div>
+<div class="groupwrap"><img class="group" src="../assets/buddies/group/group.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="m-hero-group"></div>
 </section>
-<section class="sect screen v" data-doan-id="m-video">
+<section class="sect screen" data-doan-id="m-video">
 <h2 class="display oneline">The agent draws. <br>You view and point.</h2>
 <p class="lede">Your agent writes design drafts as HTML canvases in your code repo, and you talk to it about them, pointing at frames and elements.</p>
 <div class="video" data-state="ready" data-doan-id="m-video-player">
@@ -297,7 +290,7 @@ a{color:inherit;text-decoration:none}
 
 </div>
 </section>
-<section class="sect screen f" id="features-m" data-doan-id="m-features">
+<section class="sect screen" id="features-m" data-doan-id="m-features">
 <h2 class="display sub">Design first,<br>then let the agent build.</h2>
 <div class="cards">
 <article class="card doany" data-doan-id="m-card-doany"><div class="pic"><img src="../assets/doany/artist/painting.gif" alt="Doany painting a flower at an easel"></div><div class="txt"><div class="who">Doany draws</div><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></div></article>
@@ -337,9 +330,9 @@ a{color:inherit;text-decoration:none}
 <p class="lede">A Mac app where Claude Code, Codex, Cursor, Antigravity or GitHub Copilot draws your designs in your repo.</p>
 <div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="t-hero-download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg>Download for Mac (Apple silicon)</a><a class="doan-button" data-ui-variant="subtle" data-ui-size="lg" href="#" data-doan-id="t-hero-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a></div>
 <p class="fine">Open source (Apache-2.0)</p>
-<div class="groupwrap"><img class="group" src="../assets/landing/group-cutout.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="t-hero-group"></div>
+<div class="groupwrap"><img class="group" src="../assets/buddies/group/group.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="t-hero-group"></div>
 </section>
-<section class="sect screen v" data-doan-id="t-video">
+<section class="sect screen" data-doan-id="t-video">
 <h2 class="display oneline">The agent draws. <br>You view and point.</h2>
 <p class="lede">Your agent writes design drafts as HTML canvases in your code repo, and you talk to it about them, pointing at frames and elements.</p>
 <div class="video" data-state="ready" data-doan-id="t-video-player">
@@ -349,7 +342,7 @@ a{color:inherit;text-decoration:none}
 
 </div>
 </section>
-<section class="sect screen f" id="features-t" data-doan-id="t-features">
+<section class="sect screen" id="features-t" data-doan-id="t-features">
 <h2 class="display sub">Design first,<br>then let the agent build.</h2>
 <div class="cards">
 <article class="card doany" data-doan-id="t-card-doany"><div class="pic"><img src="../assets/doany/artist/painting.gif" alt="Doany painting a flower at an easel"></div><div class="txt"><div class="who">Doany draws</div><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></div></article>
@@ -410,9 +403,9 @@ a{color:inherit;text-decoration:none}
 <p class="lede">A Mac app where Claude Code, Codex, Cursor, Antigravity or GitHub Copilot draws your designs in your repo.</p>
 <div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="n-hero-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a></div>
 <p class="notice" data-doan-id="n-hero-notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>Doan runs on Macs with Apple silicon. Open this page on your Mac to download it.</span></p>
-<div class="groupwrap"><img class="group" src="../assets/landing/group-cutout.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="n-hero-group"></div>
+<div class="groupwrap"><img class="group" src="../assets/buddies/group/group.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="n-hero-group"></div>
 </section>
-<section class="sect screen v" data-doan-id="n-video">
+<section class="sect screen" data-doan-id="n-video">
 <h2 class="display oneline">The agent draws. <br>You view and point.</h2>
 <p class="lede">Your agent writes design drafts as HTML canvases in your code repo, and you talk to it about them, pointing at frames and elements.</p>
 <div class="video" data-state="ready" data-doan-id="n-video-player">
@@ -422,7 +415,7 @@ a{color:inherit;text-decoration:none}
 
 </div>
 </section>
-<section class="sect screen f" id="features-n" data-doan-id="n-features">
+<section class="sect screen" id="features-n" data-doan-id="n-features">
 <h2 class="display sub">Design first,<br>then let the agent build.</h2>
 <div class="cards">
 <article class="card doany" data-doan-id="n-card-doany"><div class="pic"><img src="../assets/doany/artist/painting.gif" alt="Doany painting a flower at an easel"></div><div class="txt"><div class="who">Doany draws</div><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></div></article>
@@ -468,8 +461,7 @@ a{color:inherit;text-decoration:none}
 <li>Hero: buzz.xyz's oversized wordmark, centred the way Welcome already is; the group photo takes the height the copy leaves and runs off the screen's bottom, as Welcome's bottom bleed does, with every buddy's eyes in view. The wordmark is the page's <code>h1</code>; the tagline is a paragraph.</li>
 <li>Video: buzz.xyz's two-line heading, one-sentence lede and a large framed app video. The poster is the app window alone, on the page's own ground with no gradient behind it (<code>.doan/assets/landing/video-poster.png</code>: the window of <code>readme-features.html</code>'s hero frame, captured with the frame's gradient and the window's vibrancy replaced by the plain shell, 2016×1260). Click to play; the states are in <code>landing-video-states</code>.</li>
 <li>Features: buzz.xyz's character cards, five in one row at desktop and tablet, a list of rows on mobile. Each buddy does its feature: Doany paints, Puri types, Popo reads (existing GIFs); Dungdung listens and Dori delivers still use their stills.</li>
-<li>Ground: Doany's accent as the page colour, after buzz.xyz's yellow. The saturated accent (<code>--affordance-accent</code>, violet 9) would swallow Doany, who is the same violet, so the strong screens use violet 8 (black text 10.6:1) and the middle ones violet 4; on violet 8 the subtle and metadata text roles become violet 12 (7.0:1). The hero photo is <code>.doan/assets/landing/group-cutout.png</code>, <code>group.png</code> with its white backdrop and contact shadow cut to transparency (shadow kept as black alpha; the script is kept locally in <code>.scratch/landing-group-cutout.mjs</code>); one small notch remains on Puri's left edge.</li>
-<li>Closing: aside.com's rounded CTA panel, in violet 4 on the violet 8 ground, and Doany back on stage so the page ends on a buddy as it began.</li>
+<li>Closing: aside.com's rounded CTA panel, in Doany's violet (step 4), and Doany back on stage so the page ends on a buddy as it began.</li>
 </ul>
 <h3>Not done in this draft</h3>
 <ul>
@@ -478,7 +470,7 @@ a{color:inherit;text-decoration:none}
 </ul>
 <h3>For the implementation</h3>
 <ul>
-<li>Assets are drawing sources, not web files: <code>group-cutout.png</code> is 2.5 MB, each card still 1.4–2.2 MB at 1254², the GIFs 0.56–1.0 MB. Ship resized WebP or AVIF with <code>srcset</code> and fixed dimensions, short looping muted mp4/webm instead of GIFs (paused under <code>prefers-reduced-motion</code>), and lazy-load the cards and video.</li>
+<li>Assets are drawing sources, not web files: <code>group.png</code> is 2.0 MB, each card still 1.4–2.2 MB at 1254², the GIFs 0.56–1.0 MB. Ship resized WebP or AVIF with <code>srcset</code> and fixed dimensions, short looping muted mp4/webm instead of GIFs (paused under <code>prefers-reduced-motion</code>), and lazy-load the cards and video.</li>
 <li>Card pictures share one baseline: each image is pulled down by its own transparent margin under the character (measured from the alpha: Doany .055, Dungdung .139, Puri .123, Popo .119, Dori .109 of the image). New poses should be cut to one margin instead.</li>
 <li>Play, the player controls and Try again are buttons; the nav and footer link groups are labelled navigation landmarks.</li>
 <li>Literals with no token, all page constants: mark heights 810 / 768 / 844 as the screen height, section gaps 320 / 240 / 160, nav 72 / 64, wordmark 120 / 112 / 96 at −.075em (Welcome's tracking), display 64 / 56 (video heading) / 48 (features) at 1.05 and −.03em, tablet 48 / 40, logo 28 / 24, side insets 80, page widths 1440 / 1024 / 1280 / 960, group photo 620 / 560 / 358 (its bottom 12% faded on tablet and mobile only), player 900 / 680 / 358 with 56 / 48 / 32 above it, card picture 232 + 208 / 168 + 152 / 120 + 112, closing Doany 120 / 112 / 96, play button 80 / 72 / 56 / 64 with icons 28 / 20, video-state tile 560, the failed poster's .35 opacity, the 0.9 s loading and 90 s seek in the prototype, the reveal's 32 px, 700 ms, 90 ms step and 12% margin.</li>
