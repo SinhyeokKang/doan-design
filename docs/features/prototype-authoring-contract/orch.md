@@ -15,6 +15,7 @@
 - 예산: 압축안을 넣으면 `doan skill`(번들 안내 포함)이 plain 21,590 B, `--json` 22,446 B다(예산 21,600 B). 사용자가 다음을 골랐다.
   - CLI stdout JSON envelope 인코더(`cli/internal/cli/run.go`)에서 HTML 이스케이프를 끈다(`SetEscapeHTML(false)`). 값은 같고 `<` `>` `&`가 `<` 등 6바이트로 바뀌지 않아 `--json`이 약 690 B 준다. ARCHITECTURE에 한 줄 적는다.
   - 캔버스 규칙·명령 문장에서 뜻을 바꾸지 않고 약 250 B를 줄여 plain에도 여유를 둔다. 온보딩 문장은 건드리지 않는다. 통합 전에 그 diff를 사용자에게 보인다.
+  - 결과: 22곳 −240 B(`5ae5aace`). plain 21,350 B(여유 250 B), `--json` 21,536 B(여유 64 B). 사용자가 `/agent-eval`에 문제가 없으면 그대로 두기로 했다.
 - 실제 휴대폰 Safari: 확인하지 못하면 BACKLOG에 남기고 병합을 막지 않는다(체인 '시작 점검' 4).
 
 ## 배치
@@ -23,7 +24,7 @@
 |---|---|---|---|---|---|---|
 | A | 1 check 규칙, 3 가이드(+ envelope 이스케이프, 문장 다듬기), 3b W12 | `cli/internal/check/`, `cli/internal/canvas/`(필요할 때만), `cli/internal/cli/skill.md`·`skill_test.go`·`run.go`와 그 테스트, `eval/scenarios/W12/` | 없음 | Opus high — 가이드 문장과 다듬기는 모든 에이전트에 닿고, W12 fixture는 판정 기준이라 판단이 많다 | `go test ./...`, `go vet ./...`, `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W12` | 대기 |
 | B | 2 재생 스크립트 | `app/src/main/prototypeScript.ts`·`prototypeScript.test.ts`, `cli/internal/export/viewer/isolate.js`, `app/src/main/exportViewer.test.ts` | 없음 | Sonnet medium — 두 시트에 같은 CSS 두 규칙을 더하는 기계적 작업이고 drift 테스트가 묶는다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `go test ./...` | 대기 |
-| 리뷰 | A·B diff `/code-review` | 읽기만 | A·B | Opus high — 가이드 계약과 check 규칙의 경계 판단 | 보고서 | 대기 |
+| 리뷰 | A·B diff `/code-review` | 읽기만 | A·B | Opus high — 가이드 계약과 check 규칙의 경계 판단 | 보고서 | 🔴 0, 🟡 1(ARCHITECTURE 'Output'에 이스케이프 한 줄, 컨덕터가 승격 때 처리) |
 | 컨덕터 | 4 `/runtime-test`, 5 `/verify --eval`, 6 `/agent-eval`, 7 ARCHITECTURE, 8 PRODUCT, 9 BACKLOG, 10 정리 | 문서, `orch.md` | A·B 통합 | — | 각 task의 확인 | 대기 |
 
 ## 파일 겹침과 순서
@@ -34,3 +35,6 @@
 
 ## 진행 기록
 
+- B 완료: `e238d5de` → `7e47bb87`. 범위 밖 `cli/internal/export/assemble_prototype_test.go`의 고정 digest 4개를 고쳤다(시트가 바뀌면 따라 바뀐다). 워커 release, 워크트리 제거, 브랜치 `SinhyeokKang/pac-B`는 남김.
+- A 완료: 7커밋 → `a9f708a3..da7f986e`. 워커는 수정 라운드를 위해 retain.
+- 리뷰 1라운드(Opus high): 🔴 0, 🟡 1, ⚪ 9. 보고서는 컨덕터 `.scratch/review-1.md`.
