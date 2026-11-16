@@ -6,6 +6,7 @@ import { promoteReservation, releaseReservation, reserveSession } from "./owners
 import { transportError } from "./transport";
 import { sameCanvas } from "./sessions";
 import { handoffPrompt, turnPrompt } from "./prompt";
+import { drawnCanvases } from "./drawn";
 import { handoffDecision, handoffEligibility, handoffGuidanceFor, handoffNoticeKind, handoffQueueOutcome, missedHandoffs, type ConversationHandoffNotice, type HandoffDecision, type HandoffRefusal } from "./handoff";
 import { messageLine } from "./messageText";
 import { requestTitleText } from "./requestLines";
@@ -228,6 +229,12 @@ interface HandoffRequest { path: string; text: string; state: "taken" | "judging
 // A guided turn that ended done, waiting for the handoff's deadline to write its missed lines. Kept apart from the
 // HandoffTurn, which the next send replaces: it holds neither the queue nor the working state, and outlives that send.
 interface MissedWait { id: string; root: string; snapshot: Canvas[]; edits: string[]; requested: string[]; endedAt: number; exitedAt?: number; timer?: ReturnType<typeof setTimeout> }
+// Any accepted turn's watch for the new canvases it draws, which get a canvas.drawn each once listed. snapshot: the root's
+// listed canvases when the turn was accepted, never the conversation's canvas metadata, which a refused send may change
+// (POSTMORTEM 2026-11-15). edits: its own edit paths in order. announced: what its canvas.drawn events named. Kept apart
+// from the live entry and the HandoffTurn, which the next send replaces: it holds neither the queue nor the working
+// state, and lasts until the turn's promotion deadline.
+interface DrawWatch { id: string; root: string; snapshot: Canvas[]; edits: string[]; announced: Canvas[]; endedAt?: number; exitedAt?: number; timer?: ReturnType<typeof setTimeout> }
 // A model-list read: stopped by quit and by a stop of its provider like a run, holding its lease until its group is gone.
 interface Listing { provider: Provider; since: number; cleanup?: () => Promise<void> }
 // A queued message Send now put into a running turn (live, turnId) that the agent has not read yet. Its item stays in
@@ -274,6 +281,8 @@ export class ConversationService {
   private handoffTurns = new Map<string, HandoffTurn>();
   // By the guided turn's id: a conversation's next turn may end before the earlier one's wait is over.
   private missedWaits = new Map<string, MissedWait>();
+  // By the drawing turn's id, for the same reason.
+  private drawWatches = new Map<string, DrawWatch>();
   // Each Doan connection's usage limit, in memory only (usageLimit.ts limitState); limitTimer drops a passed one.
   private limits = new Map<string, LimitEntry>();
   private limitTimer: unknown;
@@ -381,6 +390,7 @@ export class ConversationService {
       live.accepted = true; live.turnOf = turnOf(metadata); this.noteTranscript(live, input, runner.sessionId);
       if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: request.root, turnId: live.turnId, snapshot: this.snapshot(request.root), requests: [], guided, edits: new Set(), waiters: [], ...(handoff ? { startedBy: "handoff" as const } : {}) });
+      this.watchDrawn(id, live.turnId, request.root);
       // As a promotion's write: the asking turn made this canvas, so a project turn judged later is not promoted to it.
       if (handoff && request.canvas) for (const grounds of this.evidence.values()) if (grounds.root === request.root) grounds.taken.push(request.canvas);
       for (const event of saved) this.deliver(event);
@@ -478,6 +488,7 @@ export class ConversationService {
       if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       // The previous turn's handoff was resolved before this send went on (handoffWait).
       if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: metadata.root, turnId: live.turnId, snapshot: this.snapshot(metadata.root), requests: [], guided, edits: new Set(), waiters: [] });
+      this.watchDrawn(id, live.turnId, metadata.root);
       for (const event of live.events.splice(0)) this.receive(id, event);
       // A reused Codex server keeps the lease it opened with; this preparation's lease covered only the checks.
       if (!leased) freeLease(input);
@@ -631,6 +642,7 @@ export class ConversationService {
       if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
       const handoffTurn = this.handoffTurns.get(id);
       if (event.type === "activity" && event.kind === "edit" && event.path && handoffTurn?.turnId === live.turnId) handoffTurn.edits.add(event.path);
+      if (event.type === "activity" && event.kind === "edit" && event.path) this.drewAt(live.turnId, event.path);
       if (event.type === "permission.request" || event.type === "question.request") (live.asking ??= new Set()).add(askingKey(event));
       else if (event.type === "permission.resolved" || event.type === "question.resolved") live.asking?.delete(askingKey(event));
       if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.done = event.type === "turn.done"; live.endedAt = Date.now(); delete live.asking; delete live.stage; delete live.stopping; this.endWork(id); this.dropSteers(id); this.ended(id, live, saved); }
@@ -641,6 +653,7 @@ export class ConversationService {
       // Its turn never ends, so it is never judged and must not hold its root, nor hand off.
       this.dropEvidence(id);
       this.dropHandoff(id);
+      this.dropDrawn(id);
       // No event says so, but the list's projectBusy and, once the process is gone, the phase change.
       this.changedOf(id);
       // A write after the process was gone (the exit's own turn.failed) leaves nothing to wait for.
@@ -849,6 +862,8 @@ export class ConversationService {
     for (const id of [...this.handoffTurns.keys()]) this.dropHandoff(id);
     for (const wait of this.missedWaits.values()) clearTimeout(wait.timer);
     this.missedWaits.clear();
+    for (const watch of this.drawWatches.values()) clearTimeout(watch.timer);
+    this.drawWatches.clear();
     for (const id of [...this.waits.keys(), ...this.judging.keys()]) this.cancelWait(id);
     for (const listing of this.listings) if (listing.cleanup) closing.push(listing.cleanup());
     // Before the appQuit writes: one that throws cancels the quit, but no conversation's work content or run may
@@ -889,6 +904,7 @@ export class ConversationService {
       if (evidence.endedAt !== undefined) this.judge(id);
     }
     for (const [id, turn] of [...this.handoffTurns]) if (turn.root === root && turn.state === "judging") this.judgeHandoff(id, true);
+    for (const [turnId, watch] of [...this.drawWatches]) if (watch.root === root) this.judgeDrawn(turnId);
   }
   // A message sent while its conversation works waits in main, in drafts.json, until the turn ends.
   // ids: the attachment ids main holds for it until it goes out. not_running: nothing is working to queue behind.
@@ -1221,6 +1237,9 @@ export class ConversationService {
     const exitedAt = live.exited ? live.exitedAt : undefined;
     const turn = this.handoffTurns.get(id);
     if (turn?.turnId === live.turnId && turn.guided && type === "turn.done") this.awaitMissed(id, turn, live.endedAt ?? Date.now(), exitedAt);
+    // Whatever the end: a failed or stopped turn may still have drawn a canvas the folder lists later.
+    const drawing = this.drawWatches.get(live.turnId);
+    if (drawing) { drawing.endedAt = live.endedAt ?? Date.now(); if (exitedAt !== undefined) drawing.exitedAt = exitedAt; this.armDrawn(live.turnId, drawing); }
     if (turn?.requests.length && turn.state === undefined && turn.turnId === live.turnId) {
       if (type !== "turn.done") this.cancelHandoff(id, turn);
       else {
@@ -1424,6 +1443,7 @@ export class ConversationService {
     const turn = this.handoffTurns.get(id);
     if (turn && turn.state !== "resolved") this.cancelHandoff(id, turn);
     this.dropMissed(id);
+    this.dropDrawn(id);
     this.dropEvidence(id);
     this.cancelWait(id);
     this.resent.delete(id);
@@ -1692,6 +1712,8 @@ export class ConversationService {
     if (turn && turn.turnId === live.turnId && turn.state === "judging" && turn.endedAt !== undefined && turn.exitedAt === undefined) { turn.exitedAt = live.exitedAt ?? Date.now(); this.armHandoff(id, turn); }
     const missed = this.missedWaits.get(live.turnId);
     if (missed?.id === id && missed.exitedAt === undefined) { missed.exitedAt = live.exitedAt ?? Date.now(); this.armMissed(live.turnId, missed); }
+    const drawing = this.drawWatches.get(live.turnId);
+    if (drawing?.endedAt !== undefined && drawing.exitedAt === undefined) { drawing.exitedAt = live.exitedAt ?? Date.now(); this.armDrawn(live.turnId, drawing); }
   }
   private deadline(endedAt: number, exitedAt?: number): number {
     return promotionDeadline({ endedAt, ...(exitedAt !== undefined ? { exitedAt } : {}), settle: PROMOTION_SETTLE_MS, grace: BIND_GRACE_MS });
@@ -1733,6 +1755,43 @@ export class ConversationService {
   }
   private dropMissed(id: string): void {
     for (const [turnId, wait] of [...this.missedWaits]) if (wait.id === id) { clearTimeout(wait.timer); this.missedWaits.delete(turnId); }
+  }
+  private watchDrawn(id: string, turnId: string, root: string): void {
+    this.drawWatches.set(turnId, { id, root, snapshot: this.snapshot(root), edits: [], announced: [] });
+  }
+  // An edit activity's path is a candidate only: activities come before a permission answer, so the turn's canvas.drawn
+  // waits until the file is listed.
+  private drewAt(turnId: string, path: string): void {
+    const watch = this.drawWatches.get(turnId); if (!watch || watch.edits.includes(path)) return;
+    watch.edits.push(path);
+    this.judgeDrawn(turnId);
+  }
+  // The window ends at the turn's promotion deadline, with a last look at the listing.
+  private armDrawn(turnId: string, watch: DrawWatch): void {
+    clearTimeout(watch.timer);
+    watch.timer = setTimeout(() => { this.judgeDrawn(turnId); this.dropDrawnTurn(turnId); }, Math.max(0, this.deadline(watch.endedAt!, watch.exitedAt) - Date.now()));
+    watch.timer.unref?.();
+  }
+  // Reached from receive, outside its persistence handling: a failed write here drops only this watch and is logged; the
+  // turn and its runner go on. Each write is checked again right before it, after the listing was read (POSTMORTEM
+  // 2026-10-27 'Awaited conversation work outlived its current turn'): store.append would recreate a deleted history.
+  private judgeDrawn(turnId: string): void {
+    const watch = this.drawWatches.get(turnId); if (!watch?.edits.length) return;
+    try {
+      for (const canvas of drawnCanvases({ ...watch, listed: this.snapshot(watch.root) })) {
+        const exists = this.store.list().some(e => e.conversationId === watch.id);
+        if (this.quitting || !exists || this.live.get(watch.id)?.failedPersistence || this.drawWatches.get(turnId) !== watch) { this.dropDrawnTurn(turnId); return; }
+        this.append(watch.id, turnId, { type: "canvas.drawn", canvas });
+        watch.announced.push(canvas);
+      }
+    } catch (error) { this.dropDrawnTurn(turnId); console.error("doan: drawn canvases could not be saved", error); }
+  }
+  private dropDrawnTurn(turnId: string): void {
+    const watch = this.drawWatches.get(turnId); if (!watch) return;
+    clearTimeout(watch.timer); this.drawWatches.delete(turnId);
+  }
+  private dropDrawn(id: string): void {
+    for (const [turnId, watch] of [...this.drawWatches]) if (watch.id === id) this.dropDrawnTurn(turnId);
   }
   // Asks the runner to end a finished turn's process once per turn: the next send, a queue at the turn's end, or a
   // send waiting for a judgement. The runner chooses how (process.ts afterTurnCleanup).
