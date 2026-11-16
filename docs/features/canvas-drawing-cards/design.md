@@ -55,13 +55,14 @@
   - 머리: 파일 이름, Open.
   - 상태 줄: "Drawing"(스피너) / "Hands off when this turn ends"(턴이 도는 동안은 스피너 유지) / "Drawn" / "Handed off" / "Didn’t hand off." + 거절 사유 / "Didn’t hand off. The turn didn’t finish." / "Didn’t hand off. The agent didn’t ask to.".
   - 사라진 캔버스: "No longer in <project>"를 붙이고 Open을 숨긴다. 지금 두 문구(" · No longer in <project>", "It’s no longer in <project>.")를 이것 하나로 합친다.
-  - 아이콘은 지금 줄처럼 `forward`와 `ban`을 쓰고, 상태는 아이콘과 채움으로 구분한다. 색 왼쪽 보더는 쓰지 않는다.
+  - 상태 아이콘은 그리는 중에 스피너, Drawn에 `check`, 시작된 handoff에 `forward`, 거절·취소·missed에 `ban`을 쓴다. `check`는 파일이 써졌다는 뜻이고 턴의 성공을 뜻하지 않는다. 색 왼쪽 보더는 쓰지 않는다.
+  - 파일 이름 앞에는 사이드바 캔버스 행과 같은 `PanelsTopLeft` 아이콘을 이름과 같은 색으로 둔다(`aria-hidden`).
 - **Open 대상**
   - started → 그 캔버스의 새 대화(지금 handoff 줄의 Open과 같은 경로).
   - same_canvas 거절, 사라진 캔버스 → Open 없음.
   - 나머지 → 그 캔버스를 Quick Open처럼 연다.
   - 프로토타입 창에서는 지금 handoff 줄의 Open 경로(메인 창을 앞으로)를 그대로 쓴다.
-- **접근성**: 카드는 `role="group"`, 접근 이름은 "<file>, <상태>"다. 스피너는 `aria-hidden`이다. Open의 접근 이름은 "Open <file>"이고, started에서는 "Open the new conversation on <file>"이다. live region은 두지 않는다.
+- **접근성**: 카드는 `role="group"`, 접근 이름은 "<file>, <상태>"다. 스피너는 `aria-hidden`이다. Open의 접근 이름은 "Open <file>"이고, started에서는 "Open the new conversation on <file>"이다. 카드용 live region은 두지 않는다. 턴 끝 안내는 기존 sr-only 상태 줄(`phaseText`)이 맡는다. 끝쪽 `canvasCard`를 건너뛰고 끝 항목을 찾은 뒤, 새 캔버스가 있으면 끝 제목 뒤에 "N new canvases"를 붙이고, 제목이 없으면 그 문구만 낸다.
 - **스크롤**: 카드가 나타나거나 높이가 바뀌어도 기존 `scrollFollow` 규칙을 그대로 따른다.
 
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
@@ -110,6 +111,7 @@
   - `ended`: 끝 상태 하나씩. Drawn, Handed off, 거절 not_new, 거절 same_canvas(Open 없음), 취소, missed, 사라짐. 멈춘 턴의 패널(Stopped notice 뒤 Drawn 카드)도 그린다.
   - `many`: 프로토타입 창의 좁은 패널(280)에 카드 6장과 긴 이름(가운데 줄임, 툴팁)을 그린다.
 - 측정 대상(`/design-sync`): 카드 컴포넌트(`.canvas-card`와 그 안의 아이콘, 이름, 상태 줄, Open)와 카드 묶음 간격. 나머지는 출시된 화면을 옮긴 것이다.
+- 확정: 사용자가 Doan 앱에서 초안을 직접 고친 뒤(`0c2eabd8`, 캔버스 아이콘·Drawn의 `check`·리뷰 반영) 확정했다. `/design-sync`의 기준은 이 판이다.
 
 ## PoC 의존
 
