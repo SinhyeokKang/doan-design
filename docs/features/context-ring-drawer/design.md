@@ -30,7 +30,7 @@
     - 세로: tray 아래 padding이 0이므로 아래쪽은 tray 밖으로 나간다.
   - hover와 pressed 채움도 같은 `::before`에 그린다. `cursor: default`는 그대로다(macOS 관례).
   - tray의 `container-type: inline-size`는 자르지 않는다. popover는 Portal이라 잘리지 않는다.
-- **역할과 포커스**: 서랍은 dialog(popover)다. 고를 항목이 없으므로 Model/Effort 같은 menu 의미(화살표 이동, 고르면 닫힘)를 쓰지 않는다. 열면 내용 컨테이너(`tabIndex=-1`)로 포커스를 옮긴다. `aria-labelledby`는 "Context window" 머리말이다. `onOpenAutoFocus`를 막지 않으므로 포스트모템 2026-11-09의 포커스 가드는 필요 없다.
+- **역할과 포커스**: 서랍은 dialog(popover)다. 고를 항목이 없으므로 Model/Effort 같은 menu 의미(화살표 이동, 고르면 닫힘)를 쓰지 않는다. 열면 본문(`tabIndex=-1`)으로 포커스를 옮긴다. `aria-labelledby`는 머리의 프로바이더 이름이다. 모양은 헤더 `Row`를 재사용하되 머리를 위로 두고, 본문 첫 줄에 Context window 창 줄을 넣는다(구분선 없음, 확정 초안).
 - **배치**: 헤더 Agent usage popover와 같은 규칙을 쓴다(`align="end"`, `sideOffset` 4, `collisionPadding` 8). 링이 창 아래쪽에 있어 위로 뒤집혀 열리고, 열린 동안 composer 카드를 가린다(사용자 결정).
 - **툴팁**: 서랍이 열려 있을 때와, 서랍을 닫아 포커스가 링으로 돌아온 직후의 focus로는 열지 않는다. 다음 hover나 다음 키보드 포커스에서는 연다.
 - **읽기**: 서랍을 열 때 `usageRequest({ trigger: "open" })`, Refresh는 `{ trigger: "refresh" }`. 헤더와 같은 서비스와 메모리 값을 쓰고, 새 IPC 형식은 없다.
@@ -39,7 +39,7 @@
 
 1. `contextDrawerView({ context, provider, usageHidden, entries, now })` → `{ context: { label, tokens }, usage: RowView | null, busy }`. 행이 없는 경우(Antigravity, legacy와 터미널 세션, entry 없음)와 행 문구는 `rowView`를 따른다.
 2. 링 버튼의 접근 속성(이름, 설명, `aria-haspopup`, `aria-expanded`)과 툴팁 열림 여부(서랍 열림, 닫힘 직후 focus).
-3. 서랍 닫힘과 포커스 반환: Escape와 바깥 누르기 → 링, 링이 사라짐 → 안에 있었으면 composer 입력 아니면 그대로, 행이 사라짐 → 서랍 컨테이너.
+3. 서랍 닫힘과 포커스 반환: Escape와 바깥 누르기 → 링, 링이 사라짐 → 안에 있었으면 composer 입력 아니면 그대로, 행이 사라짐 → 서랍 본문.
 4. main의 `visible` 계산: 메인 창 표시, 앱 숨김, 프로토타입 창 표시의 조합.
 
 ## 형식 변경
@@ -74,7 +74,8 @@
   - `trigger`: 링 버튼의 기본, hover, pressed(서랍 열림), focus-visible 상태. neutral과 danger 링 둘 다 그린다. 넓힌 히트 영역을 점선으로 표시하고(보드 전용), 위 수치 제약을 적는다. 좁은 tray(아이콘만 남은 상태)도 넣는다. tray 레이아웃이 지금과 같음을 나란히 보여준다.
   - `drawer`: 서랍 내용. Claude Code(5h·Weekly), Codex, Copilot, 읽는 중, 실패, 한도 도달, reset 지남, Refresh busy, Context만(Antigravity·legacy·연결 없음) 상태.
   - `placements`: 오버뷰, 캔버스 패널(347), 프로토타입 창 패널(280)에서 서랍이 열린 위치.
-- 측정 대상(`/design-sync`): 링 버튼(보이는 박스, 히트 영역, 상태 표시), 서랍 컨테이너와 Context 섹션. 사용량 행은 헤더의 출시된 행을 옮긴 것이다.
+- 확정: 사용자가 앱에서 리뷰한 뒤 확정했다(히트 영역 대칭, 머리를 위로 올린 서랍, 구분선 제거, 헤더 popover 규칙의 배치, 공용 12px padding 유지 반영, 커밋 177fe622).
+- 측정 대상(`/design-sync`): 링 버튼(보이는 박스, 히트 영역, 상태 표시), 서랍 컨테이너, 머리와 Context window 줄. 창 줄은 헤더의 출시된 행을 옮긴 것이다.
 
 ## PoC 의존
 
