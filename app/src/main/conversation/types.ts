@@ -71,7 +71,9 @@ export type EventPayload =
   | ({ type: "handoff.resolved"; canvas?: { path: string } } & HandoffResolution)
   // A new canvas the guided turn edited and asked no handoff for, with the turn's id; Doan starts nothing on it. The ID
   // tells later whether that canvas is gone or was renamed.
-  | { type: "handoff.missed"; canvas: Canvas };
+  | { type: "handoff.missed"; canvas: Canvas }
+  // A new canvas the guided turn drew, written once it is listed, with the turn's id; the canvas's card is built from it.
+  | { type: "canvas.drawn"; canvas: Canvas };
 export type ConversationEvent = EventPayload & { v: 1; conversationId: string; seq: number; turnId: string; at: string };
 // waitingPermission: waiting for the person's answer, to a permission request or a question.
 export type TurnState = "idle" | "starting" | "streaming" | "waitingPermission" | "failed" | "interrupted";
