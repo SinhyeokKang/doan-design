@@ -73,10 +73,12 @@ a{color:inherit;text-decoration:none}
 /* ---------- Screens: each section fills one viewport under the sticky nav, as on buzz.xyz ---------- */
 /* --vh is the frame's mark height. The installed doan check (0.1.14) still reports
    --doan-viewport-height as undefined, so the draft fixes the screen at the mark; the site uses 100svh. */
-.d{width:1440px;--vh:810px;--navh:72px}
-.t{width:1024px;--vh:768px;--navh:72px}
-.m{width:390px;--vh:844px;--navh:64px}
+.d{width:1440px;--vh:810px;--navh:72px;--gap:320px}
+.t{width:1024px;--vh:768px;--navh:72px;--gap:240px}
+.m{width:390px;--vh:844px;--navh:64px;--gap:160px}
 .screen{min-height:calc(var(--vh) - var(--navh));scroll-margin-top:var(--navh)}
+/* Empty ground between screens, so a taller window or a loose scroll still shows one section at a time. */
+.page>.screen~.screen{margin-top:var(--gap)}
 .nav{height:var(--navh)}
 .hero.screen{height:calc(var(--vh) - var(--navh))}
 /* The photo takes what the copy leaves and runs off the screen's bottom, as Welcome's does. */
@@ -206,7 +208,7 @@ a{color:inherit;text-decoration:none}
 
 <div class="board">
 <section>
-<div class="cap"><h2>Desktop · 1440<span class="badge">Not in code</span></h2><p>Four screens on a 16:9 display (1440x810), each filling the height under the sticky nav so no two share a screen: hero (wordmark 120, the photo 620 running off the bottom with every buddy's eyes in view), video (one-line heading, player 760), features (five cards in one row), closing and footer. Content is centred in each screen.</p></div>
+<div class="cap"><h2>Desktop · 1440<span class="badge">Not in code</span></h2><p>Four screens on a 16:9 display (1440x810), each filling the height under the sticky nav with 320 of empty ground between them, so no two share a screen: hero (wordmark 120, the photo 620 running off the bottom with every buddy's eyes in view), video (one-line heading, player 760), features (five cards in one row), closing and footer. Content is centred in each screen.</p></div>
 <div class="page d dots" data-doan-frame="landing-desktop" data-doan-title="Landing · desktop 1440" data-doan-prototype="1440x810">
 <header class="nav" data-doan-id="d-nav">
 <a class="logo" href="#"><img src="../assets/installer/doan-app-icon-32.png" alt="">Doan</a>
@@ -445,7 +447,7 @@ a{color:inherit;text-decoration:none}
 </ul>
 <h3>What each section borrows</h3>
 <ul>
-<li>Rhythm: buzz.xyz gives each section its own screen. Here every section's minimum height is the viewport less the sticky nav, and a jump to a section lands it under the nav. The draft fixes the viewport at the mark height (play it in Fit); the site uses <code>100svh</code>. <code>var(--doan-viewport-height)</code> would follow the window, but the installed <code>doan check</code> (0.1.14) reports it as an undefined token.</li>
+<li>Rhythm: buzz.xyz gives each section its own screen. Here every section's minimum height is the viewport less the sticky nav, a gap of empty ground follows it (320 desktop, 240 tablet, 160 mobile), and a jump to a section lands it under the nav. The draft fixes the viewport at the mark height (play it in Fit); the site uses <code>100svh</code>. <code>var(--doan-viewport-height)</code> would follow the window, but the installed <code>doan check</code> (0.1.14) reports it as an undefined token.</li>
 <li>Hero: buzz.xyz's oversized wordmark, centred the way Welcome already is; the group photo takes the height the copy leaves and runs off the screen's bottom, as Welcome's bottom bleed does, with every buddy's eyes in view. The wordmark is the page's <code>h1</code>; the tagline is a paragraph.</li>
 <li>Video: buzz.xyz's two-line heading, one-sentence lede and a large framed app video. The README hero image stands in as the poster (<code>.doan/assets/landing/video-poster.png</code>, a copy of <code>docs/assets/readme/hero.png</code>). Click to play; the states are in <code>landing-video-states</code>.</li>
 <li>Features: buzz.xyz's character cards, five in one row at desktop and tablet, a list of rows on mobile. Each buddy does its feature: Doany paints, Puri types, Popo reads (existing GIFs); Dungdung listens and Dori delivers still use their stills.</li>
@@ -461,7 +463,7 @@ a{color:inherit;text-decoration:none}
 <li>Assets are drawing sources, not web files: <code>group.png</code> is 2.0 MB, each card still 1.4–2.2 MB at 1254², the GIFs 0.56–1.0 MB. Ship resized WebP or AVIF with <code>srcset</code> and fixed dimensions, short looping muted mp4/webm instead of GIFs (paused under <code>prefers-reduced-motion</code>), and lazy-load the cards and video.</li>
 <li>Card pictures share one baseline: each image is pulled down by its own transparent margin under the character (measured from the alpha: Doany .055, Dungdung .139, Puri .123, Popo .119, Dori .109 of the image). New poses should be cut to one margin instead.</li>
 <li>Play, the player controls and Try again are buttons; the nav and footer link groups are labelled navigation landmarks.</li>
-<li>Literals with no token, all page constants: mark heights 810 / 768 / 844 as the screen height, nav 72 / 64, wordmark 120 / 112 / 96 at −.075em (Welcome's tracking), display 64 / 56 (video heading) / 48 (features) at 1.05 and −.03em, tablet 48 / 40, logo 28 / 24, side insets 80, page widths 1440 / 1024 / 1280 / 960, group photo 620 / 560 / 358 with its bottom 12% faded, player 760 / 720, card picture 232 + 208 / 168 + 152 / 120 + 112, closing Doany 120 / 112 / 96, play button 80 / 72 / 56 / 64 with icons 28 / 20, video-state tile 560, the dot radius 1px, the failed poster's .35 opacity, the 0.9 s loading and 90 s seek in the prototype.</li>
+<li>Literals with no token, all page constants: mark heights 810 / 768 / 844 as the screen height, section gaps 320 / 240 / 160, nav 72 / 64, wordmark 120 / 112 / 96 at −.075em (Welcome's tracking), display 64 / 56 (video heading) / 48 (features) at 1.05 and −.03em, tablet 48 / 40, logo 28 / 24, side insets 80, page widths 1440 / 1024 / 1280 / 960, group photo 620 / 560 / 358 with its bottom 12% faded, player 760 / 720, card picture 232 + 208 / 168 + 152 / 120 + 112, closing Doany 120 / 112 / 96, play button 80 / 72 / 56 / 64 with icons 28 / 20, video-state tile 560, the dot radius 1px, the failed poster's .35 opacity, the 0.9 s loading and 90 s seek in the prototype.</li>
 </ul>
 </section>
 <script>

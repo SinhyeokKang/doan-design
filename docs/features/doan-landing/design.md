@@ -31,7 +31,7 @@ PRODUCT §5 'Deferred'에 따르면 웹(doan.design)의 스택은 앱이 완성�
 - Mac이 아니면(폰, Windows, Linux, iPad) GitHub이 기본 행동이다. Download 대신 "Doan runs on Macs with Apple silicon. Open this page on your Mac to download it." 안내를 보여 준다.
 - 데모 영상은 클릭해야 재생한다. 준비, 로딩, 재생, 실패 상태를 그린다.
 - 마무리 패널에 Doany를 다시 등장시킨다.
-- 섹션은 hero, 영상, features, 마무리+푸터 넷이다. buzz처럼 16:9 모니터(1440×810)에서 섹션 하나가 sticky nav 아래 한 화면을 채워, 두 섹션이 한 화면에 함께 보이지 않는다. 태블릿(1024×768)과 모바일(390×844)도 섹션마다 최소 한 화면을 차지한다.
+- 섹션은 hero, 영상, features, 마무리+푸터 넷이다. buzz처럼 16:9 모니터(1440×810)에서 섹션 하나가 sticky nav 아래 한 화면을 채워, 섹션 사이에는 빈 바탕을 크게 둔다(데스크톱 320, 태블릿 240, 모바일 160). 두 섹션이 한 화면에 함께 보이지 않는다. 태블릿(1024×768)과 모바일(390×844)도 섹션마다 최소 한 화면을 차지한다.
 - 데스크톱, 태블릿, 모바일, Mac 아님 네 페이지를 프로토타입으로 재생한다. 스크롤, sticky nav, Features 이동, 데모 플레이어(재생 → 로딩 → 재생 중, 일시정지)가 동작한다. Download와 GitHub 링크는 이동하지 않는다.
 
 ## 카피 출처
