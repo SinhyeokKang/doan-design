@@ -112,8 +112,8 @@ export function doanCommand(words: string[]): string | undefined {
 interface ExtractedCall { name: string; command?: string; patch?: string; patchCandidate?: string }
 
 // Stands in for an exec_command whose command is not a plain string (a template, a variable, an expression): it ran
-// something the reader cannot see. parseCommand reads it as incomplete, so no absence check holds beside it, and it
-// yields no words, so it is never evidence of a particular command either.
+// something the reader cannot see, unless the run recorded it (recordedExecs). parseCommand reads it as incomplete, so
+// no absence check holds beside it, and it yields no words, so it is never evidence of a particular command either.
 const UNREADABLE_EXEC = "$exec_command_with_a_cmd_that_is_not_a_string_literal";
 
 function execCalls(source: string): ExtractedCall[] {
@@ -168,10 +168,63 @@ function execCalls(source: string): ExtractedCall[] {
   return calls;
 }
 
-function rolloutCalls(event: { type?: string; payload?: { type?: string; name?: string; input?: string; arguments?: string } }): ExtractedCall[] {
+// The script a recorded `<shell> -c <script>` argv ran, or undefined for any other shape.
+function shellScript(argv: unknown): string | undefined {
+  if (!Array.isArray(argv) || argv.length !== 3 || !argv.every(word => typeof word === "string")) return undefined;
+  return /^(?:.*\/)?(?:sh|bash|zsh|dash)$/.test(argv[0]) && /^-[a-z]*c$/.test(argv[1]) ? argv[2] : undefined;
+}
+
+// Codex records each process an exec script starts as an item_completed CommandExecution event: the argv it ran, but
+// no call id, between the script's custom_tool_call and its output. For a script with a command the reader cannot see,
+// those records are what ran, so they replace its unread marker, keyed by call id. The marker stays unless the script's
+// output arrived (a later command could still be the script's), no other tool call was open while a record arrived
+// (the record could be that call's), every record in the window reads as a shell script, and a record is left after
+// taking out one for each literal command the script names (otherwise nothing recorded stands for the unread one).
+function recordedExecs(transcript: string): Map<string, string[]> {
+  const open = new Map<string, { ran: (string | undefined)[]; shared: boolean }>();
+  const recorded = new Map<string, string[]>();
+  const unreadScripts = new Map<string, string[]>();
+  for (const line of transcript.split(/\r?\n/)) {
+    let event;
+    try { event = JSON.parse(line); } catch { continue; }
+    if (!record(event) || !record(event.payload)) continue;
+    const p = event.payload;
+    if (event.type === "response_item" && typeof p.call_id === "string") {
+      if (p.type === "custom_tool_call" || p.type === "function_call") {
+        open.set(p.call_id, { ran: [], shared: false });
+        const commands = rolloutCalls(event).flatMap(call => call.command === undefined ? [] : [call.command]);
+        if (p.type === "custom_tool_call" && commands.includes(UNREADABLE_EXEC)) unreadScripts.set(p.call_id, commands.filter(command => command !== UNREADABLE_EXEC));
+      }
+      const window = open.get(p.call_id);
+      if (window && (p.type === "custom_tool_call_output" || p.type === "function_call_output")) {
+        open.delete(p.call_id);
+        const literals = unreadScripts.get(p.call_id);
+        if (!literals || window.shared || window.ran.includes(undefined)) continue;
+        const left = window.ran as string[];
+        for (const literal of literals) {
+          const at = left.indexOf(literal);
+          if (at >= 0) left.splice(at, 1);
+        }
+        if (left.length) recorded.set(p.call_id, left);
+      }
+    }
+    if (event.type === "event_msg" && p.type === "item_completed" && record(p.item) && p.item.type === "CommandExecution") {
+      for (const window of open.values()) {
+        window.ran.push(shellScript(p.item.command));
+        if (open.size > 1) window.shared = true;
+      }
+    }
+  }
+  return recorded;
+}
+
+function rolloutCalls(event: { type?: string; payload?: { type?: string; name?: string; input?: string; arguments?: string; call_id?: string } }, recorded?: Map<string, string[]>): ExtractedCall[] {
   if (event.type !== "response_item") return [];
   const p = event.payload;
-  if (p?.type === "custom_tool_call" && /^(?:functions\.)?exec$/.test(p.name ?? "") && typeof p.input === "string") return execCalls(p.input);
+  if (p?.type === "custom_tool_call" && /^(?:functions\.)?exec$/.test(p.name ?? "") && typeof p.input === "string") {
+    const calls = execCalls(p.input), ran = typeof p.call_id === "string" ? recorded?.get(p.call_id) : undefined;
+    return ran ? [...calls.filter(call => call.command !== UNREADABLE_EXEC), ...ran.map(command => ({ name: "exec_command", command }))] : calls;
+  }
   if (p?.type === "custom_tool_call" && /^(?:functions\.)?apply_patch$/.test(p.name ?? "") && typeof p.input === "string") return [{ name: "apply_patch", patch: p.input }];
   if (p?.type !== "function_call" || typeof p.name !== "string") return [];
   if (p.name === "exec_command" || p.name === "functions.exec_command") {
@@ -204,10 +257,11 @@ export function mcpTools(transcript: string): string[] {
 export function shellCommands(transcript: string): string[] {
   const commands: string[] = [];
   const lines = transcript.split(/\r?\n/);
+  const recorded = recordedExecs(transcript);
   for (let i = 0; i < lines.length; i++) {
     try {
       const event = JSON.parse(lines[i]);
-      commands.push(...rolloutCalls(event).flatMap(c => c.command === undefined ? [] : [c.command]));
+      commands.push(...rolloutCalls(event, recorded).flatMap(c => c.command === undefined ? [] : [c.command]));
       if (event.type === "assistant") {
         for (const block of event.message?.content ?? []) {
           if (block.type === "tool_use" && block.name === "Bash" && typeof block.input?.command === "string") commands.push(block.input.command);
@@ -704,6 +758,7 @@ function outputParts(value: unknown, depth = 0): { text: string; error: boolean 
 function invocationOutputs(transcript: string): InvocationOutput[] {
   const calls: Omit<InvocationOutput, "excerpt">[] = [];
   const results = new Map<string, unknown[]>();
+  const recorded = recordedExecs(transcript);
   const addResult = (id: unknown, output: unknown) => {
     if (typeof id === "string") results.set(id, [...(results.get(id) ?? []), output]);
   };
@@ -721,7 +776,7 @@ function invocationOutputs(transcript: string): InvocationOutput[] {
       if (p.type === "function_call_output" || p.type === "custom_tool_call_output") addResult(p.call_id, p.output);
       // A custom exec result belongs to the whole script, not an identifiable
       // inner call: output order can differ from invocation order or be omitted.
-      for (const call of rolloutCalls(event)) addCall(call, p.call_id, p.type === "custom_tool_call" ? "batch" : "call");
+      for (const call of rolloutCalls(event, recorded)) addCall(call, p.call_id, p.type === "custom_tool_call" ? "batch" : "call");
     }
     if (record(event.message) && Array.isArray(event.message.content)) {
       for (const block of event.message.content) {
