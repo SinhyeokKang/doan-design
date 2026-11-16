@@ -7,14 +7,14 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { basename, dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { assertRealState, realState } from "../app/runtime/real-state.ts";
-import { agentCommand, agentEnvironment, cliProvenance, killRunning, registeredCodexMcpServers, runProcess, readAgentTranscript } from "./lib/agent.ts";
+import { agentCommand, agentEnvironment, cliProvenance, isolateUserInstructions, killRunning, registeredCodexMcpServers, runProcess, readAgentTranscript } from "./lib/agent.ts";
 import { parseArgs, type Agent, type Options } from "./lib/args.ts";
 import { createContext, judgeMaterial, sh } from "./lib/context.ts";
 import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand, judgeFor, parseJudgement, type Judgement } from "./lib/judge.ts";
 import { summary, type RoundMeta, type RunRecord } from "./lib/record.ts";
 import { loadScenario, renderPrompt, scenarioIds, selectIds, type LoadedScenario } from "./lib/scenario.ts";
 import type { Check, Checks } from "./lib/types.ts";
-import { copyRepo, keepOnboardingLog, prepareWorkspace, type Workspace } from "./lib/workspace.ts";
+import { copyRepo, keepCodexSessions, keepOnboardingLog, prepareWorkspace, type Workspace } from "./lib/workspace.ts";
 
 const ROOT = dirname(import.meta.dirname);
 const SCENARIOS = join(ROOT, "eval/scenarios");
@@ -41,7 +41,8 @@ async function judge(agent: Agent, prompt: string, dir: string): Promise<{ judge
   try {
     const outFile = join(dir, "judge-last-message.txt");
     const { cmd, args } = judgeCommand(judgeAgent, prompt, outFile);
-    const result = await runProcess({ cmd, args, cwd, env: agentEnvironment(process.env), timeoutSec: 600, stdoutPath: join(dir, "judge-stdout.log"), stderrPath: join(dir, "judge-stderr.log") });
+    const env = isolateUserInstructions(judgeAgent, agentEnvironment(process.env), join(cwd, "codex-home"));
+    const result = await runProcess({ cmd, args, cwd, env, timeoutSec: 600, stdoutPath: join(dir, "judge-stdout.log"), stderrPath: join(dir, "judge-stderr.log") });
     const raw = existsSync(outFile) ? readFileSync(outFile, "utf8") : readFileSync(join(dir, "judge-stdout.log"), "utf8");
     return { judgement: result.timedOut ? null : parseJudgement(raw), raw };
   } finally {
@@ -91,8 +92,10 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const record: RunRecord = { scenario: scenario.id, agent, n, dir: join(".scratch/agent-eval", setup.options.round, name), result: finalResult(checks, judgement), checks, judge: judgement, durationSec: proc.durationSec, exitCode: proc.code, timedOut: proc.timedOut };
     writeFileSync(join(dir, "meta.json"), JSON.stringify({
       scenario: scenario.id, shellCli: scenario.shellCli, agent, n, agentVersion: setup.meta.versions[agent], judge: setup.options.judge ? judgeFor(agent) : null, argv: [cmd, ...args],
-      // Configuration is inherited; session identities are excluded by agentEnvironment.
+      // Configuration is inherited; session identities are excluded by agentEnvironment, and the user's own
+      // instruction files by isolateUserInstructions (`agentConfig`: what the agent got instead).
       inheritedConfig: { HOME: process.env.HOME ?? null, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null, CODEX_HOME: process.env.CODEX_HOME ?? null },
+      agentConfig: { CODEX_HOME: ws.env.CODEX_HOME ?? null, CLAUDE_CODE_DISABLE_CLAUDE_MDS: ws.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS ?? null },
       guideSha256: setup.meta.guideSha256, cliVersion: setup.meta.cliVersion, cli: setup.cli, tempRepo: ws.repo, cwd: ws.cwd, startedAt,
       durationSec: proc.durationSec, exitCode: proc.code, signal: proc.signal, timedOut: proc.timedOut, result: record.result,
     }, null, 2) + "\n");
@@ -162,6 +165,7 @@ export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, ki
 // Also for a failed or broken run; a copy error must not hide the run's own error.
 function keepEvidence(ws: Workspace, dir: string): void {
   try { keepOnboardingLog(ws, dir); } catch (error) { writeFileSync(join(dir, "onboarding-log-error.txt"), `${(error as Error).stack}\n`); }
+  try { keepCodexSessions(ws, dir); } catch (error) { writeFileSync(join(dir, "codex-sessions-error.txt"), `${(error as Error).stack}\n`); }
 }
 
 async function main(): Promise<number> {

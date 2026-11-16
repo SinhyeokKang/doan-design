@@ -3,7 +3,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas, ConversationEvent, EventPayload } from "../main/conversation/types";
 import { plainText, textSegments } from "./anchorField";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
-import { OverviewRun, scrollTarget, type ListView, type OverviewRunHost } from "./overviewRun";
+import { endSeq, lastTurnSeq, OverviewRun, scrollTarget, type ListView, type OverviewRunHost } from "./overviewRun";
 import { dropAttachment } from "./conversationStore";
 import { AttachmentStore } from "../main/attachments";
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -482,6 +482,21 @@ test("an unreadable thread shows its failure and reads again on Retry", async ()
   expect(h.run.thread(A)?.read).toBe("loading");
   await flush();
   expect(h.run.thread(A)?.read).toBe("ready");
+});
+
+// main writes canvas.drawn up to its promotion deadline, possibly after the turn's end; like main's summary.ts
+// lastTurnSeq, the renderer's measures skip it, so a seen end stays seen.
+test("a canvas.drawn after the turn's end moves neither lastTurnSeq nor endSeq", () => {
+  seq = 0;
+  const events = [...ended(A), event(A, { type: "canvas.drawn", canvas: CANVAS })];
+  const end = events[3]!.seq;
+  expect(lastTurnSeq(events)).toBe(end);
+  expect(endSeq(events, true)).toBe(end);
+  expect(endSeq(events, false)).toBe(end);
+  // One written while the turn runs leaves it running.
+  seq = 0;
+  const running = [event(A, { type: "user.message", text: "hi", anchors: [] }), event(A, { type: "turn.started" }), event(A, { type: "canvas.drawn", canvas: CANVAS })];
+  expect(endSeq(running, true)).toBeNull();
 });
 
 test("the main conversation is seen only while it shows with the window focused, once per turn end", async () => {

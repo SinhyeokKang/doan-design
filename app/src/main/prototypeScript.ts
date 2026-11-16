@@ -119,6 +119,8 @@ export function prototypeScript(target: string, gen: number, url: string): void 
       [data-doan-proto-frame] { position: relative !important; inset: auto !important; float: none !important; margin: 0 !important;
         transform: none !important; translate: none !important; scale: none !important; rotate: none !important; zoom: 1 !important;
         width: 100% !important; min-width: 0 !important; max-width: none !important; min-height: 100vh !important; box-sizing: border-box !important; }
+      :root { --doan-viewport-height: 100vh !important; }
+      @supports (height: 100dvh) { :root { --doan-viewport-height: 100dvh !important; } }
     `);
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   };

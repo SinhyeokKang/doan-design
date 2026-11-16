@@ -186,3 +186,13 @@ test("opening the panel on a narrow window raises the minimum after the bounds",
   expect(window.bounds.width).toBe(640);
   expect(order).toEqual(["minimum 640"]);
 });
+
+test("the window's own debugger attaches before the opaque fallback sees the window", async () => {
+  const { createPrototypeWindow } = await import("./prototypeWindow");
+  const vibrancyWindow = vi.fn((window: unknown) => {
+    expect((window as FakeWindow).webContents.debugger.attach).toHaveBeenCalledWith("1.3");
+  });
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), buddy: () => "puri", vibrancyWindow });
+  prototype.controller.play("main", play);
+  expect(vibrancyWindow).toHaveBeenCalledWith(created[0]);
+});

@@ -73,6 +73,10 @@ func Summarize(findings []Finding, canvases int) Summary {
 	return s
 }
 
+// viewportHeightVar is the custom property the prototype play scripts define on :root, so a
+// canvas uses it without defining it; nothing defines it on the board.
+const viewportHeightVar = "--doan-viewport-height"
+
 var idPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 func validID(c canvas.Canvas) bool { return c.HasID && !c.IDDup && idPattern.MatchString(c.ID) }
@@ -274,7 +278,11 @@ func Run(in Input) []Finding {
 				case "viewport_height_unit":
 					f.Value = detail
 					f.Severity = "warning"
-					f.Message = "Viewport height unit \"" + detail + "\" resolves against the whole board in the app, so the canvas height chases itself. Use a pixel value instead."
+					f.Message = "Viewport height unit \"" + detail + "\" resolves against the whole board in the app, so the canvas height chases itself. Use a pixel value instead. In a data-doan-prototype frame, use var(--doan-viewport-height, <H>px)."
+				case "viewport_height_no_fallback":
+					f.Token = detail
+					f.Severity = "warning"
+					f.Message = "Doan sets " + detail + " only while a prototype plays, so on the board and in thumbnails this height does not resolve. Add the fallback: var(" + detail + ", <H>px), with H from the frame's data-doan-prototype WxH."
 				case "external_url":
 					f.URL = detail
 					f.Severity = "warning"
@@ -291,7 +299,7 @@ func Run(in Input) []Finding {
 			tokenFile := shared && in.TokenCSS.Configured && in.TokenCSS.State == In && path == in.TokenCSS.RealPath
 			if !tokenFile {
 				for _, ref := range s.Refs {
-					if !defs[ref.Name] {
+					if !defs[ref.Name] && ref.Name != viewportHeightVar {
 						output("undefined_token", ref.Name)
 					}
 				}
@@ -306,6 +314,11 @@ func Run(in Input) []Finding {
 			if !shared {
 				for _, v := range s.ViewportHeights {
 					output("viewport_height_unit", v)
+				}
+				for _, ref := range s.Refs {
+					if ref.Name == viewportHeightVar && !ref.HasFallback {
+						output("viewport_height_no_fallback", ref.Name)
+					}
 				}
 			}
 			if shared {

@@ -72,6 +72,9 @@ func TestRules(t *testing.T) {
 		{"viewport_height_unit", func(i *Input) {
 			i.Canvases[0].Styles = canvas.ScanCSS(`a{height:calc(100dvh - 8px)}`, canvas.Stylesheet)
 		}},
+		{"viewport_height_no_fallback", func(i *Input) {
+			i.Canvases[0].Styles = canvas.ScanCSS(`a{height:var(--doan-viewport-height)}`, canvas.Stylesheet)
+		}},
 		{"invalid_prototype_size", func(i *Input) {
 			v := "390"
 			i.Canvases[0].Frames = []canvas.Frame{{ID: "a", Prototype: &v}}
@@ -100,7 +103,7 @@ func TestRules(t *testing.T) {
 				t.Fatalf("got %+v", Run(in))
 			}
 			severity := "error"
-			if tt.code == "external_url" || tt.code == "hardcoded_color" || tt.code == "viewport_height_unit" || tt.code == "ambiguous_custom_url" {
+			if tt.code == "external_url" || tt.code == "hardcoded_color" || tt.code == "viewport_height_unit" || tt.code == "viewport_height_no_fallback" || tt.code == "ambiguous_custom_url" {
 				severity = "warning"
 			}
 			for _, f := range fs {
@@ -327,7 +330,7 @@ func TestViewportHeightUnit(t *testing.T) {
 	in := base()
 	in.Canvases[0].Styles = canvas.ScanCSS(`a{height:100dvh;min-height:50dvh;max-height:100dvh}`, canvas.Stylesheet)
 	fs := codes(Run(in), "viewport_height_unit")
-	if len(fs) != 2 || fs[0].Value != "100dvh" || fs[0].Canvas != "one" || fs[0].Severity != "warning" || !strings.Contains(fs[0].Message, `Viewport height unit "100dvh" resolves against the whole board in the app, so the canvas height chases itself. Use a pixel value instead.`) {
+	if len(fs) != 2 || fs[0].Value != "100dvh" || fs[0].Canvas != "one" || fs[0].Severity != "warning" || !strings.Contains(fs[0].Message, `Viewport height unit "100dvh" resolves against the whole board in the app, so the canvas height chases itself. Use a pixel value instead. In a data-doan-prototype frame, use var(--doan-viewport-height, <H>px).`) {
 		t.Fatalf("%+v", fs)
 	}
 	// No tokenCss configured: the rule does not depend on it.
@@ -638,4 +641,85 @@ func TestCanvasExtensionCaseWarning(t *testing.T) {
 	if len(codes(Run(only), "no_canvases")) != 1 || len(codes(Run(only), "canvas_extension_case")) != 1 {
 		t.Fatal(Run(only))
 	}
+}
+
+func TestDoanViewportHeightVariable(t *testing.T) {
+	run := func(css string) []Finding {
+		in := base()
+		in.Canvases[0].Styles = canvas.ScanCSS(css, canvas.Stylesheet)
+		return Run(in)
+	}
+	t.Run("with a fallback it is defined and silent", func(t *testing.T) {
+		for _, css := range []string{
+			`main{height:var(--doan-viewport-height, 900px)}`,
+			`main{height:calc(var(--doan-viewport-height, 900px) - 64px)}`,
+		} {
+			if fs := run(css); len(fs) != 0 {
+				t.Fatalf("%s: %+v", css, fs)
+			}
+		}
+	})
+	t.Run("without a fallback it warns once", func(t *testing.T) {
+		fs := run(`main{height:var(--doan-viewport-height)}`)
+		if len(codes(fs, "undefined_token")) != 0 {
+			t.Fatalf("%+v", fs)
+		}
+		w := codes(fs, "viewport_height_no_fallback")
+		if len(w) != 1 || len(fs) != 1 || w[0].Severity != "warning" || w[0].Canvas != "one" || w[0].Token != "--doan-viewport-height" || !strings.Contains(w[0].Message, "var(--doan-viewport-height, <H>px)") {
+			t.Fatalf("%+v", fs)
+		}
+	})
+	t.Run("a style attribute without a fallback warns", func(t *testing.T) {
+		in := base()
+		in.Canvases[0] = parse(".doan/canvases/a.html", metadata, `<div data-doan-frame="a" data-doan-prototype="1440x900" style="height: var(--doan-viewport-height)"></div>`)
+		fs := Run(in)
+		if w := codes(fs, "viewport_height_no_fallback"); len(w) != 1 || len(fs) != 1 {
+			t.Fatalf("%+v", fs)
+		}
+	})
+	t.Run("a var in the fallback is checked as before", func(t *testing.T) {
+		fs := run(`main{height:var(--doan-viewport-height, var(--screen-h))}`)
+		if len(codes(fs, "viewport_height_no_fallback")) != 0 {
+			t.Fatalf("%+v", fs)
+		}
+		u := codes(fs, "undefined_token")
+		if len(u) != 1 || u[0].Token != "--screen-h" {
+			t.Fatalf("%+v", fs)
+		}
+	})
+	t.Run("a vh fallback warns as a viewport height unit", func(t *testing.T) {
+		fs := run(`main{height:var(--doan-viewport-height, 100vh)}`)
+		if len(fs) != 1 || fs[0].Code != "viewport_height_unit" || fs[0].Value != "100vh" {
+			t.Fatalf("%+v", fs)
+		}
+	})
+	t.Run("other names stay undefined", func(t *testing.T) {
+		for _, name := range []string{"--doan-x", "--Doan-Viewport-Height", "--doan-viewport-height-x"} {
+			fs := run(`main{height:var(` + name + `, 900px)}`)
+			if u := codes(fs, "undefined_token"); len(u) != 1 || u[0].Token != name || len(fs) != 1 {
+				t.Fatalf("%s: %+v", name, fs)
+			}
+		}
+	})
+	t.Run("a linked stylesheet neither reports it undefined nor warns", func(t *testing.T) {
+		in := base()
+		in.CSS["shared.css"] = canvas.ScanCSS(`main{height:var(--doan-viewport-height)}aside{height:var(--doan-viewport-height, 900px)}`, canvas.Stylesheet)
+		in.Reach[in.Canvases[0].Path] = []CSSRef{{Href: "shared.css", RealPath: "shared.css", State: In, Direct: true}}
+		if fs := Run(in); len(fs) != 0 {
+			t.Fatalf("%+v", fs)
+		}
+	})
+	t.Run("outside a frame and in an unmarked frame the rules are the same", func(t *testing.T) {
+		for _, body := range []string{
+			`<div style="height: var(--doan-viewport-height)"></div>`,
+			`<div data-doan-frame="a" style="height: var(--doan-viewport-height)"></div>`,
+		} {
+			in := base()
+			in.Canvases[0] = parse(".doan/canvases/a.html", metadata, body)
+			fs := Run(in)
+			if w := codes(fs, "viewport_height_no_fallback"); len(w) != 1 || len(fs) != 1 {
+				t.Fatalf("%s: %+v", body, fs)
+			}
+		}
+	})
 }

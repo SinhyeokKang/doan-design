@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="inbox">
+<meta name="doan:width" content="1600">
+<title>Inbox</title>
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  body { margin: 0; padding: 80px; background: var(--color-canvas); font-family: var(--font-sans); }
+  .app { position: relative; display: flex; flex-direction: column; width: 1440px; height: var(--doan-viewport-height, 900px); background: var(--color-surface); color: var(--color-text); overflow: hidden; }
+  .app-header { flex: none; display: flex; align-items: center; gap: var(--space-4); height: 64px; padding: 0 var(--space-6); border-bottom: 1px solid var(--color-border); }
+  .app-header h1 { margin: 0; font-size: 18px; }
+  .search { margin-left: auto; width: 320px; height: 36px; padding: 0 var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-surface); color: var(--color-text); font: inherit; }
+  .messages { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+  .message { display: grid; grid-template-columns: 220px 1fr 96px; gap: var(--space-4); padding: var(--space-4) var(--space-6); border-bottom: 1px solid var(--color-border); }
+  .message.unread { font-weight: 600; }
+  .message time { color: var(--color-muted); text-align: right; }
+</style>
+</head>
+<body>
+<main class="app" data-doan-frame="inbox" data-doan-title="Inbox (desktop)" data-doan-prototype="1440x900">
+  <header class="app-header" data-doan-id="header">
+    <h1>Inbox</h1>
+    <input class="search" type="search" placeholder="Search messages" aria-label="Search messages" data-doan-id="search">
+  </header>
+  <ul class="messages" data-doan-id="message-list">
+    <li class="message unread" data-doan-id="message-1"><span>Mina Park</span><span>Quarterly report draft</span><time>09:42</time></li>
+    <li class="message unread" data-doan-id="message-2"><span>Jonas Weber</span><span>Re: Design review notes</span><time>09:15</time></li>
+    <li class="message" data-doan-id="message-3"><span>Priya Shah</span><span>Lunch on Thursday?</span><time>08:57</time></li>
+    <li class="message" data-doan-id="message-4"><span>Leo Martin</span><span>Invoice #2041</span><time>Yesterday</time></li>
+    <li class="message unread" data-doan-id="message-5"><span>Ana Costa</span><span>Onboarding checklist</span><time>Yesterday</time></li>
+    <li class="message" data-doan-id="message-6"><span>Sam Lee</span><span>Re: Release timeline</span><time>Mon</time></li>
+    <li class="message" data-doan-id="message-7"><span>Dana Kim</span><span>Team offsite plan</span><time>Mon</time></li>
+    <li class="message" data-doan-id="message-8"><span>Omar Haddad</span><span>New hire intro</span><time>Sun</time></li>
+    <li class="message" data-doan-id="message-9"><span>Grace Liu</span><span>Customer feedback summary</span><time>Sat</time></li>
+    <li class="message" data-doan-id="message-10"><span>Ravi Patel</span><span>Re: API rate limits</span><time>Fri</time></li>
+    <li class="message" data-doan-id="message-11"><span>Elena Rossi</span><span>Brand refresh kickoff</span><time>Fri</time></li>
+    <li class="message" data-doan-id="message-12"><span>Tom Becker</span><span>Security training reminder</span><time>Thu</time></li>
+    <li class="message" data-doan-id="message-13"><span>Yuki Sato</span><span>Re: Sprint retro</span><time>Thu</time></li>
+    <li class="message" data-doan-id="message-14"><span>Chris Wong</span><span>Office move update</span><time>Wed</time></li>
+  </ul>
+</main>
+</body>
+</html>

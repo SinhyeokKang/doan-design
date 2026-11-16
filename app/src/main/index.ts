@@ -64,6 +64,8 @@ import { buddyIntroShown } from "./buddyIntro";
 import { answerCliRemove } from "./cliRemove";
 import type { BuddyId } from "../renderer/buddies";
 import { createLocalSeen, type LocalSeen } from "./canvasSeen";
+import { compositingEnabled, createGpuLog } from "./gpuLog";
+import { createOpaqueFallback } from "./opaqueFallback";
 import { createReadState, type ReadState } from "./readState";
 import { createFingerprints } from "./seenFingerprint";
 import { shownDocument } from "./seenProof";
@@ -349,8 +351,10 @@ function playPrototype(request: PrototypeRequest): PrototypeResponse {
 }
 
 // The single-frame prototype window: made on the first Play, apart from `win`'s lifecycle and sender guard.
+const opaqueFallback = createOpaqueFallback();
 const prototype = createPrototypeWindow({
   entries: () => shell?.entries() ?? [],
+  vibrancyWindow: window => opaqueFallback.adopt(window),
   mainWindow: () => win,
   closed: contents => {
     prototypeShowing.closed();
@@ -708,6 +712,7 @@ function createWindow(buddy: BuddyId): BrowserWindow {
     if (win === window) win = undefined;
     folderRequests.clear();
   });
+  opaqueFallback.adopt(window);
   return window;
 }
 
@@ -816,6 +821,13 @@ async function start(): Promise<void> {
   const userData = app.getPath("userData");
   // folderStore writes beside folders.json but does not create the directory.
   await mkdir(userData, { recursive: true });
+  const gpuLog = createGpuLog(join(userData, "gpu.log"));
+  app.on("child-process-gone", (_event, details) => gpuLog.processGone(details));
+  app.on("gpu-info-update", () => {
+    const status = app.getGPUFeatureStatus().gpu_compositing;
+    gpuLog.compositing(status);
+    if (!compositingEnabled(status)) opaqueFallback.trigger();
+  });
   const choices = new Map<string, { id: string; path: string; epoch: number }>();
   // Only the window's copy of the list carries `unseen`; thumbnails and conversations read the shell's own entries.
   const seenStore = createLocalSeen(join(userData, "canvas-seen.json"));

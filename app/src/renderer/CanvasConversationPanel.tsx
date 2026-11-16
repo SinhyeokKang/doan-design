@@ -101,7 +101,7 @@ export interface CanvasConversationProps {
   onOpenProjectConversation(conversationId: string): void;
   // The promotion notice's Open. Without it the panel shows that conversation itself.
   onOpenPromoted?(conversationId: string): void;
-  // A handoff line's or card's Open: that canvas of this root with its panel on that conversation, or the canvas alone.
+  // A canvas card's or handoff card's Open: that canvas of this root with its panel on that conversation, or the canvas alone.
   onOpenHandoff?(canvas: Canvas, conversationId?: string): void;
   // The canvases terminal sessions work on: the terminal session choice waits while its session is among them.
   work: readonly WorkItem[];

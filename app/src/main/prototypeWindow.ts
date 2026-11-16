@@ -45,6 +45,8 @@ export interface PrototypeWindowDeps {
   viewSent?(): void;
   // The playing canvas changed, before any view of it.
   canvasChanged?(): void;
+  // A new window with the sidebar material, for the opaque fallback after a GPU compositing loss.
+  vibrancyWindow?(window: BrowserWindow): void;
 }
 
 export interface PrototypeWindow {
@@ -169,6 +171,8 @@ export function createPrototypeWindow(deps: PrototypeWindowDeps): PrototypeWindo
     closing = false;
     created.setContentBounds(bounds);
     injectRuns(created);
+    // After injectRuns: an opaque fallback already in force attaches the debugger itself, and a second attach throws.
+    deps.vibrancyWindow?.(created);
     const contents = created.webContents;
     // Read after destroy, webContents throws, so the id is kept now.
     const contentsId = contents.id;

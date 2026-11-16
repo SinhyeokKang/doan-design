@@ -7,7 +7,7 @@ import { after, before, test } from "node:test";
 import { CODEX_RULE, codexRuleText } from "./codex-rule.ts";
 import { createContext, judgeMaterial, sh } from "./context.ts";
 import { loadScenario } from "./scenario.ts";
-import { keepOnboardingLog, prepareWorkspace } from "./workspace.ts";
+import { keepCodexSessions, keepOnboardingLog, prepareWorkspace } from "./workspace.ts";
 
 const { CLAUDE_ALLOW_RULES } = await import("../../app/src/main/agentSetup/plan.ts");
 
@@ -277,4 +277,73 @@ test("canvas-only seeds are initialized even though .doan already exists", async
     assert.ok(existsSync(join(ws.repo, ".doan/config.json")));
     assert.equal(sh(cli, ["check", "--json", "--repo", ws.repo], ws.repo, ws.env).code, 0);
   } finally { await ws.dispose(); }
+});
+
+test("each real agent's environment leaves out the user's own instruction files; the fixture agent's is unchanged", async () => {
+  const saved = process.env.CODEX_HOME;
+  const fake = mkdtempSync("/tmp/doan-eval-codex-home-");
+  try {
+    writeFileSync(join(fake, "auth.json"), "{}\n");
+    writeFileSync(join(fake, "config.toml"), "");
+    writeFileSync(join(fake, "AGENTS.md"), "global\n");
+    process.env.CODEX_HOME = fake;
+    const codex = await prepareWorkspace({ scenario: seeded(), agent: "codex", cli, stub: "stub\n" });
+    try {
+      assert.ok(codex.env.CODEX_HOME?.startsWith(`${codex.base}/`), codex.env.CODEX_HOME);
+      assert.ok(!codex.env.CODEX_HOME.startsWith(`${codex.repo}/`));
+      assert.equal(existsSync(join(codex.env.CODEX_HOME, "AGENTS.md")), false);
+      assert.equal(readFileSync(join(codex.env.CODEX_HOME, "auth.json"), "utf8"), "{}\n");
+      assert.equal(git(codex.repo, ["status", "--porcelain"]), "");
+    } finally { await codex.dispose(); }
+    assert.equal(readFileSync(join(fake, "AGENTS.md"), "utf8"), "global\n");
+    const claude = await prepareWorkspace({ scenario: seeded(), agent: "claude", cli, stub: "stub\n" });
+    try {
+      assert.equal(claude.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS, "1");
+      assert.equal(claude.env.CODEX_HOME, fake);
+    } finally { await claude.dispose(); }
+    const fixture = await prepareWorkspace({ scenario: seeded(), agent: "fixture", cli, stub: "stub\n" });
+    try {
+      assert.equal(fixture.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS, undefined);
+      assert.equal(fixture.env.CODEX_HOME, fake);
+    } finally { await fixture.dispose(); }
+  } finally {
+    if (saved === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = saved;
+    rmSync(fake, { recursive: true, force: true });
+  }
+});
+
+// The run's own Codex home goes with the workspace, so a rollout the runner could not match must be kept before then.
+test("a Codex run's own sessions are kept in the run directory when its rollout was not copied", async () => {
+  const saved = process.env.CODEX_HOME;
+  const fake = mkdtempSync("/tmp/doan-eval-codex-home-");
+  const out = mkdtempSync("/tmp/doan-eval-run-dir-");
+  try {
+    process.env.CODEX_HOME = fake;
+    const ws = await prepareWorkspace({ scenario: seeded(), agent: "codex", cli, stub: "stub\n" });
+    try {
+      const day = join(ws.env.CODEX_HOME!, "sessions/2026/11/16");
+      execFileSync("mkdir", ["-p", day]);
+      writeFileSync(join(day, "rollout-x-1.jsonl"), "{}\n");
+      keepCodexSessions(ws, out);
+      assert.equal(readFileSync(join(out, "codex-sessions/2026/11/16/rollout-x-1.jsonl"), "utf8"), "{}\n");
+      const copied = mkdtempSync("/tmp/doan-eval-run-dir-");
+      try {
+        writeFileSync(join(copied, "codex-rollout.jsonl"), "{}\n");
+        keepCodexSessions(ws, copied);
+        assert.equal(existsSync(join(copied, "codex-sessions")), false);
+      } finally { rmSync(copied, { recursive: true, force: true }); }
+    } finally { await ws.dispose(); }
+    // A run whose CODEX_HOME is not its own (the fixture agent) keeps nothing: that home may hold other sessions.
+    const fixture = await prepareWorkspace({ scenario: seeded(), agent: "fixture", cli, stub: "stub\n" });
+    const none = mkdtempSync("/tmp/doan-eval-run-dir-");
+    try {
+      execFileSync("mkdir", ["-p", join(fake, "sessions")]);
+      keepCodexSessions(fixture, none);
+      assert.equal(existsSync(join(none, "codex-sessions")), false);
+    } finally { await fixture.dispose(); rmSync(none, { recursive: true, force: true }); }
+  } finally {
+    if (saved === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = saved;
+    rmSync(fake, { recursive: true, force: true });
+    rmSync(out, { recursive: true, force: true });
+  }
 });

@@ -1,7 +1,7 @@
 import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowDown, ArrowUpRight, Ban, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, MapPin, Pencil, PencilSparkles, SquareMousePointer, Terminal, Zap } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Ban, Check, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, MapPin, PanelsTopLeft, Pencil, PencilSparkles, SquareMousePointer, Terminal, Zap } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor, Canvas } from "../main/conversation/types";
 import { QUESTION_LIMITS, type Question, type QuestionAnswerInput } from "../main/conversation/question";
@@ -11,15 +11,16 @@ import type { CanvasRow } from "../main/view";
 import { skillWords, skillTextParts } from "./skillWords";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
+import { canvasCardText, middleCut, newCanvasesText, trailingCards } from "./canvasCardText";
 import { canvasLabel } from "./canvasTree";
 import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
-import { handoffCardHead, handoffLineText } from "./handoffView";
+import { handoffCardHead } from "./handoffView";
 import { providerLogo, sentFileView } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
 import { canSend, EMPTY_QUESTION_DRAFT, questionInput, sendBlockedText, type QuestionDraft, type QuestionDraftAction } from "./questionDraft";
 import { pendingAsks, questionLines, sameItem, scrollFollow, threadScroll, waitsForPerson, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
-import { activityRun, backgroundLine, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
+import { activityRun, backgroundLine, drawingCards, elapsedText, settle, SETTLE_MS, turnAnnouncement, turnText, type Settled, type ThreadTurn, type TurnStatus } from "./turnStatus";
 
 // The conversation thread (draft frames thread-*). The host reads the history, merges
 // live events and passes threadItems' result; links, copying and every action go back through callbacks, so the
@@ -35,7 +36,8 @@ export interface ConversationThreadProps {
   // Requests with a later seq arrived while the thread was open. Only those are announced as alerts; drawing history
   // announces nothing.
   liveAfter: number;
-  // Whether a promotion marker's canvas, a handoff's target or a handoff card's source is still listed (found by ID).
+  // Whether a promotion marker's canvas, a canvas card's canvas or handoff target, or a handoff card's source is still
+  // listed (found by ID).
   canvasListed(canvas: Canvas): boolean;
   // Resolves to main's refusal, or rejects, when the answer did not reach the agent; the request then says so.
   onAnswer(requestId: string, optionId: string): Promise<void | { error: string }> | void;
@@ -52,8 +54,8 @@ export interface ConversationThreadProps {
   onSignIn(): void;
   onRetry(): void;
   onOpenCanvas(canvas: Canvas): void;
-  // A handoff line's or card's Open: that canvas with its panel on the given conversation, or the canvas alone for a
-  // missed line. Without it neither offers Open.
+  // A canvas card's or handoff card's Open: that canvas with its panel on the given conversation, or the canvas alone
+  // for a canvas card without a started handoff. Without it neither offers Open.
   onOpenHandoff?(canvas: Canvas, conversationId?: string): void;
   // Only https links reach this; main checks again.
   onOpenLink(url: string): void;
@@ -465,14 +467,70 @@ function Steps({ id, steps }: { id: string; steps: readonly ActivityStep[] }) {
   })}</ul>;
 }
 
-// A turn's handoff line (draft frames source-*): one line in the promotion marker's style, at the request's place.
-// Open is named by its canvas: a turn with several lines would otherwise offer several identical "Open" buttons.
-export function HandoffLine({ entry, project, provider, canvasListed, onOpen }: { entry: Extract<ThreadItem, { kind: "handoff" }>; project: string; provider: Provider;
+const CARD_ICONS = { check: Check, forward: Forward, ban: Ban } as const;
+// A canvas of a turn (draft canvas-drawing-cards.html): the state icon, the canvas icon and name over the status, and
+// Open. The status changes in place (the card's key holds), so focus on Open stays. No live region: the thread's status
+// line says the new canvases once the turn ends.
+export function CanvasCard({ entry, rows, project, provider, canvasListed, onOpen }: { entry: Extract<ThreadItem, { kind: "canvasCard" }>; rows: readonly CanvasRow[]; project: string; provider: Provider;
   canvasListed(canvas: Canvas): boolean; onOpen?: ((canvas: Canvas, conversationId?: string) => void) | undefined }) {
-  const view = handoffLineText(entry, { project, provider, listed: canvasListed });
-  const Icon = view.icon === "forward" ? Forward : Ban, open = view.open;
-  return <div className="marker handoff"><span><Icon aria-hidden="true" />{view.text}</span>
-    {open && onOpen && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={`Open ${open.canvas.path.split("/").at(-1) ?? open.canvas.path}`} onClick={() => onOpen(open.canvas, open.conversationId)}>Open</button>}</div>;
+  const view = canvasCardText({ ...entry, canvas: withRowId(entry.canvas, rows) }, { project, provider, listed: canvasListed }), open = view.open;
+  const Icon = view.icon === "spinner" ? null : CARD_ICONS[view.icon];
+  return <div className="canvas-card" role="group" aria-label={view.label}>
+    <span className="cc-icon">{Icon ? <Icon aria-hidden="true" /> : <span className="doan-spinner" aria-hidden="true" />}</span>
+    <span className="cc-text"><CardName name={view.name} /><span className="cc-status">{view.status}</span></span>
+    {open && onOpen && <button type="button" className="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label={open.label} onClick={() => onOpen(open.canvas, open.conversationId)}>Open</button>}
+  </div>;
+}
+// A handoff request names a path alone, while listing and Open find a canvas by its ID once its row has one
+// (sameCanvas), so an existing canvas would read as gone: the root's one row with that path lends its ID.
+function withRowId(canvas: Canvas, rows: readonly CanvasRow[]): Canvas {
+  if (canvas.id !== undefined) return canvas;
+  const same = rows.filter(row => row.path === canvas.path);
+  return same.length === 1 && same[0]!.id !== undefined ? { path: canvas.path, id: same[0]!.id } : canvas;
+}
+// The text width the name's computed font gives, for the middle cut; CSS can only cut a line's end.
+let measuring: CanvasRenderingContext2D | null | undefined;
+function textWidth(text: string, style: CSSStyleDeclaration): number {
+  measuring ??= document.createElement("canvas").getContext("2d");
+  if (!measuring) return 0;
+  measuring.font = style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+  measuring.letterSpacing = style.letterSpacing === "normal" ? "0px" : style.letterSpacing;
+  return Math.ceil(measuring.measureText(text).width);
+}
+// The most characters a middle cut of `name` keeps within `width`; null when the name fits whole (or nothing laid out).
+function fitKeep(name: string, width: number, measure: (text: string) => number): number | null {
+  if (width <= 0 || measure(name) <= width) return null;
+  let low = 1, high = name.length - 1;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (measure(middleCut(name, mid)) <= width) low = mid; else high = mid - 1;
+  }
+  return low;
+}
+// The card's name never wraps: a long one is cut in the middle, keeping its extension, with the full name in the tooltip
+// (the card's and Open's accessible names already hold it). The title row's width is set by the card's grid column,
+// not by the name, so measuring it never loops.
+function CardName({ name }: { name: string }) {
+  const title = useRef<HTMLSpanElement | null>(null);
+  const [keep, setKeep] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const node = title.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    const fit = () => {
+      const label = node.lastElementChild;
+      if (!(label instanceof HTMLElement)) return;
+      const style = getComputedStyle(label);
+      setKeep(fitKeep(name, Math.floor(node.getBoundingClientRect().right - label.getBoundingClientRect().left), text => textWidth(text, style)));
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [name]);
+  const shown = keep === null ? name : middleCut(name, keep);
+  // Only a cut name has a tooltip. The name is no control, so changing its wrapper moves no focus.
+  const label = <span className="cc-name">{shown}</span>;
+  return <span className="cc-title" ref={title}><PanelsTopLeft className="cc-kind" aria-hidden="true" />
+    {shown === name ? label : <Tooltip><TooltipTrigger asChild>{label}</TooltipTrigger><TooltipContent>{name}</TooltipContent></Tooltip>}</span>;
 }
 // The receiving conversation's first message (draft frame handoff-card): the earlier agent's text as its Markdown, apart
 // from the person's bubble. The card takes focus after a move, so it is a labelled group.
@@ -503,15 +561,18 @@ function lastEnd(items: readonly ThreadItem[]): { key: string; resend: boolean }
 }
 // The running turn reads as the indicator's settled stage kind, so it changes only when that kind does. The background
 // line is no live region: this status says it once as it appears, and the same words while it stays (Stopping too).
-function phaseText(items: readonly ThreadItem[], provider: Provider, shown: TurnStatus, background: boolean): string {
+// Once the turn ended, its new canvases follow the end's title, or are said alone after a turn without one. `ended` holds
+// the cards as the history has them: a Stop hides the indicator and stops their spinners before the turn's end arrives,
+// and the count waits for that end.
+function phaseText(items: readonly ThreadItem[], ended: readonly ThreadItem[], provider: Provider, shown: TurnStatus, background: boolean): string {
   const p = PROVIDER_NAMES[provider];
   if (items.some(waitsForPerson)) return `${p} needs your answer`;
   const stage = turnAnnouncement(shown, p);
   if (stage) return stage;
   if (background) return "Background work is still running";
-  const last = items.at(-1);
-  if (last?.kind === "end") return endView(last.end, provider).title;
-  return "";
+  const last = items[trailingCards(items).start - 1], title = last?.kind === "end" ? endView(last.end, provider).title : "", cards = newCanvasesText(ended);
+  if (!cards) return title;
+  return title ? `${title}${title.endsWith(".") ? "" : "."} ${cards}` : cards;
 }
 
 // The turn indicator (draft frame `states`): in the reply's place at the thread's end, one
@@ -540,6 +601,15 @@ export function TurnIndicator({ text, at, provider }: { text: string; at: string
     <span className="ti-text ti-shimmer">{text}</span><span className="ti-time" aria-hidden="true">{elapsedText(Date.now() - Date.parse(at))}</span></div>;
 }
 const NO_TURN: TurnStatus = { kind: "none" };
+// The thread's items with each run of canvas cards together; every other item alone.
+function stacks(items: readonly ThreadItem[]): ThreadItem[][] {
+  const runs: ThreadItem[][] = [];
+  for (const item of items) {
+    const run = runs.at(-1);
+    if (item.kind === "canvasCard" && run?.[0]?.kind === "canvasCard") run.push(item); else runs.push([item]);
+  }
+  return runs;
+}
 // The background line's thread item key, which no history item takes (their keys start with a kind letter and a seq).
 const BACKGROUND_KEY = "background";
 
@@ -687,6 +757,14 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (target.kind === "option") focusIn(asks.find(ask => ask.requestId === target.requestId)!.key);
     else props.onFocusComposer?.();
   }, [items]);
+  // A turn's cards sit above a request still waiting and below it once it folds, so React moves the card stack past
+  // the request; moving a focused control's ancestor drops its focus to the page. Focus goes back to the same card's
+  // Open, unless the person moved it elsewhere or the card is gone.
+  const cardFocused = focusedKey !== null && Array.isArray(items) && items.some(item => item.kind === "canvasCard" && item.key === focusedKey) ? focusedKey : null;
+  useLayoutEffect(() => {
+    if (cardFocused === null || (document.activeElement && document.activeElement !== document.body)) return;
+    scroller.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(cardFocused)}"] .cc-open`)?.focus({ preventScroll: true });
+  });
   useLayoutEffect(() => {
     shown.current = Array.isArray(items) ? pendingAsks(items).map(ask => ({ ...ask, unsent: Object.values(draftOf(ask.requestId).choices).some(choice => choice.text.trim() !== "") })) : [];
   });
@@ -738,7 +816,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const last = lastEnd(items);
   // The last activity row reads the indicator's settled status, so the two say the same in every render. Only Claude
   // Code and Codex write an activity as its tool starts; the ACP agents write it once the tool completed.
-  const drawn = activityRun(items, settled.shown, provider !== "claude" && provider !== "codex" ? props.turn?.status ?? NO_TURN : null);
+  const drawn = drawingCards(activityRun(items, settled.shown, provider !== "claude" && provider !== "codex" ? props.turn?.status ?? NO_TURN : null), settled.shown);
   // A kept item's handlers read the host's latest callbacks (ThreadEntry); its deps name what it draws from outside its data.
   const locate: ConversationThreadProps["onLocate"] = anchor => latest.current.onLocate!(anchor);
   const listed = (canvas: Canvas) => latest.current.canvasListed(canvas);
@@ -750,7 +828,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       case "permission": return [provider, entry.seq > props.liveAfter, unanswered.has(entry.requestId)];
       case "question": return entry.status === "pending" ? [provider, entry.seq > props.liveAfter, draftOf(entry.requestId)] : [];
       case "end": return [provider, entry.key === last?.key, entry.key === last?.key && last.resend, entry.key === last?.key ? props.limitResets ?? null : null, entry.key === last?.key && !!props.resendHidden];
-      case "handoff": return [provider, props.project, entry.target ? props.canvasListed(entry.target.canvas) : entry.outcome === "missed" ? props.canvasListed(entry.canvas) : null, !!props.onOpenHandoff];
+      case "canvasCard": {
+        const canvas = entry.handoff?.outcome === "started" ? entry.handoff.target.canvas : withRowId(entry.canvas, props.canvasRows ?? []);
+        return [provider, props.project, canvas, props.canvasListed(canvas), !!props.onOpenHandoff];
+      }
       case "handoffCard": return [props.project, props.canvasListed(entry.origin.canvas), !!props.onOpenHandoff];
       case "marker": return [props.project, props.canvasListed(entry.canvas)];
       default: return [];
@@ -805,7 +886,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
           </span>}
         </div>;
       }
-      case "handoff": return <HandoffLine entry={entry} project={props.project} provider={provider} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
+      case "canvasCard": return <CanvasCard entry={entry} rows={latest.current.canvasRows ?? []} project={props.project} provider={provider} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
       case "handoffCard": return <HandoffCard entry={entry} headId={`${base}-${entry.key}-head`} project={props.project} canvasListed={listed} onOpen={props.onOpenHandoff && openHandoff} />;
       case "marker": {
         const canvas = entry.canvas, listed = props.canvasListed(canvas), name = canvas.path.split("/").at(-1) ?? canvas.path;
@@ -817,7 +898,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
 
   return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><div className="conversation-thread">
     <div className="thread-scroll" ref={scroller} onScroll={onScroll}>
-      <div className="thread">{drawn.map(entry => <ThreadEntry key={entry.key} entry={entry} deps={depsOf(entry)} draw={item} />)}
+      <div className="thread">{stacks(drawn).map(run => run.length === 1 && run[0]!.kind !== "canvasCard"
+        ? <ThreadEntry key={run[0]!.key} entry={run[0]!} deps={depsOf(run[0]!)} draw={item} />
+        // A run of cards stacks closer than thread items do (the draft's gap); each card stays its own item.
+        : <div key={`stack:${run[0]!.key}`} className="thread-item"><div className="canvas-cards">{run.map(card => <ThreadEntry key={card.key} entry={card} deps={depsOf(card)} draw={item} />)}</div></div>)}
         {props.turn && settled.shown.kind !== "none" && settled.shown.kind !== "waiting" &&
           <div className="thread-item"><TurnIndicator text={turnText(settled.shown, p)} at={props.turn.at} provider={provider} /></div>}
         {line && <div className="thread-item" data-item={BACKGROUND_KEY}><div className="bg-line">
@@ -829,7 +913,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         </div></div>}</div>
     </div>
     {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
-    <div className="sr-only" role="status">{copied ? "Copied" : phaseText(items, provider, settled.shown, line !== null)}</div>
+    <div className="sr-only" role="status">{copied ? "Copied" : phaseText(drawn, items, provider, settled.shown, line !== null)}</div>
   </div></ReplyCanvasContext.Provider></Actions.Provider>;
 };
 

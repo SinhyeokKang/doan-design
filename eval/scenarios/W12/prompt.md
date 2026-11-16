@@ -1,0 +1,1 @@
+In this repository, create a Doan design canvas for our Inbox screen on desktop and make it a prototype I can play: a header with the app name and a search field stays fixed at the top, and below it the list of messages scrolls inside the screen. Use our tokens in `.doan/assets/tokens.css`. Make it ready for review.

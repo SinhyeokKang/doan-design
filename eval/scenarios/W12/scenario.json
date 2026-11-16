@@ -1,0 +1,9 @@
+{
+  "id": "W12",
+  "title": "Make a desktop app prototype with a fixed header and inner scroll",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": null
+}

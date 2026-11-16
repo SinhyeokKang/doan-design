@@ -1,0 +1,201 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="canvas-drawing-cards"><meta name="doan:width" content="1440"><title>canvas-drawing-cards — Canvas cards in the thread</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/ds-canvas.css"><style>
+/* ── Board layout for this canvas only ── */
+body{padding:var(--space-8);background:var(--surface-inset)}
+.intro{max-width:1100px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle)}
+.intro ul{margin-top:var(--space-2);color:var(--text-subtle);list-style:disc;padding-left:var(--space-5)}
+.intro li+li{margin-top:var(--space-1)}
+.specimen+.specimen{margin-top:var(--space-10)}
+.caption{display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);margin-bottom:var(--space-4);max-width:1100px}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1)}
+.caption h2{font-size:var(--type-body-size);line-height:var(--type-body-line-height);letter-spacing:var(--type-body-letter-spacing);font-weight:var(--type-weight-medium);display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
+.caption p{grid-column:2;color:var(--text-subtle)}
+.tiles{display:flex;flex-wrap:wrap;gap:var(--space-8);align-items:flex-start}
+.tile{display:grid;gap:var(--space-2);justify-items:start}
+.tile-label{max-width:347px;color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+/* A slice of the canvas conversation panel at its default width (347 at 1238 × 780), cut under the thread. */
+.panel-tile{display:flex;width:347px;padding-bottom:var(--space-4);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);overflow:hidden}
+.panel-tile.narrow{width:280px}
+.panel-tile>.right{border-left:0;border-radius:var(--radius-container)}
+/* A slice of the Overview's main column (thread column 720 inside the 24 px side padding), cut under the thread. */
+.ov-tile{width:768px;padding:var(--space-2) var(--space-6) var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+/* One card alone, at the panel's thread width (347 − 2 × 16). */
+.card-tile{width:347px;padding:var(--space-4);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+
+/* ── Restated from app/src/renderer/styles.css as shipped, which canvases cannot link ── */
+.chev{width:var(--space-4);height:var(--space-4);color:var(--text-metadata)}
+.right{background:var(--surface-panel);border-left:1px solid var(--border-standard)}
+.right.doan-conv-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-radius:0 var(--radius-container) var(--radius-container) 0;overflow:hidden}
+.doan-conv-head{display:flex;align-items:center;min-height:var(--size-chrome);padding-right:var(--space-2)}
+.doan-conv-head .doan-icon-button{color:var(--text-standard)}
+.doan-conv-title{flex:1;min-width:0;padding:var(--space-2) 0 var(--space-2) var(--space-2)}
+.doan-conv-title .ov-title.doan-button{max-width:100%}
+.doan-conv-body{flex:1;min-height:0;display:flex;align-items:stretch}
+.doan-conv-content{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+.doan-conv-panel .thread-scroll{padding:var(--space-2) var(--space-4) var(--space-6)}
+.doan-conv-panel .conversation-thread .thread{gap:var(--space-5)}
+.doan-conv-panel .msg-user{max-width:92%}
+.doan-conv-panel :is(.md,.msg-agent p,.bubble){font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+.doan-conv-panel .conversation-thread .ti-reply{font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+.ov-title-wrap{display:flex;min-width:0}
+.ov-title.doan-button{min-width:0;flex-shrink:1;gap:var(--space-1h);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
+.ov-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conversation-thread{position:relative;display:flex;flex-direction:column;min-height:0}
+.conversation-thread .thread{display:flex;flex-direction:column;gap:var(--space-6)}
+.ov-tile .conversation-thread .thread{max-width:720px;margin-inline:auto}
+.conversation-thread .thread-item{display:flex;flex-direction:column;min-width:0}
+.conversation-thread .msg-user{align-self:flex-end;display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-1h);max-width:80%;min-width:0}
+.conversation-thread .bubble{padding:var(--space-2) var(--space-4);border-radius:var(--radius-row);background:var(--surface-accent-subtle);color:var(--text-standard);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+.conversation-thread .msg-sending{display:inline-flex;align-items:center;gap:var(--space-1h);color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.conversation-thread .msg-sending .doan-spinner{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.conversation-thread .msg-agent{display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
+.conversation-thread .md{display:flex;flex-direction:column;gap:var(--space-4);min-width:0;font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing)}
+.conversation-thread .md code{font-family:var(--type-family-mono);font-size:var(--type-body-sm-size);background:var(--surface-inset);border-radius:var(--space-1);padding:var(--space-half) var(--space-1);overflow-wrap:anywhere}
+.conversation-thread .activity{display:flex;flex-direction:column;gap:var(--space-1)}
+.conversation-thread .activity-head{display:inline-flex;align-items:center;gap:var(--space-2);align-self:flex-start;min-height:var(--size-control-sm);padding:0 var(--space-2) 0 var(--space-3);margin-left:calc(-1 * var(--space-3));border-radius:var(--radius-control);color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);max-width:100%}
+.conversation-thread .activity-head span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conversation-thread .activity-head .chev{transform:rotate(-90deg)}
+.conversation-thread .activity-head .doan-spinner{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.strip-agent{display:inline-grid;place-items:center;flex:none}
+.strip-agent .logo{width:var(--size-icon);height:var(--size-icon)}
+.strip-text{display:flex;flex-direction:column;gap:var(--space-1);min-width:0;flex:1}
+.strip-text b{font-weight:var(--type-weight-medium)}
+.strip-actions{display:flex;align-items:center;gap:var(--space-2)}
+.conversation-thread .thread-notice{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:var(--space-1h);row-gap:var(--space-3)}
+.conversation-thread .thread-notice>.strip-actions{grid-column:2;flex-wrap:wrap;margin-block:0;align-self:start}
+.conversation-thread .thread-notice>svg{width:var(--size-icon);height:var(--size-icon)}
+.conversation-thread .thread-notice .strip-text span{white-space:normal;overflow-wrap:anywhere}
+.conversation-thread .marker{display:flex;align-items:center;gap:var(--space-3);color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height)}
+.conversation-thread .marker::before,.conversation-thread .marker::after{content:"";flex:1;height:1px;background:var(--border-standard)}
+.conversation-thread .marker span{display:inline-flex;align-items:center;gap:var(--space-1h);min-width:0;max-width:80%;text-align:center}
+.conversation-thread .marker svg{flex:none;width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.conversation-thread .marker .doan-button{color:var(--text-standard)}
+.conversation-thread .ti-reply{display:flex;align-items:center;gap:var(--space-2);min-width:0;color:var(--text-subtle);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing)}
+.conversation-thread .ti-reply .logo{width:var(--size-icon);height:var(--size-icon)}
+.conversation-thread .ti-reply .ti-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-metadata)}
+.conversation-thread .ti-reply .ti-time{flex:none;color:var(--text-metadata);font-variant-numeric:tabular-nums}
+
+/* ── New, not in code: the canvas card ── */
+/* One card per canvas, stacked at the turn's end. The handoff card's surface (inset fill, row radius, no edge stripe)
+   so the two read as one family; one row: state icon, canvas icon and name over status, Open. The name never wraps: a long one is cut
+   in the middle (keeping the extension) with the full name in a tooltip, and Open never shrinks. The status wraps. */
+.canvas-cards{display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
+.canvas-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:var(--space-2);padding:var(--space-2) var(--space-2) var(--space-2) var(--space-3);border-radius:var(--radius-row);background:var(--surface-inset);min-width:0}
+.canvas-card .cc-icon{display:inline-grid;place-items:center;width:var(--size-icon-sm);height:var(--size-icon-sm);color:var(--text-metadata)}
+.canvas-card .cc-icon svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.canvas-card .cc-icon .doan-spinner{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+.canvas-card .cc-text{display:flex;flex-direction:column;min-width:0}
+/* The sidebar's canvas icon (lucide panels-top-left, as ShellSidebar.tsx) marks the name as a canvas; the state icon stays in its own column. */
+.canvas-card .cc-title{display:flex;align-items:center;gap:var(--space-1);min-width:0}
+.canvas-card .cc-kind{flex:none;width:var(--size-icon-sm);height:var(--size-icon-sm);color:var(--text-standard)}
+.canvas-card .cc-name{min-width:0;overflow:hidden;white-space:nowrap;color:var(--text-standard);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing);font-weight:var(--type-weight-medium)}
+.canvas-card .cc-status{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);overflow-wrap:anywhere}
+.canvas-card .cc-open{flex:none;color:var(--text-standard)}
+/* Board only: the tooltip a cut name shows on hover, drawn open beside its card. */
+.tip-demo{position:relative}
+.tip-demo .doan-tooltip{position:absolute;left:var(--space-8);top:calc(-1 * var(--space-8));width:max-content}
+/* The app portals the tooltip to the window, so the panel never clips it and it wraps only at its own width cap. */
+.panel-tile.narrow,.panel-tile.narrow .doan-conv-panel{overflow:visible}
+</style></head><body>
+<svg class="sprite" aria-hidden="true">
+<symbol id="i-canvas" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></g></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-forward" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 17 5-5-5-5"/><path d="M4 18v-2a4 4 0 0 1 4-4h12"/></g></symbol>
+<symbol id="i-ban" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M4.929 4.929 19.07 19.071"/></g></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/></g></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-new" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></g></symbol>
+<symbol id="i-hide" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/></g></symbol>
+</svg>
+
+<header class="intro"><span class="doan-chip">canvas-drawing-cards · draft for review · 4 frames</span><h1>A turn shows each new canvas it draws as a card at its end.</h1>
+<p>Scope: <code>docs/features/canvas-drawing-cards/</code> (spec ‘완료 조건’ 1–11, design ‘renderer: 카드 항목’). A new file. <code>/design-sync</code> compares only the canvas card (<code>.canvas-card</code> with its icon, name, status and Open) and the stack’s gap, in every frame: <code>running</code>, <code>asking</code>, <code>ended</code>, <code>many</code>. New, not in code: the card and its stack. Everything around them is copied as shipped and only places the cards.</p>
+<ul>
+<li>The card replaces the shipped handoff and missed lines in the original thread (<code>.marker.handoff</code>, drawn in <code>canvas-handoff.html</code>, which stays as it was). The receiving conversation’s handoff card (“Handed off from …”) is unchanged; the canvas card borrows its surface: inset fill, row radius, no edge stripe.</li>
+<li>Copied as shipped: the canvas conversation panel head and thread, the Overview’s thread column (720), the activity row, the turn indicator (<code>TurnIndicator</code>, drawn still: its sweep is not part of this draft), the Send now message’s Sending line, the permission notice, the Stopped notice (<code>ConversationThread.tsx</code>, <code>styles.css</code>, read in this session). Tokens and primitives are linked from <code>app/src/renderer/</code>.</li>
+<li>Example project <code>acme-web</code>. The person asked for a checkout and an account canvas; the turn made <code>checkout-flow.html</code> and <code>account-settings.html</code>. The provider is Claude Code.</li>
+<li>Icons are lucide <code>check</code>, <code>forward</code>, <code>ban</code>, <code>circle-stop</code>, <code>chevron-down</code>, <code>square-pen</code>, <code>panel-right-close</code>, <code>panels-top-left</code> (lucide-react 1.61.0; <code>check</code> and <code>panels-top-left</code> read from <code>app/node_modules</code> in this session, the others copied from <code>canvas-handoff.html</code>). The spinner is the shipped <code>.doan-spinner</code> at icon-sm.</li>
+<li>Presets read: <code>harden</code> (every state, long names, many cards); <code>critique</code> and <code>audit</code> (review after the canvas icon and the Drawn <code>check</code> were added). References: none outside Doan.</li>
+</ul></header>
+
+<section class="specimen"><div class="caption"><span>01</span><h2>While the turn runs <span class="doan-chip" data-ui-variant="translucent">Card new, not in code</span></h2><p>The cards sit together at the turn’s end, right above the turn indicator, in the order each canvas first appeared; the activity row above them keeps running as it does now. Drawing shows the spinner and “Drawing”. A handoff the turn asked for keeps the spinner and changes the status to “Hands off when this turn ends”. Open opens that canvas as Quick Open does. Left: the Overview’s project conversation. Right: a canvas conversation that made two other canvases.</p></div>
+<div class="tiles" data-doan-frame="running" data-doan-title="While the turn runs" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="tile"><div class="ov-tile"><div class="conversation-thread"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Draw a checkout flow and an account settings screen</div></div></div>
+<div class="thread-item"><div class="activity"><button type="button" class="activity-head" aria-expanded="false"><span class="doan-spinner" aria-hidden="true"></span><span>Editing .doan/canvases/account-settings.html</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div>
+<div class="thread-item"><div class="canvas-cards" data-doan-id="cards-running-overview">
+<div class="canvas-card" role="group" aria-label="checkout-flow.html, Drawing" data-doan-id="card-drawing"><span class="cc-icon"><span class="doan-spinner" aria-hidden="true"></span></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">checkout-flow.html</span></span><span class="cc-status">Drawing</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open checkout-flow.html">Open</button></div>
+<div class="canvas-card" role="group" aria-label="account-settings.html, Drawing"><span class="cc-icon"><span class="doan-spinner" aria-hidden="true"></span></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">account-settings.html</span></span><span class="cc-status">Drawing</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open account-settings.html">Open</button></div>
+</div></div>
+<div class="thread-item"><div class="ti ti-reply"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="ti-text">Editing .doan/canvases/account-settings.html</span><span class="ti-time" aria-hidden="true">1m 12s</span></div></div>
+</div></div></div><span class="tile-label">Overview · project conversation · two new canvases</span></div>
+<div class="tile"><div class="panel-tile"><aside class="right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Split checkout and account</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Move checkout and account into their own canvases</div></div></div>
+<div class="thread-item"><div class="activity"><button type="button" class="activity-head" aria-expanded="false"><span>6 steps</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div>
+<div class="thread-item"><div class="canvas-cards" data-doan-id="cards-running-panel">
+<div class="canvas-card" role="group" aria-label="checkout-flow.html, Hands off when this turn ends" data-doan-id="card-drawing-pending"><span class="cc-icon"><span class="doan-spinner" aria-hidden="true"></span></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">checkout-flow.html</span></span><span class="cc-status">Hands off when this turn ends</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open checkout-flow.html">Open</button></div>
+<div class="canvas-card" role="group" aria-label="account-settings.html, Drawing"><span class="cc-icon"><span class="doan-spinner" aria-hidden="true"></span></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">account-settings.html</span></span><span class="cc-status">Drawing</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open account-settings.html">Open</button></div>
+</div></div>
+<div class="thread-item"><div class="ti ti-reply"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="ti-text">Claude Code is working</span><span class="ti-time" aria-hidden="true">48s</span></div></div>
+</div></div></div></div></div></aside></div><span class="tile-label">Canvas conversation · one handoff asked, one still drawing</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>02</span><h2>While a request waits <span class="doan-chip" data-ui-variant="translucent">Card new, not in code</span></h2><p>A permission request or question leaves no turn indicator. The order is the activity row, the cards, a Send now message in flight, then the request, so what needs an answer stays last. The cards keep spinning: the turn is still running.</p></div>
+<div class="tiles" data-doan-frame="asking" data-doan-title="While a request waits" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="tile"><div class="panel-tile"><aside class="right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Split checkout and account</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Move checkout and account into their own canvases</div></div></div>
+<div class="thread-item"><div class="activity"><button type="button" class="activity-head" aria-expanded="false"><span>4 steps</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div>
+<div class="thread-item"><div class="canvas-cards" data-doan-id="cards-asking">
+<div class="canvas-card" role="group" aria-label="checkout-flow.html, Drawing"><span class="cc-icon"><span class="doan-spinner" aria-hidden="true"></span></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">checkout-flow.html</span></span><span class="cc-status">Drawing</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open checkout-flow.html">Open</button></div>
+</div></div>
+<div class="thread-item"><div class="msg-user"><div class="bubble">Keep the payment step on one screen</div><span class="msg-sending"><span class="doan-spinner" aria-hidden="true"></span>Sending</span></div></div>
+<div class="thread-item"><div class="doan-notice thread-notice" role="alert"><span class="strip-agent doan-alert-icon"><img class="logo" src="../assets/provider-logos/claude.png" alt=""></span><span class="strip-text"><b>Claude Code needs your answer</b><span>Write .doan/canvases/account-settings.html</span></span><span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Allow</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Deny</button><button type="button" class="doan-button" data-ui-size="sm"><svg aria-hidden="true"><use href="#i-stop"/></svg>Stop</button></span></div></div>
+</div></div></div></div></div></aside></div><span class="tile-label">Activity → card → Send now message → permission request</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>03</span><h2>After the turn <span class="doan-chip" data-ui-variant="translucent">Card new, not in code</span></h2><p>Each end state alone. The status never repeats the file name. Drawn: the turn ended (done, failed, stopped or cut off by a restart) with no handoff. Its check says the file was written, not that the turn succeeded; the turn's own end notice says how it ended. Handed off: Open goes to the new conversation on that canvas. Refusals, cancel and missed keep the shipped reasons with the <code>ban</code> icon; a refusal for the conversation’s own canvas and a canvas gone since have no Open, and gone adds “No longer in &lt;project&gt;” to whatever the status was. The last tile: a stopped turn, where the spinner stopped at once and the card stays after the shipped Stopped notice. Neither a card appearing nor its status changing is announced; when the turn ends, the thread's existing screen-reader status line adds “N new canvases” after the end title, or says it alone when there is none (“Stopped. 2 new canvases.”).</p></div>
+<div class="tiles" data-doan-frame="ended" data-doan-title="After the turn" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="tile"><div class="card-tile"><div class="canvas-card" role="group" aria-label="checkout-flow.html, Drawn" data-doan-id="card-drawn"><span class="cc-icon"><svg aria-hidden="true"><use href="#i-check"/></svg></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">checkout-flow.html</span></span><span class="cc-status">Drawn</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open checkout-flow.html">Open</button></div></div><span class="tile-label">Drawn</span></div>
+<div class="tile"><div class="card-tile"><div class="canvas-card" role="group" aria-label="checkout-flow.html, Handed off" data-doan-id="card-handed-off"><span class="cc-icon"><svg aria-hidden="true"><use href="#i-forward"/></svg></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">checkout-flow.html</span></span><span class="cc-status">Handed off</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open the new conversation on checkout-flow.html">Open</button></div></div><span class="tile-label">Handed off · Open goes to the new conversation</span></div>
+<div class="tile"><div class="card-tile"><div class="canvas-card" role="group" aria-label="drafts.html, Didn’t hand off. It existed before this turn started." data-doan-id="card-refused"><span class="cc-icon"><svg aria-hidden="true"><use href="#i-ban"/></svg></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">drafts.html</span></span><span class="cc-status">Didn’t hand off. It existed before this turn started.</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open drafts.html">Open</button></div></div><span class="tile-label">Refused · not new (no Drawing before it)</span></div>
+<div class="tile"><div class="card-tile"><div class="canvas-card" role="group" aria-label="home.html, Didn’t hand off. It’s this conversation’s own canvas." data-doan-id="card-refused-own"><span class="cc-icon"><svg aria-hidden="true"><use href="#i-ban"/></svg></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">home.html</span></span><span class="cc-status">Didn’t hand off. It’s this conversation’s own canvas.</span></span></div></div><span class="tile-label">Refused · own canvas · no Open</span></div>
+<div class="tile"><div class="card-tile"><div class="canvas-card" role="group" aria-label="checkout-flow.html, Didn’t hand off. The turn didn’t finish." data-doan-id="card-cancelled"><span class="cc-icon"><svg aria-hidden="true"><use href="#i-ban"/></svg></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">checkout-flow.html</span></span><span class="cc-status">Didn’t hand off. The turn didn’t finish.</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open checkout-flow.html">Open</button></div></div><span class="tile-label">Cancelled</span></div>
+<div class="tile"><div class="card-tile"><div class="canvas-card" role="group" aria-label="account-settings.html, Didn’t hand off. The agent didn’t ask to." data-doan-id="card-missed"><span class="cc-icon"><svg aria-hidden="true"><use href="#i-ban"/></svg></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">account-settings.html</span></span><span class="cc-status">Didn’t hand off. The agent didn’t ask to.</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open account-settings.html">Open</button></div></div><span class="tile-label">Missed</span></div>
+<div class="tile"><div class="card-tile"><div class="canvas-card" role="group" aria-label="checkout-flow.html, Handed off · No longer in acme-web" data-doan-id="card-gone"><span class="cc-icon"><svg aria-hidden="true"><use href="#i-forward"/></svg></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">checkout-flow.html</span></span><span class="cc-status">Handed off · No longer in acme-web</span></span></div></div><span class="tile-label">Gone since (any status gains the tail) · no Open</span></div>
+<div class="tile"><div class="panel-tile"><aside class="right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Split checkout and account</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Move checkout and account into their own canvases</div></div></div>
+<div class="thread-item"><div class="activity"><button type="button" class="activity-head" aria-expanded="false"><span>5 steps</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div>
+<div class="thread-item"><div class="doan-notice thread-notice"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-stop"/></svg><span class="strip-text"><b>Stopped</b><span>You stopped the agent.</span></span></div></div>
+<div class="thread-item"><div class="canvas-cards" data-doan-id="cards-stopped">
+<div class="canvas-card" role="group" aria-label="checkout-flow.html, Didn’t hand off. The turn didn’t finish."><span class="cc-icon"><svg aria-hidden="true"><use href="#i-ban"/></svg></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">checkout-flow.html</span></span><span class="cc-status">Didn’t hand off. The turn didn’t finish.</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open checkout-flow.html">Open</button></div>
+<div class="canvas-card" role="group" aria-label="account-settings.html, Drawn"><span class="cc-icon"><svg aria-hidden="true"><use href="#i-check"/></svg></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">account-settings.html</span></span><span class="cc-status">Drawn</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open account-settings.html">Open</button></div>
+</div></div>
+</div></div></div></div></div></aside></div><span class="tile-label">Stopped turn · the cards come after the turn’s end notice</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>04</span><h2>Many cards in the narrowest panel <span class="doan-chip" data-ui-variant="translucent">Card new, not in code</span></h2><p>The prototype window’s conversation panel at its narrowest (280), the same thread as the canvas panel. Six new canvases stack with no cap and no folding; the thread scrolls as it does now. A long name is cut in the middle, keeping the extension, and shows the full name in the shipped tooltip on hover (drawn open here). Open keeps its width; in this window it brings the main window forward first.</p></div>
+<div class="tiles" data-doan-frame="many" data-doan-title="Many cards in the narrowest panel" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="tile"><div class="panel-tile narrow"><aside class="right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Draw the onboarding screens</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="activity"><button type="button" class="activity-head" aria-expanded="false"><span class="doan-spinner" aria-hidden="true"></span><span>Editing .doan/canvases/onboarding-done.html</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div>
+<div class="thread-item"><div class="canvas-cards" data-doan-id="cards-many">
+<div class="canvas-card" role="group" aria-label="onboarding-welcome.html, Drawing"><span class="cc-icon"><span class="doan-spinner" aria-hidden="true"></span></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">onboarding-welcome.html</span></span><span class="cc-status">Drawing</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open onboarding-welcome.html">Open</button></div>
+<div class="canvas-card tip-demo" role="group" aria-label="onboarding-permissions-for-returning-workspace-admins.html, Drawing" data-doan-id="card-long-name"><span class="cc-icon"><span class="doan-spinner" aria-hidden="true"></span></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name" title="onboarding-permissions-for-returning-workspace-admins.html">onboarding-per…dmins.html</span></span><span class="cc-status">Drawing</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open onboarding-permissions-for-returning-workspace-admins.html">Open</button><span class="doan-tooltip" role="tooltip">onboarding-permissions-for-returning-workspace-admins.html</span></div>
+<div class="canvas-card" role="group" aria-label="onboarding-team.html, Drawing"><span class="cc-icon"><span class="doan-spinner" aria-hidden="true"></span></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">onboarding-team.html</span></span><span class="cc-status">Drawing</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open onboarding-team.html">Open</button></div>
+<div class="canvas-card" role="group" aria-label="onboarding-billing.html, Drawing"><span class="cc-icon"><span class="doan-spinner" aria-hidden="true"></span></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">onboarding-billing.html</span></span><span class="cc-status">Drawing</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open onboarding-billing.html">Open</button></div>
+<div class="canvas-card" role="group" aria-label="onboarding-import.html, Hands off when this turn ends"><span class="cc-icon"><span class="doan-spinner" aria-hidden="true"></span></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">onboarding-import.html</span></span><span class="cc-status">Hands off when this turn ends</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open onboarding-import.html">Open</button></div>
+<div class="canvas-card" role="group" aria-label="onboarding-done.html, Drawing"><span class="cc-icon"><span class="doan-spinner" aria-hidden="true"></span></span><span class="cc-text"><span class="cc-title"><svg class="cc-kind" aria-hidden="true"><use href="#i-canvas"/></svg><span class="cc-name">onboarding-done.html</span></span><span class="cc-status">Drawing</span></span><button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open onboarding-done.html">Open</button></div>
+</div></div>
+<div class="thread-item"><div class="ti ti-reply"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="ti-text">Editing .doan/canvases/onboarding-done.html</span><span class="ti-time" aria-hidden="true">3m 5s</span></div></div>
+</div></div></div></div></div></aside></div><span class="tile-label">Prototype window panel · 280 · six cards, one long name</span></div>
+</div></section>
+</body></html>

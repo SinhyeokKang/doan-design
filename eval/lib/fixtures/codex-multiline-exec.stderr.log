@@ -1,0 +1,22 @@
+
+hook: PostToolUse
+hook: PostToolUse Completed
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -c "python3 - <<'PY'
+from pathlib import Path
+source = Path('.doan/canvases/account.html').read_text()
+mobile = source.replace('content=\"account\"', 'content=\"account-mobile\"').replace('content=\"1200\"', 'content=\"390\"').replace('<title>Account</title>', '<title>Account mobile</title>\\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">')
+mobile = mobile.replace('body { margin: 0; padding: var(--space-8); display: flex; gap: var(--space-8); align-items: flex-start;', 'body { box-sizing: border-box; width: 390px; max-width: 100%; margin: 0; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); align-items: stretch;')
+mobile = mobile.replace('width: 480px; height: 360px;', 'width: 100%; min-width: 0;')
+mobile = mobile.replace('</body>', '  <aside data-doan-id=\"mobile-design-note\">Mobile layout concept; not implemented in product code. Tap target tuning is next.</aside>\\n</body>')
+mobile = mobile.replace('    button {', '    aside { font-size: 12px; line-height: 18px; }\\n    p { overflow-wrap: anywhere; }\\n    button {')
+Path('.doan/canvases/account-mobile.html').write_text(mobile)
+PY" in /private/tmp/doan-eval-R10-codex-fixture/repo
+ succeeded in 0ms:
+hook: PostToolUse
+hook: PostToolUse Completed
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
