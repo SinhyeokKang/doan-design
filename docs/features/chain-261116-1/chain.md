@@ -78,3 +78,4 @@
   - 턴 끝 뒤 늦게 쓰인 `canvas.drawn`이 renderer 목록 한 번 동안 "Drawn · No longer in <project>"로 깜빡일 수 있다(알려진 한계).
   - 링크 1의 실제 턴 probe가 로그인 userData의 `agent-auth/profiles/claude/projects/` 아래에 임시 저장소 세션 파일을 더했다. 체인 끝 로그인 정리에서 userData를 지울 때 함께 지워진다.
   - 링크 2와 겹치는 것은 공유 문서(PRODUCT, ARCHITECTURE, BACKLOG)뿐이다. 링크 2 컨덕터에게 PR 전에 `origin/develop`을 머지하라고 알렸다.
+- 2026-11-16 · 리드: 링크 2의 D10g Codex `preset_reads_allowed` 실패(Codex가 Python `subprocess`나 heredoc `.py`로 `doan`을 실행해 transcript 판독기가 읽지 못함, 실제 범위 밖 읽기 0건)를 사용자가 열린 이슈로 받았다. 병합을 막지 않는다. 판독기 한계는 후속 이슈로 따로 조사한다(링크 2가 BACKLOG에 남긴다).
