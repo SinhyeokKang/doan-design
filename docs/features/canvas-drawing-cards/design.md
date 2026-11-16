@@ -101,6 +101,16 @@
 - 읽은 프리셋: `harden`(그리는 중, Drawn, handoff 대기·시작·거절·취소·missed, 사라짐, 긴 이름, 카드 여러 장 상태를 빠짐없이 그린다).
 - 초안은 새 파일 `.doan/canvases/canvas-drawing-cards.html`로 그린다. 기존 `canvas-handoff.html`은 고치지 않는다.
 
+## 초안 요청
+
+- 캔버스: `.doan/canvases/canvas-drawing-cards.html`, id `canvas-drawing-cards`, 너비 1440.
+- 프레임
+  - `running`: 턴이 도는 동안. 오버뷰 프로젝트 대화(카드 2장, Drawing)와 캔버스 패널(Drawing, Drawing + handoff 대기)을 그린다. 카드 아래에 turn indicator가 있다.
+  - `asking`: 권한 요청이 기다리는 동안 `카드 → Send now 메시지 → 권한 카드` 순서를 그린다.
+  - `ended`: 끝 상태 하나씩. Drawn, Handed off, 거절 not_new, 거절 same_canvas(Open 없음), 취소, missed, 사라짐. 멈춘 턴의 패널(Stopped notice 뒤 Drawn 카드)도 그린다.
+  - `many`: 프로토타입 창의 좁은 패널(280)에 카드 6장과 긴 이름(가운데 줄임, 툴팁)을 그린다.
+- 측정 대상(`/design-sync`): 카드 컴포넌트(`.canvas-card`와 그 안의 아이콘, 이름, 상태 줄, Open)와 카드 묶음 간격. 나머지는 출시된 화면을 옮긴 것이다.
+
 ## PoC 의존
 
 - 없다. 편집 경로 보고(Claude Code·Codex·ACP의 `edit` activity와 `insideDesign`)와 폴더 갱신 시점은 이미 쓰이고 있다. ACP 프로바이더의 편집 경로가 확인되지 않은 한계는 BACKLOG의 기존 항목(missed 줄 항목)에 카드를 더해 적는다.
