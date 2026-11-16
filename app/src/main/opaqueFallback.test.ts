@@ -41,6 +41,8 @@ test("the trigger drops vibrancy, emulates reduced transparency and paints the a
   fallback.trigger();
   expect(window.setVibrancy).toHaveBeenCalledWith(null);
   expect(window.webContents.debugger.sendCommand).toHaveBeenCalledWith("Emulation.setEmulatedMedia", REDUCE);
+  // On the page's own session only: no session id, so no canvas iframe target gets the emulated media.
+  expect(window.webContents.debugger.sendCommand.mock.calls.every(call => call.length === 2)).toBe(true);
   await vi.waitFor(() => expect(window.setBackgroundColor).toHaveBeenCalledWith("#f1f1f2"));
 });
 

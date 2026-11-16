@@ -28,7 +28,10 @@ function opaque(window: FallbackWindow): void {
   window.setVibrancy(null);
   const contents = window.webContents;
   const failed = (error: unknown) => console.error("doan: cannot make the window opaque", error);
-  // Attach fails while DevTools holds the page; the window then keeps its own fills over the plain background.
+  // Attach fails while DevTools holds the page; the window then keeps its own fills over the plain background. The
+  // command goes to the page's own session only: canvases are out-of-process iframes with their own targets, so their
+  // media stays the system's (ARCHITECTURE §1: the app never changes a canvas's styles). Measured in Electron 45 with a
+  // canvas holding a reduced-transparency rule, in the main and prototype windows, opened before and after the fallback.
   const emulate = () => {
     try {
       if (!contents.debugger.isAttached()) contents.debugger.attach();
