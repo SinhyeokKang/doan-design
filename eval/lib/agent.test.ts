@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import { join } from "node:path";
 import { test } from "node:test";
-import { agentCommand, registeredCodexMcpServers, runProcess, readAgentTranscript } from "./agent.ts";
+import { agentCommand, isolateUserInstructions, registeredCodexMcpServers, runProcess, readAgentTranscript } from "./agent.ts";
 import { buildJudgePrompt } from "./judge.ts";
 import { createContext } from "./context.ts";
 
@@ -222,4 +222,88 @@ test("provenance without a shell CLI requires an explicit absent CLI report", as
     writeFileSync(report, "/usr/local/bin/doan\n");
     assert.equal(cliProvenance(report, null).pass, false);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Every file and directory under `dir` with its bytes and modification time, to show a home was left as it was.
+function snapshot(dir: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+    const path = join(entry.parentPath, entry.name);
+    const stat = lstatSync(path);
+    out[path] = `${stat.mtimeMs} ${entry.isFile() ? readFileSync(path, "utf8") : entry.isDirectory() ? "dir" : "other"}`;
+  }
+  return out;
+}
+
+// pac-full D7b-codex stopped on "Say “구현 시작해”" from the user's $CODEX_HOME/AGENTS.md: a run must not inherit the
+// user's own instructions, while it still signs in as the user and keeps the user's model settings.
+test("a Codex run gets its own CODEX_HOME that links only sign-in and config from the user's", () => {
+  const dir = mkdtempSync("/tmp/doan-eval-test-");
+  try {
+    const real = join(dir, "real");
+    mkdirSync(join(real, "skills/mine"), { recursive: true });
+    mkdirSync(join(real, "rules"));
+    mkdirSync(join(real, "sessions"));
+    for (const [name, text] of Object.entries({ "AGENTS.md": "say 구현 시작해\n", "AGENTS.override.md": "override\n", ".env": "PATH=/decoy\n", "auth.json": "{\"tokens\":1}\n", "auth.lock": "", "config.toml": "model = \"m\"\n", "hooks.json": "{}\n", "skills/mine/SKILL.md": "skill\n", "rules/default.rules": "rule\n" }))
+      writeFileSync(join(real, name), text);
+    const before = snapshot(real);
+    const home = join(dir, "run/codex-home");
+    const env = isolateUserInstructions("codex", { CODEX_HOME: real, HOME: dir, PATH: "/run/bin" }, home);
+    assert.equal(env.CODEX_HOME, home);
+    assert.equal(env.PATH, "/run/bin");
+    assert.equal(env.CLAUDE_CODE_DISABLE_CLAUDE_MDS, undefined);
+    assert.deepEqual(readdirSync(home).sort(), ["auth.json", "auth.lock", "config.toml"]);
+    // Links, not copies: Codex writes refreshed tokens through auth.json in place and coordinates with the user's own
+    // Codex through auth.lock, so a copy would leave the user's sign-in behind.
+    for (const name of ["auth.json", "auth.lock", "config.toml"]) {
+      assert.ok(lstatSync(join(home, name)).isSymbolicLink(), name);
+      assert.equal(readlinkSync(join(home, name)), join(real, name));
+    }
+    assert.deepEqual(snapshot(real), before);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a sign-in file the user's Codex home lacks is not linked, and that home defaults to ~/.codex", () => {
+  const dir = mkdtempSync("/tmp/doan-eval-test-");
+  try {
+    mkdirSync(join(dir, ".codex"));
+    writeFileSync(join(dir, ".codex/auth.json"), "{}\n");
+    writeFileSync(join(dir, ".codex/AGENTS.md"), "global\n");
+    const home = join(dir, "run/codex-home");
+    const env = isolateUserInstructions("codex", { HOME: dir }, home);
+    assert.equal(env.CODEX_HOME, home);
+    assert.deepEqual(readdirSync(home), ["auth.json"]);
+    assert.equal(readlinkSync(join(home, "auth.json")), join(dir, ".codex/auth.json"));
+    // An empty CODEX_HOME is unset, as readAgentTranscript reads it.
+    assert.deepEqual(readdirSync(isolateUserInstructions("codex", { HOME: dir, CODEX_HOME: "" }, join(dir, "run2")).CODEX_HOME!), ["auth.json"]);
+    assert.deepEqual(readdirSync(join(dir, ".codex")).sort(), ["AGENTS.md", "auth.json"]);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// Claude Code 2.1.325 loads ~/.claude/CLAUDE.md (or $CLAUDE_CONFIG_DIR/CLAUDE.md) and user rules whenever user settings
+// load, and user settings also carry the model; CLAUDE_CODE_DISABLE_CLAUDE_MDS turns off only the memory files.
+test("a Claude run ignores CLAUDE.md memory files and keeps the user's config directory", () => {
+  const dir = mkdtempSync("/tmp/doan-eval-test-");
+  try {
+    const env = isolateUserInstructions("claude", { CLAUDE_CONFIG_DIR: "/config", HOME: "/home", CODEX_HOME: "/codex" }, join(dir, "unused"));
+    assert.equal(env.CLAUDE_CODE_DISABLE_CLAUDE_MDS, "1");
+    assert.equal(env.CLAUDE_CONFIG_DIR, "/config");
+    assert.equal(env.CODEX_HOME, "/codex");
+    assert.equal(existsSync(join(dir, "unused")), false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// CLAUDE_CODE_DISABLE_CLAUDE_MDS also hides a project's own memory files, so a seed must not rely on one.
+test("no scenario seed carries a project memory file the Claude isolation would hide", () => {
+  const scenarios = join(import.meta.dirname, "../scenarios");
+  const found: string[] = [];
+  for (const id of readdirSync(scenarios)) {
+    const seed = join(scenarios, id, "seed");
+    if (!existsSync(seed) || !statSync(seed).isDirectory()) continue;
+    for (const entry of readdirSync(seed, { recursive: true, withFileTypes: true })) {
+      const path = join(entry.parentPath, entry.name).slice(seed.length + 1);
+      if (/(?:^|\/)(?:CLAUDE\.md|CLAUDE\.local\.md)$|(?:^|\/)\.claude\/rules(?:\/|$)/.test(path)) found.push(`${id}/seed/${path}`);
+    }
+  }
+  assert.deepEqual(found, []);
 });

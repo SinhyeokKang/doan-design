@@ -278,3 +278,36 @@ test("canvas-only seeds are initialized even though .doan already exists", async
     assert.equal(sh(cli, ["check", "--json", "--repo", ws.repo], ws.repo, ws.env).code, 0);
   } finally { await ws.dispose(); }
 });
+
+test("each real agent's environment leaves out the user's own instruction files; the fixture agent's is unchanged", async () => {
+  const saved = process.env.CODEX_HOME;
+  const fake = mkdtempSync("/tmp/doan-eval-codex-home-");
+  try {
+    writeFileSync(join(fake, "auth.json"), "{}\n");
+    writeFileSync(join(fake, "config.toml"), "");
+    writeFileSync(join(fake, "AGENTS.md"), "global\n");
+    process.env.CODEX_HOME = fake;
+    const codex = await prepareWorkspace({ scenario: seeded(), agent: "codex", cli, stub: "stub\n" });
+    try {
+      assert.ok(codex.env.CODEX_HOME?.startsWith(`${codex.base}/`), codex.env.CODEX_HOME);
+      assert.ok(!codex.env.CODEX_HOME.startsWith(`${codex.repo}/`));
+      assert.equal(existsSync(join(codex.env.CODEX_HOME, "AGENTS.md")), false);
+      assert.equal(readFileSync(join(codex.env.CODEX_HOME, "auth.json"), "utf8"), "{}\n");
+      assert.equal(git(codex.repo, ["status", "--porcelain"]), "");
+    } finally { await codex.dispose(); }
+    assert.equal(readFileSync(join(fake, "AGENTS.md"), "utf8"), "global\n");
+    const claude = await prepareWorkspace({ scenario: seeded(), agent: "claude", cli, stub: "stub\n" });
+    try {
+      assert.equal(claude.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS, "1");
+      assert.equal(claude.env.CODEX_HOME, fake);
+    } finally { await claude.dispose(); }
+    const fixture = await prepareWorkspace({ scenario: seeded(), agent: "fixture", cli, stub: "stub\n" });
+    try {
+      assert.equal(fixture.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS, undefined);
+      assert.equal(fixture.env.CODEX_HOME, fake);
+    } finally { await fixture.dispose(); }
+  } finally {
+    if (saved === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = saved;
+    rmSync(fake, { recursive: true, force: true });
+  }
+});
