@@ -31,6 +31,7 @@
   - hover와 pressed 채움도 같은 `::before`에 그린다. `cursor: default`는 그대로다(macOS 관례).
   - tray의 `container-type: inline-size`는 자르지 않는다. popover는 Portal이라 잘리지 않는다.
 - **역할과 포커스**: 서랍은 dialog(popover)다. 고를 항목이 없으므로 Model/Effort 같은 menu 의미(화살표 이동, 고르면 닫힘)를 쓰지 않는다. 열면 내용 컨테이너(`tabIndex=-1`)로 포커스를 옮긴다. `aria-labelledby`는 "Context window" 머리말이다. `onOpenAutoFocus`를 막지 않으므로 포스트모템 2026-11-09의 포커스 가드는 필요 없다.
+- **padding**: 서랍과 헤더 Agent usage popover 모두 컨테이너 padding을 16px(`--space-4`)로 둔다(사용자 결정). 공용 `.doan-popover`(12px)는 바꾸지 않고 두 popover의 클래스에서만 덮는다. 헤더 popover의 측정값(`docs/design/`)도 함께 바뀐다.
 - **배치**: 헤더 Agent usage popover와 같은 규칙을 쓴다(`align="end"`, `sideOffset` 4, `collisionPadding` 8). 링이 창 아래쪽에 있어 위로 뒤집혀 열리고, 열린 동안 composer 카드를 가린다(사용자 결정).
 - **툴팁**: 서랍이 열려 있을 때와, 서랍을 닫아 포커스가 링으로 돌아온 직후의 focus로는 열지 않는다. 다음 hover나 다음 키보드 포커스에서는 연다.
 - **읽기**: 서랍을 열 때 `usageRequest({ trigger: "open" })`, Refresh는 `{ trigger: "refresh" }`. 헤더와 같은 서비스와 메모리 값을 쓰고, 새 IPC 형식은 없다.

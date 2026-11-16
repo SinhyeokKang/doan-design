@@ -36,6 +36,7 @@
    - 서랍(Radix Popover, dialog, `side="top"`, `align="end"`)을 단다.
    - host 구독, `SharedWithMain`과 `ConversationCalls` 경로, `usageHidden` prop을 연결한다. 오버뷰, 캔버스 패널, 프로토타입 창 패널에 적용한다.
    - 히트 영역과 hover/pressed 채움은 `::before`로 그린다. CSS 셀렉터를 옮긴다.
+   - 서랍과 헤더 `.usage-pop`의 padding을 16px로 둔다(공용 `.doan-popover`는 그대로).
    - 확인: `npm --prefix app run typecheck`, `npm --prefix app run lint`, `npm --prefix app test`(헤더 `AgentUsageButton` 테스트가 그대로 통과). 그다음 `/design-sync`로 `context-ring-drawer.html`과 비교한다.
 5. **레이아웃 불변 판정**: 1의 측정을 구현 뒤 같은 구성으로 다시 잰다.
    - 확인: 측정 스크립트가 exit 0이고, 모든 구성에서 tray 자식의 박스와 tray 높이가 기준과 차이 0px다. 히트 영역이 이웃 피커와 겹치지 않는다(경계 좌표에서 `elementFromPoint`가 각자의 요소를 돌려준다).
