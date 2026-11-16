@@ -32,6 +32,12 @@
      - 모달 위치, 스크립트 범위, `data-doan-id`, 재생마다 초기화, 상태 분리
      - 범위 확인 한 줄
    ──
+3b. **평가 시나리오 W12**: `eval/scenarios/W12/`를 기존 시나리오(W11)와 같은 구성(`scenario.json`, `prompt.md`, `rubric.md`, `checks.ts`, `checks.test.ts`, `seed`, `fixtures/pass`·`fail`)으로 만든다.
+   - 프롬프트: 헤더가 고정되고 본문이 안에서 스크롤되는 데스크톱 앱 화면을 재생할 수 있는 프로토타입으로 만들어 달라고 한다. 높이나 단위는 말하지 않는다.
+   - 통과 조건(checks): 표시된 프레임이 있고 WxH가 데스크톱 viewport다. 높이에 `var(--doan-viewport-height, <px>)`를 쓰고 대체값이 WxH의 H와 같다. 캔버스에 vh 계열 단위가 없다. `doan check`에 `viewport_height_no_fallback`과 `viewport_height_unit`이 없다. 변수를 직접 정의하지 않는다.
+   - fail fixture: `100vh`를 쓰거나, 내용 높이로 WxH를 정하거나, 대체값이 없는 경우.
+   - 확인: `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios W12`가 `self-test PASS`와 종료 코드 0.
+   ──
 4. **실제 확인**: `/runtime-test`로 격리된 앱에서 프레임 두 개(표시된 1440x900 하나는 `height: var(--doan-viewport-height, 900px)`로 헤더 고정과 내부 스크롤을 쓰고, 다른 하나는 표시하지 않음)가 있는 캔버스를 본다.
    - 보드: 900 높이로 보이고 안에서 스크롤된다. 표시하지 않은 프레임은 지금과 같다.
    - 썸네일: 대체값 높이로 찍힌다.
@@ -40,13 +46,13 @@
    - `doan export --frame --prototype` 파일: Chromium과 WebKit에서 열고 창 크기를 바꾸면 높이가 따라간다.
    - `--frame` 없는 캔버스 export 뷰어: 대체값을 쓴다.
    - 확인: `/runtime-test` 보고와 스크린샷. 실제 휴대폰 Safari는 확인하지 못한 항목으로 남긴다.
-5. **검증 게이트**: `node .agents/skills/verify/scripts/verify.mjs`.
+5. **검증 게이트**: `node .agents/skills/verify/scripts/verify.mjs --eval`(W12 시나리오를 더하므로 `--eval`).
    - 확인: 종료 코드 0.
 6. **에이전트 평가** (마지막 통합 전)
    - 준비: `npm --prefix app run package`.
-   - `/agent-eval`로 W 계열 전부와 X2를 Claude Code와 Codex로 돌린다(규칙 11은 모든 시나리오가 읽는다). 프로토타입 마크를 쓰는 시나리오는 W7, W11이다.
-   - W7·W11에서 에이전트가 질문으로 멈추지 않는지 본다.
-   - 창 높이 레이아웃을 요구하는 시나리오가 필요한지 판단해 `docs/USABILITY-EVAL.md` Issues에 적는다.
+   - `/agent-eval`로 W 계열 전부(새 W12 포함)와 X2를 Claude Code와 Codex로 돌린다(규칙 11은 모든 시나리오가 읽는다). 프로토타입 마크를 쓰는 시나리오는 W7, W11, W12다.
+   - W7·W11·W12에서 에이전트가 질문으로 멈추지 않는지 본다.
+   - W12에서 두 에이전트가 변수와 대체값을 쓰는지 본다. 실패하면 원인을 `docs/USABILITY-EVAL.md` Issues에 적는다.
    - 확인: `docs/usability-eval/rounds-2026-11.md`에 라운드 기록이 있고, 새 회귀가 없다.
    ──
 7. **ARCHITECTURE 승격**
