@@ -31,13 +31,16 @@ export type ThreadItem =
   // seq is null for the end a crash-folded turn never wrote; its key is the turn's, so it stays when later turns arrive.
   | { kind: "end"; key: string; seq: number | null; end: TurnEnd }
   | { kind: "marker"; key: string; seq: number; marker: "bound"; canvas: Canvas }
-  // A turn's handoff, one line per requested path: the line sits where the request was made, and its resolution, which
-  // comes after the turn's end, replaces it there. "missed": a new canvas the turn edited and asked no handoff for, with
-  // its ID so a later rename or removal is judged as for a target; it sits after the turn's last handoff line.
-  | { kind: "handoff"; key: string; canvas: Canvas; outcome: "pending" | "started" | "refused" | "cancelled" | "missed"; target?: { conversationId: string; canvas: Canvas }; reason?: string }
+  // A canvas of a turn, one card per path at the turn's end: one it drew (canvas.drawn, so `drawn`), one it asked a
+  // handoff for, or a missed handoff ("missed": a new canvas the turn edited and asked no handoff for). Its key is the
+  // turn's and the path's, so the card stays the same element through every status. `drawing`: its turn still runs.
+  | { kind: "canvasCard"; key: string; canvas: Canvas; drawing: boolean; drawn: boolean; handoff?: CardHandoff }
   // A conversation a handoff started: its first message is the earlier agent's text, never the person's, so it is not
   // read for a preset line or {{n}} markers.
   | { kind: "handoffCard"; key: string; seq: number; origin: HandoffOrigin; text: string };
+
+export type CardHandoff = { outcome: "pending" | "cancelled" | "missed" } | { outcome: "started"; target: { conversationId: string; canvas: Canvas } } | { outcome: "refused"; reason: string };
+type CanvasCard = Extract<ThreadItem, { kind: "canvasCard" }>;
 
 // A sent file or folder as its message recorded it; a folder's path is its tooltip.
 export type SentFile = AttachmentRecord;
@@ -164,11 +167,19 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
   let turn: string | null = null, group: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string } | null = null;
   const groups: { item: Extract<ThreadItem, { kind: "activity" }>; turnId: string }[] = [];
   const turnOf = new Map<string, string>(), askTurn = new Map<string, string>();
-  // Handoff lines by `${turnId}:${path}`, and each turn's lines in order: a resolution without a path (written before
-  // a turn could request several) settles the turn's only line.
-  const handoffs = new Map<string, Extract<ThreadItem, { kind: "handoff" }>>(), turnHandoffs = new Map<string, Extract<ThreadItem, { kind: "handoff" }>[]>();
-  // Each turn's last item, where a missed line goes when the turn drew no handoff line. main writes the missed line
-  // after the turn's end, possibly after the next message, so it is placed by its turn, not by its arrival.
+  // Each turn's cards in the order their paths first appeared, placed once every event is read: canvas.drawn and
+  // handoff.missed come after the turn's end too, possibly after the next message, so a card goes by its turn, not by its
+  // arrival, and it never closes the activity group still open.
+  const cards = new Map<string, CanvasCard>(), turnCards = new Map<string, CanvasCard[]>();
+  const card = (turnId: string, canvas: Canvas): CanvasCard => {
+    const id = `${turnId}:${canvas.path}`, held = cards.get(id);
+    // A drawn or missed canvas carries its ID, which a request's path alone lacks; the ID judges a later rename.
+    if (held) { if (canvas.id !== undefined && held.canvas.id === undefined) held.canvas = canvas; return held; }
+    const item: CanvasCard = { kind: "canvasCard", key: `c${id}`, canvas, drawing: false, drawn: false };
+    cards.set(id, item); turnCards.set(turnId, [...(turnCards.get(turnId) ?? []), item]);
+    return item;
+  };
+  // Each turn's last item, which its cards follow.
   const lastOf = new Map<string, ThreadItem>();
   const endTurn = (turnId: string) => {
     ended.add(turnId);
@@ -202,28 +213,24 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         if (turn !== null && !ended.has(turn)) foldCrashed(turn);
         turn = event.turnId;
         continue;
-      // Written after the turn's end with the asking turn's id, and possibly after an archive marker.
+      // Written after the turn's end with the asking turn's id, and possibly after an archive marker. A resolution
+      // without a path (written before a turn could request several) settles the turn's only requested card.
       case "handoff.resolved": {
-        const lines = turnHandoffs.get(event.turnId) ?? [];
-        const line = event.canvas ? handoffs.get(`${event.turnId}:${event.canvas.path}`) : lines.length === 1 ? lines[0] : undefined;
-        if (line?.outcome !== "pending") continue;
-        line.outcome = event.outcome;
-        if (event.outcome === "started") line.target = event.target;
-        if (event.outcome === "refused") line.reason = event.reason;
+        const asked = (turnCards.get(event.turnId) ?? []).filter(item => item.handoff);
+        const item = event.canvas ? cards.get(`${event.turnId}:${event.canvas.path}`) : asked.length === 1 ? asked[0] : undefined;
+        if (item?.handoff?.outcome !== "pending") continue;
+        item.handoff = event.outcome === "started" ? { outcome: "started", target: event.target } : event.outcome === "refused" ? { outcome: "refused", reason: event.reason } : { outcome: event.outcome };
         continue;
       }
       case "handoff.missed": {
-        const id = `${event.turnId}:${event.canvas.path}`;
-        if (handoffs.has(id)) continue;
-        const item = { kind: "handoff" as const, key: `h${id}`, canvas: event.canvas, outcome: "missed" as const };
-        const lines = turnHandoffs.get(event.turnId) ?? [];
-        const anchor = lines.at(-1) ?? lastOf.get(event.turnId), at = anchor ? items.indexOf(anchor) + 1 : items.length;
-        // Only a line at the very end closes the running activity group; one placed back in its turn leaves it open.
-        if (at === items.length) group = null;
-        items.splice(at, 0, item);
-        handoffs.set(id, item); turnHandoffs.set(event.turnId, [...lines, item]);
+        const item = card(event.turnId, event.canvas);
+        if (!item.handoff) item.handoff = { outcome: "missed" };
         continue;
       }
+      // Written while the turn runs or up to main's promotion deadline after its end.
+      case "canvas.drawn":
+        card(event.turnId, event.canvas).drawn = true;
+        continue;
     }
     // Nothing after a turn's end counts, as in main's fold.
     if (event.turnId !== turn || ended.has(event.turnId)) continue;
@@ -283,11 +290,8 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         break;
       }
       case "handoff.requested": {
-        const id = `${event.turnId}:${event.canvas.path}`;
-        if (handoffs.has(id)) break;
-        const item = { kind: "handoff" as const, key: `h${id}`, canvas: { path: event.canvas.path }, outcome: "pending" as Extract<ThreadItem, { kind: "handoff" }>["outcome"] };
-        handoffs.set(id, item); turnHandoffs.set(event.turnId, [...(turnHandoffs.get(event.turnId) ?? []), item]);
-        push(item, event.turnId);
+        const item = card(event.turnId, { path: event.canvas.path });
+        if (!item.handoff) item.handoff = { outcome: "pending" };
         break;
       }
       case "fast.unused":
@@ -308,12 +312,30 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
     }
   }
   if (!live && turn !== null && !ended.has(turn)) foldCrashed(turn);
-  // Nothing judges a request once main holds nothing of this conversation (main's fold: a restart's cancel).
-  if (!live) for (const line of handoffs.values()) if (line.outcome === "pending") line.outcome = "cancelled";
+  for (const [turnId, list] of turnCards) for (const item of list) {
+    item.drawing = turnId === turn && !ended.has(turnId);
+    // Nothing judges a request once main holds nothing of this conversation (main's fold: a restart's cancel).
+    if (!live && item.handoff?.outcome === "pending") item.handoff = { outcome: "cancelled" };
+  }
   // Whether the thread's last row runs is the turn indicator's to say (turnStatus activityRun), not the events': an
   // activity marks a tool's start or end, never both.
   for (const { item } of groups) item.head = stepCount(item.steps.length);
-  return items;
+  return placeCards(items, turnCards, lastOf, askTurn);
+}
+
+// A turn's cards go after its last item. While a request of the running turn waits, they go right above it instead, so
+// Send now's messages, which withSending puts above the first waiting request, come after them and the request stays last.
+function placeCards(items: ThreadItem[], turnCards: ReadonlyMap<string, CanvasCard[]>, lastOf: ReadonlyMap<string, ThreadItem>, askTurn: ReadonlyMap<string, string>): ThreadItem[] {
+  if (turnCards.size === 0) return items;
+  const before = new Map<ThreadItem, CanvasCard[]>(), after = new Map<ThreadItem, CanvasCard[]>(), rest: CanvasCard[] = [];
+  for (const [turnId, list] of turnCards) {
+    const ask = items.find(item => waitsForPerson(item) && askTurn.get(`${item.kind}:${item.requestId}`) === turnId);
+    const last = lastOf.get(turnId);
+    if (ask) before.set(ask, list);
+    else if (last) after.set(last, list);
+    else rest.push(...list);
+  }
+  return [...items.flatMap(item => [...(before.get(item) ?? []), item, ...(after.get(item) ?? [])]), ...rest];
 }
 
 // Messages Send now has in flight, as the person's messages after the history in press order.

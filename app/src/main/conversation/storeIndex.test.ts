@@ -462,6 +462,27 @@ describe("handoff events in event v1", () => {
     ];
     expect(new ConversationStore(f.root).read("c")).toEqual(saved);
   });
+  it("round-trips a drawn canvas with and without an id", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    const saved = [
+      store.append("c", "t", { type: "canvas.drawn", canvas: { path: ".doan/canvases/c.html", id: "c" } }),
+      store.append("c", "t", { type: "canvas.drawn", canvas: { path: ".doan/canvases/plain.html" } }),
+    ];
+    expect(new ConversationStore(f.root).read("c")).toEqual(saved);
+  });
+  it("rejects a drawn canvas that is missing or invalid", () => {
+    const bad = [
+      { type: "canvas.drawn" },
+      { type: "canvas.drawn", canvas: null },
+      { type: "canvas.drawn", canvas: { path: "" } },
+      { type: "canvas.drawn", canvas: { path: "a.html" } },
+      { type: "canvas.drawn", canvas: { path: ".doan/canvases/a.html", id: "Not An Id" } },
+    ];
+    for (const body of bad) {
+      const f = seed({ "c.jsonl": line(body) });
+      expect(() => new ConversationStore(f.root).read("c"), JSON.stringify(body)).toThrow("Invalid conversation event");
+    }
+  });
   it("still reads a resolution written before resolutions named their canvas", () => {
     const old = line({ type: "handoff.resolved", outcome: "started", target: { conversationId: "b", canvas: { path: ".doan/canvases/b.html" } } });
     const f = seed({ "c.jsonl": old });

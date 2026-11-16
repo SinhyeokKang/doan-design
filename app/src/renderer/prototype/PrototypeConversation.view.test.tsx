@@ -168,12 +168,15 @@ describe("main-window-only buttons go to main as reveals", () => {
     panel.onOpenProjectConversation!("p1" as never);
     panel.onOpenPromoted!("c2" as never);
     panel.onOpenHandoff!(CHECKOUT as never, "c3" as never);
+    // A canvas card's Open other than a handed-off one names the canvas alone; the main window opens it as Quick Open does.
+    panel.onOpenHandoff!(CHECKOUT as never);
     expect((calls.reveal as ReturnType<typeof vi.fn>).mock.calls.map(([request]) => request)).toEqual([
       { kind: "reply", conversationId: "c1", link: { canvas: "checkout", kind: "frame", id: "pay" } },
       { kind: "settings", provider: "codex" },
       { kind: "conversation", conversationId: "p1" },
       { kind: "conversation", conversationId: "c2" },
       { kind: "handoff", canvas: CHECKOUT, conversationId: "c3" },
+      { kind: "handoff", canvas: CHECKOUT },
     ]);
   });
 

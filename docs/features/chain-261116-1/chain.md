@@ -14,7 +14,7 @@
 - 링크 2가 고치는 파일: `app/src/main/prototypeScript.ts`, `cli/internal/export/viewer/isolate.js`, `cli/internal/check/`, `cli/internal/cli/skill.md`와 그 테스트, `app/src/main/exportViewer.test.ts`, `eval/scenarios/W12/`.
 - 겹치는 코드, 테스트, schema, skill, 초안 파일이 없다. 공유 문서(PRODUCT, ARCHITECTURE, `docs/design/`, BACKLOG, USABILITY-EVAL)는 겹침으로 치지 않는다. 나중에 병합하는 쪽이 `/ship` 'Lead' 4단계대로 충돌을 푼다.
 
-1. **canvas-drawing-cards** — [spec](../canvas-drawing-cards/spec.md) · [design](../canvas-drawing-cards/design.md) · [tasks](../canvas-drawing-cards/tasks.md)
+1. **canvas-drawing-cards** — 병합됨(#234, 2401bf6d). feature 문서는 승격 뒤 지웠다.
    - 리뷰: `/feature-review` 네 관점을 반영했다(f70cfe47).
    - 초안: `.doan/canvases/canvas-drawing-cards.html`. 사용자가 Doan 앱에서 직접 고친 뒤 확정했다(0c2eabd8, 기록 c4a7f462). tasks 0(초안)은 끝났으므로 컨덕터는 건너뛴다.
    - 먼저 병합하는 이유: 링크 2보다 크고 화면이 바뀐다. 링크 2는 공유 문서만 겹치므로 순서가 결과를 바꾸지 않는다. 링크 1을 먼저 병합해 `docs/design/conversation.md`와 PRODUCT 'Handoff' 재작성을 먼저 굳힌다.
@@ -62,8 +62,8 @@
 
 | 링크 | 세션·워크트리 | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| canvas-drawing-cards | — | — | — | 대기 |
-| prototype-authoring-contract | — | — | — | 대기 |
+| canvas-drawing-cards | claude · `canvas-drawing-cards-orch`(제거됨, `feat/canvas-drawing-cards` 유지) | 2026-11-16 | [#234](https://github.com/SinhyeokKang/doan-design/pull/234) · 2401bf6d | 병합 |
+| prototype-authoring-contract | claude · `prototype-authoring-contract-orch` (`feat/prototype-authoring-contract`) | 2026-11-16 | — | 진행 |
 
 ## 인계 기록
 
@@ -73,3 +73,8 @@
   - `/agent-eval`: 체인 파일대로(링크 2만, W 계열 전부·W12·X2, 막는 기준 그대로).
   - 링크 안 확인 항목(카드 문구, 가이드 문구와 줄일 곳)은 컨덕터가 사용자에게 직접 묻는다.
   - 시작 기준: develop `cd4c38d3`(#233 병합 뒤), 작업 트리 깨끗함.
+- 2026-11-16 · 리드: 링크 1(#234)을 병합했다(2401bf6d). PR 본문에서 다음 링크와 체인이 알아야 할 것:
+  - 실제 턴 runtime-test는 Claude Code로만 했다(`ea3432fe`). 그 뒤의 세 수정(요청만 있는 카드의 `forward`, "N new canvases" 알림 시점, 그리는 중 사라짐 꼬리 제거)은 단위 테스트로만 확인했다.
+  - 턴 끝 뒤 늦게 쓰인 `canvas.drawn`이 renderer 목록 한 번 동안 "Drawn · No longer in <project>"로 깜빡일 수 있다(알려진 한계).
+  - 링크 1의 실제 턴 probe가 로그인 userData의 `agent-auth/profiles/claude/projects/` 아래에 임시 저장소 세션 파일을 더했다. 체인 끝 로그인 정리에서 userData를 지울 때 함께 지워진다.
+  - 링크 2와 겹치는 것은 공유 문서(PRODUCT, ARCHITECTURE, BACKLOG)뿐이다. 링크 2 컨덕터에게 PR 전에 `origin/develop`을 머지하라고 알렸다.

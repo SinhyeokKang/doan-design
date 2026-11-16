@@ -55,7 +55,9 @@ interface RootState {
   moved: Moved | null;
 }
 
-const isMarker = (event: ConversationEvent) => event.type.startsWith("conversation.");
+// canvas.drawn may be written after the turn's end (up to main's promotion deadline), so it never counts as something
+// new to see, as in main's summary.ts lastTurnSeq.
+const isMarker = (event: ConversationEvent) => event.type.startsWith("conversation.") || event.type === "canvas.drawn";
 // main's own measure of what is to be seen (summary.ts lastTurnSeq): markers of binding, archiving and restoring are not.
 export function lastTurnSeq(events: readonly ConversationEvent[]): number | null {
   for (let i = events.length - 1; i >= 0; i--) if (!isMarker(events[i]!)) return events[i]!.seq;

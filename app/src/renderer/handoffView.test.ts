@@ -1,8 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { HandoffMultiNotice, HandoffNotice } from "../main/conversation/handoff";
-import type { Canvas } from "../main/conversation/types";
-import { HANDOFF_WAIT_MS, handoffArrival, handoffCardHead, handoffGoneText, handoffLineText, handoffMove, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
-import { startErrorView } from "./homeComposer";
+import { HANDOFF_WAIT_MS, handoffArrival, handoffCardHead, handoffGoneText, handoffMove, handoffMultiStep, handoffToastText, type HandoffScreen } from "./handoffView";
 
 const DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" }, CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" };
 const notice: HandoffNotice = { root: "/w/a", source: { conversationId: "c1", canvas: DRAFTS }, target: { conversationId: "c2", canvas: CHECKOUT } };
@@ -65,49 +63,6 @@ describe("handoffArrival: the wait for the target's list read", () => {
 });
 
 describe("handoff copy", () => {
-  const ctx = { project: "acme-web", provider: "claude" as const, listed: (_canvas: Canvas) => true };
-  const line = (item: Parameters<typeof handoffLineText>[0], over: Partial<typeof ctx> = {}) => handoffLineText(item, { ...ctx, ...over });
-  const base = { kind: "handoff" as const, key: "ht1", canvas: { path: CHECKOUT.path } };
-  test("pending, handed off and cancelled lines name the file", () => {
-    expect(line({ ...base, outcome: "pending" })).toEqual({ icon: "forward", text: "Hands off to checkout-flow.html when this turn ends", open: null });
-    const target = { conversationId: "c2", canvas: CHECKOUT };
-    expect(line({ ...base, outcome: "started", target })).toEqual({ icon: "forward", text: "Handed off to checkout-flow.html", open: target });
-    expect(line({ ...base, outcome: "cancelled" })).toEqual({ icon: "ban", text: "Didn’t hand off to checkout-flow.html. The turn didn’t finish.", open: null });
-  });
-  test("a handed-off target that is gone hides Open and says so", () => {
-    expect(line({ ...base, outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } }, { listed: () => false }))
-      .toEqual({ icon: "forward", text: "Handed off to checkout-flow.html · No longer in acme-web", open: null });
-  });
-  test.each([
-    ["not_listed", "Didn’t hand off to checkout-flow.html. It isn’t a single canvas in acme-web."],
-    ["not_new", "Didn’t hand off to checkout-flow.html. It existed before this turn started."],
-    ["has_conversation", "Didn’t hand off to checkout-flow.html. It already has a conversation."],
-    // A refused start's own code: a canvas gone at the start reads as not listed.
-    ["canvas_not_found", "Didn’t hand off to checkout-flow.html. It isn’t a single canvas in acme-web."],
-  ])("refused %s", (reason, text) => {
-    expect(line({ ...base, outcome: "refused", reason })).toEqual({ icon: "ban", text, open: null });
-  });
-  test("same_canvas names the conversation's own canvas", () => {
-    expect(line({ kind: "handoff", key: "ht1", canvas: { path: DRAFTS.path }, outcome: "refused", reason: "same_canvas" }))
-      .toEqual({ icon: "ban", text: "Didn’t hand off. drafts.html is this conversation’s own canvas.", open: null });
-  });
-  test("any other refused start reads as the shipped start refusal after the line's lead", () => {
-    for (const code of ["not_logged_in", "busy", "session_in_use", "project_not_open", "bad_request"]) {
-      expect(line({ ...base, outcome: "refused", reason: code }).text).toBe(`Didn’t hand off to checkout-flow.html. ${startErrorView(code, "claude", "acme-web").text}`);
-    }
-  });
-  test("a missed canvas: the ban line with Open on that canvas, no conversation", () => {
-    const missed = { ...base, canvas: CHECKOUT, outcome: "missed" as const };
-    expect(line(missed)).toEqual({ icon: "ban", text: "Didn’t hand off to checkout-flow.html. The agent didn’t ask to.", open: { canvas: CHECKOUT } });
-  });
-  test("a missed canvas that is gone hides Open and says it is no longer in the project", () => {
-    const missed = { ...base, canvas: CHECKOUT, outcome: "missed" as const };
-    const asked: unknown[] = [];
-    expect(line(missed, { listed: canvas => { asked.push(canvas); return false; } }))
-      .toEqual({ icon: "ban", text: "Didn’t hand off to checkout-flow.html. The agent didn’t ask to. It’s no longer in acme-web.", open: null });
-    // Found by ID, as the other lines' targets are.
-    expect(asked).toEqual([CHECKOUT]);
-  });
   test("the card head, the toast and the vanished target's answer", () => {
     expect(handoffCardHead(DRAFTS, "acme-web", true)).toBe("Handed off from drafts.html");
     expect(handoffCardHead(DRAFTS, "acme-web", false)).toBe("Handed off from drafts.html · No longer in acme-web");

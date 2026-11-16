@@ -194,6 +194,15 @@ describe("handoff events", () => {
       { type: "handoff.resolved", canvas: { path: ".doan/canvases/new.html" }, outcome: "refused", reason: "not_listed" }, missed);
     expect(conversationSummary({ ...canvasDoan, seenSeq: 4 }, { ok: true, events }, live).unseen).toBe(false);
   });
+  it("leaves a seen end seen when a drawn canvas is announced after it, also after a missed line, and counts one inside the turn", () => {
+    const drawn = { type: "canvas.drawn" as const, canvas: { path: ".doan/canvases/d.html", id: "d" } };
+    const missed = { type: "handoff.missed" as const, canvas: { path: ".doan/canvases/m.html", id: "m" } };
+    expect(conversationSummary({ ...doan, seenSeq: 3 }, { ok: true, events: history(...started, { type: "turn.done" }, drawn) }, live).unseen).toBe(false);
+    expect(conversationSummary({ ...canvasDoan, seenSeq: 3 }, { ok: true, events: history(...started, { type: "turn.done" }, missed, drawn, drawn) }, live).unseen).toBe(false);
+    expect(conversationSummary({ ...legacy, seenSeq: 3 }, { ok: true, events: history(...started, { type: "turn.done" }, drawn) }, live).unseen).toBe(false);
+    // Written while the turn ran, it stays before the end, which is what the person has not seen.
+    expect(conversationSummary({ ...doan, seenSeq: 3 }, { ok: true, events: history(...started, drawn, { type: "turn.done" }) }, live).unseen).toBe(true);
+  });
 });
 
 
