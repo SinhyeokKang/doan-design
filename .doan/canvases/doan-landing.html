@@ -1,0 +1,262 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="doan-landing"><meta name="doan:width" content="2100"><title>Doan landing</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/controls.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2')}
+*{box-sizing:border-box}
+body{margin:0;padding:var(--space-16);width:2100px;background:var(--bg-app);color:var(--text-standard);font-family:var(--type-family)}
+h1,h2,h3,p{margin:0}
+a{color:inherit;text-decoration:none}
+/* Board header and notes: the draft's own chrome, not part of the page. */
+.intro{max-width:1500px;margin-bottom:var(--space-12)}
+.intro h1{font-size:48px;font-weight:var(--type-weight-medium);letter-spacing:-2px}
+.intro p{font-size:var(--type-body-lg-size);line-height:1.6;margin-top:var(--space-4);color:var(--text-subtle)}
+.board{display:flex;gap:var(--space-16);align-items:flex-start;margin-bottom:72px}
+.cap{margin-bottom:var(--space-5)}
+.cap h2{font-size:28px;font-weight:var(--type-weight-medium)}
+.cap p{font-size:var(--type-label-size);margin-top:var(--space-2);color:var(--text-subtle);line-height:1.6;max-width:1440px}
+.badge{display:inline-block;font-size:13px;font-weight:var(--type-weight-medium);padding:var(--space-half) var(--space-2);border-radius:6px;background:var(--violet-3);color:var(--violet-11);margin-left:var(--space-2);vertical-align:middle}
+.notes{width:1440px;padding:var(--space-8);background:var(--surface-panel);border-radius:var(--radius-row)}
+.notes h2{font-size:28px;font-weight:var(--type-weight-medium);margin-bottom:var(--space-4)}
+.notes h3{font-size:var(--type-heading-size);font-weight:var(--type-weight-medium);margin:var(--space-6) 0 var(--space-2)}
+.notes li{font-size:var(--type-label-size);line-height:1.8;color:var(--text-subtle)}
+.notes code{font-family:var(--type-family-mono);font-size:14px}
+
+/* ---------- The page (shared) ---------- */
+.page{position:relative;overflow:hidden;flex:none;background:var(--surface-panel);border-radius:var(--radius-row);box-shadow:var(--shadow-panel)}
+/* Doan's board texture: the dot grid every canvas sits on, used here as the site's ground. */
+.dots{background-image:radial-gradient(circle,var(--board-dot) 1px,transparent 1.5px);background-size:var(--texture-dots-size) var(--texture-dots-size)}
+.nav{display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:var(--space-2);font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);font-weight:var(--type-weight-semibold);letter-spacing:var(--type-body-lg-letter-spacing)}
+.logo img{width:28px;height:28px;display:block}
+.navlinks{display:flex;align-items:center;gap:var(--space-6);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
+.navlinks a:not(.doan-button){color:var(--text-subtle)}
+.doan-button svg{width:var(--size-icon);height:var(--size-icon);flex:none}
+.wordmark{font-weight:var(--type-weight-medium);line-height:1;letter-spacing:-.075em}
+.hero{text-align:center;display:flex;flex-direction:column;align-items:center}
+.ctas{display:flex;gap:var(--space-3)}
+.fine{font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);color:var(--text-metadata)}
+/* The group photo has a pure-white backdrop; multiply lets the dot grid show through it. */
+.group{display:block;height:auto;mix-blend-mode:multiply;-webkit-mask-image:linear-gradient(to bottom,black 86%,transparent);mask-image:linear-gradient(to bottom,black 86%,transparent)}
+.display{font-weight:var(--type-weight-regular);text-align:center;text-wrap:balance}
+.lede{color:var(--text-subtle);text-align:center;text-wrap:balance}
+.video{position:relative;overflow:hidden;box-shadow:var(--shadow-floating)}
+.video img{display:block;width:100%;height:auto}
+.play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;place-items:center;border-radius:var(--radius-pill);background:var(--affordance-prominent);color:var(--text-on-prominent);box-shadow:var(--shadow-floating)}
+.play svg{display:block}
+.ph{position:absolute;left:var(--space-4);top:var(--space-4);margin:0}
+.cards{display:grid}
+.card{background:var(--surface-panel);border-radius:var(--radius-container);box-shadow:var(--shadow-panel);padding:var(--space-2);display:flex;flex-direction:column}
+.pic{position:relative;border-radius:var(--radius-row);display:grid;place-items:end center;overflow:hidden}
+.pic img{display:block}
+.pic .badge{position:absolute;left:var(--space-2);top:var(--space-2);margin:0;background:var(--surface-panel)}
+.doany .pic{background:var(--violet-3)}.doany .who{color:var(--violet-11)}
+.dungdung .pic{background:var(--dungdung-3)}.dungdung .who{color:var(--dungdung-11)}
+.puri .pic{background:var(--puri-3)}.puri .who{color:var(--puri-11)}
+.popo .pic{background:var(--popo-3)}.popo .who{color:var(--popo-11)}
+.dori .pic{background:var(--dori-3)}.dori .who{color:var(--dori-11)}
+.txt{padding:var(--space-4) var(--space-3) var(--space-3)}
+.who{font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);font-weight:var(--type-weight-medium)}
+.card h3{text-wrap:balance;margin-top:var(--space-1);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);font-weight:var(--type-weight-medium)}
+.card p{margin-top:var(--space-1);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing);color:var(--text-subtle)}
+.closing{border-radius:var(--radius-panel);background-color:var(--violet-3);text-align:center;display:flex;flex-direction:column;align-items:center}
+.footer{display:flex;justify-content:space-between;align-items:center;color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height)}
+.footer nav{display:flex;gap:var(--space-5)}
+
+/* ---------- Desktop 1440 ---------- */
+.d{width:1440px}
+.d .nav{height:72px;padding:0 var(--space-8)}
+.d .hero{padding-top:var(--space-16)}
+.d .wordmark{font-size:152px}
+.d .tagline{margin-top:var(--space-6);font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-regular)}
+.d .hero .lede{margin-top:var(--space-4)}
+.d .ctas{margin-top:var(--space-8)}
+.d .display.sub{font-size:48px}
+.d .hero .fine{margin-top:var(--space-3)}
+.d .group{width:800px;margin-top:var(--space-10)}
+.d .sect{padding:128px 80px 0;display:flex;flex-direction:column;align-items:center}
+.d .display{font-size:64px;line-height:1.05;letter-spacing:-.03em}
+.d .lede{margin-top:var(--space-5);max-width:680px;font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing)}
+.d .video{width:1120px;margin-top:var(--space-12);border-radius:var(--radius-container)}
+.d .play{width:88px;height:88px}.d .play svg{width:32px;height:32px}
+.d .cards{width:1280px;margin-top:var(--space-12);grid-template-columns:repeat(5,1fr);gap:var(--space-4)}
+.d .pic{height:232px}.d .pic img{width:208px;height:208px}
+.d .closing{width:1280px;margin:128px 80px 0;padding:72px var(--space-12)}
+.d .closing .display{font-size:64px;line-height:1.05;letter-spacing:-.03em}
+.d .closing .ctas{margin-top:var(--space-8)}
+.d .closing .fine{margin-top:var(--space-3)}
+.d .footer{padding:var(--space-12) 80px}
+
+/* ---------- Mobile 390 ---------- */
+.m{width:390px}
+.m .nav{height:64px;padding:0 var(--space-4)}
+.m .logo{font-size:var(--type-label-size);line-height:var(--type-label-line-height)}
+.m .logo img{width:24px;height:24px}
+.m .hero{padding:var(--space-12) var(--space-4) 0}
+.m .wordmark{font-size:96px}
+.m .tagline{margin-top:var(--space-4);font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing);font-weight:var(--type-weight-regular)}
+.m .hero .lede{margin-top:var(--space-3)}
+.m .ctas{margin-top:var(--space-6);flex-direction:column;align-self:stretch}
+.m .hero .fine{margin-top:var(--space-3)}
+.m .group{width:358px;margin-top:var(--space-8)}
+.m .sect{padding:var(--space-16) var(--space-4) 0;display:flex;flex-direction:column;align-items:center}
+.m .display{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing)}
+.m .lede{margin-top:var(--space-3);font-size:var(--type-label-size);line-height:var(--type-label-line-height)}
+.m .video{width:358px;margin-top:var(--space-6);border-radius:var(--radius-row)}
+.m .play{width:56px;height:56px}.m .play svg{width:20px;height:20px}
+.m .ph{left:var(--space-2);top:var(--space-2)}
+.m .cards{width:358px;margin-top:var(--space-6);grid-template-columns:1fr;gap:var(--space-3)}
+.m .card{flex-direction:row;align-items:center}
+.m .pic{width:120px;height:120px;flex:none}.m .pic img{width:112px;height:112px}
+.m .pic .badge{display:none}
+.m .txt{padding:0 var(--space-3) 0 var(--space-4)}
+.m .closing{margin:var(--space-16) var(--space-4) 0;padding:var(--space-12) var(--space-5);border-radius:var(--radius-container)}
+.m .closing .display{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing)}
+.m .closing .ctas{margin-top:var(--space-6)}
+.m .closing .fine{margin-top:var(--space-3)}
+.m .footer{padding:var(--space-8) var(--space-4) var(--space-10);flex-direction:column;align-items:flex-start;gap:var(--space-3)}
+.m .footer nav{flex-wrap:wrap;gap:var(--space-2) var(--space-4)}
+</style></head><body>
+
+<header class="intro"><h1>Doan landing · draft first.</h1><p>Exploratory draft for the doan.design download page, drawn before <code>/feature</code> to settle the look (request: <code>docs/features/doan-landing/design.md</code>). One page at two widths, desktop 1440 and mobile 390: nav, hero with the buddies' group photo, a demo video, five feature cards where each buddy does one thing, a closing download and the footer. Everything here is new and not in code; there is no site yet (PRODUCT §5 'Deferred'). References, checked in a browser on 2026-11-16: <b>buzz.xyz</b> (giant wordmark hero, framed app video under a two-line heading, character cards, closing CTA over the wordmark, dot-grid ground) and <b>aside.com</b> (single "Download for macOS" action in nav and hero, rounded closing CTA panel, link footer). The brand pieces come from shipped or selected drafts: the wordmark and tagline from <code>buddy-welcome.html</code>, the group photo from <code>buddy-welcome.html</code> / <code>buddy-installer.html</code>, the dot grid from the canvas board.</p></header>
+
+<div class="board">
+<section>
+<div class="cap"><h2>Desktop · 1440<span class="badge">Not in code</span></h2><p>Wordmark 152, tagline 32 (title role), one-line lede saying what Doan is; the photo (800) starts inside a 900-high first screen, with every buddy's eyes in view, and ends about 130 below it. Sections 128 apart; content 1280 wide, video 1120. Five cards in one row, 16 apart, each with its buddy's tint (palette step 3) behind the buddy and its step 11 on the "who" line.</p></div>
+<div class="page d dots" data-doan-frame="landing-desktop" data-doan-title="Landing · desktop 1440">
+
+<header class="nav" data-doan-id="d-nav">
+<a class="logo" href="#"><img src="../assets/installer/doan-app-icon-32.png" alt="">Doan</a>
+<nav class="navlinks"><a href="#features">Features</a><a href="#">GitHub</a><a class="doan-button" data-ui-variant="prominent" data-ui-size="sm" href="#" data-doan-id="d-nav-download">Download</a></nav>
+</header>
+
+<section class="hero" data-doan-id="d-hero">
+<div class="wordmark">Doan</div>
+<h1 class="tagline">A place for your next idea.<br>Bring it to life on canvas.</h1>
+<p class="lede">A Mac app where Claude Code, Codex, Cursor, Antigravity or GitHub Copilot draws your designs in your repo.</p>
+<div class="ctas">
+<a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="d-hero-download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg>Download for macOS</a>
+<a class="doan-button" data-ui-variant="subtle" data-ui-size="lg" href="#" data-doan-id="d-hero-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a>
+</div>
+<p class="fine">macOS on Apple silicon · Open source (Apache-2.0)</p>
+<img class="group" src="../assets/buddies/group/group.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="d-hero-group">
+</section>
+
+<section class="sect" data-doan-id="d-video">
+<h2 class="display">The agent draws.<br>You view and point.</h2>
+<p class="lede">Your agent writes design drafts as HTML canvases in your code repo, and you talk to it about them, pointing at frames and elements.</p>
+<div class="video" data-doan-id="d-video-player">
+<img src="../assets/landing/video-poster.png" alt="Doan with a canvas of three phone screens open beside its conversation">
+<span class="play" aria-label="Play the demo"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+<span class="badge ph">Placeholder poster · demo video not recorded</span>
+</div>
+</section>
+
+<section class="sect" id="features" data-doan-id="d-features">
+<h2 class="display sub">Design first,<br>then let the agent build.</h2>
+<div class="cards">
+<article class="card doany" data-doan-id="d-card-doany"><div class="pic"><img src="../assets/doany/artist/painting.gif" alt="Doany painting a flower at an easel"></div><div class="txt"><div class="who">Doany draws</div><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></div></article>
+<article class="card dungdung" data-doan-id="d-card-dungdung"><div class="pic"><img src="../assets/buddies/dungdung/still.png" alt="Dungdung in its headphones, listening"><span class="badge">New pose needed</span></div><div class="txt"><div class="who">Dungdung listens</div><h3>Point, then talk</h3><p>Put frames, elements and spots into your message. The agent gets them as anchors.</p></div></article>
+<article class="card puri" data-doan-id="d-card-puri"><div class="pic"><img src="../assets/buddies/puri/typing.gif" alt="Puri typing on a laptop"></div><div class="txt"><div class="who">Puri types</div><h3>The agents you already use</h3><p>Claude Code, Codex, Cursor, Antigravity and GitHub Copilot, in Doan or in your terminal.</p></div></article>
+<article class="card popo" data-doan-id="d-card-popo"><div class="pic"><img src="../assets/buddies/popo/reading.gif" alt="Popo reading a book in its glasses"></div><div class="txt"><div class="who">Popo reads</div><h3>Give the agent a brief</h3><p>Pick a design preset, such as shape, critique or clarify, and the agent works with that brief.</p></div></article>
+<article class="card dori" data-doan-id="d-card-dori"><div class="pic"><img src="../assets/buddies/dori/still.png" alt="Dori in its scarf, ready to go out"><span class="badge">New pose needed</span></div><div class="txt"><div class="who">Dori delivers</div><h3>Share one file</h3><p>Export a canvas as one HTML file that opens in any browser, without Doan or the repo.</p></div></article>
+</div>
+</section>
+
+<section class="closing dots" data-doan-id="d-closing">
+<h2 class="display">Your next idea<br>starts on a canvas.</h2>
+<div class="ctas">
+<a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="d-closing-download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg>Download for macOS</a>
+<a class="doan-button" data-ui-variant="panel" data-ui-size="lg" href="#"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a>
+</div>
+<p class="fine">macOS on Apple silicon · Open source (Apache-2.0)</p>
+</section>
+
+<footer class="footer" data-doan-id="d-footer">
+<p>Doan is an open source project under Apache-2.0.</p>
+<nav><a href="#">GitHub</a><a href="#">Releases</a><a href="#">Security</a><a href="#">Code of Conduct</a></nav>
+</footer>
+</div>
+</section>
+
+<section>
+<div class="cap"><h2>Mobile · 390<span class="badge">Not in code</span></h2><p>Same order. Wordmark 96, tagline 20; actions stack full width. Cards become rows: a 120 square with the buddy, text beside it.</p></div>
+<div class="page m dots" data-doan-frame="landing-mobile" data-doan-title="Landing · mobile 390">
+
+<header class="nav" data-doan-id="m-nav">
+<a class="logo" href="#"><img src="../assets/installer/doan-app-icon-32.png" alt="">Doan</a>
+<nav class="navlinks"><a class="doan-button" data-ui-variant="prominent" data-ui-size="sm" href="#">Download</a></nav>
+</header>
+
+<section class="hero" data-doan-id="m-hero">
+<div class="wordmark">Doan</div>
+<h1 class="tagline">A place for your next idea.<br>Bring it to life on canvas.</h1>
+<p class="lede">A Mac app where Claude Code, Codex, Cursor, Antigravity or GitHub Copilot draws your designs in your repo.</p>
+<div class="ctas">
+<a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg>Download for macOS</a>
+<a class="doan-button" data-ui-variant="subtle" data-ui-size="lg" href="#"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a>
+</div>
+<p class="fine">macOS on Apple silicon · Open source (Apache-2.0)</p>
+<img class="group" src="../assets/buddies/group/group.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together">
+</section>
+
+<section class="sect">
+<h2 class="display">The agent draws.<br>You view and point.</h2>
+<p class="lede">Your agent writes design drafts as HTML canvases in your code repo, and you talk to it about them, pointing at frames and elements.</p>
+<div class="video">
+<img src="../assets/landing/video-poster.png" alt="Doan with a canvas of three phone screens open beside its conversation">
+<span class="play" aria-label="Play the demo"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+</div>
+</section>
+
+<section class="sect">
+<h2 class="display sub">Design first,<br>then let the agent build.</h2>
+<div class="cards">
+<article class="card doany"><div class="pic"><img src="../assets/doany/artist/painting.gif" alt="Doany painting a flower at an easel"></div><div class="txt"><div class="who">Doany draws</div><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></div></article>
+<article class="card dungdung"><div class="pic"><img src="../assets/buddies/dungdung/still.png" alt="Dungdung in its headphones, listening"></div><div class="txt"><div class="who">Dungdung listens</div><h3>Point, then talk</h3><p>Put frames, elements and spots into your message. The agent gets them as anchors.</p></div></article>
+<article class="card puri"><div class="pic"><img src="../assets/buddies/puri/typing.gif" alt="Puri typing on a laptop"></div><div class="txt"><div class="who">Puri types</div><h3>The agents you already use</h3><p>Claude Code, Codex, Cursor, Antigravity and GitHub Copilot, in Doan or in your terminal.</p></div></article>
+<article class="card popo"><div class="pic"><img src="../assets/buddies/popo/reading.gif" alt="Popo reading a book in its glasses"></div><div class="txt"><div class="who">Popo reads</div><h3>Give the agent a brief</h3><p>Pick a design preset, such as shape, critique or clarify, and the agent works with that brief.</p></div></article>
+<article class="card dori"><div class="pic"><img src="../assets/buddies/dori/still.png" alt="Dori in its scarf, ready to go out"></div><div class="txt"><div class="who">Dori delivers</div><h3>Share one file</h3><p>Export a canvas as one HTML file that opens in any browser, without Doan or the repo.</p></div></article>
+</div>
+</section>
+
+<section class="closing dots">
+<h2 class="display">Your next idea<br>starts on a canvas.</h2>
+<div class="ctas">
+<a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg>Download for macOS</a>
+<a class="doan-button" data-ui-variant="panel" data-ui-size="lg" href="#"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a>
+</div>
+<p class="fine">macOS on Apple silicon · Open source (Apache-2.0)</p>
+</section>
+
+<footer class="footer">
+<p>Doan is an open source project under Apache-2.0.</p>
+<nav><a href="#">GitHub</a><a href="#">Releases</a><a href="#">Security</a><a href="#">Code of Conduct</a></nav>
+</footer>
+</div>
+</section>
+</div>
+
+<section class="notes" data-doan-frame="landing-notes" data-doan-title="Notes">
+<h2>Notes</h2>
+<h3>What each section borrows</h3>
+<ul>
+<li>Hero: buzz.xyz's oversized wordmark, centred the way Welcome already is (<code>buddy-welcome.html</code>), with the group photo under the actions instead of beside them. One strong action, as aside.com has: Download for macOS; GitHub is the quiet second, like buzz's "Open the Repo".</li>
+<li>Video: buzz.xyz's two-line heading, one-sentence lede and a large framed app video. The README hero image stands in as the poster (<code>.doan/assets/landing/video-poster.png</code>, a copy of <code>docs/assets/readme/hero.png</code>); its window frame and gradient are already in the image.</li>
+<li>Features: buzz.xyz's character cards (three there), five here, one per buddy, each doing its feature: Doany paints, Puri types, Popo reads (existing GIFs from <code>.doan/assets/</code>); Dungdung listens and Dori delivers have only their stills, so those two need new poses.</li>
+<li>Closing: aside.com's rounded CTA panel, in Doany's violet with the dot grid, the same two actions as the hero.</li>
+<li>Ground: the canvas board's dot grid (<code>--board-dot</code>, <code>--texture-dots-size</code>) over white, where buzz uses its own dot grid over yellow and blue.</li>
+</ul>
+<h3>Copy</h3>
+<ul>
+<li>Hero tagline from Welcome; "The agent draws. You view and point." and "Design first, then let the agent build." from the README. Card text shortens the README's feature lines and adds no claim the product does not make.</li>
+<li>"Open source (Apache-2.0)" only: no price is stated anywhere, so the page makes no "free" claim until one is decided.</li>
+<li>Hero lede says what Doan is in the first screen; the video lede no longer repeats the five agent names, which stay on Puri's card.</li>
+</ul>
+<h3>Open</h3>
+<ul>
+<li>Demo video: what it shows, its length, autoplay muted or click to play, and where it is hosted. Record the app window alone: the page draws the frame and shadow, and the README poster's violet–peach gradient would compete with the group photo.</li>
+<li>Card pictures sit on the bottom of their tint, but the assets' own padding differs, so Doany touches the bottom and the others float a little; the final pose set should share one baseline.</li>
+<li>New poses for Dungdung (listening) and Dori (delivering a file), made the way the typing and reading sets were (<code>.doan/assets/buddies/README.md</code>).</li>
+<li>Download link target (the latest release's dmg, as the README links), whether nav keeps a Features link, a dark theme, and the domain, hosting and stack, which PRODUCT §5 'Deferred' leaves for after the app.</li>
+<li>Literals with no token: wordmark 152 / 96, display 64 at 1.05 and −.03em (features heading 48), closing padding 72, the logo 28 / 24, section gap 128, page widths 1440 / 1280 / 1120, group photo 800, its bottom 14% faded out by a mask so the photo's baked contact shadow does not end in a hard edge, card picture 232 / 208 and 120 / 112, the play button 88 / 56 and its icon 32, nav 72 / 64, the dot radius 1px. All are page constants of the site.</li>
+</ul>
+</section>
+</body></html>
