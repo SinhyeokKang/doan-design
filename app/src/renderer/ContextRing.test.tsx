@@ -18,7 +18,7 @@ const claude: UsageEntry = { provider: "claude", reading: { status: "ok", window
 function props(over: Partial<ContextRingViewProps> = {}, entries: UsageEntry[] = [claude], hidden = false): ContextRingViewProps {
   const context = over.context ?? CONTEXT, provider = over.provider === undefined ? "claude" : over.provider;
   return {
-    context, provider, view: contextDrawerView({ context, provider: provider ?? "claude", usageHidden: hidden || provider === null, entries, now: NOW }),
+    context, provider, view: contextDrawerView({ context, provider, usageHidden: hidden, entries, now: NOW }),
     open: false, tip: false, titleId: "ct",
     buttonRef: vi.fn(), bodyRef: vi.fn(), contentRef: vi.fn(),
     onOpenChange: vi.fn(), onTipChange: vi.fn(), onButtonFocus: vi.fn(), onRefresh: vi.fn(), onRefreshFocus: vi.fn(),
@@ -26,7 +26,8 @@ function props(over: Partial<ContextRingViewProps> = {}, entries: UsageEntry[] =
     ...over,
   };
 }
-const html = (node: ReactElement) => renderToStaticMarkup(<TooltipProvider>{node}</TooltipProvider>);
+// React hoists a preload link for each image ahead of the markup.
+const html = (node: ReactElement) => renderToStaticMarkup(<TooltipProvider>{node}</TooltipProvider>).replace(/^(<link rel="preload"[^>]*\/>)+/, "");
 function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) return node.flatMap(all);
   if (!isValidElement<Record<string, unknown>>(node)) return [];
@@ -100,7 +101,7 @@ describe("ContextDrawerPanel", () => {
     const markup = html(<ContextDrawerPanel {...props({}, [{ provider: "claude", inFlight: true }])} />);
     expect(markup).toContain('<p class="usage-note"><span>Reading usage…</span></p>');
     expect(markup).not.toContain("usage-read");
-    expect(markup).toMatch(/<button type="button" class="doan-icon-button context-drawer-refresh" aria-label="Refresh usage" aria-busy="true"><span class="doan-spinner" aria-hidden="true"><\/span><\/button>/);
+    expect(markup).toMatch(/<button type="button" class="doan-icon-button context-drawer-refresh" aria-label="Refresh usage" aria-busy="true"[^>]*><span class="doan-spinner" aria-hidden="true"><\/span><\/button>/);
   });
 
   it("keeps only the logo and name in the head, and the Context window line in the body, without usage", () => {

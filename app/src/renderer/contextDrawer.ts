@@ -13,12 +13,13 @@ export interface ContextDrawerView { context: ContextLineView; usage: RowView | 
 
 // usageHidden: a legacy external conversation or a terminal session's composer runs on the person's CLI profile, so a
 // Doan connection's usage is not this conversation's. Antigravity has no usage read and no header row either.
+// provider null: the composer has no conversation provider yet, so there is no row to show.
 export function contextDrawerView({ context, provider, usageHidden, entries, now }: {
-  context: ContextUsage; provider: Provider; usageHidden: boolean; entries: readonly UsageEntry[]; now: number;
+  context: ContextUsage; provider: Provider | null; usageHidden: boolean; entries: readonly UsageEntry[]; now: number;
 }): ContextDrawerView {
   const { used, size } = context;
   const line = { label: "Context window", text: `${Math.floor(used * 100 / size)}% used · ${tokenText(used)} of ${tokenText(size)}`, bar: context.value, full: ringDanger(context.percent) };
-  const entry = usageHidden || provider === "antigravity" ? undefined : entries.find(candidate => candidate.provider === provider);
+  const entry = usageHidden || provider === null || provider === "antigravity" ? undefined : entries.find(candidate => candidate.provider === provider);
   if (!entry) return { context: line, usage: null, busy: false };
   // Refresh reads every connection and joins a read already running, so any read shows it busy, as in the header.
   return { context: line, usage: rowView(entry, now), busy: usageBusy(entries) };
@@ -70,14 +71,8 @@ export function drawerCloseFocus(close: DrawerClose): "ring" | "composer" | "sta
   }
 }
 
-// The drawer closes itself (its open state set false, not derived from the ring being there) when the conversation it
-// opened on changes or the ring goes, so the ring coming back does not reopen it (POSTMORTEM 2026-11-01).
-export function drawerLost(opened: { conversationId: string }, now: { conversationId: string | null; ring: boolean }): boolean {
-  return !now.ring || now.conversationId !== opened.conversationId;
-}
-
 // A sign-out, account replacement or the last connection going drops only the row (and its Refresh); the drawer stays,
 // and focus that was on Refresh goes to the drawer body rather than falling to the page.
-export function refreshGoneFocus({ usage, refreshFocused }: { usage: RowView | null; refreshFocused: boolean }): "body" | "stay" {
-  return usage === null && refreshFocused ? "body" : "stay";
+export function refreshGoneFocus({ row, refreshFocused }: { row: boolean; refreshFocused: boolean }): "body" | "stay" {
+  return !row && refreshFocused ? "body" : "stay";
 }

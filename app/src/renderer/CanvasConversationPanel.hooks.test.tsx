@@ -49,7 +49,7 @@ beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   vi.stubGlobal("window", { doan: { listConversationSkills: vi.fn(async () => ({ skills: [] })),
     conversationResumeTarget: vi.fn(async () => ({ available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" })),
-    onAgentAuth: vi.fn(() => () => {}),
+    onAgentAuth: vi.fn(() => () => {}), onAgentUsage: vi.fn(() => () => {}), readAgentUsage: vi.fn(async () => []),
   } });
 });
 afterEach(() => vi.unstubAllGlobals());

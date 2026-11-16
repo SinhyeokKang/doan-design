@@ -30,6 +30,7 @@ import { dropAttachment, steerPhaseOf, type ConversationStore, type ListView, ty
 import type { PanelArrival } from "./rightPanelOpen";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
+import { useRingUsage } from "./ContextRing";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
 import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
@@ -56,7 +57,8 @@ import type { PlayingFrameChip } from "./prototype/conversation";
 // prototype window, which has no `window.doan`.
 export type ConversationCalls = SkillsCalls & Pick<DoanApi, "onAgentAuth" | "startConversation" | "sendConversation" | "queueConversation" |
   "removeQueuedMessage" | "interruptConversation" | "answerConversationPermission" | "answerConversationQuestion" | "openLink" |
-  "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "droppedPath" | "removeAttachment" | "releaseAttachments">;
+  "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "droppedPath" | "removeAttachment" | "releaseAttachments" |
+  "readAgentUsage" | "onAgentUsage">;
 
 export interface CanvasConversationProps {
   calls: ConversationCalls;
@@ -242,6 +244,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   useEffect(() => { if (!support.presets?.ok) support.readPresets(); }, []);
   useEffect(() => calls.onAgentAuth(snapshot => support.setAuth(snapshot)), []);
+  // The context ring's drawer: a conversation on the person's CLI profile shows no Doan connection's usage.
+  const ringUsage = useRingUsage(calls, summary?.owner === "legacy-external");
   // The body's own composer: the panel around it differs by window.
   const body = useRef<HTMLDivElement | null>(null);
   const focusField = () => queueMicrotask(() => focusFieldEnd(body.current?.querySelector<HTMLElement>(".composer-input") ?? null));
@@ -511,7 +515,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={null} canvasGone={false} context={thread ? contextRing(thread.events) : null}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={null} canvasGone={false} context={thread ? contextRing(thread.events) : null} usage={ringUsage}
         unavailable={props.blocked} locked={props.blocked !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         stepAside={{ waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}

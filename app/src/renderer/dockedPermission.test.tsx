@@ -44,7 +44,7 @@ const docked = () => composer.props as DockedComposerProps;
 let doan: Record<string, ReturnType<typeof vi.fn>>;
 beforeEach(() => {
   doan = {
-    readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), onAgentAuth: vi.fn(() => () => {}),
+    readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), onAgentAuth: vi.fn(() => () => {}), onAgentUsage: vi.fn(() => () => {}), readAgentUsage: vi.fn(async () => []),
     listConversationSkills: vi.fn(async () => ({ skills: [] })), listConversationModels: vi.fn(() => new Promise(() => {})), setConversationPermissionMode: vi.fn(async () => undefined),
     conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), attachmentsFromPaths: vi.fn(async () => []),
     startConversation: vi.fn(async () => ({ conversationId: A })), sendConversation: vi.fn(async () => undefined),

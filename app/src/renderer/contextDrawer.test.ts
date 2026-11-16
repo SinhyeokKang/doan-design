@@ -3,7 +3,7 @@ import type { UsageEntry, UsageWindow } from "../main/agentAuth/usageTypes";
 import type { ConversationEvent } from "../main/conversation/types";
 import { rowView } from "./agentUsageView";
 import {
-  contextDrawerView, drawerCloseFocus, drawerLost, refreshGoneFocus, ringButton, RING_TIP, ringTip, ringTipOpen, type RingTip, type RingTipEvent,
+  contextDrawerView, drawerCloseFocus, refreshGoneFocus, ringButton, RING_TIP, ringTip, ringTipOpen, type RingTip, type RingTipEvent,
 } from "./contextDrawer";
 import { contextRing } from "./contextWindow";
 
@@ -54,6 +54,7 @@ describe("contextDrawerView", () => {
     ["a terminal session's composer", { provider: "codex", usageHidden: true }],
     ["a provider with no Doan connection", { provider: "copilot", entries: [claude, codex] }],
     ["no entries at all", { entries: [] }],
+    ["a composer with no conversation provider", { provider: null }],
   ])("has no usage row and no Refresh for %s", (_name, over) => {
     const drawn = view({ ...over, entries: over.entries ?? ENTRIES.map(entry => ({ ...entry, inFlight: true })) });
     expect(drawn.usage).toBeNull();
@@ -185,20 +186,10 @@ describe("drawerCloseFocus", () => {
   });
 });
 
-describe("drawerLost", () => {
-  it("closes when the conversation changes or the ring goes (delete, status line)", () => {
-    expect(drawerLost({ conversationId: "c1" }, { conversationId: "c1", ring: true })).toBe(false);
-    expect(drawerLost({ conversationId: "c1" }, { conversationId: "c2", ring: true })).toBe(true);
-    expect(drawerLost({ conversationId: "c1" }, { conversationId: null, ring: false })).toBe(true);
-    expect(drawerLost({ conversationId: "c1" }, { conversationId: "c1", ring: false })).toBe(true);
-  });
-});
-
 describe("refreshGoneFocus", () => {
-  const row = rowView(claude, NOW);
   it("keeps the drawer and moves focus from a vanished Refresh to the drawer body", () => {
-    expect(refreshGoneFocus({ usage: null, refreshFocused: true })).toBe("body");
-    expect(refreshGoneFocus({ usage: null, refreshFocused: false })).toBe("stay");
-    expect(refreshGoneFocus({ usage: row, refreshFocused: true })).toBe("stay");
+    expect(refreshGoneFocus({ row: false, refreshFocused: true })).toBe("body");
+    expect(refreshGoneFocus({ row: false, refreshFocused: false })).toBe("stay");
+    expect(refreshGoneFocus({ row: true, refreshFocused: true })).toBe("stay");
   });
 });

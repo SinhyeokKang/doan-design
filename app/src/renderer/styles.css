@@ -1605,15 +1605,32 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* The context ring (draft frame ring-geometry): the tray's last child, which the tray's
    flex-end and the model trigger's auto margin keep at its right end. 4 from the last picker (the tray’s 2 gap plus 2)
    and the tray's 12 end padding after; it never shrinks, so a narrow panel shortens the model label first. Its own
-   class sizes it: the header's 24px usage ring rules are bound to .usage. */
+   class sizes it: the header's 24px usage ring rules are bound to .usage. It is a button (draft context-ring-drawer.html
+   frame trigger) whose own box adds nothing to the ring's, so the tray lays out as before; the dial inside is the ring. */
 .docked .composer-tray .context-ring { margin-inline-start: var(--space-half); }
-.context-ring { display: block; flex: none; width: var(--size-icon); height: var(--size-icon); cursor: default; }
-.context-ring > svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.context-ring { position: relative; display: block; flex: none; width: var(--size-icon); height: var(--size-icon); padding: 0; border: 0; background: transparent; color: inherit; cursor: default; }
+/* The hit box: invisible, 4 out on every side, a 24 square (the xs triggers' height) centred on the ring. On the left
+   it meets the last picker's end without overlap (the tray's 2 gap plus the ring's 2 margin); on the right it stays in
+   the tray's 12 end padding; below, it leaves the tray, whose bottom padding is 0. Hover, pressed and focus are drawn
+   on it, so no layout box moves. */
+.context-ring::before { content: ""; position: absolute; inset: calc(-1 * var(--space-1)); border-radius: var(--radius-control); }
+@media (hover: hover) and (pointer: fine) { .context-ring:hover::before { background: var(--affordance-backdrop-hover); } }
+.context-ring:is(:active, [aria-expanded="true"])::before { background: var(--affordance-backdrop-pressed); }
+.context-ring:focus-visible { outline: none; }
+.context-ring:focus-visible::before { outline: 2px solid var(--border-focus); outline-offset: 0; }
+.context-ring-dial { position: relative; display: block; width: 100%; height: 100%; }
+.context-ring-dial > svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
 .context-ring .track { stroke: var(--border-track); }
 .context-ring .value { stroke: var(--affordance-prominent); }
 .context-ring[data-band="full"] .value { stroke: var(--border-danger); }
 /* Its tooltip's two lines, both in the tooltip's caption ink. */
 .doan-tooltip .tip-line { display: block; }
+/* The ring's drawer: one Agent usage row lifted whole on the shared floating popover, head on top (Refresh with the
+   header Refresh's −6 block and end margins), then the body aligned with the name. Plain numerals, as the header
+   popover: the body's tabular figures widen every "1" in the relative times. */
+.context-drawer { display: flex; flex-direction: column; gap: var(--space-2); max-height: var(--radix-popover-content-available-height); overflow-y: auto; text-align: left; font-variant-numeric: normal; }
+.context-drawer-body { outline: none; }
+.context-drawer-refresh { flex: none; margin-block: calc(-1 * var(--space-1h)); margin-inline-end: calc(-1 * var(--space-1h)); }
 /* .doan-agent (later, same weight) sets a 4px end inset for its action button; the hint ends in the Esc key instead. */
 .doan-agent.doan-picking { padding-right: var(--space-2); }
 .doan-picking-icon { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }

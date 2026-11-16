@@ -40,8 +40,8 @@ const CONTEXT = { value: 42, percent: 42, used: 84_000, size: 200_000 };
 const win = (over: Partial<UsageWindow> = {}): UsageWindow => ({ id: "five_hour", label: "5h", usedPercent: 38, resetsAt: NOW + 130 * MIN, ...over });
 const claude: UsageEntry = { provider: "claude", reading: { status: "ok", windows: [win()], readAt: NOW - 2 * MIN }, inFlight: false };
 
-let read: ReturnType<typeof vi.fn>;
-let onLost: ReturnType<typeof vi.fn>;
+let read: ReturnType<typeof vi.fn<(trigger: "open" | "refresh") => void>>;
+let onLost: ReturnType<typeof vi.fn<() => void>>;
 let entries: UsageEntry[];
 let hidden: boolean;
 let pressListener: (() => void) | null;
@@ -52,7 +52,7 @@ const page = { body: { id: "body" } };
 beforeEach(() => {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   vi.useFakeTimers(); vi.setSystemTime(NOW);
-  read = vi.fn(); onLost = vi.fn(); entries = [claude]; hidden = false; pressListener = null; active = page.body;
+  read = vi.fn<(trigger: "open" | "refresh") => void>(); onLost = vi.fn<() => void>(); entries = [claude]; hidden = false; pressListener = null; active = page.body;
   vi.stubGlobal("document", { get body() { return page.body; }, get activeElement() { return active; } });
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -164,6 +164,8 @@ test("a keyboard focus after the returned one opens the tooltip", () => {
 test("an outside press on a blank part returns focus to the ring; one that focused a control leaves it there", () => {
   let nodes = opened();
   nodes.view.onPointerDownOutside(); nodes.view.onOpenChange(false);
+  // The drawer that held focus is gone by now, so focus is on the page body.
+  active = page.body;
   render().onCloseAutoFocus(prevented() as unknown as Event);
   expect(nodes.button.focus).toHaveBeenCalledOnce();
 
