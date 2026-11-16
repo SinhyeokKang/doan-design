@@ -101,7 +101,7 @@ describe("ContextDrawerPanel", () => {
 
   it("shows a reason line in place of windows, and a busy Refresh while any read runs", () => {
     const markup = html(<ContextDrawerPanel {...props({}, [{ provider: "claude", inFlight: true }])} />);
-    expect(markup).toContain('<p class="usage-note"><span>Reading usage…</span></p>');
+    expect(markup).toContain('<p class="usage-note"><span>Reading usage</span></p>');
     expect(markup).not.toContain("usage-read");
     expect(markup).toMatch(/<button type="button" class="doan-icon-button context-drawer-refresh" aria-label="Refresh usage" aria-busy="true"[^>]*><span class="doan-spinner" aria-hidden="true"><\/span><\/button>/);
   });

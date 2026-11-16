@@ -33,7 +33,7 @@ Window 1238 × 780 (the draft's), 960 × 600 for `home-narrow`.
 | Strip error line | A refused Skip or permission answer: `.strip-error` (`role="alert"`) with the alert icon, under the title and body in the text column (`.strip-main`), at the text's x and 4 px below it; 14/20 in the strip's own ink (rgb(15,15,15) on a neutral strip), not danger. A permission request with the line was 92 px high | No draft frame; measured in a short real-app probe whose conversation IPC was faked (window size not recorded). A notice's text takes no ink of its own (`ds/controls.test.ts`), so the icon marks the error. Not measured: the icon's size and its gap to the text, and the line on an `error` or `ok` strip. |
 | Sidebar slot | 16 × 16 at the row's right before its menu: `hand` icon in `--text-accent`, 14 px spinner, a 16 px round speech bubble in `--text-accent` for an unread finished conversation, or an 8 px `--text-accent` dot for a canvas change | |
 | Toast | The shared toast ('Design system' Toast: width, inset, shadow, motion and replacement), on Home and over a workspace | Measured with a malformed-link toast at 1238 × 780 and 960 × 600 ('GitHub star card'). |
-| Toast in a dialog | A blocked link's toast during a running Set Up: drawn inside the open `dialog` (`data-placement="dialog"`, `position: fixed`), at the window's bottom right like the usual toast: 838,698–1222,764 in a 1238 × 780 window (384 × 66, 16 from the right and bottom); hit-testable and not inert, with no toast left outside the dialog | Inside the modal, so it is seen and read while the rest of the page is inert. Not measured: first run's dialog, and the toast's return to its usual place when the dialog closes (unit tests only). |
+| Toast in a dialog | A blocked link's toast during a running Set up: drawn inside the open `dialog` (`data-placement="dialog"`, `position: fixed`), at the window's bottom right like the usual toast: 838,698–1222,764 in a 1238 × 780 window (384 × 66, 16 from the right and bottom); hit-testable and not inert, with no toast left outside the dialog | Inside the modal, so it is seen and read while the rest of the page is inert. Not measured: first run's dialog, and the toast's return to its usual place when the dialog closes (unit tests only). |
 
 ### Documented differences
 
@@ -61,22 +61,22 @@ Read on `home-empty`, equal to the draft's attributes: `region` "Home"; `button`
 
 ### Agent picker actions
 
-Reference: `doan-settings.html` `home-agent-picker`, measured with the Settings windows (see Settings). A group that cannot run keeps its short status in the head and offers one `menuitem` under it: "Sign in again…" (expired), "Update…" (old version) or "Open Agents settings…"; the menu ends with "Manage agents…" (Settings icon), or with "No agent is ready to run." over "Sign in to an agent…" when nothing can run. Choosing one closes the menu before Settings opens; focus lands on that provider's row group, which flashes 2.4 s (real-app probe). The menu itself is the shipped one: it inherits the app body type, and a pointer on an item shows the shared `.doan-menu-item:focus-visible` ring in the probe (the draft draws the highlight only).
+Reference: `doan-settings.html` `home-agent-picker`, measured with the Settings windows (see Settings). A group that cannot run keeps its short status in the head and offers one `menuitem` under it: "Sign in again" (expired), "Update" (old version) or "Open Agents settings"; the menu ends with "Manage agents" (Settings icon), or with "No agent is ready to run." over "Sign in to an agent" when nothing can run. Choosing one closes the menu before Settings opens; focus lands on that provider's row group, which flashes 2.4 s (real-app probe). The menu itself is the shipped one: it inherits the app body type, and a pointer on an item shows the shared `.doan-menu-item:focus-visible` ring in the probe (the draft draws the highlight only).
 
 ### Approved copy beyond the draft
 
-- The preset list's CLI reasons ("the doan CLI couldn’t start", "the doan CLI didn’t answer in time", "Doan couldn’t read the CLI’s answer", "the doan CLI stopped without a result") and its general failure "Doan couldn’t read the design presets. You can still send without one."
-- A stop the person did not make: "This conversation stopped before it finished."
+- The preset list's CLI reasons ("the doan command couldn’t start", "the doan command didn’t answer in time", "Doan couldn’t read the command’s answer", "the doan command stopped without a result") and its general failure "Doan couldn’t read the design presets. You can still send without one."
+- A stop the person did not make: "The agent stopped before it finished."
 - Effort labels "Extra high" and sentence-case levels; the label when none is chosen is approved, and PRODUCT §5 item 1 (Effort labels) holds the text.
 - Attachment refusals "<name> wasn’t found, so it wasn’t attached.", "<name> isn’t a file or folder, so it wasn’t attached.", "<name> isn’t a readable image, so it wasn’t attached.", "<name> couldn’t be read, so it wasn’t attached." and main's limit refusal "Only 10 attachments can be added." (a pick over ten shows the counted line instead, see Folder attachments)
 
 ### Terms shared with onboarding
 
 - **Agent:** Home says "agent" for a provider ("Choose another agent", "No agent is ready to run.", trigger name "Agent: Claude Code, model …"), as the onboarding Agent step does ("Connect your agent", "Sign in to at least one agent to continue."). Provider names come from the same `PROVIDER_NAMES`.
-- **Sign-in:** Home's "Sign-in expired" and "its sign-in has expired" use the onboarding noun. Home offers "Sign in again…" in the agent picker, which opens Settings > Agents at that provider, where the row's "Sign in again" acts.
+- **Sign-in:** Home's "Sign-in expired" and "its sign-in has expired" use the onboarding noun. Home offers "Sign in again" in the agent picker, which opens Settings > Agents at that provider, where the row's "Sign in again" acts.
 - **Unverified:** onboarding shows "Connected · not checked" with Retry; Home, without an action, says "Checks your connection when you send." Same state, different wording because only onboarding can act there.
 - **Settings:** Settings > Agents checks an unverified connection with Check (`subtle`), not first run's Retry, shows the account then "· not checked", and says the cost under Copilot's row ("Checking uses one Copilot request.") where first run puts "Uses one Copilot request" beside the button. Every connected row keeps Sign out. A sign-in owned elsewhere says "Finish this sign-in where it started."
-- **Product name:** human-facing text says Doan; only commands, paths and identifiers such as "the doan CLI" stay lowercase.
+- **Product name:** human-facing text says Doan; only commands, paths and identifiers such as "the doan command" stay lowercase.
 
 ### Limits
 

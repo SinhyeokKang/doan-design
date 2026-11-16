@@ -64,7 +64,7 @@ describe("contextDrawerView", () => {
 
   it("shows the reading, failed and limit-reached states as the header does", () => {
     const reading: UsageEntry = { provider: "claude", inFlight: true };
-    expect(view({ entries: [reading] }).usage).toMatchObject({ read: null, windows: [], note: { text: "Reading usage…" } });
+    expect(view({ entries: [reading] }).usage).toMatchObject({ read: null, windows: [], note: { text: "Reading usage" } });
     const failed: UsageEntry = { provider: "claude", reading: { status: "unavailable", reason: "read_failed", readAt: NOW }, inFlight: false };
     expect(view({ entries: [failed] }).usage).toMatchObject({ read: null, note: { text: "Couldn’t read usage. Doan tries again when you open this.", kind: "error" } });
     const limited = ok("claude", [win({ usedPercent: 100, limited: true, resetsAt: NOW + 50 * MIN })]);
@@ -84,7 +84,7 @@ describe("contextDrawerView", () => {
 
   it("is busy while any read runs, its own or another provider's that Refresh joined", () => {
     expect(view({ entries: [{ ...claude, inFlight: true }, codex] }).busy).toBe(true);
-    expect(view({ entries: [{ ...claude, inFlight: true }, codex] }).usage?.read).toBe("Updating…");
+    expect(view({ entries: [{ ...claude, inFlight: true }, codex] }).usage?.read).toBe("Updating");
     const joined = view({ entries: [claude, { ...codex, inFlight: true }] });
     expect(joined.busy).toBe(true);
     expect(joined.usage?.read).toBe("Updated 3m ago");
@@ -103,10 +103,10 @@ describe("contextDrawerView", () => {
   });
 
   // Entries carry no connection ID, so a replacement reads as the header shows it: main drops the old account's value
-  // and reads the new one, and the row (with Refresh) stays through "Reading usage…" to the new values.
+  // and reads the new one, and the row (with Refresh) stays through "Reading usage" to the new values.
   it("re-reads a replaced account as the header does, keeping the row", () => {
     const reading = view({ entries: [{ provider: "claude", inFlight: true }] });
-    expect(reading.usage).toMatchObject({ read: null, note: { text: "Reading usage…" } });
+    expect(reading.usage).toMatchObject({ read: null, note: { text: "Reading usage" } });
     expect(reading.busy).toBe(true);
     expect(view({ entries: [ok("claude", [win({ usedPercent: 12 })])] }).usage?.windows[0]).toMatchObject({ text: "12% used · resets in 2h 10m" });
   });

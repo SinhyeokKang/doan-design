@@ -389,8 +389,8 @@ describe("selectProject", () => {
     expect(await registerClone(cloned, d.deps, "local")).toEqual({ ok: true, root: cloned });
     expect(d.deps.keepLocal).toHaveBeenCalledExactlyOnceWith(cloned);
     expect(d.deps.initialize).not.toHaveBeenCalled();
-    const kept = "The repository was cloned and added, but Doan could not keep its files out of Git, so they stay in Git for now. Choose Keep out of Git in its Project Settings to try again.";
-    const unconfirmed = "The repository was cloned and added, but Doan could not confirm whether its files are kept out of Git. Check Doan files in its Project Settings.";
+    const kept = "The repository was cloned and added, but Doan couldn’t keep its files out of Git, so they stay in Git for now. Choose Keep out of Git in its Project Settings to try again.";
+    const unconfirmed = "The repository was cloned and added, but Doan couldn’t confirm whether its files are kept out of Git. Check Doan files in its Project Settings.";
     for (const [code, expected] of [["local_exclude_failed", { code: "local_exclude_failed", message: kept }], ["local_not_git", { code: "local_not_git", message: kept }],
       ["internal_error", { code: "init_failed", message: unconfirmed }], ["usage_error", { code: "init_failed", message: unconfirmed }]] as const) {
       const f = deps([]);

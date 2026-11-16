@@ -249,7 +249,7 @@ export function readingCount(entries: readonly FolderEntry[], lists: Conversatio
 }
 
 export function readingText(count: number): string {
-  return `Still reading ${count} ${count === 1 ? "project" : "projects"}…`;
+  return `Still reading ${count} ${count === 1 ? "project" : "projects"}`;
 }
 
 const NO_MATCH: Record<Exclude<SearchKind, "all">, string> = { canvas: "No canvases match", frame: "No frames match", conversation: "No conversations match" };
@@ -357,7 +357,7 @@ export function removedCanvasMessage(row: CanvasRow): string {
 export function unavailableCanvasMessage(entry: FolderEntry | undefined, path: string): string {
   if (entry?.kind === "list" && entry.canvases.some(row => row.path === path)) return "Canvas changed while opening. Choose it again from the sidebar or Quick Open.";
   if (entry?.kind === "list") return missingCanvasMessage(path);
-  if (entry?.kind === "loading") return "Project is still being read. Try Open again shortly.";
+  if (entry?.kind === "loading") return "Project is still being read. Try again shortly.";
   return "Project is unavailable. Fix it from its menu in the sidebar, then try again.";
 }
 

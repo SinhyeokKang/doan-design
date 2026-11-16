@@ -174,7 +174,7 @@ test("Cancel, Open again, Disconnect and Retry reach main with the row's agent a
   expect(api.openMcpLink).toHaveBeenCalledWith("claude", "doan-notion");
   click(byLabel("Disconnect Figma for Claude Code"));
   expect(api.disconnectMcpServer).toHaveBeenCalledWith("claude", "doan-figma");
-  click(byLabel("Check Atlassian for Codex again"));
+  click(byLabel("Retry checking Atlassian for Codex"));
   expect(api.readMcpConnectors).toHaveBeenLastCalledWith({ refresh: true });
 });
 

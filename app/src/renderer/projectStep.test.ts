@@ -187,10 +187,10 @@ test("clone: progress, Cancel with cleanup, cancelled, then Retry plans and clon
 test("clone failures keep the clone screen with their code and main's message (a kept cleanup path names the folder)", async () => {
   const h = harness();
   await planned(h);
-  h.queue.clone!.push(ok(op("project_clone", { state: "failed", error: { code: "cleanup_failed", message: "Couldn't remove /Users/ada/.studio.doan-clone-x. Remove it, then try again." } })));
+  h.queue.clone!.push(ok(op("project_clone", { state: "failed", error: { code: "cleanup_failed", message: "Couldn’t remove /Users/ada/.studio.doan-clone-x. Remove it, then try again." } })));
   await h.session.clone();
   expect(phase(h)).toMatchObject({ kind: "clone", inspectionId: null, destination: "/Users/ada/studio" });
-  expect(h.session.state.error).toEqual({ code: "cleanup_failed", message: "Couldn't remove /Users/ada/.studio.doan-clone-x. Remove it, then try again." });
+  expect(h.session.state.error).toEqual({ code: "cleanup_failed", message: "Couldn’t remove /Users/ada/.studio.doan-clone-x. Remove it, then try again." });
   h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([], "/Users/ada/studio") })));
   h.queue.clone!.push(ok(op("project_clone", { state: "failed", error: { code: "git_missing", message: "Git is not installed." } })));
   await h.session.retry();

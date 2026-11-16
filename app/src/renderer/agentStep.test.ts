@@ -68,7 +68,7 @@ test("step entry checks connected, unverified and tool-check providers except Co
   expect(h.api.readAgentAuth).toHaveBeenCalledTimes(1);
   expect(checked(h)).toEqual(["claude", "codex"]);
   expect(row(h, "claude").helper).toBe("Doan checks this automatically when you open this step.");
-  expect(row(h, "copilot").button?.ariaLabel).toBe("Check GitHub Copilot again, uses one Copilot request");
+  expect(row(h, "copilot").button?.ariaLabel).toBe("Retry checking GitHub Copilot, uses one Copilot request");
 });
 
 test("window focus and auth events only read; Copilot is checked only on its Retry", async () => {
@@ -270,7 +270,7 @@ test("stop_required opens the stop dialog; confirming resends with stop, Cancel 
   expect(h.session.state.dialog).toBeNull();
   h.session.command("claude", "reauth");
   await flush();
-  expect(h.session.stopView()?.confirm.label).toBe("Stop and sign in");
+  expect(h.session.stopView()?.confirm.label).toBe("Stop and sign in again");
   h.session.closeDialog();
   expect(h.session.state.dialog).toBeNull();
   expect(h.api.signInAgent.mock.calls).toEqual([["claude", {}]]);

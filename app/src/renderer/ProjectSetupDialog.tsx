@@ -50,7 +50,7 @@ export function setupRequest(root: string, choiceId: string | null, storage: Sto
 }
 
 export interface StorageInput { value: StorageChoice; kept: boolean; notGit: boolean; change: (value: StorageChoice) => void }
-// Set Up Project is described by Will add (CHANGES_ID), so a screen reader hears what it writes, the new repository first.
+// Set up project is described by Will add (CHANGES_ID), so a screen reader hears what it writes, the new repository first.
 export const CHANGES_ID = "setup-changes";
 export function ProjectFields({ root, form, choose, chooseRef, storage }: { root: string; form: ProjectForm; choose: () => void; chooseRef?: (node: HTMLButtonElement | null) => void; storage: StorageInput }) {
   const view = formView(form);
@@ -86,7 +86,7 @@ export function ProjectSetupDialog({ root, name, kept = false, notGit = false, o
     if (result?.kind === "success") { dialog.current?.close(); onClose(); }
     else if (result?.kind === "rerooted") { dialog.current?.close(); onRerooted(result.root, result.message); }
   }
-  return <dialog className="ob-dialog setup-dialog doan-dialog doan-scroll" aria-label="Set Up Project" aria-busy={form.running}
+  return <dialog className="ob-dialog setup-dialog doan-dialog doan-scroll" aria-label="Set up project" aria-busy={form.running}
     ref={node => { dialog.current = node; if (node && !node.open) { node.showModal(); chooseButton.current?.focus(); } }}
     onCancel={event => { event.preventDefault(); close(); }}
     onKeyDown={event => {
@@ -101,7 +101,7 @@ export function ProjectSetupDialog({ root, name, kept = false, notGit = false, o
     </div>
     <div className="ob-buttons doan-dialog-actions">
       <button type="button" className="btn doan-button" data-ui-variant="subtle" disabled={form.running} onClick={close}>Cancel</button>
-      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" aria-describedby={CHANGES_ID} disabled={form.running} onClick={() => void submit()}>{form.running ? "Setting Up" : "Set Up Project"}</button>
+      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" aria-describedby={CHANGES_ID} disabled={form.running} onClick={() => void submit()}>{form.running ? "Setting up" : "Set up project"}</button>
     </div>
   </dialog>;
 }

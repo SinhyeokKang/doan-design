@@ -110,11 +110,11 @@ describe("dockedAvailability", () => {
   });
   test("a fixed provider that cannot run offers its fix in Settings, not another agent", () => {
     expect(dockedAvailability(input({ auth: auth(status("claude", { expired: true, phase: "reauthRequired" })) })).reason)
-      .toEqual({ text: "Claude Code’s sign-in expired.", action: { label: "Sign in again…", target: { section: "agents", provider: "claude" } } });
+      .toEqual({ text: "Claude Code’s sign-in expired.", action: { label: "Sign in again", target: { section: "agents", provider: "claude" } } });
     expect(dockedAvailability(input({ auth: auth(status("claude", {}, { ...FACTS, version: "unsupported" })) })).reason)
-      .toEqual({ text: "Claude Code needs an update.", action: { label: "Update…", target: { section: "agents", provider: "claude" } } });
+      .toEqual({ text: "Claude Code needs an update.", action: { label: "Update", target: { section: "agents", provider: "claude" } } });
     expect(dockedAvailability(input({ auth: auth(status("codex")) })).reason)
-      .toEqual({ text: "Claude Code isn’t connected.", action: { label: "Open Agents settings…", target: { section: "agents", provider: "claude" } } });
+      .toEqual({ text: "Claude Code isn’t connected.", action: { label: "Open Agents settings", target: { section: "agents", provider: "claude" } } });
   });
   test("new-conversation mode uses Home's agent reasons", () => {
     const fresh = { kind: "new", root: "/r" } as const;

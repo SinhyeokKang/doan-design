@@ -27,7 +27,7 @@ describe("notificationFor", () => {
   });
 
   test("names the provider in the title and the project and branch in the body, never the request", () => {
-    expect(notificationFor(APPROVAL, ON, BEHIND, NAMES)).toEqual({ kind: "approval", title: "Codex needs your approval", body: "acme-web · main", target: { conversationId: "c1", root: "/repo" }, requestId: "r1" });
+    expect(notificationFor(APPROVAL, ON, BEHIND, NAMES)).toEqual({ kind: "approval", title: "Codex needs your answer", body: "acme-web · main", target: { conversationId: "c1", root: "/repo" }, requestId: "r1" });
     expect(notificationFor(DONE, ON, BEHIND, NAMES)).toEqual({ kind: "finished", title: "Codex finished", body: "acme-web · main", target: { conversationId: "c1", root: "/repo" } });
     expect(notificationFor(FAILED, ON, BEHIND, NAMES)).toEqual({ kind: "failed", title: "Codex couldn’t finish", body: "acme-web · main", target: { conversationId: "c1", root: "/repo" } });
     expect(notificationFor(DONE, ON, BEHIND, { ...NAMES, branch: null })?.body).toBe("acme-web");

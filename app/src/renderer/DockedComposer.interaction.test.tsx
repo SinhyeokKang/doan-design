@@ -491,12 +491,12 @@ test("a notice with Retry sends the same draft again", async () => {
 });
 
 test("a blocked refusal holds Send with its reason until the person edits the draft", async () => {
-  const refuse = () => ({ kind: "blocked" as const, text: "No agent is ready to run.", action: { label: "Sign in to an agent…", target: { section: "agents" as const } } });
+  const refuse = () => ({ kind: "blocked" as const, text: "No agent is ready to run.", action: { label: "Sign in to an agent", target: { section: "agents" as const } } });
   const { render } = setup({ refuse, onSend: async () => ({ error: "no_agent" }) }, [["conversation:a", draft("Draw it")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();
   expect(has(render(), "No agent is ready to run.")).toBe(true);
-  expect(has(render(), "Sign in to an agent…")).toBe(true);
+  expect(has(render(), "Sign in to an agent")).toBe(true);
   expect(button(render(), "Send").disabled).toBe(true);
   type(render(), "Draw it now");
   expect(has(render(), "No agent is ready to run.")).toBe(false);
@@ -653,7 +653,7 @@ test.each(["input", "body"])("Control+Enter sends rows once in order and preserv
   const tree = render();
   const focusInput = vi.fn(), focusRow = vi.fn();
   hooks.refs[2]!.current = { focus: focusInput, element: () => null };
-  for (const row of tree.filter(item => item["aria-label"] === "Send queued message now" || item["aria-label"] === "Remove queued message")) {
+  for (const row of tree.filter(item => (item["aria-label"] === undefined && item.children === "Send now") || item["aria-label"] === "Remove queued message")) {
     (row.ref as (node: unknown) => void)({ focus: focusRow });
   }
   if (active === "body") vi.stubGlobal("document", { body: document.body, activeElement: document.body });
@@ -1057,13 +1057,13 @@ test("at the usage limit an empty field is a disabled Queue", () => {
   expect(() => button(render(), "Send")).toThrow("not found");
 });
 
-test("scheduled rows show the status line, Sending… once the reset passed, and the empty region otherwise", () => {
+test("scheduled rows show the status line, Sending once the reset passed, and the empty region otherwise", () => {
   const resetsAt = IN_3H();
   const { render, props } = setup({ queued: [{ id: "q1", text: "Also" }], scheduledFor: resetsAt });
   expect(scheduleLine(render())).toMatchObject({ role: "status" });
   expect(lineText(render())).toBe(queueStatusLine(resetsAt, Date.now(), localClock()).text);
   props.scheduledFor = new Date(Date.now() - 1000).toISOString();
-  expect(lineText(render())).toBe("Sending…");
+  expect(lineText(render())).toBe("Sending");
   expect(elements(scheduleLine(render()).children as ReactNode).some(item => item.className === "doan-spinner")).toBe(true);
   // After the reset passed the slot stays Queue, its tooltip the plain label.
   expect(button(render(), "Queue")["aria-describedby"]).toBeUndefined();
@@ -1104,8 +1104,8 @@ test("a start refused by the usage limit names the reset main gave", async () =>
   expect(render().some(item => item.children === `Claude Code reached a usage limit. Send again after it resets ${phrase}.`)).toBe(true);
 });
 
-// The composer draws again when the reset passes, so the line turns to Sending… without another prop change.
-test("on a fake clock, the reset timer redraws the status line as Sending…", () => {
+// The composer draws again when the reset passes, so the line turns to Sending without another prop change.
+test("on a fake clock, the reset timer redraws the status line as Sending", () => {
   vi.useFakeTimers({ now: Date.parse("2026-11-13T05:00:00.000Z"), toFake: ["setTimeout", "clearTimeout", "Date"] });
   try {
     const resetsAt = "2026-11-13T06:00:00.000Z";
@@ -1117,7 +1117,7 @@ test("on a fake clock, the reset timer redraws the status line as Sending…", (
     expect(hooks.states).toEqual(before);
     vi.advanceTimersByTime(1);
     expect(hooks.states).not.toEqual(before);
-    expect(lineText(render())).toBe("Sending…");
+    expect(lineText(render())).toBe("Sending");
   } finally { vi.useRealTimers(); }
 });
 

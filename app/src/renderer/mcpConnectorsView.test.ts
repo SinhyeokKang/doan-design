@@ -128,7 +128,7 @@ test("Couldn’t check shows the Agents alert with Retry that reads the statuses
   const row = find(mcpPageView(snapshot({ codex: { "doan-atlassian": "check_failed" } }), AUTH), "codex", "doan-atlassian");
   expect(row.button).toBeNull();
   expect(row.notice).toMatchObject({ role: "alert", body: "The status check failed or took too long. Try again." });
-  expect(row.notice!.actions).toEqual([{ command: "check", label: "Retry", variant: "prominent", disabled: false, ariaLabel: "Check Atlassian for Codex again" }]);
+  expect(row.notice!.actions).toEqual([{ command: "check", label: "Retry", variant: "prominent", disabled: false, ariaLabel: "Retry checking Atlassian for Codex" }]);
 });
 
 test("a failed attempt shows its reason with Retry on the row it returned to", () => {

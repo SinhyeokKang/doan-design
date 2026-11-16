@@ -42,7 +42,7 @@ export function PrototypeConversationPanel({ run, calls, now, onNotice = () => {
       if (conversationId !== null) reveal({ kind: "reply", conversationId, link });
       return null;
     }}
-    // Sign in names its provider; "Sign in to an agent…" and "Manage agents…" open Settings > Agents at its top.
+    // Sign in names its provider; "Sign in to an agent" and "Manage agents" open Settings > Agents at its top.
     onSettings={settingsTarget => reveal({ kind: "settings", ...(settingsTarget.provider ? { provider: settingsTarget.provider } : {}) })}
     onNotice={onNotice}
     onOpenProjectConversation={conversationId => reveal({ kind: "conversation", conversationId })}

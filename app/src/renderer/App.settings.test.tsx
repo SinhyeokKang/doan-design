@@ -839,7 +839,7 @@ test("Set Up opens its dialog over the page; closed from outside, focus returns 
   folders([{ path: "/w/a", kind: "uninitialized" }]);
   openProjectSettings("/w/a");
   const focused: string[] = [];
-  const setUpButton = focusable("Set Up", focused), heading = focusable("title", focused);
+  const setUpButton = focusable("Set up", focused), heading = focusable("title", focused);
   vi.stubGlobal("getComputedStyle", () => ({ visibility: "visible" }));
   vi.stubGlobal("document", { activeElement: setUpButton, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === ".settings-panel h1" ? [heading] : [] });
   projectPage()!.props.onAction("setUp", "/w/a", vi.fn()); render();
@@ -923,7 +923,7 @@ test("one worktree of several removed from the status line is named by its branc
   expect(removalTitle()).toBe("Remove a (fix) from Doan?");
 });
 
-test("with a running conversation only its Stop and Remove confirmation shows", async () => {
+test("with a running conversation only its Stop and remove confirmation shows", async () => {
   render();
   folders([listed("/w/a"), listed("/w/c")]);
   doan.removeProjects = removed();
@@ -933,7 +933,7 @@ test("with a running conversation only its Stop and Remove confirmation shows", 
   find<{ remove(roots: string[]): void }>(ShellSidebar)[0]!.props.remove(["/w/a"]); render();
   expect(all(tree).filter(element => element.type === "dialog")).toHaveLength(1);
   expect(removalTitle()).toBe("Stop the conversation and remove a?");
-  click(dialogButton("Stop and Remove"));
+  click(dialogButton("Stop and remove"));
   for (let i = 0; i < 4; i++) await Promise.resolve();
   render();
   expect(doan.interruptConversation).toHaveBeenCalledWith({ conversationId: "c1" });

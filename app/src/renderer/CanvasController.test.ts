@@ -1066,7 +1066,7 @@ describe("inspector rows from main", () => {
       h.select(2);
       h.inspections[1]?.reject(new Error("No handler registered for 'inspect:get'"));
       await settle();
-      expect(h.state().inspector).toEqual({ status: "failed", reason: "The canvas could not be inspected." });
+      expect(h.state().inspector).toEqual({ status: "failed", reason: "The canvas couldn’t be inspected." });
     } finally { h.controller.dispose(); vi.restoreAllMocks(); }
   });
 
@@ -1582,7 +1582,7 @@ it("does not diagnose missing markup when the board width could not be read", ()
   try {
     const { width, ...row } = h.row;
     h.controller.updateEntries([{ kind: "list", path: "/repo", servedRev: 1, canvases: [row] }]);
-    expect(h.changed.mock.lastCall?.[0].message).toBe("Could not read a valid board width. Run doan check in a terminal to diagnose the canvas.");
+    expect(h.changed.mock.lastCall?.[0].message).toBe("Couldn’t read a valid board width. Run doan check in a terminal to diagnose the canvas.");
   } finally { h.controller.dispose(); }
 });
 

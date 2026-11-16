@@ -206,7 +206,7 @@ describe("two instances: onboarding and the page", () => {
     const p = page(second.projects, locks);
     const other = inspectionId(await p.ask("inspect", { url: OTHER, destination: "/work/other" }));
     const refused = await settled(p.session, operation(await p.ask("clone", { inspectionId: other, destination: "/work/other" })).operationId);
-    expect(refused).toMatchObject({ state: "failed", error: { code: "cleanup_failed", message: "Couldn't remove /work/.studio.doan-clone-1. Remove it, then try again." } });
+    expect(refused).toMatchObject({ state: "failed", error: { code: "cleanup_failed", message: "Couldn’t remove /work/.studio.doan-clone-1. Remove it, then try again." } });
     expect(second.projects.present).toHaveBeenCalledWith("/work/.studio.doan-clone-1");
     expect(second.projects.clone).not.toHaveBeenCalled();
 
@@ -244,7 +244,7 @@ describe("two instances: onboarding and the page", () => {
     const present = async (path: string) => path === "/work/.a.doan-clone-1";
     first.projects.present.mockImplementation(present);
     second.projects.present.mockImplementation(present);
-    const blocked = { state: "failed", error: { code: "cleanup_failed", message: "Couldn't remove /work/.a.doan-clone-1. Remove it, then try again." } };
+    const blocked = { state: "failed", error: { code: "cleanup_failed", message: "Couldn’t remove /work/.a.doan-clone-1. Remove it, then try again." } };
     const fromPage = operation(await p.ask("clone", { inspectionId: inspectionId(await p.ask("inspect", { url: URL, destination: "/work/c" })), destination: "/work/c" }));
     expect(await settled(p.session, fromPage.operationId)).toMatchObject(blocked);
     const fromOnboarding = operation(await o.ask({ op: "project_clone", inspectionId: inspectionId(await o.ask({ op: "project_inspect", url: URL, destination: "/work/d" })), destination: "/work/d" }));
@@ -273,7 +273,7 @@ describe("two instances: onboarding and the page", () => {
     expect(await onboardingSettled(o.service, c.operationId)).toMatchObject({ state: "failed", error: { code: "cleanup_failed" } });
     answerPage(false);
 
-    expect(await settled(p.session, fromPage.operationId)).toMatchObject({ state: "failed", error: { code: "cleanup_failed", message: "Couldn't remove /work/.c.doan-clone-1. Remove it, then try again." } });
+    expect(await settled(p.session, fromPage.operationId)).toMatchObject({ state: "failed", error: { code: "cleanup_failed", message: "Couldn’t remove /work/.c.doan-clone-1. Remove it, then try again." } });
     expect(second.projects.clone).not.toHaveBeenCalled();
     expect(locks.leftovers.get("/work")).toEqual(["/work/.c.doan-clone-1"]);
   });

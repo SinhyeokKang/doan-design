@@ -39,14 +39,14 @@ export function removalConfirm(running: readonly { conversationId: string; waiti
   if (running.length === 0) return {
     conversations: [],
     title: `Remove ${label} from Doan?`,
-    body: `This removes ${count > 1 ? `its ${count} worktrees` : "it"} from Doan's project list only. Files and Git worktrees stay on disk.`,
+    body: `This removes ${count > 1 ? `its ${count} worktrees` : "it"} from Doan’s project list only. Files and Git worktrees stay on disk.`,
     cancel: "Cancel", confirm: "Remove from Doan",
   };
   return {
     conversations: running.map(c => c.conversationId),
     title: `Stop the conversation and remove ${label}?`,
     body: `${aConversation(label, running.every(c => c.waiting))} Doan stops it, then removes the project from the list. Files and Git worktrees stay on disk.`,
-    cancel: "Cancel", confirm: "Stop and Remove",
+    cancel: "Cancel", confirm: "Stop and remove",
   };
 }
 
@@ -75,7 +75,7 @@ export function rememberRequest<T extends LastRequest>(requests: ReadonlyMap<str
 }
 
 // Home's Edit and the docked composers' Edit and resend ask the same question; only the body names where the request went.
-export const REPLACE_DRAFT = { title: "Replace your draft?", cancel: "Keep Draft", confirm: "Replace" } as const;
+export const REPLACE_DRAFT = { title: "Replace your draft?", cancel: "Keep draft", confirm: "Replace" } as const;
 export type ReplaceDraftConfirm = { title: string; body: string; cancel: string; confirm: string };
 
 // A different draft is never replaced without asking. Attachments keep main's ids: main checks each again when the

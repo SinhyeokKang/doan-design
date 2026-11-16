@@ -107,7 +107,7 @@ function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, bu
       break;
     }
     case "check_failed":
-      if (view.action === "retry") notice = alert("The status check failed or took too long. Try again.", [button("check", "Retry", "prominent", `Check ${of} again`, off)]);
+      if (view.action === "retry") notice = alert("The status check failed or took too long. Try again.", [button("check", "Retry", "prominent", `Retry checking ${of}`, off)]);
       else rowButton = settled(view.action, off);
       break;
     default: rowButton = settled(view.action, off);

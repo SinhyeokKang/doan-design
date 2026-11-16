@@ -79,9 +79,9 @@ test("outside Git, Keep out of Git adds the new repository at the top of Will ad
   }
 });
 
-test("Set Up Project is described by Will add", () => {
+test("Set up project is described by Will add", () => {
   const html = renderToStaticMarkup(<ProjectSetupDialog root="/Users/ada/code/studio" name="studio" notGit onClose={() => {}} onRerooted={() => {}} />);
-  expect(html).toMatch(/<button type="button" class="btn primary doan-button" data-ui-variant="prominent" aria-describedby="setup-changes">Set Up Project<\/button>/);
+  expect(html).toMatch(/<button type="button" class="btn primary doan-button" data-ui-variant="prominent" aria-describedby="setup-changes">Set up project<\/button>/);
 });
 
 // --git-init is the consent to the .git/ line on screen: only with Keep out of Git, outside Git, and not for a project
