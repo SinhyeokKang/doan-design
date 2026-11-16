@@ -6,6 +6,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
+import type { UsageEntry } from "../main/agentAuth/usageTypes";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { ExportReply } from "../main/canvasExport";
 import type { ConversationHandoffNotice } from "../main/conversation/handoff";
@@ -35,7 +36,7 @@ export type SharedWithMain =
   | "answerConversationQuestion" | "readConversation" | "listConversationModels" | "listConversationSkills"
   | "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "removeAttachment" | "recheckAttachments" | "attachmentsFromPaths" | "releaseAttachments"
   | "onConversationEvent" | "onConversationStage" | "onAgentAuth" | "getWork" | "onWorkChanged" | "designSkills" | "onWindowVisible" | "droppedPath"
-  | "deleteConversation";
+  | "deleteConversation" | "readAgentUsage" | "onAgentUsage";
 
 function listen<T>(channel: string, listener: (value: T) => void): () => void {
   const receive = (_event: Electron.IpcRendererEvent, value: T) => listener(value);
@@ -127,6 +128,16 @@ const api = {
     ipcRenderer.on("prototype:authChanged", receive);
     ipcRenderer.invoke("prototype:auth").then(deliver, () => {});
     return () => { active = false; ipcRenderer.removeListener("prototype:authChanged", receive); };
+  },
+  // The context ring drawer's usage, as the main preload reads it: entries carry no connection ID, profile or account
+  // (usageTypes.ts). The first read is delivered only if no change event came before it.
+  readAgentUsage: (trigger?: "open" | "refresh"): Promise<UsageEntry[]> => ipcRenderer.invoke("agent-usage:read", trigger ? { trigger } : {}),
+  onAgentUsage(listener: (entries: UsageEntry[]) => void): () => void {
+    let active = true, changed = false;
+    const receive = (_event: Electron.IpcRendererEvent, entries: UsageEntry[]) => { if (!active) return; changed = true; listener(entries); };
+    ipcRenderer.on("agent-usage:changed", receive);
+    ipcRenderer.invoke("agent-usage:read", {}).then((entries: UsageEntry[]) => { if (active && !changed) listener(entries); }, () => {});
+    return () => { active = false; ipcRenderer.removeListener("agent-usage:changed", receive); };
   },
   // Only the terminal work of the session the playing canvas would resume (its last resumeTarget answer), whatever
   // project it works in. Subscribe first, then read.

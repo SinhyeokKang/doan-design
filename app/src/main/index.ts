@@ -84,6 +84,7 @@ import { REPOSITORY_URL } from "./repository";
 import { createStarPrompt, type StarPromptStore } from "./starPromptStore";
 import { updateView, type UpdateMenuView } from "./update/view";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
+import { usagePublisher, usageVisible } from "./usageWindows";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
 import { createInstallOpener } from "./installCommand";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
@@ -1063,15 +1064,15 @@ async function start(): Promise<void> {
       prompt: (owner, event) => { if (win && !win.isDestroyed() && win.webContents.id === owner) send(AUTH_CHANNELS.prompt, event); },
     });
   }
-  // Agent usage (ARCHITECTURE §7): read on fixed triggers into main memory only, shown only while the window is.
+  // Agent usage (ARCHITECTURE §7): read on fixed triggers into main memory only, shown only while a window is.
   if (agentAuth && authIpc) {
     const auth = agentAuth, ipc = authIpc;
     usage = new UsageService({
       auth,
       readiness: provider => ipc.latest().providers.find(status => status.provider === provider)?.readiness ?? { ready: false, cause: "not_connected", action: "signIn" },
       read: (provider, lease, signal) => readUsage(provider, lease, { spawn: spawnAuthProcess, fence: { userData } }, signal),
-      visible: () => windowShown && !appHidden,
-      publish: entries => send(USAGE_CHANNELS.changed, entries),
+      visible: () => usageVisible({ mainShown: windowShown, appHidden, prototypeShown: prototype.visible() }),
+      publish: usagePublisher({ main: send, prototype: (channel, value) => prototype.send(channel, value) }),
     });
     // App start: once the tool facts are read, which readiness needs. A failed probe also ends the pre-facts hold, or
     // blocked providers would read "Reading usage…" forever.

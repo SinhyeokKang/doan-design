@@ -48,11 +48,11 @@ describe("contextDrawerView", () => {
     expect(view().usage).toMatchObject({ name: "Claude Code", read: "Updated 3m ago", note: null });
   });
 
-  it.each([
-    ["Antigravity", { provider: "antigravity" as const, entries: [...ENTRIES, { provider: "antigravity" as const, inFlight: false }] }],
+  it.each<[string, Partial<Parameters<typeof contextDrawerView>[0]>]>([
+    ["Antigravity", { provider: "antigravity", entries: [...ENTRIES, { provider: "antigravity", inFlight: false }] }],
     ["a legacy external conversation", { usageHidden: true }],
-    ["a terminal session's composer", { provider: "codex" as const, usageHidden: true }],
-    ["a provider with no Doan connection", { provider: "copilot" as const, entries: [claude, codex] }],
+    ["a terminal session's composer", { provider: "codex", usageHidden: true }],
+    ["a provider with no Doan connection", { provider: "copilot", entries: [claude, codex] }],
     ["no entries at all", { entries: [] }],
   ])("has no usage row and no Refresh for %s", (_name, over) => {
     const drawn = view({ ...over, entries: over.entries ?? ENTRIES.map(entry => ({ ...entry, inFlight: true })) });
