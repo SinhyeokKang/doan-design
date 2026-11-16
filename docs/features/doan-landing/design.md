@@ -1,0 +1,35 @@
+# doan-landing — 디자인 (드래프트 먼저)
+
+PRODUCT §5 'Deferred'에 따르면 웹(doan.design)의 스택은 앱이 완성된 뒤에 정하고, 웹은 앱을 내려받는 경로 역할만 한다. 이 문서는 `/feature`보다 먼저 시각 방향을 잡으려고 쓰는 드래프트 요청이다. 디자인이 확정되면 `/feature doan-landing`에서 spec·tasks와 함께 다시 쓴다.
+
+## 드래프트 요청
+
+- 캔버스: `.doan/canvases/doan-landing.html`, id `doan-landing`
+- 프레임: `landing-desktop`(1440), `landing-mobile`(390), `landing-notes`
+- `data-doan-implements` 없음(구현할 파일이 아직 없다)
+
+## 방향 (사용자 지시)
+
+- 레퍼런스는 buzz.xyz와 aside.com이고, 주로 buzz처럼 단순하게 간다.
+- buzz처럼 페이지 중간에 앱 영상 영역을 둔다.
+- hero에는 Welcome과 설치 디스크에 쓰는 buddy 단체 사진(`.doan/assets/buddies/group/group.png`)을 쓴다.
+- feature 영역은 buzz처럼 카드로 5개를 두고, 카드마다 buddy 하나가 그 기능을 하는 모습으로 보여 준다.
+
+## 섹션 (드래프트 기준)
+
+1. 내비게이션: 로고, Features, GitHub, Download
+2. Hero: 워드마크 `Doan`, Welcome 카피, Download for macOS + View on GitHub, 단체 사진
+3. 영상: 제목·설명 + 앱 창 프레임 안의 데모 영상(영상은 아직 없다, 포스터는 README hero 이미지)
+4. Feature 5개: Doany·Dungdung·Puri·Popo·Dori가 한 기능씩 맡는다
+5. 마무리 CTA: 다운로드 + GitHub
+6. 푸터: 오픈소스 표기와 링크
+
+## 카피 출처
+
+기능 설명은 README의 기존 문장을 줄여 쓰고, 제품이 확인하지 않은 주장은 넣지 않는다.
+
+## 열린 질문
+
+- 데모 영상의 내용과 길이, 자동 재생 여부
+- Dungdung(듣기)과 Dori(내보내기) 카드에 쓸 새 동작 이미지
+- 도메인(doan.design)·호스팅·스택은 PRODUCT 'Deferred'대로 나중에 정한다
