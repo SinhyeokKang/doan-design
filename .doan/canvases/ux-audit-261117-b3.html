@@ -1,0 +1,962 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="ux-audit-261117-b3"><meta name="doan:width" content="1840"><title>ux-audit-261117 B3 — notices and recovery</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+:root{--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center;--radix-dropdown-menu-content-available-height:384px;--radix-popover-content-available-height:384px}
+@layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3,h4{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button,input{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent;border-radius:0}ul,ol{list-style:none}}
+/* ── app/src/renderer/styles.css at develop 366993b72, only the rules these frames need, verbatim (no hex, no viewport-height units) ── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { color-scheme: light; }
+html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+/* Keep Tailwind preflight's inherited 1.5 line height out of the shell. */
+body { background: var(--bg-app); color: var(--text-standard); font-family: var(--type-family); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; user-select: none; }
+input, textarea, .composer-input, .selectable { user-select: text; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { color: var(--text-disabled); cursor: default; }
+button, [role="treeitem"] { outline: none; }
+button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+/* Rows sit inside scrolling lists, which would clip an outer ring, so theirs is drawn inward. */
+[role="treeitem"].row:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+ol { list-style: none; }
+code, kbd { font-family: var(--type-family); }
+.right { background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
+.area { position: relative; overflow: hidden; background: var(--surface-inset); }
+.canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); pointer-events: none; }
+.canvas-status button { pointer-events: auto; }
+.canvas-status b { color: var(--text-standard); font-weight: var(--type-weight-medium); }
+.canvas-status > * { max-width: 260px; overflow-wrap: anywhere; }
+.canvas-status .doan-spinner { display: block; margin: 0 auto var(--space-2); }
+.phead { font: 600 12px var(--type-family); padding: 11px 14px 10px; border-bottom: 1px solid var(--border-standard); }
+.ob-provider-list { padding: 0 var(--space-4); }
+.ob-provider { display: flex; flex-direction: column; justify-content: center; min-height: var(--size-row); padding: var(--space-4) 0; }
+.ob-provider + .ob-provider { border-top: 1px solid var(--border-standard); }
+.ob-provider-row { display: flex; align-items: center; gap: var(--space-3); }
+.ob-provider-mark { flex: none; width: 32px; display: grid; place-items: center; }
+.ob-provider-mark img { display: block; width: 24px; height: 24px; object-fit: contain; }
+.ob-provider-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
+.ob-provider-label strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ob-provider-label span, .ob-fine, .ob-page-help, .ob-button-note { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
+.ob-provider-help { margin-top: var(--space-3); color: var(--text-subtle); }
+.ob-provider > .doan-notice { margin-top: var(--space-3); }
+.ob-notice-title, .ob-notice-body { display: block; }
+.ob-notice-title { font-weight: var(--type-weight-medium); }
+/* Only under a title: a body alone is the first line, which the notice icon is centred on. */
+.ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
+/* A Project notice's text takes the room beside its actions; its second line (main's own account, or a note) is a
+   caption under the sentence. */
+.ob-notice-text { flex: 1 1 240px; min-width: 0; }
+.ob-notice-actions { flex: none; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.ob-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
+.ob-state-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.ob-field-error { margin-top: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-danger); }
+.ob-project-notice code { color: var(--text-standard); background: var(--surface-panel); border-radius: var(--space-1); padding: 0 var(--space-1); }
+/* First run's notices sit on the panel fill themselves, so their chips take the inset fill to stay visible. */
+.doan-notice.doan-panel.ob-project-notice code { background: var(--surface-inset); }
+.buddy-notice .doan-button, .buddy-step-notice .doan-button { margin-left: auto; flex: none; }
+.ob-msg code, .ob-dialog code, .ob-field code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+/* Bottom-right on every screen, 16px from the window's edges; the canvas tools row sits at the board's bottom centre. */
+.toast { position: absolute; right: var(--space-4); bottom: var(--space-4); z-index: 6; }
+/* Inside an open modal dialog (Toast.tsx `showIn`) the toast keeps the window's corner rather than the dialog's: an open
+   dialog has no transform, so fixed positioning is relative to the window. */
+.toast[data-placement="dialog"] { position: fixed; }
+.toast .msg { min-width: 0; overflow-wrap: anywhere; }
+/* A running Retry keeps focus, so it is `data-disabled` rather than `:disabled`, and the hover fill must not come back. */
+.toast .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
+.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
+.hue-sky { background: color-mix(in srgb, var(--identity-project-sky) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-sky) 65%, var(--text-standard)); }
+.shell-branch { display: inline-flex; align-items: center; gap: 4px; max-width: 84px; flex-shrink: 1; }
+.shell-branch svg { width: 12px; height: 12px; flex: none; }
+.shell-branch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-modes button[aria-disabled="true"], .shell-search[aria-disabled="true"], .shell-side .row[aria-disabled="true"], .shell-side .row[aria-disabled="true"] :is(.shell-project-name, .shell-branch), .shell-top .shell-history .doan-icon-button[aria-disabled="true"], .doan-menu-item[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+.chev { width: var(--space-4); height: var(--space-4); color: var(--text-metadata); }
+.logo { width: var(--size-icon); height: var(--size-icon); object-fit: contain; flex: none; }
+.composer-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-standard); }
+.composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }
+.composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
+.composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; position: relative; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+/* A contenteditable has no placeholder: ChipField marks an empty field and its aria-placeholder is drawn over it, inset
+   by the field's padding. */
+.composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
+.composer-card.readonly .composer-input { color: var(--text-subtle); }
+.composer-tools { position: relative; display: flex; align-items: center; gap: var(--space-1); margin-left: calc(-1 * var(--space-1)); }
+.composer-tools .grow { flex: 1; }
+.composer-tools > .doan-icon-button:not(.composer-send) { color: var(--text-standard); }
+/* The standard ink above outranks the shared disabled ink, so Attach and Presets looked enabled while a send was pending. */
+.composer-tools > .doan-icon-button:not(.composer-send):disabled { color: var(--text-disabled); }
+.composer-agent { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.composer-agent .muted { color: var(--text-metadata); }
+.composer-effort { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+/* The capsule's chevron steps down with its gauge, unlike the model trigger's. */
+.composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* Fast on: the level, the Fast icon in the accent (an Accent place), then the chevron. The icon
+   never shrinks, so an icon-only docked trigger still shows Fast; its name and tooltip say "Fast on". */
+.composer-effort .fast-icon { flex-shrink: 0; color: var(--text-accent); }
+/* The permission mode trigger (permission-mode draft frames home-toolrow, picker-menu): the Effort trigger with the
+   mode's own icon, so an icon-only trigger still names the mode. Full access takes the danger ink on the trigger's own
+   fills; its name, icon and aria-label carry it too, so colour is never the only signal. No coloured edge or fill. */
+.composer-permission { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.composer-permission svg:not(.chev) { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* Two classes: the tray's subtle ink (.composer-tray .doan-button) would otherwise win. */
+:is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"] { color: var(--text-danger); }
+:is(.composer-permission, .settings-select)[data-mode="bypass"] .chev { color: currentColor; }
+.composer-send .doan-spinner { color: var(--text-on-accent); }
+.composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
+.composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }
+.composer-tray :is(.doan-button, .tray-branch) svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.composer-reason { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
+.composer-notice { margin-top: var(--space-3); }
+.docked { position: relative; }
+.docked-buddy-slot { position: absolute; inset: 0 0 auto; height: 0; z-index: 2; pointer-events: none; }
+.docked .composer-card { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-1); }
+.docked .composer-tools { display: contents; }
+.docked .composer-tools .grow { display: none; }
+.docked .composer-presets { grid-area: presets; }
+.docked .composer-send { grid-area: send; }
+.docked .composer-chips { grid-area: chips; }
+.docked .composer-input { grid-area: field; min-height: var(--type-label-line-height); }
+.docked[data-shape="capsule"] .composer-card { grid-template-areas: "presets field send"; padding: var(--space-2); border-radius: var(--radius-pill); }
+.docked[data-shape="capsule"] .composer-input { padding-inline: var(--space-2) var(--space-1); }
+/* A wrapped placeholder made the empty capsule taller than one with a typed character; one line keeps both the same,
+   and the ellipsis shows the narrow panel cut the hint rather than ending it. */
+.docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.docked[data-shape="box"] .composer-card { grid-template-areas: "field field field" "presets . send"; row-gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
+/* The chip row takes a grid row only when there are chips: an empty row would still add its gap above the field. */
+.docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips" "field field field" "presets . send"; }
+.docked[data-shape="box"] .composer-presets { margin-left: calc(-1 * var(--space-1)); }
+/* The docked field is one line tall, so an empty box (attachments only) keeps its placeholder, a long suggestion
+   included, on one line as the capsule does; a wrapped one would overflow the field and scroll it. The full text stays
+   the field's aria-placeholder, and Tab or Right Arrow puts a suggestion in. */
+.docked[data-shape="box"] .composer-input[data-empty]::before { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
+.suggestion { position: relative; display: flex; align-items: center; width: 100%; min-width: 0; gap: var(--space-3); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2); border-radius: var(--radius-row); background: transparent; color: var(--text-standard); cursor: pointer; text-align: left; font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); transition: background-color var(--time-state) var(--ease-state); }
+@media (hover: hover) { .suggestion:hover { background: var(--affordance-subtle); } }
+.suggestion:active { background: var(--affordance-subtle-pressed); }
+.suggestion:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.suggestion-icon { flex: none; display: grid; place-items: center; width: var(--size-control-xs); height: var(--size-control-xs); border-radius: var(--radius-toolbar-icon); background: var(--surface-accent-subtle); }
+/* The .cv-preview clamp at three lines: up to three, then an ellipsis. */
+.suggestion-label { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; }
+/* A 1px line inside the 4px gap (1px below the upper row, 2px above the lower), inset like .doan-menu-sep; none above the first or below the last row. */
+.suggestion + .suggestion::before { content: ""; position: absolute; inset-inline: var(--space-3); top: calc(var(--space-half) * -1 - 1px); height: 1px; background: var(--border-standard); pointer-events: none; }
+/* The group icon and the hover arrow carry the accent; the sentence stays standard ink except the project and canvas names, which take the anchor chip's values as an inline highlight (.anchor-chip is nowrap and truncates, so its values are repeated here, and `clone` gives each wrapped fragment its own padding and corners). */
+.suggestion-value { padding: 0 var(--space-1h); border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font-weight: var(--type-weight-medium); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.suggestion svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); }
+.suggestion-go { visibility: hidden; }
+.suggestion:is(:hover, :focus-visible) .suggestion-go { visibility: visible; }
+.strip-agent { display: inline-grid; place-items: center; flex: none; }
+.strip-agent .logo, .strip-alert, .strip-ok { width: var(--size-icon); height: var(--size-icon); }
+.strip-text { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
+.strip-text b { font-weight: var(--type-weight-medium); }
+.strip-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strip-actions { display: flex; align-items: center; gap: var(--space-2); }
+.settings-panel { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
+.settings-page { max-width: 48rem; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-6); }
+.settings-header, .settings-section-header { display: flex; align-items: start; gap: var(--space-3); padding-inline: calc(var(--space-4) + 1px); }
+.settings-header { margin-bottom: var(--space-8); }
+.settings-section-header { margin-bottom: var(--space-3); }
+.settings-header-copy { flex: 1; min-width: 0; }
+.settings-title { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); outline: none; }
+.settings-lead, .settings-section-description { margin-top: var(--space-2); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* A section description sits as close to its title as a row's description to its label. */
+.settings-section-description { margin-top: var(--space-half); }
+.settings-section-title { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.settings-sections { display: grid; gap: var(--space-section-gap); }
+/* A provider row leads with its mark; what belongs to a row but sits under it (a notice and its actions, a helper)
+   starts at the text column. */
+.doan-preference-row[data-has-icon] { grid-template-columns: auto minmax(0, 1fr) auto; }
+.doan-preference-row-icon { display: flex; align-items: center; justify-content: center; width: var(--size-icon-lg); height: var(--size-icon-lg); color: var(--text-subtle); }
+.doan-preference-row-icon > :is(svg, img) { width: 100%; height: 100%; object-fit: contain; }
+.doan-preference-row[data-disabled] .doan-preference-row-icon { color: var(--text-disabled); }
+.doan-preference-row-extra { grid-column: 1 / -1; margin-top: var(--space-3); }
+.doan-preference-row[data-has-icon] > .doan-preference-row-extra { grid-column: 2 / -1; }
+.doan-preference-row > .doan-preference-row-extra + .doan-preference-row-extra { margin-top: 0; }
+.doan-preference-row:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
+/* An arrival from Home's agent picker or a toast flashes the provider's row for 2.4 s, like an added project's sidebar
+   row (.shell-project-row.flash). */
+.doan-preference-row[data-flash] { margin-inline: calc(-1 * var(--space-2)); padding-inline: var(--space-2); border-radius: var(--radius-row); box-shadow: inset 0 0 0 2px var(--border-focus); }
+.settings-help { margin-top: var(--space-1); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.settings-select { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.settings-select .chev { color: var(--text-subtle); }
+.settings-notice { margin-bottom: var(--space-3); }
+.settings-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); overflow-wrap: anywhere; }
+.settings-msg.error { color: var(--text-danger); }
+.settings-msg.warn { color: var(--text-warning); }
+.settings-msg-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
+.mcp-field-error { margin-top: calc(-1 * var(--space-2)); }
+.doan-settings-group > .settings-permission { margin-top: 0; padding: 0 0 var(--space-3); border-top: 0; }
+.project-settings-title { display: flex; align-items: center; gap: var(--space-3); }
+.project-settings-title .doan-chip { font-weight: var(--type-weight-regular); }
+.settings-title .project-settings-thumbnail.shell-thumbnail { width: var(--size-control-sm); height: var(--size-control-sm); border-radius: var(--space-2); font-size: var(--type-body-sm-size); line-height: var(--size-control-sm); }
+.project-settings-grow { flex: 1; min-width: 0; }
+.project-settings-token { display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-control-lg); padding-block: var(--space-2); }
+.project-settings-token > svg, .project-settings-path svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-subtle); }
+.project-settings-token-name { flex: none; min-width: 0; max-width: 60%; overflow-wrap: anywhere; }
+.project-settings-empty { color: var(--text-subtle); }
+.project-settings-path { display: flex; align-items: center; gap: var(--space-2); }
+.project-settings-notice-actions { flex: none; display: flex; gap: var(--space-2); }
+.project-settings-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); overflow-wrap: anywhere; }
+.project-settings-loading { padding-inline: calc(var(--space-4) + 1px); }
+/* The lines under the notice (a refused recovery, the config error's detail) hang from it, closing most of the gap the
+   notice leaves before the sections; a write error under a row only needs its own vertical padding. */
+.settings-page > .doan-notice { margin-bottom: var(--space-section-gap); }
+.settings-page > .doan-notice + :is(.project-settings-msg, .project-settings-details) { margin: calc(-1 * var(--space-section-gap) + var(--space-3)) 0 var(--space-section-gap); }
+.project-settings-msg { padding: var(--space-2) 0 var(--space-1); }
+.settings-page > .doan-notice + .project-settings-msg { padding-inline: calc(var(--space-4) + 1px); }
+.project-settings-details { padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; }
+.conversation-thread .thread-notice, .cp-scroll > .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
+.conversation-thread .thread-notice > .strip-actions, .cp-scroll > .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
+/* The Stopped notice's glyph is a bare lucide icon (24px unless sized); AlertIcon and the agent mark size themselves. */
+.conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
+/* The strip's one-line clip (overflow hidden) would cut glyphs that overhang a wrapped line. */
+.conversation-thread .thread-notice .strip-text span, .cp-scroll > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+.ov-main, .right.ov-right, .conv-menu, .wt-menu { font-variant-numeric: normal; }
+.ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
+.ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: none; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-project-name { font-weight: var(--type-weight-medium); }
+/* The branch chip as a worktree picker: the translucent chip with a chevron, opening the project menu's worktree rows. */
+.wt-chip { cursor: pointer; -webkit-app-region: no-drag; }
+.wt-chip .chev { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-left: var(--space-half); }
+/* button.doan-chip's open fill (data-state="open", more specific) would otherwise replace the pressed fill. */
+.ov-project button.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
+.shell-project-menu.wt-menu { width: 280px; }
+.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+/* The title gives way first in a narrow window. */
+.ov-title-wrap { display: flex; min-width: 0; }
+.ov-new-conv { flex: none; margin-left: auto; }
+/* New conversation on the new conversation state: unavailable, still focusable with its tooltip. */
+:is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+:is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-notice { margin: 0 var(--space-4) var(--space-2); }
+.ov-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; }
+.ov-scroll > .conversation-thread { flex: 1; }
+.ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-8); }
+.ov-main .conversation-thread .thread { max-width: 720px; margin-inline: auto; }
+.ov-col { width: calc(100% - 2 * var(--space-6)); max-width: 720px; margin-inline: auto; }
+.ov-foot { flex: none; padding: var(--space-3) 0 var(--space-4); }
+/* New conversation: the moved line and the suggestions sit right above the composer. */
+.conv-menu { width: 360px; max-width: calc(100vw - 16px); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; -webkit-app-region: no-drag; }
+.conv-new { display: flex; align-items: center; gap: var(--space-2); }
+.conv-new svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
+.conv-menu .doan-menu-item.current { background: var(--affordance-backdrop-pressed); }
+.conv-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.right.ov-right .rp-head { display: flex; align-items: center; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); border-bottom: 0; font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); }
+.rp-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.cp-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: var(--space-2) var(--space-4) 0; }
+.docked-reason.reason-stack { flex-wrap: wrap; }
+.docked-reason.reason-stack > span { flex-basis: 100%; }
+.docked .composer-tray :is(.composer-attach, .composer-pick) { color: var(--text-subtle); }
+.docked .composer-tray :is(.composer-attach, .composer-pick):is(:disabled, [aria-disabled="true"]) { color: var(--text-disabled); }
+.conversation-thread .thread-notice > .ask-error { grid-column: 2; color: var(--text-danger); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.ov { min-height: 0; overflow: auto; padding: 4px 24px 24px; position: relative; z-index: 1; background: var(--bg-app); }
+.workspace > .ov { margin-left: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container) 0 0 var(--radius-container); }
+.grow-text { flex: 1; min-width: 0; }
+.workspace > .ov.ov-main { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+
+/* ── To be: proposed rules, NOT IN CODE. Rules a conductor would add to styles.css are unscoped; the .tobe-scoped ones
+   only undo, inside To be columns, a copied As-is rule that the change removes. ── */
+/* B2 U28's one in-button spinner rule (from the B2 batch decision; drawn here for every running Retry). */
+:is(.doan-button, .doan-icon-button) > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
+/* U7: the canvas panel's thread-place notice, placed in the Overview new column (same grid as .cp-scroll > .thread-notice),
+   12 above the suggestions as the moved line is. */
+.ov-new > .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); margin-bottom: var(--space-3); }
+.ov-new > .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
+.ov-new > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
+.ov-new > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+/* D11: the title menu's running Retry row: the same 14px spinner in the row's (disabled) ink. */
+.conv-error .doan-menu-item > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
+/* U31: the error line is the shared inline error (settings-msg error + AlertIcon); the ask-error class keeps only its
+   grid placement. The field and its error sit in one group with an 8px gap, so no negative margin pulls the line up. */
+.tobe .conversation-thread .thread-notice > .ask-error { color: var(--text-danger); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.tobe .ob-field-error { margin-top: 0; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.tobe .field-group { display: flex; flex-direction: column; gap: var(--space-2); }
+/* The paste dialog's form (styles.css:253); without it both columns drew the field error against the field. */
+.ob-dialog-form { display: flex; flex-direction: column; gap: var(--space-4); }
+/* D13: one reason-line ink, metadata, caption type applied whole. */
+.tobe .project-settings-notice-reason { color: var(--text-metadata); letter-spacing: var(--type-caption-letter-spacing); }
+
+/* ── Draft board (not app UI) ── */
+html,body{height:auto;overflow:visible}
+body{width:1840px;padding:var(--space-10);background:var(--surface-inset);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);font-variant-numeric:normal;user-select:text}
+svg:has(> use){fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+[data-doan-frame]{width:1760px;padding:var(--space-8);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+[data-doan-frame]+[data-doan-frame]{margin-top:var(--space-16)}
+.fhead{display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-6)}
+.fhead h2{font-size:var(--type-heading-size);line-height:var(--type-heading-line-height);letter-spacing:var(--type-heading-letter-spacing);font-weight:var(--type-weight-medium)}
+.fhead p{color:var(--text-subtle)}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-8);align-items:start}
+.col{display:flex;flex-direction:column;gap:var(--space-4);min-width:0}
+.col>h3{display:flex;align-items:center;gap:var(--space-2);font-size:var(--type-label-size);line-height:var(--type-label-line-height);font-weight:var(--type-weight-medium)}
+.cap{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.stage{position:relative;padding:var(--space-6);border-radius:var(--radius-row);background:var(--bg-app)}
+.stage.white{background:var(--surface-panel);box-shadow:0 0 0 1px var(--border-standard)}
+.stage.flush{padding:0;overflow:hidden;box-shadow:0 0 0 1px var(--border-standard)}
+.stack{display:flex;flex-direction:column;gap:var(--space-6)}
+.row-of{display:flex;gap:var(--space-6);align-items:flex-start}
+.note{margin-top:var(--space-8);padding-top:var(--space-6);border-top:1px solid var(--border-standard);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4) var(--space-8);color:var(--text-subtle)}
+.note h4{margin-bottom:var(--space-1);color:var(--text-standard);font-weight:var(--type-weight-medium)}
+.note ul,.note ol{padding-left:var(--space-5)}
+.note ul{list-style:disc}.note ol{list-style:decimal}
+.note li+li{margin-top:var(--space-1)}
+.note p+p{margin-top:var(--space-2)}
+.note code,.fhead code,.idx code,.cap code,.lead code{padding:0 var(--space-1);border-radius:var(--space-1);background:var(--surface-inset);color:var(--text-standard);font-size:var(--type-caption-size)}
+.note b{color:var(--text-standard);font-weight:var(--type-weight-medium)}
+.steps{display:flex;flex-direction:column;gap:var(--space-2)}
+.steps li{display:flex;gap:var(--space-2)}
+.steps li>span:first-child{flex:none;width:var(--space-6);color:var(--text-metadata)}
+/* Index table */
+.idx{width:100%;border-collapse:collapse}
+.idx th,.idx td{padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--border-standard);text-align:left;vertical-align:top}
+.idx th{color:var(--text-metadata);font-weight:var(--type-weight-regular);font-size:var(--type-caption-size)}
+.idx td:first-child{white-space:nowrap;font-weight:var(--type-weight-medium)}
+.lead{max-width:1200px;color:var(--text-subtle)}
+.lead+.lead{margin-top:var(--space-2)}
+.lead b{color:var(--text-standard);font-weight:var(--type-weight-medium)}
+/* Overview crop: the shipped .workspace > .ov rules give the white, rounded column; the sidebar is left out. */
+.ov-crop{display:flex;width:784px;height:480px;border-radius:var(--radius-row);background:var(--bg-app);overflow:hidden}
+.ov-crop>.ov{flex:none;width:504px;margin-left:0}
+.ov-crop>.right.ov-right{flex:none;width:280px;border-radius:0 var(--radius-container) var(--radius-container) 0}
+/* A composer crop: the Overview foot column (.ov-col) of a 504-wide Overview, 456 wide. */
+.foot-crop{width:456px}
+/* Toast stage: the window's lower-right corner where the shared toast shows. */
+/* The right panel (white, 280) fills the corner beside the Overview column, as at the window's lower right. */
+.corner{position:relative;width:784px;height:220px;border-radius:var(--radius-row);background:var(--surface-panel);box-shadow:0 0 0 1px var(--border-standard);overflow:hidden}
+.corner>.ov-pane{position:absolute;left:0;top:0;bottom:0;width:504px;padding:var(--space-6) var(--space-5);border-right:1px solid var(--border-standard);background:var(--surface-panel)}
+.corner>.ov-pane>.ov-col{width:100%}
+/* Settings crop: the Settings column (48rem with its 24 side padding) on the white page panel; .settings-panel gives its
+   body-sm type and tracking, as the real page. */
+.settings-crop{width:768px;border-radius:var(--radius-row);box-shadow:0 0 0 1px var(--border-standard);background:var(--surface-panel)}
+.settings-crop>.settings-page{padding-block:var(--space-6)}
+/* Canvas panel crop: the 360 conversation panel's thread place. */
+.cp-crop{width:360px;padding-bottom:var(--space-3);border-radius:var(--radius-row);background:var(--surface-panel);box-shadow:0 0 0 1px var(--border-standard)}
+.thread-crop{width:560px;padding:var(--space-4);border-radius:var(--radius-row);background:var(--surface-panel);box-shadow:0 0 0 1px var(--border-standard)}
+.thread-crop>.conversation-thread{height:auto}
+/* The app portals the menu; here it is drawn in place. */
+.menu-crop>.conv-menu{position:relative}
+/* A dialog drawn in place at its compact width, without the modal's fixed placement or the dvh max-height. */
+.dlg-stage{display:flex;justify-content:center;padding:var(--space-6);border-radius:var(--radius-row);background:var(--bg-scrim)}
+.dlg-stage>dialog.doan-dialog{position:static;inset:auto;width:400px;max-height:none;margin:0}
+/* First run: the provider list panel and the Project step's notice on the first-run backdrop. */
+.ob-crop{width:560px}
+/* Canvas area crop for D12; the board stand-in is not app UI. */
+.area-crop{width:360px;height:200px;border-radius:var(--radius-row)}
+.board-standin{position:absolute;left:40px;top:28px;width:280px;height:144px;border-radius:var(--radius-row);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.board-standin::after{content:"canvas board";position:absolute;inset:0;display:grid;place-items:center;color:var(--text-metadata);font-size:var(--type-caption-size)}
+.tl{display:grid;grid-template-columns:repeat(2,max-content);gap:var(--space-4) var(--space-6)}
+.tl>div{display:flex;flex-direction:column;gap:var(--space-2)}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<!-- source: lucide-react 1.61.0 (app/node_modules/lucide-react/dist/esm/icons/*.mjs) -->
+<symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+<symbol id="i-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></symbol>
+<symbol id="i-presets" viewBox="0 0 24 24"><path d="M10 3H8"/><path d="m15.007 5.008 3.987 3.986"/><path d="M20 15v4"/><path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="M22 17h-4"/><path d="M4 5v4"/><path d="M6 7H2"/><path d="M9 2v2"/></symbol>
+<symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/></symbol>
+<symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="1"/><path d="M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0"/></symbol>
+<symbol id="i-go" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+<symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
+</svg>
+
+<!-- ═══════════════════════════ Index ═══════════════════════════ -->
+<section data-doan-frame="index" data-doan-title="Index">
+  <div class="fhead"><h2>ux-audit-261117 · B3 notices and recovery</h2><span class="doan-chip" data-ui-variant="translucent">10 items</span></div>
+  <p class="lead">Batch B3 of <code>docs/features/ux-audit-261117/report.md</code> (sections 3, 6, 7). Each frame draws <b>As is</b> (develop <code>366993b72</code>, read from the cited source) and <b>To be</b> (the user decision of 2026-11-17) with the app's own classes and tokens at real size, then a note: evidence, what changes, states to test.</p>
+  <p class="lead"><b>To be is not in code yet.</b> Every To be column carries a “Not in code” tag; the proposed CSS sits in this canvas's “To be” style block. No new UI copy is introduced: every sentence and label drawn in To be already exists in the app (sources in each note). Sample data (project acme-web, file names, error messages) is dummy.</p>
+  <p class="lead">Running Retry buttons use B2's U28 rule: one <code>:is(.doan-button, .doan-icon-button) &gt; .doan-spinner</code>, 14px (<code>--size-icon-sm</code>), track <code>currentColor</code> 30%, arc <code>currentColor</code>. Icons are lucide-react 1.61.0 paths drawn inline; the docked buddy is not drawn.</p>
+  <table class="idx" style="margin-top:var(--space-6)">
+    <thead><tr><th>ID</th><th>Change</th><th>Screens</th><th>Frame</th></tr></thead>
+    <tbody>
+      <tr><td>U7</td><td>A failed first conversation-list read shows the canvas panel's “Couldn’t read conversations” thread notice with Retry in the Overview's new-conversation column (today the column looks like a project with no conversations).</td><td>Overview</td><td><code>u7-overview-list-error</code></td></tr>
+      <tr><td>U16</td><td>Docked composers' attachment refusals go to the composer's own error notice under it, as Home does, not to the toast.</td><td>Overview, canvas conversation panel, prototype window</td><td><code>u16-attach-refusal</code></td></tr>
+      <tr><td>U30</td><td>Project Settings' Details shows ▸ closed and ▾ open, as ErrorDetails, the problem overlay and the prototype window do.</td><td>Project Settings (Config error, CLI error)</td><td><code>u30-details-arrow</code></td></tr>
+      <tr><td>U31</td><td><code>.ask-error</code> and <code>.ob-field-error</code> become <code>settings-msg error</code> with AlertIcon.</td><td>Thread permission and question cards; first-run and Settings paste dialog</td><td><code>u31-error-lines</code></td></tr>
+      <tr><td>U38</td><td>Settings › General's buddy-failure Retry becomes <code>panel</code> on the inset notice.</td><td>Settings › General</td><td><code>u38-buddy-retry</code></td></tr>
+      <tr><td>U39</td><td>Docked reason-line actions and the Overview right panel's Retry become <code>subtle</code>, as Home's reason-line Open.</td><td>Overview, canvas conversation panel, prototype window</td><td><code>u39-white-surface-buttons</code></td></tr>
+      <tr><td>D11</td><td>Conversation-list Retry shows the running state of B2's D1 pattern (fill and “Retry” kept, spinner inside, <code>aria-busy</code> + <code>aria-disabled</code>) while it reads, and re-announces its line on a repeated failure.</td><td>Canvas panel and prototype thread notice, Overview right panel, three title menus</td><td><code>d11-list-retry-running</code></td></tr>
+      <tr><td>D12</td><td>The canvas page's first “Loading” line appears 300 ms into a load, as the other first-load lines do.</td><td>Canvas page</td><td><code>d12-canvas-loading-delay</code></td></tr>
+      <tr><td>D13</td><td>A notice's reason line is a caption in <code>--text-metadata</code> on every screen (Project Settings moves off <code>--text-subtle</code>), listed as a DESIGN exception and in <code>ds/controls.test.ts</code>.</td><td>Project Settings; first run and Add Projects (reference)</td><td><code>d13-notice-reason-ink</code></td></tr>
+      <tr><td>D20</td><td>Notice actions move inside the notice (<code>.stacked</code> for two or more) on the first-run Agent step, Settings › Agents, MCP Connectors and Notifications.</td><td>First run Agent step, Settings › Agents, › MCP Connectors, › Notifications</td><td><code>d20-notice-actions</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════ U7 ═══════════════════════════ -->
+<section data-doan-frame="u7-overview-list-error" data-doan-title="U7 · Overview shows the list read failure" data-doan-implements="app/src/renderer/ProjectOverview.tsx">
+  <div class="fhead"><h2>U7 · Overview shows the list read failure</h2><p>First read of the project's conversation list failed; no conversation requested or remembered.</p></div>
+  <div class="cols">
+    <div class="col"><h3>As is</h3>
+      <div class="ov-crop workspace" data-doan-id="u7-asis-overview">
+        <section class="ov ov-main" role="region" aria-label="Overview">
+          <header class="ov-head">
+            <span class="ov-project"><span class="shell-thumbnail hue-sky" aria-hidden="true">A</span><span class="ov-project-name">acme-web</span></span>
+            <span class="ov-sep" aria-hidden="true">/</span>
+            <span class="ov-title-wrap"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title="New conversation"><span>New conversation</span><svg class="chev" width="24" height="24" aria-hidden="true"><use href="#i-chev"/></svg></button></span>
+            <button type="button" class="doan-icon-button ov-new-conv" aria-label="New conversation" aria-disabled="true"><svg width="24" height="24" aria-hidden="true"><use href="#i-pen"/></svg></button>
+          </header>
+          <div class="ov-scroll"><div class="ov-col ov-new">
+            <div class="ov-suggestions" role="group" aria-label="Suggested prompts">
+              <button type="button" class="suggestion"><span class="suggestion-icon"><svg width="24" height="24" aria-hidden="true"><use href="#i-compass"/></svg></span><span class="suggestion-label">Document the design system of <span class="suggestion-value">acme-web</span></span><svg class="suggestion-go" width="24" height="24" aria-hidden="true"><use href="#i-go"/></svg></button>
+              <button type="button" class="suggestion"><span class="suggestion-icon"><svg width="24" height="24" aria-hidden="true"><use href="#i-scan"/></svg></span><span class="suggestion-label">Review the <span class="suggestion-value">checkout</span> canvas</span><svg class="suggestion-go" width="24" height="24" aria-hidden="true"><use href="#i-go"/></svg></button>
+            </div>
+          </div></div>
+          <div class="ov-foot"><div class="ov-col">
+            <div class="docked" data-shape="capsule"><div class="composer-card"><div class="docked-buddy-slot" aria-hidden="true"></div>
+              <div class="composer-input" role="textbox" aria-label="Message" data-empty="" aria-placeholder="Ask or describe what to design, / for presets"></div>
+              <div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg width="24" height="24" aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled><svg width="24" height="24" aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+              <div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg width="24" height="24" aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" width="24" height="24" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div>
+          </div></div>
+        </section>
+        <aside class="right doan-scroll ov-right" role="region" aria-label="Canvas conversations"><h2 class="phead rp-head">Canvas conversations</h2>
+          <div class="rp-error" role="status" data-doan-id="u7-asis-rp-error"><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Retry</button></div></aside>
+      </div>
+      <p class="cap">The column reads as a project with no conversations. The failure shows only under “Canvas conversations” (right panel) and inside the closed title menu.</p>
+    </div>
+    <div class="col tobe"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="ov-crop workspace" data-doan-id="u7-tobe-overview">
+        <section class="ov ov-main" role="region" aria-label="Overview">
+          <header class="ov-head">
+            <span class="ov-project"><span class="shell-thumbnail hue-sky" aria-hidden="true">A</span><span class="ov-project-name">acme-web</span></span>
+            <span class="ov-sep" aria-hidden="true">/</span>
+            <span class="ov-title-wrap"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title="New conversation"><span>New conversation</span><svg class="chev" width="24" height="24" aria-hidden="true"><use href="#i-chev"/></svg></button></span>
+            <button type="button" class="doan-icon-button ov-new-conv" aria-label="New conversation" aria-disabled="true"><svg width="24" height="24" aria-hidden="true"><use href="#i-pen"/></svg></button>
+          </header>
+          <div class="ov-scroll"><div class="ov-col ov-new">
+            <div class="doan-notice error thread-notice" role="alert" data-doan-id="u7-tobe-notice"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="strip-text selectable"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
+              <span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-doan-id="u7-tobe-retry">Retry</button></span></div>
+            <div class="ov-suggestions" role="group" aria-label="Suggested prompts">
+              <button type="button" class="suggestion"><span class="suggestion-icon"><svg width="24" height="24" aria-hidden="true"><use href="#i-compass"/></svg></span><span class="suggestion-label">Document the design system of <span class="suggestion-value">acme-web</span></span><svg class="suggestion-go" width="24" height="24" aria-hidden="true"><use href="#i-go"/></svg></button>
+              <button type="button" class="suggestion"><span class="suggestion-icon"><svg width="24" height="24" aria-hidden="true"><use href="#i-scan"/></svg></span><span class="suggestion-label">Review the <span class="suggestion-value">checkout</span> canvas</span><svg class="suggestion-go" width="24" height="24" aria-hidden="true"><use href="#i-go"/></svg></button>
+            </div>
+          </div></div>
+          <div class="ov-foot"><div class="ov-col">
+            <div class="docked" data-shape="capsule"><div class="composer-card"><div class="docked-buddy-slot" aria-hidden="true"></div>
+              <div class="composer-input" role="textbox" aria-label="Message" data-empty="" aria-placeholder="Ask or describe what to design, / for presets"></div>
+              <div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg width="24" height="24" aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled><svg width="24" height="24" aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+              <div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg width="24" height="24" aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" width="24" height="24" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div>
+          </div></div>
+        </section>
+        <aside class="right doan-scroll ov-right" role="region" aria-label="Canvas conversations"><h2 class="phead rp-head">Canvas conversations</h2>
+          <div class="rp-error" role="status"><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Retry</button></div></aside>
+      </div>
+      <p class="cap">The column leads with the canvas panel's notice, then the suggestions; the composer stays usable. The right panel is unchanged by U7 (its Retry is <code>subtle</code> here because of U39).</p>
+    </div>
+  </div>
+  <div class="note">
+    <div><h4>Evidence</h4><ul>
+      <li>Overview: <code>ProjectOverview.tsx:120-122</code> treats a failed first read as the new conversation state; <code>:321</code> <code>showsNew</code>; the only failure text is the title menu's <code>.conv-error</code> (<code>:378-379</code>); the column <code>.ov-new</code> (<code>:417-422</code>) has no error path.</li>
+      <li>Reference: canvas panel <code>CanvasConversationPanel.tsx:492-493</code> (thread notice, <code>role="alert"</code>, Retry <code>panel</code> → <code>run.retryList()</code>); prototype window reuses it (<code>docs/design/prototype.md:98</code>, PRODUCT 321). Right panel <code>CanvasConversationList.tsx:102-103</code>.</li>
+      <li>Finding U7 (A-F1 with its wave-2 correction, S-F3). PRODUCT 339: “A failed list read offers Retry, and the composer stays usable.”</li>
+    </ul></div>
+    <div><h4>What changes</h4><ul>
+      <li>In the <code>.ov-new</code> branch, when <code>list === "error"</code>, render the panel's markup first: <code>doan-notice error thread-notice</code>, <code>role="alert"</code>, AlertIcon, <code>strip-text</code> (“Couldn’t read conversations” / “Try again. You can still start a new conversation.”), <code>strip-actions</code> Retry <code>panel</code> sm → <code>props.onRetryList()</code>. Copy is the panel's, unchanged.</li>
+      <li>CSS: the four <code>.cp-scroll &gt; .thread-notice</code> rules (<code>styles.css:1244-1249</code>: grid, actions row, 16px icon at <code>:1247</code>, wrapping text) also cover <code>.ov-new &gt; .thread-notice</code>, plus <code>margin-bottom: var(--space-3)</code> as <code>.doan-notice.moved</code> has. Order in the column: moved line (if any), notice, suggestions — the panel's order (notice before resume and prompts).</li>
+      <li>Send is not held; header New conversation stays <code>aria-disabled</code>; the title menu keeps its own Retry.</li>
+      <li>Running state and repeated failure of this Retry: see D11.</li>
+    </ul></div>
+    <div><h4>States to test</h4><ol>
+      <li>Make the first list read fail (replace the list IPC with a rejecting handler), open the Overview: the notice is read once by VoiceOver as an alert, the suggestions and composer stay below it, Send works.</li>
+      <li>Press Retry with the handler restored: the notice goes and the list loads (thread or new state as before).</li>
+      <li>A failed re-read after a successful first read keeps the last list: no notice (only a never-read list shows it).</li>
+      <li>Narrow window (960 × 600): the notice text wraps; Retry stays on its own row under the text.</li>
+    </ol></div>
+    <div><h4>Open detail decided here</h4><p>Placement and markup follow the canvas panel exactly (closest existing pattern); nothing new is styled.</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ U16 ═══════════════════════════ -->
+<section data-doan-frame="u16-attach-refusal" data-doan-title="U16 · Attachment refusals under the docked composer" data-doan-implements="app/src/renderer/DockedComposer.tsx">
+  <div class="fhead"><h2>U16 · Attachment refusals under the docked composer</h2><p>Overview, a chosen file was moved away before it was attached.</p></div>
+  <div class="cols">
+    <div class="col"><h3>As is</h3>
+      <div class="corner" data-doan-id="u16-asis">
+        <div class="ov-pane"><div class="ov-col foot-crop">
+          <div class="docked" data-shape="capsule"><div class="composer-card"><div class="docked-buddy-slot" aria-hidden="true"></div>
+            <div class="composer-input" role="textbox" aria-label="Message" data-empty="" aria-placeholder="Ask or describe what to design, / for presets"></div>
+            <div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg width="24" height="24" aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled><svg width="24" height="24" aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+            <div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg width="24" height="24" aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" width="24" height="24" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div>
+        </div></div>
+        <div class="toast doan-floating doan-toast" role="status" data-doan-id="u16-asis-toast"><span class="msg selectable">brief.pdf wasn’t found, so it wasn’t attached.</span></div>
+      </div>
+      <p class="cap">The refusal goes to the window's one toast slot (<code>App.tsx:2462,2476</code>); a later toast replaces it (D6).</p>
+    </div>
+    <div class="col tobe"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="corner" data-doan-id="u16-tobe">
+        <div class="ov-pane"><div class="ov-col foot-crop">
+          <div class="docked" data-shape="capsule"><div class="composer-card"><div class="docked-buddy-slot" aria-hidden="true"></div>
+            <div class="composer-input" role="textbox" aria-label="Message" data-empty="" aria-placeholder="Ask or describe what to design, / for presets"></div>
+            <div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg width="24" height="24" aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled><svg width="24" height="24" aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+            <div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg width="24" height="24" aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" width="24" height="24" aria-hidden="true"><use href="#i-chev"/></svg></button></div>
+            <div class="doan-notice error composer-notice" role="alert" data-doan-id="u16-tobe-notice"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="grow-text selectable">brief.pdf wasn’t found, so it wasn’t attached.</span></div></div>
+        </div></div>
+      </div>
+      <p class="cap">The docked composer's existing refusal notice (<code>DockedComposer.tsx:528</code>), inset fill on the white column, no Retry; no toast.</p>
+    </div>
+  </div>
+  <div class="note">
+    <div><h4>Evidence</h4><ul>
+      <li>Home: <code>HomeComposerView.tsx:348,352,383</code> <code>setNotice({ text, retry: false })</code> → composer notice <code>:588</code> (<code>doan-panel</code> because of Home's gradient). <code>docs/design/home.md:71</code> lists the sentences for Home only.</li>
+      <li>Docked hosts: <code>ProjectOverview.tsx:207</code> (settle), <code>:216</code> (limit), <code>:245</code> (choose) and <code>CanvasConversationPanel.tsx:388</code> call <code>props.onNotice</code> → toast. The docked notice slot (<code>DockedComposer.tsx:526-529</code>) holds only send refusals and drop refusals (<code>useComposerDrop</code> <code>onNotice</code>, <code>:330-333</code>).</li>
+      <li>Finding U16 (A-F13).</li>
+    </ul></div>
+    <div><h4>What changes</h4><ul>
+      <li>The docked hosts hand attachment notices (limit, choose and settle results: “Only 10 attachments can be added.”, “&lt;name&gt; wasn’t found, so it wasn’t attached.”, “… isn’t a file or folder…”, “… isn’t a readable image…”, “… couldn’t be read…”) to the docked composer's refusal map for the draft's key, as the drop path already does: <code>{ refusal: { kind: "notice", text } }</code>, no <code>retry</code>, no <code>startNew</code>.</li>
+      <li>Drawn as the existing <code>doan-notice error composer-notice</code>, <code>role="alert"</code>, 12 below the tray (<code>.composer-notice</code>). No new copy, no new style.</li>
+      <li>It clears like a drop refusal: any edit of that draft (<code>DockedComposer.tsx:280</code>) or a new drop. A notice for a draft that is no longer shown lands on that draft's key (the chooser is async), not the one now shown.</li>
+      <li>Applies to the Overview, the canvas conversation panel and the prototype window (which reuses the panel). The capture-failure toast (PRODUCT 270) stays a toast.</li>
+    </ul></div>
+    <div><h4>States to test</h4><ol>
+      <li>Overview: Attach, pick a file, delete it in Finder before the check settles → the sentence appears under the composer as an alert, no toast.</li>
+      <li>Attach eleven files at once → “Only 10 attachments can be added.” under the composer; ten chips stay.</li>
+      <li>Type one character → the notice goes. Drop a file → the drop clears it first, as today.</li>
+      <li>Canvas panel and prototype window: same sentence under their composers; a toast shown meanwhile (e.g. capture failure) does not remove it.</li>
+    </ol></div>
+    <div><h4>Not verified</h4><p>Visual only from source and computed rules (report §1 lists U16 as unverified in the real app).</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ U30 ═══════════════════════════ -->
+<section data-doan-frame="u30-details-arrow" data-doan-title="U30 · Details ▸/▾ on Project Settings" data-doan-implements="app/src/renderer/ProjectSettingsPage.tsx">
+  <div class="fhead"><h2>U30 · Details ▸/▾ on Project Settings</h2><p>Project Settings of a worktree with a Config error. Closed, then opened.</p></div>
+  <div class="cols">
+    <div class="col"><h3>As is</h3>
+      <div class="settings-crop settings-panel"><div class="settings-page stack">
+        <div class="doan-notice error" role="status" data-doan-id="u30-asis-closed"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="project-settings-grow selectable">Doan couldn’t read this folder’s configuration, so its settings can’t be changed.</span>
+          <div class="project-settings-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Retry</button><button type="button" class="doan-button" data-ui-variant="ghost" data-ui-size="sm" aria-expanded="false">Details</button></div></div>
+        <div>
+          <div class="doan-notice error" role="status" data-doan-id="u30-asis-open"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="project-settings-grow selectable">Doan couldn’t read this folder’s configuration, so its settings can’t be changed.</span>
+            <div class="project-settings-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Retry</button><button type="button" class="doan-button" data-ui-variant="ghost" data-ui-size="sm" aria-expanded="true">Details</button></div></div>
+          <pre class="project-settings-details selectable" style="margin-top:var(--space-3)">.doan/config.json: unexpected token } at line 4, column 3</pre>
+        </div>
+      </div></div>
+      <p class="cap">Closed and open read the same; only the block below tells them apart.</p>
+    </div>
+    <div class="col tobe"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="settings-crop settings-panel"><div class="settings-page stack">
+        <div class="doan-notice error" role="status" data-doan-id="u30-tobe-closed"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="project-settings-grow selectable">Doan couldn’t read this folder’s configuration, so its settings can’t be changed.</span>
+          <div class="project-settings-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Retry</button><button type="button" class="doan-button" data-ui-variant="ghost" data-ui-size="sm" aria-label="Details" aria-expanded="false" data-doan-id="u30-tobe-details-closed">Details ▸</button></div></div>
+        <div>
+          <div class="doan-notice error" role="status" data-doan-id="u30-tobe-open"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="project-settings-grow selectable">Doan couldn’t read this folder’s configuration, so its settings can’t be changed.</span>
+            <div class="project-settings-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Retry</button><button type="button" class="doan-button" data-ui-variant="ghost" data-ui-size="sm" aria-label="Details" aria-expanded="true" data-doan-id="u30-tobe-details-open">Details ▾</button></div></div>
+          <pre class="project-settings-details selectable" style="margin-top:var(--space-3)">.doan/config.json: unexpected token } at line 4, column 3</pre>
+        </div>
+      </div></div>
+      <p class="cap">“Details ▸” closed, “Details ▾” open; the accessible name stays “Details”, the state is <code>aria-expanded</code>.</p>
+    </div>
+  </div>
+  <div class="note">
+    <div><h4>Evidence</h4><ul>
+      <li>With the glyph: <code>ErrorDetails.tsx:9</code> (<code>Details {open ? "▾" : "▸"}</code>, <code>aria-label="Details"</code>), <code>ProblemOverlay.tsx:42</code>, <code>prototype/PrototypeWindow.tsx:543</code>; <code>onboarding.md:196</code>, <code>canvas.md:234</code>.</li>
+      <li>Without: <code>ProjectSettingsPage.tsx:379-381</code> renders <code>LABELS[action]</code> = <code>ROW_ACTION_LABELS.details</code> “Details” (<code>homeCards.ts:37</code>); <code>project.md:108</code>.</li>
+      <li>Finding U30 (P-F4). DESIGN 144: an open disclosure is not drawn pressed; the state shows in the label.</li>
+    </ul></div>
+    <div><h4>What changes</h4><ul>
+      <li>Only the Details button's visible label: <code>Details ▸</code> while <code>details</code> is false, <code>Details ▾</code> while true, with <code>aria-label="Details"</code> so the glyph is not read (as <code>ErrorDetails</code>). Variant, size, <code>aria-expanded</code> and the <code>pre</code> block are unchanged.</li>
+      <li><code>ROW_ACTION_LABELS.details</code> stays “Details”: the sidebar and Overview recovery menus use it with the Info icon and open the page, not a disclosure.</li>
+      <li>Placement on the drawing: the details block is shown 12 below the notice (<code>styles.css:1162</code> on the real page).</li>
+    </ul></div>
+    <div><h4>States to test</h4><ol>
+      <li>Config error and CLI error: Details reads “Details ▸”; press it (Space): label “Details ▾”, block appears, focus stays on the button.</li>
+      <li>VoiceOver reads “Details, collapsed / expanded, button”, never the arrow.</li>
+      <li>Retry while open: the notice re-renders with the same open state as today (no change).</li>
+    </ol></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ U31 ═══════════════════════════ -->
+<section data-doan-frame="u31-error-lines" data-doan-title="U31 · Error lines take the alert icon" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+  <div class="fhead"><h2>U31 · Error lines take the alert icon</h2><p>A permission answer that did not reach the agent; the paste dialog's too-long address.</p></div>
+  <div class="cols">
+    <div class="col"><h3>As is</h3>
+      <div class="thread-crop"><div class="conversation-thread">
+        <div class="doan-notice thread-notice" data-doan-id="u31-asis-permission">
+          <span class="strip-agent doan-alert-icon"><img class="logo" src="../assets/provider-logos/claude.png" alt=""></span>
+          <span class="strip-text selectable"><b>Claude Code needs your answer</b><span>Run npm test in acme-web</span></span>
+          <span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Allow</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Deny</button><button type="button" class="doan-button" data-ui-size="sm"><svg width="24" height="24" aria-hidden="true"><use href="#i-stop"/></svg>Stop</button></span>
+          <span class="ask-error" role="alert" data-doan-id="u31-asis-ask-error">Couldn’t send your answer. Choose again.</span>
+        </div>
+      </div></div>
+      <p class="cap"><code>.ask-error</code>: caption 12/16, <code>--text-danger</code>, no icon (<code>styles.css:1641</code>).</p>
+      <div class="dlg-stage">
+        <dialog open class="doan-dialog doan-scroll" data-ui-size="compact" aria-labelledby="u31-asis-title" data-doan-id="u31-asis-paste"><form class="ob-dialog-form">
+          <div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" id="u31-asis-title">Paste the page address</h3><p class="doan-dialog-description">Copy the address from the browser tab that didn’t load and paste it here to finish signing in to Antigravity.</p></div></div>
+          <input class="doan-input" aria-label="Page address" placeholder="Page address from your browser" spellcheck="false" value="http://localhost:51121/oauth-callback?state=9f2c…&amp;code=4/0AeanS0b…">
+          <p class="ob-field-error" role="alert" data-doan-id="u31-asis-field-error">This address is too long to submit.</p>
+          <div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button><button type="submit" class="doan-button" data-ui-variant="prominent" disabled>Submit</button></div>
+        </form></dialog>
+      </div>
+      <p class="cap"><code>.ob-field-error</code>: caption 12/16 danger, no icon (<code>styles.css:254</code>); 8 under the field through the form's 16 gap and a −8 margin. The MCP add dialog next to it already uses <code>settings-msg error</code> + AlertIcon.</p>
+    </div>
+    <div class="col tobe"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="thread-crop"><div class="conversation-thread">
+        <div class="doan-notice thread-notice" data-doan-id="u31-tobe-permission">
+          <span class="strip-agent doan-alert-icon"><img class="logo" src="../assets/provider-logos/claude.png" alt=""></span>
+          <span class="strip-text selectable"><b>Claude Code needs your answer</b><span>Run npm test in acme-web</span></span>
+          <span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Allow</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Deny</button><button type="button" class="doan-button" data-ui-size="sm"><svg width="24" height="24" aria-hidden="true"><use href="#i-stop"/></svg>Stop</button></span>
+          <p class="settings-msg error ask-error" role="alert" data-doan-id="u31-tobe-ask-error"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span>Couldn’t send your answer. Choose again.</span></p>
+        </div>
+      </div></div>
+      <p class="cap"><code>settings-msg error</code>: 16px AlertIcon, 6 gap, body-sm 14/20 danger. <code>.ask-error</code> keeps only its grid column.</p>
+      <div class="dlg-stage">
+        <dialog open class="doan-dialog doan-scroll" data-ui-size="compact" aria-labelledby="u31-tobe-title" data-doan-id="u31-tobe-paste"><form class="ob-dialog-form">
+          <div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" id="u31-tobe-title">Paste the page address</h3><p class="doan-dialog-description">Copy the address from the browser tab that didn’t load and paste it here to finish signing in to Antigravity.</p></div></div>
+          <div class="field-group" data-doan-id="u31-tobe-field-group"><input class="doan-input" aria-label="Page address" placeholder="Page address from your browser" spellcheck="false" value="http://localhost:51121/oauth-callback?state=9f2c…&amp;code=4/0AeanS0b…">
+          <p class="settings-msg error ob-field-error" role="alert" data-doan-id="u31-tobe-field-error"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span>This address is too long to submit.</span></p></div>
+          <div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button><button type="submit" class="doan-button" data-ui-variant="prominent" disabled>Submit</button></div>
+        </form></dialog>
+      </div>
+      <p class="cap">Field and error in one group, 8 apart; 16 from the group to the actions. No negative margin.</p>
+    </div>
+  </div>
+  <div class="note">
+    <div><h4>Evidence</h4><ul>
+      <li>No icon: question card <code>ConversationThread.tsx:412</code> “Couldn’t send your answer. Try again.” and permission notice <code>:867</code> “Couldn’t send your answer. Choose again.”, both <code>&lt;span class="ask-error" role="alert"&gt;</code>; <code>.ask-error</code> <code>styles.css:1641</code> (question card placement <code>:1644</code>); <code>conversation.md:20</code>.</li>
+      <li>No icon: paste dialog <code>Onboarding.tsx:135</code> <code>&lt;p class="ob-field-error" role="alert"&gt;</code>; <code>styles.css:254</code>; <code>onboarding.md:50</code>. Used on first run and Settings › Agents.</li>
+      <li>With icon: <code>SettingsMcpConnectors.tsx:245</code> <code>settings-msg error mcp-field-error</code> + AlertIcon; <code>styles.css:1101-1103, 1115</code>. Finding U31 (P-F5), DESIGN 104-106.</li>
+    </ul></div>
+    <div><h4>What changes</h4><ul>
+      <li>Both lines render as <code>&lt;p className="settings-msg error …" role="alert"&gt;&lt;AlertIcon /&gt;&lt;span&gt;…&lt;/span&gt;&lt;/p&gt;</code>; copy unchanged.</li>
+      <li><code>.conversation-thread .thread-notice &gt; .ask-error</code> keeps only <code>grid-column: 2</code> (drops colour and caption size); the question card's <code>grid-column: 1 / -1</code> rule stays. Type goes 12/16 → 14/20.</li>
+      <li>The input and its error line are wrapped in one field group (<code>display: flex; flex-direction: column; gap: var(--space-2)</code>); the form's 16 gap stays between the group and the actions. <code>.ob-field-error</code> and <code>.mcp-field-error</code> lose their <code>margin-top: calc(-1 * var(--space-2))</code>: the pull-up put the line almost against the field. Apply the same group to the MCP add dialog (<code>SettingsMcpConnectors.tsx:245</code>, <code>styles.css:1115</code>). Type goes 12/16 → 14/20.</li>
+      <li>Out of scope here, noted by P-F5: the paste input has no <code>aria-invalid</code>/<code>aria-describedby</code> (the MCP input has); <code>.ob-msg.error</code> and dead <code>.pj-msg</code>.</li>
+    </ul></div>
+    <div><h4>States to test</h4><ol>
+      <li>Permission card: make the answer IPC fail, press Allow → the error line with icon under the actions, text column aligned; VoiceOver reads it once.</li>
+      <li>Question card: make Send fail → “Couldn’t send your answer. Try again.” with icon, full card width.</li>
+      <li>Paste dialog (first run and Settings › Agents, Antigravity): paste more than the maximum → line with icon 8 under the field, Submit disabled; shorten → line goes.</li>
+    </ol></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ U38 ═══════════════════════════ -->
+<section data-doan-frame="u38-buddy-retry" data-doan-title="U38 · Buddy failure Retry on Settings" data-doan-implements="app/src/renderer/BuddyPicker.tsx">
+  <div class="fhead"><h2>U38 · Buddy failure Retry on Settings</h2><p>Settings › General after a buddy switch that did not save. The buddy rows below the notice are not drawn.</p></div>
+  <div class="cols">
+    <div class="col"><h3>As is</h3>
+      <div class="settings-crop settings-panel"><div class="settings-page">
+        <section class="settings-section"><div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title">Buddy</h2><p class="settings-section-description">Shown on Home and while an agent works on a canvas. It also sets the accent color.</p></div></div>
+          <div class="doan-notice error settings-notice buddy-notice" data-doan-id="u38-asis-notice"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="selectable" id="u38-a">Couldn’t switch to Puri. Doany is still your buddy.</span><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-describedby="u38-a" data-doan-id="u38-asis-retry">Retry</button></div>
+        </section>
+      </div></div>
+      <p class="cap"><code>subtle</code> rest fill = the notice's inset fill (both <code>--neutral-2</code>): Retry reads as plain text until hovered.</p>
+    </div>
+    <div class="col tobe"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="settings-crop settings-panel"><div class="settings-page">
+        <section class="settings-section"><div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title">Buddy</h2><p class="settings-section-description">Shown on Home and while an agent works on a canvas. It also sets the accent color.</p></div></div>
+          <div class="doan-notice error settings-notice buddy-notice" data-doan-id="u38-tobe-notice"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="selectable" id="u38-b">Couldn’t switch to Puri. Doany is still your buddy.</span><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" aria-describedby="u38-b" data-doan-id="u38-tobe-retry">Retry</button></div>
+        </section>
+      </div></div>
+      <div class="stage">
+        <div class="doan-notice error doan-panel buddy-step-notice" style="margin-top:0" data-doan-id="u38-tobe-firstrun"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="selectable" id="u38-c">Couldn’t switch to Puri. Doany is still your buddy.</span><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-describedby="u38-c">Retry</button></div>
+      </div>
+      <p class="cap">Settings (inset notice): <code>panel</code>. First run (<code>doan-panel</code> notice, drawn on the app background as a stand-in for the overlay): stays <code>subtle</code>, unchanged.</p>
+    </div>
+  </div>
+  <div class="note">
+    <div><h4>Evidence</h4><ul>
+      <li><code>BuddyPicker.tsx:162-166</code> <code>BuddyFailureNotice</code> always renders Retry <code>data-ui-variant="subtle"</code>.</li>
+      <li>Settings places it inset: <code>SettingsGeneral.tsx:101</code> <code>className="settings-notice buddy-notice"</code>; first run on the panel fill: <code>Onboarding.tsx:721</code> <code>"doan-panel buddy-step-notice"</code>.</li>
+      <li>Rule: DESIGN 83, 170 (secondary button inside an inset notice is <code>panel</code>); the same split exists in <code>projectNoticeActions</code> (<code>Onboarding.tsx:342-345</code>). Finding U38 (P-F19); <code>shell.md:190</code>.</li>
+    </ul></div>
+    <div><h4>What changes</h4><ul>
+      <li><code>BuddyFailureNotice</code> picks the variant from its placement: <code>panel</code> unless the notice is <code>doan-panel</code>, then <code>subtle</code> (the <code>projectNoticeActions</code> rule; e.g. a <code>panel</code> boolean prop as <code>ProjectNoticeView</code> takes).</li>
+      <li>Nothing else: text, <code>aria-describedby</code>, the <code>.buddy-notice .doan-button</code> margin rule and the category's <code>.ob-live</code> announcement stay.</li>
+    </ul></div>
+    <div><h4>States to test</h4><ol>
+      <li>Settings › General: make the preferences write fail, pick another buddy → notice above the group; Retry shows a white fill on the grey notice at rest, <code>--affordance-panel-hover</code> on hover.</li>
+      <li>First run Buddy step, same failure → Retry unchanged (<code>subtle</code> on the white notice).</li>
+      <li>Retry that saves → notice goes, focus on the checked radio (unchanged).</li>
+    </ol></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ U39 ═══════════════════════════ -->
+<section data-doan-frame="u39-white-surface-buttons" data-doan-title="U39 · subtle buttons on white, not panel" data-doan-implements="app/src/renderer/DockedComposer.tsx">
+  <div class="fhead"><h2>U39 · subtle buttons on white, not panel</h2><p>Docked composer reason lines (Overview, canvas panel, prototype window) and the Overview right panel's read error.</p></div>
+  <div class="cols">
+    <div class="col"><h3>As is</h3>
+      <div class="stage white"><div class="foot-crop stack">
+        <div class="docked" data-shape="capsule"><div class="composer-card"><div class="docked-buddy-slot" aria-hidden="true"></div>
+          <div class="composer-input" role="textbox" aria-label="Message">Tighten the summary spacing</div>
+          <div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg width="24" height="24" aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled><svg width="24" height="24" aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+          <div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg width="24" height="24" aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" width="24" height="24" aria-hidden="true"><use href="#i-chev"/></svg></button></div>
+          <div class="composer-reason docked-reason" role="status" data-doan-id="u39-asis-reason"><span>Another conversation is still running in acme-web.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-label="Open the running conversation">Open</button></div></div>
+        <div class="docked" data-shape="capsule">
+          <div class="composer-reason docked-reason reason-stack" role="status" style="margin-top:0" data-doan-id="u39-asis-startnew"><span>This conversation’s session belongs to another Claude Code account, so it can’t continue here. To continue it, sign out, then sign in to that account in Settings &gt; Agents.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Start a new conversation</button></div></div>
+      </div></div>
+      <div class="stage flush" style="width:280px"><aside class="right ov-right" role="region" aria-label="Canvas conversations" style="border-left:0"><h2 class="phead rp-head">Canvas conversations</h2>
+        <div class="rp-error" role="status" data-doan-id="u39-asis-rp-error"><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Retry</button></div></aside></div>
+      <p class="cap"><code>panel</code> rest fill is <code>--surface-panel</code>: on white the button has no fill and no edge, so it reads as ghost.</p>
+    </div>
+    <div class="col tobe"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="stage white"><div class="foot-crop stack">
+        <div class="docked" data-shape="capsule"><div class="composer-card"><div class="docked-buddy-slot" aria-hidden="true"></div>
+          <div class="composer-input" role="textbox" aria-label="Message">Tighten the summary spacing</div>
+          <div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg width="24" height="24" aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled><svg width="24" height="24" aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+          <div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg width="24" height="24" aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" width="24" height="24" aria-hidden="true"><use href="#i-chev"/></svg></button></div>
+          <div class="composer-reason docked-reason" role="status" data-doan-id="u39-tobe-reason"><span>Another conversation is still running in acme-web.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation">Open</button></div></div>
+        <div class="docked" data-shape="capsule">
+          <div class="composer-reason docked-reason reason-stack" role="status" style="margin-top:0" data-doan-id="u39-tobe-startnew"><span>This conversation’s session belongs to another Claude Code account, so it can’t continue here. To continue it, sign out, then sign in to that account in Settings &gt; Agents.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Start a new conversation</button></div></div>
+      </div></div>
+      <div class="stage flush" style="width:280px"><aside class="right ov-right" role="region" aria-label="Canvas conversations" style="border-left:0"><h2 class="phead rp-head">Canvas conversations</h2>
+        <div class="rp-error" role="status" data-doan-id="u39-tobe-rp-error"><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Retry</button></div></aside></div>
+      <p class="cap"><code>subtle</code>: the <code>--affordance-subtle</code> fill shows on white, as Home's reason-line Open.</p>
+    </div>
+  </div>
+  <div class="note">
+    <div><h4>Evidence</h4><ul>
+      <li>Docked reason line <code>DockedComposer.tsx:527</code> (Start a new conversation), <code>:533</code> (Open), <code>:534</code> (the Settings action, e.g. the Agents settings link) — all <code>panel</code> in <code>.composer-reason.docked-reason</code> (<code>styles.css:906, 968</code>), which is not a notice.</li>
+      <li>Right panel <code>CanvasConversationList.tsx:102</code> Retry <code>panel</code> in <code>.rp-error</code> (<code>styles.css:1437</code>) on the white <code>.right</code>.</li>
+      <li>Reference: Home's reason-line Open <code>HomeComposerView.tsx:591</code> <code>subtle</code>; <code>home.md</code> 'Reason-line Open stays subtle'. Finding U39 (P-F20), DESIGN 83.</li>
+    </ul></div>
+    <div><h4>What changes</h4><ul>
+      <li><code>data-ui-variant="panel"</code> → <code>"subtle"</code> on the three reason-line buttons and on the right panel's Retry. Size, labels, <code>aria-label</code> and layout unchanged.</li>
+      <li>Unchanged: the docked composer's error notice Retry (<code>DockedComposer.tsx:529</code>) and every other button inside an inset notice stay <code>panel</code>.</li>
+      <li>The third reason-line button (Settings action) is not drawn; its label belongs to B4 (D2).</li>
+    </ul></div>
+    <div><h4>States to test</h4><ol>
+      <li>Overview with another conversation running in the project, Send pressed → reason line “Another conversation is still running in …” with a filled Open; hover deepens to <code>--affordance-subtle-hover</code>.</li>
+      <li>Canvas panel, conversation of another account → “Start a new conversation” filled under the sentence.</li>
+      <li>Overview right panel with the list read failing → Retry filled.</li>
+    </ol></div>
+    <div><h4>Not verified</h4><p>Visual from source and token values only (report §1 lists U39 as unverified in the real app).</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ D11 ═══════════════════════════ -->
+<section data-doan-frame="d11-list-retry-running" data-doan-title="D11 · Running list Retry" data-doan-implements="app/src/renderer/CanvasConversationPanel.tsx">
+  <div class="fhead"><h2>D11 · Running list Retry</h2><p>The conversation list's Retry, while the re-read runs. Canvas panel thread place, Overview right panel, title menu.</p></div>
+  <div class="cols">
+    <div class="col"><h3>As is</h3>
+      <div class="row-of">
+        <div class="cp-crop"><div class="cp-scroll">
+          <div class="doan-notice error thread-notice" role="alert" data-doan-id="d11-asis-notice"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="strip-text selectable"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
+            <span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" style="outline:2px solid var(--border-focus);outline-offset:2px">Retry</button></span></div>
+        </div></div>
+        <div class="stack">
+          <div class="stage flush" style="width:280px"><aside class="right ov-right" role="region" aria-label="Canvas conversations" style="border-left:0"><h2 class="phead rp-head">Canvas conversations</h2>
+            <div class="rp-error" role="status" data-doan-id="d11-asis-rp-error"><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Retry</button></div></aside></div>
+          <div class="menu-crop"><div class="doan-floating doan-menu conv-menu" role="menu" aria-label="Project conversations" style="width:360px" data-doan-id="d11-asis-menu">
+            <div class="doan-menu-item conv-new current" role="menuitemradio" aria-checked="true"><svg width="24" height="24" aria-hidden="true"><use href="#i-plus"/></svg><span>New conversation</span></div>
+            <div class="doan-menu-sep" role="separator"></div>
+            <div class="doan-menu-head">Conversations in acme-web</div>
+            <div class="conv-error" role="status"><span>Couldn’t read conversations</span><div class="doan-menu-item" role="menuitem" data-highlighted="">Retry</div></div>
+          </div></div>
+        </div>
+      </div>
+      <p class="cap">Pressed (focus ring drawn on the panel notice's Retry): nothing changes while the read runs, and a second failure looks and reads the same as the first.</p>
+    </div>
+    <div class="col tobe"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="row-of">
+        <div class="cp-crop"><div class="cp-scroll">
+          <div class="doan-notice error thread-notice" role="alert" data-doan-id="d11-tobe-notice"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="strip-text selectable"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
+            <span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled="true" aria-busy="true" style="outline:2px solid var(--border-focus);outline-offset:2px" data-doan-id="d11-tobe-running"><span class="doan-spinner" aria-hidden="true"></span>Retry</button></span></div>
+        </div></div>
+        <div class="stack">
+          <div class="stage flush" style="width:280px"><aside class="right ov-right" role="region" aria-label="Canvas conversations" style="border-left:0"><h2 class="phead rp-head">Canvas conversations</h2>
+            <div class="rp-error" role="status" data-doan-id="d11-tobe-rp-error"><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Retry</button></div></aside></div>
+          <div class="menu-crop"><div class="doan-floating doan-menu conv-menu" role="menu" aria-label="Project conversations" style="width:360px" data-doan-id="d11-tobe-menu">
+            <div class="doan-menu-item conv-new current" role="menuitemradio" aria-checked="true"><svg width="24" height="24" aria-hidden="true"><use href="#i-plus"/></svg><span>New conversation</span></div>
+            <div class="doan-menu-sep" role="separator"></div>
+            <div class="doan-menu-head">Conversations in acme-web</div>
+            <div class="conv-error" role="status"><span>Couldn’t read conversations</span><div class="doan-menu-item" role="menuitem" aria-disabled="true" data-highlighted=""><span class="doan-spinner" aria-hidden="true"></span>Retry</div></div>
+          </div></div>
+        </div>
+      </div>
+      <p class="cap">Running: the button keeps its fill, its “Retry” label and focus, shows the 14px spinner inside, and is <code>aria-disabled</code> + <code>aria-busy</code> (B2's D1 pattern). The right panel's Retry is <code>subtle</code> (U39). The menu row stays highlighted (focus kept) in the disabled ink.</p>
+      <ol class="steps cap">
+        <li><span>1</span><span>Press Retry: the pressed control turns running at once; a second press does nothing.</span></li>
+        <li><span>2a</span><span>The read succeeds: the line (notice, right-panel row or menu row) goes and the list shows; focus moves as it does today after a list arrives.</span></li>
+        <li><span>2b</span><span>The read fails again: the spinner goes and the button is enabled again (focus still on it) and the line is announced again — the same sentence, read a second time.</span></li>
+      </ol>
+    </div>
+  </div>
+  <div class="note">
+    <div><h4>Evidence</h4><ul>
+      <li>Sites: panel title menu <code>CanvasConversationPanel.tsx:192-193</code>, panel thread notice <code>:492-493</code>, Overview title menu <code>ProjectOverview.tsx:378-379</code>, Overview right panel <code>CanvasConversationList.tsx:102-103</code>, prototype head menu <code>prototype/PrototypeConversation.tsx:106-107</code> (and the prototype's thread notice through the panel); U7 adds the Overview column notice.</li>
+      <li>The list stays <code>"error"</code> during the re-read and after another failure (<code>homeRun.ts:488-501</code>, <code>prototype/conversationRun.ts:224-244</code>), so nothing shows or is announced.</li>
+      <li>Decision D11 (S-F7) asks for “the shared running Retry”. Lead decision: read as batch B2's D1 pattern (a busy button keeps its fill and label, spinner inside, <code>aria-busy</code> + <code>aria-disabled</code>). Only the toast's Retry (<code>Toast.tsx:98,117-126</code>, <code>conversation.md:292</code>) switches to “Retrying”, and it stays as it is.</li>
+    </ul></div>
+    <div><h4>What changes</h4><ul>
+      <li>The run keeps a per-root “retrying” flag from the press until the read settles; every Retry for that list renders running while it is set (pressing one runs all of them, since they read the same list).</li>
+      <li>Button: the same element, <code>aria-disabled="true"</code> and <code>aria-busy="true"</code> (not <code>disabled</code>: focus stays), <code>&lt;span class="doan-spinner" aria-hidden="true"&gt;</code> before the label, label stays “Retry”, variant and fill unchanged (B2 D1), clicks ignored. Spinner per B2's U28 rule; cursor from B2's D15 rule (<code>[aria-disabled="true"]</code> → <code>default</code>), no rule of its own.</li>
+      <li>Menu row: Radix <code>Item</code> without the <code>disabled</code> prop (that would drop highlight and focus) but with <code>aria-disabled</code>; <code>onSelect</code> keeps <code>preventDefault()</code> and ignores presses while running; disabled ink comes from <code>styles.css:719</code>; spinner via the menu-row rule in the To be block.</li>
+      <li>Re-announce on a repeated failure: the line's live text changes by a trailing no-break space on each failure (the composer's <code>announce</code> pattern, <code>DockedComposer.tsx:479</code>), so <code>role="alert"</code> / <code>role="status"</code> read the same sentence again. Choice of the closest existing pattern; a remount by failure count is acceptable if VoiceOver ignores the space.</li>
+    </ul></div>
+    <div><h4>States to test</h4><ol>
+      <li>Canvas panel, list IPC rejecting: press Retry → spinner inside “Retry”, fill kept, focus ring stays on it, Space again does nothing; on failure → spinner goes, VoiceOver reads “Couldn’t read conversations …” again.</li>
+      <li>Same in the Overview column (U7), the right panel, both title menus (menu stays open, row stays highlighted) and the prototype window.</li>
+      <li>Restore the handler, press Retry → line goes, list shows.</li>
+      <li>Reduced motion: the spinner stands still (shared rule), label still reads “Retry”.</li>
+    </ol></div>
+    <div><h4>Decided by the lead</h4><p>“Shared running Retry” in D11 is read as B2's D1 pattern: inside a notice or a menu, Retry keeps its fill and its “Retry” label, with the spinner inside, <code>aria-busy</code> and <code>aria-disabled</code>. Only the toast's Retry uses “Retrying”.</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ D12 ═══════════════════════════ -->
+<section data-doan-frame="d12-canvas-loading-delay" data-doan-title="D12 · Canvas Loading line after 300 ms" data-doan-implements="app/src/renderer/App.tsx">
+  <div class="fhead"><h2>D12 · Canvas Loading line after 300 ms</h2><p>Opening a canvas on the canvas page. Timing only; the line's look does not change.</p></div>
+  <div class="cols">
+    <div class="col"><h3>As is</h3>
+      <div class="tl">
+        <div><span class="cap">0 ms · load starts</span><div class="area area-crop" data-doan-id="d12-asis-0"><div class="canvas-status" role="status"><p><span class="doan-spinner" aria-hidden="true"></span>Loading</p></div></div></div>
+        <div><span class="cap">120 ms · a quick load ends</span><div class="area area-crop"><div class="board-standin"></div></div></div>
+      </div>
+      <p class="cap">The line shows at once (<code>CanvasController.ts:846-852</code> sets <code>status = "loading"</code>; <code>App.tsx:2576-2577</code> draws it), so a quick load flashes it.</p>
+    </div>
+    <div class="col tobe"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="tl">
+        <div><span class="cap">0–299 ms · loading, nothing drawn</span><div class="area area-crop" data-doan-id="d12-tobe-0"><div class="canvas-status" role="status"></div></div></div>
+        <div><span class="cap">300 ms on · still loading</span><div class="area area-crop" data-doan-id="d12-tobe-300"><div class="canvas-status" role="status"><p><span class="doan-spinner" aria-hidden="true"></span>Loading</p></div></div></div>
+        <div><span class="cap">120 ms · a quick load ends: no flash</span><div class="area area-crop"><div class="board-standin"></div></div></div>
+      </div>
+      <p class="cap">The same line, 300 ms into the load (<code>LOADING_DELAY_MS</code>, <code>ConversationThread.tsx:100</code>).</p>
+    </div>
+  </div>
+  <div class="note">
+    <div><h4>Evidence</h4><ul>
+      <li>Immediate: <code>CanvasController.ts:846-852</code> (fresh open: board hidden, <code>status = "loading"</code>), <code>App.tsx:2575-2577</code>.</li>
+      <li>Delayed elsewhere: problem overlay reading panel and sidebar “Reading &lt;name&gt;” (PRODUCT 250, 382; <code>App.tsx:1825</code>), prototype window (<code>prototype.md:82</code> “so a quick reload does not flash”), Canvas conversations <code>ListLoading</code> only when <code>slow</code> (<code>CanvasConversationList.tsx:101</code>), thread <code>Waiting</code> (<code>CanvasConversationPanel.tsx:574-577</code>). Decision D12 (S-F14).</li>
+    </ul></div>
+    <div><h4>What changes</h4><ul>
+      <li>While <code>status === "loading"</code>, the spinner and “Loading” render only once the load has run 300 ms (a timer started when status becomes <code>loading</code>, cleared when it leaves; the existing <code>LOADING_DELAY_MS</code>). Before that the area shows its inset fill with the board still hidden, as today underneath the line.</li>
+      <li>Keep the <code>.canvas-status</code> <code>role="status"</code> container rendered (empty) during the first 300 ms, so the live region exists before “Loading” is written into it.</li>
+      <li>Not delayed: <code>failed</code>, <code>noWidth</code> and message states. A reload of an already shown canvas (not fresh) keeps today's behaviour.</li>
+    </ul></div>
+    <div><h4>States to test</h4><ol>
+      <li>Open a small canvas (loads in under 300 ms): no “Loading” at any point (record the screen or poll the DOM every 50 ms).</li>
+      <li>Open a canvas whose server response is delayed ~1 s: the area stays plain until 300 ms, then the line shows, then the board.</li>
+      <li>VoiceOver: “Loading” is read once, after 300 ms, only for the slow load.</li>
+      <li>A failing canvas: “Couldn’t load the canvas” appears as soon as it fails, even under 300 ms.</li>
+    </ol></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ D13 ═══════════════════════════ -->
+<section data-doan-frame="d13-notice-reason-ink" data-doan-title="D13 · Notice reason line ink" data-doan-implements="app/src/renderer/styles.css">
+  <div class="fhead"><h2>D13 · Notice reason line ink</h2><p>A notice's second, caption-size line (main's own account of a failure). Project Settings Read failed; first-run Project step clone failure.</p></div>
+  <div class="cols">
+    <div class="col"><h3>As is</h3>
+      <div class="settings-crop settings-panel"><div class="settings-page">
+        <div class="doan-notice error" role="status" style="margin:0" data-doan-id="d13-asis-ps"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="project-settings-grow selectable">Couldn’t read this worktree’s settings.<span class="project-settings-notice-reason" data-doan-id="d13-asis-ps-reason">EACCES: permission denied, open '.doan/config.json'</span></span>
+          <div class="project-settings-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Retry</button></div></div>
+      </div></div>
+      <p class="cap">Project Settings: <code>--text-subtle</code>, caption size and line height, no caption tracking (<code>styles.css:1157</code>).</p>
+      <div class="stage ob-crop">
+        <div class="doan-notice error doan-panel stacked ob-project-notice" role="alert" style="margin:0" data-doan-id="d13-asis-ob"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg>
+          <span class="ob-notice-text selectable">Couldn’t clone this repository. Check your connection and folder access, then retry.<span class="ob-notice-reason selectable">~/code/acme-web</span></span>
+          <div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Change location</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-consent="">Retry</button></div></div>
+      </div>
+      <p class="cap">First run / Add Projects: <code>--text-metadata</code> with caption tracking (<code>styles.css:246</code>). First run's backdrop is drawn as the app background.</p>
+    </div>
+    <div class="col tobe"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="settings-crop settings-panel"><div class="settings-page">
+        <div class="doan-notice error" role="status" style="margin:0" data-doan-id="d13-tobe-ps"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="project-settings-grow selectable">Couldn’t read this worktree’s settings.<span class="project-settings-notice-reason" data-doan-id="d13-tobe-ps-reason">EACCES: permission denied, open '.doan/config.json'</span></span>
+          <div class="project-settings-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Retry</button></div></div>
+      </div></div>
+      <p class="cap">Project Settings: <code>--text-metadata</code>, caption type applied whole (size, line height, tracking).</p>
+      <div class="stage ob-crop">
+        <div class="doan-notice error doan-panel stacked ob-project-notice" role="alert" style="margin:0" data-doan-id="d13-tobe-ob"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg>
+          <span class="ob-notice-text selectable">Couldn’t clone this repository. Check your connection and folder access, then retry.<span class="ob-notice-reason selectable">~/code/acme-web</span></span>
+          <div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Change location</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-consent="">Retry</button></div></div>
+      </div>
+      <p class="cap">First run / Add Projects: unchanged; it already is the rule.</p>
+    </div>
+  </div>
+  <div class="note">
+    <div><h4>Evidence</h4><ul>
+      <li><code>.ob-notice-reason</code> <code>styles.css:246</code> (metadata, caption with tracking) used by <code>ProjectNoticeView</code> <code>Onboarding.tsx:354-355</code>; <code>onboarding.md:32</code>.</li>
+      <li><code>.project-settings-notice-reason</code> <code>styles.css:1157</code> (subtle, caption via <code>font</code> shorthand, no tracking) used by <code>ProjectSettingsPage.tsx:378</code> for Read failed only (<code>projectSettingsRules.ts:92</code>); <code>project.md:108</code>.</li>
+      <li>DESIGN 167 “the parts of a notice's text take no ink of their own”; <code>ds/controls.test.ts:46</code> checks only an allow-list and <code>.doan-notice</code>-scoped selectors. Decision D13 (P-F6).</li>
+    </ul></div>
+    <div><h4>What changes</h4><ul>
+      <li><code>.project-settings-notice-reason</code>: <code>color: var(--text-metadata)</code> and the caption role applied whole (<code>letter-spacing: var(--type-caption-letter-spacing)</code> added). Both reason classes then carry the same declarations; merging them into one rule is the conductor's choice.</li>
+      <li>DESIGN 'Notices' Tone: name the reason line (caption, <code>--text-metadata</code>) as the one exception to “no ink of their own”, in every tone.</li>
+      <li><code>ds/controls.test.ts</code>: add both reason classes to the list, pinned to <code>--text-metadata</code>.</li>
+      <li>In error and warning notices the reason line is therefore grey under the coloured sentence: D13 sets one ink for every tone.</li>
+    </ul></div>
+    <div><h4>States to test</h4><ol>
+      <li>Project Settings, settings read failing: reason line computed colour equals <code>--text-metadata</code>, letter-spacing equals the caption token, 4 below the sentence.</li>
+      <li>First run and Add Projects clone failure with a destination: unchanged values.</li>
+      <li><code>ds/controls.test.ts</code> fails if either class takes another ink.</li>
+    </ol></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ D20 ═══════════════════════════ -->
+<section data-doan-frame="d20-notice-actions" data-doan-title="D20 · Notice actions inside the notice" data-doan-implements="app/src/renderer/Onboarding.tsx">
+  <div class="fhead"><h2>D20 · Notice actions inside the notice</h2><p>NoticeView's actions (first-run Agent step, Settings › Agents, Settings › MCP Connectors) and the Notifications permission hint.</p></div>
+  <div class="cols">
+    <div class="col"><h3>As is</h3>
+      <div class="settings-crop settings-panel"><div class="settings-page stack">
+        <div class="doan-settings-group" data-layout="rows">
+          <div class="doan-preference-row" data-has-icon="" role="group" aria-label="Claude Code" data-doan-id="d20-asis-agents">
+            <span class="doan-preference-row-icon" aria-hidden="true"><img class="logo" src="../assets/provider-logos/claude.png" alt=""></span>
+            <div class="doan-preference-row-content"><span class="doan-preference-row-label">Claude Code</span><span class="doan-preference-row-description selectable">Anthropic</span></div>
+            <div class="doan-preference-row-extra"><div class="doan-notice" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span class="selectable"><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span></div>
+              <div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Cancel</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Open again</button></div></div>
+          </div>
+        </div>
+        <div class="doan-settings-group" data-layout="rows">
+          <div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Desktop notifications</span><span class="doan-preference-row-description">Only while Doan isn’t the active window. Clicking one opens the conversation.</span></div><div class="doan-preference-row-trailing"><button type="button" role="switch" aria-checked="true" class="doan-switch" aria-label="Desktop notifications"></button></div></div>
+          <div class="doan-preference-row-extra settings-permission" data-doan-id="d20-asis-notifications"><div class="doan-notice" role="note"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="selectable">If no notification appears, allow Doan in System Settings › Notifications.</span></div>
+            <div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Send test notification</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Open System Settings ↗</button></div></div>
+        </div>
+      </div></div>
+      <div class="stage ob-crop"><div class="doan-panel ob-provider-list">
+        <div class="ob-provider" data-provider="claude" data-doan-id="d20-asis-firstrun">
+          <div class="ob-provider-row"><span class="ob-provider-mark" aria-hidden="true"><img src="../assets/provider-logos/claude.png" alt=""></span><div class="ob-provider-label"><strong>Claude Code</strong><span class="selectable">Anthropic</span></div></div>
+          <div class="doan-notice error" role="alert" tabindex="-1"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="selectable"><span class="ob-notice-body">Couldn’t open your browser. Try again.</span></span></div>
+          <div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Open browser</button></div>
+        </div>
+      </div></div>
+      <p class="cap">Actions sit outside, 16 under the notice (<code>.ob-state-actions</code>, <code>space-between</code>: Cancel at the left edge). One action: <code>submit-only</code>, right-aligned.</p>
+    </div>
+    <div class="col tobe"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="settings-crop settings-panel"><div class="settings-page stack">
+        <div class="doan-settings-group" data-layout="rows">
+          <div class="doan-preference-row" data-has-icon="" role="group" aria-label="Claude Code" data-doan-id="d20-tobe-agents">
+            <span class="doan-preference-row-icon" aria-hidden="true"><img class="logo" src="../assets/provider-logos/claude.png" alt=""></span>
+            <div class="doan-preference-row-content"><span class="doan-preference-row-label">Claude Code</span><span class="doan-preference-row-description selectable">Anthropic</span></div>
+            <div class="doan-preference-row-extra"><div class="doan-notice stacked" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span class="ob-notice-text selectable"><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span>
+              <div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Cancel</button><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Open again</button></div></div></div>
+          </div>
+        </div>
+        <div class="doan-settings-group" data-layout="rows">
+          <div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Desktop notifications</span><span class="doan-preference-row-description">Only while Doan isn’t the active window. Clicking one opens the conversation.</span></div><div class="doan-preference-row-trailing"><button type="button" role="switch" aria-checked="true" class="doan-switch" aria-label="Desktop notifications"></button></div></div>
+          <div class="doan-preference-row-extra settings-permission" data-doan-id="d20-tobe-notifications"><div class="doan-notice stacked" role="note"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="ob-notice-text selectable">If no notification appears, allow Doan in System Settings › Notifications.</span>
+            <div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Send test notification</button><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Open System Settings ↗</button></div></div></div>
+        </div>
+      </div></div>
+      <div class="stage ob-crop"><div class="doan-panel ob-provider-list">
+        <div class="ob-provider" data-provider="claude" data-doan-id="d20-tobe-firstrun">
+          <div class="ob-provider-row"><span class="ob-provider-mark" aria-hidden="true"><img src="../assets/provider-logos/claude.png" alt=""></span><div class="ob-provider-label"><strong>Claude Code</strong><span class="selectable">Anthropic</span></div></div>
+          <div class="doan-notice error stacked" role="alert" tabindex="-1"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="ob-notice-text selectable"><span class="ob-notice-body">Couldn’t open your browser. Try again.</span></span>
+            <div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Open browser</button></div></div>
+        </div>
+      </div></div>
+      <p class="cap">Two or more actions: <code>.stacked</code>, their own row inside the notice, right-aligned, 8 under the text. Secondary actions on the inset notice become <code>panel</code>; a prominent action stays prominent.</p>
+    </div>
+  </div>
+  <div class="note">
+    <div><h4>Evidence</h4><ul>
+      <li>Outside: <code>NoticeView</code> <code>Onboarding.tsx:76-87</code> (<code>.ob-state-actions</code>, <code>styles.css:247-248</code>), used by first-run <code>ProviderRow</code> <code>:97</code>, Settings › Agents rows and list notice <code>SettingsAgents.tsx:136, 152</code>, MCP <code>SettingsMcpConnectors.tsx:167, 186, 231-232</code>; Notifications' hint <code>SettingsNotifications.tsx:60-64</code>. Documented in <code>shell.md:158, 291</code>, <code>onboarding.md:26</code>.</li>
+      <li>Inside: DESIGN 169-170 'Notices' (inline one, <code>.stacked</code> two or more), <code>ProjectNoticeView</code> <code>Onboarding.tsx:342-357</code>, strip, thread, composer, Project Settings and buddy notices. Decision D20 (P-F25).</li>
+    </ul></div>
+    <div><h4>What changes</h4><ul>
+      <li><code>NoticeView</code> renders its actions inside the notice: two or more → <code>doan-notice … stacked</code> with a <code>&lt;div class="ob-notice-actions"&gt;</code> group (full row, right-aligned, order kept: Cancel then the main action); exactly one → the button inline at the notice's end (DESIGN 'Notices' one-action rule, as <code>projectNoticeActions</code> does). The text span takes <code>.ob-notice-text</code> so it fills the row beside the icon. <code>.ob-state-actions</code> and its <code>submit-only</code> modifier lose their users.</li>
+      <li>Variant: a <code>subtle</code> action inside the inset notice becomes <code>panel</code> (DESIGN 170); on a <code>doan-panel</code> notice it stays <code>subtle</code>; <code>prominent</code> and <code>ghost</code> stay. Disabled actions keep <code>disabled</code> (as today).</li>
+      <li>Notifications: the hint's two buttons move into its notice the same way (<code>stacked</code>, <code>panel</code>).</li>
+      <li>Stays outside, under the notice: <code>notice.note</code> (<code>.ob-provider-help</code>) and Antigravity's “Browser page didn’t load?” line (<code>.ob-page-help</code>).</li>
+    </ul></div>
+    <div><h4>States to test</h4><ol>
+      <li>Settings › Agents: start a sign-in → notice with spinner, Cancel and Open again on one row inside it, right-aligned; Cancel works, focus rules unchanged.</li>
+      <li>First run Agent step: open_failed → “Couldn’t open your browser. Try again.” with Cancel (<code>panel</code>) and Open browser (prominent) inside.</li>
+      <li>Settings › MCP Connectors: Connect a server → “Finish connecting to …” with Cancel and Open again inside; Codex (one action, Cancel) → Cancel inline at the notice's end.</li>
+      <li>Settings › Notifications: hint with both buttons inside; after Send test notification the notice text changes, buttons stay.</li>
+      <li>960 × 600 window: buttons wrap inside the notice without leaving it.</li>
+    </ol></div>
+    <div><h4>Open details decided here</h4><p>One action inline rather than stacked, and the kept order and variants, follow the existing in-notice rule (<code>projectNoticeActions</code>, DESIGN 169-170) as the closest pattern. MCP's rows are not drawn: they use the same <code>NoticeView</code> as the Agents row.</p></div>
+  </div>
+</section>
+</body></html>

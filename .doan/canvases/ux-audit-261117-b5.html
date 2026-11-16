@@ -1,0 +1,575 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="ux-audit-261117-b5"><meta name="doan:width" content="2160"><title>ux-audit-261117-b5 — component presentation</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+:root{--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center;--radix-dropdown-menu-content-available-height:384px}
+@layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button,input{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent;border-radius:0}ul,ol{list-style:none}}
+
+/* ── app/src/renderer/styles.css: only the rules these frames draw, as shipped (line numbers at develop 366993b72) ── */
+:root { color-scheme: light; }
+body { background: var(--bg-app); color: var(--text-standard); font-family: var(--type-family); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; user-select: none; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { color: var(--text-disabled); cursor: default; }
+button, [role="treeitem"] { outline: none; }
+button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+code, kbd { font-family: var(--type-family); }
+
+/* :238-241 notice title and body */
+.ob-notice-title, .ob-notice-body { display: block; }
+.ob-notice-title { font-weight: var(--type-weight-medium); }
+.ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
+/* :296 radio */
+.ob-radio { display: grid; place-content: center; flex: none; width: var(--size-icon); height: var(--size-icon); margin-top: calc((var(--type-label-sm-line-height) - var(--size-icon)) / 2); border: 1px solid var(--border-prominent); border-radius: 50%; background: var(--surface-panel); }
+/* :322-339, :350, :355, :360-363 buddy cover flow (the 780-high window's values; :346-348 shrink them below 780) */
+.buddy-flow { position: relative; height: 340px; perspective: 1000px; margin-top: var(--space-2); container-type: inline-size; }
+.buddy-card { position: absolute; left: 50%; top: 0; width: 244px; margin-left: -122px; display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-5) var(--space-6); text-align: center; cursor: pointer; transform-origin: 50% 40%; transition: transform var(--time-settle) var(--ease-enter), opacity var(--time-settle) var(--ease-enter); }
+.buddy-card img { width: 196px; height: 196px; border-radius: var(--radius-chip); object-fit: cover; margin-bottom: var(--space-2); }
+.buddy-card strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-semibold); }
+.buddy-card span { min-height: calc(var(--type-caption-line-height) * 2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-standard); }
+.buddy-card input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.buddy-card[data-o="0"] { transform: none; z-index: 5; }
+.buddy-card[data-o="1"] { transform: translateX(min(200px, 21cqw)) rotateY(-50deg) scale(.84); z-index: 4; }
+.buddy-card[data-o="-1"] { transform: translateX(calc(-1 * min(200px, 21cqw))) rotateY(50deg) scale(.84); z-index: 4; }
+.buddy-card[data-o="2"] { transform: translateX(min(268px, 28cqw)) rotateY(-50deg) scale(.84); z-index: 3; }
+.buddy-card[data-o="-2"] { transform: translateX(calc(-1 * min(268px, 28cqw))) rotateY(50deg) scale(.84); z-index: 3; }
+.buddy-card:not(:has(input:checked)):hover { box-shadow: var(--shadow-panel), 0 4px 12px -2px color-mix(in srgb, var(--text-standard) 18%, transparent); }
+.buddy-card:has(input:checked) { box-shadow: 0 0 0 2px var(--text-accent), 0 0 var(--space-6) 2px color-mix(in srgb, var(--affordance-accent) 27%, transparent), 0 0 calc(var(--space-8) * 2) var(--space-2) color-mix(in srgb, var(--affordance-accent) 7%, transparent); }
+.buddy-flow[aria-disabled="true"] { opacity: .55; }
+.buddy-flow[aria-disabled="true"] .buddy-card, .buddy-flow[aria-disabled="true"] .buddy-card input { cursor: default; }
+.buddy-step-notice { margin: var(--space-5) auto 0; max-width: 512px; }
+.buddy-step-notice-top { margin: 0 auto var(--space-5); }
+/* :368-377 Settings › General's buddy rows (the reference) */
+.buddy-rows > * + * { border-block-start: 1px solid var(--border-standard); }
+.buddy-row { position: relative; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0 var(--space-3); cursor: pointer; }
+.buddy-row img { width: var(--size-control-lg); height: var(--size-control-lg); border-radius: var(--radius-chip); object-fit: cover; }
+.buddy-row input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.buddy-row:has(input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.buddy-row:has(input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
+.buddy-row[data-disabled], .buddy-row[data-disabled] input { cursor: default; }
+.buddy-row[data-disabled] .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
+.buddy-row[data-disabled]:has(input:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
+.buddy-row[data-disabled]:has(input:checked) .ob-radio::before { background: var(--text-disabled); }
+/* :392-397, :410-417, :424 Set Up dialog card and fields */
+.ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
+.ob-card > :first-child { border-top: 0; }
+.ob-label { font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); color: var(--text-standard); }
+.ob-field code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-4) 0; border-top: 1px solid var(--border-standard); }
+.ob-dialog .ob-card { width: auto; }
+/* :587, :611, :612-614 project thumbnail, one hue, branch chip */
+.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
+.hue-rose { background: color-mix(in srgb, var(--identity-project-rose) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-rose) 65%, var(--text-standard)); }
+.hue-indigo { background: color-mix(in srgb, var(--identity-project-indigo) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-indigo) 65%, var(--text-standard)); }
+.shell-branch { display: inline-flex; align-items: center; gap: 4px; max-width: 84px; flex-shrink: 1; }
+.shell-branch svg { width: 12px; height: 12px; flex: none; }
+.shell-branch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* :739, :741-742 Home project trigger, :863, :882-883, :897-901 its menu */
+.home-composer { position: relative; width: min(680px, 100%); }
+.home-project { gap: var(--space-2); margin: 0 0 var(--space-2) var(--space-2); font-weight: var(--type-weight-medium); }
+:is(.home-project, .project-item) .shell-thumbnail { width: var(--size-icon-lg); height: var(--size-icon-lg); border-radius: 5px; font-size: 11px; line-height: var(--size-icon-lg); }
+.chev { width: var(--space-4); height: var(--space-4); color: var(--text-metadata); }
+.project-popover { width: 320px; }
+:is(.model-item, .project-item, .effort-popover .doan-menu-item) { display: flex; align-items: center; gap: var(--space-2); }
+.model-name { flex: 1; min-width: 0; }
+.check-slot { display: inline-flex; width: var(--size-icon); justify-content: center; }
+.check-slot > svg { height: var(--size-icon); }
+:is(.popover-search, .project-popover .doan-menu-item) > svg { width: var(--size-icon); height: var(--size-icon); }
+/* :837-839 Fast switch */
+.fast-switch { display: inline-flex; flex-shrink: 0; align-items: center; box-sizing: border-box; width: 36px; height: 20px; padding: 2px; border: 1px solid var(--border-standard); border-radius: var(--radius-pill); background: var(--affordance-subtle-hover); }
+.fast-switch::before { content: ""; width: 14px; height: 14px; border-radius: var(--radius-pill); background: var(--text-on-prominent); box-shadow: var(--shadow-xs); }
+.fast-item[aria-checked="true"] .fast-switch { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.fast-item[aria-checked="true"] .fast-switch::before { transform: translateX(16px); }
+/* :1314-1331 Overview header */
+.ov-main, .conv-menu { font-variant-numeric: normal; }
+.ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
+.ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: none; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-project-name { font-weight: var(--type-weight-medium); }
+.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-title-wrap { display: flex; min-width: 0; }
+.ov-new-conv { flex: none; margin-left: auto; }
+.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* :1354-1357 conversation menu */
+.conv-menu { width: 360px; max-width: calc(100vw - 16px); overflow-y: auto; }
+.conv-new { display: flex; align-items: center; gap: var(--space-2); }
+.conv-new svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
+.conv-menu .doan-menu-item.current { background: var(--affordance-backdrop-pressed); }
+/* :1329-1330, :1510, :1512 the panel head's New conversation while the new conversation shows */
+:is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+:is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+.doan-conv-head { display: flex; align-items: center; min-height: var(--size-chrome); padding-right: var(--space-2); }
+.doan-conv-head .doan-icon-button { color: var(--text-standard); }
+/* :1466-1474 frame drawer list (app) */
+.doan-frame-list { width: 320px; }
+.doan-frame-row { gap: var(--space-2); }
+.doan-frame-num { flex: none; min-width: var(--space-6); color: var(--text-metadata); font-variant-numeric: tabular-nums; }
+.doan-frame-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.doan-frame-current { flex: none; display: inline-flex; align-items: center; color: var(--text-metadata); }
+.doan-frame-current svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* cli/internal/export/viewer/shell.css:253, the viewer's mark */
+.doan-frame-viewing { flex: none; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+/* :1728-1737 the canvas agent notice */
+.doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; min-height: var(--size-control); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
+.doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.doan-agent .doan-button.doan-agent-action { flex: none; background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); color: var(--text-on-prominent); }
+.doan-agent:has(> .doan-agent-artist) { padding-left: var(--space-2); }
+.doan-agent-artist { display: block; flex: none; width: var(--size-control-sm); height: var(--size-control-sm); }
+.doan-agent-artist img { display: block; width: 100%; height: 100%; }
+/* :1849-1860 the Set Up dialog's Doan files field */
+.ob-field.storage-field { align-items: start; }
+.storage-options { grid-column: 2 / -1; display: grid; gap: var(--space-3); min-width: 0; }
+.storage-option { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-half) var(--space-2); cursor: pointer; }
+.storage-option .ob-radio { grid-row: 1 / 3; }
+.storage-option strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); color: var(--text-standard); }
+.storage-option small { grid-column: 2; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.storage-option > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.storage-option:has(> input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.storage-option:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
+.storage-option:has(> input:disabled), .storage-option > input:disabled { cursor: default; }
+:is(.storage-option small, .storage-pref .doan-preference-row-description) code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+
+/* ── To be: proposed rules, NOT in code. Scoped to .tobe so the As is columns keep the shipped look. ── */
+/* U29: .storage-row's disabled rules (:1877-1881) for .storage-option. */
+.tobe .storage-option:has(> input:disabled) :is(strong, small) { color: var(--text-disabled); }
+.tobe .storage-option:has(> input:disabled) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
+.tobe .storage-option:has(> input:disabled:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
+.tobe .storage-option:has(> input:disabled:checked) .ob-radio::before { background: var(--text-disabled); }
+/* U32: :360's opacity goes; the cards take the disabled roles. */
+.tobe .buddy-flow[aria-disabled="true"] { opacity: 1; }
+.tobe .buddy-flow[aria-disabled="true"] .buddy-card :is(strong, span) { color: var(--text-disabled); }
+.tobe .buddy-flow[aria-disabled="true"] .buddy-card:has(input:checked) { box-shadow: 0 0 0 2px var(--text-disabled); }
+.tobe .buddy-flow[aria-disabled="true"] .buddy-card:not(:has(input:checked)):hover { box-shadow: var(--shadow-panel); }
+/* U33: the canvas header crumb's rule (:1455-1457) for the Overview crumb; Home's trigger and menu row ellipsize. */
+.tobe .ov-project { flex: 0 1 auto; max-width: 40%; min-width: 0; }
+.tobe .ov-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tobe .home-project { max-width: calc(100% - var(--space-2)); }
+.tobe .home-project > span:not(.shell-thumbnail) { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tobe .project-item .model-name { overflow: hidden; text-overflow: ellipsis; }
+/* U41: Open's ring re-inked on the dark capsule, as the size bubble's buttons re-ink theirs (:120). */
+.tobe .doan-agent .doan-button.doan-agent-action[data-focus="ring"] { outline-color: var(--text-on-prominent); outline-offset: -2px; }
+
+/* ── Draft board (not app UI) ── */
+html,body{height:auto;overflow:visible}
+body{width:2160px;padding:var(--space-8);background:var(--surface-inset);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);font-variant-numeric:normal;user-select:text}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}
+[data-doan-frame]{width:max-content;max-width:2096px;padding:var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+[data-doan-frame]+[data-doan-frame]{margin-top:var(--space-16)}
+.f-head{max-width:1240px;margin-bottom:var(--space-6)}
+.f-head h2{display:flex;align-items:center;gap:var(--space-2);font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing);font-weight:var(--type-weight-medium)}
+.f-head p{margin-top:var(--space-1);color:var(--text-subtle)}
+.cols{display:grid;grid-template-columns:repeat(2,max-content);gap:var(--space-8);align-items:start}
+.col{display:flex;flex-direction:column;gap:var(--space-3);min-width:0}
+.col>h3{display:flex;align-items:center;gap:var(--space-2);min-height:var(--space-6);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
+.col>h4{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.stage{padding:var(--space-6);border-radius:var(--radius-row);background:var(--bg-app)}
+.stage.clip{overflow:hidden}
+.stage.white{background:var(--surface-panel);box-shadow:inset 0 0 0 1px var(--border-standard)}
+.note{display:grid;grid-template-columns:120px minmax(0,1fr);gap:var(--space-2) var(--space-4);max-width:1240px;margin-top:var(--space-6);padding-top:var(--space-4);border-top:1px solid var(--border-standard)}
+.note dt{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.note dd{color:var(--text-standard)}
+.note dd ol{list-style:decimal;padding-left:var(--space-5)}
+.note dd ul{list-style:disc;padding-left:var(--space-5)}
+.note dd li+li{margin-top:var(--space-1)}
+.note code,.f-head code,.idx code,.cap code{padding:0 var(--space-1);border-radius:var(--space-1);background:var(--surface-inset);color:var(--text-standard);font-size:var(--type-caption-size)}
+pre.code{max-width:620px;padding:var(--space-3) var(--space-4);border-radius:var(--radius-chip);background:var(--surface-inset);color:var(--text-standard);font-family:var(--type-family-mono);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+pre.code b{font-weight:var(--type-weight-semibold)}
+.cap{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+.idx{border-collapse:collapse;width:1400px}
+.idx th,.idx td{padding:var(--space-2) var(--space-3);border-top:1px solid var(--border-standard);text-align:start;vertical-align:top}
+.idx th{color:var(--text-metadata);font-size:var(--type-caption-size);font-weight:var(--type-weight-regular)}
+.idx td:first-child{font-weight:var(--type-weight-medium);white-space:nowrap}
+.idx td:last-child{white-space:nowrap}
+/* The shared focus-visible ring, drawn where focus stays. */
+[data-focus="ring"]{outline:2px solid var(--border-focus);outline-offset:2px}
+/* Crops of the app at its real widths. */
+.ov-crop{overflow:hidden;border-radius:var(--radius-container) var(--radius-container) 0 0;background:var(--surface-panel);box-shadow:inset 0 0 0 1px var(--border-standard)}
+.cols.u33{grid-template-columns:repeat(2,728px)}
+.cols.u33>.col>.stage{width:728px}
+.ov-crop.w436{width:436px}.ov-crop.w714{width:714px}
+.flow-crop{width:992px}
+.dialog-crop{width:640px;padding:var(--space-8);border-radius:var(--radius-panel);background:var(--surface-popover);box-shadow:var(--shadow-panel)}
+.menu-static{position:static}
+.board{position:relative;display:flex;justify-content:center;align-items:flex-start;width:520px;height:112px;padding-top:28px;border-radius:var(--radius-row);overflow:hidden}
+.board.light{background:var(--surface-panel);box-shadow:inset 0 0 0 1px var(--border-standard)}
+.board.dark{background:var(--text-standard)}
+.board .doan-agent{max-width:420px}
+.ref{width:480px;border-radius:var(--radius-row);overflow:hidden}
+</style></head><body>
+
+<!-- ════════ Index ════════ -->
+<section data-doan-frame="index" data-doan-title="Index · B5 component presentation">
+  <div class="f-head">
+    <h2>ux-audit-261117 · B5 component presentation <span class="doan-chip" data-ui-variant="translucent" data-doan-id="index-not-in-code">To be: not in code</span></h2>
+    <p>As is and To be for each B5 item of <code>docs/features/ux-audit-261117/report.md</code> (§3 findings, §6 decisions, §7 batch B5, branch <code>fix/ux-components</code>). As is follows develop <code>366993b72</code>; every To be column is a proposal that is <b>not in code yet</b>. The UI is the app's own classes over the linked <code>tokens.css</code> and <code>ds/index.css</code>, with the needed <code>styles.css</code> rules copied into this canvas; To be rules are scoped to <code>.tobe</code> in the canvas's style block. No new UI copy.</p>
+  </div>
+  <table class="idx" data-doan-id="index-table">
+    <thead><tr><th>ID</th><th>Change</th><th>Affected screens</th><th>Frame</th></tr></thead>
+    <tbody>
+      <tr><td>U29</td><td>While Set Up writes, the "Doan files" options take the disabled roles, as <code>.storage-row</code> does</td><td>Set Up dialog (sidebar › Set Up…)</td><td><code>u29-storage-disabled</code></td></tr>
+      <tr><td>U32</td><td>The first-run buddy row's "newer settings" state: <code>opacity: .55</code> → disabled roles, as Settings › General's <code>.buddy-row[data-disabled]</code></td><td>First run Buddy step, buddy screen</td><td><code>u32-buddy-newer</code></td></tr>
+      <tr><td>U33</td><td>Long project names ellipsize: Overview crumb (max 40%, as the canvas header), Home project trigger and menu row</td><td>Project Overview header, Home composer project picker</td><td><code>u33-long-project-name</code></td></tr>
+      <tr><td>U36</td><td>Thread activity chevron <code>120ms</code> → <code>--time-fast</code> / <code>--ease-state</code>; Fast switch thumb gets the shared switch transition</td><td>Conversation thread (Overview, canvas panel, prototype window), Effort menu</td><td><code>u36-motion-tokens</code></td></tr>
+      <tr><td>U40</td><td>Sidebar chevrons stop rotating under reduced motion</td><td>Sidebar project rows, canvas rows, group heads</td><td><code>u40-chevron-reduced-motion</code></td></tr>
+      <tr><td>U41</td><td>The agent notice's Open draws a white focus ring on the dark capsule</td><td>Canvas board top (agent notice: waiting, sibling worktree)</td><td><code>u41-agent-open-focus</code></td></tr>
+      <tr><td>D18</td><td>The New conversation menu row's icon: <code>Plus</code> → <code>SquarePen</code></td><td>Overview, canvas panel and prototype window title menus</td><td><code>d18-new-conversation-icon</code></td></tr>
+      <tr><td>D20</td><td>Export viewer frame drawer: the "Viewing" word → the app's Eye mark</td><td>Exported canvas viewer page</td><td><code>d20-viewer-eye</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ════════ U29 ════════ -->
+<section data-doan-frame="u29-storage-disabled" data-doan-title="U29 · Set Up dialog storage options while writing" data-doan-implements="app/src/renderer/styles.css">
+  <div class="f-head"><h2>U29 · The Set Up dialog's Doan files options while Set Up writes</h2><p>Set Up Project pressed; the write is running (<code>form.running</code>), so both radios are <code>disabled</code>. Drawn: the dialog's card with the Doan files field only (640 standard dialog, 32 padding).</p></div>
+  <div class="cols">
+    <div class="col">
+      <h3>As is</h3>
+      <div class="dialog-crop ob-dialog" data-doan-id="u29-asis">
+        <div class="ob-card"><div class="ob-field storage-field">
+          <span class="ob-label" id="u29a-label">Doan files</span>
+          <div class="storage-options" role="radiogroup" aria-labelledby="u29a-label">
+            <label class="storage-option"><input type="radio" name="u29a" checked disabled><span class="ob-radio" aria-hidden="true"></span><strong>Include in Git</strong><small>Git tracks these files. Commit them so your team gets your canvases and settings.</small></label>
+            <label class="storage-option"><input type="radio" name="u29a" disabled><span class="ob-radio" aria-hidden="true"></span><strong>Keep out of Git (this Mac only)</strong><small>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</small></label>
+          </div>
+        </div></div>
+      </div>
+      <h4>Label standard, checked radio black, unchecked ring prominent: reads as live.</h4>
+    </div>
+    <div class="col tobe">
+      <h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="dialog-crop ob-dialog" data-doan-id="u29-tobe">
+        <div class="ob-card"><div class="ob-field storage-field">
+          <span class="ob-label" id="u29b-label">Doan files</span>
+          <div class="storage-options" role="radiogroup" aria-labelledby="u29b-label">
+            <label class="storage-option"><input type="radio" name="u29b" checked disabled><span class="ob-radio" aria-hidden="true"></span><strong>Include in Git</strong><small>Git tracks these files. Commit them so your team gets your canvases and settings.</small></label>
+            <label class="storage-option"><input type="radio" name="u29b" disabled><span class="ob-radio" aria-hidden="true"></span><strong>Keep out of Git (this Mac only)</strong><small>These files stay in this worktree on this Mac; other worktrees and Macs don’t get them. Git ignores them, so <code>git worktree remove</code> or <code>git clean -x</code> deletes them. To show someone a canvas, use Export in the canvas menu.</small></label>
+          </div>
+        </div></div>
+      </div>
+      <h4>Label and description <code>--text-disabled</code>; radios take the disabled fills; the chosen value stays visible.</h4>
+    </div>
+  </div>
+  <dl class="note">
+    <dt>Finding</dt><dd>U29 (P-F3). DESIGN.md 'States': "Disabled is a role (<code>text-disabled</code> on <code>affordance-disabled</code>), never <code>opacity</code>".</dd>
+    <dt>Evidence</dt><dd><code>StorageChoice.tsx:20-23</code> passes <code>disabled={form.running}</code> (<code>ProjectSetupDialog.tsx:67</code>); <code>styles.css:1852-1860</code> changes only the cursor for a disabled <code>.storage-option</code> (<code>:1860</code>). The same choice disabled elsewhere: <code>.storage-row</code> <code>:1877-1881</code> (setup panel, clone screen; <code>docs/design/project.md</code> 'Disabled while cloning') and <code>.storage-pref[data-disabled]</code> <code>:1889-1892</code> (Project Settings).</dd>
+    <dt>Change</dt><dd>In <code>styles.css</code> after <code>:1860</code>, the four <code>.storage-row</code> disabled rules for <code>.storage-option</code>: <code>strong</code> and <code>small</code> → <code>color: var(--text-disabled)</code>; disabled <code>.ob-radio</code> → <code>border-color: var(--border-standard); background: var(--surface-inset)</code>; disabled and checked → <code>border-color</code> and <code>background: var(--affordance-disabled)</code>, its dot <code>var(--text-disabled)</code>. A shared selector with <code>.storage-row</code> is equally fine. Code chips in the description keep <code>--text-standard</code> on <code>--surface-inset</code>, as they do on the clone screen. Cursor stays <code>default</code>.</dd>
+    <dt>Test</dt><dd><ol><li>Sidebar project menu › Set Up… on a project not set up; leave Include in Git; press Set Up Project.</li><li>While it writes: both options show the disabled ink and fills (computed <code>color</code> of the labels = <code>--text-disabled</code>; checked radio fill = <code>--affordance-disabled</code>).</li><li>Repeat with Keep out of Git chosen: that option shows the disabled checked radio.</li><li>A refused setup (the <code>.ob-msg.error</code> line): the options are enabled again with the chosen value kept.</li></ol></dd>
+    <dt>Not drawn</dt><dd>Token CSS, Will add and the Cancel / Set Up Project buttons: their busy look belongs to B2 (D1) and the "Setting up" label to B4 (D4).</dd>
+  </dl>
+</section>
+
+<!-- ════════ U32 ════════ -->
+<section data-doan-frame="u32-buddy-newer" data-doan-title="U32 · First-run buddy row, newer settings" data-doan-implements="app/src/renderer/styles.css">
+  <div class="f-head"><h2>U32 · The first-run buddy row when the settings were saved by a newer Doan</h2><p>First run's Buddy step (and the buddy screen) at 1238 × 780: the newer notice above the cover-flow row (992 wide), Doany shown because defaults apply, the row <code>aria-disabled</code>.</p></div>
+  <div class="cols">
+    <div class="col">
+      <h3>As is</h3>
+      <div class="flow-crop" data-doan-id="u32-asis">
+        <div class="doan-notice doan-panel buddy-step-notice buddy-step-notice-top" role="status"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span><strong class="ob-notice-title">These settings were saved by a newer version of Doan</strong><span class="ob-notice-body">Defaults apply here, and changes aren’t saved. Update Doan to use them.</span></span></div>
+        <h2 class="sr-only" id="u32a-title">Choose your buddy</h2><div role="radiogroup" aria-labelledby="u32a-title" aria-disabled="true" class="buddy-flow">
+          <label class="doan-panel buddy-card" data-o="-2"><input type="radio" name="u32a" disabled><img src="../assets/buddies/popo/card.png" alt=""><strong>Popo</strong><span>A whimsical bookworm who dreams up new games.</span></label>
+          <label class="doan-panel buddy-card" data-o="-1"><input type="radio" name="u32a" disabled><img src="../assets/buddies/puri/card.png" alt=""><strong>Puri</strong><span>A curious walking companion who shares every fun find.</span></label>
+          <label class="doan-panel buddy-card" data-o="0"><input type="radio" name="u32a" checked disabled><img src="../assets/buddies/doany/card.png" alt=""><strong>Doany</strong><span>A little artist in a beret who just loves to draw.</span></label>
+          <label class="doan-panel buddy-card" data-o="1"><input type="radio" name="u32a" disabled><img src="../assets/buddies/dungdung/card.png" alt=""><strong>Dungdung</strong><span>A music-loving mood maker who keeps things upbeat.</span></label>
+          <label class="doan-panel buddy-card" data-o="2"><input type="radio" name="u32a" disabled><img src="../assets/buddies/dori/card.png" alt=""><strong>Dori</strong><span>A quiet, caring friend to lean on when you’re tired.</span></label>
+        </div>
+      </div>
+      <h4>The whole row at opacity .55, accent ring and glow kept on Doany.</h4>
+    </div>
+    <div class="col tobe">
+      <h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="flow-crop" data-doan-id="u32-tobe">
+        <div class="doan-notice doan-panel buddy-step-notice buddy-step-notice-top" role="status"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span><strong class="ob-notice-title">These settings were saved by a newer version of Doan</strong><span class="ob-notice-body">Defaults apply here, and changes aren’t saved. Update Doan to use them.</span></span></div>
+        <h2 class="sr-only" id="u32b-title">Choose your buddy</h2><div role="radiogroup" aria-labelledby="u32b-title" aria-disabled="true" class="buddy-flow">
+          <label class="doan-panel buddy-card" data-o="-2"><input type="radio" name="u32b" disabled><img src="../assets/buddies/popo/card.png" alt=""><strong>Popo</strong><span>A whimsical bookworm who dreams up new games.</span></label>
+          <label class="doan-panel buddy-card" data-o="-1"><input type="radio" name="u32b" disabled><img src="../assets/buddies/puri/card.png" alt=""><strong>Puri</strong><span>A curious walking companion who shares every fun find.</span></label>
+          <label class="doan-panel buddy-card" data-o="0"><input type="radio" name="u32b" checked disabled><img src="../assets/buddies/doany/card.png" alt=""><strong>Doany</strong><span>A little artist in a beret who just loves to draw.</span></label>
+          <label class="doan-panel buddy-card" data-o="1"><input type="radio" name="u32b" disabled><img src="../assets/buddies/dungdung/card.png" alt=""><strong>Dungdung</strong><span>A music-loving mood maker who keeps things upbeat.</span></label>
+          <label class="doan-panel buddy-card" data-o="2"><input type="radio" name="u32b" disabled><img src="../assets/buddies/dori/card.png" alt=""><strong>Dori</strong><span>A quiet, caring friend to lean on when you’re tired.</span></label>
+        </div>
+      </div>
+      <h4>No opacity: names and lines <code>--text-disabled</code>; Doany's accent ring and glow give way to a 2px <code>--text-disabled</code> ring; pictures unchanged.</h4>
+    </div>
+  </div>
+  <dl class="note">
+    <dt>Finding</dt><dd>U32 (P-F7, lead confirmed). DESIGN.md 'States' "never <code>opacity</code>"; not among its intended exceptions.</dd>
+    <dt>Evidence</dt><dd><code>styles.css:360</code> <code>.buddy-flow[aria-disabled="true"] { opacity: .55 }</code>, <code>:361</code> cursor; <code>BuddyPicker.tsx:107</code> sets <code>aria-disabled</code>; <code>Onboarding.tsx:719-720</code> (notice, <code>buddyChoiceOff</code>); documented in <code>docs/design/onboarding.md:84</code>. Reference: Settings › General's <code>.buddy-row[data-disabled]</code> (<code>styles.css:374-377</code>, <code>BuddyPicker.tsx:147</code>, label and description <code>--text-disabled</code> through <code>ds/surfaces.css:269</code>), drawn below.</dd>
+    <dt>Change</dt><dd><ul><li>Delete <code>styles.css:360</code>; keep <code>:361</code> (default cursor).</li><li>Card name and line in a disabled row: <code>color: var(--text-disabled)</code>.</li><li>The chosen card in a disabled row: <code>box-shadow: 0 0 0 2px var(--text-disabled)</code> in place of the accent ring and glows (<code>:355</code>, and <code>:356</code> under reduced transparency, which re-adds the glow and needs the same override). <b>Detail the decision leaves open, chosen here:</b> the accent ring is an Accent place and does not belong on a control that cannot change; the ring takes the disabled checked radio's mark ink (<code>--text-disabled</code>, as the dot of <code>:377</code>) so the buddy that applies stays visible.</li><li>A side card's hover shadow (<code>:350</code>) stays <code>--shadow-panel</code> while disabled.</li><li>Pictures stay as they are, as Settings' rows keep theirs: no role recolours an image, and a filter or opacity would break the rule again.</li><li>Rewrite <code>docs/design/onboarding.md:84</code> "opacity .55".</li></ul></dd>
+    <dt>Test</dt><dd><ol><li>Preferences file written by a newer Doan; open first run's Buddy step (and, for a finished first run with no <code>buddy</code> key, the buddy screen).</li><li>The row's computed <code>opacity</code> is 1; names and lines are <code>--text-disabled</code>; Doany's card shows the grey 2px ring and no glow; with reduced transparency the same.</li><li>Hover a side card: no deeper shadow. Click, arrows, horizontal scroll: nothing moves. Continue goes on with Doany.</li></ol></dd>
+    <dt>Reference</dt><dd>
+      <div class="ref doan-settings-group" data-doan-id="u32-reference-row"><h3 class="sr-only" id="u32r-title">Buddy</h3><div role="radiogroup" aria-labelledby="u32r-title" class="buddy-rows">
+        <label class="doan-preference-row buddy-row" data-disabled=""><input type="radio" name="u32r" checked readonly disabled><img src="../assets/buddies/doany/card.png" alt=""><span class="doan-preference-row-content"><span class="doan-preference-row-label">Doany</span><span class="doan-preference-row-description">A little artist in a beret who just loves to draw.</span></span><span class="doan-preference-row-trailing"><span class="ob-radio" aria-hidden="true"></span></span></label>
+        <label class="doan-preference-row buddy-row" data-disabled=""><input type="radio" name="u32r" readonly disabled><img src="../assets/buddies/puri/card.png" alt=""><span class="doan-preference-row-content"><span class="doan-preference-row-label">Puri</span><span class="doan-preference-row-description">A curious walking companion who shares every fun find.</span></span><span class="doan-preference-row-trailing"><span class="ob-radio" aria-hidden="true"></span></span></label>
+      </div></div>
+      <p class="cap">Settings › General, same state (shipped): text disabled, radio fills disabled, pictures unchanged.</p>
+    </dd>
+  </dl>
+</section>
+
+<!-- ════════ U33 ════════ -->
+<section data-doan-frame="u33-long-project-name" data-doan-title="U33 · Long project names truncate" data-doan-implements="app/src/renderer/styles.css">
+  <div class="f-head"><h2>U33 · A 60-character folder name in the Overview header and the Home project picker</h2><p>Project <code>northwind-commerce-storefront-holiday-campaign-redesign-2026</code> (60 characters), branch <code>main</code>, conversation "Fix the checkout banner spacing". Overview header at 960 × 600 (main panel 436) and 1238 × 780 (714); Home trigger in the 680 composer; Home project menu 320.</p></div>
+  <div class="cols u33">
+    <div class="col">
+      <h3>As is</h3>
+      <h4>Overview header, 960 × 600 (436): New conversation is pushed past the panel edge and clipped; the title is gone.</h4>
+      <div class="ov-crop w436 ov-main" data-doan-id="u33-asis-ov-436"><header class="ov-head">
+        <span class="ov-project"><span class="shell-thumbnail hue-indigo" aria-hidden="true">N</span><span class="ov-project-name">northwind-commerce-storefront-holiday-campaign-redesign-2026</span><span class="doan-chip shell-branch" data-ui-variant="translucent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></svg><span>main</span></span></span>
+        <span class="ov-sep" aria-hidden="true">/</span>
+        <span class="ov-title-wrap"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title="Fix the checkout banner spacing"><span>Fix the checkout banner spacing</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></span>
+        <button type="button" class="doan-icon-button ov-new-conv" aria-label="New conversation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg></button>
+      </header></div>
+      <h4>Overview header, 1238 × 780 (714): fits, but the crumb takes most of the row and the title shrinks.</h4>
+      <div class="ov-crop w714 ov-main" data-doan-id="u33-asis-ov-714"><header class="ov-head">
+        <span class="ov-project"><span class="shell-thumbnail hue-indigo" aria-hidden="true">N</span><span class="ov-project-name">northwind-commerce-storefront-holiday-campaign-redesign-2026</span><span class="doan-chip shell-branch" data-ui-variant="translucent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></svg><span>main</span></span></span>
+        <span class="ov-sep" aria-hidden="true">/</span>
+        <span class="ov-title-wrap"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title="Fix the checkout banner spacing"><span>Fix the checkout banner spacing</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></span>
+        <button type="button" class="doan-icon-button ov-new-conv" aria-label="New conversation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg></button>
+      </header></div>
+      <h4>Home project trigger, 680 composer: a 60-character name fits; a 114-character one runs past the composer (clipped here at this tile's edge).</h4>
+      <div class="stage white clip" data-doan-id="u33-asis-home-trigger"><div class="home-composer">
+        <button type="button" class="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Project: northwind-commerce-storefront-holiday-campaign-redesign-2026"><span class="shell-thumbnail hue-indigo" aria-hidden="true">N</span><span>northwind-commerce-storefront-holiday-campaign-redesign-2026</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+        <button type="button" class="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Project: northwind-commerce-storefront-holiday-campaign-redesign-2026-with-localized-landing-pages-and-checkout-experiments"><span class="shell-thumbnail hue-rose" aria-hidden="true">N</span><span>northwind-commerce-storefront-holiday-campaign-redesign-2026-with-localized-landing-pages-and-checkout-experiments</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+      </div></div>
+      <h4>Home project menu (320): the name runs out of the row; the menu scrolls sideways and the check is out of view.</h4>
+      <div class="stage" data-doan-id="u33-asis-home-menu">
+        <div class="doan-floating doan-menu project-popover" role="menu" aria-label="Projects">
+          <div role="menuitemradio" aria-checked="true" class="doan-menu-item project-item"><span class="shell-thumbnail hue-indigo" aria-hidden="true">N</span><span class="model-name">northwind-commerce-storefront-holiday-campaign-redesign-2026</span><span class="check-slot"><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span></div>
+          <div role="menuitemradio" aria-checked="false" class="doan-menu-item project-item"><span class="shell-thumbnail hue-indigo" aria-hidden="true">D</span><span class="model-name">doan-design</span><span class="check-slot"></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="col tobe">
+      <h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <h4>Overview header, 960 × 600 (436): the crumb stops at 40% and ellipsizes; New conversation stays at the end.</h4>
+      <div class="ov-crop w436 ov-main" data-doan-id="u33-tobe-ov-436"><header class="ov-head">
+        <span class="ov-project"><span class="shell-thumbnail hue-indigo" aria-hidden="true">N</span><span class="ov-project-name">northwind-commerce-storefront-holiday-campaign-redesign-2026</span><span class="doan-chip shell-branch" data-ui-variant="translucent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></svg><span>main</span></span></span>
+        <span class="ov-sep" aria-hidden="true">/</span>
+        <span class="ov-title-wrap"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title="Fix the checkout banner spacing"><span>Fix the checkout banner spacing</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></span>
+        <button type="button" class="doan-icon-button ov-new-conv" aria-label="New conversation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg></button>
+      </header></div>
+      <h4>Overview header, 1238 × 780 (714): the same 40% cap.</h4>
+      <div class="ov-crop w714 ov-main" data-doan-id="u33-tobe-ov-714"><header class="ov-head">
+        <span class="ov-project"><span class="shell-thumbnail hue-indigo" aria-hidden="true">N</span><span class="ov-project-name">northwind-commerce-storefront-holiday-campaign-redesign-2026</span><span class="doan-chip shell-branch" data-ui-variant="translucent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></svg><span>main</span></span></span>
+        <span class="ov-sep" aria-hidden="true">/</span>
+        <span class="ov-title-wrap"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title="Fix the checkout banner spacing"><span>Fix the checkout banner spacing</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></span>
+        <button type="button" class="doan-icon-button ov-new-conv" aria-label="New conversation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg></button>
+      </header></div>
+      <h4>Home project trigger: unchanged at 60 characters; a longer name ellipsizes inside the composer, the chevron kept.</h4>
+      <div class="stage white" data-doan-id="u33-tobe-home-trigger"><div class="home-composer">
+        <button type="button" class="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Project: northwind-commerce-storefront-holiday-campaign-redesign-2026"><span class="shell-thumbnail hue-indigo" aria-hidden="true">N</span><span>northwind-commerce-storefront-holiday-campaign-redesign-2026</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+        <button type="button" class="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Project: northwind-commerce-storefront-holiday-campaign-redesign-2026-with-localized-landing-pages-and-checkout-experiments"><span class="shell-thumbnail hue-rose" aria-hidden="true">N</span><span>northwind-commerce-storefront-holiday-campaign-redesign-2026-with-localized-landing-pages-and-checkout-experiments</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+      </div></div>
+      <h4>Home project menu (320): the name ellipsizes; the check stays in its slot.</h4>
+      <div class="stage" data-doan-id="u33-tobe-home-menu">
+        <div class="doan-floating doan-menu project-popover" role="menu" aria-label="Projects">
+          <div role="menuitemradio" aria-checked="true" class="doan-menu-item project-item"><span class="shell-thumbnail hue-indigo" aria-hidden="true">N</span><span class="model-name">northwind-commerce-storefront-holiday-campaign-redesign-2026</span><span class="check-slot"><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span></div>
+          <div role="menuitemradio" aria-checked="false" class="doan-menu-item project-item"><span class="shell-thumbnail hue-indigo" aria-hidden="true">D</span><span class="model-name">doan-design</span><span class="check-slot"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <dl class="note">
+    <dt>Finding</dt><dd>U33 (P-F8; source only, not seen in the real app).</dd>
+    <dt>Evidence</dt><dd>Overview: <code>ProjectOverview.tsx:329-331</code>; <code>.ov-project</code> is <code>flex: none</code> and <code>.ov-project-name</code> has no ellipsis (<code>styles.css:1316-1317</code>); New conversation is <code>flex: none; margin-left: auto</code> (<code>:1327</code>) inside <code>.ov-main</code>'s <code>overflow: hidden</code> (<code>:1311</code>). Home trigger: <code>HomeComposerView.tsx:523</code>, a <code>doan-button</code> (<code>white-space: nowrap</code>, <code>flex-shrink: 0</code>, <code>ds/controls.css:15, 29</code>). Home menu row: <code>HomeComposerView.tsx:534</code>, <code>.model-name</code> <code>flex: 1; min-width: 0</code> only (<code>styles.css:883</code>) in the nowrap 320 menu (<code>:863</code>, <code>ds/surfaces.css:70</code>). Reference: the canvas header crumb <code>.doan-canvas-name</code> <code>max-width: 40%</code> with an ellipsis (<code>styles.css:1455-1457</code>, <code>docs/design/canvas.md:15</code>).</dd>
+    <dt>Change</dt><dd><ul><li><code>.ov-project</code>: <code>flex: 0 1 auto; max-width: 40%; min-width: 0</code>. <code>.ov-project-name</code>: <code>min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap</code>. The branch chip keeps its own 84 cap and ellipsis.</li><li><code>.home-project</code>: <code>max-width: calc(100% - var(--space-2))</code> (the composer less its 8 start margin); its name <code>span</code>: <code>min-width: 0; overflow: hidden; text-overflow: ellipsis</code>. <b>Detail left open, chosen here:</b> the trigger is alone on its line, so its cap is the composer's width rather than 40%.</li><li><code>.project-item .model-name</code>: <code>overflow: hidden; text-overflow: ellipsis</code> (the row is already nowrap).</li><li>Showing the full name when cut is D17 (B6: the shared tooltip, only when truncated); not drawn here. The trigger's <code>aria-label</code> already carries the whole name.</li></ul></dd>
+    <dt>Test</dt><dd><ol><li>Add a project whose folder name has 60 characters; open its Overview at 960 × 600 and 1238 × 780: New conversation is fully inside the header, 16 from its end; the crumb is at most 40% of the header and ends in "…"; the title ellipsizes in the room left.</li><li>Same with a 2-worktree project (the worktree chip button) and with a short name: a short crumb is not stretched (measured offsets in <code>docs/design/project.md</code> 'Header' unchanged).</li><li>Home with that project selected: the trigger and the open project menu; with a ~110-character name the trigger ends inside the composer with "…" and the chevron; the menu row shows "…" and its check; no sideways scroll in the menu.</li></ol></dd>
+  </dl>
+</section>
+
+<!-- ════════ U36 ════════ -->
+<section data-doan-frame="u36-motion-tokens" data-doan-title="U36 · Motion tokens: thread chevron, Fast switch" data-doan-implements="app/src/renderer/styles.css">
+  <div class="f-head"><h2>U36 · A motion literal and a missing transition</h2><p>Note frame: the difference is timing, so the columns show the property values; the Fast switch is drawn off and on for reference (its slide is not animated here).</p></div>
+  <div class="cols">
+    <div class="col">
+      <h3>As is</h3>
+      <h4>Thread activity chevron, <code>styles.css:1226</code></h4>
+      <pre class="code" data-doan-id="u36-asis-chevron">.conversation-thread .activity-head .chev {
+  transform: rotate(-90deg);
+  <b>transition: transform 120ms;</b>
+}</pre>
+      <h4>Fast switch thumb, <code>styles.css:837-839</code>: no transition, so it jumps 16px</h4>
+      <pre class="code" data-doan-id="u36-asis-fast">.fast-switch::before { content: ""; width: 14px; height: 14px;
+  border-radius: var(--radius-pill); background: var(--text-on-prominent);
+  box-shadow: var(--shadow-xs); }
+.fast-item[aria-checked="true"] .fast-switch::before { transform: translateX(16px); }</pre>
+      <div class="stage white" style="display:flex;gap:var(--space-6);align-items:center" data-doan-id="u36-asis-switches">
+        <span class="fast-item" role="menuitemcheckbox" aria-checked="false" aria-label="Fast off"><span class="fast-switch" aria-hidden="true"></span></span>
+        <span class="fast-item" role="menuitemcheckbox" aria-checked="true" aria-label="Fast on"><span class="fast-switch" aria-hidden="true"></span></span>
+        <span class="cap">off · on</span>
+      </div>
+    </div>
+    <div class="col tobe">
+      <h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <h4>Thread activity chevron: tokens, same 120ms</h4>
+      <pre class="code" data-doan-id="u36-tobe-chevron">.conversation-thread .activity-head .chev {
+  transform: rotate(-90deg);
+  <b>transition: transform var(--time-fast) var(--ease-state);</b>
+}
+/* :1293 keeps it still under reduced motion (unchanged) */</pre>
+      <h4>Fast switch thumb: the shared switch's transition (<code>ds/controls.css:230</code>) and its reduced-motion exclusion (<code>:321</code>)</h4>
+      <pre class="code" data-doan-id="u36-tobe-fast">.fast-switch::before { …as is…;
+  <b>transition: transform var(--time-settle) var(--ease-settle);</b> }
+@media (prefers-reduced-motion: reduce) {
+  <b>.fast-switch::before { transition: none; }</b>
+}</pre>
+      <div class="stage white" style="display:flex;gap:var(--space-6);align-items:center" data-doan-id="u36-tobe-switches">
+        <span class="fast-item" role="menuitemcheckbox" aria-checked="false" aria-label="Fast off"><span class="fast-switch" aria-hidden="true"></span></span>
+        <span class="fast-item" role="menuitemcheckbox" aria-checked="true" aria-label="Fast on"><span class="fast-switch" aria-hidden="true"></span></span>
+        <span class="cap">off · on (looks unchanged; the thumb slides over 220ms)</span>
+      </div>
+    </div>
+  </div>
+  <dl class="note">
+    <dt>Finding</dt><dd>U36 (P-F16). DESIGN.md 'Motion' (<code>time-fast</code> 120ms; motion is tokenised); the sidebar chevrons already use <code>var(--time-state) var(--ease-state)</code> (<code>styles.css:596, 642</code>).</dd>
+    <dt>Change</dt><dd><ul><li><code>styles.css:1226</code>: <code>transition: transform var(--time-fast) var(--ease-state)</code>. The literal's implicit easing is <code>ease</code>, which <code>--ease-state</code> holds, so nothing visible changes; the report's fix keeps 120ms rather than the sidebar's 150ms.</li><li><code>.fast-switch::before</code> (<code>:837</code>): <code>transition: transform var(--time-settle) var(--ease-settle)</code>, and <code>.fast-switch::before { transition: none }</code> in a reduced-motion block.</li><li><b>Not in the decision, left for the lead:</b> the shared switch also eases its track's <code>background-color</code> and <code>border-color</code> over <code>--time-state</code> (<code>ds/controls.css:221</code>); <code>.fast-switch</code>'s track has none. This frame adds only the thumb, as asked.</li></ul></dd>
+    <dt>Test</dt><dd><ol><li>A turn with a folded activity line: computed <code>transition</code> of its <code>.chev</code> is <code>transform 0.12s ease</code>, as before; unfold and fold.</li><li>Effort menu with the Fast row (a provider that offers Fast): toggle Fast while the menu stays open; the thumb's computed <code>transition</code> is <code>transform 0.22s cubic-bezier(0.645, 0.045, 0.355, 1)</code> and it slides 16px.</li><li>Reduced motion on: the thumb's transition is <code>none</code>; the switch still changes state.</li></ol></dd>
+  </dl>
+</section>
+
+<!-- ════════ U40 ════════ -->
+<section data-doan-frame="u40-chevron-reduced-motion" data-doan-title="U40 · Sidebar chevrons under reduced motion" data-doan-implements="app/src/renderer/styles.css">
+  <div class="f-head"><h2>U40 · Sidebar chevrons keep rotating under reduced motion</h2><p>Note frame: behaviour only. With <code>prefers-reduced-motion: reduce</code>, a project row's, canvas row's and group head's chevron still turns over 150ms; the thread's activity chevron already stops.</p></div>
+  <div class="cols">
+    <div class="col">
+      <h3>As is</h3>
+      <pre class="code" data-doan-id="u40-asis-rules">/* styles.css:596 project and canvas row chevrons */
+.shell-disclosure svg { width: var(--size-icon); height: var(--size-icon);
+  transition: transform var(--time-state) var(--ease-state); }
+/* styles.css:642 group head chevrons */
+.shell-group-head svg { …; transition: transform var(--time-state) var(--ease-state); }
+
+/* No prefers-reduced-motion block names either of them
+   (blocks at :351, :450, :489, :1291-1295, :1585, :1702-1706, :1756-1759). */</pre>
+      <ol class="cap" style="list-style:decimal;padding-left:var(--space-5)">
+        <li>Reduce motion on; expand or collapse a project row or a group head.</li>
+        <li>The chevron turns −90° ↔ 0° over 150ms.</li>
+      </ol>
+    </div>
+    <div class="col tobe">
+      <h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <pre class="code" data-doan-id="u40-tobe-rules">@media (prefers-reduced-motion: reduce) {
+  /* with the panel and sidebar folds, :1702-1706 */
+  <b>.shell-disclosure svg, .shell-group-head svg { transition: none; }</b>
+}</pre>
+      <ol class="cap" style="list-style:decimal;padding-left:var(--space-5)">
+        <li>Reduce motion on; expand or collapse a project row, a canvas row with links, or a group head.</li>
+        <li>The chevron points the new way at once (state kept, movement gone), as the thread's chevron does (<code>:1293</code>).</li>
+        <li>Reduce motion off: the 150ms turn as before.</li>
+      </ol>
+    </div>
+  </div>
+  <dl class="note">
+    <dt>Finding</dt><dd>U40 (P-F21, lead confirmed). DESIGN.md 'Motion': "Under <code>prefers-reduced-motion: reduce</code> the fades stay and every movement, scale and blur goes".</dd>
+    <dt>Evidence</dt><dd><code>styles.css:596</code> (<code>ShellSidebar.tsx:450, 499</code> <code>.shell-disclosure</code>), <code>:642</code> (<code>ShellSidebar.tsx:489</code> <code>.shell-group-head</code>); reference <code>:1293</code>. The reviewer's sweep found every other movement already covered.</dd>
+    <dt>Change</dt><dd>One rule in an existing reduced-motion block (the folds' block at <code>:1702-1706</code> is the nearest; any reduce block works).</dd>
+    <dt>Test</dt><dd>Emulate <code>prefers-reduced-motion: reduce</code> (or System Settings › Accessibility › Display › Reduce motion): computed <code>transition-duration</code> of both chevrons is <code>0s</code>; without it, <code>0.15s</code>.</dd>
+  </dl>
+</section>
+
+<!-- ════════ U41 ════════ -->
+<section data-doan-frame="u41-agent-open-focus" data-doan-title="U41 · Agent notice Open focus ring" data-doan-implements="app/src/renderer/styles.css">
+  <div class="f-head"><h2>U41 · Open's focus ring on the canvas agent notice</h2><p>The sibling-worktree notice ("Agent is working in …" + Open) at the board's top, keyboard focus on Open (<code>:focus-visible</code>), over a white canvas and over a dark one. The dark board stands in for any dark canvas an agent draws.</p></div>
+  <div class="cols">
+    <div class="col">
+      <h3>As is</h3>
+      <h4>White canvas: black ring on the grey capsule, about 3.7:1 (reviewer's computed value)</h4>
+      <div class="board light" data-doan-id="u41-asis-light">
+        <div class="doan-agent doan-agent-sibling"><span class="doan-agent-artist" aria-hidden="true"><img src="../../app/src/renderer/public/doany/artist-rest.png" alt=""></span><span class="doan-agent-text" role="status">Agent is working in feature-checkout</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm" aria-label="Open this canvas in feature-checkout" data-focus="ring">Open</button></div>
+      </div>
+      <h4>Dark canvas: the black ring all but disappears (toward 1:1)</h4>
+      <div class="board dark" data-doan-id="u41-asis-dark">
+        <div class="doan-agent doan-agent-sibling"><span class="doan-agent-artist" aria-hidden="true"><img src="../../app/src/renderer/public/doany/artist-rest.png" alt=""></span><span class="doan-agent-text" role="status">Agent is working in feature-checkout</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm" aria-label="Open this canvas in feature-checkout" data-focus="ring">Open</button></div>
+      </div>
+    </div>
+    <div class="col tobe">
+      <h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <h4>White canvas: white ring, 2px inside the button (offset −2)</h4>
+      <div class="board light" data-doan-id="u41-tobe-light">
+        <div class="doan-agent doan-agent-sibling"><span class="doan-agent-artist" aria-hidden="true"><img src="../../app/src/renderer/public/doany/artist-rest.png" alt=""></span><span class="doan-agent-text" role="status">Agent is working in feature-checkout</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm" aria-label="Open this canvas in feature-checkout" data-focus="ring">Open</button></div>
+      </div>
+      <h4>Dark canvas: the same white ring</h4>
+      <div class="board dark" data-doan-id="u41-tobe-dark">
+        <div class="doan-agent doan-agent-sibling"><span class="doan-agent-artist" aria-hidden="true"><img src="../../app/src/renderer/public/doany/artist-rest.png" alt=""></span><span class="doan-agent-text" role="status">Agent is working in feature-checkout</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm" aria-label="Open this canvas in feature-checkout" data-focus="ring">Open</button></div>
+      </div>
+    </div>
+  </div>
+  <dl class="note">
+    <dt>Finding</dt><dd>U41 (P-F23; computed only, not measured). DESIGN.md 'Focus'; <code>docs/design/canvas.md:195</code> lists Open's focus ring as not measured.</dd>
+    <dt>Evidence</dt><dd>Open: <code>CanvasAgent.tsx:72</code> (waiting notice) and <code>:82</code> (sibling worktree), <code>.doan-agent-action</code> fills at <code>styles.css:1735-1737</code>; capsule <code>--affordance-prominent</code> at 60% with blur (<code>:1728</code>); global ring <code>outline: 2px solid var(--border-focus)</code> at +2 (<code>styles.css:36</code>, <code>ds/controls.css:126</code>). Reference: the size bubble's buttons re-ink theirs, <code>.bubble-button:focus-visible { outline-color: var(--text-on-accent) }</code> (<code>styles.css:120</code>).</dd>
+    <dt>Change</dt><dd><code>.doan-agent .doan-button.doan-agent-action:focus-visible { outline-color: var(--text-on-prominent); outline-offset: -2px; }</code>, the size bubble's pattern (<code>styles.css:120</code>): re-inked and drawn inside. The global +2 offset would put the 2px ring exactly on the capsule's edge (its 4px inset holds the 2px gap and the 2px ring), where it meets the canvas behind.</dd>
+    <dt>Test</dt><dd><ol><li>A canvas open in two worktrees with an agent working on it in the other one (or this canvas's conversation waiting for an answer): Tab to Open; the ring is white on a white canvas and on a dark one.</li><li>A click on Open draws no ring (<code>:focus-visible</code> only).</li><li>Hover and pressed fills unchanged (<code>:1736-1737</code>).</li></ol></dd>
+    <dt>Not drawn</dt><dd>The dot field and glow behind the notice; the waiting notice ("Agent needs your answer" + Open) takes the same rule.</dd>
+  </dl>
+</section>
+
+<!-- ════════ D18 ════════ -->
+<section data-doan-frame="d18-new-conversation-icon" data-doan-title="D18 · New conversation menu row icon" data-doan-implements="app/src/renderer/ProjectOverview.tsx">
+  <div class="f-head"><h2>D18 · New conversation in the title menu takes the header's SquarePen</h2><p>The top of the conversation menu (360) in a new conversation, next to the header's New conversation button, which is <code>aria-disabled</code> in the disabled ink in that state (<code>.doan-conv-new</code>, <code>CanvasConversationPanel.tsx:207</code>; <code>.ov-new-conv</code>, <code>ProjectOverview.tsx:396</code>; <code>styles.css:1329</code>). The same markup in the Overview, the canvas conversation panel and the prototype window; the head here is the canvas panel's.</p></div>
+  <div class="cols">
+    <div class="col">
+      <h3>As is</h3>
+      <div class="stage" style="display:flex;gap:var(--space-6);align-items:flex-start" data-doan-id="d18-asis">
+        <div class="doan-floating doan-menu conv-menu" role="menu" aria-label="Conversations on checkout-flow">
+          <div role="menuitemradio" aria-checked="true" class="doan-menu-item conv-new current"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg><span>New conversation</span></div>
+          <div class="doan-menu-sep" role="separator"></div>
+          <div class="doan-menu-head">Conversations on checkout-flow</div>
+        </div>
+        <div class="doan-conv-head"><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg></button></div>
+      </div>
+      <h4>Menu row <code>Plus</code> (also Attach, Zoom in, Add Projects); header button <code>SquarePen</code>, <code>aria-disabled</code> in the disabled ink.</h4>
+    </div>
+    <div class="col tobe">
+      <h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="stage" style="display:flex;gap:var(--space-6);align-items:flex-start" data-doan-id="d18-tobe">
+        <div class="doan-floating doan-menu conv-menu" role="menu" aria-label="Conversations on checkout-flow">
+          <div role="menuitemradio" aria-checked="true" class="doan-menu-item conv-new current"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg><span>New conversation</span></div>
+          <div class="doan-menu-sep" role="separator"></div>
+          <div class="doan-menu-head">Conversations on checkout-flow</div>
+        </div>
+        <div class="doan-conv-head"><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation" aria-disabled="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg></button></div>
+      </div>
+      <h4>Menu row and header button both <code>SquarePen</code>, 16px; the row's size, ink and spacing unchanged; the header button stays <code>aria-disabled</code>.</h4>
+    </div>
+  </div>
+  <dl class="note">
+    <dt>Decision</dt><dd>D18 (P-F13): the New conversation menu row also takes <code>SquarePen</code>. The Stop icons stay as they are (the composer's Send slot keeps its filled <code>Square</code>).</dd>
+    <dt>Evidence</dt><dd>Menu label <code>Conversations on ${canvasName}</code> (<code>CanvasConversationPanel.tsx:183</code>). Menu rows <code>&lt;Plus&gt;</code>: <code>ProjectOverview.tsx:375</code>, <code>CanvasConversationPanel.tsx:189</code>, <code>prototype/PrototypeConversation.tsx:103</code>. Header buttons <code>&lt;SquarePen&gt;</code>: <code>ProjectOverview.tsx:396</code>, <code>CanvasConversationPanel.tsx:207</code>, <code>prototype/PrototypeConversation.tsx:121</code>. Row icon size: <code>.conv-new svg</code> 16 (<code>styles.css:1356</code>).</dd>
+    <dt>Change</dt><dd>In the three rows, <code>&lt;Plus aria-hidden="true" /&gt;</code> → <code>&lt;SquarePen aria-hidden="true" /&gt;</code>. <code>Plus</code> has no other use in these three files, so its import goes. Then add a sentence to <code>docs/design/project.md:28</code> ('Conversation menu', "New with 16 px icon") naming the icon: <code>SquarePen</code>, the header button's.</dd>
+    <dt>Test</dt><dd>Open the title menu in the Overview, in the canvas conversation panel and in the prototype window's conversation: the New conversation row shows the same glyph as the header button beside it; the row is still 32 high with a 16px icon and 8px gap. <code>Plus</code> still marks Attach, Zoom in and Add Projects.</dd>
+  </dl>
+</section>
+
+<!-- ════════ D20 ════════ -->
+<section data-doan-frame="d20-viewer-eye" data-doan-title="D20 · Export viewer frame drawer Eye" data-doan-implements="cli/internal/export/viewer/shell.js">
+  <div class="f-head"><h2>D20 · The export viewer's frame drawer marks the viewed frame with the Eye</h2><p>The exported canvas page (a standalone HTML file): the Frames drawer (320) open, the second frame nearest the view's centre. Drawn with the app's menu classes, which the viewer copies (<code>shell.css:1-6</code>).</p></div>
+  <div class="cols">
+    <div class="col">
+      <h3>As is · export viewer</h3>
+      <div class="stage" data-doan-id="d20-asis">
+        <div class="doan-floating doan-menu doan-frame-list menu-static"><div role="listbox" aria-label="Frames in checkout-flow">
+          <div class="doan-menu-item doan-frame-row" role="option" tabindex="-1" title="Index"><span class="doan-frame-num">1</span><span class="doan-frame-name">Index</span></div>
+          <div class="doan-menu-item doan-frame-row" role="option" tabindex="-1" title="Checkout · empty cart" aria-current="location"><span class="doan-frame-num">2</span><span class="doan-frame-name">Checkout · empty cart</span><span class="doan-frame-viewing">Viewing</span></div>
+          <div class="doan-menu-item doan-frame-row" role="option" tabindex="-1" title="Checkout · payment failed"><span class="doan-frame-num">3</span><span class="doan-frame-name">Checkout · payment failed</span></div>
+        </div></div>
+      </div>
+      <h4>The word "Viewing", caption 12/16, metadata ink.</h4>
+    </div>
+    <div class="col tobe">
+      <h3>To be · export viewer <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3>
+      <div class="stage" data-doan-id="d20-tobe">
+        <div class="doan-floating doan-menu doan-frame-list menu-static"><div role="listbox" aria-label="Frames in checkout-flow">
+          <div class="doan-menu-item doan-frame-row" role="option" tabindex="-1" title="Index"><span class="doan-frame-num">1</span><span class="doan-frame-name">Index</span></div>
+          <div class="doan-menu-item doan-frame-row" role="option" tabindex="-1" title="Checkout · empty cart" aria-current="location"><span class="doan-frame-num">2</span><span class="doan-frame-name">Checkout · empty cart</span><span class="doan-frame-current" title="Viewing"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg><span class="sr-only">Viewing</span></span></div>
+          <div class="doan-menu-item doan-frame-row" role="option" tabindex="-1" title="Checkout · payment failed"><span class="doan-frame-num">3</span><span class="doan-frame-name">Checkout · payment failed</span></div>
+        </div></div>
+      </div>
+      <h4>The app's mark: 14px Eye in metadata ink, the word kept for assistive technology.</h4>
+    </div>
+  </div>
+  <dl class="note">
+    <dt>Decision</dt><dd>D20, viewer part (P-F26): the export viewer also marks the viewed frame with the Eye. (D20's notice-action and radius parts are B3 and B6.)</dd>
+    <dt>Evidence</dt><dd>App: <code>FrameListBody.tsx:13</code> <code>.doan-frame-current</code> = <code>Eye</code> + <code>sr-only</code> word + <code>title</code>; <code>styles.css:1473-1474</code>; <code>docs/design/canvas.md:17</code>. Viewer: <code>cli/internal/export/viewer/shell.js:176-181</code> appends <code>.doan-frame-viewing</code> "Viewing"; <code>shell.css:253</code>; <code>docs/design/canvas.md:247</code>.</dd>
+    <dt>Change</dt><dd><ul><li><code>shell.js</code>: for the current row build <code>&lt;span class="doan-frame-current" title="Viewing"&gt;</code> holding the lucide Eye as inline SVG (made with <code>createElementNS</code>, <code>aria-hidden</code>; no request, the page stays one file) and <code>&lt;span class="sr-only"&gt;Viewing&lt;/span&gt;</code>.</li><li><code>shell.css</code>: replace <code>.doan-frame-viewing</code> with the app's two <code>.doan-frame-current</code> rules and add an <code>.sr-only</code> rule (the viewer has none).</li><li>Rewrite <code>docs/design/canvas.md:247</code> ("<code>Viewing</code> 12 / 16").</li><li>The mark keeps a native <code>title</code> ("Viewing"), as the rows keep theirs. D17 (the shared tooltip in place of native <code>title</code>) covers the app only, because the shared tooltip exists only in the app; the export viewer is outside it.</li></ul></dd>
+    <dt>Test</dt><dd><ol><li><code>doan export &lt;canvas&gt; -o &lt;tmp&gt;/x.html</code>, open it in a browser, open Frames: the row nearest the view's centre ends with the 14px Eye; no visible word.</li><li>Pan to another frame and reopen: the Eye moves.</li><li>Accessibility tree: the row's name still includes "Viewing"; the page makes no network request.</li></ol></dd>
+  </dl>
+</section>
+
+</body></html>
