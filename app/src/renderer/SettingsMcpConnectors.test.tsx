@@ -221,6 +221,32 @@ test("Add server by URL opens a compact dialog that locks the page; a bad URL is
   expect(nodes.get("[data-mcp-add]")?.focus).toHaveBeenCalled();
 });
 
+// D1: while main adds the server, Add keeps its fill and focus, busy with the spinner inside; a second press does nothing.
+test("while Add's request is out, Add is busy and aria-disabled with the spinner inside, not natively disabled", async () => {
+  await settle();
+  click(all(tree).find(element => words(element.props.children).endsWith("Add server by URL") && element.type === "button"));
+  render();
+  const input = () => all(tree).find(element => element.type === "input")!;
+  (input().props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "https://mcp.example.com/mcp" } });
+  render();
+  let answer: (reply: { ok: false; reason: "not_https" }) => void = () => {};
+  api.addMcpServer!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  const submitForm = () => (all(tree).find(element => element.type === "form")!.props.onSubmit as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
+  submitForm();
+  render();
+  const submit = all(tree).find(element => element.props.type === "submit")!;
+  expect(submit.props.disabled).toBeFalsy();
+  expect(submit.props).toMatchObject({ "aria-disabled": true, "aria-busy": true, "data-ui-variant": "prominent" });
+  expect(renderToStaticMarkup(submit)).toMatch(/^<button[^>]*><span class="doan-spinner" aria-hidden="true"><\/span>Add<\/button>$/);
+  submitForm();
+  expect(api.addMcpServer).toHaveBeenCalledTimes(1);
+  answer({ ok: false, reason: "not_https" });
+  await settle();
+  const after = all(tree).find(element => element.props.type === "submit")!;
+  expect(after.props["aria-busy"]).toBeUndefined();
+  expect(renderToStaticMarkup(after)).not.toContain("doan-spinner");
+});
+
 test("after Add, focus goes to the new item's row group in the first section, scrolled into view", async () => {
   await settle();
   click(all(tree).find(element => words(element.props.children).endsWith("Add server by URL") && element.type === "button"));

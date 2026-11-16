@@ -168,7 +168,8 @@ test("the header Settings tab opens the page on the last category's title; the s
   const bar = topBar(settings()!.props.header);
   expect(bar.settings.props["aria-current"]).toBe("page");
   expect([bar.add.props["aria-current"], bar.projects.props["aria-current"]]).toEqual([undefined, undefined]);
-  expect([bar.back.props.disabled, bar.forward.props.disabled]).toEqual([false, true]);
+  // History at its end is aria-disabled, never disabled, so a Back or Forward pressed to its limit keeps focus.
+  expect([bar.back.props["aria-disabled"], bar.forward.props["aria-disabled"], bar.back.props.disabled, bar.forward.props.disabled]).toEqual([undefined, true, undefined, undefined]);
   expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "heading" } } });
   expect(settings()!.props.sidebar.props.settings?.section).toBe("agents");
   expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false });
@@ -530,7 +531,8 @@ test("Project Settings opens as a page from Home, a workspace or Add Projects: t
   const bar = topBar(page.props.header);
   expect(bar.projects.props["aria-current"]).toBe("page");
   expect([bar.add.props["aria-current"], bar.settings.props["aria-current"]]).toEqual([undefined, undefined]);
-  expect([bar.back.props.disabled, bar.forward.props.disabled]).toEqual([false, true]);
+  // History at its end is aria-disabled, never disabled, so a Back or Forward pressed to its limit keeps focus.
+  expect([bar.back.props["aria-disabled"], bar.forward.props["aria-disabled"], bar.back.props.disabled, bar.forward.props.disabled]).toEqual([undefined, true, undefined, undefined]);
   // Home's sidebar: no current project or canvas, no category list, and the Home row is not current either.
   expect(page.props.sidebar.props.home).toBe(true);
   expect(page.props.sidebar.props.settings).toBeUndefined();

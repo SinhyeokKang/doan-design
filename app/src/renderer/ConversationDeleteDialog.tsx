@@ -45,7 +45,8 @@ export function unsentDraft(draft: DockedDraft | undefined): boolean {
 // The confirmation (draft frame delete-dialog): the compact alert dialog of Move to Trash (CanvasTrashDialog),
 // found by `dialog[open]` and its role (POSTMORTEM 2026-10-30). Focus starts on Cancel; Escape cancels. `reason`: the
 // conversation started working while the alert was open (main judges again on confirm); `pending`: the request is out.
-// Either keeps Delete `aria-disabled`, in the focus order. While the request is out the alert is busy and refuses its
+// Either keeps Delete `aria-disabled`, in the focus order: `reason` draws it unavailable, `pending` busy (its fill, the
+// spinner and `aria-busy`, as SettingsDialog's verb). While the request is out the alert is busy and refuses its
 // cancel (PRODUCT item 3 'Deep links'): cancelling would stop nothing, and the store has one deleting mark per conversation.
 export function ConversationDeleteDialog({ view, reason, pending, cancel, confirm }: {
   view: { title: string; body: string }; reason: string | null; pending: boolean; cancel(): void; confirm(): void;
@@ -62,8 +63,9 @@ export function ConversationDeleteDialog({ view, reason, pending, cancel, confir
     {reason && <p className="doan-notice" id="conversation-delete-reason"><AlertIcon /><span className="selectable">{reason}</span></p>}
     <div className="doan-dialog-actions">
       <button type="button" className="doan-button" data-ui-variant="subtle" autoFocus aria-disabled={pending || undefined} data-disabled={pending ? "" : undefined} onClick={dismiss}>Cancel</button>
-      <button type="button" className="doan-button" data-ui-variant="prominent" aria-disabled={confirmable ? undefined : true} data-disabled={confirmable ? undefined : ""}
-        aria-describedby={reason ? "conversation-delete-reason" : undefined} onClick={() => { if (confirmable) confirm(); }}>Delete</button>
+      <button type="button" className="doan-button" data-ui-variant="prominent" aria-disabled={confirmable ? undefined : true} aria-busy={pending || undefined}
+        data-disabled={confirmable || pending ? undefined : ""} aria-describedby={reason ? "conversation-delete-reason" : undefined}
+        onClick={() => { if (confirmable) confirm(); }}>{pending && <span className="doan-spinner" aria-hidden="true" />}Delete</button>
     </div>
   </dialog>;
 }

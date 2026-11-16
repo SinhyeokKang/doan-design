@@ -56,10 +56,17 @@ describe("before and during a check", () => {
     expect(view(upToDate).row.announcement).toBeNull();
   });
 
-  test("a manual check shows the spinner while the description keeps the previous result", () => {
-    expect(view({ kind: "checking", manual: true, last: upToDate }).row).toEqual({ ...ROW, description: "0.1.0 · Up to date, last checked today at 2:41 PM", busy: "Checking for updates" });
+  // The pressed check stays as a busy button (a spinner inside, focus kept) rather than giving way to a spinner line.
+  test("a manual check keeps the pressed check button, busy, while the description keeps the previous result", () => {
+    expect(view({ kind: "checking", manual: true, last: upToDate }).row).toEqual({ ...ROW, description: "0.1.0 · Up to date, last checked today at 2:41 PM", actions: [{ ...CHECK, busy: true }] });
     expect(view({ kind: "checking", manual: true, last: { kind: "failed", code: "offline", stage: "check" } }).row)
-      .toEqual({ ...ROW, description: "0.1.0 · Couldn’t check for updates.", busy: "Checking for updates" });
+      .toEqual({ ...ROW, description: "0.1.0 · Couldn’t check for updates.", actions: [{ ...CHECK, label: "Retry", ariaLabel: "Retry checking for updates", busy: true }] });
+    expect(view({ kind: "checking", manual: true, last: { kind: "failed", code: "offline", stage: "download", version: "0.1.1" } }).row.actions)
+      .toEqual([{ ...CHECK, label: "Retry", ariaLabel: "Retry downloading Doan 0.1.1", busy: true }]);
+  });
+
+  test("a manual check started where the row had no check button (a failed install) still shows a busy Check for Updates", () => {
+    expect(view({ kind: "checking", manual: true, last: { kind: "failed", code: "installFailed", stage: "install", version: "0.1.1" } }).row.actions).toEqual([{ ...CHECK, busy: true }]);
   });
 
   test("an automatic check is quiet: the row shows what it showed before, actions included", () => {

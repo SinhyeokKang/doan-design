@@ -84,6 +84,19 @@ describe("CanvasHeader", () => {
     expect(button(markup, "Zoom in")).toContain("disabled");
   });
 
+  // A zoom button its own press brings to a limit stays focusable: aria-disabled and a press that does nothing. Native
+  // disabled is kept for the whole controller being off (no canvas drawn), above.
+  it("at a zoom limit the button is aria-disabled, not disabled", () => {
+    const command = vi.fn();
+    const at = (zoom: number, scale: number) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={opened({ zoom, scale })} view={new CanvasViewStore(canvasViewFields(opened({ zoom, scale })))} command={command} zoomTo={vi.fn()} selectFrame={vi.fn()} /> as ReactElement}</TooltipProvider>);
+    const min = at(5, 0.05), max = at(400, 4);
+    expect(button(min, "Zoom out")).toContain('aria-disabled="true"');
+    expect(button(min, "Zoom out")).not.toMatch(/ disabled=""/);
+    expect(button(min, "Zoom in")).not.toContain("aria-disabled");
+    expect(button(max, "Zoom in")).toContain('aria-disabled="true"');
+    expect(button(max, "Zoom in")).not.toMatch(/ disabled=""/);
+  });
+
   it("drops the canvas name and separator on an unlisted page", () => {
     const markup = html(opened({ unlisted: true, shown: null }));
     expect(markup).not.toContain("doan-canvas-name");

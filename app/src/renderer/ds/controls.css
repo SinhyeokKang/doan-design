@@ -119,8 +119,13 @@
 
 /* Disabled is a state of its own rather than a faded emphasis: a filled control turns to
    the disabled fill, a ghost one keeps no fill, and both take the disabled ink. */
-:is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) { background: var(--affordance-disabled); color: var(--text-disabled); cursor: not-allowed; }
+:is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) { background: var(--affordance-disabled); color: var(--text-disabled); cursor: default; }
 :is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"], [data-ui-variant="panel"], [data-ui-variant="accent"]):is(:disabled, [data-disabled]) { background: transparent; }
+
+/* An unavailable control shows the arrow, whether natively disabled or aria-disabled (kept focusable: an
+   unavailable reason's tooltip, a busy action). A screen draws an aria-disabled control's look itself, since a busy
+   one keeps its fill. */
+:is(.doan-button, .doan-icon-button)[aria-disabled="true"] { cursor: default; }
 
 /* Keyboard focus is one ring outside the control, the same on every emphasis. */
 :is(.doan-button, .doan-icon-button, .doan-checkbox, .doan-chip):focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
@@ -168,7 +173,7 @@
 :is(.doan-input, .doan-textarea)::placeholder { color: var(--text-metadata); }
 :is(.doan-input, .doan-textarea):focus { border-color: var(--border-prominent); outline: none; }
 :is(.doan-input, .doan-textarea)[aria-invalid="true"] { border-color: var(--border-danger); }
-:is(.doan-input, .doan-textarea):disabled { background: var(--affordance-disabled); color: var(--text-disabled); cursor: not-allowed; }
+:is(.doan-input, .doan-textarea):disabled { background: var(--affordance-disabled); color: var(--text-disabled); cursor: default; }
 
 /* ── Checkbox ────────────────────────────────────────────────────────────────
    A native checkbox drawn with borders only: images and data: URLs are blocked by the
@@ -200,7 +205,7 @@
   transform: translateY(-1px) rotate(45deg);
 }
 .doan-checkbox:indeterminate::before { content: ""; width: 10px; height: 2px; background: currentColor; }
-.doan-checkbox:is(:disabled, [data-disabled]) { border-color: var(--affordance-disabled); background: var(--affordance-disabled); color: var(--text-disabled); cursor: not-allowed; }
+.doan-checkbox:is(:disabled, [data-disabled]) { border-color: var(--affordance-disabled); background: var(--affordance-disabled); color: var(--text-disabled); cursor: default; }
 
 /* ── Switch ──────────────────────────────────────────────────────────────────
    An on/off setting that applies at once. It is a button[role="switch"] and aria-checked is its state, so markup holds
@@ -312,6 +317,9 @@ button.doan-chip:is(:hover, [data-state="open"]) { background: var(--affordance-
   animation: doan-spin 1s linear infinite;
 }
 @keyframes doan-spin { to { transform: rotate(360deg); } }
+/* Inside a button (a busy action) the spinner is the small icon in the button's own ink, so it reads on every fill,
+   the disabled grey included, where the standard ring would vanish. */
+:is(.doan-button, .doan-icon-button) > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
 
 /* Reduced motion keeps every state change but drops the movement: the spinner stops and
    stays as a still mark beside its sentence. */

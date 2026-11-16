@@ -23,12 +23,16 @@ vi.mock("radix-ui", async original => {
     RadioItem: part("div", "menuitemradio", menu.items), Item: part("div", "menuitem", menu.items), Separator: part("div", "separator"), Label: part("div"),
   } };
 });
-// State setters record their calls, so the menu's open setter can be watched under static markup.
+// State setters record their calls, so the menu's open setter can be watched under static markup. The title menu's
+// onOpenChange wraps its setter (it ignores opens while the list loads), so the setters are kept by the state they
+// started from.
+const setters = vi.hoisted(() => [] as { initial: unknown; calls: unknown[] }[]);
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();
   return { ...actual, useState: (initial: unknown) => {
     const [value, set] = actual.useState(initial);
     const recorded = Object.assign((next: unknown) => { recorded.calls.push(next); set(next as never); }, { calls: [] as unknown[] });
+    setters.push({ initial, calls: recorded.calls });
     return [value, recorded];
   } };
 });
@@ -247,12 +251,26 @@ test.each([
   expect(event.preventDefault).not.toHaveBeenCalled();
 });
 
+// U10: while the list is read each title trigger is unavailable but focusable (aria-disabled, not disabled), and its
+// menu stays closed: an open asked for meanwhile is ignored.
+test.each([["Overview Conversation menu", () => overview("loading", null)], ["canvas panel Title menu", () => canvas("loading", null)]] as const)("%s: while the list is read the trigger is aria-disabled and opens nothing", (_name, draw) => {
+  setters.length = 0;
+  const { html } = draw();
+  const trigger = html.match(/<button[^>]*class="ov-title doan-button"[^>]*>/)?.[0] ?? "";
+  expect(trigger).toContain('aria-disabled="true"');
+  expect(trigger).not.toMatch(/ disabled=""/);
+  const root = menu.roots.find(props => "open" in props)!;
+  expect(root["open"]).toBe(false);
+  (root["onOpenChange"] as (open: boolean) => void)(true);
+  expect(setters.filter(setter => typeof setter.initial === "boolean").flatMap(setter => setter.calls)).not.toContain(true);
+});
+
 // The Delete tooltip's Escape reaches each screen's title menu, which closes.
 test.each(screens)("%s: Escape on a Delete's tooltip closes the title menu", (_name, draw) => {
+  setters.length = 0;
   draw();
-  const root = menu.roots.find(props => "open" in props)!;
-  const setOpen = root["onOpenChange"] as { calls: unknown[] };
   const escape = tooltips.find(props => props["children"] === "Delete conversation")!["onEscapeKeyDown"] as () => void;
   escape();
-  expect(setOpen.calls).toEqual([false]);
+  // The one boolean state that changed is the menu's open state, set to closed.
+  expect(setters.filter(setter => typeof setter.initial === "boolean" && setter.calls.length > 0).map(setter => [setter.initial, setter.calls])).toEqual([[false, [false]]]);
 });

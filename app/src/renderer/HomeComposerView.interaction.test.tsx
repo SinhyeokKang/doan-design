@@ -312,6 +312,22 @@ test("Edit on Home asks before replacing a different draft, and fills an empty o
   expect(empty.box.current.text).toBe("");
 });
 
+// U4: Escape is Keep draft, as on every other modal: the confirmation closes and focus goes back to the field.
+test("Escape in Home's Replace your draft? runs Keep draft: the draft stays and focus returns to the field", () => {
+  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: null, effort: null };
+  const busy = setup({ text: "Another idea" }, { restore: { request: last, seq: 1 } });
+  busy.render(); for (const effect of hooks.effects) effect();
+  const focus = vi.fn();
+  hooks.refs[0]!.current = { focus };
+  const dialog = find(busy.render(), props => typeof props.className === "string" && props.className.startsWith("doan-dialog ") && typeof props.onCancel === "function");
+  const event = { preventDefault: vi.fn() };
+  call(dialog, "onCancel", event);
+  expect(event.preventDefault).toHaveBeenCalled();
+  expect(hooks.states.some(state => (state as { title?: string } | null)?.title === "Replace your draft?")).toBe(false);
+  expect(busy.box.current.text).toBe("Another idea");
+  expect(focus).toHaveBeenCalled();
+});
+
 test("string items among a drop change nothing: every dropped file and folder goes to main in order", () => {
   const { render } = setup();
   const composer = find(render(), props => props.className === "composer");
@@ -382,18 +398,39 @@ test("a late refusal after leaving Home is shown on the next visit and keeps the
   expect(render().some(props => props.className === "doan-notice error doan-panel composer-notice")).toBe(true);
 });
 
-test("projects and worktrees that are still being read are disabled with their status chip", () => {
+// U11: an unavailable project or worktree stays reachable by the arrow keys (aria-disabled, not Radix disabled), as the
+// canvas row menu's items do; choosing it does nothing and keeps the menu open, and a project reads its reason line.
+test("projects and worktrees that are still being read stay reachable with their status chip; choosing one does nothing", () => {
   const loading = (path: string): FolderEntry => ({ kind: "loading", path, lastCommon: path === "/code/wt" ? "/code/doan-design/.git" : undefined } as FolderEntry);
   const mixed: FolderEntry = { ...ENTRY, lastCommon: "/code/doan-design/.git" };
-  const tree = render3([mixed, loading("/code/wt"), loading("/code/only")]);
+  const { box, render } = setup({}, { entries: [mixed, loading("/code/wt"), loading("/code/only")] });
+  const tree = render();
   const items = tree.filter(props => props.className === "doan-menu-item project-item");
-  expect(items.map(props => !!props.disabled)).toEqual([false, true]);
+  expect(items.map(props => props["aria-disabled"])).toEqual([undefined, true]);
+  expect(items.map(props => !!props.disabled)).toEqual([false, false]);
   const worktrees = tree.filter(props => props.className === "doan-menu-item shell-worktree");
-  expect(worktrees.map(props => !!props.disabled)).toEqual([false, true]);
+  expect(worktrees.map(props => props["aria-disabled"])).toEqual([undefined, true]);
+  expect(worktrees.map(props => !!props.disabled)).toEqual([false, false]);
   expect(tree.filter(props => props.className === "ob-chip").map(props => props.children)).toEqual(["Reading", "Reading"]);
   // Its menu has nothing to fix while it is read, so the note sends nobody there.
-  expect(tree.filter(props => props.className === "menu-note").map(words)).toEqual(["only is still being read."]);
-  function render3(entries: FolderEntry[]) { return setup({}, { entries }).render(); }
+  const notes = tree.filter(props => props.className === "menu-note");
+  expect(notes.map(words)).toEqual(["only is still being read."]);
+  // The project's name alone is its label, and the note is read once, as its description.
+  expect(items[1]!["aria-label"]).toBe("only");
+  expect(items[1]!["aria-describedby"]).toBe(notes[0]!.id);
+  expect(typeof notes[0]!.id).toBe("string");
+  // A worktree's name already holds its chip, so it points at nothing.
+  expect(worktrees[1]!["aria-describedby"]).toBeUndefined();
+  const select = (props: Record<string, unknown>) => { const event = { preventDefault: vi.fn() }; (props.onSelect as (event: unknown) => void)(event); return event.preventDefault; };
+  const root = box.current.root;
+  expect(select(items[1]!)).toHaveBeenCalled();
+  expect(select(worktrees[1]!)).toHaveBeenCalled();
+  // Radix still calls the group's onValueChange for a prevented radio item; the down project's key is ignored there.
+  // The project picker is drawn first, so its radio group is the first in the tree.
+  const group = find(tree, props => typeof props.onValueChange === "function" && "value" in props);
+  (group.onValueChange as (key: string) => void)(String(items[1]!.value));
+  expect(box.current.root).toBe(root);
+  expect(select(items[0]!)).not.toHaveBeenCalled();
 });
 
 test("a group tab's ←/→ selects the next tab and focuses it once drawn, with the list taken before React clears the event", () => {

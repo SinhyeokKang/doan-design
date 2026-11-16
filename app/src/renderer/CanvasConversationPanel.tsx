@@ -165,6 +165,10 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
   const target = run.target();
   // Controlled, so a Delete tooltip's Escape closes the menu too.
   const [menuOpen, setMenuOpen] = useState(false);
+  // While the list is read the trigger is unavailable but stays focusable (aria-disabled, not Radix disabled, which
+  // would drop a focused trigger's focus): the menu is held closed, and one open when the read began closes for good.
+  const loading = list === "loading";
+  useEffect(() => { if (loading) setMenuOpen(false); }, [loading]);
   // The order drawn last while the menu is open: rows keep their places, and a conversation that appears goes at the
   // end (titleMenuOrder) and keeps that place on later updates, so a row never moves under the pointer.
   const frozen = useRef<string[] | null>(null);
@@ -179,8 +183,8 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
   const isNew = run.view()?.kind === "new";
   const startNew = () => startNewConversation(current, isNew, select, onPicked);
   return <><span className="ov-title-wrap doan-conv-title">
-    <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
-      <DropdownMenu.Trigger asChild disabled={list === "loading"}><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title}>
+    <DropdownMenu.Root open={menuOpen && !loading} onOpenChange={open => setMenuOpen(open && !loading)}>
+      <DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title} aria-disabled={loading || undefined}>
         <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
       <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
         onCloseAutoFocus={event => {

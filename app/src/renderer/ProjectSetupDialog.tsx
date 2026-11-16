@@ -100,8 +100,10 @@ export function ProjectSetupDialog({ root, name, kept = false, notGit = false, o
       <ProjectFields root={root} form={form} choose={() => void choose()} chooseRef={node => { chooseButton.current = node; }} storage={storage} />
     </div>
     <div className="ob-buttons doan-dialog-actions">
-      <button type="button" className="btn doan-button" data-ui-variant="subtle" disabled={form.running} onClick={close}>Cancel</button>
-      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" aria-describedby={CHANGES_ID} disabled={form.running} onClick={() => void submit()}>{form.running ? "Setting up" : "Set up project"}</button>
+      {/* aria-disabled, not disabled, while it runs: the pressed button keeps focus, so a failure leaves it there. */}
+      <button type="button" className="btn doan-button" data-ui-variant="subtle" aria-disabled={form.running || undefined} data-disabled={form.running ? "" : undefined} onClick={close}>Cancel</button>
+      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" aria-describedby={CHANGES_ID} aria-disabled={form.running || undefined} aria-busy={form.running || undefined}
+        onClick={() => { if (!form.running) void submit(); }}>{form.running && <span className="doan-spinner" aria-hidden="true" />}{form.running ? "Setting up" : "Set up project"}</button>
     </div>
   </dialog>;
 }

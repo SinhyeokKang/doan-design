@@ -313,3 +313,45 @@ test("a toggle group is a 2px track on the hover backdrop, its pressed item rais
   // The unpressed ink skips a disabled item, whose ink the shared disabled rule sets at lower weight.
   expect(css.indexOf(':is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) { background: var(--affordance-disabled)')).toBeGreaterThan(-1);
 });
+
+// U28: one rule draws every spinner inside a button, in the button's own ink (a 30 % ring and a full-ink quarter) at
+// the small icon size, so it reads on any fill, the disabled grey included. Screen rules may not draw their own.
+test("a spinner inside a button is 14px in the button's ink, from one shared rule", () => {
+  const css = read("./controls.css");
+  expect(rule(css, ":is(.doan-button, .doan-icon-button) > .doan-spinner"))
+    .toBe("width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor;");
+  const styles = read("../styles.css");
+  for (const gone of [".doan-dialog-actions .doan-button > .doan-spinner", ".composer-send .doan-spinner", ".bg-line .bg-stop .doan-spinner", ".q-send .doan-spinner", ".problem-busy .doan-spinner"]) expect(styles, gone).not.toContain(`${gone} {`);
+});
+
+// D15: the cursor over an unavailable control is the arrow. Native disabled and aria-disabled controls (busy ones too)
+// share it; no rule sets not-allowed or progress.
+test("unavailable controls use the default cursor: no not-allowed or progress cursor in the renderer's styles", () => {
+  const css = read("./controls.css");
+  expect(rule(css, ":is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled])")).toBe("background: var(--affordance-disabled); color: var(--text-disabled); cursor: default;");
+  expect(rule(css, ':is(.doan-button, .doan-icon-button)[aria-disabled="true"]')).toBe("cursor: default;");
+  expect(rule(css, ":is(.doan-input, .doan-textarea):disabled")).toBe("background: var(--affordance-disabled); color: var(--text-disabled); cursor: default;");
+  expect(css).toContain(".doan-checkbox:is(:disabled, [data-disabled]) { border-color: var(--affordance-disabled); background: var(--affordance-disabled); color: var(--text-disabled); cursor: default; }");
+  for (const name of ["./controls.css", "./surfaces.css", "../styles.css"]) {
+    expect(read(name), name).not.toContain("not-allowed");
+    expect(read(name), name).not.toContain("cursor: progress");
+  }
+});
+
+// U10: the conversation title trigger, aria-disabled while its list is read, takes the disabled ink and no hover or
+// pressed fill, outweighing the shared trigger rules.
+test("an unavailable conversation title trigger takes the disabled ink and no hover or pressed fill", () => {
+  const styles = read("../styles.css");
+  expect(rule(styles, '.ov-title.doan-button[aria-disabled="true"]')).toBe("color: var(--text-disabled);");
+  expect(rule(styles, '.ov-title.doan-button[data-ui-variant="trigger"][aria-disabled="true"]:is(:hover, :active)')).toBe("background: transparent;");
+});
+
+// U5: the canvas header's zoom buttons, aria-disabled at a limit, take the disabled ink and no hover or pressed fill;
+// the window headers' Back and Forward have the same, pressed included.
+test("zoom and history buttons at their limit take the disabled ink and no hover or pressed fill", () => {
+  const styles = read("../styles.css");
+  expect(styles).toContain('.doan-canvas-zoom > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); }');
+  // Prefixed by the tools group so it outweighs the shared pressed rule, whose :is() counts its two-attribute argument.
+  expect(styles).toContain('.doan-canvas-head-tools .doan-canvas-zoom > .doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }');
+  expect(styles).toContain('.shell-top .shell-history .doan-icon-button[aria-disabled="true"]:active { background: transparent; }');
+});
