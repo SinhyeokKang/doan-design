@@ -6,6 +6,7 @@ import { AlertIcon } from "./AlertIcon";
 import { withChips } from "./codeChips";
 import { StorageField } from "./StorageChoice";
 import type { StorageChoice } from "./storageRules";
+import { NameTip } from "./NameTip";
 
 // One project setup form, used by the wizard's Project step and the sidebar's
 // Set Up dialog. Main keeps the picked CSS file; the renderer holds only its ID.
@@ -50,7 +51,7 @@ export function setupRequest(root: string, choiceId: string | null, storage: Sto
 }
 
 export interface StorageInput { value: StorageChoice; kept: boolean; notGit: boolean; change: (value: StorageChoice) => void }
-// Set Up Project is described by Will add (CHANGES_ID), so a screen reader hears what it writes, the new repository first.
+// Set up project is described by Will add (CHANGES_ID), so a screen reader hears what it writes, the new repository first.
 export const CHANGES_ID = "setup-changes";
 export function ProjectFields({ root, form, choose, chooseRef, storage }: { root: string; form: ProjectForm; choose: () => void; chooseRef?: (node: HTMLButtonElement | null) => void; storage: StorageInput }) {
   const view = formView(form);
@@ -60,7 +61,7 @@ export function ProjectFields({ root, form, choose, chooseRef, storage }: { root
   return <>
     <div className="ob-field">
       <span className="ob-label">Token CSS</span>
-      <span className={view.token === null ? "value none" : "value token-path selectable"} title={view.token ?? undefined}>{view.token ?? "None"}</span>
+      {view.token === null ? <span className="value none">None</span> : <NameTip text={view.token}><span className="value token-path selectable">{view.token}</span></NameTip>}
       <button type="button" className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={view.choose.disabled} ref={chooseRef} onClick={choose}>Choose…</button>
       {view.helper && <span className="ob-helper">{view.helper}</span>}
     </div>
@@ -86,7 +87,7 @@ export function ProjectSetupDialog({ root, name, kept = false, notGit = false, o
     if (result?.kind === "success") { dialog.current?.close(); onClose(); }
     else if (result?.kind === "rerooted") { dialog.current?.close(); onRerooted(result.root, result.message); }
   }
-  return <dialog className="ob-dialog setup-dialog doan-dialog doan-scroll" aria-label="Set Up Project" aria-busy={form.running}
+  return <dialog className="ob-dialog setup-dialog doan-dialog doan-scroll" aria-label="Set up project" aria-busy={form.running}
     ref={node => { dialog.current = node; if (node && !node.open) { node.showModal(); chooseButton.current?.focus(); } }}
     onCancel={event => { event.preventDefault(); close(); }}
     onKeyDown={event => {
@@ -95,13 +96,15 @@ export function ProjectSetupDialog({ root, name, kept = false, notGit = false, o
       event.preventDefault(); event.stopPropagation();
       if (!event.nativeEvent.isComposing) close();
     }}>
-    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">Set up {name}</h3><p className="doan-dialog-description ob-project-path selectable" title={root}>{root}</p></div></div>
+    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">Set up {name}</h3><NameTip text={root}><p className="doan-dialog-description ob-project-path selectable">{root}</p></NameTip></div></div>
     <div className="ob-card">
       <ProjectFields root={root} form={form} choose={() => void choose()} chooseRef={node => { chooseButton.current = node; }} storage={storage} />
     </div>
     <div className="ob-buttons doan-dialog-actions">
-      <button type="button" className="btn doan-button" data-ui-variant="subtle" disabled={form.running} onClick={close}>Cancel</button>
-      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" aria-describedby={CHANGES_ID} disabled={form.running} onClick={() => void submit()}>{form.running ? "Setting Up" : "Set Up Project"}</button>
+      {/* aria-disabled, not disabled, while it runs: the pressed button keeps focus, so a failure leaves it there. */}
+      <button type="button" className="btn doan-button" data-ui-variant="subtle" aria-disabled={form.running || undefined} data-disabled={form.running ? "" : undefined} onClick={close}>Cancel</button>
+      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" aria-describedby={CHANGES_ID} aria-disabled={form.running || undefined} aria-busy={form.running || undefined}
+        onClick={() => { if (!form.running) void submit(); }}>{form.running && <span className="doan-spinner" aria-hidden="true" />}{form.running ? "Setting up" : "Set up project"}</button>
     </div>
   </dialog>;
 }

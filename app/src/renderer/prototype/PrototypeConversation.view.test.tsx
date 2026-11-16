@@ -34,6 +34,7 @@ vi.mock("react", async original => {
 });
 
 const { PrototypeConversationPanel, PrototypeHeadMenu } = await import("./PrototypeConversation");
+const { NameTip } = await import("../NameTip");
 const { DropdownMenu } = await import("radix-ui");
 const { ConversationDeleteItem } = await import("../ConversationDeleteDialog");
 const { PrototypeConversationRun } = await import("./conversationRun");
@@ -73,7 +74,7 @@ beforeEach(() => {
   listed = [summary()];
   const off = () => vi.fn(() => () => {});
   calls = {
-    onConversationEvent: off(), onConversationStage: off(), onConversationListChanged: off(), onWorkChanged: off(), onTargetEntry: off(), onComposerSettings: off(), onAgentAuth: off(), onWindowVisible: off(), onDrawing: off(), readDrawing: vi.fn(async () => null), onPromoted: off(), readPromoted: vi.fn(async () => null),
+    onConversationEvent: off(), onConversationStage: off(), onConversationListChanged: off(), onWorkChanged: off(), onTargetEntry: off(), onComposerSettings: off(), onAgentAuth: off(), onAgentUsage: off(), readAgentUsage: vi.fn(async () => []), onWindowVisible: off(), onDrawing: off(), readDrawing: vi.fn(async () => null), onPromoted: off(), readPromoted: vi.fn(async () => null),
     listConversations: vi.fn(async () => listed), getWork: vi.fn(async () => []), rememberedConversation: vi.fn(async () => null), readTargetEntry: vi.fn(async () => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [{ ...CHECKOUT, url: "u" }] })),
     readComposerSettings: vi.fn(async () => ({ home: null, newConversation: null, buddy: "doany" })),
     readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), markConversationSeen: vi.fn(async () => {}),
@@ -180,7 +181,7 @@ describe("main-window-only buttons go to main as reveals", () => {
     ]);
   });
 
-  // "Sign in to an agent…" and "Manage agents…" name no provider: Settings > Agents opens at its top.
+  // "Sign in to an agent" and "Manage agents" name no provider: Settings > Agents opens at its top.
   test("a Settings action without a provider still goes to the main window", async () => {
     await playing();
     props(render()).onSettings!({ section: "agents" } as never);
@@ -261,7 +262,10 @@ describe("the head's conversation menu", () => {
     listed = [summary({ title: "Checkout Review details button" })];
     await playing();
     const tree = head();
-    expect(trigger(tree).props).toMatchObject({ type: "button", className: "ov-title doan-button", title: "Checkout Review details button" });
+    // The title shows in full in the shared tooltip while it is cut, not in a native title.
+    expect(trigger(tree).props).toMatchObject({ type: "button", className: "ov-title doan-button" });
+    expect(trigger(tree).props.title).toBeUndefined();
+    expect(find(tree, element => element.type === NameTip)!.props.text).toBe("Checkout Review details button");
     expect(trigger(tree).props.disabled).toBeUndefined();
     expect(trigger(tree).props["aria-disabled"]).toBeUndefined();
     expect(find(tree, element => element.type === "span" && element.props.className === "ov-title-wrap doan-conv-title")).toBeDefined();
@@ -276,7 +280,8 @@ describe("the head's conversation menu", () => {
     for (const step of [() => {}, () => run.setView(view({ canvasRow: "gone" })), () => run.setView(view({ canvasRow: "duplicate" }))]) {
       step();
       const tree = open();
-      expect(trigger(tree).props).toMatchObject({ title: "Conversation", "aria-disabled": true });
+      expect(trigger(tree).props).toMatchObject({ "aria-disabled": true });
+      expect(find(tree, element => element.type === NameTip)!.props.text).toBe("Conversation");
       expect(trigger(tree).props.disabled).toBeUndefined();
       expect(find(tree, element => element.type === DropdownMenu.Trigger)!.props.disabled).toBeFalsy();
       expect(root(tree).props.open).toBe(false);
@@ -351,6 +356,31 @@ describe("the head's conversation menu", () => {
     const reads = (calls.listConversations as ReturnType<typeof vi.fn>).mock.calls.length;
     (retry.props.onSelect as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
     expect((calls.listConversations as ReturnType<typeof vi.fn>).mock.calls.length).toBe(reads + 1);
+  });
+
+  // D11: the row runs while its read is out, the panel's thread Retry with it, and a second failure is read out again.
+  test("a failed read's Retry runs until the read settles, and a repeated failure changes the line", async () => {
+    let fail: (reply: { error: string }) => void = () => {};
+    calls.listConversations = vi.fn(async () => ({ error: "unknown" }));
+    run = new PrototypeConversationRun(calls as never, { changed: () => { hooks.dirty = true; }, notice: () => {}, focused: () => true });
+    await playing();
+    expect(run.listRetry()).toEqual({ running: false, failures: 0 });
+    const firstLine = (all(find(open(), element => element.props.className === "conv-error")!).find(element => element.type === "span")!.props.children);
+    calls.listConversations = vi.fn(() => new Promise(resolve => { fail = resolve; }));
+    run.retry();
+    expect(run.listRetry()).toEqual({ running: true, failures: 0 });
+    const line = find(open(), element => element.props.className === "conv-error")!;
+    const retry = all(line).find(element => element.type === DropdownMenu.Item)!;
+    expect(retry.props).toMatchObject({ "aria-disabled": true, "aria-busy": true });
+    // A press while it runs reads nothing more.
+    (retry.props.onSelect as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
+    expect(calls.listConversations).toHaveBeenCalledTimes(1);
+    fail({ error: "unknown" });
+    await flush();
+    expect(run.listRetry()).toEqual({ running: false, failures: 1 });
+    const againLine = all(find(open(), element => element.props.className === "conv-error")!).find(element => element.type === "span")!.props.children;
+    expect(againLine).not.toBe(firstLine);
+    expect(String(againLine).trim()).toBe(String(firstLine).trim());
   });
 
   test("choosing a row or New conversation changes what this window shows, and focus goes on once the menu closes", async () => {

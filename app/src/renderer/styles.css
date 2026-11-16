@@ -120,7 +120,7 @@ code, kbd { font-family: var(--type-family); }
 .bubble-button:focus-visible { outline-color: var(--text-on-accent); outline-offset: -2px; }
 /* --text-disabled would all but vanish on the violet accent and stand out on Dungdung's, so the ink itself fades. */
 .bubble-button[aria-disabled="true"] { color: color-mix(in srgb, var(--text-on-accent) 45%, transparent); cursor: default; }
-.canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); pointer-events: none; }
+.canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); pointer-events: none; }
 .canvas-status button { pointer-events: auto; }
 .canvas-status b { color: var(--text-standard); font-weight: var(--type-weight-medium); }
 .canvas-status > * { max-width: 260px; overflow-wrap: anywhere; }
@@ -129,7 +129,7 @@ code, kbd { font-family: var(--type-family); }
    alert icon, a label-sm title, the subtle line and a centred action. On white, the action is subtle so it keeps a fill. */
 .canvas-status > .canvas-status-block { display: flex; flex-direction: column; align-items: center; max-width: 320px; padding: var(--space-6); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
 .canvas-status-block .doan-alert-icon { margin: 0 0 var(--space-2); }
-.canvas-status-block h2 { color: var(--text-standard); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.canvas-status-block h2 { color: var(--text-standard); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .canvas-status-block .doan-button { margin-top: var(--space-4); }
 .canvas-notice { padding: 7px 12px; background: var(--surface-inset); color: var(--text-standard); font: 11px var(--type-family); }
 .phead { font: 600 12px var(--type-family); padding: 11px 14px 10px; border-bottom: 1px solid var(--border-standard); }
@@ -185,7 +185,7 @@ code, kbd { font-family: var(--type-family); }
    behind AppShell; Welcome is the opaque white panel. */
 /* Opacity also hides descendants with explicit visibility while preserving the restored workspace's layout. */
 #root:has(> .ob-overlay[open]) > :not(.ob-overlay) { opacity: 0; }
-.ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; overflow: hidden; background: transparent; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
+.ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; overflow: hidden; background: transparent; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
 .ob-overlay::backdrop { background: transparent; }
 .ob-overlay.ob-welcome { background: var(--surface-panel); }
 @media (prefers-reduced-transparency: reduce) { .ob-overlay { background: var(--bg-app); } }
@@ -231,7 +231,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-provider-mark { flex: none; width: 32px; display: grid; place-items: center; }
 .ob-provider-mark img { display: block; width: 24px; height: 24px; object-fit: contain; }
 .ob-provider-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
-.ob-provider-label strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ob-provider-label strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .ob-provider-label span, .ob-fine, .ob-page-help, .ob-button-note { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
 .ob-provider-help { margin-top: var(--space-3); color: var(--text-subtle); }
 .ob-provider > .doan-notice { margin-top: var(--space-3); }
@@ -239,8 +239,8 @@ code, kbd { font-family: var(--type-family); }
 .ob-notice-title { font-weight: var(--type-weight-medium); }
 /* Only under a title: a body alone is the first line, which the notice icon is centred on. */
 .ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
-/* A Project notice's text takes the room beside its actions; its second line (main's own account, or a note) is a
-   caption under the sentence. */
+/* A notice's text takes the room beside its actions; a Project notice's second line (main's own account, or a note)
+   is a caption under the sentence. */
 .ob-notice-text { flex: 1 1 240px; min-width: 0; }
 .ob-notice-actions { flex: none; display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .ob-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
@@ -251,7 +251,9 @@ code, kbd { font-family: var(--type-family); }
 .ob-footer { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: var(--space-8); }
 .ob-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ob-dialog-form { display: flex; flex-direction: column; gap: var(--space-4); }
-.ob-field-error { margin-top: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-danger); }
+/* A dialog field and its inline error (settings-msg error) are one group, the error 8px under the field; the form's
+   16px gap stays between the group and the actions. */
+.field-group { display: flex; flex-direction: column; gap: var(--space-2); }
 .ob-overlay .ob-card { width: auto; }
 /* Project step (draft frames project, project-local, repository-found, repository-clone, repository-error). */
 .ob-scene svg { width: var(--size-icon); height: var(--size-icon); }
@@ -276,15 +278,15 @@ code, kbd { font-family: var(--type-family); }
 .ob-project-notice { margin-top: var(--space-4); }
 /* Code inside the panel's notice sits on the notice's inset fill, so the chip is the panel colour (a .git path in it wraps
    with the sentence). The git init line under the Doan files card is on the white card, so its chip is inset. */
-.ob-project-notice code { color: var(--text-standard); background: var(--surface-panel); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.ob-project-notice code { color: var(--text-standard); background: var(--surface-panel); border-radius: var(--radius-inline); padding: 0 var(--space-1); }
 /* First run's notices sit on the panel fill themselves, so their chips take the inset fill to stay visible. */
 .doan-notice.doan-panel.ob-project-notice code { background: var(--surface-inset); }
-.storage-git-init code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.storage-git-init code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--radius-inline); padding: 0 var(--space-1); }
 /* Choice cards take the chosen card's box, so a picked project reads the same before and after it is chosen. */
 .ob-chosen, .ob-choice { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
 .ob-chosen { margin-top: var(--space-6); }
 .ob-chosen > div, .ob-destination-name, .ob-choice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
-.ob-chosen strong, .ob-destination-name strong, .ob-choice strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ob-chosen strong, .ob-destination-name strong, .ob-choice strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .ob-path, .ob-choice small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
 .ob-small-action { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
 .ob-destination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
@@ -322,7 +324,7 @@ code, kbd { font-family: var(--type-family); }
 .buddy-flow { position: relative; height: 340px; perspective: 1000px; margin-top: var(--space-2); container-type: inline-size; }
 .buddy-card { position: absolute; left: 50%; top: 0; width: 244px; margin-left: -122px; display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-5) var(--space-6); text-align: center; cursor: pointer; transform-origin: 50% 40%; transition: transform var(--time-settle) var(--ease-enter), opacity var(--time-settle) var(--ease-enter); }
 .buddy-card img { width: 196px; height: 196px; border-radius: var(--radius-chip); object-fit: cover; margin-bottom: var(--space-2); }
-.buddy-card strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-semibold); }
+.buddy-card strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-semibold); }
 .buddy-card span { min-height: calc(var(--type-caption-line-height) * 2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-standard); }
 /* The radio stays in the tab order for arrows and Space; the card shows its state and focus. The focus ring is drawn
    outside the accent ring. */
@@ -356,9 +358,13 @@ code, kbd { font-family: var(--type-family); }
 @media (prefers-reduced-transparency: reduce) { .buddy-card:has(input:checked) { box-shadow: 0 0 0 2px var(--text-accent), 0 0 var(--space-6) 2px color-mix(in srgb, var(--affordance-accent) 15%, transparent); } }
 /* Forced colours drop box shadows, ring and glow alike, so the chosen card takes an outline. */
 @media (forced-colors: active) { .buddy-card:has(input:checked) { outline: 2px solid Highlight; } }
-/* Newer settings: the row shows but is disabled, as Settings disables its controls. */
-.buddy-flow[aria-disabled="true"] { opacity: .55; }
+/* Newer settings: the row shows but is disabled, in Settings' disabled roles rather than opacity. The chosen card's
+   accent ring (an Accent place) and glow give way to the disabled mark's grey ring, so the buddy that applies stays
+   visible; these selectors outrank the reduced-transparency ring too. Pictures keep their colours, as Settings' rows. */
 .buddy-flow[aria-disabled="true"] .buddy-card, .buddy-flow[aria-disabled="true"] .buddy-card input { cursor: default; }
+.buddy-flow[aria-disabled="true"] .buddy-card :is(strong, span) { color: var(--text-disabled); }
+.buddy-flow[aria-disabled="true"] .buddy-card:has(input:checked) { box-shadow: 0 0 0 2px var(--text-disabled); }
+.buddy-flow[aria-disabled="true"] .buddy-card:not(:has(input:checked)):hover { box-shadow: var(--shadow-panel); }
 .buddy-step-notice { margin: var(--space-5) auto 0; max-width: 512px; }
 .buddy-step-notice-top { margin: 0 auto var(--space-5); }
 .buddy-notice .doan-button, .buddy-step-notice .doan-button { margin-left: auto; flex: none; }
@@ -386,18 +392,16 @@ code, kbd { font-family: var(--type-family); }
 /* The countdown ticks every second; equal-width digits keep it from shifting. */
 .buddy-lock .ob-heading h3 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); font-variant-numeric: tabular-nums; }
 .buddy-lock .ob-heading p { text-wrap: balance; }
-/* A busy confirmation's verb: the small spinner in the label's colour (as the problem overlay's busy action). */
-.doan-dialog-actions .doan-button > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
 /* Shared settings-style group: a hairline container whose rows are split by hairlines. */
 .ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
 .ob-card > :first-child { border-top: 0; }
 .ob-card + .ob-card { margin-top: 14px; }
-.ob-label { font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); color: var(--text-standard); }
+.ob-label { font-size: var(--type-label-sm-size); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); color: var(--text-standard); }
 /* Inline code reads as a chip on the surface it sits on. */
-.ob-msg code, .ob-dialog code, .ob-field code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
-.ob-msg { grid-column: 2 / -1; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
+.ob-msg code, .ob-dialog code, .ob-field code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--radius-inline); padding: 0 var(--space-1); }
+.ob-msg { grid-column: 2 / -1; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-subtle); overflow-wrap: anywhere; }
 /* An inline error or warning is one line led by an icon, so colour is not the only signal. */
-.ob-msg:is(.warn, .error), .pj-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.ob-msg:is(.warn, .error), .pj-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .ob-msg.warn { color: var(--text-warning); }
 .ob-msg.error, .pj-msg { color: var(--text-danger); }
 .ob-msg.ok { color: var(--text-success); }
@@ -409,18 +413,18 @@ code, kbd { font-family: var(--type-family); }
 .ob-chip.err { background: var(--affordance-danger); color: var(--text-danger); }
 .ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-4) 0; border-top: 1px solid var(--border-standard); }
 /* Project names and paths share inline flow; Inspector values use flex. */
-.ob-field .value { display: block; gap: normal; align-items: normal; min-width: 0; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); overflow-wrap: anywhere; }
+.ob-field .value { display: block; gap: normal; align-items: normal; min-width: 0; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); overflow-wrap: anywhere; }
 /* A token path stays on one line, its full text in title. */
 .ob-field .value.token-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-field .value.none { color: var(--text-metadata); }
 .ob-field .ob-helper { grid-column: 2 / -1; }
-.ob-helper { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); overflow-wrap: anywhere; }
-.ob-changes { display: grid; gap: var(--space-1); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
+.ob-helper { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
+.ob-changes { display: grid; gap: var(--space-1); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-subtle); }
 .ob-actions { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
 .ob-actions .ob-helper { flex: 1; }
 /* The replace confirmation and the project setup dialog share this dialog surface. */
-.ob-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.ob-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .ob-dialog .ob-card { width: auto; }
 
 .wt-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; padding-left: 18px; margin-top: 3px; }
@@ -584,13 +588,13 @@ body:has(.shell-top) { background: transparent; }
 .shell-side .row[aria-current="location"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
 .shell-side .shell-project-row { gap: 4px; padding: 0 0 0 10px; margin-bottom: 4px; }
 .shell-project-name { margin-left: 4px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
+.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: var(--radius-thumbnail); font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
 /* project-row-disclosure draft: the lead spot holds the thumbnail at rest and the chevron while the pointer is on the row
    or keyboard focus is in it, both 16px so the name never moves. The chevron folds only; the rest of the row moves.
    :focus-visible, not :focus-within: a click focuses the row, which would keep the chevron after the pointer leaves. */
 .shell-lead { position: relative; display: grid; flex: none; width: var(--size-icon); height: var(--size-icon); }
 .shell-lead > * { grid-area: 1 / 1; }
-.shell-disclosure { display: grid; place-items: center; width: var(--size-icon); height: var(--size-icon); padding: 0; border: 0; border-radius: var(--space-1); background: transparent; color: var(--text-metadata); cursor: pointer; visibility: hidden; }
+.shell-disclosure { display: grid; place-items: center; width: var(--size-icon); height: var(--size-icon); padding: 0; border: 0; border-radius: var(--radius-inline); background: transparent; color: var(--text-metadata); cursor: pointer; visibility: hidden; }
 /* A 24px hit area around the 16px glyph, inside the row's 10px start inset. */
 .shell-disclosure::before { content: ""; position: absolute; inset: calc(-1 * var(--space-1)); }
 .shell-disclosure svg { width: var(--size-icon); height: var(--size-icon); transition: transform var(--time-state) var(--ease-state); }
@@ -632,8 +636,8 @@ body:has(.shell-top) { background: transparent; }
    pressed rules (ds/controls.css), which would otherwise paint it. */
 .shell-more[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
 .shell-side .shell-canvas-row.row > .shell-more.doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
-.shell-empty, .shell-canvas-error { padding: 4px 8px 4px 32px; color: var(--text-metadata); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
-.shell-empty { padding: 6px 10px 10px 34px; line-height: 16px; }
+.shell-empty, .shell-canvas-error { padding: 4px 8px 4px 32px; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
+.shell-empty { padding: 6px 10px 10px 34px; }
 .shell-canvas-error pre { white-space: pre-wrap; }
 /* A group head is a tree row one level below the project (design-system-canvases draft): chevron where a row's icon
    sits, label, count at the end. Rows and lines inside a group move in by the chevron and its gap, so a row's icon sits
@@ -696,7 +700,7 @@ body:has(.shell-top) { background: transparent; }
 .shell-worktree > span { min-width: 0; flex: 1; }
 .shell-worktree > .ob-chip { flex: none; }
 .shell-worktree > span > span, .shell-worktree small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shell-worktree small { margin-top: 4px; color: var(--text-metadata); font-size: 11px; line-height: 14px; }
+.shell-worktree small { margin-top: var(--space-half); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .workspace > .doan-canvas-panel { margin-left: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container) 0 0 var(--radius-container); }
 .workspace > .ov { margin-left: var(--space-2); background: var(--surface-panel); border-radius: var(--radius-container) 0 0 var(--radius-container); }
 .workspace > .right-stack { border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
@@ -713,14 +717,15 @@ body:has(.shell-top) { background: transparent; }
 /* Add Projects page: the white panel is the scroll container and the 560px column grows with it (doan-add-projects
    draft round 3); the page scrolls whole, its footer included. The shared Project screen is sized for first run's
    14/20 body text and plain numerals (.ob-overlay); without them it inherits the app body's 13px/normal. */
-.add-panel { display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
+.add-panel { display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
 /* The ways out of a locked Add Projects page are aria-disabled, not disabled, so they keep their place in the focus
    order; they take the disabled ink and no hover (draft frames cloning and selecting). */
 .shell-modes button[aria-disabled="true"], .shell-search[aria-disabled="true"], .shell-side .row[aria-disabled="true"], .shell-side .row[aria-disabled="true"] :is(.shell-project-name, .shell-branch), .shell-top .shell-history .doan-icon-button[aria-disabled="true"], .doan-menu-item[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
 .shell-modes button[aria-disabled="true"]:not(.current):hover, .shell-search[aria-disabled="true"]:hover, .shell-side .row[aria-disabled="true"]:hover, .shell-top .shell-history .doan-icon-button[aria-disabled="true"]:hover { background: transparent; }
+.shell-top .shell-history .doan-icon-button[aria-disabled="true"]:active { background: transparent; }
 /* Radix still highlights an aria-disabled menu item under the pointer and keyboard; the selected worktree keeps its
-   own fill and check. */
-.doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }
+   own fill and check, and a busy row (a running Retry) keeps its highlight. */
+.doan-menu-item[aria-disabled="true"]:not([aria-current="true"], [aria-busy="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }
 .shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }
 /* The top inset is set from the reference group by HomeComposer (stageInsets); this is its floor. */
 .home-stage { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: var(--space-8); padding-bottom: var(--space-5); }
@@ -736,9 +741,11 @@ body:has(.shell-top) { background: transparent; }
 .home-credit-link:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .home-greeting { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); color: var(--text-standard); text-align: center; }
 .home-composer { position: relative; width: min(680px, 100%); margin-top: var(--space-10); }
-.home-project { gap: var(--space-2); margin: 0 0 var(--space-2) var(--space-2); font-weight: var(--type-weight-medium); }
+/* A long name ellipsizes inside the composer (less the 8px start margin); the trigger is alone on its line. */
+.home-project { gap: var(--space-2); max-width: calc(100% - var(--space-2)); margin: 0 0 var(--space-2) var(--space-2); font-weight: var(--type-weight-medium); }
+.home-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* A 20px project mark keeps the shipped thumbnail ratio (16/4/10 in the sidebar). */
-:is(.home-project, .project-item) .shell-thumbnail { width: var(--size-icon-lg); height: var(--size-icon-lg); border-radius: 5px; font-size: 11px; line-height: var(--size-icon-lg); }
+:is(.home-project, .project-item) .shell-thumbnail { width: var(--size-icon-lg); height: var(--size-icon-lg); font-size: 11px; line-height: var(--size-icon-lg); }
 .chev { width: var(--space-4); height: var(--space-4); color: var(--text-metadata); }
 .logo { width: var(--size-icon); height: var(--size-icon); object-fit: contain; flex: none; }
 /* Card inside a tray, after the Antigravity reference (user screenshot, 2026-10-29). */
@@ -755,20 +762,20 @@ body:has(.shell-top) { background: transparent; }
 .composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }
 .composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
 /* Grows with the text up to eight lines, then scrolls inside the card. */
-.composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; position: relative; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+.composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; position: relative; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); }
 /* A contenteditable has no placeholder: ChipField marks an empty field and its aria-placeholder is drawn over it, inset
    by the field's padding. */
 .composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
 /* Inline anchor chips (confirmed draft; 180px and 6px are component constants with no
    token). contenteditable=false keeps the caret before or after a chip, never inside. */
-.anchor-chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 180px; margin: 0 var(--space-half); padding: 0 var(--space-1h); border: 0; border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font: inherit; font-weight: var(--type-weight-medium); vertical-align: bottom; white-space: nowrap; }
+.anchor-chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 180px; margin: 0 var(--space-half); padding: 0 var(--space-1h); border: 0; border-radius: var(--radius-word); background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font: inherit; font-weight: var(--type-weight-medium); vertical-align: bottom; white-space: nowrap; }
 .anchor-chip svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; }
 .anchor-chip span:not(.sr-only) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The composer chip's kind prefix is read by screen readers but never selected, so Electron's selectionText, which names
    the text edit menu's Look Up item, holds only the chip's visible name. */
 .anchor-chip .sr-only { user-select: none; }
 .composer-card.readonly .composer-input { color: var(--text-subtle); }
-.composer-count { align-self: flex-end; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+.composer-count { align-self: flex-end; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
 .composer-count.over { color: var(--text-danger); }
 .composer-tools { position: relative; display: flex; align-items: center; gap: var(--space-1); margin-left: calc(-1 * var(--space-1)); }
 .composer-tools .grow { flex: 1; }
@@ -791,15 +798,14 @@ body:has(.shell-top) { background: transparent; }
 /* Two classes: the tray's subtle ink (.composer-tray .doan-button) would otherwise win. */
 :is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"] { color: var(--text-danger); }
 :is(.composer-permission, .settings-select)[data-mode="bypass"] .chev { color: currentColor; }
-.composer-send .doan-spinner { color: var(--text-on-accent); }
-.composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
-.composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }
+.composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); }
+.composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-regular); color: var(--text-subtle); }
 .composer-tray :is(.doan-button, .tray-branch) svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 /* One worktree: the branch is read-only text in the trigger's place. */
 .tray-branch { display: inline-flex; align-items: center; gap: var(--space-1h); }
 .tray-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-metadata); }
 /* Chips: neutral fill, like the shared .doan-chip, sized for a thumbnail. */
-.attach-chip, .preset-chip { display: inline-flex; align-items: center; gap: var(--space-2); max-width: 256px; min-width: 0; border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-standard); }
+.attach-chip, .preset-chip { display: inline-flex; align-items: center; gap: var(--space-2); max-width: 256px; min-width: 0; border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-standard); }
 .attach-chip { padding: var(--space-1); }
 .attach-chip .thumb { position: relative; width: var(--size-control-sm); height: var(--size-control-sm); flex: none; overflow: hidden; border-radius: calc(var(--radius-chip) - var(--space-1)); background: var(--surface-panel); }
 .attach-chip .thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -834,7 +840,8 @@ body:has(.shell-top) { background: transparent; }
 /* The description wraps and is never ellipsized: it is where the cost shows ("increased usage", "usage credits"). */
 .fast-copy .sub { white-space: normal; overflow: visible; text-overflow: clip; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .fast-switch { display: inline-flex; flex-shrink: 0; align-items: center; box-sizing: border-box; width: 36px; height: 20px; padding: 2px; border: 1px solid var(--border-standard); border-radius: var(--radius-pill); background: var(--affordance-subtle-hover); }
-.fast-switch::before { content: ""; width: 14px; height: 14px; border-radius: var(--radius-pill); background: var(--text-on-prominent); box-shadow: var(--shadow-xs); }
+.fast-switch::before { content: ""; width: 14px; height: 14px; border-radius: var(--radius-pill); background: var(--text-on-prominent); box-shadow: var(--shadow-xs); transition: transform var(--time-settle) var(--ease-settle); }
+@media (prefers-reduced-motion: reduce) { .fast-switch::before { transition: none; } }
 .fast-item[aria-checked="true"] .fast-switch { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
 .fast-item[aria-checked="true"] .fast-switch::before { transform: translateX(16px); }
 /* Unavailable for the account: the shared disabled ink, the switch's own disabled look; the reason keeps the
@@ -872,15 +879,16 @@ body:has(.shell-top) { background: transparent; }
 .preset-item { gap: var(--space-3); }
 .preset-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
 .preset-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
-.preset-desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+.preset-desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
 /* A portalled popover inherits the page's 13px body; its status line is body-sm like the menu rows around it. */
-.popover-state { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-3); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
+.popover-state { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-3); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-subtle); }
 .popover-actions { display: flex; justify-content: flex-end; padding-top: var(--space-2); }
 .agent-group { padding: var(--space-1) 0; }
 .agent-head { display: flex; align-items: center; gap: var(--space-2); }
 .agent-note { display: inline-flex; align-items: center; gap: var(--space-1h); margin-left: auto; }
 :is(.model-item, .project-item, .effort-popover .doan-menu-item) { display: flex; align-items: center; gap: var(--space-2); }
 .model-name { flex: 1; min-width: 0; }
+.project-item .model-name { overflow: hidden; text-overflow: ellipsis; }
 /* The provider's default row carries a small "Default" after its name: caption in metadata ink, a mark rather than a
    second name. */
 .model-default { margin-left: var(--space-1h); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
@@ -892,18 +900,18 @@ body:has(.shell-top) { background: transparent; }
 .older-row[aria-expanded="true"] .check-slot > svg { transform: rotate(180deg); }
 /* A trigger with no value shows its drawer's name ("Model", "Effort", "Permission") so it reads as a heading. */
 .doan-button .label.placeholder { color: var(--text-metadata); }
-.model-item .sub { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-caption-size); }
+.model-item .sub { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-caption-size); letter-spacing: var(--type-caption-letter-spacing); }
 .inline { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .check-slot { display: inline-flex; width: var(--size-icon); justify-content: center; }
 /* Lucide draws 24px unless sized; menu rows are 32px, so a bare icon would make them 40. The check keeps the shared
    menu check's 12px width (ds/surfaces.css) and takes only the height. */
 .check-slot > svg { height: var(--size-icon); }
 :is(.popover-search, .project-popover .doan-menu-item) > svg { width: var(--size-icon); height: var(--size-icon); }
-.menu-note { padding: var(--space-1) var(--space-3) var(--space-2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+.menu-note { padding: var(--space-1) var(--space-3) var(--space-2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
 /* Drop target (2026-10-29 user): a white, translucent, blurred cover over the whole composer (card and tray) with a dashed accent outline; no text or icon. */
 .drop-target { position: absolute; inset: 0; z-index: 2; border-radius: inherit; background: color-mix(in srgb, var(--surface-panel) 55%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); outline: 2px dashed var(--text-accent); outline-offset: -2px; }
 @media (prefers-reduced-transparency: reduce) { .drop-target { -webkit-backdrop-filter: none; backdrop-filter: none; background: color-mix(in srgb, var(--surface-panel) 85%, transparent); } }
-.composer-reason { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
+.composer-reason { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); }
 .composer-notice { margin-top: var(--space-3); }
 /* The docked composer (draft frame docked-composer): Home's card without its inset tray, a capsule that becomes a box.
    One grid holds both shapes so the field never moves in the DOM; only the areas change. */
@@ -970,7 +978,7 @@ body:has(.shell-top) { background: transparent; }
 /* Larger than a chip since dogfooding found queued messages hard to read: label type, a 16px icon, 40px tall. A white
    capsule with the standard border (canvas-composer-polish draft `sending`, queue-capsule draft) so Send now reads as the
    row's action; the border is an inset shadow, so the row keeps its height and padding. */
-.queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border-radius: var(--radius-pill); background: var(--surface-panel); box-shadow: inset 0 0 0 1px var(--border-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
+.queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border-radius: var(--radius-pill); background: var(--surface-panel); box-shadow: inset 0 0 0 1px var(--border-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
 .queue-item > svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
 .queue-item .queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Send now: the shared xs subtle capsule; the row's text gives way, the button never shrinks. */
@@ -1017,7 +1025,7 @@ body:has(.shell-top) { background: transparent; }
 /* A 1px line inside the 4px gap (1px below the upper row, 2px above the lower), inset like .doan-menu-sep; none above the first or below the last row. */
 .suggestion + .suggestion::before { content: ""; position: absolute; inset-inline: var(--space-3); top: calc(var(--space-half) * -1 - 1px); height: 1px; background: var(--border-standard); pointer-events: none; }
 /* The group icon and the hover arrow carry the accent; the sentence stays standard ink except the project and canvas names, which take the anchor chip's values as an inline highlight (.anchor-chip is nowrap and truncates, so its values are repeated here, and `clone` gives each wrapped fragment its own padding and corners). */
-.suggestion-value { padding: 0 var(--space-1h); border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font-weight: var(--type-weight-medium); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.suggestion-value { padding: 0 var(--space-1h); border-radius: var(--radius-word); background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font-weight: var(--type-weight-medium); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .suggestion svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); }
 .suggestion-go { visibility: hidden; }
 .suggestion:is(:hover, :focus-visible) .suggestion-go { visibility: visible; }
@@ -1111,8 +1119,6 @@ body:has(.shell-top) { background: transparent; }
 .mcp-more { color: var(--text-subtle); }
 /* A busy section's Connect looks disabled but keeps hover and focus for its tooltip. */
 .mcp-agent .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
-/* The URL dialog's inline error sits 8px under the field, as the Paste dialog's field error does. */
-.mcp-field-error { margin-top: calc(-1 * var(--space-2)); }
 /* A removed server's running-turn notice stays under its section's list. */
 .mcp-section-notice { margin-top: var(--space-3); }
 
@@ -1121,7 +1127,7 @@ body:has(.shell-top) { background: transparent; }
 .settings-menu-link svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-subtle); }
 /* The header's action slot (Check Again, Copy details) and the category bodies, from the same
    draft. An empty slot takes no room beside the lead. */
-.settings-page code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.settings-page code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--radius-inline); padding: 0 var(--space-1); }
 .settings-header-actions { display: flex; flex: none; flex-wrap: wrap; gap: var(--space-2); }
 .settings-header-actions:empty { display: none; }
 .settings-value { color: var(--text-subtle); font-variant-numeric: tabular-nums; }
@@ -1133,7 +1139,7 @@ body:has(.shell-top) { background: transparent; }
 .setup-notice-agents { font-weight: var(--type-weight-medium); }
 .doan-notice.setup-notice code { background: var(--surface-panel); }
 .setup-notice-command { display: block; width: fit-content; margin-top: var(--space-1); }
-/* The permission hint under Desktop notifications: the shipped notice on a panel, its actions below as in onboarding. */
+/* The permission hint under Desktop notifications: the shipped notice on a panel, its actions inside it. */
 .doan-settings-group > .doan-preference-row-extra { margin-top: 0; padding: var(--space-3) 0; }
 .doan-settings-group > .settings-permission { margin-top: 0; padding: 0 0 var(--space-3); border-top: 0; }
 .settings-saved { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-success); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
@@ -1146,7 +1152,7 @@ body:has(.shell-top) { background: transparent; }
    the sections of a problem worktree, and the lines under it. The sections' own gaps come from .settings-sections. */
 .project-settings-title { display: flex; align-items: center; gap: var(--space-3); }
 .project-settings-title .doan-chip { font-weight: var(--type-weight-regular); }
-.settings-title .project-settings-thumbnail.shell-thumbnail { width: var(--size-control-sm); height: var(--size-control-sm); border-radius: var(--space-2); font-size: var(--type-body-sm-size); line-height: var(--size-control-sm); }
+.settings-title .project-settings-thumbnail.shell-thumbnail { width: var(--size-control-sm); height: var(--size-control-sm); font-size: var(--type-body-sm-size); line-height: var(--size-control-sm); letter-spacing: var(--type-body-sm-letter-spacing); }
 .project-settings-grow { flex: 1; min-width: 0; }
 .project-settings-token { display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-control-lg); padding-block: var(--space-2); }
 .project-settings-token > svg, .project-settings-path svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-subtle); }
@@ -1154,7 +1160,7 @@ body:has(.shell-top) { background: transparent; }
 .project-settings-empty { color: var(--text-subtle); }
 .project-settings-path { display: flex; align-items: center; gap: var(--space-2); }
 .project-settings-notice-actions { flex: none; display: flex; gap: var(--space-2); }
-.project-settings-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); overflow-wrap: anywhere; }
+.project-settings-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
 .project-settings-loading { padding-inline: calc(var(--space-4) + 1px); }
 /* The lines under the notice (a refused recovery, the config error's detail) hang from it, closing most of the gap the
    notice leaves before the sections; a write error under a row only needs its own vertical padding. */
@@ -1162,11 +1168,11 @@ body:has(.shell-top) { background: transparent; }
 .settings-page > .doan-notice + :is(.project-settings-msg, .project-settings-details) { margin: calc(-1 * var(--space-section-gap) + var(--space-3)) 0 var(--space-section-gap); }
 .project-settings-msg { padding: var(--space-2) 0 var(--space-1); }
 .settings-page > .doan-notice + .project-settings-msg { padding-inline: calc(var(--space-4) + 1px); }
-.project-settings-details { padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; }
+.project-settings-details { padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* doan-conversation: the conversation thread (.doan/canvases/doan-conversation.html, frames thread-*). Scoped to the
    thread so its short names (.activity, .marker, .md) never reach other screens. doan-project places it. */
 .conversation-thread { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; }
-.conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+.conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-6); }
 .conversation-thread .thread-item { display: flex; flex-direction: column; min-width: 0; }
 /* The caret ends the reply's last line (ConversationThread streamingCaret): one line tall and top-aligned, so it never
@@ -1176,7 +1182,7 @@ body:has(.shell-top) { background: transparent; }
 /* The person's message: a light accent bubble, plain text that keeps its line breaks. */
 .conversation-thread .msg-user { align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1h); max-width: 80%; min-width: 0; }
 .conversation-thread .bubble { padding: var(--space-2) var(--space-4); border-radius: var(--radius-row); background: var(--surface-accent-subtle); color: var(--text-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; user-select: text; }
-.conversation-thread .bubble-preset { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-accent-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-medium); }
+.conversation-thread .bubble-preset { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-accent-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-medium); }
 .conversation-thread .bubble-preset svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .conversation-thread .msg-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1h); }
 /* A sent file has no remove button, so the chip keeps its own inline end padding. */
@@ -1202,15 +1208,15 @@ body:has(.shell-top) { background: transparent; }
 /* A list right after its paragraph sits 8px under it instead of the 16px block gap. */
 .conversation-thread .md > p:has(+ :is(ul, ol)) { margin-bottom: calc(var(--space-2) - var(--space-4)); }
 .conversation-thread .md :is(ul, ol) :is(ul, ol) { margin-top: var(--space-1); }
-.conversation-thread .md code { font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); background: var(--surface-inset); border-radius: var(--space-1); padding: var(--space-half) var(--space-1); overflow-wrap: anywhere; }
+.conversation-thread .md code { font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); letter-spacing: var(--type-body-sm-letter-spacing); background: var(--surface-inset); border-radius: var(--radius-inline); padding: var(--space-half) var(--space-1); overflow-wrap: anywhere; }
 .conversation-thread .md-code { position: relative; border-radius: var(--radius-chip); background: var(--surface-inset); }
-.conversation-thread .md-code pre { overflow-x: auto; padding: var(--space-3) var(--space-12) var(--space-3) var(--space-4); font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); white-space: pre; scrollbar-width: thin; }
+.conversation-thread .md-code pre { overflow-x: auto; padding: var(--space-3) var(--space-12) var(--space-3) var(--space-4); font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); white-space: pre; }
 .conversation-thread .md-code pre code { padding: 0; background: none; border-radius: 0; overflow-wrap: normal; }
 .conversation-thread .md-code .doan-icon-button { position: absolute; top: var(--space-1); right: var(--space-1); background: var(--surface-inset); color: var(--text-subtle); }
 /* Copy shows while the block is hovered or has focus inside; it is hidden by opacity only, so it stays focusable. */
 .conversation-thread .md-code:not(:hover, :focus-within) .doan-icon-button { opacity: 0; }
 /* Bordered table with a filled header row; the corner is the code block's 12px and cells keep 8/12 insets. */
-.conversation-thread .md-table { width: max-content; max-width: 100%; overflow-x: auto; scrollbar-width: thin; border-radius: var(--radius-chip); box-shadow: inset 0 0 0 1px var(--border-standard); }
+.conversation-thread .md-table { width: max-content; max-width: 100%; overflow-x: auto; border-radius: var(--radius-chip); box-shadow: inset 0 0 0 1px var(--border-standard); }
 .conversation-thread .md table { border-collapse: separate; border-spacing: 0; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .conversation-thread .md :is(th, td) { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-standard); border-right: 1px solid var(--border-standard); text-align: left; vertical-align: top; white-space: nowrap; }
 .conversation-thread .md :is(th, td):last-child { border-right: 0; }
@@ -1220,17 +1226,17 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .md hr { height: 1px; border: 0; background: var(--border-standard); }
 /* One folded line for a run of activities (2026-10-31 user). */
 .conversation-thread .activity { display: flex; flex-direction: column; gap: var(--space-1); }
-.conversation-thread .activity-head { display: inline-flex; align-items: center; gap: var(--space-2); align-self: flex-start; min-height: var(--size-control-sm); padding: 0 var(--space-2) 0 var(--space-3); margin-left: calc(-1 * var(--space-3)); border-radius: var(--radius-control); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); max-width: 100%; }
+.conversation-thread .activity-head { display: inline-flex; align-items: center; gap: var(--space-2); align-self: flex-start; min-height: var(--size-control-sm); padding: 0 var(--space-2) 0 var(--space-3); margin-left: calc(-1 * var(--space-3)); border-radius: var(--radius-control); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); max-width: 100%; }
 .conversation-thread button.activity-head:hover { background: var(--affordance-backdrop-hover); }
 .conversation-thread .activity-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.conversation-thread .activity-head .chev { transform: rotate(-90deg); transition: transform 120ms; }
+.conversation-thread .activity-head .chev { transform: rotate(-90deg); transition: transform var(--time-fast) var(--ease-state); }
 .conversation-thread .activity-head[aria-expanded="true"] .chev { transform: none; }
 /* A turn that did not run Fast (fast-mode draft frame thread-notice): a folded line with the accent Fast icon; it wraps. */
 .conversation-thread .activity-head.fast-note { align-items: flex-start; padding-block: var(--space-1h); }
 .conversation-thread .activity-head.fast-note svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); color: var(--text-accent); }
 .conversation-thread .activity-head.fast-note span { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 .conversation-thread .activity-head .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-.conversation-thread .activity-steps { display: flex; flex-direction: column; gap: var(--space-1h); padding-left: var(--space-6); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.conversation-thread .activity-steps { display: flex; flex-direction: column; gap: var(--space-1h); padding-left: var(--space-6); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .conversation-thread .activity-steps li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; list-style: none; }
 .conversation-thread .activity-steps li svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; color: var(--text-subtle); }
 .conversation-thread .activity-steps .verb { flex: none; color: var(--text-subtle); }
@@ -1238,16 +1244,16 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .activity-steps li:has(> .mcp-step) { align-items: flex-start; }
 .conversation-thread .activity-steps li:has(> .mcp-step) svg { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); }
 .conversation-thread .activity-steps .verb.mcp-step { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
-.conversation-thread .activity-steps .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.conversation-thread .activity-steps .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .conversation-thread .ask-answered { color: var(--text-subtle); }
 /* Thread notices put their actions on a row under the text, starting at the text's left edge (draft round 2). */
-.conversation-thread .thread-notice, .cp-scroll > .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
-.conversation-thread .thread-notice > .strip-actions, .cp-scroll > .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
+.conversation-thread .thread-notice, :is(.cp-scroll, .ov-new) > .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
+.conversation-thread .thread-notice > .strip-actions, :is(.cp-scroll, .ov-new) > .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
 /* The Stopped notice's glyph is a bare lucide icon (24px unless sized); AlertIcon and the agent mark size themselves. */
-.conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
+.conversation-thread .thread-notice > svg, :is(.cp-scroll, .ov-new) > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
 /* The strip's one-line clip (overflow hidden) would cut glyphs that overhang a wrapped line. */
-.conversation-thread .thread-notice .strip-text span, .cp-scroll > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
-.conversation-thread .marker { display: flex; align-items: center; gap: var(--space-3); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.conversation-thread .thread-notice .strip-text span, :is(.cp-scroll, .ov-new) > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+.conversation-thread .marker { display: flex; align-items: center; gap: var(--space-3); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .conversation-thread .marker::before, .conversation-thread .marker::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
 .conversation-thread .marker span { display: inline-flex; align-items: center; gap: var(--space-1h); min-width: 0; max-width: 80%; text-align: center; }
 .conversation-thread .marker svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
@@ -1276,7 +1282,7 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .canvas-card .cc-name { min-width: 0; overflow: hidden; white-space: nowrap; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .conversation-thread .canvas-card .cc-status { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
 .conversation-thread .canvas-card .cc-open { flex: none; color: var(--text-standard); }
-.conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* Above the docked buddy's slot (2), which shares its stacking context, like the queue pills. */
 .conversation-thread .jump-latest { position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%); box-shadow: var(--shadow-sm); z-index: 3; }
 /* turn-activity: the turn indicator in the reply's place (.doan/canvases/turn-activity.html, frame states). One line of
@@ -1302,7 +1308,6 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .bg-line .bg-icon { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-metadata); margin-block: calc((var(--type-label-line-height) - var(--size-icon-sm)) / 2); }
 .conversation-thread .bg-line .bg-text { min-width: 0; overflow-wrap: anywhere; }
 .conversation-thread .bg-line .bg-stop { grid-column: 2; justify-self: start; color: var(--text-standard); }
-.conversation-thread .bg-line .bg-stop .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .conversation-thread .bg-line .bg-stop[data-disabled] { color: var(--text-disabled); }
 
 /* doan-project: the Overview as the project conversation screen (.doan/canvases/doan-project.html, confirmed 2026-10-31).
@@ -1313,23 +1318,28 @@ body:has(.shell-top) { background: transparent; }
    counts; these surfaces read like the page. The two menus are portalled out of .ov-main, so they are named too. */
 .ov-main, .right.ov-right, .conv-menu, .wt-menu { font-variant-numeric: normal; }
 .ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
-.ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: none; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
-.ov-project-name { font-weight: var(--type-weight-medium); }
+/* A long folder name stops at 40% of the header, as the canvas header's crumb, so New conversation stays in. */
+.ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: 0 1 auto; max-width: 40%; min-width: 0; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
+.ov-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
 /* The branch chip as a worktree picker: the translucent chip with a chevron, opening the project menu's worktree rows. */
 .wt-chip { cursor: pointer; -webkit-app-region: no-drag; }
 .wt-chip .chev { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-left: var(--space-half); }
 /* button.doan-chip's open fill (data-state="open", more specific) would otherwise replace the pressed fill. */
 .ov-project button.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
 .shell-project-menu.wt-menu { width: 280px; }
-.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
 /* The title gives way first in a narrow window. */
 .ov-title-wrap { display: flex; min-width: 0; }
 .ov-new-conv { flex: none; margin-left: auto; }
 /* New conversation on the new conversation state: unavailable, still focusable with its tooltip. */
 :is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
 :is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
-.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* While its list is read the title trigger is aria-disabled (still focusable): the disabled ink and no hover or pressed
+   fill, outweighing the shared trigger rules. */
+.ov-title.doan-button[aria-disabled="true"] { color: var(--text-disabled); }
+.ov-title.doan-button[data-ui-variant="trigger"][aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 .ov-notice { margin: 0 var(--space-4) var(--space-2); }
 .ov-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; }
 .ov-scroll > .conversation-thread { flex: 1; }
@@ -1340,6 +1350,8 @@ body:has(.shell-top) { background: transparent; }
 /* New conversation: the moved line and the suggestions sit right above the composer. */
 /* A lucide glyph renders 24px unless a rule sizes it; the shared notice rules size only their own alert icon. */
 .doan-notice.moved { margin-bottom: var(--space-3); }
+/* A list never read: the canvas panel's thread notice, 12 above the suggestions as the moved line is. */
+.ov-new > .thread-notice { margin-bottom: var(--space-3); }
 .doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }
 /* One line: a title is the whole first message (up to 512 characters), so only it gives way and "moved to <canvas>."
    stays readable; the text keeps the full sentence for assistive tech and the tooltip. */
@@ -1378,7 +1390,9 @@ body:has(.shell-top) { background: transparent; }
 .conv-row:is(:hover, :has([data-highlighted])) .cv-when > [aria-hidden="true"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .conv-item .t { font-weight: var(--type-weight-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conv-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
-.conv-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+/* A running Retry row keeps its highlight (it is busy, not unavailable) and takes the in-button spinner's size and ink. */
+.conv-error .doan-menu-item > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
+.conv-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* A conversation's first line, shared with the right panel's rows: logo, name, status mark, short time flush right. */
 .cv-head { display: flex; align-items: center; gap: var(--space-1h); min-width: 0; }
 .cv-head .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); object-fit: contain; flex: none; }
@@ -1386,7 +1400,7 @@ body:has(.shell-top) { background: transparent; }
 .cv-head .row-slot { margin-left: 0; }
 .cv-when { flex: none; margin-left: auto; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
 /* The right panel on the Overview: its title, then the canvas rows. */
-.right.ov-right .rp-head { display: flex; align-items: center; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); border-bottom: 0; font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); }
+.right.ov-right .rp-head { display: flex; align-items: center; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); border-bottom: 0; font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); letter-spacing: var(--type-label-sm-letter-spacing); }
 .right.ov-right .rp-head:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 .rp-list { list-style: none; margin: 0; padding: 0 var(--space-2) var(--space-2); }
 .cv-item { position: relative; }
@@ -1426,15 +1440,15 @@ body:has(.shell-top) { background: transparent; }
 /* Without a ready preview: the inset fill only, no glyph. */
 .cv-thumb.empty { background: var(--surface-inset); }
 .cv-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.cv-text > b, .cv-text .cv-head b { font-weight: var(--type-weight-medium); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-text > b, .cv-text .cv-head b { font-weight: var(--type-weight-medium); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-text > small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
 .cv-text > small.err { color: var(--text-danger); }
 .cv-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: var(--space-half) 0; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
 /* The same dashed box as the sidebar's empty groups, inset like the list's rows. */
-.rp-empty { margin: 0 var(--space-2) var(--space-2); padding: var(--space-4); border: 1px dashed var(--border-standard); border-radius: var(--radius-chip); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.rp-empty p + p { margin-top: var(--space-2); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
-.rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.rp-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.rp-empty { margin: 0 var(--space-2) var(--space-2); padding: var(--space-4); border: 1px dashed var(--border-standard); border-radius: var(--radius-chip); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.rp-empty p + p { margin-top: var(--space-2); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.rp-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 
 /* doan-canvas: the canvas panel, an opaque white header above the board (.doan/canvases/doan-canvas.html, confirmed
    2026-11-01). The header does not cover the board: the board starts under it. Isolation keeps the board's floating
@@ -1452,13 +1466,18 @@ body:has(.shell-top) { background: transparent; }
 /* The Overview header box (.ov-head) reading canvas / frame: the canvas is the quieter parent (subtle, regular, its
    sidebar icon, up to 40%), the frame the current item; the frame name gives way first. */
 .doan-canvas-head { flex: none; background: var(--surface-panel); }
-.doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); }
 .doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
 .doan-canvas-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The shared .chev size (16px), like the Overview title's chevron. */
 .doan-canvas-head .chev { flex: none; }
 .doan-canvas-head-tools { display: flex; align-items: center; gap: var(--space-1); flex: none; margin-left: auto; }
 .doan-canvas-zoom { display: flex; align-items: center; gap: var(--space-half); }
+/* Zoom out / Zoom in at a limit are aria-disabled (still focusable): the disabled ink and no fill under the pointer or
+   while pressed. Prefixed by the tools group so it outweighs the shared pressed rule, whose :is() counts its
+   two-attribute argument. */
+.doan-canvas-zoom > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); }
+.doan-canvas-head-tools .doan-canvas-zoom > .doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 .doan-zoom-value { min-width: 72px; gap: var(--space-1); font-variant-numeric: tabular-nums; }
 .doan-canvas-head .doan-icon-button { color: var(--text-standard); }
 .doan-canvas-head :is(.doan-icon-button, .doan-button):disabled, .doan-canvas-head .doan-button:disabled .chev { color: var(--text-disabled); }
@@ -1497,13 +1516,13 @@ body:has(.shell-top) { background: transparent; }
 /* doan-canvas: the canvas page's right column, the canvas conversation panel shell (.doan/canvases/doan-canvas.html
    'default', 'panel-collapsed', 'panel-resize'). Only folding and unfolding animate the column (data-panel-motion); a
    drag must not, or the handle trails the pointer (malmoi DESIGN '접기'). */
-.workspace.app-shell[data-panel-motion] { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
+.workspace.app-shell[data-panel-motion], .pw[data-panel-motion] { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle), column-gap var(--time-panel-enter) var(--ease-settle); }
 .workspace > .doan-conv-column { position: relative; display: flex; min-width: 0; min-height: 0; }
 .workspace.with-strip > .doan-conv-column { grid-row: -3 / -1; }
 /* Folded, the column keeps its node (the open button's aria-controls) but leaves the page; while it folds it stays
    visible until the column has closed. */
 .doan-conv-column[data-collapsed] { visibility: hidden; }
-.workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: visibility 0s linear var(--time-panel-enter); }
+.workspace[data-panel-motion] > .doan-conv-column[data-collapsed], .pw[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: visibility 0s linear var(--time-panel-enter); }
 .workspace[data-panel="collapsed"] > .doan-canvas-panel { border-top-right-radius: var(--radius-container); border-bottom-right-radius: var(--radius-container); }
 .workspace[data-panel="collapsed"] > .strip-slot { border-top-right-radius: var(--radius-container); }
 .right.doan-conv-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
@@ -1511,7 +1530,7 @@ body:has(.shell-top) { background: transparent; }
 .doan-conv-head .rp-head { flex: 1; min-width: 0; }
 .doan-conv-head .doan-icon-button { color: var(--text-standard); }
 .doan-conv-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
-.doan-conv-empty { max-width: 240px; margin: 0; text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.doan-conv-empty { max-width: 240px; margin: 0; text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* doan-canvas-conversation: the panel's content (.doan/canvases/doan-canvas-conversation.html panel-*). The title is the
    conversation menu with the close button at its end; the thread scrolls under it and the composer stays at the bottom. */
 .doan-conv-title { flex: 1; min-width: 0; padding: var(--space-2) 0 var(--space-2) var(--space-2); }
@@ -1544,7 +1563,7 @@ body:has(.shell-top) { background: transparent; }
 /* News on a folded button: the sidebar slot's mark. A finished conversation is a 14px speech bubble, filled with the surface
    so the button's icon does not show through it; the other signals are the 8px accent dot. */
 .doan-icon-button[data-badge] { position: relative; }
-.badge-bubble { position: absolute; top: var(--space-half); right: var(--space-half); width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); background: var(--surface-panel); border-radius: var(--space-1); box-shadow: 0 0 0 var(--space-half) var(--surface-panel); pointer-events: none; }
+.badge-bubble { position: absolute; top: var(--space-half); right: var(--space-half); width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); background: var(--surface-panel); border-radius: var(--radius-inline); box-shadow: 0 0 0 var(--space-half) var(--surface-panel); pointer-events: none; }
 .badge-bubble svg { display: block; width: 100%; height: 100%; fill: var(--surface-panel); }
 .doan-icon-button[data-badge="true"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--text-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
 /* A sent message's chips show their target on the canvas; inside the accent bubble they take the panel surface. */
@@ -1554,7 +1573,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* Chip locate: a chip in the composer's field locates too, so it points as a
    thread chip does; a target that is gone gets the metadata line under its message or composer. */
 .composer-input .anchor-chip { cursor: pointer; }
-.chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 /* A reply chip for another canvas (agent-reply-chips): at most 180px like every chip; inside it the label shrinks and
    ellipsizes first and " · <canvas>" is never cut (draft frame panel-other-canvas, user decision). A grid does it:
    the label's track has a 1em minimum (room for its ellipsis), so the chip's min-content is padding + icon + gap +
@@ -1569,6 +1588,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .anchor-chip span.chip-canvas { white-space: pre; margin-left: calc(-1 * var(--space-1)); max-width: calc(100cqw - 2 * var(--space-1h) - var(--size-icon-sm) - var(--space-1) - 1em); }
 /* A reply chip's note under its reply block, 6 apart, as the note under a sent bubble. */
 .conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }
+/* A failed Copy code's line takes the reply note's place, 6 under the reply (or under its note). */
+.conversation-thread .thread-item > .copy-failed { margin: var(--space-1h) 0 0; }
 .mark.jump-highlight.jump-point { border-radius: 50%; }
 /* The working-frame marker (work-update draft frames marker-states, marker-moves): the jump highlight
    kept for the work turn, under the selection marks, with a travelling gradient and a breathing glow. It slides between
@@ -1599,27 +1620,46 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .docked .composer-tray :is(.composer-attach, .composer-pick):is(:disabled, [aria-disabled="true"]) { color: var(--text-disabled); }
 /* aria-disabled (not disabled) keeps these controls hoverable for their reason tooltip, so they take the disabled
    look: without it the terminal session's Attach and an unavailable Picker or Export read as working buttons. */
-:is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"] { cursor: not-allowed; }
 @media (hover: hover) and (pointer: fine) { :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:hover { background: transparent; } }
 :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
 /* The context ring (draft frame ring-geometry): the tray's last child, which the tray's
    flex-end and the model trigger's auto margin keep at its right end. 4 from the last picker (the tray’s 2 gap plus 2)
    and the tray's 12 end padding after; it never shrinks, so a narrow panel shortens the model label first. Its own
-   class sizes it: the header's 24px usage ring rules are bound to .usage. */
+   class sizes it: the header's 24px usage ring rules are bound to .usage. It is a button (draft context-ring-drawer.html
+   frame trigger) whose own box adds nothing to the ring's, so the tray lays out as before; the dial inside is the ring. */
 .docked .composer-tray .context-ring { margin-inline-start: var(--space-half); }
-.context-ring { display: block; flex: none; width: var(--size-icon); height: var(--size-icon); cursor: default; }
-.context-ring > svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+.context-ring { position: relative; display: block; flex: none; width: var(--size-icon); height: var(--size-icon); padding: 0; border: 0; background: transparent; color: inherit; cursor: default; }
+/* The hit box: invisible, 4 out on every side, a 24 square (the xs triggers' height) centred on the ring. On the left
+   it meets the last picker's end without overlap (the tray's 2 gap plus the ring's 2 margin); on the right it stays in
+   the tray's 12 end padding; below, it leaves the tray, whose bottom padding is 0. Hover, pressed and focus are drawn
+   on it, so no layout box moves. */
+.context-ring::before { content: ""; position: absolute; inset: calc(-1 * var(--space-1)); border-radius: var(--radius-control); }
+@media (hover: hover) and (pointer: fine) { .context-ring:hover::before { background: var(--affordance-backdrop-hover); } }
+.context-ring:is(:active, [aria-expanded="true"])::before { background: var(--affordance-backdrop-pressed); }
+.context-ring:focus-visible { outline: none; }
+.context-ring:focus-visible::before { outline: 2px solid var(--border-focus); outline-offset: 0; }
+.context-ring-dial { position: relative; display: block; width: 100%; height: 100%; }
+.context-ring-dial > svg { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
 .context-ring .track { stroke: var(--border-track); }
 .context-ring .value { stroke: var(--affordance-prominent); }
 .context-ring[data-band="full"] .value { stroke: var(--border-danger); }
 /* Its tooltip's two lines, both in the tooltip's caption ink. */
 .doan-tooltip .tip-line { display: block; }
+/* The ring's drawer: one Agent usage row lifted whole on the shared floating popover, head on top, then the body
+   aligned with the name. Refresh follows the body in the DOM (Tab goes body → Refresh) and the grid puts it at the
+   head's end, 8 after the read time, with the header Refresh's −6 block and end margins. Plain numerals, as the header
+   popover: the body's tabular figures widen every "1" in the relative times. */
+.context-drawer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); max-height: var(--radix-popover-content-available-height); overflow-y: auto; text-align: left; font-variant-numeric: normal; }
+.context-drawer-head { grid-column: 1; grid-row: 1; }
+.context-drawer-body { grid-column: 1 / -1; grid-row: 2; outline: none; }
+.context-drawer-refresh { grid-column: 2; grid-row: 1; margin-block: calc(-1 * var(--space-1h)); margin-inline-end: calc(-1 * var(--space-1h)); }
 /* .doan-agent (later, same weight) sets a 4px end inset for its action button; the hint ends in the Esc key instead. */
 .doan-agent.doan-picking { padding-right: var(--space-2); }
 .doan-picking-icon { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .area[data-picking] { cursor: crosshair; }
-/* A permission answer that did not reach the agent, under its request's choices. */
-.conversation-thread .thread-notice > .ask-error { grid-column: 2; color: var(--text-danger); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+/* A permission answer that did not reach the agent, under its request's choices: the shared inline error line
+   (settings-msg error), placed in the text column. */
+.conversation-thread .thread-notice > .ask-error { grid-column: 2; }
 /* An agent's question (agent-questions draft frames question-card, keyboard, send-states): the permission notice whose
    questions, actions and error line take the card's full width under the mark's title line. Nothing in a question is cut. */
 .conversation-thread .q-card > :is(.q-list, .strip-actions, .ask-error) { grid-column: 1 / -1; }
@@ -1643,10 +1683,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .conversation-thread .q-input { position: relative; z-index: 1; width: 100%; background: var(--surface-panel); }
 .conversation-thread .q-pref .q-input { background: var(--surface-inset); }
 /* Send while it cannot send: aria-disabled keeps its focus and tooltip, with the shared disabled fill. */
-.conversation-thread .q-card .q-send[aria-disabled="true"]:not(:disabled) { background: var(--affordance-disabled); color: var(--text-disabled); cursor: default; }
-.conversation-thread .q-card .q-send[aria-busy="true"] { cursor: progress; }
-/* On the black Send the ring is the on-prominent ink at 30% (no translucent token exists), its turning quarter at full. */
-.conversation-thread .q-send .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, var(--text-on-prominent) 30%, transparent); border-top-color: var(--text-on-prominent); }
+.conversation-thread .q-card .q-send[aria-disabled="true"]:not(:disabled, [aria-busy="true"]) { background: var(--affordance-disabled); color: var(--text-disabled); }
 .conversation-thread .q-card.is-locked :is(.q-pref, .q-pref > input) { cursor: default; }
 .conversation-thread .q-card [aria-disabled="true"]:not(.q-send, input) { color: var(--text-disabled); cursor: default; }
 /* A folded question's lines are spaced as the thread's own items. */
@@ -1682,7 +1719,9 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 :root[data-sidebar-motion] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { transition: margin-left var(--time-panel-enter) var(--ease-settle); }
 @media (prefers-reduced-motion: reduce) {
   .workspace.app-shell[data-panel-motion], .workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
+  .pw[data-panel-motion], .pw[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
   :root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell, .workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { transition: none; }
+  .shell-disclosure svg, .shell-group-head svg { transition: none; }
 }
 
 /* doan-canvas: the agent indicator while this canvas's current conversation works or waits (.doan/canvases/doan-canvas.html
@@ -1715,6 +1754,9 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-agent .doan-button.doan-agent-action { flex: none; background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); color: var(--text-on-prominent); }
 @media (hover: hover) and (pointer: fine) { .doan-agent .doan-button.doan-agent-action:hover:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 26%, transparent); } }
 .doan-agent .doan-button.doan-agent-action:active:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 34%, transparent); }
+/* The default ring (black, 2px outside) lands on the capsule's edge and nears 1:1 over a dark canvas; Open draws it
+   white and inside, the size bubble's pattern. */
+.doan-agent .doan-button.doan-agent-action:focus-visible { outline-color: var(--text-on-prominent); outline-offset: -2px; }
 /* One accent dot that grows and shrinks, with a ring spreading from it in step; still while the agent waits. */
 /* Doany the artist (.doan/canvases/doany-artist.html): a 32px window in the 40px card, 8px from its start. */
 .doan-agent:has(> .doan-agent-artist) { padding-left: var(--space-2); }
@@ -1815,7 +1857,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .update-pop-title { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
 .update-pop-text { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 
-.skill-word { padding: 0 var(--space-1h); border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font-weight: var(--type-weight-medium); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.skill-word { padding: 0 var(--space-1h); border-radius: var(--radius-word); background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font-weight: var(--type-weight-medium); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .bubble .skill-word { background: var(--surface-panel); }
 
 .preset-popover.has-skills:not(.slash-popover) { width: 691px; }
@@ -1831,18 +1873,23 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .storage-options { grid-column: 2 / -1; display: grid; gap: var(--space-3); min-width: 0; }
 .storage-option { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-half) var(--space-2); cursor: pointer; }
 .storage-option .ob-radio { grid-row: 1 / 3; }
-.storage-option strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); color: var(--text-standard); }
+.storage-option strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); color: var(--text-standard); }
 .storage-option small { grid-column: 2; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .storage-option > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .storage-option:has(> input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
 .storage-option:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
 .storage-option:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
 .storage-option:has(> input:disabled), .storage-option > input:disabled { cursor: default; }
+/* While Set Up writes, the options take the disabled roles as .storage-row does; a code chip keeps its own ink. */
+.storage-option:has(> input:disabled) :is(strong, small) { color: var(--text-disabled); }
+.storage-option:has(> input:disabled) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
+.storage-option:has(> input:disabled:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }
+.storage-option:has(> input:disabled:checked) .ob-radio::before { background: var(--text-disabled); }
 /* A command or path chip in a caption description keeps the caption size and never breaks inside itself. */
-:is(.storage-option small, .storage-pref .doan-preference-row-description) code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+:is(.storage-option small, .storage-pref .doan-preference-row-description) code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--radius-inline); padding: 0 var(--space-1); }
 .storage-fact { grid-column: 2 / -1; display: grid; gap: var(--space-half); }
 /* The card rows' caption descriptions carry the same command chips as the dialog's. */
-.storage-row .ob-provider-label span code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.storage-row .ob-provider-label span code { white-space: nowrap; color: var(--text-standard); background: var(--surface-inset); border-radius: var(--radius-inline); padding: 0 var(--space-1); }
 /* The setup panel and the clone screen: one card like the Agent step's provider list, the radio in the mark's slot. */
 .ob-setup .storage-label { margin-top: var(--space-6); }
 .storage-row { position: relative; cursor: pointer; }
@@ -1877,7 +1924,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .storage-command code { display: block; width: fit-content; }
 .storage-result { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
 .storage-result-text { color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
-.storage-reason { display: flex; align-items: flex-start; gap: var(--space-1h); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.storage-reason { display: flex; align-items: flex-start; gap: var(--space-1h); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .storage-reason > svg { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
 .storage-reason.warn { color: var(--text-warning); }
 
@@ -1885,7 +1932,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    its recovery actions. It covers the main and right columns inside the content panel's corners; the header, the
    sidebar and its resize handle stay usable. Layer: above the panel handles (4), under the toast (6) and the portalled
    menus and tooltips (50); .workspace has no z-index, so these compare in the root stacking context. */
-.workspace > .problem-overlay { z-index: 5; grid-column: 2 / 4; grid-row: -2; min-height: 0; display: flex; overflow-y: auto; margin-left: var(--space-2); padding-block: var(--space-6); border-radius: var(--radius-container); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+.workspace > .problem-overlay { z-index: 5; grid-column: 2 / 4; grid-row: -2; min-height: 0; display: flex; overflow-y: auto; margin-left: var(--space-2); padding-block: var(--space-6); border-radius: var(--radius-container); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
 @media (prefers-reduced-transparency: reduce) { .workspace > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 /* Reading: no blur and no scene, the opaque panel with its status line. */
 .workspace > .problem-overlay.reading { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -1905,18 +1952,16 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* Onboarding's centred heading with the Settings page title's type. */
 .problem-heading { margin-bottom: var(--space-6); }
 .problem-heading h2 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); }
-.problem-heading p code { padding: 0 var(--space-1); border-radius: var(--space-1); background: var(--surface-inset); color: var(--text-standard); }
+.problem-heading p code { padding: 0 var(--space-1); border-radius: var(--radius-inline); background: var(--surface-inset); color: var(--text-standard); }
 .problem-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
 /* A subtle button at rest on the glass takes the hover fill, as on onboarding's overlay. */
 .problem-overlay .doan-button[data-ui-variant="subtle"]:not(:hover, :active) { background: var(--affordance-backdrop-hover); }
 /* Busy while a recovery reads the project again: every action is unavailable but focusable; the pressed, filled one
    keeps its fill and shows the spinner. */
-.problem-actions .doan-button[aria-disabled="true"] { cursor: default; }
 .problem-actions .doan-button[aria-disabled="true"]:not([data-ui-variant="prominent"]) { color: var(--text-disabled); }
-.problem-busy .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
 /* Project Settings' details block (.project-settings-details), under the actions. */
-.problem-detail { width: 100%; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; text-align: start; }
-.problem-reading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.problem-detail { width: 100%; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; text-align: start; }
+.problem-reading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 
 /* The prototype window (.doan/canvases/frame-prototype.html prototype-window, prototype-states; the header and the
    frame box from prototype-responsive.html): the main window's shell without a sidebar. The header reuses .top.shell-top,
@@ -1925,7 +1970,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 :root { --pw-right: 140px; }
 /* The open conversation panel's width: the window sets it on .pw from main's panel state; this is the panel minimum. */
 :root { --pw-panel: 280px; }
-.pw { position: absolute; inset: 0; display: grid; grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); }
+.pw { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 0px; grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); }
 /* The name's second row, when the first leaves it less than 80 (the renderer sets it from the window's width, as main
    does): 36 for the capsule and 8 under it. Both groups stay in the first row. */
 .pw.name-row { grid-template-rows: calc(var(--size-chrome) + 36px + var(--space-2)) minmax(0, 1fr); }
@@ -1944,7 +1989,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    miss it. It takes their ink and cursor itself, and no chrome fill under the pointer or while pressed. The shared
    pressed rule weighs (0,5,0), since its :is() counts [aria-haspopup][aria-expanded], so this one is scoped by .pw and
    .pw-top to (0,6,0) to outweigh it rather than rely on coming later. */
-.pw-right > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: not-allowed; }
+.pw-right > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); }
 .pw .pw-top > .pw-right > .doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 /* The panel paints its rounded corners without clipping; the content clips its top corners and the stage inside it its
    bottom ones. No ancestor of the cross-origin run iframe may clip with four equal radii: Chromium then draws it only
@@ -1962,7 +2007,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .pw-frame { position: absolute; top: 0; left: 0; display: block; border: 0; transform-origin: 0 0; }
 .pw-snapshot { display: block; width: 100%; height: 100%; }
 /* The problem overlay over the content panel only, so the header stays usable. */
-.pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; border-radius: inherit; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+.pw-panel > .problem-overlay { position: absolute; inset: 0; z-index: 5; display: flex; border-radius: inherit; overflow-y: auto; padding-block: var(--space-6); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); background: color-mix(in srgb, var(--surface-panel) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
 @media (prefers-reduced-transparency: reduce) { .pw-panel > .problem-overlay { background: var(--surface-panel); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 /* Standard ink, so the body holds over a dark frame under the 60% overlay. */
 .pw-panel .problem-heading p { color: var(--text-standard); }
@@ -1976,13 +2021,13 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    padding) and 8 from the content panel. The header and the content panel share the first column, so the header ends 8 before the panel and
    only it drags the window. While open the header's conversation button leaves the right group: --pw-right is then
    fit.ts PROTOTYPE_HEADER_RIGHT_OPEN. The content panel keeps its shipped corners and split clip (exportViewer.test.ts).
-   Folded, the column leaves the grid but stays in the DOM for the button's aria-controls. The head keeps the shipped
-   56 of .doan-conv-head, as the canvas page's and the Overview's panels do. */
+   Folded, the column keeps a 0 wide track with no gap, hidden by [data-collapsed] and in the DOM for the button's
+   aria-controls, so the window's own toggle animates the track both ways with the canvas page's fold motion
+   (data-panel-motion). The head keeps the shipped 56 of .doan-conv-head, as the canvas page's and the Overview's panels do. */
 .pw[data-panel="open"] { --pw-right: 104px; grid-template-columns: minmax(0, 1fr) var(--pw-panel); column-gap: var(--space-2); }
-.pw[data-panel="open"] > .pw-top { grid-column: 1; }
-.pw[data-panel="open"] > .pw-panel { grid-column: 1; grid-row: 2; }
+.pw > .pw-top { grid-column: 1; }
+.pw > .pw-panel { grid-column: 1; grid-row: 2; }
 .pw > .doan-conv-column { grid-column: 2; grid-row: 1 / -1; margin-top: var(--space-2); position: relative; display: flex; min-width: 0; min-height: 0; }
-.pw:not([data-panel="open"]) > .doan-conv-column { display: none; }
 .pw .right.doan-conv-panel { border-left: 0; border-radius: var(--radius-container); }
 /* The header's button stays one element while the panel is open, so focus has a place to come back to on close. A
    deliberate exception to hiding focus targets only visually (POSTMORTEM 2026-11-03): while open it must have no Tab
@@ -1991,4 +2036,4 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .pw-conv[hidden] { display: none; }
 /* The head's title is one line, cut with an ellipsis (.ov-title span's rule): the h2 itself is a flex row. */
 /* The playing frame chip: the frame chip's look, first in the card's chip row, as tall as a chip in the field. */
-.composer-chips > .pw-playing { font-size: var(--type-body-sm-size); line-height: var(--type-label-line-height); margin-inline: 0; }
+.composer-chips > .pw-playing { font-size: var(--type-body-sm-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-body-sm-letter-spacing); margin-inline: 0; }

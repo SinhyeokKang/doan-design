@@ -17,7 +17,7 @@ test("removing a project with a running conversation asks first and names the co
     conversations: ["c1", "c2"],
     title: "Stop the conversation and remove doan-design?",
     body: "A conversation is still running in doan-design. Doan stops it, then removes the project from the list. Files and Git worktrees stay on disk.",
-    cancel: "Cancel", confirm: "Stop and Remove",
+    cancel: "Cancel", confirm: "Stop and remove",
   });
   // Every one waiting for an answer: the confirmation says so.
   expect(removalConfirm([{ conversationId: "c2", waiting: true }], "doan-design", 1).body)
@@ -29,10 +29,10 @@ test("removing a project without a running conversation asks first, naming one w
   expect(removalConfirm([], "doan-design", 1)).toEqual({
     conversations: [],
     title: "Remove doan-design from Doan?",
-    body: "This removes it from Doan's project list only. Files and Git worktrees stay on disk.",
+    body: "This removes it from Doan’s project list only. Files and Git worktrees stay on disk.",
     cancel: "Cancel", confirm: "Remove from Doan",
   });
-  expect(removalConfirm([], "doan-design", 3).body).toBe("This removes its 3 worktrees from Doan's project list only. Files and Git worktrees stay on disk.");
+  expect(removalConfirm([], "doan-design", 3).body).toBe("This removes its 3 worktrees from Doan’s project list only. Files and Git worktrees stay on disk.");
 });
 
 const git = (path: string, extra: { branch?: string; detached?: string } = {}): FolderEntry =>
@@ -78,7 +78,7 @@ test("Edit on Home fills an empty composer without asking; main checks the attac
 });
 
 test("a different draft asks before it is replaced; the same request does not", () => {
-  const dialog = { title: "Replace your draft?", body: "Your draft will be replaced by the last request you sent to doan-design.", cancel: "Keep Draft", confirm: "Replace" };
+  const dialog = { title: "Replace your draft?", body: "Your draft will be replaced by the last request you sent to doan-design.", cancel: "Keep draft", confirm: "Replace" };
   expect(restoreRequest({ text: "Draw an empty state for the billing page.", preset: null, attachments: [] }, LAST, "doan-design").confirm).toEqual(dialog);
   expect(restoreRequest({ text: "", preset: CRITIQUE, attachments: [] }, LAST, "doan-design").confirm).toEqual(dialog);
   expect(restoreRequest({ text: "", preset: null, attachments: [file("b.pdf")] }, LAST, "doan-design").confirm).toEqual(dialog);

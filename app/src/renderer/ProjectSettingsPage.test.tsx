@@ -122,7 +122,7 @@ test("a healthy worktree: header, Token CSS, Shared with canvases and Remove fro
     "Files and Git worktrees stay on disk."]) expect(text()).toContain(copy);
   expect(text()).not.toContain("Root");
   expect(hasButton("Done")).toBe(false);
-  for (const label of ["Show in Finder", "Change", "Clear", "Add File or Folder", "Remove from Doan", "Remove src/components/ui from Shared with canvases", "Remove public/fonts from Shared with canvases"]) expect(hasButton(label), label).toBe(true);
+  for (const label of ["Show in Finder", "Change", "Clear", "Add file or folder", "Remove from Doan", "Remove src/components/ui from Shared with canvases", "Remove public/fonts from Shared with canvases"]) expect(hasButton(label), label).toBe(true);
   expect(all(tree).filter(element => element.type === "main")).toHaveLength(1);
   expect(all(tree).find(element => element.type === "main")!.props.className).toBe("home-panel settings-panel doan-scroll");
   unmount();
@@ -140,7 +140,7 @@ test("Reading: the title and the spinner line, Show in Finder, and neither secti
   expect(text()).toContain("Reading settings");
   expect(text()).not.toContain("in this worktree. Commit it");
   expect(hasButton("Show in Finder")).toBe(true);
-  for (const label of ["Remove from Doan", "Change", "Add File or Folder"]) expect(hasButton(label), label).toBe(false);
+  for (const label of ["Remove from Doan", "Change", "Add file or folder"]) expect(hasButton(label), label).toBe(false);
   expect(byClass("project-settings-loading")[0]!.props.role).toBe("status");
   unmount();
 });
@@ -156,7 +156,7 @@ test("Read failed: one error notice with main's reason and Retry, only the path 
   expect(hasButton("Retry")).toBe(true);
   expect(hasButton("Remove from Doan")).toBe(true);
   expect(hasButton("Show in Finder")).toBe(true);
-  for (const label of ["Change", "Add File or Folder"]) expect(hasButton(label), label).toBe(false);
+  for (const label of ["Change", "Add file or folder"]) expect(hasButton(label), label).toBe(false);
   unmount();
 });
 
@@ -171,7 +171,31 @@ test("Read failed: Retry reads the settings again here, without asking App", asy
   unmount();
 });
 
-test("No token CSS and nothing shared: the empty guidance with Choose, and Add File or Folder alone", async () => {
+// D1: a retry read keeps the failed notice drawn, so the pressed Retry stays mounted with focus, busy with the spinner
+// inside; another failure leaves it in place.
+test("Read failed: while Retry's read is out the notice stays and Retry is busy and aria-disabled; a press does nothing", async () => {
+  doan.readConfig!.mockResolvedValueOnce({ kind: "error", message: "busy" });
+  await open();
+  let answer: (reply: unknown) => void = () => {};
+  doan.readConfig!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  click("Retry"); await flush(); render();
+  expect(text()).toContain("Couldn’t read this worktree’s settings.");
+  expect(text()).not.toContain("Reading settings");
+  const retry = () => all(tree).find(element => element.type === "button" && words(element.props.children) === "Retry")!;
+  expect(retry().props).toMatchObject({ "aria-disabled": true, "aria-busy": true, "data-ui-variant": "panel" });
+  expect(retry().props.disabled).toBeFalsy();
+  expect(all(retry().props.children as ReactNode).some(element => element.props.className === "doan-spinner")).toBe(true);
+  click("Retry");
+  expect(doan.readConfig).toHaveBeenCalledTimes(2);
+  answer({ kind: "error", message: "still busy" });
+  await flush(); render();
+  expect(text()).toContain("Couldn’t read this worktree’s settings.");
+  expect(words(byClass("project-settings-notice-reason")[0]!.props.children)).toBe("still busy");
+  expect(retry().props["aria-busy"]).toBeUndefined();
+  unmount();
+});
+
+test("No token CSS and nothing shared: the empty guidance with Choose, and Add file or folder alone", async () => {
   doan.readConfig!.mockResolvedValue({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: false });
   await open();
   expect(text()).toContain("No token CSS.");
@@ -179,14 +203,14 @@ test("No token CSS and nothing shared: the empty guidance with Choose, and Add F
   expect(hasButton("Choose")).toBe(true);
   for (const label of ["Change", "Clear"]) expect(hasButton(label), label).toBe(false);
   expect(labels().filter(label => label === "Remove")).toHaveLength(0);
-  expect(hasButton("Add File or Folder")).toBe(true);
+  expect(hasButton("Add file or folder")).toBe(true);
   unmount();
 });
 
 // One row per problem tile of the draft ('alt-2-page-problem', 'alt-2-states-problem').
 const PROBLEM_TILES: [string, () => FolderEntry, string, string[], boolean][] = [
   ["Missing", missing, "Doan can’t find this folder, so its settings can’t be read or changed.", ["Locate"], false],
-  ["Not set up", uninitialized, "This folder isn’t set up for Doan yet, so it has no settings to change.", ["Set Up"], true],
+  ["Not set up", uninitialized, "This folder isn’t set up for Doan yet, so it has no settings to change.", ["Set up"], true],
   ["Config error", configError, "Doan couldn’t read this folder’s configuration, so its settings can’t be changed.", ["Retry", "Details"], true],
   ["CLI error", cliError, "Doan couldn’t read this folder, so its settings can’t be read or changed.", ["Retry", "Details"], true],
 ];
@@ -234,7 +258,7 @@ test("recovery buttons hand App the action, the root and a place for feedback", 
   click("Locate");
   expect(props.onAction).toHaveBeenLastCalledWith("locate", ROOT, expect.any(Function));
   render({ entries: [uninitialized()] }); render();
-  click("Set Up");
+  click("Set up");
   expect(props.onAction).toHaveBeenLastCalledWith("setUp", ROOT, expect.any(Function));
   render({ entries: [cliError()] }); render();
   click("Retry");
@@ -265,6 +289,17 @@ test("Config error: Details opens the error under the notice and closes it again
   expect(props.onAction).not.toHaveBeenCalled();
   click("Details"); render();
   expect(text()).not.toContain("unexpected token");
+  unmount();
+});
+
+// U30: the disclosure's label shows its state with ▸/▾, as ErrorDetails does; the name stays "Details".
+test("Details shows ▸ while closed and ▾ while open, and is named Details", async () => {
+  await open({ entries: [configError("~/code/acme-web/.doan/config.json: unexpected token } at line 4, column 3")] });
+  expect(button("Details").props["aria-label"]).toBe("Details");
+  expect(words(button("Details").props.children)).toBe("Details ▸");
+  click("Details"); render();
+  expect(words(button("Details").props.children)).toBe("Details ▾");
+  expect(words(button("Retry").props.children)).toBe("Retry");
   unmount();
 });
 
@@ -313,7 +348,7 @@ test("Change picks, writes the choice and shows Saved in the Token CSS row", asy
   expect(doan.writeConfig).toHaveBeenCalledWith({ root: ROOT, op: "setTokenCss", choiceId: "ch1" });
   expect(statusIn(section("Token CSS"))).toEqual(["Saving"]);
   expect(statusIn(section("Shared with canvases"))).toEqual([]);
-  for (const label of ["Change", "Clear", "Add File or Folder"]) expect(button(label).props.disabled, label).toBe(true);
+  for (const label of ["Change", "Clear", "Add file or folder"]) expect(button(label).props.disabled, label).toBe(true);
   finish({ ...CONFIG, tokenCss: "src/styles/brand.css", changed: true }); await flush(); render();
   expect(statusIn(section("Token CSS"))).toEqual(["Saved"]);
   expect(statusIn(section("Shared with canvases"))).toEqual([]);
@@ -342,9 +377,9 @@ test("a Token CSS pick outside the worktree fails under the Token CSS row, not u
   unmount();
 });
 
-test("Add File or Folder asks first over the page: the title names the path, Cancel writes nothing", async () => {
+test("Add file or folder asks first over the page: the title names the path, Cancel writes nothing", async () => {
   await open();
-  click("Add File or Folder"); await flush(); render();
+  click("Add file or folder"); await flush(); render();
   expect(doan.chooseConfigPath).toHaveBeenCalledWith(ROOT, "serve");
   const dialog = confirmation()!;
   // The title shows the path as code, as the draft does; the dialog's accessible name is the plain sentence.
@@ -356,7 +391,7 @@ test("Add File or Folder asks first over the page: the title names the path, Can
   (dialog.props.answer as (allow: boolean) => void)(false); render();
   expect(confirmation()).toBeUndefined();
   expect(doan.writeConfig).not.toHaveBeenCalled();
-  expect(button("Add File or Folder").props.disabled).toBe(false);
+  expect(button("Add file or folder").props.disabled).toBe(false);
   unmount();
 });
 
@@ -364,7 +399,7 @@ test("the Share confirmation shows a picked path inside the worktree repo-relati
   await open();
   for (const [picked, shown] of [[`${ROOT}/design/brand`, "design/brand"], ["/Users/alex/code/design-kit", "/Users/alex/code/design-kit"]] as const) {
     doan.chooseConfigPath!.mockResolvedValueOnce({ kind: "selected", choiceId: "ch1", path: picked });
-    click("Add File or Folder"); await flush(); render();
+    click("Add file or folder"); await flush(); render();
     const dialog = confirmation()!;
     expect(dialog.props.label).toBe(`Share ${shown} with canvases?`);
     expect(words(dialog.props.title)).toBe(`Share ${shown} with canvases?`);
@@ -376,15 +411,15 @@ test("the Share confirmation shows a picked path inside the worktree repo-relati
   unmount();
 });
 
-test("Share writes the path and Saved shows beside Add File or Folder, not in Token CSS", async () => {
+test("Share writes the path and Saved shows beside Add file or folder, not in Token CSS", async () => {
   let finish: (value: unknown) => void = () => {};
   doan.writeConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   await open();
-  click("Add File or Folder"); await flush(); render();
+  click("Add file or folder"); await flush(); render();
   doan.readConfig!.mockResolvedValue({ ...CONFIG, serve: [...CONFIG.serve, "design/brand"] });
   (confirmation()!.props.answer as (allow: boolean) => void)(true); render();
   expect(doan.writeConfig).toHaveBeenCalledWith({ root: ROOT, op: "addServe", choiceId: "ch1" });
-  const addRow = () => all(tree).find(element => classes(element).includes("doan-preference-row-trailing") && holds(element, "Add File or Folder"))!;
+  const addRow = () => all(tree).find(element => classes(element).includes("doan-preference-row-trailing") && holds(element, "Add file or folder"))!;
   expect(statusIn(addRow())).toEqual(["Saving"]);
   expect(statusIn(section("Token CSS"))).toEqual([]);
   finish({ ...CONFIG, serve: [...CONFIG.serve, "design/brand"], changed: true }); await flush(); render();
@@ -397,13 +432,13 @@ test("Share writes the path and Saved shows beside Add File or Folder, not in To
 test("a refused Shared write fails under the list, and an unavailable pick asks to choose again", async () => {
   doan.writeConfig!.mockResolvedValue({ kind: "error", message: "../design-kit is outside this worktree" });
   await open();
-  click("Add File or Folder"); await flush(); render();
+  click("Add file or folder"); await flush(); render();
   (confirmation()!.props.answer as (allow: boolean) => void)(true); await flush(); render();
   const alerts = (container: ReactElement<Record<string, unknown>>) => all(container.props.children as ReactNode).filter(element => element.props.role === "alert").map(element => words(element.props.children));
   expect(alerts(section("Shared with canvases"))).toEqual(["../design-kit is outside this worktree. Choose a file or folder inside acme-web."]);
   expect(alerts(section("Token CSS"))).toEqual([]);
   doan.chooseConfigPath!.mockResolvedValueOnce({ kind: "unavailable" });
-  click("Add File or Folder"); await flush(); render();
+  click("Add file or folder"); await flush(); render();
   expect(alerts(section("Shared with canvases"))).toEqual(["This worktree changed. Choose again."]);
   expect(text()).not.toContain("Home");
   unmount();
@@ -422,7 +457,7 @@ test("the page is locked while it picks, confirms or writes, and released after"
   doan.writeConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   await open();
   expect(onState()).toEqual([]);
-  click("Add File or Folder"); render();
+  click("Add file or folder"); render();
   expect(onState()).toEqual([true]);
   pick({ kind: "selected", choiceId: "ch1", path: "design/brand" }); await flush(); render();
   expect(onState()).toEqual([true]);
@@ -436,9 +471,9 @@ test("the page is locked while it picks, confirms or writes, and released after"
 test("a cancelled pick or a cancelled confirmation releases the lock", async () => {
   doan.chooseConfigPath!.mockResolvedValueOnce({ kind: "cancelled" });
   await open();
-  click("Add File or Folder"); render(); await flush(); render();
+  click("Add file or folder"); render(); await flush(); render();
   expect(onState()).toEqual([true, false]);
-  click("Add File or Folder"); await flush(); render();
+  click("Add file or folder"); await flush(); render();
   (confirmation()!.props.answer as (allow: boolean) => void)(false); render();
   expect(onState()).toEqual([true, false, true, false]);
   unmount();
@@ -457,8 +492,8 @@ test("Show in Finder and Remove from Doan are not locked, but every control that
   let pick: (value: unknown) => void = () => {};
   doan.chooseConfigPath!.mockImplementationOnce(() => new Promise(resolve => { pick = resolve; }));
   await open();
-  click("Add File or Folder"); render();
-  for (const label of ["Change", "Clear", "Add File or Folder", "Remove public/fonts from Shared with canvases"]) expect(button(label).props.disabled, label).toBe(true);
+  click("Add file or folder"); render();
+  for (const label of ["Change", "Clear", "Add file or folder", "Remove public/fonts from Shared with canvases"]) expect(button(label).props.disabled, label).toBe(true);
   for (const label of ["Show in Finder", "Remove from Doan"]) expect(button(label).props.disabled, label).toBeFalsy();
   pick({ kind: "cancelled" }); await flush(); render();
   unmount();
@@ -470,10 +505,10 @@ test("Show in Finder and Remove from Doan are not locked, but every control that
 // starting a pick or a write; the handlers refuse it themselves.
 test("a press that reaches a control behind an open Share confirmation starts no pick and no write", async () => {
   await open();
-  click("Add File or Folder"); await flush(); render();
+  click("Add file or folder"); await flush(); render();
   expect(confirmation()).toBeDefined();
   doan.chooseConfigPath!.mockClear();
-  for (const label of ["Change", "Add File or Folder"]) { click(label); await flush(); render(); }
+  for (const label of ["Change", "Add file or folder"]) { click(label); await flush(); render(); }
   expect(doan.chooseConfigPath).not.toHaveBeenCalled();
   for (const label of ["Clear", "Remove public/fonts from Shared with canvases"]) { click(label); await flush(); render(); }
   expect(doan.writeConfig).not.toHaveBeenCalled();
@@ -485,10 +520,10 @@ test("a press that reaches a control behind an open Share confirmation starts no
 
 test("the controls behind an open Share confirmation are drawn enabled, and the lock stays", async () => {
   await open();
-  click("Add File or Folder"); await flush(); render();
+  click("Add file or folder"); await flush(); render();
   expect(confirmation()).toBeDefined();
   expect(onState()).toEqual([true]);
-  for (const label of ["Change", "Clear", "Add File or Folder", "Remove public/fonts from Shared with canvases", "Show in Finder", "Remove from Doan"]) expect(button(label).props.disabled, label).toBeFalsy();
+  for (const label of ["Change", "Clear", "Add file or folder", "Remove public/fonts from Shared with canvases", "Show in Finder", "Remove from Doan"]) expect(button(label).props.disabled, label).toBeFalsy();
   unmount();
 });
 
@@ -506,7 +541,7 @@ test("a completed write does not move focus behind an open confirmation", async 
   const guard = { role: "alertdialog", open: true };
   Object.assign(document, { querySelector: (selector: string) => selector === 'dialog[role="alertdialog"][open]' ? guard : null });
   finish({ ...CONFIG, tokenCss: null, changed: true }); await flush(); render();
-  expect(button("Add File or Folder").props.disabled).toBeFalsy();
+  expect(button("Add file or folder").props.disabled).toBeFalsy();
   expect(change.focus).not.toHaveBeenCalled();
   unmount();
 });
@@ -526,9 +561,9 @@ test("a write that finishes while the confirmation is open (Share pressed, then 
   doan.writeConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   await open();
   const add = { focus: vi.fn() };
-  (button("Add File or Folder").props.ref as { current: unknown }).current = add;
+  (button("Add file or folder").props.ref as { current: unknown }).current = add;
   const pressed = node(); focusOn(pressed);
-  click("Add File or Folder"); await flush(); render();
+  click("Add file or folder"); await flush(); render();
   const guard = { role: "alertdialog", open: true };
   Object.assign(document, { querySelector: (selector: string) => selector === 'dialog[role="alertdialog"][open]' ? guard : null });
   focusOn(document.body);
@@ -540,7 +575,7 @@ test("a write that finishes while the confirmation is open (Share pressed, then 
 
 test("a confirmation open when the worktree turns into a problem is cancelled, and focus goes to the title", async () => {
   await open();
-  click("Add File or Folder"); await flush(); render();
+  click("Add file or folder"); await flush(); render();
   expect(confirmation()).toBeDefined();
   expect(onState()).toEqual([true]);
   const title = { focus: vi.fn() };
@@ -558,7 +593,7 @@ test("a picker answered after the worktree turned into a problem opens nothing",
   let pick: (value: unknown) => void = () => {};
   doan.chooseConfigPath!.mockImplementationOnce(() => new Promise(resolve => { pick = resolve; }));
   await open();
-  click("Add File or Folder"); render();
+  click("Add file or folder"); render();
   render({ entries: [missing()] }); render();
   pick({ kind: "selected", choiceId: "ch1", path: "design/brand" }); await flush(); render();
   expect(confirmation()).toBeUndefined();
@@ -581,7 +616,7 @@ test("a healthy worktree that turns missing switches the same page to its notice
 
 test("a worktree that leaves the list reports it once and drops an open confirmation", async () => {
   await open();
-  click("Add File or Folder"); await flush(); render();
+  click("Add file or folder"); await flush(); render();
   render({ entries: [] }); render();
   expect(props.onGone).toHaveBeenCalledTimes(1);
   expect(confirmation()).toBeUndefined();
@@ -674,12 +709,12 @@ test("after Clear, focus goes to Choose, the Token CSS row's main button", async
   unmount();
 });
 
-test("after removing a path, focus goes to the next path's Remove, not Add File or Folder", async () => {
+test("after removing a path, focus goes to the next path's Remove, not Add file or folder", async () => {
   await open();
   const removes = new Map<string, { focus: ReturnType<typeof vi.fn> }>();
   for (const path of CONFIG.serve) { const target = { focus: vi.fn() }; removes.set(path, target); (button(`Remove ${path} from Shared with canvases`).props.ref as (node: unknown) => void)(target); }
   const add = { focus: vi.fn() };
-  (button("Add File or Folder").props.ref as { current: unknown }).current = add;
+  (button("Add file or folder").props.ref as { current: unknown }).current = add;
   doan.writeConfig!.mockResolvedValue({ ...CONFIG, serve: ["public/fonts"], changed: true });
   doan.readConfig!.mockResolvedValue({ ...CONFIG, serve: ["public/fonts"], changed: false });
   focusOn(node(false));
@@ -689,34 +724,34 @@ test("after removing a path, focus goes to the next path's Remove, not Add File 
   unmount();
 });
 
-test("after removing the last path, focus goes to Add File or Folder", async () => {
+test("after removing the last path, focus goes to Add file or folder", async () => {
   doan.readConfig!.mockResolvedValueOnce({ ...CONFIG, serve: ["only/path"] }).mockResolvedValue({ ...CONFIG, serve: [] });
   doan.writeConfig!.mockResolvedValue({ ...CONFIG, serve: [], changed: true });
   await open();
   const add = { focus: vi.fn() };
-  (button("Add File or Folder").props.ref as { current: unknown }).current = add;
+  (button("Add file or folder").props.ref as { current: unknown }).current = add;
   focusOn(node(false));
   click("Remove only/path from Shared with canvases"); render(); await flush(); render();
   expect(add.focus).toHaveBeenCalledTimes(1);
   unmount();
 });
 
-test("closing the Share confirmation with Cancel returns focus to Add File or Folder", async () => {
+test("closing the Share confirmation with Cancel returns focus to Add file or folder", async () => {
   await open();
   const add = node(); focusOn(add);
-  (button("Add File or Folder").props.ref as { current: unknown }).current = add;
-  click("Add File or Folder"); render(); await flush(); render();
+  (button("Add file or folder").props.ref as { current: unknown }).current = add;
+  click("Add file or folder"); render(); await flush(); render();
   focusOn(document.body);
   (confirmation()!.props.answer as (allow: boolean) => void)(false); render();
   expect(add.focus).toHaveBeenCalledTimes(1);
   unmount();
 });
 
-test("after Share, focus returns to Add File or Folder once the write has settled", async () => {
+test("after Share, focus returns to Add file or folder once the write has settled", async () => {
   await open();
   const add = node(); focusOn(add);
-  (button("Add File or Folder").props.ref as { current: unknown }).current = add;
-  click("Add File or Folder"); render(); await flush(); render();
+  (button("Add file or folder").props.ref as { current: unknown }).current = add;
+  click("Add file or folder"); render(); await flush(); render();
   focusOn(document.body);
   (confirmation()!.props.answer as (allow: boolean) => void)(true); render(); await flush(); render();
   expect(add.focus).toHaveBeenCalledTimes(1);
@@ -738,7 +773,7 @@ test("a picker answered after the worktree left the list opens no confirmation a
   let pick: (value: unknown) => void = () => {};
   doan.chooseConfigPath!.mockImplementationOnce(() => new Promise(resolve => { pick = resolve; }));
   await open();
-  click("Add File or Folder"); render();
+  click("Add file or folder"); render();
   render({ entries: [] }); render();
   expect(props.onGone).toHaveBeenCalledTimes(1);
   pick({ kind: "selected", choiceId: "ch1", path: "design/brand" }); await flush(); render();
@@ -893,7 +928,7 @@ test("a worktree not set up in a project kept out of Git says why it has no Doan
   const local: FolderEntry = { path: ROOT, kind: "list", servedRev: 0, canvases: [], storage: "local", git: { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT, other] } };
   await open({ root: other, entries: [local, uninitialized(other)] });
   expect(words(notice()!.props.children)).toContain("This project keeps its Doan files out of Git, so this worktree doesn’t have them yet. Set it up to use Doan here.");
-  expect(hasButton("Set Up")).toBe(true);
+  expect(hasButton("Set up")).toBe(true);
   resetHooks();
   await open({ root: other, entries: [listed(), uninitialized(other)] });
   expect(words(notice()!.props.children)).toContain("This folder isn’t set up for Doan yet, so it has no settings to change.");
@@ -1038,7 +1073,7 @@ test("selectable: a save error under a section", async () => {
 
 test("selectable: the Share confirmation's description path, not its title", async () => {
   await open();
-  click("Add File or Folder"); await flush(); render();
+  click("Add file or folder"); await flush(); render();
   const dialog = confirmation()!;
   const code = (node: unknown) => all(node as ReactNode).find(element => element.type === "code")!;
   expect(code(dialog.props.description).props.className).toBe("selectable");
@@ -1062,9 +1097,9 @@ test("selectable: the untrack command and the copy-failed alert, not the Copy bu
 });
 
 // Draft keep-out-git-init, frame project-settings: outside Git, Keep out of Git creates the repository, so that one
-// press asks first with the Share confirmation's dialog; Create Repository writes `--git-init`.
+// press asks first with the Share confirmation's dialog; Create repository writes `--git-init`.
 const OUTSIDE = { storage: "repo", storageReason: "not_git" };
-const createDialog = () => all(tree).find(element => element.type === SettingsDialog && element.props.verb === "Create Repository");
+const createDialog = () => all(tree).find(element => element.type === SettingsDialog && element.props.verb === "Create repository");
 const answer = (allow: boolean) => (createDialog()!.props.answer as (allow: boolean) => void)(allow);
 test("outside Git, Keep out of Git is open and says it creates the repository, as information", async () => {
   doan.readConfig!.mockImplementation(withStorage(OUTSIDE));
@@ -1103,7 +1138,7 @@ test("Cancel (or Escape) writes nothing, releases the lock and returns focus to 
   expect(repo.focus).toHaveBeenCalled();
 });
 
-test("Create Repository writes with --git-init, and Saved says the repository was created", async () => {
+test("Create repository writes with --git-init, and Saved says the repository was created", async () => {
   doan.readConfig!.mockImplementation(withStorage(OUTSIDE));
   await open();
   const local = { focus: vi.fn() };

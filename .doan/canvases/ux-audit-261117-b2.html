@@ -1,0 +1,512 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="ux-audit-261117-b2"><meta name="doan:width" content="1680"><title>ux-audit-261117-b2 — focus and busy controls</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/ds-canvas.css"><style>
+:root { --radix-dropdown-menu-content-available-height: 384px; }
+
+/* ── Restated from app/src/renderer/styles.css at develop 366993b72 (canvases cannot link it). Only the rules these
+   frames draw; values copied as they are, literals included. :hover → .is-hover. ── */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.chev { width: var(--space-4); height: var(--space-4); color: var(--text-metadata); }
+/* styles.css:390 — the busy verb in a dialog */
+.doan-dialog-actions .doan-button > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
+/* styles.css:253, 406-409, 415, 423-424 */
+.ob-dialog-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.ob-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--affordance-subtle); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); white-space: nowrap; }
+.ob-chip.warn { background: var(--affordance-warning); color: var(--text-warning); }
+.ob-project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+/* styles.css:432, 436, 438 — toast */
+.toast { position: absolute; right: var(--space-4); bottom: var(--space-4); z-index: 6; }
+.toast .msg { min-width: 0; overflow-wrap: anywhere; }
+.toast .doan-button[data-disabled].is-hover { background: var(--affordance-disabled); }
+/* styles.css:745, 751, 773-777, 794 — composer */
+.composer-tools { position: relative; display: flex; align-items: center; gap: var(--space-1); margin-left: calc(-1 * var(--space-1)); }
+.composer-tools .grow { flex: 1; }
+.composer-send .doan-spinner { color: var(--text-on-accent); }
+/* styles.css:1301-1306 — background work line */
+.conversation-thread .bg-line { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; column-gap: var(--space-2); row-gap: var(--space-2); min-width: 0; color: var(--text-metadata); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
+.conversation-thread .bg-line .bg-icon { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-metadata); margin-block: calc((var(--type-label-line-height) - var(--size-icon-sm)) / 2); }
+.conversation-thread .bg-line .bg-text { min-width: 0; overflow-wrap: anywhere; }
+.conversation-thread .bg-line .bg-stop { grid-column: 2; justify-self: start; color: var(--text-standard); }
+.conversation-thread .bg-line .bg-stop .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .bg-line .bg-stop[data-disabled] { color: var(--text-disabled); }
+/* styles.css:1101-1106, 1127, 1150, 1156-1158, 1818 — Settings and Project Settings */
+.settings-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); overflow-wrap: anywhere; }
+.settings-msg.error { color: var(--text-danger); }
+.settings-loading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); }
+.project-settings-grow { flex: 1; min-width: 0; }
+.project-settings-notice-actions { flex: none; display: flex; gap: var(--space-2); }
+.project-settings-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); overflow-wrap: anywhere; }
+.project-settings-loading { padding-inline: calc(var(--space-4) + 1px); }
+/* styles.css:1315-1317, 1324, 1326, 1331-1332, 1510, 1517-1518 — Overview and panel heads */
+.ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
+.ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: none; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-project-name { font-weight: var(--type-weight-medium); }
+.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-title-wrap { display: flex; min-width: 0; }
+.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doan-conv-head { display: flex; align-items: center; min-height: var(--size-chrome); padding-right: var(--space-2); }
+.doan-conv-title { flex: 1; min-width: 0; padding: var(--space-2) 0 var(--space-2) var(--space-2); }
+.doan-conv-title .ov-title.doan-button { max-width: 100%; }
+/* The trigger's shipped hover fill (ds/controls.css), drawn with .is-hover. */
+.doan-button[data-ui-variant="trigger"].is-hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
+/* styles.css:587, 607, 610, 676, 680, 693-699, 719 (menu item part), 722, 724, 741, 863, 882-883, 897, 900-902 — Home pickers */
+.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
+.hue-emerald { background: color-mix(in srgb, var(--identity-project-emerald) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-emerald) 65%, var(--text-standard)); }
+.hue-indigo { background: color-mix(in srgb, var(--identity-project-indigo) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-indigo) 65%, var(--text-standard)); }
+.shell-project-menu { width: 204px; max-width: calc(100vw - 16px); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; }
+.shell-project-menu .doan-menu-item { display: flex; gap: 8px; align-items: center; }
+.shell-worktree[aria-current="true"] { background: var(--affordance-backdrop-pressed); }
+.shell-project-menu svg { width: 16px; height: 16px; flex: none; }
+.shell-project-menu .doan-menu-item > svg:first-child { color: var(--text-subtle); }
+.shell-worktree > span { min-width: 0; flex: 1; }
+.shell-worktree > .ob-chip { flex: none; }
+.shell-worktree > span > span, .shell-worktree small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-worktree small { margin-top: 4px; color: var(--text-metadata); font-size: 11px; line-height: 14px; }
+.doan-menu-item[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+.doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }
+.shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }
+.project-item .shell-thumbnail { width: var(--size-icon-lg); height: var(--size-icon-lg); border-radius: 5px; font-size: 11px; line-height: var(--size-icon-lg); }
+.project-popover { width: 320px; }
+.project-item { display: flex; align-items: center; gap: var(--space-2); }
+.model-name { flex: 1; min-width: 0; }
+.check-slot { display: inline-flex; width: var(--size-icon); justify-content: center; }
+.check-slot > svg { height: var(--size-icon); }
+.project-popover .doan-menu-item > svg { width: var(--size-icon); height: var(--size-icon); }
+.menu-note { padding: var(--space-1) var(--space-3) var(--space-2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+
+/* ── B2 to be: not in code. Scoped to .tobe so the As is columns keep the shipped look. ── */
+/* U28: one busy-in-button spinner rule (14 px, currentColor ring at 30 %, full-ink quarter). */
+.tobe :is(.doan-button, .doan-icon-button) > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
+/* U28: styles.css:794 is deleted; left in place it would set the spinner's own color to --text-on-accent (white on the grey fill). */
+.tobe .composer-send .doan-spinner { color: inherit; }
+/* U10: the title trigger while the list loads, aria-disabled in all three heads; no hover or press fill. */
+.tobe .ov-title.doan-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+.tobe .ov-title.doan-button[data-ui-variant="trigger"][aria-disabled="true"]:is(:hover, :active, .is-hover) { background: transparent; }
+/* D15: the unavailable cursor is default. */
+.tobe :is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled], [aria-disabled="true"]) { cursor: default; }
+
+/* ── Board (canvas-only layout, not app CSS) ── */
+html, body { height: auto; overflow: visible; }
+body { width: 1680px; padding: var(--space-8); background: var(--surface-inset); user-select: text; }
+.intro { max-width: 1240px; padding: var(--space-4) 0 var(--space-10); }
+.intro h1 { margin-top: var(--space-4); font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); }
+.intro p { margin-top: var(--space-4); color: var(--text-subtle); }
+[data-doan-frame] { width: 1616px; padding: var(--space-8); border-radius: var(--radius-container); background: var(--bg-app); }
+[data-doan-frame] + [data-doan-frame] { margin-top: var(--space-16); }
+.fhead { display: flex; flex-direction: column; gap: var(--space-2); max-width: 1240px; margin-bottom: var(--space-6); }
+.fhead h2 { display: flex; align-items: center; gap: var(--space-2); font-size: var(--type-body-lg-size); line-height: var(--type-body-lg-line-height); letter-spacing: var(--type-body-lg-letter-spacing); font-weight: var(--type-weight-medium); }
+.fhead p { color: var(--text-subtle); }
+code { padding: 0 var(--space-1); border-radius: var(--space-1); background: var(--surface-inset); color: var(--text-standard); font-size: var(--type-caption-size); }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-8); }
+.colhead { display: flex; align-items: center; gap: var(--space-2); padding-bottom: var(--space-2); border-bottom: 1px solid var(--border-standard); font-weight: var(--type-weight-medium); }
+.case { grid-column: 1 / -1; margin-top: var(--space-6); color: var(--text-standard); font-weight: var(--type-weight-medium); }
+.case small { margin-left: var(--space-2); color: var(--text-metadata); font-weight: var(--type-weight-regular); font-size: var(--type-caption-size); }
+.cell { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); min-width: 0; }
+.steps { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; }
+.step { display: flex; flex-direction: column; gap: var(--space-2); }
+.lbl { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.fx { color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); max-width: 520px; }
+.fx.bad { color: var(--text-danger); }
+.note { margin-top: var(--space-8); padding: var(--space-5) var(--space-6); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); }
+.note h3 { margin: var(--space-4) 0 var(--space-1); color: var(--text-standard); font-weight: var(--type-weight-medium); }
+.note h3:first-child { margin-top: 0; }
+.note ul, .note ol { padding-left: var(--space-5); }
+.note ul { list-style: disc; }
+.note ol { list-style: decimal; }
+.note li + li { margin-top: var(--space-1); }
+.note b { color: var(--text-standard); font-weight: var(--type-weight-medium); }
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th, .tbl td { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-standard); text-align: left; vertical-align: top; }
+.tbl th { color: var(--text-metadata); font-weight: var(--type-weight-regular); font-size: var(--type-caption-size); }
+/* Dialogs drawn in place: no modal positioning, no viewport-height cap. */
+.doan-dialog[open] { position: static; inset: auto; margin: 0; max-height: none; }
+/* A white surface for a crop of a screen. */
+.surface { position: relative; padding: var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); }
+.surface.settings { width: 716px; padding: var(--space-6); }
+.toast-stage { position: relative; width: 440px; height: 100px; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); }
+.menu-stage { display: flex; gap: var(--space-6); align-items: flex-start; }
+.head-stage { width: 400px; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); }
+/* Where focus stays: the shared ring drawn statically. */
+[data-focus="ring"] { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+[data-focus="inset"] { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.thread-crop { width: 400px; }
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><!-- source: lucide-react icons used by the components cited (CircleAlert, ChevronDown, Check, Plus, GitBranch, ArrowUp, Terminal) -->
+<symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+<symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+<symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></symbol>
+</svg>
+
+<header class="intro"><span class="doan-chip" data-ui-variant="translucent">ux-audit-261117 · batch B2 · fix/ux-focus-busy</span>
+<h1>B2 · Focus and busy controls: as is / to be</h1>
+<p>The to-be reference for batch B2 of <code>docs/features/ux-audit-261117/report.md</code> (section 7). As is is drawn from the code at develop <code>366993b72</code> with the shipped classes and the restated <code>styles.css</code> rules; To be follows the section 6 decisions. <b>Every To be column is a proposal that is not in code yet.</b> Behaviour (focus, keyboard reach, cursor) is written in the notes and numbered steps; nothing here animates except the shipped spinner.</p>
+</header>
+
+<!-- ───────────────────────────── Index ───────────────────────────── -->
+<section data-doan-frame="index" data-doan-title="Index · B2 focus and busy controls">
+<div class="fhead"><h2>Index</h2><p><b>To be is not in code yet</b>: each To be column carries a “Not in code” tag. As is cites the code at develop <code>366993b72</code>. Focus-loss claims are static traces; the report (section 1) leaves them for this batch’s <code>/runtime-test</code>.</p><p data-doan-id="index-retry-rule"><b>Running Retry (lead decision, all B canvases)</b>: a Retry inside a notice or a page keeps its fill and its “Retry” label while it runs, with the spinner inside, <code>aria-busy</code> and <code>aria-disabled</code> (the D1 pattern, e.g. Project Settings Retry in <code>d1-u9-busy-confirm</code>). Only the toast’s Retry changes its label to “Retrying” on the disabled fill (<code>u28-busy-spinner</code>).</p></div>
+<table class="tbl" data-doan-id="index-table">
+<thead><tr><th>ID</th><th>Change</th><th>Affected screens</th><th>Frame</th></tr></thead>
+<tbody>
+<tr><td>D1 · U9</td><td>A busy confirm or recovery button keeps its fill, shows the 14 px spinner inside, and is <code>aria-busy</code> + <code>aria-disabled</code> (focus stays), as <code>SettingsDialog</code> does. The first-run Stop alert is out of scope: it has no busy period.</td><td>Conversation Delete alert; Set Up dialog; Settings › MCP Add server; Antigravity paste dialog; Project Settings Retry; Settings › About Check for Updates</td><td><code>d1-u9-busy-confirm</code></td></tr>
+<tr><td>U10</td><td>The conversation title trigger while the list loads: <code>aria-disabled</code> with the disabled ink and no hover fill in all three heads; the menu stays closed.</td><td>Project Overview head; canvas conversation panel head; prototype window panel head</td><td><code>u10-title-trigger-loading</code></td></tr>
+<tr><td>U11</td><td>Unavailable rows in Home’s project and worktree pickers stay reachable by the arrow keys: <code>aria-disabled</code>, the project row’s reason line linked with <code>aria-describedby</code> (a worktree row’s name already holds its chip), selection ignored and the menu kept open.</td><td>Home composer: project picker, worktree picker</td><td><code>u11-home-picker-unavailable</code></td></tr>
+<tr><td>U28</td><td>One rule for a spinner inside a button: <code>:is(.doan-button, .doan-icon-button) &gt; .doan-spinner</code>, 14 px, <code>currentColor</code> ring at 30 %, full-ink quarter.</td><td>Home and docked Send; Retry toast; thread background Stop; dialog busy verbs; question Send; problem overlay; Agent usage Refresh; context ring Refresh; update header button</td><td><code>u28-busy-spinner</code></td></tr>
+<tr><td>D15</td><td>Unavailable controls use the default cursor; every <code>not-allowed</code> rule (and the unavailable Pick’s pointer) changes.</td><td>All screens with disabled buttons, inputs, checkboxes; canvas toolbar; docked Attach and Pick; prototype Export; export viewer</td><td><code>d15-unavailable-cursor</code></td></tr>
+<tr><td>U4</td><td>Behaviour only. Escape in Home’s “Replace your draft?” runs the same handler as Keep Draft, so focus returns to the composer.</td><td>Home composer</td><td>this frame (steps below)</td></tr>
+<tr><td>U5</td><td>Behaviour only. Zoom out / Zoom in and Back / Forward become <code>aria-disabled</code> + a no-op click guard at their limit, so focus stays.</td><td>Canvas header zoom; main window Back / Forward; prototype window Back / Forward; export viewer zoom</td><td>this frame (steps below)</td></tr>
+</tbody></table>
+<div class="note" data-doan-id="index-u4-u5">
+<h3>U4 · Home “Replace your draft?”: Escape returns focus (no drawing)</h3>
+<ul><li><b>Evidence</b>: <code>HomeComposerView.tsx:594</code> <code>onCancel</code> (Escape) runs only <code>setConfirm(null)</code>; Keep Draft at <code>:596</code> runs <code>setConfirm(null); queueMicrotask(focusEnd)</code>. Every other modal routes Escape and Cancel through one handler (<code>ConversationDeleteDialog.tsx:56,60</code>, <code>SettingsDialog.tsx:19-22</code>). Copy from <code>homeConversations.ts:86</code>.</li>
+<li><b>Change</b>: <code>onCancel</code> calls the Keep Draft handler. Report side note, not decided: this is the only confirmation without <code>role="alertdialog"</code> / <code>aria-describedby</code>; left to the conductor.</li></ul>
+<ol><li>On Home, type a draft (“abc”) in the composer.</li><li>In the Home strip, press Edit on a failed conversation whose last request differs from the draft: “Replace your draft?” opens with Keep Draft focused.</li><li>Press Escape: the dialog closes, focus is in the composer field with the caret at the end, the draft still reads “abc”.</li><li>Repeat with Keep Draft: same result (today’s behaviour, the reference).</li></ol>
+<h3>U5 · Zoom and Back / Forward keep focus at their limit (no drawing)</h3>
+<ul><li><b>Evidence</b>: <code>CanvasHeader.tsx:161,179</code> (<code>disabled={view.zoomOut.disabled}</code>, limits <code>zoomControl.ts:41-42</code>); <code>App.tsx:2537</code> Back <code>disabled={!back}</code> (it already has <code>aria-disabled={unavailable}</code> for the locked page) and Forward <code>disabled={!forward}</code>; <code>prototype/PrototypeWindow.tsx:489-490</code>; export viewer <code>cli/internal/export/viewer/shell.js:243-245</code> with <code>lib.js:392-393</code>. Rule: <code>docs/design/canvas.md:121</code> “<code>aria-disabled</code> (never <code>disabled</code>)”; POSTMORTEM 2026-11-13.</li>
+<li><b>Change</b>: at the limit the button is <code>aria-disabled="true"</code> and its click does nothing; it keeps the disabled ink and no hover or press fill. The main window already has that ink rule (<code>styles.css:719-720</code>, <code>.shell-top .shell-history</code>); the canvas header zoom, the prototype header (check that its <code>.shell-history</code> is under a matching selector) and the viewer (<code>shell.css:183</code> styles only <code>:disabled</code>) need one. Keep native <code>disabled</code> where the whole control is unavailable: the canvas header with no canvas (<code>canvas.md:16</code>) and the viewer before it is ready (<code>zoomView</code> <code>!ready</code>). Cursor default (D15).</li></ul>
+<ol><li>Canvas page: Tab to Zoom out, press Space until the minimum: focus stays on Zoom out (ring visible), it reads unavailable, Space does nothing; Tab moves on to the zoom value. Same for Zoom in at the maximum.</li><li>Main window: open two canvases in turn, focus Back, press Space twice: after the first visit Back stays focused and unavailable; Forward is now available.</li><li>Prototype window: navigate two frames, then Back by keyboard to the first: focus stays on Back.</li><li>Exported viewer (<code>doan export</code>): Zoom out by keyboard to the minimum: focus stays on the button.</li><li>In each case read <code>document.activeElement</code>: it is the pressed button, never <code>&lt;body&gt;</code>.</li></ol>
+</div>
+</section>
+
+<!-- ───────────────────────────── D1 · U9 ───────────────────────────── -->
+<section data-doan-frame="d1-u9-busy-confirm" data-doan-title="D1·U9 · Busy confirm buttons" data-doan-implements="app/src/renderer/ConversationDeleteDialog.tsx">
+<div class="fhead"><h2>D1 · U9 · Busy confirm and recovery buttons</h2><p>One pattern while a request is out, from <code>SettingsDialog.tsx:25-26</code> (<code>docs/design/shell.md:203</code> “Focus must not fall out of a modal alert; the pressed action reads as working, not unavailable”): the pressed button keeps its fill, shows the spinner first, has <code>aria-busy="true"</code> and <code>aria-disabled="true"</code>, and its handler does nothing. In a dialog, Cancel takes the DS disabled look (<code>aria-disabled</code> + <code>data-disabled</code>) where Cancel is refused today. The spinner is drawn with U28’s rule.</p></div>
+<div class="cols">
+<div class="colhead">As is</div><div class="colhead">To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></div>
+
+<div class="case">1 · Conversation Delete, request out <small>ConversationDeleteDialog.tsx:63-66</small></div>
+<div class="cell">
+<dialog open class="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="d1a-del-t" aria-describedby="d1a-del-b" data-doan-id="d1-delete-asis">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" id="d1a-del-t">Delete “Fix the hero spacing”?</h3><p class="doan-dialog-description" id="d1a-del-b">Doan deletes this conversation from this device. Claude Code’s own session files stay. You can’t undo this.</p></div></div>
+<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" aria-disabled="true" data-disabled="">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" aria-disabled="true" data-disabled="" data-focus="ring">Delete</button></div>
+</dialog>
+<p class="fx">Delete takes the disabled fill and ink (<code>data-disabled</code>, <code>controls.css:122</code>): it reads unavailable. No spinner, no <code>aria-busy</code>. Focus already stays.</p>
+</div>
+<div class="cell tobe">
+<dialog open class="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="d1b-del-t" aria-describedby="d1b-del-b" data-doan-id="d1-delete-tobe">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" id="d1b-del-t">Delete “Fix the hero spacing”?</h3><p class="doan-dialog-description" id="d1b-del-b">Doan deletes this conversation from this device. Claude Code’s own session files stay. You can’t undo this.</p></div></div>
+<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" aria-disabled="true" data-disabled="">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" aria-disabled="true" aria-busy="true" data-focus="ring"><span class="doan-spinner" aria-hidden="true"></span>Delete</button></div>
+</dialog>
+<p class="fx">While <code>pending</code>: prominent fill, spinner, <code>aria-busy</code>, <code>aria-disabled</code>, no <code>data-disabled</code>. The <code>reason</code> case (the conversation started working) keeps today’s disabled look: it is unavailable, not busy.</p>
+</div>
+
+<div class="case">2 · Stop alert before sign-in or sign-out (first run, Settings › Agents) <small>Onboarding.tsx:144-152 · agentStep.ts:157-161</small></div>
+<div class="cell">
+<dialog open class="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="d1a-stop-t" aria-describedby="d1a-stop-b" data-doan-id="d1-stop-asis">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" id="d1a-stop-t">Stop Claude Code conversations?</h3><p class="doan-dialog-description" id="d1a-stop-b">Claude Code is running a conversation. Signing in again stops it. Your conversation history stays.</p></div></div>
+<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-focus="ring">Stop and sign in</button></div>
+</dialog>
+<p class="fx bad">No busy state is ever drawn: the confirm is <code>disabled={busy}</code>, but both callers pass <code>busy={false}</code> (<code>Onboarding.tsx:229</code>, <code>SettingsAgents.tsx:159</code>) and <code>confirmStop</code> closes the alert before the request. Drawn: the alert at the moment of the press.</p>
+</div>
+<div class="cell" data-doan-id="d1-stop-out-of-scope">
+<p class="fx"><b>Not in scope</b>: no busy state — the alert closes before the request (<code>agentStep.ts:157-161</code>); unchanged. As is is kept for reference only.</p>
+</div>
+
+<div class="case">3 · Set Up dialog, setting up <small>ProjectSetupDialog.tsx:102-104 · fields omitted</small></div>
+<div class="cell">
+<dialog open class="ob-dialog setup-dialog doan-dialog doan-scroll" aria-label="Set Up Project" aria-busy="true" data-doan-id="d1-setup-asis">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up doan-site</h3><p class="doan-dialog-description ob-project-path">/Users/me/code/doan-site</p></div></div>
+<p class="lbl">… Doan files choice and the changes list (unchanged) …</p>
+<div class="ob-buttons doan-dialog-actions"><button type="button" class="btn doan-button" data-ui-variant="subtle" disabled>Cancel</button><button type="button" class="btn primary doan-button" data-ui-variant="prominent" disabled>Setting Up</button></div>
+</dialog>
+<p class="fx bad">Both natively <code>disabled</code>: disabled fills, label “Setting Up”, no spinner. The pressed button loses focus (static trace: to <code>&lt;body&gt;</code>), and after a failed set-up nothing refocuses (<code>:84-88</code>).</p>
+</div>
+<div class="cell tobe">
+<dialog open class="ob-dialog setup-dialog doan-dialog doan-scroll" aria-label="Set Up Project" aria-busy="true" data-doan-id="d1-setup-tobe">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up doan-site</h3><p class="doan-dialog-description ob-project-path">/Users/me/code/doan-site</p></div></div>
+<p class="lbl">… Doan files choice and the changes list (unchanged) …</p>
+<div class="ob-buttons doan-dialog-actions"><button type="button" class="btn doan-button" data-ui-variant="subtle" aria-disabled="true" data-disabled="">Cancel</button><button type="button" class="btn primary doan-button" data-ui-variant="prominent" aria-disabled="true" aria-busy="true" data-focus="ring"><span class="doan-spinner" aria-hidden="true"></span>Setting up</button></div>
+</dialog>
+<p class="fx">Cancel dims (<code>aria-disabled</code> + <code>data-disabled</code>); the confirm keeps its black fill with the spinner. “Setting up” is D4’s sentence case, owned by B4; whichever batch lands first writes it.</p>
+</div>
+
+<div class="case">4 · Settings › MCP, Add server by URL, request out <small>SettingsMcpConnectors.tsx:237-252</small></div>
+<div class="cell">
+<dialog open class="doan-dialog doan-scroll" data-ui-size="compact" aria-labelledby="d1a-mcp-t" aria-busy="true" data-doan-id="d1-mcp-asis">
+<form class="ob-dialog-form"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" id="d1a-mcp-t">Add server by URL</h3><p class="doan-dialog-description">Enter the address of a remote MCP server. It must start with https://.</p></div></div>
+<input class="doan-input" aria-label="Server URL" value="https://mcp.example.com/mcp">
+<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button><button type="submit" class="doan-button" data-ui-variant="prominent" disabled>Add</button></div></form>
+</dialog>
+<p class="fx bad">Add is <code>disabled={!value.trim() || busy}</code>: disabled fill, no spinner; a mouse or keyboard press on Add loses focus (static trace).</p>
+</div>
+<div class="cell tobe">
+<dialog open class="doan-dialog doan-scroll" data-ui-size="compact" aria-labelledby="d1b-mcp-t" aria-busy="true" data-doan-id="d1-mcp-tobe">
+<form class="ob-dialog-form"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" id="d1b-mcp-t">Add server by URL</h3><p class="doan-dialog-description">Enter the address of a remote MCP server. It must start with https://.</p></div></div>
+<input class="doan-input" aria-label="Server URL" value="https://mcp.example.com/mcp">
+<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle">Cancel</button><button type="submit" class="doan-button" data-ui-variant="prominent" aria-disabled="true" aria-busy="true" data-focus="ring"><span class="doan-spinner" aria-hidden="true"></span>Add</button></div></form>
+</dialog>
+<p class="fx">Busy: fill, spinner, <code>aria-busy</code>, <code>aria-disabled</code>. Cancel stays as today (it closes; <code>submitAdd</code> drops the late answer, <code>:134</code>). An empty field keeps native <code>disabled</code>: that is not busy.</p>
+</div>
+
+<div class="case">5 · Paste the page address (Antigravity sign-in), submitting <small>Onboarding.tsx:127-142 · agentStep.ts:143-155</small></div>
+<div class="cell">
+<dialog open class="doan-dialog doan-scroll" data-ui-size="compact" aria-labelledby="d1a-paste-t" aria-busy="true" data-doan-id="d1-paste-asis">
+<form class="ob-dialog-form"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" id="d1a-paste-t">Paste the page address</h3><p class="doan-dialog-description">Copy the address from the browser tab that didn’t load and paste it here to finish signing in to Antigravity.</p></div></div>
+<input class="doan-input" aria-label="Page address" value="http://localhost:51121/oauth-callback?code=4/0Ab…" disabled>
+<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" disabled>Cancel</button><button type="submit" class="doan-button" data-ui-variant="prominent" disabled>Submit</button></div></form>
+</dialog>
+<p class="fx bad">Field, Cancel and Submit all natively <code>disabled</code> (Submit through <code>pasteSubmittable</code>, false while submitting): three disabled fills, no spinner. Enter in the field submits, then the focused field turns disabled (static trace: focus to <code>&lt;body&gt;</code>).</p>
+</div>
+<div class="cell tobe">
+<dialog open class="doan-dialog doan-scroll" data-ui-size="compact" aria-labelledby="d1b-paste-t" aria-busy="true" data-doan-id="d1-paste-tobe">
+<form class="ob-dialog-form"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" id="d1b-paste-t">Paste the page address</h3><p class="doan-dialog-description">Copy the address from the browser tab that didn’t load and paste it here to finish signing in to Antigravity.</p></div></div>
+<input class="doan-input" aria-label="Page address" value="http://localhost:51121/oauth-callback?code=4/0Ab…" readonly data-focus="ring">
+<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" aria-disabled="true" data-disabled="">Cancel</button><button type="submit" class="doan-button" data-ui-variant="prominent" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Submit</button></div></form>
+</dialog>
+<p class="fx">The field is <code>readOnly</code> (not disabled), so focus stays where Enter left it; Cancel dims; Submit keeps its fill and spins. The ring on the field stands for “focus stays”; in the app a text field shows focus with its own border, not a ring.</p>
+</div>
+
+<div class="case">6 · Project Settings, Retry after “Couldn’t read this worktree’s settings.” <small>ProjectSettingsPage.tsx:297-301, 374-381 · projectSettingsRules.ts:91-92</small></div>
+<div class="cell">
+<div class="steps">
+<div class="step"><span class="lbl">1 · Retry focused</span>
+<div class="surface settings" data-doan-id="d1-ps-asis-1"><div class="doan-notice error" role="status"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="project-settings-grow">Couldn’t read this worktree’s settings.<span class="project-settings-notice-reason">EACCES: permission denied, open ‘/Users/me/code/doan-site/.doan/config.json’</span></span><div class="project-settings-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" data-focus="ring">Retry</button></div></div></div></div>
+<div class="step"><span class="lbl">2 · After the press, while the read is out</span>
+<div class="surface settings" data-doan-id="d1-ps-asis-2"><p class="settings-loading project-settings-loading" role="status"><span class="doan-spinner" aria-hidden="true"></span>Reading settings</p></div>
+<p class="fx bad">The notice and its Retry unmount (<code>body: "reading"</code>); the shape effect (<code>:283-295</code>) then moves focus to the page title.</p></div>
+</div>
+</div>
+<div class="cell tobe">
+<div class="step"><span class="lbl">While the retry read is out</span>
+<div class="surface settings" data-doan-id="d1-ps-tobe"><div class="doan-notice error" role="status"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span class="project-settings-grow">Couldn’t read this worktree’s settings.<span class="project-settings-notice-reason">EACCES: permission denied, open ‘/Users/me/code/doan-site/.doan/config.json’</span></span><div class="project-settings-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" aria-disabled="true" aria-busy="true" data-focus="ring"><span class="doan-spinner" aria-hidden="true"></span>Retry</button></div></div></div>
+<p class="fx">The notice stays; Retry keeps its panel fill, spins, <code>aria-busy</code> + <code>aria-disabled</code>. Success: the sections replace it and focus goes to the title, as today. Another failure: the notice stays and focus is still on Retry. The first read still shows “Reading settings”.</p></div>
+</div>
+
+<div class="case">7 · Settings › About, Version row, manual Check for Updates <small>SettingsAbout.tsx:23-34 · main/update/view.ts:117-120</small></div>
+<div class="cell">
+<div class="steps">
+<div class="step"><span class="lbl">1 · Check for Updates focused</span>
+<div class="surface settings" data-doan-id="d1-about-asis-1"><div class="doan-settings-group" data-layout="rows"><div class="doan-preference-row" data-about="version"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Version</span><span class="doan-preference-row-description">0.1.14 · Up to date</span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-focus="ring">Check for Updates</button></div></div></div></div></div>
+<div class="step"><span class="lbl">2 · After the press</span>
+<div class="surface settings" data-doan-id="d1-about-asis-2"><div class="doan-settings-group" data-layout="rows"><div class="doan-preference-row" data-about="version"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Version</span><span class="doan-preference-row-description">0.1.14 · Up to date</span></div><div class="doan-preference-row-trailing"><span class="settings-loading"><span class="doan-spinner" aria-hidden="true"></span>Checking for updates</span></div></div></div></div>
+<p class="fx bad">The button is replaced by a spinner line (<code>row.busy</code>); the focused button unmounts (static trace: focus to <code>&lt;body&gt;</code>).</p></div>
+</div>
+</div>
+<div class="cell tobe">
+<div class="step"><span class="lbl">While the check is out</span>
+<div class="surface settings" data-doan-id="d1-about-tobe"><div class="doan-settings-group" data-layout="rows"><div class="doan-preference-row" data-about="version"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Version</span><span class="doan-preference-row-description">0.1.14 · Up to date</span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-disabled="true" aria-busy="true" data-focus="ring"><span class="doan-spinner" aria-hidden="true"></span>Check for Updates</button></div></div></div></div>
+<p class="fx">The button stays mounted with its label and subtle fill, spinner inside, <code>aria-busy</code> + <code>aria-disabled</code>. “Checking for updates” is no longer drawn; the spinner and <code>aria-busy</code> carry the state. When the check answers, the row’s next state replaces the button as today.</p></div>
+</div>
+</div>
+
+<div class="note" data-doan-id="d1-note">
+<h3>Decision and evidence</h3>
+<ul><li><b>D1</b> (report section 6): busy confirm buttons follow <code>SettingsDialog</code> — fill kept, spinner and <code>aria-busy</code>, <code>aria-disabled</code> — for Conversation Delete, Set Up, MCP Add and the paste dialog (first-run Stop removed: no busy period). <b>U9</b> adds Project Settings Retry and About Check for Updates (states F12: “keep the pressed control mounted and <code>aria-disabled</code> with the spinner inside it”, the problem overlay’s pattern, <code>ProblemOverlay.tsx:34-40</code>).</li>
+<li>Sources: report U9 (S-F6, S-F12, P-F2); <code>.scratch/ux-audit/261117/states.md</code> F6, F12; <code>presentation.md</code> F2.</li></ul>
+<h3>What changes</h3>
+<ul><li>Every case: the busy control loses native <code>disabled</code> and <code>data-disabled</code>; it gets <code>aria-disabled="true"</code>, <code>aria-busy="true"</code>, a leading <code>&lt;span class="doan-spinner" aria-hidden="true"&gt;</code>, and a handler guard. Where Cancel is refused while busy today (Delete, Set Up, paste), Cancel is <code>aria-disabled</code> + <code>data-disabled</code> and Escape stays ignored.</li>
+<li>Cursor over a busy <code>aria-disabled</code> button: <code>default</code> (D15, as the problem overlay’s <code>styles.css:1934</code>); today the dialog verbs keep the shared <code>pointer</code>.</li>
+<li>Paste field: <code>disabled</code> → <code>readOnly</code>. Chosen detail (the decision does not name the field): the closest app pattern is the Home composer, which turns <code>readOnly</code> while a send is pending (<code>HomeComposerView.tsx</code>, <code>ComposerField readOnly={sending}</code>).</li>
+<li>Set Up label: kept as a progress label, “Setting up” per D4 (B4). Chosen detail: <code>SettingsDialog</code> keeps the verb, but D4 names “Setting Up” → “Setting up”, so the progress label stays.</li>
+<li>Project Settings: during a retry read of a healthy worktree the page keeps the failed notice instead of switching to <code>body: "reading"</code>. The Retry of a problem worktree (<code>error</code>, <code>cliError</code>: App re-reads the folder and the entry turns <code>loading</code>) unmounts the same way. Not drawn; left to the conductor: apply the same held-notice treatment there only if the notice stays mounted; otherwise focus returns through App’s recovery focus.</li>
+<li>About: Check for Updates stays mounted while <code>row.busy</code> is “Checking for updates”. Chosen detail: the label stays (the SettingsDialog verb rule); the toast’s “Retrying” label swap is the other app pattern and was not used. Restart → “Restarting” (<code>view.ts:131</code>) replaces its button the same way; outside the D1 list, left to the conductor.</li>
+<li><b>Stop alert</b>: out of D1’s scope (lead decision). It has no busy period: the alert closes before <code>signIn</code>/<code>signOut</code> (<code>agentStep.ts:157-161</code>); unchanged.</li>
+<li>No new UI copy.</li></ul>
+<h3>States to test (keyboard, with main’s answer delayed in the probe)</h3>
+<ol><li>Delete: open a conversation’s Delete, Tab to Delete, Space: Delete shows the spinner on the black fill and keeps focus; Escape and Cancel do nothing until the answer.</li>
+<li>Set Up: run Set Up on a read-only folder by keyboard: the button spins and keeps focus; after the failure line appears, focus is still on it.</li>
+<li>MCP Add: type an https URL, Tab to Add, Space: spinner, focus on Add; on a failure reply the error line shows and focus is still on Add.</li>
+<li>Paste: paste an address and press Enter: focus stays in the field, Submit spins, Escape does nothing until the answer.</li>
+<li>Project Settings: make <code>.doan/config.json</code> unreadable, open the page, Tab to Retry, Space with the read still failing: the notice stays, Retry spins and keeps focus.</li>
+<li>About: Tab to Check for Updates, Space: the button spins in place, focus stays.</li>
+<li>In every case <code>document.activeElement</code> is the pressed control while busy, and the screen reader reads it as busy and unavailable.</li></ol>
+</div>
+</section>
+
+<!-- ───────────────────────────── U10 ───────────────────────────── -->
+<section data-doan-frame="u10-title-trigger-loading" data-doan-title="U10 · Title trigger while the list loads" data-doan-implements="app/src/renderer/CanvasConversationPanel.tsx">
+<div class="fhead"><h2>U10 · Conversation title trigger while the list loads</h2><p>The same trigger (<code>.ov-title</code>, sm <code>trigger</code> button) has two unavailable treatments today. To be: one <code>aria-disabled</code> look in all three heads, the menu held closed.</p></div>
+<div class="cols">
+<div class="colhead">As is</div><div class="colhead">To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></div>
+
+<div class="case">Project Overview head <small>ProjectOverview.tsx:367</small></div>
+<div class="cell"><div class="head-stage" data-doan-id="u10-ov-asis"><div class="ov-head"><span class="ov-project"><span class="ov-project-name">doan-design</span></span><span class="ov-sep" aria-hidden="true">/</span><span class="ov-title-wrap"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled data-disabled=""><span>New conversation</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span></div></div>
+<p class="fx bad">Radix <code>disabled</code> → native <code>disabled</code>: disabled ink, no hover, <code>not-allowed</code> cursor; a focused trigger (or one a closing menu returns focus to) loses focus when the list goes back to loading.</p></div>
+<div class="cell tobe"><div class="head-stage" data-doan-id="u10-ov-tobe"><div class="ov-head"><span class="ov-project"><span class="ov-project-name">doan-design</span></span><span class="ov-sep" aria-hidden="true">/</span><span class="ov-title-wrap"><button type="button" class="ov-title doan-button is-hover" data-ui-size="sm" data-ui-variant="trigger" aria-disabled="true" data-focus="ring"><span>New conversation</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span></div></div>
+<p class="fx">Drawn focused and under the pointer: disabled ink, no fill, default cursor; focus stays; Space, Enter and click open nothing.</p></div>
+
+<div class="case">Canvas conversation panel head <small>CanvasConversationPanel.tsx:181 · head’s New conversation and Hide omitted</small></div>
+<div class="cell"><div class="head-stage" data-doan-id="u10-panel-asis"><div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled data-disabled=""><span>New conversation</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span></div></div>
+<p class="fx bad">Same as the Overview: native <code>disabled</code>.</p></div>
+<div class="cell tobe"><div class="head-stage" data-doan-id="u10-panel-tobe"><div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button is-hover" data-ui-size="sm" data-ui-variant="trigger" aria-disabled="true" data-focus="ring"><span>New conversation</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span></div></div>
+<p class="fx">Same as the Overview to-be.</p></div>
+
+<div class="case">Prototype window panel head <small>prototype/PrototypeConversation.tsx:70, 94-95</small></div>
+<div class="cell"><div class="steps">
+<div class="step"><span class="lbl">At rest</span><div class="head-stage" data-doan-id="u10-pw-asis-rest"><div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-disabled="true"><span>Conversation</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span></div></div></div>
+<div class="step"><span class="lbl">Under the pointer</span><div class="head-stage" data-doan-id="u10-pw-asis-hover"><div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button is-hover" data-ui-size="sm" data-ui-variant="trigger" aria-disabled="true"><span>Conversation</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span></div></div></div>
+</div>
+<p class="fx bad"><code>aria-disabled</code> keeps focus, but no rule styles <code>.ov-title[aria-disabled]</code>: standard ink and the trigger’s hover fill, so it looks enabled.</p></div>
+<div class="cell tobe"><div class="head-stage" data-doan-id="u10-pw-tobe"><div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button is-hover" data-ui-size="sm" data-ui-variant="trigger" aria-disabled="true" data-focus="ring"><span>Conversation</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span></div></div>
+<p class="fx">The same look as the main window’s heads.</p></div>
+</div>
+
+<div class="note" data-doan-id="u10-note">
+<h3>Finding and evidence</h3>
+<ul><li><b>U10</b> (S-F5, P-F24). Main window: <code>CanvasConversationPanel.tsx:181</code> and <code>ProjectOverview.tsx:367</code> <code>DropdownMenu.Trigger asChild disabled={list === "loading"}</code>. Prototype: <code>PrototypeConversation.tsx:70</code> <code>unavailable</code>, <code>:94</code> <code>open={frozen !== null &amp;&amp; !unavailable}</code>, <code>:95</code> <code>aria-disabled</code>. Rule: PRODUCT 320 “unavailable (still focusable)”, <code>docs/design/prototype.md:74</code>, DESIGN 68.</li>
+<li>When it matters: the main list returns to <code>"loading"</code> when its root leaves <code>kind: "list"</code> (<code>homeRun.ts:483-486</code>, e.g. <code>folders:reopen</code> from a problem Retry).</li></ul>
+<h3>What changes</h3>
+<ul><li>Both main-window triggers drop Radix <code>disabled</code>, take <code>aria-disabled={list === "loading" || undefined}</code>, and hold the menu closed while loading (the prototype’s pattern: <code>open</code> false and <code>onOpenChange</code> ignoring opens while unavailable).</li>
+<li>New CSS (proposed, in <code>styles.css</code> next to <code>.ov-title.doan-button</code>): <code>.ov-title.doan-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }</code> and no hover or press fill (<code>.ov-title.doan-button[data-ui-variant="trigger"][aria-disabled="true"]:is(:hover, :active) { background: transparent; }</code>; it outweighs the shared trigger rules in <code>ds/controls.css</code>).</li>
+<li>The chevron keeps <code>--text-metadata</code>, as the main window’s disabled trigger draws it today. Chosen detail: the decision names only the label’s look.</li>
+<li>Docs: <code>docs/design/canvas-conversation.md:13</code> “While the list loads the trigger is disabled” → <code>aria-disabled</code>, still focusable.</li></ul>
+<h3>States to test</h3>
+<ol><li>Overview: Tab to the title trigger, then make the list reload (problem overlay Retry, or a <code>folders:reopen</code> in the probe): focus stays on the trigger, it reads unavailable, Space/Enter/click open nothing; when the list returns the menu opens normally.</li>
+<li>Canvas panel: same steps on the panel head.</li>
+<li>Prototype window: open the panel while the list loads; point at the trigger: no hover fill, default cursor, disabled ink.</li></ol>
+</div>
+</section>
+
+<!-- ───────────────────────────── U11 ───────────────────────────── -->
+<section data-doan-frame="u11-home-picker-unavailable" data-doan-title="U11 · Home picker unavailable rows" data-doan-implements="app/src/renderer/HomeComposerView.tsx">
+<div class="fhead"><h2>U11 · Home project and worktree pickers: unavailable rows</h2><p>Today Radix <code>disabled</code> makes the arrow keys skip an unavailable project or worktree, and the project’s reason line is not linked to it. To be: the canvas row menu’s rule (PRODUCT 212 “An unavailable item stays reachable by the arrow keys and reads its reason line”, <code>docs/design/canvas.md:236</code>).</p></div>
+<div class="cols">
+<div class="colhead">As is</div><div class="colhead">To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></div>
+
+<div class="case">Project picker, after ↓ from doan-design <small>HomeComposerView.tsx:526-537</small></div>
+<div class="cell"><div class="menu-stage">
+<div class="doan-floating doan-menu project-popover" role="menu" aria-label="Projects" data-doan-id="u11-project-asis">
+<div role="group">
+<div role="menuitemradio" aria-checked="true" class="doan-menu-item project-item"><span class="shell-thumbnail hue-indigo" aria-hidden="true">D</span><span class="model-name">doan-design</span><span class="check-slot"><svg class="check" aria-hidden="true"><use href="#i-check"/></svg></span></div>
+<div role="menuitemradio" aria-checked="false" aria-disabled="true" data-disabled="" class="doan-menu-item project-item"><span class="shell-thumbnail hue-emerald" aria-hidden="true">D</span><span class="model-name">doan-site</span><span class="ob-chip warn">Missing</span><span class="check-slot"></span></div>
+<p class="menu-note">doan-site is missing. Fix it from its menu in the sidebar.</p>
+</div>
+<div role="separator" class="doan-menu-sep"></div>
+<div role="menuitem" class="doan-menu-item" data-highlighted="" data-focus="inset"><svg aria-hidden="true"><use href="#i-plus"/></svg><span class="model-name">Add Projects…</span></div>
+</div></div>
+<p class="fx bad">↓ skips doan-site and lands on Add Projects…; the reason is a sibling <code>&lt;p&gt;</code> no item points to.</p></div>
+<div class="cell tobe"><div class="menu-stage">
+<div class="doan-floating doan-menu project-popover" role="menu" aria-label="Projects" data-doan-id="u11-project-tobe">
+<div role="group">
+<div role="menuitemradio" aria-checked="true" class="doan-menu-item project-item"><span class="shell-thumbnail hue-indigo" aria-hidden="true">D</span><span class="model-name">doan-design</span><span class="check-slot"><svg class="check" aria-hidden="true"><use href="#i-check"/></svg></span></div>
+<div role="menuitemradio" aria-checked="false" aria-disabled="true" aria-label="doan-site" aria-describedby="u11-note-site" class="doan-menu-item project-item" data-highlighted="" data-focus="inset"><span class="shell-thumbnail hue-emerald" aria-hidden="true">D</span><span class="model-name">doan-site</span><span class="ob-chip warn">Missing</span><span class="check-slot"></span></div>
+<p class="menu-note" id="u11-note-site">doan-site is missing. Fix it from its menu in the sidebar.</p>
+</div>
+<div role="separator" class="doan-menu-sep"></div>
+<div role="menuitem" class="doan-menu-item"><svg aria-hidden="true"><use href="#i-plus"/></svg><span class="model-name">Add Projects…</span></div>
+</div></div>
+<p class="fx">↓ lands on doan-site: keyboard ring, no highlight fill (<code>styles.css:722</code>), disabled ink; it reads “doan-site”, unavailable, then the note (the name is the label alone, so “Missing” is read once, in the note). Enter does nothing; the menu stays open.</p></div>
+
+<div class="case">Worktree picker in the composer tray, after ↓ from main <small>HomeComposerView.tsx:567-580</small></div>
+<div class="cell"><div class="menu-stage">
+<div class="doan-floating doan-menu shell-project-menu worktree-popover" role="menu" aria-label="Worktrees" data-doan-id="u11-wt-asis">
+<div class="doan-menu-head">Worktrees</div>
+<div role="menuitem" class="doan-menu-item shell-worktree" aria-current="true"><svg aria-hidden="true"><use href="#i-branch"/></svg><span><span>main</span><small>~/code/doan-design</small></span><svg aria-hidden="true"><use href="#i-check"/></svg></div>
+<div role="menuitem" class="doan-menu-item shell-worktree" aria-current="false" aria-disabled="true" data-disabled=""><svg aria-hidden="true"><use href="#i-branch"/></svg><span><span>fix/ux-focus-busy</span><small>~/code/doan-design-b2</small></span><span class="ob-chip warn">Missing</span></div>
+<div role="menuitem" class="doan-menu-item shell-worktree" aria-current="false" data-highlighted="" data-focus="inset"><svg aria-hidden="true"><use href="#i-branch"/></svg><span><span>feat/landing</span><small>~/code/doan-landing</small></span></div>
+</div></div>
+<p class="fx bad">↓ skips the missing worktree (Radix <code>disabled</code> sets <code>aria-disabled</code> and <code>data-disabled</code> and drops it from the arrow order). The look is already the disabled ink; only keyboard reach differs.</p></div>
+<div class="cell tobe"><div class="menu-stage">
+<div class="doan-floating doan-menu shell-project-menu worktree-popover" role="menu" aria-label="Worktrees" data-doan-id="u11-wt-tobe">
+<div class="doan-menu-head">Worktrees</div>
+<div role="menuitem" class="doan-menu-item shell-worktree" aria-current="true"><svg aria-hidden="true"><use href="#i-branch"/></svg><span><span>main</span><small>~/code/doan-design</small></span><svg aria-hidden="true"><use href="#i-check"/></svg></div>
+<div role="menuitem" class="doan-menu-item shell-worktree" aria-current="false" aria-disabled="true" data-highlighted="" data-focus="inset"><svg aria-hidden="true"><use href="#i-branch"/></svg><span><span>fix/ux-focus-busy</span><small>~/code/doan-design-b2</small></span><span class="ob-chip warn">Missing</span></div>
+<div role="menuitem" class="doan-menu-item shell-worktree" aria-current="false"><svg aria-hidden="true"><use href="#i-branch"/></svg><span><span>feat/landing</span><small>~/code/doan-landing</small></span></div>
+</div></div>
+<p class="fx">↓ lands on the missing worktree: ring, no fill, disabled ink; its name already holds the chip (“fix/ux-focus-busy ~/code/doan-design-b2 Missing”), so no <code>aria-describedby</code>. Enter does nothing.</p></div>
+</div>
+
+<div class="note" data-doan-id="u11-note">
+<h3>Finding and evidence</h3>
+<ul><li><b>U11</b> (S-F13). <code>HomeComposerView.tsx:533</code> <code>RadioItem … disabled={down}</code> and <code>:536</code> the sibling <code>&lt;p class="menu-note"&gt;</code>; <code>:576</code> worktree <code>Item … disabled={off}</code>. Reference: the canvas row menu (<code>ShellSidebar.tsx:183-197</code>: <code>aria-disabled</code>, <code>aria-describedby</code>, <code>onSelect</code> prevented) and the Overview worktree menu (<code>ProjectOverview.tsx:338-350</code>).</li></ul>
+<h3>What changes</h3>
+<ul><li>Project row: <code>disabled={down}</code> → <code>aria-disabled={down || undefined}</code>, <code>aria-label</code> = the project name alone and <code>aria-describedby</code> = the note’s new id, so the reason is read once (<code>ShellSidebar.tsx:183-185</code>’s approach). <code>onSelect={event =&gt; { if (down) event.preventDefault(); }}</code> keeps the menu open, and <code>onValueChange</code> ignores a down card’s key (today it edits the root of any chosen key). The note keeps its place and words (U22 in B4 owns its copy).</li>
+<li>Worktree row: <code>disabled={off}</code> → <code>aria-disabled={off || undefined}</code>; <code>onSelect</code> prevented when off. No <code>aria-describedby</code>: the row’s accessible name already holds its status chip (“Missing”, “Not set up”, “Config error”, “CLI error”, “Reading”), so pointing at the chip would read it twice. No new copy.</li>
+<li>Existing rules already give the to-be look: <code>.doan-menu-item[aria-disabled="true"]</code> disabled ink and default cursor (<code>styles.css:719</code>), no highlight fill (<code>:722</code>), disabled path ink (<code>:724</code>). The project row’s thumbnail keeps its hue, as today.</li>
+<li>Keyboard ring on a highlighted row: <code>.doan-menu-item:focus-visible</code> (<code>ds/surfaces.css:91</code>), inset.</li></ul>
+<h3>States to test</h3>
+<ol><li>Home with one project whose folder is missing: open the project picker, press ↓ from the current project: the highlight reaches the missing project; VoiceOver reads “doan-site”, unavailable, then “doan-site is missing. Fix it from its menu in the sidebar.”; Enter and a click do nothing and the menu stays open.</li>
+<li>A project with a missing worktree: open the worktree picker, ↓ reaches the missing row, it reads its branch, path and “Missing” once; Enter does nothing and the menu stays open.</li>
+<li>Rows that are fine still choose on Enter, as today.</li></ol>
+</div>
+</section>
+
+<!-- ───────────────────────────── U28 ───────────────────────────── -->
+<section data-doan-frame="u28-busy-spinner" data-doan-title="U28 · Busy spinner in buttons" data-doan-implements="app/src/renderer/ds/controls.css">
+<div class="fhead"><h2>U28 · The spinner inside a busy button</h2><p>The shared <code>.doan-spinner</code> (<code>ds/controls.css:304-313</code>) paints its ring with <code>--border-standard</code> and its quarter with <code>--text-standard</code>, and never reads <code>color</code>. On the disabled fill (<code>--affordance-disabled</code>, the same grey as <code>--border-standard</code>, <code>tokens.css:245,267</code>) only the dark quarter shows. To be: one rule for every spinner inside a button.</p></div>
+<div class="cols">
+<div class="colhead">As is</div><div class="colhead">To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></div>
+
+<div class="case">Home and docked Send, a start pending <small>ComposerParts.tsx:547-554</small></div>
+<div class="cell"><div class="surface" data-doan-id="u28-send-asis"><div class="composer-tools" style="width: 220px"><span class="grow"></span><button type="button" class="composer-send doan-icon-button sending" data-ui-variant="accent" aria-label="Send" aria-busy="true" disabled><span class="doan-spinner" aria-hidden="true"></span></button></div></div>
+<p class="fx bad">16 px, track invisible on the disabled fill; <code>.composer-send .doan-spinner { color }</code> (<code>styles.css:794</code>) paints nothing.</p></div>
+<div class="cell tobe"><div class="surface" data-doan-id="u28-send-tobe"><div class="composer-tools" style="width: 220px"><span class="grow"></span><button type="button" class="composer-send doan-icon-button sending" data-ui-variant="accent" aria-label="Send" aria-busy="true" disabled><span class="doan-spinner" aria-hidden="true"></span></button></div></div>
+<p class="fx">14 px in the button’s ink (<code>--text-disabled</code> on the disabled fill): a 30 % ring and a full-ink quarter. Send stays natively disabled while sending (outside D1: it is the composer’s own rule, <code>home.md:29</code>).</p></div>
+
+<div class="case">Retry toast, running <small>Toast.tsx:95-98 · canvasNotice.ts:61</small></div>
+<div class="cell"><div class="toast-stage" data-doan-id="u28-toast-asis"><div class="toast doan-floating doan-toast" role="status"><span class="msg">Saving hero’s read state.</span><button class="btn doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-disabled="true" data-disabled="" data-focus="ring"><span class="doan-spinner" aria-hidden="true"></span>Retrying</button></div></div>
+<p class="fx bad">16 px, track invisible; only the dark quarter turns.</p></div>
+<div class="cell tobe"><div class="toast-stage" data-doan-id="u28-toast-tobe"><div class="toast doan-floating doan-toast" role="status"><span class="msg">Saving hero’s read state.</span><button class="btn doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-disabled="true" data-disabled="" data-focus="ring"><span class="doan-spinner" aria-hidden="true"></span>Retrying</button></div></div>
+<p class="fx">14 px in the disabled ink. The running Retry keeps its disabled fill (<code>conversation.md:292</code>); D1 does not cover toasts.</p></div>
+
+<div class="case">Thread background work, Stopping <small>ConversationThread.tsx:907-911</small></div>
+<div class="cell"><div class="surface thread-crop conversation-thread" data-doan-id="u28-bg-asis"><div class="bg-line"><svg class="bg-icon" aria-hidden="true"><use href="#i-terminal"/></svg><span class="bg-text">Background work is still running. It stops when you send your next message or press Stop.</span><button type="button" class="doan-button bg-stop" data-ui-size="xs" data-ui-variant="subtle" aria-label="Stopping background work" aria-disabled="true" data-disabled="" data-focus="ring"><span class="doan-spinner" aria-hidden="true"></span>Stopping</button></div></div>
+<p class="fx bad">14 px (<code>styles.css:1305</code>), track invisible.</p></div>
+<div class="cell tobe"><div class="surface thread-crop conversation-thread" data-doan-id="u28-bg-tobe"><div class="bg-line"><svg class="bg-icon" aria-hidden="true"><use href="#i-terminal"/></svg><span class="bg-text">Background work is still running. It stops when you send your next message or press Stop.</span><button type="button" class="doan-button bg-stop" data-ui-size="xs" data-ui-variant="subtle" aria-label="Stopping background work" aria-disabled="true" data-disabled="" data-focus="ring"><span class="doan-spinner" aria-hidden="true"></span>Stopping</button></div></div>
+<p class="fx">14 px in the disabled ink, ring visible.</p></div>
+
+<div class="case">Dialog busy verb (Settings › General, buddy switch) <small>SettingsDialog.tsx:26 · SettingsGeneral.tsx:115</small></div>
+<div class="cell"><dialog open class="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="u28a-sw-t" data-doan-id="u28-dialog-asis">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" id="u28a-sw-t">Switch to Puri?</h3><p class="doan-dialog-description">You can’t change your buddy again for 24 hours.</p></div></div>
+<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" aria-disabled="true" data-disabled="">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" aria-disabled="true" aria-busy="true" data-focus="ring"><span class="doan-spinner" aria-hidden="true"></span>Switch to Puri</button></div>
+</dialog>
+<p class="fx">Already the target look, from its own rule (<code>styles.css:390</code>).</p></div>
+<div class="cell tobe"><dialog open class="doan-dialog doan-scroll" data-ui-size="compact" role="alertdialog" aria-labelledby="u28b-sw-t" data-doan-id="u28-dialog-tobe">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title" id="u28b-sw-t">Switch to Puri?</h3><p class="doan-dialog-description">You can’t change your buddy again for 24 hours.</p></div></div>
+<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" aria-disabled="true" data-disabled="">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" aria-disabled="true" aria-busy="true" data-focus="ring"><span class="doan-spinner" aria-hidden="true"></span>Switch to Puri</button></div>
+</dialog>
+<p class="fx">Unchanged pixels, now from the shared rule.</p></div>
+</div>
+
+<div class="note" data-doan-id="u28-note">
+<h3>Finding and evidence</h3>
+<ul><li><b>U28</b> (P-F1). Three treatments: own <code>currentColor</code> 30 % rules (<code>styles.css:390</code> dialog actions, <code>:1668</code> question Send, <code>:1936</code> problem overlay), a size-only rule (<code>:1305</code> background Stop), and none (Send <code>ComposerParts.tsx:554</code>, Retry toast <code>Toast.tsx:98</code>). <code>:794</code> sets <code>color</code> on a spinner that never reads it.</li></ul>
+<h3>What changes</h3>
+<ul><li>Add one rule: <code>:is(.doan-button, .doan-icon-button) &gt; .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }</code>. Proposed home: the Spinner section of <code>ds/controls.css</code>, since both classes are DS classes; <code>styles.css</code> also works.</li>
+<li>Delete what it replaces: <code>styles.css:390, 794, 1305, 1668, 1936</code>. The question Send (<code>:1668</code>) is prominent, so <code>currentColor</code> is <code>--text-on-prominent</code>: same pixels. <code>:794</code> must go with it: it sets the spinner’s own <code>color</code>, so under the new rule Send would draw a white quarter on the grey disabled fill.</li>
+<li>Icon-button slot: 16 → 14 px for Send (the report left this open; the brief fixes 14 px for all).</li>
+<li>The rule also shrinks three header spinners from 16 to 14 px, in the button’s ink: Refresh usage in the Agent usage popover (<code>AgentUsageButton.tsx:67</code>), the context ring’s Refresh (<code>ContextRing.tsx:64</code>) and the update header button (<code>UpdateHeaderButton.tsx:29</code>). Not drawn.</li>
+<li>A standalone spinner (beside a sentence, “Reading settings”, row slots) keeps the 16 px DS spinner.</li>
+<li>Docs: <code>docs/design/home.md:29</code> (“spinner in <code>--text-on-accent</code>”: on the disabled fill it is <code>--text-disabled</code>), <code>conversation.md:292</code> (16 px → 14 px), <code>:310</code>, <code>shell.md:41</code> (Refresh usage spinner) and <code>:253</code> (update header button).</li></ul>
+<h3>States to test (computed style of the <code>.doan-spinner</code> inside the button)</h3>
+<ol><li>Home Send while a start is pending (delay the start in the probe): 14 × 14, <code>border-top-color</code> rgb(149,149,149), other sides the same at 30 %.</li>
+<li>Retry toast while running: same values. Background Stop while Stopping: same values.</li>
+<li>A busy dialog verb (buddy switch with a delayed save): 14 × 14, white quarter, white ring at 30 % on black.</li>
+<li>Header spinners while busy, with the read delayed: Refresh usage in the Agent usage popover, the context ring’s Refresh, and the update header button while <code>header.busy</code> (Restarting): each 14 × 14, quarter in the button’s computed <code>color</code>, ring at 30 %.</li>
+<li>Reduced motion: every one stops and stays drawn (<code>controls.css</code> reduce block).</li></ol>
+</div>
+</section>
+
+<!-- ───────────────────────────── D15 ───────────────────────────── -->
+<section data-doan-frame="d15-unavailable-cursor" data-doan-title="D15 · Unavailable cursor is default" data-doan-implements="app/src/renderer/ds/controls.css">
+<div class="fhead"><h2>D15 · Unavailable controls use the default cursor</h2><p>Note-only: a cursor is not visible in a still drawing. <b>D15</b> (report section 6): the cursor over an unavailable control is <code>default</code>. Today the same <code>aria-disabled</code> icon button with a reason tooltip shows <code>not-allowed</code> on the canvas toolbar and <code>default</code> in the panel heads (P-F10). <span class="doan-chip" data-ui-variant="translucent">Not in code</span></p></div>
+<table class="tbl" data-doan-id="d15-table">
+<thead><tr><th>Rule today</th><th>Where</th><th>Applies to</th><th>Change</th></tr></thead>
+<tbody>
+<tr><td><code>:is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) { … cursor: not-allowed; }</code></td><td><code>app/src/renderer/ds/controls.css:122</code></td><td>Every disabled or <code>data-disabled</code> DS button: dialog Cancel while busy, running Retry toast, Stopping, Send while empty or sending</td><td><code>cursor: default</code></td></tr>
+<tr><td><code>:is(.doan-input, .doan-textarea):disabled { … cursor: not-allowed; }</code></td><td><code>ds/controls.css:171</code></td><td>Disabled text fields</td><td><code>cursor: default</code></td></tr>
+<tr><td><code>.doan-checkbox:is(:disabled, [data-disabled]) { … cursor: not-allowed; }</code></td><td><code>ds/controls.css:203</code></td><td>Disabled checkboxes</td><td><code>cursor: default</code></td></tr>
+<tr><td><code>:is(.docked .composer-tray .composer-attach, .doan-canvas-tools &gt; .doan-canvas-tool)[aria-disabled="true"] { cursor: not-allowed; }</code></td><td><code>app/src/renderer/styles.css:1602</code></td><td>Docked Attach (terminal session); canvas toolbar Picker, Capture, Play, Export when unavailable</td><td><code>cursor: default</code></td></tr>
+<tr><td><code>.pw-right &gt; .doan-icon-button[aria-disabled="true"] { … cursor: not-allowed; }</code></td><td><code>styles.css:1967</code></td><td>Prototype window Export when unavailable</td><td><code>cursor: default</code></td></tr>
+<tr><td><code>:is(.doan-button, .doan-icon-button):disabled { … cursor: not-allowed; }</code></td><td><code>cli/internal/export/viewer/shell.css:183</code></td><td>Export viewer header buttons (zoom, frame drawer)</td><td><code>cursor: default</code></td></tr>
+<tr><td>none: the shared <code>cursor: pointer</code> stays (<code>controls.css:74</code>)</td><td><code>styles.css:1599</code> sets only the ink</td><td>Docked Pick from canvas when <code>aria-disabled</code> (<code>docs/design/canvas-conversation.md:20</code> records “pointer cursor”)</td><td>add <code>.composer-pick</code> to the <code>:1602</code> rule, <code>cursor: default</code></td></tr>
+<tr><td><code>.conversation-thread .q-card .q-send[aria-busy="true"] { cursor: progress; }</code></td><td><code>styles.css:1666</code></td><td>Question Send while sending (busy, <code>aria-disabled</code>)</td><td><code>cursor: default</code></td></tr>
+<tr><td>none (new rule, to be)</td><td>proposed: <code>ds/controls.css</code>, next to <code>:122</code></td><td>Every <code>aria-disabled</code> DS button or icon button, busy ones included (D1 confirms, running Retry, Stopping), which keep the shared <code>pointer</code> today unless a screen rule sets <code>default</code></td><td><code>:is(.doan-button, .doan-icon-button)[aria-disabled="true"] { cursor: default; }</code></td></tr>
+</tbody></table>
+<div class="note" data-doan-id="d15-note">
+<h3>Already default (no change)</h3>
+<ul><li><code>styles.css:34</code> <code>button:disabled</code>; <code>:633</code> locked sidebar “…”; <code>:719</code> header tabs, Search, sidebar rows, history buttons and menu items while unavailable; <code>:1329</code> New conversation on the new state; <code>:1369, :1408</code> unavailable Delete; <code>:1665</code> question Send; <code>:1934</code> problem overlay; <code>controls.css:236</code> switch.</li>
+<li>The screen rules above that already set <code>default</code> become redundant once the new <code>[aria-disabled="true"]</code> rule lands; removing them is the conductor’s call.</li></ul>
+<h3>Docs to update with the code</h3>
+<ul><li><code>docs/design/canvas.md:121</code>; <code>canvas-conversation.md:20</code> (Pick “pointer cursor”), <code>:22</code> (Tools row, “not-allowed cursor”), <code>:23</code> (Terminal session Attach), <code>:140</code>; <code>conversation.md:19</code> (question Send “progress cursor”), <code>:292, 310</code> (“<code>cursor: not-allowed</code>”); <code>prototype.md:63</code> (Toolbar Play) and its Export row (“<code>not-allowed</code>”); DESIGN 68 States can name the cursor.</li>
+<li>Test pinning the old cursor: <code>app/src/renderer/prototype/WindowShell.test.tsx:431-432</code> (expects <code>cursor: not-allowed</code> on <code>.pw-right &gt; .doan-icon-button[aria-disabled="true"]</code>).</li></ul>
+<h3>States to test</h3>
+<ol><li>Point at: an unavailable canvas toolbar Export; an unavailable Pick from canvas; the prototype window’s unavailable Export; a dialog’s dimmed Cancel while busy; a running Retry toast; a disabled text field; the export viewer’s Zoom out at its minimum. Each shows the arrow cursor (computed <code>cursor: default</code>).</li>
+<li>A busy <code>aria-disabled</code> button (a D1 confirm while its request is out, the question Send while sending): <code>cursor: default</code>, not <code>pointer</code> or <code>progress</code>.</li>
+<li>Available controls keep <code>pointer</code>.</li></ol>
+</div>
+</section>
+</body></html>

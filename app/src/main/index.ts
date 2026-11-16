@@ -84,6 +84,7 @@ import { REPOSITORY_URL } from "./repository";
 import { createStarPrompt, type StarPromptStore } from "./starPromptStore";
 import { updateView, type UpdateMenuView } from "./update/view";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
+import { usagePublisher, usageVisible } from "./usageWindows";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
 import { createInstallOpener } from "./installCommand";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
@@ -373,6 +374,8 @@ const prototype = createPrototypeWindow({
   denyPermissions,
   reread: root => shell?.reread([root]),
   appHidden: () => appHidden,
+  // A skipped usage trigger is made up when a window shows again, and a closed prototype window stops counting as one.
+  shownChanged: () => usage?.visibilityChanged(),
   focusChanged(focused) {
     if (focused === prototypeFocused) return;
     prototypeFocused = focused;
@@ -886,6 +889,7 @@ async function start(): Promise<void> {
   }, {
     response: record => documents.response(record),
     seen: root => seen.recordsChanged(root),
+    saveFailed: () => send("folders:save-failed"),
     // A vanished auto-registered worktree is cleaned up like Remove (folders:remove); its work items go with the
     // list's retainWorkRoots above.
     autoRemoved(paths, before) {
@@ -1063,18 +1067,18 @@ async function start(): Promise<void> {
       prompt: (owner, event) => { if (win && !win.isDestroyed() && win.webContents.id === owner) send(AUTH_CHANNELS.prompt, event); },
     });
   }
-  // Agent usage (ARCHITECTURE §7): read on fixed triggers into main memory only, shown only while the window is.
+  // Agent usage (ARCHITECTURE §7): read on fixed triggers into main memory only, shown only while a window is.
   if (agentAuth && authIpc) {
     const auth = agentAuth, ipc = authIpc;
     usage = new UsageService({
       auth,
       readiness: provider => ipc.latest().providers.find(status => status.provider === provider)?.readiness ?? { ready: false, cause: "not_connected", action: "signIn" },
       read: (provider, lease, signal) => readUsage(provider, lease, { spawn: spawnAuthProcess, fence: { userData } }, signal),
-      visible: () => windowShown && !appHidden,
-      publish: entries => send(USAGE_CHANNELS.changed, entries),
+      visible: () => usageVisible({ mainShown: windowShown, appHidden, prototypeShown: prototype.visible() }),
+      publish: usagePublisher({ main: send, prototype: (channel, value) => prototype.send(channel, value) }),
     });
     // App start: once the tool facts are read, which readiness needs. A failed probe also ends the pre-facts hold, or
-    // blocked providers would read "Reading usage…" forever.
+    // blocked providers would read "Reading usage" forever.
     const started = usage;
     void ipc.read().then(() => started.trigger({ kind: "start" }), (error: unknown) => {
       console.error("doan: agent usage could not start", error);
@@ -1407,6 +1411,7 @@ async function start(): Promise<void> {
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
   handle("window:fullscreen", null, event => fromWindow(event) ? { fullScreen: win!.isFullScreen() } : null);
   handle("folders:get", [], (event) => (fromWindow(event) ? seen.decorate(ready.entries()) : []));
+  handle("folders:save-again", false, (event) => (fromWindow(event) ? ready.saveAgain() : false));
   handle("read-state:showing", false, (event, value: unknown) => fromWindow(event) ? seen.showing(value) : false);
   handle("read-state:retry", false, (event, value: unknown) => fromWindow(event) ? seen.retry(value) : false);
   const flow = createAddFlow({

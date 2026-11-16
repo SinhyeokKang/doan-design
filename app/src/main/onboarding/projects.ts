@@ -52,8 +52,8 @@ function unread(state: Extract<FolderState, { kind: "error" | "cliError" }>): Pr
 }
 // The clone is in place and added either way. Only the two storage codes say the write did not happen; anything else
 // (a timeout, an unexpected reply) may have written, so the mode is not stated.
-const CLONE_NOT_KEPT = "The repository was cloned and added, but Doan could not keep its files out of Git, so they stay in Git for now. Choose Keep out of Git in its Project Settings to try again.";
-const CLONE_UNCONFIRMED = "The repository was cloned and added, but Doan could not confirm whether its files are kept out of Git. Check Doan files in its Project Settings.";
+const CLONE_NOT_KEPT = "The repository was cloned and added, but Doan couldn’t keep its files out of Git, so they stay in Git for now. Choose Keep out of Git in its Project Settings to try again.";
+const CLONE_UNCONFIRMED = "The repository was cloned and added, but Doan couldn’t confirm whether its files are kept out of Git. Check Doan files in its Project Settings.";
 
 export async function canonicalFolder(path: string): Promise<string | null> {
   try { const real = await realpath(path); return (await stat(real)).isDirectory() ? real : null; } catch { return null; }

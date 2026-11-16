@@ -61,7 +61,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
     };
   }, []);
 
-  const view = mcpPageView(watch.snapshot, signIn.state.auth, (provider, name) => watch.remembered(provider, name));
+  const view = mcpPageView(watch.snapshot, signIn.state.auth, (provider, name) => watch.remembered(provider, name), (provider, name) => watch.openFailed(provider, name));
 
   // The row control focus is on, entered by keyboard or used: when it goes away or becomes disabled (natively or by
   // aria-disabled), its row group takes focus. wasUnusable: it was already off when focused, so only a removal moves it.
@@ -113,7 +113,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
       case "connect": void api.connectMcpServer(row.provider, row.name); break;
       case "disconnect": void api.disconnectMcpServer(row.provider, row.name); break;
       case "cancel": void api.cancelMcpConnect(row.provider, row.name); break;
-      case "openLink": void api.openMcpLink(row.provider, row.name); break;
+      case "openLink": void api.openMcpLink(row.provider, row.name).then(reply => watch.openAnswered(row.provider, row.name, !reply.ok && reply.reason === "open_failed"), console.error); break;
       case "check": void api.readMcpConnectors({ refresh: true }).then(reply => { if (snapshotReply(reply)) watch.receive(reply); }, () => {}); break;
       case "remove": startRemove(row); break;
     }
@@ -205,7 +205,7 @@ export function RowButton({ button, run, describedBy }: { button: McpButton; run
   </>;
 }
 
-function McpRow({ row, run, askRemove, focused, runningNotice }: { row: McpRowView; run: (command: McpCommand) => void; askRemove(): void; focused(node: HTMLElement): void; runningNotice: string | null }) {
+export function McpRow({ row, run, askRemove, focused, runningNotice }: { row: McpRowView; run: (command: McpCommand) => void; askRemove(): void; focused(node: HTMLElement): void; runningNotice: string | null }) {
   const key = rowKey(row.provider, row.name);
   // Settings' shared preference row, as Settings > Agents builds its provider rows (user decision over the first-run
   // provider row): icon, content (name, status and URL lines), trailing actions, and the lines under the row.
@@ -216,8 +216,8 @@ function McpRow({ row, run, askRemove, focused, runningNotice }: { row: McpRowVi
     {(row.button || row.menu) && <div className="doan-preference-row-trailing">
       {row.button && <RowButton button={row.button} run={run} describedBy={`mcp-busy-${row.provider}-${row.name}`} />}
       {row.menu && <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild disabled={row.menu.disabled}><button type="button" className="doan-icon-button mcp-more" aria-label={row.menu.label} data-mcp-more={key} disabled={row.menu.disabled}>
-          <Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger>
+        <Tooltip><TooltipTrigger asChild><DropdownMenu.Trigger asChild disabled={row.menu.disabled}><button type="button" className="doan-icon-button mcp-more" aria-label={row.menu.label} data-mcp-more={key} disabled={row.menu.disabled}>
+          <Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger></TooltipTrigger><TooltipContent>Server menu</TooltipContent></Tooltip>
         {/* Radix closes the menu before App's window Escape handler runs, which then sees no menu and leaves Settings;
             the Escape that closes this menu stops here and focus returns to the … button. */}
         <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu" aria-label={row.label} side="bottom" align="end" sideOffset={4} collisionPadding={8}
@@ -240,13 +240,18 @@ function AddServerDialog({ dialog, change, submit, close }: { dialog: Extract<Di
     <form className="ob-dialog-form" onSubmit={event => { event.preventDefault(); submit(); }}>
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="mcp-add-title">Add server by URL</h3>
         <p className="doan-dialog-description">Enter the address of a remote MCP server. It must start with https://.</p></div></div>
-      <input className="doan-input" aria-label="Server URL" placeholder="https://mcp.example.com/mcp" spellCheck={false} value={dialog.value} autoFocus
-        aria-invalid={dialog.error ? true : undefined} aria-describedby={dialog.error ? "mcp-add-error" : undefined} onChange={event => change(event.target.value)} />
-      {dialog.error && <p className="settings-msg error mcp-field-error selectable" role="alert" id="mcp-add-error"><AlertIcon /><span>{dialog.error}</span></p>}
+      <div className="field-group">
+        <input className="doan-input" aria-label="Server URL" placeholder="https://mcp.example.com/mcp" spellCheck={false} value={dialog.value} autoFocus
+          aria-invalid={dialog.error ? true : undefined} aria-describedby={dialog.error ? "mcp-add-error" : undefined} onChange={event => change(event.target.value)} />
+        {dialog.error && <p className="settings-msg error selectable" role="alert" id="mcp-add-error"><AlertIcon /><span>{dialog.error}</span></p>}
+      </div>
       <div className="doan-dialog-actions">
         {/* Default-size actions, as the compact dialogs are drawn (40px); Settings' row buttons stay sm. */}
         <button type="button" className="doan-button" data-ui-variant="subtle" onClick={close}>Cancel</button>
-        <button type="submit" className="doan-button" data-ui-variant="prominent" disabled={!dialog.value.trim() || dialog.busy}>Add</button>
+        {/* Busy keeps Add focusable (aria-disabled) with the spinner inside; only an empty field disables it. submitAdd
+            ignores a press while busy. */}
+        <button type="submit" className="doan-button" data-ui-variant="prominent" disabled={!dialog.busy && !dialog.value.trim()} aria-disabled={dialog.busy || undefined} aria-busy={dialog.busy || undefined}>
+          {dialog.busy && <span className="doan-spinner" aria-hidden="true" />}Add</button>
       </div>
     </form>
   </dialog>;

@@ -85,7 +85,7 @@ test("a provider row: mark, name, account line and its sm button; Connected is d
 });
 
 test("a button note is shown next to its button, not only in the accessible name", () => {
-  const html = renderToStaticMarkup(<ProviderRow view={{ ...base, provider: "copilot", name: "GitHub Copilot", button: { command: "check", label: "Check again", variant: "prominent", disabled: false, ariaLabel: "Check GitHub Copilot again, uses one Copilot request", note: "Uses one Copilot request" } }} run={noop} />);
+  const html = renderToStaticMarkup(<ProviderRow view={{ ...base, provider: "copilot", name: "GitHub Copilot", button: { command: "check", label: "Check again", variant: "prominent", disabled: false, ariaLabel: "Retry checking GitHub Copilot, uses one Copilot request", note: "Uses one Copilot request" } }} run={noop} />);
   expect(html).toContain('<span class="ob-button-note">Uses one Copilot request</span><button type="button" class="doan-button"');
 });
 
@@ -98,13 +98,21 @@ test("a progress notice puts the spinner in the icon slot and is a status; an er
   const progress: Notice = { role: "status", spinner: true, title: "Finish signing in to Claude Code", body: "Complete sign-in in your browser, then return here.", actions: [
     { command: "cancel", label: "Cancel", variant: "subtle", disabled: false }, { command: "openLink", label: "Open again", variant: "subtle", disabled: false }] };
   const html = renderToStaticMarkup(<NoticeView notice={progress} run={noop} />);
-  expect(renderToStaticMarkup(<NoticeView panel notice={progress} run={noop} />)).toMatch(/^<div class="doan-notice doan-panel" role="status"/);
-  expect(html).toContain('<div class="doan-notice" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span class="selectable"><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span></div>');
-  expect(html).toContain('<div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-command="cancel">Cancel</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-command="openLink">Open again</button></div>');
+  expect(renderToStaticMarkup(<NoticeView panel notice={progress} run={noop} />)).toMatch(/^<div class="doan-notice doan-panel stacked" role="status"/);
+  // D20: the actions sit inside the notice; two or more stack on their own row (DESIGN 'Notices'), and a subtle action
+  // on the inset fill is panel there.
+  expect(html).toBe('<div class="doan-notice stacked" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span class="ob-notice-text selectable"><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span>'
+    + '<div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" data-command="cancel">Cancel</button><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" data-command="openLink">Open again</button></div></div>');
+  // On first run's white panel notice a subtle action keeps subtle.
+  expect(renderToStaticMarkup(<NoticeView panel notice={progress} run={noop} />)).toContain('data-ui-variant="subtle" data-ui-size="sm" data-command="cancel"');
   const error = renderToStaticMarkup(<NoticeView notice={{ role: "alert", spinner: false, body: "Sign-in didn’t finish. Try again.", actions: [{ command: "signIn", label: "Sign in", variant: "prominent", disabled: false }] }} run={noop} />);
   expect(error).toMatch(/^<div class="doan-notice error" role="alert" tabindex="-1"><svg[^>]*class="lucide lucide-circle-alert[^"]* doan-alert-icon" aria-hidden="true">/);
-  expect(error).toContain('<span class="selectable"><span class="ob-notice-body">Sign-in didn’t finish. Try again.</span></span>');
-  expect(error).toContain('<div class="ob-state-actions submit-only">');
+  // One action sits inline at the notice's end; a prominent action stays prominent.
+  expect(error).toContain('<span class="ob-notice-text selectable"><span class="ob-notice-body">Sign-in didn’t finish. Try again.</span></span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-command="signIn">Sign in</button></div></div>');
+  expect(error).not.toContain("ob-state-actions");
+  // The note stays under the notice.
+  const noted = renderToStaticMarkup(<NoticeView notice={{ ...progress, note: "Your project selection stays here." }} run={noop} />);
+  expect(noted).toMatch(/<\/div><\/div><p class="ob-provider-help">Your project selection stays here\.<\/p>$/);
 });
 
 test("Antigravity's paste line sits under the notice, outside its button row", () => {
@@ -121,6 +129,16 @@ test("the footer: Back with arrow-left on the left, Continue with arrow-right di
 
 type DialogProps = { onKeyDown: (event: unknown) => void; onCancel: (event: unknown) => void };
 const keyEvent = (key: string) => ({ key, nativeEvent: { isComposing: false }, preventDefault: vi.fn(), stopPropagation: vi.fn() });
+
+// D1: while the address is submitted the field turns read-only (not disabled, so focus stays where Enter left it),
+// Cancel dims and Submit keeps its fill, busy with the spinner inside.
+test("the paste modal while submitting: a read-only field, a dimmed Cancel and a busy Submit, none natively disabled", () => {
+  const html = renderToStaticMarkup(<PasteDialog view={pasteDialog()} value="https://example.com/cb" submittable={false} tooLong={false} busy change={noop} submit={noop} close={noop} />);
+  expect(html).toMatch(/<input class="doan-input"[^>]*readOnly=""[^>]*\/>/);
+  expect(html).not.toMatch(/<input[^>]*disabled=""/);
+  expect(html).toContain('<button type="button" class="doan-button" data-ui-variant="subtle" aria-disabled="true" data-disabled="">Cancel</button>');
+  expect(html).toContain('<button type="submit" class="doan-button" data-ui-variant="prominent" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Submit</button>');
+});
 
 test("the paste modal: one bounded input, Cancel and Submit; Escape closes only the modal", () => {
   const close = vi.fn();
@@ -172,7 +190,8 @@ test("forward and back leave the Agent step only after its own sign-ins are canc
 
 test("an over-long paste shows the limit line and keeps Submit disabled", () => {
   const html = renderToStaticMarkup(<PasteDialog view={pasteDialog()} value={"x".repeat(16385)} submittable={false} tooLong busy={false} change={noop} submit={noop} close={noop} />);
-  expect(html).toContain('<p class="ob-field-error" role="alert">This address is too long to submit.</p>');
+  // U31: the shared inline error with its icon, grouped with the field 8px under it (no negative margin).
+  expect(html).toMatch(/<div class="field-group"><input class="doan-input"[^>]*\/><p class="settings-msg error" role="alert"><svg[^>]*class="[^"]*doan-alert-icon[^"]*"[^>]*>.*?<\/svg><span>This address is too long to submit\.<\/span><\/p><\/div>/);
   expect(html).toMatch(/<button type="submit"[^>]* disabled="">Submit<\/button>/);
 });
 
@@ -562,7 +581,7 @@ test("a notice's recovery actions and the screen's own actions never repeat", ()
     expect(html).toContain("Already have this repository?");
   }
   // 72: Retry repeats nothing, so the screen is unchanged.
-  const cleanup = screen({ ...clone, error: { code: "cleanup_failed", message: "Couldn't remove /Users/ada/.studio.doan-clone-x. Remove it, then try again." } });
+  const cleanup = screen({ ...clone, error: { code: "cleanup_failed", message: "Couldn’t remove /Users/ada/.studio.doan-clone-x. Remove it, then try again." } });
   expect(count(cleanup, "Change")).toBe(1);
   expect(cleanup).toContain("Already have this repository?");
   // The same rule wherever a notice sits next to a small-action row.
@@ -629,7 +648,7 @@ test("selectable: a provider row's detail line, a notice's text, and no button",
   noSelectableButton(html);
   const notice: Notice = { role: "alert", spinner: false, title: "Sign-in failed", body: "Sign-in didn’t finish. Try again.", actions: [{ command: "signIn", label: "Sign in", variant: "prominent", disabled: false }] };
   const view = renderToStaticMarkup(<NoticeView notice={notice} run={noop} />);
-  expect(view).toContain('<span class="selectable"><strong class="ob-notice-title">Sign-in failed</strong>');
+  expect(view).toContain('<span class="ob-notice-text selectable"><strong class="ob-notice-title">Sign-in failed</strong>');
   noSelectableButton(view);
 });
 

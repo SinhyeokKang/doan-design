@@ -11,8 +11,9 @@ export interface ZoomControlView {
   enabled: boolean;
   value: string;
   triggerLabel: string;
-  zoomOut: { disabled: boolean; tooltip: string };
-  zoomIn: { disabled: boolean; tooltip: string };
+  // The key is drawn as a chip beside the label (DESIGN 'Tooltip'), so they stay apart.
+  zoomOut: { disabled: boolean; tooltip: { label: string; key: string } };
+  zoomIn: { disabled: boolean; tooltip: { label: string; key: string } };
   items: ZoomMenuItem[];
 }
 
@@ -38,8 +39,8 @@ export function zoomControlView(state: BoardState & { scale: number }): ZoomCont
     enabled: on,
     value: on ? `${percent}%` : "—",
     triggerLabel: on ? `Zoom ${percent}%, zoom options` : "Zoom options",
-    zoomOut: { disabled: !on || state.scale <= MIN_SCALE, tooltip: "Zoom out ⌘−" },
-    zoomIn: { disabled: !on || state.scale >= MAX_SCALE, tooltip: "Zoom in ⌘=" },
+    zoomOut: { disabled: !on || state.scale <= MIN_SCALE, tooltip: { label: "Zoom out", key: "⌘−" } },
+    zoomIn: { disabled: !on || state.scale >= MAX_SCALE, tooltip: { label: "Zoom in", key: "⌘=" } },
     items: ITEMS,
   };
 }

@@ -36,7 +36,7 @@ export function ProblemOverlay({ view, details, detail, pressed, announcement, o
       <div className="problem-actions">{view.actions.map(({ name, variant }) => {
         const spinning = view.busy && pressed === name;
         // Busy actions stay focusable (aria-disabled, not disabled) so focus stays on the pressed one.
-        return <button key={name} type="button" className={`doan-button${variant === "ghost" ? " ghost" : ""}${spinning ? " problem-busy" : ""}`}
+        return <button key={name} type="button" className={`doan-button${variant === "ghost" ? " ghost" : ""}`}
           data-ui-variant={variant === "ghost" ? undefined : variant} data-ui-size="sm" aria-disabled={view.busy || undefined}
           aria-expanded={name === "details" ? details : undefined} onClick={() => { if (!view.busy) onAction(name); }}>
           {spinning && <span className="doan-spinner" aria-hidden="true" />}{ROW_ACTION_LABELS[name]}{name === "details" && (details ? " ▾" : " ▸")}

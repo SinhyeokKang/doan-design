@@ -156,7 +156,7 @@ describe("canvasConversationError", () => {
   test("a project problem and no ready agent block the composer with their reason", () => {
     expect(canvasConversationError("project_not_open", EXISTING, "claude", "acme-web")).toEqual({ kind: "blocked", text: "acme-web isn’t available. Fix it from its menu in the sidebar." });
     expect(canvasConversationError("no_agent", NEW, "claude", "acme-web")).toEqual({
-      kind: "blocked", text: "No agent is ready to run.", action: { label: "Sign in to an agent…", target: { section: "agents" } },
+      kind: "blocked", text: "No agent is ready to run.", action: { label: "Sign in to an agent", target: { section: "agents" } },
     });
   });
 

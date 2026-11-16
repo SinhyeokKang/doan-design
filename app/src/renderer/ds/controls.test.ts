@@ -9,7 +9,7 @@ function rule(css: string, selector: string): string | null {
 
 test("the lg button is 48px with 16/24 text and 12/32 padding; default 40 and sm 32 stay", () => {
   const css = read("./controls.css");
-  expect(rule(css, '.doan-button[data-ui-size="lg"]')).toBe("min-height: var(--size-control-lg); padding: var(--space-3) var(--space-8); font-size: var(--type-label-size); line-height: var(--type-label-line-height);");
+  expect(rule(css, '.doan-button[data-ui-size="lg"]')).toBe("min-height: var(--size-control-lg); padding: var(--space-3) var(--space-8); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing);");
   expect(css).toContain(".doan-button[data-ui-size=\"sm\"] { min-height: var(--size-control-sm); padding: var(--space-1h) var(--space-4); }");
   expect(rule(css, ".doan-button")).toContain("min-height: var(--size-control);\n  padding: var(--space-2) var(--space-6);");
   const tokens = read("../tokens.css");
@@ -57,6 +57,23 @@ test("a notice's text parts take no ink of their own, so the title, body, lines 
     }
   }
   expect(inked).toEqual([]);
+});
+
+// The one exception to the rule above (DESIGN 'Notices'): a notice's reason line, main's own account of a failure
+// under its sentence, is a caption in the metadata ink on every screen and in every tone.
+test("a notice's reason line is a caption in the metadata ink, the same on every screen", () => {
+  const sources = [read("./surfaces.css"), read("../styles.css")].join("\n").replace(/\/\*[\s\S]*?\*\//g, "");
+  const reasons = [".ob-notice-reason", ".project-settings-notice-reason"];
+  for (const reason of reasons) {
+    const declarations = [...sources.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, selectors]) => selectors!.split(",").some(s => s.trim().replace(/:not\([^)]*\)/g, "").split(/[\s>+~]+/).at(-1) === reason))
+      .flatMap(([, , body]) => body!.split(";").map(d => d.trim()).filter(Boolean));
+    const value = (property: string) => declarations.filter(d => d.split(":")[0]!.trim() === property).map(d => d.slice(d.indexOf(":") + 1).trim());
+    expect(value("color"), reason).toEqual(["var(--text-metadata)"]);
+    expect(value("font-size"), reason).toEqual(["var(--type-caption-size)"]);
+    expect(value("line-height"), reason).toEqual(["var(--type-caption-line-height)"]);
+    expect(value("letter-spacing"), reason).toEqual(["var(--type-caption-letter-spacing)"]);
+  }
 });
 
 test("screens set only outer margins on a notice: no per-screen padding, gap, type, ink or alignment", () => {
@@ -131,8 +148,9 @@ test("icon button size xs is a 24px pill with the small icon; variant accent is 
   expect(rule(css, '.doan-icon-button[data-ui-size="xs"]')).toBe("width: var(--size-control-xs); height: var(--size-control-xs); border-radius: var(--radius-pill);");
   expect(rule(css, '.doan-icon-button[data-ui-size="xs"] > svg')).toBe("width: var(--size-icon-sm); height: var(--size-icon-sm);");
   expect(rule(css, '.doan-icon-button[data-ui-variant="accent"]')).toBe("border-radius: var(--radius-pill); background: var(--affordance-accent); color: var(--text-on-accent);");
-  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled) { background: var(--affordance-accent-hover); }');
-  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-accent-pressed); }');
+  // An aria-disabled Send drawn disabled (data-disabled, its reason in the tooltip) keeps the disabled fill under the pointer.
+  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled, [data-disabled]) { background: var(--affordance-accent-hover); }');
+  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { background: var(--affordance-accent-pressed); }');
   // The accent resting fill must come before the shared disabled rule of equal weight, which then wins.
   expect(css.indexOf('.doan-icon-button[data-ui-variant="accent"] {')).toBeLessThan(css.indexOf(":is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) {"));
 });
@@ -312,4 +330,46 @@ test("a toggle group is a 2px track on the hover backdrop, its pressed item rais
   expect(css.indexOf(pressed)).toBeGreaterThan(css.indexOf('.doan-icon-button[data-ui-placement="chrome"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }'));
   // The unpressed ink skips a disabled item, whose ink the shared disabled rule sets at lower weight.
   expect(css.indexOf(':is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) { background: var(--affordance-disabled)')).toBeGreaterThan(-1);
+});
+
+// U28: one rule draws every spinner inside a button, in the button's own ink (a 30 % ring and a full-ink quarter) at
+// the small icon size, so it reads on any fill, the disabled grey included. Screen rules may not draw their own.
+test("a spinner inside a button is 14px in the button's ink, from one shared rule", () => {
+  const css = read("./controls.css");
+  expect(rule(css, ":is(.doan-button, .doan-icon-button) > .doan-spinner"))
+    .toBe("width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor;");
+  const styles = read("../styles.css");
+  for (const gone of [".doan-dialog-actions .doan-button > .doan-spinner", ".composer-send .doan-spinner", ".bg-line .bg-stop .doan-spinner", ".q-send .doan-spinner", ".problem-busy .doan-spinner"]) expect(styles, gone).not.toContain(`${gone} {`);
+});
+
+// D15: the cursor over an unavailable control is the arrow. Native disabled and aria-disabled controls (busy ones too)
+// share it; no rule sets not-allowed or progress.
+test("unavailable controls use the default cursor: no not-allowed or progress cursor in the renderer's styles", () => {
+  const css = read("./controls.css");
+  expect(rule(css, ":is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled])")).toBe("background: var(--affordance-disabled); color: var(--text-disabled); cursor: default;");
+  expect(rule(css, ':is(.doan-button, .doan-icon-button)[aria-disabled="true"]')).toBe("cursor: default;");
+  expect(rule(css, ":is(.doan-input, .doan-textarea):disabled")).toBe("background: var(--affordance-disabled); color: var(--text-disabled); cursor: default;");
+  expect(css).toContain(".doan-checkbox:is(:disabled, [data-disabled]) { border-color: var(--affordance-disabled); background: var(--affordance-disabled); color: var(--text-disabled); cursor: default; }");
+  for (const name of ["./controls.css", "./surfaces.css", "../styles.css"]) {
+    expect(read(name), name).not.toContain("not-allowed");
+    expect(read(name), name).not.toContain("cursor: progress");
+  }
+});
+
+// U10: the conversation title trigger, aria-disabled while its list is read, takes the disabled ink and no hover or
+// pressed fill, outweighing the shared trigger rules.
+test("an unavailable conversation title trigger takes the disabled ink and no hover or pressed fill", () => {
+  const styles = read("../styles.css");
+  expect(rule(styles, '.ov-title.doan-button[aria-disabled="true"]')).toBe("color: var(--text-disabled);");
+  expect(rule(styles, '.ov-title.doan-button[data-ui-variant="trigger"][aria-disabled="true"]:is(:hover, :active)')).toBe("background: transparent;");
+});
+
+// U5: the canvas header's zoom buttons, aria-disabled at a limit, take the disabled ink and no hover or pressed fill;
+// the window headers' Back and Forward have the same, pressed included.
+test("zoom and history buttons at their limit take the disabled ink and no hover or pressed fill", () => {
+  const styles = read("../styles.css");
+  expect(styles).toContain('.doan-canvas-zoom > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); }');
+  // Prefixed by the tools group so it outweighs the shared pressed rule, whose :is() counts its two-attribute argument.
+  expect(styles).toContain('.doan-canvas-head-tools .doan-canvas-zoom > .doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }');
+  expect(styles).toContain('.shell-top .shell-history .doan-icon-button[aria-disabled="true"]:active { background: transparent; }');
 });

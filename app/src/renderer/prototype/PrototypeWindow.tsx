@@ -101,6 +101,9 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   // a request main never answered cannot turn the next press into the opposite one.
   const panelAsked = useRef<boolean | null>(null);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
+  // The canvas page's fold motion, for this window's own toggle only: a drag must not animate, or the handle trails the
+  // pointer, and a panel main opens or closes by itself just shows. Held as long as the canvas page holds it.
+  const [panelMotion, setPanelMotion] = useState(false);
   const focusGuard = useRef<ColumnFocusGuard | null>(null);
   focusGuard.current ??= new ColumnFocusGuard(() => performance.now());
 
@@ -150,6 +153,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     const open = !panelOpen;
     if (open) run.unfoldTarget();
     panelAsked.current = open;
+    setPanelMotion(true);
     void api.setPanel({ open });
   };
   // Opening puts focus in the composer, or on the head's menu button before the first view, when there is no composer
@@ -168,6 +172,11 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     headFallback.current = true;
     headTitle()?.focus();
   }, [panelOpen]);
+  useEffect(() => {
+    if (!panelMotion) return;
+    const timer = setTimeout(() => setPanelMotion(false), 250);
+    return () => clearTimeout(timer);
+  }, [panelMotion, panelOpen]);
   // Once the first view brings the composer, focus left on the head's menu button moves to it, once; focus the person
   // put elsewhere meanwhile stays.
   useEffect(() => {
@@ -357,6 +366,9 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   // the menu's button, whatever the panel shows next; the move waits for the render that closes the modal alert
   // (POSTMORTEM 2026-11-14 'A failed buddy switch dropped focus'), since the page behind it takes no focus.
   const [deleting, setDeleting] = useState<{ target: DeleteTarget; pending: boolean } | null>(null);
+  // The delete alert is this window's modal: it holds the toast's clock as the main window's modals do (ARCHITECTURE §7 'Toasts').
+  const modalOpen = deleting !== null;
+  useLayoutEffect(() => { toastRef.current.setModal(modalOpen); }, [modalOpen]);
   const deleteReturn = useRef<HTMLElement | null>(null);
   const deleteLanding = useRef(false);
   useEffect(() => {
@@ -398,7 +410,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
     onBack={() => void api.back()} onForward={() => void api.forward()} onReload={() => { if (gen !== null) void api.reload(gen); }} onReloadPress={onReloadPress} onReloadClick={onReloadClick}
     onMode={mode => void api.setMode(mode)} onMenuOpen={setMenuOpen} exporting={exporting} onExport={onExport} toast={toast.element} dialog={deleteDialog}
     onChoose={frame => void api.choose(frame)} onClose={() => void api.close()} onDetails={() => setDetails(open => !open)}
-    conversation={{ button: run.button(), open: panelOpen, width: panelWidth, bounds: { min: panelBounds.min, max: panelBounds.max }, buttonRef: convButton, column,
+    conversation={{ button: run.button(), open: panelOpen, motion: panelMotion, width: panelWidth, bounds: { min: panelBounds.min, max: panelBounds.max }, buttonRef: convButton, column,
       title: <PrototypeHeadMenu run={run} now={clock} onPicked={() => composer()?.focus()} onDelete={openDelete} />,
       body: <PrototypeConversationPanel run={run} calls={api} now={clock} onNotice={text => toastRef.current.show(text)} />,
       onToggle: togglePanel, preview: setDragWidth, onFocusOut: onColumnFocusOut,
@@ -412,6 +424,8 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
 export interface ShellConversation {
   button: ConversationButton;
   open: boolean;
+  // While the window's own toggle folds or unfolds the column.
+  motion?: boolean;
   width: number;
   bounds: PanelBounds;
   title?: ReactNode;
@@ -471,12 +485,17 @@ export function WindowShell({ view, layers, readingShown, details, live, width, 
   // The name's row from the header's own width, given rather than measured: the window's while the panel is closed, the
   // area left of it while open (main fits and captures by the same rule).
   const rows = prototypeSideLayout(width, conv.open ? conv.width : null).rows;
-  return <div className={rows === 2 ? "pw name-row" : "pw"} {...(conv.open ? { "data-panel": "open", style: columns } : {})}>
+  return <div className={rows === 2 ? "pw name-row" : "pw"} {...(conv.open ? { "data-panel": "open", style: columns } : {})} data-panel-motion={conv.motion ? "" : undefined}>
     <header className="top shell-top pw-top">
       <span className="traffic-space" aria-hidden="true" />
       <div className="shell-history">
-        <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!view?.canGoBack} onClick={onBack}><ArrowLeft aria-hidden="true" /></button>
-        <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!view?.canGoForward} onClick={onForward}><ArrowRight aria-hidden="true" /></button>
+        {/* The end of the history is aria-disabled, not disabled: a Back or Forward pressed to it keeps focus. */}
+        <Tooltip><TooltipTrigger asChild>
+          <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" aria-disabled={!view?.canGoBack || undefined} onClick={() => { if (view?.canGoBack) onBack(); }}><ArrowLeft aria-hidden="true" /></button>
+        </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>Back</TooltipContent></Tooltip>
+        <Tooltip><TooltipTrigger asChild>
+          <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" aria-disabled={!view?.canGoForward || undefined} onClick={() => { if (view?.canGoForward) onForward(); }}><ArrowRight aria-hidden="true" /></button>
+        </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>Forward</TooltipContent></Tooltip>
         <Tooltip><TooltipTrigger asChild>
           <button type="button" className="doan-icon-button" data-ui-placement="chrome" aria-label="Reload prototype" disabled={view === null} onMouseDown={event => { keepFocus(event); if (event.button === 0) onReloadPress(); }} onClick={event => onReloadClick(event.detail > 0)}><RotateCw aria-hidden="true" /></button>
         </TooltipTrigger><TooltipContent onEscapeKeyDown={tipEscape}>Reload prototype</TooltipContent></Tooltip>
@@ -625,6 +644,6 @@ function FrameMenu({ view, open, onOpenChange, trigger: triggerRef, onTipEscape,
   return <><Popover.Root open={open} onOpenChange={onOpenChange}>
     <Tooltip open={tip} onOpenChange={next => setTip(next && cut)}><TooltipTrigger asChild><Popover.Trigger asChild {...(empty ? { "aria-describedby": EMPTY_DRAWER_ID } : {})}>{trigger}</Popover.Trigger></TooltipTrigger><TooltipContent onEscapeKeyDown={onTipEscape}>{view.title}</TooltipContent></Tooltip>
     <FrameListBody label={drawerLabel(view)} groups={groups} open={open} empty={EMPTY_DRAWER} className="doan-floating doan-menu doan-frame-list pw-drawer" align="center"
-      onPick={row => { onOpenChange(false); onChoose(row.id); }} />
+      onPick={row => { onOpenChange(false); onChoose(row.id); }} onClose={() => onOpenChange(false)} />
   </Popover.Root>{empty && <span className="sr-only" id={EMPTY_DRAWER_ID}>{EMPTY_DRAWER}</span>}</>;
 }

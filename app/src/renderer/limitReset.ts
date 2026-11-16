@@ -41,7 +41,7 @@ export function resetTimeText(at: string, now: number, clock: Clock): string | n
 // margin, a wake from sleep, or another project conversation's turn), so it says so.
 export function queueStatusLine(resetsAt: string, now: number, clock: Clock): { kind: "scheduled" | "sending"; text: string } {
   const phrase = Date.parse(resetsAt) > now ? resetTimeText(resetsAt, now, clock) : null;
-  return phrase ? { kind: "scheduled", text: `Sends when the limit resets ${phrase}.` } : { kind: "sending", text: "Sending…" };
+  return phrase ? { kind: "scheduled", text: `Sends when the limit resets ${phrase}.` } : { kind: "sending", text: "Sending" };
 }
 
 // The Queue button's tooltip and sr-only description while the limit holds; null after the reset, when it is the

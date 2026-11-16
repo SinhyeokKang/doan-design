@@ -1,4 +1,7 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
+import { renderToStaticMarkup as serverMarkup } from "react-dom/server";
+// Names and details show in the shared tooltip, which needs the app's provider.
+const renderToStaticMarkup = (node: ReactNode) => serverMarkup(<TooltipProvider>{node}</TooltipProvider>);
 import { describe, expect, it, test, vi } from "vitest";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { projectSlot, recoveryKey, ShellSidebar, staleMenu } from "./ShellSidebar";
@@ -30,7 +33,7 @@ it("shows only the remembered worktree and keeps other projects collapsed", () =
 });
 it("shows an unreadable canvas's sentence and Details under its row", () => {
   const html = render("/repo", "/repo", true, true);
-  expect(html).toContain("Can&#x27;t read this canvas — run doan check");
+  expect(html).toContain("Can’t read this canvas. Run doan check in a terminal.");
   expect(html).toContain('aria-label="Details"');
 });
 
@@ -107,9 +110,9 @@ test("on Home no row is current; the slot shows a permission hand, a spinner or 
   const home = renderToStaticMarkup(<Sidebar {...props} home homeCurrent slots={slots} highlight={["/b"]} />);
   // Only the Home row is current on Home (dogfooding #2); no project or canvas row is.
   expect(home.replace(/<button type="button" class="shell-home-row row" aria-current="page">/, "")).not.toContain("aria-current");
-  expect(home).toContain('<span>a</span><span class="row-slot working" role="img" aria-label="Claude Code is working"><span class="doan-spinner" aria-hidden="true"></span></span>');
+  expect(home).toContain('<span data-state="closed" data-slot="tooltip-trigger">a</span><span class="row-slot working" role="img" aria-label="Claude Code is working"><span class="doan-spinner" aria-hidden="true"></span></span>');
   expect(home).toMatch(/class="shell-project-row row flash"[^>]*aria-label="beta"/);
-  expect(home).toMatch(/<span class="shell-project-name">beta<\/span><span class="row-slot permission" role="img" aria-label="Codex needs your answer"><svg[^>]*lucide-hand/);
+  expect(home).toMatch(/<span class="shell-project-name" data-state="closed" data-slot="tooltip-trigger">beta<\/span><span class="row-slot permission" role="img" aria-label="Codex needs your answer"><svg[^>]*lucide-hand/);
   expect(renderToStaticMarkup(<Sidebar {...props} />)).toContain('aria-current="location"');
   const unseen = renderToStaticMarkup(<Sidebar {...props} slots={new Map([["/b", { kind: "unseen" as const, label: "Conversation finished — unread" }]])} />);
   // A finished conversation is a speech bubble; only a canvas change stays the accent dot.
@@ -250,10 +253,10 @@ describe("what wins the slot of a project in a problem state", () => {
 test("a slot in a closed group shows on the project row; open, it stays on its own row", () => {
   const slots = new Map([["/a\n.doan/ds/button.html", { kind: "permission" as const, label: "Codex needs your answer" }]]);
   const closed = groups(["ds/button", "canvases/checkout"], { ds: false }, { slots });
-  expect(closed).toMatch(/<span class="shell-project-name">demo<\/span><span class="row-slot permission"/);
+  expect(closed).toMatch(/<span class="shell-project-name" data-state="closed" data-slot="tooltip-trigger">demo<\/span><span class="row-slot permission"/);
   const open = groups(["ds/button", "canvases/checkout"], undefined, { slots });
-  expect(open).not.toMatch(/<span class="shell-project-name">demo<\/span><span class="row-slot/);
-  expect(open).toMatch(/<span>button<\/span><span class="row-slot permission"/);
+  expect(open).not.toMatch(/<span class="shell-project-name" data-state="closed" data-slot="tooltip-trigger">demo<\/span><span class="row-slot/);
+  expect(open).toMatch(/<span data-state="closed" data-slot="tooltip-trigger">button<\/span><span class="row-slot permission"/);
   // A group head never carries a slot.
   for (const head of heads(closed)) expect(head).not.toContain("row-slot");
 });
@@ -283,10 +286,10 @@ test("a canvas notice is the unseen dot on its row, and on the project row while
   const notice = { kind: "canvas" as const, label: "button changed since you last opened it" };
   const slots = new Map([["/a\n.doan/ds/button.html", notice]]);
   const open = groups(["ds/button", "canvases/checkout"], undefined, { slots });
-  expect(open).toContain('<span>button</span><span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i></i></span>');
-  expect(open).not.toMatch(/<span class="shell-project-name">demo<\/span><span class="row-slot/);
+  expect(open).toContain('<span data-state="closed" data-slot="tooltip-trigger">button</span><span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i></i></span>');
+  expect(open).not.toMatch(/<span class="shell-project-name" data-state="closed" data-slot="tooltip-trigger">demo<\/span><span class="row-slot/);
   const closed = groups(["ds/button", "canvases/checkout"], { ds: false }, { slots });
-  expect(closed).toMatch(/<span class="shell-project-name">demo<\/span><span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i><\/i><\/span>/);
+  expect(closed).toMatch(/<span class="shell-project-name" data-state="closed" data-slot="tooltip-trigger">demo<\/span><span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i><\/i><\/span>/);
 });
 
 test("on the project row a conversation slot beats a canvas notice; among notices the first listed wins", () => {
@@ -336,7 +339,7 @@ it("gives a canvas row, in a subdirectory too, the project row's menu button aft
 });
 it("marks a locked canvas row's button aria-disabled, never the project row's", () => {
   const html = canvasMarkup({ locked: true });
-  expect(html).toMatch(/aria-label="canvas menu" aria-disabled="true"/);
+  expect(html).toMatch(/aria-label="canvas menu"[^>]* aria-disabled="true"/);
   expect(html).not.toMatch(/aria-label="demo menu" aria-disabled/);
   expect(html).not.toMatch(/aria-label="canvas menu"[^>]* disabled=""/);
 });
@@ -437,7 +440,7 @@ test("a scheduled conversation's slot is the clock with its label", () => {
   const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, disclose: () => {}, toggleGroup: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {}, projectSettings: () => {}, canvasMenu: NO_CANVAS_MENU };
   const label = "Queued — sends when the limit resets at 3:00\u202fPM";
   const out = renderToStaticMarkup(<ShellSidebar {...props} home slots={new Map([["/a\n.doan/canvases/a.html", { kind: "scheduled" as const, label }]])} />);
-  expect(out).toMatch(new RegExp(`<span>a</span><span class="row-slot scheduled" role="img" aria-label="${label}"><svg[^>]*lucide-clock`));
+  expect(out).toMatch(new RegExp(`<span data-state="closed" data-slot="tooltip-trigger">a</span><span class="row-slot scheduled" role="img" aria-label="${label}"><svg[^>]*lucide-clock`));
 });
 
 // sidebar-canvas-conversations: the viewed canvas's conversations under its row (draft
@@ -467,7 +470,7 @@ describe("the viewed canvas's conversation list", () => {
     expect(current).toMatch(/aria-level="4"/);
     expect(current).toMatch(/aria-current="true"/);
     expect(current).toContain('<span class="shell-conv-check" aria-hidden="true">');
-    expect(current).toContain('<span class="shell-conv-title">Title c1</span>');
+    expect(current).toContain('<span class="shell-conv-title" data-state="closed" data-slot="tooltip-trigger">Title c1</span>');
     const other = rowOf(html, "Title c2");
     expect(other).not.toMatch(/aria-current/);
     expect(other).not.toContain("shell-conv-check");
@@ -575,4 +578,12 @@ it("CSS: the conversation list's chevron, Delete and status follow the canvas ro
   expect(css).toContain(".shell-conv-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }");
   // The shown conversation's row takes the pressed fill under the pointer (draft frame hover-delete), the others the hover fill.
   expect(css).toContain('.shell-side .shell-conv-row[aria-current="true"]:hover { background: var(--affordance-backdrop-pressed); }');
+});
+
+// DESIGN 'Motion': under reduced motion every movement goes. The sidebar chevrons point the new way at once, as the
+// thread's activity chevron does.
+it("stops the sidebar chevrons turning under reduced motion", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*\.shell-disclosure svg, \.shell-group-head svg \{ transition: none; \}/);
 });

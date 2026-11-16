@@ -99,7 +99,7 @@ describe("opening a picked folder", () => {
   test("a missing CLI refuses the pick instead of storing it", async () => {
     const root = writeRepo(dir());
     const { shell } = await start(join(tmp, "no-such-doan"));
-    expect(await shell.open(root)).toEqual({ refused: expect.stringMatching(/^doan CLI error/) });
+    expect(await shell.open(root)).toEqual({ refused: expect.stringMatching(/^doan command error/) });
     expect(shell.entries()).toEqual([]);
   });
 
@@ -890,6 +890,28 @@ describe("storing, removing and restoring", () => {
     expect(await shell.remove([b, d, "/not/stored"])).toEqual({ paths: [b, d] });
     expect(shell.entries().map((entry) => entry.path)).toEqual([a, c]);
     expect(saved(foldersFile)).toEqual([a, c]);
+  });
+
+  // A failed folders.json write is told to the window (ARCHITECTURE §7), and saveAgain writes the list main holds now.
+  test("a failed list write calls saveFailed; saveAgain writes the current list and says whether it was saved", async () => {
+    const [a, b] = [writeRepo(dir()), writeRepo(dir())];
+    const saveFailed = vi.fn();
+    const { shell, foldersFile } = await start(cli, undefined, { saveFailed });
+    await shell.store([a, b]);
+    expect(saveFailed).not.toHaveBeenCalled();
+    const folder = join(foldersFile, "..");
+    chmodSync(folder, 0o555);
+    onTestFinished(() => chmodSync(folder, 0o755));
+    expect(await shell.remove([b])).toEqual({ paths: [b] });
+    expect(shell.entries().map((entry) => entry.path)).toEqual([a]);
+    expect(saved(foldersFile)).toEqual([a, b]);
+    expect(saveFailed).toHaveBeenCalledTimes(1);
+    // Still read-only: not saved, and saveFailed is not called again for the Retry's own answer.
+    expect(await shell.saveAgain()).toBe(false);
+    expect(saveFailed).toHaveBeenCalledTimes(1);
+    chmodSync(folder, 0o755);
+    expect(await shell.saveAgain()).toBe(true);
+    expect(saved(foldersFile)).toEqual([a]);
   });
 
   test("replace swaps a folder in place, or only drops it when the new one is stored elsewhere", async () => {

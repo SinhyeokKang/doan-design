@@ -31,7 +31,7 @@ test("first run's project handoff focuses the composer ahead of the focus held b
 });
 
 test("removing a project asks first; with a running Home conversation the confirmation names the conversation to stop", () => {
-  expect(removalConfirm([{ conversationId: "c1", waiting: false }], "doan", 1)).toMatchObject({ conversations: ["c1"], cancel: "Cancel", confirm: "Stop and Remove" });
+  expect(removalConfirm([{ conversationId: "c1", waiting: false }], "doan", 1)).toMatchObject({ conversations: ["c1"], cancel: "Cancel", confirm: "Stop and remove" });
   expect(removalConfirm([], "doan", 1)).toMatchObject({ conversations: [], cancel: "Cancel", confirm: "Remove from Doan" });
 });
 

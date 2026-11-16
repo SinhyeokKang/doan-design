@@ -110,11 +110,11 @@ describe("dockedAvailability", () => {
   });
   test("a fixed provider that cannot run offers its fix in Settings, not another agent", () => {
     expect(dockedAvailability(input({ auth: auth(status("claude", { expired: true, phase: "reauthRequired" })) })).reason)
-      .toEqual({ text: "Claude Code’s sign-in expired.", action: { label: "Sign in again…", target: { section: "agents", provider: "claude" } } });
+      .toEqual({ text: "Claude Code’s sign-in expired.", action: { label: "Sign in again", target: { section: "agents", provider: "claude" } } });
     expect(dockedAvailability(input({ auth: auth(status("claude", {}, { ...FACTS, version: "unsupported" })) })).reason)
-      .toEqual({ text: "Claude Code needs an update.", action: { label: "Update…", target: { section: "agents", provider: "claude" } } });
+      .toEqual({ text: "Claude Code needs an update.", action: { label: "Update", target: { section: "agents", provider: "claude" } } });
     expect(dockedAvailability(input({ auth: auth(status("codex")) })).reason)
-      .toEqual({ text: "Claude Code isn’t connected.", action: { label: "Open Agents settings…", target: { section: "agents", provider: "claude" } } });
+      .toEqual({ text: "Claude Code isn’t connected.", action: { label: "Open Agents settings", target: { section: "agents", provider: "claude" } } });
   });
   test("new-conversation mode uses Home's agent reasons", () => {
     const fresh = { kind: "new", root: "/r" } as const;
@@ -165,6 +165,18 @@ describe("dockedRefusal", () => {
     for (const mode of [EXISTING]) {
       expect(dockedRefusal("workspace_changed", mode, "claude", "doan-design")).toEqual({ kind: "notice", text, startNew: true });
     }
+  });
+  // Home and the canvas panel offer Retry for the same start codes; the Overview's refused start does too.
+  test("a refused start offers Retry exactly where Home does", () => {
+    const start = { kind: "new", root: "/r" } as const;
+    for (const code of ["process_exited", "busy", "session_unavailable", "session_in_use", "runtime_unsupported", "cli_install_failed", "unknown"]) {
+      expect(dockedRefusal(code, start, "claude", "doan-design")).toMatchObject({ kind: "notice", retry: true });
+    }
+    for (const code of ["not_logged_in", "cli_missing", "rate_limited", "credential_override", "no_agent"]) {
+      expect(dockedRefusal(code, start, "claude", "doan-design")).not.toHaveProperty("retry");
+    }
+    // A conversation's send keeps its own notices, without Retry.
+    expect(dockedRefusal("busy", EXISTING, "claude", "doan-design")).not.toHaveProperty("retry");
   });
   test("a terminal session's refusal names the session, not another agent", () => {
     const resume = { kind: "resume", root: "/r", canvas: { path: ".doan/canvases/billing.html" }, provider: "codex" } as const;

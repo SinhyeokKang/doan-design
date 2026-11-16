@@ -175,7 +175,7 @@ export function openDecision(state: FolderState, realPicked: string, asRepo: Fol
     case "cliError": {
       if (asRepo?.kind === "list" || asRepo?.kind === "error" || (asRepo?.kind === "cliError" && asRepo.code !== undefined)) return { store: realPicked };
       if (state.kind === "error") return { refuse: state.message };
-      return { refuse: state.reason ? `doan CLI error: ${state.reason}` : "doan CLI error" };
+      return { refuse: state.reason ? `doan command error: ${state.reason}` : "doan command error" };
     }
   }
 }

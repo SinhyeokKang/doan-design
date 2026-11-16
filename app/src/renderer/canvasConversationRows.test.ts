@@ -116,7 +116,7 @@ describe("canvasConversationRows", () => {
     const broken = row({ path: ".doan/canvases/legacy-cart.html", error: { code: "unreadable_canvas", message: "permission denied" } });
     const [only, ...rest] = canvasConversationRows([summary({ canvas: { path: broken.path, id: "legacy-cart" } })], [broken, billing], NOW);
     expect(rest).toEqual([]);
-    expect(only).toMatchObject({ name: "legacy-cart", row: broken, openable: true, problem: { kind: "unreadable", sentence: "Can't read this canvas — run doan check" } });
+    expect(only).toMatchObject({ name: "legacy-cart", row: broken, openable: true, problem: { kind: "unreadable", sentence: "Can’t read this canvas. Run doan check in a terminal." } });
   });
 
   test("an id match wins over an unreadable file left at the old path, and a readable row (another id or none) does not match by path", () => {
@@ -169,11 +169,11 @@ describe("canvasConversationRows beyond Home", () => {
 describe("canvasRowProblemText", () => {
   test("the shipped sentences", () => {
     expect(canvasRowProblemText({ kind: "gone" }, "doan")).toBe("No longer in doan");
-    expect(canvasRowProblemText({ kind: "duplicate", count: 2 }, "doan")).toBe("2 canvases use this ID — run doan check");
-    expect(canvasRowProblemText({ kind: "duplicate", count: 3 }, "doan")).toBe("3 canvases use this ID — run doan check");
+    expect(canvasRowProblemText({ kind: "duplicate", count: 2 }, "doan")).toBe("2 canvases use this ID. Run doan check in a terminal.");
+    expect(canvasRowProblemText({ kind: "duplicate", count: 3 }, "doan")).toBe("3 canvases use this ID. Run doan check in a terminal.");
     const broken = row({ path: ".doan/canvases/broken.html", id: "broken", error: { code: "parse", message: "bad html" } });
     const [unreadable] = canvasConversationRows([summary({ canvas: { path: broken.path, id: "broken" } })], [broken], NOW);
-    expect(canvasRowProblemText(unreadable!.problem!, "doan")).toBe("Can't read this canvas — run doan check");
+    expect(canvasRowProblemText(unreadable!.problem!, "doan")).toBe("Can’t read this canvas. Run doan check in a terminal.");
   });
 });
 

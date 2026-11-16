@@ -35,6 +35,8 @@ import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import { stageInsets } from "./stageInsets";
 import { HomeCredit } from "./HomeCredit";
+import { NameTip } from "./NameTip";
+import { TooltipEscape } from "./components/ui/tooltip";
 
 // Everything the composer keeps between Home visits for this run (a draft survives leaving Home, not a
 // restart). App owns the object so a visit's unmount does not lose it; reads finishing after an unmount still land.
@@ -122,6 +124,9 @@ const STAGE_LIFT = 64, STAGE_MIN = 32;
 // The group's height in its reference state: an empty two-line field with the suggestions shown (their place is kept
 // while hidden). What a draft adds inside the card (chips, extra lines, the counter) and the reason line or notice
 // below the suggestions are left out, so they grow downward from a field that stays where it was.
+// A project none of whose roots is a list (missing, reading, unhealthy) can't take a request.
+function projectDown(card: { rows: readonly FolderEntry[] }): boolean { return card.rows.every(row => row.kind !== "list"); }
+
 function referenceHeight(stage: HTMLElement): number {
   const box = (node: Element) => node.getBoundingClientRect();
   const card = stage.querySelector(".composer-card"), field = stage.querySelector(".composer-input");
@@ -188,6 +193,8 @@ export function HeroComposer(props: HeroComposerProps) {
   const [announcement, setAnnouncement] = useState("");
   const [dismissed, setDismissed] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  // Controlled so an Esc on a project name's tooltip closes the menu too (TooltipEscape).
+  const [projectMenu, setProjectMenu] = useState(false);
   const [confirm, setConfirm] = useState<{ request: LastRequest; title: string; body: string; cancel: string; confirm: string } | null>(null);
   const field = useRef<ComposerFieldHandle | null>(null);
   const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
@@ -253,7 +260,9 @@ export function HeroComposer(props: HeroComposerProps) {
 
   const readModels = (forRoot: string, forProvider: Provider) => {
     const key = modelsKey(forRoot, forProvider, generationOf(memory.current.auth, forProvider));
-    if (memory.current.lists[key] !== undefined) return;
+    const known = memory.current.lists[key];
+    // A failed read is not kept for the run: the picker asks again when it opens.
+    if (known !== undefined && !(typeof known === "object" && "error" in known)) return;
     update(current => ({ lists: { ...current.lists, [key]: "loading" } }));
     void window.doan.listConversationModels({ root: forRoot, runtime: forProvider }).catch(() => ({ error: "unknown" })).then(reply => update(current => ({ lists: { ...current.lists, [key]: reply } })));
   };
@@ -471,6 +480,7 @@ export function HeroComposer(props: HeroComposerProps) {
     if (result.confirm) setConfirm({ request: result.request, ...result.confirm });
     else apply(result.request);
   }, [props.restore?.seq]);
+  const keepDraft = () => { setConfirm(null); queueMicrotask(focusEnd); };
   const apply = (request: LastRequest) => {
     setConfirm(null);
     // The files are checked again at once (2026-10-29 user): each chip shows checking, then ready or moved.
@@ -519,28 +529,32 @@ export function HeroComposer(props: HeroComposerProps) {
     <Buddy buddy={props.buddy ?? "doany"} size={114} ref={doany} />
     <h1 className="home-greeting">{greetingText(props.greeting, hasProjects ? project : null)}</h1>
     <div className="home-composer">
-      {hasProjects ? <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild><button type="button" className="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={`Project: ${project}`} disabled={sending}>
-          <span className={`shell-thumbnail hue-${projectHue(project)}`} aria-hidden="true">{projectInitial(project)}</span><span>{project}</span><ChevronDown className="chev" aria-hidden="true" />
-        </button></DropdownMenu.Trigger>
-        <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu project-popover" aria-label="Projects" side="bottom" align="start" sideOffset={4} collisionPadding={8}>
-          <DropdownMenu.RadioGroup value={card?.key ?? ""} onValueChange={key => { const chosen = cards.find(item => item.key === key); if (chosen) edit({ root: rootForProject(chosen.rows, props.shellProjects[chosen.key]?.selectedRoot) }); }}>
-            {cards.map(item => {
-              // Every root that is not a list, reading included, is disabled with its status chip.
-              const down = item.rows.every(row => row.kind !== "list");
+      {hasProjects ? <DropdownMenu.Root open={projectMenu} onOpenChange={setProjectMenu}>
+        <NameTip text={project}><DropdownMenu.Trigger asChild><button type="button" className="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={`Project: ${project}`} disabled={sending}>
+          <span className={`shell-thumbnail hue-${projectHue(project)}`} aria-hidden="true">{projectInitial(project)}</span><span className="home-project-name">{project}</span><ChevronDown className="chev" aria-hidden="true" />
+        </button></DropdownMenu.Trigger></NameTip>
+        <TooltipEscape value={() => setProjectMenu(false)}><DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu project-popover" aria-label="Projects" side="bottom" align="start" sideOffset={4} collisionPadding={8}>
+          {/* Radix calls onValueChange even for a radio item whose onSelect was prevented, so a down project is ignored here too. */}
+          <DropdownMenu.RadioGroup value={card?.key ?? ""} onValueChange={key => { const chosen = cards.find(item => item.key === key); if (chosen && !projectDown(chosen)) edit({ root: rootForProject(chosen.rows, props.shellProjects[chosen.key]?.selectedRoot) }); }}>
+            {cards.map((item, index) => {
+              // Every root that is not a list, reading included, is unavailable with its status chip. It stays reachable by
+              // the arrow keys (aria-disabled, as the canvas row menu's items) and is read by its name, then its note.
+              const down = projectDown(item);
               const chip = down ? cardRow(item.rows[0]!, null, null).chip : undefined;
+              const noteId = `${listId}-project-note-${index}`;
               return <Fragment key={item.key}>
-                <DropdownMenu.RadioItem value={item.key} className="doan-menu-item project-item" disabled={down}>
-                  <span className={`shell-thumbnail hue-${projectHue(item.name)}`} aria-hidden="true">{projectInitial(item.name)}</span><span className="model-name">{item.name}</span>
+                <DropdownMenu.RadioItem value={item.key} className="doan-menu-item project-item" {...(down ? { "aria-disabled": true, "aria-label": item.name, "aria-describedby": noteId } : {})}
+                  onSelect={event => { if (down) event.preventDefault(); }}>
+                  <span className={`shell-thumbnail hue-${projectHue(item.name)}`} aria-hidden="true">{projectInitial(item.name)}</span><NameTip text={item.name}><span className="model-name">{item.name}</span></NameTip>
                   {chip && <span className={chipClass(chip)}>{chip}</span>}<span className="check-slot">{item.key === card?.key && <Check className="check" aria-hidden="true" />}</span>
                 </DropdownMenu.RadioItem>
-                {down && <p className="menu-note">{chip === "Missing" ? `${item.name} is missing.` : `${item.name} isn’t available.`} Fix it from its menu in the sidebar.</p>}
+                {down && <p className="menu-note" id={noteId}>{chip === "Reading" ? `${item.name} is still being read.` : `${chip === "Missing" ? `${item.name} is missing.` : `${item.name} isn’t available.`} Fix it from its menu in the sidebar.`}</p>}
               </Fragment>;
             })}
           </DropdownMenu.RadioGroup>
           <DropdownMenu.Separator className="doan-menu-sep" />
           <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.addProjects()}><Plus aria-hidden="true" /><span className="model-name">Add Projects…</span></DropdownMenu.Item>
-        </DropdownMenu.Content></DropdownMenu.Portal>
+        </DropdownMenu.Content></DropdownMenu.Portal></TooltipEscape>
       </DropdownMenu.Root>
         : <button type="button" className="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={() => props.addProjects()}><Plus aria-hidden="true" /><span>Add Projects…</span></button>}
       <div className="composer" {...drop.handlers}>
@@ -573,7 +587,9 @@ export function HeroComposer(props: HeroComposerProps) {
               {projectRows.map(row => {
                 const chip = cardRow(row, null, null).chip;
                 const off = row.kind !== "list";
-                return <DropdownMenu.Item key={row.path} className="doan-menu-item shell-worktree" aria-current={row.path === root ? "true" : "false"} disabled={off} onSelect={() => edit({ root: row.path })}>
+                // Reachable by the arrow keys while unavailable; its name already holds the status chip.
+                return <DropdownMenu.Item key={row.path} className="doan-menu-item shell-worktree" aria-current={row.path === root ? "true" : "false"} aria-disabled={off || undefined}
+                  onSelect={event => { if (off) { event.preventDefault(); return; } edit({ root: row.path }); }}>
                   <GitBranch aria-hidden="true" /><span><span>{branchOf(row) ?? row.path.split("/").at(-1)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>
                   {off && chip ? <span className={chipClass(chip)}>{chip}</span> : row.path === root && <Check aria-hidden="true" />}
                 </DropdownMenu.Item>;
@@ -591,9 +607,10 @@ export function HeroComposer(props: HeroComposerProps) {
         : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}
       <div className="sr-only" role="status">{announcement}</div>
     </div>
-    {confirm && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" aria-label={confirm.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); setConfirm(null); }}>
+    {/* Escape is Keep draft, so both put focus back in the field. */}
+    {confirm && <dialog className="doan-dialog doan-scroll" data-ui-size="compact" aria-label={confirm.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); keepDraft(); }}>
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">{confirm.title}</h3><p className="doan-dialog-description">{confirm.body}</p></div></div>
-      <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" autoFocus onClick={() => { setConfirm(null); queueMicrotask(focusEnd); }}>{confirm.cancel}</button><button type="button" className="doan-button" data-ui-variant="prominent" onClick={() => apply(confirm.request)}>{confirm.confirm}</button></div>
+      <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" autoFocus onClick={keepDraft}>{confirm.cancel}</button><button type="button" className="doan-button" data-ui-variant="prominent" onClick={() => apply(confirm.request)}>{confirm.confirm}</button></div>
     </dialog>}
     <HomeCredit />
   </HomeStage>;

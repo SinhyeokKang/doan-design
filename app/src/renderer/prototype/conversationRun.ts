@@ -6,6 +6,7 @@ import type { DoanApi } from "../../preload";
 import { canvasConversationTitle, type ConversationCalls } from "../CanvasConversationPanel";
 import { CanvasRun, canvasKey, type ResumeCalls } from "../canvasRun";
 import { ConversationStore, type ListView, type StoreCalls } from "../conversationStore";
+import { LIST_RETRY_IDLE, type ListRetry } from "../listRetry";
 import { DockedSupport, type DockedSupportCalls } from "../dockedSupport";
 import { canvasStrongestSignal, type CanvasSignal } from "../rightPanelOpen";
 import type { VisibleCalls } from "../visibleClock";
@@ -43,6 +44,10 @@ export class PrototypeConversationRun {
   // the same canvas (A, B, A) can answer after a newer one, and its older list would drop what the newer one named.
   private epoch = 0;
   private listView: ListView = "loading";
+  // A failed list's Retry: true while its read is out, and the Retries that failed in a row. Only a Retry counts: a
+  // read made for another reason that fails again is not announced again.
+  private retrying = false;
+  private listFailures = 0;
   private reading: { epoch: number; views: number; again: boolean } | null = null;
   private views = 0;
   // Main answered a read with "not_playing": it plays a canvas this window has no view of yet, so list changes went
@@ -82,6 +87,7 @@ export class PrototypeConversationRun {
     this.run = new CanvasRun({
       list, readsStarted: () => this.reads, readsApplied: () => this.applied,
       reread: root => { if (this.view?.root === root) this.read(); },
+      listRetry: root => (this.view?.root === root ? this.listRetry() : LIST_RETRY_IDLE),
       markSeen: (conversationId, seq) => { this.seenIds.add(conversationId); void calls.markConversationSeen({ conversationId, seq }).catch(console.error); },
       focused: () => host.focused(),
       drawing: root => (this.view?.root === root ? this.drawingId : null),
@@ -136,6 +142,8 @@ export class PrototypeConversationRun {
       this.epoch++;
       this.missed = false;
       this.listView = "loading";
+      this.retrying = false;
+      this.listFailures = 0;
       this.last = null;
       // The relayed drawing and promotion belong to a target. Main nulls them for every new target and may push the new
       // one's before this view arrives (views wait behind the still capture), so the old values go and main is asked
@@ -157,7 +165,15 @@ export class PrototypeConversationRun {
   }
 
   focusChanged(): void { this.run.focusChanged(); this.changed(); }
-  retry(): void { this.read(); }
+  retry(): void {
+    // A Retry of a failed list runs, busy at once, until its read settles.
+    if (this.listView === "error" && !this.retrying) { this.retrying = true; this.changed(); }
+    this.read();
+  }
+  listRetry(): ListRetry {
+    if (this.listView !== "error") return LIST_RETRY_IDLE;
+    return { running: this.retrying, failures: this.listFailures };
+  }
 
   // The head menu's Delete, as the main window's: the store marks the conversation as being deleted before main is
   // asked, so no list read picks it meanwhile, and the mark ends exactly once, deleted (success, or not_found: main has
@@ -238,8 +254,9 @@ export class PrototypeConversationRun {
       // this read was out, a read now does.
       else if (reply.error === "not_playing") { if (reading.views !== this.views) reading.again = true; else this.missed = true; }
       // A failed read after a good one keeps the list it had; only a canvas never read shows the failure.
-      else if (!Array.isArray(this.listView)) this.listView = "error";
+      else if (!Array.isArray(this.listView)) { this.listView = "error"; if (this.retrying && !reading.again) this.listFailures++; }
       if (reading.again) this.read();
+      else this.retrying = false;
       this.sync();
     });
   }
@@ -255,6 +272,7 @@ export class PrototypeConversationRun {
     }
     for (const id of this.seenIds) if (list.some(c => c.conversationId === id && !c.unseen)) this.seenIds.delete(id);
     this.listView = list;
+    this.listFailures = 0;
     this.applied = n;
   }
 

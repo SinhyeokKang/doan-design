@@ -984,3 +984,45 @@ test("scheduled rows are read only for the Overview's shown root", async () => {
   expect(h.run.queue(A).map(row => row.id)).toEqual(["s1"]);
 });
 
+
+// Edit and resend over another draft asks first, as Home's Edit does (PRODUCT §5 item 3): a returned queue included.
+// An empty draft, or one that already is the last request, is replaced at once.
+test("Edit and resend asks before replacing a different draft, and not over an empty or identical one", async () => {
+  const h = harness();
+  const message = event(A, { type: "user.message", text: "Draw it", anchors: [], attachments: [{ name: "a.png", size: 1, kind: "image", path: "/tmp/a.png" }] });
+  histories.set(A, [message, event(A, { type: "turn.started" }), event(A, { type: "turn.failed", code: "unknown" })]);
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A)]);
+  await flush();
+  const key = `conversation:${A}`;
+  const set = (value: DockedDraft) => h.run.setDrafts(drafts => new Map(drafts).set(key, value));
+  const chip = (path: string) => ({ key: path, id: path, name: "a.png", kind: "image" as const, pasted: false, status: "ready" as const, size: 1, path });
+  const asks = { title: "Replace your draft?", body: "Your draft will be replaced by the last request you sent in this conversation.", cancel: "Keep draft", confirm: "Replace" };
+  expect(h.run.store.editAndResendConfirm(A)).toBeNull();
+  set(draft(""));
+  expect(h.run.store.editAndResendConfirm(A)).toBeNull();
+  set({ ...draft("Draw it"), attachments: [chip("/tmp/a.png")] });
+  expect(h.run.store.editAndResendConfirm(A)).toBeNull();
+  set(draft("Draw it"));
+  expect(h.run.store.editAndResendConfirm(A)).toEqual(asks);
+  set({ ...draft("Draw it"), attachments: [chip("/tmp/b.png")] });
+  expect(h.run.store.editAndResendConfirm(A)).toEqual(asks);
+  set({ ...draft("Also the footer"), attachments: [chip("/tmp/a.png")] });
+  expect(h.run.store.editAndResendConfirm(A)).toEqual(asks);
+  set({ ...draft("Draw it"), attachments: [chip("/tmp/a.png")], preset: { id: "polish", title: "Polish", description: "", scope: "" } });
+  expect(h.run.store.editAndResendConfirm(A)).toEqual(asks);
+});
+
+test("a queue returned after a failed turn is protected by the Edit and resend question", async () => {
+  const h = harness();
+  histories.set(A, ended(A));
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { phase: "running", working: true })]);
+  await flush();
+  doan.takeConversationDraft!.mockResolvedValueOnce({ text: "Also make the caption shorter", anchors: [], attachments: [], ids: [], reason: "failed" });
+  h.answer(ROOT, [summary(A, { returnedDraft: true })]);
+  h.run.sync();
+  await flush(); await flush();
+  expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("Also make the caption shorter");
+  expect(h.run.store.editAndResendConfirm(A)).toMatchObject({ title: "Replace your draft?" });
+});

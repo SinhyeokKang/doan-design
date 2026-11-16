@@ -144,6 +144,24 @@ test("the window's native visibility goes to its page on show, hide, minimize, r
   expect(pushed()).toEqual([{ visible: false }, { visible: true }, { visible: false }, { visible: true }, { visible: false }, { visible: true }]);
 });
 
+// Agent usage reads while either window shows, so main hears each change of this window's native visibility, a close
+// included, and reads visible() then as the window now is.
+test("tells main each time the window is shown, hidden, minimized, restored or closed", async () => {
+  const { createPrototypeWindow } = await import("./prototypeWindow");
+  const seen: boolean[] = [];
+  const prototype = createPrototypeWindow({ entries: () => entries, mainWindow: () => undefined, closed: vi.fn(), denyPermissions: vi.fn(), reread: vi.fn(), buddy: () => "puri",
+    shownChanged: () => seen.push(prototype.visible()) });
+  prototype.controller.play("main", play);
+  const window = created[0]!;
+  seen.length = 0;
+  window.minimized = true; window.emit("minimize");
+  window.minimized = false; window.emit("restore");
+  window.shown = false; window.emit("hide");
+  window.shown = true; window.emit("show");
+  window.close();
+  expect(seen).toEqual([false, true, false, true, false]);
+});
+
 test("the page gets the saved buddy in its query, as the main window's does", async () => {
   const { window } = await opened();
   expect(window.loadFile).toHaveBeenCalledWith(expect.stringContaining("prototype.html"), { query: { buddy: "puri" } });

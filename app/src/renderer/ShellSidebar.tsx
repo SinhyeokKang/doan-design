@@ -20,6 +20,7 @@ import { settingsSectionsShown, type SettingsSection } from "./settingsSections"
 import { LOADING_DELAY_MS } from "./ConversationThread";
 import { sidebarSlot, type RowSlot } from "./problemView";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { NameTip } from "./NameTip";
 import { countDescription, headArrow, sidebarGroups, visibleItems, type GroupId, type SidebarGroup, type SidebarItem } from "./sidebarGroups";
 import { DELETE_TOOLTIP, deleteItemLabel } from "./conversationDelete";
 import type { DeleteTarget } from "./ConversationDeleteDialog";
@@ -65,6 +66,8 @@ interface Props {
   // away are shown unavailable and App ignores them. aria-disabled keeps them in the
   // focus order.
   locked?: boolean;
+  // Why, while locked: the unavailable menu and delete buttons give it in their tooltip and description.
+  lockReason?: string | null;
   // The Settings page: the project tree gives way to its categories, a plain list of buttons.
   // Choosing one leaves focus on its row.
   // mcp: MCP Connectors is listed only while Claude Code or Codex is signed in.
@@ -173,6 +176,8 @@ function useSlowRoots(loading: readonly string[]): ReadonlySet<string> {
 }
 interface RowMenu {
   menu: CanvasMenu; root: string; row: CanvasRow; name: string; reasonId: string; open: boolean; locked: boolean; tabIndex: number;
+  // The page lock's reason and its sr-only line, for the button's tooltip and description while locked.
+  lock: { reason: string; id: string } | null;
   setOpen(open: boolean): void;
   rowNode(): HTMLElement | undefined;
   // The row as the list holds it now: an item chosen for a row that left the list does nothing.
@@ -195,7 +200,10 @@ function canvasRowMenu(args: RowMenu): ReactElement {
       if (current) act(current);
     }}><Icon aria-hidden="true" />{reason ? <span className="shell-menu-text"><span>{label}</span><small id={id} className="shell-menu-reason">{reason}</small></span> : label}</DropdownMenu.Item>;
   return <DropdownMenu.Root open={args.open} onOpenChange={open => { if (!open || !locked) args.setOpen(open); }}>
-    <DropdownMenu.Trigger asChild><button className="doan-icon-button shell-more" aria-label={`${args.name} menu`} aria-disabled={locked || undefined} tabIndex={args.tabIndex} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger>
+    {/* The unavailable state sits on Radix's trigger, the tooltip trigger's direct child, so the tooltip keeps the
+        reason as the button's only description (components/ui/tooltip.tsx 'OwnDescription'). */}
+    <Tooltip><TooltipTrigger asChild><DropdownMenu.Trigger asChild aria-disabled={locked || undefined} aria-describedby={locked && args.lock ? args.lock.id : undefined}><button className="doan-icon-button shell-more" aria-label={`${args.name} menu`} tabIndex={args.tabIndex} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger></TooltipTrigger>
+      <TooltipContent>{locked && args.lock ? args.lock.reason : "Canvas menu"}</TooltipContent></Tooltip>
     <DropdownMenu.Portal><DropdownMenu.Content className="menu doan-floating doan-menu shell-canvas-menu shell-side-menu" data-ui-size="compact" sideOffset={4} collisionPadding={8} align="end" onClick={event => event.stopPropagation()} onCloseAutoFocus={event => {
       // A dialog the menu opened owns focus (App returns it to this button when it closes), as does a control focus
       // already moved to (POSTMORTEM 2026-10-30: a dialog is found by its rendered element, not a styling class).
@@ -389,6 +397,7 @@ export function ShellSidebar(props: Props) {
   const active = rows.some(row => row.key === focused) ? focused : rows[0]?.key;
   // Radix spreads props over the aria-disabled it derives from `disabled`, so Overview repeats its own disabled state.
   const locked = props.locked || undefined;
+  const lock = props.locked && props.lockReason ? { reason: props.lockReason, id: `${descriptionPrefix}-lock` } : null;
   const withHandle = (aside: ReactElement) => props.resize ? <>{aside}<ResizeHandle edge="end" className="doan-sidebar-handle" label="Resize sidebar" {...props.resize} /></> : aside;
   if (props.settings) {
     const { section, select, mcp = false } = props.settings;
@@ -411,21 +420,22 @@ export function ShellSidebar(props: Props) {
     return <div key={key} ref={rowRef(key)} className="shell-conv-row row" role="treeitem" aria-level={4} aria-label={c.heading} aria-describedby={c.slot ? stateId : undefined} aria-current={current ? "true" : undefined}
       aria-disabled={locked} tabIndex={active === key ? 0 : -1} data-key={key} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => openConversation(c)}>
       {current && <span className="shell-conv-check" aria-hidden="true"><Check aria-hidden="true" /></span>}
-      <span className="shell-conv-title">{c.heading}</span>
+      <NameTip text={c.heading}><span className="shell-conv-title">{c.heading}</span></NameTip>
       <SlotMark slot={c.slot ?? undefined} described />
       {c.slot && <span className="sr-only" id={stateId}>{c.slot.label}</span>}
       <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button shell-more conv-trash" aria-label={deleteItemLabel(c.title)} tabIndex={active === key ? 0 : -1}
-        aria-disabled={reason || locked ? true : undefined} aria-describedby={reason ? reasonId : undefined} onKeyDown={event => event.stopPropagation()} onClick={event => {
+        aria-disabled={reason || locked ? true : undefined} aria-describedby={reason ? reasonId : locked && lock ? lock.id : undefined} onKeyDown={event => event.stopPropagation()} onClick={event => {
           event.stopPropagation();
           if (reason || props.locked || !placedRow || listAt === null) return;
           conversations?.remove({ conversationId: c.conversationId, root: placedRow.root, title: c.title, provider: c.provider, from: "sidebar", after: deleteFocus(conversationKeys, key, listAt), canvasRow: listAt }, event.currentTarget);
-        }}><Trash2 aria-hidden="true" /></button></TooltipTrigger><TooltipContent>{reason ?? DELETE_TOOLTIP}</TooltipContent></Tooltip>
+        }}><Trash2 aria-hidden="true" /></button></TooltipTrigger><TooltipContent>{reason ?? (locked && lock ? lock.reason : DELETE_TOOLTIP)}</TooltipContent></Tooltip>
       {reason && <span className="sr-only" id={reasonId}>{reason}</span>}
     </div>;
   };
   return withHandle(<aside className="side shell-side" id={props.id} ref={host} aria-label="Projects" onPointerEnter={() => setSidebarPointer(true)} onPointerLeave={() => { pressedRow.current = null; setSidebarPointer(false); }}>
     <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
     <button type="button" className="shell-home-row row" aria-current={props.homeCurrent ? "page" : undefined} aria-disabled={locked} onClick={() => props.goHome?.()}><House aria-hidden="true" /><span>Home</span></button>
+    {lock && <span className="sr-only" id={lock.id}>{lock.reason}</span>}
     <div className="shell-projects doan-scroll">
       <h2 className="shell-projects-heading">Projects</h2>
       <div role="tree" aria-label="Projects and canvases">
@@ -448,12 +458,13 @@ export function ShellSidebar(props: Props) {
                 and ←/→ fold it (project-row-disclosure draft). */}
             <span className="shell-lead"><span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{projectInitial(card.name)}</span>
               {listed && <button type="button" className="shell-disclosure" aria-label={`${expanded ? "Collapse" : "Expand"} ${card.name}`} tabIndex={-1} onClick={event => { event.stopPropagation(); props.disclose(card.key); }}><ChevronDown aria-hidden="true" /></button>}</span>
-            <span className="shell-project-name">{card.name}</span>
+            <NameTip text={card.name}><span className="shell-project-name">{card.name}</span></NameTip>
             {info.summary?.branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{info.summary.branch}</span></span>}
             <RowSlotMark slot={layout.mark} />
             {layout.state && <span id={stateId} className="sr-only">{layout.state.label}</span>}
             <DropdownMenu.Root open={projectMenu} onOpenChange={open => { setMenu(open ? { kind: "project", key: card.key } : null); if (open) { setRepairRoot(null); menuIndex.current = index; menuRoot.current = entry.path; } }}>
-              <DropdownMenu.Trigger asChild><button className="doan-icon-button shell-more" aria-label={`${card.name} menu`} tabIndex={active === card.key ? 0 : -1} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger>
+              <Tooltip><TooltipTrigger asChild><DropdownMenu.Trigger asChild><button className="doan-icon-button shell-more" aria-label={`${card.name} menu`} tabIndex={active === card.key ? 0 : -1} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger></TooltipTrigger>
+                <TooltipContent>Project menu</TooltipContent></Tooltip>
               <DropdownMenu.Portal><DropdownMenu.Content className="menu doan-floating doan-menu shell-project-menu shell-side-menu" sideOffset={4} collisionPadding={8} align="end" onClick={event => event.stopPropagation()} onCloseAutoFocus={event => {
                 const active = document.activeElement;
                 if (document.querySelector('[role="dialog"], dialog[open], .ob-overlay') || (active instanceof HTMLElement && active !== document.body && !active.closest(".shell-project-menu, .shell-more"))) event.preventDefault();
@@ -498,8 +509,8 @@ export function ShellSidebar(props: Props) {
                   return <Fragment key={key}><div><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem ? descriptionId : undefined} aria-label={name} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} aria-expanded={here ? !folded : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => { pressedRow.current = { key, arrived: false }; openCanvasRow(entry.path, row, key); }}>
                     {here ? <span className="shell-lead canvas-lead"><Icon className="canvas-icon" aria-hidden="true" /><button ref={chevronRef(key)} type="button" className="shell-disclosure" aria-label={`${folded ? "Expand" : "Collapse"} ${name}`} tabIndex={-1}
                       onMouseDown={event => event.preventDefault()} onClick={event => { event.stopPropagation(); conversations?.fold(!folded); }}><ChevronDown aria-hidden="true" /></button></span> : <Icon aria-hidden="true" />}
-                    <span>{name}</span><SlotMark slot={slot} />
-                    {canvasRowMenu({ menu: props.canvasMenu, root: entry.path, row, name, reasonId: descriptionId, open: menu?.kind === "canvas" && menu.key === key, locked: !!locked, tabIndex: active === key ? 0 : -1,
+                    <NameTip text={name}><span>{name}</span></NameTip><SlotMark slot={slot} />
+                    {canvasRowMenu({ menu: props.canvasMenu, root: entry.path, row, name, reasonId: descriptionId, open: menu?.kind === "canvas" && menu.key === key, locked: !!locked, lock, tabIndex: active === key ? 0 : -1,
                       setOpen: open => setMenu(open ? { kind: "canvas", key } : null), rowNode: () => elements.current.get(key),
                       current: () => { const listed = live.current.cards.flatMap(item => item.rows).find(item => item.path === entry.path); return listed?.kind === "list" ? listed.canvases.find(item => item.path === row.path) : undefined; },
                       lostFocus: () => focus(canvasMenuFocus.current) })}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre className="selectable">{detail}</pre>}</>}</ErrorDetails></div>}</div>

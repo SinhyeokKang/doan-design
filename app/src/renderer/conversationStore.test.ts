@@ -271,7 +271,7 @@ test("a question's chosen answer is kept by conversation and request until that 
   history.push(event({ type: "question.request", requestId: "q1", questions: [question] }));
   h.store.track(A);
   await flush();
-  expect(h.store.questionDraft(A, "q1")).toEqual({ choices: {}, sending: null, failed: false });
+  expect(h.store.questionDraft(A, "q1")).toEqual({ choices: {}, sending: null, failed: null });
   h.host.changed.mockClear();
   h.store.editQuestion(A, "q1", { type: "choose", question, option: 1 });
   expect(h.host.changed).toHaveBeenCalled();
@@ -295,11 +295,11 @@ test("a resolved or deleted question's draft is not made again by a late edit", 
   h.host.changed.mockClear();
   h.store.editQuestion(A, "q1", { type: "failed" });
   h.store.editQuestion(A, "q1", { type: "choose", question, option: 0 });
-  expect(h.store.questionDraft(A, "q1")).toEqual({ choices: {}, sending: null, failed: false });
+  expect(h.store.questionDraft(A, "q1")).toEqual({ choices: {}, sending: null, failed: null });
   expect(h.host.changed).not.toHaveBeenCalled();
   h.store.deleted(A);
   h.store.editQuestion(A, "q2", { type: "failed" });
-  expect(h.store.questionDraft(A, "q2")).toEqual({ choices: {}, sending: null, failed: false });
+  expect(h.store.questionDraft(A, "q2")).toEqual({ choices: {}, sending: null, failed: null });
 });
 
 test("a deleted conversation's chosen answers go with it", () => {

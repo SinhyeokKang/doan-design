@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DropdownMenu } from "radix-ui";
-import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Plus, Settings, SquarePen } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Settings, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import { sendNowShown } from "../main/conversation/steerSupport";
@@ -15,16 +15,21 @@ import { useProjectSkills } from "./useProjectSkills";
 import { AlertIcon } from "./AlertIcon";
 import { plainText, textSegments } from "./anchorField";
 import { startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { canvasLabel } from "./canvasTree";
 import { focusFieldEnd } from "./chipField";
 import { SuggestionButton } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
-import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
+import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
+import { LIST_FAILED_TEXT, listFailedNotice, listRetryItem } from "./ListRetryButton";
+import { ReplaceDraftDialog } from "./ReplaceDraftDialog";
+import type { ReplaceDraftConfirm } from "./homeConversations";
+import { ConversationThread, LOADING_DELAY_MS, openReplyLink, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
+import { useRingUsage } from "./ContextRing";
 import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
 import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
@@ -45,6 +50,7 @@ import { stopBackground, threadTurn } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import { dropAttachment } from "./conversationStore";
+import { NameTip } from "./NameTip";
 
 // The project Overview as the project conversation screen: the header with the
 // project, its worktree chip and the conversation dropdown, the thread and the docked composer. OverviewRun decides
@@ -79,6 +85,8 @@ export interface ProjectOverviewProps {
   // A chip in an agent's reply: the host opens its canvas and moves to its target.
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
   onRetryList(): void;
+  // The failed list's Retry while it reads again (HomeRun listRetry).
+  listRetry?: ListRetry;
   onStart(request: StartInput, last: LastRequest): Promise<StartOutcome>;
   // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens.
   onSendConversation(provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | ScheduledSend | { error: string; missing?: string[]; replaced?: string[]; resetsAt?: string }>;
@@ -114,6 +122,9 @@ const focusField = () => queueMicrotask(() => focusFieldEnd(document.querySelect
 
 export function ProjectOverview(props: ProjectOverviewProps) {
   const { run, support, root, project, list } = props;
+  const listRetry = props.listRetry ?? LIST_RETRY_IDLE;
+  // Edit and resend's "Replace your draft?" while it asks, for the conversation it was pressed in.
+  const [replacing, setReplacing] = useState<{ conversationId: string; confirm: ReplaceDraftConfirm } | null>(null);
   const listed = Array.isArray(list) ? list : null;
   const view = run.view(root);
   // A failed first read leaves nothing to wait for: the column is a new conversation.
@@ -131,6 +142,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   // Presets are read once for the run; accounts come from main's snapshots.
   useEffect(() => { if (!support.presets?.ok) support.readPresets(); }, []);
   useEffect(() => window.doan.onAgentAuth(snapshot => support.setAuth(snapshot)), []);
+  // The context ring's drawer: a conversation on the person's CLI profile shows no Doan connection's usage. Until the
+  // list holds its summary the owner is unknown, so a legacy conversation's first frame neither shows a row nor reads.
+  const ringUsage = useRingUsage(window.doan, summary === undefined || summary.owner === "legacy-external");
 
   // The composer's agent, model and effort, as Home decides them for a new conversation; an existing one keeps its
   // provider and starts from its own model.
@@ -194,28 +208,33 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     if (items.some(item => item.key === target.key && item.kind === "question")) handle.current?.focusItem(target.key);
   }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
   const canvasListed = (canvas: Canvas) => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row));
-  const editAndResend = (id: string) => { void run.editAndResend(root, id).then(focus => { if (focus) focusField(); }); };
+  const resend = (id: string) => { void run.editAndResend(root, id).then(focus => { if (focus) focusField(); }); };
+  const editAndResend = (id: string) => {
+    const confirm = run.store.editAndResendConfirm(id);
+    if (confirm) setReplacing({ conversationId: id, confirm }); else resend(id);
+  };
 
   // Attachments go through main, which checks each file; each answer lands on its chip wherever the draft is now.
-  const settle = (keys: string[], results: readonly (AttachmentResult | null)[]) => {
+  // Refusals go to the composer's own notice (`report`), as Home's go under its composer.
+  const settle = (keys: string[], results: readonly (AttachmentResult | null)[], report: (text: string) => void) => {
     const { notices, images } = run.settleAttachments(keys, results);
     if (typeof URL.createObjectURL === "function") for (const image of images) support.setThumbnail(image.key, URL.createObjectURL(new Blob([new Uint8Array(image.thumbnail)], { type: "image/png" })));
-    if (notices.length) props.onNotice?.(notices.join(" "));
+    if (notices.length) report(notices.join(" "));
   };
   const addChips = (at: string, chips: AttachmentDraft[]) => run.setDrafts(drafts => {
     const current = drafts.get(at) ?? EMPTY_DRAFT;
     return new Map(drafts).set(at, { ...current, attachments: [...current.attachments, ...chips] });
   });
-  const addFiles = (files: File[], pasted: boolean) => {
+  const addFiles = (files: File[], pasted: boolean, report: (text: string) => void) => {
     const at = key;
     const limit = attachmentLimit(draft.attachments.length, files.map(file => ({ pasted: false, size: file.size })));
-    if (limit.notices.length) props.onNotice?.(limit.notices.join(" "));
+    if (limit.notices.length) report(limit.notices.join(" "));
     const accepted = limit.accept.map(i => files[i]!);
     if (!accepted.length) return;
     const keys = accepted.map(() => crypto.randomUUID());
     addChips(at, accepted.map((file, i) => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size })));
     void window.doan.addAttachmentFiles(accepted).catch(() => null).then(async results => {
-      if (!results) { settle(keys, keys.map(() => null)); return; }
+      if (!results) { settle(keys, keys.map(() => null), report); return; }
       // A copied screenshot has no path on disk; it attaches as a pasted image instead. A Finder item main no longer
       // finds keeps main's answer: a folder named x.png has File.type image/png too.
       const final = await Promise.all(results.map(async (result, i) => {
@@ -227,18 +246,18 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         if (!bytes) return result;
         return window.doan.addPastedImage(bytes).catch(() => null);
       }));
-      settle(keys, final);
+      settle(keys, final, report);
     });
   };
-  const chooseFiles = () => {
+  const chooseFiles = (report: (text: string) => void) => {
     const at = key;
     void window.doan.chooseAttachments().catch(() => []).then(results => {
       const { chosen, release, notices } = chosenAttachments((run.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, results);
       for (const id of release) void window.doan.removeAttachment(id);
       const keys = chosen.map(() => crypto.randomUUID());
       addChips(at, chosen.map((result, i) => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" })));
-      settle(keys, chosen);
-      if (notices.length) props.onNotice?.(notices.join(" "));
+      settle(keys, chosen, report);
+      if (notices.length) report(notices.join(" "));
     });
   };
 
@@ -300,6 +319,10 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const deleting = useRef(false);
   // Controlled, so a Delete tooltip's Escape closes the menu too.
   const [menuOpen, setMenuOpen] = useState(false);
+  // While the list is read the trigger is unavailable but stays focusable (aria-disabled, not Radix disabled, which
+  // would drop a focused trigger's focus): the menu is held closed, and one open when the read began closes for good.
+  const loading = list === "loading";
+  useEffect(() => { if (loading) setMenuOpen(false); }, [loading]);
   const choose = (value: string) => {
     picked.current = true;
     run.select(root, value === NEW ? null : value);
@@ -324,7 +347,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     <header className="ov-head">
       <span className="ov-project">
         <span className={`shell-thumbnail hue-${projectHue(project)}`} aria-hidden="true">{projectInitial(project)}</span>
-        <span className="ov-project-name">{project}</span>
+        <NameTip text={project}><span className="ov-project-name">{project}</span></NameTip>
         {props.worktrees.length > 1 ? <DropdownMenu.Root onOpenChange={open => { if (open) setRepair(null); }}>
           <DropdownMenu.Trigger asChild><button type="button" className="doan-chip shell-branch wt-chip" data-ui-variant="translucent" aria-label={`Worktree: ${chipLabel}`}>
             <GitBranch aria-hidden="true" /><span>{chipLabel}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
@@ -359,20 +382,20 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       </span>
       <span className="ov-sep" aria-hidden="true">/</span>
       <span className="ov-title-wrap">
-        <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
-          <DropdownMenu.Trigger asChild disabled={list === "loading"}><button ref={titleTrigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title}>
-            <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
-          <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label="Project conversations" align="start" sideOffset={4} collisionPadding={8}
+        <DropdownMenu.Root open={menuOpen && !loading} onOpenChange={open => setMenuOpen(open && !loading)}>
+          <NameTip text={title}><DropdownMenu.Trigger asChild><button ref={titleTrigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-disabled={loading || undefined}>
+            <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger></NameTip>
+          <TooltipEscape value={() => setMenuOpen(false)}><DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label="Project conversations" align="start" sideOffset={4} collisionPadding={8}
             onCloseAutoFocus={event => {
               if (deleting.current) { deleting.current = false; event.preventDefault(); return; }
               if (!picked.current) return; picked.current = false; event.preventDefault(); focusField();
             }}>
             <DropdownMenu.RadioGroup value={conversationId ?? NEW} onValueChange={choose}>
-              <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${conversationId === null ? " current" : ""}`} textValue="New conversation"><Plus aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
+              <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${conversationId === null ? " current" : ""}`} textValue="New conversation"><SquarePen aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
               <DropdownMenu.Separator className="doan-menu-sep" />
               <DropdownMenu.Label className="doan-menu-head">{`Conversations in ${project}`}</DropdownMenu.Label>
-              {list === "error" ? <div className="conv-error" role="status"><span>Couldn’t read conversations</span>
-                <DropdownMenu.Item className="doan-menu-item" onSelect={event => { event.preventDefault(); props.onRetryList(); }}>Retry</DropdownMenu.Item></div>
+              {list === "error" ? <div className="conv-error" role="status"><span>{announcedAgain(LIST_FAILED_TEXT, listRetry.failures)}</span>
+                {listRetryItem(listRetry, props.onRetryList)}</div>
                 : <div className="conv-list">{menuItems.map(item => <div key={item.conversationId} className="conv-row">
                   <DropdownMenu.RadioItem value={item.conversationId} textValue={item.title}
                     className={`doan-menu-item conv-item${item.conversationId === conversationId ? " current" : ""}`}>
@@ -384,7 +407,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
                   }} onEscape={() => setMenuOpen(false)} />
                 </div>)}</div>}
             </DropdownMenu.RadioGroup>
-          </DropdownMenu.Content></DropdownMenu.Portal>
+          </DropdownMenu.Content></DropdownMenu.Portal></TooltipEscape>
         </DropdownMenu.Root>
       </span>
       {/* The title menu's New conversation one click away, at the header's end so it does not move with the title. */}
@@ -407,13 +430,14 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         onRetry={() => run.retryThread(conversationId)}
         onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)} onOpenHandoff={(canvas, id) => props.onOpenCanvas(canvas, id)}
-        onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
+        onOpenLink={url => void openReplyLink(target => window.doan.openLink(target), url, text => props.onNotice?.(text))}
         onCopy={text => Promise.resolve(copyText(text))}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : waiting || conversationId ? <Waiting /> : <div className="ov-col ov-new">
-          {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text moved-text selectable" title={`${moved.title} moved to ${movedCanvas}.`}>
-            <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
+          {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><NameTip text={`${moved.title} moved to ${movedCanvas}.`}><span className="grow-text moved-text selectable">
+            <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span></NameTip>
             <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
+          {list === "error" && listFailedNotice(listRetry, props.onRetryList)}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { run.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }} />)}</div>}
         </div>}
@@ -433,7 +457,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(window.doan, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events) : null}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events) : null} usage={ringUsage}
         stepAside={{ waiting: asking, notice: !conversationId && !waiting && !!moved }}
         queued={conversationId ? run.queue(conversationId) : []}
         // Rows waiting for the usage limit's reset have no Send now: nothing runs to take them.
@@ -453,6 +477,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         }}
         onOpen={openOther} />
     </div></div>
+    {replacing && <ReplaceDraftDialog confirm={replacing.confirm} onKeep={() => { setReplacing(null); focusField(); }}
+      onReplace={() => { setReplacing(null); resend(replacing.conversationId); }} />}
   </section>;
 }
 

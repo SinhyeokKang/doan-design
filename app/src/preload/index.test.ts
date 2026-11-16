@@ -768,7 +768,7 @@ test("the playing frame arrives from its pushes and its read", async () => {
   expect(mocks.invoke.mock.calls).toEqual([["prototype:playing"]]);
 });
 
-// Settings without a provider ("Sign in to an agent…", "Manage agents…" in the prototype window) reaches the main window.
+// Settings without a provider ("Sign in to an agent", "Manage agents" in the prototype window) reaches the main window.
 test("a prototype reveal of Settings without a provider reaches its listener", () => {
   const reveals = vi.fn();
   const stop = api.onPrototypeReveal(reveals);

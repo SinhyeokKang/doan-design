@@ -1,5 +1,9 @@
 import { readFileSync } from "node:fs";
-import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
+import { renderToStaticMarkup as serverMarkup } from "react-dom/server";
+import { TooltipProvider } from "./components/ui/tooltip";
+// Names and details show in the shared tooltip, which needs the app's provider.
+const renderToStaticMarkup = (node: ReactNode) => serverMarkup(<TooltipProvider>{node}</TooltipProvider>);
 import { expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
@@ -78,12 +82,12 @@ test("result rows: an icon, the name with its matched letters underlined, and a 
   const [first, second] = [...html.matchAll(/<div class="qo-item"[^>]*>.*?<\/span><\/span><\/span><\/div>/g)].map(match => match[0]);
   expect(first).toContain('aria-label="Card declined — billing › 4 · acme-web · main"');
   expect(first).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-hash/);
-  expect(first).toContain('<span class="qo-name" title="Card declined"><mark class="qo-match">Card</mark> declined</span>');
-  expect(first).toContain('<span class="qo-detail"><span class="qo-context" title="billing › 4">billing › 4</span></span>');
+  expect(first).toContain('<span class="qo-name" data-state="closed" data-slot="tooltip-trigger"><mark class="qo-match">Card</mark> declined</span>');
+  expect(first).toContain('<span class="qo-detail" data-state="closed" data-slot="tooltip-trigger"><span class="qo-context">billing › 4</span></span>');
   expect(second).toContain('aria-label="team-scorecard — reports/team-scorecard.html · acme-web · main"');
   expect(second).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-panels-top-left/);
-  expect(second).toContain('<span class="qo-name" title="team-scorecard">team-score<mark class="qo-match">card</mark></span>');
-  expect(second).toContain('title="reports/team-scorecard.html">reports/team-scorecard.html</span>');
+  expect(second).toContain('<span class="qo-name" data-state="closed" data-slot="tooltip-trigger">team-score<mark class="qo-match">card</mark></span>');
+  expect(second).toContain('<span class="qo-context">reports/team-scorecard.html</span>');
 });
 
 test("a canvas result takes its directory's icon: SwatchBook under .doan/ds/, PanelsTopLeft under .doan/canvases/", () => {
@@ -194,7 +198,7 @@ const readingRow = (html: string) => html.match(/<\/div><div role="status" class
 const listbox = (html: string) => html.match(/role="listbox"[\s\S]*?(?=<div role="status" class="qo-live">)/)?.[0] ?? "";
 
 test("a reading project adds the reading row after the results on Home and in a workspace, with or without a query", () => {
-  const row = '<p class="qo-reading"><span class="doan-spinner" aria-hidden="true"></span>Still reading 1 project…</p>';
+  const row = '<p class="qo-reading"><span class="doan-spinner" aria-hidden="true"></span>Still reading 1 project</p>';
   // Home: the listed projects' canvases and the reading row.
   const home = render(null);
   expect(options(home).length).toBeGreaterThan(0);
@@ -209,13 +213,13 @@ test("a reading project adds the reading row after the results on Home and in a 
   expect(own).not.toContain("Project is still being read");
   expect(own).not.toContain("No canvases to show");
   const two = renderToStaticMarkup(<QuickOpen entries={[...entries, { kind: "loading", path: "/code/other" }]} currentRoot={null} pick={() => {}} close={() => {}} />);
-  expect(readingRow(two)).toContain("Still reading 2 projects…");
+  expect(readingRow(two)).toContain("Still reading 2 projects");
 });
 
 test("a query that matches nothing shows its sentence and the reading row together", () => {
   const html = renderToStaticMarkup(<QuickOpenList emptyText="No canvases match" id="r" query="zzz" groups={[]} active={0} pick={() => {}} activate={() => {}} reading={3} />);
   expect(html).toContain('<p class="qo-none" role="status">No canvases match</p>');
-  expect(readingRow(html)).toBe('<p class="qo-reading"><span class="doan-spinner" aria-hidden="true"></span>Still reading 3 projects…</p>');
+  expect(readingRow(html)).toBe('<p class="qo-reading"><span class="doan-spinner" aria-hidden="true"></span>Still reading 3 projects</p>');
   // Nothing to say and nothing reading: no sentence, and the status stays in place, empty.
   const quiet = renderToStaticMarkup(<QuickOpenList emptyText={null} id="r" query="" groups={[]} active={0} pick={() => {}} activate={() => {}} reading={0} />);
   expect(quiet).not.toContain("qo-none");
@@ -300,10 +304,10 @@ test("a conversation row: the conversations icon, the title with its matched let
   const [first, second] = [...html.matchAll(/<div class="qo-item"[^>]*>.*?<\/span><\/span><\/span><\/div>/g)].map(match => match[0]);
   expect(first).toContain('aria-label="Checkout flow — Project conversation · acme-web · main"');
   expect(first).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-messages-square/);
-  expect(first).toContain('<span class="qo-name" title="Checkout flow"><mark class="qo-match">Checkout</mark> flow</span>');
-  expect(first).toContain('<span class="qo-context" title="Project conversation">Project conversation</span>');
+  expect(first).toContain('<span class="qo-name" data-state="closed" data-slot="tooltip-trigger"><mark class="qo-match">Checkout</mark> flow</span>');
+  expect(first).toContain('<span class="qo-context">Project conversation</span>');
   expect(second).toContain('aria-label="Tighten the checkout copy — tokens · 12 minutes ago · acme-web · main"');
-  expect(second).toContain('<span class="qo-context" title="tokens · 12m">tokens · 12m</span>');
+  expect(second).toContain('<span class="qo-context">tokens · 12m</span>');
 });
 
 test("Home finds both projects' conversations by a part of their titles, each in its project's group", () => {

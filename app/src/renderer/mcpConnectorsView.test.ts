@@ -82,6 +82,22 @@ test("buttons are named with the server and the agent", () => {
   expect(find(view, "codex", "doan-atlassian").helper).toBe("Codex was connected to Atlassian before, and that access has ended. Reconnect to use it again.");
 });
 
+// The Agents sign-in row's Open again reports a browser that did not open; the MCP row's Open again does the same.
+test("a failed Open again turns the Connecting notice into the sign-in row's alert until the row leaves Connecting", () => {
+  const failed = (provider: McpProvider, name: string) => provider === "claude" && name === "doan-notion";
+  const row = find(mcpPageView(snapshot({ claude: { "doan-notion": ["connecting", { link: true }] } }), AUTH, () => null, failed), "claude", "doan-notion");
+  expect(row.status).toBe("Connecting");
+  expect(row.button).toBeNull();
+  expect(row.notice).toEqual({ role: "alert", spinner: false, body: "Couldn’t open your browser. Try again.", actions: [
+    { command: "cancel", label: "Cancel", variant: "subtle", disabled: false, ariaLabel: "Cancel connecting Notion for Claude Code" },
+    { command: "openLink", label: "Open browser", variant: "prominent", disabled: false, ariaLabel: "Open browser to connect Notion for Claude Code" },
+  ] });
+  // Only while connecting: a settled row draws its own state.
+  expect(find(mcpPageView(snapshot({ claude: { "doan-notion": "not_connected" } }), AUTH, () => null, failed), "claude", "doan-notion").notice).toBeNull();
+  // Another row is unchanged.
+  expect(find(mcpPageView(snapshot({ claude: { "doan-figma": ["connecting", { link: true }] } }), AUTH, () => null, failed), "claude", "doan-figma").notice).toMatchObject({ role: "status", title: "Finish connecting to Figma" });
+});
+
 test("status lines are present participles without an ellipsis; Checking, Disconnecting and Removing disable the row's action", () => {
   const view = mcpPageView(snapshot({ claude: { "doan-notion": "checking", "doan-figma": "disconnecting", [URL_SERVER.name]: "removing" } }), AUTH, (provider, name) => provider === "claude" && name === URL_SERVER.name ? "disconnect" : null);
   expect(find(view, "claude", "doan-notion")).toMatchObject({ status: "Checking", button: { command: "connect", disabled: true } });
@@ -112,7 +128,7 @@ test("Couldn’t check shows the Agents alert with Retry that reads the statuses
   const row = find(mcpPageView(snapshot({ codex: { "doan-atlassian": "check_failed" } }), AUTH), "codex", "doan-atlassian");
   expect(row.button).toBeNull();
   expect(row.notice).toMatchObject({ role: "alert", body: "The status check failed or took too long. Try again." });
-  expect(row.notice!.actions).toEqual([{ command: "check", label: "Retry", variant: "prominent", disabled: false, ariaLabel: "Check Atlassian for Codex again" }]);
+  expect(row.notice!.actions).toEqual([{ command: "check", label: "Retry", variant: "prominent", disabled: false, ariaLabel: "Retry checking Atlassian for Codex" }]);
 });
 
 test("a failed attempt shows its reason with Retry on the row it returned to", () => {

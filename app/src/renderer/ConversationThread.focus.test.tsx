@@ -81,7 +81,7 @@ function draw(items: ThreadItem[], commit?: () => void): void {
   props = { ...props, items };
   const outer = (ConversationThread as unknown as { render(props: ConversationThreadProps, ref: null): ReactElement<ConversationThreadProps> }).render(props, null);
   tree = all((outer.type as (props: ConversationThreadProps) => ReactNode)(outer.props));
-  const scroller = tree.find(element => element.props.className === "thread-scroll")!.props.ref as { current: unknown };
+  const scroller = tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.ref as { current: unknown };
   scroller.current = {
     scrollHeight: 100, scrollTop: 0, clientHeight: 100, contains: (node: unknown) => typeof node === "object" && node !== null && "item" in node,
     querySelector: (selector: string) => {
@@ -166,7 +166,7 @@ test("a cancelled card that held focus hands it to the next waiting request, or 
 });
 
 test("a cancelled question whose Other field held unsent text moves focus from the page to the composer", () => {
-  props = { ...props, questionDraft: () => ({ choices: { "0": { selected: [], other: true, text: "Grid" } }, sending: null, failed: false }) };
+  props = { ...props, questionDraft: () => ({ choices: { "0": { selected: [], other: true, text: "Grid" } }, sending: null, failed: null }) };
   draw([asked("q")]);
   draw([asked("q", "expired")]);
   expect(composer).toHaveBeenCalledOnce();
@@ -186,7 +186,7 @@ test("a cancelled card focus was not in, with nothing typed, moves no focus", ()
 // failure, whether that reply or permission.resolved arrives first (Electron does not order a handle reply against
 // an earlier send; POSTMORTEM 2026-10-26).
 // The card's own failure line; a live request's card is itself an alert.
-const alerted = () => tree.some(element => element.props.className === "ask-error");
+const alerted = () => tree.some(element => String(element.props.className).split(" ").includes("ask-error"));
 test("a stale permission answer shows no failure, before or after the resolution arrives", async () => {
   for (const order of ["reply first", "resolved first"] as const) {
     hooks.slots = []; hooks.layout = []; controls = new Map(); active = body;
@@ -217,6 +217,10 @@ test("an answer main refused for another reason still asks to choose again", asy
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   draw([permission("a")]);
   expect(alerted()).toBe(true);
+  // U31: the shared inline error line with the alert icon.
+  const line = tree.find(element => String(element.props.className).split(" ").includes("ask-error"))!;
+  expect(line.type).toBe("p");
+  expect(line.props).toMatchObject({ className: "settings-msg error ask-error", role: "alert" });
 });
 
 // A turn's cards sit above a request still waiting and below it once it folds (threadItems placeCards), so React moves

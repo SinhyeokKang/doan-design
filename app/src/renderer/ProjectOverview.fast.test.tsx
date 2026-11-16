@@ -36,7 +36,7 @@ const AUTH: AuthSnapshot = { revision: 1, providers: [status("claude")] };
 const OPUS: ModelOption = { id: "opus", label: "Opus", default: true, efforts: ["high"], fast: {} };
 const SONNET: ModelOption = { id: "sonnet", label: "Sonnet", default: false, efforts: ["high"] };
 
-beforeEach(() => vi.stubGlobal("window", { doan: { readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), onAgentAuth: vi.fn(() => () => {}), listConversationSkills: vi.fn(async () => ({ skills: [] })), listConversationModels: vi.fn(() => new Promise(() => {})), setConversationPermissionMode: vi.fn(async () => undefined) } }));
+beforeEach(() => vi.stubGlobal("window", { doan: { readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), onAgentAuth: vi.fn(() => () => {}), onAgentUsage: vi.fn(() => () => {}), readAgentUsage: vi.fn(async () => []), listConversationSkills: vi.fn(async () => ({ skills: [] })), listConversationModels: vi.fn(() => new Promise(() => {})), setConversationPermissionMode: vi.fn(async () => undefined) } }));
 afterEach(() => vi.unstubAllGlobals());
 
 function render(list: ListView, current: string | null, patch: Partial<ProjectOverviewProps> = {}, picks?: (support: DockedSupport) => void) {
@@ -212,3 +212,14 @@ test("a send that waits for the usage limit's reset carries no pick, and the nex
   expect(ordinary.mock.calls.at(-1)![1]).toMatchObject({ conversationId: A, model: "sonnet", effort: "high", fast: false });
 });
 
+
+// The context ring's drawer: until the list holds the shown conversation's summary its owner is unknown, so the usage
+// stays hidden (a legacy conversation's first frame neither shows a Doan connection's row nor reads); a conversation on
+// the person's CLI profile keeps it hidden.
+test("the ring's usage is hidden until the summary arrives and for a legacy external conversation", () => {
+  const hidden = (list: ListView) => (render(list, A).composer as unknown as { usage: { hidden: boolean } }).usage.hidden;
+  expect(hidden("loading")).toBe(true);
+  expect(hidden([])).toBe(true);
+  expect(hidden([summary()])).toBe(false);
+  expect(hidden([summary({ owner: "legacy-external" })])).toBe(true);
+});

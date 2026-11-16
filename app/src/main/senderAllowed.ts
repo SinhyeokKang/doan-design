@@ -14,6 +14,8 @@ const mainOnly = new Set([
   "folders:remove", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",
   "onboarding:choose-folder", "folders:get",
+  // The Retry of a failed project-list save.
+  "folders:save-again",
   // New folder on the Project step: the save panel and the folder main makes.
   "onboarding:new-folder", "onboarding:new-folder-cancel",
   // The canvas page says which canvas it shows, and the read-state toast's Retry.
@@ -50,7 +52,7 @@ const mainOnly = new Set([
   // Install and Update name a provider; main picks the command and writes the script.
   "setup:open-install",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
-  // The header's usage rings; agent-usage:changed is an event main sends, not a request.
+  // The header's usage rings and the context ring's drawer; agent-usage:changed is an event main sends, not a request.
   "agent-usage:read",
   // Settings > MCP Connectors; mcp-connectors:changed is an event main sends, not a request.
   "mcp-connectors:list", "mcp-connectors:add", "mcp-connectors:connect", "mcp-connectors:disconnect", "mcp-connectors:remove", "mcp-connectors:cancel", "mcp-connectors:open-link",
@@ -67,12 +69,14 @@ const mainOnly = new Set([
   PROTOTYPE_CHANNELS.playing,
 ]);
 
-// The panel's composer: preset reads, its own attachments (no capture: the window has no board) and agent reply links.
-// The main window's own set is not widened for it.
+// The panel's composer: preset reads, its own attachments (no capture: the window has no board), agent reply links and
+// the context ring drawer's usage read (entries carry no account identity, usageTypes.ts). The main window's own set
+// is not widened for it.
 const prototypeComposer = [
   "design-skills:list", "design-skills:get",
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release", "attachments:fromPaths",
   "shell:openLink",
+  "agent-usage:read",
 ];
 
 const prototypeOnly: ReadonlySet<string> = new Set([...PROTOTYPE_WINDOW_REQUESTS, ...prototypeComposer]);

@@ -26,21 +26,22 @@ describe("CanvasHeader", () => {
     const inserted = [{ id: "intro", title: "Intro", x: 0, y: 0, width: 1280, height: 800 }, ...frames.map(frame => ({ ...frame, y: frame.y + 900 }))];
     const state = opened({ layout: layout({ frames: inserted, height: 3600, viewport: 3600 }), currentFrame: 3 });
     const markup = html(state, undefined, canvasViewFields(state));
-    expect(button(markup, "Frame 4: Payment")).toContain('title="4. Payment"');
+    expect(markup).toContain("<span>4. Payment</span>");
   });
   it("reads the current frame and zoom from the view store", () => {
     const markup = html(opened({ currentFrame: 2, zoom: 64, scale: 0.64 }), undefined, { currentFrame: 0, zoom: 125, scale: 1.25 });
-    expect(button(markup, "Frame 1: Cart")).toContain('title="1. Cart"');
+    expect(markup).toContain("<span>1. Cart</span>");
     expect(markup).toContain("Zoom 125%, zoom options");
     expect(markup).not.toContain("Zoom 64%");
   });
 
   it("reads canvas / frame and shows the zoom controller", () => {
     const markup = html(opened());
-    expect(markup).toMatch(/<span class="doan-canvas-name" title="\.doan\/canvases\/checkout\.html">.*<span>checkout<\/span><\/span><span class="ov-sep" aria-hidden="true">\/<\/span>/);
+    // The path is in the name's tooltip, not a native title.
+    expect(markup).toMatch(/<span class="doan-canvas-name" data-state="closed" data-slot="tooltip-trigger">.*<span>checkout<\/span><\/span><span class="ov-sep" aria-hidden="true">\/<\/span>/);
     const drawer = button(markup, "Frame 3: Payment");
     expect(drawer).toContain('aria-haspopup="listbox"');
-    expect(drawer).toContain('title="3. Payment"');
+    expect(drawer).not.toContain("title=");
     expect(drawer).not.toContain("disabled");
     expect(markup).toContain("<span>3. Payment</span>");
     const value = button(markup, "Zoom 64%, zoom options");
@@ -82,6 +83,19 @@ describe("CanvasHeader", () => {
     expect(markup).toMatch(/aria-label="Zoom options"[^>]*>—/);
     expect(button(markup, "Zoom out")).toContain("disabled");
     expect(button(markup, "Zoom in")).toContain("disabled");
+  });
+
+  // A zoom button its own press brings to a limit stays focusable: aria-disabled and a press that does nothing. Native
+  // disabled is kept for the whole controller being off (no canvas drawn), above.
+  it("at a zoom limit the button is aria-disabled, not disabled", () => {
+    const command = vi.fn();
+    const at = (zoom: number, scale: number) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={opened({ zoom, scale })} view={new CanvasViewStore(canvasViewFields(opened({ zoom, scale })))} command={command} zoomTo={vi.fn()} selectFrame={vi.fn()} /> as ReactElement}</TooltipProvider>);
+    const min = at(5, 0.05), max = at(400, 4);
+    expect(button(min, "Zoom out")).toContain('aria-disabled="true"');
+    expect(button(min, "Zoom out")).not.toMatch(/ disabled=""/);
+    expect(button(min, "Zoom in")).not.toContain("aria-disabled");
+    expect(button(max, "Zoom in")).toContain('aria-disabled="true"');
+    expect(button(max, "Zoom in")).not.toMatch(/ disabled=""/);
   });
 
   it("drops the canvas name and separator on an unlisted page", () => {

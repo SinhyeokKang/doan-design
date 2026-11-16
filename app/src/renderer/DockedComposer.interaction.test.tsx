@@ -448,6 +448,74 @@ test("unlocked, the same drop and paste reach the host as files", () => {
   expect(onFiles).toHaveBeenCalledTimes(2);
 });
 
+// U16: the host's attachment refusals (limit, choose and settle) show under the composer, as Home's do, not as a toast.
+test("an attachment refusal the host reports shows as the composer's notice and goes with the next edit", () => {
+  let notice: (text: string) => void = () => {};
+  const onAttach = vi.fn((report: (text: string) => void) => { notice = report; });
+  const { render } = setup({ onAttach }, [["conversation:a", draft("Tighten the totals")]]);
+  (button(render(), "Attach files or folders").onClick as () => void)();
+  expect(onAttach).toHaveBeenCalledTimes(1);
+  notice("brief.pdf wasn’t found, so it wasn’t attached.");
+  const alert = find(render(), item => item.role === "alert");
+  expect(alert.className).toBe("doan-notice error composer-notice");
+  expect(has(render(), "brief.pdf wasn’t found, so it wasn’t attached.")).toBe(true);
+  expect(render().some(item => item.children === "Retry")).toBe(false);
+  type(render(), "Tighten the totals.");
+  expect(has(render(), "brief.pdf wasn’t found, so it wasn’t attached.")).toBe(false);
+});
+
+// The host reports a refusal and changes the chips in the same batch (the limit with the accepted chips; a refused
+// chip taken out): the composer's shape follows the chips, and that alone must not drop the notice.
+test("an attachment refusal stays when the host's chips turn the composer into a box or back into a capsule", () => {
+  let notice: (text: string) => void = () => {};
+  const file = { key: "f", id: "f", name: "a.txt", kind: "file" as const, pasted: false, status: "checking" as const };
+  const { props, store, draw, render } = setup({ onAttach: report => { notice = report; } });
+  (button(render(), "Attach files or folders").onClick as () => void)();
+  notice("Only 10 attachments can be added. 1 was left out.");
+  store.current = new Map([["conversation:a", { ...EMPTY_DRAFT, attachments: [file] }]]); props.drafts = store.current;
+  draw();
+  for (const effect of hooks.effects) effect();
+  expect(store.current.get("conversation:a")?.shape).toBe("box");
+  expect(has(render(), "Only 10 attachments can be added. 1 was left out.")).toBe(true);
+  notice("a.txt wasn’t found, so it wasn’t attached.");
+  store.current = new Map([["conversation:a", { ...store.current.get("conversation:a")!, attachments: [] }]]); props.drafts = store.current;
+  draw();
+  for (const effect of hooks.effects) effect();
+  expect(store.current.get("conversation:a")?.shape).toBe("capsule");
+  expect(has(render(), "a.txt wasn’t found, so it wasn’t attached.")).toBe(true);
+});
+
+test("a dropped or pasted file's refusal lands on the draft it was added to, even after a switch", () => {
+  const reports: ((text: string) => void)[] = [];
+  const onFiles = vi.fn((_files: File[], _pasted: boolean, report: (text: string) => void) => { reports.push(report); });
+  const { props, render } = setup({ onFiles }, [["conversation:a", draft("For A")], ["conversation:b", draft("For B")]]);
+  (input(render()).onPaste as (event: unknown) => void)(fileEvent());
+  props.mode = B;
+  reports[0]!("Only 10 attachments can be added.");
+  expect(has(render(), "Only 10 attachments can be added.")).toBe(false);
+  props.mode = A;
+  expect(has(render(), "Only 10 attachments can be added.")).toBe(true);
+});
+
+// U39: the reason line sits on the white column, not in a notice, so its buttons are subtle (Home's Open is).
+test("the reason line's buttons are subtle", async () => {
+  const busy = setup({ busy: { kind: "project", open: "other" } }, [["conversation:a", draft("Draw it")]]);
+  expect(button(busy.render(), "Open the running conversation")["data-ui-variant"]).toBe("subtle");
+  const refuse = () => ({ kind: "blocked" as const, text: "No agent is ready to run.", action: { label: "Sign in to an agent", target: { section: "agents" as const } } });
+  // Each composer below is a fresh one: the harness's hook slots are shared.
+  hooks.states = []; hooks.refs = [];
+  const blocked = setup({ refuse, onSend: async () => ({ error: "no_agent" }) }, [["conversation:a", draft("Draw it")]]);
+  (button(blocked.render(), "Send").onClick as () => void)();
+  await flush();
+  expect(find(blocked.render(), item => item.children === "Sign in to an agent")["data-ui-variant"]).toBe("subtle");
+  const startNew = () => ({ kind: "notice" as const, text: "This conversation’s session belongs to another account.", startNew: true });
+  hooks.states = []; hooks.refs = [];
+  const other = setup({ refuse: startNew, onStartNew: vi.fn(), onSend: async () => ({ error: "other_account" }) }, [["conversation:a", draft("Draw it")]]);
+  (button(other.render(), "Send").onClick as () => void)();
+  await flush();
+  expect(find(other.render(), item => item.children === "Start a new conversation")["data-ui-variant"]).toBe("subtle");
+});
+
 test("a terminal session keeps the trigger places, chosen by the terminal, and takes no files", () => {
   const { render } = setup({ mode: RESUME, provider: "codex", fixed: true });
   const agent = button(render(), "Model: set by the terminal session (Codex)");
@@ -491,12 +559,12 @@ test("a notice with Retry sends the same draft again", async () => {
 });
 
 test("a blocked refusal holds Send with its reason until the person edits the draft", async () => {
-  const refuse = () => ({ kind: "blocked" as const, text: "No agent is ready to run.", action: { label: "Sign in to an agent…", target: { section: "agents" as const } } });
+  const refuse = () => ({ kind: "blocked" as const, text: "No agent is ready to run.", action: { label: "Sign in to an agent", target: { section: "agents" as const } } });
   const { render } = setup({ refuse, onSend: async () => ({ error: "no_agent" }) }, [["conversation:a", draft("Draw it")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();
   expect(has(render(), "No agent is ready to run.")).toBe(true);
-  expect(has(render(), "Sign in to an agent…")).toBe(true);
+  expect(has(render(), "Sign in to an agent")).toBe(true);
   expect(button(render(), "Send").disabled).toBe(true);
   type(render(), "Draw it now");
   expect(has(render(), "No agent is ready to run.")).toBe(false);
@@ -518,10 +586,13 @@ test("with no ready agent a new conversation shows no reason line; Send is disab
   const draftKeyNew = draftKey({ kind: "new", root: "/w" });
   const { render } = setup({ mode: { kind: "new", root: "/w" }, provider: null }, [[draftKeyNew, draft("Draw it")]]);
   expect(render().some(props => props.role === "status" && props.className === "composer-reason docked-reason")).toBe(false);
+  // Unavailable but focusable, so its tooltip gives the reason (no native title).
   const send = button(render(), "Send");
-  expect(send.disabled).toBe(true);
-  expect(send.title).toBe("No agent is ready to run.");
+  expect(send["aria-disabled"]).toBe(true);
+  expect(send.disabled).toBeUndefined();
+  expect(send.title).toBeUndefined();
   expect(send["aria-describedby"]).toBeTruthy();
+  expect(render().find(props => props.id === send["aria-describedby"])?.children).toBe("No agent is ready to run.");
 });
 
 test("a chosen agent that cannot run still shows its line", () => {
@@ -653,7 +724,7 @@ test.each(["input", "body"])("Control+Enter sends rows once in order and preserv
   const tree = render();
   const focusInput = vi.fn(), focusRow = vi.fn();
   hooks.refs[2]!.current = { focus: focusInput, element: () => null };
-  for (const row of tree.filter(item => item["aria-label"] === "Send queued message now" || item["aria-label"] === "Remove queued message")) {
+  for (const row of tree.filter(item => (item["aria-label"] === undefined && item.children === "Send now") || item["aria-label"] === "Remove queued message")) {
     (row.ref as (node: unknown) => void)({ focus: focusRow });
   }
   if (active === "body") vi.stubGlobal("document", { body: document.body, activeElement: document.body });
@@ -1057,13 +1128,13 @@ test("at the usage limit an empty field is a disabled Queue", () => {
   expect(() => button(render(), "Send")).toThrow("not found");
 });
 
-test("scheduled rows show the status line, Sending… once the reset passed, and the empty region otherwise", () => {
+test("scheduled rows show the status line, Sending once the reset passed, and the empty region otherwise", () => {
   const resetsAt = IN_3H();
   const { render, props } = setup({ queued: [{ id: "q1", text: "Also" }], scheduledFor: resetsAt });
   expect(scheduleLine(render())).toMatchObject({ role: "status" });
   expect(lineText(render())).toBe(queueStatusLine(resetsAt, Date.now(), localClock()).text);
   props.scheduledFor = new Date(Date.now() - 1000).toISOString();
-  expect(lineText(render())).toBe("Sending…");
+  expect(lineText(render())).toBe("Sending");
   expect(elements(scheduleLine(render()).children as ReactNode).some(item => item.className === "doan-spinner")).toBe(true);
   // After the reset passed the slot stays Queue, its tooltip the plain label.
   expect(button(render(), "Queue")["aria-describedby"]).toBeUndefined();
@@ -1104,8 +1175,8 @@ test("a start refused by the usage limit names the reset main gave", async () =>
   expect(render().some(item => item.children === `Claude Code reached a usage limit. Send again after it resets ${phrase}.`)).toBe(true);
 });
 
-// The composer draws again when the reset passes, so the line turns to Sending… without another prop change.
-test("on a fake clock, the reset timer redraws the status line as Sending…", () => {
+// The composer draws again when the reset passes, so the line turns to Sending without another prop change.
+test("on a fake clock, the reset timer redraws the status line as Sending", () => {
   vi.useFakeTimers({ now: Date.parse("2026-11-13T05:00:00.000Z"), toFake: ["setTimeout", "clearTimeout", "Date"] });
   try {
     const resetsAt = "2026-11-13T06:00:00.000Z";
@@ -1117,7 +1188,7 @@ test("on a fake clock, the reset timer redraws the status line as Sending…", (
     expect(hooks.states).toEqual(before);
     vi.advanceTimersByTime(1);
     expect(hooks.states).not.toEqual(before);
-    expect(lineText(render())).toBe("Sending…");
+    expect(lineText(render())).toBe("Sending");
   } finally { vi.useRealTimers(); }
 });
 

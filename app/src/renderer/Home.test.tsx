@@ -68,7 +68,7 @@ test("the greeting is one of the five questions, with the chosen project's name"
 test("an empty composer for a project with canvases: project above, tray below, three suggested prompts and no reason line", () => {
   const html = render([project("/code/doan-design")]);
   expect(html).toContain('aria-label="Project: doan-design"');
-  expect(html).toContain('<div class="composer-input" aria-label="Message" tabindex="0" contentEditable="true" aria-placeholder="Describe what to design, / for presets" role="textbox" aria-multiline="true"></div>');
+  expect(html).toContain('<div class="composer-input doan-scroll" aria-label="Message" tabindex="0" contentEditable="true" aria-placeholder="Describe what to design, / for presets" role="textbox" aria-multiline="true"></div>');
   expect(html).toMatch(/<button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled=""/);
   expect(html).toContain('<div class="composer-tray"><span class="tray-branch">');
   expect(html).toContain('<span class="tray-path selectable">/code/doan-design</span>');
@@ -108,7 +108,9 @@ test("with no ready agent the picker says so, Send is disabled and no suggestion
   const html = render([project("/code/doan-design")], { text: "Draw a pricing page.", auth: { revision: 1, providers: [] } });
   expect(html).toContain('<span class="muted">No agent ready</span>');
   expect(html).not.toContain("composer-reason");
-  expect(html).toMatch(/<button[^>]*aria-label="Send" disabled="" title="No agent is ready to run\."/);
+  // Unavailable but focusable, the reason in its tooltip and description rather than a native title.
+  expect(html).toMatch(/<button[^>]*aria-label="Send" aria-disabled="true" data-disabled=""/);
+  expect(html).not.toMatch(/<button[^>]*aria-label="Send"[^>]* title=/);
   expect(html).toContain("No agent is ready to run.</span>");
   expect(html).not.toContain("home-suggestions");
 });
@@ -118,8 +120,8 @@ test("a preset chip and attachments sit above the request; Send is enabled; the 
     text: "Turn the onboarding screens into a documented design system.", preset: PRESETS[2]!,
     attachments: [{ key: "a", id: "1", name: "brand-guidelines.pdf", kind: "file", pasted: false, status: "ready", size: 1258291, path: "/Users/ada/Desktop/brand-guidelines.pdf" }],
   });
-  expect(html).toContain('<span class="attach-text"><b>brand-guidelines.pdf</b><small>PDF · 1.2 MB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove brand-guidelines.pdf">');
-  expect(html).toMatch(/<span class="preset-chip"><svg[^>]*class="lucide lucide-compass[^"]*"[^>]*>.*?<\/svg><span>Document the design system<\/span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove preset Document the design system">/);
+  expect(html).toContain('<span class="attach-text"><b>brand-guidelines.pdf</b><small>PDF · 1.2 MB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove brand-guidelines.pdf" data-state="closed" data-slot="tooltip-trigger">');
+  expect(html).toMatch(/<span class="preset-chip"><svg[^>]*class="lucide lucide-compass[^"]*"[^>]*>.*?<\/svg><span>Document the design system<\/span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove preset Document the design system"[^>]*>/);
   expect(html).toContain('<span role="tooltip">~/Desktop/brand-guidelines.pdf</span>');
   expect(html).toMatch(/aria-label="Send" data-state/);
   expect(html).not.toMatch(/aria-label="Send" disabled/);
@@ -130,7 +132,7 @@ test("a preset chip and attachments sit above the request; Send is enabled; the 
 test("Tab order is project, chip ×, field, toolbar, Send, worktree, suggestions, then the reason line's Open", () => {
   const worktrees: FolderEntry[] = ["/code/doan-design", "/code/doan-wt"].map((path, i) => ({ ...project(path), git: { common: "/code/doan-design/.git", main: "/code/doan-design", branch: i ? "feat" : "main", worktrees: [] } }));
   const html = render(worktrees, { preset: PRESETS[3]!, text: "" }, { running: new Map([["/code/doan-design", { conversationId: "c1", waiting: false }]]) });
-  const order = [...html.matchAll(/<(button|div class="composer-input")[^>]*?(aria-label="([^"]*)"|>([^<]*))/g)].map(m => m[3] ?? m[4] ?? "");
+  const order = [...html.matchAll(/<(button|div class="composer-input doan-scroll")[^>]*?(aria-label="([^"]*)"|>([^<]*))/g)].map(m => m[3] ?? m[4] ?? "");
   const at = (label: string) => order.findIndex(item => item.startsWith(label));
   const sequence = ["Project:", "Remove preset", "Message", "Attach files or folders", "Design presets", "Agent:", "Send", "Worktree:", "Open"].map(at);
   expect(sequence.every(index => index >= 0)).toBe(true);
@@ -293,4 +295,15 @@ test("suggestion CSS: the name highlight repeats the anchor chip's values and wr
   expect(value).toMatch(/-webkit-box-decoration-break: clone;/);
   expect(value).toMatch(/(^|[ ;])box-decoration-break: clone;/);
   expect(value).not.toMatch(/display:|white-space:|max-width:|text-overflow:/);
+});
+
+// A long project name ellipsizes in the Home project trigger (inside the composer, chevron kept) and in the project
+// menu's rows (check kept, no sideways scroll).
+test("a long project name ellipsizes in the Home trigger and the project menu", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const view = readFileSync(new URL("./HomeComposerView.tsx", import.meta.url), "utf8");
+  expect(view).toContain('<span className="home-project-name">{project}</span>');
+  expect(css).toMatch(/\.home-project \{[^}]*max-width: calc\(100% - var\(--space-2\)\);/);
+  expect(css).toContain(".home-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
+  expect(css).toContain(".project-item .model-name { overflow: hidden; text-overflow: ellipsis; }");
 });

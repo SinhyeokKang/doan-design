@@ -174,7 +174,7 @@ test("Cancel, Open again, Disconnect and Retry reach main with the row's agent a
   expect(api.openMcpLink).toHaveBeenCalledWith("claude", "doan-notion");
   click(byLabel("Disconnect Figma for Claude Code"));
   expect(api.disconnectMcpServer).toHaveBeenCalledWith("claude", "doan-figma");
-  click(byLabel("Check Atlassian for Codex again"));
+  click(byLabel("Retry checking Atlassian for Codex"));
   expect(api.readMcpConnectors).toHaveBeenLastCalledWith({ refresh: true });
 });
 
@@ -214,11 +214,42 @@ test("Add server by URL opens a compact dialog that locks the page; a bad URL is
   const error = all(tree).find(element => element.props.role === "alert" && words(element.props.children) === "Enter a URL that starts with https://.")!;
   expect(input().props["aria-invalid"]).toBe(true);
   expect(input().props["aria-describedby"]).toBe(error.props.id);
+  // U31: the field and its error are one group (8px apart), so no negative margin pulls the line up.
+  const group = all(all(tree).find(element => element.props.className === "field-group")!);
+  expect(group.some(element => element.type === "input" && element.props["aria-label"] === "Server URL")).toBe(true);
+  expect(group.some(element => element.props.role === "alert" && element.props.id === error.props.id)).toBe(true);
+  expect(error.props.className).toBe("settings-msg error selectable");
   (dialog().props.onCancel as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
   render();
   expect(all(tree).some(element => element.type === "dialog")).toBe(false);
   expect(props.onLock).toHaveBeenLastCalledWith(false);
   expect(nodes.get("[data-mcp-add]")?.focus).toHaveBeenCalled();
+});
+
+// D1: while main adds the server, Add keeps its fill and focus, busy with the spinner inside; a second press does nothing.
+test("while Add's request is out, Add is busy and aria-disabled with the spinner inside, not natively disabled", async () => {
+  await settle();
+  click(all(tree).find(element => words(element.props.children).endsWith("Add server by URL") && element.type === "button"));
+  render();
+  const input = () => all(tree).find(element => element.type === "input")!;
+  (input().props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "https://mcp.example.com/mcp" } });
+  render();
+  let answer: (reply: { ok: false; reason: "not_https" }) => void = () => {};
+  api.addMcpServer!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  const submitForm = () => (all(tree).find(element => element.type === "form")!.props.onSubmit as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
+  submitForm();
+  render();
+  const submit = all(tree).find(element => element.props.type === "submit")!;
+  expect(submit.props.disabled).toBeFalsy();
+  expect(submit.props).toMatchObject({ "aria-disabled": true, "aria-busy": true, "data-ui-variant": "prominent" });
+  expect(renderToStaticMarkup(submit)).toMatch(/^<button[^>]*><span class="doan-spinner" aria-hidden="true"><\/span>Add<\/button>$/);
+  submitForm();
+  expect(api.addMcpServer).toHaveBeenCalledTimes(1);
+  answer({ ok: false, reason: "not_https" });
+  await settle();
+  const after = all(tree).find(element => element.props.type === "submit")!;
+  expect(after.props["aria-busy"]).toBeUndefined();
+  expect(renderToStaticMarkup(after)).not.toContain("doan-spinner");
 });
 
 test("after Add, focus goes to the new item's row group in the first section, scrolled into view", async () => {
@@ -481,4 +512,46 @@ test("selectable: the Add server dialog's field error, but not its buttons", asy
   const error = all(tree).find(element => element.props.role === "alert" && words(element.props.children) === "Enter a URL that starts with https://.")!;
   expect(hasSelectable(error)).toBe(true);
   for (const button of all(tree).filter(element => element.type === "dialog").flatMap(dialog => all(dialog)).filter(element => element.type === "button")) expect(hasSelectable(button)).toBe(false);
+});
+
+// Open again answered open_failed: the row shows the sign-in row's alert in place of the progress notice, the page's
+// live region reads it, and a later open that works, or Cancel, brings the row back.
+const shown = () => all(tree).filter(element => element.type === NoticeView).map(element => { const notice = element.props.notice as { title?: string; body?: string }; return `${notice.title ?? ""} ${notice.body ?? ""}`; }).join("\n");
+test("a failed Open again shows the alert with Open browser and reads it; a working open brings the progress back", async () => {
+  const linked = (rows: Partial<Record<McpProvider, Record<string, Status>>>) => {
+    const next = snap(rows);
+    return { ...next, providers: next.providers.map(p => ({ ...p, rows: p.rows.map(r => p.provider === "claude" && r.name === "doan-notion" ? { ...r, link: true } : r) })) };
+  };
+  feed(linked({ claude: { "doan-notion": "connecting" } }));
+  await settle();
+  api.openMcpLink!.mockResolvedValueOnce({ ok: false, reason: "open_failed" });
+  click(byLabel("Open Notion’s sign-in again for Claude Code"));
+  await settle();
+  const text = shown();
+  expect(text).toContain("Couldn’t open your browser. Try again.");
+  expect(text).not.toContain("Finish connecting to Notion");
+  expect(words(live()[0]?.props.children).replace(/​/g, "")).toBe("Couldn’t open your browser. Try again.");
+  const again = byLabel("Open browser to connect Notion for Claude Code");
+  expect(again).toBeDefined();
+  // A second failure is read again: the live region changes for it.
+  const said = watch.announcementSeq();
+  api.openMcpLink!.mockResolvedValueOnce({ ok: false, reason: "open_failed" });
+  click(again);
+  await settle();
+  expect(watch.announcementSeq()).toBe(said + 1);
+  click(byLabel("Open browser to connect Notion for Claude Code"));
+  expect(api.openMcpLink).toHaveBeenLastCalledWith("claude", "doan-notion");
+  await settle();
+  expect(shown()).toContain("Finish connecting to Notion");
+  expect(shown()).not.toContain("Couldn’t open your browser.");
+  // A new failure, then Cancel: the next attempt starts without the old alert.
+  api.openMcpLink!.mockResolvedValueOnce({ ok: false, reason: "open_failed" });
+  click(byLabel("Open Notion’s sign-in again for Claude Code"));
+  await settle();
+  click(byLabel("Cancel connecting Notion for Claude Code"));
+  feed(linked({ claude: { "doan-notion": "not_connected" } }));
+  await settle();
+  feed(linked({ claude: { "doan-notion": "connecting" } }));
+  await settle();
+  expect(shown()).toContain("Finish connecting to Notion");
 });

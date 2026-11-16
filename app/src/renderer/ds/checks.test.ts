@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vitest";
-import { accentPlaces, buddyIds, contrastPairs, cssVarUsage, edgeStripes, legacyAliases, legacyNames, nestedRadius, paletteAccentPlaces, rootTokens, type ContrastPair, type SourceFile } from "./checks";
+import { accentPlaces, buddyIds, contrastPairs, cssVarUsage, edgeStripes, legacyAliases, legacyNames, nestedRadius, paletteAccentPlaces, rootTokens, typeRoleTracking, type ContrastPair, type SourceFile } from "./checks";
 
 const renderer = new URL("../", import.meta.url);
 
@@ -34,11 +34,10 @@ const violetAllowed = [
   '.side .row[aria-current="location"] :is(.g, .glyph, .d, .tw)',
   // Home's Send, the shared accent icon button (doan-home approved draft, 2026-10-29 user).
   '.doan-icon-button[data-ui-variant="accent"]',
-  '.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled)',
-  '.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled)',
-  // The rest of Home's accent places: Send's spinner ink, the chosen
+  '.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled, [data-disabled])',
+  '.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled])',
+  // The rest of Home's accent places: the chosen
   // preset chip, the suggested prompts' group icons, the Home-only glow around the composer (dogfooding moved it from a panel-wide ellipse), the drop outline and the sidebar status slot.
-  ".composer-send .doan-spinner",
   ".preset-chip",
   ".suggestion svg",
   // The suggested prompt's icon tile (suggested-prompt-variants C, confirmed 2026-11-03).
@@ -423,6 +422,34 @@ describe("edgeStripes", () => {
   });
 });
 
+describe("typeRoleTracking", () => {
+  test("reports a rule that sets a type role's size without any letter-spacing, with its role and line", () => {
+    const files: SourceFile[] = [{ path: "a.css", text: [
+      ".note { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }",
+      ".cap {",
+      "  color: red;",
+      "  font: var(--type-weight-medium) var(--type-caption-size) / var(--type-caption-line-height) var(--type-family);",
+      "}",
+      ".tag { font-size: var(--type-label-sm-size); }",
+    ].join("\n") }];
+    expect(typeRoleTracking(files)).toEqual([
+      { path: "a.css", line: 1, selector: ".note", role: "body-sm" },
+      { path: "a.css", line: 4, selector: ".cap", role: "caption" },
+      { path: "a.css", line: 6, selector: ".tag", role: "label-sm" },
+    ]);
+  });
+
+  test("allows a rule that sets the role's tracking, any rule without a role size, and non-CSS files", () => {
+    const files: SourceFile[] = [{ path: "a.css", text: [
+      ".note { font-size: var(--type-body-sm-size); letter-spacing: var(--type-body-sm-letter-spacing); }",
+      ".flat { font-size: 12px; line-height: 1.5; }",
+      ".inherit { font-size: inherit; }",
+      ":root { --type-caption-size: 12px; }",
+    ].join("\n") }, { path: "a.ts", text: "el.style.fontSize = 'var(--type-caption-size)';" }];
+    expect(typeRoleTracking(files)).toEqual([]);
+  });
+});
+
 describe("nestedRadius", () => {
   test("subtracts inset and border from the outer radius", () => {
     expect(nestedRadius(24, 4, 1)).toBe(19);
@@ -502,6 +529,20 @@ describe("renderer sources", () => {
   test("preset tab accents cannot match Quick Open tabs", () => {
     const tabAccents = violetAllowed.filter(selector => selector.includes("group-tabs"));
     expect(tabAccents).toEqual([".preset-popover .group-tabs button svg"]);
+  });
+
+  // DESIGN 'Tokens first': type roles are applied whole. The caret's role size is its height, not type.
+  test("typeRoleTracking: every rule that sets a type role's size also sets its tracking", () => {
+    expect(typeRoleTracking(rendererSources()).map(found => found.selector)).toEqual([".doan-agent-caret"]);
+  });
+
+  // DESIGN 'Radii': corners are radius tokens; a spacing token is never a corner.
+  test("the small radius steps are tokens and no corner reads a spacing token", () => {
+    const tokens = rootTokens(tokensCss());
+    expect([tokens.get("--radius-inline"), tokens.get("--radius-word"), tokens.get("--radius-thumbnail")]).toEqual(["4px", "6px", "25%"]);
+    const spacingCorners = rendererSources().filter(file => file.path.endsWith(".css"))
+      .flatMap(file => [...file.text.matchAll(/border-radius:\s*var\(--space-[\w-]+\)/g)].map(match => `${file.path}: ${match[0]}`));
+    expect(spacingCorners).toEqual([]);
   });
 
   test("edgeStripes: no message, notice, card or row is marked by a start-side stripe", () => {

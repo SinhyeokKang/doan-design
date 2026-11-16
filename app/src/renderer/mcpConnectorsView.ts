@@ -30,6 +30,8 @@ const STATUS: Record<ConnectorStatus, string> = {
   checking: "Checking", not_connected: "Not connected", connecting: "Connecting", connected: "Connected",
   disconnecting: "Disconnecting", removing: "Removing", reconnect_needed: "Reconnect needed", check_failed: "Couldn’t check",
 };
+// The Agents sign-in row's sentence for a browser that did not open (agentAuthView), said the same way here.
+export const OPEN_FAILED_TEXT = "Couldn’t open your browser. Try again.";
 export const BLOCKED_LINE = "Doan is still disconnecting the previous account. Try again later.";
 // URL servers are one list for every agent, so what happens to one is said for both.
 const BOTH = "Claude Code and Codex";
@@ -79,7 +81,8 @@ function busyReason(rows: readonly McpRowDto[], labels: ReadonlyMap<string, stri
   return `Finish or cancel the ${label} connection first.`;
 }
 
-function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, busy: string, remembered: ConnectorAction | null): McpRowView {
+// openFailed: this row's last Open again answered open_failed (the browser did not open).
+function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, busy: string, remembered: ConnectorAction | null, openFailed: boolean): McpRowView {
   const agent = PROVIDER_NAMES[provider], label = server.label, of = `${label} for ${agent}`, { view } = row;
   const off = view.disabled !== null;
   const settled = (action: ConnectorAction | null, disabled: boolean): McpButton | null => {
@@ -95,6 +98,8 @@ function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, bu
     case "removing": rowButton = settled(remembered ?? "connect", true); break;
     case "connecting": {
       const cancel = button("cancel", "Cancel", "subtle", `Cancel connecting ${of}`);
+      // The Agents sign-in row's alert for the same failure (agentAuthView); Open browser keeps Open again's command.
+      if (provider === "claude" && openFailed) { notice = alert(OPEN_FAILED_TEXT, [cancel, button("openLink", "Open browser", "prominent", `Open browser to connect ${of}`, !row.link)]); break; }
       notice = provider === "claude"
         ? { role: "status", spinner: true, title: `Finish connecting to ${label}`, body: `Allow access to ${label} in your browser, then return here.`, actions: [cancel, button("openLink", "Open again", "subtle", `Open ${label}’s sign-in again for ${agent}`, !row.link)] }
         // Codex opens the default browser itself; Doan has no link to open again (POSTMORTEM 2026-10-30).
@@ -102,7 +107,7 @@ function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, bu
       break;
     }
     case "check_failed":
-      if (view.action === "retry") notice = alert("The status check failed or took too long. Try again.", [button("check", "Retry", "prominent", `Check ${of} again`, off)]);
+      if (view.action === "retry") notice = alert("The status check failed or took too long. Try again.", [button("check", "Retry", "prominent", `Retry checking ${of}`, off)]);
       else rowButton = settled(view.action, off);
       break;
     default: rowButton = settled(view.action, off);
@@ -128,7 +133,9 @@ function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, bu
 }
 
 // remembered: the action a row offered before it started Removing, which it keeps disabled meanwhile (draft frame 7).
-export function mcpPageView(snapshot: McpSnapshot | null, auth: AuthSnapshot | null | undefined, remembered: (provider: McpProvider, name: string) => ConnectorAction | null = () => null): McpPageView {
+// openFailed: the row's last Open again answered open_failed; drawn only while the row is connecting.
+export function mcpPageView(snapshot: McpSnapshot | null, auth: AuthSnapshot | null | undefined, remembered: (provider: McpProvider, name: string) => ConnectorAction | null = () => null,
+  openFailed: (provider: McpProvider, name: string) => boolean = () => false): McpPageView {
   if (!snapshot) return { notice: null, addDisabled: true, sections: [] };
   const labels = new Map(snapshot.servers.map(server => [server.name, server.label]));
   const sections = MCP_PROVIDERS.flatMap(provider => {
@@ -138,7 +145,7 @@ export function mcpPageView(snapshot: McpSnapshot | null, auth: AuthSnapshot | n
     const reason = headerReason(status), busy = busyReason(dto.rows, labels);
     const rows = snapshot.servers.flatMap(server => {
       const row = dto.rows.find(item => item.name === server.name);
-      return row ? [rowView(provider, server, row, busy, remembered(provider, server.name))] : [];
+      return row ? [rowView(provider, server, row, busy, remembered(provider, server.name), openFailed(provider, server.name))] : [];
     });
     const header = reason ? { reason, action: { command: "openAgents" as const, label: "Open Agents settings", variant: "prominent" as const, disabled: false, ariaLabel: `Open Agents settings for ${PROVIDER_NAMES[provider]}` } } : null;
     return [{ provider, title: PROVIDER_NAMES[provider], header, rows }];

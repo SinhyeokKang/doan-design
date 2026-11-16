@@ -91,6 +91,7 @@ function reset() {
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
     showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: on("readStateProblem"),
+    onFoldersSaveFailed: on("foldersSaveFailed"), saveFoldersAgain: vi.fn(async () => true),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
@@ -174,6 +175,20 @@ test("a read-state failure found meanwhile is a Retry toast only on its project 
   expect(await attempt()).toBeNull();
 });
 
+// A project list main could not save (folders.json) is a Retry toast on any screen; Retry asks main to write the
+// list again and the toast goes once it is saved (ARCHITECTURE §7).
+test("a failed project-list save is a Retry toast; Retry writes the list again", async () => {
+  await start(rows({}));
+  listeners.foldersSaveFailed!();
+  expect(harness.toast.retry).toHaveBeenCalledTimes(1);
+  const [message, label, busy, running, attempt] = harness.toast.retry.mock.lastCall! as [string, string, string, string, () => Promise<string | null>];
+  expect([message, label, busy, running]).toEqual(["Couldn’t save the project list. Doan may show the earlier list after it restarts.", "Retry", "Saving the project list.", "Retrying"]);
+  doan.saveFoldersAgain!.mockResolvedValueOnce(false);
+  expect(await attempt()).toBe(message);
+  expect(await attempt()).toBeNull();
+  expect(doan.saveFoldersAgain).toHaveBeenCalledTimes(2);
+});
+
 test("entering a project tries its read state again and tells what still fails, once", async () => {
   doan.retryReadState!.mockResolvedValue({ kind: "baseline", readOnly: true });
   await start(rows({}), [], workspace);
@@ -227,7 +242,7 @@ test("the canvas error notice's text is selectable", async () => {
 });
 
 test.each([
-  ["noWidth", "Could not read a valid board width. Set a width on the board."],
+  ["noWidth", "Couldn’t read a valid board width. Set a width on the board."],
   ["plain message", "Open timed out."],
 ])("the canvas status paragraph for %s is selectable, its Reload button and heading are not", async (name, message) => {
   await start(rows({}), [], workspace);

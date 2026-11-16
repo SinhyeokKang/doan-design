@@ -20,11 +20,11 @@ const view = (state: UpdateState, over: Partial<UpdateSnapshot> = {}) => updateV
 const CHECK = { action: "check", label: "Check for Updates", prominent: false };
 const NOTES = { action: "notes", label: "Release Notes ↗", prominent: false };
 const RESTART = { action: "restart", label: "Restart to Update", prominent: true };
-const RETRY_CHECK = { action: "check", label: "Retry", ariaLabel: "Check for updates again", prominent: false };
-const RETRY_DOWNLOAD = { action: "check", label: "Retry", ariaLabel: "Download Doan 0.1.1 again", prominent: false };
+const RETRY_CHECK = { action: "check", label: "Retry", ariaLabel: "Retry checking for updates", prominent: false };
+const RETRY_DOWNLOAD = { action: "check", label: "Retry", ariaLabel: "Retry downloading Doan 0.1.1", prominent: false };
 const BLOCKED = { title: "Can’t restart yet", text: "A conversation is running or waiting for your answer. Restart after it finishes, or Doan updates when you quit." };
 const STOPPED = "Couldn’t restart Doan. Try again, or quit and open it again.";
-const STOPPED_POPOVER = { title: "Couldn’t restart Doan.", text: "Try again, or quit and open it again." };
+const STOPPED_POPOVER = { title: "Couldn’t restart Doan", text: "Try again, or quit and open it again." };
 const READY_TO_RESTART = { title: "Ready to restart", text: "No conversation is running or waiting anymore. Restart now, or Doan updates when you quit." };
 const ROW = { description: "", actions: [], busy: null, progress: null, notice: null, error: null, announcement: null };
 const MENU_CHECK = { label: "Check for Updates…", action: "check", enabled: true };
@@ -56,10 +56,17 @@ describe("before and during a check", () => {
     expect(view(upToDate).row.announcement).toBeNull();
   });
 
-  test("a manual check shows the spinner while the description keeps the previous result", () => {
-    expect(view({ kind: "checking", manual: true, last: upToDate }).row).toEqual({ ...ROW, description: "0.1.0 · Up to date, last checked today at 2:41 PM", busy: "Checking for updates" });
+  // The pressed check stays as a busy button (a spinner inside, focus kept) rather than giving way to a spinner line.
+  test("a manual check keeps the pressed check button, busy, while the description keeps the previous result", () => {
+    expect(view({ kind: "checking", manual: true, last: upToDate }).row).toEqual({ ...ROW, description: "0.1.0 · Up to date, last checked today at 2:41 PM", actions: [{ ...CHECK, busy: true }] });
     expect(view({ kind: "checking", manual: true, last: { kind: "failed", code: "offline", stage: "check" } }).row)
-      .toEqual({ ...ROW, description: "0.1.0 · Couldn’t check for updates.", busy: "Checking for updates" });
+      .toEqual({ ...ROW, description: "0.1.0 · Couldn’t check for updates.", actions: [{ ...CHECK, label: "Retry", ariaLabel: "Retry checking for updates", busy: true }] });
+    expect(view({ kind: "checking", manual: true, last: { kind: "failed", code: "offline", stage: "download", version: "0.1.1" } }).row.actions)
+      .toEqual([{ ...CHECK, label: "Retry", ariaLabel: "Retry downloading Doan 0.1.1", busy: true }]);
+  });
+
+  test("a manual check started where the row had no check button (a failed install) still shows a busy Check for Updates", () => {
+    expect(view({ kind: "checking", manual: true, last: { kind: "failed", code: "installFailed", stage: "install", version: "0.1.1" } }).row.actions).toEqual([{ ...CHECK, busy: true }]);
   });
 
   test("an automatic check is quiet: the row shows what it showed before, actions included", () => {

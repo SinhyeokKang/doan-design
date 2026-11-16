@@ -52,14 +52,15 @@ function setup(patch: Partial<QueueRowsProps> = {}) {
     for (const effect of hooks.layout) effect();
     return tree;
   };
-  const rows = (tree: Node[], label: string) => tree.filter(item => item["aria-label"] === label);
+  // The buttons with this accessible name: aria-label, else the visible text (a tooltip's words are not a button).
+  const rows = (tree: Node[], label: string) => tree.filter(item => item.type === "button" && (item["aria-label"] ?? item.children) === label);
   return { props, focused, draw, rows };
 }
 
 test("Send now and Remove hand the row's id to the host; Send now is the subtle capsule", async () => {
   const { props, draw, rows } = setup({ items: [{ id: "q1", text: "First" }, { id: "q2", text: "Second" }] });
   const tree = draw();
-  const sendNow = rows(tree, "Send queued message now");
+  const sendNow = rows(tree, "Send now");
   expect(sendNow.map(item => item.children)).toEqual(["Send now", "Send now"]);
   expect(sendNow.map(item => [item["data-ui-variant"], item["data-ui-size"], item["aria-disabled"], item.disabled])).toEqual([["subtle", "xs", undefined, undefined], ["subtle", "xs", undefined, undefined]]);
   expect(tree.some(item => item.type === "span" && item.children === "Add to the current turn without stopping it")).toBe(true);
@@ -73,7 +74,7 @@ test("Send now and Remove hand the row's id to the host; Send now is the subtle 
 test("Send now moves focus to the next row's Send now once the row has left, without waiting for main's answer", async () => {
   const answer = (() => { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; })();
   const { props, focused, draw, rows } = setup({ onSendNow: vi.fn(() => answer.promise) });
-  const pressed = rows(draw(), "Send queued message now")[0]!;
+  const pressed = rows(draw(), "Send now")[0]!;
   (pressed.onClick as () => void)();
   expect(props.onSendNow).toHaveBeenCalledWith("q1");
   props.items = props.items.filter(item => item.id !== "q1");
@@ -85,7 +86,7 @@ test("focus the person moved elsewhere before the row left stays there", async (
   const { props, focused, draw, rows } = setup({ onSendNow: vi.fn(() => new Promise<void>(() => {})) });
   const tree = draw();
   page.activeElement = { name: "input" };
-  (rows(tree, "Send queued message now")[0]!.onClick as () => void)();
+  (rows(tree, "Send now")[0]!.onClick as () => void)();
   props.items = props.items.filter(item => item.id !== "q1");
   draw();
   expect(focused.at).toBeNull();
@@ -93,7 +94,7 @@ test("focus the person moved elsewhere before the row left stays there", async (
 
 test("a refused row coming back does not take focus, and focus waits for no row that never left", async () => {
   const { props, focused, draw, rows } = setup({ onSendNow: vi.fn(async () => ({ error: "stale" })) });
-  (rows(draw(), "Send queued message now")[0]!.onClick as () => void)();
+  (rows(draw(), "Send now")[0]!.onClick as () => void)();
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   draw();
   // Removed later by Remove from elsewhere: Send now's focus target was dropped with its refusal.
@@ -130,7 +131,7 @@ test("a Remove main refused leaves the row and focus where they are", async () =
 
 test("a refusal while the turn still runs shows the status line under the row; one after the turn ended does not", async () => {
   const running = setup({ onSendNow: vi.fn(async () => ({ error: "not_running", turnRuns: true })) });
-  (running.rows(running.draw(), "Send queued message now")[1]!.onClick as () => void)();
+  (running.rows(running.draw(), "Send now")[1]!.onClick as () => void)();
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   const tree = running.draw();
   // Each row's listitem holds a status region from its first draw (a live region added with its text may go unread);
@@ -146,7 +147,7 @@ test("a refusal while the turn still runs shows the status line under the row; o
   // turn.done reached the store but the rows were not drawn again before main's refusal, so the last draw
   // still offers Send now. The answer's own reading of the turn decides: no line, no announcement.
   const ended = setup({ onSendNow: vi.fn(async () => ({ error: "not_running", turnRuns: false })) });
-  (ended.rows(ended.draw(), "Send queued message now")[1]!.onClick as () => void)();
+  (ended.rows(ended.draw(), "Send now")[1]!.onClick as () => void)();
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   expect(ended.props.sendNow).toBe(true);
   expect(ended.draw().filter(item => item.role === "status").every(item => elements(item.children as ReactNode).length === 0)).toBe(true);
@@ -157,7 +158,7 @@ test("a refusal while the turn still runs shows the status line under the row; o
 test("a second Send now on a row already in flight is ignored", async () => {
   const answer = (() => { let resolve!: (value: { error: string; turnRuns: boolean }) => void; const promise = new Promise<{ error: string; turnRuns: boolean }>(r => { resolve = r; }); return { promise, resolve }; })();
   const { props, draw, rows } = setup({ onSendNow: vi.fn(() => answer.promise) });
-  const pressed = rows(draw(), "Send queued message now")[0]!;
+  const pressed = rows(draw(), "Send now")[0]!;
   (pressed.onClick as () => void)();
   (pressed.onClick as () => void)();
   expect(props.onSendNow).toHaveBeenCalledTimes(1);
@@ -165,7 +166,7 @@ test("a second Send now on a row already in flight is ignored", async () => {
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   expect(props.announce).toHaveBeenCalledTimes(1);
   // Back in the queue, it can be pressed again.
-  (rows(draw(), "Send queued message now")[0]!.onClick as () => void)();
+  (rows(draw(), "Send now")[0]!.onClick as () => void)();
   expect(props.onSendNow).toHaveBeenCalledTimes(2);
 });
 

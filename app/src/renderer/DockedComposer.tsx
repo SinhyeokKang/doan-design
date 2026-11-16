@@ -7,7 +7,7 @@ import type { Anchor, SkillSummary } from "../main/conversation/types";
 import { fieldSkillRuns } from "./skillWords";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
-import { ContextRing } from "./ContextRing";
+import { ContextRing, type RingUsage } from "./ContextRing";
 import type { ContextUsage } from "./contextWindow";
 import { distinctTargets, plainText, sameSegments, typedText } from "./anchorField";
 import { LIMITS } from "../main/conversation/messageText";
@@ -88,8 +88,9 @@ export interface DockedComposerProps {
   onPresetsOpen(): void; onPresetsRetry(): void;
   thumbnails: Readonly<Record<string, string>>;
   // Attachments are main's: the host chooses or adds them and writes the chips into the draft; a removed chip's id is
-  // handed back so the host can tell main.
-  onAttach(): void; onFiles(files: File[], pasted: boolean): void; onAttachmentRemoved(attachment: AttachmentDraft): void;
+  // handed back so the host can tell main. `report` shows a refusal (the limit, a file main refused) as this composer's
+  // notice on the draft the files were added to, which may no longer be the one shown when an answer lands.
+  onAttach(report: (text: string) => void): void; onFiles(files: File[], pasted: boolean, report: (text: string) => void): void; onAttachmentRemoved(attachment: AttachmentDraft): void;
   // This conversation's turn. `busy`: another conversation holds the root (from the host's list).
   turn: ComposerTurn;
   busy: DockedBusy | null;
@@ -139,6 +140,9 @@ export interface DockedComposerProps {
   // The shown conversation's last recorded context value (contextRing); null or absent: no ring, and the tray is as
   // without it.
   context?: ContextUsage | null;
+  // The conversation provider's usage for the ring's drawer, from the host's subscription; absent: the drawer shows the
+  // Context window line only.
+  usage?: RingUsage;
   // What the host shows over the card that the docked buddy steps aside for: a permission or question card at the
   // thread's end waiting for an answer, and a new conversation's notice or choice with a button (Overview's moved line,
   // the canvas panel's terminal-session choice). A queued row is the composer's own. Suggested prompts are no reason:
@@ -262,14 +266,17 @@ export function DockedComposer(props: DockedComposerProps) {
 
   // Every edit takes the shape rule with the overflow known without measuring (a typed line break); the wrap at the
   // capsule's width is measured after the draw below. An edit also drops a refusal the person is answering.
-  const edit = (patch: Partial<Omit<DockedDraft, "shape">>, at = key, wrapped = false) => {
+  // `shapeOnly`: the stored shape catching up with chips the host changed, not an edit: a refusal the host just reported
+  // with those chips (an attachment over the limit, a refused file taken out) stays, and a send refusal keeps its own
+  // draft comparison.
+  const edit = (patch: Partial<Omit<DockedDraft, "shape">>, at = key, wrapped = false, shapeOnly = false) => {
     props.onDrafts(drafts => {
       const current = drafts.get(at) ?? EMPTY_DRAFT, next = { ...current, ...patch };
       const nextText = plainText(next.segments);
       const shape = composerShape(current.shape, { empty: nextText === "", chips: chipCount(next, pinned), overflows: wrapped || nextText.includes("\n") });
       return new Map(drafts).set(at, { ...next, shape });
     });
-    clearRefusal(at);
+    if (!shapeOnly) clearRefusal(at);
     setLimitAt(current => current === at ? null : current);
   };
   function clearRefusal(at: string) {
@@ -279,7 +286,7 @@ export function DockedComposer(props: DockedComposerProps) {
   // A capsule becomes a box once its text wraps at the capsule's own width. A box is never measured: it
   // returns to a capsule only when emptied, so the narrower capsule's wrap cannot flip it back and forth.
   useLayoutEffect(() => {
-    if (shape !== draft.shape) { edit({}, key); return; }
+    if (shape !== draft.shape) { edit({}, key, false, true); return; }
     const node = field.current?.element();
     if (shape !== "capsule" || !node || text === "") return;
     const line = parseFloat(getComputedStyle(node).lineHeight);
@@ -324,7 +331,9 @@ export function DockedComposer(props: DockedComposerProps) {
     return true;
   };
   // A locked composer keeps its draft but takes no input of any kind: no preset, dropped or pasted file either.
-  const drop = useComposerDrop({ blocked: () => isSending || locked, onFiles: files => props.onFiles(files, false), onNotice: text => setRefusals(previous => {
+  // A refusal of files added to a draft: a notice with no draft, so the chips the host adds or settles keep it.
+  const reportFor = (at: string) => (text: string) => setRefusals(previous => new Map(previous).set(at, { refusal: { kind: "notice", text } }));
+  const drop = useComposerDrop({ blocked: () => isSending || locked, onFiles: files => props.onFiles(files, false, reportFor(key)), onNotice: text => setRefusals(previous => {
     const next = new Map(previous);
     if (text === null) next.delete(key); else next.set(key, { refusal: { kind: "notice", text } });
     return next;
@@ -333,7 +342,7 @@ export function DockedComposer(props: DockedComposerProps) {
     const files = Array.from(event.clipboardData.files);
     if (pasteAction(event.clipboardData.getData("text/plain"), files) !== "files") return;
     event.preventDefault();
-    if (!isSending && !locked) props.onFiles(files, true);
+    if (!isSending && !locked) props.onFiles(files, true, reportFor(key));
   };
 
   const stop = () => { props.onStop(); focus({ kind: "stopped" }); };
@@ -482,7 +491,8 @@ export function DockedComposer(props: DockedComposerProps) {
       <div className="docked-buddy-slot" ref={dockedBuddy.dockSlot} aria-hidden="true" data-accepts={locked ? "false" : undefined}
         data-queue={props.queued.length > 0 ? "" : undefined}
         data-waiting={props.stepAside?.waiting ? "" : undefined} data-notice={props.stepAside?.notice ? "" : undefined} data-popover={slashOpen ? "" : undefined} />
-      <ComposerChips lead={playing && <span className="anchor-chip pw-playing" data-kind="frame" title={PLAYING_TITLE}><span className="sr-only">Frame </span><Frame aria-hidden="true" /><span>{playing.name}</span></span>}
+      <ComposerChips lead={playing && <Tooltip><TooltipTrigger asChild><span className="anchor-chip pw-playing" data-kind="frame"><span className="sr-only">Frame </span><Frame aria-hidden="true" /><span>{playing.name}</span></span></TooltipTrigger>
+        <TooltipContent>{PLAYING_TITLE}</TooltipContent></Tooltip>}
         attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
       <ComposerField skillNames={skillNames} key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
@@ -501,7 +511,7 @@ export function DockedComposer(props: DockedComposerProps) {
     </ComposerCard>
     <div className="composer-tray">
       {props.fixed ? <FixedTip label="Attachments can’t be added to a terminal session"><button type="button" className="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
-        : <AttachButton tray disabled={isSending || locked} onClick={props.onAttach} />}
+        : <AttachButton tray disabled={isSending || locked} onClick={() => props.onAttach(reportFor(key))} />}
       {props.pick && <PickButton pick={props.pick} />}
       {props.fixed && fixedProvider ? <>
         <FixedTip label="Set in your terminal"><button type="button" className="composer-agent doan-button is-fixed" data-ui-size="xs" data-ui-variant="trigger" aria-disabled="true"
@@ -515,18 +525,20 @@ export function DockedComposer(props: DockedComposerProps) {
         {picker.effort && <EffortPicker size="xs" view={picker.effort} effort={props.effort} disabled={isSending} onPick={props.onPickEffort} onPickFast={props.onPickFast} />}
         {props.permission && <PermissionPicker size="xs" view={props.permission} disabled={isSending} onPick={mode => props.onPickPermission?.(mode)} />}
       </>}
-      {props.context && <ContextRing usage={props.context} />}
+      {/* Keyed by conversation: another conversation's ring is a new one, so an open drawer closes (ContextRing). */}
+      {props.context && <ContextRing key={mode.kind === "existing" ? mode.conversationId : ""} context={props.context} provider={mode.kind === "existing" ? mode.provider : null}
+        usage={props.usage} canvasPress={props.canvasPress} onLost={() => field.current?.focus()} />}
     </div>
     {notice && (notice.startNew
       ? <div className="composer-reason docked-reason reason-stack" role="status"><span>{notice.text}</span>
-        <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => { clearRefusal(key); props.onStartNew?.(); focus({ kind: "restored" }); }}>Start a new conversation</button></div>
+        <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => { clearRefusal(key); props.onStartNew?.(); focus({ kind: "restored" }); }}>Start a new conversation</button></div>
       : <div className="doan-notice error composer-notice" role="alert"><AlertIcon /><span className="grow-text selectable">{notice.text}</span>
         {notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => void send()}>Retry</button>}</div>)}
     {reason && !reason.noAgent && (reason.alert
       ? <div className="doan-notice error composer-notice" role="alert" id={reasonId}><AlertIcon /><span className="grow-text selectable">{reason.text}</span></div>
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>
-        {reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-label="Open the running conversation" onClick={() => props.onOpen(reason.open!)}>Open</button>}
-        {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}
+        {reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.onOpen(reason.open!)}>Open</button>}
+        {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}
     {(limitAt === key || full) && <div className="composer-reason docked-reason" role="status"><span>{ANCHOR_LIMIT_TEXT}</span></div>}
     {noteShown && <span className="chip-missing chip-note" id={noteId} role="status" style={{ left: missingAt.left, top: missingAt.top }}>{LOCATE_MISSING_TEXT}</span>}
     {placeholder.suggestion !== null && <span className="sr-only" id={hintId}>{SUGGESTION_HINT}</span>}
@@ -652,11 +664,12 @@ export function QueueRows(props: QueueRowsProps) {
         {props.sendNow && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <Tooltip><TooltipTrigger asChild>
             <button type="button" ref={node => { life(node); keep("sendNow", item.id)(node); }} className="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle"
-              aria-label="Send queued message now" aria-describedby={describedBy} onClick={() => void sendNow(item.id)}>Send now</button>
+              aria-describedby={describedBy} onClick={() => void sendNow(item.id)}>Send now</button>
           </TooltipTrigger><TooltipContent>{SEND_NOW_TIP}</TooltipContent></Tooltip>}</QueueButtonLife>}
         <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
-          <button type="button" ref={node => { life(node); keep("remove", item.id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"
-            aria-label="Remove queued message" aria-describedby={describedBy} onClick={() => void remove(item.id)}><X aria-hidden="true" /></button>}</QueueButtonLife>
+          <Tooltip><TooltipTrigger asChild><button type="button" ref={node => { life(node); keep("remove", item.id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"
+            aria-label="Remove queued message" aria-describedby={describedBy} onClick={() => void remove(item.id)}><X aria-hidden="true" /></button></TooltipTrigger>
+          <TooltipContent>Remove queued message</TooltipContent></Tooltip>}</QueueButtonLife>
       </div>
       <div className="queue-status" role="status">{refused.has(item.id) && <><AlertIcon /><span>{SEND_NOW_REFUSED_TEXT}</span></>}</div>
     </div>;

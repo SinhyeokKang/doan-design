@@ -102,17 +102,18 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
 
   function focusTitle() { requestAnimationFrame(() => heading.current?.focus()); }
   // quiet: a refresh for a change made elsewhere (a listed mode change). It keeps the controls as they are, so a focus
-  // just returned to them is not dropped; it still supersedes any older read.
-  async function read(target: string, quiet = false) {
+  // just returned to them is not dropped; it still supersedes any older read. retry: Retry on a failed read keeps the
+  // failed notice drawn while it reads, so the pressed Retry stays mounted, busy, and keeps focus.
+  async function read(target: string, quiet = false, retry = false) {
     const request = ++epoch.current;
     if (!quiet) setReading(true);
-    setReadError(null);
+    if (!retry) setReadError(null);
     try {
       // A read sent before the session starts would answer from the previous session (configBridge), so it waits.
       await started.current;
       const reply = await window.doan.readConfig(target);
       if (!live.current || request !== epoch.current) return;
-      if (reply.kind === "config") setConfig(reply);
+      if (reply.kind === "config") { setReadError(null); setConfig(reply); }
       // A reply with no message of its own (unavailable) leaves the reason line empty: the notice already says it.
       else { setConfig(null); setReadError(reply.kind === "error" ? reply.message : ""); }
     } catch (failure) { if (live.current && request === epoch.current) { setConfig(null); setReadError(failure instanceof Error ? failure.message : String(failure)); } }
@@ -298,7 +299,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     if (action === "details") { setDetails(open => !open); return; }
     // A worktree that is fine but whose settings failed to read retries the read here; a problem worktree asks App to
     // read its folder again.
-    if (action === "retry" && entry?.kind === "list") { void read(root); return; }
+    if (action === "retry" && entry?.kind === "list") { if (!reading) void read(root, false, true); return; }
     setNotice(null);
     onAction(action, root, text => { if (live.current) setNotice(text); });
   }
@@ -377,8 +378,11 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
             <AlertIcon />
             <span className="project-settings-grow selectable">{page.notice.text}{page.notice.reason && <span className="project-settings-notice-reason">{page.notice.reason}</span>}</span>
             <div className="project-settings-notice-actions">{page.notice.actions.map(action => <button key={action} type="button" className="doan-button"
-              data-ui-variant={action === "details" ? "ghost" : "panel"} data-ui-size="sm" aria-expanded={action === "details" ? details : undefined}
-              disabled={disabled && action === "retry"} onClick={() => recover(action)}>{LABELS[action]}</button>)}</div>
+              // Details is a disclosure: its label shows the state with ▸/▾ (as ErrorDetails), its name stays the word.
+              data-ui-variant={action === "details" ? "ghost" : "panel"} data-ui-size="sm" aria-expanded={action === "details" ? details : undefined} aria-label={action === "details" ? LABELS.details : undefined}
+              // A running retry read is busy, not unavailable: Retry keeps its fill and focus with the spinner inside.
+              aria-disabled={(reading && action === "retry") || undefined} aria-busy={(reading && action === "retry") || undefined}
+              disabled={!reading && disabled && action === "retry"} onClick={() => recover(action)}>{reading && action === "retry" && <span className="doan-spinner" aria-hidden="true" />}{action === "details" ? `${LABELS.details} ${details ? "▾" : "▸"}` : LABELS[action]}</button>)}</div>
           </div>
           {details && page.notice.detail && <pre className="project-settings-details selectable">{page.notice.detail}</pre>}
           {notice && <p className="settings-msg error project-settings-msg selectable" role="alert"><AlertIcon /><span>{notice}</span></p>}
@@ -421,7 +425,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
                 <div className="doan-preference-row">
                   <div className="doan-preference-row-content" />
                   <div className="doan-preference-row-trailing">{status("serve")}
-                    <button ref={addButton} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={disabled} onClick={() => void choose("serve")}>Add File or Folder</button></div>
+                    <button ref={addButton} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={disabled} onClick={() => void choose("serve")}>Add file or folder</button></div>
                 </div>
                 {message("serve")}
               </div>
@@ -432,7 +436,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
         </div>}
         {choice && <SettingsDialog title={<>Share <code>{shared}</code> with canvases?</>} label={`Share ${shared} with canvases?`} verb="Share" description={<>Canvases in this worktree will be able to read <code className="selectable">{shared}</code>.</>}
           answer={allow => { const selected = choice; setChoice(null); if (allow) void write({ root, op: "addServe", choiceId: selected.choiceId }, "serve"); }} />}
-        {creating && entry && <SettingsDialog title={<>Create a Git repository in <code>{displayPath(entry.path, homeDirectory)}</code>?</>} label={`Create a Git repository in ${displayPath(entry.path, homeDirectory)}?`} verb="Create Repository"
+        {creating && entry && <SettingsDialog title={<>Create a Git repository in <code>{displayPath(entry.path, homeDirectory)}</code>?</>} label={`Create a Git repository in ${displayPath(entry.path, homeDirectory)}?`} verb="Create repository"
           description={withChips("Keep out of Git needs a Git repository. Doan will run git init here, then keep .doan/ out of it. Doan makes no commit, branch or remote, and the repository stays if you switch back to Include in Git.")}
           answer={createRepository} />}
       </div>

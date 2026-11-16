@@ -248,8 +248,8 @@ test("the row's actions ask main: Check for Updates, Retry, Release Notes and Re
   click("Check for Updates");
   expect(doan.checkForUpdates).toHaveBeenCalledTimes(1);
   push(snap({ kind: "failed", code: "offline", stage: "check" })); render();
-  expect(button("Check for updates again").props.children).toBe("Retry");
-  click("Check for updates again");
+  expect(button("Retry checking for updates").props.children).toBe("Retry");
+  click("Retry checking for updates");
   expect(doan.checkForUpdates).toHaveBeenCalledTimes(2);
   push(snap(READY)); render();
   click("Release Notes ↗");
@@ -258,14 +258,18 @@ test("the row's actions ask main: Check for Updates, Retry, Release Notes and Re
   expect(doan.installUpdate).toHaveBeenCalledTimes(1);
 });
 
-test("checking shows the spinner label on the right without a live role; the description keeps the last result", () => {
+// D1: the pressed check keeps its button mounted and focusable while main checks, busy with the spinner inside.
+test("a manual check keeps Check for Updates in place, busy and aria-disabled with the spinner inside; a press does nothing", () => {
   onNoonDay();
   render(); push(snap({ kind: "checking", manual: true, last: { kind: "upToDate", manual: true } })); render();
-  const loading = all(row("version").props.children as ReactNode).find(element => element.props.className === "settings-loading")!;
-  expect(words(loading.props.children)).toBe("Checking for updates");
-  expect(loading.props.role).toBeUndefined();
+  expect(all(row("version").props.children as ReactNode).some(element => element.props.className === "settings-loading")).toBe(false);
+  const check = button("Check for Updates");
+  expect(check.props).toMatchObject({ "aria-disabled": true, "aria-busy": true, "data-ui-variant": "subtle" });
+  expect(check.props.disabled).toBeUndefined();
+  expect(all(check.props.children as ReactNode).some(element => element.props.className === "doan-spinner")).toBe(true);
   expect(description()).toBe("0.1.0 · Up to date, last checked today at 2:41 PM");
-  expect(rowButtons()).toHaveLength(0);
+  click("Check for Updates");
+  expect(doan.checkForUpdates).not.toHaveBeenCalled();
 });
 
 test("downloading draws a progressbar named by the state text, with the percent beside it hidden from readers", () => {
@@ -284,7 +288,7 @@ test("a failure puts its line under the row, without a live role", () => {
   const line = all(row("version").props.children as ReactNode).find(element => String(element.props.className) === "settings-msg error selectable")!;
   expect(words(line.props.children)).toBe("Couldn’t reach GitHub. Check your internet connection, then try again.");
   expect(line.props.role).toBeUndefined();
-  expect(button("Download Doan 0.1.1 again")).toBeDefined();
+  expect(button("Retry downloading Doan 0.1.1")).toBeDefined();
 });
 
 test("blocked: the reason is a notice under the row with a title, and stopped adds the error line", () => {

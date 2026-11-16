@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext, Script } from "node:vm";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Hand, MousePointer2 } from "lucide-react";
+import { Eye, Hand, MousePointer2 } from "lucide-react";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import type { Frame } from "playwright";
 import { launchElectronDom, type ElectronDom } from "../../runtime/electronDom";
@@ -1133,6 +1133,103 @@ describe("tool wiring", () => {
       expect(source, name).not.toMatch(/leaves out: tools|key forwarding|key channels do not exist/);
     }
   });
+});
+
+// ── The header and the frame drawer in a real DOM ─────────────────────────────
+
+// The page `assemble` writes (cli/internal/export/assemble.go), filled here in one pass over shell.html: a canvas of
+// `body` at `width`, with lib.js and measure.js at the top of its head; without them (`reports: false`) the canvas never
+// reports a layout, so the page stays before its first view until the timeout.
+const viewerPage = (body: string, { width = 800, reports = true } = {}): string => {
+  const head = reports ? `<script>(function () {\n${lib}\n${measure}\n})();</script>` : "";
+  const canvas = `<!doctype html><html><head>${head}</head><body style="margin:0">${body}</body></html>`;
+  const values: Record<string, string> = {
+    NAME: "checkout", WIDTH: String(width), META: JSON.stringify({ name: "checkout", width }).replace(/</g, "\\u003c"), STYLE: shellCss,
+    SCRIPT: `(function () {\n${lib}\n${shellJs}\n})();`, SRCDOC: canvas.replace(/&/g, "&amp;").replace(/"/g, "&quot;"),
+  };
+  return shellHtml.replace(/\{\{(NAME|WIDTH|META|STYLE|SCRIPT|SRCDOC)\}\}/g, (_, key: string) => values[key]!);
+};
+const twoFrames = '<section data-doan-frame="cart" data-doan-title="Cart" style="height:600px">Cart</section><section data-doan-frame="pay" data-doan-title="Payment" style="height:600px">Payment</section>';
+
+describe("the viewer header in a real DOM", () => {
+  let dom: ElectronDom;
+  beforeAll(async () => { dom = await launchElectronDom(); }, 60_000);
+  afterAll(async () => { await dom?.close(); }, 30_000);
+
+  // The viewer at 800 × 500 inside the test window, once its first view is drawn.
+  const open = async (body: string): Promise<Frame> => {
+    const frame = await dom.load(viewerPage(body));
+    await frame.evaluate(() => {
+      const host = window.frameElement as HTMLElement;
+      host.style.width = "800px";
+      host.style.height = "500px";
+    });
+    await frame.waitForFunction(() => document.documentElement.classList.contains("ready"));
+    return frame;
+  };
+  // Read once the buttons' 150ms colour and fill transitions have ended.
+  const button = (frame: Frame, id: string) => frame.evaluate(async id => {
+    await Promise.all(document.getAnimations().map(animation => animation.finished));
+    const node = document.getElementById(id) as HTMLButtonElement;
+    const style = getComputedStyle(node);
+    return { active: document.activeElement?.id ?? null, disabled: node.disabled, ariaDisabled: node.getAttribute("aria-disabled"),
+      value: document.getElementById("zoom-value")!.textContent, cursor: style.cursor, color: style.color, background: style.backgroundColor };
+  }, id);
+
+  // POSTMORTEM 2026-11-13: a control that turns unavailable while focused must keep focus; read document.activeElement.
+  test("Zoom out and Zoom in pressed from the keyboard to their limits keep focus, read unavailable and do nothing more", async () => {
+    const frame = await open(twoFrames);
+    const keyboard = frame.page().keyboard;
+    for (const [id, other, limit] of [["zoom-out", "zoom-in", "5%"], ["zoom-in", "zoom-out", "400%"]] as const) {
+      await frame.focus(`#${id}`);
+      for (let i = 0; i < 40 && (await frame.getAttribute(`#${id}`, "aria-disabled")) !== "true"; i++) await keyboard.press("Enter");
+      expect(await button(frame, id), id).toEqual({ active: id, disabled: false, ariaDisabled: "true", value: limit, cursor: "default", color: "rgb(149, 149, 149)", background: "rgba(0, 0, 0, 0)" });
+      expect((await button(frame, other)).ariaDisabled, other).toBeNull();
+      // The click guard: Enter, Space and a pointer press at the limit change nothing and leave focus on the button.
+      await keyboard.press("Enter");
+      await keyboard.press(" ");
+      // Playwright waits for an aria-disabled control to become enabled; the press is the point here.
+      await frame.click(`#${id}`, { force: true });
+      expect(await button(frame, id), id).toMatchObject({ active: id, ariaDisabled: "true", value: limit, background: "rgba(0, 0, 0, 0)" });
+    }
+  }, 60_000);
+
+  test("before the first view the zoom controls are natively disabled, and an unavailable control's cursor is the default arrow", async () => {
+    const frame = await dom.load(viewerPage(twoFrames, { reports: false }));
+    for (const id of ["zoom-out", "zoom-in", "zoom-button", "drawer-button"]) {
+      expect(await button(frame, id), id).toMatchObject({ disabled: true, ariaDisabled: null, cursor: "default" });
+    }
+    expect(shellCss).not.toContain("not-allowed");
+  });
+
+  test("the frame drawer marks the viewed frame with the app's Eye, read as Viewing", async () => {
+    const frame = await open(twoFrames);
+    await frame.click("#drawer-button");
+    const rows = await frame.evaluate(() => Array.from(document.querySelectorAll("#drawer-list > [role=option]"), row => {
+      const mark = row.querySelector(".doan-frame-current");
+      const svg = mark?.querySelector("svg");
+      const word = mark?.querySelector(".sr-only");
+      const box = word?.getBoundingClientRect();
+      return {
+        current: row.getAttribute("aria-current"), text: row.textContent, oldWord: row.querySelector(".doan-frame-viewing") !== null,
+        mark: mark ? { title: mark.getAttribute("title"), color: getComputedStyle(mark).color } : null,
+        icon: svg ? { hidden: svg.getAttribute("aria-hidden"), width: svg.getBoundingClientRect().width, height: svg.getBoundingClientRect().height,
+          paths: Array.from(svg.querySelectorAll("path, circle"), shape => shape.outerHTML) } : null,
+        word: word ? { text: word.textContent, width: box!.width, height: box!.height } : null,
+      };
+    }));
+    const viewed = rows.filter(row => row.current === "location");
+    expect(viewed).toHaveLength(1);
+    expect(viewed[0]).toMatchObject({ oldWord: false, mark: { title: "Viewing", color: "rgb(95, 95, 95)" }, icon: { hidden: "true", width: 14, height: 14 }, word: { text: "Viewing" } });
+    expect(viewed[0]!.text).toContain("Viewing");
+    expect(viewed[0]!.word!.width).toBeLessThanOrEqual(1);
+    expect(viewed[0]!.word!.height).toBeLessThanOrEqual(1);
+    // lucide's Eye, as the app's row draws it.
+    const lucide = renderToStaticMarkup(createElement(Eye));
+    for (const shape of viewed[0]!.icon!.paths) expect(lucide).toContain(shape.replace(/><\/(path|circle)>$/, ""));
+    expect(viewed[0]!.icon!.paths).toHaveLength([...lucide.matchAll(/<(path|circle)\b/g)].length);
+    for (const row of rows.filter(row => row.current === null)) expect(row).toMatchObject({ oldWord: false, mark: null });
+  }, 60_000);
 });
 
 // ── The Go MIME table is the app server's ─────────────────────────────────────

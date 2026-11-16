@@ -1,0 +1,1029 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="ux-audit-261117-b6"><meta name="doan:width" content="1680"><title>ux-audit-261117-b6 — tooltips, type and tokens</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+:root{--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center;--radix-dropdown-menu-content-available-height:384px;--radix-popover-content-available-height:384px}
+@layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button,input{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent;border-radius:0}ul{list-style:none}}
+/* ── The global rules of app/src/renderer/styles.css that every frame relies on ── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { color-scheme: light; }
+body { background: var(--bg-app); color: var(--text-standard); font-family: var(--type-family); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; user-select: none; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { color: var(--text-disabled); cursor: default; }
+button, [role="treeitem"] { outline: none; }
+code, kbd { font-family: var(--type-family); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* ── The parts of app/src/renderer/styles.css these frames draw (develop 366993b72), without comments, hex colours or viewport-height values ── */
+input, textarea, .composer-input, .selectable { user-select: text; }
+.top { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--surface-panel); border-bottom: 1px solid var(--border-standard); -webkit-app-region: drag; }
+.top button { -webkit-app-region: no-drag; }
+.traffic-space { width: 52px; flex: none; }
+.right { background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
+.right.doan-scroll { overflow: auto; }
+.right-stack > .right { min-height: 100px; flex: 0 1 278px; border-left: 0; border-bottom: 1px solid var(--border-standard); }
+.right-stack > .right:only-child { flex: 1; border-bottom: 0; }
+.ob-project-notice { margin-top: var(--space-4); }
+.ob-project-notice code { color: var(--text-standard); background: var(--surface-panel); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.doan-notice.doan-panel.ob-project-notice code { background: var(--surface-inset); }
+.shell-thumbnail.onboarding-thumbnail { width: 28px; height: 28px; margin-inline: 2px; border-radius: 7px; font-size: 17px; line-height: 28px; }
+.top .divider { width: 1px; height: 18px; background: var(--border-standard); flex: none; margin: 0 -4px; }
+.qo-list { display: flex; flex-direction: column; gap: 1px; box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; margin-inline: calc(-1 * var(--space-1)); padding: var(--space-1) var(--space-1) var(--space-3); }
+.qo-item { display: flex; flex: none; align-items: center; gap: var(--space-row-gap); min-width: 0; min-height: 44px; padding: var(--space-3); border-radius: calc(var(--radius-panel) + var(--space-1) - var(--space-3)); corner-shape: squircle; color: var(--text-standard); cursor: pointer; user-select: none; }
+.qo-item[aria-selected="true"] { background: var(--affordance-selected); }
+.qo-icon { display: grid; align-items: center; justify-items: start; flex: none; width: var(--size-control-xs); height: var(--size-control-xs); }
+.qo-icon svg { width: 21px; height: 21px; }
+.qo-text { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.qo-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
+.qo-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); }
+.shell-top.top { position: relative; padding: 0 8px; gap: 0; border: 0; background: transparent; }
+.shell-top .traffic-space { width: 72px; }
+:root[data-fullscreen] .shell-top .traffic-space { width: 0; }
+:root[data-fullscreen] .shell-top.top { padding-left: 0; }
+.shell-history { display: flex; gap: 4px; }
+.shell-history .doan-icon-button { width: 32px; height: 32px; border-radius: 10px; }
+.shell-top svg { width: 16px; height: 16px; }
+.shell-side.side { min-height: 0; display: flex; flex-direction: column; gap: 12px; margin-bottom: -8px; padding: 8px 8px 0; border: 0; background: transparent; overflow: hidden; }
+.shell-projects { overflow: auto; min-height: 0; padding-bottom: 20px; }
+.shell-side .row { display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px; border-radius: 8px; font: 400 14px/20px var(--type-family); cursor: pointer; }
+.shell-side .row:hover { background: var(--affordance-backdrop-hover); }
+.shell-side .row[aria-current="location"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
+.shell-side .shell-project-row { gap: 4px; padding: 0 0 0 10px; margin-bottom: 4px; }
+.shell-project-name { margin-left: 4px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
+.shell-lead { position: relative; display: grid; flex: none; width: var(--size-icon); height: var(--size-icon); }
+.shell-lead > * { grid-area: 1 / 1; }
+.shell-disclosure { display: grid; place-items: center; width: var(--size-icon); height: var(--size-icon); padding: 0; border: 0; border-radius: var(--space-1); background: transparent; color: var(--text-metadata); cursor: pointer; visibility: hidden; }
+.shell-disclosure::before { content: ""; position: absolute; inset: calc(-1 * var(--space-1)); }
+.shell-disclosure svg { width: var(--size-icon); height: var(--size-icon); transition: transform var(--time-state) var(--ease-state); }
+.shell-project-row[aria-expanded="false"] .shell-disclosure svg { transform: rotate(-90deg); }
+.shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-disclosure { visibility: visible; }
+.shell-project-row:is(:hover, :focus-visible, :has(:focus-visible)) .shell-lead:has(> .shell-disclosure) > .shell-thumbnail { visibility: hidden; }
+@media (hover: hover) and (pointer: fine) { .shell-disclosure:hover { background: var(--affordance-backdrop-pressed); color: var(--text-standard); } }
+.shell-branch { display: inline-flex; align-items: center; gap: 4px; max-width: 84px; flex-shrink: 1; }
+.shell-branch svg { width: 12px; height: 12px; flex: none; }
+.shell-branch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-more.doan-icon-button { width: 32px; height: 32px; flex: none; color: var(--text-subtle); }
+.shell-more svg, .shell-canvas-row svg { width: 16px; height: 16px; flex: none; }
+.shell-side .shell-canvas-row { padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); }
+.shell-canvas-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-canvas-row:not(:hover, :focus-visible, :has(:focus-visible)):not(:has(> .shell-more[aria-expanded="true"])) > .shell-more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.shell-canvas-row > .shell-more { margin-left: auto; }
+.shell-side .shell-canvas-row:is(:hover, :focus-visible, :has(:focus-visible), :has(> .shell-more[aria-expanded="true"])) { padding-right: 0; }
+.shell-canvas-row:is(:hover, :focus-visible, :has(:focus-visible), :has(> .shell-more[aria-expanded="true"])) > .row-slot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.shell-more[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+.shell-side .shell-canvas-row.row > .shell-more.doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+.shell-empty, .shell-canvas-error { padding: 4px 8px 4px 32px; color: var(--text-metadata); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.shell-empty { padding: 6px 10px 10px 34px; line-height: 16px; }
+.shell-canvas-error pre { white-space: pre-wrap; }
+.shell-side .shell-group-head { padding-inline: 10px; color: var(--text-subtle); font-weight: var(--type-weight-medium); letter-spacing: var(--type-body-sm-letter-spacing); }
+.shell-group-head svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-metadata); transition: transform var(--time-state) var(--ease-state); }
+.shell-group-head[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.shell-side .shell-group-head[aria-disabled="true"] :is(svg, .shell-group-count) { color: var(--text-disabled); }
+.shell-side .shell-group .shell-canvas-row { padding-left: calc(10px + var(--size-icon) + var(--space-2)); }
+.shell-canvas-row > .shell-lead { overflow: visible; }
+.shell-canvas-row[aria-expanded]:is(:hover, :focus-visible, :has(:focus-visible)) .shell-disclosure { visibility: visible; }
+.shell-canvas-row[aria-expanded]:is(:hover, :focus-visible, :has(:focus-visible)) .canvas-lead > .canvas-icon { visibility: hidden; }
+.shell-canvas-row[aria-expanded="false"] .shell-disclosure svg { transform: rotate(-90deg); }
+.shell-side .shell-conv-row { position: relative; padding-left: calc(10px + 2 * (var(--size-icon) + var(--space-2))); padding-right: 10px; letter-spacing: var(--type-body-sm-letter-spacing); }
+.shell-side .shell-conv-row[aria-current="true"]:hover { background: var(--affordance-backdrop-pressed); }
+.shell-conv-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-conv-row > .shell-more { margin-left: auto; }
+.shell-conv-row:not(:hover, :focus-visible, :has(:focus-visible)) > .shell-more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.shell-side .shell-conv-row:is(:hover, :focus-visible, :has(:focus-visible)) { padding-right: 0; }
+.shell-conv-row:is(:hover, :focus-visible, :has(:focus-visible)) > .row-slot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.shell-side .shell-conv-row.row > .shell-more.doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+.shell-group .shell-empty { margin: var(--space-half) 10px var(--space-2) 34px; padding: var(--space-3); border: 1px dashed var(--border-standard); border-radius: var(--radius-chip); text-align: center; }
+.shell-group .shell-canvas-error { padding-left: calc(32px + var(--size-icon) + var(--space-2)); }
+.shell-side-menu.doan-floating { background: var(--surface-popover); backdrop-filter: none; }
+.shell-canvas-menu .doan-menu-item.shell-menu-reasoned { align-items: flex-start; white-space: normal; }
+.shell-canvas-menu .shell-menu-reasoned > svg { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
+.shell-menu-text { display: flex; flex-direction: column; gap: var(--space-half); min-width: 0; }
+.shell-menu-reason { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.shell-worktree[aria-current="true"] { background: var(--affordance-backdrop-pressed); }
+.shell-worktree > span { min-width: 0; flex: 1; }
+.shell-worktree > .ob-chip { flex: none; }
+.shell-worktree > span > span, .shell-worktree small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-worktree small { margin-top: 4px; color: var(--text-metadata); font-size: 11px; line-height: 14px; }
+.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); isolation: isolate; }
+.shell-modes button[aria-disabled="true"], .shell-search[aria-disabled="true"], .shell-side .row[aria-disabled="true"], .shell-side .row[aria-disabled="true"] :is(.shell-project-name, .shell-branch), .shell-top .shell-history .doan-icon-button[aria-disabled="true"], .doan-menu-item[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+.shell-modes button[aria-disabled="true"]:not(.current):hover, .shell-search[aria-disabled="true"]:hover, .shell-side .row[aria-disabled="true"]:hover, .shell-top .shell-history .doan-icon-button[aria-disabled="true"]:hover { background: transparent; }
+.shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }
+.home-project { gap: var(--space-2); margin: 0 0 var(--space-2) var(--space-2); font-weight: var(--type-weight-medium); }
+:is(.home-project, .project-item) .shell-thumbnail { width: var(--size-icon-lg); height: var(--size-icon-lg); border-radius: 5px; font-size: 11px; line-height: var(--size-icon-lg); }
+.composer-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-standard); }
+.composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }
+.composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
+.composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; position: relative; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+.composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
+.anchor-chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 180px; margin: 0 var(--space-half); padding: 0 var(--space-1h); border: 0; border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font: inherit; font-weight: var(--type-weight-medium); vertical-align: bottom; white-space: nowrap; }
+.anchor-chip svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; }
+.anchor-chip span:not(.sr-only) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.anchor-chip .sr-only { user-select: none; }
+.composer-card.readonly .composer-input { color: var(--text-subtle); }
+.attach-chip, .preset-chip { display: inline-flex; align-items: center; gap: var(--space-2); max-width: 256px; min-width: 0; border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-standard); }
+.attach-chip { padding: var(--space-1); }
+.attach-chip .thumb { position: relative; width: var(--size-control-sm); height: var(--size-control-sm); flex: none; overflow: hidden; border-radius: calc(var(--radius-chip) - var(--space-1)); background: var(--surface-panel); }
+.attach-chip .thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.file-icon { display: grid; place-items: center; width: var(--size-control-sm); height: var(--size-control-sm); flex: none; border-radius: calc(var(--radius-chip) - var(--space-1)); background: var(--surface-panel); color: var(--text-subtle); }
+.file-icon svg, .file-icon .doan-spinner { width: var(--size-icon); height: var(--size-icon); }
+.attach-text { display: flex; flex-direction: column; min-width: 0; }
+.attach-text b { font-weight: var(--type-weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-text small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
+.attach-chip.problem :is(.file-icon, small) { color: var(--text-danger); }
+.chip-remove.doan-icon-button { color: var(--text-metadata); }
+.preset-chip { height: var(--size-control); padding: 0 var(--space-1) 0 var(--space-3); font-weight: var(--type-weight-medium); background: var(--surface-accent-subtle); color: var(--text-accent-subtle); }
+.preset-chip > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: currentColor; }
+:is(.model-item, .project-item, .effort-popover .doan-menu-item) { display: flex; align-items: center; gap: var(--space-2); }
+.docked .composer-card { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-1); }
+.docked .composer-chips { grid-area: chips; }
+.docked .composer-input { grid-area: field; min-height: var(--type-label-line-height); }
+.docked[data-shape="capsule"] .composer-card { grid-template-areas: "presets field send"; padding: var(--space-2); border-radius: var(--radius-pill); }
+.docked[data-shape="capsule"] .composer-input { padding-inline: var(--space-2) var(--space-1); }
+.docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.docked[data-shape="box"] .composer-card { grid-template-areas: "field field field" "presets . send"; row-gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
+.docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips" "field field field" "presets . send"; }
+.docked[data-shape="box"] .composer-input[data-empty]::before { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.suggestion-value { padding: 0 var(--space-1h); border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font-weight: var(--type-weight-medium); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.shell-project-row .row-slot { margin-left: 0; }
+.shell-side .shell-project-row.flash { box-shadow: inset 0 0 0 2px var(--border-focus); }
+.shell-side .shell-settings-row { width: 100%; padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); text-align: left; }
+.shell-side .shell-settings-row svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-subtle); }
+.shell-side .shell-settings-row:focus-visible { outline-offset: -2px; }
+.shell-side .shell-settings-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
+.shell-side .shell-settings-row[aria-current="page"] svg { color: var(--text-standard); }
+.shell-side .shell-home-row { flex: none; width: 100%; padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); text-align: left; }
+.shell-side .shell-home-row svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-subtle); }
+.shell-side .shell-home-row:focus-visible { outline-offset: -2px; }
+.shell-side .shell-home-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); }
+.shell-side .shell-home-row[aria-current="page"] svg { color: var(--text-standard); }
+.shell-side .shell-settings-row[aria-disabled="true"] svg { color: var(--text-disabled); }
+.settings-panel { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
+.settings-page { max-width: 48rem; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-6); }
+.settings-title { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); outline: none; }
+.mcp-more { color: var(--text-subtle); }
+.settings-page code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.settings-panel .doan-dialog { letter-spacing: normal; }
+.settings-title .project-settings-thumbnail.shell-thumbnail { width: var(--size-control-sm); height: var(--size-control-sm); border-radius: var(--space-2); font-size: var(--type-body-sm-size); line-height: var(--size-control-sm); }
+.settings-page > .doan-notice { margin-bottom: var(--space-section-gap); }
+.settings-page > .doan-notice + :is(.project-settings-msg, .project-settings-details) { margin: calc(-1 * var(--space-section-gap) + var(--space-3)) 0 var(--space-section-gap); }
+.settings-page > .doan-notice + .project-settings-msg { padding-inline: calc(var(--space-4) + 1px); }
+.conversation-thread { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+.conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-6); }
+.conversation-thread .thread-item { display: flex; flex-direction: column; min-width: 0; }
+.conversation-thread .caret { display: inline-block; width: 1px; height: 1lh; margin: 0 1px; vertical-align: top; background: var(--text-standard); animation: thread-caret 1s steps(1) infinite; }
+.conversation-thread .msg-user { align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1h); max-width: 80%; min-width: 0; }
+.conversation-thread .bubble { padding: var(--space-2) var(--space-4); border-radius: var(--radius-row); background: var(--surface-accent-subtle); color: var(--text-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; user-select: text; }
+.conversation-thread .bubble-preset { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-accent-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-medium); }
+.conversation-thread .bubble-preset svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .msg-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1h); }
+.conversation-thread .msg-files .attach-chip { gap: var(--space-3); padding: var(--space-1h) var(--space-4) var(--space-1h) var(--space-1h); }
+.conversation-thread .msg-sending { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.conversation-thread .msg-sending .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .msg-agent { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; user-select: text; }
+.conversation-thread .msg-agent p { font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); overflow-wrap: anywhere; }
+.conversation-thread .msg-agent .muted { color: var(--text-metadata); }
+.conversation-thread .md { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
+.conversation-thread .md :is(h1, h2) { font-size: var(--type-body-lg-size); line-height: var(--type-body-lg-line-height); letter-spacing: var(--type-body-lg-letter-spacing); font-weight: var(--type-weight-medium); margin-top: var(--space-2); }
+.conversation-thread .md :is(h3, h4, h5, h6) { font-size: inherit; font-weight: var(--type-weight-medium); margin-top: var(--space-1); }
+.conversation-thread .md strong { font-weight: var(--type-weight-semibold); }
+.conversation-thread .md a { color: var(--text-link); text-decoration: underline; text-underline-offset: var(--space-half); }
+.conversation-thread .md :is(ul, ol) { display: flex; flex-direction: column; gap: var(--space-1); padding-left: var(--space-6); }
+.conversation-thread .md ul { list-style: disc; }
+.conversation-thread .md ol { list-style: decimal; }
+.conversation-thread .md ul ul { list-style: circle; }
+.conversation-thread .md > p:has(+ :is(ul, ol)) { margin-bottom: calc(var(--space-2) - var(--space-4)); }
+.conversation-thread .md :is(ul, ol) :is(ul, ol) { margin-top: var(--space-1); }
+.conversation-thread .md code { font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); background: var(--surface-inset); border-radius: var(--space-1); padding: var(--space-half) var(--space-1); overflow-wrap: anywhere; }
+.conversation-thread .md-code { position: relative; border-radius: var(--radius-chip); background: var(--surface-inset); }
+.conversation-thread .md-code pre { overflow-x: auto; padding: var(--space-3) var(--space-12) var(--space-3) var(--space-4); font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); white-space: pre; scrollbar-width: thin; }
+.conversation-thread .md-code pre code { padding: 0; background: none; border-radius: 0; overflow-wrap: normal; }
+.conversation-thread .md-code .doan-icon-button { position: absolute; top: var(--space-1); right: var(--space-1); background: var(--surface-inset); color: var(--text-subtle); }
+.conversation-thread .md-code:not(:hover, :focus-within) .doan-icon-button { opacity: 0; }
+.conversation-thread .md-table { width: max-content; max-width: 100%; overflow-x: auto; scrollbar-width: thin; border-radius: var(--radius-chip); box-shadow: inset 0 0 0 1px var(--border-standard); }
+.conversation-thread .md table { border-collapse: separate; border-spacing: 0; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.conversation-thread .md :is(th, td) { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-standard); border-right: 1px solid var(--border-standard); text-align: left; vertical-align: top; white-space: nowrap; }
+.conversation-thread .md :is(th, td):last-child { border-right: 0; }
+.conversation-thread .md tbody tr:last-child td { border-bottom: 0; }
+.conversation-thread .md th { background: var(--affordance-subtle); font-weight: var(--type-weight-medium); }
+.conversation-thread .md blockquote { padding: var(--space-3) var(--space-4); border-radius: var(--radius-chip); background: var(--surface-inset); color: var(--text-subtle); }
+.conversation-thread .md hr { height: 1px; border: 0; background: var(--border-standard); }
+.conversation-thread .activity { display: flex; flex-direction: column; gap: var(--space-1); }
+.conversation-thread .activity-head { display: inline-flex; align-items: center; gap: var(--space-2); align-self: flex-start; min-height: var(--size-control-sm); padding: 0 var(--space-2) 0 var(--space-3); margin-left: calc(-1 * var(--space-3)); border-radius: var(--radius-control); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); max-width: 100%; }
+.conversation-thread button.activity-head:hover { background: var(--affordance-backdrop-hover); }
+.conversation-thread .activity-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-thread .activity-head .chev { transform: rotate(-90deg); transition: transform 120ms; }
+.conversation-thread .activity-head[aria-expanded="true"] .chev { transform: none; }
+.conversation-thread .activity-head.fast-note { align-items: flex-start; padding-block: var(--space-1h); }
+.conversation-thread .activity-head.fast-note svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); color: var(--text-accent); }
+.conversation-thread .activity-head.fast-note span { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.conversation-thread .activity-head .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .activity-steps { display: flex; flex-direction: column; gap: var(--space-1h); padding-left: var(--space-6); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.conversation-thread .activity-steps li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; list-style: none; }
+.conversation-thread .activity-steps li svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; color: var(--text-subtle); }
+.conversation-thread .activity-steps .verb { flex: none; color: var(--text-subtle); }
+.conversation-thread .activity-steps li:has(> .mcp-step) { align-items: flex-start; }
+.conversation-thread .activity-steps li:has(> .mcp-step) svg { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); }
+.conversation-thread .activity-steps .verb.mcp-step { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.conversation-thread .activity-steps .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.conversation-thread .ask-answered { color: var(--text-subtle); }
+.conversation-thread .thread-notice, .cp-scroll > .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
+.conversation-thread .thread-notice > .strip-actions, .cp-scroll > .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
+.conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
+.conversation-thread .thread-notice .strip-text span, .cp-scroll > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+.conversation-thread .marker { display: flex; align-items: center; gap: var(--space-3); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.conversation-thread .marker::before, .conversation-thread .marker::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
+.conversation-thread .marker span { display: inline-flex; align-items: center; gap: var(--space-1h); min-width: 0; max-width: 80%; text-align: center; }
+.conversation-thread .marker svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .marker .doan-button { color: var(--text-standard); }
+.conversation-thread .marker .doan-button:disabled { color: var(--text-disabled); }
+.conversation-thread .handoff-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); min-width: 0; }
+.conversation-thread .handoff-card:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.conversation-thread .handoff-head { display: flex; align-items: center; gap: var(--space-1h); min-height: var(--size-control-sm); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.conversation-thread .handoff-head svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .handoff-head > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-thread .handoff-head .doan-button { flex: none; color: var(--text-standard); }
+.conversation-thread .handoff-card .md code { background: var(--surface-panel); }
+.conversation-thread .canvas-cards { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.conversation-thread .canvas-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-2); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3); border-radius: var(--radius-row); background: var(--surface-inset); min-width: 0; }
+.conversation-thread .canvas-card .cc-icon { display: inline-grid; place-items: center; width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-metadata); }
+.conversation-thread .canvas-card .cc-icon svg, .conversation-thread .canvas-card .cc-icon .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .canvas-card .cc-text { display: flex; flex-direction: column; min-width: 0; }
+.conversation-thread .canvas-card .cc-title { display: flex; align-items: center; gap: var(--space-1); min-width: 0; }
+.conversation-thread .canvas-card .cc-kind { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-standard); }
+.conversation-thread .canvas-card .cc-name { min-width: 0; overflow: hidden; white-space: nowrap; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.conversation-thread .canvas-card .cc-status { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
+.conversation-thread .canvas-card .cc-open { flex: none; color: var(--text-standard); }
+.conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.conversation-thread .jump-latest { position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%); box-shadow: var(--shadow-sm); z-index: 3; }
+.conversation-thread .ti-reply { display: flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--text-subtle); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
+.conversation-thread .ti-reply .ti-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-thread .ti-reply .ti-time { flex: none; color: var(--text-metadata); font-variant-numeric: tabular-nums; }
+.conversation-thread .ti-shimmer { background: linear-gradient(90deg, var(--text-metadata) 0 42.5%, color-mix(in oklch, var(--text-metadata), var(--surface-panel) 55%) 47.5% 52.5%, var(--text-metadata) 57.5% 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: ti-shimmer 2s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .conversation-thread .caret { animation: none; } .conversation-thread .activity-head .chev { transition: none; } .conversation-thread .ti-shimmer { animation: none; background: none; color: var(--text-metadata); } }
+.conversation-thread .bg-line { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; column-gap: var(--space-2); row-gap: var(--space-2); min-width: 0; color: var(--text-metadata); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
+.conversation-thread .bg-line .bg-icon { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-metadata); margin-block: calc((var(--type-label-line-height) - var(--size-icon-sm)) / 2); }
+.conversation-thread .bg-line .bg-text { min-width: 0; overflow-wrap: anywhere; }
+.conversation-thread .bg-line .bg-stop { grid-column: 2; justify-self: start; color: var(--text-standard); }
+.conversation-thread .bg-line .bg-stop .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .bg-line .bg-stop[data-disabled] { color: var(--text-disabled); }
+.ov-main, .right.ov-right, .conv-menu, .wt-menu { font-variant-numeric: normal; }
+.ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
+.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-title-wrap { display: flex; min-width: 0; }
+:is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+:is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-scroll > .conversation-thread { flex: 1; }
+.ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-8); }
+.ov-main .conversation-thread .thread { max-width: 720px; margin-inline: auto; }
+.conv-row:is(:hover, :has([data-highlighted])) .cv-when { min-width: var(--size-control-xs); }
+.conv-row:is(:hover, :has([data-highlighted])) .cv-head:not(:has(.cv-when))::after { content: ""; flex: none; width: var(--size-control-xs); }
+.conv-row:is(:hover, :has([data-highlighted])) .cv-when > [aria-hidden="true"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.conv-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.cv-head { display: flex; align-items: center; gap: var(--space-1h); min-width: 0; }
+.cv-head .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); object-fit: contain; flex: none; }
+.cv-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-head .row-slot { margin-left: 0; }
+.cv-when { flex: none; margin-left: auto; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
+.right.ov-right .rp-head { display: flex; align-items: center; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); border-bottom: 0; font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); }
+.right.ov-right .rp-head:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.rp-list { list-style: none; margin: 0; padding: 0 var(--space-2) var(--space-2); }
+.cv-item { position: relative; }
+.cv-item + .cv-item::before { content: ""; position: absolute; top: 0; left: var(--space-2); right: var(--space-2); height: 1px; background: var(--border-standard); }
+.cv-item:has(> .cv-row:not([aria-disabled="true"]):hover)::before, .cv-item:has(> .cv-row:not([aria-disabled="true"]):hover) + .cv-item::before { display: none; }
+.cv-row { display: flex; align-items: flex-start; gap: var(--space-2); width: 100%; min-height: var(--size-row); padding: var(--space-3) var(--space-2); border-radius: var(--radius-row); text-align: start; }
+.cv-row:not([aria-disabled="true"]):hover { background: var(--affordance-backdrop-hover); }
+.cv-row:focus-visible { outline-offset: -2px; }
+.cv-row[aria-disabled="true"] { cursor: default; align-items: center; }
+.cv-item { anchor-scope: --cv-line; }
+.cv-head, .cv-text > b { anchor-name: --cv-line; }
+.cv-item > .cv-delete.doan-icon-button:not([aria-disabled="true"]):hover { background: var(--affordance-subtle-hover); }
+.cv-item > .cv-delete.doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+.cv-item:not(:hover, :has(:focus-visible)) > .cv-delete { width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.cv-item:is(:hover, :has(:focus-visible)) .cv-when { position: relative; min-width: var(--size-control-xs); }
+.cv-item:is(:hover, :has(:focus-visible)) .cv-when > [aria-hidden="true"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.cv-item:is(:hover, :has(:focus-visible)) .cv-head:not(:has(.cv-when))::after { content: ""; flex: none; width: var(--size-control-xs); }
+.cv-item:is(:hover, :has(:focus-visible)) .cv-text > b { padding-right: calc(var(--size-control-xs) + var(--space-1h)); }
+.cv-item:has(> .cv-delete:hover) > .cv-row:not([aria-disabled="true"]) { background: var(--affordance-backdrop-hover); }
+.cv-item:has(> .cv-delete:hover)::before, .cv-item:has(> .cv-delete:hover) + .cv-item::before { display: none; }
+.cv-thumb { position: relative; flex: none; width: 72px; height: var(--space-12); overflow: hidden; border-radius: var(--radius-toolbar-icon); box-shadow: inset 0 0 0 1px var(--border-standard); }
+.cv-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.cv-thumb.empty { background: var(--surface-inset); }
+.cv-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cv-text > b, .cv-text .cv-head b { font-weight: var(--type-weight-medium); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-text > small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
+.cv-text > small.err { color: var(--text-danger); }
+.cv-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: var(--space-half) 0; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
+.rp-empty { margin: 0 var(--space-2) var(--space-2); padding: var(--space-4); border: 1px dashed var(--border-standard); border-radius: var(--radius-chip); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.rp-empty p + p { margin-top: var(--space-2); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.rp-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.doan-canvas-panel > .doan-canvas-head { overflow: clip; border-top-left-radius: inherit; border-top-right-radius: inherit; }
+.doan-canvas-head { flex: none; background: var(--surface-panel); }
+.doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
+.doan-canvas-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doan-canvas-head .chev { flex: none; }
+.doan-canvas-head-tools { display: flex; align-items: center; gap: var(--space-1); flex: none; margin-left: auto; }
+.doan-canvas-zoom { display: flex; align-items: center; gap: var(--space-half); }
+.doan-zoom-value { min-width: 72px; gap: var(--space-1); font-variant-numeric: tabular-nums; }
+.doan-canvas-head .doan-icon-button { color: var(--text-standard); }
+.doan-canvas-head :is(.doan-icon-button, .doan-button):disabled, .doan-canvas-head .doan-button:disabled .chev { color: var(--text-disabled); }
+.right.doan-conv-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
+.doan-conv-head { display: flex; align-items: center; min-height: var(--size-chrome); padding-right: var(--space-2); }
+.doan-conv-head .rp-head { flex: 1; min-width: 0; }
+.doan-conv-head .doan-icon-button { color: var(--text-standard); }
+.doan-conv-title .ov-title.doan-button { max-width: 100%; }
+.cp-scroll:has(> .conversation-thread) { padding: 0; }
+.cp-scroll > .conversation-thread { flex: 1; min-height: 0; }
+.cp-scroll > .conversation-thread:has(> :is(.thread-loading, .thread-notice)) { justify-content: center; padding: var(--space-2) var(--space-4) 0; }
+.cp-scroll:has(> .conversation-thread) > .doan-notice { margin: var(--space-2) var(--space-4) 0; }
+.doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-8); }
+.doan-conv-panel .conversation-thread .thread { gap: var(--space-5); }
+.doan-conv-panel :is(.md, .msg-agent p, .bubble) { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.doan-conv-panel .conversation-thread .ti-reply { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.doan-conv-panel .conversation-thread .bg-line { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.doan-conv-panel .conversation-thread .bg-line .bg-icon { margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon-sm)) / 2); }
+.badge-bubble { position: absolute; top: var(--space-half); right: var(--space-half); width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); background: var(--surface-panel); border-radius: var(--space-1); box-shadow: 0 0 0 var(--space-half) var(--surface-panel); pointer-events: none; }
+.badge-bubble svg { display: block; width: 100%; height: 100%; fill: var(--surface-panel); }
+.bubble .anchor-chip { background: var(--surface-panel); }
+button.anchor-chip { cursor: pointer; }
+button.anchor-chip[aria-disabled="true"] { cursor: default; }
+.composer-input .anchor-chip { cursor: pointer; }
+.conversation-thread .msg-agent { container-type: inline-size; }
+.anchor-chip:has(> span.chip-canvas) { display: inline-grid; grid-template-columns: auto minmax(1em, max-content) max-content; min-width: min-content; overflow: hidden; }
+.anchor-chip span.chip-canvas { white-space: pre; margin-left: calc(-1 * var(--space-1)); max-width: calc(100cqw - 2 * var(--space-1h) - var(--size-icon-sm) - var(--space-1) - 1em); }
+.conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }
+.conversation-thread .thread-notice > .ask-error { grid-column: 2; color: var(--text-danger); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.conversation-thread .q-card > :is(.q-list, .strip-actions, .ask-error) { grid-column: 1 / -1; }
+.conversation-thread .q-card .q-title b { overflow-wrap: anywhere; }
+.conversation-thread .q-list { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.conversation-thread .q { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.conversation-thread .q-head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1h); min-width: 0; }
+.conversation-thread .q-text { font-weight: var(--type-weight-medium); overflow-wrap: anywhere; }
+.conversation-thread .q-group { background: var(--surface-panel); border-radius: var(--radius-row); }
+.conversation-thread .q-pref { position: relative; align-items: start; cursor: pointer; }
+.conversation-thread .q-pref .ob-radio { margin-top: 0; }
+.conversation-thread .q-pref:has(> input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.conversation-thread .q-pref:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
+.conversation-thread .q-pref > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.conversation-thread .q-pref:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
+.conversation-thread .q-input { position: relative; z-index: 1; width: 100%; background: var(--surface-panel); }
+.conversation-thread .q-pref .q-input { background: var(--surface-inset); }
+.conversation-thread .q-card .q-send[aria-disabled="true"]:not(:disabled) { background: var(--affordance-disabled); color: var(--text-disabled); cursor: default; }
+.conversation-thread .q-card .q-send[aria-busy="true"] { cursor: progress; }
+.conversation-thread .q-send .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, var(--text-on-prominent) 30%, transparent); border-top-color: var(--text-on-prominent); }
+.conversation-thread .q-card.is-locked :is(.q-pref, .q-pref > input) { cursor: default; }
+.conversation-thread .q-card [aria-disabled="true"]:not(.q-send, input) { color: var(--text-disabled); cursor: default; }
+.conversation-thread .q-folded { display: flex; flex-direction: column; gap: var(--space-6); }
+.doan-conv-panel .conversation-thread .q-folded { gap: var(--space-5); }
+:root[data-sidebar="hidden"] .home-shell > .home-panel { grid-column: 2; }
+:root[data-sidebar="hidden"] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { margin-left: 0; }
+:root[data-sidebar-motion] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { transition: margin-left var(--time-panel-enter) var(--ease-settle); }
+@media (prefers-reduced-motion: reduce) { :root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell, .workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .workspace > .problem-overlay, .home-panel) { transition: none; } }
+.shell-top .usage { margin-left: auto; }
+.shell-top .update-anchor { position: relative; display: flex; flex: none; margin-left: var(--space-2); }
+.shell-top .update-anchor:empty { display: none; }
+.shell-top .update-anchor .update-indicator[data-ui-variant="subtle"] { padding-inline-start: var(--space-3); background: var(--affordance-backdrop-hover); }
+@media (hover: hover) and (pointer: fine) { .shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:hover:not(:disabled) { background: var(--affordance-backdrop-pressed); } }
+.shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:is(:active, [aria-haspopup][aria-expanded="true"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }
+.shell-top .update-anchor .update-indicator[data-ui-variant="subtle"]:disabled { color: var(--text-disabled); cursor: default; }
+.skill-word { padding: 0 var(--space-1h); border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font-weight: var(--type-weight-medium); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.bubble .skill-word { background: var(--surface-panel); }
+.pw-top > .shell-history { height: var(--size-chrome); align-items: center; }
+.pw .right.doan-conv-panel { border-left: 0; border-radius: var(--radius-container); }
+.composer-chips > .pw-playing { font-size: var(--type-body-sm-size); line-height: var(--type-label-line-height); margin-inline: 0; }
+.agent-group { padding: var(--space-1) 0; }
+.agent-head { display: flex; align-items: center; gap: var(--space-2); }
+.agent-note { display: inline-flex; align-items: center; gap: var(--space-1h); margin-left: auto; }
+.model-name { flex: 1; min-width: 0; }
+.menu-note { padding: var(--space-1) var(--space-3) var(--space-2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+
+.preset-item { gap: var(--space-3); }
+.preset-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
+.preset-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
+.preset-desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+.suggestion-icon { flex: none; display: grid; place-items: center; width: var(--size-control-xs); height: var(--size-control-xs); border-radius: var(--radius-toolbar-icon); background: var(--surface-accent-subtle); }
+.preset-item .suggestion-icon svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-accent); }
+.preset-item .suggestion-icon.project-skill-icon { background: var(--affordance-backdrop-hover); }
+.preset-item .suggestion-icon.project-skill-icon svg { color: var(--text-standard); }
+
+.doan-preference-row[data-has-icon] { grid-template-columns: auto minmax(0, 1fr) auto; }
+.doan-preference-row-icon { display: flex; align-items: center; justify-content: center; width: var(--size-icon-lg); height: var(--size-icon-lg); color: var(--text-subtle); }
+.doan-preference-row-icon > :is(svg, img) { width: 100%; height: 100%; object-fit: contain; }
+
+/* ── Canvas layout (b6-*): not app CSS ── */
+.b6-board { display: flex; flex-direction: column; gap: 48px; padding: 48px; background: var(--bg-app); }
+.b6-frame { width: 1584px; padding: 32px; border-radius: var(--radius-panel); background: var(--surface-panel); box-shadow: var(--shadow-sm); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.b6-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+.b6-head h2 { font-size: var(--type-heading-size); line-height: 1.1; font-weight: var(--type-weight-medium); }
+.b6-id { font-weight: var(--type-weight-medium); color: var(--text-metadata); font-size: var(--type-body-lg-size); }
+.b6-sub { margin-bottom: 24px; color: var(--text-subtle); }
+.b6-sub code, .b6-note code, .b6-table code, .b6-doc code { font-family: var(--type-family-mono); font-size: var(--type-caption-size); background: var(--surface-inset); border-radius: 4px; padding: 0 4px; }
+.b6-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.b6-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.b6-col-head { display: flex; align-items: center; gap: 8px; font-weight: var(--type-weight-medium); font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
+.b6-tag { color: var(--text-warning); background: var(--affordance-warning); }
+.b6-stage { position: relative; display: flex; flex-direction: column; gap: 16px; padding: 24px; border-radius: var(--radius-row); background: var(--bg-app); }
+.b6-stage.white { background: var(--surface-panel); box-shadow: inset 0 0 0 1px var(--border-standard); }
+.b6-label { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.b6-measure { font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
+.b6-measure b { font-weight: var(--type-weight-medium); color: var(--text-danger); }
+.b6-tobe .b6-measure b { color: var(--text-success); }
+.b6-row { display: flex; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
+.b6-note { display: grid; grid-template-columns: 136px 1fr; gap: 8px 16px; margin-top: 24px; padding: 20px 24px; border-radius: var(--radius-row); background: var(--surface-inset); }
+.b6-note dt { color: var(--text-metadata); font-weight: var(--type-weight-medium); }
+.b6-note dd ul, .b6-note dd ol { padding-left: 20px; display: flex; flex-direction: column; gap: 2px; }
+.b6-note dd ul { list-style: disc; } .b6-note dd ol { list-style: decimal; }
+.b6-table { width: 100%; border-collapse: collapse; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.b6-table th { text-align: left; font-weight: var(--type-weight-medium); color: var(--text-subtle); padding: 8px 12px; border-bottom: 1px solid var(--border-standard); }
+.b6-small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.b6-small td, .b6-small th { padding: 4px 12px !important; }
+.b6-table td { padding: 8px 12px; border-bottom: 1px solid var(--border-standard); vertical-align: top; }
+.b6-doc { padding: 16px; border-radius: var(--radius-chip); background: var(--surface-inset); font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: 1.5; color: var(--text-standard); white-space: pre-wrap; overflow-wrap: anywhere; }
+.b6-doc del { color: var(--text-danger); } .b6-doc ins { color: var(--text-success); text-decoration: none; background: var(--surface-panel); }
+/* A tooltip drawn open: Radix places the capsule 4px off the trigger. */
+.b6-anchor { position: relative; display: inline-flex; }
+.b6-tip { position: absolute; z-index: 5; left: 50%; transform: translateX(-50%); width: max-content; max-width: 384px; }
+.b6-tip.below { top: calc(100% + 4px); } .b6-tip.above { bottom: calc(100% + 4px); }
+.b6-tip.start { left: 0; transform: none; }
+.b6-none { position: absolute; z-index: 5; top: calc(100% + 4px); left: 50%; transform: translateX(-50%); width: max-content; padding: 2px 8px; border: 1px dashed var(--border-prominent); border-radius: 12px; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); background: var(--surface-panel); }
+.b6-none.above { top: auto; bottom: calc(100% + 4px); }
+.b6-none.side { top: 50%; bottom: auto; left: calc(100% + 12px); transform: translateY(-50%); }
+/* The macOS system tooltip a native title opens, drawn schematically. */
+.b6-native { position: absolute; z-index: 5; top: calc(100% + 6px); left: 24px; width: max-content; max-width: 420px; padding: 2px 6px; border-radius: 4px; background: var(--surface-panel); box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-standard); font: 11px/14px system-ui, sans-serif; color: var(--text-standard); }
+/* Static hover: the state the pointer would give. */
+.b6-hover.doan-icon-button[data-ui-placement="chrome"] { background: var(--affordance-backdrop-hover); }
+.b6-hover.doan-icon-button:not([data-ui-placement]) { background: var(--affordance-subtle-hover); }
+.shell-side .b6-hover.row { background: var(--affordance-backdrop-hover); }
+.shell-side .b6-hover.shell-canvas-row { padding-right: 0; }
+.b6-hover.shell-canvas-row > .shell-more { position: static; width: 32px; height: 32px; overflow: visible; clip-path: none; }
+.b6-hover.shell-canvas-row > .row-slot { display: none; }
+.conversation-thread .md-code.b6-hover .doan-icon-button { opacity: 1; }
+.b6-stage .conversation-thread { height: auto; }
+.b6-stage .settings-panel { overflow: visible; }
+.b6-stage .shell-side.side { margin-bottom: 0; padding: 8px; overflow: visible; }
+.b6-stage .shell-top.top { height: 40px; padding-right: 16px; }
+.b6-menu { position: relative; width: max-content; }
+.b6-menu.doan-floating { position: relative; }
+/* Swatches for the radius frame. */
+.b6-spec { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 96px; }
+.b6-spec .b6-label { text-align: center; }
+.b6-thumb { display: flex; align-items: center; justify-content: center; font-weight: var(--type-weight-medium); }
+.hue-teal { background: color-mix(in srgb, var(--identity-project-teal) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-teal) 65%, var(--text-standard)); }
+.hue-amber { background: color-mix(in srgb, var(--identity-project-amber) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-amber) 65%, var(--text-standard)); }
+
+/* ── Proposed rules (To be, not in code): applied only inside .b6-tobe columns ── */
+/* U35: the notice carries its role's tracking itself. */
+.b6-tobe .doan-notice { letter-spacing: var(--type-body-sm-letter-spacing); }
+/* D14: secondary lines take the caption role whole. */
+.b6-tobe .shell-worktree small { margin-top: var(--space-half); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.b6-tobe :is(.shell-empty, .shell-canvas-error) { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.b6-tobe .preset-desc { letter-spacing: var(--type-caption-letter-spacing); }
+/* D20: the proposed small radius steps (values in the D20 frame). */
+.b6-tobe { --radius-inline: 4px; --radius-word: 6px; --radius-thumbnail: 25%; }
+.b6-tobe .doan-checkbox, .b6-tobe .b6-r-inline, .b6-tobe .shell-disclosure, .b6-tobe .badge-bubble { border-radius: var(--radius-inline); }
+.b6-tobe :is(.anchor-chip, .suggestion-value, .skill-word) { border-radius: var(--radius-word); }
+.b6-tobe .shell-thumbnail, .b6-tobe .b6-thumb { border-radius: var(--radius-thumbnail); }
+</style></head>
+<body>
+<!-- source: lucide-react 1.61.0 (app/node_modules/lucide-react/dist/esm/icons/*.mjs), the icons the app draws -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-arrow-left" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></g></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></g></symbol>
+<symbol id="i-panel-left-close" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></g></symbol>
+<symbol id="i-ellipsis" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></g></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></g></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></g></symbol>
+<symbol id="i-rotate-cw" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></g></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></g></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></g></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></g></symbol>
+<symbol id="i-panels" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></g></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></g></symbol>
+<symbol id="i-file-text" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></g></symbol>
+<symbol id="i-branch" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></g></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></g></symbol>
+<symbol id="i-square-slash" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><line x1="9" x2="15" y1="15" y2="9"/></g></symbol>
+<symbol id="i-server" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></g></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></g></symbol>
+<symbol id="i-message" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/></g></symbol>
+</defs></svg>
+
+<main class="b6-board">
+
+<!-- ═════════════ Index ═════════════ -->
+<section class="b6-frame" data-doan-frame="index" data-doan-title="Index · B6 tooltips, type and tokens">
+  <div class="b6-head"><h2>B6 · Tooltips, type and tokens</h2></div>
+  <p class="b6-sub">UX audit 261117, batch B6 (branch example <code>fix/ux-tokens</code>). Sources: <code>docs/features/ux-audit-261117/report.md</code> §3.4, §6 (decisions of 2026-11-17), §7; raw evidence <code>.scratch/ux-audit/261117/presentation.md</code> (P-F*). As is is read from develop 366993b72.</p>
+  <div class="doan-notice warning" data-doan-id="index-not-in-code" style="margin-bottom:24px"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span>Every <b>To be</b> column is a proposal and is <b>not in code yet</b>. Tooltip copy marked “proposed” is new UI copy (checked against Doan’s clarify preset). Each item’s note names its evidence, the exact change and the states to test.</span></div>
+  <table class="b6-table" data-doan-id="index-table">
+    <thead><tr><th style="width:72px">ID</th><th>Change</th><th style="width:380px">Screens</th><th style="width:200px">Frame</th></tr></thead>
+    <tbody>
+      <tr><td>U34</td><td>Code block and table scrollbars take the quiet thumb through <code>.doan-scroll</code>; the thread scroller and the composer field use the class instead of restating it.</td><td>Conversation thread (Overview, canvas panel, prototype window), every composer</td><td><code>u34-scrollbars</code></td></tr>
+      <tr><td>U35</td><td><code>.doan-notice</code> carries body-sm tracking itself; every rule that sets a type role’s size gets that role’s tracking (61 rules), and a ds check test keeps it so.</td><td>Every notice (Settings vs elsewhere), thread, panels, menus, Project Settings</td><td><code>u35-type-tracking</code></td></tr>
+      <tr><td>U37</td><td>Doc drift only: onboarding.md drop outline token, DESIGN ‘Tooltip’ PathTip sentence.</td><td>docs only</td><td><code>u37-doc-drift</code></td></tr>
+      <tr><td>D14</td><td>Off-scale secondary lines (11/14, 12/18) move to caption 12/16.</td><td>Sidebar project menu, sidebar groups, preset popover project skill rows</td><td><code>d14-secondary-lines</code></td></tr>
+      <tr><td>D16</td><td>Every icon-only button gets the shared tooltip.</td><td>Main and prototype headers, sidebar, Settings › MCP, thread code block, composer chips</td><td><code>d16-icon-tooltips</code></td></tr>
+      <tr><td>D17</td><td>Every native <code>title</code> moves to the shared tooltip: names only while cut, information always.</td><td>Sidebar, canvas header, Quick Open, title triggers, right panel, frame drawer, thread chips, composer, Set Up dialog</td><td><code>d17-truncated-names</code></td></tr>
+      <tr><td>D19</td><td>Canvas header tooltips show their shortcut as a key chip (<code>.doan-tooltip.has-key</code>).</td><td>Canvas page header (Reload, Zoom out, Zoom in)</td><td><code>d19-tooltip-keys</code></td></tr>
+      <tr><td>D20</td><td>New small radius steps replace <code>--space-1</code>/<code>--space-2</code> and 4/5/6px literals used as radii.</td><td>Checkbox, code chips, sidebar, thumbnails, anchor/suggestion/skill chips</td><td><code>d20-radius-steps</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═════════════ U34 ═════════════ -->
+<section class="b6-frame" data-doan-frame="u34-scrollbars" data-doan-title="U34 · Quiet scrollbars through .doan-scroll" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+  <div class="b6-head"><span class="b6-id">U34</span><h2>Quiet scrollbars through <code>.doan-scroll</code></h2></div>
+  <p class="b6-sub">A reply with a long code line and a wide table, in a thread column 640 wide. Scroll each block sideways to see its bar.</p>
+  <div class="b6-cols">
+    <div class="b6-col"><div class="b6-col-head">As is</div>
+      <div class="b6-stage white" data-doan-id="u34-asis">
+        <div class="conversation-thread" style="width:640px"><div class="md">
+          <div class="md-code"><pre><code>npm --prefix app run package &amp;&amp; node app/scripts/verifySignedPackage.mjs app/dist/Doan-0.1.14-arm64.dmg app/dist/Doan-0.1.14-arm64-mac.zip</code></pre><button type="button" class="doan-icon-button" data-ui-size="xs" aria-label="Copy code"><svg width="16" height="16" aria-hidden="true"><use href="#i-copy"/></svg></button></div>
+          <div class="md-table"><table><thead><tr><th>Screen</th><th>Scroller</th><th>Thumb</th><th>Track</th><th>Rule</th></tr></thead><tbody><tr><td>Overview thread</td><td>Code block <code>pre</code></td><td>engine default</td><td>engine default</td><td>styles.css:1207 <code>scrollbar-width: thin</code> only</td></tr><tr><td>Canvas panel thread</td><td>Table <code>.md-table</code></td><td>engine default</td><td>engine default</td><td>styles.css:1213 <code>scrollbar-width: thin</code> only</td></tr></tbody></table></div>
+        </div></div>
+        <p class="b6-measure">pre, .md-table → scrollbar-color: <b>auto</b> (engine thumb)</p>
+        <div class="b6-doc">&lt;div class="thread-scroll"&gt;          ConversationThread.tsx:900
+.conversation-thread .thread-scroll { …; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }   styles.css:1169
+&lt;div class="composer-input"&gt;         ComposerParts.tsx:170
+.composer-input { …; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }   styles.css:758</div>
+      </div>
+    </div>
+    <div class="b6-col b6-tobe"><div class="b6-col-head">To be <span class="doan-chip b6-tag">Not in code</span></div>
+      <div class="b6-stage white" data-doan-id="u34-tobe">
+        <div class="conversation-thread" style="width:640px"><div class="md">
+          <div class="md-code"><pre class="doan-scroll"><code>npm --prefix app run package &amp;&amp; node app/scripts/verifySignedPackage.mjs app/dist/Doan-0.1.14-arm64.dmg app/dist/Doan-0.1.14-arm64-mac.zip</code></pre><button type="button" class="doan-icon-button" data-ui-size="xs" aria-label="Copy code"><svg width="16" height="16" aria-hidden="true"><use href="#i-copy"/></svg></button></div>
+          <div class="md-table doan-scroll"><table><thead><tr><th>Screen</th><th>Scroller</th><th>Thumb</th><th>Track</th><th>Rule</th></tr></thead><tbody><tr><td>Overview thread</td><td>Code block <code>pre</code></td><td>--scrollbar-thumb-quiet</td><td>transparent</td><td>.doan-scroll (ds/surfaces.css:275)</td></tr><tr><td>Canvas panel thread</td><td>Table <code>.md-table</code></td><td>--scrollbar-thumb-quiet</td><td>transparent</td><td>.doan-scroll (ds/surfaces.css:275)</td></tr></tbody></table></div>
+        </div></div>
+        <p class="b6-measure">pre.doan-scroll, .md-table.doan-scroll → scrollbar-color: <b>var(--scrollbar-thumb-quiet) transparent</b></p>
+        <div class="b6-doc">&lt;div class="thread-scroll <ins>doan-scroll</ins>"&gt;
+.conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto;<del> scrollbar-width: thin; scrollbar-color: …;</del> }
+&lt;div class="composer-input <ins>doan-scroll</ins>"&gt;
+.composer-input { …; color: var(--text-standard);<del> scrollbar-width: thin; scrollbar-color: …;</del> }</div>
+      </div>
+    </div>
+  </div>
+  <dl class="b6-note" data-doan-id="u34-note">
+    <dt>Evidence</dt><dd>P-F14. <code>styles.css:1207</code> (<code>.md-code pre</code>) and <code>:1213</code> (<code>.md-table</code>) set <code>scrollbar-width: thin</code> without <code>scrollbar-color</code>. <code>:1169</code> and <code>:758</code> restate the pair. DESIGN 85: “through <code>.doan-scroll</code>, the one class for it”.</dd>
+    <dt>Change</dt><dd><ul><li>Markup: add <code>doan-scroll</code> to the code block’s <code>pre</code> and the <code>.md-table</code> div (<code>ConversationThread.tsx:182, :238</code>), to <code>.thread-scroll</code> (<code>:900</code>) and to <code>.composer-input</code> (<code>ComposerParts.tsx:170</code>).</li><li>CSS: drop <code>scrollbar-width: thin</code> from <code>:1207</code> and <code>:1213</code>, and both scrollbar declarations from <code>:1169</code> and <code>:758</code>. Overflow stays where it is.</li><li>Chosen over adding <code>scrollbar-color</code> to the two rules, because DESIGN names the class as the only way.</li></ul></dd>
+    <dt>Test</dt><dd><ol><li>Overview thread: a reply with a long code line and a wide table: both horizontal bars are thin with the quiet thumb (computed <code>scrollbar-color</code> = <code>--scrollbar-thumb-quiet</code> + transparent).</li><li>The thread’s vertical bar and an eight-line composer’s bar look as before (same computed values, now from <code>.doan-scroll</code>).</li><li>Same in the canvas conversation panel and the prototype window. The code block’s Copy button still sits over the block’s top right.</li><li>macOS overlay scrollbars may show a bar only while scrolling: scroll to compare.</li></ol></dd>
+  </dl>
+</section>
+
+<!-- ═════════════ U35 ═════════════ -->
+<section class="b6-frame" data-doan-frame="u35-type-tracking" data-doan-title="U35 · Type roles applied with their tracking" data-doan-implements="app/src/renderer/ds/surfaces.css">
+  <div class="b6-head"><span class="b6-id">U35</span><h2>Type roles applied with their tracking</h2></div>
+  <p class="b6-sub">The shared notice first: the same <code>.doan-notice</code> takes −0.035px tracking inside the Settings panel and none elsewhere. The difference is at most 0.035px per glyph, so the drawing looks the same; the computed values below are the change.</p>
+  <div class="b6-cols">
+    <div class="b6-col"><div class="b6-col-head">As is</div>
+      <div class="b6-stage white" data-doan-id="u35-asis-settings"><span class="b6-label">Settings › Notifications (inside <code>.settings-panel</code>)</span>
+        <div class="settings-panel"><div class="doan-notice error" role="alert"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span>Doan couldn’t read its saved settings, so defaults apply.</span></div></div>
+        <p class="b6-measure">letter-spacing <b>−0.035px</b> — inherited from <code>.settings-panel</code> (styles.css:1072)</p>
+      </div>
+      <div class="b6-stage" data-doan-id="u35-asis-canvas"><span class="b6-label">Canvas area, unlisted page (<code>App.tsx:2573</code>)</span>
+        <div class="doan-notice doan-panel" role="status"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span>This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>
+        <p class="b6-measure">letter-spacing <b>normal (0)</b> — inherited from <code>body</code></p>
+      </div>
+    </div>
+    <div class="b6-col b6-tobe"><div class="b6-col-head">To be <span class="doan-chip b6-tag">Not in code</span></div>
+      <div class="b6-stage white" data-doan-id="u35-tobe-settings"><span class="b6-label">Settings › Notifications (inside <code>.settings-panel</code>)</span>
+        <div class="settings-panel"><div class="doan-notice error" role="alert"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span>Doan couldn’t read its saved settings, so defaults apply.</span></div></div>
+        <p class="b6-measure">letter-spacing <b>−0.035px</b> — from <code>.doan-notice</code> itself</p>
+      </div>
+      <div class="b6-stage" data-doan-id="u35-tobe-canvas"><span class="b6-label">Canvas area, unlisted page (<code>App.tsx:2573</code>)</span>
+        <div class="doan-notice doan-panel" role="status"><svg class="doan-alert-icon" width="16" height="16" aria-hidden="true"><use href="#i-alert"/></svg><span>This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>
+        <p class="b6-measure">letter-spacing <b>−0.035px</b> — from <code>.doan-notice</code> itself</p>
+      </div>
+    </div>
+  </div>
+  <table class="b6-table b6-small" data-doan-id="u35-rules" style="margin-top:24px">
+    <thead><tr><th style="width:170px">Where</th><th style="width:80px">Role</th><th>Rule that sets the role’s size without its letter-spacing (62, scanned 2026-11-17 on develop 366993b72)</th><th style="width:420px">Add</th></tr></thead>
+    <tbody>
+      <tr><td>ds/controls.css:37</td><td>label</td><td><code>.doan-button[data-ui-size=&quot;lg&quot;]</code></td><td><code>var(--type-label-letter-spacing)</code></td></tr>
+<tr><td>ds/controls.css:61</td><td>caption</td><td><code>.doan-button .doan-kbd</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>ds/controls.css:278</td><td>caption</td><td><code>.doan-chip</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>ds/surfaces.css:78</td><td>caption</td><td><code>.doan-menu-head</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>ds/surfaces.css:189</td><td>body-sm</td><td><code>.doan-notice</code></td><td><code>var(--type-body-sm-letter-spacing)</code> · first: the shared notice</td></tr>
+<tr><td>styles.css:123</td><td>body-sm</td><td><code>.canvas-status</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:132</td><td>label-sm</td><td><code>.canvas-status-block h2</code></td><td><code>var(--type-label-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:188</td><td>body-sm</td><td><code>.ob-overlay</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:234</td><td>label-sm</td><td><code>.ob-provider-label strong</code></td><td><code>var(--type-label-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:287</td><td>label-sm</td><td><code>.ob-chosen strong, .ob-destination-name strong, .ob-choice strong</code></td><td><code>var(--type-label-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:325</td><td>label-sm</td><td><code>.buddy-card strong</code></td><td><code>var(--type-label-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:395</td><td>label-sm</td><td><code>.ob-label</code></td><td><code>var(--type-label-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:398</td><td>body-sm</td><td><code>.ob-msg</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:400</td><td>body-sm</td><td><code>.ob-msg:is(.warn, .error), .pj-msg</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:412</td><td>body-sm</td><td><code>.ob-field .value</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:418</td><td>caption</td><td><code>.ob-helper</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:419</td><td>body-sm</td><td><code>.ob-changes</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:423</td><td>body-sm</td><td><code>.ob-dialog p</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:716</td><td>body-sm</td><td><code>.add-panel</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:771</td><td>caption</td><td><code>.composer-count</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:795</td><td>caption</td><td><code>.composer-tray</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:796</td><td>caption</td><td><code>.composer-tray .doan-button</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:802</td><td>caption</td><td><code>.attach-chip, .preset-chip</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:875</td><td>caption</td><td><code>.preset-desc</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:877</td><td>body-sm</td><td><code>.popover-state</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:895</td><td>caption</td><td><code>.model-item .sub</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:902</td><td>caption</td><td><code>.menu-note</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:906</td><td>caption</td><td><code>.composer-reason</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:973</td><td>label</td><td><code>.queue-item</code></td><td><code>var(--type-label-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1149</td><td>body-sm</td><td><code>.settings-title .project-settings-thumbnail.shell-thumbnail</code></td><td><code>var(--type-body-sm-letter-spacing)</code> · one initial in a thumbnail; add tracking (or allow-list)</td></tr>
+<tr><td>styles.css:1157</td><td>caption</td><td><code>.project-settings-notice-reason</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1165</td><td>caption</td><td><code>.project-settings-details</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1179</td><td>caption</td><td><code>.conversation-thread .bubble-preset</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1205</td><td>body-sm</td><td><code>.conversation-thread .md code</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1207</td><td>body-sm</td><td><code>.conversation-thread .md-code pre</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1223</td><td>body-sm</td><td><code>.conversation-thread .activity-head</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1233</td><td>body-sm</td><td><code>.conversation-thread .activity-steps</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1241</td><td>caption</td><td><code>.conversation-thread .activity-steps .path</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1250</td><td>caption</td><td><code>.conversation-thread .marker</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1279</td><td>body-sm</td><td><code>.conversation-thread .thread-loading</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1316</td><td>label-sm</td><td><code>.ov-project</code></td><td><code>var(--type-label-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1324</td><td>label-sm</td><td><code>.ov-sep</code></td><td><code>var(--type-label-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1331</td><td>label-sm</td><td><code>.ov-title.doan-button</code></td><td><code>var(--type-label-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1381</td><td>body-sm</td><td><code>.conv-error</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1389</td><td>label-sm</td><td><code>.right.ov-right .rp-head</code></td><td><code>var(--type-label-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1429</td><td>body-sm</td><td><code>.cv-text &gt; b, .cv-text .cv-head b</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1434</td><td>body-sm</td><td><code>.rp-empty</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1435</td><td>caption</td><td><code>.rp-empty p + p</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1436</td><td>body-sm</td><td><code>.rp-loading</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1437</td><td>body-sm</td><td><code>.rp-error</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1455</td><td>label-sm</td><td><code>.doan-canvas-name</code></td><td><code>var(--type-label-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1514</td><td>body-sm</td><td><code>.doan-conv-empty</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1557</td><td>caption</td><td><code>.chip-missing</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1641</td><td>caption</td><td><code>.conversation-thread .thread-notice &gt; .ask-error</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1750</td><td>body-sm</td><td><code>.doan-agent-caret</code></td><td>— · not type: the caret’s height; allow-list in the check</td></tr>
+<tr><td>styles.css:1854</td><td>label-sm</td><td><code>.storage-option strong</code></td><td><code>var(--type-label-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1900</td><td>body-sm</td><td><code>.storage-reason</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1908</td><td>body-sm</td><td><code>.workspace &gt; .problem-overlay</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1938</td><td>caption</td><td><code>.problem-detail</code></td><td><code>var(--type-caption-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1939</td><td>body-sm</td><td><code>.problem-reading</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:1985</td><td>body-sm</td><td><code>.pw-panel &gt; .problem-overlay</code></td><td><code>var(--type-body-sm-letter-spacing)</code></td></tr>
+<tr><td>styles.css:2014</td><td>body-sm</td><td><code>.composer-chips &gt; .pw-playing</code></td><td><code>var(--type-body-sm-letter-spacing)</code> · mixes body-sm size with label line height; add body-sm tracking, the line height is outside U35</td></tr>
+    </tbody>
+  </table>
+  <dl class="b6-note" data-doan-id="u35-note">
+    <dt>Evidence</dt><dd>P-F15 (with its Wave 2 correction), widened by the user on 2026-11-17 to every rule that sets a type role’s size without its tracking. DESIGN 36 and 65: “Type roles are applied whole (size, line height and tracking together)”. DESIGN 166 gives the notice 14/20 body-sm. <code>docs/design/shell.md:302</code> (‘Panel tracking’) records the inherited −0.035px as a Settings fact.</dd>
+    <dt>Scan</dt><dd>Every innermost rule in <code>ds/controls.css</code>, <code>ds/surfaces.css</code>, <code>styles.css</code> and <code>doany.css</code> whose declarations name <code>--type-&lt;role&gt;-size</code> (in <code>font-size</code>, the <code>font</code> shorthand, or elsewhere) and no <code>letter-spacing</code>. Inherited tracking is not counted as set. Line numbers are the rule body’s line.</dd>
+    <dt>Change</dt><dd><ul><li>Add <code>letter-spacing: var(--type-&lt;role&gt;-letter-spacing)</code> to each rule in the table, the notice first; no size, line height or colour changes here.</li><li>Computed: body-sm −0.0025em = −0.035px at 14px; caption 0.0133em ≈ 0.16px at 12px; label-sm 0.0025em; label 0em (<code>tokens.css:366-383</code>).</li><li>Check test: a new function in <code>ds/checks.ts</code> (beside <code>cssVarUsage</code>, <code>edgeStripes</code>) returns every rule that names <code>--type-&lt;role&gt;-size</code> without <code>letter-spacing</code>; a test in <code>ds/checks.test.ts</code> runs it over the four stylesheets and expects only an allow-list (today <code>.doan-agent-caret</code>, whose size token is a height). It fails on the next rule that forgets the tracking.</li><li>Docs at the end: rewrite <code>shell.md:302</code> (‘Panel tracking’): the notice carries body-sm tracking on every surface.</li></ul></dd>
+    <dt>Test</dt><dd><ol><li>Computed <code>letter-spacing</code> of a notice’s text: −0.035px in Settings › Notifications, on the unlisted canvas page, in Home’s composer notice and the Overview notice.</li><li>A caption rule inside Project Settings (the notice reason, Details) computes ≈0.16px, not −0.035px.</li><li>The new check test passes after the sweep and fails when one <code>letter-spacing</code> is removed again.</li><li>No line wraps differently by more than one glyph in the Settings panel (its notice already had −0.035px).</li><li>Rerun the 2026-11-09 postmortem check: no extra class on a <code>.doan-notice</code> gains its own font rule.</li></ol></dd>
+  </dl>
+</section>
+
+<!-- ═════════════ U37 ═════════════ -->
+<section class="b6-frame" data-doan-frame="u37-doc-drift" data-doan-title="U37 · Doc drift (note)" data-doan-implements="docs/design/onboarding.md">
+  <div class="b6-head"><span class="b6-id">U37</span><h2>Doc drift — note only</h2></div>
+  <p class="b6-sub">No UI change. Two documentation lines disagree with the code; the conductor fixes them with the batch’s doc step.</p>
+  <div class="b6-cols">
+    <div class="b6-col"><div class="b6-col-head">As is</div>
+      <span class="b6-label">docs/design/onboarding.md:115 (Card drop)</span>
+      <div class="b6-doc" data-doan-id="u37-asis-onboarding">… <code>--surface-panel</code> at 55% with an 8px blur, a 2px dashed <del>`--affordance-accent`</del> outline at −2px; …</div>
+      <span class="b6-label">docs/DESIGN.md:73 (Tooltip)</span>
+      <div class="b6-doc" data-doan-id="u37-asis-design">… at most 384px wide with long paths wrapping. <del>PathTip shares the padding.</del> A pointer opens the first tooltip after 700ms …</div>
+    </div>
+    <div class="b6-col b6-tobe"><div class="b6-col-head">To be <span class="doan-chip b6-tag">Not in docs</span></div>
+      <span class="b6-label">docs/design/onboarding.md:115 (Card drop)</span>
+      <div class="b6-doc" data-doan-id="u37-tobe-onboarding">… <code>--surface-panel</code> at 55% with an 8px blur, a 2px dashed <ins>`--text-accent`</ins> outline at −2px; …</div>
+      <span class="b6-label">docs/DESIGN.md:73 (Tooltip) — PathTip sentence removed; the D16, D17 and D19 rules join this bullet</span>
+      <div class="b6-doc" data-doan-id="u37-tobe-design">… at most 384px wide with long paths wrapping. <ins>Every icon-only button has one, naming its action; a sidebar row’s disclosure chevron, part of the row, does not. It replaces every native `title` (iframes aside): a name cut with an ellipsis shows here in full only while it is cut, and information only the tooltip carries (a path, a detail, a reason, a description) shows on every hover. Inside a modal dialog it is portalled into the dialog. A shortcut is a key chip (`.doan-tooltip.has-key`), never text in the label.</ins> A pointer opens the first tooltip after 700ms …</div>
+    </div>
+  </div>
+  <dl class="b6-note" data-doan-id="u37-note">
+    <dt>Evidence</dt><dd>P-F18: <code>styles.css:904</code> <code>.drop-target</code> draws <code>outline: 2px dashed var(--text-accent)</code>; DESIGN 101 lists “the composer drop outline” under Icon colour (<code>--text-accent</code>). For Popo and Dori <code>-icon</code> differs from step 9 (DESIGN 93), so the doc named a different colour. P-F12: <code>grep PathTip app/src</code> finds nothing (only <code>docs/postmortem/2026-10.md:874</code> mentions it, as history; leave that).</dd>
+    <dt>Change</dt><dd>Docs only. The proposed DESIGN wording follows D16, D17 (as widened on 2026-11-17) and D19, and is a draft for the doc step after they land; write what the code then does. No app file applies to U37, so this frame’s <code>data-doan-implements</code> points at <code>docs/design/onboarding.md</code>.</dd>
+    <dt>Test</dt><dd><code>grep -n "affordance-accent" docs/design/onboarding.md</code> no longer hits line 115; <code>grep -rn PathTip docs/DESIGN.md</code> is empty.</dd>
+  </dl>
+</section>
+
+<!-- ═════════════ D14 ═════════════ -->
+<section class="b6-frame" data-doan-frame="d14-secondary-lines" data-doan-title="D14 · Secondary lines move to caption 12/16" data-doan-implements="app/src/renderer/styles.css">
+  <div class="b6-head"><span class="b6-id">D14</span><h2>Secondary lines move to caption 12/16</h2></div>
+  <p class="b6-sub">Each pair draws the real classes; the To be column applies only the proposed rule. Caption = 12px / 16px, tracking 0.0133em, in the line’s current ink.</p>
+  <div class="b6-cols">
+    <div class="b6-col"><div class="b6-col-head">As is</div>
+      <div class="b6-stage" data-doan-id="d14-asis-worktree"><span class="b6-label">1 · Sidebar project menu, worktree rows (<code>.shell-worktree small</code>, styles.css:699)</span>
+        <div class="doan-floating doan-menu shell-side-menu shell-project-menu b6-menu" style="width:300px"><div class="doan-menu-head">Worktrees</div>
+          <div class="doan-menu-item shell-worktree" aria-current="true"><svg width="16" height="16" aria-hidden="true"><use href="#i-branch"/></svg><span><span>develop</span><small>~/code/doan-design</small></span><svg width="16" height="16" aria-hidden="true"><use href="#i-check"/></svg></div>
+          <div class="doan-menu-item shell-worktree"><svg width="16" height="16" aria-hidden="true"><use href="#i-branch"/></svg><span><span>fix/ux-tokens</span><small>~/orca/workspaces/doan-design/ux-tokens</small></span></div></div>
+        <p class="b6-measure">path <b>11/14</b>, 4px under the name, tracking inherited (body-sm); row 50</p>
+      </div>
+      <div class="b6-stage" data-doan-id="d14-asis-sidebar"><span class="b6-label">2 · Sidebar canvas group: empty line and read-error line (<code>.shell-empty</code>, <code>.shell-canvas-error</code>, styles.css:635-636, :674-675)</span>
+        <div class="shell-side side" style="width:240px">
+          <div class="shell-group"><div class="shell-group-head row" role="treeitem"><svg width="16" height="16" aria-hidden="true"><use href="#i-chevron-down"/></svg>Design system</div><p class="shell-empty">No design system yet</p></div>
+          <div class="shell-group"><div class="shell-group-head row" role="treeitem"><svg width="16" height="16" aria-hidden="true"><use href="#i-chevron-down"/></svg>Canvases</div>
+            <div><div class="shell-canvas-row row" role="treeitem"><svg width="16" height="16" aria-hidden="true"><use href="#i-panels"/></svg><span>doan-home</span></div><div class="shell-canvas-error">Can't read this canvas — run doan check<button type="button" class="btn ghost doan-button" data-ui-size="sm" aria-expanded="false">Details ▸</button></div></div></div>
+        </div>
+        <p class="b6-measure">empty <b>12/16, tracking 0</b> (literal 12px); error <b>12/18</b> (12px / 1.5)</p>
+      </div>
+      <div class="b6-stage" data-doan-id="d14-asis-skill"><span class="b6-label">3 · Preset popover, Project tab: project skill row description (<code>.preset-desc</code>, styles.css:875; <code>ComposerParts.tsx:221</code>)</span>
+        <div class="doan-floating doan-menu b6-menu" style="width:340px"><div class="doan-menu-item preset-item" role="option"><span class="suggestion-icon project-skill-icon"><svg width="14" height="14" aria-hidden="true"><use href="#i-square-slash"/></svg></span><span class="preset-text"><span class="preset-title">verify</span><span class="preset-desc">Run the shared static, unit and build gate</span></span></div></div>
+        <p class="b6-measure">code: 12/16, <b>tracking inherited</b> (−0.035px from the row’s body-sm); doc <code>conversation.md:217</code> says <b>12/18</b>; row 50</p>
+      </div>
+      <div class="b6-stage white" data-doan-id="d14-asis-panel"><span class="b6-label">4 · Overview right panel: read error and empty list (<code>.rp-error</code>, <code>.rp-empty</code>, styles.css:1434-1437) — in scale, not in D14</span>
+        <div style="width:280px;display:flex;flex-direction:column;gap:12px">
+          <div class="rp-error" role="status"><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Retry</button></div>
+          <div class="rp-empty"><p>No canvas conversations yet.</p><p>When a conversation draws or edits a canvas, the canvas shows here.</p></div>
+        </div>
+        <p class="b6-measure">error <b>14/20</b>; empty first line <b>14/20</b>, second 12/16</p>
+      </div>
+      <div class="b6-stage" data-doan-id="d14-asis-convmenu"><span class="b6-label">5 · Conversation menu read error — in scale, not in D14 (<code>.conv-error</code>, styles.css:1381; ProjectOverview.tsx:378, CanvasConversationPanel.tsx:192, PrototypeConversation.tsx:106)</span>
+        <div class="doan-floating doan-menu b6-menu" style="width:360px"><div class="conv-error" role="status"><span>Couldn’t read conversations</span><div class="doan-menu-item">Retry</div></div></div>
+        <p class="b6-measure">error <b>14/20</b></p>
+      </div>
+    </div>
+    <div class="b6-col b6-tobe"><div class="b6-col-head">To be <span class="doan-chip b6-tag">Not in code</span></div>
+      <div class="b6-stage" data-doan-id="d14-tobe-worktree"><span class="b6-label">1 · Sidebar project menu, worktree rows</span>
+        <div class="doan-floating doan-menu shell-side-menu shell-project-menu b6-menu" style="width:300px"><div class="doan-menu-head">Worktrees</div>
+          <div class="doan-menu-item shell-worktree" aria-current="true"><svg width="16" height="16" aria-hidden="true"><use href="#i-branch"/></svg><span><span>develop</span><small>~/code/doan-design</small></span><svg width="16" height="16" aria-hidden="true"><use href="#i-check"/></svg></div>
+          <div class="doan-menu-item shell-worktree"><svg width="16" height="16" aria-hidden="true"><use href="#i-branch"/></svg><span><span>fix/ux-tokens</span><small>~/orca/workspaces/doan-design/ux-tokens</small></span></div></div>
+        <p class="b6-measure">path <b>12/16 caption</b>, 2px under the name (<code>--space-half</code>, as a preference row’s description); row stays 50</p>
+      </div>
+      <div class="b6-stage" data-doan-id="d14-tobe-sidebar"><span class="b6-label">2 · Sidebar canvas group: empty line and read-error line</span>
+        <div class="shell-side side" style="width:240px">
+          <div class="shell-group"><div class="shell-group-head row" role="treeitem"><svg width="16" height="16" aria-hidden="true"><use href="#i-chevron-down"/></svg>Design system</div><p class="shell-empty">No design system yet</p></div>
+          <div class="shell-group"><div class="shell-group-head row" role="treeitem"><svg width="16" height="16" aria-hidden="true"><use href="#i-chevron-down"/></svg>Canvases</div>
+            <div><div class="shell-canvas-row row" role="treeitem"><svg width="16" height="16" aria-hidden="true"><use href="#i-panels"/></svg><span>doan-home</span></div><div class="shell-canvas-error">Can't read this canvas — run doan check<button type="button" class="btn ghost doan-button" data-ui-size="sm" aria-expanded="false">Details ▸</button></div></div></div>
+        </div>
+        <p class="b6-measure">empty and error <b>12/16 caption</b> (tokens, with tracking)</p>
+      </div>
+      <div class="b6-stage" data-doan-id="d14-tobe-skill"><span class="b6-label">3 · Project skill row description</span>
+        <div class="doan-floating doan-menu b6-menu" style="width:340px"><div class="doan-menu-item preset-item" role="option"><span class="suggestion-icon project-skill-icon"><svg width="14" height="14" aria-hidden="true"><use href="#i-square-slash"/></svg></span><span class="preset-text"><span class="preset-title">verify</span><span class="preset-desc">Run the shared static, unit and build gate</span></span></div></div>
+        <p class="b6-measure">description <b>12/16 caption</b>, tracking ≈0.16px; doc reads 12/16; row stays 50</p>
+      </div>
+      <div class="b6-stage white" data-doan-id="d14-tobe-panel"><span class="b6-label">4 · Overview right panel: read error and empty list — unchanged</span>
+        <div style="width:280px;display:flex;flex-direction:column;gap:12px">
+          <div class="rp-error" role="status"><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Retry</button></div>
+          <div class="rp-empty"><p>No canvas conversations yet.</p><p>When a conversation draws or edits a canvas, the canvas shows here.</p></div>
+        </div>
+        <p class="b6-measure">unchanged: error and first empty line body-sm 14/20 (in scale), second line 12/16</p>
+      </div>
+      <div class="b6-stage" data-doan-id="d14-tobe-convmenu"><span class="b6-label">5 · Conversation menu read error — unchanged</span>
+        <div class="doan-floating doan-menu b6-menu" style="width:360px"><div class="conv-error" role="status"><span>Couldn’t read conversations</span><div class="doan-menu-item">Retry</div></div></div>
+        <p class="b6-measure">unchanged: body-sm 14/20 (in scale)</p>
+      </div>
+    </div>
+  </div>
+  <dl class="b6-note" data-doan-id="d14-note">
+    <dt>Evidence</dt><dd>P-F9; decision D14 (report §6): “move off-scale secondary lines (11/14, 12/18) to caption 12/16, and fix the measured-value docs”. DESIGN 36 has no 11/14 or 12/18 role.</dd>
+    <dt>Change</dt><dd><ul><li><code>styles.css:699</code> <code>.shell-worktree small</code>: <code>font-size: 11px; line-height: 14px</code> → caption size, line height and tracking tokens; <code>margin-top: 4px</code> → <code>var(--space-half)</code> so the two-line row stays 50 (the shared preference row puts its caption 2px under the label).</li><li><code>:635-636</code> <code>.shell-empty, .shell-canvas-error</code>: <code>font-size: 12px; line-height: 1.5</code> and <code>.shell-empty</code>’s <code>line-height: 16px</code> → caption tokens. Padding and ink stay.</li><li><code>:875</code> <code>.preset-desc</code> (project skill row description): the code already sets caption size and line height (12/16); add caption tracking. The measured 12/18 in <code>conversation.md:217</code> does not match the code (12/16 under a 14/20 title 2px apart gives the documented 50 high row), so that doc line is drift.</li><li>Unchanged, in scale (body-sm 14/20): <code>.rp-error</code>, <code>.rp-empty</code>, <code>.conv-error</code>, the agent picker’s unavailable row and the shared <code>.doan-menu-item .sub</code>.</li></ul></dd>
+    <dt>Docs</dt><dd><code>docs/design/shell.md:21</code> “The path is 11/14 with 4px separation” → 12/16 with 2px; <code>docs/design/canvas.md:234</code> “12 / 18” → 12 / 16; <code>docs/design/conversation.md:217</code> “description 12/18” → 12/16.</dd>
+    <dt>Test</dt><dd><ol><li>Sidebar ⋯ on a project with two worktrees: path computes 12px/16px, tracking ≈0.16px; the row stays 50 high; a long path still ends in an ellipsis.</li><li>Expand a project with no design system: “No design system yet” 12/16 with caption tracking. A canvas that fails <code>doan check</code>: the error line 12/16, Details ▸ still toggles the raw message.</li><li>Preset popover’s Project tab with a skill that has a description: description 12/16, tracking ≈0.16px, row 50 high (36 without a description).</li><li>Overview right panel and conversation menu read errors and the empty right panel: unchanged (14/20).</li></ol></dd>
+  </dl>
+</section>
+
+<!-- ═════════════ D16 ═════════════ -->
+<section class="b6-frame" data-doan-frame="d16-icon-tooltips" data-doan-title="D16 · Shared tooltip on every icon-only button" data-doan-implements="app/src/renderer/App.tsx">
+  <div class="b6-head"><span class="b6-id">D16</span><h2>Shared tooltip on every icon-only button</h2></div>
+  <p class="b6-sub">Each specimen shows the button under the pointer after the 700ms delay. The capsule is the shared <code>.doan-tooltip</code> (Radix, 4px off the trigger). Copy was approved on 2026-11-17 and is not in code.</p>
+  <div class="b6-cols">
+    <div class="b6-col"><div class="b6-col-head">As is</div>
+      <div class="b6-stage" style="padding-bottom:48px" data-doan-id="d16-asis-main"><span class="b6-label">1 · Main window header: sidebar toggle, Back, Forward (<code>App.tsx:2534-2537</code>)</span>
+        <header class="top shell-top" style="width:360px"><span class="traffic-space" aria-hidden="true"></span><div class="shell-history">
+          <button class="doan-icon-button shell-sidebar-toggle" data-ui-placement="chrome" aria-label="Hide sidebar"><svg width="16" height="16" aria-hidden="true"><use href="#i-panel-left-close"/></svg></button>
+          <span class="b6-anchor"><button class="doan-icon-button b6-hover" data-ui-placement="chrome" aria-label="Back"><svg width="16" height="16"><use href="#i-arrow-left"/></svg></button><span class="b6-none">no tooltip</span></span>
+          <button class="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled><svg width="16" height="16"><use href="#i-arrow-right"/></svg></button></div></header>
+      </div>
+      <div class="b6-stage" style="padding-bottom:48px" data-doan-id="d16-asis-proto"><span class="b6-label">2 · Prototype window header: Back, Forward, Reload prototype (<code>PrototypeWindow.tsx:489-494</code>)</span>
+        <header class="top shell-top pw-top" style="width:360px"><span class="traffic-space" aria-hidden="true"></span><div class="shell-history">
+          <button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Back"><svg width="16" height="16" aria-hidden="true"><use href="#i-arrow-left"/></svg></button>
+          <span class="b6-anchor"><button type="button" class="doan-icon-button b6-hover" data-ui-placement="chrome" aria-label="Forward"><svg width="16" height="16" aria-hidden="true"><use href="#i-arrow-right"/></svg></button><span class="b6-none">no tooltip</span></span>
+          <button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Reload prototype"><svg width="16" height="16" aria-hidden="true"><use href="#i-rotate-cw"/></svg></button></div></header>
+      </div>
+      <div class="b6-stage" style="padding-top:48px" data-doan-id="d16-asis-sidebar"><span class="b6-label">3 · Sidebar ⋯ on a project row and a canvas row (<code>ShellSidebar.tsx:456, :198</code>)</span>
+        <div class="shell-side side" style="width:240px">
+          <div class="shell-project-row row" role="treeitem"><span class="shell-lead"><span class="shell-thumbnail hue-teal" aria-hidden="true">D</span></span><span class="shell-project-name">doan-design</span><button class="doan-icon-button shell-more" aria-label="doan-design menu"><svg width="16" height="16" aria-hidden="true"><use href="#i-ellipsis"/></svg></button></div>
+          <div class="shell-canvas-row row b6-hover" role="treeitem"><svg width="16" height="16" aria-hidden="true"><use href="#i-panels"/></svg><span>doan-home</span><div class="b6-anchor" style="margin-left:auto"><button class="doan-icon-button shell-more b6-hover" aria-label="doan-home menu"><svg width="16" height="16" aria-hidden="true"><use href="#i-ellipsis"/></svg></button><span class="b6-none above">no tooltip</span></div></div>
+        </div>
+      </div>
+      <div class="b6-stage white" style="padding-top:64px" data-doan-id="d16-asis-mcp"><span class="b6-label">4 · Settings › MCP, a server the person added: Server icon, status, row button, ⋯ (<code>SettingsMcpConnectors.tsx:210-219</code>; a preset such as Figma has no URL line and no menu)</span>
+        <div class="doan-settings-group" data-layout="rows" style="width:560px"><div class="doan-preference-row" data-has-icon="" role="group" aria-label="linear, Claude Code"><span class="doan-preference-row-icon" aria-hidden="true"><svg width="16" height="16"><use href="#i-server"/></svg></span><div class="doan-preference-row-content"><span class="doan-preference-row-label">linear</span><span class="doan-preference-row-description">Connected</span><span class="doan-preference-row-description mcp-url">https://mcp.linear.app/mcp</span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Disconnect linear from Claude Code">Disconnect</button><span class="b6-anchor"><button type="button" class="doan-icon-button mcp-more b6-hover" aria-label="linear menu for Claude Code"><svg width="16" height="16" aria-hidden="true"><use href="#i-ellipsis"/></svg></button><span class="b6-none above">no tooltip</span></span></div></div></div>
+      </div>
+      <div class="b6-stage white" style="padding-top:64px" data-doan-id="d16-asis-copy"><span class="b6-label">5 · Thread code block Copy (<code>ConversationThread.tsx:183</code>)</span>
+        <div class="conversation-thread" style="width:420px"><div class="md"><div class="md-code b6-hover"><pre class="doan-scroll"><code>doan check --json</code></pre><span class="b6-anchor" style="position:absolute;top:4px;right:4px"><button type="button" class="doan-icon-button b6-hover" data-ui-size="xs" aria-label="Copy code" style="position:static"><svg width="16" height="16" aria-hidden="true"><use href="#i-copy"/></svg></button><span class="b6-none above">no tooltip</span></span></div></div></div>
+      </div>
+      <div class="b6-stage white" style="padding-top:64px" data-doan-id="d16-asis-chips"><span class="b6-label">6 · Composer chip × (<code>ComposerParts.tsx:94, :99</code>; queued message <code>DockedComposer.tsx:663</code>)</span>
+        <div class="composer-chips" style="margin-top:16px">
+          <span class="attach-chip"><span class="file-icon" aria-hidden="true"><svg width="16" height="16"><use href="#i-file-text"/></svg></span><span class="attach-text"><b>brief.md</b><small>MD · 4 KB</small></span><span class="b6-anchor"><button type="button" class="chip-remove doan-icon-button b6-hover" data-ui-size="xs" aria-label="Remove brief.md"><svg width="16" height="16" aria-hidden="true"><use href="#i-x"/></svg></button><span class="b6-none above">no tooltip</span></span></span>
+          <span class="preset-chip"><span>Polish</span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove preset Polish"><svg width="16" height="16" aria-hidden="true"><use href="#i-x"/></svg></button></span>
+        </div>
+      </div>
+    </div>
+    <div class="b6-col b6-tobe"><div class="b6-col-head">To be <span class="doan-chip b6-tag">Not in code</span></div>
+      <div class="b6-stage" style="padding-bottom:48px" data-doan-id="d16-tobe-main"><span class="b6-label">1 · Main window header</span>
+        <header class="top shell-top" style="width:360px"><span class="traffic-space" aria-hidden="true"></span><div class="shell-history">
+          <button class="doan-icon-button shell-sidebar-toggle" data-ui-placement="chrome" aria-label="Hide sidebar"><svg width="16" height="16" aria-hidden="true"><use href="#i-panel-left-close"/></svg></button>
+          <span class="b6-anchor"><button class="doan-icon-button b6-hover" data-ui-placement="chrome" aria-label="Back"><svg width="16" height="16" aria-hidden="true"><use href="#i-arrow-left"/></svg></button><span class="doan-tooltip b6-tip below" data-doan-id="d16-tip-back">Back</span></span>
+          <button class="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled><svg width="16" height="16" aria-hidden="true"><use href="#i-arrow-right"/></svg></button></div></header>
+      </div>
+      <div class="b6-stage" style="padding-bottom:48px" data-doan-id="d16-tobe-proto"><span class="b6-label">2 · Prototype window header</span>
+        <header class="top shell-top pw-top" style="width:360px"><span class="traffic-space" aria-hidden="true"></span><div class="shell-history">
+          <button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Back"><svg width="16" height="16" aria-hidden="true"><use href="#i-arrow-left"/></svg></button>
+          <span class="b6-anchor"><button type="button" class="doan-icon-button b6-hover" data-ui-placement="chrome" aria-label="Forward"><svg width="16" height="16" aria-hidden="true"><use href="#i-arrow-right"/></svg></button><span class="doan-tooltip b6-tip below" data-doan-id="d16-tip-forward">Forward</span></span>
+          <button type="button" class="doan-icon-button" data-ui-placement="chrome" aria-label="Reload prototype"><svg width="16" height="16" aria-hidden="true"><use href="#i-rotate-cw"/></svg></button></div></header>
+      </div>
+      <div class="b6-stage" style="padding-top:48px" data-doan-id="d16-tobe-sidebar"><span class="b6-label">3 · Sidebar ⋯ (approved copy: “Project menu”, “Canvas menu”)</span>
+        <div class="shell-side side" style="width:240px">
+          <div class="shell-project-row row" role="treeitem"><span class="shell-lead"><span class="shell-thumbnail hue-teal" aria-hidden="true">D</span></span><span class="shell-project-name">doan-design</span><button class="doan-icon-button shell-more" aria-label="doan-design menu"><svg width="16" height="16" aria-hidden="true"><use href="#i-ellipsis"/></svg></button></div>
+          <div class="shell-canvas-row row b6-hover" role="treeitem"><svg width="16" height="16" aria-hidden="true"><use href="#i-panels"/></svg><span>doan-home</span><div class="b6-anchor" style="margin-left:auto"><button class="doan-icon-button shell-more b6-hover" aria-label="doan-home menu"><svg width="16" height="16" aria-hidden="true"><use href="#i-ellipsis"/></svg></button><span class="doan-tooltip b6-tip above" data-doan-id="d16-tip-canvas-menu">Canvas menu</span></div></div>
+        </div>
+      </div>
+      <div class="b6-stage white" style="padding-top:64px" data-doan-id="d16-tobe-mcp"><span class="b6-label">4 · Settings › MCP ⋯ on a server the person added (approved copy: “Server menu”)</span>
+        <div class="doan-settings-group" data-layout="rows" style="width:560px"><div class="doan-preference-row" data-has-icon="" role="group" aria-label="linear, Claude Code"><span class="doan-preference-row-icon" aria-hidden="true"><svg width="16" height="16"><use href="#i-server"/></svg></span><div class="doan-preference-row-content"><span class="doan-preference-row-label">linear</span><span class="doan-preference-row-description">Connected</span><span class="doan-preference-row-description mcp-url">https://mcp.linear.app/mcp</span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Disconnect linear from Claude Code">Disconnect</button><span class="b6-anchor"><button type="button" class="doan-icon-button mcp-more b6-hover" aria-label="linear menu for Claude Code"><svg width="16" height="16" aria-hidden="true"><use href="#i-ellipsis"/></svg></button><span class="doan-tooltip b6-tip above" data-doan-id="d16-tip-mcp">Server menu</span></span></div></div></div>
+      </div>
+      <div class="b6-stage white" style="padding-top:64px" data-doan-id="d16-tobe-copy"><span class="b6-label">5 · Thread code block Copy</span>
+        <div class="conversation-thread" style="width:420px"><div class="md"><div class="md-code b6-hover"><pre class="doan-scroll"><code>doan check --json</code></pre><span class="b6-anchor" style="position:absolute;top:4px;right:4px"><button type="button" class="doan-icon-button b6-hover" data-ui-size="xs" aria-label="Copy code" style="position:static"><svg width="16" height="16" aria-hidden="true"><use href="#i-copy"/></svg></button><span class="doan-tooltip b6-tip above" data-doan-id="d16-tip-copy">Copy code</span></span></div></div></div>
+      </div>
+      <div class="b6-stage white" style="padding-top:64px" data-doan-id="d16-tobe-chips"><span class="b6-label">6 · Composer chip × (approved copy: “Remove attachment”, “Remove preset”, “Remove queued message”)</span>
+        <div class="composer-chips" style="margin-top:16px">
+          <span class="attach-chip"><span class="file-icon" aria-hidden="true"><svg width="16" height="16"><use href="#i-file-text"/></svg></span><span class="attach-text"><b>brief.md</b><small>MD · 4 KB</small></span><span class="b6-anchor"><button type="button" class="chip-remove doan-icon-button b6-hover" data-ui-size="xs" aria-label="Remove brief.md"><svg width="16" height="16" aria-hidden="true"><use href="#i-x"/></svg></button><span class="doan-tooltip b6-tip above" data-doan-id="d16-tip-chip">Remove attachment</span></span></span>
+          <span class="preset-chip"><span>Polish</span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove preset Polish"><svg width="16" height="16" aria-hidden="true"><use href="#i-x"/></svg></button></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <dl class="b6-note" data-doan-id="d16-note">
+    <dt>Evidence</dt><dd>P-F11 and the wording reviewer’s second-pass note; decision D16: every icon-only button gets the shared tooltip, and DESIGN states the rule. Their siblings already have one: the sidebar toggle (<code>App.tsx:2534-2536</code>), Reload prototype (<code>PrototypeWindow.tsx:491-494</code>), conversation Delete (<code>ConversationDeleteDialog.tsx:29-35</code>).</dd>
+    <dt>Change</dt><dd><ul><li>Wrap each button in <code>Tooltip</code> / <code>TooltipTrigger asChild</code> / <code>TooltipContent</code> (or <code>IconTip</code>, <code>ComposerParts.tsx:45</code>): Back and Forward in both windows; the sidebar project ⋯ and canvas ⋯; Settings › MCP ⋯; the code block Copy; the attachment ×, preset × and queued-message ×.</li><li>Copy (approved; the accessible name stays as it is, the tooltip names the action as conversation Delete’s “Delete conversation” does): Back · Forward · Project menu · Canvas menu · Server menu · Copy code · Remove attachment · Remove preset · Remove queued message.</li><li>An <code>aria-disabled</code> button (the locked page’s Back and sidebar ⋯) shows its reason instead of its label, with the same text as an <code>sr-only</code> description named by <code>aria-describedby</code> (the canvas tools’ pattern, <code>canvas.md:121</code>; the trigger then keeps its own description, <code>tooltip.tsx:30-47</code>).</li><li>Also add <code>aria-hidden="true"</code> to the main window’s <code>&lt;ArrowLeft /&gt;</code>/<code>&lt;ArrowRight /&gt;</code> (<code>App.tsx:2537</code>), as the prototype copy has.</li><li>Exception: the sidebar rows’ disclosure chevrons (<code>.shell-disclosure</code>, <code>ShellSidebar.tsx</code> project and canvas rows) get no tooltip: each is part of a tree row (the row’s ←/→ folds it, <code>tabIndex={-1}</code>), not a standalone command, and its <code>aria-label</code> (“Expand/Collapse &lt;name&gt;”) already names it.</li><li>Side: the Radix default (top), which flips below at the window’s top edge, as the sidebar toggle’s does.</li><li>Docs: DESIGN ‘Tooltip’ gets the rule (see U37’s proposed sentence).</li></ul></dd>
+    <dt>Test</dt><dd><ol><li>Point at each listed button for 700ms: the capsule shows the copy (above it; below it in the window chrome); moving to the next one within 300ms shows its capsule at once.</li><li>Keyboard focus on Back, the sidebar ⋯ (when the row is focused), Copy code and a chip × opens the tooltip at once; Escape closes it without closing a surrounding menu or dialog.</li><li>An <code>aria-disabled</code> control gives its reason in the tooltip, as the canvas tools do (<code>docs/design/canvas.md:121</code>) and conversation Delete does (<code>ConversationDeleteDialog.tsx:35</code>, reason or label): lock the page (Settings mid-change), then point at and focus the sidebar ⋯ and Back — the capsule reads the lock reason (<code>blockedReason</code>, <code>openDecision.ts:37-42</code>, e.g. “Settings is in the middle of a change. Finish or cancel it, then try again.”), which is also the control’s <code>sr-only</code> description.</li><li>A <code>disabled</code> Back or Forward with no history shows no tooltip (a disabled button gets no pointer events); Reload prototype behaves the same today.</li><li>Opening the sidebar ⋯ or a server’s ⋯ menu closes the tooltip; the menu’s focus return still lands on ⋯.</li><li>An attachment chip with a path tooltip: pointing at the chip shows the path; pointing at its × shows only “Remove attachment” (one capsule at a time).</li><li>The code block’s Copy stays hidden until the block is hovered or focused; its tooltip does not keep it visible after the pointer leaves.</li><li>Hovering a sidebar disclosure chevron shows no tooltip.</li></ol></dd>
+  </dl>
+</section>
+
+<!-- ═════════════ D17 ═════════════ -->
+<section class="b6-frame" data-doan-frame="d17-truncated-names" data-doan-title="D17 · Native title moves to the shared tooltip" data-doan-implements="app/src/renderer/ShellSidebar.tsx">
+  <div class="b6-head"><span class="b6-id">D17</span><h2>Native <code>title</code> moves to the shared tooltip</h2></div>
+  <p class="b6-sub">The pointer rests for 700ms. As is: the macOS system tooltip (native <code>title</code>, drawn schematically) or nothing. To be: the shared capsule. A <b>name</b> shows it only while cut (a name that fits shows nothing); <b>information</b> the tooltip alone carries (a path, a detail, a reason, a description) shows it on every hover.</p>
+  <div class="b6-cols">
+    <div class="b6-col"><div class="b6-col-head">As is</div>
+      <div class="b6-stage" style="padding-top:48px" data-doan-id="d17-asis-sidebar"><span class="b6-label">1 · Sidebar names (<code>ShellSidebar.tsx:451</code> project, canvas row span, <code>:414</code> conversation)</span>
+        <div class="shell-side side" style="width:240px">
+          <div class="shell-project-row row" role="treeitem"><span class="shell-lead"><span class="shell-thumbnail hue-amber" aria-hidden="true">D</span></span><span class="shell-project-name">doan-design-system-playground</span></div>
+          <div class="shell-canvas-row row b6-hover" role="treeitem"><svg width="16" height="16" aria-hidden="true"><use href="#i-panels"/></svg><div class="b6-anchor" style="min-width:0;flex:1"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">onboarding-welcome-variants-with-motion</span><span class="b6-none side">nothing reveals it</span></div></div>
+        </div>
+      </div>
+      <div class="b6-stage white" style="padding-bottom:40px" data-doan-id="d17-asis-header"><span class="b6-label">2 · Canvas header name (<code>CanvasHeader.tsx:33</code>, <code>title={canvas.path}</code>)</span>
+        <div style="position:relative;width:560px"><header class="ov-head doan-canvas-head"><span class="doan-canvas-name"><svg width="16" height="16" aria-hidden="true"><use href="#i-panels"/></svg><span>onboarding-welcome-variants-with-motion</span></span><span class="ov-sep" aria-hidden="true">/</span><span class="ov-title-wrap"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger"><span>Index</span><svg class="chev" width="16" height="16" aria-hidden="true"><use href="#i-chevron-down"/></svg></button></span></header>
+        <span class="b6-native">.doan/canvases/onboarding-welcome-variants-with-motion.html</span></div>
+      </div>
+      <div class="b6-stage white" style="padding-bottom:40px" data-doan-id="d17-asis-title"><span class="b6-label">3 · Conversation title trigger (<code>ProjectOverview.tsx:367</code>; also <code>CanvasConversationPanel.tsx:181</code>, <code>PrototypeConversation.tsx:95</code>)</span>
+        <div style="position:relative;width:320px"><header class="ov-head"><span class="ov-title-wrap"><button type="button" class="ov-title doan-button b6-hover" data-ui-size="sm" data-ui-variant="trigger"><span>Tighten the onboarding welcome copy and spacing</span><svg class="chev" width="16" height="16" aria-hidden="true"><use href="#i-chevron-down"/></svg></button></span></header>
+        <span class="b6-native">Tighten the onboarding welcome copy and spacing</span></div>
+        <span class="b6-label" style="margin-top:12px">Also shown when the title fits.</span>
+      </div>
+      <div class="b6-stage white" style="padding-bottom:40px" data-doan-id="d17-asis-qo"><span class="b6-label">4 · Quick Open result (<code>QuickOpenDialog.tsx:222-223</code>, name and context)</span>
+        <div style="position:relative;width:360px"><div class="qo-list"><div class="qo-item" role="option" aria-selected="true"><span class="qo-icon" aria-hidden="true"><svg width="21" height="21"><use href="#i-panels"/></svg></span><span class="qo-text"><span class="qo-name">onboarding-welcome-variants-with-motion-and-sound</span><span class="qo-detail"><span class="qo-context">doan-design · .doan/canvases/onboarding-welcome-variants-with-motion-and-sound.html</span></span></span></div></div>
+        <span class="b6-native" style="top:calc(100% + 2px);left:56px">onboarding-welcome-variants-with-motion-and-sound</span></div>
+      </div>
+      <div class="b6-stage" style="padding-top:48px" data-doan-id="d17-asis-panel"><span class="b6-label">5 · Overview right panel row title (<code>CanvasConversationList.tsx:139-141</code>: <code>.cv-head b</code>, <code>.cv-canvas</code>, <code>.cv-preview</code>)</span>
+        <ul class="rp-list" style="width:280px;background:var(--surface-panel)"><li class="cv-item"><button type="button" class="cv-row b6-hover"><span class="cv-thumb empty" aria-hidden="true"></span><span class="cv-text"><span class="cv-head b6-anchor" style="display:flex"><b>Tighten the onboarding welcome copy and spacing</b><span class="b6-none side">nothing reveals it</span></span><small class="cv-canvas">doan-onboarding</small><span class="cv-preview">I tightened the welcome copy and moved the buddy row up by 8px.</span></span></button></li></ul>
+      </div>
+    </div>
+    <div class="b6-col b6-tobe"><div class="b6-col-head">To be <span class="doan-chip b6-tag">Not in code</span></div>
+      <div class="b6-stage" style="padding-top:48px" data-doan-id="d17-tobe-sidebar"><span class="b6-label">1 · Sidebar names</span>
+        <div class="shell-side side" style="width:240px">
+          <div class="shell-project-row row" role="treeitem"><span class="shell-lead"><span class="shell-thumbnail hue-amber" aria-hidden="true">D</span></span><span class="shell-project-name">doan-design-system-playground</span></div>
+          <div class="shell-canvas-row row b6-hover" role="treeitem"><svg width="16" height="16" aria-hidden="true"><use href="#i-panels"/></svg><div class="b6-anchor" style="min-width:0;flex:1"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">onboarding-welcome-variants-with-motion</span><span class="doan-tooltip b6-tip above start" data-doan-id="d17-tip-sidebar">onboarding-welcome-variants-with-motion</span></div></div>
+          <div class="shell-canvas-row row" role="treeitem"><svg width="16" height="16" aria-hidden="true"><use href="#i-panels"/></svg><div class="b6-anchor"><span>doan-home</span><span class="b6-none" style="left:auto;right:-150px;top:0;transform:none">fits: no tooltip</span></div></div>
+        </div>
+      </div>
+      <div class="b6-stage white" style="padding-bottom:56px" data-doan-id="d17-tobe-header"><span class="b6-label">2 · Canvas header name — information: the canvas path, on every hover (cut or not)</span>
+        <div style="position:relative;width:560px"><header class="ov-head doan-canvas-head"><span class="doan-canvas-name b6-anchor"><svg width="16" height="16" aria-hidden="true"><use href="#i-panels"/></svg><span>onboarding-welcome-variants-with-motion</span><div class="doan-tooltip b6-tip below start" data-doan-id="d17-tip-header">.doan/canvases/onboarding-welcome-variants-with-motion.html</div></span><span class="ov-sep" aria-hidden="true">/</span><span class="ov-title-wrap"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger"><span>Index</span><svg class="chev" width="16" height="16" aria-hidden="true"><use href="#i-chevron-down"/></svg></button></span></header></div>
+      </div>
+      <div class="b6-stage white" style="padding-bottom:40px" data-doan-id="d17-tobe-title"><span class="b6-label">3 · Conversation title trigger</span>
+        <div style="position:relative;width:320px"><header class="ov-head"><span class="ov-title-wrap b6-anchor"><button type="button" class="ov-title doan-button b6-hover" data-ui-size="sm" data-ui-variant="trigger"><span>Tighten the onboarding welcome copy and spacing</span><svg class="chev" width="16" height="16" aria-hidden="true"><use href="#i-chevron-down"/></svg></button><span class="doan-tooltip b6-tip below start" data-doan-id="d17-tip-title">Tighten the onboarding welcome copy and spacing</span></span></header></div>
+        <span class="b6-label">When the title fits: no tooltip.</span>
+      </div>
+      <div class="b6-stage white" style="padding-bottom:40px" data-doan-id="d17-tobe-qo"><span class="b6-label">4 · Quick Open result</span>
+        <div style="position:relative;width:360px"><div class="qo-list"><div class="qo-item" role="option" aria-selected="true"><span class="qo-icon" aria-hidden="true"><svg width="21" height="21"><use href="#i-panels"/></svg></span><span class="qo-text"><span class="qo-name">onboarding-welcome-variants-with-motion-and-sound</span><span class="qo-detail"><span class="qo-context">doan-design · .doan/canvases/onboarding-welcome-variants-with-motion-and-sound.html</span></span></span></div></div><span class="doan-tooltip b6-tip below start" data-doan-id="d17-tip-qo" style="top:calc(100% - 4px);left:56px">onboarding-welcome-variants-with-motion-and-sound</span></div>
+      </div>
+      <div class="b6-stage" style="padding-top:48px" data-doan-id="d17-tobe-panel"><span class="b6-label">5 · Overview right panel row title</span>
+        <ul class="rp-list" style="width:280px;background:var(--surface-panel)"><li class="cv-item"><button type="button" class="cv-row b6-hover"><span class="cv-thumb empty" aria-hidden="true"></span><span class="cv-text"><span class="cv-head b6-anchor" style="display:flex"><b>Tighten the onboarding welcome copy and spacing</b><span class="doan-tooltip b6-tip above start" data-doan-id="d17-tip-panel">Tighten the onboarding welcome copy and spacing</span></span><small class="cv-canvas">doan-onboarding</small><span class="cv-preview">I tightened the welcome copy and moved the buddy row up by 8px.</span></span></button></li></ul>
+      </div>
+    </div>
+  </div>
+  <dl class="b6-note" data-doan-id="d17-note">
+    <dt>Evidence</dt><dd>P-F12; decision D17, widened by the user on 2026-11-17: every native <code>title</code> in <code>app/src/renderer</code> moves to the shared tooltip (iframes and the undrawn <code>RightPanel.tsx</code> Inspector excepted). Names show it only while cut; information shows it always. DESIGN 73’s PathTip sentence is replaced (U37).</dd>
+    <dt>Mechanism</dt><dd><ul><li>Names: the canvas agent notice’s pattern (<code>CanvasAgent.tsx:126-129</code>): <code>&lt;Tooltip open={tip} onOpenChange={open =&gt; setTip(open &amp;&amp; cut())}&gt;</code> with <code>cut = el.scrollWidth &gt; el.clientWidth</code>, checked on open, so a resize between hovers is honoured. The trigger is the cut element (<code>asChild</code>).</li><li>Information: a plain <code>Tooltip</code> / <code>TooltipContent</code> with the old <code>title</code> text.</li><li>Inside a modal dialog (Quick Open, the Set Up dialog: both <code>showModal()</code>), <code>TooltipContent</code>’s Portal goes to <code>document.body</code>, which sits under the dialog’s top layer, so the capsule would be hidden. Its Portal needs <code>container</code> set to the dialog element (<code>components/ui/tooltip.tsx</code> passes no container today).</li></ul></dd>
+    <dt>Scope</dt><dd><ul><li><b>Names, only while cut</b>: Quick Open name and context <code>QuickOpenDialog.tsx:222-223</code>; conversation title triggers <code>ProjectOverview.tsx:367</code>, <code>CanvasConversationPanel.tsx:181</code>, <code>PrototypeConversation.tsx:95</code>; frame drawer trigger <code>CanvasHeader.tsx:132</code>; moved line <code>ProjectOverview.tsx:418</code>; Set Up dialog token path and root <code>ProjectSetupDialog.tsx:63, :98</code>; sidebar project, canvas and conversation names (<code>ShellSidebar.tsx:451</code>, the canvas row’s <code>&lt;span&gt;{name}&lt;/span&gt;</code>, <code>:414</code>) and the Overview right-panel titles (<code>.cv-head b</code>, the problem row’s <code>b</code>), which have no reveal today; and the names B5 (U33) newly truncates: <code>.ov-project-name</code>, the Home project trigger (<code>HomeComposerView.tsx:523</code>), <code>.project-item .model-name</code>.</li><li><b>Information, always</b>: canvas header path <code>CanvasHeader.tsx:33</code>; frame rows <code>CanvasHeader.tsx:144</code>, <code>FrameListBody.tsx:29</code>; Eye and Play marks <code>FrameListBody.tsx:13-14</code>; anchor chip detail (“Frame · &lt;id&gt;” etc.) <code>ConversationThread.tsx:224-227, :425-427</code> and the composer field’s chips <code>chipField.ts:571</code> (built as DOM inside the contenteditable, so it needs a tooltip driven from the field rather than a JSX wrapper); answered-question line <code>ConversationThread.tsx:872</code>; preset row description <code>ComposerParts.tsx:213</code>; Send’s unavailable reason <code>ComposerParts.tsx:552</code> (<code>title={hint}</code> goes; <code>IconTip</code> then shows the hint, so the reason is not shown twice — the button is <code>disabled</code> today, which takes no pointer events, so it must become <code>aria-disabled</code> like the canvas tools for the tooltip to open); docked replay chip <code>DockedComposer.tsx:488</code> (“Sent with each message”).</li><li><b>Excepted</b>: iframe titles (<code>CanvasController.ts:842</code>, <code>prototype/PrototypeWindow.tsx:598</code>) and <code>RightPanel.tsx</code> (Inspector, not drawn — report §8). <code>document.title</code> and <code>title</code> props of components (<code>SettingsDialog</code>, <code>Progress</code>, <code>ConversationDeleteItem</code>, <code>ConversationPanel</code>) are not the attribute.</li></ul></dd>
+    <dt>Test</dt><dd><ol><li>A canvas, project and conversation name longer than the 220px sidebar: point at the name, after 700ms the capsule shows the full name; a short name shows nothing.</li><li>Canvas header: point at the name, the capsule shows the canvas path whether or not the name is cut.</li><li>Overview title trigger with a long title: capsule on hover and on keyboard focus; the menu still opens on click and the capsule closes. With a short title: nothing.</li><li>Real app, modal dialogs: open Quick Open, type until a result’s name is cut and point at it — the capsule draws above the dialog, not behind it. Same for the Set Up dialog’s long root path.</li><li>Information sites: a frame row, an anchor chip, the Eye/Play marks, the answered-question line, a preset row and the docked replay chip each show their capsule on every hover; Send with an unavailable reason shows the reason once.</li><li>No native title is left: <code>grep -rn 'title=' app/src/renderer --include='*.tsx' | grep -v '\.test\.'</code> lists only component <code>title</code> props, <code>&lt;iframe</code> and <code>RightPanel.tsx</code>; <code>grep -rn '\.title = ' app/src/renderer --include='*.ts' | grep -v '\.test\.'</code> lists only <code>CanvasController.ts</code> (iframe) and <code>canvasMessage.ts</code> (data).</li><li>Screen readers: rows with an <code>aria-label</code> (sidebar treeitems, Quick Open options) keep it; <code>.cv-row</code> has none and is named by its content, which holds the full title (the ellipsis is visual). While a capsule is open, Radix adds its id to the trigger’s <code>aria-describedby</code> (<code>tooltip.tsx:40-47</code>), so a focusable trigger (a title button) reads its full name or path once more as the description; an <code>aria-disabled</code> trigger with its own description keeps only that.</li></ol></dd>
+  </dl>
+</section>
+
+<!-- ═════════════ D19 ═════════════ -->
+<section class="b6-frame" data-doan-frame="d19-tooltip-keys" data-doan-title="D19 · Tooltip shortcuts as key chips" data-doan-implements="app/src/renderer/CanvasHeader.tsx">
+  <div class="b6-head"><span class="b6-id">D19</span><h2>Tooltip shortcuts as key chips</h2></div>
+  <p class="b6-sub">The canvas page header writes the key into the label; the canvas toolbar and the sidebar toggle already use <code>.doan-tooltip.has-key</code> with an <code>on-prominent</code> <code>sm</code> <code>doan-kbd</code>.</p>
+  <div class="b6-cols">
+    <div class="b6-col"><div class="b6-col-head">As is</div>
+      <div class="b6-stage white" style="padding-bottom:48px" data-doan-id="d19-asis-header"><span class="b6-label">Canvas header tools, pointer on Zoom out (<code>CanvasHeader.tsx:161-179, :37</code>; strings <code>zoomControl.ts:41-42</code>)</span>
+        <header class="ov-head doan-canvas-head" style="width:520px"><div class="doan-canvas-head-tools"><span class="doan-canvas-zoom">
+          <span class="b6-anchor"><button type="button" class="doan-icon-button b6-hover" aria-label="Zoom out"><svg width="16" height="16" aria-hidden="true"><use href="#i-minus"/></svg></button><span class="doan-tooltip b6-tip below">Zoom out ⌘−</span></span>
+          <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 100%, zoom options">100%<svg class="chev" width="16" height="16" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
+          <button type="button" class="doan-icon-button" aria-label="Zoom in"><svg width="16" height="16" aria-hidden="true"><use href="#i-plus"/></svg></button></span>
+          <button type="button" class="doan-icon-button" aria-label="Reload canvas"><svg width="16" height="16" aria-hidden="true"><use href="#i-rotate-cw"/></svg></button></div></header>
+      </div>
+      <div class="b6-stage" data-doan-id="d19-asis-tips"><span class="b6-label">The three header tooltips</span>
+        <div class="b6-row"><span class="doan-tooltip">Zoom out ⌘−</span><span class="doan-tooltip">Zoom in ⌘=</span><span class="doan-tooltip">Reload canvas ⌘R</span></div>
+        <span class="b6-label">Reference, in code: the canvas toolbar</span>
+        <div class="b6-row"><span class="doan-tooltip has-key">Pick from canvas<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘L</span></span></div>
+      </div>
+    </div>
+    <div class="b6-col b6-tobe"><div class="b6-col-head">To be <span class="doan-chip b6-tag">Not in code</span></div>
+      <div class="b6-stage white" style="padding-bottom:48px" data-doan-id="d19-tobe-header"><span class="b6-label">Canvas header tools, pointer on Zoom out</span>
+        <header class="ov-head doan-canvas-head" style="width:520px"><div class="doan-canvas-head-tools"><span class="doan-canvas-zoom">
+          <span class="b6-anchor"><button type="button" class="doan-icon-button b6-hover" aria-label="Zoom out"><svg width="16" height="16" aria-hidden="true"><use href="#i-minus"/></svg></button><span class="doan-tooltip has-key b6-tip below" data-doan-id="d19-tip-zoomout">Zoom out<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘−</span></span></span>
+          <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label="Zoom 100%, zoom options">100%<svg class="chev" width="16" height="16" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
+          <button type="button" class="doan-icon-button" aria-label="Zoom in"><svg width="16" height="16" aria-hidden="true"><use href="#i-plus"/></svg></button></span>
+          <button type="button" class="doan-icon-button" aria-label="Reload canvas"><svg width="16" height="16" aria-hidden="true"><use href="#i-rotate-cw"/></svg></button></div></header>
+      </div>
+      <div class="b6-stage" data-doan-id="d19-tobe-tips"><span class="b6-label">The three header tooltips</span>
+        <div class="b6-row"><span class="doan-tooltip has-key" data-doan-id="d19-tip-out">Zoom out<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘−</span></span><span class="doan-tooltip has-key" data-doan-id="d19-tip-in">Zoom in<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘=</span></span><span class="doan-tooltip has-key" data-doan-id="d19-tip-reload">Reload canvas<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘R</span></span></div>
+        <span class="b6-label">Reference, in code: the canvas toolbar</span>
+        <div class="b6-row"><span class="doan-tooltip has-key">Pick from canvas<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘L</span></span></div>
+      </div>
+    </div>
+  </div>
+  <dl class="b6-note" data-doan-id="d19-note">
+    <dt>Evidence</dt><dd>P-F22; decision D19: tooltip shortcuts are key chips (<code>doan-kbd</code>), and the canvas header tooltips change. DESIGN 138 defines the key tooltip (label then key, 8 apart, 24 high). Pattern: <code>CanvasTools.tsx:63-65, :70</code>, <code>App.tsx:2536</code>.</dd>
+    <dt>Change</dt><dd><ul><li><code>zoomControl.ts:41-42</code>: split <code>tooltip: "Zoom out ⌘−"</code> / <code>"Zoom in ⌘="</code> into a label and a key (e.g. <code>{ label: "Zoom out", key: "⌘−" }</code>); keep the characters (U+2212 minus).</li><li><code>CanvasHeader.tsx:161, :179</code>: the zoom buttons’ <code>TooltipContent</code> takes <code>className="has-key"</code> and renders <code>{label}&lt;span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm"&gt;{key}&lt;/span&gt;</code>; <code>:37</code> Reload the same with “Reload canvas” + “⌘R”. <code>IconTip</code> takes a label only today, so these three use the toolbar’s inline markup (or <code>IconTip</code> gains a key).</li><li>No <code>aria-keyshortcuts</code> here: it is outside D19 (the toolbar has it; adding it to the header is a separate decision).</li><li>Update the tests that pin the old strings (<code>zoomControl.test.ts</code>, <code>CanvasHeader.test.tsx</code>) and <code>docs/design/canvas.md:18</code>.</li></ul></dd>
+    <dt>Test</dt><dd><ol><li>Point at Zoom out, Zoom in and Reload: each capsule is one line, 24 high, label then key chip 8 apart; the chip is 16 high, caption type, 16% ink fill.</li><li>At the minimum zoom, Zoom out is disabled and shows no tooltip (unchanged).</li><li>The zoom menu’s own shortcut column (<code>.doan-zoom-key</code>) is unchanged.</li><li>Screen reader: the name stays “Zoom out” (<code>aria-label</code>); while the capsule is open, Radix adds its id to the button’s <code>aria-describedby</code> (<code>tooltip.tsx:40-47</code>), so the description is the capsule’s text, label and key (“Zoom out ⌘−”), as on the toolbar’s Pick.</li></ol></dd>
+  </dl>
+</section>
+
+<!-- ═════════════ D20 ═════════════ -->
+<section class="b6-frame" data-doan-frame="d20-radius-steps" data-doan-title="D20 · Small --radius-* steps" data-doan-implements="app/src/renderer/tokens.css">
+  <div class="b6-head"><span class="b6-id">D20</span><h2>Small <code>--radius-*</code> steps</h2></div>
+  <p class="b6-sub">Spacing tokens and 4/5/6px literals used as corners move to three new purpose-named radius tokens. Every computed corner stays the same, so As is and To be draw alike; only the source changes.</p>
+  <div class="b6-cols">
+    <div class="b6-col"><div class="b6-col-head">As is</div>
+      <div class="b6-stage white" data-doan-id="d20-asis-specs">
+        <div class="b6-row">
+          <div class="b6-spec"><input type="checkbox" class="doan-checkbox" checked aria-label="Checked"><span class="b6-label">checkbox<br>var(--space-1) 4</span></div>
+          <div class="b6-spec"><span class="settings-page" style="display:block;padding:0;margin:0"><code>.doan/config.json</code></span><span class="b6-label">code chip<br>var(--space-1) 4</span></div>
+          <div class="b6-spec"><span class="shell-side" style="display:block"><button type="button" class="shell-disclosure" style="visibility:visible;background:var(--affordance-backdrop-pressed);color:var(--text-standard)" aria-label="Collapse"><svg width="16" height="16" aria-hidden="true"><use href="#i-chevron-down"/></svg></button></span><span class="b6-label">disclosure (hover)<br>var(--space-1) 4</span></div>
+          <div class="b6-spec"><button class="doan-icon-button" data-ui-placement="chrome" style="position:relative;background:var(--surface-inset)" aria-label="Show sidebar"><svg width="16" height="16" aria-hidden="true"><use href="#i-panel-left-close"/></svg><span class="badge-bubble" aria-hidden="true" style="box-shadow:0 0 0 2px var(--border-standard)"><svg width="14" height="14"><use href="#i-message"/></svg></span></button><span class="b6-label">badge bubble<br>var(--space-1) 4</span></div>
+          <div class="b6-spec"><span class="anchor-chip"><svg width="14" height="14" aria-hidden="true"><use href="#i-panels"/></svg><span>Index</span></span><span class="b6-label">anchor chip<br>6px</span></div>
+          <div class="b6-spec"><span class="suggestion-value">doan-home</span><span class="b6-label">suggestion value<br>6px</span></div>
+          <div class="b6-spec"><span class="skill-word">/polish</span><span class="b6-label">skill word<br>6px</span></div>
+        </div>
+        <div class="b6-row">
+          <div class="b6-spec"><span class="b6-thumb hue-teal" style="width:16px;height:16px;border-radius:4px;font-size:10px">D</span><span class="b6-label">sidebar 16<br>4px</span></div>
+          <div class="b6-spec"><span class="b6-thumb hue-teal" style="width:20px;height:20px;border-radius:5px;font-size:11px">D</span><span class="b6-label">Home 20<br>5px</span></div>
+          <div class="b6-spec"><span class="b6-thumb hue-teal" style="width:28px;height:28px;border-radius:7px;font-size:17px">D</span><span class="b6-label">first run 28<br>7px (not in P-F17)</span></div>
+          <div class="b6-spec"><span class="b6-thumb hue-teal" style="width:32px;height:32px;border-radius:var(--space-2);font-size:14px">D</span><span class="b6-label">Project Settings 32<br>var(--space-2) 8</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="b6-col b6-tobe"><div class="b6-col-head">To be <span class="doan-chip b6-tag">Not in code</span></div>
+      <div class="b6-stage white" data-doan-id="d20-tobe-specs">
+        <div class="b6-row">
+          <div class="b6-spec"><input type="checkbox" class="doan-checkbox" checked aria-label="Checked"><span class="b6-label">checkbox<br>--radius-inline 4</span></div>
+          <div class="b6-spec"><span class="settings-page" style="display:block;padding:0;margin:0"><code class="b6-r-inline">.doan/config.json</code></span><span class="b6-label">code chip<br>--radius-inline 4</span></div>
+          <div class="b6-spec"><span class="shell-side" style="display:block"><button type="button" class="shell-disclosure" style="visibility:visible;background:var(--affordance-backdrop-pressed);color:var(--text-standard)" aria-label="Collapse"><svg width="16" height="16" aria-hidden="true"><use href="#i-chevron-down"/></svg></button></span><span class="b6-label">disclosure (hover)<br>--radius-inline 4</span></div>
+          <div class="b6-spec"><button class="doan-icon-button" data-ui-placement="chrome" style="position:relative;background:var(--surface-inset)" aria-label="Show sidebar"><svg width="16" height="16" aria-hidden="true"><use href="#i-panel-left-close"/></svg><span class="badge-bubble" aria-hidden="true" style="box-shadow:0 0 0 2px var(--border-standard)"><svg width="14" height="14"><use href="#i-message"/></svg></span></button><span class="b6-label">badge bubble<br>--radius-inline 4</span></div>
+          <div class="b6-spec"><span class="anchor-chip"><svg width="14" height="14" aria-hidden="true"><use href="#i-panels"/></svg><span>Index</span></span><span class="b6-label">anchor chip<br>--radius-word 6</span></div>
+          <div class="b6-spec"><span class="suggestion-value">doan-home</span><span class="b6-label">suggestion value<br>--radius-word 6</span></div>
+          <div class="b6-spec"><span class="skill-word">/polish</span><span class="b6-label">skill word<br>--radius-word 6</span></div>
+        </div>
+        <div class="b6-row">
+          <div class="b6-spec"><span class="b6-thumb hue-teal" style="width:16px;height:16px;font-size:10px">D</span><span class="b6-label">sidebar 16<br>--radius-thumbnail → 4</span></div>
+          <div class="b6-spec"><span class="b6-thumb hue-teal" style="width:20px;height:20px;font-size:11px">D</span><span class="b6-label">Home 20<br>→ 5</span></div>
+          <div class="b6-spec"><span class="b6-thumb hue-teal" style="width:28px;height:28px;font-size:17px;border-radius:7px">D</span><span class="b6-label">first run 28<br>7px literal, unchanged<br>(not in P-F17)</span></div>
+          <div class="b6-spec"><span class="b6-thumb hue-teal" style="width:32px;height:32px;font-size:14px">D</span><span class="b6-label">Project Settings 32<br>→ 8</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <table class="b6-table" data-doan-id="d20-rules" style="margin-top:24px">
+    <thead><tr><th>Rule (every one P-F17 lists)</th><th style="width:200px">Where</th><th style="width:160px">Now</th><th style="width:200px">To be</th></tr></thead>
+    <tbody>
+      <tr><td><code>.doan-checkbox</code></td><td>ds/controls.css:185</td><td>var(--space-1) = 4</td><td>var(--radius-inline)</td></tr>
+      <tr><td><code>.ob-project-notice code</code></td><td>styles.css:279</td><td>var(--space-1) = 4</td><td>var(--radius-inline)</td></tr>
+      <tr><td><code>.storage-git-init code</code></td><td>styles.css:282</td><td>var(--space-1) = 4</td><td>var(--radius-inline)</td></tr>
+      <tr><td><code>.ob-msg code, .ob-dialog code, .ob-field code, .ob-card code, .doan-dialog code</code></td><td>styles.css:397</td><td>var(--space-1) = 4</td><td>var(--radius-inline)</td></tr>
+      <tr><td><code>.settings-page code</code></td><td>styles.css:1124</td><td>var(--space-1) = 4</td><td>var(--radius-inline)</td></tr>
+      <tr><td><code>:is(.storage-option small, .storage-pref .doan-preference-row-description) code</code></td><td>styles.css:1862</td><td>var(--space-1) = 4</td><td>var(--radius-inline)</td></tr>
+      <tr><td><code>.storage-row .ob-provider-label span code</code></td><td>styles.css:1865</td><td>var(--space-1) = 4</td><td>var(--radius-inline)</td></tr>
+      <tr><td><code>.problem-heading p code</code></td><td>styles.css:1928</td><td>var(--space-1) = 4</td><td>var(--radius-inline)</td></tr>
+      <tr><td><code>.conversation-thread .md code</code></td><td>styles.css:1205</td><td>var(--space-1) = 4</td><td>var(--radius-inline)</td></tr>
+      <tr><td><code>.shell-disclosure</code></td><td>styles.css:593</td><td>var(--space-1) = 4</td><td>var(--radius-inline)</td></tr>
+      <tr><td><code>.badge-bubble</code></td><td>styles.css:1547</td><td>var(--space-1) = 4</td><td>var(--radius-inline)</td></tr>
+      <tr><td><code>.anchor-chip</code></td><td>styles.css:764</td><td>6px</td><td>var(--radius-word)</td></tr>
+      <tr><td><code>.suggestion-value</code></td><td>styles.css:1020</td><td>6px</td><td>var(--radius-word)</td></tr>
+      <tr><td><code>.skill-word</code></td><td>styles.css:1838</td><td>6px</td><td>var(--radius-word)</td></tr>
+      <tr><td><code>.shell-thumbnail</code> (16)</td><td>styles.css:587</td><td>4px</td><td>var(--radius-thumbnail) → 4</td></tr>
+      <tr><td><code>:is(.home-project, .project-item) .shell-thumbnail</code> (20)</td><td>styles.css:741</td><td>5px</td><td>drop its border-radius; inherits → 5</td></tr>
+      <tr><td><code>.settings-title .project-settings-thumbnail.shell-thumbnail</code> (32)</td><td>styles.css:1149</td><td>var(--space-2) = 8</td><td>drop its border-radius; inherits → 8</td></tr>
+    </tbody>
+  </table>
+  <dl class="b6-note" data-doan-id="d20-note">
+    <dt>Evidence</dt><dd>P-F17; decision D20 (radius part): add small <code>--radius-*</code> steps. DESIGN 38: a new token joins an existing purpose-named family, does not duplicate a value, changes no existing token, and gets a line in the token list; moving a literal must not change the computed value. The radius family today: chip 12, row 16, control 20, container 24, panel 28, icon-button 18, toolbar-icon 10, capsule 34, pill (<code>tokens.css:330-338</code>).</dd>
+    <dt>Tokens</dt><dd><ul><li><code>--radius-inline: 4px</code> — inline code chips and glyph-sized boxes (checkbox, disclosure, badge bubble).</li><li><code>--radius-word: 6px</code> — word-sized highlights inside a line of text (anchor chip, suggestion value, skill word).</li><li><code>--radius-thumbnail: 25%</code> — project initial thumbnails, a quarter of the side: 4 at 16, 5 at 20, 8 at 32. One value on <code>.shell-thumbnail</code> replaces three per-size corners with identical computed values. The first-run 28px thumbnail keeps its own 7px literal (<code>styles.css:311</code>, not in P-F17).</li><li>Names and values approved on 2026-11-17; they follow the family’s purpose naming instead of size names.</li></ul></dd>
+    <dt>Not in P-F17</dt><dd>Seen while checking, not proposed here: <code>styles.css:311</code> <code>.shell-thumbnail.onboarding-thumbnail</code> 7px stays a literal (drawn as “unchanged” above); <code>:566</code> 10px (= <code>--radius-toolbar-icon</code>) and <code>:582</code> 8px row corner, both under DESIGN 218’s open shell-literal decision; <code>:154, :167, :170</code> Inspector CSS that is not drawn (report §8).</dd>
+    <dt>Test</dt><dd><ol><li>Computed <code>border-radius</code> before and after is equal for every row in the table (4, 6, 4/5/8px), in Settings, first run, Project Settings, the thread, Home suggestions and the sidebar.</li><li><code>grep -n "border-radius: var(--space" app/src/renderer</code> is empty.</li><li>DESIGN ‘Radii’ and the Added tokens list name the three tokens.</li></ol></dd>
+  </dl>
+</section>
+
+</main>
+</body></html>

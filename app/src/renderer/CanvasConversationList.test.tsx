@@ -62,7 +62,7 @@ describe("canvas conversation list", () => {
   test("a row draws the provider logo, conversation title, status mark, short time, canvas caption and preview", () => {
     const b = item(html, "b");
     expect(b).toContain('alt="Codex"');
-    expect(b).toContain("<b>Ask about the header</b>");
+    expect(b).toContain("<b data-state=\"closed\" data-slot=\"tooltip-trigger\">Ask about the header</b>");
     expect(b).toContain('aria-label="Needs your answer"');
     expect(b).toContain('<span aria-hidden="true">now</span><span class="sr-only">Just now</span>');
     expect(b).toMatch(/<\/span><small class="cv-canvas">billing<\/small><span class="cv-preview">Needs your answer: Run doan check<\/span>/);
@@ -76,9 +76,9 @@ describe("canvas conversation list", () => {
       summary({ conversationId: "x3", title: "  ", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(3 * MIN) }),
     ], [billing], NOW));
     expect(three.match(/class="cv-row"/g)).toHaveLength(3);
-    expect(item(three, "x1")).toContain("<b>Tighten the checkout summary spacing</b>");
-    expect(item(three, "x2")).toContain("<b>Add an empty state</b>");
-    expect(item(three, "x3")).toContain("<b>Conversation</b>");
+    expect(item(three, "x1")).toContain("<b data-state=\"closed\" data-slot=\"tooltip-trigger\">Tighten the checkout summary spacing</b>");
+    expect(item(three, "x2")).toContain("<b data-state=\"closed\" data-slot=\"tooltip-trigger\">Add an empty state</b>");
+    expect(item(three, "x3")).toContain("<b data-state=\"closed\" data-slot=\"tooltip-trigger\">Conversation</b>");
     for (const key of ["x1", "x2", "x3"]) expect(item(three, key)).toContain('<small class="cv-canvas">billing</small>');
     expect(three.indexOf('data-key="x1"')).toBeLessThan(three.indexOf('data-key="x2"'));
     expect(three.indexOf('data-key="x2"')).toBeLessThan(three.indexOf('data-key="x3"'));
@@ -110,20 +110,20 @@ describe("canvas conversation list", () => {
   test("a deleted canvas and a shared id are disabled, their reason the description", () => {
     // Draft frame overview-rows: the head is the conversation's title; the caption line carries the canvas name and
     // the reason.
-    for (const [key, name, reason] of [["g", "invoice", "No longer in acme-web"], ["t", "tax", "2 canvases use this ID — run doan check"]] as const) {
+    for (const [key, name, reason] of [["g", "invoice", "No longer in acme-web"], ["t", "tax", "2 canvases use this ID. Run doan check in a terminal."]] as const) {
       const li = item(html, key);
       expect(li).toContain('aria-disabled="true"');
       const why = /aria-describedby="([^"]+)"/.exec(li)![1]!;
       expect(li).toContain(`<small id="${why}" class="cv-canvas err">${name} · ${reason}</small>`);
       const label = /aria-labelledby="([^"]+)"/.exec(li)![1]!;
-      expect(li).toContain(`<b id="${label}">Draw it</b>`);
+      expect(li).toContain(`<b id="${label}" data-state="closed" data-slot="tooltip-trigger">Draw it</b>`);
     }
   });
 
   test("an unreadable canvas opens, with the sidebar's sentence", () => {
     const li = item(html, "l");
     expect(li).not.toContain("aria-disabled");
-    expect(li).toContain('class="cv-canvas note">legacy · Can&#x27;t read this canvas — run doan check</small>');
+    expect(li).toContain('class="cv-canvas note">legacy · Can’t read this canvas. Run doan check in a terminal.</small>');
   });
 
   // Draft frames cv-delete, cv-special: the title menu's Delete on every row.
@@ -174,8 +174,17 @@ describe("canvas conversation list", () => {
     expect(renderToStaticMarkup(<ListLoading />)).toBe('<p class="rp-loading" role="status">Loading canvas conversations</p>');
   });
 
+  // U39: the panel is white, where a panel button has no fill; subtle keeps one.
   test("a failed read offers Retry", () => {
-    expect(render("error")).toBe('<div class="rp-error" role="status"><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Retry</button></div>');
+    expect(render("error")).toBe('<div class="rp-error" role="status"><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Retry</button></div>');
+  });
+
+  // D11: busy while the list is read again; the same failure again changes the line by a no-break space.
+  test("Retry runs while the list is read again, and a repeated failure is announced again", () => {
+    const html = (listRetry: { running: boolean; failures: number }) => markup(<TooltipProvider><CanvasConversationList list="error" listRetry={listRetry} project="acme-web" thumbnails={thumbnails}
+      open={noop} retry={noop} onVisible={noop} onDelete={noop} scroller={{ current: null }} title={{ current: null }} /></TooltipProvider>);
+    expect(html({ running: true, failures: 0 })).toBe('<div class="rp-error" role="status"><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Retry</button></div>');
+    expect(html({ running: false, failures: 1 })).toContain("<span>Couldn’t read conversations\u00a0</span>");
   });
 });
 

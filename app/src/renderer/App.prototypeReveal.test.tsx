@@ -95,7 +95,7 @@ function reset() {
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => prefs), savePreferences: vi.fn(async () => null),
-    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
+    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
   };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
   vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === "dialog[open]" ? dialogs : [], hasFocus: () => true });
@@ -176,7 +176,7 @@ test("a chip whose target is gone says so in the main window", async () => {
   await onDrafts();
   harness.controller!.locate!.mockImplementation((_anchor: unknown, settle: (outcome: string) => void) => { settle("missing"); return true; });
   await reveal({ kind: "chip", root: "/w/a", canvas: { path: D, id: "drafts" }, conversationId: "c1", anchor: { frame: { id: "gone" } } });
-  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("No longer in the canvas");
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith("Couldn’t show gone. It’s no longer in the canvas.");
 });
 
 // The main window's own chips are unavailable then (locateDisabled); this one came from elsewhere, so it says why.
@@ -199,7 +199,7 @@ test("a chip into another canvas opens it as a deep link does, then locates the 
   options.opened(); render();
   expect(back()).toBe(true);
   options.located!("missing");
-  expect(harness.toast.show).toHaveBeenLastCalledWith("No longer in the canvas");
+  expect(harness.toast.show).toHaveBeenLastCalledWith("Couldn’t show Point in payment. It’s no longer in the canvas.");
 });
 
 test("a chip whose canvas the list does not name shows the canvas-not-found toast", async () => {

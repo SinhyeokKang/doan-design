@@ -268,7 +268,7 @@ test("rowFocusTarget: up/left and down/right go round the rows; other keys are n
 
 test("the failure notice names both buddies; Retry is named by its word and described by the sentence; no live role", () => {
   const retry = vi.fn();
-  const tree = BuddyFailureNotice({ failure: { picked: "popo", kept: "doany" }, id: "ob-buddy-error", className: "doan-panel buddy-step-notice", retry });
+  const tree = BuddyFailureNotice({ failure: { picked: "popo", kept: "doany" }, id: "ob-buddy-error", className: "buddy-step-notice", panel: true, retry });
   const [notice] = all(tree);
   expect(notice!.props.className).toBe("doan-notice error doan-panel buddy-step-notice");
   expect(notice!.props.role).toBeUndefined();
@@ -279,6 +279,16 @@ test("the failure notice names both buddies; Retry is named by its word and desc
   expect(retry).toHaveBeenCalled();
 });
 
+// U38: on Settings' inset notice a subtle Retry has no fill of its own (both are the inset fill), so it is panel there;
+// first run's white panel notice keeps subtle (DESIGN 'Notices', projectNoticeActions).
+test("the failure notice's Retry is panel on the inset notice and subtle on the panel notice", () => {
+  const inset = BuddyFailureNotice({ failure: { picked: "popo", kept: "doany" }, id: "settings-buddy-error", className: "settings-notice buddy-notice", retry: vi.fn() });
+  expect(all(inset)[0]!.props.className).toBe("doan-notice error settings-notice buddy-notice");
+  expect(all(inset).find(element => element.type === "button")!.props["data-ui-variant"]).toBe("panel");
+  const panel = BuddyFailureNotice({ failure: { picked: "popo", kept: "doany" }, id: "ob-buddy-error", className: "buddy-step-notice", panel: true, retry: vi.fn() });
+  expect(all(panel).find(element => element.type === "button")!.props["data-ui-variant"]).toBe("subtle");
+});
+
 describe("the Buddy step and the existing-user buddy screen", () => {
   const scene = (buddy: BuddySelection, preferences: PreferencesSnapshot | null = snapshot()) => BuddyScene({ selection: buddy, preferences, heading: vi.fn(), footer: <footer /> });
 
@@ -286,7 +296,7 @@ describe("the Buddy step and the existing-user buddy screen", () => {
     const tree = scene(selection());
     const heading = all(tree).find(element => element.type === "h2")!;
     expect(heading.props).toMatchObject({ id: "ob-buddy-title", tabIndex: -1, children: "Choose your buddy" });
-    expect(words(all(tree).find(element => element.type === "p")!.props.children)).toBe("It keeps you company in Doan and sets the app’s accent color. You can change it anytime in Settings.");
+    expect(words(all(tree).find(element => element.type === "p")!.props.children)).toBe("It keeps you company in Doan and sets the app’s accent color. You can change it later in Settings.");
     expect(all(tree).find(element => element.props.role === "radiogroup")!.props["aria-labelledby"]).toBe("ob-buddy-title");
     expect(all(tree).some(element => element.props.className?.toString().includes("doan-notice"))).toBe(false);
     expect(all(tree).find(element => element.props.className === "ob-live")!.props.children).toBe("");
@@ -342,7 +352,7 @@ describe("the Buddy step and the existing-user buddy screen", () => {
     const tree = BuddyIntro({ selection: selection({ commit }), preferences: snapshot(), onClose });
     const dialog = all(tree)[0]!;
     expect(dialog.type).toBe("dialog");
-    expect(dialog.props).toMatchObject({ className: "ob-overlay", "aria-label": "Set up Doan" });
+    expect(dialog.props).toMatchObject({ className: "ob-overlay", "aria-label": "Choose your buddy" });
     expect(all(tree).some(element => element.props.className === "ob-steps")).toBe(false);
     const buttons = all(tree).filter(element => element.type === "button");
     expect(buttons.map(button => words(button.props.children))).toEqual(["Continue"]);
@@ -385,6 +395,16 @@ describe("picker CSS (buddy-choice draft)", () => {
     expect(css).toContain("@media (forced-colors: active) { .buddy-card:has(input:checked) { outline: 2px solid Highlight; } }");
     expect(css).toContain("@media (prefers-reduced-motion: reduce) { .buddy-card { transition: none; } }");
     expect(css).toContain(".buddy-flow[data-scrolling] .buddy-card { transition: none; }");
+  });
+  // DESIGN 'States': disabled is a role, never opacity. The newer-settings row reads as Settings' disabled rows: names
+  // and lines in the disabled ink, the chosen card's accent ring and glow (also the reduced-transparency one) given way
+  // to the disabled mark's grey ring, no hover shadow; pictures unchanged.
+  test("the newer-settings row is disabled by role, not by opacity", () => {
+    expect(css).not.toMatch(/\.buddy-flow\[aria-disabled="true"\] \{[^}]*opacity/);
+    expect(css).toContain('.buddy-flow[aria-disabled="true"] .buddy-card :is(strong, span) { color: var(--text-disabled); }');
+    expect(css).toContain('.buddy-flow[aria-disabled="true"] .buddy-card:has(input:checked) { box-shadow: 0 0 0 2px var(--text-disabled); }');
+    expect(css).toContain('.buddy-flow[aria-disabled="true"] .buddy-card:not(:has(input:checked)):hover { box-shadow: var(--shadow-panel); }');
+    expect(css).toContain('.buddy-flow[aria-disabled="true"] .buddy-card, .buddy-flow[aria-disabled="true"] .buddy-card input { cursor: default; }');
   });
   test("a notice in the picker's places only adds margins, never type or padding (POSTMORTEM 2026-11-09)", () => {
     for (const name of ["buddy-step-notice", "buddy-step-notice-top", "buddy-notice"]) {

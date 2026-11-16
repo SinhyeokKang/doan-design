@@ -135,6 +135,9 @@ test("no project, an unhealthy project, and no chosen agent each give their reas
   expect(sendAvailability(base({ projects: 0, root: null, projectName: "" }))).toEqual({ enabled: false, reason: { kind: "noProject", text: "Add a project to send." } });
   expect(sendAvailability(base({ root: missing("/r/old-site"), projectName: "old-site" })))
     .toEqual({ enabled: false, reason: { kind: "projectUnavailable", text: "old-site isn’t available. Fix it from its menu in the sidebar." } });
+  // A project still being read has nothing to fix in its menu.
+  expect(sendAvailability(base({ root: { path: "/r/new-site", kind: "loading" }, projectName: "new-site" })))
+    .toEqual({ enabled: false, reason: { kind: "projectUnavailable", text: "new-site is still being read." } });
   expect(sendAvailability(base({ auth: snapshot(dto("claude", { expired: true })), provider: null })))
     .toEqual({ enabled: false, reason: { kind: "noAgent", text: "No agent is ready to run." } });
   expect(sendAvailability(base({ auth: snapshot(), provider: null }))).toEqual({ enabled: false, reason: { kind: "noAgent", text: "No agent is ready to run." } });
@@ -335,9 +338,9 @@ test("a provider without a list yet has a Default row and asks to be read when i
   // The draft (frame 05) puts the reading note in the group head beside a spinner, over the Default row.
   const loading = modelPickerView(auth, { codex: "loading" }, choice).groups[1]!;
   expect(loading).toMatchObject({ read: false, note: "Loading models", rows: [{ kind: "default", label: "Default", selected: true }] });
-  for (const state of [{ error: "unavailable" }, { models: [] }] as ModelsState[]) {
-    expect(modelPickerView(auth, { codex: state }, choice).groups[1]).toMatchObject({ read: false, note: "Models unavailable", rows: [{ kind: "default", label: "Default", selected: true }] });
-  }
+  // An empty list is an answer; a failed read is asked again when the group opens, as Settings > Agents' Retry does.
+  expect(modelPickerView(auth, { codex: { models: [] } }, choice).groups[1]).toMatchObject({ read: false, note: "Models unavailable", rows: [{ kind: "default", label: "Default", selected: true }] });
+  expect(modelPickerView(auth, { codex: { error: "unavailable" } }, choice).groups[1]).toMatchObject({ read: true, note: "Models unavailable", rows: [{ kind: "default", label: "Default", selected: true }] });
   // With no model chosen the trigger names its drawer; the group head names the provider.
   for (const state of [undefined, "loading", { error: "unavailable" }] as ModelsState[]) {
     expect(modelPickerView(auth, { codex: state }, choice).trigger).toEqual({ provider: "codex", label: "Model", ariaLabel: "Agent: Codex, model not chosen", placeholder: true, isDefault: false });
@@ -530,14 +533,14 @@ test("the list view is loading until the first reply", () => {
 test("a CLI failure explains why with Retry; a refusal has no Retry; an older CLI asks for an update", () => {
   const failed = (reason: "unavailable" | "timeout" | "invalid_response" | "failed"): PresetListReply => ({ v: 1, ok: false, error: { code: "cli_error", reason, message: "x", nextSteps: [] } });
   const opts = { project: "p", suggested: [], query: "", tab: null };
-  expect(presetListView(failed("timeout"), opts)).toEqual({ kind: "error", text: "Doan couldn’t read the design presets: the doan CLI didn’t answer in time. You can still send without one.", retry: true });
-  expect(presetListView(failed("unavailable"), opts)).toEqual({ kind: "error", text: "Doan couldn’t read the design presets: the doan CLI couldn’t start. You can still send without one.", retry: true });
-  expect(presetListView(failed("invalid_response"), opts)).toEqual({ kind: "error", text: "Doan couldn’t read the design presets: Doan couldn’t read the CLI’s answer. You can still send without one.", retry: true });
-  expect(presetListView(failed("failed"), opts)).toEqual({ kind: "error", text: "Doan couldn’t read the design presets: the doan CLI stopped without a result. You can still send without one.", retry: true });
+  expect(presetListView(failed("timeout"), opts)).toEqual({ kind: "error", text: "Doan couldn’t read the design presets: the doan command didn’t answer in time. You can still send without one.", retry: true });
+  expect(presetListView(failed("unavailable"), opts)).toEqual({ kind: "error", text: "Doan couldn’t read the design presets: the doan command couldn’t start. You can still send without one.", retry: true });
+  expect(presetListView(failed("invalid_response"), opts)).toEqual({ kind: "error", text: "Doan couldn’t read the design presets: Doan couldn’t read the command’s answer. You can still send without one.", retry: true });
+  expect(presetListView(failed("failed"), opts)).toEqual({ kind: "error", text: "Doan couldn’t read the design presets: the doan command stopped without a result. You can still send without one.", retry: true });
   expect(presetListView({ v: 1, ok: false, error: { code: "request_refused", message: "x", nextSteps: [] } }, opts))
     .toEqual({ kind: "error", text: "Doan refused this preset request. You can still send without a preset.", retry: false });
   expect(presetListView({ v: 1, ok: false, error: { code: "usage_error", message: "x", nextSteps: [] } }, opts))
-    .toEqual({ kind: "olderCli", text: "This doan CLI has no design presets. Update Doan to use them." });
+    .toEqual({ kind: "olderCli", text: "This version of the doan command has no design presets. Update Doan to use them." });
   expect(presetListView({ v: 1, ok: false, error: { code: "internal_error", message: "x", nextSteps: [] } }, opts))
     .toEqual({ kind: "error", text: "Doan couldn’t read the design presets. You can still send without one.", retry: true });
 });

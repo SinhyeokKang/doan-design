@@ -1,4 +1,4 @@
-import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
+import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type Ref } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArrowDown, ArrowUpRight, Ban, Check, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, MapPin, PanelsTopLeft, Pencil, PencilSparkles, SquareMousePointer, Terminal, Zap } from "lucide-react";
@@ -13,8 +13,10 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { canvasCardText, middleCut, newCanvasesText, trailingCards } from "./canvasCardText";
 import { canvasLabel } from "./canvasTree";
+import { SKIP_FAILED_TEXT } from "./conversationStrip";
 import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { NameTip } from "./NameTip";
 import { handoffCardHead } from "./handoffView";
 import { providerLogo, sentFileView } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
@@ -162,8 +164,20 @@ export function httpsUrl(href: string | undefined): string | null {
   try { const url = new URL(href); return url.protocol === "https:" ? url.href : null; } catch { return null; }
 }
 
-interface ThreadActions { openLink(url: string): void; copy(text: string): void; replyChip(link: ReplyAnchor): Promise<LocateOutcome | null> | null }
+// A reply link the browser did not open (the host's openLink answered false or failed) is told in the host's toast, in
+// the star card's form: the address last with no period, so selecting it copies only the address.
+export async function openReplyLink(open: (url: string) => Promise<boolean>, url: string, notice: (text: string) => void): Promise<void> {
+  const opened = await open(url).catch(() => false);
+  if (!opened) notice(`Couldn’t open the link in your browser. Try again, or open it at ${url}`);
+}
+
+// copy: `reply` is the reply whose code block was copied, where a failed copy says so.
+interface ThreadActions { openLink(url: string): void; copy(text: string, reply: string | null): void; replyChip(link: ReplyAnchor): Promise<LocateOutcome | null> | null }
 const Actions = createContext<ThreadActions>({ openLink: () => {}, copy: () => {}, replyChip: () => null });
+// The reply a code block sits in, and the reply whose last Copy failed (thread state, so another reply's success clears it).
+const ReplyId = createContext<string | null>(null);
+const CopyFailed = createContext<string | null>(null);
+const COPY_FAILED_TEXT = "Couldn’t copy the code. Select it and copy it yourself.";
 // What names and enables a reply chip. A context of its own, apart from the stable Actions, so a change of the open
 // canvas, its frames or the list redraws the chips inside a memoized reply.
 interface ReplyCanvas { openCanvasId: string | null; frames: readonly FrameName[] | undefined; rows: readonly CanvasRow[]; disabled: boolean; pressable: boolean }
@@ -178,9 +192,10 @@ function textOf(node: unknown): string {
 // A pointer press does not take focus, so copying leaves the composer's focus, selection and IME composition alone;
 // keyboard activation still focuses the button first.
 export function CodeBlock({ node, children }: { node: unknown; children?: ReactNode }) {
-  const { copy } = useContext(Actions);
-  return <div className="md-code"><pre>{children}</pre>
-    <button type="button" className="doan-icon-button" data-ui-size="xs" aria-label="Copy code" onMouseDown={event => event.preventDefault()} onClick={() => copy(textOf(node).replace(/\n$/, ""))}><Copy aria-hidden="true" /></button></div>;
+  const { copy } = useContext(Actions), reply = useContext(ReplyId);
+  return <div className="md-code"><pre className="doan-scroll">{children}</pre>
+    <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button" data-ui-size="xs" aria-label="Copy code" onMouseDown={event => event.preventDefault()} onClick={() => copy(textOf(node).replace(/\n$/, ""), reply)}><Copy aria-hidden="true" /></button></TooltipTrigger>
+      <TooltipContent>Copy code</TooltipContent></Tooltip></div>;
 }
 function Link({ href, children }: { href: string | undefined; children?: ReactNode }) {
   const { openLink } = useContext(Actions);
@@ -221,11 +236,12 @@ export function ReplyChip({ link }: { link: ReplyAnchor }) {
   const view = replyChipView(link, canvas);
   const Icon = CHIP_ICONS[view.kind];
   const body = <><Icon aria-hidden="true" /><span>{view.label}</span>{view.canvasName !== null && <span className="chip-canvas">{` · ${view.canvasName}`}</span>}</>;
-  if (!canvas.pressable) return <span className="anchor-chip" data-kind={view.kind} title={view.title}>{body}</span>;
+  // The chip's detail (what it points at) is information only the tooltip carries, so it shows on every hover.
+  if (!canvas.pressable) return <ChipTip detail={view.title}><span className="anchor-chip" data-kind={view.kind}>{body}</span></ChipTip>;
   const disabled = view.same && canvas.disabled;
-  return <button type="button" className="anchor-chip" data-kind={view.kind} title={view.title} aria-label={view.ariaLabel} aria-disabled={disabled || undefined}
+  return <ChipTip detail={view.title}><button type="button" className="anchor-chip" data-kind={view.kind} aria-label={view.ariaLabel} aria-disabled={disabled || undefined}
     aria-describedby={view.same && note.shownFor === key ? `${key}-missing` : undefined}
-    onClick={() => { if (!disabled) void replyChip(link)?.then(outcome => { if (view.same && outcome === "missing") note.show(key); }); }}>{body}</button>;
+    onClick={() => { if (!disabled) void replyChip(link)?.then(outcome => { if (view.same && outcome === "missing") note.show(key); }); }}>{body}</button></ChipTip>;
 }
 
 // Agent output is untrusted, as the selection's `html`/`text` are (ARCHITECTURE §3 'Selection and inspector'): no raw
@@ -235,7 +251,7 @@ const COMPONENTS: Components = {
   a: ({ href, children }) => href?.startsWith("doan:") ? <ReplyLink href={href}>{children}</ReplyLink> : <Link href={href}>{children}</Link>,
   img: ({ alt }) => alt ? <span>{alt}</span> : null,
   pre: ({ node, children }) => <CodeBlock node={node}>{children}</CodeBlock>,
-  table: ({ children }) => <div className="md-table"><table>{children}</table></div>,
+  table: ({ children }) => <div className="md-table doan-scroll"><table>{children}</table></div>,
 };
 const PLUGINS = [remarkGfm];
 // A finished message parses once; a streaming one parses at most once per animation frame.
@@ -295,10 +311,12 @@ function AgentMessage({ text, streaming, className = "msg-agent md" }: { text: s
   const [chip, setChip] = useState<string | null>(null);
   const shownFor = noted ? chip : null;
   const note = useMemo(() => ({ shownFor, show: (key: string) => { setChip(key); show(); } }), [shownFor]);
-  return <ReplyNote.Provider value={note}>
+  const copyFailed = useContext(CopyFailed) === prefix;
+  return <ReplyId.Provider value={prefix}><ReplyNote.Provider value={note}>
     <div className={className}><MarkdownText text={shown} prefix={prefix} streaming={streaming} /></div>
     {shownFor && <span className="chip-missing" id={`${shownFor}-missing`} role="status">{LOCATE_MISSING_TEXT}</span>}
-  </ReplyNote.Provider>;
+    {copyFailed && <p className="settings-msg error copy-failed" role="alert"><AlertIcon /><span>{COPY_FAILED_TEXT}</span></p>}
+  </ReplyNote.Provider></ReplyId.Provider>;
 }
 
 // Why an answer did not reach main: main's refusal, or "unknown" for a rejected call; null when it reached main.
@@ -390,8 +408,9 @@ export function QuestionCard({ item, provider, live, base, draft, onDraft, onSen
     </label>;
   };
   const busy = draft.sending === "answer";
-  // aria-disabled, as New conversation: Send keeps focus and its tooltip says what is missing.
-  const send = <button type="button" className="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled={(!ready && !busy) || undefined} aria-busy={busy || undefined}
+  // aria-disabled, as New conversation: Send keeps focus and its tooltip says what is missing. While sending it is busy
+  // too (aria-busy), keeping its fill with the spinner, as every busy confirm does.
+  const send = <button type="button" className="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled={(!ready || busy) || undefined} aria-busy={busy || undefined}
     onClick={() => { if (ready) onSend(); }}>{busy && <span className="doan-spinner" aria-hidden="true" />}Send</button>;
   return <div className={`doan-notice thread-notice q-card${locked ? " is-locked" : ""}`}
     onPointerDown={() => { arrowing = false; }}
@@ -409,8 +428,12 @@ export function QuestionCard({ item, provider, live, base, draft, onDraft, onSen
       <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled={locked || undefined} onClick={() => { if (!locked) onSkip(); }}>Skip</button>
       <button type="button" className="doan-button" data-ui-size="sm" onClick={onStop}><CircleStop aria-hidden="true" />Stop</button>
     </span>
-    {draft.failed && <span className="ask-error" role="alert">Couldn’t send your answer. Try again.</span>}
+    {draft.failed && <p className="settings-msg error ask-error" role="alert"><AlertIcon /><span>{draft.failed === "skip" ? SKIP_FAILED_TEXT : "Couldn’t send your answer. Try again."}</span></p>}
   </div>;
+}
+
+function ChipTip({ detail, children }: { detail: string; children: ReactElement }) {
+  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{detail}</TooltipContent></Tooltip>;
 }
 
 // A chip in a sent message. A marker without its anchor (a malformed history) keeps its {{n}} text.
@@ -422,11 +445,11 @@ export function SentChip({ marker, anchor, frames, disabled, onLocate, missing }
   const view = chipLabel(anchor, frames);
   const Icon = CHIP_ICONS[view.kind];
   const body = <><Icon aria-hidden="true" /><span>{view.label}</span></>;
-  if (!onLocate) return <span className="anchor-chip" data-kind={view.kind} title={view.title}>{body}</span>;
+  if (!onLocate) return <ChipTip detail={view.title}><span className="anchor-chip" data-kind={view.kind}>{body}</span></ChipTip>;
   // aria-disabled, so the chip stays in the Tab order and keeps its name while the canvas cannot be shown.
-  return <button type="button" className="anchor-chip" data-kind={view.kind} title={view.title} aria-label={`Show ${view.label} on canvas`} aria-disabled={disabled || undefined}
+  return <ChipTip detail={view.title}><button type="button" className="anchor-chip" data-kind={view.kind} aria-label={`Show ${view.label} on canvas`} aria-disabled={disabled || undefined}
     aria-describedby={missing && missing.shownFor === missing.key ? `${missing.key}-missing` : undefined}
-    onClick={() => { if (!disabled) void onLocate(anchor).then(outcome => { if (outcome === "missing") missing?.show(missing.key); }); }}>{body}</button>;
+    onClick={() => { if (!disabled) void onLocate(anchor).then(outcome => { if (outcome === "missing") missing?.show(missing.key); }); }}>{body}</button></ChipTip>;
 }
 
 // A sent message: its bubble, attachments and the chip locate note under the bubble (draft frame `chip-locate`). One
@@ -642,6 +665,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [slow, setSlow] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState<string | null>(null);
   // The card last answered, skipped or stopped here and the focusAfter rule for it: once that card folds, by any
   // status, its button is gone and focus moves on by the rule (ARCHITECTURE §7 'Renderer primitives' 'Thread focus').
   const folding = useRef<{ requestId: string; action: FocusAction } | null>(null);
@@ -793,15 +817,16 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const actions = useRef<ThreadActions>({ openLink: () => {}, copy: () => {}, replyChip: () => null });
   actions.current.openLink = url => props.onOpenLink(url);
   actions.current.replyChip = link => props.onReplyChip?.(link) ?? null;
-  actions.current.copy = text => {
-    void props.onCopy(text).then(ok => {
-      if (!ok) return;
+  actions.current.copy = (text, reply) => {
+    void props.onCopy(text).catch(() => false).then(ok => {
+      if (!ok) { setCopyFailed(reply); return; }
+      setCopyFailed(null);
       setCopied(true);
       if (copiedTimer.current) clearTimeout(copiedTimer.current);
       copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
-    }).catch(console.error);
+    });
   };
-  const context = useRef<ThreadActions>({ openLink: url => actions.current.openLink(url), copy: text => actions.current.copy(text), replyChip: link => actions.current.replyChip(link) }).current;
+  const context = useRef<ThreadActions>({ openLink: url => actions.current.openLink(url), copy: (text, reply) => actions.current.copy(text, reply), replyChip: link => actions.current.replyChip(link) }).current;
   const pressable = props.onReplyChip !== undefined, disabled = !!props.locateDisabled, openCanvasId = props.openCanvasId ?? null;
   const replyCanvas = useMemo<ReplyCanvas>(() => ({ openCanvasId, frames: props.frames, rows: props.canvasRows ?? [], disabled, pressable }),
     [openCanvasId, props.frames, props.canvasRows, disabled, pressable]);
@@ -864,12 +889,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
               data-request={entry.requestId} onClick={() => answer(entry.requestId, option.id)}>{option.label}</button>)}
             <button type="button" className="doan-button" data-ui-size="sm" onClick={() => stop(entry.requestId)}><CircleStop aria-hidden="true" />Stop</button>
           </span>
-          {unanswered.has(entry.requestId) && <span className="ask-error" role="alert">Couldn’t send your answer. Choose again.</span>}
+          {unanswered.has(entry.requestId) && <p className="settings-msg error ask-error" role="alert"><AlertIcon /><span>Couldn’t send your answer. Choose again.</span></p>}
         </div>;
       }
       case "question": {
         if (entry.status !== "pending") return <div className="q-folded">{questionLines(entry).map((line, i) =>
-          <div key={i} className="activity"><div className="activity-head ask-answered"><span className="selectable" title={line}>{line}</span></div></div>)}</div>;
+          <div key={i} className="activity"><div className="activity-head ask-answered"><NameTip text={line}><span className="selectable">{line}</span></NameTip></div></div>)}</div>;
         return <QuestionCard item={entry} provider={provider} live={entry.seq > props.liveAfter} base={base} draft={draftOf(entry.requestId)}
           onDraft={action => editQuestion(entry.requestId, action)} onSend={() => sendQuestion(entry, "answer")} onSkip={() => sendQuestion(entry, "skip")} onStop={() => stop(entry.requestId)} />;
       }
@@ -881,7 +906,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
           {view.tone ? <AlertIcon /> : <CircleStop className="doan-alert-icon" aria-hidden="true" />}
           <span className="strip-text selectable"><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
           {isLast && (view.signIn || resend) && <span className="strip-actions">
-            {view.signIn && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => latest.current.onSignIn()}>Sign in again…</button>}
+            {view.signIn && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => latest.current.onSignIn()}>Sign in again</button>}
             {resend && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => latest.current.onEditAndResend()}>Edit and resend</button>}
           </span>}
         </div>;
@@ -896,8 +921,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     }
   };
 
-  return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><div className="conversation-thread">
-    <div className="thread-scroll" ref={scroller} onScroll={onScroll}>
+  return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><CopyFailed.Provider value={copyFailed}><div className="conversation-thread">
+    <div className="thread-scroll doan-scroll" ref={scroller} onScroll={onScroll}>
       <div className="thread">{stacks(drawn).map(run => run.length === 1 && run[0]!.kind !== "canvasCard"
         ? <ThreadEntry key={run[0]!.key} entry={run[0]!} deps={depsOf(run[0]!)} draw={item} />
         // A run of cards stacks closer than thread items do (the draft's gap); each card stays its own item.
@@ -914,6 +939,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     </div>
     {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
     <div className="sr-only" role="status">{copied ? "Copied" : phaseText(drawn, items, provider, settled.shown, line !== null)}</div>
-  </div></ReplyCanvasContext.Provider></Actions.Provider>;
+  </div></CopyFailed.Provider></ReplyCanvasContext.Provider></Actions.Provider>;
 };
 

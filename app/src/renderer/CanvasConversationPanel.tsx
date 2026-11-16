@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import { DropdownMenu } from "radix-ui";
-import { ChevronDown, Info, Plus, SquarePen } from "lucide-react";
+import { ChevronDown, Info, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import { sendNowShown } from "../main/conversation/steerSupport";
@@ -15,8 +15,7 @@ import type { HomeMemory } from "../restore/uiState";
 import type { DoanApi } from "../preload";
 import { requestTitleText, stripRequestLines } from "../main/conversation/requestLines";
 import { useProjectSkills, type SkillsCalls } from "./useProjectSkills";
-import { AlertIcon } from "./AlertIcon";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { textSegments } from "./anchorField";
 import { canvasConversationError, canvasConversationMenu, noticeOpenName, resumeHeld, titleMenuOrder } from "./canvasConversation";
 import { sameCanvas } from "./canvasConversationRows";
@@ -24,12 +23,17 @@ import type { CanvasRun, CanvasTarget, CanvasView, ResumeReply } from "./canvasR
 import { focusFieldEnd } from "./chipField";
 import { SuggestionButton, type CanvasPress } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
+import { announcedAgain } from "./listRetry";
+import { LIST_FAILED_TEXT, listFailedNotice, listRetryItem } from "./ListRetryButton";
 import { ConversationHead } from "./ConversationLine";
-import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
+import { ReplaceDraftDialog } from "./ReplaceDraftDialog";
+import type { ReplaceDraftConfirm } from "./homeConversations";
+import { ConversationThread, LOADING_DELAY_MS, openReplyLink, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import { dropAttachment, steerPhaseOf, type ConversationStore, type ListView, type QueuedMessage } from "./conversationStore";
 import type { PanelArrival } from "./rightPanelOpen";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
+import { useRingUsage } from "./ContextRing";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
 import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
@@ -45,6 +49,7 @@ import { stopBackground, threadTurn } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import type { PlayingFrameChip } from "./prototype/conversation";
+import { NameTip } from "./NameTip";
 
 // The canvas page's conversation panel body (draft frames
 // panel-*): the conversation menu in the panel's title row, the thread and the docked composer. CanvasRun decides which
@@ -56,7 +61,8 @@ import type { PlayingFrameChip } from "./prototype/conversation";
 // prototype window, which has no `window.doan`.
 export type ConversationCalls = SkillsCalls & Pick<DoanApi, "onAgentAuth" | "startConversation" | "sendConversation" | "queueConversation" |
   "removeQueuedMessage" | "interruptConversation" | "answerConversationPermission" | "answerConversationQuestion" | "openLink" |
-  "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "droppedPath" | "removeAttachment" | "releaseAttachments">;
+  "chooseAttachments" | "addAttachmentFiles" | "addPastedImage" | "droppedPath" | "removeAttachment" | "releaseAttachments" |
+  "readAgentUsage" | "onAgentUsage">;
 
 export interface CanvasConversationProps {
   calls: ConversationCalls;
@@ -161,6 +167,10 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
   const target = run.target();
   // Controlled, so a Delete tooltip's Escape closes the menu too.
   const [menuOpen, setMenuOpen] = useState(false);
+  // While the list is read the trigger is unavailable but stays focusable (aria-disabled, not Radix disabled, which
+  // would drop a focused trigger's focus): the menu is held closed, and one open when the read began closes for good.
+  const loading = list === "loading";
+  useEffect(() => { if (loading) setMenuOpen(false); }, [loading]);
   // The order drawn last while the menu is open: rows keep their places, and a conversation that appears goes at the
   // end (titleMenuOrder) and keeps that place on later updates, so a row never moves under the pointer.
   const frozen = useRef<string[] | null>(null);
@@ -175,20 +185,20 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
   const isNew = run.view()?.kind === "new";
   const startNew = () => startNewConversation(current, isNew, select, onPicked);
   return <><span className="ov-title-wrap doan-conv-title">
-    <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
-      <DropdownMenu.Trigger asChild disabled={list === "loading"}><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title}>
-        <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
-      <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
+    <DropdownMenu.Root open={menuOpen && !loading} onOpenChange={open => setMenuOpen(open && !loading)}>
+      <NameTip text={title}><DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-disabled={loading || undefined}>
+        <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger></NameTip>
+      <TooltipEscape value={() => setMenuOpen(false)}><DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
         onCloseAutoFocus={event => {
           if (deleting.current) { deleting.current = false; event.preventDefault(); return; }
           if (!picked.current) return; picked.current = false; event.preventDefault(); onPicked();
         }}>
         <DropdownMenu.RadioGroup value={current ?? NEW} onValueChange={value => { picked.current = true; select(value === NEW ? null : value); }}>
-          <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${current === null ? " current" : ""}`} textValue="New conversation"><Plus aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
+          <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${current === null ? " current" : ""}`} textValue="New conversation"><SquarePen aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
           <DropdownMenu.Separator className="doan-menu-sep" />
           <DropdownMenu.Label className="doan-menu-head">{`Conversations on ${canvasName}`}</DropdownMenu.Label>
-          {list === "error" ? <div className="conv-error" role="status"><span>Couldn’t read conversations</span>
-            <DropdownMenu.Item className="doan-menu-item" onSelect={event => { event.preventDefault(); run.retryList(); }}>Retry</DropdownMenu.Item></div>
+          {list === "error" ? <div className="conv-error" role="status"><span>{announcedAgain(LIST_FAILED_TEXT, run.listRetry().failures)}</span>
+            {listRetryItem(run.listRetry(), () => run.retryList())}</div>
             : <div className="conv-list">{items.map(item => <div key={item.conversationId} className="conv-row">
               <DropdownMenu.RadioItem value={item.conversationId} textValue={item.title} className={`doan-menu-item conv-item${item.selected ? " current" : ""}`}>
                 <ConversationHead line={item} name={item.title} nameClass="t" />
@@ -199,7 +209,7 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
               }} onEscape={() => setMenuOpen(false)} />}
             </div>)}</div>}
         </DropdownMenu.RadioGroup>
-      </DropdownMenu.Content></DropdownMenu.Portal>
+      </DropdownMenu.Content></DropdownMenu.Portal></TooltipEscape>
     </DropdownMenu.Root>
   </span>
   <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button doan-conv-new" aria-label="New conversation" aria-disabled={isNew || undefined} onClick={startNew}><SquarePen aria-hidden="true" /></button></TooltipTrigger>
@@ -220,6 +230,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const { calls, run, support, target, project, list } = props;
   const store = run.store;
   const root = target.root;
+  // Edit and resend's "Replace your draft?" while it asks, for the conversation it was pressed in.
+  const [replacing, setReplacing] = useState<{ conversationId: string; confirm: ReplaceDraftConfirm } | null>(null);
   const listed = Array.isArray(list) ? list : null;
   const view = run.view() ?? { kind: "wait" as const };
   const conversationId = view.kind === "conversation" ? view.conversationId : null;
@@ -242,9 +254,17 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   useEffect(() => { if (!support.presets?.ok) support.readPresets(); }, []);
   useEffect(() => calls.onAgentAuth(snapshot => support.setAuth(snapshot)), []);
+  // The context ring's drawer: a conversation on the person's CLI profile shows no Doan connection's usage. Until the
+  // list holds its summary the owner is unknown, so a legacy conversation's first frame neither shows a row nor reads.
+  const ringUsage = useRingUsage(calls, summary === undefined || summary.owner === "legacy-external");
   // The body's own composer: the panel around it differs by window.
   const body = useRef<HTMLDivElement | null>(null);
   const focusField = () => queueMicrotask(() => focusFieldEnd(body.current?.querySelector<HTMLElement>(".composer-input") ?? null));
+  // Focus follows only while the same canvas still shows the same conversation as when it was asked for.
+  const editAndResend = (id: string) => {
+    const shown = run.showing();
+    void store.editAndResend(id).then(applied => { if (applied && shown && run.stillShowing(shown)) focusField(); });
+  };
 
   // The composer's agent, model and effort, as the Overview's: a new conversation picks as Home does; an existing one
   // keeps its provider and starts from its own model.
@@ -341,22 +361,23 @@ export function CanvasConversation(props: CanvasConversationProps) {
   }, [props.arrival?.seq, view.kind, conversationId, Array.isArray(items) ? items.length : -1, asking]);
 
   // Attachments go through main, which checks each file; each answer lands on its chip wherever the draft is now.
-  const settle = (keys: string[], results: readonly (AttachmentResult | null)[]) => settleChips(store, support, keys, results, props.onNotice);
+  // Refusals go to the composer's own notice (`report`), as Home's go under its composer.
+  const settle = (keys: string[], results: readonly (AttachmentResult | null)[], report: (text: string) => void) => settleChips(store, support, keys, results, report);
   const addChips = (at: string, chips: AttachmentDraft[]) => store.setDrafts(drafts => {
     const current = drafts.get(at) ?? EMPTY_DRAFT;
     return new Map(drafts).set(at, { ...current, attachments: [...current.attachments, ...chips] });
   });
-  const addFiles = (files: File[], pasted: boolean) => {
+  const addFiles = (files: File[], pasted: boolean, report: (text: string) => void) => {
     if (fixed) return;
     const at = key;
     const limit = attachmentLimit(draft.attachments.length, files.map(file => ({ pasted: false, size: file.size })));
-    if (limit.notices.length) props.onNotice(limit.notices.join(" "));
+    if (limit.notices.length) report(limit.notices.join(" "));
     const accepted = limit.accept.map(i => files[i]!);
     if (!accepted.length) return;
     const keys = accepted.map(() => crypto.randomUUID());
     addChips(at, accepted.map((file, i) => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size })));
     void calls.addAttachmentFiles(accepted).catch(() => null).then(async results => {
-      if (!results) { settle(keys, keys.map(() => null)); return; }
+      if (!results) { settle(keys, keys.map(() => null), report); return; }
       // A copied screenshot has no path on disk; it attaches as a pasted image instead. A Finder item main no longer
       // finds keeps main's answer: a folder named x.png has File.type image/png too.
       const final = await Promise.all(results.map(async (result, i) => {
@@ -368,10 +389,10 @@ export function CanvasConversation(props: CanvasConversationProps) {
         if (!bytes) return result;
         return calls.addPastedImage(bytes).catch(() => null);
       }));
-      settle(keys, final);
+      settle(keys, final, report);
     });
   };
-  const chooseFiles = () => {
+  const chooseFiles = (report: (text: string) => void) => {
     if (fixed) return;
     const at = key;
     void calls.chooseAttachments().catch(() => []).then(results => {
@@ -379,8 +400,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
       for (const id of release) void calls.removeAttachment(id);
       const keys = chosenFiles.map(() => crypto.randomUUID());
       addChips(at, chosenFiles.map((result, i) => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" })));
-      settle(keys, chosenFiles);
-      if (notices.length) props.onNotice(notices.join(" "));
+      settle(keys, chosenFiles, report);
+      if (notices.length) report(notices.join(" "));
     });
   };
 
@@ -471,21 +492,19 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onFocusComposer={focusField}
         onStop={() => void calls.interruptConversation({ conversationId }).catch(console.error)}
         onEditAndResend={() => {
-          // Focus follows only while the same canvas still shows the same conversation as when it was asked for.
-          const shown = run.showing();
-          void store.editAndResend(conversationId).then(applied => { if (applied && shown && run.stillShowing(shown)) focusField(); });
+          const confirm = store.editAndResendConfirm(conversationId);
+          if (confirm) setReplacing({ conversationId, confirm }); else editAndResend(conversationId);
         }}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={store.resendHidden(conversationId)}
         onRetry={() => store.retryThread(conversationId)}
         onOpenCanvas={() => {}} {...(props.onOpenHandoff ? { onOpenHandoff: props.onOpenHandoff } : {})}
-        onOpenLink={url => void calls.openLink(url).catch(console.error)}
+        onOpenLink={url => void openReplyLink(target => calls.openLink(target), url, props.onNotice)}
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : view.kind === "wait" || conversationId ? <Waiting /> : <>
-          {newView?.listError && <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
-            <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}
+          {newView?.listError && listFailedNotice(run.listRetry(), () => run.retryList())}
           {resume && <ResumeChoice offer={offer!} reply={resume.resume} now={props.now} mode={held ? "new" : resume.start.mode} held={held} onChoose={choice => { run.choose(choice); focusField(); }} />}
           {prompts.length > 0 && !started && !resume && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }} />)}</div>}
@@ -511,7 +530,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={null} canvasGone={false} context={thread ? contextRing(thread.events) : null}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={null} canvasGone={false} context={thread ? contextRing(thread.events) : null} usage={ringUsage}
         unavailable={props.blocked} locked={props.blocked !== null} playing={props.playing ?? null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         stepAside={{ waiting: asking, notice: !conversationId && view.kind !== "wait" && !!resume }}
         refuse={refuse} onStartNew={startNewAfterRefusal}
@@ -531,6 +550,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
         }}
         onOpen={openConversation} />
     </div>
+    {replacing && <ReplaceDraftDialog confirm={replacing.confirm} onKeep={() => { setReplacing(null); focusField(); }}
+      onReplace={() => { setReplacing(null); editAndResend(replacing.conversationId); }} />}
   </div>;
 }
 

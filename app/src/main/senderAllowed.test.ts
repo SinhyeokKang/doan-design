@@ -10,6 +10,8 @@ const mainOnly = [
   "folders:remove", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",
   "onboarding:choose-folder", "folders:get",
+  // The Retry of a failed project-list save.
+  "folders:save-again",
   // New folder on the Project step: the save panel and the folder it makes.
   "onboarding:new-folder", "onboarding:new-folder-cancel",
   // The canvas page says which canvas it shows, and the read-state toast's Retry.
@@ -133,13 +135,15 @@ test("restricts every MCP Connectors request channel to main and refuses its eve
   }
   for (const kind of ["main", "settings"]) for (const channel of [MCP_CHANNELS.changed, "mcp-connectors:delete", "mcp-connectors:"]) expect(senderAllowed(channel, kind)).toBe(false);
 });
-// The usage read is a main-window request; :changed is an event main sends, never a request.
-test("restricts the agent usage read to main and refuses its event", async () => {
+// The usage read belongs to the main window's header and to the context ring's drawer in either window's composer;
+// :changed is an event main sends, never a request. A canvas iframe has no window kind (senderKind) and is refused.
+test("opens the agent usage read to the main and prototype windows only and refuses its event", async () => {
   const { USAGE_CHANNELS } = await import("./agentAuth/usageIpc");
   expect(USAGE_CHANNELS).toEqual({ read: "agent-usage:read", changed: "agent-usage:changed" });
   expect(senderAllowed(USAGE_CHANNELS.read, "main")).toBe(true);
-  for (const kind of ["settings", "capture", undefined]) expect(senderAllowed(USAGE_CHANNELS.read, kind)).toBe(false);
-  for (const kind of ["main", "settings"]) for (const channel of [USAGE_CHANNELS.changed, "agent-usage:", "agent-usage:refresh"]) expect(senderAllowed(channel, kind)).toBe(false);
+  expect(senderAllowed(USAGE_CHANNELS.read, "prototype")).toBe(true);
+  for (const kind of ["settings", "capture", "thumbnail", "", null, undefined]) expect(senderAllowed(USAGE_CHANNELS.read, kind)).toBe(false);
+  for (const kind of ["main", "prototype", "settings"]) for (const channel of [USAGE_CHANNELS.changed, "agent-usage:", "agent-usage:refresh"]) expect(senderAllowed(channel, kind)).toBe(false);
 });
 // The prototype window's main frame: its own run, and, scoped to the playing canvas by main, the conversation panel's
 // composer channels. The main window's set is not widened for it.

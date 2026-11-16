@@ -132,6 +132,6 @@ describe("cardRow", () => {
 // Recovery labels: the status line, the sidebar's project menu, the Overview's
 // recovery menu and the Project Settings page share one label table, with no trailing ellipsis.
 test("recovery labels drop the ellipsis, and Remove is Remove from Doan everywhere", () => {
-  expect(ROW_ACTION_LABELS).toEqual({ setUp: "Set Up", locate: "Locate", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" });
+  expect(ROW_ACTION_LABELS).toEqual({ setUp: "Set up", locate: "Locate", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" });
   for (const label of Object.values(ROW_ACTION_LABELS)) expect(label).not.toMatch(/…|\.\.\.$/);
 });

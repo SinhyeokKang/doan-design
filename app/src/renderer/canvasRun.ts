@@ -5,6 +5,7 @@ import type { DoanApi } from "../preload";
 import { canvasNotice, newConversationMode, pickShownConversation, shouldMarkSeen, type CanvasNotice, type NewConversationView, type NoticeContext, type ResumeTarget } from "./canvasConversation";
 import type { ConversationStore, ListView } from "./conversationStore";
 import { carryDraft, draftKey, hasDraft, type DockedMode } from "./dockedRules";
+import { LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 import { followNewConversation } from "./newConversationFollow";
 import { endSeq, type ScrollTo } from "./overviewRun";
 
@@ -19,6 +20,8 @@ export interface CanvasRunHost {
   readsStarted(root: string): number;
   readsApplied(root: string): number;
   reread(root: string): void;
+  // The failed list's Retry for a root (HomeRun's, or the prototype window's own); without it Retry never runs.
+  listRetry?(root: string): ListRetry;
   markSeen(conversationId: string, seq: number): void;
   focused(): boolean;
   // A project conversation whose turn drew this canvas and whose promotion is not judged yet (HomeRun's).
@@ -145,6 +148,7 @@ export class CanvasRun {
     return typeof s.shown === "string" ? `conversation:${s.shown}` : canvasKey(s.target);
   }
   retryList(): void { const s = this.shownState(); if (s) this.host.reread(s.target.root); }
+  listRetry(): ListRetry { const s = this.shownState(); return (s && this.host.listRetry?.(s.target.root)) ?? LIST_RETRY_IDLE; }
   target(): CanvasTarget | null { return this.shownState()?.target ?? null; }
   scrollRequest(conversationId: string): { to: ScrollTo; seq: number } | null {
     return this.scroll?.conversationId === conversationId ? { to: this.scroll.to, seq: this.scroll.seq } : null;

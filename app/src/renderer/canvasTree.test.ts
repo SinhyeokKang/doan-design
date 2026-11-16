@@ -100,5 +100,5 @@ test("a move into another folder expands the new ancestors and moves the canvas 
 test("rowProblem names an unreadable canvas with the raw error as detail", () => {
   const error = { code: "canvas_unreadable", message: "EACCES" };
   expect(rowProblem(row(".doan/canvases/a.html"))).toBeNull();
-  expect(rowProblem(row(".doan/canvases/a.html", { error }))).toEqual({ sentence: "Can't read this canvas — run doan check", detail: "canvas_unreadable: EACCES" });
+  expect(rowProblem(row(".doan/canvases/a.html", { error }))).toEqual({ sentence: "Can’t read this canvas. Run doan check in a terminal.", detail: "canvas_unreadable: EACCES" });
 });

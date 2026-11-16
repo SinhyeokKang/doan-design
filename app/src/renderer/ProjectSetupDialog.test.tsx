@@ -1,4 +1,8 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactNode } from "react";
+import { renderToStaticMarkup as serverMarkup } from "react-dom/server";
+import { TooltipProvider } from "./components/ui/tooltip";
+// Names and details show in the shared tooltip, which needs the app's provider.
+const renderToStaticMarkup = (node: ReactNode) => serverMarkup(<TooltipProvider>{node}</TooltipProvider>);
 import { expect, test } from "vitest";
 import type { ProjectForm } from "./onboardingView";
 import { ProjectFields, ProjectSetupDialog, setupRequest, type StorageInput } from "./ProjectSetupDialog";
@@ -79,9 +83,9 @@ test("outside Git, Keep out of Git adds the new repository at the top of Will ad
   }
 });
 
-test("Set Up Project is described by Will add", () => {
+test("Set up project is described by Will add", () => {
   const html = renderToStaticMarkup(<ProjectSetupDialog root="/Users/ada/code/studio" name="studio" notGit onClose={() => {}} onRerooted={() => {}} />);
-  expect(html).toMatch(/<button type="button" class="btn primary doan-button" data-ui-variant="prominent" aria-describedby="setup-changes">Set Up Project<\/button>/);
+  expect(html).toMatch(/<button type="button" class="btn primary doan-button" data-ui-variant="prominent" aria-describedby="setup-changes">Set up project<\/button>/);
 });
 
 // --git-init is the consent to the .git/ line on screen: only with Keep out of Git, outside Git, and not for a project
@@ -99,4 +103,15 @@ test("a failed creation shows its command and the .git it left as code chips", (
   expect(missing).toContain("Install the Command Line Tools with <code>xcode-select --install</code>, then try again, or choose Include in Git.");
   const left = fields({ value: "local" }, { error: "Setup failed, and Doan couldn’t remove the Git repository it created at /Users/ada/a b/new/.git. Remove it or keep it, then try again." }, "/Users/ada/a b/new");
   expect(left).toContain("it created at <code>/Users/ada/a b/new/.git</code>. Remove it or keep it, then try again.");
+});
+
+// While Set Up writes, the Doan files options take the disabled roles, as the setup panel's .storage-row does
+// (DESIGN 'States': disabled is a role, never opacity); a code chip in the description keeps its own ink.
+test("a disabled Doan files option reads disabled: label, description and radio", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".storage-option:has(> input:disabled) :is(strong, small) { color: var(--text-disabled); }");
+  expect(css).toContain(".storage-option:has(> input:disabled) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }");
+  expect(css).toContain(".storage-option:has(> input:disabled:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }");
+  expect(css).toContain(".storage-option:has(> input:disabled:checked) .ob-radio::before { background: var(--text-disabled); }");
 });

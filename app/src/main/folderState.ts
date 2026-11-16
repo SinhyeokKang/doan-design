@@ -123,7 +123,7 @@ const HOME_REFUSAL = { message: "Doan doesn’t create a Git repository in your 
 // tokenCss: a token CSS was chosen, so a usage_error may be about it; otherwise CSS guidance would point elsewhere.
 // folder: the folder set up, which a .git left behind is named under. home: the person's home folder.
 export function initOutcome(run: CliRun, request: { tokenCss?: boolean; folder?: string; home?: string } = {}): InitOutcome {
-  const reason = run.spawnError ?? (run.timedOut ? "timed out after 10 s" : run.stderr.split(/\r?\n/, 1)[0] || "Invalid response from doan CLI.");
+  const reason = run.spawnError ?? (run.timedOut ? "timed out after 10 s" : run.stderr.split(/\r?\n/, 1)[0] || "Invalid response from the doan command.");
   const cliError: InitOutcome = { kind: "cliError", reason };
   if (run.spawnError !== undefined || run.timedOut || run.exitCode === null) return cliError;
   let value: unknown;

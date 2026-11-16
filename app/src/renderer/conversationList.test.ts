@@ -205,3 +205,15 @@ describe("scheduledOf", () => {
     expect(stripFromList(lists.get("/r/doan")!, none)).toBeNull();
   });
 });
+
+// main's `working` (a turn waiting for its promotion judgment, a queue about to go out) is the same state Delete reads
+// (deleteAvailability), so no row reads finished while its Delete says the agent is working.
+describe("conversationWork reads main's working", () => {
+  test("an ended turn main still works on shows as working, not as an unseen ending", () => {
+    expect(conversationWork(summary({ phase: "ended", working: true, unseen: true }), none)).toEqual({ kind: "working", label: "Claude Code is working" });
+    expect(conversationWork(summary({ phase: "ended", working: true, unseen: false }), none)).toEqual({ kind: "working", label: "Claude Code is working" });
+  });
+  test("a question or permission request still wins over working", () => {
+    expect(conversationWork(summary({ phase: "waiting", working: true }), none)).toEqual({ kind: "permission", label: "Claude Code needs your answer" });
+  });
+});

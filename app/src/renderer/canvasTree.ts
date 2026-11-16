@@ -58,5 +58,5 @@ export function moveExpanded(paths: readonly string[], from: string, to: string)
 export function rowProblem(row: CanvasRow): { sentence: string; detail: string } | null {
   const error = row.error;
   if (!error) return null;
-  return { sentence: "Can't read this canvas — run doan check", detail: `${error.code}: ${error.message}` };
+  return { sentence: "Can’t read this canvas. Run doan check in a terminal.", detail: `${error.code}: ${error.message}` };
 }

@@ -72,7 +72,7 @@ export function canvasConversationRows(list: readonly ConversationSummary[], can
 export function canvasRowProblemText(problem: CanvasRowProblem, project: string): string {
   switch (problem.kind) {
     case "gone": return `No longer in ${project}`;
-    case "duplicate": return `${problem.count} canvases use this ID — run doan check`;
+    case "duplicate": return `${problem.count} canvases use this ID. Run doan check in a terminal.`;
     case "unreadable": return problem.sentence;
   }
 }

@@ -183,7 +183,7 @@ describe("question card", () => {
     const draft = questionDraft(draftOf({ type: "choose", question: layout, option: 1 }), { type: "sending", how: "answer" });
     const out = card({ draft });
     expect(out).toContain('<div class="doan-notice thread-notice q-card is-locked">');
-    expect(out).toContain('<button type="button" class="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Send</button>');
+    expect(out).toContain('<button type="button" class="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"></span>Send</button>');
     expect(out).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled="true">Skip</button>');
     const els = tree({ draft, onSend, onSkip, onStop });
     (button(els, "Send").props.onClick as () => void)();
@@ -196,9 +196,18 @@ describe("question card", () => {
   test("a failed send keeps the choices and says so under the actions", () => {
     const draft = questionDraft(questionDraft(draftOf({ type: "choose", question: layout, option: 1 }), { type: "sending", how: "answer" }), { type: "failed" });
     const out = card({ draft });
-    expect(out).toContain('<span class="ask-error" role="alert">Couldn’t send your answer. Try again.</span>');
+    // U31: the shared inline error line, led by the alert icon (DESIGN 'Errors').
+    expect(out).toMatch(/<p class="settings-msg error ask-error" role="alert"><svg[^>]*class="[^"]*doan-alert-icon[^"]*"[^>]*>.*?<\/svg><span>Couldn’t send your answer\. Try again\.<\/span><\/p>/);
     expect(out).toContain('<div class="doan-notice thread-notice q-card">');
     expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l1" name="b-q1-0" checked=""[^>]*\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label" id="b-q1-0-l1">Two rows/);
+  });
+
+  // The strip's sentence for a refused Skip (PRODUCT §5 item 1 'Home'); a refused answer keeps its own line.
+  test("a failed Skip says the question was not skipped", () => {
+    const draft = questionDraft(questionDraft(draftOf({ type: "choose", question: layout, option: 1 }), { type: "sending", how: "skip" }), { type: "failed" });
+    const out = card({ draft });
+    expect(out).toMatch(/<p class="settings-msg error ask-error" role="alert"><svg[^>]*>.*?<\/svg><span>Couldn’t skip the question\. Try again\.<\/span><\/p>/);
+    expect(out).not.toContain("Couldn’t send your answer.");
   });
 
   test("only a card that arrived while the thread was open announces itself, by its title alone; focus never moves to it", () => {
@@ -232,21 +241,21 @@ describe("the thread's question items", () => {
   test("a finished question folds to its lines, each ellipsized with its full text as the tooltip", () => {
     const answered = item([layout, sections], { status: "answered", answers: { "0": { selected: ["Two rows"] }, "1": { selected: ["Agents"], other: "Keyboard shortcuts" } } });
     const out = html([answered, item([layout], { key: "Qq2", requestId: "q2", status: "skipped" }), item([layout], { key: "Qq3", requestId: "q3", status: "expired" })]);
-    expect(out).toContain('<div class="thread-item" data-item="Qq1"><div class="q-folded"><div class="activity"><div class="activity-head ask-answered"><span class="selectable" title="Answered · Layout: Two rows">Answered · Layout: Two rows</span></div></div><div class="activity"><div class="activity-head ask-answered"><span class="selectable" title="Answered · Sections: Agents, Keyboard shortcuts">Answered · Sections: Agents, Keyboard shortcuts</span></div></div></div></div>');
-    expect(out).toContain('<span class="selectable" title="Skipped · Layout">Skipped · Layout</span>');
-    expect(out).toContain('<span class="selectable" title="Expired without an answer · Layout">Expired without an answer · Layout</span>');
+    expect(out).toContain('<div class="thread-item" data-item="Qq1"><div class="q-folded"><div class="activity"><div class="activity-head ask-answered"><span class="selectable" data-state="closed" data-slot="tooltip-trigger">Answered · Layout: Two rows</span></div></div><div class="activity"><div class="activity-head ask-answered"><span class="selectable" data-state="closed" data-slot="tooltip-trigger">Answered · Sections: Agents, Keyboard shortcuts</span></div></div></div></div>');
+    expect(out).toContain('<span class="selectable" data-state="closed" data-slot="tooltip-trigger">Skipped · Layout</span>');
+    expect(out).toContain('<span class="selectable" data-state="closed" data-slot="tooltip-trigger">Expired without an answer · Layout</span>');
     expect(out).not.toContain("q-card");
     expect(out).toContain('<div class="sr-only" role="status"></div>');
   });
 
   test("every folded question line is selectable", () => {
     const answered = item([layout], { status: "answered", answers: { "0": { selected: ["Two rows"] } } });
-    expect(html([answered, item([layout], { key: "Qq2", requestId: "q2", status: "skipped" })]).match(/<span class="selectable" title="[^"]+">/g)).toHaveLength(2);
+    expect(html([answered, item([layout], { key: "Qq2", requestId: "q2", status: "skipped" })]).match(/<span class="selectable" data-state="closed" data-slot="tooltip-trigger">/g)).toHaveLength(2);
   });
 
   test("a header-less question (Antigravity) folds with its sentence", () => {
     const bare: Question = { id: "0", header: "", question: "Which colour?", options: [{ label: "Red" }, { label: "Blue" }], multiSelect: false, other: false };
-    expect(html([item([bare], { status: "answered", answers: { "0": { selected: ["Red"] } } })])).toContain('<span class="selectable" title="Answered · Which colour?: Red">Answered · Which colour?: Red</span>');
+    expect(html([item([bare], { status: "answered", answers: { "0": { selected: ["Red"] } } })])).toContain('<span class="selectable" data-state="closed" data-slot="tooltip-trigger">Answered · Which colour?: Red</span>');
   });
 });
 

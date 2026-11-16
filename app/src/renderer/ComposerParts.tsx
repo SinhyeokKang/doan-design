@@ -1,5 +1,5 @@
-import { forwardRef, Fragment, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode, type RefObject } from "react";
-import { flushSync } from "react-dom";
+import { forwardRef, Fragment, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactElement, type ReactNode, type RefObject } from "react";
+import { createPortal, flushSync } from "react-dom";
 import { DropdownMenu, Popover } from "radix-ui";
 import { ArrowUp, ArrowUpRight, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Folder, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, SquareSlash, Square, TextAlignStart, TriangleAlert, X, Zap } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
@@ -10,7 +10,7 @@ import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView
 import { AlertIcon } from "./AlertIcon";
 import type { FieldSegment } from "./anchorField";
 import { ChipField, type ChipInsert } from "./chipField";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import type { ComposerAction } from "./composerRules";
 import { outsidePresetList } from "./presetOutside";
 import type { SettingsTarget } from "./settingsSections";
@@ -44,6 +44,20 @@ export function GroupIcon({ name, className }: { name: string; className?: strin
 
 export function IconTip({ label, children }: { label: string; children: ReactNode }) {
   return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
+}
+
+// A chip's × sits inside the chip, whose own tooltip (its path) is an ancestor trigger: one capsule at a time. The ×
+// keeps its pointer and focus events from the chip's trigger, and the pointer reaching it closes the chip's capsule;
+// Radix's trigger opens that one again only after the pointer leaves the chip.
+export function RemoveTip({ label, children }: { label: string; children: ReactElement }) {
+  return <Tooltip><TooltipTrigger asChild onPointerMove={event => event.stopPropagation()} onFocus={event => event.stopPropagation()}>{children}</TooltipTrigger>
+    <TooltipContent>{label}</TooltipContent></Tooltip>;
+}
+function ChipTip({ tip, children }: { tip: string; children: ReactElement }) {
+  const [open, setOpen] = useState(false);
+  return <Tooltip open={open} onOpenChange={setOpen}>
+    <TooltipTrigger asChild onPointerOver={event => { if (event.target instanceof Element && event.target.closest(".chip-remove")) setOpen(false); }}>{children}</TooltipTrigger>
+    <TooltipContent>{tip}</TooltipContent></Tooltip>;
 }
 
 // The card: the white surface that holds chips, field and tools. readonly while a send is pending.
@@ -91,12 +105,12 @@ export function ComposerChips(props: {
         {view.thumbnail && url ? <span className="thumb" aria-hidden="true"><img src={url} alt="" /></span>
           : <span className="file-icon" aria-hidden="true">{a.status === "checking" ? <span className="doan-spinner" /> : view.problem ? <TriangleAlert /> : view.folder ? <Folder /> : <FileText />}</span>}
         <span className="attach-text"><b>{view.label}</b><small>{view.meta}</small></span>
-        <button type="button" ref={node => { props.removeButtons.current[index] = node; }} className="chip-remove doan-icon-button" data-ui-size="xs" aria-label={view.removeLabel} disabled={props.disabled} onClick={() => props.onRemove(index)}><X aria-hidden="true" /></button>
+        <RemoveTip label="Remove attachment"><button type="button" ref={node => { props.removeButtons.current[index] = node; }} className="chip-remove doan-icon-button" data-ui-size="xs" aria-label={view.removeLabel} disabled={props.disabled} onClick={() => props.onRemove(index)}><X aria-hidden="true" /></button></RemoveTip>
       </span>;
-      return <Fragment key={a.key}>{view.tooltip ? <Tooltip><TooltipTrigger asChild>{chip}</TooltipTrigger><TooltipContent>{view.tooltip}</TooltipContent></Tooltip> : chip}</Fragment>;
+      return <Fragment key={a.key}>{view.tooltip ? <ChipTip tip={view.tooltip}>{chip}</ChipTip> : chip}</Fragment>;
     })}
     {preset && <span className="preset-chip"><GroupIcon name={groupIcon(preset.group)} /><span>{preset.title}</span>
-      <button type="button" ref={node => { props.removeButtons.current[attachments.length] = node; }} className="chip-remove doan-icon-button" data-ui-size="xs" aria-label={`Remove preset ${preset.title}`} disabled={props.disabled} onClick={() => props.onRemove(attachments.length)}><X aria-hidden="true" /></button></span>}
+      <RemoveTip label="Remove preset"><button type="button" ref={node => { props.removeButtons.current[attachments.length] = node; }} className="chip-remove doan-icon-button" data-ui-size="xs" aria-label={`Remove preset ${preset.title}`} disabled={props.disabled} onClick={() => props.onRemove(attachments.length)}><X aria-hidden="true" /></button></RemoveTip></span>}
   </div>;
 }
 
@@ -167,7 +181,7 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
     composing: () => field.current?.composing() ?? false,
     element: () => node.current,
   }), []);
-  return <div ref={node} className="composer-input" aria-label="Message" tabIndex={0} contentEditable={!props.readOnly} suppressContentEditableWarning
+  return <><div ref={node} className="composer-input doan-scroll" aria-label="Message" tabIndex={0} contentEditable={!props.readOnly} suppressContentEditableWarning
     aria-keyshortcuts={props.sendNow ? "Control+Enter" : undefined} aria-readonly={props.readOnly || undefined} aria-placeholder={props.placeholder} aria-describedby={props.describedBy}
     role={combobox ? "combobox" : "textbox"} aria-multiline={combobox ? undefined : true} aria-expanded={combobox ? true : undefined} aria-controls={combobox ? combobox.listId : undefined}
     aria-autocomplete={combobox ? "list" : undefined} aria-activedescendant={combobox?.activeId}
@@ -178,8 +192,53 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
       }
       if (isSubmitKey({ key: event.key, shiftKey: event.shiftKey, isComposing: event.nativeEvent.isComposing, keyCode: event.keyCode })) { event.preventDefault(); props.onSubmit(); }
     }}
-    onPaste={event => { props.onPaste(event); if (!event.defaultPrevented) field.current?.paste(event.nativeEvent); }} />;
+    onPaste={event => { props.onPaste(event); if (!event.defaultPrevented) field.current?.paste(event.nativeEvent); }} />
+    <FieldChipTip field={node} /></>;
 });
+
+// A chip's detail in the field. The chips are DOM the field draws, so no React trigger can wrap them: the tooltip
+// anchors to a box portalled to the body over the chip under the pointer (the body has no transform, so a fixed box
+// sits where the chip is). It waits the provider's first-open delay itself; Radix's skip window does not reach it.
+// Typing, a press or a scroll closes it, as a pointer leaving the chip does.
+const CHIP_TIP_DELAY_MS = 700;
+function FieldChipTip({ field }: { field: RefObject<HTMLDivElement | null> }) {
+  const [tip, setTip] = useState<{ text: string; box: DOMRect } | null>(null);
+  const over = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const element = field.current;
+    if (!element) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const close = () => { clearTimeout(timer); over.current = null; setTip(null); };
+    const enter = (event: Event) => {
+      const chip = event.target instanceof Element ? event.target.closest<HTMLElement>(".anchor-chip") : null;
+      if (!chip || !element.contains(chip) || chip === over.current) return;
+      close();
+      const text = chip.dataset.tip;
+      if (!text) return;
+      over.current = chip;
+      timer = setTimeout(() => setTip({ text, box: chip.getBoundingClientRect() }), CHIP_TIP_DELAY_MS);
+    };
+    const leave = (event: Event) => {
+      const to = event instanceof MouseEvent ? event.relatedTarget : null;
+      if (over.current && !(to instanceof Node && over.current.contains(to))) close();
+    };
+    const closing = ["pointerdown", "keydown", "scroll", "input"];
+    element.addEventListener("pointerover", enter);
+    element.addEventListener("pointerout", leave);
+    for (const name of closing) element.addEventListener(name, close);
+    return () => {
+      clearTimeout(timer);
+      element.removeEventListener("pointerover", enter);
+      element.removeEventListener("pointerout", leave);
+      for (const name of closing) element.removeEventListener(name, close);
+    };
+  }, [field]);
+  if (!tip) return null;
+  const { left, top, width, height } = tip.box;
+  return createPortal(<Tooltip open onOpenChange={open => { if (!open) { over.current = null; setTip(null); } }}>
+    <TooltipTrigger asChild><span aria-hidden="true" style={{ position: "fixed", left, top, width, height, pointerEvents: "none" }} /></TooltipTrigger>
+    <TooltipContent>{tip.text}</TooltipContent></Tooltip>, document.body);
+}
 
 export function ComposerTools({ children }: { children: ReactNode }) {
   return <div className="composer-tools">{children}</div>;
@@ -209,8 +268,9 @@ function pointerFocus(event: PointerEvent<HTMLElement>) {
 }
 function PresetOption({ row, index, slash, options }: { row: PresetRow; index: number; slash: boolean; options: PresetBodyOptions & { rows: number } }) {
   const focusRow = (at: number) => document.getElementById(`${options.listId}-p-${at}`)?.focus();
-  return <div id={`${options.listId}-${slash ? "s" : "p"}-${index}`} className="doan-menu-item preset-item" role="option" aria-selected={slash ? index === options.highlight : false}
-    tabIndex={slash ? undefined : -1} title={row.tooltip} data-highlighted={slash && index === options.highlight ? "" : undefined}
+  // The preset's whole description and scope are information only the tooltip carries: shown on every hover.
+  return <Tooltip><TooltipTrigger asChild><div id={`${options.listId}-${slash ? "s" : "p"}-${index}`} className="doan-menu-item preset-item" role="option" aria-selected={slash ? index === options.highlight : false}
+    tabIndex={slash ? undefined : -1} data-highlighted={slash && index === options.highlight ? "" : undefined}
     onMouseDown={slash ? event => event.preventDefault() : undefined} onPointerMove={slash ? () => options.onHighlight?.(index) : pointerFocus} onClick={() => options.onChoose(row.id, row.kind)}
     onKeyDown={slash ? undefined : event => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); focusRow(Math.max(0, Math.min(options.rows - 1, index + (event.key === "ArrowDown" ? 1 : -1)))); }
@@ -219,7 +279,7 @@ function PresetOption({ row, index, slash, options }: { row: PresetRow; index: n
     {/* A card: the preset's name over its one-line description (dogfooding); the full text stays in the tooltip. */}
     <span className={`suggestion-icon${row.kind === "skill" ? " project-skill-icon" : ""}`}><GroupIcon name={row.icon} /></span>
     <span className="preset-text"><span className="preset-title">{row.title}</span>{row.description && <span className="preset-desc">{row.description}</span>}</span>
-  </div>;
+  </div></TooltipTrigger><TooltipContent>{row.tooltip}</TooltipContent></Tooltip>;
 }
 export function presetBody(view: PresetView, slash: boolean, options: PresetBodyOptions): ReactNode {
   if (view.kind === "loading") return <div className="popover-state" role="status"><span className="doan-spinner" aria-hidden="true" />{view.text}</div>;
@@ -296,14 +356,14 @@ export function PresetsButton(props: {
   const choose = (id: string, kind: PresetRow["kind"]) => { picked.current = true; setOpen(false); props.onChoose(id, kind); };
   return <Popover.Root open={open} onOpenChange={next => { setOpen(next); if (next) { pressed.current = false; setQuery(""); props.onOpen(); } }}>
     <IconTip label="Design presets"><Popover.Trigger asChild><button type="button" className="doan-icon-button composer-presets" aria-label="Design presets" disabled={props.disabled}><PencilSparkles aria-hidden="true" /></button></Popover.Trigger></IconTip>
-    <Popover.Portal><Popover.Content ref={content} onFocusCapture={event => { const target = event.target as HTMLElement; lastFocused.current = target.closest('[role="tab"], [role="listbox"]') ? target : null; }} className={`doan-floating preset-popover${props.skills?.length ? " has-skills" : ""}`} aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
+    <TooltipEscape value={() => setOpen(false)}><Popover.Portal><Popover.Content ref={content} onFocusCapture={event => { const target = event.target as HTMLElement; lastFocused.current = target.closest('[role="tab"], [role="listbox"]') ? target : null; }} className={`doan-floating preset-popover${props.skills?.length ? " has-skills" : ""}`} aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
       onCloseAutoFocus={event => {
         if (picked.current) { picked.current = false; event.preventDefault(); props.onPicked(); }
         else if (pressed.current) { pressed.current = false; event.preventDefault(); }
       }}>
       <SearchField label={drawerSearchLabel(props.skills ?? [])} value={query} slash={false} listId={props.listId} onChange={setQuery} />
       {presetBody(view, false, { listId: props.listId, highlight: 0, onChoose: choose, onRetry: props.onRetry, onTab: setTab })}
-    </Popover.Content></Popover.Portal>
+    </Popover.Content></Popover.Portal></TooltipEscape>
   </Popover.Root>;
 }
 
@@ -549,8 +609,12 @@ export function SendButton({ enabled, sending, onSend, action = "send", hint, ti
   const label = SLOT_LABELS[action];
   const hintId = useId();
   const described = hint ?? description;
-  return <IconTip label={tip ?? label}><button type="button" className={`composer-send doan-icon-button${action === "stop" ? " composer-stop" : ""}${sending ? " sending" : ""}`} data-ui-variant="accent" aria-label={label} aria-busy={sending || undefined} disabled={!enabled} title={hint} aria-describedby={described ? hintId : undefined}
-    data-own-description={description && !hint ? "" : undefined} onClick={onSend}>
+  // With a reason it can't send, Send stays focusable (aria-disabled) so its tooltip can give the reason; the reason is
+  // also its own description, which the tooltip then leaves alone.
+  const reasoned = !enabled && hint !== undefined;
+  return <IconTip label={reasoned ? hint : tip ?? label}><button type="button" className={`composer-send doan-icon-button${action === "stop" ? " composer-stop" : ""}${sending ? " sending" : ""}`} data-ui-variant="accent" aria-label={label} aria-busy={sending || undefined}
+    {...(reasoned ? { "aria-disabled": true, "data-disabled": "" } : { disabled: !enabled })} aria-describedby={described ? hintId : undefined}
+    data-own-description={description && !hint ? "" : undefined} onClick={() => { if (enabled) onSend(); }}>
     {sending ? <span className="doan-spinner" aria-hidden="true" /> : action === "stop" ? <Square fill="currentColor" stroke="none" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
     {described && <span id={hintId} className="sr-only">{described}</span>}</button></IconTip>;
 }

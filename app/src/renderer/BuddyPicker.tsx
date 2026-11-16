@@ -158,11 +158,12 @@ export function BuddyRows({ name, labelledBy, selected, disabled, inert, request
 
 // A failed save: the picked buddy, the one that stays, and Retry, named by its visible word and described by the
 // sentence. No live role: the screen's own live region reads the failure once. `className` places it (first run's
-// panel notice under the row, or Settings' notice above the group).
-export function BuddyFailureNotice({ failure, id, className, retry }: { failure: BuddyFailure; id: string; className: string; retry(): void }): ReactNode {
-  return <div className={`doan-notice error ${className}`}>
+// notice under the row, or Settings' notice above the group). `panel`: first run's white panel notice, where Retry is
+// subtle; on Settings' inset notice a subtle fill would match the notice's, so Retry is panel there.
+export function BuddyFailureNotice({ failure, id, className, panel = false, retry }: { failure: BuddyFailure; id: string; className: string; panel?: boolean; retry(): void }): ReactNode {
+  return <div className={`doan-notice error${panel ? " doan-panel" : ""} ${className}`}>
     <AlertIcon /><span className="selectable" id={id}>{buddyFailureText(failure)}</span>
-    <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-describedby={id} onClick={retry}>Retry</button>
+    <button type="button" className="doan-button" data-ui-variant={panel ? "subtle" : "panel"} data-ui-size="sm" aria-describedby={id} onClick={retry}>Retry</button>
   </div>;
 }
 

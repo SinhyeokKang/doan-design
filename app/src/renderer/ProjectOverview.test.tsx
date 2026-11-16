@@ -56,7 +56,7 @@ function render(list: ListView, patch: Partial<ProjectOverviewProps> = {}, setup
 
 test("the header names the project, its branch read-only for one worktree, and the conversation's title", () => {
   const html = render([summary()]);
-  expect(html).toContain('<span class="ov-project-name">doan</span>');
+  expect(html).toContain('<span class="ov-project-name" data-state="closed" data-slot="tooltip-trigger">doan</span>');
   expect(html).toMatch(/<span class="doan-chip shell-branch" data-ui-variant="translucent">.*<span>main<\/span><\/span>/);
   expect(html).not.toContain("wt-chip");
   expect(html).toContain('<span class="ov-sep" aria-hidden="true">/</span>');
@@ -106,7 +106,7 @@ test("a promotion leaves the moved line with Open above the suggestions", () => 
     (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
   });
   // One line; only the title gives way, and the whole sentence stays in the text (and the tooltip).
-  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text selectable" title="Checkout copy moved to checkout\."><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
+  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text selectable" data-state="closed" data-slot="tooltip-trigger"><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
 });
 
 test("selectable: the notice text, not the notice's moved line", () => {
@@ -125,11 +125,32 @@ test("the duplicate-ID notice shows under the header", () => {
 test("while the list is read the title is unavailable and the composer is a new conversation; a failed read says so", () => {
   const loading = render("loading");
   const titleTag = (html: string) => html.match(/<button[^>]*class="ov-title doan-button"[^>]*>/)?.[0] ?? "";
-  expect(titleTag(loading)).toContain('disabled=""');
+  // aria-disabled, still focusable (U10): a trigger focused when the list goes back to loading keeps focus.
+  expect(titleTag(loading)).toContain('aria-disabled="true"');
+  expect(titleTag(loading)).not.toMatch(/ disabled=""/);
   expect(loading).toContain('placeholder="Ask or describe what to design, / for presets"');
   expect(loading).not.toContain("Loading conversation");
   const failed = render("error");
   expect(titleTag(failed)).not.toContain("disabled");
+});
+
+// U7: the column leads with the canvas panel's thread notice, before the suggestions, and the composer stays usable.
+test("a failed first read shows the canvas panel's notice with Retry in the new conversation column", () => {
+  const html = render("error");
+  const column = html.slice(html.indexOf('class="ov-col ov-new"'));
+  expect(column).toMatch(/^class="ov-col ov-new"><div class="doan-notice error thread-notice" role="alert"><svg[^>]*class="[^"]*doan-alert-icon[^"]*"/);
+  expect(column).toContain('<span class="strip-text selectable"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>');
+  expect(column).toMatch(/<span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Retry<\/button><\/span><\/div><div class="ov-suggestions"/);
+  expect(render([])).not.toContain("thread-notice");
+  expect(render("loading")).not.toContain("thread-notice");
+});
+
+// D11: while the re-read runs the Retry is busy; a second failure changes the line so it is read again.
+test("the column's Retry runs while the list is read again, and a repeated failure is announced again", () => {
+  const running = render("error", { listRetry: { running: true, failures: 0 } });
+  expect(running).toMatch(/<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"><\/span>Retry<\/button>/);
+  const again = render("error", { listRetry: { running: false, failures: 1 } });
+  expect(again).toContain("<span>Try again. You can still start a new conversation.\u00a0</span>");
 });
 
 test("a long title is cut by style only, so the trigger's name keeps the whole title", () => {
@@ -192,8 +213,8 @@ test("the Overview's surfaces take plain numerals, the open chip its pressed fil
   expect(css).toContain(".moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
   expect(css).toContain(".moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }");
   // The canvas panel's notices above its composer read the same.
-  expect(css).toContain(".conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
-  expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span, \.cp-scroll > \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
+  expect(css).toContain(".conversation-thread .thread-notice > svg, :is(.cp-scroll, .ov-new) > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
+  expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span, :is\(\.cp-scroll, \.ov-new\) > \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
 });
 
 // The worktree menu's problem states read as Home's toned status chips (caption 12/16), not 11px plain text.
@@ -270,4 +291,13 @@ test("the composer tells the docked buddy when the conversation waits for an ans
   expect(moved).toContain('class="doan-notice moved"');
   expect(slot(moved)).toContain(' data-notice=""');
   expect(slot(render([]))).not.toContain("data-notice");
+});
+
+// A long folder name stops at 40% of the header and ellipsizes, as the canvas header's crumb does, so New conversation
+// stays inside the header.
+test("the Overview's project crumb is capped at 40% and its name ellipsizes", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.ov-project \{[^}]*flex: 0 1 auto; max-width: 40%; min-width: 0;/);
+  expect(css).toMatch(/\.ov-project-name \{[^}]*min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/);
 });

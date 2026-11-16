@@ -68,6 +68,14 @@ test("a list that can't be read says so with Retry, and the composer stays a new
   expect(out).toContain('aria-placeholder="Ask, / for presets"');
 });
 
+// D11: the thread notice's Retry is busy while the run reads the list again; a repeated failure is read out again.
+test("the thread notice's Retry runs while the list is read again, and a repeated failure changes its line", async () => {
+  const running = await panel("error", run => { run.listRetry = () => ({ running: true, failures: 0 }); });
+  expect(running).toMatch(/<span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled="true" aria-busy="true"><span class="doan-spinner" aria-hidden="true"><\/span>Retry<\/button><\/span>/);
+  const again = await panel("error", run => { run.listRetry = () => ({ running: false, failures: 1 }); });
+  expect(again).toContain("<span>Try again. You can still start a new conversation.\u00a0</span>");
+});
+
 // DESIGN 'Notices': the panel's agent notice is the shared one (body-sm, 12/16 padding), not the
 // inspector's 11px loading line that shares the canvas-notice class.
 test("a project conversation drawing the canvas is the shared notice with Open, without the inspector's canvas-notice", async () => {
@@ -336,7 +344,7 @@ test("the shown conversation's last recorded context value reaches the composer'
     const events = conversationId === "now" ? history("now", 84_000) : conversationId === "old" ? history("old", 150_000) : [at(conversationId, 1, { type: "user.message", text: "hi", anchors: [] })];
     return { events, lastSeq: events.at(-1)!.seq, turn: "idle" };
   });
-  const ring = (out: string) => /<span class="context-ring" role="img" aria-label="([^"]+)"/.exec(out)?.[1] ?? null;
+  const ring = (out: string) => /<button type="button" class="context-ring" aria-label="([^"]+)"/.exec(out)?.[1] ?? null;
   // panel() flushes after setup, so the read has settled before the draw.
   const shown = (list: ListView, id: string, setup: (run: CanvasRun) => void = () => {}) => panel(list, run => { setup(run); run.store.track(id); });
   expect(ring(await shown([summary("now")], "now"))).toBe("Context window 42% used · last turn");
@@ -422,4 +430,15 @@ test("a taken Stop hides the indicator at once; a done turn's background work sh
   expect(out).toContain('aria-label="Stop background work"');
   const next = (run: CanvasRun) => void flush().then(() => { run.store.event(at(3, { type: "turn.done" })); run.store.event(at(4, { type: "user.message", text: "Next", anchors: [] }, "t2")); });
   expect(await shown([summary("now", { background: { turnId: "t1" } })], next)).not.toContain("Background work is still running");
+});
+
+// The title menu's New conversation row takes the header button's SquarePen, in the canvas panel, the Overview and the
+// prototype window alike.
+test("the New conversation menu row uses the header's SquarePen", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const file of ["./CanvasConversationPanel.tsx", "./ProjectOverview.tsx", "./prototype/PrototypeConversation.tsx"]) {
+    const source = readFileSync(new URL(file, import.meta.url), "utf8");
+    expect(source, file).toContain('textValue="New conversation"><SquarePen aria-hidden="true" /><span>New conversation</span>');
+    expect(source, file).not.toContain('<Plus aria-hidden="true" /><span>New conversation</span>');
+  }
 });

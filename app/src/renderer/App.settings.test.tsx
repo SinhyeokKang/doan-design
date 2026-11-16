@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
@@ -104,7 +105,7 @@ function reset() {
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
-    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
+    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
   };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
   vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
@@ -168,7 +169,8 @@ test("the header Settings tab opens the page on the last category's title; the s
   const bar = topBar(settings()!.props.header);
   expect(bar.settings.props["aria-current"]).toBe("page");
   expect([bar.add.props["aria-current"], bar.projects.props["aria-current"]]).toEqual([undefined, undefined]);
-  expect([bar.back.props.disabled, bar.forward.props.disabled]).toEqual([false, true]);
+  // History at its end is aria-disabled, never disabled, so a Back or Forward pressed to its limit keeps focus.
+  expect([bar.back.props["aria-disabled"], bar.forward.props["aria-disabled"], bar.back.props.disabled, bar.forward.props.disabled]).toEqual([undefined, true, undefined, undefined]);
   expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "heading" } } });
   expect(settings()!.props.sidebar.props.settings?.section).toBe("agents");
   expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false });
@@ -518,7 +520,7 @@ function projectSettingsFromWorkspace(entries: FolderEntry[] = [listed("/w/a"), 
 }
 
 // The Home row as the sidebar draws it: current only on Home (PRODUCT §5 item 3), not on a page showing Home's sidebar.
-const homeRowCurrent = (sidebar: ReactElement) => /class="shell-home-row row"[^>]*aria-current="page"/.test(renderToStaticMarkup(sidebar));
+const homeRowCurrent = (sidebar: ReactElement) => /class="shell-home-row row"[^>]*aria-current="page"/.test(renderToStaticMarkup(<TooltipProvider>{sidebar}</TooltipProvider>));
 
 test("Project Settings opens as a page from Home, a workspace or Add Projects: the Projects tab is current, the sidebar marks no row, not even Home, the menu sees Settings", () => {
   render();
@@ -530,7 +532,8 @@ test("Project Settings opens as a page from Home, a workspace or Add Projects: t
   const bar = topBar(page.props.header);
   expect(bar.projects.props["aria-current"]).toBe("page");
   expect([bar.add.props["aria-current"], bar.settings.props["aria-current"]]).toEqual([undefined, undefined]);
-  expect([bar.back.props.disabled, bar.forward.props.disabled]).toEqual([false, true]);
+  // History at its end is aria-disabled, never disabled, so a Back or Forward pressed to its limit keeps focus.
+  expect([bar.back.props["aria-disabled"], bar.forward.props["aria-disabled"], bar.back.props.disabled, bar.forward.props.disabled]).toEqual([undefined, true, undefined, undefined]);
   // Home's sidebar: no current project or canvas, no category list, and the Home row is not current either.
   expect(page.props.sidebar.props.home).toBe(true);
   expect(page.props.sidebar.props.settings).toBeUndefined();
@@ -839,7 +842,7 @@ test("Set Up opens its dialog over the page; closed from outside, focus returns 
   folders([{ path: "/w/a", kind: "uninitialized" }]);
   openProjectSettings("/w/a");
   const focused: string[] = [];
-  const setUpButton = focusable("Set Up", focused), heading = focusable("title", focused);
+  const setUpButton = focusable("Set up", focused), heading = focusable("title", focused);
   vi.stubGlobal("getComputedStyle", () => ({ visibility: "visible" }));
   vi.stubGlobal("document", { activeElement: setUpButton, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === ".settings-panel h1" ? [heading] : [] });
   projectPage()!.props.onAction("setUp", "/w/a", vi.fn()); render();
@@ -923,7 +926,7 @@ test("one worktree of several removed from the status line is named by its branc
   expect(removalTitle()).toBe("Remove a (fix) from Doan?");
 });
 
-test("with a running conversation only its Stop and Remove confirmation shows", async () => {
+test("with a running conversation only its Stop and remove confirmation shows", async () => {
   render();
   folders([listed("/w/a"), listed("/w/c")]);
   doan.removeProjects = removed();
@@ -933,7 +936,7 @@ test("with a running conversation only its Stop and Remove confirmation shows", 
   find<{ remove(roots: string[]): void }>(ShellSidebar)[0]!.props.remove(["/w/a"]); render();
   expect(all(tree).filter(element => element.type === "dialog")).toHaveLength(1);
   expect(removalTitle()).toBe("Stop the conversation and remove a?");
-  click(dialogButton("Stop and Remove"));
+  click(dialogButton("Stop and remove"));
   for (let i = 0; i < 4; i++) await Promise.resolve();
   render();
   expect(doan.interruptConversation).toHaveBeenCalledWith({ conversationId: "c1" });

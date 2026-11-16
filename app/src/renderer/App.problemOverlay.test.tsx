@@ -105,7 +105,7 @@ function reset() {
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
-    reopenFolder: vi.fn(async () => {}), revealProject: vi.fn(async () => {}), removeProjects: vi.fn(async () => ({ kind: "removed" })), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}),
+    reopenFolder: vi.fn(async () => {}), revealProject: vi.fn(async () => {}), removeProjects: vi.fn(async () => ({ kind: "removed" })), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.stubGlobal("HTMLElement", class {});
@@ -312,6 +312,23 @@ test("Remove from Doan on the overlay asks first, then goes Home from the Overvi
     folders([listed("/w/c")]);
     expect(find(Home), String(onCanvas)).toHaveLength(1);
   }
+});
+
+// The overlay's Remove from Doan is the project's, as the sidebar's and Project Settings' are (PRODUCT §5 item 1): every
+// registered worktree of the group goes, and the confirmation names the project, not one worktree of it.
+test("Remove from Doan on the overlay removes the whole project group", async () => {
+  const git = (branch: string) => ({ common: "/w/a/.git", main: "/w/a", branch, worktrees: ["/w/a", "/w/b"] });
+  const worktree = (path: string, branch: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA], git: git(branch) });
+  render(); folders([worktree("/w/a", "main"), worktree("/w/b", "feat")]);
+  toOverview();
+  folders([{ ...cliError("/w/a"), lastCommon: "/w/a/.git" }, worktree("/w/b", "feat")]);
+  overlay()!.onAction("remove"); render();
+  const dialog = removalDialog();
+  expect(dialog).toBeDefined();
+  const title = all(dialog!).map(element => element.props.children).find(children => typeof children === "string" && children.startsWith("Remove "));
+  expect(title).toMatch(/^Remove [^()]+ from Doan\?$/);
+  (dialogButton("Remove from Doan").props.onClick as () => void)(); await flush();
+  expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a", "/w/b"]);
 });
 
 test("heading focus: on entry; not from the sidebar, where the live region reads the heading; again when the kind changes; from the covered body", () => {
@@ -696,6 +713,18 @@ test("a canvas that failed to load shows the status block with the alert icon, i
   expect(inside.find(element => element.type === "p")?.props.children).toBe("Run doan check in a terminal.");
   const reload = inside.find(element => element.type === "button")!;
   expect(reload.props).toMatchObject({ "data-ui-variant": "subtle", "data-ui-size": "sm", children: "Reload" });
+});
+
+// D12: the status region is drawn at once, so its live region exists before Loading is written into it 300 ms later.
+test("a loading canvas keeps its status region and leaves the Loading line to the delayed CanvasLoading", async () => {
+  const { CanvasLoading } = await import("./App");
+  render(); folders([listed("/w/a")]);
+  canvasOpen();
+  harness.setState!({ ...initialCanvasState(), status: "loading" }); render();
+  const status = all((pane()!.type as (props: unknown) => ReactNode)(pane()!.props)).find(element => element.props.className === "canvas-status")!;
+  expect(status.props.role).toBe("status");
+  expect(all(status).some(element => element.type === CanvasLoading)).toBe(true);
+  expect(all(status).some(element => element.type === "p")).toBe(false);
 });
 
 test("a canvas closed for a missing or not set up root leaves no empty canvas status block", () => {

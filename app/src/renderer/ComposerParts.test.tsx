@@ -32,7 +32,7 @@ vi.mock("react", async original => {
 // Dogfooding: a preset row showed its title and group; it now reads as a card, the title over its one-line description.
 test("a preset row is its title over its description", () => {
   const view = { kind: "list" as const, tabs: [], summary: "1 preset", sections: [{ title: null, rows: [{ kind: "preset" as const, key: "preset:shape", icon: "compass", id: "shape", title: "Shape a feature", description: "Work out a feature's purpose and flow.", scope: "feature brief", tooltip: "Work out a feature's purpose and flow. (/shape)", group: "Start" }] }] };
-  const html = renderToStaticMarkup(<SlashPresets view={view} query="" listId="l" highlight={0} onHighlight={() => {}} onChoose={() => {}} onRetry={() => {}} />);
+  const html = renderToStaticMarkup(<TooltipProvider><SlashPresets view={view} query="" listId="l" highlight={0} onHighlight={() => {}} onChoose={() => {}} onRetry={() => {}} /></TooltipProvider>);
   expect(html).toContain('<span class="preset-text"><span class="preset-title">Shape a feature</span><span class="preset-desc">Work out a feature&#x27;s purpose and flow.</span></span>');
   expect(html).not.toContain('class="sub"');
   // The list scrolls with the app's thin scrollbar, like every other dropdown.
@@ -50,6 +50,11 @@ test("the permission trigger shows the mode's icon and label; Full access warns"
 
 // The popover's rows are listbox options, not Radix items, so `data-highlighted` never reaches them by itself. The pointer moves
 // the one highlight: in the `/` list through its highlight, in the popover through focus (the frame list does the same).
+// A preset row is the option inside its description tooltip (Tooltip > TooltipTrigger > option).
+function optionOf(row: ReactElement<Record<string, unknown>>): ReactElement<Record<string, unknown>> {
+  const [trigger] = row.props.children as ReactElement<Record<string, unknown>>[];
+  return trigger!.props.children as ReactElement<Record<string, unknown>>;
+}
 function optionRows(node: ReactNode, found: ReactElement<Record<string, unknown>>[] = []): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) node.forEach(child => optionRows(child, found));
   else if (isValidElement<Record<string, unknown>>(node)) {
@@ -65,7 +70,7 @@ test("the / list highlights the row under the pointer", () => {
   const list = SlashPresets({ view, query: "", listId: "l", highlight: 0, onChoose: () => {}, onRetry: () => {}, onHighlight: index => highlighted.push(index) });
   const rows = optionRows(list.props.children);
   expect(rows).toHaveLength(2);
-  const second = (rows[1]!.type as (props: unknown) => ReactElement<Record<string, unknown>>)(rows[1]!.props);
+  const second = optionOf((rows[1]!.type as (props: unknown) => ReactElement<Record<string, unknown>>)(rows[1]!.props));
   (second.props.onPointerMove as () => void)();
   expect(highlighted).toEqual([1]);
 });
@@ -77,7 +82,7 @@ test("a popover preset row takes focus from the pointer only when focus is alrea
   const view = { kind: "list" as const, tabs: [], summary: "2 presets", sections: [{ title: null, rows: [row("a"), row("b")] }] };
   const list = presetBody(view, false, { listId: "l", highlight: 0, onChoose: () => {}, onRetry: () => {} }) as ReactElement<Record<string, unknown>>;
   const rows = optionRows(list.props.children as ReactNode);
-  const second = (rows[1]!.type as (props: unknown) => ReactElement<Record<string, unknown>>)(rows[1]!.props);
+  const second = optionOf((rows[1]!.type as (props: unknown) => ReactElement<Record<string, unknown>>)(rows[1]!.props));
   const move = second.props.onPointerMove as (event: unknown) => void;
   const search = {}, first = {};
   const focused: unknown[] = [];
@@ -495,4 +500,11 @@ test("a suggested prompt is one button: group icon, highlighted sentence and arr
   const out = renderToStaticMarkup(<TooltipProvider><SuggestionButton prompt={prompt} onPick={() => {}} /></TooltipProvider>);
   expect(out).toMatch(/^<button type="button" class="suggestion" data-state="closed" data-slot="tooltip-trigger"><span class="suggestion-icon"><svg[^>]*aria-hidden="true"[^>]*>.*?<\/svg><\/span><span class="suggestion-label">Review the <span class="suggestion-value">checkout<\/span> canvas<\/span><svg[^>]*class="[^"]*suggestion-go[^"]*"[^>]*>.*<\/svg><\/button>$/);
   expect(out).not.toContain("title=");
+});
+
+// The Fast switch's thumb slides as the shared switch's does (ds/controls.css), and stops under reduced motion.
+test("the Fast switch thumb takes the shared switch's slide and reduced-motion exclusion", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.fast-switch::before \{[^}]*transition: transform var\(--time-settle\) var\(--ease-settle\);/);
+  expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*\.fast-switch::before \{ transition: none; \}/);
 });

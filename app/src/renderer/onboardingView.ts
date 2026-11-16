@@ -27,7 +27,7 @@ export const NO_TOKEN_HELPER = "Without token CSS, doan check won’t flag hardc
 export function formView(form: ProjectForm): FormView {
   return {
     token: form.token, ...(form.token === null ? { helper: NO_TOKEN_HELPER } : {}),
-    choose: { disabled: form.running }, setUp: { label: form.running ? "Setting Up" : "Set Up Project", disabled: form.running },
+    choose: { disabled: form.running }, setUp: { label: form.running ? "Setting up" : "Set up project", disabled: form.running },
     ...(form.error ? { error: form.error } : {}),
   };
 }
@@ -37,7 +37,7 @@ export function initMessage(result: ProjectInitResult): string | null {
     case "success": return null;
     // A CLI message may end without a full stop; the guidance after it starts a new sentence.
     case "error": return [result.guidance ? result.message.replace(/([^.!?…])$/u, "$1.") : result.message, result.guidance].filter(Boolean).join(" ");
-    case "cliError": return `doan CLI error: ${result.reason}`;
+    case "cliError": return `doan command error: ${result.reason}`;
     case "rerooted": case "unavailable": return result.message;
   }
 }

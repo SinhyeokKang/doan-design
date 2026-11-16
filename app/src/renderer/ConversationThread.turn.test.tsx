@@ -338,3 +338,10 @@ describe("the indicator's time", () => {
     expect(time(run("2026-11-06T10:05:00.000Z"))).toBe("0s");
   });
 });
+
+// DESIGN 'Motion': motion is tokenised. The activity chevron keeps its 120ms turn and its implicit ease.
+test("the activity chevron turns on the motion tokens", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".conversation-thread .activity-head .chev { transform: rotate(-90deg); transition: transform var(--time-fast) var(--ease-state); }");
+  expect(css).not.toMatch(/transition: transform 120ms/);
+});

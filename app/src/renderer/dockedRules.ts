@@ -106,11 +106,11 @@ function providerProblem(auth: AuthSnapshot | null | undefined, provider: Provid
   if (!auth) return null;
   const status = auth.providers.find(item => item.provider === provider);
   const name = PROVIDER_NAMES[provider];
-  if (!status || status.account === null) return { text: `${name} isn’t connected.`, action: { label: "Open Agents settings…", target: { section: "agents", provider } } };
+  if (!status || status.account === null) return { text: `${name} isn’t connected.`, action: { label: "Open Agents settings", target: { section: "agents", provider } } };
   const action = pickerAction(status);
   if (!action) return null;
-  if (action.label === "Sign in again…") return { text: `${name}’s sign-in expired.`, action };
-  if (action.label === "Update…") return { text: `${name} needs an update.`, action };
+  if (action.label === "Sign in again") return { text: `${name}’s sign-in expired.`, action };
+  if (action.label === "Update") return { text: `${name} needs an update.`, action };
   return { text: `${name} can’t run right now.`, action };
 }
 
@@ -143,7 +143,10 @@ export function carryDraft(drafts: ReadonlyMap<string, DockedDraft>, from: strin
 export function dockedRefusal(code: string, mode: DockedMode, provider: Provider, project: string, resets: string | null = null): DockedRefusal {
   if (code === "project_busy") return { kind: "busy", busy: { kind: "project", open: null } };
   if (code === "canvas_not_found") return { kind: "gone" };
-  if (mode.kind === "new") return { kind: "notice", text: startErrorView(code, provider, project, resets).text };
+  if (mode.kind === "new") {
+    const view = startErrorView(code, provider, project, resets);
+    return { kind: "notice", text: view.text, ...(view.retry ? { retry: true } : {}) };
+  }
   if (mode.kind === "resume") return { kind: "notice", text: resumeRefusalText(code, provider) };
   const p = PROVIDER_NAMES[provider];
   // Another sign-in owns the conversation: Retry never runs it, so the notice offers a new conversation instead.

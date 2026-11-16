@@ -109,3 +109,15 @@ test("thumbnail requests accept valid width without an id and retain known frame
   expect(h.asks.map(ask => ask.path)).toEqual([missingID.path]);
   h.thumbs.dispose();
 });
+
+// A rejected request is a failure like a failed reply, so the row reads "Preview unavailable", not "Preview loading".
+test("thumbnails: a rejected request leaves the card failed, not pending", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  let shown: ReadonlyMap<string, ThumbnailState> = new Map();
+  const thumbs = new ThumbnailRequests("/code/acme-web", () => Promise.reject(new Error("ipc")), items => { shown = items; }, () => {});
+  const a = rows[0]!;
+  thumbs.setRows([a]);
+  thumbs.onVisible([a.path]);
+  await vi.waitFor(() => expect(shown.get(a.path)).toEqual({ kind: "failed" }));
+  expect(thumbnailView(a, shown.get(a.path))).toEqual({ kind: "failed" });
+});

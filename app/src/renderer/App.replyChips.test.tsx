@@ -92,7 +92,7 @@ function reset() {
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
-    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
+    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
   };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
   vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [], hasFocus: () => true });
@@ -274,7 +274,7 @@ test("a chip's canvas the project does not have, or has twice, or whose list is 
   folders([{ path: "/w/a", kind: "notFound" }]);
   await toasts({ canvas: "drafts", kind: "frame", id: "editor" }, "Project is unavailable. Fix it from its menu in the sidebar, then try again.");
   // Quick Open keeps its own copy for a list still being read.
-  expect(unavailableCanvasMessage({ path: "/w/a", kind: "loading" }, D)).toBe("Project is still being read. Try Open again shortly.");
+  expect(unavailableCanvasMessage({ path: "/w/a", kind: "loading" }, D)).toBe("Project is still being read. Try again shortly.");
   for (const name of ["openCanvas", "locate", "showOverview", "openWorkspace"]) expect(harness.controller![name], name).not.toHaveBeenCalled();
 });
 

@@ -191,7 +191,7 @@ export function canvasConversationError(code: string, mode: DockedMode, provider
   if (code === "canvas_not_found") return { kind: "blocked", text: canvasUnlistedText(project) };
   if (code === "canvas_duplicate") return { kind: "blocked", text: DUPLICATE_CANVAS_TEXT };
   if (code === "project_not_open") return { kind: "blocked", text: startErrorView(code, provider, project).text };
-  if (code === "no_agent" && mode.kind === "new") return { kind: "blocked", text: startErrorView(code, provider, project).text, action: { label: "Sign in to an agent…", target: { section: "agents" } } };
+  if (code === "no_agent" && mode.kind === "new") return { kind: "blocked", text: startErrorView(code, provider, project).text, action: { label: "Sign in to an agent", target: { section: "agents" } } };
   const refusal = dockedRefusal(code, mode, provider, project, resets);
   if (refusal.kind === "busy") return refusal;
   // dockedRefusal's gone is canvas_not_found, answered above.

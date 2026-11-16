@@ -60,7 +60,7 @@ test("an existing conversation names its model with the fixed provider, on xs bu
   expect(html).toMatch(/class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 5.5 \(Claude Code\)"/);
   expect(html).toMatch(/class="composer-effort doan-button" data-ui-size="xs"/);
   expect(html).toContain('aria-placeholder="Reply, / for presets"');
-  expect(html).toContain('class="composer-input" aria-label="Message" tabindex="0" contentEditable="true"');
+  expect(html).toContain('class="composer-input doan-scroll" aria-label="Message" tabindex="0" contentEditable="true"');
 });
 
 test("new-conversation mode keeps Home's agent label", () => {
@@ -77,7 +77,7 @@ test("while the turn runs, Send's place is Stop on an empty field and Queue with
   expect(queue).toMatch(/class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Queue"/);
   // Queued messages sit above the card in the order sent; without Send now offered a row has Remove only, described
   // by its text.
-  expect(queue).toMatch(/<div class="queue" role="list" aria-label="Queued messages"><div class="queue-entry" role="listitem"><div class="queue-item">.*<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1">/);
+  expect(queue).toMatch(/<div class="queue" role="list" aria-label="Queued messages"><div class="queue-entry" role="listitem"><div class="queue-item">.*<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1"[^>]*>/);
   expect(queue.indexOf('class="queue"')).toBeLessThan(queue.indexOf("composer-card"));
   // The row's icon reads as a message not sent yet, not a clock.
   expect(queue).toMatch(/<div class="queue-item"><svg[^>]*class="lucide lucide-message-square-dashed[^"]*" aria-hidden="true"/);
@@ -96,7 +96,8 @@ test("waiting for a permission answer shows the reason line, and the line descri
 test("another project conversation running blocks Send with Open named for the running conversation", () => {
   const html = render({ busy: { kind: "project", open: "c9" } }, { text: "Draw a first settings screen" });
   expect(html).toMatch(/aria-label="Send" disabled=""/);
-  expect(html).toMatch(/<span>Another conversation is still running in doan-design\.<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-label="Open the running conversation">Open<\/button>/);
+  // U39: the reason line is on the white column, not in a notice, so Open is subtle (Home's is too).
+  expect(html).toMatch(/<span>Another conversation is still running in doan-design\.<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation">Open<\/button>/);
 });
 
 test("a conversation whose canvas is gone shows the line instead of the composer", () => {
@@ -235,13 +236,13 @@ test("a queued message with a folder names it inline, counts the rest and descri
   // A queued message with files only keeps its row as it was.
   const files = render({ turn: "running", queued: [{ id: "q1", text: "x", message: { attachments: [attachments[0]!] } }] });
   expect(files).not.toContain("queue-attachment");
-  expect(files).toMatch(/aria-describedby="[^" ]+">/);
+  expect(files).toMatch(/aria-describedby="[^" ]+"[^>]*>/);
 });
 
 // Draft frame `sending` (the shared xs subtle capsule).
 test("a row that offers Send now draws it between the text and Remove as the subtle capsule", () => {
   const rows = render({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Also make the caption shorter" }] });
-  expect(rows).toMatch(/<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle" aria-label="Send queued message now" aria-describedby="\1"[^>]*>Send now<\/button><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1">/);
+  expect(rows).toMatch(/<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle" aria-describedby="\1"[^>]*>Send now<\/button><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1"[^>]*>/);
   expect(rows).not.toContain("Sending");
   // Not offered (an unsupported provider, a turn that does not run): Remove only.
   expect(render({ turn: "running", sendNow: false, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "x" }] })).not.toContain("Send now");
@@ -260,17 +261,20 @@ test("the empty box's placeholder stays on one line and ends in an ellipsis", as
 // Draft frames place-capsule, place-box, ring-states: a 16px ring at
 // the tray's right end with no text in it; its name and description carry the percent and the token counts.
 const CONTEXT = { value: 42, percent: 42, used: 84_000, size: 200_000 };
-const RING = /<span class="context-ring" role="img" aria-label="Context window 42% used · last turn" aria-description="84K of 200K tokens"[^>]*><svg viewBox="0 0 24 24" fill="none" stroke-width="3" aria-hidden="true"><circle class="track" cx="12" cy="12" r="10.5"><\/circle><circle class="value" cx="12" cy="12" r="10.5" pathLength="100" stroke-dasharray="42 100"><\/circle><\/svg><\/span><\/div>/;
+const RING = /<button type="button" class="context-ring" aria-label="Context window 42% used · last turn" aria-description="84K of 200K tokens" aria-haspopup="dialog" aria-expanded="false"[^>]*><span class="context-ring-dial" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" aria-hidden="true"><circle class="track" cx="12" cy="12" r="10.5"><\/circle><circle class="value" cx="12" cy="12" r="10.5" pathLength="100" stroke-dasharray="42 100"><\/circle><\/svg><\/span><\/button><\/div>/;
 const tray = (html: string) => html.slice(html.indexOf('<div class="composer-tray">'));
 
-test("a recorded value draws the ring as the tray's last child, with no visible text and outside Tab order", () => {
+// The ring is a button, the tray's last control in Tab order (draft context-ring-drawer.html frame trigger), and stays
+// enabled while the turn runs: that is when its values are wanted most.
+test("a recorded value draws the ring as the tray's last child, a button in Tab order with no visible text", () => {
   const html = render({ context: CONTEXT });
   expect(tray(html)).toMatch(new RegExp(`^<div class="composer-tray">[^]*?${RING.source}`));
-  const ring = /<span class="context-ring"[^]*?<\/span>/.exec(html)![0];
+  const ring = /<button type="button" class="context-ring"[^]*?<\/button>/.exec(html)![0];
   expect(ring.replace(/<[^>]*>/g, "")).toBe("");
   expect(ring).not.toContain("tabindex");
-  expect(ring).not.toContain("<button");
-  expect(ring).not.toContain("data-band");
+  expect(ring).not.toContain("disabled");
+  expect(ring).not.toMatch(/<button[^>]*class="context-ring"[^>]*data-band/);
+  expect(/<button type="button" class="context-ring"[^>]*>/.exec(render({ context: CONTEXT, turn: "running" }))![0]).not.toContain("disabled");
 });
 
 test("without a value the tray and the card are as before the ring", () => {
@@ -293,7 +297,7 @@ test("the ring stays last whichever pickers show, in a terminal session's fixed 
 
 test("the ring takes the danger band from 70% of the unrounded ratio and fills at 100 past the window", () => {
   expect(render({ context: { value: 69.9, percent: 69.9, used: 699_000, size: 1_000_000 } })).toMatch(/aria-label="Context window 69% used · last turn" aria-description="699K of 1M tokens"(?![^>]*data-band)/);
-  expect(render({ context: { value: 70, percent: 70, used: 140_000, size: 200_000 } })).toMatch(/<span class="context-ring" role="img" aria-label="Context window 70% used · last turn"[^>]*data-band="full"/);
+  expect(render({ context: { value: 70, percent: 70, used: 140_000, size: 200_000 } })).toMatch(/<button type="button" class="context-ring" aria-label="Context window 70% used · last turn"[^>]*data-band="full"/);
   const over = render({ context: { value: 100, percent: 104, used: 208_000, size: 200_000 } });
   expect(over).toContain('aria-label="Context window 104% used · last turn" aria-description="208K of 200K tokens"');
   expect(over).toContain('stroke-dasharray="100 100"');
@@ -332,7 +336,7 @@ test("docked tray CSS: trigger values in the standard ink, drawer names in the m
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain('.docked .composer-tray :is(.composer-agent, .composer-effort, .composer-permission:not([data-mode="bypass"])):not(:disabled) { color: var(--text-standard); }');
   expect(css).toContain(".doan-button .label.placeholder { color: var(--text-metadata); }");
-  expect(css).toContain(".composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }");
+  expect(css).toContain(".composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-regular); color: var(--text-subtle); }");
 });
 
 // The docked buddy stands on the card's top edge (the shell, dockedBuddyShell.ts, reads these attributes).

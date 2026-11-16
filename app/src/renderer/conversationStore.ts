@@ -13,6 +13,7 @@ import { attachRefusal, issuedAttachment, readyAttachment, recordedAttachment, s
 import type { SendingMessage, SentFile } from "./threadItems";
 import { newerStage } from "./turnStatus";
 import { messageLine } from "../main/conversation/messageText";
+import { REPLACE_DRAFT, type ReplaceDraftConfirm } from "./homeConversations";
 import { stripRequestLines } from "../main/conversation/requestLines";
 import type { DoanApi } from "../preload";
 
@@ -284,6 +285,19 @@ export class ConversationStore {
     this.drafts = drafts;
     this.host.changed();
     return { notices, images };
+  }
+  // Edit and resend asks first when the draft holds something other than the last request (a returned queue included),
+  // as Home's Edit does; null when the draft is empty or already that request, so it is replaced at once.
+  editAndResendConfirm(conversationId: string): ReplaceDraftConfirm | null {
+    const message = [...this.threads.get(conversationId)?.events ?? []].reverse().find(event => event.type === "user.message");
+    const draft = this.drafts.get(`conversation:${conversationId}`);
+    if (message?.type !== "user.message" || !draft || emptyDraft(draft)) return null;
+    const records = message.attachments ?? [];
+    const { preset, body } = splitRequest(message.text, records.length);
+    const same = JSON.stringify(normalize([...draft.segments])) === JSON.stringify(normalize(fromMessage(body, message.anchors)))
+      && (draft.preset?.id ?? null) === (preset?.id ?? null)
+      && draft.attachments.length === records.length && draft.attachments.every((a, i) => a.path === records[i]!.path);
+    return same ? null : { ...REPLACE_DRAFT, body: "Your draft will be replaced by the last request you sent in this conversation." };
   }
   // Edit and resend: the conversation's last request back in its draft, unless the person changed that draft while
   // its files were issued again. True when it was applied.

@@ -1,0 +1,570 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="ux-audit-261117-b1"><meta name="doan:width" content="1680"><title>ux-audit-261117-b1 — B1 state and recovery</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+/* ── Base: app/src/renderer/styles.css lines 27-36 (body, buttons) and the Tailwind preflight subset the shared components rely on ── */
+:root{--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center}
+@layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button,input{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent;border-radius:0}ul,ol{list-style:none}}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { color-scheme: light; }
+body { background: var(--bg-app); color: var(--text-standard); font-family: var(--type-family); font-size: 13px; line-height: normal; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { color: var(--text-disabled); cursor: default; }
+button { outline: none; }
+button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+code, kbd { font-family: var(--type-family); }
+.right { background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}
+/* ds/surfaces.css caps a compact dialog with 100dvh; on a canvas that resolves against the whole board. */
+.doan-dialog[data-ui-size="compact"]{max-height:368px}
+/* ── app/src/renderer/styles.css: the rules these frames draw with, as shipped, without comments, @-blocks, hex and viewport-height lines ── */
+input, textarea, .composer-input, .selectable { user-select: text; }
+.ob-provider-help { margin-top: var(--space-3); color: var(--text-subtle); }
+.ob-notice-title, .ob-notice-body { display: block; }
+.ob-notice-title { font-weight: var(--type-weight-medium); }
+.ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
+.ob-notice-text { flex: 1 1 240px; min-width: 0; }
+.ob-notice-actions { flex: none; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.ob-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
+.ob-state-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.ob-state-actions.submit-only { justify-content: flex-end; }
+.ob-radio { display: grid; place-content: center; flex: none; width: var(--size-icon); height: var(--size-icon); margin-top: calc((var(--type-label-sm-line-height) - var(--size-icon)) / 2); border: 1px solid var(--border-prominent); border-radius: 50%; background: var(--surface-panel); }
+.doan-dialog-actions .doan-button > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
+.ob-msg code, .ob-dialog code, .ob-field code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.toast { position: absolute; right: var(--space-4); bottom: var(--space-4); z-index: 6; }
+.toast[data-placement="dialog"] { position: fixed; }
+.toast .msg { min-width: 0; overflow-wrap: anywhere; }
+.toast .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
+.star-prompt.doan-floating, .toast.doan-floating { box-shadow: var(--shadow-floating); transition: opacity var(--time-settle) var(--ease-enter), translate var(--time-settle) var(--ease-enter); }
+.star-prompt.doan-floating[data-closing], .toast.doan-floating[data-closing] { opacity: 0; translate: 0 var(--space-1); transition-duration: var(--time-fast); transition-timing-function: var(--ease-state); }
+.chev { width: var(--space-4); height: var(--space-4); color: var(--text-metadata); }
+.logo { width: var(--size-icon); height: var(--size-icon); object-fit: contain; flex: none; }
+.composer { position: relative; border-radius: var(--radius-container); background: var(--surface-inset); box-shadow: var(--shadow-panel); }
+.composer-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-standard); }
+.composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }
+.composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
+.composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; position: relative; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+.composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
+.composer-card.readonly .composer-input { color: var(--text-subtle); }
+.composer-count { align-self: flex-end; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+.composer-count.over { color: var(--text-danger); }
+.composer-tools { position: relative; display: flex; align-items: center; gap: var(--space-1); margin-left: calc(-1 * var(--space-1)); }
+.composer-tools .grow { flex: 1; }
+.composer-tools > .doan-icon-button:not(.composer-send) { color: var(--text-standard); }
+.composer-tools > .doan-icon-button:not(.composer-send):disabled { color: var(--text-disabled); }
+.composer-agent { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.composer-agent .muted { color: var(--text-metadata); }
+.composer-effort { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.composer-permission { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.composer-permission svg:not(.chev) { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+:is(.composer-permission, .settings-select)[data-mode="bypass"] .chev { color: currentColor; }
+.composer-send .doan-spinner { color: var(--text-on-accent); }
+.composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
+.composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }
+.composer-reason { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
+.composer-notice { margin-top: var(--space-3); }
+.docked { position: relative; }
+.docked-buddy-slot { position: absolute; inset: 0 0 auto; height: 0; z-index: 2; pointer-events: none; }
+.docked-buddy { position: absolute; left: 0; right: 0; top: -1px; height: 0; pointer-events: none; }
+.docked-buddy-shadow { position: absolute; left: calc(-1 * var(--space-2)); top: -1px; width: var(--space-4); height: var(--space-half); border-radius: var(--radius-pill); background: var(--text-subtle); filter: blur(2px); opacity: .34; pointer-events: none; }
+.docked-buddy-window { position: absolute; left: 0; right: 0; top: -88px; height: 88px; overflow: hidden; pointer-events: none; }
+.docked-buddy-host { position: absolute; left: 0; width: 56px; height: 56px; pointer-events: none; }
+.docked-buddy-host > :is(img, canvas) { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; }
+.docked-buddy-host > img { padding: 16.5%; object-fit: contain; }
+.docked-buddy-host > [hidden] { display: none; }
+.docked-buddy-hit { position: absolute; inset: 0; pointer-events: auto; cursor: pointer; }
+.docked > .queue { position: relative; z-index: 3; }
+.docked .composer-card { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-1); }
+.docked .composer-tools { display: contents; }
+.docked .composer-tools .grow { display: none; }
+.docked .composer-presets { grid-area: presets; }
+.docked .composer-send { grid-area: send; }
+.docked .composer-chips { grid-area: chips; }
+.docked .composer-input { grid-area: field; min-height: var(--type-label-line-height); }
+.docked[data-shape="capsule"] .composer-card { grid-template-areas: "presets field send"; padding: var(--space-2); border-radius: var(--radius-pill); }
+.docked[data-shape="capsule"] .composer-input { padding-inline: var(--space-2) var(--space-1); }
+.docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.docked[data-shape="box"] .composer-card { grid-template-areas: "field field field" "presets . send"; row-gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
+.docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips" "field field field" "presets . send"; }
+.docked[data-shape="box"] .composer-presets { margin-left: calc(-1 * var(--space-1)); }
+.docked[data-shape="box"] .composer-input[data-empty]::before { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.docked .composer-tray { justify-content: flex-end; gap: var(--space-half); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }
+.docked .composer-tray .doan-button { margin-left: 0; }
+.docked .composer-tray .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.docked .composer-tray { container-type: inline-size; }
+.composer-tray .doan-button .label { white-space: nowrap; }
+.docked .composer-tray .composer-agent { flex-shrink: 1; min-width: 0; }
+.docked .composer-agent .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.composer-stop svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
+.grow-text { flex: 1; min-width: 0; }
+.strip-agent { display: inline-grid; place-items: center; flex: none; }
+.strip-agent .logo, .strip-alert, .strip-ok { width: var(--size-icon); height: var(--size-icon); }
+.strip-text { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
+.strip-text b { font-weight: var(--type-weight-medium); }
+.strip-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strip-actions { display: flex; align-items: center; gap: var(--space-2); }
+.settings-panel { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
+.settings-page { max-width: 48rem; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-6); }
+.settings-header, .settings-section-header { display: flex; align-items: start; gap: var(--space-3); padding-inline: calc(var(--space-4) + 1px); }
+.settings-header { margin-bottom: var(--space-8); }
+.settings-section-header { margin-bottom: var(--space-3); }
+.settings-header-copy { flex: 1; min-width: 0; }
+.settings-lead, .settings-section-description { margin-top: var(--space-2); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.settings-section-description { margin-top: var(--space-half); }
+.settings-section-title { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.settings-sections { display: grid; gap: var(--space-section-gap); }
+.doan-preference-row[data-has-icon] { grid-template-columns: auto minmax(0, 1fr) auto; }
+.doan-preference-row-icon { display: flex; align-items: center; justify-content: center; width: var(--size-icon-lg); height: var(--size-icon-lg); color: var(--text-subtle); }
+.doan-preference-row-icon > :is(svg, img) { width: 100%; height: 100%; object-fit: contain; }
+.doan-preference-row[data-disabled] .doan-preference-row-icon { color: var(--text-disabled); }
+.doan-preference-row-extra { grid-column: 1 / -1; margin-top: var(--space-3); }
+.doan-preference-row[data-has-icon] > .doan-preference-row-extra { grid-column: 2 / -1; }
+.doan-preference-row > .doan-preference-row-extra + .doan-preference-row-extra { margin-top: 0; }
+.doan-preference-row:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
+.doan-preference-row[data-flash] { margin-inline: calc(-1 * var(--space-2)); padding-inline: var(--space-2); border-radius: var(--radius-row); box-shadow: inset 0 0 0 2px var(--border-focus); }
+.settings-help { margin-top: var(--space-1); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.settings-select .chev { color: var(--text-subtle); }
+.settings-notice { margin-bottom: var(--space-3); }
+.settings-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); overflow-wrap: anywhere; }
+.settings-msg.error { color: var(--text-danger); }
+.settings-msg.warn { color: var(--text-warning); }
+.settings-msg-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
+.mcp-agent .settings-section-header { align-items: center; }
+.mcp-agent-title { display: flex; align-items: center; gap: var(--space-1h); }
+.mcp-more { color: var(--text-subtle); }
+.mcp-agent .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
+.mcp-field-error { margin-top: calc(-1 * var(--space-2)); }
+.mcp-section-notice { margin-top: var(--space-3); }
+.settings-page code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.settings-header-actions { display: flex; flex: none; flex-wrap: wrap; gap: var(--space-2); }
+.settings-header-actions:empty { display: none; }
+.doan-settings-group > .doan-preference-row-extra { margin-top: 0; padding: var(--space-3) 0; }
+.doan-settings-group > .settings-permission { margin-top: 0; padding: 0 0 var(--space-3); border-top: 0; }
+.settings-panel .doan-dialog { letter-spacing: normal; }
+.settings-page > .doan-notice { margin-bottom: var(--space-section-gap); }
+.settings-page > .doan-notice + :is(.project-settings-msg, .project-settings-details) { margin: calc(-1 * var(--space-section-gap) + var(--space-3)) 0 var(--space-section-gap); }
+.settings-page > .doan-notice + .project-settings-msg { padding-inline: calc(var(--space-4) + 1px); }
+.conversation-thread { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+.conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-6); }
+.conversation-thread .thread-item { display: flex; flex-direction: column; min-width: 0; }
+.conversation-thread .caret { display: inline-block; width: 1px; height: 1lh; margin: 0 1px; vertical-align: top; background: var(--text-standard); animation: thread-caret 1s steps(1) infinite; }
+.conversation-thread .msg-user { align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1h); max-width: 80%; min-width: 0; }
+.conversation-thread .bubble { padding: var(--space-2) var(--space-4); border-radius: var(--radius-row); background: var(--surface-accent-subtle); color: var(--text-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; user-select: text; }
+.conversation-thread .bubble-preset { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-accent-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-medium); }
+.conversation-thread .bubble-preset svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .msg-agent { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; user-select: text; }
+.conversation-thread .msg-agent p { font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); overflow-wrap: anywhere; }
+.conversation-thread .msg-agent .muted { color: var(--text-metadata); }
+.conversation-thread .md { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
+.conversation-thread .md :is(h1, h2) { font-size: var(--type-body-lg-size); line-height: var(--type-body-lg-line-height); letter-spacing: var(--type-body-lg-letter-spacing); font-weight: var(--type-weight-medium); margin-top: var(--space-2); }
+.conversation-thread .md :is(h3, h4, h5, h6) { font-size: inherit; font-weight: var(--type-weight-medium); margin-top: var(--space-1); }
+.conversation-thread .md strong { font-weight: var(--type-weight-semibold); }
+.conversation-thread .md a { color: var(--text-link); text-decoration: underline; text-underline-offset: var(--space-half); }
+.conversation-thread .md :is(ul, ol) { display: flex; flex-direction: column; gap: var(--space-1); padding-left: var(--space-6); }
+.conversation-thread .md ul { list-style: disc; }
+.conversation-thread .md ol { list-style: decimal; }
+.conversation-thread .md ul ul { list-style: circle; }
+.conversation-thread .md > p:has(+ :is(ul, ol)) { margin-bottom: calc(var(--space-2) - var(--space-4)); }
+.conversation-thread .md :is(ul, ol) :is(ul, ol) { margin-top: var(--space-1); }
+.conversation-thread .md code { font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); background: var(--surface-inset); border-radius: var(--space-1); padding: var(--space-half) var(--space-1); overflow-wrap: anywhere; }
+.conversation-thread .md-code { position: relative; border-radius: var(--radius-chip); background: var(--surface-inset); }
+.conversation-thread .md-code pre { overflow-x: auto; padding: var(--space-3) var(--space-12) var(--space-3) var(--space-4); font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); white-space: pre; scrollbar-width: thin; }
+.conversation-thread .md-code pre code { padding: 0; background: none; border-radius: 0; overflow-wrap: normal; }
+.conversation-thread .md-code .doan-icon-button { position: absolute; top: var(--space-1); right: var(--space-1); background: var(--surface-inset); color: var(--text-subtle); }
+.conversation-thread .md-code:not(:hover, :focus-within) .doan-icon-button { opacity: 0; }
+.conversation-thread .md blockquote { padding: var(--space-3) var(--space-4); border-radius: var(--radius-chip); background: var(--surface-inset); color: var(--text-subtle); }
+.conversation-thread .md hr { height: 1px; border: 0; background: var(--border-standard); }
+.conversation-thread .ask-answered { color: var(--text-subtle); }
+.conversation-thread .thread-notice, .cp-scroll > .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
+.conversation-thread .thread-notice > .strip-actions, .cp-scroll > .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
+.conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
+.conversation-thread .thread-notice .strip-text span, .cp-scroll > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+.wt-chip .chev { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-left: var(--space-half); }
+:is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+:is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+.ov-scroll > .conversation-thread { flex: 1; }
+.ov-main .conversation-thread .thread { max-width: 720px; margin-inline: auto; }
+.cv-head .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); object-fit: contain; flex: none; }
+.doan-canvas-head .chev { flex: none; }
+.doan-canvas-head :is(.doan-icon-button, .doan-button):disabled, .doan-canvas-head .doan-button:disabled .chev { color: var(--text-disabled); }
+.doan-conv-column[data-collapsed] { visibility: hidden; }
+.right.doan-conv-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
+.doan-conv-head { display: flex; align-items: center; min-height: var(--size-chrome); padding-right: var(--space-2); }
+.doan-conv-head .rp-head { flex: 1; min-width: 0; }
+.doan-conv-head .doan-icon-button { color: var(--text-standard); }
+.doan-conv-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.doan-conv-empty { max-width: 240px; margin: 0; text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.doan-conv-title { flex: 1; min-width: 0; padding: var(--space-2) 0 var(--space-2) var(--space-2); }
+.doan-conv-title .ov-title.doan-button { max-width: 100%; }
+.doan-conv-body:has(> .doan-conv-content) { padding: 0; align-items: stretch; justify-content: stretch; }
+.doan-conv-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.cp-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: var(--space-2) var(--space-4) 0; }
+.cp-scroll:has(> .conversation-thread) { padding: 0; }
+.cp-scroll > .conversation-thread { flex: 1; min-height: 0; }
+.cp-scroll:has(> .conversation-thread) > .doan-notice { margin: var(--space-2) var(--space-4) 0; }
+.cp-scroll > .doan-notice { position: relative; z-index: 3; }
+.doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-8); }
+.doan-conv-panel .conversation-thread .thread { gap: var(--space-5); }
+.doan-conv-panel .msg-user { max-width: 92%; }
+.doan-conv-panel :is(.md, .msg-agent p, .bubble) { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.cp-foot { flex: none; padding: var(--space-3); }
+.docked-reason.reason-stack { flex-wrap: wrap; }
+.docked-reason.reason-stack > span { flex-basis: 100%; }
+.composer-tray .doan-button.is-fixed { cursor: default; }
+.composer-input .anchor-chip { cursor: pointer; }
+.chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.conversation-thread .msg-agent { container-type: inline-size; }
+.conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }
+.docked .composer-tray :is(.composer-attach, .composer-pick) { color: var(--text-subtle); }
+.docked .composer-tray .composer-agent { margin-left: auto; }
+.docked .composer-tray :is(.composer-agent, .composer-effort, .composer-permission:not([data-mode="bypass"])):not(:disabled) { color: var(--text-standard); }
+.composer-pick[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
+.docked .composer-tray :is(.composer-attach, .composer-pick):is(:disabled, [aria-disabled="true"]) { color: var(--text-disabled); }
+:is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"] { cursor: not-allowed; }
+:is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
+.conversation-thread .thread-notice > .ask-error { grid-column: 2; color: var(--text-danger); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.conversation-thread .q-card > :is(.q-list, .strip-actions, .ask-error) { grid-column: 1 / -1; }
+.conversation-thread .q-card .q-title b { overflow-wrap: anywhere; }
+.conversation-thread .q-list { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+.conversation-thread .q { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.conversation-thread .q-head { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1h); min-width: 0; }
+.conversation-thread .q-text { font-weight: var(--type-weight-medium); overflow-wrap: anywhere; }
+.conversation-thread .q-group { background: var(--surface-panel); border-radius: var(--radius-row); }
+.conversation-thread .q-pref { position: relative; align-items: start; cursor: pointer; }
+.conversation-thread .q-pref .ob-radio { margin-top: 0; }
+.conversation-thread .q-pref:has(> input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.conversation-thread .q-pref:has(> input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
+.conversation-thread .q-pref > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.conversation-thread .q-pref:has(> input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
+.conversation-thread .q-input { position: relative; z-index: 1; width: 100%; background: var(--surface-panel); }
+.conversation-thread .q-pref .q-input { background: var(--surface-inset); }
+.conversation-thread .q-card .q-send[aria-disabled="true"]:not(:disabled) { background: var(--affordance-disabled); color: var(--text-disabled); cursor: default; }
+.conversation-thread .q-card .q-send[aria-busy="true"] { cursor: progress; }
+.conversation-thread .q-send .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, var(--text-on-prominent) 30%, transparent); border-top-color: var(--text-on-prominent); }
+.conversation-thread .q-card.is-locked :is(.q-pref, .q-pref > input) { cursor: default; }
+.conversation-thread .q-card [aria-disabled="true"]:not(.q-send, input) { color: var(--text-disabled); cursor: default; }
+/* ── Draft board (not app UI) ── */
+html,body{height:auto;overflow:visible}
+body{width:1680px;padding:var(--space-8);background:var(--surface-inset);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);user-select:text}
+:where(svg){width:var(--size-icon);height:var(--size-icon);flex:none}
+.item{width:1616px;display:flex;flex-direction:column;gap:var(--space-6)}
+.item+.item{margin-top:var(--space-16)}
+.item-head{display:flex;align-items:center;gap:var(--space-3)}
+.item-head h2{font-size:var(--type-heading-size);line-height:var(--type-heading-line-height);letter-spacing:var(--type-heading-letter-spacing);font-weight:var(--type-weight-medium)}
+.item-head p{color:var(--text-subtle)}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-8);align-items:start}
+.col{display:flex;flex-direction:column;gap:var(--space-4);min-width:0}
+.col>h3{display:flex;align-items:center;gap:var(--space-2);font-size:var(--type-label-size);line-height:var(--type-label-line-height);font-weight:var(--type-weight-medium)}
+.tiles{display:flex;flex-wrap:wrap;gap:var(--space-6);align-items:flex-start}
+.tile{display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
+.tile>h4{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);font-weight:var(--type-weight-regular);max-width:360px}
+.note{display:grid;grid-template-columns:160px minmax(0,1fr);gap:var(--space-2) var(--space-4);padding:var(--space-4) var(--space-5);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.note dt{color:var(--text-metadata)}
+.note dd{color:var(--text-standard);overflow-wrap:anywhere}
+.note ol{list-style:decimal;padding-left:var(--space-5);display:flex;flex-direction:column;gap:var(--space-1)}
+.note code,.index code,.empty-stage code{padding:0 var(--space-1);border-radius:var(--space-1);background:var(--surface-inset);color:var(--text-standard);font-size:var(--type-caption-size)}
+.proposed{color:var(--text-accent)}
+/* Panel crop: the canvas conversation panel at 360 wide, header left out. */
+.panel-stage{position:relative;display:flex;width:360px;height:520px;border-radius:var(--radius-container);box-shadow:var(--shadow-panel);overflow:clip;background:var(--surface-panel)}
+.panel-stage>.right.doan-conv-panel{border-left:0;border-radius:var(--radius-container)}
+/* Window stage: a crop of the window behind a modal dialog; the app centres the dialog in the window. */
+.window-stage{position:relative;width:560px;height:520px;border-radius:var(--radius-container);box-shadow:var(--shadow-panel);overflow:clip;background:var(--bg-app)}
+.window-stage>.panel-stage{position:absolute;right:var(--space-2);top:var(--space-2);height:504px;box-shadow:none}
+.window-stage>.scrim{position:absolute;inset:0;background:var(--bg-scrim)}
+.window-stage>.doan-dialog{position:absolute}
+/* Toast stage: the window's lower-right corner, where the shared toast shows. */
+.toast-stage{position:relative;width:480px;height:140px;border-radius:var(--radius-row);background:var(--bg-app);box-shadow:var(--shadow-panel)}
+.empty-stage{display:flex;align-items:center;justify-content:center;padding:var(--space-4);color:var(--text-metadata);text-align:center}
+/* Settings tile: the Settings column on the white page panel. */
+.state-panel{position:relative;width:720px;padding:var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.state-panel>.settings-page{padding:0}
+/* Static stand-ins: hover and focus drawn where the step says they are. */
+.conversation-thread .md-code[data-shown] .doan-icon-button{opacity:1}
+[data-focus="ring"]{outline:2px solid var(--border-focus);outline-offset:2px}
+.index{display:flex;flex-direction:column;gap:var(--space-4);padding:var(--space-6);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.index h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.index h2{margin-top:var(--space-4);font-size:var(--type-label-size);line-height:var(--type-label-line-height);font-weight:var(--type-weight-medium)}
+.index p{color:var(--text-subtle)}
+.index table{border-collapse:collapse;width:100%}
+.index th,.index td{padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--border-standard);text-align:left;vertical-align:top}
+.index th{color:var(--text-metadata);font-weight:var(--type-weight-regular)}
+.index td:first-child{white-space:nowrap;font-weight:var(--type-weight-medium)}
+.index>.doan-chip{align-self:flex-start;max-width:none;white-space:nowrap}
+
+/* ── New, not in code (proposed) ── */
+/* U14 and D10 draw their failure lines in U31's (B3) shared line, settings-msg error with the 16px AlertIcon. Placement
+   only: U14's line sits in the reply note's slot, 6 under the reply; D10's spans the question card. */
+.conversation-thread .thread-item>.msg-agent+.settings-msg{margin-top:var(--space-1h)}
+.conversation-thread .q-card>.settings-msg{grid-column:1/-1}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<!-- source: lucide-react 1.61.0 (app/node_modules/lucide-react/dist/esm/icons/*.mjs); alert, plus, presets, up, chev and circle-stop copied from .doan/canvases/queue-capsule.html -->
+<symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+<symbol id="i-presets" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3H8"/><path d="m15.007 5.008 3.987 3.986"/><path d="M20 15v4"/><path d="M21.174 6.813a2.82 2.82 0 0 0-3.986-3.987L3.842 16.175a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="M22 17h-4"/><path d="M4 5v4"/><path d="M6 7H2"/><path d="M9 2v2"/></symbol>
+<symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-circle-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+</svg>
+
+<!-- ═══════════ Index ═══════════ -->
+<section class="item" data-doan-frame="index" data-doan-title="Index · B1 state and recovery">
+<div class="index">
+<span class="doan-chip" data-ui-variant="translucent">ux-audit-261117 · batch B1 · fix/ux-state-recovery</span>
+<h1>B1 · State and recovery</h1>
+<p><b>To be is not in code yet.</b> Every To be column is the decision drawn for the conductor to implement, and UI sentences in a tile marked “Proposed copy” are new wording (Doan’s clarify preset applied) that the conductor may still adjust; As is matches the code at the audit's HEAD. Source: <code>docs/features/ux-audit-261117/report.md</code> §3 (U*), §6 (decisions), §7 (batch table). Item frames are drawn with the app's own classes and tokens at real size, as small crops.</p>
+<h2>Items with a visual change (one frame each)</h2>
+<table data-doan-id="index-visual">
+<thead><tr><th>ID</th><th>Change</th><th>Screens</th><th>Frame</th></tr></thead>
+<tbody>
+<tr><td>U2</td><td>A docked composer's Edit and resend asks “Replace your draft?” (Home's confirmation) before it replaces a different draft, a returned queue included</td><td>Overview, canvas panel, prototype window</td><td><code>u2-docked-edit-resend</code></td></tr>
+<tr><td>U14</td><td>A thread Copy code that fails shows “Couldn’t copy the code. Select it and copy it yourself.” under the reply</td><td>Threads in the Overview, canvas panel, prototype window</td><td><code>u14-thread-copy-failed</code></td></tr>
+<tr><td>U15</td><td>A failed Open again on an MCP connecting row turns the notice into the sign-in row's alert “Couldn’t open your browser. Try again.” with Cancel and Open browser</td><td>Settings › MCP Connectors (Claude Code rows)</td><td><code>u15-mcp-open-again-failed</code></td></tr>
+<tr><td>D7</td><td>A failed <code>folders.json</code> save shows a Retry toast instead of only logging</td><td>Main window, any screen (Remove from Doan, Add Projects, Locate)</td><td><code>d7-project-list-save-failed</code></td></tr>
+<tr><td>D8</td><td>An agent reply link the browser does not open shows a failure toast with the address</td><td>Overview, canvas panel, prototype window</td><td><code>d8-reply-link-failed</code></td></tr>
+<tr><td>D10</td><td>A failed Skip on a thread question card reads “Couldn’t skip the question. Try again.” (the strip's sentence)</td><td>Overview, canvas panel, prototype window</td><td><code>d10-question-skip-failed</code></td></tr>
+</tbody></table>
+<h2>Items with no visual change (behaviour to test)</h2>
+<table data-doan-id="index-behaviour">
+<thead><tr><th>ID</th><th>Behaviour to test</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>U1</td><td>Make the models read fail once (“Models unavailable” and Default only), then let it succeed: opening the composer's model picker again reads the list again and shows the models, with Effort, Fast and ACP modes back, without relaunching or signing in again. Home, Overview, canvas panel and prototype window.</td><td><code>homeComposer.ts:306</code>, <code>dockedSupport.ts:53</code>; Retry in <code>SettingsAgents.tsx:206,262-263</code></td></tr>
+<tr><td>U3</td><td>A summary with <code>phase: "ended"</code> and <code>working: true</code> (a queue about to go out, or a turn waiting for its promotion) shows as working everywhere: sidebar slot and row, title menu, Canvas conversations row and Home strip keep the spinner and never read “Conversation finished — unread” while Delete says the agent is working. Between queued turns the sidebar spinner stays on, as the board indicator does.</td><td><code>conversationList.ts:18-25</code> vs <code>conversationDelete.ts:14</code>, <code>agentPresence.ts:30-34</code></td></tr>
+<tr><td>U6</td><td>The problem overlay's Remove from Doan removes every registered worktree of the group, as the sidebar and Project Settings do; the confirmation names the project, not “&lt;project&gt; (&lt;branch&gt;)”. Remove the <code>docs/BACKLOG.md:164</code> entry and fix <code>docs/design/onboarding.md:195</code>.</td><td><code>App.tsx:1865-1870</code> vs <code>ShellSidebar.tsx:477-480</code>; PRODUCT 221</td></tr>
+<tr><td>U8</td><td>A refused new-conversation start on the Overview with a retryable code (<code>process_exited</code>, <code>busy</code>, <code>session_unavailable</code>, <code>session_in_use</code>, <code>runtime_unsupported</code>, <code>cli_install_failed</code>, unknown; <code>homeComposer.ts:137-150</code>) shows Retry in the composer notice, as Home and the canvas panel do. The notice and its Retry button are the docked composer's existing ones (<code>DockedComposer.tsx</code> notice with <code>retry</code>).</td><td><code>ProjectOverview.tsx:427-450</code>, <code>dockedRules.ts:146</code>; <code>canvasConversation.ts:186-200</code></td></tr>
+<tr><td>U12</td><td>In the prototype window, show a toast, then open the delete confirmation and wait longer than the toast's time: the toast is still there after the dialog closes, and its clock runs again from then.</td><td><code>prototype/PrototypeWindow.tsx:83</code> vs <code>App.tsx:1024</code>; ARCHITECTURE 'Toasts'</td></tr>
+<tr><td>U13</td><td>Make a canvas conversation row's thumbnail request reject: the row's empty preview reads “Preview unavailable”, not “Preview loading”, to a screen reader. Nothing changes on screen.</td><td><code>thumbnails.ts:73-87</code>, <code>CanvasConversationList.tsx:125-128</code></td></tr>
+</tbody></table>
+<p>Every batch ends by rewriting PRODUCT, ARCHITECTURE and DESIGN to the new state (U2 in PRODUCT item 3, D7 in ARCHITECTURE §7) and runs <code>/verify</code>; runtime-unverified items go through the batch's <code>/runtime-test</code>.</p>
+</div>
+</section>
+
+<!-- ═══════════ U2 ═══════════ -->
+<section class="item" data-doan-frame="u2-docked-edit-resend" data-doan-title="U2 · Edit and resend asks before replacing a draft" data-doan-implements="app/src/renderer/conversationStore.ts">
+<div class="item-head"><span class="doan-chip">U2</span><h2>Edit and resend asks before replacing a draft</h2></div>
+<div class="cols">
+<div class="col"><h3>As is</h3><div class="tiles">
+<div class="tile"><h4>1 · A turn failed with a queue behind it: the queue came back as the draft</h4>
+<div class="panel-stage"><aside class="right doan-conv-panel" aria-label="Conversation"><div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Make the hero quieter and move the CTA up</div></div></div>
+<div class="thread-item"><div class="msg-agent md"><p>I’ll lower the hero’s contrast and move the call to action above the fold.</p></div></div>
+<div class="thread-item"><div class="doan-notice error thread-notice" data-doan-id="u2-end-asis"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span class="strip-text selectable"><b>Claude Code stopped unexpectedly</b><span>It may have changed files before it stopped.</span></span><span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-focus="ring">Edit and resend</button></span></div></div>
+</div></div></div></div>
+<div class="cp-foot"><div class="docked" data-shape="box"><div class="composer-card"><div class="composer-input" role="textbox" aria-label="Message" data-doan-id="u2-draft-asis">Also make the caption shorter<br><br>Then check that the footer links still work</div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div></div>
+</div></div></aside></div></div>
+<div class="tile"><h4>2 · After pressing Edit and resend: the queued messages are gone, no question, no undo</h4>
+<div class="panel-stage"><aside class="right doan-conv-panel" aria-label="Conversation"><div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Make the hero quieter and move the CTA up</div></div></div>
+<div class="thread-item"><div class="msg-agent md"><p>I’ll lower the hero’s contrast and move the call to action above the fold.</p></div></div>
+<div class="thread-item"><div class="doan-notice error thread-notice"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span class="strip-text selectable"><b>Claude Code stopped unexpectedly</b><span>It may have changed files before it stopped.</span></span><span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Edit and resend</button></span></div></div>
+</div></div></div></div>
+<div class="cp-foot"><div class="docked" data-shape="capsule"><div class="composer-card"><div class="composer-input" role="textbox" aria-label="Message" data-doan-id="u2-draft-replaced">Make the hero quieter and move the CTA up</div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div></div>
+</div></div></aside></div></div>
+</div></div>
+<div class="col"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3><div class="tiles">
+<div class="tile"><h4>2 · After pressing Edit and resend: Home's “Replace your draft?” over the window (state 1 is unchanged) <span class="doan-chip" data-ui-variant="translucent">Proposed copy</span></h4>
+<div class="window-stage">
+<div class="panel-stage"><aside class="right doan-conv-panel" aria-label="Conversation"><div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Make the hero quieter and move the CTA up</div></div></div>
+<div class="thread-item"><div class="msg-agent md"><p>I’ll lower the hero’s contrast and move the call to action above the fold.</p></div></div>
+<div class="thread-item"><div class="doan-notice error thread-notice"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span class="strip-text selectable"><b>Claude Code stopped unexpectedly</b><span>It may have changed files before it stopped.</span></span><span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Edit and resend</button></span></div></div>
+</div></div></div></div>
+<div class="cp-foot"><div class="docked" data-shape="box"><div class="composer-card"><div class="composer-input" role="textbox" aria-label="Message">Also make the caption shorter<br><br>Then check that the footer links still work</div><div class="composer-tools"><button type="button" class="doan-icon-button composer-presets" aria-label="Design presets"><svg aria-hidden="true"><use href="#i-presets"/></svg></button><span class="grow"></span><button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send"><svg aria-hidden="true"><use href="#i-up"/></svg></button></div></div>
+<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files or folders"><svg aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span class="label">Opus 5.5</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></div></div></div>
+</div></div></aside></div>
+<div class="scrim"></div>
+<dialog open class="doan-dialog" data-ui-size="compact" aria-label="Replace your draft?" data-doan-id="u2-confirm">
+<div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Replace your draft?</h3><p class="doan-dialog-description">Your draft will be replaced by the last request you sent in this conversation.</p></div></div>
+<div class="doan-dialog-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-focus="ring" data-doan-id="u2-keep">Keep Draft</button><button type="button" class="doan-button" data-ui-variant="prominent" data-doan-id="u2-replace">Replace</button></div>
+</dialog>
+</div></div>
+</div></div>
+</div>
+<dl class="note">
+<dt>Decision</dt><dd>Report §6 U2: the docked composers (Overview, canvas panel, prototype window) ask “Replace your draft?” as Home does before Edit and resend replaces another draft; a queue returned after a failed or stopped turn is protected the same way. Record it in PRODUCT item 3.</dd>
+<dt>Evidence</dt><dd>As is: <code>ConversationThread.tsx:885</code> (Edit and resend) → <code>conversationStore.ts:290-302</code> <code>editAndResend</code>, which refuses only when the draft changed while files were issued again, then <code>dropHeld</code> and overwrites the draft. Home: <code>homeConversations.ts:86</code> <code>restoreRequest</code> and the dialog at <code>HomeComposerView.tsx:594-597</code>. Returned queue: <code>conversationStore.ts:364-395</code> <code>takeDraft</code>; PRODUCT 249, 260.</dd>
+<dt>What changes</dt><dd>Reuse Home's dialog as is: <code>dialog.doan-dialog[data-ui-size="compact"]</code>, title “Replace your draft?”, Cancel “Keep Draft” (<code>subtle</code>, first, autofocus) and “Replace” (<code>prominent</code>, last), centred over the window with the scrim. Ask under <code>restoreRequest</code>'s rule: only when the draft is not empty and differs from the last request (text, preset, attachments); an empty or identical draft is replaced at once, as today. The body is <span class="proposed">proposed</span>: Home says “…the last request you sent to &lt;project&gt;”, but a docked composer belongs to one conversation of the project, so it names the conversation. Keep the strings shared with Home: B4 (D4) renames “Keep Draft” to “Keep draft”, and both dialogs should change together.</dd>
+<dt>Open detail, chosen</dt><dd>Esc behaves as Keep Draft and returns focus to the field (U4, in B2, fixes Home's Esc; build the docked one that way from the start). The dialog takes <code>aria-label</code> as Home's does; whether it also takes <code>role="alertdialog"</code> and <code>aria-describedby</code> is the conductor's choice (B2 leaves it open for Home too).</dd>
+<dt>States to test</dt><dd><ol>
+<li>Fail a turn with two messages queued behind it (canvas panel). The queue comes back as the draft. Press Edit and resend: the dialog opens with focus on Keep Draft.</li>
+<li>Keep Draft (or Esc): the dialog closes, the draft and its held attachments stay, focus is in the field at the end of the text.</li>
+<li>Replace: the draft becomes the last request (state As is 2), held attachments of the old draft are released.</li>
+<li>Empty field, or a draft equal to the last request: Edit and resend replaces at once, no dialog.</li>
+<li>Repeat in the Overview and in the prototype window's panel.</li>
+</ol></dd>
+</dl>
+</section>
+
+<!-- ═══════════ U14 ═══════════ -->
+<section class="item" data-doan-frame="u14-thread-copy-failed" data-doan-title="U14 · Thread Copy failure says so" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="item-head"><span class="doan-chip">U14</span><h2>Thread Copy failure says so</h2></div>
+<div class="cols">
+<div class="col"><h3>As is</h3><div class="tiles">
+<div class="tile"><h4>Copy code pressed (hovered), the clipboard write answered false: nothing shows, and the live region stays silent</h4>
+<div class="panel-stage" style="height:210px"><aside class="right doan-conv-panel" aria-label="Conversation"><div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-agent md"><p>Run this in the project folder to list the canvases:</p><div class="md-code" data-shown=""><pre><code>doan ls --json</code></pre><button type="button" class="doan-icon-button" data-ui-size="xs" aria-label="Copy code" data-doan-id="u14-copy-asis"><svg aria-hidden="true"><use href="#i-copy"/></svg></button></div><p>Each row lists the canvas and its frames.</p></div></div>
+</div></div></div></div></div></div></aside></div></div>
+</div></div>
+<div class="col"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3><div class="tiles">
+<div class="tile"><h4>The same press: a line under the reply, in the reply note's place <span class="doan-chip" data-ui-variant="translucent">Proposed copy</span></h4>
+<div class="panel-stage" style="height:210px"><aside class="right doan-conv-panel" aria-label="Conversation"><div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-agent md"><p>Run this in the project folder to list the canvases:</p><div class="md-code" data-shown=""><pre><code>doan ls --json</code></pre><button type="button" class="doan-icon-button" data-ui-size="xs" aria-label="Copy code"><svg aria-hidden="true"><use href="#i-copy"/></svg></button></div><p>Each row lists the canvas and its frames.</p></div>
+<p class="settings-msg error selectable" role="alert" data-doan-id="u14-copy-error"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Couldn’t copy the code. Select it and copy it yourself.</span></p></div>
+</div></div></div></div></div></div></aside></div></div>
+</div></div>
+</div>
+<dl class="note">
+<dt>Finding</dt><dd>U14 (A-F9): the thread's Copy is the same action and clipboard IPC as Project Settings' Copy command and About's Copy details, which both say when copying failed.</dd>
+<dt>Evidence</dt><dd>As is: <code>ConversationThread.tsx:796-802</code> sets “Copied” in the sr-only live region (<code>:916</code>) only when <code>onCopy</code> resolves true; false shows nothing. The only thread Copy is the code block's icon button (<code>:180-184</code>). Pattern: <code>ProjectSettingsPage.tsx:232,344</code> “Couldn’t copy the command. Select it and copy it yourself.” (<code>role="alert"</code>, stays until the next press).</dd>
+<dt>What changes</dt><dd>On <code>ok === false</code> (or a rejected call), show the line under the reply whose code block was copied. Copy is <span class="proposed">proposed</span>, Project Settings' sentence with “the code”. Open detail, chosen: the place is the reply note's slot (where “No longer in the canvas” shows, <code>.chip-missing</code>: under <code>.msg-agent</code>, 6 above) and the style follows U31 (B3): <code>settings-msg error</code> with the 16px AlertIcon, body-sm 14/20, <code>--text-danger</code> (the 6 px gap above is drawn by a canvas-only rule). <code>role="alert"</code> as in Project Settings. It goes when the next Copy in that thread succeeds (that success also reads “Copied” as today) or the reply leaves the thread.</dd>
+<dt>States to test</dt><dd><ol>
+<li>Stub the clipboard IPC to answer false, press Copy code with the pointer: the line appears under that reply and is read once; focus stays where it was (the button takes no focus on a pointer press).</li>
+<li>Press Copy code with the keyboard (Tab to it, Space): same line, focus stays on the button.</li>
+<li>Let the clipboard succeed and press again: the line goes and “Copied” is read.</li>
+</ol></dd>
+</dl>
+</section>
+
+<!-- ═══════════ U15 ═══════════ -->
+<section class="item" data-doan-frame="u15-mcp-open-again-failed" data-doan-title="U15 · MCP Open again failure shows an alert" data-doan-implements="app/src/renderer/mcpConnectorsView.ts">
+<div class="item-head"><span class="doan-chip">U15</span><h2>MCP Open again failure shows the sign-in row's alert</h2></div>
+<div class="cols">
+<div class="col"><h3>As is</h3><div class="tiles">
+<div class="tile"><h4>Notion connecting for Claude Code; Open again pressed and main answered <code>open_failed</code>: the notice stays as it was</h4>
+<div class="state-panel"><div class="settings-panel"><div class="settings-page"><section class="settings-section mcp-agent" role="group" aria-labelledby="u15a-title">
+<div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title mcp-agent-title" id="u15a-title"><img class="logo" src="../assets/provider-logos/claude.png" alt="">Claude Code</h2></div></div>
+<div class="doan-settings-group" data-layout="rows">
+<div class="doan-preference-row" data-has-icon="" role="group" aria-label="Notion for Claude Code"><span class="doan-preference-row-icon" aria-hidden="true"><img class="logo" src="../assets/mcp-logos/notion.png" alt=""></span><div class="doan-preference-row-content"><span class="doan-preference-row-label">Notion</span><span class="doan-preference-row-description selectable">Connecting</span></div>
+<div class="doan-preference-row-extra" data-doan-id="u15-notice-asis"><div class="doan-notice" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span class="selectable"><strong class="ob-notice-title">Finish connecting to Notion</strong><span class="ob-notice-body">Allow access to Notion in your browser, then return here.</span></span></div><div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Cancel connecting Notion for Claude Code">Cancel</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Open Notion’s sign-in again for Claude Code" data-focus="ring">Open again</button></div></div>
+</div>
+<div class="doan-preference-row" data-has-icon="" role="group" aria-label="Figma for Claude Code"><span class="doan-preference-row-icon" aria-hidden="true"><img class="logo" src="../assets/mcp-logos/figma.svg" alt=""></span><div class="doan-preference-row-content"><span class="doan-preference-row-label">Figma</span><span class="doan-preference-row-description selectable">Not connected</span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-label="Connect Figma for Claude Code" aria-disabled="true" data-disabled="">Connect</button></div></div>
+</div></section></div></div></div></div>
+</div></div>
+<div class="col"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3><div class="tiles">
+<div class="tile"><h4>The same reply: the sign-in row's alert in place of the progress notice; focus stays on the slot's button</h4>
+<div class="state-panel"><div class="settings-panel"><div class="settings-page"><section class="settings-section mcp-agent" role="group" aria-labelledby="u15b-title">
+<div class="settings-section-header"><div class="settings-header-copy"><h2 class="settings-section-title mcp-agent-title" id="u15b-title"><img class="logo" src="../assets/provider-logos/claude.png" alt="">Claude Code</h2></div></div>
+<div class="doan-settings-group" data-layout="rows">
+<div class="doan-preference-row" data-has-icon="" role="group" aria-label="Notion for Claude Code"><span class="doan-preference-row-icon" aria-hidden="true"><img class="logo" src="../assets/mcp-logos/notion.png" alt=""></span><div class="doan-preference-row-content"><span class="doan-preference-row-label">Notion</span><span class="doan-preference-row-description selectable">Connecting</span></div>
+<div class="doan-preference-row-extra" data-doan-id="u15-notice-tobe"><div class="doan-notice error stacked" tabindex="-1"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span class="ob-notice-text selectable"><span class="ob-notice-body">Couldn’t open your browser. Try again.</span></span><div class="ob-notice-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Cancel connecting Notion for Claude Code">Cancel</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-label="Open browser to connect Notion for Claude Code" data-focus="ring" data-doan-id="u15-open-browser">Open browser</button></div></div></div>
+</div>
+<div class="doan-preference-row" data-has-icon="" role="group" aria-label="Figma for Claude Code"><span class="doan-preference-row-icon" aria-hidden="true"><img class="logo" src="../assets/mcp-logos/figma.svg" alt=""></span><div class="doan-preference-row-content"><span class="doan-preference-row-label">Figma</span><span class="doan-preference-row-description selectable">Not connected</span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-label="Connect Figma for Claude Code" aria-disabled="true" data-disabled="">Connect</button></div></div>
+</div></section></div></div></div></div>
+</div></div>
+</div>
+<dl class="note">
+<dt>Finding</dt><dd>U15 (A-F10): the Agents sign-in row's Open again, the same kind of link, reports an open failure; the MCP row drops it.</dd>
+<dt>Evidence</dt><dd>As is: <code>SettingsMcpConnectors.tsx:116</code> <code>void api.openMcpLink(...)</code> ignores the reply; main can answer <code>{ ok: false, reason: "open_failed" }</code> (<code>main/mcpConnectors/service.ts:241-245</code>); the connecting notice is <code>mcpConnectorsView.ts:96-101</code>. Pattern: <code>agentAuthView.ts:152</code> turns <code>open_failed</code> into <code>alert("Couldn’t open your browser. Try again.", [Cancel subtle, Open browser prominent])</code>.</dd>
+<dt>What changes</dt><dd>Keep the last <code>open_failed</code> reply per row (provider + server) and, while the row is still connecting, draw <code>alert(...)</code> with the sign-in row's sentence and buttons in place of the progress notice: <code>doan-notice error</code> with the alert icon, no spinner, no title; Cancel (<code>subtle</code>) then Open browser (<code>prominent</code>), both <code>sm</code>, inside the notice as <code>.doan-notice.stacked</code> (B3's D20 moves the MCP NoticeView actions inside the notice; if B3 lands first this is its layout). The row's status line stays “Connecting”. Open browser keeps Open again's command (<code>openLink</code>), so the button stays the same element and keeps focus; its accessible name must contain the visible label (WCAG 2.5.3), drawn here as “Open browser to connect Notion for Claude Code” (B4 fixes that class of defect elsewhere). No new visible copy.</dd>
+<dt>Open detail, chosen</dt><dd>The alert goes when the next Open browser press succeeds, on Cancel, or when the row leaves Connecting (connected, failed with its own alert, cancelled), as the sign-in row's reply does. The page's one live region announces the alert's sentence (the page keeps <code>live={false}</code> notices). Codex rows have no Open again and are unchanged.</dd>
+<dt>States to test</dt><dd><ol>
+<li>Start Connect on a Claude Code row, then stub <code>openMcpLink</code> to answer <code>open_failed</code> and press Open again with the keyboard: the alert replaces the progress notice, focus stays on the button (now “Open browser”), the sentence is read once.</li>
+<li>Let the open succeed and press Open browser: the progress notice “Finish connecting to Notion” comes back.</li>
+<li>Cancel from the alert: the row returns to Not connected with Connect.</li>
+</ol></dd>
+</dl>
+</section>
+
+<!-- ═══════════ D7 ═══════════ -->
+<section class="item" data-doan-frame="d7-project-list-save-failed" data-doan-title="D7 · Project list save failure Retry toast" data-doan-implements="app/src/renderer/App.tsx">
+<div class="item-head"><span class="doan-chip">D7</span><h2>Project list save failure shows a Retry toast</h2></div>
+<div class="cols">
+<div class="col"><h3>As is</h3><div class="tiles">
+<div class="tile"><h4>Remove from Doan, Add Projects or Locate while <code>folders.json</code> can’t be written: the window's lower-right corner stays empty</h4>
+<div class="toast-stage empty-stage" data-doan-id="d7-asis"><p>No toast. Main logs <code>doan: cannot save folders.json</code>; the sidebar already shows the change.</p></div></div>
+</div></div>
+<div class="col"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3><div class="tiles">
+<div class="tile"><h4>1 · The failure: a Retry toast <span class="doan-chip" data-ui-variant="translucent">Proposed copy</span></h4>
+<div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="d7-toast"><span class="msg selectable">Couldn’t save the project list. Doan may show the earlier list after it restarts.</span><button type="button" class="btn doan-button" data-ui-variant="prominent" data-ui-size="sm">Retry</button></div></div></div>
+<div class="tile"><h4>2 · Retry pressed: the toast's busy state, then it goes on success <span class="doan-chip" data-ui-variant="translucent">Proposed copy</span></h4>
+<div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="d7-toast-busy"><span class="msg selectable">Saving the project list.</span><button type="button" class="btn doan-button" data-ui-variant="prominent" data-ui-size="sm" aria-disabled="true" data-disabled="" data-focus="ring"><span class="doan-spinner" aria-hidden="true"></span>Retrying</button></div></div></div>
+</div></div>
+</div>
+<dl class="note">
+<dt>Decision</dt><dd>Report §6 D7: a failed <code>folders.json</code> save is told with a Retry toast. Record it in ARCHITECTURE §7 (which now covers only an unreadable <code>folders.json</code>).</dd>
+<dt>Evidence</dt><dd>As is: <code>main/shell.ts:127-129</code> <code>logWrite</code> only logs; <code>remove</code> (<code>:397-408</code>), add and re-root still change the in-memory list and the renderer gets <code>{ kind: "removed" }</code> (<code>main/index.ts:1424-1433</code>); <code>App.tsx:1397-1400</code>. Pattern: the read-state Retry toast, <code>App.tsx:2358-2364</code> <code>toast.retry(message, "Retry", busy, "Retrying", attempt)</code> with <code>canvasNotice.ts:57-66</code> wording; <code>Toast.tsx:104-106</code> busy button.</dd>
+<dt>What changes</dt><dd>Main reports a failed project-list write to the main window (a push, as read-state problems are); the renderer shows <code>toast.retry</code>. Retry asks main to write the current list again: success → the toast goes; failure → the same message with Retry again. Message and busy text are <span class="proposed">proposed</span>, in the read-state toast's form (“Couldn’t save …” / “Saving ….”); “may” because main cannot know what the next launch reads. No new component: the shared toast, 384 wide, <code>prominent</code> <code>sm</code> action, busy button <code>aria-disabled</code> with the spinner. A later toast replaces it (D6 keeps one slot). PRODUCT 221's Remove from Doan sentence (“…from the saved list only, never files or Git worktrees, with no toast.”) must change too: the toast now shows when the save fails.</dd>
+<dt>States to test</dt><dd><ol>
+<li>Make the userData folder read-only, remove a project from the sidebar: the project leaves the sidebar and the toast shows once.</li>
+<li>Press Retry with the folder still read-only: busy state, then the message with Retry again; focus stays on the button throughout.</li>
+<li>Make the folder writable, press Retry: the toast goes; restart Doan: the project stays removed.</li>
+<li>Repeat with Add Projects and with Locate on a moved project.</li>
+</ol></dd>
+</dl>
+</section>
+
+<!-- ═══════════ D8 ═══════════ -->
+<section class="item" data-doan-frame="d8-reply-link-failed" data-doan-title="D8 · Reply link that does not open shows a toast" data-doan-implements="app/src/renderer/CanvasConversationPanel.tsx">
+<div class="item-head"><span class="doan-chip">D8</span><h2>A reply link that does not open shows a failure toast</h2></div>
+<div class="cols">
+<div class="col"><h3>As is</h3><div class="tiles">
+<div class="tile"><h4>The link in the reply clicked; <code>openLink</code> resolved false: nothing shows</h4>
+<div class="panel-stage" style="height:200px"><aside class="right doan-conv-panel" aria-label="Conversation"><div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-agent md"><p>I used <code>clamp()</code> for the hero title so it scales with the frame. The <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/clamp" data-doan-id="d8-link">MDN page on clamp()</a> explains the three values.</p></div></div>
+</div></div></div></div></div></div></aside></div></div>
+</div></div>
+<div class="col"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3><div class="tiles">
+<div class="tile"><h4>The same click: a toast at the window's lower right (the reply is unchanged) <span class="doan-chip" data-ui-variant="translucent">Proposed copy</span></h4>
+<div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="d8-toast"><span class="msg selectable">Couldn’t open the link in your browser. Try again, or open it at https://developer.mozilla.org/en-US/docs/Web/CSS/clamp</span></div></div></div>
+</div></div>
+</div>
+<dl class="note">
+<dt>Decision</dt><dd>Report §6 D8: an agent reply link the browser does not open is told with a failure toast. Record it in PRODUCT item 3 beside the star card and Release Notes rules.</dd>
+<dt>Evidence</dt><dd>As is: <code>CanvasConversationPanel.tsx:487</code> and <code>ProjectOverview.tsx:414</code> pass <code>onOpenLink={url => void ….openLink(url).catch(console.error)}</code>; <code>ConversationThread.tsx:186-191</code> routes reply links there; <code>preload/index.ts:190</code> <code>openLink</code> resolves false when the browser does not open. Patterns: star card “Couldn’t open GitHub in your browser. Try again, or find Doan at &lt;url&gt;” (<code>StarPrompt.tsx:8-10</code>, PRODUCT 116), Release Notes (PRODUCT 170).</dd>
+<dt>What changes</dt><dd>On false (or a rejected call) the host shows an actionless toast through its toast (<code>props.onNotice</code> → <code>App.tsx</code> toast; the prototype window's own toast for its panel). The sentence is <span class="proposed">proposed</span>, the star card's form (<code>StarPrompt.tsx:8-10</code>): what failed, then retry (the link itself) or the address, ending on the address with no period so selecting it copies only the address; selectable in the toast's <code>.msg</code> and wrapped by its <code>overflow-wrap: anywhere</code>. No action button: the link in the reply is the retry. A new toast replaces the last one (D6).</dd>
+<dt>States to test</dt><dd><ol>
+<li>Stub <code>openLink</code> to resolve false, click a reply link in the canvas panel: one toast, the address selectable; the thread and focus do not move.</li>
+<li>Click again: the toast is replaced, not stacked.</li>
+<li>Let it resolve true: no toast, the browser opens.</li>
+<li>Repeat in the Overview and in the prototype window's panel (that window's toast).</li>
+</ol></dd>
+</dl>
+</section>
+
+<!-- ═══════════ D10 ═══════════ -->
+<section class="item" data-doan-frame="d10-question-skip-failed" data-doan-title="D10 · Question card Skip failure line" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="item-head"><span class="doan-chip">D10</span><h2>The question card's Skip failure says Skip</h2></div>
+<div class="cols">
+<div class="col"><h3>As is</h3><div class="tiles">
+<div class="tile"><h4>Skip pressed, main did not take it: the card says the answer failed</h4>
+<div class="panel-stage" style="height:330px"><aside class="right doan-conv-panel" aria-label="Conversation"><div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="doan-notice thread-notice q-card"><span class="strip-agent doan-alert-icon"><img class="logo" src="../assets/provider-logos/claude.png" alt=""></span><span class="strip-text q-title"><b>Which hero layout should I keep?</b></span>
+<div class="q-list"><div class="q" role="radiogroup" aria-label="Hero layout"><div class="q-opts doan-settings-group q-group">
+<label class="doan-preference-row q-pref" data-has-icon=""><input type="radio" name="d10a"><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Centered</span><span class="doan-preference-row-description">Title and CTA centred over the image</span></span></label>
+<label class="doan-preference-row q-pref" data-has-icon=""><input type="radio" name="d10a"><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Split</span><span class="doan-preference-row-description">Text on the left, image on the right</span></span></label>
+</div></div></div>
+<span class="strip-actions"><button type="button" class="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled="true">Send</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-focus="ring">Skip</button><button type="button" class="doan-button" data-ui-size="sm"><svg aria-hidden="true"><use href="#i-circle-stop"/></svg>Stop</button></span>
+<span class="ask-error" role="alert" data-doan-id="d10-error-asis">Couldn’t send your answer. Try again.</span>
+</div></div>
+</div></div></div></div></div></div></aside></div></div>
+</div></div>
+<div class="col"><h3>To be <span class="doan-chip" data-ui-variant="translucent">Not in code</span></h3><div class="tiles">
+<div class="tile"><h4>The same press: the strip's Skip sentence (a failed Send keeps today's line)</h4>
+<div class="panel-stage" style="height:330px"><aside class="right doan-conv-panel" aria-label="Conversation"><div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="doan-notice thread-notice q-card"><span class="strip-agent doan-alert-icon"><img class="logo" src="../assets/provider-logos/claude.png" alt=""></span><span class="strip-text q-title"><b>Which hero layout should I keep?</b></span>
+<div class="q-list"><div class="q" role="radiogroup" aria-label="Hero layout"><div class="q-opts doan-settings-group q-group">
+<label class="doan-preference-row q-pref" data-has-icon=""><input type="radio" name="d10b"><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Centered</span><span class="doan-preference-row-description">Title and CTA centred over the image</span></span></label>
+<label class="doan-preference-row q-pref" data-has-icon=""><input type="radio" name="d10b"><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"></span></span><span class="doan-preference-row-content"><span class="doan-preference-row-label">Split</span><span class="doan-preference-row-description">Text on the left, image on the right</span></span></label>
+</div></div></div>
+<span class="strip-actions"><button type="button" class="doan-button q-send" data-ui-size="sm" data-ui-variant="prominent" aria-disabled="true">Send</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-focus="ring">Skip</button><button type="button" class="doan-button" data-ui-size="sm"><svg aria-hidden="true"><use href="#i-circle-stop"/></svg>Stop</button></span>
+<p class="settings-msg error" role="alert" data-doan-id="d10-error-tobe"><svg class="doan-alert-icon" aria-hidden="true"><use href="#i-alert"/></svg><span>Couldn’t skip the question. Try again.</span></p>
+</div></div>
+</div></div></div></div></div></div></aside></div></div>
+</div></div>
+</div>
+<dl class="note">
+<dt>Decision</dt><dd>Report §6 D10: the thread question card tells a failed Skip apart, as the strip does, with “Couldn’t skip the question. Try again.” Record it in PRODUCT 378 beside the failed send's line.</dd>
+<dt>Evidence</dt><dd>As is: <code>questionDraft.ts:22-28</code> keeps one <code>failed</code> flag; <code>ConversationThread.tsx:322-325</code> <code>settleQuestionSend</code> sets it for answer and skip; <code>:412</code> always reads “Couldn’t send your answer. Try again.”. Strip: <code>conversationStrip.ts:73-78</code>; PRODUCT 249.</dd>
+<dt>What changes</dt><dd>Store which press failed (<code>answer</code> or <code>skip</code>) in the failed draft state and pick the sentence from it; reuse the strip's string rather than a copy. Style follows U31 (B3): the line is drawn as <code>settings-msg error</code> with the 16px AlertIcon, body-sm 14/20, <code>--text-danger</code>, full card width, <code>role="alert"</code> (today it is the caption <code>.ask-error</code>); if B3 lands first, use its class. No new copy (the strip already ships it).</dd>
+<dt>States to test</dt><dd><ol>
+<li>Stub the question answer IPC to refuse, press Skip: “Couldn’t skip the question. Try again.” is read once; the buttons stay.</li>
+<li>Choose an option and press Send with the refusal still on: the line reads “Couldn’t send your answer. Try again.”.</li>
+<li>The line goes when the answer changes or at the next Send or Skip (<code>questionDraft.ts:27,39</code>, PRODUCT 378), as today; Stop does not clear it on the card (that is the strip's rule).</li>
+</ol></dd>
+</dl>
+</section>
+</body></html>

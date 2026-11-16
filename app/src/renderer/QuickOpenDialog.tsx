@@ -6,6 +6,7 @@ import { tabKey } from "./ComposerParts";
 import { cardRow, groupProjects } from "./homeCards";
 import { conversationEntries, countMatches, emptyText, groupResults, readingCount, readingText, markRuns, matchPositions, outsideDialog, resultKey, resultParts, searchIndex, searchMatch, type ConversationLists, type RenderedSearchFrames, type ResultGroup, type SearchEntry, type SearchFolder, type SearchKind, type SearchResult } from "./quickOpen";
 import { projectHue, projectInitial } from "./shellNavigation";
+import { NameTip } from "./NameTip";
 
 // The repository name, which picks the thumbnail as in the sidebar, and the title
 // "<repository> · <branch>", or the folder name outside git, as Home names them.
@@ -219,8 +220,9 @@ export function QuickOpenList({ emptyText = "No canvases, frames or conversation
               onMouseMove={() => { if (index !== active) activate(index); }} onClick={() => pick(result)}>
               <span className="qo-icon" aria-hidden="true"><Icon /></span>
               <span className="qo-text">
-                <span className="qo-name" title={parts.name}>{markRuns(parts.name, matchPositions(parts.name, query)).map((run, i) => run.match ? <mark className="qo-match" key={i}>{run.text}</mark> : run.text)}</span>
-                <span className="qo-detail"><span className="qo-context" title={parts.detail}>{parts.detail}</span></span>
+                <NameTip text={parts.name}><span className="qo-name">{markRuns(parts.name, matchPositions(parts.name, query)).map((run, i) => run.match ? <mark className="qo-match" key={i}>{run.text}</mark> : run.text)}</span></NameTip>
+                {/* The detail line is the box that ellipsizes, so it is the trigger that can measure as cut. */}
+                <NameTip text={parts.detail}><span className="qo-detail"><span className="qo-context">{parts.detail}</span></span></NameTip>
               </span>
             </div>;
           })}

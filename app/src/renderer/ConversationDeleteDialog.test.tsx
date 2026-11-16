@@ -84,8 +84,11 @@ test("the confirmation is Move to Trash's compact alert dialog: Cancel first wit
   expect(text.find(element => element.props["id"] === "conversation-delete-title")?.props["children"]).toBe("Delete “t”?");
   expect(text.find(element => element.props["id"] === "conversation-delete-body")?.props["children"]).toBe("Body.");
   expect(cancelButton.props).toMatchObject({ children: "Cancel", autoFocus: true, "data-ui-variant": "subtle" });
-  expect(deleteButton.props).toMatchObject({ children: "Delete", "data-ui-variant": "prominent" });
+  expect(deleteButton.props).toMatchObject({ "data-ui-variant": "prominent" });
+  expect(renderToStaticMarkup(deleteButton)).toMatch(/>Delete<\/button>$/);
   expect(deleteButton.props["aria-disabled"]).toBeUndefined();
+  expect(deleteButton.props["aria-busy"]).toBeUndefined();
+  expect(renderToStaticMarkup(deleteButton)).not.toContain("doan-spinner");
   (deleteButton.props["onClick"] as () => void)();
   expect(confirm).toHaveBeenCalledOnce();
   (cancelButton.props["onClick"] as () => void)();
@@ -103,9 +106,16 @@ test("Delete is unavailable while its request is out, and when the conversation 
   expect(pending.deleteButton.props["aria-disabled"]).toBe(true);
   (pending.deleteButton.props["onClick"] as () => void)();
   expect(pending.confirm).not.toHaveBeenCalled();
+  // Busy, not unavailable (D1): the fill stays, the spinner shows first, and aria-busy says it is working.
+  expect(pending.deleteButton.props["aria-busy"]).toBe(true);
+  expect(pending.deleteButton.props["data-disabled"]).toBeUndefined();
+  expect(renderToStaticMarkup(pending.deleteButton)).toMatch(/^<button[^>]*><span class="doan-spinner" aria-hidden="true"><\/span>Delete<\/button>$/);
   const reason = "The agent is working on this conversation.";
   const working = dialog({ reason });
-  expect(working.deleteButton.props).toMatchObject({ "aria-disabled": true, "aria-describedby": "conversation-delete-reason" });
+  expect(working.deleteButton.props).toMatchObject({ "aria-disabled": true, "aria-describedby": "conversation-delete-reason", "data-disabled": "" });
+  // The reason case is unavailable, not busy: the disabled look and no spinner.
+  expect(working.deleteButton.props["aria-busy"]).toBeUndefined();
+  expect(renderToStaticMarkup(working.deleteButton)).not.toContain("doan-spinner");
   const notice = all(working.tree).find(element => element.props["id"] === "conversation-delete-reason");
   expect(notice?.props["className"]).toBe("doan-notice");
   expect(renderToStaticMarkup(working.tree)).toContain(reason);

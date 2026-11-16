@@ -52,7 +52,7 @@ describe("aboutView", () => {
     ]);
     expect(view.tools).toEqual([
       { id: "claude", label: "Claude Code", description: "Doan needs 2.1.284 or later.", value: "2.1.330", status: "Supported", tone: "ok", error: null },
-      { id: "codex", label: "Codex", description: "Doan needs 0.158.0 or later.", value: "0.157.0", status: "Update needed", tone: "warning", error: null },
+      { id: "codex", label: "Codex", description: "Doan needs 0.158.0 or later.", value: "0.157.0", status: "Needs an update", tone: "warning", error: null },
       { id: "cursor", label: "Cursor", description: "Doan needs 2026.10.22 or later.", value: null, status: "Not installed", tone: "neutral", error: null },
       { id: "antigravity", label: "Antigravity", description: "Doan downloads its sign-in server when you first sign in.", value: null, status: "Downloaded by Doan", tone: "neutral", error: null },
       { id: "copilot", label: "GitHub Copilot", description: "Doan needs 1.0.89 or later.", value: "1.0.110", status: "Supported", tone: "ok", error: null },
@@ -78,7 +78,7 @@ describe("aboutView", () => {
       { provider: "copilot", cli: "missing", installed: null, support: "unknown" },
     ] });
     expect(view.tools.filter(row => ["codex", "cursor", "copilot"].includes(row.id)).map(row => [row.id, row.status, row.error])).toEqual([
-      ["codex", "Update needed", null], ["cursor", "Doan can’t run this version", null], ["copilot", "Not installed", null],
+      ["codex", "Needs an update", null], ["cursor", "Doan can’t run this version", null], ["copilot", "Not installed", null],
     ]);
   });
 
@@ -103,7 +103,7 @@ describe("aboutText", () => {
       "Updates: up to date, last checked 2026-11-08T14:41:00.000Z",
       `doan command 0.1.0 (${PATH})`,
       "Claude Code 2.1.330: Supported (Doan needs 2.1.284 or later)",
-      "Codex 0.157.0: Update needed (Doan needs 0.158.0 or later)",
+      "Codex 0.157.0: Needs an update (Doan needs 0.158.0 or later)",
       "Cursor: Not installed (Doan needs 2026.10.22 or later)",
       "Antigravity: Downloaded by Doan",
       "GitHub Copilot 1.0.110: Supported (Doan needs 1.0.89 or later)",

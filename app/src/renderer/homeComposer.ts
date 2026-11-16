@@ -85,6 +85,8 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   const off = (reason: SendReason | null) => ({ enabled: false, reason });
   if (input.sending) return off(null);
   if (input.projects === 0 || !input.root) return off({ kind: "noProject", text: "Add a project to send." });
+  // A project still being read has nothing to fix in its sidebar menu, so the line sends nobody there.
+  if (input.root.kind === "loading") return off({ kind: "projectUnavailable", text: `${input.projectName} is still being read.` });
   if (input.root.kind !== "list") return off({ kind: "projectUnavailable", text: unavailableProject(input.projectName) });
   const agent = agentProblem(input.auth, input.provider);
   if (agent) return off(agent);
@@ -303,7 +305,8 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
     if (list) return { ...group, rows: list.map(m => ({ kind: "model", id: m.id, label: m.label, effort: (m.efforts?.length ?? 0) > 0, selected: mine && m.id === chosen?.id, isDefault: m.default, ...(m.older ? { older: true as const } : {}) })) };
     const rows: ModelRow[] = [{ kind: "default", label: "Default", selected: mine }];
     if (state === "loading") return { ...group, note: "Loading models", rows };
-    if (state !== undefined) return { ...group, note: "Models unavailable", rows };
+    // A failed read is read again when the group opens, as Settings > Agents' Retry reads it again; an empty list is an answer.
+    if (state !== undefined) return { ...group, note: "Models unavailable", read: "error" in state, rows };
     // Every provider, Copilot included, lists its models without a model request, so all are read.
     return { ...group, read: true, rows };
   });
@@ -528,8 +531,8 @@ export function followDrawerHighlight(before: readonly PresetRow[], after: reado
 }
 
 const CLI_REASONS: Record<string, string> = {
-  unavailable: "the doan CLI couldn’t start", timeout: "the doan CLI didn’t answer in time",
-  invalid_response: "Doan couldn’t read the CLI’s answer", failed: "the doan CLI stopped without a result",
+  unavailable: "the doan command couldn’t start", timeout: "the doan command didn’t answer in time",
+  invalid_response: "Doan couldn’t read the command’s answer", failed: "the doan command stopped without a result",
 };
 
 function presetNotice(reply: PresetListReply | undefined): PresetNotice | null {
@@ -538,7 +541,7 @@ function presetNotice(reply: PresetListReply | undefined): PresetNotice | null {
   const { error } = reply;
   if (error.code === "request_refused") return { kind: "error", text: "Doan refused this preset request. You can still send without a preset.", retry: false };
   // An older CLI has no design-skill command and answers the list with usage_error.
-  if (error.code === "usage_error") return { kind: "olderCli", text: "This doan CLI has no design presets. Update Doan to use them." };
+  if (error.code === "usage_error") return { kind: "olderCli", text: "This version of the doan command has no design presets. Update Doan to use them." };
   const reason = "reason" in error ? CLI_REASONS[error.reason] : undefined;
   return { kind: "error", text: reason ? `Doan couldn’t read the design presets: ${reason}. You can still send without one.` : "Doan couldn’t read the design presets. You can still send without one.", retry: true };
 }

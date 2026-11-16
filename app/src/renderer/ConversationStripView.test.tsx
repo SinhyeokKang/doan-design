@@ -113,7 +113,7 @@ test("Stop calls interruptConversation; Edit on Home, Dismiss and Open call thei
 
 test("failed and stopped offer Edit on Home (panel) and Dismiss; done offers Open (panel) and Dismiss", () => {
   expect(render({ kind: "failed", code: "not_logged_in" })).toContain('<b>Claude Code’s sign-in expired</b><span>Edit your request on Home and choose another agent.</span></span></span><span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Edit on Home</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button></span>');
-  expect(render({ kind: "interrupted", reason: "user" })).toContain("<b>Stopped</b><span>You stopped this conversation.</span>");
+  expect(render({ kind: "interrupted", reason: "user" })).toContain("<b>Stopped</b><span>You stopped the agent.</span>");
   expect(render({ kind: "done" }, { ...CTX, canvas: "design-system" })).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Open</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button>');
 });
 
