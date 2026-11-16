@@ -16,9 +16,9 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| T | tasks 1 | `app/src/main/conversation/types.ts`, `store.ts`, store 테스트 | 없음 | Sonnet medium — 타입 하나와 검증 한 줄, 기계적 | `npm --prefix app test`, typecheck | 대기 |
-| A | tasks 2, 3(main `summary.ts`), 4 | `app/src/main/conversation/`(`handoff.ts` 옆 `drawnCanvases`, `summary.ts`, `service.ts`, 테스트). `types.ts`·`store.ts`는 T 뒤 읽기만 | T | Opus high — 턴 수명, 기한, 삭제·종료 경합, 쓰기 재확인 | `npm --prefix app test`, typecheck, lint | 대기 |
-| B | tasks 3(renderer `overviewRun.ts`), 5, 6, 7과 `/design-sync` | `app/src/renderer/`(`threadItems.ts`, `turnStatus.ts`, `overviewRun.ts`, `handoffView.ts`, `revealDecision.ts`, 새 `canvasCardText`, `ConversationThread.tsx`, `styles.css`, 테스트), `docs/design/conversation.md`·`prototype.md`(측정값) | T | Opus high — 스레드 배치·포커스·접근성 규칙이 많고 design-sync까지 한다 | `npm --prefix app test`, typecheck, lint, `/design-sync` | 대기 |
+| T | tasks 1 | `app/src/main/conversation/types.ts`, `store.ts`, store 테스트 | 없음 | Sonnet medium — 타입 하나와 검증 한 줄, 기계적 | `npm --prefix app test`, typecheck | 통합(eed1213b, e4123acf) |
+| A | tasks 2, 3(main `summary.ts`), 4 | `app/src/main/conversation/`(`handoff.ts` 옆 `drawnCanvases`, `summary.ts`, `service.ts`, 테스트). `types.ts`·`store.ts`는 T 뒤 읽기만 | T | Opus high — 턴 수명, 기한, 삭제·종료 경합, 쓰기 재확인 | `npm --prefix app test`, typecheck, lint | 진행(ctx_ed75fc143bf4, cdc-batch-a) |
+| B | tasks 3(renderer `overviewRun.ts`), 5, 6, 7과 `/design-sync` | `app/src/renderer/`(`threadItems.ts`, `turnStatus.ts`, `overviewRun.ts`, `handoffView.ts`, `revealDecision.ts`, 새 `canvasCardText`, `ConversationThread.tsx`, `styles.css`, 테스트), `docs/design/conversation.md`·`prototype.md`(측정값) | T | Opus high — 스레드 배치·포커스·접근성 규칙이 많고 design-sync까지 한다 | `npm --prefix app test`, typecheck, lint, `/design-sync` | 진행(ctx_b6e4743267df, cdc-batch-b) |
 | R-A, R-B | A, B 리뷰(`/code-review`) | 보고만 | 각 배치 | Opus high — 규칙 대조와 경합 판단 | 🔴 0 | 대기 |
 | C | tasks 8 `/runtime-test`, 9 `/verify`, 10 승격 | 문서(PRODUCT, ARCHITECTURE, BACKLOG), `orch.md` | A, B 통합 | 컨덕터가 직접 한다(코드 편집 없음) | verify 종료 코드 0, tasks 10 grep | 대기 |
 
@@ -29,3 +29,6 @@
 - `docs/design/*`는 B만 고친다. PRODUCT·ARCHITECTURE·BACKLOG 승격은 컨덕터가 마지막에 한다.
 
 ## 진행 기록
+
+- Run `run_a7fabeaa16df`. T는 현재 워크트리에서 바로 커밋했다(작아서 cherry-pick 없이). 테스트 13433개, typecheck, lint 통과. types.ts 주석의 "guided turn"은 모든 턴이 쓰므로 A가 고친다.
+- A, B를 `feat/canvas-drawing-cards`(e4123acf) 기준 child worktree로 시작했다(Opus high, launch.effective 확인).
