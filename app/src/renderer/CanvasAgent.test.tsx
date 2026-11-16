@@ -455,3 +455,10 @@ describe("Doany the artist", () => {
     }
   });
 });
+
+// The default ring is black outside the control; on the dark capsule it nears 1:1 on a dark canvas. Open draws a
+// white ring inside itself, the size bubble's pattern.
+test("the agent notice's Open draws its focus ring white and inside", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".doan-agent .doan-button.doan-agent-action:focus-visible { outline-color: var(--text-on-prominent); outline-offset: -2px; }");
+});

@@ -576,3 +576,11 @@ it("CSS: the conversation list's chevron, Delete and status follow the canvas ro
   // The shown conversation's row takes the pressed fill under the pointer (draft frame hover-delete), the others the hover fill.
   expect(css).toContain('.shell-side .shell-conv-row[aria-current="true"]:hover { background: var(--affordance-backdrop-pressed); }');
 });
+
+// DESIGN 'Motion': under reduced motion every movement goes. The sidebar chevrons point the new way at once, as the
+// thread's activity chevron does.
+it("stops the sidebar chevrons turning under reduced motion", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*\.shell-disclosure svg, \.shell-group-head svg \{ transition: none; \}/);
+});

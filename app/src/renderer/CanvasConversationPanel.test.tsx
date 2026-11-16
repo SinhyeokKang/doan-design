@@ -431,3 +431,14 @@ test("a taken Stop hides the indicator at once; a done turn's background work sh
   const next = (run: CanvasRun) => void flush().then(() => { run.store.event(at(3, { type: "turn.done" })); run.store.event(at(4, { type: "user.message", text: "Next", anchors: [] }, "t2")); });
   expect(await shown([summary("now", { background: { turnId: "t1" } })], next)).not.toContain("Background work is still running");
 });
+
+// The title menu's New conversation row takes the header button's SquarePen, in the canvas panel, the Overview and the
+// prototype window alike.
+test("the New conversation menu row uses the header's SquarePen", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const file of ["./CanvasConversationPanel.tsx", "./ProjectOverview.tsx", "./prototype/PrototypeConversation.tsx"]) {
+    const source = readFileSync(new URL(file, import.meta.url), "utf8");
+    expect(source, file).toContain('textValue="New conversation"><SquarePen aria-hidden="true" /><span>New conversation</span>');
+    expect(source, file).not.toContain('<Plus aria-hidden="true" /><span>New conversation</span>');
+  }
+});

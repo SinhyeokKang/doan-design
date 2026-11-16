@@ -396,6 +396,16 @@ describe("picker CSS (buddy-choice draft)", () => {
     expect(css).toContain("@media (prefers-reduced-motion: reduce) { .buddy-card { transition: none; } }");
     expect(css).toContain(".buddy-flow[data-scrolling] .buddy-card { transition: none; }");
   });
+  // DESIGN 'States': disabled is a role, never opacity. The newer-settings row reads as Settings' disabled rows: names
+  // and lines in the disabled ink, the chosen card's accent ring and glow (also the reduced-transparency one) given way
+  // to the disabled mark's grey ring, no hover shadow; pictures unchanged.
+  test("the newer-settings row is disabled by role, not by opacity", () => {
+    expect(css).not.toMatch(/\.buddy-flow\[aria-disabled="true"\] \{[^}]*opacity/);
+    expect(css).toContain('.buddy-flow[aria-disabled="true"] .buddy-card :is(strong, span) { color: var(--text-disabled); }');
+    expect(css).toContain('.buddy-flow[aria-disabled="true"] .buddy-card:has(input:checked) { box-shadow: 0 0 0 2px var(--text-disabled); }');
+    expect(css).toContain('.buddy-flow[aria-disabled="true"] .buddy-card:not(:has(input:checked)):hover { box-shadow: var(--shadow-panel); }');
+    expect(css).toContain('.buddy-flow[aria-disabled="true"] .buddy-card, .buddy-flow[aria-disabled="true"] .buddy-card input { cursor: default; }');
+  });
   test("a notice in the picker's places only adds margins, never type or padding (POSTMORTEM 2026-11-09)", () => {
     for (const name of ["buddy-step-notice", "buddy-step-notice-top", "buddy-notice"]) {
       expect(css).not.toMatch(new RegExp(`(^|\\n)\\.${name} \\{[^}]*(font|padding)`));

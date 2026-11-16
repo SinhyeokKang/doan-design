@@ -294,3 +294,14 @@ test("suggestion CSS: the name highlight repeats the anchor chip's values and wr
   expect(value).toMatch(/(^|[ ;])box-decoration-break: clone;/);
   expect(value).not.toMatch(/display:|white-space:|max-width:|text-overflow:/);
 });
+
+// A long project name ellipsizes in the Home project trigger (inside the composer, chevron kept) and in the project
+// menu's rows (check kept, no sideways scroll).
+test("a long project name ellipsizes in the Home trigger and the project menu", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const view = readFileSync(new URL("./HomeComposerView.tsx", import.meta.url), "utf8");
+  expect(view).toContain('<span className="home-project-name">{project}</span>');
+  expect(css).toMatch(/\.home-project \{[^}]*max-width: calc\(100% - var\(--space-2\)\);/);
+  expect(css).toContain(".home-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
+  expect(css).toContain(".project-item .model-name { overflow: hidden; text-overflow: ellipsis; }");
+});

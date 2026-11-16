@@ -496,3 +496,10 @@ test("a suggested prompt is one button: group icon, highlighted sentence and arr
   expect(out).toMatch(/^<button type="button" class="suggestion" data-state="closed" data-slot="tooltip-trigger"><span class="suggestion-icon"><svg[^>]*aria-hidden="true"[^>]*>.*?<\/svg><\/span><span class="suggestion-label">Review the <span class="suggestion-value">checkout<\/span> canvas<\/span><svg[^>]*class="[^"]*suggestion-go[^"]*"[^>]*>.*<\/svg><\/button>$/);
   expect(out).not.toContain("title=");
 });
+
+// The Fast switch's thumb slides as the shared switch's does (ds/controls.css), and stops under reduced motion.
+test("the Fast switch thumb takes the shared switch's slide and reduced-motion exclusion", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.fast-switch::before \{[^}]*transition: transform var\(--time-settle\) var\(--ease-settle\);/);
+  expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*\.fast-switch::before \{ transition: none; \}/);
+});

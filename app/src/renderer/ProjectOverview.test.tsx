@@ -292,3 +292,12 @@ test("the composer tells the docked buddy when the conversation waits for an ans
   expect(slot(moved)).toContain(' data-notice=""');
   expect(slot(render([]))).not.toContain("data-notice");
 });
+
+// A long folder name stops at 40% of the header and ellipsizes, as the canvas header's crumb does, so New conversation
+// stays inside the header.
+test("the Overview's project crumb is capped at 40% and its name ellipsizes", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.ov-project \{[^}]*flex: 0 1 auto; max-width: 40%; min-width: 0;/);
+  expect(css).toMatch(/\.ov-project-name \{[^}]*min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/);
+});

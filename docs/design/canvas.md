@@ -176,7 +176,7 @@ Reference: `.doan/canvases/terminal-work-worktrees.html` (`sibling-notice`, `pic
 
 | Element | Measured contract | Reason |
 |---|---|---|
-| Notice | `.doan-agent.doan-agent-sibling` in the top column: the app notice's pill ('Canvas area and right panel' 'Agent notice'; padding 4 / 4 / 4 / 8), Doany the artist (8 from the start, 8 before the text, as the app notice), "Agent is working in <label>" (body-sm 14/20 white, `role="status"`), and an sm Open (32 high, padding 6 / 16, 16 % white fill, 4 from the end, 8 after the text; 26 % on hover, read in the app only). No glow or dot field on the board. capped at 420 | Equal to the draft at rest before Doany replaced the dot (the 362.6 px width for `feat/checkout-copy` was measured with the dot). Open is named "Open this canvas in <label>". |
+| Notice | `.doan-agent.doan-agent-sibling` in the top column: the app notice's pill ('Canvas area and right panel' 'Agent notice'; padding 4 / 4 / 4 / 8), Doany the artist (8 from the start, 8 before the text, as the app notice), "Agent is working in <label>" (body-sm 14/20 white, `role="status"`), and an sm Open (32 high, padding 6 / 16, 16 % white fill, 4 from the end, 8 after the text; 26 % on hover, read in the app only). No glow or dot field on the board. capped at 420 | Equal to the draft at rest before Doany replaced the dot (the 362.6 px width for `feat/checkout-copy` was measured with the dot). Open is named "Open this canvas in <label>". Keyboard focus on either notice's Open draws the ring in `--text-on-prominent`, offset −2 (inside the button): the default black ring 2 px outside would sit on the capsule's edge and nearly vanish over a dark canvas (measured on a real sibling notice: rgb(255,255,255), 2 px solid, −2px). |
 | Long label | The text ellipsizes (308.8 of the 420 pill); Open's name keeps the whole label | |
 | Tooltip | On the text: the shared tooltip ('Canvas conversation panel' 'Tools row'; at most 384 wide; the full sentence "Agent is working on this canvas in <label>" wraps to two lines, 40 high). It opens below, 4 under the pill (`side="bottom"`, `sideOffset` 14 from the text) | Radix's default side puts the two-line tooltip above the pill, across the board's top edge into the canvas header (runtime probe). |
 | No branch | A detached worktree is named by its folder ("Agent is working in checkout-spike") | |
@@ -192,7 +192,7 @@ Reference: `.doan/canvases/terminal-work-worktrees.html` (`sibling-notice`, `pic
 
 ### Not verified
 
-- Open's focus ring and pressed fill (the draft draws neither); Open's hover in the draft (its rule says 26 %, but its frame takes the pointer on the board, so it was not hovered).
+- Open's pressed fill (the draft draws none; its focus ring is under 'Notice' above); Open's hover in the draft (its rule says 26 %, but its frame takes the pointer on the board, so it was not hovered).
 - Picking while an app conversation works (the draft's `pick-agent` tile): no agent signs in in an isolated app. The hint with the other-worktree notice (`pick-sibling`) was checked for position only, by the runtime probe.
 - A narrow board, where the hint's text ellipsizes.
 
