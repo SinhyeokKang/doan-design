@@ -62,8 +62,8 @@
 
 | 링크 | 세션·워크트리 | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| canvas-drawing-cards | — | — | — | 대기 |
-| prototype-authoring-contract | — | — | — | 대기 |
+| canvas-drawing-cards | claude · `canvas-drawing-cards-orch` (`feat/canvas-drawing-cards`) | 2026-11-16 | — | 진행 |
+| prototype-authoring-contract | claude · `prototype-authoring-contract-orch` (`feat/prototype-authoring-contract`) | 2026-11-16 | — | 진행 |
 
 ## 인계 기록
 
