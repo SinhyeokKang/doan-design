@@ -136,7 +136,7 @@ function asks(): ConversationEvent[] {
 test("handoffs, asks and attachments draw again when what they read from outside their data changes", () => {
   const items = threadItems(asks(), ROOT, true);
   const key = (kind: ThreadItem["kind"]) => items.find(item => item.kind === kind)!.key;
-  expect(new Set(items.map(item => item.kind))).toEqual(new Set(["handoffCard", "handoff", "noReply", "user", "permission", "question"]));
+  expect(new Set(items.map(item => item.kind))).toEqual(new Set(["handoffCard", "canvasCard", "noReply", "user", "permission", "question"]));
   const base = run(props(items));
   const changed = (patch: Partial<ConversationThreadProps>, kind: ThreadItem["kind"]) => {
     const next = run(props(items, patch));
@@ -144,7 +144,7 @@ test("handoffs, asks and attachments draw again when what they read from outside
     return !same(base.get(key(kind))!, next.get(key(kind))!);
   };
   expect(changed({ homeDirectory: "/Users/bob" }, "user")).toBe(true);
-  expect(changed({ canvasListed: () => false }, "handoff")).toBe(true);
+  expect(changed({ canvasListed: () => false }, "canvasCard")).toBe(true);
   expect(changed({ canvasListed: () => false }, "handoffCard")).toBe(true);
   expect(changed({ liveAfter: 1000 }, "permission")).toBe(true);
   expect(changed({ questionDraft: () => ({ choices: {}, sending: "answer", failed: false }) }, "question")).toBe(true);

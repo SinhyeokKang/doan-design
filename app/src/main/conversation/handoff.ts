@@ -54,9 +54,12 @@ export interface MissedInput { root: string; edits: readonly string[]; listed: r
 // The new canvases a guided turn edited and asked no handoff for, in edit order: each is one the turn could have handed
 // off to by handoffDecision's rules. A file made by a shell command has no edit path, so it is never named.
 export function missedHandoffs(input: MissedInput): Canvas[] {
-  const rows = input.listed.filter(row => input.listed.filter(other => other.path === row.path || (row.id !== undefined && other.id === row.id)).length === 1);
-  return canvasesAt(input.root, input.edits, rows, input.snapshot).filter(row => !sameCanvas(input.source, row) &&
+  return canvasesAt(input.root, input.edits, listedOnce(input.listed), input.snapshot).filter(row => !sameCanvas(input.source, row) &&
     !input.snapshot.some(old => sameCanvas(old, row) || old.path === row.path) && !input.requested.includes(row.path));
+}
+// The rows listed exactly once: a path listed twice, or an ID two files share (duplicate_canvas_id), names neither.
+export function listedOnce(listed: readonly Canvas[]): Canvas[] {
+  return listed.filter(row => listed.filter(other => other.path === row.path || (row.id !== undefined && other.id === row.id)).length === 1);
 }
 // Where a handoff turn's queued messages go once every request resolved. move: to the one started conversation. With
 // several requests the messages may be meant for any canvas, so they go to the source, or back to the draft when a
