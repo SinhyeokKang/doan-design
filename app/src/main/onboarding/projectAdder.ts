@@ -73,8 +73,8 @@ export type FolderKind = keyof typeof THROWN;
 // planned clone folder in canonical spelling; the inspection shows the destination as it was asked for.
 interface Inspection { generation: number; inspection: OnboardingInspection; repo: GitHubUrl | null; target?: string }
 const leftoverMessage = (paths: readonly string[]) => paths.length === 1
-  ? `Couldn't remove ${paths[0]}. Remove it, then try again.`
-  : `Couldn't remove ${paths.slice(0, -1).join(", ")} and ${paths.at(-1)}. Remove them, then try again.`;
+  ? `Couldn’t remove ${paths[0]}. Remove it, then try again.`
+  : `Couldn’t remove ${paths.slice(0, -1).join(", ")} and ${paths.at(-1)}. Remove them, then try again.`;
 
 export interface ProjectAdderOptions {
   newId: () => string;

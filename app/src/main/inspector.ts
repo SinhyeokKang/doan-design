@@ -184,7 +184,7 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string, docu
       ]);
       return { ok: true, rows: inspectRows({ matched, computed: computed.computedStyle, ancestors: ancestorsOf(root, nodeId) }) };
     } catch {
-      return { ok: false, reason: "The canvas could not be inspected." };
+      return { ok: false, reason: "The canvas couldn’t be inspected." };
     } finally {
       // Left on, the whole tree known from `getDocument` turns every later DOM
       // mutation of the canvas into an event to main: about 6,300 a second on

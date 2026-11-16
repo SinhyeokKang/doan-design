@@ -85,6 +85,8 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   const off = (reason: SendReason | null) => ({ enabled: false, reason });
   if (input.sending) return off(null);
   if (input.projects === 0 || !input.root) return off({ kind: "noProject", text: "Add a project to send." });
+  // A project still being read has nothing to fix in its sidebar menu, so the line sends nobody there.
+  if (input.root.kind === "loading") return off({ kind: "projectUnavailable", text: `${input.projectName} is still being read.` });
   if (input.root.kind !== "list") return off({ kind: "projectUnavailable", text: unavailableProject(input.projectName) });
   const agent = agentProblem(input.auth, input.provider);
   if (agent) return off(agent);
@@ -528,8 +530,8 @@ export function followDrawerHighlight(before: readonly PresetRow[], after: reado
 }
 
 const CLI_REASONS: Record<string, string> = {
-  unavailable: "the doan CLI couldn’t start", timeout: "the doan CLI didn’t answer in time",
-  invalid_response: "Doan couldn’t read the CLI’s answer", failed: "the doan CLI stopped without a result",
+  unavailable: "the doan command couldn’t start", timeout: "the doan command didn’t answer in time",
+  invalid_response: "Doan couldn’t read the command’s answer", failed: "the doan command stopped without a result",
 };
 
 function presetNotice(reply: PresetListReply | undefined): PresetNotice | null {
@@ -538,7 +540,7 @@ function presetNotice(reply: PresetListReply | undefined): PresetNotice | null {
   const { error } = reply;
   if (error.code === "request_refused") return { kind: "error", text: "Doan refused this preset request. You can still send without a preset.", retry: false };
   // An older CLI has no design-skill command and answers the list with usage_error.
-  if (error.code === "usage_error") return { kind: "olderCli", text: "This doan CLI has no design presets. Update Doan to use them." };
+  if (error.code === "usage_error") return { kind: "olderCli", text: "This version of the doan command has no design presets. Update Doan to use them." };
   const reason = "reason" in error ? CLI_REASONS[error.reason] : undefined;
   return { kind: "error", text: reason ? `Doan couldn’t read the design presets: ${reason}. You can still send without one.` : "Doan couldn’t read the design presets. You can still send without one.", retry: true };
 }

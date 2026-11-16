@@ -657,7 +657,7 @@ export function QueueRows(props: QueueRowsProps) {
         {props.sendNow && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <Tooltip><TooltipTrigger asChild>
             <button type="button" ref={node => { life(node); keep("sendNow", item.id)(node); }} className="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle"
-              aria-label="Send queued message now" aria-describedby={describedBy} onClick={() => void sendNow(item.id)}>Send now</button>
+              aria-describedby={describedBy} onClick={() => void sendNow(item.id)}>Send now</button>
           </TooltipTrigger><TooltipContent>{SEND_NOW_TIP}</TooltipContent></Tooltip>}</QueueButtonLife>}
         <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <button type="button" ref={node => { life(node); keep("remove", item.id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"

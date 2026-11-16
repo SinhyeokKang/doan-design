@@ -60,13 +60,13 @@ export function rowView(entry: UsageEntry, now: number): RowView {
   const reason = (note: NoteView): RowView => ({ ...base, read: null, windows: [], note });
   if (entry.blocked !== undefined) return reason({ text: blockedNote(entry.provider, entry.blocked), kind: "warn" });
   const { reading } = entry;
-  if (!reading) return reason({ text: "Reading usage…" });
+  if (!reading) return reason({ text: "Reading usage" });
   if (reading.status === "unavailable") {
     if (reading.reason === "not_supported") return reason({ text: `Usage isn’t available for ${name}.` });
     if (reading.reason === "no_plan_limits") return reason({ text: `${name} isn’t on a plan with usage limits.` });
     return reason({ text: "Couldn’t read usage. Doan tries again when you open this.", kind: "error" });
   }
-  const read = entry.inFlight ? "Updating…" : readText(reading.readAt, now);
+  const read = entry.inFlight ? "Updating" : readText(reading.readAt, now);
   if (reading.unlimited) return { ...base, read, windows: [], note: { text: "Unlimited" } };
   return { ...base, read, windows: reading.windows.map(window => windowView(window, now)), note: null };
 }

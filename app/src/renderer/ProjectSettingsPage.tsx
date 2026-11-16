@@ -421,7 +421,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
                 <div className="doan-preference-row">
                   <div className="doan-preference-row-content" />
                   <div className="doan-preference-row-trailing">{status("serve")}
-                    <button ref={addButton} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={disabled} onClick={() => void choose("serve")}>Add File or Folder</button></div>
+                    <button ref={addButton} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={disabled} onClick={() => void choose("serve")}>Add file or folder</button></div>
                 </div>
                 {message("serve")}
               </div>
@@ -432,7 +432,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
         </div>}
         {choice && <SettingsDialog title={<>Share <code>{shared}</code> with canvases?</>} label={`Share ${shared} with canvases?`} verb="Share" description={<>Canvases in this worktree will be able to read <code className="selectable">{shared}</code>.</>}
           answer={allow => { const selected = choice; setChoice(null); if (allow) void write({ root, op: "addServe", choiceId: selected.choiceId }, "serve"); }} />}
-        {creating && entry && <SettingsDialog title={<>Create a Git repository in <code>{displayPath(entry.path, homeDirectory)}</code>?</>} label={`Create a Git repository in ${displayPath(entry.path, homeDirectory)}?`} verb="Create Repository"
+        {creating && entry && <SettingsDialog title={<>Create a Git repository in <code>{displayPath(entry.path, homeDirectory)}</code>?</>} label={`Create a Git repository in ${displayPath(entry.path, homeDirectory)}?`} verb="Create repository"
           description={withChips("Keep out of Git needs a Git repository. Doan will run git init here, then keep .doan/ out of it. Doan makes no commit, branch or remote, and the repository stays if you switch back to Include in Git.")}
           answer={createRepository} />}
       </div>

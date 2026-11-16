@@ -107,7 +107,7 @@ export function stripView(state: StripState, ctx: StripContext): StripView {
       const copy = (Object.hasOwn(FAILURES, state.code) ? FAILURES[state.code]! : STOPPED)(p);
       return view(copy.title, copy.body, recover);
     }
-    case "interrupted": return view("Stopped", state.reason === "user" ? "You stopped this conversation." : "This conversation stopped before it finished.", recover);
+    case "interrupted": return view("Stopped", state.reason === "user" ? "You stopped the agent." : "The agent stopped before it finished.", recover);
     case "done": return view("Done", ctx.canvas ? `${ctx.canvas} is ready.` : null, ctx.canvas ? [{ command: "open", label: "Open" }, dismiss] : [dismiss]);
   }
 }

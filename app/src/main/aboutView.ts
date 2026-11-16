@@ -36,7 +36,7 @@ function toolStatus(tool: AboutTool): { status: string | null; tone: AboutTone; 
   if (tool.cli === "missing") return { status: "Not installed", tone: "neutral", error: null };
   switch (tool.support) {
     case "supported": return { status: "Supported", tone: "ok", error: null };
-    case "unsupported": return { status: "Update needed", tone: "warning", error: null };
+    case "unsupported": return { status: "Needs an update", tone: "warning", error: null };
     case "incompatible": return { status: "Doan can’t run this version", tone: "error", error: null };
     case "unknown": return UNREAD_ROW;
   }

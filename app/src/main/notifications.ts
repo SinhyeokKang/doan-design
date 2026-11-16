@@ -20,12 +20,12 @@ export type ClickDestination = { kind: "conversation"; conversationId: string; r
 // The design names no copy for it; it says only that a notification looks like this.
 export const TEST_NOTIFICATION = { title: "Test notification", body: "Doan notifies you like this when an agent needs you." } as const;
 
-const TITLES: Record<NotificationKind, string> = { approval: "needs your approval", finished: "finished", failed: "couldn’t finish" };
+const TITLES: Record<NotificationKind, string> = { approval: "needs your answer", finished: "finished", failed: "couldn’t finish" };
 const SWITCH: Record<NotificationKind, keyof NotificationPreferences> = { approval: "approval", finished: "finished", failed: "failed" };
 
 // A turn the person stopped is `interrupted`, never `turn.failed`, so it never notifies. The permission summary is
-// left out until PRODUCT §6 settles its format, and so is a question's sentence. A question follows the Approval
-// requests switch but says it needs an answer, as the thread and the sidebar do.
+// left out until PRODUCT §6 settles its format, and so is a question's sentence. Both follow the Approval requests
+// switch and say they need an answer, as the thread and the sidebar do.
 export function notificationFor(event: ConversationEvent, preferences: NotificationPreferences, visibility: WindowVisibility, names: ConversationNames | null): PlannedNotification | null {
   const asks = event.type === "permission.request" || event.type === "question.request";
   const kind: NotificationKind | null = asks ? "approval" : event.type === "turn.done" ? "finished" : event.type === "turn.failed" ? "failed" : null;
@@ -33,7 +33,7 @@ export function notificationFor(event: ConversationEvent, preferences: Notificat
   if (visibility.focused && visibility.shown && !visibility.minimized && !visibility.appHidden) return null;
   if (visibility.prototypeShows === event.conversationId) return null;
   return {
-    kind, title: `${names.provider} ${event.type === "question.request" ? "needs your answer" : TITLES[kind]}`, body: names.branch === null ? names.project : `${names.project} · ${names.branch}`,
+    kind, title: `${names.provider} ${TITLES[kind]}`, body: names.branch === null ? names.project : `${names.project} · ${names.branch}`,
     target: { conversationId: event.conversationId, root: names.root },
     ...(asks ? { requestId: event.requestId } : {}),
   };

@@ -534,7 +534,7 @@ export function HeroComposer(props: HeroComposerProps) {
                   <span className={`shell-thumbnail hue-${projectHue(item.name)}`} aria-hidden="true">{projectInitial(item.name)}</span><span className="model-name">{item.name}</span>
                   {chip && <span className={chipClass(chip)}>{chip}</span>}<span className="check-slot">{item.key === card?.key && <Check className="check" aria-hidden="true" />}</span>
                 </DropdownMenu.RadioItem>
-                {down && <p className="menu-note">{chip === "Missing" ? `${item.name} is missing.` : `${item.name} isn’t available.`} Fix it from its menu in the sidebar.</p>}
+                {down && <p className="menu-note">{chip === "Reading" ? `${item.name} is still being read.` : `${chip === "Missing" ? `${item.name} is missing.` : `${item.name} isn’t available.`} Fix it from its menu in the sidebar.`}</p>}
               </Fragment>;
             })}
           </DropdownMenu.RadioGroup>
