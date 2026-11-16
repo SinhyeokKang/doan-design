@@ -196,7 +196,8 @@ describe("question card", () => {
   test("a failed send keeps the choices and says so under the actions", () => {
     const draft = questionDraft(questionDraft(draftOf({ type: "choose", question: layout, option: 1 }), { type: "sending", how: "answer" }), { type: "failed" });
     const out = card({ draft });
-    expect(out).toContain('<span class="ask-error" role="alert">Couldn’t send your answer. Try again.</span>');
+    // U31: the shared inline error line, led by the alert icon (DESIGN 'Errors').
+    expect(out).toMatch(/<p class="settings-msg error ask-error" role="alert"><svg[^>]*class="[^"]*doan-alert-icon[^"]*"[^>]*>.*?<\/svg><span>Couldn’t send your answer\. Try again\.<\/span><\/p>/);
     expect(out).toContain('<div class="doan-notice thread-notice q-card">');
     expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l1" name="b-q1-0" checked=""[^>]*\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label" id="b-q1-0-l1">Two rows/);
   });
@@ -205,7 +206,7 @@ describe("question card", () => {
   test("a failed Skip says the question was not skipped", () => {
     const draft = questionDraft(questionDraft(draftOf({ type: "choose", question: layout, option: 1 }), { type: "sending", how: "skip" }), { type: "failed" });
     const out = card({ draft });
-    expect(out).toContain("Couldn’t skip the question. Try again.");
+    expect(out).toMatch(/<p class="settings-msg error ask-error" role="alert"><svg[^>]*>.*?<\/svg><span>Couldn’t skip the question\. Try again\.<\/span><\/p>/);
     expect(out).not.toContain("Couldn’t send your answer.");
   });
 

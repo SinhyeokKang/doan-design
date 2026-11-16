@@ -62,10 +62,11 @@ export function SetupSteps({ scene, canProject, busy, go }: { scene: Scene; canP
   </nav>;
 }
 
-function ActionButton<C extends string>({ button, run, data }: { button: Button<C>; run: (command: C) => void; data?: Record<string, string> }) {
+// variant: the surface's own weight for the button, when it differs from the view's (a notice's actions).
+function ActionButton<C extends string>({ button, run, data, variant = button.variant }: { button: Button<C>; run: (command: C) => void; data?: Record<string, string>; variant?: string }) {
   return <>
     {button.note && <span className="ob-button-note">{button.note}</span>}
-    <button type="button" className="doan-button" data-ui-variant={button.variant} data-ui-size="sm" data-command={button.command} aria-label={button.ariaLabel} disabled={button.disabled} {...data} onClick={() => run(button.command)}>{button.label}</button>
+    <button type="button" className="doan-button" data-ui-variant={variant} data-ui-size="sm" data-command={button.command} aria-label={button.ariaLabel} disabled={button.disabled} {...data} onClick={() => run(button.command)}>{button.label}</button>
   </>;
 }
 
@@ -73,16 +74,19 @@ function ActionButton<C extends string>({ button, run, data }: { button: Button<
 // (a card, the provider list, Settings) the panel fill would vanish, so it keeps the inset notice.
 // live: false keeps the notice's look without its live role, for a page whose one live region announces changes
 // (Settings > MCP Connectors).
+// Its actions sit inside it (DESIGN 'Notices'): one beside the text, two or more stacked on their own row. A subtle
+// action takes panel on the inset fill, where subtle would have no fill of its own (projectNoticeActions' rule).
 export function NoticeView<C extends string = AuthCommand>({ notice, run, panel = false, live = true }: { notice: Notice<C>; run: (command: C) => void; panel?: boolean; live?: boolean }) {
+  const stacked = notice.actions.length > 1;
   return <>
-    <div className={`doan-notice${notice.role === "alert" ? " error" : ""}${panel ? " doan-panel" : ""}`} role={live ? notice.role : undefined} tabIndex={-1}>
+    <div className={`doan-notice${notice.role === "alert" ? " error" : ""}${panel ? " doan-panel" : ""}${stacked ? " stacked" : ""}`} role={live ? notice.role : undefined} tabIndex={-1}>
       {notice.spinner ? <span className="doan-spinner doan-alert-icon" aria-hidden="true" /> : <AlertIcon />}
-      <span className="selectable">{notice.title && <strong className="ob-notice-title">{notice.title}</strong>}{notice.body && <span className="ob-notice-body">{notice.body}</span>}</span>
+      <span className="ob-notice-text selectable">{notice.title && <strong className="ob-notice-title">{notice.title}</strong>}{notice.body && <span className="ob-notice-body">{notice.body}</span>}</span>
+      {notice.actions.length > 0 && <div className="ob-notice-actions">
+        {notice.actions.map(button => <ActionButton key={button.command} button={button} run={run} variant={button.variant === "subtle" && !panel ? "panel" : button.variant} />)}
+      </div>}
     </div>
     {notice.note && <p className="ob-provider-help">{notice.note}</p>}
-    {notice.actions.length > 0 && <div className={notice.actions.length === 1 ? "ob-state-actions submit-only" : "ob-state-actions"}>
-      {notice.actions.map(button => <ActionButton key={button.command} button={button} run={run} />)}
-    </div>}
   </>;
 }
 
@@ -133,8 +137,10 @@ export function PasteDialog({ view, value, submittable, tooLong, busy, change, s
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="ob-paste-title">{view.title}</h3><p className="doan-dialog-description">{view.body}</p></div></div>
       {/* While submitting nothing is natively disabled, so focus stays where Enter or the press left it: the field turns
           read-only, Cancel dims (closeDialog refuses it) and Submit spins. */}
-      <input className="doan-input" aria-label={view.inputLabel} placeholder={view.placeholder} spellCheck={false} value={value} autoFocus readOnly={busy} onChange={event => change(event.target.value)} />
-      {tooLong && <p className="ob-field-error" role="alert">This address is too long to submit.</p>}
+      <div className="field-group">
+        <input className="doan-input" aria-label={view.inputLabel} placeholder={view.placeholder} spellCheck={false} value={value} autoFocus readOnly={busy} onChange={event => change(event.target.value)} />
+        {tooLong && <p className="settings-msg error" role="alert"><AlertIcon /><span>This address is too long to submit.</span></p>}
+      </div>
       <div className="doan-dialog-actions">
         <button type="button" className="doan-button" data-ui-variant={view.cancel.variant} aria-disabled={busy || undefined} data-disabled={busy ? "" : undefined} onClick={close}>{view.cancel.label}</button>
         <button type="submit" className="doan-button" data-ui-variant={view.submit.variant} disabled={!busy && !submittable} aria-disabled={busy || undefined} aria-busy={busy || undefined}>
@@ -721,7 +727,7 @@ export function BuddyScene({ selection, preferences, heading, footer }: {
     <div className="ob-heading"><h2 tabIndex={-1} id="ob-buddy-title" ref={heading}>Choose your buddy</h2><p>It keeps you company in Doan and sets the app’s accent color. You can change it later in Settings.</p></div>
     {preferencesNotice(preferences?.notice, "doan-panel buddy-step-notice buddy-step-notice-top")}
     <BuddyFlow name="ob-buddy" labelledBy="ob-buddy-title" selected={selection.shown} disabled={buddyChoiceOff(preferences)} select={id => void selection.select(id)} />
-    {failure && <BuddyFailureNotice failure={failure} id="ob-buddy-error" className="doan-panel buddy-step-notice" retry={() => retry(failure.picked)} />}
+    {failure && <BuddyFailureNotice failure={failure} id="ob-buddy-error" className="buddy-step-notice" panel retry={() => retry(failure.picked)} />}
     <p className="ob-live" role="status">{failure ? buddyFailureText(failure) : ""}</p>
     {footer}
   </>;

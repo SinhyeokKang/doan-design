@@ -57,11 +57,12 @@ export function SettingsNotifications({ preferences, save }: { preferences: Pref
           {error("enabled")}
         </div>
         {enabled && <div className="doan-preference-row-extra settings-permission">
-          <div className={hint.error ? "doan-notice error" : "doan-notice"} role={hint.role}><AlertIcon /><span className="selectable">{hint.text}</span></div>
-          <div className="ob-state-actions">
-            <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={sendTest}>Send test notification</button>
-            <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => void window.doan.openNotificationSettings().catch(console.error)}>Open System Settings ↗</button>
-          </div>
+          {/* The notice's two actions stack on their own row inside it, panel on its inset fill (DESIGN 'Notices'). */}
+          <div className={hint.error ? "doan-notice error stacked" : "doan-notice stacked"} role={hint.role}><AlertIcon /><span className="ob-notice-text selectable">{hint.text}</span>
+            <div className="ob-notice-actions">
+              <button type="button" className="doan-button" data-ui-variant="panel" data-ui-size="sm" onClick={sendTest}>Send test notification</button>
+              <button type="button" className="doan-button" data-ui-variant="panel" data-ui-size="sm" onClick={() => void window.doan.openNotificationSettings().catch(console.error)}>Open System Settings ↗</button>
+            </div></div>
         </div>}
       </div>
     </section>

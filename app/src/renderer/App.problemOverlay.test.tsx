@@ -715,6 +715,18 @@ test("a canvas that failed to load shows the status block with the alert icon, i
   expect(reload.props).toMatchObject({ "data-ui-variant": "subtle", "data-ui-size": "sm", children: "Reload" });
 });
 
+// D12: the status region is drawn at once, so its live region exists before Loading is written into it 300 ms later.
+test("a loading canvas keeps its status region and leaves the Loading line to the delayed CanvasLoading", async () => {
+  const { CanvasLoading } = await import("./App");
+  render(); folders([listed("/w/a")]);
+  canvasOpen();
+  harness.setState!({ ...initialCanvasState(), status: "loading" }); render();
+  const status = all((pane()!.type as (props: unknown) => ReactNode)(pane()!.props)).find(element => element.props.className === "canvas-status")!;
+  expect(status.props.role).toBe("status");
+  expect(all(status).some(element => element.type === CanvasLoading)).toBe(true);
+  expect(all(status).some(element => element.type === "p")).toBe(false);
+});
+
 test("a canvas closed for a missing or not set up root leaves no empty canvas status block", () => {
   render(); folders([listed("/w/a")]);
   canvasOpen();

@@ -240,9 +240,11 @@ function AddServerDialog({ dialog, change, submit, close }: { dialog: Extract<Di
     <form className="ob-dialog-form" onSubmit={event => { event.preventDefault(); submit(); }}>
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="mcp-add-title">Add server by URL</h3>
         <p className="doan-dialog-description">Enter the address of a remote MCP server. It must start with https://.</p></div></div>
-      <input className="doan-input" aria-label="Server URL" placeholder="https://mcp.example.com/mcp" spellCheck={false} value={dialog.value} autoFocus
-        aria-invalid={dialog.error ? true : undefined} aria-describedby={dialog.error ? "mcp-add-error" : undefined} onChange={event => change(event.target.value)} />
-      {dialog.error && <p className="settings-msg error mcp-field-error selectable" role="alert" id="mcp-add-error"><AlertIcon /><span>{dialog.error}</span></p>}
+      <div className="field-group">
+        <input className="doan-input" aria-label="Server URL" placeholder="https://mcp.example.com/mcp" spellCheck={false} value={dialog.value} autoFocus
+          aria-invalid={dialog.error ? true : undefined} aria-describedby={dialog.error ? "mcp-add-error" : undefined} onChange={event => change(event.target.value)} />
+        {dialog.error && <p className="settings-msg error selectable" role="alert" id="mcp-add-error"><AlertIcon /><span>{dialog.error}</span></p>}
+      </div>
       <div className="doan-dialog-actions">
         {/* Default-size actions, as the compact dialogs are drawn (40px); Settings' row buttons stay sm. */}
         <button type="button" className="doan-button" data-ui-variant="subtle" onClick={close}>Cancel</button>

@@ -292,6 +292,17 @@ test("Config error: Details opens the error under the notice and closes it again
   unmount();
 });
 
+// U30: the disclosure's label shows its state with ▸/▾, as ErrorDetails does; the name stays "Details".
+test("Details shows ▸ while closed and ▾ while open, and is named Details", async () => {
+  await open({ entries: [configError("~/code/acme-web/.doan/config.json: unexpected token } at line 4, column 3")] });
+  expect(button("Details").props["aria-label"]).toBe("Details");
+  expect(words(button("Details").props.children)).toBe("Details ▸");
+  click("Details"); render();
+  expect(words(button("Details").props.children)).toBe("Details ▾");
+  expect(words(button("Retry").props.children)).toBe("Retry");
+  unmount();
+});
+
 test("CLI error: Details opens the CLI's message under the notice as text and closes it again", async () => {
   const reason = "doan: <b>read</b> \u001b[31mfailed\u001b[0m\n  second line\r\nthird";
   await open({ entries: [{ path: ROOT, kind: "cliError", reason }] });

@@ -6,6 +6,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { DELETE_TOOLTIP, deleteItemLabel } from "./conversationDelete";
 import type { ListFocus } from "./ConversationDeleteDialog";
 import { focusAfterLeave, listKeyTarget } from "./listKeyboard";
+import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
+import { LIST_FAILED_TEXT, listRetryButton } from "./ListRetryButton";
 import { applyVisibility, thumbnailView, type ThumbnailState, type ThumbnailView } from "./thumbnails";
 
 // The Overview's right panel body: one row per canvas conversation.
@@ -42,13 +44,15 @@ export function observedRows(rows: readonly CanvasConversationRow[]): string {
 export interface CanvasConversationListProps {
   list: CanvasList; project: string; thumbnails: ReadonlyMap<string, ThumbnailState>;
   open(item: CanvasConversationRow): void; retry(): void; onVisible(paths: readonly string[]): void;
+  // A failed list's Retry while it reads again (HomeRun listRetry).
+  listRetry?: ListRetry;
   // A row's Delete: its button, where Cancel returns focus, and where focus goes after the delete.
   onDelete(item: CanvasConversationRow, button: HTMLElement, after: ListFocus): void;
   // The panel's scroller observes thumbnail visibility; its title takes focus when the list empties under it.
   scroller: RefObject<HTMLElement | null>; title: RefObject<HTMLElement | null>;
 }
 
-export function CanvasConversationList({ list, project, thumbnails, open, retry, onVisible, onDelete, scroller, title }: CanvasConversationListProps) {
+export function CanvasConversationList({ list, project, thumbnails, open, retry, listRetry = LIST_RETRY_IDLE, onVisible, onDelete, scroller, title }: CanvasConversationListProps) {
   const loading = list === "loading";
   const [slow, setSlow] = useState(false);
   useEffect(() => {
@@ -99,8 +103,9 @@ export function CanvasConversationList({ list, project, thumbnails, open, retry,
   }, [observed]);
 
   if (list === "loading") return slow ? <ListLoading /> : null;
-  if (list === "error") return <div className="rp-error" role="status"><span>Couldn’t read conversations</span>
-    <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={retry}>Retry</button></div>;
+  // The panel is white, where a panel button has no fill of its own; subtle keeps one.
+  if (list === "error") return <div className="rp-error" role="status"><span>{announcedAgain(LIST_FAILED_TEXT, listRetry.failures)}</span>
+    {listRetryButton(listRetry, "subtle", retry)}</div>;
   if (rows.length === 0) return <div className="rp-empty"><p>No canvas conversations yet.</p><p>When a conversation draws or edits a canvas, the canvas shows here.</p></div>;
   return <ul className="rp-list" role="list" ref={listRef} onKeyDown={event => {
     const next = listKeyTarget(keys, memory.current() ?? tabKey, event.key);

@@ -15,7 +15,6 @@ import type { HomeMemory } from "../restore/uiState";
 import type { DoanApi } from "../preload";
 import { requestTitleText, stripRequestLines } from "../main/conversation/requestLines";
 import { useProjectSkills, type SkillsCalls } from "./useProjectSkills";
-import { AlertIcon } from "./AlertIcon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { textSegments } from "./anchorField";
 import { canvasConversationError, canvasConversationMenu, noticeOpenName, resumeHeld, titleMenuOrder } from "./canvasConversation";
@@ -24,6 +23,8 @@ import type { CanvasRun, CanvasTarget, CanvasView, ResumeReply } from "./canvasR
 import { focusFieldEnd } from "./chipField";
 import { SuggestionButton, type CanvasPress } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
+import { announcedAgain } from "./listRetry";
+import { LIST_FAILED_TEXT, listFailedNotice, listRetryItem } from "./ListRetryButton";
 import { ConversationHead } from "./ConversationLine";
 import { ReplaceDraftDialog } from "./ReplaceDraftDialog";
 import type { ReplaceDraftConfirm } from "./homeConversations";
@@ -195,8 +196,8 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
           <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${current === null ? " current" : ""}`} textValue="New conversation"><Plus aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
           <DropdownMenu.Separator className="doan-menu-sep" />
           <DropdownMenu.Label className="doan-menu-head">{`Conversations on ${canvasName}`}</DropdownMenu.Label>
-          {list === "error" ? <div className="conv-error" role="status"><span>Couldn’t read conversations</span>
-            <DropdownMenu.Item className="doan-menu-item" onSelect={event => { event.preventDefault(); run.retryList(); }}>Retry</DropdownMenu.Item></div>
+          {list === "error" ? <div className="conv-error" role="status"><span>{announcedAgain(LIST_FAILED_TEXT, run.listRetry().failures)}</span>
+            {listRetryItem(run.listRetry(), () => run.retryList())}</div>
             : <div className="conv-list">{items.map(item => <div key={item.conversationId} className="conv-row">
               <DropdownMenu.RadioItem value={item.conversationId} textValue={item.title} className={`doan-menu-item conv-item${item.selected ? " current" : ""}`}>
                 <ConversationHead line={item} name={item.title} nameClass="t" />
@@ -359,22 +360,23 @@ export function CanvasConversation(props: CanvasConversationProps) {
   }, [props.arrival?.seq, view.kind, conversationId, Array.isArray(items) ? items.length : -1, asking]);
 
   // Attachments go through main, which checks each file; each answer lands on its chip wherever the draft is now.
-  const settle = (keys: string[], results: readonly (AttachmentResult | null)[]) => settleChips(store, support, keys, results, props.onNotice);
+  // Refusals go to the composer's own notice (`report`), as Home's go under its composer.
+  const settle = (keys: string[], results: readonly (AttachmentResult | null)[], report: (text: string) => void) => settleChips(store, support, keys, results, report);
   const addChips = (at: string, chips: AttachmentDraft[]) => store.setDrafts(drafts => {
     const current = drafts.get(at) ?? EMPTY_DRAFT;
     return new Map(drafts).set(at, { ...current, attachments: [...current.attachments, ...chips] });
   });
-  const addFiles = (files: File[], pasted: boolean) => {
+  const addFiles = (files: File[], pasted: boolean, report: (text: string) => void) => {
     if (fixed) return;
     const at = key;
     const limit = attachmentLimit(draft.attachments.length, files.map(file => ({ pasted: false, size: file.size })));
-    if (limit.notices.length) props.onNotice(limit.notices.join(" "));
+    if (limit.notices.length) report(limit.notices.join(" "));
     const accepted = limit.accept.map(i => files[i]!);
     if (!accepted.length) return;
     const keys = accepted.map(() => crypto.randomUUID());
     addChips(at, accepted.map((file, i) => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size })));
     void calls.addAttachmentFiles(accepted).catch(() => null).then(async results => {
-      if (!results) { settle(keys, keys.map(() => null)); return; }
+      if (!results) { settle(keys, keys.map(() => null), report); return; }
       // A copied screenshot has no path on disk; it attaches as a pasted image instead. A Finder item main no longer
       // finds keeps main's answer: a folder named x.png has File.type image/png too.
       const final = await Promise.all(results.map(async (result, i) => {
@@ -386,10 +388,10 @@ export function CanvasConversation(props: CanvasConversationProps) {
         if (!bytes) return result;
         return calls.addPastedImage(bytes).catch(() => null);
       }));
-      settle(keys, final);
+      settle(keys, final, report);
     });
   };
-  const chooseFiles = () => {
+  const chooseFiles = (report: (text: string) => void) => {
     if (fixed) return;
     const at = key;
     void calls.chooseAttachments().catch(() => []).then(results => {
@@ -397,8 +399,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
       for (const id of release) void calls.removeAttachment(id);
       const keys = chosenFiles.map(() => crypto.randomUUID());
       addChips(at, chosenFiles.map((result, i) => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" })));
-      settle(keys, chosenFiles);
-      if (notices.length) props.onNotice(notices.join(" "));
+      settle(keys, chosenFiles, report);
+      if (notices.length) report(notices.join(" "));
     });
   };
 
@@ -501,8 +503,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
         {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : view.kind === "wait" || conversationId ? <Waiting /> : <>
-          {newView?.listError && <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
-            <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}
+          {newView?.listError && listFailedNotice(run.listRetry(), () => run.retryList())}
           {resume && <ResumeChoice offer={offer!} reply={resume.resume} now={props.now} mode={held ? "new" : resume.start.mode} held={held} onChoose={choice => { run.choose(choice); focusField(); }} />}
           {prompts.length > 0 && !started && !resume && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <SuggestionButton key={prompt.label} prompt={prompt} onPick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }} />)}</div>}

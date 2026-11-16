@@ -1,5 +1,5 @@
 import { expect, it, test, vi } from "vitest";
-import { App, conversationOpenRefusal, menuCommand } from "./App";
+import { App, CanvasLoading, conversationOpenRefusal, menuCommand } from "./App";
 
 const harness = vi.hoisted(() => ({ effects: [] as (() => (() => void) | undefined)[], dispose: vi.fn(), command: vi.fn(), updateEntries: vi.fn() }));
 vi.mock("react", async importOriginal => ({
@@ -82,4 +82,15 @@ test("a Quick Open conversation that can no longer be opened names its quoted ti
   expect(conversationOpenRefusal("deleted", "Onboarding checklist for teams invited from the admin console, with the empty state", "acme-web"))
     .toBe("Couldn’t open “Onboarding checklist for teams invited from the admin consol…”. It was deleted.");
   expect(conversationOpenRefusal("deleted", "  ", "acme-web")).toBe("Couldn’t open this conversation. It was deleted.");
+});
+
+// D12: a canvas that loads quickly never flashes its Loading line; a slow one shows it from 300 ms.
+test("the canvas page's Loading line draws nothing first and waits 300 ms", () => {
+  harness.effects.length = 0;
+  expect(CanvasLoading()).toBeNull();
+  const timeout = vi.spyOn(globalThis, "setTimeout");
+  const cleanup = harness.effects.at(-1)!();
+  expect(timeout).toHaveBeenCalledWith(expect.any(Function), 300);
+  timeout.mockRestore();
+  cleanup?.();
 });

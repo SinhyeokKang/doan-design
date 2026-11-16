@@ -239,8 +239,8 @@ code, kbd { font-family: var(--type-family); }
 .ob-notice-title { font-weight: var(--type-weight-medium); }
 /* Only under a title: a body alone is the first line, which the notice icon is centred on. */
 .ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
-/* A Project notice's text takes the room beside its actions; its second line (main's own account, or a note) is a
-   caption under the sentence. */
+/* A notice's text takes the room beside its actions; a Project notice's second line (main's own account, or a note)
+   is a caption under the sentence. */
 .ob-notice-text { flex: 1 1 240px; min-width: 0; }
 .ob-notice-actions { flex: none; display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .ob-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
@@ -251,7 +251,9 @@ code, kbd { font-family: var(--type-family); }
 .ob-footer { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: var(--space-8); }
 .ob-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ob-dialog-form { display: flex; flex-direction: column; gap: var(--space-4); }
-.ob-field-error { margin-top: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-danger); }
+/* A dialog field and its inline error (settings-msg error) are one group, the error 8px under the field; the form's
+   16px gap stays between the group and the actions. */
+.field-group { display: flex; flex-direction: column; gap: var(--space-2); }
 .ob-overlay .ob-card { width: auto; }
 /* Project step (draft frames project, project-local, repository-found, repository-clone, repository-error). */
 .ob-scene svg { width: var(--size-icon); height: var(--size-icon); }
@@ -718,8 +720,8 @@ body:has(.shell-top) { background: transparent; }
 .shell-modes button[aria-disabled="true"]:not(.current):hover, .shell-search[aria-disabled="true"]:hover, .shell-side .row[aria-disabled="true"]:hover, .shell-top .shell-history .doan-icon-button[aria-disabled="true"]:hover { background: transparent; }
 .shell-top .shell-history .doan-icon-button[aria-disabled="true"]:active { background: transparent; }
 /* Radix still highlights an aria-disabled menu item under the pointer and keyboard; the selected worktree keeps its
-   own fill and check. */
-.doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }
+   own fill and check, and a busy row (a running Retry) keeps its highlight. */
+.doan-menu-item[aria-disabled="true"]:not([aria-current="true"], [aria-busy="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }
 .shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }
 /* The top inset is set from the reference group by HomeComposer (stageInsets); this is its floor. */
 .home-stage { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: var(--space-8); padding-bottom: var(--space-5); }
@@ -1109,8 +1111,6 @@ body:has(.shell-top) { background: transparent; }
 .mcp-more { color: var(--text-subtle); }
 /* A busy section's Connect looks disabled but keeps hover and focus for its tooltip. */
 .mcp-agent .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
-/* The URL dialog's inline error sits 8px under the field, as the Paste dialog's field error does. */
-.mcp-field-error { margin-top: calc(-1 * var(--space-2)); }
 /* A removed server's running-turn notice stays under its section's list. */
 .mcp-section-notice { margin-top: var(--space-3); }
 
@@ -1131,7 +1131,7 @@ body:has(.shell-top) { background: transparent; }
 .setup-notice-agents { font-weight: var(--type-weight-medium); }
 .doan-notice.setup-notice code { background: var(--surface-panel); }
 .setup-notice-command { display: block; width: fit-content; margin-top: var(--space-1); }
-/* The permission hint under Desktop notifications: the shipped notice on a panel, its actions below as in onboarding. */
+/* The permission hint under Desktop notifications: the shipped notice on a panel, its actions inside it. */
 .doan-settings-group > .doan-preference-row-extra { margin-top: 0; padding: var(--space-3) 0; }
 .doan-settings-group > .settings-permission { margin-top: 0; padding: 0 0 var(--space-3); border-top: 0; }
 .settings-saved { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-success); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
@@ -1152,7 +1152,7 @@ body:has(.shell-top) { background: transparent; }
 .project-settings-empty { color: var(--text-subtle); }
 .project-settings-path { display: flex; align-items: center; gap: var(--space-2); }
 .project-settings-notice-actions { flex: none; display: flex; gap: var(--space-2); }
-.project-settings-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); overflow-wrap: anywhere; }
+.project-settings-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
 .project-settings-loading { padding-inline: calc(var(--space-4) + 1px); }
 /* The lines under the notice (a refused recovery, the config error's detail) hang from it, closing most of the gap the
    notice leaves before the sections; a write error under a row only needs its own vertical padding. */
@@ -1239,12 +1239,12 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .activity-steps .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .conversation-thread .ask-answered { color: var(--text-subtle); }
 /* Thread notices put their actions on a row under the text, starting at the text's left edge (draft round 2). */
-.conversation-thread .thread-notice, .cp-scroll > .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
-.conversation-thread .thread-notice > .strip-actions, .cp-scroll > .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
+.conversation-thread .thread-notice, :is(.cp-scroll, .ov-new) > .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
+.conversation-thread .thread-notice > .strip-actions, :is(.cp-scroll, .ov-new) > .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
 /* The Stopped notice's glyph is a bare lucide icon (24px unless sized); AlertIcon and the agent mark size themselves. */
-.conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
+.conversation-thread .thread-notice > svg, :is(.cp-scroll, .ov-new) > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
 /* The strip's one-line clip (overflow hidden) would cut glyphs that overhang a wrapped line. */
-.conversation-thread .thread-notice .strip-text span, .cp-scroll > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+.conversation-thread .thread-notice .strip-text span, :is(.cp-scroll, .ov-new) > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
 .conversation-thread .marker { display: flex; align-items: center; gap: var(--space-3); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .conversation-thread .marker::before, .conversation-thread .marker::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
 .conversation-thread .marker span { display: inline-flex; align-items: center; gap: var(--space-1h); min-width: 0; max-width: 80%; text-align: center; }
@@ -1341,6 +1341,8 @@ body:has(.shell-top) { background: transparent; }
 /* New conversation: the moved line and the suggestions sit right above the composer. */
 /* A lucide glyph renders 24px unless a rule sizes it; the shared notice rules size only their own alert icon. */
 .doan-notice.moved { margin-bottom: var(--space-3); }
+/* A list never read: the canvas panel's thread notice, 12 above the suggestions as the moved line is. */
+.ov-new > .thread-notice { margin-bottom: var(--space-3); }
 .doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }
 /* One line: a title is the whole first message (up to 512 characters), so only it gives way and "moved to <canvas>."
    stays readable; the text keeps the full sentence for assistive tech and the tooltip. */
@@ -1379,6 +1381,8 @@ body:has(.shell-top) { background: transparent; }
 .conv-row:is(:hover, :has([data-highlighted])) .cv-when > [aria-hidden="true"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .conv-item .t { font-weight: var(--type-weight-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conv-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* A running Retry row keeps its highlight (it is busy, not unavailable) and takes the in-button spinner's size and ink. */
+.conv-error .doan-menu-item > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
 .conv-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 /* A conversation's first line, shared with the right panel's rows: logo, name, status mark, short time flush right. */
 .cv-head { display: flex; align-items: center; gap: var(--space-1h); min-width: 0; }
@@ -1644,8 +1648,9 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-agent.doan-picking { padding-right: var(--space-2); }
 .doan-picking-icon { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .area[data-picking] { cursor: crosshair; }
-/* A permission answer that did not reach the agent, under its request's choices. */
-.conversation-thread .thread-notice > .ask-error { grid-column: 2; color: var(--text-danger); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+/* A permission answer that did not reach the agent, under its request's choices: the shared inline error line
+   (settings-msg error), placed in the text column. */
+.conversation-thread .thread-notice > .ask-error { grid-column: 2; }
 /* An agent's question (agent-questions draft frames question-card, keyboard, send-states): the permission notice whose
    questions, actions and error line take the card's full width under the mark's title line. Nothing in a question is cut. */
 .conversation-thread .q-card > :is(.q-list, .strip-actions, .ask-error) { grid-column: 1 / -1; }

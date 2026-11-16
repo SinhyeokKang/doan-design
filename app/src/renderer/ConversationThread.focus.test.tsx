@@ -186,7 +186,7 @@ test("a cancelled card focus was not in, with nothing typed, moves no focus", ()
 // failure, whether that reply or permission.resolved arrives first (Electron does not order a handle reply against
 // an earlier send; POSTMORTEM 2026-10-26).
 // The card's own failure line; a live request's card is itself an alert.
-const alerted = () => tree.some(element => element.props.className === "ask-error");
+const alerted = () => tree.some(element => String(element.props.className).split(" ").includes("ask-error"));
 test("a stale permission answer shows no failure, before or after the resolution arrives", async () => {
   for (const order of ["reply first", "resolved first"] as const) {
     hooks.slots = []; hooks.layout = []; controls = new Map(); active = body;
@@ -217,6 +217,10 @@ test("an answer main refused for another reason still asks to choose again", asy
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   draw([permission("a")]);
   expect(alerted()).toBe(true);
+  // U31: the shared inline error line with the alert icon.
+  const line = tree.find(element => String(element.props.className).split(" ").includes("ask-error"))!;
+  expect(line.type).toBe("p");
+  expect(line.props).toMatchObject({ className: "settings-msg error ask-error", role: "alert" });
 });
 
 // A turn's cards sit above a request still waiting and below it once it folds (threadItems placeCards), so React moves

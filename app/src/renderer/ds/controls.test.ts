@@ -59,6 +59,23 @@ test("a notice's text parts take no ink of their own, so the title, body, lines 
   expect(inked).toEqual([]);
 });
 
+// The one exception to the rule above (DESIGN 'Notices'): a notice's reason line, main's own account of a failure
+// under its sentence, is a caption in the metadata ink on every screen and in every tone.
+test("a notice's reason line is a caption in the metadata ink, the same on every screen", () => {
+  const sources = [read("./surfaces.css"), read("../styles.css")].join("\n").replace(/\/\*[\s\S]*?\*\//g, "");
+  const reasons = [".ob-notice-reason", ".project-settings-notice-reason"];
+  for (const reason of reasons) {
+    const declarations = [...sources.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, selectors]) => selectors!.split(",").some(s => s.trim().replace(/:not\([^)]*\)/g, "").split(/[\s>+~]+/).at(-1) === reason))
+      .flatMap(([, , body]) => body!.split(";").map(d => d.trim()).filter(Boolean));
+    const value = (property: string) => declarations.filter(d => d.split(":")[0]!.trim() === property).map(d => d.slice(d.indexOf(":") + 1).trim());
+    expect(value("color"), reason).toEqual(["var(--text-metadata)"]);
+    expect(value("font-size"), reason).toEqual(["var(--type-caption-size)"]);
+    expect(value("line-height"), reason).toEqual(["var(--type-caption-line-height)"]);
+    expect(value("letter-spacing"), reason).toEqual(["var(--type-caption-letter-spacing)"]);
+  }
+});
+
 test("screens set only outer margins on a notice: no per-screen padding, gap, type, ink or alignment", () => {
   const notice = /\.(doan-notice|composer-notice|settings-notice|ob-list-notice|ob-project-notice|ob-drop-notice|setup-notice|convo-strip)(?![\w-])/;
   const sources = [read("./surfaces.css"), read("../styles.css")].join("\n").replace(/\/\*[\s\S]*?\*\//g, "");

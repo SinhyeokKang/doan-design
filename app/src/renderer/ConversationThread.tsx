@@ -425,7 +425,7 @@ export function QuestionCard({ item, provider, live, base, draft, onDraft, onSen
       <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled={locked || undefined} onClick={() => { if (!locked) onSkip(); }}>Skip</button>
       <button type="button" className="doan-button" data-ui-size="sm" onClick={onStop}><CircleStop aria-hidden="true" />Stop</button>
     </span>
-    {draft.failed && <span className="ask-error" role="alert">{draft.failed === "skip" ? SKIP_FAILED_TEXT : "Couldn’t send your answer. Try again."}</span>}
+    {draft.failed && <p className="settings-msg error ask-error" role="alert"><AlertIcon /><span>{draft.failed === "skip" ? SKIP_FAILED_TEXT : "Couldn’t send your answer. Try again."}</span></p>}
   </div>;
 }
 
@@ -882,7 +882,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
               data-request={entry.requestId} onClick={() => answer(entry.requestId, option.id)}>{option.label}</button>)}
             <button type="button" className="doan-button" data-ui-size="sm" onClick={() => stop(entry.requestId)}><CircleStop aria-hidden="true" />Stop</button>
           </span>
-          {unanswered.has(entry.requestId) && <span className="ask-error" role="alert">Couldn’t send your answer. Choose again.</span>}
+          {unanswered.has(entry.requestId) && <p className="settings-msg error ask-error" role="alert"><AlertIcon /><span>Couldn’t send your answer. Choose again.</span></p>}
         </div>;
       }
       case "question": {

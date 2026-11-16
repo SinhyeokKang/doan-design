@@ -82,6 +82,19 @@ test("Delivery and Notify me about: four switches with the design's copy, the pe
   expect(button("Open System Settings ↗")).toBeDefined();
 });
 
+// D20: the hint's two actions sit inside its notice, stacked on their own row, panel on the inset fill.
+test("the permission hint's actions sit inside its notice, stacked, as panel buttons", () => {
+  render();
+  const notice = all(tree).find(element => String(element.props.className).startsWith("doan-notice"))!;
+  expect(notice.props.className).toBe("doan-notice stacked");
+  const inside = all(notice);
+  for (const label of ["Send test notification", "Open System Settings ↗"]) {
+    const found = inside.find(element => element.type === "button" && element.props.children === label);
+    expect(found?.props["data-ui-variant"], label).toBe("panel");
+  }
+  expect(all(tree).some(element => element.props.className === "ob-state-actions")).toBe(false);
+});
+
 test("with Desktop notifications off the event switches keep their values but are disabled, and the hint goes", () => {
   render({ preferences: snapshot({ enabled: false, finished: false }) });
   expect(switches().map(element => [element.props["aria-checked"], !!element.props.disabled])).toEqual([[false, false], [true, true], [false, true], [true, true]]);
@@ -113,7 +126,8 @@ test("Send test notification says it was sent, or that Doan isn’t allowed; Ope
   doan.sendTestNotification!.mockResolvedValueOnce({ kind: "failed" });
   click("Send test notification"); await flush(); render();
   const alert = all(tree).find(element => element.props.role === "alert")!;
-  expect(words(alert.props.children)).toBe("Doan isn’t allowed to show notifications. Allow it in System Settings › Notifications.");
+  // The notice's text, beside its actions (D20).
+  expect(words(all(alert).find(element => String(element.props.className).includes("ob-notice-text"))!.props.children)).toBe("Doan isn’t allowed to show notifications. Allow it in System Settings › Notifications.");
   click("Open System Settings ↗");
   expect(doan.openNotificationSettings).toHaveBeenCalledWith();
 });
@@ -130,9 +144,9 @@ test("an unreadable preferences file says defaults apply; a newer one says so an
 test("Settings notices sit on the white page, so they keep the inset notice instead of the panel", () => {
   const notices = () => all(tree).filter(element => typeof element.props.className === "string" && element.props.className.split(" ").includes("doan-notice")).map(element => element.props.className);
   render({ preferences: snapshot({}, "broken") });
-  expect(notices()).toEqual(["doan-notice error settings-notice", "doan-notice"]);
+  expect(notices()).toEqual(["doan-notice error settings-notice", "doan-notice stacked"]);
   render({ preferences: snapshot({}, "newer") });
-  expect(notices()).toEqual(["doan-notice settings-notice", "doan-notice"]);
+  expect(notices()).toEqual(["doan-notice settings-notice", "doan-notice stacked"]);
 });
 
 // Read-only text is selectable (the `selectable` class); buttons are not.

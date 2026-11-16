@@ -89,3 +89,22 @@ test("a send main scheduled becomes a row and carries no picker change", async (
   expect(send).toHaveBeenLastCalledWith("claude", { conversationId: A, text: "Tighten it", anchors: [] });
   expect(run.queue(A).map(row => row.id)).toEqual(["s0", "s1"]);
 });
+
+// U16: the Overview's attachment refusals show under its composer, not as the window's toast.
+test("a chosen file main refuses and files over the limit are reported to the composer, not as a toast", async () => {
+  const { render, props } = setup();
+  const onNotice = vi.fn();
+  props.onNotice = onNotice;
+  doan.chooseAttachments = vi.fn(async () => [{ ok: false, name: "brief.pdf", error: "not_found" }]);
+  render();
+  await flush();
+  const chosen = vi.fn();
+  (composer.props!.onAttach as (report: (text: string) => void) => void)(chosen);
+  await flush();
+  expect(chosen).toHaveBeenCalledExactlyOnceWith("brief.pdf wasn’t found, so it wasn’t attached.");
+  doan.addAttachmentFiles = vi.fn(() => new Promise(() => {}));
+  const limited = vi.fn();
+  (composer.props!.onFiles as (files: File[], pasted: boolean, report: (text: string) => void) => void)(Array.from({ length: 11 }, (_, i) => new File(["x"], `f${i}.md`)), false, limited);
+  expect(limited).toHaveBeenCalledExactlyOnceWith("Only 10 attachments can be added. 1 was left out.");
+  expect(onNotice).not.toHaveBeenCalled();
+});
