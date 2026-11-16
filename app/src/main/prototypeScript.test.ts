@@ -196,6 +196,11 @@ describe("resolving and isolating the frame", () => {
     expect(page.html.children[0]!.hasAttribute("data-doan-proto-hidden")).toBe(false);
     expect(page.document.adoptedStyleSheets).toHaveLength(1);
     expect(page.sheets[0]!.text).toContain("min-height: 100vh !important");
+    // The viewport variable is declared at :root with a dvh upgrade; the frame's own rules stay as they were.
+    expect(page.sheets[0]!.text).toContain(":root { --doan-viewport-height: 100vh !important; }");
+    expect(page.sheets[0]!.text).toContain("@supports (height: 100dvh) { :root { --doan-viewport-height: 100dvh !important; } }");
+    expect(page.sheets[0]!.text).toMatch(/\[data-doan-proto-frame\] \{[^}]*width: 100% !important;[^}]*min-height: 100vh !important; box-sizing: border-box !important; \}/);
+    expect(page.sheets[0]!.text).not.toMatch(/\[data-doan-proto-frame\] \{[^}]*(?<!min-)height: (?!auto)/);
     // A modal appended after isolation is not hidden.
     const modal = element("div");
     append(page.body, modal);
