@@ -369,7 +369,7 @@ test("queued text strips fixed request paragraphs wherever they occur", () => {
 });
 
 // A turn that asked for a handoff ended, and main holds the conversation until the handoff is resolved: the composer
-// holds as the Overview's does, beside the source thread's "Hands off to <file> when this turn ends" line.
+// holds as the Overview's does, beside the source thread's card that "Hands off when this turn ends".
 test("in a handoff's judging window the composer offers a disabled Send, not Stop, and Stop only while queue rows wait", async () => {
   const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
   const at = (seq: number, payload: Record<string, unknown>) => ({ v: 1, conversationId: "now", seq, turnId: "t1", at: "2026-11-01T00:00:00Z", ...payload }) as ConversationEvent;
@@ -382,7 +382,7 @@ test("in a handoff's judging window the composer offers a disabled Send, not Sto
   const shown = (setup: (run: CanvasRun) => void = () => {}) => panel(list, run => { run.store.track("now"); setup(run); }, {
     support: Object.assign(new DockedSupport(() => {}, window.doan), { auth }) });
   const out = await shown();
-  expect(out).toContain("Hands off to billing.html when this turn ends");
+  expect(out).toMatch(/aria-label="billing.html, Hands off when this turn ends"/);
   expect(out).not.toContain("ti-reply");
   expect(slot(out)).toContain('aria-label="Send"');
   expect(slot(out)).toContain("disabled");

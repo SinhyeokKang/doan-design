@@ -4,7 +4,7 @@ import { describe, expect, test } from "vitest";
 import type { ReactElement } from "react";
 import type { Anchor } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
-import { answerReached, ConversationThread, endView, HandoffCard, HandoffLine, httpsUrl, SentChip, type ConversationThreadProps } from "./ConversationThread";
+import { answerReached, CanvasCard, ConversationThread, endView, HandoffCard, httpsUrl, SentChip, type ConversationThreadProps } from "./ConversationThread";
 import { threadItems, type ThreadItem } from "./threadItems";
 import type { ConversationEvent } from "../main/conversation/types";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -524,66 +524,95 @@ describe("a message Send now has in flight", () => {
   });
 });
 
-// The draft's frames source-requested, source-handed-off, source-refused, source-cancelled and
-// handoff-card (.doan/canvases/canvas-handoff.html).
-describe("handoff lines and the handoff card", () => {
+// The confirmed draft's canvas cards (.doan/canvases/canvas-drawing-cards.html frames running, asking, ended, many) and the
+// receiving conversation's handoff card (canvas-handoff.html frame handoff-card).
+describe("canvas cards and the handoff card", () => {
   const CHECKOUT = { path: ".doan/canvases/checkout-flow.html", id: "checkout" }, DRAFTS = { path: ".doan/canvases/drafts.html", id: "drafts" };
-  const line = (patch: Partial<Extract<ThreadItem, { kind: "handoff" }>>): ThreadItem => ({ kind: "handoff", key: "ht1", canvas: { path: CHECKOUT.path }, outcome: "pending", ...patch });
-  const marker = (icon: string, text: string, open = "") => new RegExp(`<div class="marker handoff"><span><svg[^>]*lucide-${icon}[^>]*>.*?</svg>${text}</span>${open}</div>`);
-  // A line's Open names the canvas it opens; several lines in one turn would otherwise read as the same "Open".
-  const OPEN = (file: string) => `<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label="Open ${file}">Open</button>`;
+  type Card = Extract<ThreadItem, { kind: "canvasCard" }>;
+  const card = (patch: Partial<Card> = {}): Card => ({ kind: "canvasCard", key: `ct1:${CHECKOUT.path}`, canvas: CHECKOUT, drawing: false, drawn: true, ...patch });
+  const running = { turn: { turnId: "t1", status: { kind: "general" as const }, at: "2026-11-16T00:00:00.000Z" } };
+  // A card's Open names the canvas it opens; several cards would otherwise read as the same "Open".
+  const OPEN = (label: string) => `<button type="button" class="doan-button cc-open" data-ui-size="sm" data-ui-variant="trigger" aria-label="${label}">Open</button>`;
+  const cardMarkup = (name: string, status: string, icon: string, open = "") => new RegExp(`<div class="canvas-card" role="group" aria-label="${name}, ${status}"><span class="cc-icon">${icon}</span><span class="cc-text"><span class="cc-title"><svg[^>]*lucide-panels-top-left[^>]*cc-kind[^>]*aria-hidden="true"[^>]*>.*?</svg><span class="cc-name">${name}</span></span><span class="cc-status">${status}</span></span>${open}</div>`);
+  const SPINNER = '<span class="doan-spinner" aria-hidden="true"></span>';
+  const svg = (icon: string) => `<svg[^>]*lucide-${icon}[^>]*aria-hidden="true"[^>]*>.*?</svg>`;
 
-  test("pending: the forward line without an action", () => {
-    expect(html([line({})])).toMatch(marker("forward", "Hands off to checkout-flow.html when this turn ends"));
+  test("Drawing: a labelled group with the hidden spinner, the canvas icon, the name over its status, and Open", () => {
+    expect(html([card({ drawing: true })], running)).toMatch(cardMarkup("checkout-flow.html", "Drawing", SPINNER, OPEN("Open checkout-flow.html")));
+    expect(html([card({ drawing: true, handoff: { outcome: "pending" } })], running)).toMatch(cardMarkup("checkout-flow.html", "Hands off when this turn ends", SPINNER, OPEN("Open checkout-flow.html")));
   });
-  test("handed off: Open, hidden with a note once the target is gone", () => {
-    const started = line({ outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } });
-    expect(html([started])).toMatch(marker("forward", "Handed off to checkout-flow.html", OPEN("checkout-flow.html")));
-    expect(html([started], { canvasListed: () => false })).toMatch(marker("forward", "Handed off to checkout-flow.html · No longer in doan-design"));
+
+  test("the spinner stops once the indicator goes: a Stop main has taken, or no running turn", () => {
+    const stopped = html([card({ drawing: true })], { turn: { turnId: "t1", status: { kind: "none" }, at: "2026-11-16T00:00:00.000Z" } });
+    expect(stopped).toMatch(cardMarkup("checkout-flow.html", "Drawn", svg("check"), OPEN("Open checkout-flow.html")));
+    expect(stopped).not.toContain("doan-spinner");
+    // A waiting request leaves no indicator, but the turn still runs.
+    expect(html([card({ drawing: true })], { turn: { turnId: "t1", status: { kind: "waiting" }, at: "2026-11-16T00:00:00.000Z" } })).toContain(SPINNER);
   });
-  test("refused and cancelled: the ban line without Open", () => {
-    expect(html([line({ outcome: "refused", reason: "not_new" })])).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. It existed before this turn started."));
-    expect(html([line({ outcome: "refused", reason: "not_logged_in" })])).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. Couldn’t start with Claude Code: its sign-in has expired. Choose another agent."));
-    expect(html([line({ outcome: "cancelled" })])).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. The turn didn’t finish."));
+
+  test("end states: Drawn, Handed off, refusals, cancel and missed", () => {
+    expect(html([card()])).toMatch(cardMarkup("checkout-flow.html", "Drawn", svg("check"), OPEN("Open checkout-flow.html")));
+    expect(html([card({ handoff: { outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } } })]))
+      .toMatch(cardMarkup("checkout-flow.html", "Handed off", svg("forward"), OPEN("Open the new conversation on checkout-flow.html")));
+    expect(html([card({ drawn: false, handoff: { outcome: "refused", reason: "not_new" } })]))
+      .toMatch(cardMarkup("checkout-flow.html", "Didn’t hand off. It existed before this turn started.", svg("ban"), OPEN("Open checkout-flow.html")));
+    expect(html([card({ canvas: DRAFTS, drawn: false, handoff: { outcome: "refused", reason: "same_canvas" } })]))
+      .toMatch(cardMarkup("drafts.html", "Didn’t hand off. It’s this conversation’s own canvas.", svg("ban")));
+    expect(html([card({ handoff: { outcome: "cancelled" } })])).toMatch(cardMarkup("checkout-flow.html", "Didn’t hand off. The turn didn’t finish.", svg("ban"), OPEN("Open checkout-flow.html")));
+    expect(html([card({ handoff: { outcome: "missed" } })])).toMatch(cardMarkup("checkout-flow.html", "Didn’t hand off. The agent didn’t ask to.", svg("ban"), OPEN("Open checkout-flow.html")));
   });
-  test("missed: the ban line with Open on that canvas, hidden with a sentence once the canvas is gone", () => {
-    const missed = line({ key: `ht1:${CHECKOUT.path}`, canvas: CHECKOUT, outcome: "missed" });
-    expect(html([missed])).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. The agent didn’t ask to.", OPEN("checkout-flow.html")));
-    expect(html([missed], { canvasListed: () => false })).toMatch(marker("ban", "Didn’t hand off to checkout-flow.html. The agent didn’t ask to. It’s no longer in doan-design."));
+
+  test("a canvas gone since: the status gains the tail and Open goes", () => {
+    expect(html([card({ handoff: { outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } } })], { canvasListed: () => false }))
+      .toMatch(cardMarkup("checkout-flow.html", "Handed off · No longer in doan-design", svg("forward")));
   });
-  test("several lines of one turn each name their own Open", () => {
+
+  test("without onOpenHandoff no card offers Open", () => {
+    expect(html([card()], { onOpenHandoff: undefined })).not.toContain("cc-open");
+  });
+
+  test("a turn's cards stack in one group with the draft's gap, each its own thread item keyed by turn and path", () => {
     const PAYMENT = { path: ".doan/canvases/payment.html", id: "payment" };
-    const out = html([
-      line({ key: `ht1:${CHECKOUT.path}`, outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } }),
-      line({ key: `ht1:${PAYMENT.path}`, canvas: PAYMENT, outcome: "missed" }),
-    ]);
-    expect(out).toContain(OPEN("checkout-flow.html"));
-    expect(out).toContain(OPEN("payment.html"));
+    const out = html([agent("Done."), card(), card({ key: `ct1:${PAYMENT.path}`, canvas: PAYMENT })]);
+    expect(out).toMatch(new RegExp(`<div class="thread-item"><div class="canvas-cards"><div class="thread-item" data-item="ct1:${CHECKOUT.path}"><div class="canvas-card"[^]*?</div></div><div class="thread-item" data-item="ct1:${PAYMENT.path}"><div class="canvas-card"[^]*?</div></div></div></div>`));
+    expect(out.match(/class="canvas-cards"/g)).toHaveLength(1);
+    // Cards split by another item make two stacks.
+    expect(html([card(), agent("Then."), card({ key: `ct2:${PAYMENT.path}`, canvas: PAYMENT })]).match(/class="canvas-cards"/g)).toHaveLength(2);
   });
-  test("the card: a labelled group with its head, Open and the text as agent Markdown, a {{1}} kept as typed", () => {
-    const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "Pick up **Payment**.\n\nThe person wrote “{{1}}”." };
-    const out = html([card]);
+
+  test("the status line adds the new canvases after the end's title once the turn ended, or says them alone", () => {
+    const PAYMENT = { path: ".doan/canvases/payment.html", id: "payment" };
+    const two = [card(), card({ key: `ct1:${PAYMENT.path}`, canvas: PAYMENT })];
+    const stopped: ThreadItem = { kind: "end", key: "e5", seq: 5, end: { kind: "interrupted", reason: "user" } };
+    expect(html([stopped, ...two])).toContain('<div class="sr-only" role="status">Stopped. 2 new canvases</div>');
+    expect(html([agent("Done."), ...two])).toContain('<div class="sr-only" role="status">2 new canvases</div>');
+    expect(html([agent("Done."), two[0]!])).toContain('<div class="sr-only" role="status">1 new canvas</div>');
+    const unavailable: ThreadItem = { kind: "end", key: "e5", seq: 5, end: { kind: "failed", code: "model_unavailable", model: "gpt-x" } };
+    expect(html([unavailable, ...two])).toContain('<div class="sr-only" role="status">gpt-x isn’t available for this account. 2 new canvases</div>');
+    // While the turn runs the stage speaks, not the cards.
+    expect(html([card({ drawing: true })], running)).toContain('<div class="sr-only" role="status">Claude Code is working</div>');
+  });
+
+  test("the handoff card: a labelled group with its head, Open and the text as agent Markdown, a {{1}} kept as typed", () => {
+    const handoff: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "Pick up **Payment**.\n\nThe person wrote “{{1}}”." };
+    const out = html([handoff]);
     expect(out).toMatch(/<div class="handoff-card" role="group" aria-labelledby="([^"]+)" tabindex="-1"><div class="handoff-head"><svg[^>]*lucide-forward[^>]*>.*?<\/svg><span id="\1">Handed off from drafts.html<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button><\/div><div class="md selectable"><p>Pick up <strong>Payment<\/strong>.<\/p>\s*<p>The person wrote “\{\{1\}\}”.<\/p><\/div><\/div>/);
     expect(out).not.toContain("bubble");
-    expect(html([card], { canvasListed: () => false })).toMatch(/<span id="[^"]+">Handed off from drafts.html · No longer in doan-design<\/span><\/div>/);
+    expect(html([handoff], { canvasListed: () => false })).toMatch(/<span id="[^"]+">Handed off from drafts.html · No longer in doan-design<\/span><\/div>/);
   });
-  test("the card's text is selectable like the reply it stands for", () => {
-    const card: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "Pick up **Payment**." };
-    expect(html([card])).toContain('<div class="md selectable">');
+  test("the handoff card's text is selectable like the reply it stands for", () => {
+    const handoff: ThreadItem = { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "Pick up **Payment**." };
+    expect(html([handoff])).toContain('<div class="md selectable">');
   });
-  test("Open on the line opens the target conversation, Open on the card the source conversation", () => {
+  test("Open on a handed-off card opens the target conversation, on any other the canvas alone, on the handoff card the source conversation", () => {
     const opened: unknown[] = [];
-    const started = line({ outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } });
-    const lineEl = HandoffLine({ entry: started as Extract<ThreadItem, { kind: "handoff" }>, project: "p", provider: "claude", canvasListed: () => true, onOpen: (canvas, id) => opened.push([canvas, id]) });
-    const cardEl = HandoffCard({ entry: { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "x" }, headId: "h", project: "p", canvasListed: () => true, onOpen: (canvas, id) => opened.push([canvas, id]) });
-    for (const element of [lineEl, cardEl]) (findButton(element)!.props as { onClick(): void }).onClick();
-    expect(opened).toEqual([[CHECKOUT, "c2"], [DRAFTS, "c0"]]);
-  });
-  test("Open on a missed line opens that canvas without naming a conversation", () => {
-    const opened: unknown[] = [];
-    const missed = line({ canvas: CHECKOUT, outcome: "missed" }) as Extract<ThreadItem, { kind: "handoff" }>;
-    (findButton(HandoffLine({ entry: missed, project: "p", provider: "claude", canvasListed: () => true, onOpen: (canvas, id) => opened.push([canvas, id]) }))!.props as { onClick(): void }).onClick();
-    expect(opened).toEqual([[CHECKOUT, undefined]]);
+    const onOpen = (canvas: unknown, id?: string) => opened.push([canvas, id]);
+    const cardOf = (entry: Card) => CanvasCard({ entry, project: "p", provider: "claude", canvasListed: () => true, onOpen });
+    const handoffEl = HandoffCard({ entry: { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "x" }, headId: "h", project: "p", canvasListed: () => true, onOpen });
+    for (const element of [cardOf(card({ handoff: { outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } } })), cardOf(card({ handoff: { outcome: "missed" } })), cardOf(card()), handoffEl]) {
+      (findButton(element)!.props as { onClick(): void }).onClick();
+    }
+    expect(opened).toEqual([[CHECKOUT, "c2"], [CHECKOUT, undefined], [CHECKOUT, undefined], [DRAFTS, "c0"]]);
   });
 });
 function findButton(node: unknown): ReactElement | null {
