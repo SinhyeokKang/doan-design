@@ -609,6 +609,21 @@ describe("canvas cards and the handoff card", () => {
     expect(html([unavailable, ...two])).toContain('<div class="sr-only" role="status">gpt-x isn’t available for this account. 2 new canvases</div>');
     // While the turn runs the stage speaks, not the cards.
     expect(html([card({ drawing: true })], running)).toContain('<div class="sr-only" role="status">Claude Code is working</div>');
+    // A promoted conversation's "moved to" notice follows the cards: they still count, after the end's title.
+    const bound: ThreadItem = { kind: "marker", key: "k9", seq: 9, marker: "bound", canvas: CHECKOUT };
+    expect(html([stopped, ...two, bound])).toContain('<div class="sr-only" role="status">Stopped. 2 new canvases</div>');
+  });
+
+  test("a Stop that hid the indicator says no new canvases before the turn's end arrives", () => {
+    const PAYMENT = { path: ".doan/canvases/payment.html", id: "payment" };
+    const drawing = [card({ drawing: true }), card({ key: `ct1:${PAYMENT.path}`, canvas: PAYMENT, drawing: true })];
+    const stopping = { turn: { turnId: "t1", status: { kind: "none" as const }, at: "2026-11-16T00:00:00.000Z" } };
+    const out = html([agent("Working."), ...drawing], stopping);
+    // The cards stop drawing with the indicator, but the status line waits for the turn's end.
+    expect(out).not.toContain("doan-spinner");
+    expect(out).toContain('<div class="sr-only" role="status"></div>');
+    const stopped: ThreadItem = { kind: "end", key: "e5", seq: 5, end: { kind: "interrupted", reason: "user" } };
+    expect(html([agent("Working."), stopped, ...drawing.map(item => ({ ...item, drawing: false }))], stopping)).toContain('<div class="sr-only" role="status">Stopped. 2 new canvases</div>');
   });
 
   test("the handoff card: a labelled group with its head, Open and the text as agent Markdown, a {{1}} kept as typed", () => {

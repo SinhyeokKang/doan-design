@@ -21,9 +21,9 @@ describe("canvasCardText", () => {
   test("Drawing with a handoff asked: the spinner stays, the status says when it hands off", () => {
     expect(view(card({ drawing: true, handoff: { outcome: "pending" } })))
       .toEqual({ icon: "spinner", name: "checkout-flow.html", status: "Hands off when this turn ends", label: "checkout-flow.html, Hands off when this turn ends", open: OPEN });
-    // A request alone (never drawn) reads the same while the turn runs.
+    // A request alone (an existing canvas, or one a shell made) was never drawn this turn: no spinner while the turn runs.
     expect(view(card({ drawing: true, drawn: false, canvas: { path: CHECKOUT.path }, handoff: { outcome: "pending" } })))
-      .toMatchObject({ icon: "spinner", status: "Hands off when this turn ends", open: { canvas: { path: CHECKOUT.path }, label: "Open checkout-flow.html" } });
+      .toMatchObject({ icon: "forward", status: "Hands off when this turn ends", open: { canvas: { path: CHECKOUT.path }, label: "Open checkout-flow.html" } });
     // After the turn's end and before main judged it: no spinner.
     expect(view(card({ handoff: { outcome: "pending" } }))).toMatchObject({ icon: "forward", status: "Hands off when this turn ends", open: OPEN });
   });
@@ -125,5 +125,10 @@ describe("newCanvasesText", () => {
     expect(newCanvasesText([drawn("a.html"), end])).toBe("");
     expect(newCanvasesText([end, drawn("a.html", { drawn: false, handoff: { outcome: "refused", reason: "not_new" } })])).toBe("");
     expect(newCanvasesText([end, drawn("a.html", { drawing: true })])).toBe("");
+  });
+  test("a moved-to marker after the cards still lets them count", () => {
+    const bound: ThreadItem = { kind: "marker", key: "k9", seq: 9, marker: "bound", canvas: { path: "a.html", id: "a" } };
+    expect(newCanvasesText([end, drawn("a.html"), bound])).toBe("1 new canvas");
+    expect(newCanvasesText([end, bound])).toBe("");
   });
 });
