@@ -750,7 +750,7 @@ describe("the conversation panel's styles", () => {
 
   // One motion with the canvas page's conversation panel, not a second one: the same rules name both shells.
   test("open and close share the canvas page's fold motion, and reduced motion drops it", () => {
-    const lists = (body: RegExp) => [...css.matchAll(/^([^{}@]+)\{([^}]*)\}/gm)].filter(([, , decls]) => body.test(decls!)).map(([, selectors]) => selectors!.split(",").map(s => s.trim()));
+    const lists = (body: RegExp) => [...css.matchAll(/^([^{}@\n]+)\{([^}]*)\}/gm)].filter(([, , decls]) => body.test(decls!)).map(([, selectors]) => selectors!.split(",").map(s => s.trim()));
     const grid = lists(/^ transition: grid-template-columns var\(--time-panel-enter\) var\(--ease-settle\), column-gap var\(--time-panel-enter\) var\(--ease-settle\); $/);
     expect(grid).toContainEqual([".workspace.app-shell[data-panel-motion]", ".pw[data-panel-motion]"]);
     const hold = lists(/^ transition: visibility 0s linear var\(--time-panel-enter\); $/);
