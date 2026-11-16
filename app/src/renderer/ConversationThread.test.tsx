@@ -4,6 +4,7 @@ import { describe, expect, test } from "vitest";
 import type { ReactElement } from "react";
 import type { Anchor } from "../main/conversation/types";
 import type { CanvasRow } from "../main/view";
+import { sameCanvas } from "./canvasConversationRows";
 import { answerReached, CanvasCard, ConversationThread, endView, HandoffCard, httpsUrl, SentChip, type ConversationThreadProps } from "./ConversationThread";
 import { threadItems, type ThreadItem } from "./threadItems";
 import type { ConversationEvent } from "../main/conversation/types";
@@ -567,6 +568,22 @@ describe("canvas cards and the handoff card", () => {
       .toMatch(cardMarkup("checkout-flow.html", "Handed off · No longer in doan-design", svg("forward")));
   });
 
+  // A request names a path alone, and the hosts judge and open a canvas by ID once its row has one (sameCanvas): the
+  // root's row with that path lends its ID, or an existing canvas reads as gone and its Open could not find it.
+  test("a card that names a path alone takes the ID of the root's row with that path, for its tail and its Open", () => {
+    const rows: CanvasRow[] = [{ path: CHECKOUT.path, id: CHECKOUT.id, url: "" }, { path: DRAFTS.path, id: DRAFTS.id, url: "" }];
+    const listed = (canvas: { path: string; id?: string }) => rows.some(row => sameCanvas(canvas, row));
+    const refused = card({ canvas: { path: CHECKOUT.path }, drawn: false, handoff: { outcome: "refused", reason: "not_new" } });
+    expect(html([refused], { canvasRows: rows, canvasListed: listed }))
+      .toMatch(cardMarkup("checkout-flow.html", "Didn’t hand off. It existed before this turn started.", svg("ban"), OPEN("Open checkout-flow.html")));
+    const opened: unknown[] = [];
+    const element = CanvasCard({ entry: refused, rows, project: "p", provider: "claude", canvasListed: listed, onOpen: (canvas, id) => opened.push([canvas, id]) });
+    (findButton(element)!.props as { onClick(): void }).onClick();
+    expect(opened).toEqual([[CHECKOUT, undefined]]);
+    // Without a row of that path it stays as named and reads as gone.
+    expect(html([refused], { canvasRows: [rows[1]!], canvasListed: listed })).toContain("It existed before this turn started. · No longer in doan-design");
+  });
+
   test("without onOpenHandoff no card offers Open", () => {
     const { onOpenHandoff: _, ...without } = props([card()]);
     expect(renderToStaticMarkup(<ConversationThread {...without} />)).not.toContain("cc-open");
@@ -608,7 +625,7 @@ describe("canvas cards and the handoff card", () => {
   test("Open on a handed-off card opens the target conversation, on any other the canvas alone, on the handoff card the source conversation", () => {
     const opened: unknown[] = [];
     const onOpen = (canvas: unknown, id?: string) => opened.push([canvas, id]);
-    const cardOf = (entry: Card) => CanvasCard({ entry, project: "p", provider: "claude", canvasListed: () => true, onOpen });
+    const cardOf = (entry: Card) => CanvasCard({ entry, rows: [], project: "p", provider: "claude", canvasListed: () => true, onOpen });
     const handoffEl = HandoffCard({ entry: { kind: "handoffCard", key: "u1", seq: 1, origin: { kind: "handoff", conversationId: "c0", canvas: DRAFTS }, text: "x" }, headId: "h", project: "p", canvasListed: () => true, onOpen });
     for (const element of [cardOf(card({ handoff: { outcome: "started", target: { conversationId: "c2", canvas: CHECKOUT } } })), cardOf(card({ handoff: { outcome: "missed" } })), cardOf(card()), handoffEl]) {
       (findButton(element)!.props as { onClick(): void }).onClick();
