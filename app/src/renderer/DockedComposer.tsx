@@ -7,7 +7,7 @@ import type { Anchor, SkillSummary } from "../main/conversation/types";
 import { fieldSkillRuns } from "./skillWords";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
-import { ContextRing } from "./ContextRing";
+import { ContextRing, type RingUsage } from "./ContextRing";
 import type { ContextUsage } from "./contextWindow";
 import { distinctTargets, plainText, sameSegments, typedText } from "./anchorField";
 import { LIMITS } from "../main/conversation/messageText";
@@ -139,6 +139,9 @@ export interface DockedComposerProps {
   // The shown conversation's last recorded context value (contextRing); null or absent: no ring, and the tray is as
   // without it.
   context?: ContextUsage | null;
+  // The conversation provider's usage for the ring's drawer, from the host's subscription; absent: the drawer shows the
+  // Context window line only.
+  usage?: RingUsage;
   // What the host shows over the card that the docked buddy steps aside for: a permission or question card at the
   // thread's end waiting for an answer, and a new conversation's notice or choice with a button (Overview's moved line,
   // the canvas panel's terminal-session choice). A queued row is the composer's own. Suggested prompts are no reason:
@@ -515,7 +518,9 @@ export function DockedComposer(props: DockedComposerProps) {
         {picker.effort && <EffortPicker size="xs" view={picker.effort} effort={props.effort} disabled={isSending} onPick={props.onPickEffort} onPickFast={props.onPickFast} />}
         {props.permission && <PermissionPicker size="xs" view={props.permission} disabled={isSending} onPick={mode => props.onPickPermission?.(mode)} />}
       </>}
-      {props.context && <ContextRing usage={props.context} />}
+      {/* Keyed by conversation: another conversation's ring is a new one, so an open drawer closes (ContextRing). */}
+      {props.context && <ContextRing key={mode.kind === "existing" ? mode.conversationId : ""} context={props.context} provider={mode.kind === "existing" ? mode.provider : null}
+        usage={props.usage} canvasPress={props.canvasPress} onLost={() => field.current?.focus()} />}
     </div>
     {notice && (notice.startNew
       ? <div className="composer-reason docked-reason reason-stack" role="status"><span>{notice.text}</span>

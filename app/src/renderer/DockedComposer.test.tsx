@@ -260,17 +260,20 @@ test("the empty box's placeholder stays on one line and ends in an ellipsis", as
 // Draft frames place-capsule, place-box, ring-states: a 16px ring at
 // the tray's right end with no text in it; its name and description carry the percent and the token counts.
 const CONTEXT = { value: 42, percent: 42, used: 84_000, size: 200_000 };
-const RING = /<span class="context-ring" role="img" aria-label="Context window 42% used · last turn" aria-description="84K of 200K tokens"[^>]*><svg viewBox="0 0 24 24" fill="none" stroke-width="3" aria-hidden="true"><circle class="track" cx="12" cy="12" r="10.5"><\/circle><circle class="value" cx="12" cy="12" r="10.5" pathLength="100" stroke-dasharray="42 100"><\/circle><\/svg><\/span><\/div>/;
+const RING = /<button type="button" class="context-ring" aria-label="Context window 42% used · last turn" aria-description="84K of 200K tokens" aria-haspopup="dialog" aria-expanded="false"[^>]*><span class="context-ring-dial" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" aria-hidden="true"><circle class="track" cx="12" cy="12" r="10.5"><\/circle><circle class="value" cx="12" cy="12" r="10.5" pathLength="100" stroke-dasharray="42 100"><\/circle><\/svg><\/span><\/button><\/div>/;
 const tray = (html: string) => html.slice(html.indexOf('<div class="composer-tray">'));
 
-test("a recorded value draws the ring as the tray's last child, with no visible text and outside Tab order", () => {
+// The ring is a button, the tray's last control in Tab order (draft context-ring-drawer.html frame trigger), and stays
+// enabled while the turn runs: that is when its values are wanted most.
+test("a recorded value draws the ring as the tray's last child, a button in Tab order with no visible text", () => {
   const html = render({ context: CONTEXT });
   expect(tray(html)).toMatch(new RegExp(`^<div class="composer-tray">[^]*?${RING.source}`));
-  const ring = /<span class="context-ring"[^]*?<\/span>/.exec(html)![0];
+  const ring = /<button type="button" class="context-ring"[^]*?<\/button>/.exec(html)![0];
   expect(ring.replace(/<[^>]*>/g, "")).toBe("");
   expect(ring).not.toContain("tabindex");
-  expect(ring).not.toContain("<button");
-  expect(ring).not.toContain("data-band");
+  expect(ring).not.toContain("disabled");
+  expect(ring).not.toMatch(/<button[^>]*class="context-ring"[^>]*data-band/);
+  expect(/<button type="button" class="context-ring"[^>]*>/.exec(render({ context: CONTEXT, turn: "running" }))![0]).not.toContain("disabled");
 });
 
 test("without a value the tray and the card are as before the ring", () => {
@@ -293,7 +296,7 @@ test("the ring stays last whichever pickers show, in a terminal session's fixed 
 
 test("the ring takes the danger band from 70% of the unrounded ratio and fills at 100 past the window", () => {
   expect(render({ context: { value: 69.9, percent: 69.9, used: 699_000, size: 1_000_000 } })).toMatch(/aria-label="Context window 69% used · last turn" aria-description="699K of 1M tokens"(?![^>]*data-band)/);
-  expect(render({ context: { value: 70, percent: 70, used: 140_000, size: 200_000 } })).toMatch(/<span class="context-ring" role="img" aria-label="Context window 70% used · last turn"[^>]*data-band="full"/);
+  expect(render({ context: { value: 70, percent: 70, used: 140_000, size: 200_000 } })).toMatch(/<button type="button" class="context-ring" aria-label="Context window 70% used · last turn"[^>]*data-band="full"/);
   const over = render({ context: { value: 100, percent: 104, used: 208_000, size: 200_000 } });
   expect(over).toContain('aria-label="Context window 104% used · last turn" aria-description="208K of 200K tokens"');
   expect(over).toContain('stroke-dasharray="100 100"');

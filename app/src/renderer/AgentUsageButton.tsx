@@ -5,7 +5,7 @@ import { RotateCw, Settings } from "lucide-react";
 import type { UsageEntry } from "../main/agentAuth/usageTypes";
 import { AlertIcon } from "./AlertIcon";
 import { usageDescription } from "./agentUsage";
-import { foldedRing, ringViews, rowView, shownUsage, usageBusy, usageFolds, type RingView, type RowView } from "./agentUsageView";
+import { foldedRing, ringViews, rowView, shownUsage, usageBusy, usageFolds, type RingView, type RowView, type WindowView } from "./agentUsageView";
 import type { CanvasPress } from "./ComposerParts";
 import { useHeaderNoDrag } from "./headerNoDrag";
 import { ProgressRing } from "./ProgressRing";
@@ -31,16 +31,26 @@ function IconTip({ label, onEscape, children }: { label: string; onEscape?(): vo
   return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent side="bottom" onEscapeKeyDown={onEscape}>{label}</TooltipContent></Tooltip>;
 }
 
+// One window line with its bar; the context ring's drawer draws its Context window line with it too.
+export function UsageWindowLine({ window }: { window: Pick<WindowView, "label" | "text" | "bar" | "full" | "limited"> }) {
+  return <div className="usage-window" data-limited={window.limited ? "" : undefined}>
+    <div className="usage-window-line"><span className="usage-window-label">{window.label}</span><span className="usage-window-text">{window.text}</span></div>
+    <span className="usage-bar" data-band={window.full ? "full" : undefined} aria-hidden="true">{window.bar !== null && <i style={{ width: `${window.bar}%` }} />}</span>
+  </div>;
+}
+
+// A row's windows or its reason line, shared with the context ring's drawer, which lifts one row whole.
+export function UsageRowBody({ row }: { row: RowView }) {
+  return <>
+    {row.windows.map(window => <UsageWindowLine key={window.id} window={window} />)}
+    {row.note && <p className="usage-note" data-kind={row.note.kind}>{row.note.kind && <AlertIcon />}<span>{row.note.text}</span></p>}
+  </>;
+}
+
 function Row({ row }: { row: RowView }) {
   return <li className="usage-row" data-provider={row.provider}>
     <div className="usage-row-head"><img className="logo" src={row.logo} alt="" /><span className="usage-name">{row.name}</span>{row.read && <span className="usage-read">{row.read}</span>}</div>
-    <div className="usage-row-body">
-      {row.windows.map(window => <div key={window.id} className="usage-window" data-limited={window.limited ? "" : undefined}>
-        <div className="usage-window-line"><span className="usage-window-label">{window.label}</span><span className="usage-window-text">{window.text}</span></div>
-        <span className="usage-bar" data-band={window.full ? "full" : undefined} aria-hidden="true">{window.bar !== null && <i style={{ width: `${window.bar}%` }} />}</span>
-      </div>)}
-      {row.note && <p className="usage-note" data-kind={row.note.kind}>{row.note.kind && <AlertIcon />}<span>{row.note.text}</span></p>}
-    </div>
+    <div className="usage-row-body"><UsageRowBody row={row} /></div>
   </li>;
 }
 

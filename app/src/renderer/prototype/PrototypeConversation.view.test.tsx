@@ -73,7 +73,7 @@ beforeEach(() => {
   listed = [summary()];
   const off = () => vi.fn(() => () => {});
   calls = {
-    onConversationEvent: off(), onConversationStage: off(), onConversationListChanged: off(), onWorkChanged: off(), onTargetEntry: off(), onComposerSettings: off(), onAgentAuth: off(), onWindowVisible: off(), onDrawing: off(), readDrawing: vi.fn(async () => null), onPromoted: off(), readPromoted: vi.fn(async () => null),
+    onConversationEvent: off(), onConversationStage: off(), onConversationListChanged: off(), onWorkChanged: off(), onTargetEntry: off(), onComposerSettings: off(), onAgentAuth: off(), onAgentUsage: off(), readAgentUsage: vi.fn(async () => []), onWindowVisible: off(), onDrawing: off(), readDrawing: vi.fn(async () => null), onPromoted: off(), readPromoted: vi.fn(async () => null),
     listConversations: vi.fn(async () => listed), getWork: vi.fn(async () => []), rememberedConversation: vi.fn(async () => null), readTargetEntry: vi.fn(async () => ({ path: ROOT, kind: "list", servedRev: 0, canvases: [{ ...CHECKOUT, url: "u" }] })),
     readComposerSettings: vi.fn(async () => ({ home: null, newConversation: null, buddy: "doany" })),
     readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), markConversationSeen: vi.fn(async () => {}),

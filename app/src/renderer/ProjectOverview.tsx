@@ -25,6 +25,7 @@ import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, ty
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { copyText } from "./copyText";
 import { contextRing } from "./contextWindow";
+import { useRingUsage } from "./ContextRing";
 import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
 import { carryDraft, composerTurn, draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
 import { generationOf, modelsKey, type DockedSupport } from "./dockedSupport";
@@ -131,6 +132,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   // Presets are read once for the run; accounts come from main's snapshots.
   useEffect(() => { if (!support.presets?.ok) support.readPresets(); }, []);
   useEffect(() => window.doan.onAgentAuth(snapshot => support.setAuth(snapshot)), []);
+  // The context ring's drawer: a conversation on the person's CLI profile shows no Doan connection's usage. Until the
+  // list holds its summary the owner is unknown, so a legacy conversation's first frame neither shows a row nor reads.
+  const ringUsage = useRingUsage(window.doan, summary === undefined || summary.owner === "legacy-external");
 
   // The composer's agent, model and effort, as Home decides them for a new conversation; an existing one keeps its
   // provider and starts from its own model.
@@ -433,7 +437,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(window.doan, attachment)}
-        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events) : null}
+        turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable} context={thread ? contextRing(thread.events) : null} usage={ringUsage}
         stepAside={{ waiting: asking, notice: !conversationId && !waiting && !!moved }}
         queued={conversationId ? run.queue(conversationId) : []}
         // Rows waiting for the usage limit's reset have no Send now: nothing runs to take them.

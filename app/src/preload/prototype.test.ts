@@ -171,11 +171,51 @@ const SHARED_CALLS: [SharedWithMain, (api: Pick<DoanApi, SharedWithMain>) => Pro
   ["releaseAttachments", a => a.releaseAttachments(["a"])],
   ["designSkills", a => a.designSkills.list()],
   ["designSkills", a => a.designSkills.get("clarify")],
+  ["readAgentUsage", a => a.readAgentUsage()],
+  ["readAgentUsage", a => a.readAgentUsage("open")],
+  ["readAgentUsage", a => a.readAgentUsage("refresh")],
 ];
 const SHARED_EVENTS: [SharedWithMain, string][] = [
   ["onConversationEvent", "conversation:event"], ["onConversationStage", "conversation:stage"],
   ["onConversationListChanged", "conversation:listChanged"], ["onConversationHandoff", "conversation:handoff"],
 ];
+
+// The context ring's drawer reads usage on the main window's channels: entries carry no account identity
+// (usageTypes.ts), so the window's narrow-read rule holds.
+test("usage reads and changes use the main window's literal channels", async () => {
+  const { USAGE_CHANNELS } = await import("../main/agentAuth/usageIpc");
+  expect(USAGE_CHANNELS).toEqual({ read: "agent-usage:read", changed: "agent-usage:changed" });
+  mocks.invoke.mockClear();
+  mocks.invoke.mockResolvedValue([]);
+  await api.readAgentUsage();
+  await api.readAgentUsage("open");
+  await api.readAgentUsage("refresh");
+  expect(mocks.invoke.mock.calls).toEqual([["agent-usage:read", {}], ["agent-usage:read", { trigger: "open" }], ["agent-usage:read", { trigger: "refresh" }]]);
+});
+
+test("usage entries come from the first read unless a change came first, until unsubscribed", async () => {
+  let answer!: (value: unknown) => void;
+  mocks.invoke.mockClear();
+  mocks.invoke.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  const seen: unknown[] = [];
+  const stop = api.onAgentUsage(entries => seen.push(entries));
+  expect(mocks.invoke.mock.calls).toEqual([["agent-usage:read", {}]]);
+  emitter.emit("agent-usage:changed", {}, [{ provider: "codex", inFlight: false }]);
+  answer([{ provider: "claude", inFlight: false }]);
+  await Promise.resolve(); await Promise.resolve();
+  expect(seen).toEqual([[{ provider: "codex", inFlight: false }]]);
+  stop();
+  emitter.emit("agent-usage:changed", {}, []);
+  expect(seen).toHaveLength(1);
+  expect(emitter.listenerCount("agent-usage:changed")).toBe(0);
+
+  mocks.invoke.mockResolvedValueOnce([{ provider: "claude", inFlight: true }]);
+  const first: unknown[] = [];
+  const stopFirst = api.onAgentUsage(entries => first.push(entries));
+  await Promise.resolve(); await Promise.resolve();
+  expect(first).toEqual([[{ provider: "claude", inFlight: true }]]);
+  stopFirst();
+});
 
 async function mainPreload(): Promise<DoanApi> {
   vi.resetModules();
