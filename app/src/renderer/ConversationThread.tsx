@@ -757,6 +757,14 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     if (target.kind === "option") focusIn(asks.find(ask => ask.requestId === target.requestId)!.key);
     else props.onFocusComposer?.();
   }, [items]);
+  // A turn's cards sit above a request still waiting and below it once it folds, so React moves the card stack past
+  // the request; moving a focused control's ancestor drops its focus to the page. Focus goes back to the same card's
+  // Open, unless the person moved it elsewhere or the card is gone.
+  const cardFocused = focusedKey !== null && Array.isArray(items) && items.some(item => item.kind === "canvasCard" && item.key === focusedKey) ? focusedKey : null;
+  useLayoutEffect(() => {
+    if (cardFocused === null || (document.activeElement && document.activeElement !== document.body)) return;
+    scroller.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(cardFocused)}"] .cc-open`)?.focus({ preventScroll: true });
+  });
   useLayoutEffect(() => {
     shown.current = Array.isArray(items) ? pendingAsks(items).map(ask => ({ ...ask, unsent: Object.values(draftOf(ask.requestId).choices).some(choice => choice.text.trim() !== "") })) : [];
   });
