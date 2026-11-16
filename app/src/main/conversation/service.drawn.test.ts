@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ConversationStore } from "./store";
 import { ConversationService, resolveListedCanvas, type OpenRunner, type Prepare, type Runner, type StartRequest } from "./service";
 import { DraftStore } from "./drafts";
-import type { Canvas, ConversationEvent, StageSignal } from "./types";
+import type { Canvas, ConversationEvent } from "./types";
 
 // Every turn's canvas.drawn events: a new canvas the turn edited, written once it is listed, until the turn's
 // promotion deadline (ARCHITECTURE §7 'Project conversations and promotion' for the window).
@@ -29,9 +29,8 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
   const hooks = { onList: undefined as undefined | (() => void) };
   const canvases = () => { hooks.onList?.(); return listed; };
   const published: ConversationEvent[] = [];
-  const signals: StageSignal[] = [];
   const admit = (_root: string, canvas?: Canvas) => canvas ? resolveListedCanvas(canvas, listed) : undefined;
-  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, canvases, () => {}, { drafts: new DraftStore(null) }, undefined, undefined, undefined, signal => signals.push(signal));
+  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, canvases, () => {}, { drafts: new DraftStore(null) });
   const canvasRequest: StartRequest = { root: "/repo", mode: "new", runtime: provider, canvas: a, text: "Make a checkout page", anchors: [], model: "gpt-x", effort: "high", permissionMode: "acceptEdits" };
   const start = async (request: Partial<StartRequest> = {}, omit: ("canvas" | "runtime")[] = []) => {
     const full: Partial<StartRequest> = { ...canvasRequest, ...request };
@@ -44,7 +43,7 @@ function fixture(options: { provider?: "claude" | "codex"; listed?: Canvas[]; le
   const turnOf = (id: string) => store.read(id).filter(e => e.type === "turn.started").at(-1)!.turnId;
   const edit = (id: string, path: string) => service.receive(id, { type: "activity", kind: "edit", path, insideDesign: true, summary: "Edit" });
   const list = (...canvases: Canvas[]) => { listed.push(...canvases); service.refreshed("/repo", canvases.map(canvas => canvas.path)); };
-  return { dir, service, store, open, runners, listed, hooks, published, signals, start, project, legacy, drawn, turnOf, edit, list };
+  return { dir, service, store, open, runners, listed, hooks, published, start, project, legacy, drawn, turnOf, edit, list };
 }
 const fake = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
 
@@ -77,22 +76,6 @@ describe("canvas.drawn", () => {
     h.edit(id, at(c));
     expect(h.drawn(id)).toMatchObject([{ canvas: c }]);
     expect(h.store.read(id).at(-1)).toMatchObject({ type: "canvas.drawn" });
-  });
-  // The renderer takes a stage only while no event of the turn came after it: a canvas.drawn the watcher writes mid-tool
-  // must not drop the running command's stage until the runner sends another.
-  it("sends the running turn's stage again at the seq of a canvas.drawn written while it runs, and none after its end", async () => {
-    const h = fixture(); const id = await h.start();
-    const running = { kind: "tool" as const, activity: "command" as const, summary: "npm test" };
-    h.edit(id, at(c));
-    h.open.mock.calls[0]![0].stage!(running);
-    h.list(c);
-    const written = h.drawn(id)[0]!;
-    expect(h.signals.at(-1)).toMatchObject({ conversationId: id, turnId: written.turnId, seq: written.seq, stage: running });
-    h.service.receive(id, { type: "turn.done" });
-    const sent = h.signals.length;
-    h.listed.push(d); h.edit(id, at(d));
-    h.service.refreshed("/repo", [d.path]);
-    expect(h.signals).toHaveLength(sent);
   });
   it("writes none for an existing canvas the turn edited", async () => {
     fake();
