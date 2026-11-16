@@ -28,7 +28,6 @@ a{color:inherit;text-decoration:none}
 .logo img{width:28px;height:28px;display:block}
 .navlinks{display:flex;align-items:center;gap:var(--space-6);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
 .navlinks a:not(.doan-button){color:var(--text-subtle)}
-.doan-button svg{width:var(--size-icon);height:var(--size-icon);flex:none}
 .wordmark{font-weight:var(--type-weight-medium);line-height:1;letter-spacing:-.075em}
 .hero{text-align:center;display:flex;flex-direction:column;align-items:center}
 .ctas{display:flex;gap:var(--space-3)}
@@ -47,22 +46,11 @@ a{color:inherit;text-decoration:none}
 .play svg{display:block}
 .ph{position:absolute;left:var(--space-4);top:var(--space-4);margin:0}
 .cards{display:grid}
-.card{background:var(--surface-panel);border-radius:var(--radius-container);box-shadow:var(--shadow-panel);padding:var(--space-2);display:flex;flex-direction:column}
-.pic{position:relative;border-radius:var(--radius-row);display:grid;place-items:end center;overflow:hidden}
-/* Each asset has its own transparent margin under the character (--pad, a fraction of the image);
-   pulling the image down by it puts every buddy on one baseline, --base above the tint's bottom. */
-.pic img{display:block;width:var(--img);height:var(--img);margin-bottom:calc(var(--base) - var(--img) * var(--pad))}
-.pic .badge{position:absolute;left:var(--space-2);top:var(--space-2);margin:0;background:var(--surface-panel)}
-.doany{--pad:.055}.dungdung{--pad:.139}.puri{--pad:.123}.popo{--pad:.119}.dori{--pad:.109}
-.doany .pic{background:var(--violet-3)}.doany .who{color:var(--violet-11)}
-.dungdung .pic{background:var(--dungdung-3)}.dungdung .who{color:var(--dungdung-11)}
-.puri .pic{background:var(--puri-3)}.puri .who{color:var(--puri-11)}
-.popo .pic{background:var(--popo-3)}.popo .who{color:var(--popo-11)}
-.dori .pic{background:var(--dori-3)}.dori .who{color:var(--dori-11)}
-.txt{padding:var(--space-4) var(--space-3) var(--space-3)}
-.who{font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);font-weight:var(--type-weight-medium)}
-.card h3{text-wrap:balance;margin-top:var(--space-1);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);font-weight:var(--type-weight-medium)}
-.card p{margin-top:var(--space-1);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing);color:var(--text-subtle)}
+.card{background:var(--surface-inset);border-radius:var(--radius-container);display:flex;flex-direction:column}
+/* A buzz.xyz card: one still buddy at the top left, empty space, then the title and the text, at one height in every card. */
+.buddy{display:block;flex:none}
+.card h3{font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);font-weight:var(--type-weight-semibold)}
+.card p{margin-top:var(--space-2);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing);color:var(--text-standard)}
 .closing{border-radius:var(--radius-panel);background-color:var(--violet-4);text-align:center;display:flex;flex-direction:column;align-items:center}
 .closer{display:block;height:auto}
 .footer{display:flex;justify-content:space-between;align-items:center;color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height)}
@@ -78,9 +66,8 @@ a{color:inherit;text-decoration:none}
 /* Empty ground between screens, so a taller window or a loose scroll still shows one section at a time. */
 .page>.screen~.screen{margin-top:var(--gap)}
 .nav{height:var(--navh)}
-.hero.screen{height:calc(var(--vh) - var(--navh))}
-/* The photo takes what the copy leaves and runs off the screen's bottom, as Welcome's does. */
-.groupwrap{flex:1 1 0;min-height:0;width:100%;display:flex;justify-content:center;align-items:flex-start;overflow:clip;-webkit-mask-image:linear-gradient(to bottom,black 88%,transparent);mask-image:linear-gradient(to bottom,black 88%,transparent)}
+/* The whole group photo shows: no crop, no fade. */
+.groupwrap{display:flex;justify-content:center;width:100%}
 .group{flex:none}
 .sect.screen{display:flex;flex-direction:column;align-items:center;justify-content:center}
 .end.screen{display:flex;flex-direction:column;justify-content:center}
@@ -92,10 +79,8 @@ a{color:inherit;text-decoration:none}
 .d .tagline{margin-top:var(--space-5);font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing)}
 .d .ctas{margin-top:var(--space-6)}
 .d .hero .fine,.d .hero .notice{margin-top:var(--space-3)}
-.d .groupwrap{margin-top:var(--space-6);-webkit-mask-image:none;mask-image:none}
+.d .groupwrap{margin-top:var(--space-10)}
 .d .group{width:720px}
-/* The not-a-Mac notice is taller than the caption it replaces, so the photo steps down to keep Puri's eyes above the cut. */
-.n .group{width:660px}
 .d .sect{padding:var(--space-10) 80px}
 .d .display{font-size:64px;line-height:1.05;letter-spacing:-.03em}
 .d .display.sub{font-size:48px}
@@ -107,7 +92,9 @@ a{color:inherit;text-decoration:none}
 .d .video{width:1080px;margin-top:56px;border-radius:var(--radius-container)}
 .d .play{width:80px;height:80px}.d .play svg{width:28px;height:28px}
 .d .cards{width:1280px;margin-top:var(--space-12);grid-template-columns:repeat(5,1fr);gap:var(--space-4)}
-.d .pic{height:232px;--img:208px;--base:var(--space-5)}
+.d .card{padding:var(--space-6) var(--space-6) var(--space-8)}
+.d .buddy{width:96px;height:96px}
+.d .card h3{margin-top:var(--space-16)}
 .d .end{padding:var(--space-10) 80px 0}
 .d .closing{padding:var(--space-10) var(--space-12) var(--space-12)}
 .d .closer{width:120px;margin-bottom:var(--space-4)}
@@ -122,7 +109,7 @@ a{color:inherit;text-decoration:none}
 .t .tagline{margin-top:var(--space-4);font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing)}
 .t .ctas{margin-top:var(--space-6)}
 .t .hero .fine{margin-top:var(--space-3)}
-.t .groupwrap{margin-top:var(--space-6)}
+.t .groupwrap{margin-top:var(--space-10)}
 .t .group{width:640px}
 .t .sect{padding:var(--space-8)}
 .t .display{font-size:48px;line-height:1.05;letter-spacing:-.03em}
@@ -132,10 +119,9 @@ a{color:inherit;text-decoration:none}
 .t .video{width:680px;margin-top:var(--space-12);border-radius:var(--radius-container)}
 .t .play{width:72px;height:72px}.t .play svg{width:28px;height:28px}
 .t .cards{width:960px;margin-top:var(--space-10);grid-template-columns:repeat(5,1fr);gap:var(--space-3)}
-.t .card{padding:var(--space-1h)}
-.t .pic{height:168px;--img:152px;--base:var(--space-4)}
-.t .pic .badge{font-size:var(--type-caption-size);padding:0 var(--space-1h)}
-.t .txt{padding:var(--space-3) var(--space-2) var(--space-2)}
+.t .card{padding:var(--space-4) var(--space-4) var(--space-6)}
+.t .buddy{width:80px;height:80px}
+.t .card h3{margin-top:var(--space-12)}
 .t .end{padding:var(--space-8) var(--space-8) 0}
 .t .closing{padding:var(--space-8) var(--space-10) var(--space-10)}
 .t .closer{width:112px;margin-bottom:var(--space-3)}
@@ -153,7 +139,7 @@ a{color:inherit;text-decoration:none}
 .m .tagline{margin-top:var(--space-4);font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing)}
 .m .ctas{margin-top:var(--space-6);flex-direction:column;align-self:stretch}
 .m .hero .notice{margin-top:var(--space-3);align-self:stretch}
-.m .groupwrap{margin-top:var(--space-6);align-items:center}
+.m .groupwrap{margin-top:var(--space-8)}
 .m .group{width:358px}
 .m .sect{padding:var(--space-10) var(--space-4)}
 .m .display{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing)}
@@ -162,10 +148,9 @@ a{color:inherit;text-decoration:none}
 .m .play{width:56px;height:56px}.m .play svg{width:20px;height:20px}
 .m .ph{left:var(--space-2);top:var(--space-2)}
 .m .cards{width:358px;margin-top:var(--space-6);grid-template-columns:1fr;gap:var(--space-3)}
-.m .card{flex-direction:row;align-items:center}
-.m .pic{width:120px;height:120px;flex:none;--img:112px;--base:var(--space-2)}
-.m .pic .badge{display:none}
-.m .txt{padding:0 var(--space-3) 0 var(--space-4)}
+.m .card{padding:var(--space-5)}
+.m .buddy{width:72px;height:72px}
+.m .card h3{margin-top:var(--space-6)}
 .m .end{padding:var(--space-10) var(--space-4) 0}
 .m .closing{padding:var(--space-8) var(--space-5) var(--space-10);border-radius:var(--radius-container)}
 .m .closer{width:96px;margin-bottom:var(--space-3)}
@@ -214,7 +199,7 @@ a{color:inherit;text-decoration:none}
 
 <div class="board">
 <section>
-<div class="cap"><h2>Desktop · 1440<span class="badge">Not in code</span></h2><p>Four sections far apart, as on buzz.xyz: hero (64 above the wordmark 120, the photo 720 cut by the screen's bottom edge with no fade), video (one-line heading, a two-line lede broken after "repo,", player 1080, 56 below the lede), features (five cards in one row), closing and footer. Each is at least a screen tall with its content centred, and 320 of empty ground follows it. A 16:9 screen (1440x810) is only the yardstick for the spacing; no section is sized to fit it.</p></div>
+<div class="cap"><h2>Desktop · 1440<span class="badge">Not in code</span></h2><p>Four sections far apart, as on buzz.xyz: hero (64 above the wordmark 120, the whole photo 720 under the actions), video (one-line heading, a two-line lede broken after "repo,", player 1080, 56 below the lede), features (five cards in one row), closing and footer. Each is at least a screen tall with its content centred, and 320 of empty ground follows it. A 16:9 screen (1440x810) is only the yardstick for the spacing; no section is sized to fit it.</p></div>
 <div class="page d" data-doan-frame="landing-desktop" data-doan-title="Landing · desktop 1440" data-doan-prototype="1440x810">
 <header class="nav" data-doan-id="d-nav">
 <a class="logo" href="#"><img src="../assets/installer/doan-app-icon-32.png" alt="">Doan</a>
@@ -223,7 +208,7 @@ a{color:inherit;text-decoration:none}
 <section class="hero screen" data-doan-id="d-hero">
 <h1 class="wordmark">Doan</h1>
 <p class="tagline">A place for your next idea.<br>Bring it to life on canvas.</p>
-<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="d-hero-download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg>Download for Mac (Apple silicon)</a><a class="doan-button" data-ui-variant="subtle" data-ui-size="lg" href="#" data-doan-id="d-hero-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a></div>
+<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="d-hero-download">Download for Mac</a><a class="doan-button" data-ui-variant="subtle" data-ui-size="lg" href="#" data-doan-id="d-hero-github">View on GitHub</a></div>
 <p class="fine">Open source (Apache-2.0)</p>
 <div class="groupwrap"><img class="group" src="../assets/buddies/group/group.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="d-hero-group"></div>
 </section>
@@ -240,18 +225,18 @@ a{color:inherit;text-decoration:none}
 <section class="sect screen" id="features-d" data-doan-id="d-features">
 <h2 class="display sub">Design first,<br>then let the agent build.</h2>
 <div class="cards">
-<article class="card doany" data-doan-id="d-card-doany"><div class="pic"><img src="../assets/doany/artist/painting.gif" alt="Doany painting a flower at an easel"></div><div class="txt"><div class="who">Doany draws</div><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></div></article>
-<article class="card dungdung" data-doan-id="d-card-dungdung"><div class="pic"><img src="../assets/buddies/dungdung/still.png" alt="Dungdung in its headphones, listening"><span class="badge">New pose needed</span></div><div class="txt"><div class="who">Dungdung listens</div><h3>Point, then talk</h3><p>Put frames, elements and spots into your message. The agent gets them as anchors.</p></div></article>
-<article class="card puri" data-doan-id="d-card-puri"><div class="pic"><img src="../assets/buddies/puri/typing.gif" alt="Puri typing on a laptop"></div><div class="txt"><div class="who">Puri types</div><h3>The agents you already use</h3><p>Claude Code, Codex, Cursor, Antigravity and GitHub Copilot, in Doan or in your terminal.</p></div></article>
-<article class="card popo" data-doan-id="d-card-popo"><div class="pic"><img src="../assets/buddies/popo/reading.gif" alt="Popo reading a book in its glasses"></div><div class="txt"><div class="who">Popo reads</div><h3>Give the agent a brief</h3><p>Pick a design preset, such as shape, critique or clarify, and the agent works with that brief.</p></div></article>
-<article class="card dori" data-doan-id="d-card-dori"><div class="pic"><img src="../assets/buddies/dori/still.png" alt="Dori in its scarf, ready to go out"><span class="badge">New pose needed</span></div><div class="txt"><div class="who">Dori delivers</div><h3>Share one file</h3><p>Export a canvas as one HTML file that opens in any browser, without Doan or the repo.</p></div></article>
+<article class="card doany" data-doan-id="d-card-doany"><img class="buddy" src="../assets/doany/v2/doany.png" alt="Doany in its beret"><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></article>
+<article class="card dungdung" data-doan-id="d-card-dungdung"><img class="buddy" src="../assets/buddies/dungdung/still.png" alt="Dungdung in its headphones"><h3>Point, then talk</h3><p>Put frames, elements and spots into your message. The agent gets them as anchors.</p></article>
+<article class="card puri" data-doan-id="d-card-puri"><img class="buddy" src="../assets/buddies/puri/still.png" alt="Puri with its sprout"><h3>The agents you already use</h3><p>Claude Code, Codex, Cursor, Antigravity and GitHub Copilot, in Doan or in your terminal.</p></article>
+<article class="card popo" data-doan-id="d-card-popo"><img class="buddy" src="../assets/buddies/popo/still.png" alt="Popo in its glasses"><h3>Give the agent a brief</h3><p>Pick a design preset, such as shape, critique or clarify, and the agent works with that brief.</p></article>
+<article class="card dori" data-doan-id="d-card-dori"><img class="buddy" src="../assets/buddies/dori/still.png" alt="Dori in its scarf"><h3>Share one file</h3><p>Export a canvas as one HTML file that opens in any browser, without Doan or the repo.</p></article>
 </div>
 </section>
 <div class="end screen" data-doan-id="d-end">
 <section class="closing" data-doan-id="d-closing">
 <img class="closer" src="../assets/doany/v2/doany.png" alt="Doany in its beret">
 <h2 class="display">Your next idea<br>starts on a canvas.</h2>
-<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="d-closing-download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg>Download for Mac (Apple silicon)</a><a class="doan-button" data-ui-variant="panel" data-ui-size="lg" href="#" data-doan-id="d-closing-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a></div>
+<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="d-closing-download">Download for Mac</a><a class="doan-button" data-ui-variant="panel" data-ui-size="lg" href="#" data-doan-id="d-closing-github">View on GitHub</a></div>
 <p class="fine">Open source (Apache-2.0)</p>
 </section>
 <footer class="footer" data-doan-id="d-footer">
@@ -271,8 +256,8 @@ a{color:inherit;text-decoration:none}
 <section class="hero screen" data-doan-id="m-hero">
 <h1 class="wordmark">Doan</h1>
 <p class="tagline">A place for your next idea.<br>Bring it to life on canvas.</p>
-<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="m-hero-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a></div>
-<p class="notice" data-doan-id="m-hero-notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>Doan runs on Macs with Apple silicon. Open this page on your Mac to download it.</span></p>
+<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="m-hero-github">View on GitHub</a></div>
+<p class="notice" data-doan-id="m-hero-notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>Doan runs on Mac. Open this page on your Mac to download it.</span></p>
 <div class="groupwrap"><img class="group" src="../assets/buddies/group/group.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="m-hero-group"></div>
 </section>
 <section class="sect screen" data-doan-id="m-video">
@@ -288,19 +273,19 @@ a{color:inherit;text-decoration:none}
 <section class="sect screen" id="features-m" data-doan-id="m-features">
 <h2 class="display sub">Design first,<br>then let the agent build.</h2>
 <div class="cards">
-<article class="card doany" data-doan-id="m-card-doany"><div class="pic"><img src="../assets/doany/artist/painting.gif" alt="Doany painting a flower at an easel"></div><div class="txt"><div class="who">Doany draws</div><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></div></article>
-<article class="card dungdung" data-doan-id="m-card-dungdung"><div class="pic"><img src="../assets/buddies/dungdung/still.png" alt="Dungdung in its headphones, listening"><span class="badge">New pose needed</span></div><div class="txt"><div class="who">Dungdung listens</div><h3>Point, then talk</h3><p>Put frames, elements and spots into your message. The agent gets them as anchors.</p></div></article>
-<article class="card puri" data-doan-id="m-card-puri"><div class="pic"><img src="../assets/buddies/puri/typing.gif" alt="Puri typing on a laptop"></div><div class="txt"><div class="who">Puri types</div><h3>The agents you already use</h3><p>Claude Code, Codex, Cursor, Antigravity and GitHub Copilot, in Doan or in your terminal.</p></div></article>
-<article class="card popo" data-doan-id="m-card-popo"><div class="pic"><img src="../assets/buddies/popo/reading.gif" alt="Popo reading a book in its glasses"></div><div class="txt"><div class="who">Popo reads</div><h3>Give the agent a brief</h3><p>Pick a design preset, such as shape, critique or clarify, and the agent works with that brief.</p></div></article>
-<article class="card dori" data-doan-id="m-card-dori"><div class="pic"><img src="../assets/buddies/dori/still.png" alt="Dori in its scarf, ready to go out"><span class="badge">New pose needed</span></div><div class="txt"><div class="who">Dori delivers</div><h3>Share one file</h3><p>Export a canvas as one HTML file that opens in any browser, without Doan or the repo.</p></div></article>
+<article class="card doany" data-doan-id="m-card-doany"><img class="buddy" src="../assets/doany/v2/doany.png" alt="Doany in its beret"><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></article>
+<article class="card dungdung" data-doan-id="m-card-dungdung"><img class="buddy" src="../assets/buddies/dungdung/still.png" alt="Dungdung in its headphones"><h3>Point, then talk</h3><p>Put frames, elements and spots into your message. The agent gets them as anchors.</p></article>
+<article class="card puri" data-doan-id="m-card-puri"><img class="buddy" src="../assets/buddies/puri/still.png" alt="Puri with its sprout"><h3>The agents you already use</h3><p>Claude Code, Codex, Cursor, Antigravity and GitHub Copilot, in Doan or in your terminal.</p></article>
+<article class="card popo" data-doan-id="m-card-popo"><img class="buddy" src="../assets/buddies/popo/still.png" alt="Popo in its glasses"><h3>Give the agent a brief</h3><p>Pick a design preset, such as shape, critique or clarify, and the agent works with that brief.</p></article>
+<article class="card dori" data-doan-id="m-card-dori"><img class="buddy" src="../assets/buddies/dori/still.png" alt="Dori in its scarf"><h3>Share one file</h3><p>Export a canvas as one HTML file that opens in any browser, without Doan or the repo.</p></article>
 </div>
 </section>
 <div class="end screen" data-doan-id="m-end">
 <section class="closing" data-doan-id="m-closing">
 <img class="closer" src="../assets/doany/v2/doany.png" alt="Doany in its beret">
 <h2 class="display">Your next idea<br>starts on a canvas.</h2>
-<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="m-closing-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a></div>
-<p class="fine">Open this page on a Mac with Apple silicon to download Doan.</p>
+<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="m-closing-github">View on GitHub</a></div>
+<p class="fine">Open this page on your Mac to download Doan.</p>
 </section>
 <footer class="footer" data-doan-id="m-footer">
 <p>Doan is an open source project under Apache-2.0.</p>
@@ -322,7 +307,7 @@ a{color:inherit;text-decoration:none}
 <section class="hero screen" data-doan-id="t-hero">
 <h1 class="wordmark">Doan</h1>
 <p class="tagline">A place for your next idea.<br>Bring it to life on canvas.</p>
-<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="t-hero-download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg>Download for Mac (Apple silicon)</a><a class="doan-button" data-ui-variant="subtle" data-ui-size="lg" href="#" data-doan-id="t-hero-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a></div>
+<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="t-hero-download">Download for Mac</a><a class="doan-button" data-ui-variant="subtle" data-ui-size="lg" href="#" data-doan-id="t-hero-github">View on GitHub</a></div>
 <p class="fine">Open source (Apache-2.0)</p>
 <div class="groupwrap"><img class="group" src="../assets/buddies/group/group.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="t-hero-group"></div>
 </section>
@@ -339,18 +324,18 @@ a{color:inherit;text-decoration:none}
 <section class="sect screen" id="features-t" data-doan-id="t-features">
 <h2 class="display sub">Design first,<br>then let the agent build.</h2>
 <div class="cards">
-<article class="card doany" data-doan-id="t-card-doany"><div class="pic"><img src="../assets/doany/artist/painting.gif" alt="Doany painting a flower at an easel"></div><div class="txt"><div class="who">Doany draws</div><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></div></article>
-<article class="card dungdung" data-doan-id="t-card-dungdung"><div class="pic"><img src="../assets/buddies/dungdung/still.png" alt="Dungdung in its headphones, listening"><span class="badge">New pose needed</span></div><div class="txt"><div class="who">Dungdung listens</div><h3>Point, then talk</h3><p>Put frames, elements and spots into your message. The agent gets them as anchors.</p></div></article>
-<article class="card puri" data-doan-id="t-card-puri"><div class="pic"><img src="../assets/buddies/puri/typing.gif" alt="Puri typing on a laptop"></div><div class="txt"><div class="who">Puri types</div><h3>The agents you already use</h3><p>Claude Code, Codex, Cursor, Antigravity and GitHub Copilot, in Doan or in your terminal.</p></div></article>
-<article class="card popo" data-doan-id="t-card-popo"><div class="pic"><img src="../assets/buddies/popo/reading.gif" alt="Popo reading a book in its glasses"></div><div class="txt"><div class="who">Popo reads</div><h3>Give the agent a brief</h3><p>Pick a design preset, such as shape, critique or clarify, and the agent works with that brief.</p></div></article>
-<article class="card dori" data-doan-id="t-card-dori"><div class="pic"><img src="../assets/buddies/dori/still.png" alt="Dori in its scarf, ready to go out"><span class="badge">New pose needed</span></div><div class="txt"><div class="who">Dori delivers</div><h3>Share one file</h3><p>Export a canvas as one HTML file that opens in any browser, without Doan or the repo.</p></div></article>
+<article class="card doany" data-doan-id="t-card-doany"><img class="buddy" src="../assets/doany/v2/doany.png" alt="Doany in its beret"><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></article>
+<article class="card dungdung" data-doan-id="t-card-dungdung"><img class="buddy" src="../assets/buddies/dungdung/still.png" alt="Dungdung in its headphones"><h3>Point, then talk</h3><p>Put frames, elements and spots into your message. The agent gets them as anchors.</p></article>
+<article class="card puri" data-doan-id="t-card-puri"><img class="buddy" src="../assets/buddies/puri/still.png" alt="Puri with its sprout"><h3>The agents you already use</h3><p>Claude Code, Codex, Cursor, Antigravity and GitHub Copilot, in Doan or in your terminal.</p></article>
+<article class="card popo" data-doan-id="t-card-popo"><img class="buddy" src="../assets/buddies/popo/still.png" alt="Popo in its glasses"><h3>Give the agent a brief</h3><p>Pick a design preset, such as shape, critique or clarify, and the agent works with that brief.</p></article>
+<article class="card dori" data-doan-id="t-card-dori"><img class="buddy" src="../assets/buddies/dori/still.png" alt="Dori in its scarf"><h3>Share one file</h3><p>Export a canvas as one HTML file that opens in any browser, without Doan or the repo.</p></article>
 </div>
 </section>
 <div class="end screen" data-doan-id="t-end">
 <section class="closing" data-doan-id="t-closing">
 <img class="closer" src="../assets/doany/v2/doany.png" alt="Doany in its beret">
 <h2 class="display">Your next idea<br>starts on a canvas.</h2>
-<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="t-closing-download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg>Download for Mac (Apple silicon)</a><a class="doan-button" data-ui-variant="panel" data-ui-size="lg" href="#" data-doan-id="t-closing-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a></div>
+<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="t-closing-download">Download for Mac</a><a class="doan-button" data-ui-variant="panel" data-ui-size="lg" href="#" data-doan-id="t-closing-github">View on GitHub</a></div>
 <p class="fine">Open source (Apache-2.0)</p>
 </section>
 <footer class="footer" data-doan-id="t-footer">
@@ -394,8 +379,8 @@ a{color:inherit;text-decoration:none}
 <section class="hero screen" data-doan-id="n-hero">
 <h1 class="wordmark">Doan</h1>
 <p class="tagline">A place for your next idea.<br>Bring it to life on canvas.</p>
-<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="n-hero-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a></div>
-<p class="notice" data-doan-id="n-hero-notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>Doan runs on Macs with Apple silicon. Open this page on your Mac to download it.</span></p>
+<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="n-hero-github">View on GitHub</a></div>
+<p class="notice" data-doan-id="n-hero-notice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg><span>Doan runs on Mac. Open this page on your Mac to download it.</span></p>
 <div class="groupwrap"><img class="group" src="../assets/buddies/group/group.png" alt="Doan’s five buddies, Doany, Puri, Dungdung, Popo and Dori, huddled together" data-doan-id="n-hero-group"></div>
 </section>
 <section class="sect screen" data-doan-id="n-video">
@@ -411,19 +396,19 @@ a{color:inherit;text-decoration:none}
 <section class="sect screen" id="features-n" data-doan-id="n-features">
 <h2 class="display sub">Design first,<br>then let the agent build.</h2>
 <div class="cards">
-<article class="card doany" data-doan-id="n-card-doany"><div class="pic"><img src="../assets/doany/artist/painting.gif" alt="Doany painting a flower at an easel"></div><div class="txt"><div class="who">Doany draws</div><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></div></article>
-<article class="card dungdung" data-doan-id="n-card-dungdung"><div class="pic"><img src="../assets/buddies/dungdung/still.png" alt="Dungdung in its headphones, listening"><span class="badge">New pose needed</span></div><div class="txt"><div class="who">Dungdung listens</div><h3>Point, then talk</h3><p>Put frames, elements and spots into your message. The agent gets them as anchors.</p></div></article>
-<article class="card puri" data-doan-id="n-card-puri"><div class="pic"><img src="../assets/buddies/puri/typing.gif" alt="Puri typing on a laptop"></div><div class="txt"><div class="who">Puri types</div><h3>The agents you already use</h3><p>Claude Code, Codex, Cursor, Antigravity and GitHub Copilot, in Doan or in your terminal.</p></div></article>
-<article class="card popo" data-doan-id="n-card-popo"><div class="pic"><img src="../assets/buddies/popo/reading.gif" alt="Popo reading a book in its glasses"></div><div class="txt"><div class="who">Popo reads</div><h3>Give the agent a brief</h3><p>Pick a design preset, such as shape, critique or clarify, and the agent works with that brief.</p></div></article>
-<article class="card dori" data-doan-id="n-card-dori"><div class="pic"><img src="../assets/buddies/dori/still.png" alt="Dori in its scarf, ready to go out"><span class="badge">New pose needed</span></div><div class="txt"><div class="who">Dori delivers</div><h3>Share one file</h3><p>Export a canvas as one HTML file that opens in any browser, without Doan or the repo.</p></div></article>
+<article class="card doany" data-doan-id="n-card-doany"><img class="buddy" src="../assets/doany/v2/doany.png" alt="Doany in its beret"><h3>Canvases in your repo</h3><p>Your agent writes each canvas as an HTML file next to your code, with your real tokens.</p></article>
+<article class="card dungdung" data-doan-id="n-card-dungdung"><img class="buddy" src="../assets/buddies/dungdung/still.png" alt="Dungdung in its headphones"><h3>Point, then talk</h3><p>Put frames, elements and spots into your message. The agent gets them as anchors.</p></article>
+<article class="card puri" data-doan-id="n-card-puri"><img class="buddy" src="../assets/buddies/puri/still.png" alt="Puri with its sprout"><h3>The agents you already use</h3><p>Claude Code, Codex, Cursor, Antigravity and GitHub Copilot, in Doan or in your terminal.</p></article>
+<article class="card popo" data-doan-id="n-card-popo"><img class="buddy" src="../assets/buddies/popo/still.png" alt="Popo in its glasses"><h3>Give the agent a brief</h3><p>Pick a design preset, such as shape, critique or clarify, and the agent works with that brief.</p></article>
+<article class="card dori" data-doan-id="n-card-dori"><img class="buddy" src="../assets/buddies/dori/still.png" alt="Dori in its scarf"><h3>Share one file</h3><p>Export a canvas as one HTML file that opens in any browser, without Doan or the repo.</p></article>
 </div>
 </section>
 <div class="end screen" data-doan-id="n-end">
 <section class="closing" data-doan-id="n-closing">
 <img class="closer" src="../assets/doany/v2/doany.png" alt="Doany in its beret">
 <h2 class="display">Your next idea<br>starts on a canvas.</h2>
-<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="n-closing-github"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>View on GitHub</a></div>
-<p class="fine">Open this page on a Mac with Apple silicon to download Doan.</p>
+<div class="ctas"><a class="doan-button" data-ui-variant="prominent" data-ui-size="lg" href="#" data-doan-id="n-closing-github">View on GitHub</a></div>
+<p class="fine">Open this page on your Mac to download Doan.</p>
 </section>
 <footer class="footer" data-doan-id="n-footer">
 <p>Doan is an open source project under Apache-2.0.</p>
@@ -438,8 +423,8 @@ a{color:inherit;text-decoration:none}
 <h2>Notes</h2>
 <h3>Who gets which action</h3>
 <ul>
-<li>On a Mac (desktop and tablet-width windows): Download leads, its label naming the requirement, "Download for Mac (Apple silicon)", so an Intel Mac owner reads it before clicking. A browser cannot reliably tell Apple silicon from Intel, so the label is the guard.</li>
-<li>Not on a Mac (phones, Windows, Linux, and an iPad, which reports itself as a Mac but has touch points): GitHub leads and the notice "Doan runs on Macs with Apple silicon. Open this page on your Mac to download it." replaces the Download button and the caption (<code>landing-mobile</code>, <code>landing-not-mac</code>). The nav action becomes GitHub too.</li>
+<li>On a Mac (desktop and tablet-width windows): "Download for Mac" leads. The page does not name Apple silicon; a browser cannot reliably tell it from Intel, so an Intel Mac owner learns it only from the download (open question for the site).</li>
+<li>Not on a Mac (phones, Windows, Linux, and an iPad, which reports itself as a Mac but has touch points): GitHub leads and the notice "Doan runs on Mac. Open this page on your Mac to download it." replaces the Download button and the caption (<code>landing-mobile</code>, <code>landing-not-mac</code>). The nav action becomes GitHub too.</li>
 </ul>
 <h3>Prototype</h3>
 <ul>
@@ -451,22 +436,20 @@ a{color:inherit;text-decoration:none}
 <h3>What each section borrows</h3>
 <ul>
 <li>Rhythm: sections stand far apart, as on buzz.xyz, judged on a 16:9 screen: every section is at least the viewport less the sticky nav tall, with its content centred, a gap of empty ground follows it (320 desktop, 240 tablet, 160 mobile), and a jump to a section lands it under the nav. Content is not shrunk to fit a screen; the video section runs taller than one. The draft fixes the viewport at the mark height (play it in Fit); the site uses <code>100svh</code>. <code>var(--doan-viewport-height)</code> would follow the window, but the installed <code>doan check</code> (0.1.14) reports it as an undefined token.</li>
-<li>Hero: buzz.xyz's oversized wordmark, centred the way Welcome already is; the group photo takes the height the copy leaves and runs off the screen's bottom, as Welcome's bottom bleed does, with every buddy's eyes in view. The wordmark is the page's <code>h1</code>; the tagline, from Welcome, is its one supporting line. What Doan is comes one screen down, in the video section's heading and lede.</li>
+<li>Hero: buzz.xyz's oversized wordmark, centred the way Welcome already is; the whole group photo sits under the actions, uncropped and unfaded. The wordmark is the page's <code>h1</code>; the tagline, from Welcome, is its one supporting line. What Doan is comes one screen down, in the video section's heading and lede.</li>
 <li>Video: buzz.xyz's two-line heading, one-sentence lede and a large framed app video. The poster is the app window alone, on the page's own ground with no gradient behind it (<code>.doan/assets/landing/video-poster.png</code>: the window of <code>readme-features.html</code>'s hero frame, captured with the frame's gradient and the window's vibrancy replaced by the plain shell, 2016×1260). Click to play; the states are in <code>landing-video-states</code>.</li>
-<li>Features: buzz.xyz's character cards, five in one row at desktop and tablet, a list of rows on mobile. Each buddy does its feature: Doany paints, Puri types, Popo reads (existing GIFs); Dungdung listens and Dori delivers still use their stills.</li>
+<li>Features: buzz.xyz's character cards: a plain white card, one still buddy at the top left, empty space, then the title and one line of text. Five in one row at desktop and tablet, stacked on mobile. Each buddy fronts one feature: Doany canvases, Dungdung talking, Puri the agents, Popo presets, Dori export. The stills are the buddies' own transparent <code>still.png</code> (Doany's <code>v2/doany.png</code>).</li>
 <li>Closing: aside.com's rounded CTA panel, in Doany's violet (step 4), and Doany back on stage so the page ends on a buddy as it began.</li>
 </ul>
 <h3>Not done in this draft</h3>
 <ul>
-<li>New poses for Dungdung (listening) and Dori (delivering a file): they need image generation, made the way the typing and reading sets were (<code>.doan/assets/buddies/README.md</code>).</li>
 <li>The demo video itself: what it shows, its length, and where it is hosted. Record the app window alone; the page draws the frame and shadow.</li>
 </ul>
 <h3>For the implementation</h3>
 <ul>
-<li>Assets are drawing sources, not web files: <code>group.png</code> is 2.0 MB, each card still 1.4–2.2 MB at 1254², the GIFs 0.56–1.0 MB. Ship resized WebP or AVIF with <code>srcset</code> and fixed dimensions, short looping muted mp4/webm instead of GIFs (paused under <code>prefers-reduced-motion</code>), and lazy-load the cards and video.</li>
-<li>Card pictures share one baseline: each image is pulled down by its own transparent margin under the character (measured from the alpha: Doany .055, Dungdung .139, Puri .123, Popo .119, Dori .109 of the image). New poses should be cut to one margin instead.</li>
+<li>Assets are drawing sources, not web files: <code>group.png</code> is 2.0 MB, each card still 1.4–2.2 MB at 1254² for a 96 px picture. Ship resized WebP or AVIF with <code>srcset</code> and fixed dimensions, and lazy-load the cards and video.</li>
 <li>Play, the player controls and Try again are buttons; the nav and footer link groups are labelled navigation landmarks.</li>
-<li>Literals with no token, all page constants: mark heights 810 / 768 / 844 as the screen height, section gaps 320 / 240 / 160, nav 72 / 64, wordmark 120 / 112 / 96 at −.075em (Welcome's tracking), display 64 / 56 (video heading) / 48 (features) at 1.05 and −.03em, tablet 48 / 40, logo 28 / 24, side insets 80, page widths 1440 / 1024 / 1280 / 960, group photo 720 (660 off a Mac) / 640 / 358 (its bottom 12% faded on tablet and mobile only), player 1080 / 680 / 358 with 56 / 48 / 32 above it, card picture 232 + 208 / 168 + 152 / 120 + 112, closing Doany 120 / 112 / 96, play button 80 / 72 / 56 / 64 with icons 28 / 20, video-state tile 560, the failed poster's .35 opacity, the 0.9 s loading and 90 s seek in the prototype, the reveal's 32 px, 700 ms, 90 ms step and 12% margin.</li>
+<li>Literals with no token, all page constants: mark heights 810 / 768 / 844 as the screen height, section gaps 320 / 240 / 160, nav 72 / 64, wordmark 120 / 112 / 96 at −.075em (Welcome's tracking), display 64 / 56 (video heading) / 48 (features) at 1.05 and −.03em, tablet 48 / 40, logo 28 / 24, side insets 80, page widths 1440 / 1024 / 1280 / 960, group photo 720 / 640 / 358, uncropped, player 1080 / 680 / 358 with 56 / 48 / 32 above it, card buddy 96 / 80 / 72 with 64 / 48 / 24 under it, closing Doany 120 / 112 / 96, play button 80 / 72 / 56 / 64 with icons 28 / 20, video-state tile 560, the failed poster's .35 opacity, the 0.9 s loading and 90 s seek in the prototype, the reveal's 32 px, 700 ms, 90 ms step and 12% margin.</li>
 </ul>
 </section>
 <script>
