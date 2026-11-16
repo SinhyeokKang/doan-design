@@ -1783,6 +1783,10 @@ export class ConversationService {
         if (this.quitting || !exists || this.live.get(watch.id)?.failedPersistence || this.drawWatches.get(turnId) !== watch) { this.dropDrawnTurn(turnId); return; }
         this.append(watch.id, turnId, { type: "canvas.drawn", canvas });
         watch.announced.push(canvas);
+        // The renderer takes a stage only while no event of its turn came after it, and the runner may send none until
+        // its running tool ends: the watcher's write must not hide that tool.
+        const live = this.live.get(watch.id);
+        if (live?.stage?.turnId === turnId) this.stage(watch.id, live, live.stage.stage);
       }
     } catch (error) { this.dropDrawnTurn(turnId); console.error("doan: drawn canvases could not be saved", error); }
   }
