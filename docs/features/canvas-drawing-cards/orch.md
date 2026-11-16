@@ -36,3 +36,6 @@
 - A 완료(21e57afd, a51ec2a5, 1259e74f). 계획과 다른 점: 진행 중 턴에 `canvas.drawn`이 쓰이면 renderer가 실행 단계를 잃으므로, main이 쓰기 뒤 현재 단계를 새 seq로 다시 보낸다. 독립 리뷰 R-A(ctx_5599e919110c, Opus high)에 맡겼다. A 워커는 수정 라운드를 위해 남겨 둔다(retain).
 - R-A: 🔴 0, 🟡 1. main의 단계 재전송이 이미 밀려난 단계를 되살린다. 컨덕터 판단 — renderer 층에서 막는다(`turnOf`가 lastSeq를 셀 때 `canvas.drawn`을 건너뛴다, B에 추가). A는 1259e74f를 되돌린다(수정 라운드 ctx_9c69246f75d6, Sonnet medium — 되돌리기만 하는 기계적 작업).
 - 승격 때 반영할 리뷰 메모: 루트 목록이 `list`가 아니면(깨진 config) 스냅숏이 비어 기존 캔버스에 카드가 붙을 수 있다(BACKLOG). 같은 대화의 연속 두 턴도 같은 새 경로에 각각 카드를 얻는다(PRODUCT 문구). ARCHITECTURE는 "insideDesign 편집 경로"가 아니라 모든 `edit` 경로를 쓴다고 적는다.
+- B 완료(9커밋, 자체 리뷰 2라운드), 통합(cherry-pick, HEAD ea3432fe). verify PASS(.scratch/orch/verify-1.log).
+- R-B: 🔴 0, 🟡 0, ⚪ 4, 결정 2. 사용자 결정 — 요청만 있는 카드(그리지 않은 캔버스)는 턴이 도는 동안 스피너 대신 `forward` 아이콘. 승격 notice는 카드 뒤(답변 → 카드 → moved to). 컨덕터 판단 — sr 상태 줄 "N new canvases"는 턴이 실제로 끝난 뒤에만 알리고, 끝쪽 승격 마커가 있어도 센다(spec 7). B 수정 라운드(Opus medium — 작은 renderer 수정 셋).
+- 실제 턴 runtime-test(tasks 8)를 워커(ctx_9ba97a936cc5, Opus high)에 맡겼다. 리드가 전한 사용자 요청대로 probe 창은 띄운 즉시 주 화면 작업 영역 왼쪽 아래로 옮기고 포커스를 뺏지 않는다.
