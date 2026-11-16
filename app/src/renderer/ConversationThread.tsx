@@ -11,7 +11,7 @@ import type { CanvasRow } from "../main/view";
 import { skillWords, skillTextParts } from "./skillWords";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
-import { canvasCardText, middleCut, newCanvasesText } from "./canvasCardText";
+import { canvasCardText, middleCut, newCanvasesText, trailingCards } from "./canvasCardText";
 import { canvasLabel } from "./canvasTree";
 import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -561,16 +561,16 @@ function lastEnd(items: readonly ThreadItem[]): { key: string; resend: boolean }
 }
 // The running turn reads as the indicator's settled stage kind, so it changes only when that kind does. The background
 // line is no live region: this status says it once as it appears, and the same words while it stays (Stopping too).
-// Once the turn ended, its new canvases follow the end's title, or are said alone after a turn without one.
-function phaseText(items: readonly ThreadItem[], provider: Provider, shown: TurnStatus, background: boolean): string {
+// Once the turn ended, its new canvases follow the end's title, or are said alone after a turn without one. `ended` holds
+// the cards as the history has them: a Stop hides the indicator and stops their spinners before the turn's end arrives,
+// and the count waits for that end.
+function phaseText(items: readonly ThreadItem[], ended: readonly ThreadItem[], provider: Provider, shown: TurnStatus, background: boolean): string {
   const p = PROVIDER_NAMES[provider];
   if (items.some(waitsForPerson)) return `${p} needs your answer`;
   const stage = turnAnnouncement(shown, p);
   if (stage) return stage;
   if (background) return "Background work is still running";
-  let end = items.length;
-  while (end > 0 && items[end - 1]!.kind === "canvasCard") end--;
-  const last = items[end - 1], title = last?.kind === "end" ? endView(last.end, provider).title : "", cards = newCanvasesText(items);
+  const last = items[trailingCards(items).start - 1], title = last?.kind === "end" ? endView(last.end, provider).title : "", cards = newCanvasesText(ended);
   if (!cards) return title;
   return title ? `${title}${title.endsWith(".") ? "" : "."} ${cards}` : cards;
 }
@@ -913,7 +913,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
         </div></div>}</div>
     </div>
     {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
-    <div className="sr-only" role="status">{copied ? "Copied" : phaseText(drawn, provider, settled.shown, line !== null)}</div>
+    <div className="sr-only" role="status">{copied ? "Copied" : phaseText(drawn, items, provider, settled.shown, line !== null)}</div>
   </div></ReplyCanvasContext.Provider></Actions.Provider>;
 };
 

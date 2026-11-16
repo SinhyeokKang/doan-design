@@ -35,7 +35,8 @@ export function canvasCardText(card: CanvasCard, ctx: { project: string; provide
   const view = (icon: CanvasCardView["icon"], status: string, open: CanvasCardView["open"]): CanvasCardView => ({ icon, name, status, label: `${name}, ${status}`, open });
   const own = { canvas: card.canvas, label: `Open ${name}` };
   // A request names a path the agent gave, which may not be listed yet while it is pending: Open waits for it silently.
-  if (handoff?.outcome === "pending") return view(card.drawing ? "spinner" : "forward", "Hands off when this turn ends", ctx.listed(card.canvas) ? own : null);
+  // Only a canvas this turn drew spins: a request alone names an existing or shell-made canvas the agent is not drawing.
+  if (handoff?.outcome === "pending") return view(card.drawing && card.drawn ? "spinner" : "forward", "Hands off when this turn ends", ctx.listed(card.canvas) ? own : null);
   const gone = (icon: CanvasCardView["icon"], status: string, open: CanvasCardView["open"], canvas = card.canvas) =>
     ctx.listed(canvas) ? view(icon, status, open) : view(icon, `${status} · No longer in ${ctx.project}`, null);
   if (!handoff) return gone(card.drawing ? "spinner" : "check", card.drawing ? "Drawing" : "Drawn", own);
@@ -65,14 +66,24 @@ export function middleCut(name: string, keep: number): string {
   return `${name.slice(0, head)}…${name.slice(name.length - tail)}`;
 }
 
+// Where the thread's trailing cards start and end. A promoted conversation's "moved to" marker is no part of a turn, so
+// one written after the cards does not hide them; without cards the run is empty at the thread's end.
+export function trailingCards(items: readonly ThreadItem[]): { start: number; end: number } {
+  let end = items.length;
+  while (end > 0 && items[end - 1]!.kind === "marker") end--;
+  let start = end;
+  while (start > 0 && items[start - 1]!.kind === "canvasCard") start--;
+  return start === end ? { start: items.length, end: items.length } : { start, end };
+}
+
 // What the thread's status line adds once the last turn ended: its trailing cards that are new canvases. A card for a
 // started or missed handoff was a new canvas too (main hands off and misses only new ones); a refused, cancelled or
-// pending one says nothing either way. Nothing while a card still draws: the turn's stage speaks then.
+// pending one says nothing either way. Nothing while a card still draws: its turn has not ended.
 export function newCanvasesText(items: readonly ThreadItem[]): string {
+  const { start, end } = trailingCards(items);
   let n = 0;
-  for (let i = items.length - 1; i >= 0; i--) {
-    const item = items[i]!;
-    if (item.kind !== "canvasCard") break;
+  for (const item of items.slice(start, end)) {
+    if (item.kind !== "canvasCard") continue;
     if (item.drawing) return "";
     if (item.drawn || item.handoff?.outcome === "started" || item.handoff?.outcome === "missed") n++;
   }
