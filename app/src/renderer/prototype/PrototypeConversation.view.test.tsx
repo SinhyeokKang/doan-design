@@ -34,6 +34,7 @@ vi.mock("react", async original => {
 });
 
 const { PrototypeConversationPanel, PrototypeHeadMenu } = await import("./PrototypeConversation");
+const { NameTip } = await import("../NameTip");
 const { DropdownMenu } = await import("radix-ui");
 const { ConversationDeleteItem } = await import("../ConversationDeleteDialog");
 const { PrototypeConversationRun } = await import("./conversationRun");
@@ -261,7 +262,10 @@ describe("the head's conversation menu", () => {
     listed = [summary({ title: "Checkout Review details button" })];
     await playing();
     const tree = head();
-    expect(trigger(tree).props).toMatchObject({ type: "button", className: "ov-title doan-button", title: "Checkout Review details button" });
+    // The title shows in full in the shared tooltip while it is cut, not in a native title.
+    expect(trigger(tree).props).toMatchObject({ type: "button", className: "ov-title doan-button" });
+    expect(trigger(tree).props.title).toBeUndefined();
+    expect(find(tree, element => element.type === NameTip)!.props.text).toBe("Checkout Review details button");
     expect(trigger(tree).props.disabled).toBeUndefined();
     expect(trigger(tree).props["aria-disabled"]).toBeUndefined();
     expect(find(tree, element => element.type === "span" && element.props.className === "ov-title-wrap doan-conv-title")).toBeDefined();
@@ -276,7 +280,8 @@ describe("the head's conversation menu", () => {
     for (const step of [() => {}, () => run.setView(view({ canvasRow: "gone" })), () => run.setView(view({ canvasRow: "duplicate" }))]) {
       step();
       const tree = open();
-      expect(trigger(tree).props).toMatchObject({ title: "Conversation", "aria-disabled": true });
+      expect(trigger(tree).props).toMatchObject({ "aria-disabled": true });
+      expect(find(tree, element => element.type === NameTip)!.props.text).toBe("Conversation");
       expect(trigger(tree).props.disabled).toBeUndefined();
       expect(find(tree, element => element.type === DropdownMenu.Trigger)!.props.disabled).toBeFalsy();
       expect(root(tree).props.open).toBe(false);

@@ -81,10 +81,11 @@ describe("zoomControlView", () => {
     expect(zoomControlView(board(1, { status: "loading" })).items).toEqual(zoomControlView(board(1)).items);
   });
 
-  test("the step tooltips name the shortcut like the View menu", () => {
+  // DESIGN 'Tooltip': the key is a chip beside the label, never text in it; the keys match the View menu.
+  test("the step tooltips name the shortcut like the View menu, as a label and a key", () => {
     const view = zoomControlView(board(1));
-    expect(view.zoomOut.tooltip).toBe("Zoom out ⌘−");
-    expect(view.zoomIn.tooltip).toBe("Zoom in ⌘=");
+    expect(view.zoomOut.tooltip).toEqual({ label: "Zoom out", key: "⌘−" });
+    expect(view.zoomIn.tooltip).toEqual({ label: "Zoom in", key: "⌘=" });
   });
 });
 

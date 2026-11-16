@@ -35,6 +35,8 @@ import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import { stageInsets } from "./stageInsets";
 import { HomeCredit } from "./HomeCredit";
+import { NameTip } from "./NameTip";
+import { TooltipEscape } from "./components/ui/tooltip";
 
 // Everything the composer keeps between Home visits for this run (a draft survives leaving Home, not a
 // restart). App owns the object so a visit's unmount does not lose it; reads finishing after an unmount still land.
@@ -191,6 +193,8 @@ export function HeroComposer(props: HeroComposerProps) {
   const [announcement, setAnnouncement] = useState("");
   const [dismissed, setDismissed] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  // Controlled so an Esc on a project name's tooltip closes the menu too (TooltipEscape).
+  const [projectMenu, setProjectMenu] = useState(false);
   const [confirm, setConfirm] = useState<{ request: LastRequest; title: string; body: string; cancel: string; confirm: string } | null>(null);
   const field = useRef<ComposerFieldHandle | null>(null);
   const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
@@ -525,11 +529,11 @@ export function HeroComposer(props: HeroComposerProps) {
     <Buddy buddy={props.buddy ?? "doany"} size={114} ref={doany} />
     <h1 className="home-greeting">{greetingText(props.greeting, hasProjects ? project : null)}</h1>
     <div className="home-composer">
-      {hasProjects ? <DropdownMenu.Root>
-        <DropdownMenu.Trigger asChild><button type="button" className="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={`Project: ${project}`} disabled={sending}>
+      {hasProjects ? <DropdownMenu.Root open={projectMenu} onOpenChange={setProjectMenu}>
+        <NameTip text={project}><DropdownMenu.Trigger asChild><button type="button" className="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={`Project: ${project}`} disabled={sending}>
           <span className={`shell-thumbnail hue-${projectHue(project)}`} aria-hidden="true">{projectInitial(project)}</span><span className="home-project-name">{project}</span><ChevronDown className="chev" aria-hidden="true" />
-        </button></DropdownMenu.Trigger>
-        <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu project-popover" aria-label="Projects" side="bottom" align="start" sideOffset={4} collisionPadding={8}>
+        </button></DropdownMenu.Trigger></NameTip>
+        <TooltipEscape value={() => setProjectMenu(false)}><DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu project-popover" aria-label="Projects" side="bottom" align="start" sideOffset={4} collisionPadding={8}>
           {/* Radix calls onValueChange even for a radio item whose onSelect was prevented, so a down project is ignored here too. */}
           <DropdownMenu.RadioGroup value={card?.key ?? ""} onValueChange={key => { const chosen = cards.find(item => item.key === key); if (chosen && !projectDown(chosen)) edit({ root: rootForProject(chosen.rows, props.shellProjects[chosen.key]?.selectedRoot) }); }}>
             {cards.map((item, index) => {
@@ -541,7 +545,7 @@ export function HeroComposer(props: HeroComposerProps) {
               return <Fragment key={item.key}>
                 <DropdownMenu.RadioItem value={item.key} className="doan-menu-item project-item" {...(down ? { "aria-disabled": true, "aria-label": item.name, "aria-describedby": noteId } : {})}
                   onSelect={event => { if (down) event.preventDefault(); }}>
-                  <span className={`shell-thumbnail hue-${projectHue(item.name)}`} aria-hidden="true">{projectInitial(item.name)}</span><span className="model-name">{item.name}</span>
+                  <span className={`shell-thumbnail hue-${projectHue(item.name)}`} aria-hidden="true">{projectInitial(item.name)}</span><NameTip text={item.name}><span className="model-name">{item.name}</span></NameTip>
                   {chip && <span className={chipClass(chip)}>{chip}</span>}<span className="check-slot">{item.key === card?.key && <Check className="check" aria-hidden="true" />}</span>
                 </DropdownMenu.RadioItem>
                 {down && <p className="menu-note" id={noteId}>{chip === "Reading" ? `${item.name} is still being read.` : `${chip === "Missing" ? `${item.name} is missing.` : `${item.name} isn’t available.`} Fix it from its menu in the sidebar.`}</p>}
@@ -550,7 +554,7 @@ export function HeroComposer(props: HeroComposerProps) {
           </DropdownMenu.RadioGroup>
           <DropdownMenu.Separator className="doan-menu-sep" />
           <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.addProjects()}><Plus aria-hidden="true" /><span className="model-name">Add Projects…</span></DropdownMenu.Item>
-        </DropdownMenu.Content></DropdownMenu.Portal>
+        </DropdownMenu.Content></DropdownMenu.Portal></TooltipEscape>
       </DropdownMenu.Root>
         : <button type="button" className="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={() => props.addProjects()}><Plus aria-hidden="true" /><span>Add Projects…</span></button>}
       <div className="composer" {...drop.handlers}>

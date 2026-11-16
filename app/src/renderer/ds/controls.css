@@ -34,7 +34,7 @@
 .doan-button[data-ui-size="xs"] { min-height: var(--size-control-xs); padding: var(--space-1) var(--space-2); gap: var(--space-1); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .doan-button[data-ui-size="xs"] > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 /* A screen's one leading action (onboarding Welcome) steps up to the large control. */
-.doan-button[data-ui-size="lg"] { min-height: var(--size-control-lg); padding: var(--space-3) var(--space-8); font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
+.doan-button[data-ui-size="lg"] { min-height: var(--size-control-lg); padding: var(--space-3) var(--space-8); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
 /* A trigger shows a value that opens a menu, so it hugs its label. It comes after the
    sizes, whose rules weigh the same, so a screen never re-pads it. */
 .doan-button[data-ui-variant="trigger"] { padding-inline: var(--space-2); }
@@ -64,6 +64,7 @@
   color: inherit;
   font-size: var(--type-caption-size);
   line-height: var(--type-caption-line-height);
+  letter-spacing: var(--type-caption-letter-spacing);
   box-shadow: inset 0 0 0 1px currentColor;
 }
 
@@ -102,7 +103,7 @@
      translucent; an inset shadow stacks the layer and still eases. */
   .doan-button[data-ui-variant="quiet"]:hover:not(:disabled) { box-shadow: inset 0 0 0 100vmax var(--affordance-backdrop-hover); }
   .doan-button[data-ui-variant="trigger"]:hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
-  .doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled) { background: var(--affordance-accent-hover); }
+  .doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled, [data-disabled]) { background: var(--affordance-accent-hover); }
 }
 
 /* Pressed, and a trigger whose popup is open: the fill deepens and nothing moves, so a
@@ -115,7 +116,7 @@
 /* An open trigger keeps its hover fill so the value still reads; only a press deepens it. */
 .doan-button[data-ui-variant="trigger"]:is([aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-backdrop-hover); }
 .doan-button[data-ui-variant="trigger"]:active:not(:disabled) { background: var(--affordance-backdrop-pressed); }
-.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-accent-pressed); }
+.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { background: var(--affordance-accent-pressed); }
 
 /* Disabled is a state of its own rather than a faded emphasis: a filled control turns to
    the disabled fill, a ghost one keeps no fill, and both take the disabled ink. */
@@ -187,7 +188,7 @@
   height: 20px;
   margin: 0;
   border: 1px solid var(--border-prominent);
-  border-radius: var(--space-1);
+  border-radius: var(--radius-inline);
   background: var(--surface-panel);
   color: var(--text-on-prominent);
   cursor: pointer;
@@ -293,6 +294,7 @@
   font: inherit;
   font-size: var(--type-caption-size);
   line-height: 1.35;
+  letter-spacing: var(--type-caption-letter-spacing);
   vertical-align: baseline;
 }
 button.doan-chip { cursor: pointer; }

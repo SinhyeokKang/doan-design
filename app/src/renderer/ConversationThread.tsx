@@ -1,4 +1,4 @@
-import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
+import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactElement, type ReactNode, type Ref } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArrowDown, ArrowUpRight, Ban, Check, ChevronDown, CircleStop, Copy, Eye, FileText, Folder, Forward, Frame, MapPin, PanelsTopLeft, Pencil, PencilSparkles, SquareMousePointer, Terminal, Zap } from "lucide-react";
@@ -16,6 +16,7 @@ import { canvasLabel } from "./canvasTree";
 import { SKIP_FAILED_TEXT } from "./conversationStrip";
 import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { NameTip } from "./NameTip";
 import { handoffCardHead } from "./handoffView";
 import { providerLogo, sentFileView } from "./homeComposer";
 import { replyUrlTransform } from "./replyUrlTransform";
@@ -192,8 +193,9 @@ function textOf(node: unknown): string {
 // keyboard activation still focuses the button first.
 export function CodeBlock({ node, children }: { node: unknown; children?: ReactNode }) {
   const { copy } = useContext(Actions), reply = useContext(ReplyId);
-  return <div className="md-code"><pre>{children}</pre>
-    <button type="button" className="doan-icon-button" data-ui-size="xs" aria-label="Copy code" onMouseDown={event => event.preventDefault()} onClick={() => copy(textOf(node).replace(/\n$/, ""), reply)}><Copy aria-hidden="true" /></button></div>;
+  return <div className="md-code"><pre className="doan-scroll">{children}</pre>
+    <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button" data-ui-size="xs" aria-label="Copy code" onMouseDown={event => event.preventDefault()} onClick={() => copy(textOf(node).replace(/\n$/, ""), reply)}><Copy aria-hidden="true" /></button></TooltipTrigger>
+      <TooltipContent>Copy code</TooltipContent></Tooltip></div>;
 }
 function Link({ href, children }: { href: string | undefined; children?: ReactNode }) {
   const { openLink } = useContext(Actions);
@@ -234,11 +236,12 @@ export function ReplyChip({ link }: { link: ReplyAnchor }) {
   const view = replyChipView(link, canvas);
   const Icon = CHIP_ICONS[view.kind];
   const body = <><Icon aria-hidden="true" /><span>{view.label}</span>{view.canvasName !== null && <span className="chip-canvas">{` · ${view.canvasName}`}</span>}</>;
-  if (!canvas.pressable) return <span className="anchor-chip" data-kind={view.kind} title={view.title}>{body}</span>;
+  // The chip's detail (what it points at) is information only the tooltip carries, so it shows on every hover.
+  if (!canvas.pressable) return <ChipTip detail={view.title}><span className="anchor-chip" data-kind={view.kind}>{body}</span></ChipTip>;
   const disabled = view.same && canvas.disabled;
-  return <button type="button" className="anchor-chip" data-kind={view.kind} title={view.title} aria-label={view.ariaLabel} aria-disabled={disabled || undefined}
+  return <ChipTip detail={view.title}><button type="button" className="anchor-chip" data-kind={view.kind} aria-label={view.ariaLabel} aria-disabled={disabled || undefined}
     aria-describedby={view.same && note.shownFor === key ? `${key}-missing` : undefined}
-    onClick={() => { if (!disabled) void replyChip(link)?.then(outcome => { if (view.same && outcome === "missing") note.show(key); }); }}>{body}</button>;
+    onClick={() => { if (!disabled) void replyChip(link)?.then(outcome => { if (view.same && outcome === "missing") note.show(key); }); }}>{body}</button></ChipTip>;
 }
 
 // Agent output is untrusted, as the selection's `html`/`text` are (ARCHITECTURE §3 'Selection and inspector'): no raw
@@ -248,7 +251,7 @@ const COMPONENTS: Components = {
   a: ({ href, children }) => href?.startsWith("doan:") ? <ReplyLink href={href}>{children}</ReplyLink> : <Link href={href}>{children}</Link>,
   img: ({ alt }) => alt ? <span>{alt}</span> : null,
   pre: ({ node, children }) => <CodeBlock node={node}>{children}</CodeBlock>,
-  table: ({ children }) => <div className="md-table"><table>{children}</table></div>,
+  table: ({ children }) => <div className="md-table doan-scroll"><table>{children}</table></div>,
 };
 const PLUGINS = [remarkGfm];
 // A finished message parses once; a streaming one parses at most once per animation frame.
@@ -429,6 +432,10 @@ export function QuestionCard({ item, provider, live, base, draft, onDraft, onSen
   </div>;
 }
 
+function ChipTip({ detail, children }: { detail: string; children: ReactElement }) {
+  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{detail}</TooltipContent></Tooltip>;
+}
+
 // A chip in a sent message. A marker without its anchor (a malformed history) keeps its {{n}} text.
 export function SentChip({ marker, anchor, frames, disabled, onLocate, missing }: { marker: number; anchor: Anchor | undefined; frames: readonly FrameName[] | undefined; disabled: boolean;
   onLocate: ConversationThreadProps["onLocate"];
@@ -438,11 +445,11 @@ export function SentChip({ marker, anchor, frames, disabled, onLocate, missing }
   const view = chipLabel(anchor, frames);
   const Icon = CHIP_ICONS[view.kind];
   const body = <><Icon aria-hidden="true" /><span>{view.label}</span></>;
-  if (!onLocate) return <span className="anchor-chip" data-kind={view.kind} title={view.title}>{body}</span>;
+  if (!onLocate) return <ChipTip detail={view.title}><span className="anchor-chip" data-kind={view.kind}>{body}</span></ChipTip>;
   // aria-disabled, so the chip stays in the Tab order and keeps its name while the canvas cannot be shown.
-  return <button type="button" className="anchor-chip" data-kind={view.kind} title={view.title} aria-label={`Show ${view.label} on canvas`} aria-disabled={disabled || undefined}
+  return <ChipTip detail={view.title}><button type="button" className="anchor-chip" data-kind={view.kind} aria-label={`Show ${view.label} on canvas`} aria-disabled={disabled || undefined}
     aria-describedby={missing && missing.shownFor === missing.key ? `${missing.key}-missing` : undefined}
-    onClick={() => { if (!disabled) void onLocate(anchor).then(outcome => { if (outcome === "missing") missing?.show(missing.key); }); }}>{body}</button>;
+    onClick={() => { if (!disabled) void onLocate(anchor).then(outcome => { if (outcome === "missing") missing?.show(missing.key); }); }}>{body}</button></ChipTip>;
 }
 
 // A sent message: its bubble, attachments and the chip locate note under the bubble (draft frame `chip-locate`). One
@@ -887,7 +894,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       }
       case "question": {
         if (entry.status !== "pending") return <div className="q-folded">{questionLines(entry).map((line, i) =>
-          <div key={i} className="activity"><div className="activity-head ask-answered"><span className="selectable" title={line}>{line}</span></div></div>)}</div>;
+          <div key={i} className="activity"><div className="activity-head ask-answered"><NameTip text={line}><span className="selectable">{line}</span></NameTip></div></div>)}</div>;
         return <QuestionCard item={entry} provider={provider} live={entry.seq > props.liveAfter} base={base} draft={draftOf(entry.requestId)}
           onDraft={action => editQuestion(entry.requestId, action)} onSend={() => sendQuestion(entry, "answer")} onSkip={() => sendQuestion(entry, "skip")} onStop={() => stop(entry.requestId)} />;
       }
@@ -915,7 +922,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   };
 
   return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><CopyFailed.Provider value={copyFailed}><div className="conversation-thread">
-    <div className="thread-scroll" ref={scroller} onScroll={onScroll}>
+    <div className="thread-scroll doan-scroll" ref={scroller} onScroll={onScroll}>
       <div className="thread">{stacks(drawn).map(run => run.length === 1 && run[0]!.kind !== "canvasCard"
         ? <ThreadEntry key={run[0]!.key} entry={run[0]!} deps={depsOf(run[0]!)} draw={item} />
         // A run of cards stacks closer than thread items do (the draft's gap); each card stays its own item.

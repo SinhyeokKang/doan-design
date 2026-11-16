@@ -81,7 +81,7 @@ function draw(items: ThreadItem[], commit?: () => void): void {
   props = { ...props, items };
   const outer = (ConversationThread as unknown as { render(props: ConversationThreadProps, ref: null): ReactElement<ConversationThreadProps> }).render(props, null);
   tree = all((outer.type as (props: ConversationThreadProps) => ReactNode)(outer.props));
-  const scroller = tree.find(element => element.props.className === "thread-scroll")!.props.ref as { current: unknown };
+  const scroller = tree.find(element => element.props.className === "thread-scroll doan-scroll")!.props.ref as { current: unknown };
   scroller.current = {
     scrollHeight: 100, scrollTop: 0, clientHeight: 100, contains: (node: unknown) => typeof node === "object" && node !== null && "item" in node,
     querySelector: (selector: string) => {

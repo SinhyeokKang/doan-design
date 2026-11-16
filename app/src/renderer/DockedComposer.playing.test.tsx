@@ -35,11 +35,12 @@ function props(patch: Partial<DockedComposerProps> = {}, draft: Partial<DockedDr
 }
 const html = (patch: Partial<DockedComposerProps> = {}, draft: Partial<DockedDraft> = {}) => renderToStaticMarkup(<TooltipProvider><DockedComposer {...props(patch, draft)} /></TooltipProvider>);
 
-test("the playing chip comes first in the card's chip row, outside the field, with only a native title", () => {
+test("the playing chip comes first in the card's chip row, outside the field, with its detail in the shared tooltip", () => {
   const markup = html();
   const chip = markup.match(/<span class="anchor-chip pw-playing"[^>]*>.*?<\/span><\/span>/)?.[0] ?? "";
   expect(chip).toContain('data-kind="frame"');
-  expect(chip).toContain('title="Sent with each message"');
+  expect(chip).not.toContain("title=");
+  expect(chip).toContain('data-slot="tooltip-trigger"');
   expect(chip).toContain('<span class="sr-only">Frame </span>');
   expect(chip).toContain("<span>Checkout</span>");
   expect(chip).not.toContain("tabindex");
@@ -54,7 +55,7 @@ test("the field is described by the frame it sends, until the composer is locked
   const markup = html();
   const id = markup.match(/<span class="sr-only" id="([^"]+)">Frame Checkout is sent with each message\.<\/span>/)?.[1];
   expect(id).toBeTruthy();
-  expect(markup).toMatch(new RegExp(`class="composer-input"[^>]*aria-describedby="[^"]*${id}`));
+  expect(markup).toMatch(new RegExp(`class="composer-input doan-scroll"[^>]*aria-describedby="[^"]*${id}`));
   const locked = html({ unavailable: "This canvas isn’t listed in acme, so its conversation can’t continue.", locked: true });
   expect(locked).not.toContain("is sent with each message.");
 });

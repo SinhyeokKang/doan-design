@@ -15,7 +15,7 @@ import type { HomeMemory } from "../restore/uiState";
 import type { DoanApi } from "../preload";
 import { requestTitleText, stripRequestLines } from "../main/conversation/requestLines";
 import { useProjectSkills, type SkillsCalls } from "./useProjectSkills";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { textSegments } from "./anchorField";
 import { canvasConversationError, canvasConversationMenu, noticeOpenName, resumeHeld, titleMenuOrder } from "./canvasConversation";
 import { sameCanvas } from "./canvasConversationRows";
@@ -49,6 +49,7 @@ import { stopBackground, threadTurn } from "./turnStatus";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import type { PlayingFrameChip } from "./prototype/conversation";
+import { NameTip } from "./NameTip";
 
 // The canvas page's conversation panel body (draft frames
 // panel-*): the conversation menu in the panel's title row, the thread and the docked composer. CanvasRun decides which
@@ -185,9 +186,9 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
   const startNew = () => startNewConversation(current, isNew, select, onPicked);
   return <><span className="ov-title-wrap doan-conv-title">
     <DropdownMenu.Root open={menuOpen && !loading} onOpenChange={open => setMenuOpen(open && !loading)}>
-      <DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title} aria-disabled={loading || undefined}>
-        <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
-      <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
+      <NameTip text={title}><DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-disabled={loading || undefined}>
+        <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger></NameTip>
+      <TooltipEscape value={() => setMenuOpen(false)}><DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
         onCloseAutoFocus={event => {
           if (deleting.current) { deleting.current = false; event.preventDefault(); return; }
           if (!picked.current) return; picked.current = false; event.preventDefault(); onPicked();
@@ -208,7 +209,7 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
               }} onEscape={() => setMenuOpen(false)} />}
             </div>)}</div>}
         </DropdownMenu.RadioGroup>
-      </DropdownMenu.Content></DropdownMenu.Portal>
+      </DropdownMenu.Content></DropdownMenu.Portal></TooltipEscape>
     </DropdownMenu.Root>
   </span>
   <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button doan-conv-new" aria-label="New conversation" aria-disabled={isNew || undefined} onClick={startNew}><SquarePen aria-hidden="true" /></button></TooltipTrigger>

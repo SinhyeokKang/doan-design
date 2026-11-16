@@ -2,6 +2,7 @@ import { Clock, Hand, MessageCircle } from "lucide-react";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { providerLogo } from "./homeComposer";
 import type { ConversationLine, ConversationStatus } from "./overviewConversation";
+import { NameTip } from "./NameTip";
 
 // The first line shared by the Overview's dropdown items and its right panel's canvas rows:
 // provider logo (its name as alt text), the name, the status mark the sidebar slot draws (hand, spinner, the clock of messages waiting for a usage limit's reset, or the speech bubble of an unread finished conversation), the short time flush
@@ -16,7 +17,8 @@ export function StatusMark({ status }: { status: ConversationStatus }) {
 export function ConversationHead({ line, name, nameClass }: { line: ConversationLine; name: string; nameClass?: string }) {
   return <span className="cv-head">
     <img className="logo" src={providerLogo(line.provider)} alt={PROVIDER_NAMES[line.provider]} />
-    <b className={nameClass}>{name}</b>
+    {/* No className key without a class: Radix's Slot would draw an empty class attribute. */}
+    <NameTip text={name}><b {...(nameClass === undefined ? {} : { className: nameClass })}>{name}</b></NameTip>
     {line.status && <StatusMark status={line.status} />}
     {line.time && <small className="cv-when"><span aria-hidden="true">{line.time.text}</span><span className="sr-only">{line.time.label}</span></small>}
   </span>;

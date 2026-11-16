@@ -9,7 +9,7 @@ function rule(css: string, selector: string): string | null {
 
 test("the lg button is 48px with 16/24 text and 12/32 padding; default 40 and sm 32 stay", () => {
   const css = read("./controls.css");
-  expect(rule(css, '.doan-button[data-ui-size="lg"]')).toBe("min-height: var(--size-control-lg); padding: var(--space-3) var(--space-8); font-size: var(--type-label-size); line-height: var(--type-label-line-height);");
+  expect(rule(css, '.doan-button[data-ui-size="lg"]')).toBe("min-height: var(--size-control-lg); padding: var(--space-3) var(--space-8); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing);");
   expect(css).toContain(".doan-button[data-ui-size=\"sm\"] { min-height: var(--size-control-sm); padding: var(--space-1h) var(--space-4); }");
   expect(rule(css, ".doan-button")).toContain("min-height: var(--size-control);\n  padding: var(--space-2) var(--space-6);");
   const tokens = read("../tokens.css");
@@ -148,8 +148,9 @@ test("icon button size xs is a 24px pill with the small icon; variant accent is 
   expect(rule(css, '.doan-icon-button[data-ui-size="xs"]')).toBe("width: var(--size-control-xs); height: var(--size-control-xs); border-radius: var(--radius-pill);");
   expect(rule(css, '.doan-icon-button[data-ui-size="xs"] > svg')).toBe("width: var(--size-icon-sm); height: var(--size-icon-sm);");
   expect(rule(css, '.doan-icon-button[data-ui-variant="accent"]')).toBe("border-radius: var(--radius-pill); background: var(--affordance-accent); color: var(--text-on-accent);");
-  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled) { background: var(--affordance-accent-hover); }');
-  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-accent-pressed); }');
+  // An aria-disabled Send drawn disabled (data-disabled, its reason in the tooltip) keeps the disabled fill under the pointer.
+  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled, [data-disabled]) { background: var(--affordance-accent-hover); }');
+  expect(css).toContain('.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled, [data-disabled]) { background: var(--affordance-accent-pressed); }');
   // The accent resting fill must come before the shared disabled rule of equal weight, which then wins.
   expect(css.indexOf('.doan-icon-button[data-ui-variant="accent"] {')).toBeLessThan(css.indexOf(":is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) {"));
 });

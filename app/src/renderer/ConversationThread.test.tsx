@@ -15,7 +15,9 @@ const props = (items: ConversationThreadProps["items"], patch: Partial<Conversat
   items, conversationId: "c1", provider: "claude", project: "doan-design", liveAfter: 0, canvasListed: () => true,
   onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenHandoff: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
 });
-const html = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}) => renderToStaticMarkup(<ConversationThread {...props(items, patch)} />);
+const html = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}) => renderToStaticMarkup(<TooltipProvider><ConversationThread {...props(items, patch)} /></TooltipProvider>);
+// A sent chip inside its detail tooltip.
+const sentChip = (args: Parameters<typeof SentChip>[0]) => (SentChip(args) as ReactElement<{ children: ReactElement<{ onClick(): void; "aria-describedby"?: string }> }>).props.children;
 const agent = (text: string, streaming = false): ThreadItem => ({ kind: "agent", key: "m1", messageId: "m1", text, streaming });
 
 describe("agent Markdown", () => {
@@ -27,8 +29,8 @@ describe("agent Markdown", () => {
     expect(out).toContain("<code>code</code>");
     expect(out).toMatch(/<ul>\s*<li>one\s*<ul>\s*<li>nested<\/li>/);
     expect(out).toContain("<ol>");
-    expect(out).toContain('<div class="md-code"><pre><code>$ doan check\n</code></pre><button type="button" class="doan-icon-button" data-ui-size="xs" aria-label="Copy code">');
-    expect(out).toContain('<div class="md-table"><table><thead><tr><th>A</th><th>B</th></tr></thead>');
+    expect(out).toContain('<div class="md-code"><pre class="doan-scroll"><code>$ doan check\n</code></pre><button type="button" class="doan-icon-button" data-ui-size="xs" aria-label="Copy code" data-state="closed" data-slot="tooltip-trigger">');
+    expect(out).toContain('<div class="md-table doan-scroll"><table><thead><tr><th>A</th><th>B</th></tr></thead>');
     expect(out).toMatch(/<blockquote>\s*<p>quote<\/p>\s*<\/blockquote>/);
     expect(out).toContain("<hr/>");
   });
@@ -71,7 +73,7 @@ describe("agent Markdown", () => {
       ["> quote", /<blockquote>\s*<p>quote<span class="caret"[^>]*><\/span><\/p>\s*<\/blockquote>/],
       ["| A |\n|---|\n| 1 |", /<td>1<span class="caret"[^>]*><\/span><\/td>/],
       // A code block's text ends in a line break; the caret goes before it, on the code's last line.
-      ["```\n$ doan check", /<pre><code>\$ doan check<span class="caret"[^>]*><\/span>\n<\/code><\/pre>/],
+      ["```\n$ doan check", /<pre class="doan-scroll"><code>\$ doan check<span class="caret"[^>]*><\/span>\n<\/code><\/pre>/],
     ];
     for (const [text, where] of cases) {
       const out = html([agent(text, true)]);
@@ -327,7 +329,8 @@ describe("sent message chips", () => {
     expect(out).toContain('aria-label="Show Checkout payment on canvas"');
     expect(out).toContain('aria-label="Show button “Pay $42.00” on canvas"');
     expect(out).toContain('aria-label="Show Point in Checkout payment on canvas"');
-    expect(out).toMatch(/<button type="button" class="anchor-chip" data-kind="frame" title="[^"]*" aria-label="Show Checkout payment on canvas">/);
+    // The chip's detail is in its tooltip now, not a native title.
+    expect(out).toMatch(/<button type="button" class="anchor-chip" data-kind="frame" aria-label="Show Checkout payment on canvas" data-state="closed" data-slot="tooltip-trigger">/);
     expect(out).toContain('<span class="bubble-anchor">{{4}}</span>');
     expect(out).not.toContain("{{1}}");
   });
@@ -341,10 +344,10 @@ describe("sent message chips", () => {
   test("a chip hands its anchor to onLocate, and does nothing while disabled", () => {
     const asked: unknown[] = [];
     const onLocate = async (anchor: Anchor) => { asked.push(anchor); return "shown" as const; };
-    const chip = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate }) as ReactElement<{ onClick(): void }>;
+    const chip = sentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate });
     chip.props.onClick();
     expect(asked).toEqual([anchors[0]]);
-    const off = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: true, onLocate }) as ReactElement<{ onClick(): void }>;
+    const off = sentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: true, onLocate });
     off.props.onClick();
     expect(asked).toHaveLength(1);
   });
@@ -353,19 +356,19 @@ describe("sent message chips", () => {
   // could not be asked, ends silently (a timeout is not "missing").
   test.each([["missing", 1], ["timeout", 0], ["unavailable", 0], ["shown", 0]] as const)("a locate that ends %s shows the note %i times", async (outcome, times) => {
     const shown: string[] = [];
-    const chip = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: async () => outcome,
-      missing: { key: "m-0", shownFor: null, show: key => shown.push(key) } }) as ReactElement<{ onClick(): void }>;
+    const chip = sentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: async () => outcome,
+      missing: { key: "m-0", shownFor: null, show: key => shown.push(key) } });
     chip.props.onClick();
     await Promise.resolve(); await Promise.resolve();
     expect(shown).toHaveLength(times);
   });
 
   test("the note's chip is described by it", () => {
-    const chip = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: located,
-      missing: { key: "m-0", shownFor: "m-0", show: () => {} } }) as ReactElement<{ "aria-describedby"?: string }>;
+    const chip = sentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: located,
+      missing: { key: "m-0", shownFor: "m-0", show: () => {} } });
     expect(chip.props["aria-describedby"]).toBe("m-0-missing");
-    const other = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: located,
-      missing: { key: "m-1", shownFor: "m-0", show: () => {} } }) as ReactElement<{ "aria-describedby"?: string }>;
+    const other = sentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: located,
+      missing: { key: "m-1", shownFor: "m-0", show: () => {} } });
     expect(other.props["aria-describedby"]).toBeUndefined();
   });
 });
@@ -384,8 +387,8 @@ describe("reply chips", () => {
 
   test("a well-formed link is a chip, a malformed doan: link is its text, and https links stay links", () => {
     const out = html([agent("Changed [Save](doan:drafts/element/save) in [Ed](doan:drafts/frame/editor), see [bad](doan:x) and [web](https://e.com/a).")], panel);
-    expect(out).toContain('<button type="button" class="anchor-chip" data-kind="element" title="Element · element save" aria-label="Show element save on canvas">');
-    expect(out).toContain('<button type="button" class="anchor-chip" data-kind="frame" title="Frame · editor" aria-label="Show Editor (live) on canvas">');
+    expect(out).toContain('<button type="button" class="anchor-chip" data-kind="element" aria-label="Show element save on canvas" data-state="closed" data-slot="tooltip-trigger">');
+    expect(out).toContain('<button type="button" class="anchor-chip" data-kind="frame" aria-label="Show Editor (live) on canvas" data-state="closed" data-slot="tooltip-trigger">');
     expect(out).toContain("<span>bad</span>");
     expect(out).toContain('<a href="https://e.com/a">web</a>');
     expect(chips(out)).toHaveLength(2);
@@ -479,7 +482,7 @@ describe("reply chips", () => {
   test("only a chip into the open canvas follows locateDisabled", () => {
     const out = html([agent("[a](doan:drafts/frame/editor) [b](doan:checkout/frame/payment)")], { ...panel, locateDisabled: true });
     expect(out).toContain('aria-label="Show Editor (live) on canvas" aria-disabled="true"');
-    expect(out).toMatch(/aria-label="Open checkout and show Payment">/);
+    expect(out).toMatch(/aria-label="Open checkout and show Payment" data-state="closed" data-slot="tooltip-trigger">/);
   });
 
   test("the link's text never names the chip", () => {
@@ -491,7 +494,7 @@ describe("reply chips", () => {
   test("without onReplyChip the chips are drawn but are not buttons", () => {
     const out = html([agent("[a](doan:drafts/frame/editor) [b](doan:checkout/frame/payment)")], { openCanvasId: "drafts", canvasRows: rows });
     expect(out).not.toContain("<button type=\"button\" class=\"anchor-chip\"");
-    expect(out).toContain('<span class="anchor-chip" data-kind="frame" title="Frame · payment"><svg');
+    expect(out).toContain('<span class="anchor-chip" data-kind="frame" data-state="closed" data-slot="tooltip-trigger"><svg');
   });
 });
 
@@ -586,7 +589,7 @@ describe("canvas cards and the handoff card", () => {
 
   test("without onOpenHandoff no card offers Open", () => {
     const { onOpenHandoff: _, ...without } = props([card()]);
-    expect(renderToStaticMarkup(<ConversationThread {...without} />)).not.toContain("cc-open");
+    expect(renderToStaticMarkup(<TooltipProvider><ConversationThread {...without} /></TooltipProvider>)).not.toContain("cc-open");
   });
 
   test("a turn's cards stack in one group with the draft's gap, each its own thread item keyed by turn and path", () => {

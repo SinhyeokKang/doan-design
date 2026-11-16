@@ -60,7 +60,7 @@ test("an existing conversation names its model with the fixed provider, on xs bu
   expect(html).toMatch(/class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 5.5 \(Claude Code\)"/);
   expect(html).toMatch(/class="composer-effort doan-button" data-ui-size="xs"/);
   expect(html).toContain('aria-placeholder="Reply, / for presets"');
-  expect(html).toContain('class="composer-input" aria-label="Message" tabindex="0" contentEditable="true"');
+  expect(html).toContain('class="composer-input doan-scroll" aria-label="Message" tabindex="0" contentEditable="true"');
 });
 
 test("new-conversation mode keeps Home's agent label", () => {
@@ -77,7 +77,7 @@ test("while the turn runs, Send's place is Stop on an empty field and Queue with
   expect(queue).toMatch(/class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Queue"/);
   // Queued messages sit above the card in the order sent; without Send now offered a row has Remove only, described
   // by its text.
-  expect(queue).toMatch(/<div class="queue" role="list" aria-label="Queued messages"><div class="queue-entry" role="listitem"><div class="queue-item">.*<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1">/);
+  expect(queue).toMatch(/<div class="queue" role="list" aria-label="Queued messages"><div class="queue-entry" role="listitem"><div class="queue-item">.*<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1"[^>]*>/);
   expect(queue.indexOf('class="queue"')).toBeLessThan(queue.indexOf("composer-card"));
   // The row's icon reads as a message not sent yet, not a clock.
   expect(queue).toMatch(/<div class="queue-item"><svg[^>]*class="lucide lucide-message-square-dashed[^"]*" aria-hidden="true"/);
@@ -236,13 +236,13 @@ test("a queued message with a folder names it inline, counts the rest and descri
   // A queued message with files only keeps its row as it was.
   const files = render({ turn: "running", queued: [{ id: "q1", text: "x", message: { attachments: [attachments[0]!] } }] });
   expect(files).not.toContain("queue-attachment");
-  expect(files).toMatch(/aria-describedby="[^" ]+">/);
+  expect(files).toMatch(/aria-describedby="[^" ]+"[^>]*>/);
 });
 
 // Draft frame `sending` (the shared xs subtle capsule).
 test("a row that offers Send now draws it between the text and Remove as the subtle capsule", () => {
   const rows = render({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Also make the caption shorter" }] });
-  expect(rows).toMatch(/<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle" aria-describedby="\1"[^>]*>Send now<\/button><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1">/);
+  expect(rows).toMatch(/<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="doan-button queue-send" data-ui-size="xs" data-ui-variant="subtle" aria-describedby="\1"[^>]*>Send now<\/button><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1"[^>]*>/);
   expect(rows).not.toContain("Sending");
   // Not offered (an unsupported provider, a turn that does not run): Remove only.
   expect(render({ turn: "running", sendNow: false, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "x" }] })).not.toContain("Send now");
@@ -336,7 +336,7 @@ test("docked tray CSS: trigger values in the standard ink, drawer names in the m
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain('.docked .composer-tray :is(.composer-agent, .composer-effort, .composer-permission:not([data-mode="bypass"])):not(:disabled) { color: var(--text-standard); }');
   expect(css).toContain(".doan-button .label.placeholder { color: var(--text-metadata); }");
-  expect(css).toContain(".composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }");
+  expect(css).toContain(".composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-regular); color: var(--text-subtle); }");
 });
 
 // The docked buddy stands on the card's top edge (the shell, dockedBuddyShell.ts, reads these attributes).

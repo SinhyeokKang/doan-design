@@ -92,7 +92,7 @@ import { canvasConversationRows } from "./canvasConversationRows";
 import type { CanvasList } from "./CanvasConversationList";
 import { QuickOpen } from "./QuickOpenDialog";
 import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, sameShownConversation, unavailableCanvasMessage, type ConversationLists, type SearchResult, type ShownConversation } from "./quickOpen";
-import { blockedLinkMessage, decideOpen, type OpenPage } from "./openDecision";
+import { blockedLinkMessage, blockedReason, decideOpen, type OpenPage } from "./openDecision";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import { conversationCanvasKey, withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
@@ -1586,6 +1586,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   }), []);
   const onPage = screen === "addProjects", onSettings = screen === "settings", onProjectSettings = screen === "projectSettings";
   const pageLocked = (onPage && page.locked) || (onSettings && settings.locked) || (onProjectSettings && projectSettings.locked);
+  // What an aria-disabled Back or sidebar button says in its tooltip while the page holds every move.
+  const lockReason = onPage && page.locked ? blockedReason("add_projects") : onSettings && settings.locked ? blockedReason("settings")
+    : onProjectSettings && projectSettings.locked ? blockedReason("project_settings") : null;
   const command = (name: ViewCommand) => controller.current?.command(name);
   // What the workspace shows now, for a pick of the conversation already on screen.
   function shownConversation(): ShownConversation {
@@ -2406,7 +2409,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={(root, row, listed) => openSidebarCanvas(root, row, undefined, listed)} overview={showShellOverview} action={action} remove={remove}
     projectSettings={root => openProjectSettings(root)}
     canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash }}
-    home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection, mcp: mcpShown !== false } } : {})}
+    home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} lockReason={lockReason} {...(onSettings ? { settings: { section: settings.section, select: selectSection, mcp: mcpShown !== false } } : {})}
     resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }}
     conversations={{ list: root => run.listState(root), shown: canvasRun.current!.showing()?.conversationId ?? null, seen: run.seenPending(), now: clock, folded: conversationsFolded,
       bare: sidebarSlots(withTerminalSlots(new Map(), work, entries), entries, shownCanvas), fold: folded => { conversationsFoldTouched.current = true; setConversationsFolded(folded); },
@@ -2414,7 +2417,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The Project Settings page sits under the Projects tab (page null) but leaves like the other pages.
   const anyPage = onPage || onSettings || onProjectSettings;
   const sidebarToggle = sidebarToggleView(sidebarHidden, shellSlots);
-  const topBar = (overPage: boolean) => <TopBar sidebar={{ view: sidebarToggle, controls: sidebarHidden ? undefined : sidebarId(overPage), toggle: toggleSidebar }} back={anyPage || back !== null} forward={!anyPage && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked} updateDisabled={pageLocked || modal || wizard !== null}
+  const topBar = (overPage: boolean) => <TopBar sidebar={{ view: sidebarToggle, controls: sidebarHidden ? undefined : sidebarId(overPage), toggle: toggleSidebar }} back={anyPage || back !== null} forward={!anyPage && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked} lockReason={lockReason} reasonId={overPage ? "page-lock-reason" : "workspace-lock-reason"} updateDisabled={pageLocked || modal || wizard !== null}
     previous={() => anyPage ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
     addProjects={openAddProjects} projects={() => { const move = projectsTab(currentScreen.current); if (move === "leavePage") leavePage({ kind: "projectsTab" }); else if (move === "home") home(); }} settings={() => { if (!locked()) openSettings({}); }}
     usage={{ openSettings: () => { if (locked()) return false; openSettings({ section: "agents" }); return true; }, canvasPress: controller.current?.canvasPress }} />;
@@ -2534,7 +2537,7 @@ function topDialog(): HTMLDialogElement | null {
 // Add Projects, Projects and Settings are page tabs; on a page Back returns to where it was opened from. `locked` marks
 // the tabs and Back unavailable while App ignores them.
 // `updateDisabled` is the Settings menu item's rule (a locked page, a modal, first run), which the update button follows.
-function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDisabled, addProjects, projects, settings, usage }: { sidebar: { view: SidebarToggleView; controls: string | undefined; toggle(): void }; back: boolean; forward: boolean; previous(): void; next(): void; page: "addProjects" | "settings" | null; locked: boolean; updateDisabled: boolean; addProjects(): void; projects(): void; settings(): void; usage: { openSettings(): boolean; canvasPress?: CanvasPress | undefined } }) {
+export function TopBar({ sidebar, back, forward, previous, next, page, locked, lockReason, reasonId, updateDisabled, addProjects, projects, settings, usage }: { sidebar: { view: SidebarToggleView; controls: string | undefined; toggle(): void }; back: boolean; forward: boolean; previous(): void; next(): void; page: "addProjects" | "settings" | null; locked: boolean; lockReason: string | null; reasonId: string; updateDisabled: boolean; addProjects(): void; projects(): void; settings(): void; usage: { openSettings(): boolean; canvasPress?: CanvasPress | undefined } }) {
   const unavailable = locked || undefined;
   const tab = (name: typeof page) => name === page ? { className: "current", "aria-current": "page" as const } : {};
   return <header className="top shell-top"><span className="traffic-space" aria-hidden="true" />
@@ -2544,7 +2547,13 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, updateDi
         aria-controls={sidebar.controls} data-badge={sidebar.view.badge ? (sidebar.view.badge === "unseen" ? "unseen" : "true") : undefined} onClick={sidebar.toggle}>{sidebar.view.icon === "hide" ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}{sidebar.view.badge === "unseen" && <span className="badge-bubble" aria-hidden="true"><MessageCircle /></span>}</button></TooltipTrigger>
         <TooltipContent className="has-key">{sidebar.view.icon === "hide" ? "Hide sidebar" : "Show sidebar"}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘B</span></TooltipContent></Tooltip>
       {/* The end of the history is aria-disabled, not disabled: a Back or Forward pressed to it keeps focus. */}
-      <button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" aria-disabled={unavailable ?? (!back || undefined)} onClick={() => { if (back) previous(); }}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" aria-disabled={!forward || undefined} onClick={() => { if (forward) next(); }}><ArrowRight /></button></div>
+      {/* While the page is locked Back gives the lock as its reason, in the tooltip and as its own description. */}
+      <Tooltip><TooltipTrigger asChild><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" aria-disabled={unavailable ?? (!back || undefined)}
+        aria-describedby={locked && lockReason ? reasonId : undefined} onClick={() => { if (back) previous(); }}><ArrowLeft aria-hidden="true" /></button></TooltipTrigger>
+        <TooltipContent>{locked && lockReason ? lockReason : "Back"}</TooltipContent></Tooltip>
+      <Tooltip><TooltipTrigger asChild><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" aria-disabled={!forward || undefined} onClick={() => { if (forward) next(); }}><ArrowRight aria-hidden="true" /></button></TooltipTrigger>
+        <TooltipContent>Forward</TooltipContent></Tooltip>
+      {locked && lockReason && <span className="sr-only" id={reasonId}>{lockReason}</span>}</div>
     <div className="shell-modes"><button {...tab("addProjects")} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button {...tab(null)} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button {...tab("settings")} aria-disabled={unavailable} onClick={settings}><Settings />Settings</button></div>
     {/* Beside the tabs (docs/design/shell.md 'Agent usage'), then the update button at the right end. */}
     <AgentUsageButton openSettings={usage.openSettings} canvasPress={usage.canvasPress} />

@@ -83,7 +83,7 @@ export function CanvasTools({ tool, picking, capturing, onTool, picker, capture,
           {...(drawer !== null ? { "aria-haspopup": "listbox" } : { "aria-haspopup": undefined, "aria-expanded": undefined, "aria-controls": undefined })}
           onClick={() => { if (player.kind === "play") player.onPlay(); }}><Play aria-hidden="true" /></button>
       </TooltipTrigger></Popover.Trigger><TooltipContent onEscapeKeyDown={onEscape}>{player.tooltip}</TooltipContent></Tooltip>
-      {drawer !== null && <FrameListBody label={drawer.label} groups={drawer.groups} open={player.open} onPick={drawer.onPick} className="doan-floating doan-menu doan-frame-list" side="top" align="center" />}
+      {drawer !== null && <FrameListBody label={drawer.label} groups={drawer.groups} open={player.open} onPick={drawer.onPick} onClose={() => player.onOpenChange(false)} className="doan-floating doan-menu doan-frame-list" side="top" align="center" />}
     </Popover.Root>
     <span className="sr-only" id={PLAY_REASON_ID}>{player.tooltip}</span>
     <Tooltip><TooltipTrigger asChild>

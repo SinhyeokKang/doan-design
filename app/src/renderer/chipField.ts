@@ -568,7 +568,8 @@ export class ChipField {
     node.className = "anchor-chip";
     node.contentEditable = "false";
     node.dataset.kind = kind;
-    node.title = title;
+    // Shown by the field's shared tooltip (ComposerParts FieldChipTip), never a native title.
+    node.dataset.tip = title;
     // The kind prefix is text, so a screen reader reads the chip in the sentence's flow ("Frame Payment").
     const hidden = document.createElement("span");
     hidden.className = "sr-only";

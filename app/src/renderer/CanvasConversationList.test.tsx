@@ -62,7 +62,7 @@ describe("canvas conversation list", () => {
   test("a row draws the provider logo, conversation title, status mark, short time, canvas caption and preview", () => {
     const b = item(html, "b");
     expect(b).toContain('alt="Codex"');
-    expect(b).toContain("<b>Ask about the header</b>");
+    expect(b).toContain("<b data-state=\"closed\" data-slot=\"tooltip-trigger\">Ask about the header</b>");
     expect(b).toContain('aria-label="Needs your answer"');
     expect(b).toContain('<span aria-hidden="true">now</span><span class="sr-only">Just now</span>');
     expect(b).toMatch(/<\/span><small class="cv-canvas">billing<\/small><span class="cv-preview">Needs your answer: Run doan check<\/span>/);
@@ -76,9 +76,9 @@ describe("canvas conversation list", () => {
       summary({ conversationId: "x3", title: "  ", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(3 * MIN) }),
     ], [billing], NOW));
     expect(three.match(/class="cv-row"/g)).toHaveLength(3);
-    expect(item(three, "x1")).toContain("<b>Tighten the checkout summary spacing</b>");
-    expect(item(three, "x2")).toContain("<b>Add an empty state</b>");
-    expect(item(three, "x3")).toContain("<b>Conversation</b>");
+    expect(item(three, "x1")).toContain("<b data-state=\"closed\" data-slot=\"tooltip-trigger\">Tighten the checkout summary spacing</b>");
+    expect(item(three, "x2")).toContain("<b data-state=\"closed\" data-slot=\"tooltip-trigger\">Add an empty state</b>");
+    expect(item(three, "x3")).toContain("<b data-state=\"closed\" data-slot=\"tooltip-trigger\">Conversation</b>");
     for (const key of ["x1", "x2", "x3"]) expect(item(three, key)).toContain('<small class="cv-canvas">billing</small>');
     expect(three.indexOf('data-key="x1"')).toBeLessThan(three.indexOf('data-key="x2"'));
     expect(three.indexOf('data-key="x2"')).toBeLessThan(three.indexOf('data-key="x3"'));
@@ -116,7 +116,7 @@ describe("canvas conversation list", () => {
       const why = /aria-describedby="([^"]+)"/.exec(li)![1]!;
       expect(li).toContain(`<small id="${why}" class="cv-canvas err">${name} · ${reason}</small>`);
       const label = /aria-labelledby="([^"]+)"/.exec(li)![1]!;
-      expect(li).toContain(`<b id="${label}">Draw it</b>`);
+      expect(li).toContain(`<b id="${label}" data-state="closed" data-slot="tooltip-trigger">Draw it</b>`);
     }
   });
 

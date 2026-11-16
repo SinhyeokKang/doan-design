@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
@@ -519,7 +520,7 @@ function projectSettingsFromWorkspace(entries: FolderEntry[] = [listed("/w/a"), 
 }
 
 // The Home row as the sidebar draws it: current only on Home (PRODUCT §5 item 3), not on a page showing Home's sidebar.
-const homeRowCurrent = (sidebar: ReactElement) => /class="shell-home-row row"[^>]*aria-current="page"/.test(renderToStaticMarkup(sidebar));
+const homeRowCurrent = (sidebar: ReactElement) => /class="shell-home-row row"[^>]*aria-current="page"/.test(renderToStaticMarkup(<TooltipProvider>{sidebar}</TooltipProvider>));
 
 test("Project Settings opens as a page from Home, a workspace or Add Projects: the Projects tab is current, the sidebar marks no row, not even Home, the menu sees Settings", () => {
   render();

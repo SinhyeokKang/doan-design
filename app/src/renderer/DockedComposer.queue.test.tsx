@@ -52,8 +52,8 @@ function setup(patch: Partial<QueueRowsProps> = {}) {
     for (const effect of hooks.layout) effect();
     return tree;
   };
-  // The accessible name: aria-label, else the visible text.
-  const rows = (tree: Node[], label: string) => tree.filter(item => (item["aria-label"] ?? item.children) === label);
+  // The buttons with this accessible name: aria-label, else the visible text (a tooltip's words are not a button).
+  const rows = (tree: Node[], label: string) => tree.filter(item => item.type === "button" && (item["aria-label"] ?? item.children) === label);
   return { props, focused, draw, rows };
 }
 

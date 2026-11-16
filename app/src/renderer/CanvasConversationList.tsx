@@ -9,6 +9,7 @@ import { focusAfterLeave, listKeyTarget } from "./listKeyboard";
 import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 import { LIST_FAILED_TEXT, listRetryButton } from "./ListRetryButton";
 import { applyVisibility, thumbnailView, type ThumbnailState, type ThumbnailView } from "./thumbnails";
+import { NameTip } from "./NameTip";
 
 // The Overview's right panel body: one row per canvas conversation.
 
@@ -144,7 +145,7 @@ function Row({ item, project, thumbnail, tabbable, open, focus, blur, children }
       <Thumb view={thumbnail} />
       <span className="cv-text">
         {problem === null ? <><ConversationHead line={item} name={item.heading} /><small className="cv-canvas">{item.name}</small><span className="cv-preview">{item.preview}</span></>
-          : <><b id={`${id}-name`}>{item.heading}</b><small id={`${id}-why`} className={item.openable ? "cv-canvas note" : "cv-canvas err"}>{`${item.name} · ${problem}`}</small></>}
+          : <><NameTip text={item.heading}><b id={`${id}-name`}>{item.heading}</b></NameTip><small id={`${id}-why`} className={item.openable ? "cv-canvas note" : "cv-canvas err"}>{`${item.name} · ${problem}`}</small></>}
       </span>
     </button>
     {children}

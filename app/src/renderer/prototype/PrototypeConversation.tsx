@@ -5,12 +5,13 @@ import type { RevealPayload } from "../../main/prototype/ipc";
 import type { FolderEntry } from "../../main/view";
 import { CanvasConversation, startNewConversation } from "../CanvasConversationPanel";
 import { canvasConversationMenu, canvasUnlistedText, DUPLICATE_CANVAS_TEXT, titleMenuOrder } from "../canvasConversation";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "../components/ui/tooltip";
 import { ConversationDeleteItem, type DeleteTarget } from "../ConversationDeleteDialog";
 import { ConversationHead } from "../ConversationLine";
 import { announcedAgain } from "../listRetry";
 import { LIST_FAILED_TEXT, listRetryItem } from "../ListRetryButton";
 import type { PrototypeConversationCalls, PrototypeConversationRun } from "./conversationRun";
+import { NameTip } from "../NameTip";
 
 // The prototype window's conversation panel: the canvas panel's body, under the panel shell's head, on the conversation
 // this window's own canvas run shows. Its thread chips, Sign in and Open buttons belong to the main window: they go to
@@ -94,9 +95,9 @@ export function PrototypeHeadMenu({ run, now, onPicked, onDelete }: {
   const canvasName = run.currentView()?.canvas ?? "";
   return <><span className="ov-title-wrap doan-conv-title">
     <DropdownMenu.Root open={frozen !== null && !unavailable} onOpenChange={setOpen}>
-      <DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title} aria-disabled={unavailable || undefined}>
-        <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
-      <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
+      <NameTip text={title}><DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-disabled={unavailable || undefined}>
+        <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger></NameTip>
+      <TooltipEscape value={() => setOpen(false)}><DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
         onCloseAutoFocus={event => {
           if (deleting.current) { deleting.current = false; event.preventDefault(); return; }
           if (!picked.current) return; picked.current = false; event.preventDefault(); onPicked();
@@ -117,7 +118,7 @@ export function PrototypeHeadMenu({ run, now, onPicked, onDelete }: {
               }} onEscape={() => setOpen(false)} />}
             </div>)}</div>}
         </DropdownMenu.RadioGroup>
-      </DropdownMenu.Content></DropdownMenu.Portal>
+      </DropdownMenu.Content></DropdownMenu.Portal></TooltipEscape>
     </DropdownMenu.Root>
   </span>
   <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button doan-conv-new" aria-label="New conversation" aria-disabled={isNew || undefined} onClick={() => startNewConversation(current, isNew, select, onPicked)}><SquarePen aria-hidden="true" /></button></TooltipTrigger>

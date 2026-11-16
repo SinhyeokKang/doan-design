@@ -6,10 +6,11 @@ import type { CanvasState, CanvasViewStore } from "./CanvasController";
 import { canvasLabel } from "./canvasTree";
 import { frameDrawerView, type FrameDrawerRow, type FrameDrawerView } from "./frameDrawer";
 import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "./frameDrawerList";
-import { FrameRowMarks } from "./FrameListBody";
+import { FrameName, FrameRowMarks } from "./FrameListBody";
+import { NameTip } from "./NameTip";
 import { menuCloseFocus, menuCloseNow } from "./canvasFocus";
 import { zoomControlView, type ZoomControlView } from "./zoomControl";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipEscape } from "./components/ui/tooltip";
 import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
 import type { CanvasSignal } from "./rightPanelOpen";
 
@@ -30,11 +31,13 @@ export function CanvasHeader({ state, view, canvasKey = null, command, zoomTo, s
   const canvas = state.open && !state.unlisted ? state.open.row : null;
   const name = canvas ? canvasLabel(canvas) : null;
   return <header className="ov-head doan-canvas-head">
-    {canvas && <><span className="doan-canvas-name" title={canvas.path}><PanelsTopLeft aria-hidden="true" /><span>{name}</span></span><span className="ov-sep" aria-hidden="true">/</span></>}
+    {/* The path is information only the tooltip carries, so it shows whether or not the name is cut. */}
+    {canvas && <><Tooltip><TooltipTrigger asChild><span className="doan-canvas-name"><PanelsTopLeft aria-hidden="true" /><span>{name}</span></span></TooltipTrigger>
+      <TooltipContent>{canvas.path}</TooltipContent></Tooltip><span className="ov-sep" aria-hidden="true">/</span></>}
     <span className="ov-title-wrap"><FrameDrawer view={frameDrawerView(board)} label={name ? `Frames in ${name}` : "Frames"} canvasKey={canvasKey} fallbackFocus={fallbackFocus} select={selectFrame} /></span>
     <div className="doan-canvas-head-tools"><ZoomControl view={zoomControlView({ ...board, scale: shown.scale })} canvasKey={canvasKey} fallbackFocus={fallbackFocus} command={command} zoomTo={zoomTo} />
       {/* Like ⌘R, Reload stays available whenever a canvas is open, including while it loads or after it failed. */}
-      <IconTip label="Reload canvas ⌘R"><button type="button" className="doan-icon-button" aria-label="Reload canvas" disabled={!state.open} onClick={() => command("reload")}><RotateCw aria-hidden="true" /></button></IconTip>
+      <IconTip label="Reload canvas" shortcut="⌘R"><button type="button" className="doan-icon-button" aria-label="Reload canvas" disabled={!state.open} onClick={() => command("reload")}><RotateCw aria-hidden="true" /></button></IconTip>
       {panel && !panel.open && <><span className="doan-canvas-head-sep" aria-hidden="true" />
         <IconTip label="Show conversation"><button type="button" className="doan-icon-button doan-panel-show" aria-label={panel.badge?.label ?? "Show conversation"} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}
           data-badge={panel.badge ? (panel.badge.kind === "permission" ? "true" : panel.badge.kind) : undefined} onClick={panel.show}><PanelRightOpen aria-hidden="true" />{panel.badge?.kind === "unseen" && <span className="badge-bubble" aria-hidden="true"><MessageCircle /></span>}
@@ -68,8 +71,11 @@ function useMenuFocus(canvasKey: string | null, open: boolean, enabled: boolean,
   return { trigger, onCloseAutoFocus };
 }
 
-function IconTip({ label, children }: { label: string; children: ReactElement }) {
-  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
+// A shortcut is a key chip after the label, as on the canvas toolbar (DESIGN 'Tooltip').
+function IconTip({ label, shortcut, children }: { label: string; shortcut?: string; children: ReactElement }) {
+  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger>
+    {shortcut === undefined ? <TooltipContent>{label}</TooltipContent>
+      : <TooltipContent className="has-key">{label}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">{shortcut}</span></TooltipContent>}</Tooltip>;
 }
 
 // A popover list rather than a Radix menu: the rows keep focus by frame id across a reload, mark the viewed frame with
@@ -128,10 +134,10 @@ function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: 
   };
 
   return <Popover.Root open={shown} onOpenChange={next => { setOpen(next); if (next) setFocused(null); }}>
-    <Popover.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger"
-      aria-haspopup="listbox" aria-label={view.ariaLabel} title={view.buttonLabel} disabled={!view.enabled}>
-      <span>{view.buttonLabel}</span><ChevronDown className="chev" aria-hidden="true" /></button></Popover.Trigger>
-    <Popover.Portal><Popover.Content ref={list} role={undefined} className="doan-floating doan-menu doan-frame-list" align="start" sideOffset={4} collisionPadding={8} onCloseAutoFocus={onCloseAutoFocus}
+    <NameTip text={view.buttonLabel}><Popover.Trigger asChild><button ref={trigger} type="button" className="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger"
+      aria-haspopup="listbox" aria-label={view.ariaLabel} disabled={!view.enabled}>
+      <span>{view.buttonLabel}</span><ChevronDown className="chev" aria-hidden="true" /></button></Popover.Trigger></NameTip>
+    <TooltipEscape value={() => setOpen(false)}><Popover.Portal><Popover.Content ref={list} role={undefined} className="doan-floating doan-menu doan-frame-list" align="start" sideOffset={4} collisionPadding={8} onCloseAutoFocus={onCloseAutoFocus}
       onOpenAutoFocus={event => {
         event.preventDefault();
         const start = focusedRowAfter(view.rows, null);
@@ -141,16 +147,16 @@ function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: 
       }}>
       <div role="listbox" aria-label={label} onKeyDown={keydown}>
         {view.rows.map(row => <div key={row.key} role="option" aria-current={row.current ? "location" : undefined}
-          tabIndex={row.key === active ? 0 : -1} title={row.name} className="doan-menu-item doan-frame-row"
+          tabIndex={row.key === active ? 0 : -1} className="doan-menu-item doan-frame-row"
           ref={node => { if (node) nodes.current.set(row.key, node); else nodes.current.delete(row.key); }}
           onFocus={() => setFocused(row.key)}
           onPointerMove={event => { if (document.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }); }}
           onClick={() => pick(row)}>
-          <span className="doan-frame-num">{row.number}</span><span className="doan-frame-name">{row.name}</span><FrameRowMarks current={row.current ? "Viewing" : null} prototype={row.prototype} />
+          <span className="doan-frame-num">{row.number}</span><FrameName name={row.name} /><FrameRowMarks current={row.current ? "Viewing" : null} prototype={row.prototype} />
         </div>)}
       </div>
       {view.truncatedNote && <p className="doan-menu-head doan-frame-note">{view.truncatedNote}</p>}
-    </Popover.Content></Popover.Portal>
+    </Popover.Content></Popover.Portal></TooltipEscape>
   </Popover.Root>;
 }
 
@@ -164,7 +170,7 @@ function ZoomControl({ view, canvasKey, fallbackFocus, command, zoomTo }: { view
   const [open, setOpen] = useState(false);
   const { trigger, onCloseAutoFocus } = useMenuFocus(canvasKey, open, view.enabled, () => setOpen(false), fallbackFocus);
   return <span className="doan-canvas-zoom">
-    <IconTip label={view.zoomOut.tooltip}><button type="button" className="doan-icon-button" aria-label="Zoom out" {...limit(view.enabled, view.zoomOut.disabled)} onClick={() => { if (!view.zoomOut.disabled) command("zoomOut"); }}><Minus aria-hidden="true" /></button></IconTip>
+    <IconTip label={view.zoomOut.tooltip.label} shortcut={view.zoomOut.tooltip.key}><button type="button" className="doan-icon-button" aria-label="Zoom out" {...limit(view.enabled, view.zoomOut.disabled)} onClick={() => { if (!view.zoomOut.disabled) command("zoomOut"); }}><Minus aria-hidden="true" /></button></IconTip>
     <DropdownMenu.Root open={open && view.enabled} onOpenChange={setOpen}>
       <DropdownMenu.Trigger asChild><button ref={trigger} type="button" className="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-label={view.triggerLabel} disabled={!view.enabled}>
         {view.value}<ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
@@ -182,6 +188,6 @@ function ZoomControl({ view, canvasKey, fallbackFocus, command, zoomTo }: { view
         })}
       </DropdownMenu.Content></DropdownMenu.Portal>
     </DropdownMenu.Root>
-    <IconTip label={view.zoomIn.tooltip}><button type="button" className="doan-icon-button" aria-label="Zoom in" {...limit(view.enabled, view.zoomIn.disabled)} onClick={() => { if (!view.zoomIn.disabled) command("zoomIn"); }}><Plus aria-hidden="true" /></button></IconTip>
+    <IconTip label={view.zoomIn.tooltip.label} shortcut={view.zoomIn.tooltip.key}><button type="button" className="doan-icon-button" aria-label="Zoom in" {...limit(view.enabled, view.zoomIn.disabled)} onClick={() => { if (!view.zoomIn.disabled) command("zoomIn"); }}><Plus aria-hidden="true" /></button></IconTip>
   </span>;
 }

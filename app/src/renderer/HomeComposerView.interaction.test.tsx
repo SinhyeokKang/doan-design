@@ -903,7 +903,9 @@ test("a refreshed list changes both highlighted names and fixed send lines", asy
   render(); await runEffects(); await flush();
   expect(input(render()).skillNames).toEqual(new Set(["deploy"]));
   doan.listConversationSkills!.mockResolvedValue({ skills: [{ name: "review", description: "Review" }] });
-  (find(render(), p => typeof p.onOpenChange === "function" && p.open === false).onOpenChange as (open: boolean) => void)(true);
+  // The presets popover's root (the project menu's root is closed and controlled too, and comes first).
+  (find(render(), p => typeof p.onOpenChange === "function" && p.open === false
+    && [p.children].flat().some(child => (child as { props?: { label?: string } } | null)?.props?.label === "Design presets")).onOpenChange as (open: boolean) => void)(true);
   await flush();
   expect(input(render()).skillNames).toEqual(new Set(["review"]));
   call(field(render()), "onKeyDown", key("Enter")); await flush();

@@ -586,10 +586,13 @@ test("with no ready agent a new conversation shows no reason line; Send is disab
   const draftKeyNew = draftKey({ kind: "new", root: "/w" });
   const { render } = setup({ mode: { kind: "new", root: "/w" }, provider: null }, [[draftKeyNew, draft("Draw it")]]);
   expect(render().some(props => props.role === "status" && props.className === "composer-reason docked-reason")).toBe(false);
+  // Unavailable but focusable, so its tooltip gives the reason (no native title).
   const send = button(render(), "Send");
-  expect(send.disabled).toBe(true);
-  expect(send.title).toBe("No agent is ready to run.");
+  expect(send["aria-disabled"]).toBe(true);
+  expect(send.disabled).toBeUndefined();
+  expect(send.title).toBeUndefined();
   expect(send["aria-describedby"]).toBeTruthy();
+  expect(render().find(props => props.id === send["aria-describedby"])?.children).toBe("No agent is ready to run.");
 });
 
 test("a chosen agent that cannot run still shows its line", () => {
