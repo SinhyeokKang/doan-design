@@ -707,7 +707,7 @@ describe("the conversation panel", () => {
     const input = field();
     conversation().column!.current = { querySelector: (selector: string) => selector === ".composer-input" ? input : null, contains: () => false } as never;
     conversation().onToggle();
-    // Not before main's view opens the panel: until then the column is display: none and inert, so a focus() there
+    // Not before main's view opens the panel: until then the column is hidden ([data-collapsed]) and inert, so a focus() there
     // does nothing and focus falls to the page (POSTMORTEM 2026-11-03).
     vi.runAllTicks();
     expect(input.focus).not.toHaveBeenCalled();
