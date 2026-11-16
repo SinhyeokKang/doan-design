@@ -39,3 +39,4 @@
 - B 완료(9커밋, 자체 리뷰 2라운드), 통합(cherry-pick, HEAD ea3432fe). verify PASS(.scratch/orch/verify-1.log).
 - R-B: 🔴 0, 🟡 0, ⚪ 4, 결정 2. 사용자 결정 — 요청만 있는 카드(그리지 않은 캔버스)는 턴이 도는 동안 스피너 대신 `forward` 아이콘. 승격 notice는 카드 뒤(답변 → 카드 → moved to). 컨덕터 판단 — sr 상태 줄 "N new canvases"는 턴이 실제로 끝난 뒤에만 알리고, 끝쪽 승격 마커가 있어도 센다(spec 7). B 수정 라운드(Opus medium — 작은 renderer 수정 셋).
 - 실제 턴 runtime-test(tasks 8)를 워커(ctx_9ba97a936cc5, Opus high)에 맡겼다. 리드가 전한 사용자 요청대로 probe 창은 띄운 즉시 주 화면 작업 영역 왼쪽 아래로 옮기고 포커스를 뺏지 않는다.
+- runtime-test: 로그인 userData 복사본은 Claude Code가 로그아웃 상태다(Keychain 항목이 CLAUDE_CONFIG_DIR 경로에 묶임). 사용자 결정 — 원본을 쓰고 probe가 쓰는 파일을 백업했다가 바이트 그대로 복원한다. 로그아웃하지 않는다.
