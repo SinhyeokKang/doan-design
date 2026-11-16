@@ -43,10 +43,11 @@ function stageTool(stage: Extract<TurnStage, { kind: "tool" }>, root: string): T
 const eventTool = (step: ActivityStep): TurnStatus => ({ kind: "tool", activity: step.kind, text: runningHead(step), step: step.key });
 
 // Where the thread's own items end: the hosts append Send now's messages in flight, which the agent reads only later
-// (Claude once its running tool ended), so the status and the last row are judged above them.
+// (Claude once its running tool ended), and a turn's canvas cards sit at its end, so the status and the last row are
+// judged above both.
 function ownEnd(items: readonly ThreadItem[]): number {
   let end = items.length;
-  while (end > 0) { const item = items[end - 1]!; if (item.kind !== "user" || !item.sending) break; end--; }
+  while (end > 0) { const item = items[end - 1]!; if (item.kind !== "canvasCard" && (item.kind !== "user" || !item.sending)) break; end--; }
   return end;
 }
 
@@ -94,6 +95,13 @@ export function activityRun(items: readonly ThreadItem[], status: TurnStatus, ac
   }
   if (next.running === row.running && next.head === row.head && next.steps === row.steps) return items;
   return items.map((item, i) => i === at ? next : item);
+}
+
+// A card's spinner goes with the indicator: a Stop main has taken hides the indicator before the turn's end arrives,
+// and the cards stop drawing in that same render. A waiting request hides the indicator too, but the turn still runs.
+export function drawingCards(items: readonly ThreadItem[], status: TurnStatus): readonly ThreadItem[] {
+  if (status.kind !== "none" || !items.some(item => item.kind === "canvasCard" && item.drawing)) return items;
+  return items.map(item => item.kind === "canvasCard" && item.drawing ? { ...item, drawing: false } : item);
 }
 
 // What both hosts pass the thread: the last turn's status, its id and its start, which the elapsed time

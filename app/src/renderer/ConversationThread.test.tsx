@@ -568,7 +568,8 @@ describe("canvas cards and the handoff card", () => {
   });
 
   test("without onOpenHandoff no card offers Open", () => {
-    expect(html([card()], { onOpenHandoff: undefined })).not.toContain("cc-open");
+    const { onOpenHandoff: _, ...without } = props([card()]);
+    expect(renderToStaticMarkup(<ConversationThread {...without} />)).not.toContain("cc-open");
   });
 
   test("a turn's cards stack in one group with the draft's gap, each its own thread item keyed by turn and path", () => {
