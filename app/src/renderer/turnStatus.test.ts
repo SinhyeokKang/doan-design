@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import type { ConversationEvent, StageSignal, TurnStage } from "../main/conversation/types";
 import { threadItems, withSending, type ThreadItem } from "./threadItems";
-import { activityRun, BACKGROUND_STOP_FAILED, backgroundLine, elapsedText, newerStage, settle, SETTLE_MS, stopBackground, threadTurn, turnAnnouncement, turnOf, turnStatus, turnText, type Settled, type TurnStatus } from "./turnStatus";
+import { activityRun, BACKGROUND_STOP_FAILED, backgroundLine, drawingCards, elapsedText, newerStage, settle, SETTLE_MS, stopBackground, threadTurn, turnAnnouncement, turnOf, turnStatus, turnText, type Settled, type TurnStatus } from "./turnStatus";
 
 const ROOT = "/Users/ada/code/doan";
 let seq = 0;
@@ -129,6 +129,20 @@ describe("turnStatus", () => {
     expect(turnStatus(items, turnOf(events, true), null, ROOT, false)).toEqual({ kind: "tool", activity: "command", text: "Running a command", step: "s3" });
     expect(threadTurn(events, items, true, null, ROOT, true)).toMatchObject({ turnId: "t1", status: { kind: "none" } });
     expect(threadTurn(events, items, true, null, ROOT)).toMatchObject({ turnId: "t1", status: { kind: "tool", activity: "command" } });
+  });
+
+  // A turn's canvas cards sit at its end (threadItems), below whatever the indicator reads.
+  test("trailing canvas cards are skipped: the event rule's tool, a streaming reply and Send now's message read as without them", () => {
+    seq = 0;
+    const drawn = (path: string) => ev("t1", { type: "canvas.drawn", canvas: { path } });
+    const events = [...turn("t1"), ev("t1", { type: "activity", kind: "edit", path: `${ROOT}/.doan/canvases/a.html`, summary: "Edit" }), drawn(".doan/canvases/a.html"), drawn(".doan/canvases/b.html")];
+    expect(threadItems(events, ROOT, true).map(item => item.kind)).toEqual(["user", "activity", "canvasCard", "canvasCard"]);
+    expect(statusOf(events)).toEqual({ kind: "tool", activity: "edit", text: "Editing .doan/canvases/a.html", step: "s3" });
+    const sending = withSending(threadItems(events, ROOT, true), [{ id: "q1", text: "Also this", anchors: [], attachments: [] }]);
+    expect(sending.map(item => item.kind)).toEqual(["user", "activity", "canvasCard", "canvasCard", "user"]);
+    expect(turnStatus(sending, turnOf(events, true), null, ROOT)).toEqual({ kind: "tool", activity: "edit", text: "Editing .doan/canvases/a.html", step: "s3" });
+    events.push(ev("t1", { type: "message.delta", messageId: "m1", text: "Drawing" }));
+    expect(statusOf(events)).toEqual({ kind: "reply" });
   });
 
   test("a queue starting the next turn at once: the earlier turn's stage is ignored", () => {
@@ -264,12 +278,38 @@ describe("activityRun", () => {
     expect(row(activityRun(sending, { kind: "general" }, null))).toMatchObject({ running: false, head: "1 step" });
   });
 
+  test("canvas cards after the row are skipped: the row still runs with the indicator's words", () => {
+    const events = [...command(), ev("t1", { type: "canvas.drawn", canvas: { path: ".doan/canvases/a.html" } })];
+    const items = threadItems(events, ROOT, true);
+    const tool: TurnStatus = { kind: "tool", activity: "command", text: "Running a command", step: "s3" };
+    expect(activityRun(items, tool, null).map(item => item.kind)).toEqual(["user", "activity", "canvasCard"]);
+    expect(row(activityRun(items, tool, null))).toMatchObject({ running: true, head: "Running a command" });
+  });
+
   test("a row already as the status says is the same list; a row drawn running is set back to its step count", () => {
     const items = threadItems(command(), ROOT, true);
     expect(activityRun(items, { kind: "general" }, null)).toBe(items);
     const drawn: ThreadItem[] = [{ kind: "activity", key: "a5", running: true, head: "Reading x", steps: [] }];
     expect(activityRun(drawn, { kind: "general" }, null)).toEqual([{ kind: "activity", key: "a5", running: false, head: "0 steps", steps: [] }]);
     expect(activityRun(drawn, { kind: "tool", activity: "read", text: "Reading x" }, null)).toEqual(drawn);
+  });
+});
+
+// A card's spinner stops with the indicator: a Stop main has taken hides both in the same render, before the turn's end
+// arrives (spec: Stop stops the spinner at once).
+describe("drawingCards", () => {
+  const events = () => { seq = 0; return [...turn("t1"), ev("t1", { type: "canvas.drawn", canvas: { path: ".doan/canvases/a.html" } }), ev("t1", { type: "handoff.requested", canvas: { path: ".doan/canvases/b.html" }, text: "Go on." })]; };
+  test("a status that hides the indicator stops every card's spinner; any other leaves the list as it is", () => {
+    const items = threadItems(events(), ROOT, true);
+    expect(items.filter(item => item.kind === "canvasCard").map(card => card.drawing)).toEqual([true, true]);
+    const stopped = drawingCards(items, { kind: "none" });
+    expect(stopped.filter(item => item.kind === "canvasCard").map(card => card.drawing)).toEqual([false, false]);
+    expect(stopped.map(item => item.key)).toEqual(items.map(item => item.key));
+    for (const status of [{ kind: "general" }, { kind: "waiting" }, { kind: "reply" }] as TurnStatus[]) expect(drawingCards(items, status)).toBe(items);
+  });
+  test("a list without a drawing card is the same list", () => {
+    const ended = threadItems([...events(), ev("t1", { type: "turn.done" })], ROOT, true);
+    expect(drawingCards(ended, { kind: "none" })).toBe(ended);
   });
 });
 
