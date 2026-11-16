@@ -233,7 +233,7 @@ const zoomPopup = createPopup({
 });
 
 // At a zoom limit a button stays focusable and its press does nothing: a native `disabled` set by the
-// button's own press would drop focus to the page (POSTMORTEM 2026-11-13). Before the first view the
+// button's own press would drop focus to the page (POSTMORTEM 2026-10-24). Before the first view the
 // whole zoom control is off, natively disabled.
 const unavailable = (button) => button.getAttribute("aria-disabled") === "true";
 const setZoomStep = (button, ready, atLimit) => {
