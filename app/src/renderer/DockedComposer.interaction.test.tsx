@@ -464,6 +464,27 @@ test("an attachment refusal the host reports shows as the composer's notice and 
   expect(has(render(), "brief.pdf wasn’t found, so it wasn’t attached.")).toBe(false);
 });
 
+// The host reports a refusal and changes the chips in the same batch (the limit with the accepted chips; a refused
+// chip taken out): the composer's shape follows the chips, and that alone must not drop the notice.
+test("an attachment refusal stays when the host's chips turn the composer into a box or back into a capsule", () => {
+  let notice: (text: string) => void = () => {};
+  const file = { key: "f", id: "f", name: "a.txt", kind: "file" as const, pasted: false, status: "checking" as const };
+  const { props, store, draw, render } = setup({ onAttach: report => { notice = report; } });
+  (button(render(), "Attach files or folders").onClick as () => void)();
+  notice("Only 10 attachments can be added. 1 was left out.");
+  store.current = new Map([["conversation:a", { ...EMPTY_DRAFT, attachments: [file] }]]); props.drafts = store.current;
+  draw();
+  for (const effect of hooks.effects) effect();
+  expect(store.current.get("conversation:a")?.shape).toBe("box");
+  expect(has(render(), "Only 10 attachments can be added. 1 was left out.")).toBe(true);
+  notice("a.txt wasn’t found, so it wasn’t attached.");
+  store.current = new Map([["conversation:a", { ...store.current.get("conversation:a")!, attachments: [] }]]); props.drafts = store.current;
+  draw();
+  for (const effect of hooks.effects) effect();
+  expect(store.current.get("conversation:a")?.shape).toBe("capsule");
+  expect(has(render(), "a.txt wasn’t found, so it wasn’t attached.")).toBe(true);
+});
+
 test("a dropped or pasted file's refusal lands on the draft it was added to, even after a switch", () => {
   const reports: ((text: string) => void)[] = [];
   const onFiles = vi.fn((_files: File[], _pasted: boolean, report: (text: string) => void) => { reports.push(report); });

@@ -266,14 +266,17 @@ export function DockedComposer(props: DockedComposerProps) {
 
   // Every edit takes the shape rule with the overflow known without measuring (a typed line break); the wrap at the
   // capsule's width is measured after the draw below. An edit also drops a refusal the person is answering.
-  const edit = (patch: Partial<Omit<DockedDraft, "shape">>, at = key, wrapped = false) => {
+  // `shapeOnly`: the stored shape catching up with chips the host changed, not an edit: a refusal the host just reported
+  // with those chips (an attachment over the limit, a refused file taken out) stays, and a send refusal keeps its own
+  // draft comparison.
+  const edit = (patch: Partial<Omit<DockedDraft, "shape">>, at = key, wrapped = false, shapeOnly = false) => {
     props.onDrafts(drafts => {
       const current = drafts.get(at) ?? EMPTY_DRAFT, next = { ...current, ...patch };
       const nextText = plainText(next.segments);
       const shape = composerShape(current.shape, { empty: nextText === "", chips: chipCount(next, pinned), overflows: wrapped || nextText.includes("\n") });
       return new Map(drafts).set(at, { ...next, shape });
     });
-    clearRefusal(at);
+    if (!shapeOnly) clearRefusal(at);
     setLimitAt(current => current === at ? null : current);
   };
   function clearRefusal(at: string) {
@@ -283,7 +286,7 @@ export function DockedComposer(props: DockedComposerProps) {
   // A capsule becomes a box once its text wraps at the capsule's own width. A box is never measured: it
   // returns to a capsule only when emptied, so the narrower capsule's wrap cannot flip it back and forth.
   useLayoutEffect(() => {
-    if (shape !== draft.shape) { edit({}, key); return; }
+    if (shape !== draft.shape) { edit({}, key, false, true); return; }
     const node = field.current?.element();
     if (shape !== "capsule" || !node || text === "") return;
     const line = parseFloat(getComputedStyle(node).lineHeight);

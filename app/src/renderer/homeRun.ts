@@ -412,7 +412,7 @@ export class HomeRun {
   }
   retryList(root: string): void {
     // A Retry of a failed list runs, busy at once, until its read settles.
-    if (this.listState(root) === "error" && !this.retrying.has(root)) { this.retrying.add(root); this.revision++; this.host.changed(); }
+    if (this.registered(root) && this.listState(root) === "error" && !this.retrying.has(root)) { this.retrying.add(root); this.revision++; this.host.changed(); }
     this.readList(root);
   }
   listRetry(root: string): ListRetry {
