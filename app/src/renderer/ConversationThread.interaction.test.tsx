@@ -22,5 +22,6 @@ test("Copy code keeps focus where it is on a pointer press and still copies on c
   (button.props.onMouseDown as (event: typeof press) => void)(press);
   expect(press.preventDefault).toHaveBeenCalledOnce();
   (button.props.onClick as () => void)();
-  expect(actions.copy).toHaveBeenCalledWith("$ doan check");
+  // The second argument is the reply the block sits in, where a failed copy says so.
+  expect(actions.copy.mock.calls[0]?.[0]).toBe("$ doan check");
 });

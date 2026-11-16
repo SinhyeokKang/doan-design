@@ -77,3 +77,22 @@ test("a provider's list is read again for its new connection, and the previous c
   expect(list).toHaveBeenCalledTimes(2);
   expect(support.models[modelsKey("/r", "codex", 2)]).toMatchObject({ models: [{ id: "gpt-new" }] });
 });
+
+// A failed read is not kept for the run: the picker asks again when it opens, and the next answer shows.
+test("a failed models read is read again; a list that arrived is not", async () => {
+  const list = vi.fn().mockRejectedValueOnce(new Error("cli")).mockResolvedValueOnce({ error: "unavailable" }).mockResolvedValueOnce({ models: [{ id: "gpt", label: "GPT", default: true }] });
+  vi.stubGlobal("window", { doan: { listConversationModels: list } });
+  const support = new DockedSupport(() => {}, window.doan);
+  const key = modelsKey("/r", "codex", 0);
+  support.readModels("/r", "codex");
+  await flush();
+  expect(support.models[key]).toEqual({ error: "unknown" });
+  support.readModels("/r", "codex");
+  await flush();
+  expect(support.models[key]).toEqual({ error: "unavailable" });
+  support.readModels("/r", "codex");
+  await flush();
+  expect(support.models[key]).toMatchObject({ models: [{ id: "gpt" }] });
+  support.readModels("/r", "codex");
+  expect(list).toHaveBeenCalledTimes(3);
+});

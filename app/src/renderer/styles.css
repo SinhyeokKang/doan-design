@@ -1569,6 +1569,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .anchor-chip span.chip-canvas { white-space: pre; margin-left: calc(-1 * var(--space-1)); max-width: calc(100cqw - 2 * var(--space-1h) - var(--size-icon-sm) - var(--space-1) - 1em); }
 /* A reply chip's note under its reply block, 6 apart, as the note under a sent bubble. */
 .conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }
+/* A failed Copy code's line takes the reply note's place, 6 under the reply (or under its note). */
+.conversation-thread .thread-item > .copy-failed { margin: var(--space-1h) 0 0; }
 .mark.jump-highlight.jump-point { border-radius: 50%; }
 /* The working-frame marker (work-update draft frames marker-states, marker-moves): the jump highlight
    kept for the work turn, under the selection marks, with a travelling gradient and a breathing glow. It slides between

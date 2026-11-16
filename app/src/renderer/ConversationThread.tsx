@@ -13,6 +13,7 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { canvasCardText, middleCut, newCanvasesText, trailingCards } from "./canvasCardText";
 import { canvasLabel } from "./canvasTree";
+import { SKIP_FAILED_TEXT } from "./conversationStrip";
 import { focusAfter, type FocusAction } from "./composerRules";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { handoffCardHead } from "./handoffView";
@@ -162,8 +163,20 @@ export function httpsUrl(href: string | undefined): string | null {
   try { const url = new URL(href); return url.protocol === "https:" ? url.href : null; } catch { return null; }
 }
 
-interface ThreadActions { openLink(url: string): void; copy(text: string): void; replyChip(link: ReplyAnchor): Promise<LocateOutcome | null> | null }
+// A reply link the browser did not open (the host's openLink answered false or failed) is told in the host's toast, in
+// the star card's form: the address last with no period, so selecting it copies only the address.
+export async function openReplyLink(open: (url: string) => Promise<boolean>, url: string, notice: (text: string) => void): Promise<void> {
+  const opened = await open(url).catch(() => false);
+  if (!opened) notice(`Couldn’t open the link in your browser. Try again, or open it at ${url}`);
+}
+
+// copy: `reply` is the reply whose code block was copied, where a failed copy says so.
+interface ThreadActions { openLink(url: string): void; copy(text: string, reply: string | null): void; replyChip(link: ReplyAnchor): Promise<LocateOutcome | null> | null }
 const Actions = createContext<ThreadActions>({ openLink: () => {}, copy: () => {}, replyChip: () => null });
+// The reply a code block sits in, and the reply whose last Copy failed (thread state, so another reply's success clears it).
+const ReplyId = createContext<string | null>(null);
+const CopyFailed = createContext<string | null>(null);
+const COPY_FAILED_TEXT = "Couldn’t copy the code. Select it and copy it yourself.";
 // What names and enables a reply chip. A context of its own, apart from the stable Actions, so a change of the open
 // canvas, its frames or the list redraws the chips inside a memoized reply.
 interface ReplyCanvas { openCanvasId: string | null; frames: readonly FrameName[] | undefined; rows: readonly CanvasRow[]; disabled: boolean; pressable: boolean }
@@ -178,9 +191,9 @@ function textOf(node: unknown): string {
 // A pointer press does not take focus, so copying leaves the composer's focus, selection and IME composition alone;
 // keyboard activation still focuses the button first.
 export function CodeBlock({ node, children }: { node: unknown; children?: ReactNode }) {
-  const { copy } = useContext(Actions);
+  const { copy } = useContext(Actions), reply = useContext(ReplyId);
   return <div className="md-code"><pre>{children}</pre>
-    <button type="button" className="doan-icon-button" data-ui-size="xs" aria-label="Copy code" onMouseDown={event => event.preventDefault()} onClick={() => copy(textOf(node).replace(/\n$/, ""))}><Copy aria-hidden="true" /></button></div>;
+    <button type="button" className="doan-icon-button" data-ui-size="xs" aria-label="Copy code" onMouseDown={event => event.preventDefault()} onClick={() => copy(textOf(node).replace(/\n$/, ""), reply)}><Copy aria-hidden="true" /></button></div>;
 }
 function Link({ href, children }: { href: string | undefined; children?: ReactNode }) {
   const { openLink } = useContext(Actions);
@@ -295,10 +308,12 @@ function AgentMessage({ text, streaming, className = "msg-agent md" }: { text: s
   const [chip, setChip] = useState<string | null>(null);
   const shownFor = noted ? chip : null;
   const note = useMemo(() => ({ shownFor, show: (key: string) => { setChip(key); show(); } }), [shownFor]);
-  return <ReplyNote.Provider value={note}>
+  const copyFailed = useContext(CopyFailed) === prefix;
+  return <ReplyId.Provider value={prefix}><ReplyNote.Provider value={note}>
     <div className={className}><MarkdownText text={shown} prefix={prefix} streaming={streaming} /></div>
     {shownFor && <span className="chip-missing" id={`${shownFor}-missing`} role="status">{LOCATE_MISSING_TEXT}</span>}
-  </ReplyNote.Provider>;
+    {copyFailed && <p className="settings-msg error copy-failed" role="alert"><AlertIcon /><span>{COPY_FAILED_TEXT}</span></p>}
+  </ReplyNote.Provider></ReplyId.Provider>;
 }
 
 // Why an answer did not reach main: main's refusal, or "unknown" for a rejected call; null when it reached main.
@@ -409,7 +424,7 @@ export function QuestionCard({ item, provider, live, base, draft, onDraft, onSen
       <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-disabled={locked || undefined} onClick={() => { if (!locked) onSkip(); }}>Skip</button>
       <button type="button" className="doan-button" data-ui-size="sm" onClick={onStop}><CircleStop aria-hidden="true" />Stop</button>
     </span>
-    {draft.failed && <span className="ask-error" role="alert">Couldn’t send your answer. Try again.</span>}
+    {draft.failed && <span className="ask-error" role="alert">{draft.failed === "skip" ? SKIP_FAILED_TEXT : "Couldn’t send your answer. Try again."}</span>}
   </div>;
 }
 
@@ -642,6 +657,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [slow, setSlow] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState<string | null>(null);
   // The card last answered, skipped or stopped here and the focusAfter rule for it: once that card folds, by any
   // status, its button is gone and focus moves on by the rule (ARCHITECTURE §7 'Renderer primitives' 'Thread focus').
   const folding = useRef<{ requestId: string; action: FocusAction } | null>(null);
@@ -793,15 +809,16 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const actions = useRef<ThreadActions>({ openLink: () => {}, copy: () => {}, replyChip: () => null });
   actions.current.openLink = url => props.onOpenLink(url);
   actions.current.replyChip = link => props.onReplyChip?.(link) ?? null;
-  actions.current.copy = text => {
-    void props.onCopy(text).then(ok => {
-      if (!ok) return;
+  actions.current.copy = (text, reply) => {
+    void props.onCopy(text).catch(() => false).then(ok => {
+      if (!ok) { setCopyFailed(reply); return; }
+      setCopyFailed(null);
       setCopied(true);
       if (copiedTimer.current) clearTimeout(copiedTimer.current);
       copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
-    }).catch(console.error);
+    });
   };
-  const context = useRef<ThreadActions>({ openLink: url => actions.current.openLink(url), copy: text => actions.current.copy(text), replyChip: link => actions.current.replyChip(link) }).current;
+  const context = useRef<ThreadActions>({ openLink: url => actions.current.openLink(url), copy: (text, reply) => actions.current.copy(text, reply), replyChip: link => actions.current.replyChip(link) }).current;
   const pressable = props.onReplyChip !== undefined, disabled = !!props.locateDisabled, openCanvasId = props.openCanvasId ?? null;
   const replyCanvas = useMemo<ReplyCanvas>(() => ({ openCanvasId, frames: props.frames, rows: props.canvasRows ?? [], disabled, pressable }),
     [openCanvasId, props.frames, props.canvasRows, disabled, pressable]);
@@ -896,7 +913,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     }
   };
 
-  return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><div className="conversation-thread">
+  return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><CopyFailed.Provider value={copyFailed}><div className="conversation-thread">
     <div className="thread-scroll" ref={scroller} onScroll={onScroll}>
       <div className="thread">{stacks(drawn).map(run => run.length === 1 && run[0]!.kind !== "canvasCard"
         ? <ThreadEntry key={run[0]!.key} entry={run[0]!} deps={depsOf(run[0]!)} draw={item} />
@@ -914,6 +931,6 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     </div>
     {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
     <div className="sr-only" role="status">{copied ? "Copied" : phaseText(drawn, items, provider, settled.shown, line !== null)}</div>
-  </div></ReplyCanvasContext.Provider></Actions.Provider>;
+  </div></CopyFailed.Provider></ReplyCanvasContext.Provider></Actions.Provider>;
 };
 

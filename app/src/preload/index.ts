@@ -440,6 +440,13 @@ const api = {
   showCanvas: (request: { root: string; path: string } | null): Promise<boolean> => ipcRenderer.invoke("read-state:showing", request),
   // Retry, or re-entering a project: what still fails after the read state was saved and read again, or null.
   retryReadState: (request: { root: string; path?: string }): Promise<ReadStateProblem | null | false> => ipcRenderer.invoke("read-state:retry", request),
+  // The project list (folders.json) could not be saved; saveFoldersAgain writes the list main holds now, true once saved.
+  onFoldersSaveFailed(listener: () => void): () => void {
+    const receive = () => listener();
+    ipcRenderer.on("folders:save-failed", receive);
+    return () => ipcRenderer.removeListener("folders:save-failed", receive);
+  },
+  saveFoldersAgain: (): Promise<boolean> => ipcRenderer.invoke("folders:save-again"),
   // A read-state failure found while the person did not ask, for a toast on that project.
   onReadStateProblem(listener: (notice: { root: string; problem: ReadStateProblem }) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, notice: { root: string; problem: ReadStateProblem }) => listener(notice);

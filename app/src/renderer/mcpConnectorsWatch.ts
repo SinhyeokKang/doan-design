@@ -2,7 +2,7 @@ import type { McpSnapshot } from "../main/mcpConnectors/service";
 import type { ConnectorAction } from "../main/mcpConnectors/state";
 import type { McpProvider } from "../main/mcpConnectors/presets";
 import { PROVIDER_NAMES } from "./agentAuthView";
-import { mcpChanges, mcpChangeText, runningNoticeText } from "./mcpConnectorsView";
+import { mcpChanges, mcpChangeText, OPEN_FAILED_TEXT, runningNoticeText } from "./mcpConnectorsView";
 
 export interface McpConnectorsWatchDeps {
   api: { onMcpConnectors(listener: (snapshot: McpSnapshot) => void): () => void };
@@ -26,6 +26,8 @@ export class McpConnectorsWatch {
   private listeners = new Set<() => void>();
   // The action each row offered when last settled, kept by a row while it is Removing (draft frame 7).
   private settled = new Map<string, ConnectorAction>();
+  // Rows whose last Open again answered open_failed, until a later open works or the row leaves Connecting.
+  private openFailures = new Set<string>();
   constructor(private readonly deps: McpConnectorsWatchDeps) {}
 
   start(): () => void { return this.deps.api.onMcpConnectors(snapshot => this.receive(snapshot)); }
@@ -36,7 +38,10 @@ export class McpConnectorsWatch {
     const prev = this.snapshot;
     if (prev && next.revision <= prev.revision) return;
     this.snapshot = next;
-    for (const dto of next.providers) for (const row of dto.rows) if (row.view.action && row.view.status !== "connecting") this.settled.set(`${dto.provider}\0${row.name}`, row.view.action);
+    for (const dto of next.providers) for (const row of dto.rows) {
+      if (row.view.action && row.view.status !== "connecting") this.settled.set(`${dto.provider}\0${row.name}`, row.view.action);
+      if (row.view.status !== "connecting") this.openFailures.delete(`${dto.provider}\0${row.name}`);
+    }
     const texts: string[] = [];
     for (const change of mcpChanges(prev, next)) {
       if (change.kind === "succeeded" && this.deps.running(change.provider)) this.notices = { ...this.notices, [change.provider]: change.name };
@@ -60,6 +65,17 @@ export class McpConnectorsWatch {
   noticeText(provider: McpProvider): string { return runningNoticeText(provider); }
   remembered(provider: McpProvider, name: string): ConnectorAction | null { return this.settled.get(`${provider}\0${name}`) ?? null; }
   announcementSeq(): number { return this.seq; }
+  openFailed(provider: McpProvider, name: string): boolean { return this.openFailures.has(`${provider}\0${name}`); }
+  // An Open again's answer: a browser that did not open shows the sign-in row's alert, and the page's one live region
+  // reads its sentence (its notices carry no live role).
+  openAnswered(provider: McpProvider, name: string, failed: boolean): void {
+    const key = `${provider}\0${name}`;
+    // Every failure is read, a repeated one too; a working open only clears a shown alert.
+    if (!failed && !this.openFailures.has(key)) return;
+    if (failed) { this.openFailures.add(key); this.announcement = { seq: ++this.seq, text: OPEN_FAILED_TEXT }; }
+    else this.openFailures.delete(key);
+    this.changed();
+  }
 
   private changed(): void { for (const listener of this.listeners) listener(); }
 }

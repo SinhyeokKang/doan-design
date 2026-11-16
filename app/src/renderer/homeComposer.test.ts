@@ -338,9 +338,9 @@ test("a provider without a list yet has a Default row and asks to be read when i
   // The draft (frame 05) puts the reading note in the group head beside a spinner, over the Default row.
   const loading = modelPickerView(auth, { codex: "loading" }, choice).groups[1]!;
   expect(loading).toMatchObject({ read: false, note: "Loading models", rows: [{ kind: "default", label: "Default", selected: true }] });
-  for (const state of [{ error: "unavailable" }, { models: [] }] as ModelsState[]) {
-    expect(modelPickerView(auth, { codex: state }, choice).groups[1]).toMatchObject({ read: false, note: "Models unavailable", rows: [{ kind: "default", label: "Default", selected: true }] });
-  }
+  // An empty list is an answer; a failed read is asked again when the group opens, as Settings > Agents' Retry does.
+  expect(modelPickerView(auth, { codex: { models: [] } }, choice).groups[1]).toMatchObject({ read: false, note: "Models unavailable", rows: [{ kind: "default", label: "Default", selected: true }] });
+  expect(modelPickerView(auth, { codex: { error: "unavailable" } }, choice).groups[1]).toMatchObject({ read: true, note: "Models unavailable", rows: [{ kind: "default", label: "Default", selected: true }] });
   // With no model chosen the trigger names its drawer; the group head names the provider.
   for (const state of [undefined, "loading", { error: "unavailable" }] as ModelsState[]) {
     expect(modelPickerView(auth, { codex: state }, choice).trigger).toEqual({ provider: "codex", label: "Model", ariaLabel: "Agent: Codex, model not chosen", placeholder: true, isDefault: false });

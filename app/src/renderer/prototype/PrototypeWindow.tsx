@@ -366,6 +366,9 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   // the menu's button, whatever the panel shows next; the move waits for the render that closes the modal alert
   // (POSTMORTEM 2026-11-14 'A failed buddy switch dropped focus'), since the page behind it takes no focus.
   const [deleting, setDeleting] = useState<{ target: DeleteTarget; pending: boolean } | null>(null);
+  // The delete alert is this window's modal: it holds the toast's clock as the main window's modals do (ARCHITECTURE §7 'Toasts').
+  const modalOpen = deleting !== null;
+  useLayoutEffect(() => { toastRef.current.setModal(modalOpen); }, [modalOpen]);
   const deleteReturn = useRef<HTMLElement | null>(null);
   const deleteLanding = useRef(false);
   useEffect(() => {

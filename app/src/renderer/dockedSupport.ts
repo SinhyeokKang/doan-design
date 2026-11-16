@@ -51,7 +51,9 @@ export class DockedSupport {
   }
   readModels(root: string, provider: Provider): void {
     const key = modelsKey(root, provider, generationOf(this.auth, provider));
-    if (this.models[key] !== undefined) return;
+    const known = this.models[key];
+    // A failed read is not kept for the run: the picker asks again when it opens.
+    if (known !== undefined && !(typeof known === "object" && "error" in known)) return;
     this.models = { ...this.models, [key]: "loading" };
     this.changed();
     void this.calls.listConversationModels({ root, runtime: provider }).catch(() => ({ error: "unknown" })).then(reply => {

@@ -49,6 +49,9 @@ export interface Shell {
   dispose(): Promise<void>;
   // FolderStore.spellings: another spelling of a listed root, read as the listed one (ui-state.json).
   spellings(): ReadonlyMap<string, string>;
+  // The window's Retry after a failed list write: writes the list held now; true once it is saved. Its own failure is
+  // the answer, so it does not call `saveFailed` again.
+  saveAgain(): Promise<boolean>;
 }
 
 interface Folder {
@@ -112,6 +115,8 @@ export interface ShellHooks {
   home?: string;
   // The git environment for a setup that may create a repository (cli.ts CliEnv).
   cliEnv?(): Promise<CliEnv>;
+  // A folders.json write failed: the list in memory changed anyway, so the window says so and offers Retry (saveAgain).
+  saveFailed?(): void;
 }
 
 export async function startShell(foldersFile: string, cli: string, onChange: (entries: FolderEntry[], focus?: FolderFocus) => void, hooks?: ShellHooks): Promise<Shell> {
@@ -125,7 +130,9 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
   const entries = () => [...folders.values()].map((folder) => folder.entry);
   const baseUrl = (key: string) => `http://${server.host}:${server.port}/t/${server.token}/${key}/`;
   const logWrite = (error: Error | null) => {
-    if (error) console.error("doan: cannot save folders.json", error);
+    if (!error) return;
+    console.error("doan: cannot save folders.json", error);
+    hooks?.saveFailed?.();
   };
 
   // A re-root answers the listing of the root above (its root and storage); null published, false dropped.
@@ -445,6 +452,11 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       }
     },
     spellings: () => store.spellings(),
+    async saveAgain() {
+      const error = await store.replace(store.list());
+      if (error) console.error("doan: cannot save folders.json", error);
+      return error === null;
+    },
     async dispose() {
       for (const folder of folders.values()) folder.watch?.close();
       folders.clear();

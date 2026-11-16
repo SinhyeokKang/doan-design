@@ -10,10 +10,10 @@ const run = (_questions: readonly Question[], ...actions: Parameters<typeof ques
 
 describe("questionDraft", () => {
   test("the send failure line goes as soon as the answer changes, and the choices stay", () => {
-    const failed: QuestionDraft = { ...run([single], { type: "choose", question: single, option: 0 }), failed: true };
+    const failed: QuestionDraft = { ...run([single], { type: "choose", question: single, option: 0 }), failed: "answer" };
     for (const action of [{ type: "choose", question: single, option: 1 }, { type: "other", question: single }, { type: "text", questionId: "0", text: "x" }] as const) {
       const next = questionDraft(failed, action);
-      expect(next.failed).toBe(false);
+      expect(next.failed).toBeNull();
       expect(next.sending).toBeNull();
     }
     expect(questionDraft(failed, { type: "choose", question: single, option: 1 }).choices["0"]).toEqual({ selected: [1], other: false, text: "" });
@@ -71,9 +71,17 @@ describe("questionDraft", () => {
     expect(questionDraft(sending, { type: "choose", question: single, option: 0 })).toBe(sending);
     expect(questionDraft(sending, { type: "text", questionId: "0", text: "x" })).toBe(sending);
     const failed = questionDraft(sending, { type: "failed" });
-    expect(failed).toEqual({ choices: chosen.choices, sending: null, failed: true });
+    expect(failed).toEqual({ choices: chosen.choices, sending: null, failed: "answer" });
     // The next send clears the error line.
-    expect(questionDraft(failed, { type: "sending", how: "skip" })).toEqual({ choices: chosen.choices, sending: "skip", failed: false });
+    expect(questionDraft(failed, { type: "sending", how: "skip" })).toEqual({ choices: chosen.choices, sending: "skip", failed: null });
+  });
+
+  // The failure line names the press main refused, as the strip's does.
+  test("a refused Skip is remembered as a skip failure, a refused answer as an answer failure", () => {
+    const chosen = run([single], { type: "choose", question: single, option: 1 });
+    const skipped = questionDraft(questionDraft(chosen, { type: "sending", how: "skip" }), { type: "failed" });
+    expect(skipped).toEqual({ choices: chosen.choices, sending: null, failed: "skip" });
+    expect(questionDraft(questionDraft(skipped, { type: "sending", how: "answer" }), { type: "failed" }).failed).toBe("answer");
   });
 
   test("the disabled Send's tooltip says what is missing", () => {

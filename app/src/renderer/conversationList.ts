@@ -19,7 +19,9 @@ export function conversationWork(c: ConversationSummary, seen: ReadonlySet<strin
   if (c.readError) return null;
   const p = PROVIDER_NAMES[c.provider];
   if (c.phase === "waiting") return { kind: "permission", label: `${p} needs your answer` };
-  if (c.phase === "running") return { kind: "working", label: `${p} is working` };
+  // main's working also covers a turn waiting for its promotion judgment and a queue about to go out, the state Delete
+  // reads (deleteAvailability), so a row never reads finished while its Delete says the agent is working.
+  if (c.phase === "running" || c.working) return { kind: "working", label: `${p} is working` };
   if (scheduled) return scheduled;
   // Failed and stopped turns may have changed files too, so every ending waits to be seen (2026-10-29 user).
   return c.unseen && !seen.has(c.conversationId) ? { kind: "unseen", label: "Conversation finished — unread" } : null;

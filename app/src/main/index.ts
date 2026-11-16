@@ -889,6 +889,7 @@ async function start(): Promise<void> {
   }, {
     response: record => documents.response(record),
     seen: root => seen.recordsChanged(root),
+    saveFailed: () => send("folders:save-failed"),
     // A vanished auto-registered worktree is cleaned up like Remove (folders:remove); its work items go with the
     // list's retainWorkRoots above.
     autoRemoved(paths, before) {
@@ -1410,6 +1411,7 @@ async function start(): Promise<void> {
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
   handle("window:fullscreen", null, event => fromWindow(event) ? { fullScreen: win!.isFullScreen() } : null);
   handle("folders:get", [], (event) => (fromWindow(event) ? seen.decorate(ready.entries()) : []));
+  handle("folders:save-again", false, (event) => (fromWindow(event) ? ready.saveAgain() : false));
   handle("read-state:showing", false, (event, value: unknown) => fromWindow(event) ? seen.showing(value) : false);
   handle("read-state:retry", false, (event, value: unknown) => fromWindow(event) ? seen.retry(value) : false);
   const flow = createAddFlow({

@@ -305,7 +305,8 @@ export function modelPickerView(auth: AuthSnapshot | null | undefined, models: P
     if (list) return { ...group, rows: list.map(m => ({ kind: "model", id: m.id, label: m.label, effort: (m.efforts?.length ?? 0) > 0, selected: mine && m.id === chosen?.id, isDefault: m.default, ...(m.older ? { older: true as const } : {}) })) };
     const rows: ModelRow[] = [{ kind: "default", label: "Default", selected: mine }];
     if (state === "loading") return { ...group, note: "Loading models", rows };
-    if (state !== undefined) return { ...group, note: "Models unavailable", rows };
+    // A failed read is read again when the group opens, as Settings > Agents' Retry reads it again; an empty list is an answer.
+    if (state !== undefined) return { ...group, note: "Models unavailable", read: "error" in state, rows };
     // Every provider, Copilot included, lists its models without a model request, so all are read.
     return { ...group, read: true, rows };
   });

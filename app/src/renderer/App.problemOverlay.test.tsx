@@ -105,7 +105,7 @@ function reset() {
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
-    reopenFolder: vi.fn(async () => {}), revealProject: vi.fn(async () => {}), removeProjects: vi.fn(async () => ({ kind: "removed" })), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}),
+    reopenFolder: vi.fn(async () => {}), revealProject: vi.fn(async () => {}), removeProjects: vi.fn(async () => ({ kind: "removed" })), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.stubGlobal("HTMLElement", class {});
@@ -312,6 +312,23 @@ test("Remove from Doan on the overlay asks first, then goes Home from the Overvi
     folders([listed("/w/c")]);
     expect(find(Home), String(onCanvas)).toHaveLength(1);
   }
+});
+
+// The overlay's Remove from Doan is the project's, as the sidebar's and Project Settings' are (PRODUCT §5 item 1): every
+// registered worktree of the group goes, and the confirmation names the project, not one worktree of it.
+test("Remove from Doan on the overlay removes the whole project group", async () => {
+  const git = (branch: string) => ({ common: "/w/a/.git", main: "/w/a", branch, worktrees: ["/w/a", "/w/b"] });
+  const worktree = (path: string, branch: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA], git: git(branch) });
+  render(); folders([worktree("/w/a", "main"), worktree("/w/b", "feat")]);
+  toOverview();
+  folders([{ ...cliError("/w/a"), lastCommon: "/w/a/.git" }, worktree("/w/b", "feat")]);
+  overlay()!.onAction("remove"); render();
+  const dialog = removalDialog();
+  expect(dialog).toBeDefined();
+  const title = all(dialog!).map(element => element.props.children).find(children => typeof children === "string" && children.startsWith("Remove "));
+  expect(title).toMatch(/^Remove [^()]+ from Doan\?$/);
+  (dialogButton("Remove from Doan").props.onClick as () => void)(); await flush();
+  expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a", "/w/b"]);
 });
 
 test("heading focus: on entry; not from the sidebar, where the live region reads the heading; again when the kind changes; from the covered body", () => {

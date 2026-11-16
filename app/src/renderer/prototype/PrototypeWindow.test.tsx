@@ -910,6 +910,29 @@ describe("Delete from the head menu", () => {
     expect(trigger.focus).toHaveBeenCalledOnce();
     expect(toastText()).toBe(deleteRefusalText("busy", "Ideas"));
   });
+
+  // A modal holds the toast's clock (ARCHITECTURE §7 'Toasts'), in this window as in the main one.
+  test("a toast shown before the alert opens outlasts it, and its time runs again once the alert closes", async () => {
+    api.deleteConversation = vi.fn(async () => ({ error: "busy" }));
+    const first = asked();
+    first.dialog()!.props.confirm();
+    await settle();
+    expect(toastText()).toBe(deleteRefusalText("busy", "Ideas"));
+    const second = asked();
+    // The mocked hooks apply state only on render, so time passes in steps with a render after each.
+    const wait = (ms: number) => { for (let at = 0; at < ms; at += 500) { vi.advanceTimersByTime(500); render(); } };
+    const leaving = () => (shell.toast as ReactElement<Record<string, unknown>> | null | undefined)?.props["data-closing"] !== undefined;
+    wait(20_000);
+    expect(second.dialog()).toBeTruthy();
+    expect(toastText()).toBe(deleteRefusalText("busy", "Ideas"));
+    expect(leaving()).toBe(false);
+    second.dialog()!.props.cancel();
+    render();
+    expect(toastText()).toBe(deleteRefusalText("busy", "Ideas"));
+    expect(leaving()).toBe(false);
+    wait(20_000);
+    expect(toastText()).toBeNull();
+  });
 });
 
 describe("presses before main answers", () => {

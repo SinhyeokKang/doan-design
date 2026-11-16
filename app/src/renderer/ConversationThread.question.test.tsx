@@ -201,6 +201,14 @@ describe("question card", () => {
     expect(out).toMatch(/<input type="radio" aria-labelledby="b-q1-0-l1" name="b-q1-0" checked=""[^>]*\/><span class="doan-preference-row-icon"><span class="ob-radio" aria-hidden="true"><\/span><\/span><span class="doan-preference-row-content"><span class="doan-preference-row-label" id="b-q1-0-l1">Two rows/);
   });
 
+  // The strip's sentence for a refused Skip (PRODUCT §5 item 1 'Home'); a refused answer keeps its own line.
+  test("a failed Skip says the question was not skipped", () => {
+    const draft = questionDraft(questionDraft(draftOf({ type: "choose", question: layout, option: 1 }), { type: "sending", how: "skip" }), { type: "failed" });
+    const out = card({ draft });
+    expect(out).toContain("Couldn’t skip the question. Try again.");
+    expect(out).not.toContain("Couldn’t send your answer.");
+  });
+
   test("only a card that arrived while the thread was open announces itself, by its title alone; focus never moves to it", () => {
     expect(card({ live: true })).toContain('<span class="strip-text q-title" role="alert"><b>Which layout should the settings header use?</b></span>');
     expect(card({ live: true }).match(/role="alert"/g)).toHaveLength(1);

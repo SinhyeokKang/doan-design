@@ -8,8 +8,9 @@ import { questionAnswer } from "../main/conversation/questionAnswer";
 // text: Other's text, kept while another option is chosen so choosing Other again brings it back.
 export interface QuestionChoice { selected: number[]; other: boolean; text: string }
 // sending: an answer or a skip is on its way to main; the card is locked until it folds or main refuses.
-export interface QuestionDraft { choices: Readonly<Record<string, QuestionChoice>>; sending: "answer" | "skip" | null; failed: boolean }
-export const EMPTY_QUESTION_DRAFT: QuestionDraft = { choices: {}, sending: null, failed: false };
+// failed: the press main refused, so the line names it.
+export interface QuestionDraft { choices: Readonly<Record<string, QuestionChoice>>; sending: "answer" | "skip" | null; failed: "answer" | "skip" | null }
+export const EMPTY_QUESTION_DRAFT: QuestionDraft = { choices: {}, sending: null, failed: null };
 
 export type QuestionDraftAction =
   // A radio question takes this option alone; a several-choice question toggles it.
@@ -24,8 +25,8 @@ export type QuestionDraftAction =
 const EMPTY_CHOICE: QuestionChoice = { selected: [], other: false, text: "" };
 
 export function questionDraft(draft: QuestionDraft, action: QuestionDraftAction): QuestionDraft {
-  if (action.type === "sending") return { ...draft, sending: action.how, failed: false };
-  if (action.type === "failed") return { ...draft, sending: null, failed: true };
+  if (action.type === "sending") return { ...draft, sending: action.how, failed: null };
+  if (action.type === "failed") return { ...draft, sending: null, failed: draft.sending ?? "answer" };
   if (draft.sending) return draft;
   const id = action.type === "text" ? action.questionId : action.question.id;
   const choice = draft.choices[id] ?? EMPTY_CHOICE;
@@ -35,7 +36,7 @@ export function questionDraft(draft: QuestionDraft, action: QuestionDraftAction)
   else if (!action.question.multiSelect) next = { ...choice, selected: [action.option], other: false };
   else next = { ...choice, selected: choice.selected.includes(action.option) ? choice.selected.filter(n => n !== action.option) : [...choice.selected, action.option].sort((a, b) => a - b) };
   // The failure line names the send that was refused, so a changed answer retires it.
-  return { ...draft, choices: { ...draft.choices, [id]: next }, failed: false };
+  return { ...draft, choices: { ...draft.choices, [id]: next }, failed: null };
 }
 
 // Other's text goes only while Other is chosen, or always for a question answered by text alone; empty text goes too,

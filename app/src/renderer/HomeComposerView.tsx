@@ -253,7 +253,9 @@ export function HeroComposer(props: HeroComposerProps) {
 
   const readModels = (forRoot: string, forProvider: Provider) => {
     const key = modelsKey(forRoot, forProvider, generationOf(memory.current.auth, forProvider));
-    if (memory.current.lists[key] !== undefined) return;
+    const known = memory.current.lists[key];
+    // A failed read is not kept for the run: the picker asks again when it opens.
+    if (known !== undefined && !(typeof known === "object" && "error" in known)) return;
     update(current => ({ lists: { ...current.lists, [key]: "loading" } }));
     void window.doan.listConversationModels({ root: forRoot, runtime: forProvider }).catch(() => ({ error: "unknown" })).then(reply => update(current => ({ lists: { ...current.lists, [key]: reply } })));
   };
