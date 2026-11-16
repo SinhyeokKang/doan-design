@@ -44,7 +44,9 @@ export class PrototypeConversationRun {
   // the same canvas (A, B, A) can answer after a newer one, and its older list would drop what the newer one named.
   private epoch = 0;
   private listView: ListView = "loading";
-  // Reads that failed in a row while the list shows its failure.
+  // A failed list's Retry: true while its read is out, and the Retries that failed in a row. Only a Retry counts: a
+  // read made for another reason that fails again is not announced again.
+  private retrying = false;
   private listFailures = 0;
   private reading: { epoch: number; views: number; again: boolean } | null = null;
   private views = 0;
@@ -140,6 +142,7 @@ export class PrototypeConversationRun {
       this.epoch++;
       this.missed = false;
       this.listView = "loading";
+      this.retrying = false;
       this.listFailures = 0;
       this.last = null;
       // The relayed drawing and promotion belong to a target. Main nulls them for every new target and may push the new
@@ -162,11 +165,14 @@ export class PrototypeConversationRun {
   }
 
   focusChanged(): void { this.run.focusChanged(); this.changed(); }
-  retry(): void { this.read(); }
-  // The failure line's Retry runs while a read of this canvas is out.
+  retry(): void {
+    // A Retry of a failed list runs, busy at once, until its read settles.
+    if (this.listView === "error" && !this.retrying) { this.retrying = true; this.changed(); }
+    this.read();
+  }
   listRetry(): ListRetry {
     if (this.listView !== "error") return LIST_RETRY_IDLE;
-    return { running: this.reading?.epoch === this.epoch, failures: this.listFailures };
+    return { running: this.retrying, failures: this.listFailures };
   }
 
   // The head menu's Delete, as the main window's: the store marks the conversation as being deleted before main is
@@ -240,8 +246,6 @@ export class PrototypeConversationRun {
     const reading = { epoch, views: this.views, again: false };
     this.reading = reading;
     this.missed = false;
-    // A read of a failed list turns its Retry busy at once.
-    if (this.listView === "error") this.changed();
     void this.calls.listConversations({ root: target.root, canvas: target.canvas }).catch(() => ({ error: "unknown" })).then(reply => {
       if (this.reading === reading) this.reading = null;
       if (this.epoch !== epoch) return;
@@ -250,8 +254,9 @@ export class PrototypeConversationRun {
       // this read was out, a read now does.
       else if (reply.error === "not_playing") { if (reading.views !== this.views) reading.again = true; else this.missed = true; }
       // A failed read after a good one keeps the list it had; only a canvas never read shows the failure.
-      else if (!Array.isArray(this.listView)) { this.listView = "error"; this.listFailures++; }
+      else if (!Array.isArray(this.listView)) { this.listView = "error"; if (this.retrying && !reading.again) this.listFailures++; }
       if (reading.again) this.read();
+      else this.retrying = false;
       this.sync();
     });
   }

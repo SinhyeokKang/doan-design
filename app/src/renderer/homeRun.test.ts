@@ -649,22 +649,28 @@ test("each root's list reads are counted, and a failed read shows as an error un
   expect(h.run.readsApplied(ROOT)).toBe(2);
 });
 
-test("a failed list's Retry runs until its read settles, and counts failures in a row until a read answers", async () => {
+test("a failed list's Retry runs until its read settles, and counts the Retries that fail in a row until a read answers", async () => {
   const h = harness();
   doan.listConversations!.mockResolvedValueOnce({ error: "unknown" });
   h.run.entriesChanged();
   // The first read is the loading state, not a retry.
   expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 0 });
   await flush();
-  expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 1 });
+  expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 0 });
   doan.listConversations!.mockResolvedValueOnce({ error: "unknown" });
   vi.mocked(h.host.changed).mockClear();
   h.run.retryList(ROOT);
   // The press shows at once: the host draws again with Retry running.
-  expect(h.run.listRetry(ROOT)).toEqual({ running: true, failures: 1 });
+  expect(h.run.listRetry(ROOT)).toEqual({ running: true, failures: 0 });
   expect(h.host.changed).toHaveBeenCalled();
   await flush();
-  expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 2 });
+  expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 1 });
+  // A read made for another reason (an entries change) that fails again is not a Retry: no busy, no new count.
+  doan.listConversations!.mockResolvedValueOnce({ error: "unknown" });
+  h.run.entriesChanged();
+  expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 1 });
+  await flush();
+  expect(h.run.listRetry(ROOT)).toEqual({ running: false, failures: 1 });
   lists({ [ROOT]: [summary({})] });
   h.run.retryList(ROOT);
   await flush();

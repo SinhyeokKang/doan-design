@@ -359,11 +359,11 @@ describe("the head's conversation menu", () => {
     calls.listConversations = vi.fn(async () => ({ error: "unknown" }));
     run = new PrototypeConversationRun(calls as never, { changed: () => { hooks.dirty = true; }, notice: () => {}, focused: () => true });
     await playing();
-    expect(run.listRetry()).toEqual({ running: false, failures: 1 });
+    expect(run.listRetry()).toEqual({ running: false, failures: 0 });
     const firstLine = (all(find(open(), element => element.props.className === "conv-error")!).find(element => element.type === "span")!.props.children);
     calls.listConversations = vi.fn(() => new Promise(resolve => { fail = resolve; }));
     run.retry();
-    expect(run.listRetry()).toEqual({ running: true, failures: 1 });
+    expect(run.listRetry()).toEqual({ running: true, failures: 0 });
     const line = find(open(), element => element.props.className === "conv-error")!;
     const retry = all(line).find(element => element.type === DropdownMenu.Item)!;
     expect(retry.props).toMatchObject({ "aria-disabled": true, "aria-busy": true });
@@ -372,7 +372,7 @@ describe("the head's conversation menu", () => {
     expect(calls.listConversations).toHaveBeenCalledTimes(1);
     fail({ error: "unknown" });
     await flush();
-    expect(run.listRetry()).toEqual({ running: false, failures: 2 });
+    expect(run.listRetry()).toEqual({ running: false, failures: 1 });
     const againLine = all(find(open(), element => element.props.className === "conv-error")!).find(element => element.type === "span")!.props.children;
     expect(againLine).not.toBe(firstLine);
     expect(String(againLine).trim()).toBe(String(firstLine).trim());
