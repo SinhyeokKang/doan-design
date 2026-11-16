@@ -83,11 +83,11 @@ test("result rows: an icon, the name with its matched letters underlined, and a 
   expect(first).toContain('aria-label="Card declined — billing › 4 · acme-web · main"');
   expect(first).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-hash/);
   expect(first).toContain('<span class="qo-name" data-state="closed" data-slot="tooltip-trigger"><mark class="qo-match">Card</mark> declined</span>');
-  expect(first).toContain('<span class="qo-detail"><span class="qo-context" data-state="closed" data-slot="tooltip-trigger">billing › 4</span></span>');
+  expect(first).toContain('<span class="qo-detail" data-state="closed" data-slot="tooltip-trigger"><span class="qo-context">billing › 4</span></span>');
   expect(second).toContain('aria-label="team-scorecard — reports/team-scorecard.html · acme-web · main"');
   expect(second).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-panels-top-left/);
   expect(second).toContain('<span class="qo-name" data-state="closed" data-slot="tooltip-trigger">team-score<mark class="qo-match">card</mark></span>');
-  expect(second).toContain('<span class="qo-context" data-state="closed" data-slot="tooltip-trigger">reports/team-scorecard.html</span>');
+  expect(second).toContain('<span class="qo-context">reports/team-scorecard.html</span>');
 });
 
 test("a canvas result takes its directory's icon: SwatchBook under .doan/ds/, PanelsTopLeft under .doan/canvases/", () => {
@@ -305,9 +305,9 @@ test("a conversation row: the conversations icon, the title with its matched let
   expect(first).toContain('aria-label="Checkout flow — Project conversation · acme-web · main"');
   expect(first).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-messages-square/);
   expect(first).toContain('<span class="qo-name" data-state="closed" data-slot="tooltip-trigger"><mark class="qo-match">Checkout</mark> flow</span>');
-  expect(first).toContain('<span class="qo-context" data-state="closed" data-slot="tooltip-trigger">Project conversation</span>');
+  expect(first).toContain('<span class="qo-context">Project conversation</span>');
   expect(second).toContain('aria-label="Tighten the checkout copy — tokens · 12 minutes ago · acme-web · main"');
-  expect(second).toContain('<span class="qo-context" data-state="closed" data-slot="tooltip-trigger">tokens · 12m</span>');
+  expect(second).toContain('<span class="qo-context">tokens · 12m</span>');
 });
 
 test("Home finds both projects' conversations by a part of their titles, each in its project's group", () => {

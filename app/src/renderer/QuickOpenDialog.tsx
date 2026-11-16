@@ -221,7 +221,8 @@ export function QuickOpenList({ emptyText = "No canvases, frames or conversation
               <span className="qo-icon" aria-hidden="true"><Icon /></span>
               <span className="qo-text">
                 <NameTip text={parts.name}><span className="qo-name">{markRuns(parts.name, matchPositions(parts.name, query)).map((run, i) => run.match ? <mark className="qo-match" key={i}>{run.text}</mark> : run.text)}</span></NameTip>
-                <span className="qo-detail"><NameTip text={parts.detail}><span className="qo-context">{parts.detail}</span></NameTip></span>
+                {/* The detail line is the box that ellipsizes, so it is the trigger that can measure as cut. */}
+                <NameTip text={parts.detail}><span className="qo-detail"><span className="qo-context">{parts.detail}</span></span></NameTip>
               </span>
             </div>;
           })}
