@@ -41,10 +41,11 @@
 
 ## 로그인
 
-- 링크 1의 실제 앱 probe는 실제 HOME의 프로바이더 로그인이 아니라 Doan 연결 로그인을 쓴다. 리드가 시작 점검에서 만든다.
+- 링크 1의 실제 턴 probe는 실제 HOME에서 앱을 띄우고, 그 userData의 Doan 연결 Claude Code 로그인을 쓴다. 리드가 시작 점검에서 만든다(빌드한 CLI는 `.scratch/provider-profile/bin/doan`).
 - 로그인한 userData는 메인 체크아웃의 `/Users/sinhyeokkang/code/doan-design/.scratch/provider-profile/userData`에 둔다. 링크마다 워크트리가 다르기 때문이다.
 - 링크는 그것을 다시 쓰고, 지우거나 바꾸는 probe에는 복사본을 쓴다. 새 로그인을 청하기 전에 먼저 그 디렉터리를 확인하고, 링크마다 로그아웃하지 않는다.
-- 마지막 링크의 PR이 오면, 리드가 병합 전에 로그아웃하고 Keychain 항목이 없어졌는지 확인한 뒤 그 userData를 지운다.
+- 사용자가 2026-11-16 이 userData에 다섯 프로바이더(Claude Code, Codex, Cursor, Antigravity, GitHub Copilot)를 모두 로그인했다. 링크 1은 Claude Code만 쓰면 되고, 다른 프로바이더는 필요할 때 쓴다.
+- 마지막 링크의 PR이 오면, 리드가 병합 전에 다섯 프로바이더 모두 로그아웃하고, Claude Code·Codex의 Keychain 항목이 없어졌는지 확인한 뒤 그 userData를 지운다.
 
 ## 진행 규칙
 
@@ -67,3 +68,8 @@
 ## 인계 기록
 
 - 2026-11-16 · 리드(Claude, develop): 체인 파일을 썼다. 사용자 요청은 파일 작성까지이고, 시작 점검과 링크 시작은 사용자가 시작을 요청할 때 한다.
+- 2026-11-16 · 리드: 사용자가 체인 시작을 요청했다. 시작 점검 승인:
+  - 로그인: 리드가 지금 만든다. 사용자가 격리 앱(`.scratch/provider-profile/userData`, 실제 HOME)에서 다섯 프로바이더를 모두 로그인했다.
+  - `/agent-eval`: 체인 파일대로(링크 2만, W 계열 전부·W12·X2, 막는 기준 그대로).
+  - 링크 안 확인 항목(카드 문구, 가이드 문구와 줄일 곳)은 컨덕터가 사용자에게 직접 묻는다.
+  - 시작 기준: develop `cd4c38d3`(#233 병합 뒤), 작업 트리 깨끗함.
