@@ -60,3 +60,8 @@
 
     그 뒤 `docs/features/provider-commands/`를 지운다. `/agent-eval` 대상인지도 판단한다. 대상 범위는 AGENTS.md 'Workflow'에 있다.
     - 확인: `/doc-check` 대상 문단 대조.
+
+## 인수인계
+- 다음 단계: 새 리드 세션이 task 3–10을 `/orchestrate docs/features/provider-commands`로 진행한다. 브랜치는 `feat/provider-commands`다.
+- 기준 문서는 이 디렉터리의 spec·design·tasks와 확정 드래프트 `.doan/canvases/provider-commands.html`이다. PoC 표와 결정 1–12는 design.md에 있다.
+- 겹치는 작업은 없다. UX 감사 261117-2 배치는 모두 develop에 머지됐다.

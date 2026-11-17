@@ -205,3 +205,8 @@
   - 카드: 중립 info 아이콘과 ghost Dismiss
 - `/compact` 외 명령의 실행 라벨은 PoC 뒤 정한다.
 - 팝오버 폭 809px는 `/design-sync`에서 앱으로 다시 잰다.
+
+## 드래프트 확정
+- 사용자가 PoC 반영 revise 뒤의 `.doan/canvases/provider-commands.html`을 앱에서 보고 확정했다(2026-11-17). 구현과 `/design-sync`는 이 드래프트를 기준으로 한다.
+- 남은 열린 항목은 둘이다. `/compact` 외 명령의 실행 라벨은 구현 때 정하고, 팝오버 폭 809px는 `/design-sync`에서 잰다.
+- Claude 명령 설명(`/init`, `/review`, `/usage`)은 SDK가 돌려주는 문구로 바꾼다. 드래프트 값은 대조하지 않은 값이다.
