@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import { DropdownMenu } from "radix-ui";
 import { AlertIcon } from "./AlertIcon";
 import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
@@ -17,7 +17,7 @@ export function listRetryButton(retry: ListRetry, variant: "panel" | "subtle", o
 // 'Accessible names'). onRetry gets the pressed button, so a host can place focus once the line goes.
 export function retryButton({ running, variant, describedBy, onRetry }: { running: boolean; variant: "panel" | "subtle"; describedBy?: string; onRetry(button: HTMLElement | null): void }) {
   return <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} aria-describedby={describedBy}
-    aria-disabled={running || undefined} aria-busy={running || undefined} onClick={event => { if (!running) onRetry(event?.currentTarget ?? null); }}>
+    aria-disabled={running || undefined} aria-busy={running || undefined} onClick={(event?: MouseEvent<HTMLButtonElement>) => { if (!running) onRetry(event?.currentTarget ?? null); }}>
     {running ? <><span className="doan-spinner" aria-hidden="true" />Retry</> : "Retry"}</button>;
 }
 

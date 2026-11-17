@@ -41,7 +41,7 @@ export function isTopFrame(frame: { parent?: unknown } | null | undefined): bool
 
 export interface FrameLike {
   readonly url: string;
-  readonly parent: FrameLike | null;
+  readonly parent: FrameLike | null | undefined;
 }
 
 // The injection target test: the frame's parent is the window's main frame.

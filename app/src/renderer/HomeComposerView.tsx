@@ -366,7 +366,7 @@ export function HeroComposer(props: HeroComposerProps) {
         const at = next.findIndex(a => a.key === key);
         if (at === -1) { if (result?.ok) void window.doan.removeAttachment(result.attachment.id); return; }
         if (!result || !result.ok) {
-          const name = result && !result.ok ? result.name : next[at]!.name;
+          const name = result ? result.name : next[at]!.name;
           next = next.filter(a => a.key !== key);
           notices.push(attachRefusal(result?.ok === false ? result.error : "unreadable", name));
           return;
@@ -564,7 +564,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const keyDown = (event: KeyboardEvent<HTMLDivElement>): boolean => {
     const composing = event.nativeEvent.isComposing || event.keyCode === 229;
     if (slashOpen) {
-      const action = slashKey(event.key, highlight, slashRows.length, composing, { query: slash ?? "", row: slashRows[highlight] });
+      const action = slashKey(event.key, highlight, slashRows.length, composing, { query: slash, row: slashRows[highlight] });
       if (action?.kind === "move") { event.preventDefault(); setHighlight(action.highlight); return true; }
       if (action?.kind === "pick") { event.preventDefault(); const row = slashRows[highlight]; if (row) chooseRow(row.id, row.kind, true); return true; }
       if (action?.kind === "close") { if (event.key === "Escape") event.preventDefault(); setDismissed(action.dismiss); return true; }

@@ -70,6 +70,7 @@ export function createStarPrompt(options: StarPromptOptions): StarPromptStore {
       // Once it has ended there is nothing left to count for.
       if (state === null || state.done || event.type !== "turn.done") return;
       save(starPromptTurn(state, options.now()));
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- save() sets state to null when the write fails
       if (queued || state === null || !starPromptDue(state, options.now())) return;
       queued = true;
       queueMicrotask(() => {

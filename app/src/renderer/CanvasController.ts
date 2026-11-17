@@ -943,6 +943,7 @@ export class CanvasController {
       else if (message.key === "Space") this.shortcut({ kind: "space", down: message.down }, !this.onCanvasPage() || document.activeElement !== this.frame);
       else if (message.key === "V" || message.key === "H") this.shortcut({ kind: "tool", tool: message.key === "V" ? "select" : "hand" }, !this.onCanvasPage());
       // Unlike Escape, an old modifier snapshot must not override a newer press.
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- the key check narrows the message to its Alt variant, which TypeScript cannot do after the V/H branch
       else if (message.key === "Alt" && message.seq >= this.hoverSeq) {
         this.hoverSeq = message.seq;
         this.altHeld = message.alt;
@@ -1931,7 +1932,7 @@ export class CanvasController {
     // Not the person's drag: the canvas drops its range too, so a later layout does not bring it back.
     if (!inside) { this.clearText(true); return; }
     // The selection made last is the one copied: a canvas text drag folds the app's own text selection.
-    const selection = window.getSelection?.();
+    const selection = window.getSelection();
     if (selection && selection.rangeCount > 0 && !selection.isCollapsed) selection.collapseToEnd();
     this.textTrust = "dragging";
     this.applyText(check.message);
@@ -1990,7 +1991,7 @@ export class CanvasController {
     const target: unknown = event.target;
     const inField = typeof target === "object" && target !== null && "selectionStart" in target && "selectionEnd" in target &&
       typeof target.selectionStart === "number" && target.selectionStart !== target.selectionEnd;
-    const selection = window.getSelection?.();
+    const selection = window.getSelection();
     if (inField || (selection && selection.rangeCount > 0 && !selection.isCollapsed)) this.clearText();
   };
 

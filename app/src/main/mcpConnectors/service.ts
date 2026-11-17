@@ -282,7 +282,7 @@ export class McpService implements McpConversationFacts {
     for (const read of this.reads.values()) this.stop(read);
     for (const chores of this.chores.values()) for (const chore of chores) this.stop(chore);
     let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([this.idle(), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref?.(); })]);
+    await Promise.race([this.idle(), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref(); })]);
     clearTimeout(timer);
   }
 
@@ -367,6 +367,7 @@ export class McpService implements McpConversationFacts {
           else await this.codexConnect(attempt, lease, server);
         } finally { await lease.release(); }
       } finally { hooked?.close(); }
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
       if (attempt.stopped || this.closed) return;
       this.options.store.patch({ everConnected: { name: server.name, provider, value: true } });
       this.succeeded(provider, server.name, { registered: true, authenticated: true });
@@ -378,6 +379,7 @@ export class McpService implements McpConversationFacts {
     if (attempt.stopped) return;
     if (registered === null) throw new Failure("failed", "the registration could not be read");
     if (!registered) await this.must(attempt, lease, "claude", COMMANDS.claude.add(server));
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
     let missing = false, late = false, approval: ReturnType<typeof setTimeout> | undefined;
     const link = setTimeout(() => { missing = true; this.stop(attempt, false); }, this.limits.linkMs);
@@ -393,13 +395,17 @@ export class McpService implements McpConversationFacts {
       // plaintext file when the keychain fails, and none may stay behind.
       plaintext = this.scrubPlaintext(lease.profileDir);
     }
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the link timer sets this during the login
     if (missing) throw new Failure("no_link", "the browser hook received no acceptable link");
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the approval timer sets this during the login
     if (late) throw new Failure("approval_timeout", "the browser approval did not come in time");
     if (login.code !== 0) throw new Failure("failed", `login exited ${login.code}: ${tail(login.output)}`);
     if (plaintext === null) throw new Failure("failed", "the profile could not be checked for a plaintext credential file");
     if (plaintext) throw new Failure("storage_failed", "the CLI wrote a plaintext credential file");
     const after = await this.claudeGet(attempt, lease, server.name);
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
     if (!after.ok || !after.facts.registered || !after.facts.authenticated) throw new Failure("failed", "status after sign-in is not connected");
   }
@@ -413,10 +419,12 @@ export class McpService implements McpConversationFacts {
     if (!listed) throw new Failure("failed", "the server list could not be read");
     const args = listed.some(each => each.name === server.name) ? COMMANDS.codex.login(server.name) : COMMANDS.codex.add(server);
     const login = await this.run(attempt, lease, "codex", args, { timeoutMs: this.limits.approvalMs });
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
     if (login.timedOut || CODEX_CALLBACK_TIMEOUT.test(login.output)) throw new Failure("approval_timeout", tail(login.output));
     if (login.code !== 0) throw new Failure("failed", `login exited ${login.code}: ${tail(login.output)}`);
     const after = await this.codexList(attempt, lease);
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (attempt.stopped) return;
     if (after?.find(each => each.name === server.name)?.authenticated !== true) throw new Failure("failed", "status after sign-in is not connected");
   }
@@ -429,6 +437,7 @@ export class McpService implements McpConversationFacts {
         if (attempt.stopped) return;
         if (run.code !== 0) throw new Failure("disconnect_failed", `logout exited ${run.code}: ${tail(run.output)}`);
       } finally { await lease.release(); }
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
       if (attempt.stopped || this.closed) return;
       // A disconnected row is Not connected, not Reconnect needed (user decision, orch.md).
       this.options.store.patch({ everConnected: { name: server.name, provider, value: false } });
@@ -472,6 +481,7 @@ export class McpService implements McpConversationFacts {
     if (registered === null) { if (strict) throw new Failure("failed", "the registration could not be read"); return false; }
     if (!registered) return false;
     const logout = await this.run(owner, lease, provider, COMMANDS[provider].logout(name), { timeoutMs: this.limits.commandMs });
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (owner.stopped) return false;
     // A logout can fail because there was no token to clear; only a server still signed in must not be removed.
     if (logout.code !== 0) {
@@ -483,6 +493,7 @@ export class McpService implements McpConversationFacts {
       }
     }
     const removed = await this.run(owner, lease, provider, COMMANDS[provider].remove(name), { timeoutMs: this.limits.commandMs });
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
     if (owner.stopped) return false;
     if (removed.code !== 0) {
       if (strict) throw new Failure("failed", `remove exited ${removed.code}: ${tail(removed.output)}`);
@@ -500,11 +511,14 @@ export class McpService implements McpConversationFacts {
     try {
       const lease = await this.lease(provider);
       try {
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
         if (owner.stopped || this.closed) return;
         const listed = provider === "claude" ? await this.claudeList(owner, lease) : await this.codexList(owner, lease);
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
         if (owner.stopped || this.closed) return;
         if (!listed) throw new Error("the server list could not be read");
         for (const name of reconcilePlan(listed.map(server => server.name), this.options.store.connectors())) {
+          // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
           if (owner.stopped || this.closed) return;
           await this.unregister(owner, lease, provider, name, false);
         }
@@ -525,6 +539,7 @@ export class McpService implements McpConversationFacts {
         if (owner.stopped || this.closed) return false;
         const done = provider === "codex" ? await this.codexPendingLogout(owner, entry.name, entry.url) : await this.claudePendingLogout(owner, entry.name);
         // A command whose attempt was stopped meanwhile never edits the pending file, even when it succeeded.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() or quit() can set these while the awaited call runs
         if (owner.stopped || this.closed) return false;
         if (done) this.options.store.clear(provider, entry.name);
         else console.error(`doan: ${provider} pending MCP logout of ${entry.name} failed again`);
@@ -551,6 +566,7 @@ export class McpService implements McpConversationFacts {
       if (owner.stopped || this.closed) return false;
       const lease: Lease = { ...launched, profileDir: home, release: async () => {} };
       const run = await this.run(owner, lease, "codex", COMMANDS.codex.logout(name), { timeoutMs: this.limits.commandMs });
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while the awaited call runs
       if (owner.stopped || run.code === 0) return run.code === 0;
       // The keychain entry is keyed by name and URL, so this home's list says whether a token is left.
       const after = (await this.codexRead(owner, lease))(name);
@@ -642,6 +658,7 @@ export class McpService implements McpConversationFacts {
     try { child = spawn(launch.command, launch.args, { cwd: options.cwd ?? lease.profileDir, env: options.env ?? lease.env }); }
     catch (error) { throw new Failure("failed", `the CLI could not be started: ${message(error)}`); }
     owner.processes.add(child);
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the injected spawn can run code that stops the owner
     if (owner.stopped) child.stop();
     let output = "", timedOut = false, timer: ReturnType<typeof setTimeout> | undefined;
     child.onOutput(text => { if (output.length < OUTPUT_LIMIT) output += text; });

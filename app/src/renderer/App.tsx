@@ -121,7 +121,7 @@ import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences"
 import { preferenceAfterPick, rememberChoice, rememberFast, rememberPermission, shouldTurnOffFast, withFastChanges, type ComposerChoice } from "./rememberChoice";
 
 // Each command names its handler; one App does not know does nothing.
-export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; newConversation: () => void; pickFromCanvas: () => void; toggleSidebar: () => void }): void {
+export function menuCommand(name: MenuCommand | (string & {}), to: { home: () => void; quickOpen: () => void; newConversation: () => void; pickFromCanvas: () => void; toggleSidebar: () => void }): void {
   if (name === "home") to.home();
   else if (name === "toggleSidebar") to.toggleSidebar();
   else if (name === "newConversation") to.newConversation();
@@ -438,8 +438,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     sidebarMotion.current = true;
     setSidebarHidden(hide);
   }
-  // Optional: App's DOM-less tests stub a document without a root element.
-  const previewSidebar = (width: number) => document.documentElement?.style.setProperty("--doan-sidebar-width", `${width}px`);
+  const previewSidebar = (width: number) => document.documentElement.style.setProperty("--doan-sidebar-width", `${width}px`);
   useLayoutEffect(() => previewSidebar(shownSidebar), [shownSidebar]);
   // The window and the measured column holding the canvas and the panel (sidebar and margins excluded).
   const [panelSize, setPanelSize] = useState<{ window: number; shell: number } | null>(null);
@@ -1581,6 +1580,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     else if (name === "remove") void remove([root]);
     else if (name === "showInFinder") void window.doan.revealProject(root).catch(console.error);
     else if (name === "retry") void window.doan.reopenFolder(root).catch(console.error).finally(() => settled?.());
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- keeps a new RowAction from falling into the locate branch
     else if (name === "locate") {
       const workspace = loadedRoot === root && currentScreen.current === "workspace";
       if (workspace) setLocating({ from: root, root: null });
@@ -1737,6 +1737,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     cancelRestore();
     let opened = false;
     controller.current?.openCanvas(request.root, decision.row, request.frame === undefined ? undefined : { frame: request.frame }, { opened: () => { opened = true; completeNavigation(request.root); } });
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the openCanvas callback sets opened
     if (!opened) { answer({ kind: "canvas_not_found" }); return; }
     answer({ kind: "opened", frame: request.frame === undefined ? "none" : decision.row.frames?.some(frame => frame.id === request.frame) ? "found" : "missing" });
   }
@@ -2198,9 +2199,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     dockedBuddy.update({ overview: !canvasPage, folded: panelFolded && !panelMotion, folding: panelFolded && panelMotion, covered: coveredWorkspace, hint: picking || state.capturing });
   }, [canvasPage, panelFolded, panelMotion, coveredWorkspace, picking, state.capturing]);
   useLayoutEffect(() => {
-    // Optional: App's DOM-less tests stub a document without a root element.
     const root = document.documentElement;
-    if (!root) return;
     const animate = sidebarMotion.current;
     sidebarMotion.current = false;
     if (animate) root.setAttribute("data-sidebar-motion", "");
@@ -2213,7 +2212,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // Fullscreen has no traffic lights; the header's CSS drops their space under this attribute.
   useEffect(() => window.doan.onFullScreen(fullScreen => {
     const root = document.documentElement;
-    if (!root) return;
     if (fullScreen) root.setAttribute("data-fullscreen", "");
     else root.removeAttribute("data-fullscreen");
   }), []);
@@ -2234,9 +2232,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       if (!live.current.modal) live.current.toggleSidebar();
     };
     // On the document, ahead of the field's own handlers in the capture phase; the window's keydown is the pages' Escape.
-    // Optional: App's DOM-less tests stub a document without listeners.
-    document.addEventListener?.("keydown", keydown, true);
-    return () => document.removeEventListener?.("keydown", keydown, true);
+    document.addEventListener("keydown", keydown, true);
+    return () => document.removeEventListener("keydown", keydown, true);
   }, []);
   useLayoutEffect(() => {
     const measure = () => {
@@ -2437,7 +2434,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // The Project Settings page sits under the Projects tab (page null) but leaves like the other pages.
   const anyPage = onPage || onSettings || onProjectSettings;
   const sidebarToggle = sidebarToggleView(sidebarHidden, shellSlots);
-  const topBar = (overPage: boolean) => <TopBar sidebar={{ view: sidebarToggle, controls: sidebarHidden ? undefined : sidebarId(overPage), toggle: toggleSidebar }} back={anyPage || back !== null} forward={!anyPage && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked} lockReason={lockReason} reasonId={overPage ? "page-lock-reason" : "workspace-lock-reason"} updateDisabled={pageLocked || modal || wizard !== null}
+  const topBar = (overPage: boolean) => <TopBar sidebar={{ view: sidebarToggle, controls: sidebarHidden ? undefined : sidebarId(overPage), toggle: toggleSidebar }} back={anyPage || back !== null} forward={!anyPage && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked} lockReason={lockReason} reasonId={overPage ? "page-lock-reason" : "workspace-lock-reason"} updateDisabled={pageLocked || modal}
     previous={() => anyPage ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
     addProjects={openAddProjects} projects={() => { const move = projectsTab(currentScreen.current); if (move === "leavePage") leavePage({ kind: "projectsTab" }); else if (move === "home") home(); }} settings={() => { if (!locked()) openSettings({}); }}
     usage={{ openSettings: () => { if (locked()) return false; openSettings({ section: "agents" }); return true; }, canvasPress: controller.current?.canvasPress }} />;

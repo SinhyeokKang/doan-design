@@ -180,6 +180,7 @@ function armWorkTimer(): void {
   workTimer = setTimeout(() => {
     workTimer = undefined;
     updateWork(expireWork(workState, Date.now(), workLastChange));
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- updateWork can re-arm the timer
     if (workTimer === undefined) armWorkTimer();
   }, Math.max(0, deadline - Date.now()));
   workTimer.unref();

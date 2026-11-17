@@ -43,5 +43,5 @@ export async function waitForNativeFocus(read: () => Promise<NativeFocus>, name:
   let lock: string;
   try { lock = String(await readLock()); }
   catch (error) { lock = `unavailable (${String(error)})`; }
-  throw new Error(`Native focus timeout (${name}): state=${JSON.stringify(state) ?? "unavailable"}, locked=${lock}. Unlock the Mac if locked; otherwise inspect native focus.`, { cause: lastError });
+  throw new Error(`Native focus timeout (${name}): state=${state === undefined ? "unavailable" : JSON.stringify(state)}, locked=${lock}. Unlock the Mac if locked; otherwise inspect native focus.`, { cause: lastError });
 }

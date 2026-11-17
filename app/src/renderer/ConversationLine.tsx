@@ -10,7 +10,7 @@ import { NameTip } from "./NameTip";
 
 export function StatusMark({ status }: { status: ConversationStatus }) {
   return <span className={`row-slot ${status.kind === "unseen" ? "ended" : status.kind}`} role="img" aria-label={status.label}>
-    {status.kind === "permission" ? <Hand aria-hidden="true" /> : status.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : status.kind === "scheduled" ? <Clock aria-hidden="true" /> : status.kind === "unseen" ? <MessageCircle aria-hidden="true" /> : <i />}
+    {status.kind === "permission" ? <Hand aria-hidden="true" /> : status.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : status.kind === "scheduled" ? <Clock aria-hidden="true" /> : <MessageCircle aria-hidden="true" />}
   </span>;
 }
 

@@ -205,7 +205,9 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
       // Accept edits carries the configured network access and roots; without config/read it sends the narrower bare policy.
       workspace = codexWorkspace(await dispatcher.request("config/read", { cwd: input.cwd }).catch((error: unknown) => { if (error instanceof RpcError) return null; throw error; }));
     }
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the thread opens
     if (dead) throw new Error("process_exited");
+  // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the thread opens
   } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
   // A turn that starts before its servers are ready runs without their tools ("omitting pending optional MCP server"),
   // so a doan run waits for the profile's doan- servers first. A reload restarts them: their earlier statuses are
@@ -236,7 +238,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     const early = queued.map(startedTurn).find(id => id !== undefined);
     if (early !== undefined) return Promise.resolve(early);
     return new Promise(resolve => {
-      const timer = setTimeout(() => settle(undefined), COMPACTION_START_MS); timer.unref?.();
+      const timer = setTimeout(() => settle(undefined), COMPACTION_START_MS); timer.unref();
       const settle = (id: string | undefined) => { clearTimeout(timer); turnStarted = undefined; resolve(id); };
       turnStarted = settle;
     });
@@ -255,6 +257,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
       try {
         // A stopped send before this one may still await its turn/start reply, which only it may answer.
         await previous;
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the previous send settles
         if (dead || closing) throw new Error("process_exited");
         if (own.stopped) { stopped(); return; }
         // The server was opened with the conversation's choice then; a send may have changed it since.
@@ -274,19 +277,23 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
           result = await (command.kind === "request" ? dispatcher.request(command.method, { threadId: sessionId, ...command.params })
             : dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(turn.model ? { model: turn.model } : {}), ...(turn.effort ? { effort: turn.effort } : {}), ...permission, ...tier }));
         } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while turn/start is in flight
         if (dead) throw new Error("process_exited");
         // thread/compact/start answers {} and opens a turn of its own, named only by its turn/started.
         const native = command.kind === "request" && command.method === "thread/compact/start" ? await compactionTurn()
           : object(result) && object(result.turn) && typeof result.turn.id === "string" ? result.turn.id : undefined;
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while turn/start is in flight
         if (dead) throw new Error("process_exited");
         if (native === undefined) {
           startingTurn = false;
+          // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while turn/start is in flight
           if (command.kind === "request" && command.method === "thread/compact/start") { for (const raw of queued.splice(0)) dispatcher.receive(raw); if (own.stopped) { stopped(); return; } throw new Error("session_unavailable"); }
           failProtocol(); throw new Error("session_unavailable");
         }
         startingTurn = false;
         // Stopped while turn/start was unanswered: the native turn is interrupted, never adopted as this turn's.
         // A turn that already completed in the frames queued behind the reply has nothing left to interrupt.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- stop() can set this while turn/start is in flight
         if (own.stopped) {
           const frames = queued.splice(0);
           const over = frames.some(raw => object(raw) && raw.method === "turn/completed" && object(raw.params) && object(raw.params.turn) && raw.params.turn.id === native);
@@ -447,7 +454,9 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     // A fenced start that could not run is a process failure, never the SDK's message about the CLI binary, which names
     // a missing CLI: sandbox-exec missing (a spawn error), or sandbox-exec itself refusing (65 for a policy error, 71 for
     // an exec failure, with its own "sandbox-exec:" message). The CLI's own early exit keeps the SDK's error.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the child exit callback sets this while the SDK starts
     const refused = childExited && sandboxRefused({ exitCode, stderr });
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the spawn error and exit callbacks set these while the SDK starts
     if (input.fence && (spawnFailed || refused)) throw new Error("process_exited");
     throw error;
   }

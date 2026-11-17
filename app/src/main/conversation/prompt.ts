@@ -30,6 +30,7 @@ export function anchorTokens(text: string, anchors: readonly unknown[]): number[
     tokens.push(n);
     return "";
   });
+  // oxlint-disable-next-line typescript/no-unnecessary-condition -- the replace callback sets this
   if (invalid || remainder.includes("{{") || remainder.includes("}}") || new Set(tokens).size !== anchors.length) return null;
   return tokens;
 }

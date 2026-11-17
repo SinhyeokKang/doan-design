@@ -110,8 +110,10 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
       contents.off("did-frame-navigate", navigated);
     };
     const rect: unknown = await contents.executeJavaScript(frameScript(url));
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the page script runs
     if (!current() || frameFailed || !isRect(rect)) return null;
     const image = await contents.capturePage(rect);
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the frame listeners set this while the page is captured
     if (!current() || frameFailed || image.isEmpty()) return null;
     return image.resize({ width: THUMBNAIL_WIDTH, quality: "best" }).toPNG();
   };
@@ -124,6 +126,7 @@ export function createWindowCapturer(jobLimitMs = JOB_LIMIT_MS): Capturer {
       const limit = new Promise<"limit">((resolve) => { timer = setTimeout(() => resolve("limit"), jobLimitMs); });
       try {
         const result = await Promise.race([run(url, width, job), limit]);
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- close() can set this while the job runs
         if (closed) return null;
         if (result !== "limit") return result;
         // A job past its limit may still hold the page; the next starts clean.

@@ -398,7 +398,7 @@ export function LocalFolderCard({ busy, choose, newFolder, drop }: { busy: boole
     window.addEventListener("drop", clear);
     return () => { window.removeEventListener("blur", clear); window.removeEventListener("drop", clear); };
   }, []);
-  const files = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
+  const files = (event: DragEvent) => Array.from(event.dataTransfer.types).includes("Files");
   const handlers = drop && {
     onDragEnter: (event: DragEvent) => {
       if (!files(event)) return;
@@ -420,8 +420,8 @@ export function LocalFolderCard({ busy, choose, newFolder, drop }: { busy: boole
       depth.current = 0; setDropping(false);
       if (!drop.allowed()) return;
       // String items can sit among the files; only file items line up with `files`.
-      const items = Array.from(event.dataTransfer.items ?? []).filter(item => item.kind === "file");
-      drop.dropped(Array.from(event.dataTransfer.files).map((file, i) => ({ isDirectory: !!items[i]?.webkitGetAsEntry?.()?.isDirectory, path: window.doan.droppedPath(file) ?? "" })));
+      const items: (DataTransferItem | undefined)[] = Array.from(event.dataTransfer.items).filter(item => item.kind === "file");
+      drop.dropped(Array.from(event.dataTransfer.files).map((file, i) => ({ isDirectory: !!items[i]?.webkitGetAsEntry()?.isDirectory, path: window.doan.droppedPath(file) ?? "" })));
     },
   };
   return <div className="doan-panel ob-local-option" {...handlers}>

@@ -40,6 +40,7 @@ function anchored(value: string, anchors: readonly unknown[]): boolean {
     if (!/^[1-9][0-9]*$/.test(n) || Number(n) > anchors.length) invalid = true;
     seen.add(Number(n)); return "";
   });
+  // oxlint-disable-next-line typescript/no-unnecessary-condition -- the replace callback sets this
   return !invalid && !rest.includes("{{") && !rest.includes("}}") && seen.size === anchors.length;
 }
 function attachment(value: unknown): value is AttachmentRecord {

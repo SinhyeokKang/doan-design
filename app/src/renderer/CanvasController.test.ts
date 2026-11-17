@@ -93,7 +93,7 @@ describe("zoom to a scale", () => {
 });
 
 function loadedController() {
-  const host = new EventTarget();
+  const host = Object.assign(new EventTarget(), { getSelection: (): Selection | null => null });
   vi.stubGlobal("window", host);
   const frame = Object.assign(new EventTarget(), { contentWindow: { postMessage: vi.fn() }, style: {}, setAttribute: vi.fn(), remove: vi.fn(), replaceWith: vi.fn() });
   vi.stubGlobal("document", { createElement: () => frame });
@@ -155,7 +155,7 @@ interface FakeMark {
 // Each load gets its own iframe (and window) so messages can be sent from the
 // old or the new document.
 function selectionHarness() {
-  const host = new EventTarget();
+  const host = Object.assign(new EventTarget(), { getSelection: (): Selection | null => null });
   vi.stubGlobal("window", host);
   // Node has no animation frames; the queue runs only when a test asks for the next frame.
   const animationFrames: FrameRequestCallback[] = [];
@@ -2020,7 +2020,7 @@ it("opens another canvas of the open root at once, and only tells `opened` for t
 // (its panel width, or none when folded), not to the Overview's layout; later width changes keep the view's top-left.
 describe("first Fit", () => {
   function opened(width: number) {
-    const host = new EventTarget();
+    const host = Object.assign(new EventTarget(), { getSelection: (): Selection | null => null });
     vi.stubGlobal("window", host);
     const frame = Object.assign(new EventTarget(), { contentWindow: { postMessage: vi.fn() }, style: {}, setAttribute: vi.fn(), remove: vi.fn(), replaceWith: vi.fn() });
     vi.stubGlobal("document", { createElement: () => frame });

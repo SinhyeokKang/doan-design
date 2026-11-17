@@ -237,6 +237,7 @@ export class OverviewRun {
     // runs after this one instead of inside it.
     if (this.syncing) { this.again = true; return; }
     this.syncing = true;
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- syncOnce() can re-enter sync(), which sets again
     try { do { this.again = false; this.syncOnce(); } while (this.again); } finally { this.syncing = false; }
   }
   private syncing = false;

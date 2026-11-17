@@ -74,7 +74,8 @@ export function createUiStateStore(file: string, savedRoots: () => readonly stri
     save(value) {
       let text: string | undefined;
       try {
-        text = JSON.stringify(value);
+        // Undefined at runtime for a value JSON cannot represent (undefined, a function).
+        text = JSON.stringify(value) as string | undefined;
       } catch {
         return false;
       }

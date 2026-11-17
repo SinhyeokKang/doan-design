@@ -81,7 +81,7 @@ export function createReadState(deps: ReadStateDeps): ReadState {
   const now = deps.now ?? Date.now;
   const after = deps.after ?? ((ms, run) => {
     const timer = setTimeout(run, ms);
-    timer.unref?.();
+    timer.unref();
     return () => clearTimeout(timer);
   });
   const runs = new Map<string, Run>();
@@ -274,6 +274,7 @@ export function createReadState(deps: ReadStateDeps): ReadState {
     const row = entry?.canvases.find(item => item.path === current.path);
     if (!entry || !run?.judged || !row) return;
     const hash = await deps.shown(current.root, row);
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- a failed write can set intent.failed while the proof is read
     if (!hash || intent !== current || current.failed) return;
     const record = deps.local.root(current.root);
     const kept = record && row.id !== undefined && uniqueIds(entry.canvases).has(row.id) ? recordOf(record, row.id) : undefined;
@@ -294,6 +295,7 @@ export function createReadState(deps: ReadStateDeps): ReadState {
         do {
           markAgain = false;
           await markOnce();
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- tryMark() sets this while markOnce awaits
         } while (markAgain);
       } finally {
         marking = null;
@@ -345,6 +347,7 @@ export function createReadState(deps: ReadStateDeps): ReadState {
           touched = true;
           return { ...row, ...mark };
         });
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- the map callback sets this
         return touched ? { ...entry, canvases } : entry;
       });
     },

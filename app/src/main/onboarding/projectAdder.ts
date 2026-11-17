@@ -106,7 +106,7 @@ export class ProjectAdder {
       if (tracked.done) work.push(tracked.done);
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([Promise.allSettled(work), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref?.(); })]);
+    await Promise.race([Promise.allSettled(work), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref(); })]);
     clearTimeout(timer);
   }
 
@@ -143,6 +143,7 @@ export class ProjectAdder {
       source = { repo, ...(request.destination !== undefined && target !== undefined ? { destination: request.destination, target } : {}) };
     }
     // Checked again after the awaits, with nothing awaited between this and the launch that records the operation.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- close() can set this while the inspection awaits
     if (this.closing || this.busy(["project_clone"])) return refuse("busy");
     // A request without storage is an older client's (or a CLI run without --storage): it is planned for repo and its
     // reply never speaks of storage, which that client's schema would reject (app-socket v2 `inspection`).
@@ -152,7 +153,7 @@ export class ProjectAdder {
       if (!found.ok) return { state: "failed", code: found.code };
       const candidates = found.candidates.map(c => ({ path: c.path, changes: c.changes, ...(speaks && c.storage ? { storage: c.storage } : {}) }));
       const inspection: OnboardingInspection = { inspectionId: this.options.newId(), candidates };
-      if ("destination" in source && source.destination !== undefined) {
+      if ("destination" in source) {
         inspection.clone = { destination: source.destination, changes: CLONE_CHANGES[storage], ...(storage === "local" ? { storage: "local" as const } : {}) };
       }
       // The repository stays with the inspection so select checks the folder's remote again before registering it.
@@ -189,6 +190,7 @@ export class ProjectAdder {
     // resolves elsewhere, or a cancelClones() meanwhile makes this plan stale.
     if (this.current(request.inspectionId) !== current || destination.path !== current.target || this.clonesCancelled !== cancelled) return refuse("inspection_stale");
     // The other adder may be cloning into the same folder; the destination check cannot see a clone not yet renamed there.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- close() can set this while the inspection awaits
     if (this.closing || this.busy(PROJECT_WORK) || this.locks.targets.has(destination.path)) return refuse("busy");
     const repo = current.repo, target = destination.path, abort = new AbortController(), projects = this.projects, leftovers = this.locks.leftovers;
     const storage = initStorage(current.inspection.clone.changes);
