@@ -8,7 +8,8 @@
 // initialize with promptCapabilities.image false. FAKE_ACP_SESSION (JSON) adds members such as `modes` and
 // `configOptions` to the session/new and session/load results. FAKE_ACP_COMMANDS (JSON) is an availableCommands list the
 // server pushes as Copilot 1.0.105 did: once before the session/new answer and once right after it, and before the
-// session/load answer; FAKE_ACP_COMMANDS_OTHER adds a first push for another session id.
+// session/load answer; FAKE_ACP_COMMANDS_OTHER adds a first push for another session id; FAKE_ACP_COMMANDS_EARLY=<n>
+// pushes n lists (the last one named "last") before the session/new answer instead of one.
 const readline = require("node:readline");
 const fixture = require(process.argv[2]);
 const mode = process.env.FAKE_ACP ?? "";
@@ -50,9 +51,11 @@ readline.createInterface({ input: process.stdin }).on("line", line => {
     case "session/new":
       if (mode === "auth-link") { process.stderr.write("__DOAN_AUTH_URL__https://accounts.google.com/o/oauth2/v2/auth?response_type=code&state=s1&redirect_uri=http%3A%2F%2F127.0.0.1%3A4321%2F\n"); break; }
       if (process.env.FAKE_ACP_COMMANDS_OTHER) pushCommands("other-session", [{ name: "other", description: "" }]);
-      pushCommands(sessionId);
+      for (let i = 1; i < Number(process.env.FAKE_ACP_COMMANDS_EARLY ?? 1); i++) pushCommands(sessionId, [{ name: `early-${i}`, description: "" }]);
+      pushCommands(sessionId, Number(process.env.FAKE_ACP_COMMANDS_EARLY ?? 1) > 1 ? [{ name: "last", description: "" }] : commands);
       send({ jsonrpc: "2.0", id: request.id, result: mode === "no-session" ? {} : { sessionId, ...models } });
-      pushCommands(sessionId); break;
+      // Right after the answer, in a write of its own as the real server's came.
+      setTimeout(() => pushCommands(sessionId), 20); break;
     case "session/load":
       if (request.params.sessionId !== sessionId) { send({ jsonrpc: "2.0", id: request.id, error: { code: -32002, message: "Session not found" } }); break; }
       for (const message of fixture.load) send(message);
