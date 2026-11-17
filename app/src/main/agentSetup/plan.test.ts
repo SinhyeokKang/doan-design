@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { CLAUDE_ALLOW_RULES, classifyTarget, codexRuleText, installEligibility, mergeClaudeAllow, needsSystemLink, plan, plannedTargets, type Observation } from "./plan";
+import { CLAUDE_ALLOW_RULES, classifyTarget, codexRuleText, EARLIER_CODEX_RULES, installEligibility, mergeClaudeAllow, needsSystemLink, plan, plannedTargets, type Observation } from "./plan";
 
 const HOME = "/Users/u";
 const SHARE = `${HOME}/.local/share/doan`;
 const RESOURCES = "/Applications/Doan.app/Contents/Resources";
 const link = (value: string): Observation => ({ kind: "symlink", value });
 const MISSING: Observation = { kind: "missing" };
+// The list is empty until a release changes the rule text; these tests stand in an earlier text for the run.
+const EARLIER = '# An earlier Doan rule\nprefix_rule(pattern=["doan"], decision="allow")\n';
+function withEarlier(run: () => void): void {
+  const list = EARLIER_CODEX_RULES as string[];
+  list.push(EARLIER);
+  try { run(); } finally { list.splice(list.indexOf(EARLIER), 1); }
+}
 
 describe("installEligibility", () => {
   it.each([
@@ -84,6 +91,33 @@ describe("classifyTarget", () => {
   ] as const)("%s %j is %s", (target, observation, expected) => {
     expect(classifyTarget(target, HOME, observation)).toBe(expected);
   });
+});
+
+describe("the Codex rule's earlier texts", () => {
+  // A failure here means the rule text changed: add the released text below to EARLIER_CODEX_RULES before updating
+  // this pin, or every machine set up by an earlier version keeps that version's file as someone else's.
+  it("pins the current rule text", () => {
+    expect(codexRuleText()).toBe('# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n');
+  });
+
+  it("never lists the current text", () => {
+    expect(EARLIER_CODEX_RULES).not.toContain(codexRuleText());
+  });
+
+  it("treats an exact earlier text as Doan's to replace and an edited one as someone else's", () => withEarlier(() => {
+    expect(classifyTarget("codex-rule", HOME, { kind: "file", content: EARLIER })).toBe("legacy-ours");
+    expect(classifyTarget("codex-rule", HOME, { kind: "file", content: `${EARLIER}# mine\n` })).toBe("foreign");
+    expect(classifyTarget("codex-rule", HOME, { kind: "file", content: EARLIER.trimEnd() })).toBe("foreign");
+    expect(classifyTarget("codex-rule", HOME, link(EARLIER))).toBe("foreign");
+    expect(classifyTarget("codex-rule", HOME, { kind: "file", content: codexRuleText() })).toBe("ours");
+  }));
+
+  it("replaces an earlier text and keeps the current one", () => withEarlier(() => {
+    const codex = plannedTargets(HOME, RESOURCES, ["codex"], false);
+    const at = (content: string) => Object.fromEntries(codex.map(t => [t.target, t.target === "codex-rule" ? { kind: "file", content, real: t.path } satisfies Observation : { ...MISSING, real: t.path }]));
+    expect(plan(codex, at(EARLIER), HOME).at(-1)).toMatchObject({ target: "codex-rule", action: "replace" });
+    expect(plan(codex, at(codexRuleText()), HOME).at(-1)).toMatchObject({ target: "codex-rule", action: "keep" });
+  }));
 });
 
 describe("plannedTargets", () => {

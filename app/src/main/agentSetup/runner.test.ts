@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PROMPT_MS, withFifo } from "../fifo.fixture";
-import { CLAUDE_ALLOW_RULES, codexRuleText } from "./plan";
+import { CLAUDE_ALLOW_RULES, codexRuleText, EARLIER_CODEX_RULES } from "./plan";
 import { adminCommand, runAgentSetup, setupEligibility, type AdminResult, type AgentSetupOptions } from "./runner";
 
 // The race tests swap one call; everything else is the real file system.
@@ -239,6 +239,22 @@ describe("the Codex rule", () => {
     const result = await runAgentSetup(options());
     expect(result.items).toEqual([{ target: "codex-rule", path: rule(), providers: ["codex"], reason: "foreign", found: "file" }]);
     expect(readFileSync(rule(), "utf8")).toBe(`${codexRuleText()}# mine\n`);
+  });
+
+  it("replaces an earlier version's rule file with the current text, keeping its mode", async () => {
+    const earlier = '# An earlier Doan rule\nprefix_rule(pattern=["doan"], decision="allow")\n', list = EARLIER_CODEX_RULES as string[];
+    list.push(earlier);
+    try {
+      mkdirSync(join(home, ".codex/rules"), { recursive: true });
+      writeFileSync(rule(), earlier, { mode: 0o600 });
+      const result = await runAgentSetup(options());
+      expect(actions(result)["codex-rule"]).toBe("replace");
+      expect(result.items).toEqual([]);
+      expect(readFileSync(rule(), "utf8")).toBe(codexRuleText());
+      expect(lstatSync(rule()).mode & 0o777).toBe(0o600);
+      expect(readdirSync(join(home, ".codex/rules"))).toEqual(["doan.rules"]);
+      expect(actions(await runAgentSetup(options()))["codex-rule"]).toBe("keep");
+    } finally { list.splice(list.indexOf(earlier), 1); }
   });
 
   it("reports a read-only rules folder", async () => {
