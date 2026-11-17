@@ -482,7 +482,7 @@ describe("prototype window styles", () => {
     const none = css.match(/^([^{}\n]*\.pw-right > \.doan-icon-button\[aria-disabled="true"\]:is\(:hover, :active\)) \{ background: transparent; \}$/m)?.[1];
     expect(none).toBeDefined();
     const controls = readFileSync(new URL("../ds/controls.css", import.meta.url), "utf8");
-    const chrome = [/^\s*(\.doan-icon-button\[data-ui-placement="chrome"\]:hover:not\(:disabled\)) \{ background:/m, /^\s*(\.doan-icon-button\[data-ui-placement="chrome"\]:is\(:active,[^{]*\)) \{ background:/m]
+    const chrome = [/^\s*(\.doan-icon-button\[data-ui-placement="chrome"\]:hover:not\(:disabled, \[data-disabled\]\)) \{ background:/m, /^\s*(\.doan-icon-button\[data-ui-placement="chrome"\]:is\(:active,[^{]*\)) \{ background:/m]
       .map(rule => controls.match(rule)?.[1]);
     expect(chrome.every(selector => selector !== undefined)).toBe(true);
     for (const selector of chrome) expect(compareSpecificity(specificity(none!), specificity(selector!)), selector).toBeGreaterThan(0);

@@ -62,7 +62,7 @@ export function ProjectFields({ root, form, choose, chooseRef, storage }: { root
     <div className="ob-field">
       <span className="ob-label">Token CSS</span>
       {view.token === null ? <span className="value none">None</span> : <NameTip text={view.token}><span className="value token-path selectable">{view.token}</span></NameTip>}
-      <button type="button" className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={view.choose.disabled} ref={chooseRef} onClick={choose}>Choose…</button>
+      <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={view.choose.disabled} ref={chooseRef} onClick={choose}>Choose…</button>
       {view.helper && <span className="ob-helper">{view.helper}</span>}
     </div>
     <StorageField id="setup-storage" value={storage.value} kept={storage.kept} disabled={form.running} change={storage.change} />
@@ -102,8 +102,8 @@ export function ProjectSetupDialog({ root, name, kept = false, notGit = false, o
     </div>
     <div className="ob-buttons doan-dialog-actions">
       {/* aria-disabled, not disabled, while it runs: the pressed button keeps focus, so a failure leaves it there. */}
-      <button type="button" className="btn doan-button" data-ui-variant="subtle" aria-disabled={form.running || undefined} data-disabled={form.running ? "" : undefined} onClick={close}>Cancel</button>
-      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" aria-describedby={CHANGES_ID} aria-disabled={form.running || undefined} aria-busy={form.running || undefined}
+      <button type="button" className="doan-button" data-ui-variant="subtle" aria-disabled={form.running || undefined} data-disabled={form.running ? "" : undefined} onClick={close}>Cancel</button>
+      <button type="button" className="doan-button" data-ui-variant="prominent" aria-describedby={CHANGES_ID} aria-disabled={form.running || undefined} aria-busy={form.running || undefined}
         onClick={() => { if (!form.running) void submit(); }}>{form.running && <span className="doan-spinner" aria-hidden="true" />}{form.running ? "Setting up" : "Set up project"}</button>
     </div>
   </dialog>;

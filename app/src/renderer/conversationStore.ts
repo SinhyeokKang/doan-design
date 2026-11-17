@@ -24,7 +24,9 @@ import type { DoanApi } from "../preload";
 
 export type ListView = readonly ConversationSummary[] | "loading" | "error";
 // liveAfter: the history's last seq; a permission request after it arrived while the thread was open.
-export interface Thread { events: ConversationEvent[]; read: "loading" | "error" | "ready"; liveAfter: number }
+// retrying: a Retry's read of a thread that failed is out, so its notice stays with Retry busy; failures: the Retries
+// that failed in a row (the notice reads its line again on each, DESIGN 'Busy action').
+export interface Thread { events: ConversationEvent[]; read: "loading" | "error" | "retrying" | "ready"; liveAfter: number; failures?: number }
 // text: the row's line. message: the request itself, which the thread draws once Send now moves it there; without it
 // the thread shows the line alone.
 // turnId: the failed turn whose own message this row sends again at the usage limit's reset.
@@ -257,7 +259,7 @@ export class ConversationStore {
   retryThread(conversationId: string): void {
     const thread = this.threads.get(conversationId);
     if (!thread || thread.read !== "error") return;
-    this.threads.set(conversationId, { ...thread, read: "loading" });
+    this.threads.set(conversationId, { ...thread, read: "retrying" });
     this.readThread(conversationId);
     this.host.changed();
   }
@@ -363,7 +365,11 @@ export class ConversationStore {
     void this.calls.readConversation({ conversationId }).catch(() => ({ error: "unknown" })).then(reply => {
       const thread = this.threads.get(conversationId);
       if (!thread) return;
-      if ("error" in reply) { this.threads.set(conversationId, { ...thread, read: "error" }); this.host.changed(); return; }
+      if ("error" in reply) {
+        this.threads.set(conversationId, { ...thread, read: "error", failures: thread.read === "retrying" ? (thread.failures ?? 0) + 1 : 0 });
+        this.host.changed();
+        return;
+      }
       const events = mergeEvents(reply.events, thread.events, conversationId);
       this.threads.set(conversationId, { events, read: "ready", liveAfter: reply.lastSeq ?? events.at(-1)?.seq ?? 0 });
       // After the set: stage() reads the current turn from the merged history.

@@ -104,8 +104,8 @@ const mocks = await vi.hoisted(async () => {
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
     startRuntime: vi.fn(),
     sessionOn: vi.fn(),
-    inspector: { inspect: vi.fn() },
-    createInspector: vi.fn(),
+    windowDebugger: { mainFrame: vi.fn() },
+    createWindowDebugger: vi.fn(),
     mkdir: vi.fn(),
     readCompletion: vi.fn(), clipboard: { writeText: vi.fn() }, cursor: vi.fn(() => ({ x: 0, y: 0 })),
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
@@ -165,7 +165,7 @@ vi.mock("./cli", async (importOriginal) => ({ cliEnv: (await importOriginal<type
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
-vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
+vi.mock("./windowDebugger", () => ({ createWindowDebugger: mocks.createWindowDebugger }));
 vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
 // The first tool-facts probe and the usage service's triggers, observed where index.ts wires them.
 const usageProbe = vi.hoisted(() => ({ read: undefined as undefined | (() => Promise<unknown>), triggers: [] as unknown[] }));
@@ -240,8 +240,7 @@ beforeEach(async () => {
   mocks.app.whenReady.mockResolvedValue();
   mocks.startShell.mockResolvedValue(mocks.shell);
   mocks.startRuntime.mockResolvedValue(mocks.runtime);
-  mocks.createInspector.mockReturnValue(mocks.inspector);
-  mocks.inspector.inspect.mockResolvedValue({ ok: true, rows: [] });
+  mocks.createWindowDebugger.mockReturnValue(mocks.windowDebugger);
   mocks.app.requestSingleInstanceLock.mockReturnValue(true);
   mocks.app.isActive.mockReturnValue(true);
   mocks.shell.entries.mockReturnValue([]);
@@ -659,28 +658,15 @@ test("a second instance quits without starting", async () => {
   expect(mocks.Window.instances).toHaveLength(0);
 });
 
-test("creates one inspector on the window's debugger with the token base", () => {
-  expect(mocks.createInspector).toHaveBeenCalledOnce();
-  const [debuggerArg, base] = mocks.createInspector.mock.calls[0] ?? [];
+test("creates one window debugger on the window's debugger, feeding the document bindings", () => {
+  expect(mocks.createWindowDebugger).toHaveBeenCalledOnce();
+  const [debuggerArg, documents] = mocks.createWindowDebugger.mock.calls[0] ?? [];
   expect(debuggerArg).toBe(window().webContents.debugger);
-  expect(typeof base === "function" ? base() : undefined).toBe(mocks.shell.tokenBase);
+  expect(documents).toBeDefined();
 });
 
-test("inspect:get answers the window with the inspector's result", async () => {
-  const rows = [{ group: "box", label: "Width", value: "10px", state: "hardcoded" }];
-  mocks.inspector.inspect.mockResolvedValueOnce({ ok: true, rows });
-  expect(await invoke("inspect:get", window().webContents, null, { selector: "#a" })).toEqual({ ok: true, rows });
-  expect(mocks.inspector.inspect).toHaveBeenCalledExactlyOnceWith("#a");
-});
-
-test("inspect:get refuses other senders and bad requests without inspecting", async () => {
-  const contents = window().webContents;
-  expect(await invoke("inspect:get", contents, {}, { selector: "#a" })).toMatchObject({ ok: false });
-  expect(await invoke("inspect:get", {}, null, { selector: "#a" })).toMatchObject({ ok: false });
-  for (const bad of [undefined, "#a", { selector: "" }, { selector: "a".repeat(1001) }, { selector: "#a", more: 1 }]) {
-    expect(await invoke("inspect:get", contents, null, bad)).toMatchObject({ ok: false });
-  }
-  expect(mocks.inspector.inspect).not.toHaveBeenCalled();
+test("inspect:get is no longer handled", () => {
+  expect(mocks.ipc.has(["inspect", "get"].join(":"))).toBe(false);
 });
 
 describe("design skills", () => {

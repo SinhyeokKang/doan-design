@@ -11,6 +11,8 @@ import type { CanvasRow } from "../main/view";
 import { skillWords, skillTextParts } from "./skillWords";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
+import { retryButton } from "./ListRetryButton";
+import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 import { canvasCardText, middleCut, newCanvasesText, trailingCards } from "./canvasCardText";
 import { canvasLabel } from "./canvasTree";
 import { SKIP_FAILED_TEXT } from "./conversationStrip";
@@ -55,6 +57,8 @@ export interface ConversationThreadProps {
   onEditAndResend(): void;
   onSignIn(): void;
   onRetry(): void;
+  // The read error's Retry: running while its read is out (the notice stays), failures the Retries that failed in a row.
+  retry?: ListRetry | undefined;
   onOpenCanvas(canvas: Canvas): void;
   // A canvas card's or handoff card's Open: that canvas with its panel on the given conversation, or the canvas alone
   // for a canvas card without a started handoff. Without it neither offers Open.
@@ -244,7 +248,7 @@ export function ReplyChip({ link }: { link: ReplyAnchor }) {
     onClick={() => { if (!disabled) void replyChip(link)?.then(outcome => { if (view.same && outcome === "missing") note.show(key); }); }}>{body}</button></ChipTip>;
 }
 
-// Agent output is untrusted, as the selection's `html`/`text` are (ARCHITECTURE §3 'Selection and inspector'): no raw
+// Agent output is untrusted, as the selection's `html`/`text` are (ARCHITECTURE §3 'Selection'): no raw
 // HTML (react-markdown escapes it; no rehype-raw), no images (their alt text stays), https links only; a `doan:` link
 // is a reply chip or text.
 const COMPONENTS: Components = {
@@ -832,8 +836,8 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     [openCanvasId, props.frames, props.canvasRows, disabled, pressable]);
 
   if (items === "error") return <div className="conversation-thread">
-    <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable"><b>Doan couldn’t read this conversation</b><span>Try again. If it keeps failing, start a new conversation.</span></span>
-      <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onRetry}>Retry</button></span></div>
+    <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text selectable" id={`thread-read-error-${props.conversationId}`}><b>Doan couldn’t read this conversation</b><span>{announcedAgain("Try again. If it keeps failing, start a new conversation.", (props.retry ?? LIST_RETRY_IDLE).failures)}</span></span>
+      <span className="strip-actions">{retryButton({ running: (props.retry ?? LIST_RETRY_IDLE).running, variant: "panel", describedBy: `thread-read-error-${props.conversationId}`, onRetry: () => props.onRetry() })}</span></div>
   </div>;
   if (items === null) return <div className="conversation-thread">{slow && <div className="thread-loading" role="status"><span className="doan-spinner" aria-hidden="true" /><span>Loading conversation</span></div>}</div>;
 

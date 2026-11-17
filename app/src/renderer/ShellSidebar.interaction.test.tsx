@@ -1,4 +1,5 @@
 import { Children, isValidElement, type ReactNode } from "react";
+import { AlertIcon } from "./AlertIcon";
 import { Info, RotateCw } from "lucide-react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RowSlotMark, ShellSidebar } from "./ShellSidebar";
@@ -509,7 +510,11 @@ it("an unreadable canvas's open Details block is selectable, its Details button 
   const open = (details.children as (button: ReactNode, detail: string | null) => ReactNode)(null, "bad: Unreadable");
   const block = elements(open).find(item => item.children === "bad: Unreadable")!;
   expect(block.className).toBe("selectable");
-  expect(details.className).toBe("btn ghost");
+  // No `btn` class: no rule reads it, the button is a plain doan-button.
+  expect(details.className).toBeUndefined();
+  // DESIGN 'No coloured edge stripes': the unreadable line leads with the alert icon.
+  const line = tree.rendered().find(item => item.className === "shell-canvas-error")!;
+  expect(Children.toArray(line.children as ReactNode).some(child => isValidElement(child) && child.type === AlertIcon)).toBe(true);
 });
 
 it("keeps a locked row's button in the focus order as aria-disabled, and it opens nothing", () => {

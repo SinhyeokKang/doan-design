@@ -74,8 +74,7 @@ import { readGitSignal } from "./gitSignal";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { folderState, realHome } from "./folderState";
 import { revealTarget, type FolderEntry } from "./view";
-import type { InspectResult } from "./inspect";
-import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
+import { createWindowDebugger, type WindowDebugger } from "./windowDebugger";
 import { startRuntime, type Runtime } from "./runtime";
 import { menuState, updateMenu, type Screen } from "./menuState";
 import { electronUpdater, hasFeedConfig, releaseNotesUrl, UpdateService } from "./update/service";
@@ -256,7 +255,7 @@ let onboardingReady: (service: OnboardingService) => void = () => {};
 const onboardingStarted = new Promise<OnboardingService>(resolve => { onboardingReady = resolve; });
 // Each listed folder's canvas rows as last handed to the conversation service (conversation/refreshes.ts).
 let conversationLists = new Map<string, readonly { path: string; rev?: number }[]>();
-let inspector: Inspector | undefined;
+let windowDebugger: WindowDebugger | undefined;
 // One selection app-wide; the socket answers it only for
 // its own project. Memory only, never written to disk.
 let selection: Selection | null = null;
@@ -660,7 +659,7 @@ function createWindow(buddy: BuddyId): BrowserWindow {
     // No `frame`: Electron uses it to add OS items such as Writing Tools, and the menu holds only Doan's items.
     if (template.length > 0) Menu.buildFromTemplate(template).popup({ window });
   });
-  inspector = createInspector(window.webContents.debugger, () => shell?.tokenBase ?? "", documents);
+  windowDebugger = createWindowDebugger(window.webContents.debugger, documents);
   // A reloaded or crashed renderer has lost the selection it reported; an
   // in-page navigation is not a new document, so it does not count.
   // A new renderer starts on Home again with no toast up.
@@ -846,7 +845,7 @@ async function start(): Promise<void> {
     entries: () => shellEntries(),
     // Only the main window's own canvas iframe proves a canvas shown (seenProof.ts).
     async shown(root, row) {
-      const main = await inspector?.mainFrame();
+      const main = await windowDebugger?.mainFrame();
       if (!main) return null;
       return shownDocument(documents.frames(), (frame, url) => documents.current(frame, url), main, { url: row.url, root, path: row.path })?.hash ?? null;
     },
@@ -1593,11 +1592,6 @@ async function start(): Promise<void> {
   handle("selection:set", undefined, (event, value: unknown) => {
     if (!fromWindow(event)) return;
     selection = validateSelection(value) && isOpen(value.root) ? value : null;
-  });
-  handle("inspect:get", { ok: false, reason: "The request was refused." }, async (event, request: unknown): Promise<InspectResult> => {
-    const selector = parseInspectRequest(request);
-    if (!fromWindow(event) || selector === null || inspector === undefined) return { ok: false, reason: "The request was refused." };
-    return inspector.inspect(selector);
   });
 
   const command = cliCommand(process.env, app.isPackaged, process.resourcesPath);

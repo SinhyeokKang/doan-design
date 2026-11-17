@@ -191,7 +191,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
 
   // The thread
   const handle = useRef<ConversationThreadHandle | null>(null);
-  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? run.sending(conversationId) : []) : thread?.read === "error" ? "error" as const : null;
+  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? run.sending(conversationId) : []) : thread?.read === "error" || thread?.read === "retrying" ? "error" as const : null;
   // An entry's scroll, also for the conversation already shown; it waits for the request's item when the list told
   // of it before its event arrived.
   const scroll = conversationId ? run.scrollRequest(conversationId) : null;
@@ -394,7 +394,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
               <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${conversationId === null ? " current" : ""}`} textValue="New conversation"><SquarePen aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
               <DropdownMenu.Separator className="doan-menu-sep" />
               <DropdownMenu.Label className="doan-menu-head">{`Conversations in ${project}`}</DropdownMenu.Label>
-              {list === "error" ? <div className="conv-error" role="status"><span>{announcedAgain(LIST_FAILED_TEXT, listRetry.failures)}</span>
+              {list === "error" ? <div className="conv-error" role="status"><AlertIcon /><span>{announcedAgain(LIST_FAILED_TEXT, listRetry.failures)}</span>
                 {listRetryItem(listRetry, props.onRetryList)}</div>
                 : <div className="conv-list">{menuItems.map(item => <div key={item.conversationId} className="conv-row">
                   <DropdownMenu.RadioItem value={item.conversationId} textValue={item.title}
@@ -428,7 +428,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={run.store.resendHidden(conversationId)}
         onEditAndResend={() => editAndResend(conversationId)}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
-        onRetry={() => run.retryThread(conversationId)}
+        onRetry={() => run.retryThread(conversationId)} retry={thread ? { running: thread.read === "retrying", failures: thread.failures ?? 0 } : undefined}
         onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)} onOpenHandoff={(canvas, id) => props.onOpenCanvas(canvas, id)}
         onOpenLink={url => void openReplyLink(target => window.doan.openLink(target), url, text => props.onNotice?.(text))}
         onCopy={text => Promise.resolve(copyText(text))}

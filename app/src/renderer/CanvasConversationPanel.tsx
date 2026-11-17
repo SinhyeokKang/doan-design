@@ -4,6 +4,7 @@ import { ChevronDown, Info, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import { sendNowShown } from "../main/conversation/steerSupport";
+import { AlertIcon } from "./AlertIcon";
 import { liveReset, localClock, waitsForReset } from "./limitReset";
 import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, Canvas } from "../main/conversation/types";
@@ -197,7 +198,7 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
           <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${current === null ? " current" : ""}`} textValue="New conversation"><SquarePen aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
           <DropdownMenu.Separator className="doan-menu-sep" />
           <DropdownMenu.Label className="doan-menu-head">{`Conversations on ${canvasName}`}</DropdownMenu.Label>
-          {list === "error" ? <div className="conv-error" role="status"><span>{announcedAgain(LIST_FAILED_TEXT, run.listRetry().failures)}</span>
+          {list === "error" ? <div className="conv-error" role="status"><AlertIcon /><span>{announcedAgain(LIST_FAILED_TEXT, run.listRetry().failures)}</span>
             {listRetryItem(run.listRetry(), () => run.retryList())}</div>
             : <div className="conv-list">{items.map(item => <div key={item.conversationId} className="conv-row">
               <DropdownMenu.RadioItem value={item.conversationId} textValue={item.title} className={`doan-menu-item conv-item${item.selected ? " current" : ""}`}>
@@ -312,7 +313,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   // The thread, and an entry's scroll to its pending permission request.
   const handle = useRef<ConversationThreadHandle | null>(null);
-  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? store.sending(conversationId) : []) : thread?.read === "error" ? "error" as const : null;
+  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? store.sending(conversationId) : []) : thread?.read === "error" || thread?.read === "retrying" ? "error" as const : null;
   const scroll = conversationId ? run.scrollRequest(conversationId) : null;
   const asking = summary?.phase === "waiting";
   useEffect(() => {
@@ -497,7 +498,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         }}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         limitResets={liveReset(summary?.limitResetsAt, props.now, localClock())} resendHidden={store.resendHidden(conversationId)}
-        onRetry={() => store.retryThread(conversationId)}
+        onRetry={() => store.retryThread(conversationId)} retry={thread ? { running: thread.read === "retrying", failures: thread.failures ?? 0 } : undefined}
         onOpenCanvas={() => {}} {...(props.onOpenHandoff ? { onOpenHandoff: props.onOpenHandoff } : {})}
         onOpenLink={url => void openReplyLink(target => calls.openLink(target), url, props.onNotice)}
         onCopy={text => Promise.resolve(copyText(text))}

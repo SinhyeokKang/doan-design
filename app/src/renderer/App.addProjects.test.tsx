@@ -45,7 +45,7 @@ vi.mock("./CanvasController", async original => ({
   CanvasController: class {
     constructor() {
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "showOverview", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "onCapture", "pick", "cancelPick", "locate", "dropPendingLocate"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "showOverview", "cancelWorkspaceOpen", "remember", "onPicked", "onCapture", "pick", "cancelPick", "locate", "dropPendingLocate"]) self[name] = vi.fn();
       // The guarded moves report arrival at once, as when no draft guard is up.
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.destination = vi.fn((root: string) => ({ root }));
@@ -84,7 +84,7 @@ beforeEach(() => {
     onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}), onAgentAuth: on("agentAuth"), onAgentSignInPrompt: on("prompt"), readPreferences: vi.fn(async () => null),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
-    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), inspect: vi.fn(),
+    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}),
   };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
   vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });

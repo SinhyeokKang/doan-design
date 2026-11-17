@@ -32,7 +32,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 const words = (node: unknown): string => Array.isArray(node) ? node.map(words).join("") : typeof node === "string" ? node : isValidElement<Record<string, unknown>>(node) ? words(node.props.children) : "";
 const radios = (tree: ReactNode) => all(tree).filter(element => element.type === "input");
 const snapshot = (notice: PreferencesSnapshot["notice"] = null): PreferencesSnapshot => ({ preferences: DEFAULT_PREFERENCES, notice });
-const selection = (patch: Partial<BuddySelection> = {}): BuddySelection => ({ shown: "doany", failure: null, lockedUntil: null, select: vi.fn(async () => true), settled: async () => true, commit: vi.fn(async () => true), dismiss: vi.fn(), ...patch });
+const selection = (patch: Partial<BuddySelection> = {}): BuddySelection => ({ shown: "doany", failure: null, saving: false, lockedUntil: null, select: vi.fn(async () => true), settled: async () => true, commit: vi.fn(async () => true), dismiss: vi.fn(), ...patch });
 const key = (name: string) => ({ key: name, preventDefault: vi.fn() });
 
 describe("first run's Cover Flow row", () => {
@@ -411,4 +411,20 @@ describe("picker CSS (buddy-choice draft)", () => {
       expect(css).not.toMatch(new RegExp(`(^|\\n)\\.${name} \\{[^}]*(font|padding)`));
     }
   });
+});
+
+// DESIGN 'Busy action' (the list Retry's model): while the save is out Retry stays, busy, and a press does nothing.
+test("the failure notice's Retry is busy while a save is out and ignores presses", () => {
+  const retry = vi.fn();
+  const tree = BuddyFailureNotice({ failure: { picked: "popo", kept: "doany" }, id: "ob-buddy-error", className: "buddy-step-notice", panel: true, running: true, retry });
+  const button = all(tree).find(element => element.type === "button")!;
+  expect(button.props).toMatchObject({ "aria-describedby": "ob-buddy-error", "aria-busy": true, "aria-disabled": true });
+  (button.props.onClick as () => void)();
+  expect(retry).not.toHaveBeenCalled();
+});
+
+test("the Buddy step's Retry is busy while the selection saves", () => {
+  const tree = BuddyScene({ selection: selection({ failure: { picked: "popo", kept: "doany" }, saving: true }), preferences: snapshot(), heading: vi.fn(), footer: <footer /> });
+  const button = all(tree).find(element => element.type === "button" && words(element.props.children) === "Retry")!;
+  expect(button.props).toMatchObject({ "aria-busy": true, "aria-disabled": true });
 });

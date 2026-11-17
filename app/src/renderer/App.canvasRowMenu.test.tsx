@@ -58,7 +58,7 @@ vi.mock("./CanvasController", async original => ({
     constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
       harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "onCapture", "pick", "cancelPick", "locate", "dropPendingLocate"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setCovered", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "onPicked", "onCapture", "pick", "cancelPick", "locate", "dropPendingLocate"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -94,7 +94,7 @@ function reset() {
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })), readBuddyIntro: vi.fn(async () => false),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
-    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
+    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), openSettings: vi.fn(async () => true),
     showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}),
     onWorkChanged: on("work"), onConversationWorkChanged: on("conversationWork"), getConversationWork: vi.fn(async () => []), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onPrototypeReveal: on("prototypeReveal"), onPrototypeLastUsed: on("prototypeLastUsed"), onPrototypeTarget: on("prototypeTarget"), readPrototypeTarget: vi.fn(async () => null), setPrototypeDrawing: vi.fn(async () => true), onFullScreen: on("fullScreen"), getWork: vi.fn(() => { calls.push("getWork"); return new Promise(() => {}); }),
     onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => { calls.push("openLinksReady"); }), onOpenRequest: on("openRequest"), onConversationHandoff: on("handoff"), onFoldersRemoved: on("foldersRemoved"), answerOpenRequest: vi.fn(async () => {}),
@@ -188,11 +188,8 @@ test("a plan that lands after its dialog closed opens nothing", async () => {
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-test.each([
-  [{ kind: "trashed" }, "Moved “a” to Trash.", "trashed"],
-  [{ kind: "refused", reason: "busy" }, "Couldn’t move “a” to Trash. An agent started working on it.", "refused"],
-  [{ kind: "refused", reason: "notFile" }, "Couldn’t move “a” to Trash. It isn’t a regular file.", "refused"],
-] as const)("confirming closes the dialog at once, marks the trash before the request and shows the reply's one toast: %j", async (reply, toast, settled) => {
+// DESIGN 'Busy action': the confirmation stays open, busy, until main answers; only a move that went closes it, with its toast.
+test("confirming keeps the dialog busy until main answers, marks the trash before the request; trashed closes it with one toast", async () => {
   const focused: string[] = [];
   const plan = await openDialog(focused);
   plan.resolve({ kind: "ready" }); await flush(); render();
@@ -200,27 +197,53 @@ test.each([
   doan.trashCanvas = vi.fn(() => { calls.push("trashCanvas"); return answer.promise; });
   harness.trash.begin.mockImplementation((folder: string, path: string) => { calls.push("begin"); return { folder, path }; });
   dialog()!.confirm(); render();
-  expect(dialog()).toBeUndefined();
-  expect(focused).toEqual(["a menu"]);
+  expect(dialog()!.view).toMatchObject({ busy: true, cancellable: false, confirmable: false });
+  // A second press and a cancel while it is out do nothing.
+  dialog()!.confirm(); dialog()!.cancel(); render();
+  expect(dialog()).toBeDefined();
+  expect(doan.trashCanvas).toHaveBeenCalledOnce();
   expect(calls.slice(-2)).toEqual(["begin", "trashCanvas"]);
   expect(doan.trashCanvas).toHaveBeenCalledWith("/w/a", A);
   expect(harness.trash.settle).not.toHaveBeenCalled();
-  answer.resolve(reply); await flush(); render();
-  expect(harness.trash.settle).toHaveBeenCalledWith({ folder: "/w/a", path: A }, settled);
+  answer.resolve({ kind: "trashed" }); await flush(); render();
+  expect(dialog()).toBeUndefined();
+  expect(focused).toEqual(["a menu"]);
+  expect(harness.trash.settle).toHaveBeenCalledWith({ folder: "/w/a", path: A }, "trashed");
   expect(harness.toast.show).toHaveBeenCalledOnce();
-  expect(harness.toast.show).toHaveBeenCalledWith(toast);
+  expect(harness.toast.show).toHaveBeenCalledWith("Moved “a” to Trash.");
 });
 
-test("a move whose request fails lifts the mark and says to try again", async () => {
+test.each([
+  [{ kind: "refused", reason: "busy" }, "Couldn’t move “a” to Trash. An agent started working on it."],
+  [{ kind: "refused", reason: "notFile" }, "Couldn’t move “a” to Trash. It isn’t a regular file."],
+] as const)("a refused move keeps the dialog with the refusal inside it and no toast; Move to Trash tries again: %j", async (reply, error) => {
+  const plan = await openDialog();
+  plan.resolve({ kind: "ready" }); await flush(); render();
+  doan.trashCanvas = vi.fn(async () => reply);
+  dialog()!.confirm(); await flush(); render();
+  expect(harness.trash.settle).toHaveBeenCalledWith({ folder: "/w/a", path: A }, "refused");
+  expect(dialog()!.view).toMatchObject({ busy: false, cancellable: true, error });
+  expect(harness.toast.show).not.toHaveBeenCalled();
+  doan.trashCanvas = vi.fn(async () => ({ kind: "trashed" }));
+  dialog()!.confirm(); render();
+  // The retry clears the line while it runs.
+  expect(dialog()!.view).toMatchObject({ busy: true, error: null });
+  await flush(); render();
+  expect(dialog()).toBeUndefined();
+  expect(harness.toast.show).toHaveBeenCalledWith("Moved “a” to Trash.");
+});
+
+test("a move whose request fails lifts the mark and says to try again inside the dialog", async () => {
   const plan = await openDialog();
   plan.resolve({ kind: "ready" }); await flush(); render();
   doan.trashCanvas = vi.fn(async () => { throw new Error("ipc"); });
   dialog()!.confirm(); await flush(); render();
   expect(harness.trash.settle).toHaveBeenCalledWith({ folder: "/w/a", path: A }, "refused");
-  expect(harness.toast.show).toHaveBeenCalledWith("Couldn’t move “a” to Trash. Try again, or move the file in Finder.");
+  expect(dialog()!.view.error).toBe("Couldn’t move “a” to Trash. Try again, or move the file in Finder.");
+  expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-test("a busy plan keeps the dialog with its working line; any other refusal closes it with that refusal's toast", async () => {
+test("a busy or failed plan keeps the dialog with its line; notListed and notFile close it with that refusal's toast", async () => {
   const busy = await openDialog();
   busy.resolve({ kind: "refused", reason: "busy" }); await flush(); render();
   expect(dialog()!.view).toMatchObject({ confirmable: false, reason: "An agent started working on this canvas. Try again when it finishes." });
@@ -229,7 +252,6 @@ test("a busy plan keeps the dialog with its working line; any other refusal clos
   for (const [plan, toast] of [
     [{ kind: "refused", reason: "notListed" }, "Couldn’t move “a” to Trash. It’s no longer in this project."],
     [{ kind: "refused", reason: "notFile" }, "Couldn’t move “a” to Trash. It isn’t a regular file."],
-    [{ kind: "refused", reason: "failed" }, "Couldn’t move “a” to Trash. Try again, or move the file in Finder."],
   ] as const) {
     const answer = deferred<Plan>();
     doan.planCanvasTrash = vi.fn(() => answer.promise);
@@ -239,11 +261,15 @@ test("a busy plan keeps the dialog with its working line; any other refusal clos
     expect(dialog()).toBeUndefined();
     expect(harness.toast.show).toHaveBeenLastCalledWith(toast);
   }
-  // A plan request that fails reads as failed.
-  doan.planCanvasTrash = vi.fn(async () => { throw new Error("ipc"); });
-  sidebar().canvasMenu.trash("/w/a", row(), null); await flush(); render();
-  expect(dialog()).toBeUndefined();
-  expect(harness.toast.show).toHaveBeenLastCalledWith("Couldn’t move “a” to Trash. Try again, or move the file in Finder.");
+  // A failed plan, or a plan request that fails, keeps the dialog with its reason and no toast.
+  const shown = harness.toast.show.mock.calls.length;
+  for (const failing of [async () => ({ kind: "refused", reason: "failed" }), async () => { throw new Error("ipc"); }]) {
+    doan.planCanvasTrash = vi.fn(failing);
+    sidebar().canvasMenu.trash("/w/a", row(), null); await flush(); render();
+    expect(dialog()!.view).toMatchObject({ confirmable: false, busy: false, reason: "Doan couldn’t get this canvas ready to move. Close and try again, or move the file to the Trash in Finder." });
+    dialog()!.cancel(); render();
+  }
+  expect(harness.toast.show).toHaveBeenCalledTimes(shown);
 });
 
 test("the dialog follows the canvas live: an agent starting holds Move to Trash, the row leaving the list closes it", async () => {

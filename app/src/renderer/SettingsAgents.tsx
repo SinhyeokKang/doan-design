@@ -9,6 +9,8 @@ import { agentsSettingsView, PROVIDER_NAMES, type AuthButton, type AuthCommand, 
 import type { AgentSignIn } from "./agentSignIn";
 import { AgentStepSession } from "./agentStep";
 import { AlertIcon } from "./AlertIcon";
+import { retryButton, useRetry } from "./ListRetryButton";
+import { announcedAgain } from "./listRetry";
 import { PermissionIconView, PermissionMenuItems, useOlderFold } from "./ComposerParts";
 import { generationOf, modelsKey } from "./dockedSupport";
 import { foldRows, olderOrder, modelPickerView, providerLogo, selectableProvider, type ModelsState } from "./homeComposer";
@@ -197,6 +199,26 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
     setFailed(null);
     void save(patch).then(reply => { if (!reply || (!reply.ok && reply.reason !== "newer")) setFailed(patch); });
   };
+  // The Retries keep their failure lines until their request answers (DESIGN 'Busy action'): the save's line until a
+  // save goes, the models' until the list is read again (not the Loading models line).
+  const saveRetry = useRetry(), modelsRetry = useRetry();
+  const retrySave = (pressed: HTMLElement | null) => {
+    if (!failed) return;
+    const patch = failed;
+    saveRetry.run(() => save(patch).then(reply => {
+      const ok = !!reply && (reply.ok || reply.reason === "newer");
+      if (ok) setFailed(current => current === patch ? null : current);
+      return ok;
+    }), pressed);
+  };
+  const retryModels = (pressed: HTMLElement | null) => {
+    if (!key || !project || !provider) return;
+    const at = key;
+    modelsRetry.run(() => window.doan.listConversationModels({ root: project.root, runtime: provider }).catch(() => ({ error: "unknown" })).then(reply => {
+      setLists(current => ({ ...current, [at]: reply }));
+      return !("error" in reply);
+    }), pressed);
+  };
   const choose = (next: NewConversationPreference | null) => write({ newConversation: next });
 
   const menu = provider ? settingsModelMenu(provider, listState, pref?.model) : null;
@@ -259,8 +281,8 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
               {modelRows!.older.length > 0 && olderOrder<ReactNode>(fold.line(provider, name, modelRows!.older.length),
                 fold.isOpen(provider) ? modelRows!.older.map(item => item.kind === "model" && radio(item.value, <span className="model-name">{item.label}</span>, item.selected, fold.olderKeyDown(provider))) : [], fold.placement.side)}
             </DropdownMenu.RadioGroup>, fold)}</div>}
-        {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>Couldn’t load the models for {project.name}.</span></p>
-          <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => setLists(current => { const next = { ...current }; delete next[key!]; return next; })}>Retry</button></div>}
+        {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span id="settings-agents-models-error">{announcedAgain(`Couldn’t load the models for ${project.name}.`, modelsRetry.failures)}</span></p>
+          {retryButton({ running: modelsRetry.running, variant: "subtle", describedBy: "settings-agents-models-error", onRetry: retryModels })}</div>}
       </div>}
       {provider && effortMenu && <div className="doan-preference-row">
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Effort</span></div>
@@ -281,7 +303,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
         </DropdownMenu.Root></div>
       </div>}
     </div>
-    {failed && <div className="settings-msg-row settings-save-error"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span>{SAVE_FAILED}</span></p>
-      <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => write(failed)}>Retry</button></div>}
+    {failed && <div className="settings-msg-row settings-save-error"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span id="settings-agents-save-error">{announcedAgain(SAVE_FAILED, saveRetry.failures)}</span></p>
+      {retryButton({ running: saveRetry.running, variant: "subtle", describedBy: "settings-agents-save-error", onRetry: retrySave })}</div>}
   </section>;
 }

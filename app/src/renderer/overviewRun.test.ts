@@ -479,7 +479,8 @@ test("an unreadable thread shows its failure and reads again on Retry", async ()
   expect(h.run.thread(A)?.read).toBe("error");
   histories.set(A, ended(A));
   h.run.retryThread(A);
-  expect(h.run.thread(A)?.read).toBe("loading");
+  // The failure stays on screen, its Retry busy, while the read runs (DESIGN 'Busy action').
+  expect(h.run.thread(A)?.read).toBe("retrying");
   await flush();
   expect(h.run.thread(A)?.read).toBe("ready");
 });

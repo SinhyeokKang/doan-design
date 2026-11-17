@@ -1,6 +1,7 @@
+import { useRef, useState } from "react";
 import { DropdownMenu } from "radix-ui";
 import { AlertIcon } from "./AlertIcon";
-import { announcedAgain, type ListRetry } from "./listRetry";
+import { announcedAgain, LIST_RETRY_IDLE, type ListRetry } from "./listRetry";
 
 export const LIST_FAILED_TEXT = "Couldn’t read conversations";
 
@@ -8,9 +9,45 @@ export const LIST_FAILED_TEXT = "Couldn’t read conversations";
 // focus, with the spinner inside, aria-busy and aria-disabled, and a press does nothing. Plain functions, not
 // components, so the button stays the element its host draws.
 export function listRetryButton(retry: ListRetry, variant: "panel" | "subtle", onRetry: () => void) {
-  return <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant}
-    aria-disabled={retry.running || undefined} aria-busy={retry.running || undefined} onClick={() => { if (!retry.running) onRetry(); }}>
-    {retry.running ? <><span className="doan-spinner" aria-hidden="true" />Retry</> : "Retry"}</button>;
+  return retryButton({ running: retry.running, variant, onRetry });
+}
+
+// Any Retry beside a failure line, on the list Retry's model: while its request is out the line and the button stay,
+// so focus stays on it. Named by its visible word; `describedBy` links the line that says what it retries (DESIGN
+// 'Accessible names'). onRetry gets the pressed button, so a host can place focus once the line goes.
+export function retryButton({ running, variant, describedBy, onRetry }: { running: boolean; variant: "panel" | "subtle"; describedBy?: string; onRetry(button: HTMLElement | null): void }) {
+  return <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} aria-describedby={describedBy}
+    aria-disabled={running || undefined} aria-busy={running || undefined} onClick={event => { if (!running) onRetry(event?.currentTarget ?? null); }}>
+    {running ? <><span className="doan-spinner" aria-hidden="true" />Retry</> : "Retry"}</button>;
+}
+
+// A host's Retry state when nothing else tracks its request: `work` resolves true when it succeeded. A press while one
+// runs does nothing. On success the line and its Retry go, so focus that was on the Retry moves to the first control
+// still in its row, else its section, else its page, instead of falling to <body>.
+const CONTROLS = 'button:not(:disabled):not([aria-disabled="true"]), [role="switch"]:not(:disabled), input:not(:disabled), [href]';
+export function useRetry(): ListRetry & { run(work: () => Promise<boolean>, pressed?: HTMLElement | null): void } {
+  const [state, setState] = useState(LIST_RETRY_IDLE);
+  const running = useRef(false);
+  const run = (work: () => Promise<boolean>, pressed: HTMLElement | null = null) => {
+    if (running.current) return;
+    running.current = true;
+    setState(previous => ({ ...previous, running: true }));
+    const scopes = [".doan-preference-row", ".settings-section", ".settings-page"].flatMap(selector => pressed?.closest(selector) ?? []);
+    void work().catch(() => false).then(ok => {
+      running.current = false;
+      setState(previous => ({ running: false, failures: ok ? 0 : previous.failures + 1 }));
+      if (!ok || scopes.length === 0) return;
+      requestAnimationFrame(() => {
+        if (pressed?.isConnected && document.activeElement === pressed) return;
+        if (document.activeElement && document.activeElement !== document.body) return;
+        for (const scope of scopes) {
+          const control = scope.isConnected ? scope.querySelector<HTMLElement>(CONTROLS) : null;
+          if (control) { control.focus(); return; }
+        }
+      });
+    });
+  };
+  return { ...state, run };
 }
 
 // The title menu's row: never Radix `disabled`, which would drop its highlight and the focus on it while it runs.

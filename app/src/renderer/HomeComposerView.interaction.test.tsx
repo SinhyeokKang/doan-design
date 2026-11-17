@@ -717,7 +717,10 @@ test("while a start is pending, Send, the submit key and the notice's Retry neit
   expect(sendButton(tree).disabled).toBe(true);
   call(sendButton(tree), "onClick", {});
   call(field(tree), "onKeyDown", key("Enter"));
-  call(find(tree, props => props.children === "Retry" && typeof props.onClick === "function"), "onClick", {});
+  // DESIGN 'Busy action': the notice's Retry shows the send that is out.
+  const retry = find(tree, props => props["aria-busy"] === true && String(props["aria-describedby"] ?? "").endsWith("-notice"));
+  expect(retry["aria-disabled"]).toBe(true);
+  call(retry, "onClick", {});
   await Promise.resolve();
   expect(start).toHaveBeenCalledTimes(1);
   expect(doany.hop).toHaveBeenCalledTimes(1);
@@ -927,4 +930,24 @@ test("a refreshed list changes both highlighted names and fixed send lines", asy
   expect(input(render()).skillNames).toEqual(new Set(["review"]));
   call(field(render()), "onKeyDown", key("Enter")); await flush();
   expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "Use the project skill `review`.\n\n/deploy /review" });
+});
+
+// DESIGN 'Busy action' (the list Retry's model): the notice and its Retry stay while the send Retry started is out.
+test("the notice's Retry keeps the notice while its send is out, busy and described by the notice; the reply decides what stays", async () => {
+  const text = "Claude Code is finishing a previous run. Try again in a moment.";
+  const { box, start, render } = setup({ text: "Draw a pricing page.", notice: { text, retry: true } });
+  let answer!: (outcome: unknown) => void;
+  start.mockReturnValueOnce(new Promise(resolve => { answer = resolve; }) as never);
+  let tree = render();
+  const idle = find(tree, props => props.children === "Retry" && typeof props.onClick === "function");
+  expect(idle["aria-label"]).toBeUndefined();
+  expect(find(tree, props => props.id === idle["aria-describedby"]).children).toBe(text);
+  call(idle, "onClick", {});
+  await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+  tree = render();
+  expect(box.current.notice).toMatchObject({ text });
+  expect(find(tree, props => props["aria-busy"] === true && String(props["aria-describedby"] ?? "").endsWith("-notice"))["aria-disabled"]).toBe(true);
+  answer({ ok: true });
+  await vi.waitFor(() => expect(box.current.sending).toBeNull());
+  expect(box.current.notice).toBeNull();
 });

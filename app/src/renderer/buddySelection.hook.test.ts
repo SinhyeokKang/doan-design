@@ -249,3 +249,15 @@ describe("the buddy lock", () => {
     expect(render().lockedUntil).toBeNull();
   });
 });
+
+// A failure notice's Retry shows busy while a save is out (DESIGN 'Busy action'), so the selection says when one is.
+test("saving is true while any pick's save is out, false once every one answered", async () => {
+  expect(render().saving).toBe(false);
+  void render().select("popo");
+  expect(render().saving).toBe(true);
+  void render().select("puri");
+  replies[0]!({ ok: false, reason: "write_failed", snapshot: snap("dori") }); await settle();
+  expect(render().saving).toBe(true);
+  replies[1]!({ ok: true, snapshot: snap("puri") }); await settle();
+  expect(render().saving).toBe(false);
+});

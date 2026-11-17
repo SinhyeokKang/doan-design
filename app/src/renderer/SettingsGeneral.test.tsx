@@ -75,7 +75,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 const words = (node: unknown): string => Array.isArray(node) ? node.map(words).join("") : typeof node === "string" ? node : isValidElement<Record<string, unknown>>(node) ? words(node.props.children) : "";
 const snapshot = (notice: PreferencesSnapshot["notice"] = null): PreferencesSnapshot => ({ preferences: { ...DEFAULT_PREFERENCES, buddy: "doany" }, notice });
-const selection = (patch: Partial<BuddySelection> = {}): BuddySelection => ({ shown: "doany", failure: null, lockedUntil: null, select: vi.fn(async () => true), settled: async () => true, commit: vi.fn(async () => true), dismiss: vi.fn(), ...patch });
+const selection = (patch: Partial<BuddySelection> = {}): BuddySelection => ({ shown: "doany", failure: null, saving: false, lockedUntil: null, select: vi.fn(async () => true), settled: async () => true, commit: vi.fn(async () => true), dismiss: vi.fn(), ...patch });
 
 let nodes: ReactElement<Record<string, unknown>>[];
 let onLock: ReturnType<typeof vi.fn<(locked: boolean) => void>>;

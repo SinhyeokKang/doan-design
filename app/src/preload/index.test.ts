@@ -107,10 +107,8 @@ test("sends the selection to main on its dedicated IPC channel", async () => {
   expect(mocks.invoke).toHaveBeenNthCalledWith(2, "selection:set", null);
 });
 
-test("asks main for inspector rows on its dedicated IPC channel", async () => {
-  mocks.invoke.mockResolvedValue({ ok: false, reason: "No canvas is loaded." });
-  await expect(api.inspect('[data-doan-id="cta"]')).resolves.toEqual({ ok: false, reason: "No canvas is loaded." });
-  expect(mocks.invoke).toHaveBeenCalledWith("inspect:get", { selector: '[data-doan-id="cta"]' });
+test("exposes no inspector API, since the Inspector was removed", () => {
+  expect(Object.keys(api)).not.toContain("inspect");
 });
 
 test("project setup exposes choice IDs and forwards focus with folder state", async () => {
