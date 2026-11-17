@@ -134,11 +134,13 @@ export class DraftStore {
     try { this.write(); } catch (error) { this.restore(id, before); throw error; }
     return true;
   }
-  // The waiting messages, now marked as on their way out.
-  markSending(id: string): QueuedItem[] {
-    const items = this.queued(id);
+  // The waiting messages that go out next (all of them unless pick names fewer, queue.ts nextQueued), now marked as on
+  // their way out.
+  markSending(id: string, pick: (items: readonly QueuedItem[]) => readonly QueuedItem[] = items => items): QueuedItem[] {
+    const items = pick(this.queued(id));
     if (!items.length) return [];
-    this.file.queued[id] = (this.file.queued[id] ?? []).map(item => item.sending ? item : { ...item, sending: true });
+    const ids = new Set(items.map(item => item.itemId));
+    this.file.queued[id] = (this.file.queued[id] ?? []).map(item => item.sending || !ids.has(item.itemId) ? item : { ...item, sending: true });
     this.save();
     return [...items];
   }

@@ -4,6 +4,7 @@ import { object } from "./sessions";
 import { claudeModeAfterPlan, type PermissionModeId } from "./permissionMode";
 import { connectorLabels, serverLabel } from "../mcpConnectors/presets";
 import { codexMcpApproval } from "../mcpConnectors/codexApproval";
+import type { BoundaryKind } from "./commandRecords";
 import { QUESTION_LIMITS, type Question, type QuestionAnswer, type StoredAnswer } from "./question";
 import type { EventPayload, FailureCode, FastUnused, FastUnusedReason, PendingPermission, PermissionChoice, TransportResult, TransportState, TurnStage } from "./types";
 
@@ -74,8 +75,21 @@ function claudeCall(message: Record<string, unknown>): { used: number; model: st
 function claudeWindow(modelUsage: unknown, model: string): unknown {
   return object(modelUsage) && Object.hasOwn(modelUsage, model) && object(modelUsage[model]) ? modelUsage[model].contextWindow : undefined;
 }
+// /compact's summary may run on a smaller auxiliary model, so the turn's largest window is the conversation model's.
+function largestWindow(modelUsage: unknown): number | undefined {
+  if (!object(modelUsage)) return undefined;
+  const windows = Object.values(modelUsage).filter(object).map(usage => usage.contextWindow).filter(count);
+  return windows.length ? Math.max(...windows) : undefined;
+}
+// The CLI may wrap a local command's output in its stdout tag, which is not text for the thread.
+const STDOUT = /^<local-command-stdout>([\s\S]*)<\/local-command-stdout>$/;
+function commandOutput(output: string): string {
+  return (STDOUT.exec(output.trim())?.[1] ?? output).trim();
+}
 function aborted(state: TransportState): TransportResult { return finish(state, { type: "turn.failed", code: "process_exited" }, false); }
 export function endTransport(state: TransportState): TransportResult { return aborted(state); }
+// A Claude frame under a session id the run did not ask for: the turn fails rather than go on in another session.
+export function claudeSessionLost(state: TransportState): TransportResult { return finish(state, { type: "turn.failed", code: "session_unavailable" }); }
 // consumed: steered message ids the agent read with this frame, reported before the frame's events. awaitingRead: a
 // success result that is not terminal because a steered message is still unread; the runner bounds that wait.
 export interface SteerResult extends TransportResult { consumed?: string[]; awaitingRead?: true }
@@ -275,7 +289,8 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     // turn starts with none running.
     state = withoutRunning(state);
     // Read on every result, so a steer wait that ends without the follow-up's result (endSteerWait) still has it.
-    const value = state.claudeCall && contextValue(state.claudeCall.used, claudeWindow(raw.modelUsage, state.claudeCall.model));
+    const value = state.claudeCall ? contextValue(state.claudeCall.used, claudeWindow(raw.modelUsage, state.claudeCall.model))
+      : state.compacted && contextValue(state.compacted.post, largestWindow(raw.modelUsage));
     if (value) state = { ...state, context: value };
     // Every result judges anew, so a steered turn's last result decides.
     const { fastUnused: _previous, ...rest } = state, verdict = claudeFastOutcome(raw, state.fastRequested === true);
@@ -284,7 +299,14 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     // queued_turn_count stays 0 while a steered message is unread (same PoC), so only the uuids tell that the CLI goes on
     // to another turn for it; that turn's result ends this one. A stop still ends here.
     // The same holds for the turn's own prompt: a success result before it was read is another turn's.
-    if (raw.subtype === "success" && raw.is_error === false) return (state.steered?.length || state.prompt !== undefined) && !state.stop ? { ...unchanged(state), awaitingRead: true } : finish(state, { type: "turn.done" });
+    if (raw.subtype === "success" && raw.is_error === false) {
+      if ((state.steered?.length || state.prompt !== undefined) && !state.stop) return { ...unchanged(state), awaitingRead: true };
+      // A built-in that answers without the model (/context) may bring its text only here. num_turns 0 says no model turn
+      // ran (PoC: /compact's result), so a model turn's result never repeats its last message.
+      const answer = raw.num_turns === 0 && !state.stop && !state.compacted && !state.completedMessages.length ? commandOutput(text(raw.result)) : "";
+      const done = finish(state, { type: "turn.done" });
+      return answer ? { ...done, events: [{ type: "message.done", messageId: text(raw.uuid) || state.messageId, text: answer }, ...done.events] } : done;
+    }
     const detail = Array.isArray(raw.errors) ? raw.errors.filter((e): e is string => typeof e === "string").join("\n") : text(raw.result);
     return failed(state, detail, state.claudeFailure);
   }
@@ -292,6 +314,16 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
   // returned. A result while a parallel sibling still runs reports nothing, so the activity rule keeps naming a tool.
   // A result for a call that never ran as an activity (AskUserQuestion) removes nothing.
   if (raw.type === "system" && raw.subtype === "status" && raw.status === "requesting") return { ...unchanged(state), stage: GENERAL_STAGE };
+  if (raw.type === "system" && raw.subtype === "compact_boundary") {
+    const metadata = object(raw.compact_metadata) ? raw.compact_metadata : {};
+    return unchanged({ ...state, compacted: count(metadata.post_tokens) ? { post: metadata.post_tokens } : {} });
+  }
+  // A local command's output (SDK SDKLocalCommandOutputMessage, "displayed as assistant-style text"): /usage, /context.
+  if (raw.type === "system" && raw.subtype === "local_command_output" && !state.compacted) {
+    const output = commandOutput(text(raw.content)), messageId = text(raw.uuid) || state.messageId;
+    if (!output || state.completedMessages.includes(messageId)) return unchanged(state);
+    return { state: { ...state, completedMessages: [...state.completedMessages, messageId] }, events: [{ type: "message.done", messageId, text: output }] };
+  }
   if (raw.type === "user" && object(raw.message) && Array.isArray(raw.message.content) && raw.message.content.some(c => object(c) && c.type === "tool_result")) {
     const ended = raw.message.content.filter(object).filter(c => c.type === "tool_result").map(c => text(c.tool_use_id));
     const next = withoutRunning(state, ended);
@@ -363,7 +395,9 @@ export interface CodexContext { root: string; sessionId: string; turnId: string;
 // decline: answered with response at once, and the turn goes on: an MCP elicitation doan does not ask about (a form, or a
 // tool approval with no turn to ask in), and every requestUserInput of this thread (Codex 0.166.0 sends none in a
 // Doan mode, so no card exists for it). unsupported and route are answered with an error.
+// boundary: the turn's compaction item completed (thread/compact/start's turn), the only sign it compacted.
 export interface CodexTransportResult extends SteerResult {
+  boundary?: BoundaryKind;
   request?: { id: string | number; method: string; disposition: "permission" | "unsupported" | "route" } | { id: string | number; method: string; disposition: "decline"; response: unknown };
 }
 const MCP_ELICITATION = "mcpServer/elicitation/request";
@@ -423,6 +457,7 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
       const read = consume(state, typeof item.clientId === "string" ? [item.clientId] : []);
       return withConsumed(unchanged(read.state), read.consumed);
     }
+    if (raw.method === "item/completed" && item.type === "contextCompaction") return { ...unchanged(state), boundary: "compacted" };
     const id = text(item.id);
     if (raw.method === "item/completed" && id in state.fileSummaries) state = { ...state, fileSummaries: withoutFileSummary(state.fileSummaries, id) };
     if (raw.method === "item/completed" && item.type === "agentMessage" && id && !state.completedMessages.includes(id)) {

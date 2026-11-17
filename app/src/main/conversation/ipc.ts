@@ -140,11 +140,13 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         if (!projects().some(p => p.path === raw.root)) throw new Error("project_not_open");
         return await home.models.models(raw.root, raw.runtime);
       }
-      // The model list's checks: a provider process opens only for an open project.
+      // The model list's checks: a provider process opens only for an open project. conversationId: an ACP conversation
+      // whose session pushed its own command list (service acpCommands); Claude and Codex list theirs with the folder's.
       if (method === "skills") {
-        if (typeof raw.root !== "string" || raw.root.length > LIMITS.path || !validProvider(raw.provider) || !home.skills) throw new Error("bad_request");
+        if (typeof raw.root !== "string" || raw.root.length > LIMITS.path || !validProvider(raw.provider) || !home.skills || (raw.conversationId !== undefined && !validId(raw.conversationId))) throw new Error("bad_request");
         if (!projects().some(p => p.path === raw.root)) throw new Error("project_not_open");
-        return await home.skills.skills(raw.root, raw.provider);
+        const listed = await home.skills.skills(raw.root, raw.provider);
+        return raw.conversationId === undefined ? listed : { skills: [...listed.skills, ...service.acpCommands(raw.conversationId, raw.root, raw.provider)] };
       }
       if (["start", "resumeTarget"].includes(method)) {
         if (typeof raw.root !== "string" || raw.root.length > LIMITS.path) throw new Error("bad_request");

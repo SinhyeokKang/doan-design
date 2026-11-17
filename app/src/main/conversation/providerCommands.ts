@@ -1,4 +1,5 @@
 import type { Provider } from "../agentAuth/types";
+import type { BoundaryKind } from "./commandRecords";
 
 // Provider built-in commands Doan runs, as a live PoC (2026-11-17) confirmed them: the oldest CLI
 // version that ran each provider's commands, and the commands in name order. A later CLI keeps them until a live check
@@ -64,4 +65,40 @@ export function commandRequest(provider: Provider, text: string): CommandRequest
   // Branch and commit targets are written as text too, so any text is custom instructions.
   const instructions = match[2]?.trim() ?? "";
   return { kind: "request", method: "review/start", params: { target: instructions ? { type: "custom", instructions } : { type: "uncommittedChanges" } } };
+}
+
+// A command message: the whole text is "/<name>" or "/<name> <argument>", as send assembly writes it, named by the
+// provider's table (an alias as the command it runs). Main reads a send and a stored turn the same way, so a turn is the
+// same command in this run and after a restart. The table is read whole, not by the installed version or an ACP
+// server's last list: the record keeps neither.
+export function commandName(provider: Provider, text: string): string | null {
+  const match = /^\/(\S+)(?:\s[\s\S]*)?$/.exec(text);
+  if (!match) return null;
+  const name = COMMAND_ALIASES[provider][match[1]!] ?? match[1]!;
+  return COMMAND_ALLOWLIST[provider].commands.some(c => c.name === name) ? name : null;
+}
+
+// The first word's command name as the composer's highlight cuts it (renderer skillWords.ts): the word itself, without
+// trailing punctuation, or up to attached Hangul. Main guards with the same cut, so it never refuses text the composer
+// sent as a message.
+const HANGUL = /[가-힣ᄀ-ᇿ㄰-㆏]/u;
+const TRAILING = /[.,;:!?)\]}"'’”…。、，．！？：；）」』]+$/u;
+function firstWordNames(text: string): string[] {
+  const word = /^[^\p{White_Space}]+/u.exec(text.trimStart())?.[0];
+  if (!word?.startsWith("/")) return [];
+  const name = word.slice(1), names = new Set([name, name.replace(TRAILING, "")]);
+  for (let i = 1; i < name.length; i++) if (!HANGUL.test(name[i - 1]!) && HANGUL.test(name[i]!)) names.add(name.slice(0, i));
+  return [...names].filter(candidate => candidate.length > 0);
+}
+// A built-in Doan never sends, as the text's first word: the composer shows its card instead, and main refuses one that
+// reaches it anyway.
+export function unsupportedCommand(provider: Provider, text: string): string | null {
+  return firstWordNames(text).find(name => UNSUPPORTED_COMMANDS[provider].includes(name)) ?? null;
+}
+
+// The boundary a command draws once it ran: /compact wherever it runs, and Claude's /clear (the only provider whose
+// /clear empties the context; PoC).
+export function commandBoundary(provider: Provider, name: string): BoundaryKind | null {
+  if (name === "compact") return "compacted";
+  return provider === "claude" && name === "clear" ? "cleared" : null;
 }

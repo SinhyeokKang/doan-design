@@ -65,9 +65,18 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     if (object(params.toolCall)) apply(normalizeAcp(state, { ...params.toolCall, sessionUpdate: "tool_call_update", status: "pending" }, input.cwd));
     permissions.set(requestId, { rpc, kind: "permission", choices: request.choices }); emit(request.event);
   }, (method, params) => {
+    // A command list comes at the server's own times: Copilot pushes one before session/new answers (when the session id
+    // is not known yet) and with every prompt, and every server during session/load.
+    if (method === "session/update" && object(params.update) && params.update.sessionUpdate === "available_commands_update") {
+      if (!sessionId) early.push({ sessionId: params.sessionId, update: params.update });
+      else if (params.sessionId === sessionId) input.acpCommands?.(params.update);
+      return;
+    }
     if (method !== "session/update" || !prompting || params.sessionId !== sessionId || !object(params.update)) return;
     apply(normalizeAcp(state, params.update, input.cwd));
   }, detail => { failure = detail; void group?.stop(); });
+  // Command lists pushed before session/new named the session, passed on once it did.
+  let early: { sessionId: unknown; update: unknown }[] = [];
   let sessionId = input.sessionId ?? "", models: ModelOption[] = [], modes: AcpModes | undefined, images = false;
   const decoder = new StringDecoder("utf8");
   child.stdout.on("data", (bytes: Buffer) => acp.receive(decoder.write(bytes)));
@@ -114,6 +123,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       judge(acpSessionNew(input.runtime, { result: created }));
       if (!object(created) || typeof created.sessionId !== "string" || !created.sessionId || created.sessionId.length > 512) throw new Error("session_unavailable");
       sessionId = created.sessionId; models = parseAcpModels(created); modes = parseAcpModes(created); current = created;
+      for (const pushed of early.splice(0)) if (pushed.sessionId === sessionId) input.acpCommands?.(pushed.update);
     }
     // session/load comes back on the default model (Antigravity), so the choice is set again after every open,
     // unless the session already runs it: the setter is unverified for Copilot's only model.

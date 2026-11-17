@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { ConversationStore, refusesForGood, type ConversationMetadata, type JournalWrite } from "./store";
 import { foldConversation } from "./state";
-import { promoteReservation, releaseReservation, reserveSession } from "./ownership";
+import { promoteReservation, rekeyReservation, releaseReservation, reserveSession } from "./ownership";
 import { transportError } from "./transport";
 import { sameCanvas } from "./sessions";
 import { handoffPrompt, turnPrompt } from "./prompt";
@@ -12,17 +12,22 @@ import { messageLine } from "./messageText";
 import { requestTitleText } from "./requestLines";
 import { BIND_GRACE_MS, contestedCanvas, PROMOTION_SETTLE_MS, projectBusy, promotionDeadline, promotionTarget } from "./project";
 import { clampSeen, conversationSummary, type ConversationSummary } from "./summary";
-import { combineQueued } from "./queue";
+import { combineQueued, nextQueued } from "./queue";
 import { DraftStore, type ReturnedDraft } from "./drafts";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import { codexRestart, type FenceEntry, type FenceMechanism, type FencePaths } from "../agentAuth/fence";
 import type { ModelList } from "./models";
 import type { PermissionModeId } from "./permissionMode";
 import type { QuestionAnswerInput } from "./question";
-import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, HandoffOrigin, HandoffResolution, Reservation, SkillSummary, StageSignal, TurnStage } from "./types";
+import type { Anchor, AttachmentRecord, BoundarySignal, Canvas, ConversationEvent, EventPayload, HandoffOrigin, HandoffResolution, Reservation, SkillSummary, StageSignal, TurnStage } from "./types";
 import type { LiveTurn } from "../conversationWork";
 import type { AfterTurnCleanup } from "./process";
-import { readInTranscript, readTranscriptFrom, transcriptSize } from "./io";
+import type { BoundaryKind } from "./commandRecords";
+import { claudeTranscript, readInTranscript, readTranscriptFrom, transcriptSize } from "./io";
+import { commandBoundary, commandName, unsupportedCommand } from "./providerCommands";
+import { copilotCompacted } from "./commandRecords";
+import { commandTurns } from "./commandTurns";
+import { acpCommandsAfter, type AcpCommandList } from "./skills";
 import { autoSchedule, claudeResetFromDetail, limitResetFromUsage, limitState, sendAt, sendDecision, SEND_DELAY_MS, turnHadActivity, type LimitEntry } from "./usageLimit";
 import type { UsageWindow } from "../agentAuth/usageTypes";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
@@ -58,6 +63,13 @@ export interface Prepared {
   steerConsumed?: (messageId: string) => void;
   // Doan-account Claude and Codex runs only: the provider's MCP connector facts (prepare.ts McpConnectorFacts).
   mcp?: McpRun;
+  // The provider's own sign that a command changed the context (Claude compact_boundary or a clear's
+  // conversation_reset, Codex's completed compaction item), in line with the run's events. It names no turn, as stage.
+  boundary?: (kind: BoundaryKind) => void;
+  // Claude only: the session id the person's /clear moved the run to (system/init after conversation_reset).
+  sessionChanged?: (sessionId: string) => void;
+  // ACP only: each available_commands_update the server pushed for the run's session, whenever it came.
+  acpCommands?: (update: unknown) => void;
   // Doan-account Claude and Codex runs only: called after a turn ends done, or failed on the usage limit (limit), with
   // a read of the account's usage on this run's own connection (no new process). The hook decides whether to read; a
   // Claude run keeps its input open until it resolves, since the CLI exits once its input closes
@@ -197,7 +209,12 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   // refreshCanvas) updates it here too, since a running turn keeps this entry across a send refused as busy.
   turnOf?: TurnOf;
   // A Stop came while this send was prepared, before acceptance: the send is refused at its next check and never runs.
-  cancelled?: true }
+  cancelled?: true;
+  // The accepted turn's provider command (providerCommands.ts commandName), absent for a message.
+  command?: string;
+  // The session a Claude run moved to during this turn (Prepared.sessionChanged), with the run's profile and cwd; judged
+  // at the turn's done end (followSession).
+  movedTo?: { sessionId: string; configDir: string; cwd: string } }
 interface TurnOf { root: string; provider: Provider; canvas?: Canvas }
 function turnOf(m: ConversationMetadata): TurnOf {
   return { root: m.root, provider: m.owner.kind === "doan" ? m.owner.provider : m.session.runtime, ...(m.canvas ? { canvas: m.canvas } : {}) };
@@ -291,6 +308,11 @@ export class ConversationService {
   private resent = new Map<string, { reset: number; retried: boolean }>();
   private waking = false;
   private clock: ScheduleClock;
+  // This run's command turns by conversation and turn, with the boundary their provider reported (null while none came);
+  // memory only, as the boundary's evidence is (commandTurns.ts).
+  private commandRuns = new Map<string, Map<string, BoundaryKind | null>>();
+  // Each ACP conversation's last command list, as its connection pushed it (Prepared.acpCommands); memory only.
+  private acpLists = new Map<string, AcpCommandList & { provider: Provider }>();
   // A queued message that is a failed turn's own message sent again, by itemId, until it leaves the queue (forget).
   private repeats = new Map<string, { owner: string; turnId: string }>();
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
@@ -302,7 +324,9 @@ export class ConversationService {
   // staged: a running turn's stage changed (conversation:stage, routed like events); never written to the history.
   // publish's deferNotice: a turn.failed whose notification waits until main knows the turn was not scheduled again
   // (QueueOptions.notice).
-  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent, deferNotice?: true) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}, private workEnded: (id: string) => void = () => {}, private handedOff: (notice: ConversationHandoffNotice) => void = () => {}, private staged: (signal: StageSignal) => void = () => {}) {
+  // boundaryChanged: a command turn's provider reported its boundary (conversation:boundary, routed like events); never
+  // written to the history.
+  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent, deferNotice?: true) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}, private workEnded: (id: string) => void = () => {}, private handedOff: (notice: ConversationHandoffNotice) => void = () => {}, private staged: (signal: StageSignal) => void = () => {}, private boundaryChanged: (signal: BoundarySignal) => void = () => {}) {
     this.drafts = queueOptions.drafts ?? new DraftStore(null);
     this.clock = queueOptions.clock ?? CLOCK;
     queueOptions.resumed?.(() => this.resumed());
@@ -336,13 +360,16 @@ export class ConversationService {
         throw Object.assign(new Error("rate_limited"), { resetsAt: new Date(limit.resetsAt).toISOString() });
     }
     if (project) this.checkProject(project);
+    if (request.runtime && !handoff) checkCommand(request.runtime, request.text, request.anchors, request.attachments?.length || attached ? 1 : 0);
     const id = randomUUID(); this.reserve(id);
     const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops, ...(project ? { project } : {}) }; this.live.set(id, live);
     let opening = false, input: Prepared | undefined;
     const turnId = live.turnId;
     try {
       const prepared = await this.prepare(request);
-      input = { ...prepared, ...choice(request), ...(request.model && !request.effort && request.defaultEffort ? { effort: request.defaultEffort } : {}), ...this.runFast(request.fast === true, request.root, prepared, request.model), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage), backgroundChanged: running => this.backgroundChanged(id, live, turnId, running) };
+      input = { ...prepared, ...choice(request), ...(request.model && !request.effort && request.defaultEffort ? { effort: request.defaultEffort } : {}), ...this.runFast(request.fast === true, request.root, prepared, request.model), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage), backgroundChanged: running => this.backgroundChanged(id, live, turnId, running), ...this.commandHooks(id, live, turnId, prepared) };
+      if (!handoff) checkCommand(input.runtime, request.text, request.anchors, request.attachments?.length || attached ? 1 : 0);
+      const command = handoff ? null : commandName(input.runtime, request.text);
       if (input.owner) live.provider = input.owner.provider;
       if (input.quiet) live.quiet = input.quiet;
       if (this.quitting) throw new Error("busy");
@@ -366,7 +393,8 @@ export class ConversationService {
       const fromHome = request.mode === "newDesign";
       // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen. The title leaves out the
       // fixed preset and skill lines, which would otherwise fill the sidebar; a preset-only request is titled by the preset.
-      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: messageLine(requestTitleText(request.text), request.anchors),
+      // A command names no conversation (it is left out of the title rule): the first message that is not one will.
+      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: command ? "" : messageLine(requestTitleText(request.text), request.anchors),
         ...choice(request), ...fastOf(request), ...mode(request.permissionMode), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.snapshot(request.root) } : {}), seenSeq: 0 };
       const runtime = input.runtime;
       // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.
@@ -381,13 +409,14 @@ export class ConversationService {
       // The files may have moved while the runner was prepared and opened; the prompt and history use this check.
       const attachments = attached ? attached.recheck() : request.attachments ?? [];
       const guided = !handoff && handoffGuidanceFor(metadata, mode(request.permissionMode));
-      const prompt = handoff ? handoffPrompt(handoff.handoffText, metadata, handoff.origin.canvas)
+      // A command goes out as its own text: the provider runs it only as the whole message.
+      const prompt = handoff ? handoffPrompt(handoff.handoffText, metadata, handoff.origin.canvas) : command ? request.text
         : turnPrompt(request.anchors, request.text, metadata, { home: fromHome, attachments, handoff: guided });
       if (prompt === null) throw new Error("bad_request");
       const writes: JournalWrite[] = [{ id, turn: live.turnId, body: { type: "user.message", text: request.text, anchors: request.anchors, ...(attachments.length ? { attachments } : {}), ...(handoff ? { origin: handoff.origin } : {}) } }, { id, turn: live.turnId, body: { type: "turn.started" } }];
       attached?.sent();
       const saved = this.store.acceptStart([...entries, metadata], id, writes);
-      live.accepted = true; live.turnOf = turnOf(metadata); this.noteTranscript(live, input, runner.sessionId);
+      live.accepted = true; live.turnOf = turnOf(metadata); this.noteTranscript(live, input, runner.sessionId); this.noteCommand(id, live, command);
       if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: request.root, turnId: live.turnId, snapshot: this.snapshot(request.root), requests: [], guided, edits: new Set(), waiters: [], ...(handoff ? { startedBy: "handoff" as const } : {}) });
       this.watchDrawn(id, live.turnId, request.root);
@@ -426,6 +455,8 @@ export class ConversationService {
     let metadata = this.metadata(id); if (this.quitting) throw new Error("busy");
     metadata = this.refreshCanvas(metadata);
     const runtime = metadata.session.runtime;
+    checkCommand(runtime, text, anchors, extras.attachments?.length || attached ? 1 : 0);
+    const command = commandName(runtime, text);
     // A history that stopped taking writes is left behind once its process is gone (releaseFailed): the send starts a
     // new turn on a new entry, and is refused like any first write when the history still takes none.
     const existing = this.live.get(id); if (existing?.busy || (existing?.failedPersistence && !existing.exited)) throw new Error("busy");
@@ -446,7 +477,8 @@ export class ConversationService {
       this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, reusing); reserved = true;
       const turnId = live.turnId;
       // steerConsumed names no turn: a reused Codex server keeps the callback it opened with.
-      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors, ...(extras.attachments?.length ? { attachments: extras.attachments } : {}) }, metadata, undefined, reusing), ...chosen, ...(extras.fastTurn ? { fast: true as const } : {}), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage), backgroundChanged: running => this.backgroundChanged(id, live, turnId, running) };
+      const prepared = await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors, ...(extras.attachments?.length ? { attachments: extras.attachments } : {}) }, metadata, undefined, reusing);
+      input = { ...prepared, ...chosen, ...(extras.fastTurn ? { fast: true as const } : {}), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId), suggested: text => this.suggested(id, live, turnId, text), stage: stage => this.stage(id, live, stage), backgroundChanged: running => this.backgroundChanged(id, live, turnId, running), ...this.commandHooks(id, live, turnId, prepared) };
       if (input.owner) live.provider = input.owner.provider;
       if (input.quiet) live.quiet = input.quiet; else delete live.quiet;
       this.checkSend(id, live);
@@ -466,7 +498,7 @@ export class ConversationService {
       const attachments = attached ? attached.recheck() : extras.attachments ?? [];
       // Home's paragraph only while the conversation has no canvas: a promoted one works on its canvas.
       const guided = handoffGuidanceFor(metadata, chosen);
-      const prompt = turnPrompt(anchors, text, metadata, { home: metadata.fromHome === true && !metadata.canvas, attachments, handoff: guided }); if (prompt === null) throw new Error("bad_request");
+      const prompt = command ? text : turnPrompt(anchors, text, metadata, { home: metadata.fromHome === true && !metadata.canvas, attachments, handoff: guided }); if (prompt === null) throw new Error("bad_request");
       // The choice and snapshot are written before the turn's events: a failed append then leaves only a saved choice.
       // An entry without seenSeq has had all of its history seen; from now on its ends count.
       const projectTurn = project !== undefined && !metadata.canvas;
@@ -476,15 +508,17 @@ export class ConversationService {
       // A picker change stored while this send was prepared is the later pick, so it stays for the next turn.
       const stored = metadata.permissionMode !== admittedMode ? mode(metadata.permissionMode) : mode(chosen.permissionMode);
       const fast = fastOf(extras.fast !== undefined ? extras : metadata);
-      const updated: ConversationMetadata = { ...rest, ...choice(chosen), ...fast, ...stored, ...(canvasesAtStart ? { canvasesAtStart } : {}), seenSeq };
+      // A conversation a command started is named by its first message that is not one.
+      const title = !command && !metadata.title ? messageLine(requestTitleText(text), anchors) : metadata.title;
+      const updated: ConversationMetadata = { ...rest, title, ...choice(chosen), ...fast, ...stored, ...(canvasesAtStart ? { canvasesAtStart } : {}), seenSeq };
       const message: EventPayload = { type: "user.message", text, anchors, ...(attachments.length ? { attachments } : {}) };
       attached?.sent();
-      if (rebound || chosen.model !== metadata.model || chosen.effort !== metadata.effort || fast.fast !== metadata.fast || stored.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
+      if (rebound || title !== metadata.title || chosen.model !== metadata.model || chosen.effort !== metadata.effort || fast.fast !== metadata.fast || stored.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
         this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m));
       // One write: a turn.started refused by validation, the size limit or a failed open or read must not leave the
       // message, which would read as a turn that runs. A short write is not rolled back (no journal here).
       for (const event of this.store.appendAll(id, live.turnId, [message, { type: "turn.started" }])) this.deliver(event);
-      this.changedOf(id); live.accepted = true; live.turnOf = turnOf(updated); this.suggestions.delete(id); this.noteTranscript(live, input, live.runner.sessionId);
+      this.changedOf(id); live.accepted = true; live.turnOf = turnOf(updated); this.suggestions.delete(id); this.noteTranscript(live, input, live.runner.sessionId); this.noteCommand(id, live, command);
       if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       // The previous turn's handoff was resolved before this send went on (handoffWait).
       if (metadata.owner.kind === "doan") this.handoffTurns.set(id, { root: metadata.root, turnId: live.turnId, snapshot: this.snapshot(metadata.root), requests: [], guided, edits: new Set(), waiters: [] });
@@ -633,6 +667,10 @@ export class ConversationService {
       // the group to go and the transcript to be read, so no read can follow the end (exited).
       // While an end is held, a later one (a Stop's) adds nothing: the turn is over and the held end is written.
       if (live.held && (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted")) return;
+      if (event.type === "turn.done" && live.movedTo) event = this.followSession(id, live, live.movedTo);
+      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") delete live.movedTo;
+      // Copilot's /compact says so only in its answer's text, the one sign over ACP (PoC, 1.0.105).
+      if (event.type === "message.done" && live.command === "compact" && live.turnOf?.provider === "copilot" && copilotCompacted(event.text)) this.boundary(id, "compacted");
       if ((event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") && this.holdsEnd(id, live)) {
         live.held = { event, timer: setTimeout(() => this.writeHeld(id, live, false), HELD_END_MS) }; live.held.timer.unref?.();
         return;
@@ -708,7 +746,9 @@ export class ConversationService {
     const pendingPermission = [...events].reverse().find(e => e.type === "permission.request" && state.permissions[e.requestId] === "pending");
     // The running turn's last stage, so a renderer that reads again need not wait for the next one; absent otherwise.
     const live = this.live.get(id), stage = live && this.staging(id, live) ? live.stage : undefined;
-    return { events, lastSeq: state.lastSeq, turn: state.turn, ...(pendingPermission ? { pendingPermission } : {}), ...(stage ? { stage } : {}) };
+    // commands: the command turns and their boundaries, which the record alone does not draw (commandTurns.ts).
+    const commands = commandTurns(this.metadata(id).session.runtime, events, this.commandRuns.get(id));
+    return { events, lastSeq: state.lastSeq, turn: state.turn, commands, ...(pendingPermission ? { pendingPermission } : {}), ...(stage ? { stage } : {}) };
   }
   // The grounds of this root's project turns not judged yet (running, or ended within the binding
   // window), for Move to Trash's busy check (canvasTrash.ts trashBusy). Exactly this root, as copies.
@@ -911,6 +951,7 @@ export class ConversationService {
   // The queue goes out in the mode stored when it is flushed (setPermissionMode), not one of its messages'.
   queue(id: string, item: { text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; ids?: string[] }): { itemId: string } {
     const m = this.metadata(id);
+    checkCommand(m.session.runtime, item.text, item.anchors, item.attachments?.length ?? 0);
     if (this.quitting) throw new Error("busy");
     if (!this.working(id)) throw new Error("not_running");
     const itemId = randomUUID();
@@ -941,6 +982,9 @@ export class ConversationService {
   // async only so that every refusal is a rejection; everything up to the steer request runs in the caller's tick.
   async sendNow(id: string, itemId: string): Promise<void> {
     const m = this.metadata(id), live = this.live.get(id);
+    // A command goes out alone in its own turn, never into a running one.
+    const queued = this.drafts.queued(id).find(entry => entry.itemId === itemId);
+    if (queued && commandName(m.session.runtime, queued.text)) throw new Error("bad_request");
     if (!live || !this.steerable(id, live)) throw new Error("not_running");
     const runner = live.runner!, item = this.drafts.queued(id).find(entry => entry.itemId === itemId);
     // A pasted image the turn's fence did not open would be unreadable to the agent: the message waits for the next turn.
@@ -998,6 +1042,7 @@ export class ConversationService {
   // The message waits in drafts.json as a queued one (a restart hands it back as a draft); only its send time is in
   // memory. ids: the attachment ids main holds for it, as for queue. busy: it is not a send that waits (scheduling).
   schedule(id: string, item: { text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; ids?: string[] }): { itemId: string; at: string } {
+    checkCommand(this.metadata(id).session.runtime, item.text, item.anchors, item.attachments?.length ?? 0);
     const m = this.metadata(id);
     if (!this.scheduling(id) || m.owner.kind !== "doan") throw new Error("busy");
     const owner = m.owner, connectionId = this.connectionOf(owner), limit = this.limitOf(m);
@@ -1208,7 +1253,7 @@ export class ConversationService {
     this.store.delete(id);
     // Its live entry stays for the exit callback, but the conversation no longer has a turn.
     const live = this.live.get(id); if (live) delete live.turnOf;
-    this.disarm(id); this.resent.delete(id);
+    this.disarm(id); this.resent.delete(id); this.commandRuns.delete(id); this.acpLists.delete(id);
     this.drafts.discard(id);
     const held = this.returnedHeld.get(id); this.returnedHeld.delete(id);
     if (held?.length) this.queueOptions.files?.release?.(held.map(h => h.id));
@@ -1478,7 +1523,9 @@ export class ConversationService {
   private flush(id: string, live: Live): void {
     // A sign-out of its provider from here on stops it as it stops a run (stopRuns): it comes back as interrupted.
     const hold = live.holding, provider = live.provider, since = this.stops;
-    const items = this.drafts.markSending(id);
+    // A command goes out alone: the queue sends the messages before the next command, or that command (queue.ts).
+    const runtime = this.store.list().find(e => e.conversationId === id)?.session.runtime;
+    const items = this.drafts.markSending(id, queued => runtime ? nextQueued(queued, item => commandName(runtime, item.text) !== null) : queued);
     const ids = items.flatMap(item => this.queuedExtras.get(item.itemId)?.ids ?? []);
     const combined = combineQueued(items);
     if (!items.length || !combined.ok) {
@@ -1595,6 +1642,7 @@ export class ConversationService {
   // draft at once.
   connectionChanged(provider: Provider, connectionId: string | undefined): void {
     this.connections.set(provider, connectionId);
+    for (const [id, list] of [...this.acpLists]) if (list.provider === provider && list.connectionId !== connectionId) this.acpLists.delete(id);
     for (const [id, kept] of [...this.suggestions]) {
       if (kept.provider !== provider || kept.connectionId === connectionId) continue;
       this.suggestions.delete(id); this.changed(kept.root);
@@ -1859,6 +1907,58 @@ export class ConversationService {
     if (lookup.giveBack) this.giveBack(id, "interrupted");
     this.changedOf(id);
   }
+  // The run's command signals. Like stage, they name no turn: a reused Codex server keeps the hooks it opened with.
+  private commandHooks(id: string, live: Live, turnId: string, prepared: Prepared): Pick<Prepared, "boundary" | "sessionChanged" | "acpCommands"> {
+    return {
+      boundary: kind => this.boundary(id, kind),
+      sessionChanged: sessionId => { if (this.live.get(id) === live && live.turnId === turnId && !live.terminal) live.movedTo = { sessionId, configDir: prepared.configDir, cwd: prepared.cwd }; },
+      acpCommands: update => this.acpPushed(id, prepared, update),
+    };
+  }
+  private noteCommand(id: string, live: Live, command: string | null): void {
+    if (!command) { delete live.command; return; }
+    live.command = command;
+    const runs = this.commandRuns.get(id) ?? new Map<string, BoundaryKind | null>(); runs.set(live.turnId, null); this.commandRuns.set(id, runs);
+  }
+  // A boundary the provider reported for the running command turn; one in any other turn (an automatic compaction) is
+  // not drawn, so this run shows what a restart rebuilds from the record. A clear is drawn only once the conversation
+  // followed its session (followSession): a clear Doan could not follow leaves the agent where it was.
+  private boundary(id: string, kind: BoundaryKind, followed = false): void {
+    const live = this.live.get(id), runs = this.commandRuns.get(id);
+    if (!live?.accepted || live.terminal || !live.command || !live.turnOf || !runs?.has(live.turnId) || (kind === "cleared" && !followed)) return;
+    if (commandBoundary(live.turnOf.provider, live.command) !== kind || runs.get(live.turnId) === kind) return;
+    runs.set(live.turnId, kind);
+    this.boundaryChanged({ conversationId: id, turnId: live.turnId, kind });
+  }
+  // A done turn that moved its Claude run to another session: only the person's /clear follows it, and only to a session
+  // of the conversation's own profile and cwd (PRODUCT 'Session identity'); anything else fails the turn and keeps the
+  // binding. The reservation moves with it, so the session the conversation left is free and the new one is held.
+  private followSession(id: string, live: Live, moved: NonNullable<Live["movedTo"]>): EventPayload {
+    const lost: EventPayload = { type: "turn.failed", code: "session_unavailable" };
+    const entries = this.store.list(), m = entries.find(e => e.conversationId === id);
+    if (!m || live.command !== "clear" || m.session.runtime !== "claude" || m.session.configDir !== moved.configDir || m.session.cwd !== moved.cwd ||
+      moved.sessionId.startsWith("-") || claudeTranscript(moved.configDir, moved.sessionId) === null) return lost;
+    const rekeyed = rekeyReservation(this.reservations, id, { runtime: "claude", configDir: moved.configDir, sessionId: moved.sessionId });
+    if (!rekeyed.ok) return { type: "turn.failed", code: "session_in_use" };
+    this.store.save(entries.map(e => e === m ? { ...m, session: { ...m.session, sessionId: moved.sessionId } } as ConversationMetadata : e));
+    this.reservations = rekeyed.reservations;
+    if (live.transcript) live.transcript = { configDir: moved.configDir, sessionId: moved.sessionId };
+    this.boundary(id, "cleared", true);
+    return { type: "turn.done" };
+  }
+  // An ACP conversation's commands: the last list its connection pushed, none before its first session or for another
+  // folder or provider (ipc "skills" with a conversationId).
+  acpCommands(id: string, root: string, provider: Provider): SkillSummary[] {
+    const m = this.store.list().find(e => e.conversationId === id), list = this.acpLists.get(id);
+    return m && list && m.root === root && m.session.runtime === provider && list.provider === provider ? list.commands : [];
+  }
+  // A list pushed by a run of a connection that has since changed is not kept (POSTMORTEM 2026-11-06).
+  private acpPushed(id: string, prepared: Prepared, update: unknown): void {
+    const connectionId = prepared.owner?.connectionId ?? "", provider = prepared.runtime;
+    if (this.connections.has(provider) && this.connections.get(provider) !== connectionId) return;
+    const next = acpCommandsAfter(this.acpLists.get(id) ?? null, connectionId, provider, update, prepared.installed);
+    if (next) this.acpLists.set(id, { ...next, provider }); else this.acpLists.delete(id);
+  }
   private sendTurn(id: string, live: Live, runner: Runner, prompt: string, attachments?: readonly AttachmentRecord[], turnChoice?: TurnChoice): void {
     const turn = live.turnId;
     void (turnChoice ? runner.send(prompt, turn, attachments, turnChoice) : attachments ? runner.send(prompt, turn, attachments) : runner.send(prompt, turn)).catch(error => {
@@ -1868,6 +1968,11 @@ export class ConversationService {
   private transportFailed(id: string, error: unknown): void { this.receive(id, { type: "turn.failed", code: transportError(error instanceof Error ? error.message : ""), detail: error instanceof Error ? error.message.slice(0, 4096) : "Transport failed" }); }
 }
 
+// A command message carries nothing but its text (its argument included): no anchors, and no attachments, which stay in
+// the composer. A built-in Doan never runs is refused, as the composer's card refuses it (providerCommands.ts).
+function checkCommand(provider: Provider, text: string, anchors: readonly Anchor[], attachments: number): void {
+  if (unsupportedCommand(provider, text) || (commandName(provider, text) && (anchors.length || attachments))) throw new Error("bad_request");
+}
 // The fence names userData resolved, and a recorded path may still go through a link (/var for /private/var).
 function resolved(path: string): string { try { return realpathSync.native(path); } catch { return path; } }
 // A refusal's code for a draft's reason; anything else is unknown.
