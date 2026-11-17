@@ -212,7 +212,7 @@
 ### B3 오류 표시·버튼 상태
 1. F7: `ds/controls.css`의 hover/press 규칙에서 `[data-disabled]`도 제외한다. 화면별 패치(`styles.css:442,637-638,1342`)는 제거한다.
 2. F6: 목록 읽기 실패에 AlertIcon과 danger 문구를 쓴다. 대상은 `.rp-error`, `.conv-error`, `.shell-canvas-error`다.
-3. F12: `btn` 클래스, 쓰이지 않는 `.row`·`.err` 규칙, 쓰이지 않는 `RightPanel`·`Inspector` 컴포넌트와 그 CSS를 지운다. 화면은 바뀌지 않는다.
+3. F12: `btn` 클래스와 쓰이지 않는 `.row`·`.err` 규칙을 지운다. 화면은 바뀌지 않는다. Inspector 제거는 전용 브랜치 `refactor/remove-inspector`가 맡는다(아래 결정).
 
 ### B4 늦은 결과·빈 창
 1. F2: 프로토타입 창의 첫 읽기 실패에 오류 안내와 Retry를 보여 준다. 메인 창의 오류 안내 패턴을 쓴다.
@@ -234,3 +234,9 @@
   - Onboarding의 Connected 버튼
   - 업데이트를 받을 수 없는 빌드의 Check for Updates 메뉴
 - 캔버스의 제안 문구는 확정했다. 컨덕터가 다듬을 때도 뜻은 유지한다.
+- **Inspector 전체 제거:** 사용자가 Inspector를 통째로 지우기로 했다. 다시 넣을 때는 그때의 앱에 맞춰 새로 만든다. 지울 대상은 다음과 같다.
+  - UI(`RightPanel`·`Inspector`)와 그 CSS
+  - 선택 시 값을 모으는 경로(CDP collector `main/inspector.ts`, `inspect` API)
+  - PRODUCT §5-4와 ARCHITECTURE 'Selection and inspector'의 해당 문구, BACKLOG의 Inspector 위치 항목
+
+  선택 자체와 `doan active`는 남긴다. 전용 브랜치 `refactor/remove-inspector`에서 진행한다.
