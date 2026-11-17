@@ -270,6 +270,8 @@ export class CanvasRun {
       if (s.shown === null && s.askedIds !== undefined && Array.isArray(list) && listedKey(list) !== s.askedIds && !this.starting.has(canvasKey(s.target))) this.askResume(s, true);
       const shown = s.shown;
       if (shown && this.store.thread(shown)?.read === "ready") this.store.takeDraft(s.target.root, shown);
+      // A first message a quit stopped waits in the canvas's new conversation draft (once a run; main hands it over once).
+      this.store.takeStartDraft(s.target.root, s.target.canvas);
       if (shown) this.store.readScheduled(s.target.root, shown);
     }
     this.store.syncQueues();
