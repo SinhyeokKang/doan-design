@@ -63,6 +63,8 @@ export interface PrototypeController {
   readFailed(gen: number, detail: string): void;
   // ⌘W, the native close and the window going away by any other path.
   windowClosing(): void;
+  // Remove from Doan or `doan remove` took these roots out: a window playing a canvas of one closes as its Close does.
+  rootsRemoved(roots: readonly string[]): void;
   // The canvas the window plays now, for the conversation scope; null while closed.
   playing(): PlayingCanvas | null;
   // The frame the window plays now; null while closed.
@@ -250,6 +252,7 @@ export function createPrototypeController(host: PrototypeHost, entries: () => re
     listChanged() { apply(transitions.listChanged(state, resolve)); },
     readFailed(gen, detail) { apply(transitions.readFailed(state, gen, detail)); },
     windowClosing() { apply(transitions.close(state)); },
+    rootsRemoved(roots) { if (state.open && roots.includes(state.target.root)) apply(transitions.close(state)); },
     playing() {
       return state.open ? { root: state.target.root, canvas: state.target.canvas, path: state.path } : null;
     },

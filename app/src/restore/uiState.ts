@@ -288,3 +288,19 @@ export function withoutRoots<T>(map: Readonly<Record<string, T>>, removed: reado
   const gone = new Set(removed);
   return Object.fromEntries(Object.entries(map).filter(([root]) => !gone.has(root)));
 }
+
+// The canvas conversation memory without one canvas of `root` (by the key it was remembered under), or without every
+// canvas that remembers a conversation: a canvas moved to the Trash or a deleted conversation leaves nothing, so the
+// memory does not grow until ui-state passes UI_STATE_MAX_BYTES and every save is refused. The same map when unchanged.
+export function withoutCanvas(map: Record<string, Record<string, string>>, root: string, canvas: { path: string; id?: string }): Record<string, Record<string, string>> {
+  const key = conversationCanvasKey(canvas), canvases = map[root];
+  if (!canvases || !Object.hasOwn(canvases, key)) return map;
+  return withoutEmpty({ ...map, [root]: Object.fromEntries(Object.entries(canvases).filter(([at]) => at !== key)) });
+}
+export function withoutConversation(map: Record<string, Record<string, string>>, conversationId: string): Record<string, Record<string, string>> {
+  if (!Object.values(map).some(canvases => Object.values(canvases).includes(conversationId))) return map;
+  return withoutEmpty(Object.fromEntries(Object.entries(map).map(([root, canvases]) => [root, Object.fromEntries(Object.entries(canvases).filter(([, id]) => id !== conversationId))])));
+}
+function withoutEmpty(map: Record<string, Record<string, string>>): Record<string, Record<string, string>> {
+  return Object.fromEntries(Object.entries(map).filter(([, canvases]) => Object.keys(canvases).length > 0));
+}
