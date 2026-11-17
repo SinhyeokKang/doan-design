@@ -1194,6 +1194,32 @@ describe("the viewer header in a real DOM", () => {
     }
   }, 60_000);
 
+  // Chromium focuses a clicked button, so Space after a click on a tool pressed it instead of panning.
+  test("a pointer press on a tool picks it without taking focus, so Space after it pans; keyboard focus still presses", async () => {
+    const frame = await open(twoFrames);
+    const page = frame.page();
+    const state = () => frame.evaluate(() => ({
+      active: document.activeElement?.getAttribute("data-tool") ?? document.activeElement?.tagName ?? null,
+      pressed: document.querySelector('#tools [aria-pressed="true"]')?.getAttribute("data-tool") ?? null,
+      pan: document.getElementById("board")!.hasAttribute("data-pan"),
+    }));
+    await frame.click('#tools [data-tool="hand"]');
+    expect(await state()).toEqual({ active: "BODY", pressed: "hand", pan: true });
+    await frame.click('#tools [data-tool="select"]');
+    expect(await state()).toEqual({ active: "BODY", pressed: "select", pan: false });
+    await page.keyboard.down("Space");
+    expect(await state()).toEqual({ active: "BODY", pressed: "select", pan: true });
+    await page.keyboard.up("Space");
+    expect((await state()).pan).toBe(false);
+    // Focus that came by keyboard stays on the tool, and Space presses it.
+    await frame.focus('#tools [data-tool="select"]');
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.down("Space");
+    expect(await state()).toMatchObject({ active: "hand", pan: true });
+    await page.keyboard.up("Space");
+    expect(await state()).toEqual({ active: "hand", pressed: "hand", pan: true });
+  }, 60_000);
+
   test("before the first view the zoom controls are natively disabled, and an unavailable control's cursor is the default arrow", async () => {
     const frame = await dom.load(viewerPage(twoFrames, { reports: false }));
     for (const id of ["zoom-out", "zoom-in", "zoom-button", "drawer-button"]) {
