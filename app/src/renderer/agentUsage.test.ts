@@ -106,7 +106,7 @@ describe("usageText", () => {
 describe("blocked wording", () => {
   const block = (cause: UsageBlock["readiness"]["cause"], more: Partial<UsageBlock> = {}): UsageBlock => ({ readiness: { ready: false, cause, action: "retry" }, phase: "connected", ...more });
   it.each([
-    ["claude", block("reauth_required", { phase: "reauthRequired" }), "Your Claude Code connection expired. Sign in again.", "Your Claude Code connection expired. Sign in again."],
+    ["claude", block("reauth_required", { phase: "reauthRequired" }), "Your Claude Code sign-in expired. Sign in again.", "Your Claude Code sign-in expired. Sign in again."],
     ["claude", block("reauth_required"), "Sign in to Claude Code again so Doan can confirm your organization.", "Sign in to Claude Code again so Doan can confirm your organization."],
     ["cursor", block("unverified", { error: "check_failed" }), "Couldn’t check your connections.", "Cursor: Couldn’t check your connections."],
     ["copilot", block("unverified", { error: "network" }), "Couldn’t reach GitHub Copilot. Check your connection and try again.", "Couldn’t reach GitHub Copilot. Check your connection and try again."],
@@ -151,7 +151,7 @@ describe("usageDescription", () => {
       { provider: "codex", reading: ok(w(60, { resetsAt: NOW - MIN })), inFlight: true },
       { provider: "cursor", reading: unavailable("no_plan_limits"), inFlight: false },
     ];
-    expect(usageDescription(entries, NOW)).toBe("Your Claude Code connection expired. Sign in again. Codex usage resetting. Cursor usage unavailable. GitHub Copilot unlimited.");
+    expect(usageDescription(entries, NOW)).toBe("Your Claude Code sign-in expired. Sign in again. Codex usage resetting. Cursor usage unavailable. GitHub Copilot unlimited.");
   });
   it("does not report a limit whose reset time has passed", () => {
     const entries: UsageEntry[] = [{ provider: "codex", reading: ok(w(100, { limited: true, resetsAt: NOW - 1 }), w(20, { resetsAt: NOW + HOUR })), inFlight: false }];

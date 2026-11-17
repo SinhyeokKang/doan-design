@@ -1568,7 +1568,7 @@ it.each(["id", "url"])("reports a %s that changed while its workspace was read, 
     const target: FolderEntry = { kind: "list", path: "/target", servedRev: 0, canvases: [row] };
     h.controller.updateEntries([source, { kind: "loading", path: "/target" }]);
     const messages: string[] = [];
-    const unavailable = (entry: FolderEntry | undefined) => messages.push(unavailableCanvasMessage(entry, row.path));
+    const unavailable = (entry: FolderEntry | undefined) => messages.push(unavailableCanvasMessage(entry, row.path, "target"));
     h.controller.openWorkspace("/target", root => h.controller.openCanvas(root, row, undefined, { unavailable }), false, unavailable);
     expect(messages).toEqual([]);
     h.controller.updateEntries([source, { ...target, canvases: [{ ...row, [field]: "changed" }] }]);
