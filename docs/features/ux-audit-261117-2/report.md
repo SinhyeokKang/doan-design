@@ -110,7 +110,7 @@
 **F12. 남은 옛 스타일과 토큰 밖 값** (확정, 경미)
 - `ProjectSetupDialog.tsx:65,105,106`의 `btn`/`btn primary` 클래스에는 대응하는 CSS 규칙이 없다. 다른 다이얼로그는 `doan-button`만 쓴다.
 - `styles.css:49,53`의 옛 `.row`/`.err` 기본 규칙은 다른 규칙이 덮어써서 쓰이지 않는다.
-- Inspector 탭은 토큰 밖 글자 크기 10.5–12.5px를 쓴다(`styles.css:134-149`). Inspector 측정 섹션이 docs/design에 없어 의도된 차이인지 판단할 수 없다.
+- `RightPanel`과 `Inspector` 컴포넌트(`RightPanel.tsx:12,48`)는 어디서도 import되지 않는 죽은 코드다. 앱이 쓰는 것은 `CanvasConversations`뿐이다. 이 컴포넌트들의 CSS(`styles.css:134-157`)도 함께 남아 있다. PRODUCT §5 항목 4는 캔버스 페이지에 Inspector를 보이지 않는다고 정한다. 그래서 글자 크기를 맞출 대상이 아니라 지울 대상이다. 선택값 수집은 PRODUCT에 따라 그대로 둔다.
 
 ## 결정이 필요한 것 (미정 제품 판단)
 
@@ -189,7 +189,7 @@
 
 **결정 대기**
 - B1의 D1(파괴적 확인 창은 응답이 올 때까지 열어 둔다)은 리드가 권고한 것이고, 아직 확정되지 않았다. B1을 시작하기 전에 사용자가 확정해야 한다.
-- B3의 F6(좁은 목록의 오류 형태)과 F12(Inspector 글자 크기)는 캔버스를 보고 사용자가 정한다.
+- B3의 F6(좁은 목록의 오류 형태)은 캔버스를 보고 사용자가 정한다.
 
 **모든 배치 공통**
 - 끝나면 `/verify`를 돌린다.
@@ -212,7 +212,7 @@
 ### B3 오류 표시·버튼 상태
 1. F7: `ds/controls.css`의 hover/press 규칙에서 `[data-disabled]`도 제외한다. 화면별 패치(`styles.css:442,637-638,1342`)는 제거한다.
 2. F6: 목록 읽기 실패에 AlertIcon과 danger 문구를 쓴다. 대상은 `.rp-error`, `.conv-error`, `.shell-canvas-error`다.
-3. F12: `btn` 클래스, 쓰이지 않는 `.row`·`.err` 규칙, Inspector 탭의 토큰 밖 글자 크기를 정리한다.
+3. F12: `btn` 클래스, 쓰이지 않는 `.row`·`.err` 규칙, 쓰이지 않는 `RightPanel`·`Inspector` 컴포넌트와 그 CSS를 지운다. 화면은 바뀌지 않는다.
 
 ### B4 늦은 결과·빈 창
 1. F2: 프로토타입 창의 첫 읽기 실패에 오류 안내와 Retry를 보여 준다. 메인 창의 오류 안내 패턴을 쓴다.
