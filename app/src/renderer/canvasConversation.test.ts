@@ -172,7 +172,7 @@ describe("canvasConversationError", () => {
   });
 
   test.each([
-    ["session_in_use", "Couldn’t continue the terminal session: Claude Code is still using it."],
+    ["session_in_use", "Couldn’t continue the terminal session: Codex is still using it."],
     ["no_session", "Couldn’t continue the terminal session: it’s no longer available."],
     ["session_unavailable", "Couldn’t continue the terminal session: it isn’t available right now."],
     ["not_logged_in", "Couldn’t continue the terminal session: sign in to Codex in Settings > Agents, then send again."],
