@@ -550,7 +550,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "existing" ? mode.conversationId : null, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
-        onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
+        onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.retryPresets()}
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => dropAttachment(calls, attachment)}
         turn={conversationId ? composerTurn(thread?.events ?? null, summary, live) : "idle"} busy={null} canvasGone={false} context={thread ? contextRing(thread.events, commands?.usageStale) : null} usage={ringUsage}

@@ -14,6 +14,19 @@ describe("canvasRows", () => {
     expect(rows).toEqual([{ path: ".doan/canvases/a.html", id: "a", width: 1280, frames: [], url: `${base}.doan/canvases/a.html` }]);
   });
 
+  test("drops a row that is not a canvas, such as a folder ls could not read", () => {
+    const rows = canvasRows(
+      [
+        { path: ".doan/canvases/a.html", frames: [] },
+        { path: ".doan/canvases/sub", frames: [], error: { code: "unreadable_folder", message: "Cannot read .doan/canvases/sub: permission denied" } },
+        { path: ".doan/canvases", frames: [], error: { code: "unreadable_folder", message: "Cannot read .doan/canvases: permission denied" } },
+        { path: ".doan/ds/b.html", frames: [] },
+      ],
+      base,
+    );
+    expect(rows.map((row) => row.path)).toEqual([".doan/canvases/a.html", ".doan/ds/b.html"]);
+  });
+
   test("omits absent and non-string ids", () => {
     const rows = canvasRows([{}, { id: 3 }, { id: null }].map((extra) => ({ path: ".doan/canvases/a.html", ...extra })), base);
     for (const row of rows) expect(row).not.toHaveProperty("id");

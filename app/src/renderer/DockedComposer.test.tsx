@@ -34,7 +34,7 @@ function render(patch: Partial<DockedComposerProps> = {}, { text, ...draft }: Pa
     drafts: new Map([[draftKey(patch.mode ?? MODE), { ...EMPTY_DRAFT, ...(text === undefined ? {} : { segments: textSegments(text) }), ...draft }]]), onDrafts: () => {},
     auth: AUTH, picker: PICKER, provider: "claude", effort: "high",
     onPickerOpen: () => {}, onPickModel: () => {}, onPickEffort: () => {}, onPickFast: () => {}, onSettings: () => {},
-    presets: undefined, suggested: [], onPresetsOpen: () => {}, onPresetsRetry: () => {},
+    presets: undefined, suggested: [], onPresetsOpen: () => {}, onPresetsRetry: async () => false,
     thumbnails: {}, onAttach: () => {}, onFiles: () => {}, onAttachmentRemoved: () => {},
     turn: "idle", busy: null, canvasGone: false, queued: [],
     onSend: ok, onQueue: ok, onStop: () => {}, onRemoveQueued: async () => true, onOpen: () => {},

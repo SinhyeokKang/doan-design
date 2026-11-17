@@ -7,10 +7,12 @@ import { DropdownMenu } from "radix-ui";
 import { AgentPicker, EffortPicker, IconTip, PermissionPicker, useOlderFold, presetBody, PresetsButton, SendButton, SlashPresets, SuggestionButton } from "./ComposerParts";
 import type { ModelPickerView } from "./homeComposer";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { LIST_RETRY_IDLE } from "./listRetry";
 import { permissionPickerView } from "./permissionPicker";
 
 // Hooks run as plain state only while `on`, so a component can be called directly and its handlers driven; markup tests
 // keep React's own hooks.
+const IDLE_RETRY = { ...LIST_RETRY_IDLE, run: () => {} };
 const hooks = vi.hoisted(() => ({ on: false, states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, effects: [] as (() => unknown)[] }));
 vi.mock("react", async original => {
   const react = await original<typeof import("react")>();
@@ -32,7 +34,7 @@ vi.mock("react", async original => {
 // Dogfooding: a preset row showed its title and group; it now reads as a card, the title over its one-line description.
 test("a preset row is its title over its description", () => {
   const view = { kind: "list" as const, tabs: [], summary: "1 preset", sections: [{ title: null, rows: [{ kind: "preset" as const, key: "preset:shape", icon: "compass", id: "shape", title: "Shape a feature", description: "Work out a feature's purpose and flow.", scope: "feature brief", tooltip: "Work out a feature's purpose and flow. (/shape)", group: "Start" }] }] };
-  const html = renderToStaticMarkup(<TooltipProvider><SlashPresets view={view} query="" listId="l" highlight={0} onHighlight={() => {}} onChoose={() => {}} onRetry={() => {}} /></TooltipProvider>);
+  const html = renderToStaticMarkup(<TooltipProvider><SlashPresets view={view} query="" listId="l" highlight={0} onHighlight={() => {}} onChoose={() => {}} retry={IDLE_RETRY} onRetry={async () => false} /></TooltipProvider>);
   expect(html).toContain('<span class="preset-text"><span class="preset-title">Shape a feature</span><span class="preset-desc">Work out a feature&#x27;s purpose and flow.</span></span>');
   expect(html).not.toContain('class="sub"');
   // The list scrolls with the app's thin scrollbar, like every other dropdown.
@@ -67,7 +69,7 @@ test("the / list highlights the row under the pointer", () => {
   const row = (id: string) => ({ kind: "preset" as const, key: `preset:${id}`, icon: "compass", id, title: id, description: "", scope: "feature brief", tooltip: id, group: "Start" });
   const view = { kind: "list" as const, tabs: [], summary: "2 presets", sections: [{ title: null, rows: [row("a"), row("b")] }] };
   const highlighted: number[] = [];
-  const list = SlashPresets({ view, query: "", listId: "l", highlight: 0, onChoose: () => {}, onRetry: () => {}, onHighlight: index => highlighted.push(index) });
+  const list = SlashPresets({ view, query: "", listId: "l", highlight: 0, onChoose: () => {}, retry: IDLE_RETRY, onRetry: async () => false, onHighlight: index => highlighted.push(index) });
   const rows = optionRows(list.props.children);
   expect(rows).toHaveLength(2);
   const second = optionOf((rows[1]!.type as (props: unknown) => ReactElement<Record<string, unknown>>)(rows[1]!.props));
@@ -80,7 +82,7 @@ test("the / list highlights the row under the pointer", () => {
 test("a popover preset row takes focus from the pointer only when focus is already in the list", () => {
   const row = (id: string) => ({ kind: "preset" as const, key: `preset:${id}`, icon: "compass", id, title: id, description: "", scope: "feature brief", tooltip: id, group: "Start" });
   const view = { kind: "list" as const, tabs: [], summary: "2 presets", sections: [{ title: null, rows: [row("a"), row("b")] }] };
-  const list = presetBody(view, false, { listId: "l", highlight: 0, onChoose: () => {}, onRetry: () => {} }) as ReactElement<Record<string, unknown>>;
+  const list = presetBody(view, false, { listId: "l", highlight: 0, onChoose: () => {}, retry: IDLE_RETRY, onRetry: () => {} }) as ReactElement<Record<string, unknown>>;
   const rows = optionRows(list.props.children as ReactNode);
   const second = optionOf((rows[1]!.type as (props: unknown) => ReactElement<Record<string, unknown>>)(rows[1]!.props));
   const move = second.props.onPointerMove as (event: unknown) => void;
@@ -120,7 +122,7 @@ test("the canvas's press signal closes an open Presets popover without returning
     const picked = vi.fn();
     const draw = () => {
       hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = [];
-      const tree = propsOf(PresetsButton({ reply: undefined, project: "p", suggested: [], listId: "l", disabled: false, onOpen: () => {}, onChoose: () => {}, onRetry: () => {}, onPicked: picked, canvasPress }));
+      const tree = propsOf(PresetsButton({ reply: undefined, project: "p", suggested: [], listId: "l", disabled: false, retry: IDLE_RETRY, onOpen: () => {}, onChoose: () => {}, onRetry: async () => false, onPicked: picked, canvasPress }));
       return { root: tree[0]!.props, content: tree.find(item => typeof item.props.onCloseAutoFocus === "function")!.props };
     };
     const runEffects = () => hooks.effects.map(effect => effect()).filter((cleanup): cleanup is () => void => typeof cleanup === "function");
@@ -507,4 +509,14 @@ test("the Fast switch thumb takes the shared switch's slide and reduced-motion e
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.fast-switch::before \{[^}]*transition: transform var\(--time-settle\) var\(--ease-settle\);/);
   expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*\.fast-switch::before \{ transition: none; \}/);
+});
+
+// The / list keeps Home's 600px, but a narrow canvas or prototype conversation panel is narrower than that: there it
+// ends at the composer's right edge instead of running past the panel.
+test("the / list never runs past the composer's right edge", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".slash-popover { position: absolute; z-index: 2; bottom: calc(100% + var(--space-2)); left: var(--space-8); max-width: calc(100% - var(--space-8)); }");
+  expect(css).toContain(".preset-popover { width: 600px; max-width: calc(100vw - var(--space-4)); }");
+  // Same weight as the shared popover rule, so it wins by coming after it.
+  expect(css.indexOf(".slash-popover {")).toBeGreaterThan(css.indexOf(".preset-popover {"));
 });

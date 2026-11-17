@@ -39,6 +39,7 @@ BACKLOG에 "Fix (decided)"로 적었다. 구현이 끝나면 각 배치가 PRODU
 | B4 프로토타입 창 | `fix/prototype-window-limits` | 4-1 24시간제, 4-2 최소 높이 | `prototypeWindow.ts`, `prototype/fit.ts`, `main/index.ts`, `clockHourCycle.ts` |
 | B5 `ls` 폴더 행 오류 | `fix/ls-folder-row-error` | 5-1 | `cli/internal/repo/files.go`, `cli/internal/cli/read.go`, 앱의 `ls` 행 처리 |
 | B6 설정·격리 | `fix/setup-rule-history` | 6-1 `doan.rules` 이전 텍스트, 6-2 `isolatedEnv` PATH | `agentSetup/plan.ts`, `app/runtime/environment.ts` |
+| B7 eval transcript reader | `fix/eval-heredoc-doan` | 7-1 Python heredoc 안의 `doan` 호출 읽기 | `eval/lib/transcript.ts`, `eval/scenarios/D1/presets.ts` |
 
 **순서와 겹침.**
 - B1, B2, B3, B5, B6은 바로 동시에 돌려도 된다. 서로 고치는 파일이 겹치지 않는다.
@@ -135,6 +136,14 @@ BACKLOG에 "Fix (decided)"로 적었다. 구현이 끝나면 각 배치가 PRODU
    - 수정: 고정된 시스템 PATH(`/usr/bin:/bin:/usr/sbin:/sbin`)를 기본으로 한다. 프로브에 필요한 도구가 빠지면 그 경로만 명시적으로 넘긴다. docked buddy 프로브는 이미 이 PATH를 직접 고정했다.
    - 확인: `node --test 'app/runtime/*.test.ts'`를 돌리고, 기존 프로브 하나가 그대로 도는지 본다.
 
+### B7 eval transcript reader (`fix/eval-heredoc-doan`, 2026-11-17 추가)
+
+1. **Python 안에서 호출한 `doan`** (BACKLOG "The agent-eval transcript reader cannot read `doan` calls Codex makes from inside Python…")
+   - 현상: Codex가 `python3 -` heredoc 안에서 `subprocess.run(['doan', …])`를 부르거나, heredoc으로 쓴 `.py`를 실행하면 `interpreterMayRunDoan`(`eval/lib/transcript.ts`)이 그 명령을 incomplete로 본다. 그러면 `preset_reads_allowed`(`eval/scenarios/D1/presets.ts`)가 실패한다. 판정이 실패 쪽으로 닫혀 있어서 허용된 읽기만 한 실행도 떨어진다.
+   - 수정: BACKLOG가 적은 첫 번째 선택지를 구현한다. heredoc 본문을 정적으로 읽어, `doan` argv 목록이 모두 문자열 리터럴인 호출만 읽은 것으로 센다. 동적인 인자와 `.py` 파일은 계속 incomplete로 둔다. 두 번째 선택지(`doan` 바이너리의 읽기 로그)는 ARCHITECTURE를 바꾸므로 이 배치에 넣지 않는다.
+   - 확인: 리터럴 호출, 동적 호출, `.py` 파일 각각의 transcript fixture로 `node --test 'eval/**/*.test.ts'`와 `node eval/run.ts --self-test --scenarios D10g,D10h`를 돌린다. 실제 에이전트 라운드는 돌리지 않는다.
+   - `/verify --eval`을 쓴다. 제품 CLI와 가이드는 바뀌지 않으므로 `/agent-eval`은 필요 없다.
+
 ## 5. 리드 인수인계
 
 **지금 상태 (2026-11-17)**
@@ -148,7 +157,7 @@ BACKLOG에 "Fix (decided)"로 적었다. 구현이 끝나면 각 배치가 PRODU
      - `/ship` 대상: 이 문서 4절의 해당 배치
      - 읽을 곳: 1절, 2절
      - 동시에 도는 컨덕터 가운데 파일이 겹치는 것
-2. B1, B2, B3, B5, B6은 동시에 띄운다. B4는 B3이 머지된 뒤에 띄운다.
+2. B1, B2, B3, B5, B6은 동시에 띄운다. B4는 B3이 머지된 뒤에 띄운다. B7은 eval만 고쳐 다른 배치와 겹치지 않는다.
 3. PR을 리뷰할 때 다음을 본다.
    - 범위가 4절의 해당 배치와 맞는지
    - 고친 항목을 BACKLOG에서 지웠는지, 2절 결정을 PRODUCT·ARCHITECTURE에 적었는지

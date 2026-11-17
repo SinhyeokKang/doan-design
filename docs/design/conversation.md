@@ -350,7 +350,7 @@ Reference: `.doan/canvases/provider-commands.html` frames `slash-list` tiles c a
 
 | Part | Measured value | Why |
 |---|---|---|
-| `/` list place | 8 above the whole composer (Home: the card and its worktree tray), 32 in from its left, 600 wide; the tool row is no longer its containing block (`.composer-tools:has(> .slash-popover)`). On Home it may cover the project button | The list used to cover the field it filters. |
+| `/` list place | 8 above the whole composer (Home: the card and its worktree tray), 32 in from its left, 600 wide but never past the composer’s right edge (a narrow canvas or prototype conversation panel: 263 in a 320 panel, 224 in a 280 panel); the tool row is no longer its containing block (`.composer-tools:has(> .slash-popover)`). On Home it may cover the project button | The list used to cover the field it filters. |
 | Order | Presets, then project skills, then commands, each kind by name; a project skill hides the command of its name (`/context` here) | A skill the project wrote wins its name. |
 | Command row | The project skill row: 50 high with description, padding 6 / 12, gap 12, radius 19; the 24 × 24 radius-10 tile in `--affordance-backdrop-hover` rgba(0, 0, 0, .06) with lucide `Terminal` 14 × 14 in `--text-standard` rgb(15, 15, 15) | Neutral like a skill, told apart only by its icon. |
 | Commands tab | After Project; the shipped tab (32 high, padding 0 / 12, gap 6, 14/20); `Terminal` 14 × 14 in `--text-metadata` rgb(95, 95, 95); section head "Commands" caption 12/16 in rgb(95, 95, 95) | The Project tab's neutral icon ink. |

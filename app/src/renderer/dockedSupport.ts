@@ -40,13 +40,18 @@ export class DockedSupport {
   constructor(private changed: () => void, private calls: DockedSupportCalls) {}
 
   setAuth(snapshot: AuthSnapshot): void { this.auth = snapshot; this.changed(); }
-  // A failure is read again when the presets popover opens.
+  // A failure is read again when the presets popover opens, from the loading state.
   readPresets(): void {
     this.presets = undefined;
     this.changed();
-    void this.calls.designSkills.list().catch(() => undefined).then(reply => {
+    void this.retryPresets();
+  }
+  // Retry keeps the failed reply, its line and itself, until the answer (DESIGN 'Busy action'); resolves whether it read.
+  retryPresets(): Promise<boolean> {
+    return this.calls.designSkills.list().catch(() => undefined).then(reply => {
       this.presets = reply ?? { v: 1, ok: false, error: { code: "cli_error", reason: "failed", message: "" } } as PresetListReply;
       this.changed();
+      return reply?.ok === true;
     });
   }
   readModels(root: string, provider: Provider): void {
