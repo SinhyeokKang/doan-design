@@ -107,7 +107,7 @@ function reset() {
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), openSettings: vi.fn(async () => true),
   };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
   vi.stubGlobal("HTMLElement", class {});
 }
@@ -843,7 +843,7 @@ test("Set Up opens its dialog over the page; closed from outside, focus returns 
   const focused: string[] = [];
   const setUpButton = focusable("Set up", focused), heading = focusable("title", focused);
   vi.stubGlobal("getComputedStyle", () => ({ visibility: "visible" }));
-  vi.stubGlobal("document", { activeElement: setUpButton, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === ".settings-panel h1" ? [heading] : [] });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: setUpButton, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === ".settings-panel h1" ? [heading] : [] });
   projectPage()!.props.onAction("setUp", "/w/a", vi.fn()); render();
   expect(find<{ root: string }>(ProjectSetupDialog)[0]?.props.root).toBe("/w/a");
   expect(projectPage()).toBeDefined();
@@ -868,7 +868,7 @@ test("Remove from Doan on the page asks first for the page's whole group; Cancel
   const focused: string[] = [];
   const removeButton = focusable("Remove from Doan", focused);
   vi.stubGlobal("getComputedStyle", () => ({ visibility: "visible" }));
-  vi.stubGlobal("document", { activeElement: removeButton, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: removeButton, body: {}, querySelector: () => null, querySelectorAll: () => [] });
   projectPage()!.props.onRemove(); render();
   expect(removalTitle()).toBe("Remove a from Doan?");
   expect(removalDialog()!.props["aria-describedby"]).toBe("project-remove-body");
@@ -906,7 +906,7 @@ test("the sidebar menu and the problem overlay ask first too; Escape removes not
     const focused: string[] = [];
     const menu = Object.assign(focusable("menu", focused), { closest: (selector: string) => selector === ".home-shell" || selector === ".workspace" ? {} : null });
     vi.stubGlobal("getComputedStyle", () => ({ visibility: "visible" }));
-    vi.stubGlobal("document", { activeElement: menu, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+    vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: menu, body: {}, querySelector: () => null, querySelectorAll: () => [] });
     open();
     expect(removalTitle(), name).toBe(title);
     expect(doan.removeProjects, name).not.toHaveBeenCalled();
@@ -1009,7 +1009,7 @@ test("a worktree picked from the branch chip focuses the new Overview's chip, no
   render(); folders([listed("/w/a"), listed("/w/b")]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
   const focused: string[] = [];
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelectorAll: () => [], querySelector: (selector: string) => ({ focus: () => focused.push(selector) }) });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelectorAll: () => [], querySelector: (selector: string) => ({ focus: () => focused.push(selector) }) });
   find<{ onWorktree(root: string): void }>(ProjectOverview)[0]!.props.onWorktree("/w/b"); render();
   expect(find<{ root: string }>(ProjectOverview)[0]!.props.root).toBe("/w/b");
   expect(focused).toEqual([".workspace .ov-main .wt-chip"]);
@@ -1143,7 +1143,7 @@ test("an entry from Settings keeps the focus the conversation's waiting request 
   cmdComma(); expect(onSettings()).toBe(true);
   const focused: string[] = [];
   const option = Object.assign(new HTMLElement(), { isConnected: true, closest: (selector: string) => selector.includes(".conversation-thread") ? {} : null, focus: vi.fn() });
-  vi.stubGlobal("document", { activeElement: option, body: {}, querySelectorAll: () => [], querySelector: (selector: string) => ({ focus: () => focused.push(selector) }) });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: option, body: {}, querySelectorAll: () => [], querySelector: (selector: string) => ({ focus: () => focused.push(selector) }) });
   const host = (hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as { host: { openOverview(root: string, arrived: () => boolean, unavailable: () => void, conversationId?: string): void } }).host;
   host.openOverview("/w/a", () => true, vi.fn(), "c1"); render();
   expect(find<{ root: string }>(ProjectOverview)[0]!.props.root).toBe("/w/a");

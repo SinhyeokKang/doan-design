@@ -438,9 +438,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     sidebarMotion.current = true;
     setSidebarHidden(hide);
   }
-  // Optional: App's DOM-less tests stub a document without a root element.
-  // oxlint-disable-next-line typescript/no-unnecessary-condition -- App's DOM-less tests stub a document without a root element
-  const previewSidebar = (width: number) => document.documentElement?.style.setProperty("--doan-sidebar-width", `${width}px`);
+  const previewSidebar = (width: number) => document.documentElement.style.setProperty("--doan-sidebar-width", `${width}px`);
   useLayoutEffect(() => previewSidebar(shownSidebar), [shownSidebar]);
   // The window and the measured column holding the canvas and the panel (sidebar and margins excluded).
   const [panelSize, setPanelSize] = useState<{ window: number; shell: number } | null>(null);
@@ -2201,10 +2199,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     dockedBuddy.update({ overview: !canvasPage, folded: panelFolded && !panelMotion, folding: panelFolded && panelMotion, covered: coveredWorkspace, hint: picking || state.capturing });
   }, [canvasPage, panelFolded, panelMotion, coveredWorkspace, picking, state.capturing]);
   useLayoutEffect(() => {
-    // Optional: App's DOM-less tests stub a document without a root element.
     const root = document.documentElement;
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- App's DOM-less tests stub a document without a root element
-    if (!root) return;
     const animate = sidebarMotion.current;
     sidebarMotion.current = false;
     if (animate) root.setAttribute("data-sidebar-motion", "");
@@ -2217,8 +2212,6 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   // Fullscreen has no traffic lights; the header's CSS drops their space under this attribute.
   useEffect(() => window.doan.onFullScreen(fullScreen => {
     const root = document.documentElement;
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- App's DOM-less tests stub a document without a root element
-    if (!root) return;
     if (fullScreen) root.setAttribute("data-fullscreen", "");
     else root.removeAttribute("data-fullscreen");
   }), []);
@@ -2239,11 +2232,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       if (!live.current.modal) live.current.toggleSidebar();
     };
     // On the document, ahead of the field's own handlers in the capture phase; the window's keydown is the pages' Escape.
-    // Optional: App's DOM-less tests stub a document without listeners.
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- App's DOM-less tests stub a document without listeners
-    document.addEventListener?.("keydown", keydown, true);
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- App's DOM-less tests stub a document without listeners
-    return () => document.removeEventListener?.("keydown", keydown, true);
+    document.addEventListener("keydown", keydown, true);
+    return () => document.removeEventListener("keydown", keydown, true);
   }, []);
   useLayoutEffect(() => {
     const measure = () => {

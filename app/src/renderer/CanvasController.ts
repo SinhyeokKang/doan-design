@@ -1932,8 +1932,7 @@ export class CanvasController {
     // Not the person's drag: the canvas drops its range too, so a later layout does not bring it back.
     if (!inside) { this.clearText(true); return; }
     // The selection made last is the one copied: a canvas text drag folds the app's own text selection.
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the controller's tests run against a window stub without getSelection
-    const selection = window.getSelection?.();
+    const selection = window.getSelection();
     if (selection && selection.rangeCount > 0 && !selection.isCollapsed) selection.collapseToEnd();
     this.textTrust = "dragging";
     this.applyText(check.message);
@@ -1992,8 +1991,7 @@ export class CanvasController {
     const target: unknown = event.target;
     const inField = typeof target === "object" && target !== null && "selectionStart" in target && "selectionEnd" in target &&
       typeof target.selectionStart === "number" && target.selectionStart !== target.selectionEnd;
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the controller's tests run against a window stub without getSelection
-    const selection = window.getSelection?.();
+    const selection = window.getSelection();
     if (inField || (selection && selection.rangeCount > 0 && !selection.isCollapsed)) this.clearText();
   };
 
