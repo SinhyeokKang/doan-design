@@ -41,7 +41,7 @@ test("a refused local setup keeps Keep out of Git chosen and shows why", () => {
   expect(html).toContain('<input type="radio" name="setup-storage" checked=""/><span class="ob-radio" aria-hidden="true"></span><strong>Keep out of Git (this Mac only)</strong>');
   expect(html).toContain('role="alert"');
   expect(html).toContain("Choose Include in Git, or run <code>git init</code> here first.");
-  expect(fields({}, { running: true })).toContain('<input type="radio" disabled="" name="setup-storage" checked=""/>');
+  expect(fields({}, { running: true })).toContain('<input type="radio" name="setup-storage" aria-disabled="true" checked=""/>');
 });
 
 // design-sync (draft frame setup-dialog, 'Not a Git repository'): the command in the refusal is a code chip.
@@ -105,13 +105,13 @@ test("a failed creation shows its command and the .git it left as code chips", (
   expect(left).toContain("it created at <code>/Users/ada/a b/new/.git</code>. Remove it or keep it, then try again.");
 });
 
-// While Set Up writes, the Doan files options take the disabled roles, as the setup panel's .storage-row does
+// While Set Up writes, the Doan files options (aria-disabled, so a focused one keeps focus) take the disabled roles, as the setup panel's .storage-row does
 // (DESIGN 'States': disabled is a role, never opacity); a code chip in the description keeps its own ink.
 test("a disabled Doan files option reads disabled: label, description and radio", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toContain(".storage-option:has(> input:disabled) :is(strong, small) { color: var(--text-disabled); }");
-  expect(css).toContain(".storage-option:has(> input:disabled) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }");
-  expect(css).toContain(".storage-option:has(> input:disabled:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }");
-  expect(css).toContain(".storage-option:has(> input:disabled:checked) .ob-radio::before { background: var(--text-disabled); }");
+  expect(css).toContain('.storage-option:has(> input[aria-disabled="true"]) :is(strong, small) { color: var(--text-disabled); }');
+  expect(css).toContain('.storage-option:has(> input[aria-disabled="true"]) .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }');
+  expect(css).toContain('.storage-option:has(> input[aria-disabled="true"]:checked) .ob-radio { border-color: var(--affordance-disabled); background: var(--affordance-disabled); }');
+  expect(css).toContain('.storage-option:has(> input[aria-disabled="true"]:checked) .ob-radio::before { background: var(--text-disabled); }');
 });
