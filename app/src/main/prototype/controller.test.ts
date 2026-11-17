@@ -180,6 +180,24 @@ describe("prototype controller", () => {
     expect(t.calls).toEqual([["create", { width: 390, height: 844 }], ["load", { gen: 2, url: proto.url, frame: "phone" }], ["view", 2, "loading"]]);
   });
 
+  // PRODUCT §5 items 1 and 10: Remove from Doan and `doan remove` close the window playing a canvas of a removed root.
+  test("removing the playing canvas's root closes the window as its Close does", () => {
+    const t = opened();
+    t.controller.rootsRemoved(["/elsewhere", "/r"]);
+    expect(t.calls).toEqual([["destroy"]]);
+    expect(t.controller.playing()).toBeNull();
+  });
+
+  test("removing other roots, or any root while closed, leaves the window as it is", () => {
+    const t = opened();
+    t.controller.rootsRemoved(["/elsewhere"]);
+    expect(t.calls).toEqual([]);
+    expect(t.controller.playing()).toMatchObject({ root: "/r" });
+    const closed = setup();
+    closed.controller.rootsRemoved(["/r"]);
+    expect(closed.calls).toEqual([]);
+  });
+
   test("a native close of a loading run kills it before the window goes", () => {
     const t = setup();
     t.controller.play("main", play);

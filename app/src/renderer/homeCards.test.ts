@@ -1,7 +1,7 @@
 import { Info, RotateCw } from "lucide-react";
 import { describe, expect, test } from "vitest";
 import type { CanvasRow, FolderEntry, GitInfo } from "../main/view";
-import { cardRow, chipClass, groupProjects, ROW_ACTION_ICONS, ROW_ACTION_LABELS } from "./homeCards";
+import { cardRow, chipClass, groupProjects, groupRoots, ROW_ACTION_ICONS, ROW_ACTION_LABELS } from "./homeCards";
 import type { SelectionView } from "./selection";
 
 const canvas = (): CanvasRow => ({ path: ".doan/canvases/a.html", url: "u" });
@@ -10,6 +10,25 @@ const listRow = (path: string, git?: GitInfo, extra: { canvases?: CanvasRow[]; c
 });
 const common = "/code/acme/.git";
 const acme = (branch: string): GitInfo => ({ common, main: "/code/acme", branch, worktrees: ["/code/acme", "/code/acme-feat"] });
+
+// PRODUCT §5 items 1 and 10: a project's Remove from Doan takes the whole group, as `doan remove` does, so an
+// auto-registered worktree hidden from the shown rows goes too.
+describe("groupRoots", () => {
+  const hidden: FolderEntry = { path: "/code/acme-wt", kind: "uninitialized", lastCommon: common, autoRegistered: true };
+  test("the shown rows of a group gain its hidden auto-registered worktree, in saved order", () => {
+    const all = [listRow("/code/acme", acme("main")), hidden, listRow("/code/solo", { common: "/code/solo/.git", worktrees: ["/code/solo"] }), listRow("/code/acme-feat", acme("feat"))];
+    expect(groupRoots(all, ["/code/acme", "/code/acme-feat"])).toEqual(["/code/acme", "/code/acme-wt", "/code/acme-feat"]);
+  });
+
+  test("another group's roots stay out", () => {
+    const all = [listRow("/code/acme", acme("main")), hidden, listRow("/code/solo", { common: "/code/solo/.git", worktrees: ["/code/solo"] })];
+    expect(groupRoots(all, ["/code/solo"])).toEqual(["/code/solo"]);
+  });
+
+  test("roots no stored entry names come back as given", () => {
+    expect(groupRoots([listRow("/code/acme", acme("main"))], ["/gone"])).toEqual(["/gone"]);
+  });
+});
 
 describe("groupProjects", () => {
   test("puts worktrees of one common dir in one card, at the first row's place", () => {

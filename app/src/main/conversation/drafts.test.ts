@@ -363,3 +363,54 @@ describe("DraftStore held messages", () => {
     expect(() => store.release(C)).not.toThrow();
   });
 });
+
+// A start a quit stopped waits for a composer of its root and canvas; one whose canvas went to the Trash or whose project
+// was removed from Doan is never taken, so those go with it (PRODUCT §5 items 1 and 10, Move to Trash).
+describe("DraftStore discarded starts", () => {
+  const C = "33333333-3333-4333-8333-333333333333", D = "44444444-4444-4444-8444-444444444444";
+  const E = "55555555-5555-4555-8555-555555555555", F = "66666666-6666-4666-8666-666666666666";
+  // Four starts a quit stopped: canvas a (by id) and canvas b (by path only) of /repo, /repo itself, and canvas a of /other.
+  function stopped(dir: string): DraftStore {
+    const first = new DraftStore(dir);
+    first.hold(C, { root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, text: "on a", anchors: [], attachments: [file] });
+    first.hold(D, { root: "/repo", canvas: { path: ".doan/canvases/b.html" }, text: "on b", anchors: [], attachments: [] });
+    first.hold(E, { root: "/repo", text: "on repo", anchors: [], attachments: [] });
+    first.hold(F, { root: "/other", canvas: { path: ".doan/canvases/a.html", id: "a" }, text: "on other", anchors: [], attachments: [] });
+    return new DraftStore(dir);
+  }
+  const startTexts = (dir: string) => Object.values(JSON.parse(readFileSync(join(dir, "drafts.json"), "utf8")).starts ?? {}).map(start => (start as { text: string }).text).sort();
+
+  it("moving a canvas to the Trash discards its starts, matched as a composer would take them, and keeps every other", () => {
+    const dir = directory(), store = stopped(dir);
+    store.discardCanvasStarts("/repo", { path: ".doan/canvases/renamed.html", id: "a" });
+    expect(startTexts(dir)).toEqual(["on b", "on other", "on repo"]);
+    store.discardCanvasStarts("/repo", { path: ".doan/canvases/b.html" });
+    expect(startTexts(dir)).toEqual(["on other", "on repo"]);
+    const next = new DraftStore(dir);
+    expect(next.takeStart("/repo", { path: ".doan/canvases/a.html", id: "a" })).toBeNull();
+    expect(next.takeStart("/repo")).toMatchObject({ text: "on repo" });
+    expect(next.takeStart("/other", { path: ".doan/canvases/a.html", id: "a" })).toMatchObject({ text: "on other" });
+  });
+
+  it("removing a project discards every start of its roots, on a canvas or not, and keeps other roots'", () => {
+    const dir = directory(), store = stopped(dir);
+    store.discardRootStarts(["/repo", "/repo-wt"]);
+    expect(startTexts(dir)).toEqual(["on other"]);
+    expect(new DraftStore(dir).takeStart("/repo")).toBeNull();
+  });
+
+  it("writes nothing when no start matches", () => {
+    const dir = directory(), store = new DraftStore(dir);
+    store.discardRootStarts(["/repo"]);
+    store.discardCanvasStarts("/repo", { path: ".doan/canvases/a.html" });
+    expect(readdirSync(dir)).toEqual([]);
+  });
+
+  it("never throws when the file cannot be written: the removal or the move already happened", () => {
+    const store = stopped(directory());
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(store as unknown as { write(): void }, "write").mockImplementation(() => { throw new Error("ENOSPC"); });
+    expect(() => store.discardCanvasStarts("/repo", { path: ".doan/canvases/a.html", id: "a" })).not.toThrow();
+    expect(() => store.discardRootStarts(["/repo"])).not.toThrow();
+  });
+});
