@@ -65,3 +65,22 @@ describe("scrollers carry .doan-scroll in markup", () => {
     expect(parts).toContain('className="composer-input doan-scroll"');
   });
 });
+
+// DESIGN 'No coloured edge stripes': a list read failure in a narrow list (the right panel, the conversation title
+// menus, the sidebar's unreadable canvas) is an inline error, the alert icon and danger ink, at the row's own density.
+describe("narrow list read failures are inline errors", () => {
+  test.each([".rp-error", ".conv-error", ".shell-canvas-error"])("%s takes the danger ink", selector => {
+    expect(rule(styles, selector)).toContain("color: var(--text-danger);");
+  });
+  test.each(["./ProjectOverview.tsx", "./CanvasConversationPanel.tsx", "./prototype/PrototypeConversation.tsx", "./CanvasConversationList.tsx"])("%s leads its failure line with the alert icon", name => {
+    expect(read(name)).toMatch(/className="(?:conv|rp)-error" role="status"><AlertIcon \/>/);
+  });
+  test("the sidebar's icon is the small icon, centred on the caption line", () => {
+    expect(rule(styles, ".shell-canvas-error .doan-alert-icon")).toBe("width: var(--size-icon-sm); height: var(--size-icon-sm); margin-block: calc((var(--type-caption-line-height) - var(--size-icon-sm)) / 2);");
+  });
+});
+
+// The old base rules for `.row` and `.err` are gone; the sidebar's rows and the status chips set what they show.
+test("no legacy .row or .err base rule remains", () => {
+  for (const selector of [".row", ".row .g", ".row:hover", ".err"]) expect(styles).not.toContain(`\n${selector} {`);
+});

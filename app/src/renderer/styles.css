@@ -46,11 +46,7 @@ code, kbd { font-family: var(--type-family); }
 .side { background: var(--surface-panel); border-right: 1px solid var(--border-standard); }
 .right { background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
 .right.doan-scroll { overflow: auto; }
-.row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; font: 12.5px var(--type-family); color: var(--text-subtle); position: relative; white-space: nowrap; cursor: pointer; }
-.row .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
-.row:hover { background: var(--surface-inset); }
 .glyph { color: var(--text-disabled); width: 12px; flex: none; text-align: center; }
-.err { color: var(--text-danger); font: 10.5px var(--type-family); }
 .recovery .doan-button { margin: 4px 4px 0 0; }
 /* The board is the light grey inset surface, so a white canvas stays distinguishable when zoomed out and the agent's white dot field shows. */
 .area { position: relative; overflow: hidden; background: var(--surface-inset); }
@@ -398,8 +394,6 @@ code, kbd { font-family: var(--type-family); }
    dialog has no transform, so fixed positioning is relative to the window. */
 .toast[data-placement="dialog"] { position: fixed; }
 .toast .msg { min-width: 0; overflow-wrap: anywhere; }
-/* A running Retry keeps focus, so it is `data-disabled` rather than `:disabled`, and the hover fill must not come back. */
-.toast .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
 
 /* Surfaces that float on their own over the content (toasts, the GitHub star card) take the panel's ring with a wider
    drop, so they read above whatever is under them. They enter as a dialog does, rising 8px and fading in; they leave
@@ -543,7 +537,7 @@ body:has(.shell-top) { background: transparent; }
 .shell-projects { overflow: auto; min-height: 0; padding-bottom: 20px; }
 .shell-projects-heading { margin: 0 0 4px; padding: 4px 10px; color: var(--text-metadata); font: 400 10px/16px var(--type-family); letter-spacing: .08em; }
 .shell-project + .shell-project { margin-top: 16px; }
-.shell-side .row { display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px; border-radius: 8px; font: 400 14px/20px var(--type-family); cursor: pointer; }
+.shell-side .row { display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px; border-radius: 8px; font: 400 14px/20px var(--type-family); color: var(--text-subtle); position: relative; white-space: nowrap; cursor: pointer; }
 .shell-side .row:hover { background: var(--affordance-backdrop-hover); }
 .shell-side .row[aria-current="location"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
 .shell-side .shell-project-row { gap: 4px; padding: 0 0 0 10px; margin-bottom: 4px; }
@@ -599,6 +593,11 @@ body:has(.shell-top) { background: transparent; }
 .shell-empty, .shell-canvas-error { padding: 4px 8px 4px 32px; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
 .shell-empty { padding: 6px 10px 10px 34px; }
 .shell-canvas-error pre { white-space: pre-wrap; }
+/* An unreadable canvas is an inline error (DESIGN 'No coloured edge stripes') at the tree's caption density: the small
+   alert icon on the first caption line, then the sentence, Details and its opened message. */
+.shell-canvas-error { display: flex; align-items: flex-start; gap: var(--space-1h); color: var(--text-danger); }
+.shell-canvas-error > div { min-width: 0; }
+.shell-canvas-error .doan-alert-icon { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-block: calc((var(--type-caption-line-height) - var(--size-icon-sm)) / 2); }
 /* A group head is a tree row one level below the project (design-system-canvases draft): chevron where a row's icon
    sits, label, count at the end. Rows and lines inside a group move in by the chevron and its gap, so a row's icon sits
    under the group label. */
@@ -1077,8 +1076,6 @@ body:has(.shell-top) { background: transparent; }
 .mcp-agent .settings-section-header { align-items: center; }
 .mcp-agent-title { display: flex; align-items: center; gap: var(--space-1h); }
 .mcp-more { color: var(--text-subtle); }
-/* A busy section's Connect looks disabled but keeps hover and focus for its tooltip. */
-.mcp-agent .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }
 /* A removed server's running-turn notice stays under its section's list. */
 .mcp-section-notice { margin-top: var(--space-3); }
 
@@ -1352,7 +1349,7 @@ body:has(.shell-top) { background: transparent; }
 .conv-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 /* A running Retry row keeps its highlight (it is busy, not unavailable) and takes the in-button spinner's size and ink. */
 .conv-error .doan-menu-item > .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); border-color: color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; }
-.conv-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.conv-error { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-danger); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* A conversation's first line, shared with the right panel's rows: logo, name, status mark, short time flush right. */
 .cv-head { display: flex; align-items: center; gap: var(--space-1h); min-width: 0; }
 .cv-head .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); object-fit: contain; flex: none; }
@@ -1408,7 +1405,10 @@ body:has(.shell-top) { background: transparent; }
 .rp-empty { margin: 0 var(--space-2) var(--space-2); padding: var(--space-4); border: 1px dashed var(--border-standard); border-radius: var(--radius-chip); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .rp-empty p + p { margin-top: var(--space-2); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
-.rp-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.rp-error { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-danger); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+/* A list read failure is an inline error (DESIGN 'No coloured edge stripes'): the alert icon, the sentence taking the
+   rest of the row, Retry at its end. */
+:is(.rp-error, .conv-error) > span { flex: 1; min-width: 0; }
 
 /* doan-canvas: the canvas panel, an opaque white header above the board (.doan/canvases/doan-canvas.html, confirmed
    2026-11-01). The header does not cover the board: the board starts under it. Isolation keeps the board's floating

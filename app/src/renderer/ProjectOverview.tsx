@@ -394,7 +394,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
               <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${conversationId === null ? " current" : ""}`} textValue="New conversation"><SquarePen aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
               <DropdownMenu.Separator className="doan-menu-sep" />
               <DropdownMenu.Label className="doan-menu-head">{`Conversations in ${project}`}</DropdownMenu.Label>
-              {list === "error" ? <div className="conv-error" role="status"><span>{announcedAgain(LIST_FAILED_TEXT, listRetry.failures)}</span>
+              {list === "error" ? <div className="conv-error" role="status"><AlertIcon /><span>{announcedAgain(LIST_FAILED_TEXT, listRetry.failures)}</span>
                 {listRetryItem(listRetry, props.onRetryList)}</div>
                 : <div className="conv-list">{menuItems.map(item => <div key={item.conversationId} className="conv-row">
                   <DropdownMenu.RadioItem value={item.conversationId} textValue={item.title}

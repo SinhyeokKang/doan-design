@@ -55,7 +55,7 @@
 ## 결정
 1. **`/clear`는 그대로 보낸다.** 같은 대화 안에서 컨텍스트를 비우고, 스레드에 경계를 남긴다. 경계 라벨은 "Context cleared — the agent won’t see messages above"다.
 2. **목록 밖 내장 명령은 보내지 않고 카드로 알린다.** 첫 단어가 그 프로바이더의 내장 명령인데 허용 목록에 없으면(`/model` 등), 자동완성에 나오지 않는다. 보내면 프로바이더에 보내지 않고 턴도 시작하지 않는다. 카드는 다음과 같다.
-   - 제목: "`/<name>` doesn’t run in Doan"
+   - 제목: "/<name> doesn’t run in Doan". 명령 이름은 코드 스타일 없이 평문이다.
    - Doan에 같은 기능이 있을 때: 본문 "Choose the model from the model picker."와 버튼 "Open model picker"(명령별 문구 표)
    - 같은 기능이 없을 때: 본문 "Run it in <provider> in a terminal.", 버튼 없음
    - 닫기는 Dismiss이고, 보낸 텍스트는 컴포저로 돌아온다.
@@ -81,3 +81,31 @@
 
 ## 디자인 프리셋
 - 아직 읽지 않았다. `/design-draft` 전에 clarify와 harden을 읽는다.
+
+## 드래프트 요청
+- 캔버스: `.doan/canvases/provider-commands.html`, id `provider-commands`, 폭은 기존 컴포저 드래프트를 따른다.
+- PoC 전에 그린다. 따라서 명령 이름은 후보(`/compact`, `/clear`, `/context`, `/model`)로 그린다. PoC 결과 목록에서 빠지는 명령은 revise로 정리한다.
+- 프레임:
+  - `slash-list`: `/` 목록의 프리셋·스킬·명령 행. 다음 셋을 함께 보인다.
+    - 이름이 같은 스킬과 명령(스킬 우선)
+    - `/comp` 질의
+    - 명령 이름과 같은 질의(Enter가 보냄)
+  - `commands-tab`: Presets 팝오버의 Commands 탭(Project 탭 뒤)
+  - `preset-chip-notice`: 명령을 고를 때 프리셋 칩이 빠지고 "Presets don’t apply to commands"를 알리는 상태와 복원 상태
+  - `queue-row`: 실행 중인 턴 아래 명령 큐 행. Send now는 비활성이다.
+  - `command-turn`: `/compact` 실행 중("Compacting…"), `/context` 텍스트 결과, 명령 실패
+  - `boundaries`: 압축 경계와 지움 경계("Context cleared — the agent won’t see messages above")
+  - `unsupported-card`: `/model` 카드(Open model picker 있음), 같은 기능이 없는 명령의 카드(버튼 없음), 컴포저로 돌아온 텍스트
+- 기존 화면(Home 컴포저, 도킹 컴포저, 스레드, 큐)은 코드와 `docs/design/home.md`·`conversation.md`에 있는 그대로 복사한다.
+
+## 드래프트 결정
+- 큐의 명령 행에는 Send now가 없다. 지금 앱처럼, 쓸 수 없는 Send now는 숨긴다. 결정 6의 "비활성"을 이것으로 바꾼다.
+- 압축 경계 라벨: "Context compacted — the agent keeps a summary of messages above".
+- 드래프트가 보수적으로 그린 다음 항목은 그대로 둔다.
+  - `/` 목록 순서: 프리셋 → 스킬 → 명령
+  - Codex 명령 설명: Doan 문구
+  - 칩 안내: 칩 줄에 둔다
+  - 돌아온 명령 단어: 하이라이트를 유지한다
+  - 카드: 중립 info 아이콘과 ghost Dismiss
+- `/compact` 외 명령의 실행 라벨은 PoC 뒤 정한다.
+- 팝오버 폭 809px는 `/design-sync`에서 앱으로 다시 잰다.

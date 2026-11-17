@@ -94,7 +94,7 @@ test("the action sits to the right of the message as a prominent small button", 
   setup();
   const [message, action] = useToast().element!.props.children;
   expect(message.props.className).toBe("msg selectable");
-  expect(action.props).toMatchObject({ "data-ui-variant": "prominent", "data-ui-size": "sm", children: "Undo" });
+  expect(action.props).toMatchObject({ className: "doan-button", "data-ui-variant": "prominent", "data-ui-size": "sm", children: "Undo" });
 });
 
 // The message is the only text a user may need to copy (an error reason); the action is a button and stays unselectable.
