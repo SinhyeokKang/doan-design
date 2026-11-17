@@ -705,6 +705,8 @@ test("a Python heredoc's literal doan argv lists are read, and anything dynamic 
   const read = (command: string, words: string[][], incomplete = false) => assert.deepEqual(parseCommand(command), { words, incomplete }, command);
   read("python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['doan', 'active'])\nEOF", [["python3", "-"], ["doan", "active"]]);
   read("python3 -I <<EOF\nimport subprocess\nprint(subprocess.check_output(['/usr/local/bin/doan', 'ls', '--json'], text=True))\nEOF", [["python3", "-I"], ["/usr/local/bin/doan", "ls", "--json"]]);
+  // With an inline script the heredoc is only input data, so its calls do not run.
+  read("python3 -c 'import sys; print(sys.stdin.read())' <<'EOF'\nimport subprocess\nsubprocess.run(['doan', 'active'])\nEOF", [["python3", "-c", "import sys; print(sys.stdin.read())"]]);
   for (const command of [
     // The shell expands an unquoted body before Python reads it.
     "python3 - <<EOF\nimport subprocess\nsubprocess.run(['doan', 'design-skill', '$P', '--json'])\nEOF",
