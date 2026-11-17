@@ -15,6 +15,7 @@ describe("claudeBoundary", () => {
   it("reads a clear from the /clear line that starts the new session file and from the stream's reset", () => {
     expect(claudeBoundary(clearLine)).toBe("cleared");
     expect(claudeBoundary({ type: "conversation_reset", trigger: "clear", new_conversation_id: "c", session_id: "s", uuid: "u" })).toBe("cleared");
+    for (const alias of ["reset", "new"]) expect(claudeBoundary({ ...clearLine, content: clearLine.content.replace("/clear", `/${alias}`) }), alias).toBe("cleared");
   });
   it("reads nothing from other records", () => {
     for (const record of [

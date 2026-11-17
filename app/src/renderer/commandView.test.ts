@@ -34,6 +34,14 @@ describe("classifyFirstWord", () => {
     expect(classifyFirstWord("/compact keep the API notes", CLAUDE)).toEqual({ kind: "command", name: "compact", args: "keep the API notes" });
     expect(classifyFirstWord("  /review the auth change\nand tests ", CLAUDE)).toEqual({ kind: "command", name: "review", args: "the auth change\nand tests" });
   });
+  // Claude runs /reset and /new as /clear; only /clear is listed.
+  it("reads Claude's /clear aliases as /clear", () => {
+    expect(classifyFirstWord("/reset", CLAUDE)).toEqual({ kind: "command", name: "clear", args: "" });
+    expect(classifyFirstWord("/new start over", CLAUDE)).toEqual({ kind: "command", name: "clear", args: "start over" });
+    expect(classifyFirstWord("/reset", commandLists("claude", [command("compact")]))).toEqual({ kind: "text" });
+    expect(classifyFirstWord("/reset", commandLists("claude", [skill("reset"), command("clear")]))).toEqual({ kind: "skill", name: "reset" });
+    expect(classifyFirstWord("/new", commandLists("copilot", [command("compact")]))).toEqual({ kind: "text" });
+  });
   it("cuts a command word at attached Hangul as the skill highlight does", () => {
     expect(classifyFirstWord("/compact해줘", CLAUDE)).toEqual({ kind: "command", name: "compact", args: "해줘" });
   });
@@ -62,27 +70,37 @@ describe("classifyFirstWord", () => {
 
 describe("planSend", () => {
   it("sends a command alone, without preset or skill lines", () => {
-    expect(planSend("/compact", preset, ["deploy"], 0, CLAUDE)).toEqual({ kind: "command", name: "compact", text: "/compact" });
-    expect(planSend("/compact keep /deploy notes", preset, ["deploy"], 0, CLAUDE)).toEqual({ kind: "command", name: "compact", text: "/compact keep /deploy notes" });
+    expect(planSend("/compact", preset, ["deploy"], 0, CLAUDE)).toEqual({ kind: "command", name: "compact", text: "/compact", sendsAttachments: false });
+    expect(planSend("/compact keep /deploy notes", preset, ["deploy"], 0, CLAUDE)).toEqual({ kind: "command", name: "compact", text: "/compact keep /deploy notes", sendsAttachments: false });
+  });
+  it("sends Claude's /clear aliases as /clear", () => {
+    expect(planSend("/reset", null, [], 0, CLAUDE)).toEqual({ kind: "command", name: "clear", text: "/clear", sendsAttachments: false });
+    expect(planSend("/new", preset, [], 0, CLAUDE)).toEqual({ kind: "command", name: "clear", text: "/clear", sendsAttachments: false });
   });
   it("sends the text after a command as its argument", () => {
-    expect(planSend("/compact해줘", null, [], 0, CLAUDE)).toEqual({ kind: "command", name: "compact", text: "/compact 해줘" });
-    expect(planSend("/review  the auth change ", null, [], 0, CLAUDE)).toEqual({ kind: "command", name: "review", text: "/review the auth change" });
+    expect(planSend("/compact해줘", null, [], 0, CLAUDE)).toEqual({ kind: "command", name: "compact", text: "/compact 해줘", sendsAttachments: false });
+    expect(planSend("/review  the auth change ", null, [], 0, CLAUDE)).toEqual({ kind: "command", name: "review", text: "/review the auth change", sendsAttachments: false });
+  });
+  // The command alone goes out; attached files stay in the composer for the next message.
+  it("never sends attachments with a command", () => {
+    expect(planSend("/compact", null, [], 2, CLAUDE)).toEqual({ kind: "command", name: "compact", text: "/compact", sendsAttachments: false });
+    expect(planSend("Look at these", null, [], 2, CLAUDE)).toEqual({ kind: "message", text: "Look at these", sendsAttachments: true });
+    expect(planSend("", null, [], 2, CLAUDE)).toEqual({ kind: "message", text: "Look at the attached files.", sendsAttachments: true });
   });
   it("sends nothing for a built-in Doan does not run", () => {
     expect(planSend("/model opus", preset, [], 0, CLAUDE)).toEqual({ kind: "unsupported", name: "model" });
   });
   it("composes anything else as before", () => {
-    expect(planSend("/Users/me/a.png", preset, [], 0, CLAUDE)).toEqual({ kind: "message", text: "Use the Doan design preset `polish` (Polish).\n\n/Users/me/a.png" });
-    expect(planSend("/deploy", null, ["deploy"], 0, CLAUDE)).toEqual({ kind: "message", text: "Use the project skill `deploy`.\n\n/deploy" });
+    expect(planSend("/Users/me/a.png", preset, [], 0, CLAUDE)).toEqual({ kind: "message", text: "Use the Doan design preset `polish` (Polish).\n\n/Users/me/a.png", sendsAttachments: true });
+    expect(planSend("/deploy", null, ["deploy"], 0, CLAUDE)).toEqual({ kind: "message", text: "Use the project skill `deploy`.\n\n/deploy", sendsAttachments: true });
   });
   // The shipped "/deploy /review" expectation (HomeComposerView.interaction.test.tsx): only the first word can be a
   // command, and a skill of the command's name still wins.
   it("keeps a later command word as text and a same-name skill as a skill", () => {
     const lists = commandLists("claude", [skill("review"), command("review")]);
-    expect(planSend("/deploy /review", null, ["review"], 0, lists)).toEqual({ kind: "message", text: "Use the project skill `review`.\n\n/deploy /review" });
-    expect(planSend("/review", null, ["review"], 0, lists)).toEqual({ kind: "message", text: "Use the project skill `review`.\n\n/review" });
-    expect(planSend("/deploy /review", null, [], 0, CLAUDE)).toEqual({ kind: "message", text: "/deploy /review" });
+    expect(planSend("/deploy /review", null, ["review"], 0, lists)).toEqual({ kind: "message", text: "Use the project skill `review`.\n\n/deploy /review", sendsAttachments: true });
+    expect(planSend("/review", null, ["review"], 0, lists)).toEqual({ kind: "message", text: "Use the project skill `review`.\n\n/review", sendsAttachments: true });
+    expect(planSend("/deploy /review", null, [], 0, CLAUDE)).toEqual({ kind: "message", text: "/deploy /review", sendsAttachments: true });
   });
 });
 
@@ -115,9 +133,17 @@ describe("commandCard", () => {
       title: "/plan doesn’t run in Doan", body: "Use Plan mode in the permission picker.", action: { label: "Open permission picker", target: "permissionPicker" },
     });
   });
+  it("points /logout and /login to Settings > Agents and /permissions to the permission picker for every provider", () => {
+    for (const p of ["claude", "codex", "cursor", "copilot", "antigravity"] as const) {
+      expect(commandCard(p, "logout"), p).toEqual({ title: "/logout doesn’t run in Doan", body: "Sign out from Settings > Agents.", action: { label: "Open Agents settings", target: "agentsSettings" } });
+      expect(commandCard(p, "login"), p).toEqual({ title: "/login doesn’t run in Doan", body: "Sign in from Settings > Agents.", action: { label: "Open Agents settings", target: "agentsSettings" } });
+      expect(commandCard(p, "permissions"), p).toEqual({ title: "/permissions doesn’t run in Doan", body: "Choose permissions from the permission picker.", action: { label: "Open permission picker", target: "permissionPicker" } });
+    }
+  });
   it("sends a command with no Doan equivalent to the provider's terminal", () => {
     expect(commandCard("codex", "clear")).toEqual({ title: "/clear doesn’t run in Doan", body: "Run it in Codex in a terminal.", action: null });
     expect(commandCard("copilot", "theme")).toEqual({ title: "/theme doesn’t run in Doan", body: "Run it in GitHub Copilot in a terminal.", action: null });
+    expect(commandCard("claude", "config")).toEqual({ title: "/config doesn’t run in Doan", body: "Run it in Claude Code in a terminal.", action: null });
   });
 });
 
