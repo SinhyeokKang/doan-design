@@ -108,7 +108,7 @@ function reset() {
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), openSettings: vi.fn(async () => true), markConversationSeen: vi.fn(async () => {}),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: (selector: string) => FIELDS[selector] ?? null, querySelectorAll: () => [], hasFocus: () => true });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: (selector: string) => FIELDS[selector] ?? null, querySelectorAll: () => [], hasFocus: () => true });
   vi.stubGlobal("getComputedStyle", () => ({ visibility: "visible" }));
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
   vi.stubGlobal("HTMLElement", class {});

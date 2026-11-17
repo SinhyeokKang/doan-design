@@ -407,7 +407,7 @@ export function DockedComposer(props: DockedComposerProps) {
   };
   const noteShown = missing && missingAt !== null && missingAt.chip.isConnected;
   useEffect(() => {
-    if (!noteShown || !missingAt) return;
+    if (!noteShown) return;
     const { chip } = missingAt;
     chip.setAttribute("aria-describedby", noteId);
     return () => { if (chip.getAttribute("aria-describedby") === noteId) chip.removeAttribute("aria-describedby"); };
@@ -478,7 +478,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const keyDown = (event: KeyboardEvent<HTMLDivElement>): boolean => {
     const composing = event.nativeEvent.isComposing || event.keyCode === 229;
     if (slashOpen) {
-      const step = slashKey(event.key, highlight, slashRows.length, composing, { query: slash ?? "", row: slashRows[highlight] });
+      const step = slashKey(event.key, highlight, slashRows.length, composing, { query: slash, row: slashRows[highlight] });
       if (step?.kind === "move") { event.preventDefault(); setHighlight(step.highlight); return true; }
       if (step?.kind === "pick") { event.preventDefault(); const row = slashRows[highlight]; if (row) chooseRow(row.id, row.kind, true); return true; }
       // Escape closes the list only; there is no shortcut that stops the turn.

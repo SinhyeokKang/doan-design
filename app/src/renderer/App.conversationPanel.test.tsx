@@ -103,7 +103,7 @@ function reset() {
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), showCanvas: vi.fn(async () => true), retryReadState: vi.fn(async () => null), onReadStateProblem: vi.fn(() => () => {}), onFoldersSaveFailed: vi.fn(() => () => {}), openSettings: vi.fn(async () => true),
   };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [], hasFocus: () => true });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [], hasFocus: () => true });
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
   vi.stubGlobal("HTMLElement", class {});
 }
@@ -390,7 +390,7 @@ const agent = () => (pane() as unknown as { agent: Agent } | undefined)?.agent;
 function focusable() {
   const focus = vi.fn();
   const querySelector = vi.fn((selector: string) => selector === ".doan-conv-panel :is(.rp-head, .doan-conv-title .ov-title)" ? { focus } : null);
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector, querySelectorAll: () => [], hasFocus: () => true });
+  vi.stubGlobal("document", { documentElement: { setAttribute: vi.fn(), removeAttribute: vi.fn(), style: { setProperty: vi.fn() } }, addEventListener: vi.fn(), removeEventListener: vi.fn(), activeElement: null, body: {}, querySelector, querySelectorAll: () => [], hasFocus: () => true });
   return { focus, querySelector };
 }
 

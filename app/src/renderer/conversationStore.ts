@@ -400,9 +400,11 @@ export class ConversationStore {
         this.host.changed();
         return;
       }
+      // Declared required, but the reply crosses IPC and a partial one is tolerated.
+      const tolerated: { lastSeq?: number; commands?: typeof reply.commands } = reply;
       const events = mergeEvents(reply.events, thread.events, conversationId);
-      this.threads.set(conversationId, { events, read: "ready", liveAfter: reply.lastSeq ?? events.at(-1)?.seq ?? 0 });
-      if (reply.commands) this.addBoundaries(conversationId, reply.commands.boundaries);
+      this.threads.set(conversationId, { events, read: "ready", liveAfter: tolerated.lastSeq ?? events.at(-1)?.seq ?? 0 });
+      if (tolerated.commands) this.addBoundaries(conversationId, tolerated.commands.boundaries);
       // After the set: stage() reads the current turn from the merged history.
       if (reply.stage) this.stage(reply.stage);
       this.tell(conversationId, "read");

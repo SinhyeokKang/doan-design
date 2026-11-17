@@ -85,7 +85,7 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
   if (input.unavailable) return off({ text: input.unavailable });
   // A terminal session runs on the terminal's own sign-in, so Doan's accounts do not decide whether it can be sent to.
   const agent = mode.kind === "new" ? agentProblem(input.auth, input.provider) : mode.kind === "resume" || input.external ? null : providerProblem(input.auth, mode.provider);
-  if (agent) return off({ text: agent.text, ...("kind" in agent && agent.kind === "noAgent" ? { noAgent: true as const } : {}), ...("action" in agent && agent.action ? { action: agent.action } : {}) });
+  if (agent) return off({ text: agent.text, ...("kind" in agent && agent.kind === "noAgent" ? { noAgent: true as const } : {}), ...("action" in agent ? { action: agent.action } : {}) });
   const waiting = input.turn === "waiting" ? { text: "Answer or stop the request above." } : null;
   if (!hasContent(draft.segments) && !draft.preset && draft.attachments.length === 0) return off(waiting);
   // A running or holding turn takes the message into its queue, and at the usage limit it waits for the reset, so the

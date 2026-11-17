@@ -127,7 +127,7 @@ export class UsageService {
     this.closed = true;
     for (const read of this.reads.values()) read.controller.abort();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([this.settled(), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref?.(); })]);
+    await Promise.race([this.settled(), new Promise(resolve => { timer = setTimeout(resolve, QUIT_WAIT_MS); timer.unref(); })]);
     clearTimeout(timer);
   }
   // Resolves when every read started so far has ended.
@@ -207,6 +207,7 @@ export class UsageService {
         console.error(`doan: ${provider} usage read failed: the connection could not be held`);
         return failed();
       }
+      // oxlint-disable-next-line typescript/no-unnecessary-condition -- the read can be aborted while the lease is awaited
       try { return signal.aborted ? failed() : await this.options.read(provider, organization ? { ...lease, organization } : lease, signal); }
       finally { await lease.release(); }
     } catch { return failed(); }

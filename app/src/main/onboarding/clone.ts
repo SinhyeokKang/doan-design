@@ -125,9 +125,11 @@ export async function runClone(request: CloneRequest): Promise<CloneResult> {
   await run.gone;
   request.signal.removeEventListener("abort", stop);
   // A clone that finished after the cancel was accepted is still discarded: the user asked for nothing to remain.
+  // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal can abort while the awaited step runs
   if (request.signal.aborted) return cleanup(cancelled);
   if (code !== 0) return cleanup({ kind: "failed", code: cloneFailure(run.stderr()) });
   try { await chmod(temp, 0o755); } catch { return cleanup({ kind: "failed", code: "clone_failed" }); }
+  // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal can abort while the awaited step runs
   if (request.signal.aborted) return cleanup(cancelled);
   try { await mkdir(request.destination); }
   catch (error) { return cleanup({ kind: "failed", code: errno(error) === "EEXIST" ? "destination_exists" : "clone_failed" }); }
@@ -141,10 +143,12 @@ export async function runClone(request: CloneRequest): Promise<CloneResult> {
       return code === "ENOTEMPTY" || code === "EEXIST" ? { taken: true, left: [] } : { taken: false, left: [request.destination] };
     }
   };
+  // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal can abort while the awaited step runs
   if (request.signal.aborted) { const released = await release(); return cleanup(cancelled, temp, released.left); }
   try { await rename(temp, request.destination); }
   catch { const released = await release(); return cleanup({ kind: "failed", code: "destination_exists" }, temp, released.left); }
   // The cutoff: only a cancel accepted before this point can still remove the destination.
+  // oxlint-disable-next-line typescript/no-unnecessary-condition -- the signal can abort while the awaited step runs
   if (request.signal.aborted || (request.commit && !request.commit())) return cleanup(cancelled, request.destination);
   return { kind: "cloned", destination: request.destination };
 }

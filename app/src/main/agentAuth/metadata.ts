@@ -38,7 +38,7 @@ export function parseAuthMetadata(text: string): MetadataRead {
   if (raw.v !== 1) return { ok: false, code: "unknown_version" };
   return validMetadata(raw) ? { ok: true, metadata: raw } : { ok: false, code: "invalid" };
 }
-export function serializeAuthMetadata(metadata: AuthMetadata): string {
+export function serializeAuthMetadata(metadata: unknown): string {
   if (!object(metadata) || metadata.v !== 1 || !validMetadata(metadata)) throw new Error("Invalid auth metadata");
   return JSON.stringify(metadata);
 }

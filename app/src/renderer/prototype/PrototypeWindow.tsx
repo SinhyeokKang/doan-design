@@ -216,7 +216,7 @@ export function PrototypeWindow({ api }: { api: PrototypeApi }) {
   useLayoutEffect(() => {
     if (buddy === undefined) return;
     dockedBuddy.setBuddy(buddy);
-    if (document.documentElement) applyBuddy(document.documentElement, buddy);
+    applyBuddy(document.documentElement, buddy);
   }, [buddy]);
   useLayoutEffect(() => { dockedBuddy.update({ overview: false, folded: !panelOpen, folding: false, covered: false, hint: false }); }, [panelOpen]);
 

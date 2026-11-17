@@ -5,7 +5,8 @@
     "react/rules-of-hooks": "error",
     "react/exhaustive-deps": "warn",
     "typescript/no-floating-promises": "error",
-    "typescript/no-misused-promises": "error"
+    "typescript/no-misused-promises": "error",
+    "typescript/no-unnecessary-condition": "error"
   },
   "ignorePatterns": ["**/*.test.ts", "**/*.test.tsx"]
 }

@@ -27,7 +27,6 @@ export function routePrepare(external: ExternalPrepare, account: AccountPrepare)
   return (request, stored, use, reusing) => {
     if (!stored) return request.mode === "resume" ? external(request) : account(request, undefined, use);
     if (externalConversation(stored)) return reusing ? external(request, stored.session, true) : external(request, stored.session);
-    if (stored.owner.kind !== "doan") throw new Error("session_unavailable");
     return account(request, { ...stored, owner: stored.owner }, undefined, reusing);
   };
 }
@@ -237,7 +236,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
       if (root !== request.root) throw new Error("session_unavailable");
       // A replacement that staged a new Doan profile (Codex) left the stored session in the previous profile for good;
       // the same profile resolving to another directory is not a sign-in change.
-      if (stored && stored.session.configDir !== configDir) throw new Error(stored.owner.kind === "doan" && stored.owner.profile !== auth.state(provider).connection?.profile ? "sign_in_changed" : "session_unavailable");
+      if (stored && stored.session.configDir !== configDir) throw new Error(stored.owner.profile !== auth.state(provider).connection?.profile ? "sign_in_changed" : "session_unavailable");
       if (!insideRoot(root, cwd)) throw new Error("outside_root");
       if (stored) {
         const id = stored.session.sessionId;
