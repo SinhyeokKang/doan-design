@@ -109,7 +109,7 @@ test("a plan read that failed keeps the dialog with a reason line; Move to Trash
   expect(trash.props["aria-busy"]).toBeUndefined();
 });
 
-// D1: a confirmation that can fail stays open, busy, until main answers; Cancel and Escape are refused meanwhile.
+// DESIGN 'Busy action': a confirmation that can fail stays open, busy, until main answers; Cancel and Escape are refused meanwhile.
 test("while the move is out the confirm is busy and Cancel and Escape are refused", () => {
   const cancel = vi.fn(), confirm = vi.fn();
   const view = trashDialogView("checkout", PATH, { kind: "ready" }, false, { pending: true, failed: null });

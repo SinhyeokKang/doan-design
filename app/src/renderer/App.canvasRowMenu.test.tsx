@@ -188,7 +188,7 @@ test("a plan that lands after its dialog closed opens nothing", async () => {
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// D1: the confirmation stays open, busy, until main answers; only a move that went closes it, with its toast.
+// DESIGN 'Busy action': the confirmation stays open, busy, until main answers; only a move that went closes it, with its toast.
 test("confirming keeps the dialog busy until main answers, marks the trash before the request; trashed closes it with one toast", async () => {
   const focused: string[] = [];
   const plan = await openDialog(focused);

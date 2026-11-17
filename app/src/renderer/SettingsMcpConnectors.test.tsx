@@ -315,7 +315,7 @@ test("Remove asks first and locks the page; Cancel returns to the … button, Re
   click(all(tree).find(element => element.props["data-consent"] === "" && words(element.props.children) === "Remove"));
   render();
   expect(api.removeMcpServer).toHaveBeenCalledWith("doan-mcp-example-com");
-  // D1: the alert stays, busy, until the server is gone.
+  // DESIGN 'Busy action': the alert stays, busy, until the server is gone.
   expect(alert()).toBeDefined();
   expect(props.onLock).toHaveBeenLastCalledWith(true);
   feed(snap({ claude: { "doan-mcp-example-com": "removing" }, codex: { "doan-mcp-example-com": "removing" } }));
@@ -329,7 +329,7 @@ test("Remove asks first and locks the page; Cancel returns to the … button, Re
   expect(nodes.get('[data-mcp-row="codex:doan-mcp-two-com"]')?.focus).toHaveBeenCalled();
 });
 
-// D1: while Remove's request is out the alert is busy and refuses its cancel; a failure shows inside the alert, where
+// DESIGN 'Busy action': while Remove's request is out the alert is busy and refuses its cancel; a failure shows inside the alert, where
 // Remove is the retry, and the row's own Remove-failed notice waits until the alert closes.
 test("while Remove is out the alert is busy and refuses Cancel and Escape; a failure shows inside it and Remove retries", async () => {
   await settle();
