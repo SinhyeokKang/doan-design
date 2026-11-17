@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 type canvasFile struct {
@@ -19,9 +20,21 @@ type canvasFile struct {
 // scanCanvases keeps a file that cannot be read as a ReadError entry with only its path.
 // Only an enumeration failure fails the scan, because then the set of files is unknown.
 func scanCanvases(root string) ([]canvasFile, error) {
-	paths, e := repo.Canvases(root)
+	files, folders, e := scanListing(root)
 	if e != nil {
 		return nil, e
+	}
+	if len(folders) > 0 {
+		return nil, folders[0].Err
+	}
+	return files, nil
+}
+
+// scanListing is scanCanvases for ls, which also lists what it can around a folder it could not read.
+func scanListing(root string) ([]canvasFile, []repo.UnreadableFolder, error) {
+	paths, folders, e := repo.CanvasListing(root)
+	if e != nil {
+		return nil, nil, e
 	}
 	files := []canvasFile{}
 	for _, p := range paths {
@@ -33,7 +46,7 @@ func scanCanvases(root string) ([]canvasFile, error) {
 		c, e := canvas.Parse(p, b)
 		files = append(files, canvasFile{Model: c, Data: b, ParseError: e})
 	}
-	return files, nil
+	return files, folders, nil
 }
 
 // readFailure names the repo-relative path and the cause; the OS error itself carries the absolute path.
@@ -56,7 +69,7 @@ func List(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		}
 		return Outcome{}, failure
 	}
-	canvases, e := scanCanvases(r.Root)
+	canvases, folders, e := scanListing(r.Root)
 	if e != nil {
 		return Outcome{}, internal(e)
 	}
@@ -64,7 +77,7 @@ func List(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	if e != nil {
 		return Outcome{}, internal(e)
 	}
-	items := []any{}
+	items := []map[string]any{}
 	for _, file := range canvases {
 		c := file.Model
 		frames := []any{}
@@ -95,6 +108,13 @@ func List(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		}
 		items = append(items, item)
 	}
+	// A folder row is not a canvas; its own code lets a reader tell it from an unreadable canvas file.
+	for _, folder := range folders {
+		items = append(items, map[string]any{"path": folder.Path, "frames": []any{}, "error": readFailure("unreadable_folder", folder.Path, folder.Err)})
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i]["path"].(string) < items[j]["path"].(string)
+	})
 	result := map[string]any{"root": r.Root, "scope": scope, "canvases": items}
 	addStorageResult(result, repo.ReadStorage(r.Root, ctx.Home))
 	if git := repo.ReadGit(r.Root, ctx.Home); git != nil {

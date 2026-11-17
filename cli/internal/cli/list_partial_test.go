@@ -66,6 +66,7 @@ func TestListUnreadableCanvas(t *testing.T) {
 		{"path":".doan/canvases/b.html","id":"bee","width":800,"title":"Example","frames":[{"id":"main","title":"Main"}]}]`)
 	expectWholeFailures(t, root, checkCommand)
 }
+
 // A folder ls cannot read is a row with its own error, in path order among the canvases; check still needs the
 // whole set, so it fails as a whole without naming the config.
 func TestListUnreadableFolder(t *testing.T) {

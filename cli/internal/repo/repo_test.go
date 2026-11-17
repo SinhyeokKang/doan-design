@@ -353,7 +353,6 @@ func TestFindNamesNoConfigForOtherFailures(t *testing.T) {
 	expectConfig(t, err, "internal_error", "")
 }
 
-
 // A folder that cannot be read is reported by its repo-relative path and the walk lists the rest; Canvases, which
 // check and export use, still fails as a whole because the set of canvases is unknown.
 func TestCanvasListingReportsUnreadableFolders(t *testing.T) {
