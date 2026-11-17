@@ -226,9 +226,11 @@ export function canvasConversationTitle(run: CanvasRun, list: ListView): { title
   const provider = summary?.provider ?? run.store.providerOf(view.conversationId);
   const events = run.store.thread(view.conversationId)?.events ?? [];
   // Before a list names it, the first message stands in as main's title does: chips by name (messageLine). A command
-  // names nothing (main leaves one a command started untitled until a message), so the lists' "Conversation" stands in.
+  // names nothing (main leaves one a command started untitled until a message), so the lists' "Conversation" stands in
+  // once the history shows only commands; while it is read the title stays empty.
   const first = provider ? firstTitleMessage(provider, events) : undefined;
-  return { title: summary?.title || (first ? messageLine(requestTitleText(first.text), first.anchors) : "") || "Conversation", current: view.conversationId };
+  const untitled = events.some(event => event.type === "user.message") ? "Conversation" : "";
+  return { title: summary?.title || (first ? messageLine(requestTitleText(first.text), first.anchors) : untitled), current: view.conversationId };
 }
 
 export function CanvasConversation(props: CanvasConversationProps) {

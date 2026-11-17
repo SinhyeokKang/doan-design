@@ -324,7 +324,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const menuItems = listed ? projectConversationMenu(listed, props.now, props.seen) : [];
   // A command does not name the conversation (main leaves one a command started untitled until a message).
   const firstMessage = thread && provider ? firstTitleMessage(provider, thread.events) : undefined;
-  const title = conversationId ? summary?.title || (firstMessage ? requestTitleText(firstMessage.text) : "") || "Conversation" : "New conversation";
+  // The lists' "Conversation" stands in once the history shows only commands; while it is read the title stays empty.
+  const untitled = thread?.events.some(event => event.type === "user.message") ? "Conversation" : "";
+  const title = conversationId ? summary?.title || (firstMessage ? requestTitleText(firstMessage.text) : untitled) : "New conversation";
   const picked = useRef(false);
   // The title menu's trigger, where focus returns after a Delete's confirmation; `deleting` keeps the closing menu from
   // taking focus back while the alert opens.

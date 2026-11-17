@@ -98,11 +98,11 @@ export const PRESET_NOTICE = "Presets don’t apply to commands";
 // and no later turn reported a context value, so the record's last value is the previous session's.
 export interface ThreadCommands { turns: ReadonlyMap<string, string>; boundaries: ReadonlyMap<string, BoundaryKind>; usageStale: boolean }
 export function threadCommands(provider: Provider, events: readonly ConversationEvent[], boundaries: ReadonlyMap<string, BoundaryKind>): ThreadCommands {
-  const turns = new Map<string, string>(), order: string[] = [], measured = new Set<string>();
+  const turns = new Map<string, string>(), order: string[] = [], opened = new Set<string>(), measured = new Set<string>();
   for (const event of events) {
     // A message steered into a turn later is not the turn's command.
-    if (event.type === "user.message" && !order.includes(event.turnId)) {
-      order.push(event.turnId);
+    if (event.type === "user.message" && !opened.has(event.turnId)) {
+      opened.add(event.turnId); order.push(event.turnId);
       const name = commandName(provider, event.text);
       if (name) turns.set(event.turnId, name);
     }
