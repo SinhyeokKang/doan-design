@@ -40,6 +40,7 @@ BACKLOG에 "Fix (decided)"로 적었다. 구현이 끝나면 각 배치가 PRODU
 | B5 `ls` 폴더 행 오류 | `fix/ls-folder-row-error` | 5-1 | `cli/internal/repo/files.go`, `cli/internal/cli/read.go`, 앱의 `ls` 행 처리 |
 | B6 설정·격리 | `fix/setup-rule-history` | 6-1 `doan.rules` 이전 텍스트, 6-2 `isolatedEnv` PATH | `agentSetup/plan.ts`, `app/runtime/environment.ts` |
 | B7 eval transcript reader | `fix/eval-heredoc-doan` | 7-1 Python heredoc 안의 `doan` 호출 읽기 | `eval/lib/transcript.ts`, `eval/scenarios/D1/presets.ts` |
+| B8 lint `no-unnecessary-condition` | `refactor/lint-unnecessary-condition` | 8-1 규칙 켜기와 지적 정리 | `app/.oxlintrc.json`, `app/src`·`app/runtime`의 비테스트 파일 약 37개 |
 
 **순서와 겹침.**
 - B1, B2, B3, B5, B6은 바로 동시에 돌려도 된다. 서로 고치는 파일이 겹치지 않는다.
@@ -143,6 +144,19 @@ BACKLOG에 "Fix (decided)"로 적었다. 구현이 끝나면 각 배치가 PRODU
    - 수정: BACKLOG가 적은 첫 번째 선택지를 구현한다. heredoc 본문을 정적으로 읽어, `doan` argv 목록이 모두 문자열 리터럴인 호출만 읽은 것으로 센다. 동적인 인자와 `.py` 파일은 계속 incomplete로 둔다. 두 번째 선택지(`doan` 바이너리의 읽기 로그)는 ARCHITECTURE를 바꾸므로 이 배치에 넣지 않는다.
    - 확인: 리터럴 호출, 동적 호출, `.py` 파일 각각의 transcript fixture로 `node --test 'eval/**/*.test.ts'`와 `node eval/run.ts --self-test --scenarios D10g,D10h`를 돌린다. 실제 에이전트 라운드는 돌리지 않는다.
    - `/verify --eval`을 쓴다. 제품 CLI와 가이드는 바뀌지 않으므로 `/agent-eval`은 필요 없다.
+
+### B8 lint `no-unnecessary-condition` (`refactor/lint-unnecessary-condition`, 2026-11-17 추가)
+
+1. **규칙 켜기** (BACKLOG "`no-unnecessary-condition` is excluded from app lint…")
+   - 현상: 이 규칙을 앱 lint에서 빼 두었다. 켜면 비테스트 소스 37개 파일에서 115건이 나온다(BACKLOG 기록 기준이며, 지금 숫자는 컨덕터가 다시 잰다). POSTMORTEM의 “Home remembered its choice on every mount” 버그는 이 규칙이 있었다면 잡혔다.
+   - 수정: `app/.oxlintrc.json`에서 규칙을 error로 켜고, 지적을 하나씩 정리한다.
+     - 실제로 불필요한 조건은 지운다.
+     - IPC, JSON, 파일, 외부 프로세스 경계처럼 타입이 실제 값보다 좁아서 생긴 지적은 방어 조건을 지우지 않는다. 대신 그 입력의 타입을 `unknown`이나 실제 모양으로 넓힌다.
+     - 동작을 바꾸지 않는다. 지적 하나를 고치다 동작이 바뀌는 버그를 찾으면, 따로 테스트로 고정하고 PR 본문에 적는다.
+     - 규칙을 끄는 주석은 이유가 분명한 곳에만 쓰고, 이유를 주석에 적는다.
+   - 테스트 파일과 `eval/`은 이 배치 범위가 아니다(BACKLOG의 별도 항목).
+   - 확인: `npm --prefix app run lint`가 오류 없이 통과하고, `/verify`를 돌린다. 앱 동작은 바뀌지 않으므로 `/runtime-test`는 필요 없다.
+   - 고칠 문서: BACKLOG 항목을 지운다. verify 스킬의 lint 설명이 규칙 목록을 말하면 맞춘다.
 
 ## 5. 리드 인수인계
 
