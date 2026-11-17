@@ -1,7 +1,7 @@
 // Provider records that stand for a command's effect rather than a message: a context boundary the thread draws, or a
 // record the thread leaves out. Boundaries are rebuilt from the provider's session records, not kept in Doan's history,
 // so they read the same in this run and after a restart (Copilot's excepted: its session/load replay leaves the
-// compaction out). Shapes from the provider-commands PoC: Claude Code 2.1.326, Codex 0.167.1, Copilot 1.0.105.
+// compaction out). Shapes from a live PoC (2026-11-17): Claude Code 2.1.326, Codex 0.167.1, Copilot 1.0.105.
 export type BoundaryKind = "compacted" | "cleared";
 
 function record(value: unknown): value is Record<string, unknown> {

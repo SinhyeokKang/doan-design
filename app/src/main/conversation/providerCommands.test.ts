@@ -40,7 +40,7 @@ describe("UNSUPPORTED_COMMANDS", () => {
   it("never names an allowed command", () => {
     for (const p of PROVIDERS) for (const c of COMMAND_ALLOWLIST[p].commands) expect(UNSUPPORTED_COMMANDS[p], `${p} ${c.name}`).not.toContain(c.name);
   });
-  // An ACP command the server lists but the PoC never sent goes out as text (decision 10), so it is not a card.
+  // An ACP command the server lists but no live check confirmed goes out as text for the server to handle, so it is not a card.
   it("leaves unconfirmed ACP commands out", () => {
     expect(UNSUPPORTED_COMMANDS.copilot).not.toContain("plan");
     expect(UNSUPPORTED_COMMANDS.cursor).not.toContain("rename-chat");

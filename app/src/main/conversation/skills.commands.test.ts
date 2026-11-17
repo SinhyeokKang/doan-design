@@ -43,7 +43,7 @@ describe("allowedCommands", () => {
     expect(allowedCommands("cursor", "2026.10.22-27dcf5f", new Map([["copy-request-id", "Copy the last request ID."]]))).toEqual([command("copy-request-id", "Copy the last request ID.")]);
     expect(allowedCommands("antigravity", "1.3.0", new Map([["plan", ""], ["logout", ""]]))).toEqual([]);
   });
-  // Decision 9: Claude's SDK list lacks /review (an alias of code-review), so it only lends descriptions.
+  // Claude's SDK list lacks /review (an alias of code-review), which runs, so the list only lends descriptions.
   it("keeps Claude's fixed rows whatever the SDK listed, and takes a real SDK description", () => {
     expect(allowedCommands("claude", "2.1.326", new Map([["compact", "Compact with a summary."]]))).toEqual(
       CLAUDE_ROWS.map(row => row.name === "compact" ? command("compact", "Compact with a summary.") : row));

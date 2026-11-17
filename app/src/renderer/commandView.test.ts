@@ -13,7 +13,7 @@ describe("commandLists", () => {
     expect(CLAUDE.commands).toEqual(new Set(["clear", "compact", "context", "review"]));
     expect(CLAUDE.unsupported).toEqual(new Set(["config", "login", "logout", "model", "permissions", "theme"]));
   });
-  // Decision 8: a project skill wins over a command or a card of the same name.
+  // A project skill wins over a command or a card of the same name.
   it("leaves a command or card out when a project skill has its name", () => {
     const lists = commandLists("claude", [skill("context"), skill("model"), command("context"), command("compact")]);
     expect(lists.skills).toEqual(new Set(["context", "model"]));
@@ -53,7 +53,7 @@ describe("classifyFirstWord", () => {
       expect(classifyFirstWord(text, CLAUDE), text).toEqual(text.startsWith("/deploy") ? { kind: "skill", name: "deploy" } : { kind: "text" });
     }
   });
-  // Decision 10: a command the ACP server lists that the PoC never confirmed goes out as text, with no card.
+  // A command the ACP server lists that no live check confirmed goes out as text, with no card.
   it("reads an unconfirmed ACP command as text", () => {
     expect(classifyFirstWord("/plan the page", commandLists("copilot", [command("compact")]))).toEqual({ kind: "text" });
     expect(classifyFirstWord("/rename-chat new", commandLists("cursor", [command("copy-request-id")]))).toEqual({ kind: "text" });

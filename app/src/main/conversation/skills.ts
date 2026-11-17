@@ -48,8 +48,8 @@ export function parseCodexSkills(result: unknown): SkillSummary[] {
 }
 
 // The provider's built-in commands Doan runs (providerCommands.ts): only at the version the PoC confirmed or later, so a
-// CLI whose version no run has read lists none. Claude and Codex list the whole table (decision: Claude's SDK list lacks
-// /review, which runs), and `reported` only lends a description; an ACP server lists what it runs, so a row needs it there.
+// CLI whose version no run has read lists none. Claude and Codex list the whole table (Claude's SDK list lacks /review,
+// which runs), and `reported` only lends a description; an ACP server lists what it runs, so a row needs it there.
 // A reported description wins unless it is empty or Claude's placeholder.
 const PLACEHOLDER = "Built-in command.";
 export function allowedCommands(provider: Provider, installed: string | undefined, reported?: ReadonlyMap<string, string>): SkillSummary[] {

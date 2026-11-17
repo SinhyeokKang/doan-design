@@ -1,6 +1,6 @@
 import type { Provider } from "../agentAuth/types";
 
-// Provider built-in commands Doan runs, as the provider-commands PoC (2026-11-17) confirmed them live: the oldest CLI
+// Provider built-in commands Doan runs, as a live PoC (2026-11-17) confirmed them: the oldest CLI
 // version that ran each provider's commands, and the commands in name order. A later CLI keeps them until a live check
 // shows otherwise; adding a command or moving a version is a decision backed by such a check. Its own module, like
 // minimumVersions.ts, because the composers read these tables and the renderer must not load sessions.ts.
