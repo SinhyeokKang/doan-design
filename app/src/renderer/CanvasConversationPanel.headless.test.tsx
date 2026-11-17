@@ -39,6 +39,7 @@ const { CanvasConversation } = await import("./CanvasConversationPanel");
 const { CanvasRun } = await import("./canvasRun");
 const { ConversationStore } = await import("./conversationStore");
 const { DockedSupport, modelsKey } = await import("./dockedSupport");
+const { draftKey } = await import("./dockedRules");
 
 const ROOT = "/w/acme";
 const CANVAS: Canvas = { path: ".doan/canvases/checkout.html", id: "checkout" };
@@ -268,4 +269,51 @@ test("an ACP conversation's commands, unconfirmed names and card reach the compo
   const card = { title: "/model doesn’t run in Doan", body: "Choose the model from the model picker.", action: null };
   composer.onCard(card);
   expect(store.card("conversation:c1")).toBe(card);
+});
+
+// A command sent from the new conversation state starts a conversation and leaves the preset and attachments it did not
+// take. The start's reply and the list's push of the new conversation come in either order: while the start is out the
+// draft never moves (followNewConversation's guard), and once the reply names the conversation the composer settles the
+// leftover under it (settleSent).
+test.each(["reply first", "push first"] as const)("a command's leftover follows the conversation it started (%s)", async order => {
+  const { settleSent } = await import("./dockedRules");
+  const calls = fakeCalls();
+  let answer!: (reply: { conversationId: string }) => void;
+  calls.startConversation.mockImplementation(() => new Promise(resolve => { answer = resolve; }) as never);
+  let list: ListView = [];
+  const host = { list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() };
+  const store = new ConversationStore(host, calls);
+  const run = new CanvasRun({ ...host, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null }, store, calls);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  await flush();
+  const support = new DockedSupport(() => {}, calls);
+  const { authStatus } = await import("../main/agentAuth/state");
+  support.auth = { revision: 1, providers: [authStatus({ provider: "claude", generation: 1, verified: true, expired: false, connection: { provider: "claude", connectionId: "c", profile: "claude", account: { id: "a", workspace: "org", email: "ada@example.com" } }, attempt: null, error: null, phase: "connected" }, { cli: "found", version: "supported", tools: "ready" }, 1)] };
+  const panel = () => CanvasConversation({
+    calls, run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list, seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
+  });
+  const newKey = draftKey({ kind: "new", root: ROOT, canvas: CANVAS });
+  const file = { key: "k", id: "f", name: "notes.md", kind: "file" as const, pasted: false, status: "ready" as const, size: 5, path: "/u/notes.md" };
+  const sent = { segments: [{ kind: "text" as const, text: "/compact" }], preset: null, attachments: [file], shape: "box" as const };
+  store.setDrafts(drafts => new Map(drafts).set(newKey, sent));
+  const composer = dockedProps(render(panel))! as { onSend(request: unknown): Promise<{ ok?: true; conversationId?: string }> };
+  const sending = composer.onSend({ text: "/compact", anchors: [], attachments: [] });
+  const push = () => { list = [{ conversationId: "c9", canvas: CANVAS, title: "", owner: "doan", provider: "claude", fromHome: false, phase: "running", unseen: false, queued: 0, working: true, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "" }]; run.sync(); };
+  if (order === "push first") {
+    push();
+    // The start is out: the draft stays where it was sent from.
+    expect(store.drafts.get(newKey)).toBe(sent);
+    expect(store.drafts.has("conversation:c9")).toBe(false);
+  }
+  answer({ conversationId: "c9" });
+  const outcome = await sending;
+  expect(outcome).toEqual({ ok: true, conversationId: "c9" });
+  store.setDrafts(drafts => settleSent(drafts, newKey, sent, { ...sent, segments: [], shape: "box" }, `conversation:${outcome.conversationId}`));
+  if (order === "reply first") push();
+  expect(run.view()).toMatchObject({ kind: "conversation", conversationId: "c9" });
+  expect(store.drafts.get("conversation:c9")?.attachments).toEqual([file]);
+  expect(store.drafts.get(newKey)?.attachments ?? []).toEqual([]);
 });

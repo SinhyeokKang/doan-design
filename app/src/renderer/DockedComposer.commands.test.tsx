@@ -125,13 +125,16 @@ test("a command while a turn runs queues alone, as its own row", async () => {
 });
 
 test("a built-in Doan does not run sends nothing, shows its card and keeps the text, announced as status", async () => {
-  const { store, send, queue, onCard, render } = setup({}, [[KEY, draft("/model opus")]]);
+  const { store, send, queue, onCard, props, render } = setup({}, [[KEY, draft("/model opus")]]);
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
   expect(send).not.toHaveBeenCalled();
   expect(queue).not.toHaveBeenCalled();
   expect(onCard).toHaveBeenCalledWith(commandCard("claude", "model"));
   expect(plainText(store.current.get(KEY)!.segments)).toBe("/model opus");
+  // The host shows the card it was given; the composer says it.
+  props.card = onCard.mock.calls[0]![0];
+  render(); runEffects();
   expect(said(render())).toBe("/model doesn’t run in Doan. Choose the model from the model picker.");
 });
 
@@ -148,6 +151,7 @@ test("Codex's refusal of /review for the permission mode shows the stale-mode ca
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
   expect(onCard).toHaveBeenCalledWith(STALE_MODE_CARD);
+  expect(onCard.mock.calls[0]![0]).not.toBe(STALE_MODE_CARD);
   expect(plainText(store.current.get(KEY)!.segments)).toBe("/review");
   expect(render().some(props => typeof props.className === "string" && props.className.includes("composer-notice"))).toBe(false);
 });
@@ -202,4 +206,74 @@ test("Control+Enter sends the message rows now and leaves a command row queued",
   (input(tree).onSteerKey as () => void)();
   await flush();
   expect(onSendQueuedNow.mock.calls.map(call => (call as unknown[])[0])).toEqual(["q1"]);
+});
+
+const runEffects = () => { for (const effect of [...hooks.effects]) effect(); };
+const MISSING: AttachmentDraft = { ...FILE, key: "m", id: "fm", status: "missing" };
+const CHECKING: AttachmentDraft = { key: "c", name: "big.mov", kind: "file", pasted: false, status: "checking" };
+const NEW_MODE: DockedMode = { kind: "new", root: "/w" };
+const NEW_KEY = "root:/w";
+
+// A command started from a new conversation leaves the preset and attachments it did not take; the composer then shows
+// the started conversation, so they go to its key. A draft the person already has there stays.
+test("a command that starts a conversation leaves its preset and attachments in the started conversation's draft", async () => {
+  const { store, render } = setup({ mode: NEW_MODE, onSend: async () => ({ ok: true, conversationId: "c9" }) }, [[NEW_KEY, draft("/compact", { preset: POLISH, attachments: [FILE], shape: "box" })]]);
+  expect(store.current.has(NEW_KEY)).toBe(true);
+  (field(render()).onKeyDown as (event: unknown) => void)(enter());
+  await flush();
+  const moved = store.current.get("conversation:c9")!;
+  expect(plainText(moved.segments)).toBe("");
+  expect(moved.preset).toBe(POLISH);
+  expect(moved.attachments).toEqual([FILE]);
+  expect(store.current.get(NEW_KEY)).toEqual(EMPTY_DRAFT);
+});
+test("a draft already in the started conversation stays; the leftover stays where it was sent from", async () => {
+  const typed = draft("Then tighten it");
+  const { store, render } = setup({ mode: NEW_MODE, onSend: async () => ({ ok: true, conversationId: "c9" }) }, [[NEW_KEY, draft("/compact", { attachments: [FILE], shape: "box" })], ["conversation:c9", typed]]);
+  (field(render()).onKeyDown as (event: unknown) => void)(enter());
+  await flush();
+  expect(store.current.get("conversation:c9")).toBe(typed);
+  expect(store.current.get(NEW_KEY)?.attachments).toEqual([FILE]);
+});
+
+// Control+Enter queues the field and then steers its item; a command is never steered, so it only queues.
+test("Control+Enter on a command in the field queues it and does not send it now", async () => {
+  vi.stubGlobal("document", { body: {}, activeElement: null });
+  const onSendQueuedNow = vi.fn(async () => {});
+  const queue = vi.fn(async (_request: unknown): Promise<DockedOutcome> => ({ ok: true, itemId: "q9" }));
+  const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow, onQueue: queue }, [[KEY, draft("/compact")]]);
+  (input(render(true)).onSteerKey as () => void)();
+  await flush();
+  expect(queue).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [] });
+  expect(onSendQueuedNow).not.toHaveBeenCalled();
+});
+
+// A card can come back without a send from this composer (a queued /review main returned): the composer says the
+// card it is given once, through its status region, whichever way it came.
+test("a card the host gives is said once through the composer's status", () => {
+  const { props, render } = setup();
+  props.card = { ...STALE_MODE_CARD };
+  render(); runEffects();
+  expect(said(render())).toBe("/review can’t use the new permission mode yet. Send a message first so Codex picks up the permission mode, then run /review again.");
+  // Said once: a later status line is not replaced by the same card on the next draws.
+  (input(render()).onAnnounce as (text: string) => void)("Removed Polish the details");
+  render(); runEffects();
+  expect(said(render())).toBe("Removed Polish the details");
+});
+
+// A command takes no attachments, so their state does not hold it.
+test("a missing or checking attachment does not hold a command or its card", async () => {
+  const { send, render } = setup({}, [[KEY, draft("/compact", { attachments: [MISSING], shape: "box" })]]);
+  (field(render()).onKeyDown as (event: unknown) => void)(enter());
+  await flush();
+  expect(send).toHaveBeenCalledWith({ text: "/compact", anchors: [], attachments: [] });
+  const card = setup({}, [[KEY, draft("/model opus", { attachments: [CHECKING], shape: "box" })]]);
+  (field(card.render()).onKeyDown as (event: unknown) => void)(enter());
+  await flush();
+  expect(card.onCard).toHaveBeenCalledWith(commandCard("claude", "model"));
+  // A message keeps the shipped check.
+  const message = setup({}, [[KEY, draft("Use this file", { attachments: [MISSING], shape: "box" })]]);
+  (field(message.render()).onKeyDown as (event: unknown) => void)(enter());
+  await flush();
+  expect(message.send).not.toHaveBeenCalled();
 });

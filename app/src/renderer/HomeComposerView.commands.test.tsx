@@ -137,3 +137,36 @@ test("while the field starts with a command the preset chip leaves for the notic
   expect(input(tree).skillNames).toEqual(new Set(["deploy"]));
   expect((input(tree).commandNames as Set<string>).has("compact")).toBe(true);
 });
+
+// Codex's first /review: main has no permission mode the thread was told (no message yet), so it refuses with
+// command_mode_stale. Home says why with the stale-mode card, not a start error with Retry, and keeps the text.
+test("Codex's first /review on Home shows the stale-mode card and keeps the text", async () => {
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  doan.listConversationSkills!.mockResolvedValue({ skills: [{ kind: "command", name: "compact", description: "" }, { kind: "command", name: "review", description: "" }] });
+  const { box, render, start } = setup({ text: "/review", provider: "codex", auth: { revision: 1, providers: [dto("claude"), dto("codex")] } });
+  start.mockImplementation(async () => ({ error: "command_mode_stale" }) as never);
+  render(); runEffects(); await flush();
+  call(field(render()), "onKeyDown", key("Enter")); await flush();
+  expect(start.mock.calls[0]?.[0]).toMatchObject({ runtime: "codex", text: "/review" });
+  expect(box.current.card?.title).toBe("/review can’t use the new permission mode yet");
+  expect(box.current.notice).toBeNull();
+  expect(box.current.text).toBe("/review");
+  const tree = render();
+  expect(tree.some(p => p.children === "/review can’t use the new permission mode yet")).toBe(true);
+  expect(said(tree)).toBe("/review can’t use the new permission mode yet. Send a message first so Codex picks up the permission mode, then run /review again.");
+});
+
+// A command takes no attachments, so a moved or checking file does not hold it on Home either.
+test("a missing attachment does not hold a command on Home; a message keeps the shipped check", async () => {
+  vi.stubGlobal("document", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  doan.listConversationSkills!.mockResolvedValue(COMMANDS);
+  const missing = { key: "m", id: "fm", name: "notes.md", kind: "file" as const, pasted: false, status: "missing" as const, size: 5, path: "/Users/ada/notes.md" };
+  const { render, start } = setup({ text: "/compact", attachments: [missing] });
+  render(); runEffects(); await flush();
+  call(field(render()), "onKeyDown", key("Enter")); await flush();
+  expect(start.mock.calls[0]?.[0]).toMatchObject({ text: "/compact" });
+  const message = setup({ text: "Use this file", attachments: [missing] });
+  message.render(); runEffects(); await flush();
+  call(field(message.render()), "onKeyDown", key("Enter")); await flush();
+  expect(message.start).not.toHaveBeenCalled();
+});

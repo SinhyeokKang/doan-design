@@ -81,6 +81,8 @@ test("a queued /review main returned for the permission mode comes back as the d
   await flush();
   const key = `conversation:${A}`;
   expect(store.drafts.get(key)?.segments).toEqual([{ kind: "text", text: "/review" }]);
-  expect(store.card(key)).toBe(STALE_MODE_CARD);
+  // A copy, so the composer says each card that comes back once (DockedComposer's card status).
+  expect(store.card(key)).toEqual(STALE_MODE_CARD);
+  expect(store.card(key)).not.toBe(STALE_MODE_CARD);
   expect(host.notice).not.toHaveBeenCalled();
 });
