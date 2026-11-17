@@ -10,6 +10,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { providerLogo } from "./homeComposer";
 import { addError, mcpPageView, removeFailedText, removeFocus, type McpButton, type McpCommand, type McpRowView } from "./mcpConnectorsView";
 import type { McpConnectorsWatch } from "./mcpConnectorsWatch";
+import { retryButton, useRetry } from "./ListRetryButton";
+import { announcedAgain } from "./listRetry";
 import { dialogKeys, NoticeView, openModal } from "./Onboarding";
 
 export interface SettingsMcpConnectorsProps {
@@ -52,10 +54,16 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
   // Announcements made before the page opened are not read again.
   const since = useRef<number | null>(null);
   if (since.current === null) since.current = watch.announcementSeq();
+  // The entry read is the page's only source until main publishes: one that rejects with no snapshot yet shows the read
+  // failure with a Retry instead of a blank page. With a snapshot shown, the page stays as it is.
+  const [readFailed, setReadFailed] = useState(false);
+  const readRetry = useRetry();
+  const readEntry = () => window.doan.readMcpConnectors({ refresh: true }).then(reply => { if (snapshotReply(reply)) { watch.receive(reply); setReadFailed(false); } return true; },
+    () => { if (watch.snapshot === null) setReadFailed(true); return false; });
   useEffect(() => {
     const offWatch = watch.subscribe(redraw), offAuth = signIn.subscribe(redraw);
     // Status commands use the network, so they run on entering the page, never on a timer.
-    void window.doan.readMcpConnectors({ refresh: true }).then(reply => { if (snapshotReply(reply)) watch.receive(reply); }, () => {});
+    void readEntry();
     return () => {
       offWatch(); offAuth();
       if (locked.current) { locked.current = false; live.current.onLock(false); }
@@ -178,6 +186,8 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
   return <>
     {actions && createPortal(<button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-mcp-add="" disabled={view.addDisabled} onClick={openAdd}>
       <Plus aria-hidden="true" />Add server by URL</button>, actions)}
+    {readFailed && watch.snapshot === null && <div className="settings-msg-row"><p className="settings-msg error selectable" role="alert"><AlertIcon /><span id="settings-mcp-read-error">{announcedAgain("Couldn’t read the MCP connectors.", readRetry.failures)}</span></p>
+      {retryButton({ running: readRetry.running, variant: "subtle", describedBy: "settings-mcp-read-error", onRetry: pressed => readRetry.run(readEntry, pressed) })}</div>}
     {view.notice && <div className="settings-notice"><NoticeView notice={view.notice} run={() => {}} live={false} /></div>}
     {view.sections.map(section => {
       const titleId = `mcp-agent-${section.provider}`;

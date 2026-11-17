@@ -525,7 +525,8 @@ export class ProjectStepSession {
         if (!reply.ok || !("operations" in reply.result)) return;
         const found = reply.result.operations.find(o => o.operationId === operationId);
         if (found && TERMINAL.has(found.state)) this.resolve(found);
-      }, () => {});
+        // A rejected read is asked again on the next published state; otherwise the step would wait on it forever.
+      }, () => { this.asked.delete(operationId); });
     }
   }
   private asked = new Set<string>();
