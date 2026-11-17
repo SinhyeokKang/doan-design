@@ -92,7 +92,7 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void, 
     }}
     onMouseEnter={() => dispatch({ type: "hover", on: true })} onMouseLeave={() => { timerAt.current = performance.now(); dispatch({ type: "hover", on: false }); }}
     onFocus={event => { if (!event.currentTarget.contains(event.relatedTarget)) previousFocus.current = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null; dispatch({ type: "focus", on: true }); }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { timerAt.current = performance.now(); dispatch({ type: "focus", on: false }); } }}>
-    <span className="msg selectable">{shown.message}</span>{shown.action && <button key={leaving ? `${shown.id}:leaving` : shown.id} ref={actionRef.current} className="btn doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={action}
+    <span className="msg selectable">{shown.message}</span>{shown.action && <button key={leaving ? `${shown.id}:leaving` : shown.id} ref={actionRef.current} className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={action}
       // Not `disabled`: that would drop focus from the button while it runs, and the button's focus decides where focus
       // goes when the toast leaves.
       {...(shown.busy ? { "aria-disabled": true, "data-disabled": "" } : {})}>{shown.busy ? <><span className="doan-spinner" aria-hidden="true" />{shown.action}</> : shown.action}</button>}

@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Trash2 } from "lucide-react";
+import { AlertIcon } from "./AlertIcon";
 import { canvasRowProblemText, type CanvasConversationRow } from "./canvasConversationRows";
 import { ConversationHead } from "./ConversationLine";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -105,7 +106,7 @@ export function CanvasConversationList({ list, project, thumbnails, open, retry,
 
   if (list === "loading") return slow ? <ListLoading /> : null;
   // The panel is white, where a panel button has no fill of its own; subtle keeps one.
-  if (list === "error") return <div className="rp-error" role="status"><span>{announcedAgain(LIST_FAILED_TEXT, listRetry.failures)}</span>
+  if (list === "error") return <div className="rp-error" role="status"><AlertIcon /><span>{announcedAgain(LIST_FAILED_TEXT, listRetry.failures)}</span>
     {listRetryButton(listRetry, "subtle", retry)}</div>;
   if (rows.length === 0) return <div className="rp-empty"><p>No canvas conversations yet.</p><p>When a conversation draws or edits a canvas, the canvas shows here.</p></div>;
   return <ul className="rp-list" role="list" ref={listRef} onKeyDown={event => {
