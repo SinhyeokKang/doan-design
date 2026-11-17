@@ -1192,3 +1192,24 @@ test("on a fake clock, the reset timer redraws the status line as Sending", () =
   } finally { vi.useRealTimers(); }
 });
 
+
+// DESIGN 'Busy action' (the list Retry's model): the notice's Retry stays, busy, while the send it started is out.
+test("the notice's Retry is busy while its send is out and described by the notice", async () => {
+  let answer!: (outcome: DockedOutcome) => void;
+  const send = vi.fn(async (): Promise<DockedOutcome> => ({ error: "rate_limited" }));
+  const refuse = () => ({ kind: "notice" as const, text: "Couldn’t start with Codex: it is rate limited.", retry: true });
+  const { render } = setup({ mode: { kind: "new", root: "/w", canvas: RESUME.canvas }, refuse, onSend: send }, [[draftKey({ kind: "new", root: "/w", canvas: RESUME.canvas }), draft("Fix")]]);
+  (button(render(), "Send").onClick as () => void)();
+  await flush();
+  const retry = find(render(), item => item.children === "Retry");
+  expect(retry["aria-label"]).toBeUndefined();
+  expect(find(render(), item => item.id === retry["aria-describedby"]).children).toBe("Couldn’t start with Codex: it is rate limited.");
+  send.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  (retry.onClick as () => void)();
+  const busy = find(render(), item => item["aria-busy"] === true && String(item["aria-describedby"] ?? "").endsWith("-notice"));
+  expect(busy["aria-disabled"]).toBe(true);
+  expect(has(render(), "Couldn’t start with Codex: it is rate limited.")).toBe(true);
+  answer({ error: "rate_limited" });
+  await flush();
+  expect(find(render(), item => item.children === "Retry")["aria-busy"]).toBeUndefined();
+});

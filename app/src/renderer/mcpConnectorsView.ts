@@ -48,6 +48,9 @@ function button(command: McpCommand, label: string, variant: Button["variant"], 
 }
 const alert = (body: string, actions: McpButton[]): Notice<McpCommand> => ({ role: "alert", spinner: false, body, actions });
 
+// The row's Remove failure, also said inside the Remove alert when that is still open.
+export const removeFailedText = (label: string) => `Couldn’t remove ${label} from Doan’s agents. Try again.`;
+
 export function mcpFailureText(failure: McpFailure, provider: McpProvider, label: string): string {
   const agent = PROVIDER_NAMES[provider];
   switch (failure) {
@@ -117,7 +120,7 @@ function rowView(provider: McpProvider, server: McpServerDto, row: McpRowDto, bu
   // A failed Remove shows its own alert over an earlier Connect failure; while a Remove runs, an earlier failure's alert
   // stays (it lasts until the row's next Connect, Retry or Cancel) with its Retry disabled.
   // A running attempt's own actions (Cancel, Open again) win over the Remove failure, which shows again once it ends.
-  if (server.removeFailed && view.status !== "removing" && view.status !== "connecting") notice = alert(`Couldn’t remove ${label} from Doan’s agents. Try again.`, [button("remove", "Retry", "prominent", `Retry removing ${label} from ${BOTH}`)]);
+  if (server.removeFailed && view.status !== "removing" && view.status !== "connecting") notice = alert(removeFailedText(label), [button("remove", "Retry", "prominent", `Retry removing ${label} from ${BOTH}`)]);
   // A failed attempt keeps the row it returned to and puts the reason and Retry in place of the row's button.
   else if (row.failure) {
     rowButton = null;

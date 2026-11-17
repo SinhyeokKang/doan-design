@@ -98,7 +98,7 @@ export function SettingsGeneral({ preferences, buddy, onLock }: { preferences: P
     <section className="settings-section" aria-labelledby="settings-general-buddy">
       <div className="settings-section-header"><div className="settings-header-copy"><h2 className="settings-section-title" id="settings-general-buddy">Buddy</h2>
         <p className="settings-section-description">Shown on Home and while an agent works on a canvas. It also sets the accent color.</p></div></div>
-      {failure && <BuddyFailureNotice failure={failure} id="settings-buddy-error" className="settings-notice buddy-notice" retry={() => retry(failure)} />}
+      {failure && <BuddyFailureNotice failure={failure} id="settings-buddy-error" className="settings-notice buddy-notice" running={buddy.saving} retry={() => retry(failure)} />}
       <div className={locked ? "doan-settings-group buddy-locked" : "doan-settings-group"} data-layout="rows">
         <BuddyRows name="settings-buddy" labelledBy="settings-general-buddy" selected={buddy.shown} disabled={off} inert={locked} request={request} />
         {/* The countdown and its line describe the buddy, so they are read once when focus reaches it; a live role on

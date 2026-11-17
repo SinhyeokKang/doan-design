@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { DropdownMenu } from "radix-ui";
 import { expect, test, vi } from "vitest";
 import { announcedAgain, LIST_RETRY_IDLE } from "./listRetry";
-import { listRetryButton, listRetryItem } from "./ListRetryButton";
+import { listRetryButton, listRetryItem, retryButton } from "./ListRetryButton";
 
 // A failed conversation-list read's Retry, in a notice, the right panel and the title menus: DESIGN 'Busy action'
 // while its read runs, and the same failure read out again when it fails again.
@@ -51,5 +51,25 @@ test("the title menu's Retry row stays a highlightable item while it runs: aria-
   const idle = listRetryItem(LIST_RETRY_IDLE, onRetry);
   expect(idle.props["aria-busy"]).toBeUndefined();
   idle.props.onSelect({ preventDefault: vi.fn() });
+  expect(onRetry).toHaveBeenCalledOnce();
+});
+
+// Every Retry beside a failure line (settings saves and reads, the thread, the composers): the list Retry's busy model,
+// named by its visible word, with what it retries linked by aria-describedby to the line (DESIGN 'Accessible names').
+test("a failure line's Retry is named Retry and described by its line; while it runs it stays focusable, busy and ignores presses", () => {
+  const onRetry = vi.fn();
+  const idle = retryButton({ running: false, variant: "subtle", describedBy: "save-error", onRetry });
+  expect(renderToStaticMarkup(idle)).toBe('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-describedby="save-error">Retry</button>');
+  expect(idle.props["aria-label"]).toBeUndefined();
+  idle.props.onClick({ currentTarget: null });
+  expect(onRetry).toHaveBeenCalledOnce();
+  const running = retryButton({ running: true, variant: "panel", describedBy: "save-error", onRetry });
+  const html = renderToStaticMarkup(running);
+  expect(html).toContain('aria-disabled="true"');
+  expect(html).toContain('aria-busy="true"');
+  expect(html).toContain('aria-describedby="save-error"');
+  expect(html).not.toMatch(/ disabled=""| data-disabled=""/);
+  expect(html).toMatch(/<span class="doan-spinner" aria-hidden="true"><\/span>Retry<\/button>$/);
+  running.props.onClick({ currentTarget: null });
   expect(onRetry).toHaveBeenCalledOnce();
 });
