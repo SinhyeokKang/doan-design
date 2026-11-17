@@ -6,18 +6,18 @@ const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\
 const colors = (s: string) => [...strip(s).matchAll(/#[\da-f]{3,8}\b|\brgba?\s*\(/gi)].map(m => m[0].toLowerCase());
 
 function imports(source: string, path: string): string[] {
-  if (/\.css$/i.test(path)) return [...strip(source).matchAll(/@import\s+(?:url\(\s*)?["'](\.[^"']+)["']/g)].map(m => m[1]);
+  if (/\.css$/i.test(path)) return [...strip(source).matchAll(/@import\s+(?:url\(\s*)?["'](\.[^"']+)["']/g)].map(m => m[1]!);
   const tokens = scriptTokens(source), paths: string[] = [];
   for (let i = 0; i < tokens.length; i++) {
-    if (!["import", "export"].includes(tokens[i])) continue;
+    if (!["import", "export"].includes(tokens[i]!)) continue;
     let j = i + 1;
     if (!/^["']/.test(tokens[j] ?? "")) {
       // Only static binding lists are relevant; stop before executable code.
-      while (j < tokens.length && /^(?:[\w$]+|[{},*])$/.test(tokens[j]) && tokens[j] !== "from") j++;
+      while (j < tokens.length && /^(?:[\w$]+|[{},*])$/.test(tokens[j]!) && tokens[j] !== "from") j++;
       if (tokens[j] !== "from") continue;
       j++;
     }
-    if (/^["']\./.test(tokens[j] ?? "")) paths.push(tokens[j].slice(1, -1));
+    if (/^["']\./.test(tokens[j] ?? "")) paths.push(tokens[j]!.slice(1, -1));
   }
   return paths;
 }

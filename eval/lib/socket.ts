@@ -149,7 +149,7 @@ export function fakeAuthStatus(a: FakeAuth): Obj {
 
 interface Operation {
   operationId: string; requestId: string; kind: string; state: string; cancelling?: true;
-  provider?: string; error?: { code: string; message: string }; inspection?: Obj; project?: { root: string };
+  provider?: string | undefined; error?: { code: string; message: string }; inspection?: Obj; project?: { root: string };
   // Not sent: what inspect looked at and whether select was asked to set up.
   path?: string; url?: string; initialize?: boolean;
 }
@@ -557,8 +557,8 @@ async function settlesWithin(promise: Promise<void>, ms: number): Promise<boolea
 
 // Child side. It exits when the runner closes stdin, including when the runner dies.
 if (import.meta.main) {
-  const app = await serveFakeApp(JSON.parse(process.argv[2]));
-  process.stdin.on("end", () => app.close().then(() => process.exit(0)));
+  const app = await serveFakeApp(JSON.parse(process.argv[2]!));
+  process.stdin.on("end", () => { void app.close().then(() => process.exit(0)); });
   process.stdin.resume();
   process.stdout.write("ready\n");
 }

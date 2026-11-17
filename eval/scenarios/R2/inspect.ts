@@ -33,7 +33,7 @@ export const element = (doc: Document, id: string) => doc.nodes.find(n => n.attr
 function matches(node: Element, selector: string): boolean {
   let rest = selector.trim();
   const tag = rest.match(/^(\*|[a-zA-Z][\w-]*)/);
-  if (tag) { if (tag[1] !== "*" && node.tag !== tag[1].toLowerCase()) return false; rest = rest.slice(tag[0].length); }
+  if (tag) { if (tag[1] !== "*" && node.tag !== tag[1]!.toLowerCase()) return false; rest = rest.slice(tag[0].length); }
   rest = rest.replace(/\[([\w-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\]\s]+)))?\]/g, (_, key, a, b, c) => {
     const value = a ?? b ?? c;
     return key in node.attrs && (value === undefined || node.attrs[key] === value) ? "" : "!";
@@ -60,9 +60,9 @@ export function styles(doc: Document, node: Element | undefined): Record<string,
     }
   };
   for (const rule of doc.css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    for (const selector of rule[1].split(",")) if (matches(node, selector)) {
+    for (const selector of rule[1]!.split(",")) if (matches(node, selector)) {
       const rank = (selector.match(/#/g)?.length ?? 0) * 100 + (selector.match(/[.\[]/g)?.length ?? 0) * 10 + (/^\s*[a-z]/i.test(selector) ? 1 : 0);
-      apply(rule[2], rank);
+      apply(rule[2]!, rank);
     }
   }
   apply(node.attrs.style ?? "", 1000);

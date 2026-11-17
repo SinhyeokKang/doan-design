@@ -11,7 +11,7 @@ const command = `doan open ${path} --frame signup-phone --prototype`;
 const played: PrototypeExchange = { request: { v: 6, root: "/repo", path, frame: "signup-phone", mark: "390x844" }, response: { v: 6, ok: true, played: true }, at: "now", hashes: { [path]: contentHash("canvas") } };
 const failures = (commands = [command], log = [played], changed: string[] = []) => checks({
   repo: "/repo", cwd: "/repo", calls: { commands }, prototype: () => log, read: () => "canvas", changedFiles: () => changed,
-} as CheckContext).filter(c => !c.pass).map(c => c.id);
+} as unknown as CheckContext).filter(c => !c.pass).map(c => c.id);
 
 test("W8 requires both a prototype invocation and accepted v6 evidence for the final canvas", () => {
   assert.deepEqual(failures(), []);
@@ -27,7 +27,7 @@ test("W8 requires both a prototype invocation and accepted v6 evidence for the f
 test("W8 resolves relative canvas paths from the repository even when cwd differs", () => {
   const result = checks({ repo: "/repo", cwd: "/elsewhere", calls: { commands: [`doan --repo /repo open ${path} --frame signup-phone --prototype`] },
     prototype: () => [played], read: () => "canvas", changedFiles: () => [],
-  } as CheckContext);
+  } as unknown as CheckContext);
   assert.deepEqual(result.filter(c => !c.pass).map(c => c.id), []);
 });
 
@@ -42,7 +42,7 @@ test("W8 accepts absolute canvas paths through a repository alias in either dire
     for (const [root, candidate] of [[repo, alias], [alias, repo]]) {
       const result = checks({ repo: root, cwd: dir, calls: { commands: [command.replace(path, join(candidate!, path))] },
         prototype: () => [{ ...played, request: { ...played.request, root: root! } }], read: () => "canvas", changedFiles: () => [],
-      } as CheckContext);
+      } as unknown as CheckContext);
       assert.deepEqual(result.filter(c => !c.pass).map(c => c.id), []);
     }
   } finally { rmSync(dir, { recursive: true, force: true }); }

@@ -94,7 +94,7 @@ export function readAgentTranscript(agent: Agent, dir: string, env: NodeJS.Proce
     const matches = readdirSync(sessions, { recursive: true, withFileTypes: true })
       .filter(entry => entry.isFile() && entry.name.startsWith("rollout-") && entry.name.endsWith(`-${id}.jsonl`));
     if (matches.length !== 1) throw new Error(`Expected one Codex rollout for ${id}, found ${matches.length}`);
-    const source = join(matches[0].parentPath, matches[0].name);
+    const source = join(matches[0]!.parentPath, matches[0]!.name);
     const dest = join(dir, "codex-rollout.jsonl");
     copyFileSync(source, dest);
     return { transcript, calls: toolCalls(transcript + "\n" + readFileSync(dest, "utf8")) };
