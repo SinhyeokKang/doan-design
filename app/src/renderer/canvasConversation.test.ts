@@ -98,6 +98,15 @@ describe("newConversationMode", () => {
     expect(newConversationMode({ error: "project_not_open" }, { choice: "resume" })).toEqual({ mode: "new", offer: null, pending: false });
   });
 
+  test("a terminal session Doan could not check is not offered, and the line says why", () => {
+    expect(newConversationMode({ available: false, reason: "session_unverified", runtime: "claude" }, {})).toEqual({
+      mode: "new", offer: null, pending: false,
+      reason: "Can’t continue the Claude Code session from your terminal: Doan couldn’t check whether it’s still in use. Sending starts a new conversation.",
+    });
+    // Other refusals stay silent: a reason only when the session may still be in use.
+    expect(newConversationMode({ available: false, reason: "session_unavailable" }, {})).toEqual({ mode: "new", offer: null, pending: false });
+  });
+
   test("before the resume target answers, a new conversation shows and Send waits", () => {
     expect(newConversationMode(undefined, {})).toEqual({ mode: "new", offer: null, pending: true });
   });

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { conversationCanvasKey, parseUiState, UI_STATE_MAX_BYTES, withoutCanvas, withoutConversation, withoutRoots } from "./uiState";
+import { conversationCanvasKey, parseUiState, UI_STATE_MAX_BYTES, withoutCanvas, withoutConversation, withoutRoots, withoutUnlisted } from "./uiState";
 
 const saved = ["/repo/a", "/repo/b"];
 const view = { scale: 1, x: 10, y: -20 };
@@ -538,4 +538,23 @@ test("a project kept under both spellings keeps the real path's entry and gains 
     shellProjects: { [alias]: { roots: [alias], expanded: false, groups: { canvases: false } }, [real]: { roots: [real], expanded: true } },
   });
   expect(parseUiState(text, [real], new Map([[alias, real]]))?.shellProjects).toEqual({ [real]: { roots: [real], expanded: true, groups: { canvases: false } } });
+});
+
+// A conversation deleted in the prototype window or a canvas deleted outside Doan leaves an entry nothing else forgets,
+// so a save drops what a read list no longer names. A list not read (still reading, failed) drops nothing.
+test("withoutUnlisted drops canvases and conversations a read list no longer names, and keeps what an unread list cannot vouch for", () => {
+  const memory = {
+    "/repo/a": { checkout: ID_A, ".doan/canvases/cart.html": ID_B, gone: ID_A },
+    "/repo/b": { checkout: ID_B },
+    "/repo/c": { checkout: ID_A },
+  };
+  const listed = (root: string) => root === "/repo/a"
+    ? { canvases: [{ path: ".doan/canvases/checkout.html", id: "checkout" }, { path: ".doan/canvases/cart.html" }], conversations: [ID_A] }
+    : root === "/repo/b" ? { canvases: [{ path: ".doan/canvases/checkout.html", id: "checkout" }], conversations: null }
+    : { canvases: null, conversations: null };
+  expect(withoutUnlisted(memory, listed)).toEqual({ "/repo/a": { checkout: ID_A }, "/repo/b": { checkout: ID_B }, "/repo/c": { checkout: ID_A } });
+  // An emptied root goes; nothing to drop answers the same map.
+  expect(withoutUnlisted({ "/repo/a": { gone: ID_A } }, listed)).toEqual({});
+  const kept = { "/repo/a": { checkout: ID_A } };
+  expect(withoutUnlisted(kept, listed)).toBe(kept);
 });

@@ -267,3 +267,21 @@ it("keeps a send on a login state with an account_mismatch error as not_logged_i
   // A lease that was already held still fails the recheck.
   await expect(prepare(vi.fn(lease))({ root, mode: "resume", text: "x", anchors: [] }, stored)).rejects.toThrow("not_logged_in");
 });
+
+// A live registry record Doan cannot read (below CLAUDE_REGISTRY_FLOOR) may hold the linked session: the resume target
+// says so apart from the other unavailable reasons, with the provider, so the panel can say why it offers no continue.
+// A start still gets the bare refusal.
+it("tells a linked Claude session a live registry record cannot vouch for apart from other unavailable sessions", async () => {
+  const root = temp(); const config = join(root, "profile"); mkdirSync(join(config, "sessions"), { recursive: true }); writeFileSync(join(root, "claude"), "fake", { mode: 0o700 });
+  mocks.probe.mockResolvedValue({ ok: true, path: root, claudeConfigDir: config }); mocks.run.mockResolvedValue({ exitCode: 0, stdout: "2.1.312 (Claude Code)" });
+  const canvas = { id: "a", path: ".doan/canvases/a.html" }, sessionId = "5f0c2a9e-claude-session";
+  writeFileSync(join(root, "sessions.jsonl"), JSON.stringify({ v: 1, at: "2026-11-01T00:00:00.000Z", root, canvas, hash: "sha256:" + "a".repeat(64), runtime: "claude", sessionId, configDir: config, cwd: root }) + "\n");
+  writeFileSync(join(config, "sessions", `${process.pid}.json`), JSON.stringify({ pid: process.pid, sessionId: "another-session", procStart: await processStart(process.pid), cwd: root, version: "2.1.200", kind: "interactive" }));
+  const prepare = createPrepare(root, join(root, "runtime.json"), { HOME: root });
+  await expect(prepare({ root, mode: "resume", canvas, text: "", anchors: [] })).rejects.toThrow("session_unavailable");
+  const routed = routePrepare(prepare, () => Promise.reject(new Error("not_logged_in")));
+  const service = new ConversationService(new ConversationStore(root), routed, vi.fn(), () => {});
+  const handler = conversationHandler(service, routed, () => [{ path: root, kind: "list", canvases: [canvas] }]);
+  expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_unverified", runtime: "claude" });
+  expect(await handler(true, "start", { root, canvas, mode: "resume", text: "hello" })).toEqual({ error: "session_unavailable" });
+});
