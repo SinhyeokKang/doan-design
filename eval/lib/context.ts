@@ -68,7 +68,7 @@ function checkedGit(repo: string, args: string[], env: NodeJS.ProcessEnv, gitDir
   if (config.code !== 0 && config.code !== 1) throw new Error(`git config failed: ${config.stderr}`);
   const overrides = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"];
   for (const entry of config.stdout.split("\0").filter(Boolean)) {
-    const key = entry.split("\n")[0];
+    const key = entry.split("\n")[0]!;
     overrides.push("-c", `${key}=${key.endsWith(".required") ? "false" : ""}`);
   }
   return sh("git", [...location, ...overrides, ...args], repo, env);

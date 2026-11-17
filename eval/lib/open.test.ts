@@ -114,8 +114,8 @@ test("the fake app answers v4 like the app's list check and logs token-free, has
     const raw = readFileSync(app.openLog, "utf8");
     const log: OpenExchange[] = raw.trim().split("\n").map(line => JSON.parse(line));
     assert.equal(log.length, 7);
-    assert.equal(log[0].hashes[path], contentHash(readFileSync(join(root, path))));
-    assert.deepEqual(log[3].hashes, {});
+    assert.equal(log[0]!.hashes[path], contentHash(readFileSync(join(root, path))));
+    assert.deepEqual(log[3]!.hashes, {});
     assert.ok(!raw.includes(runtime.token));
     // v4 traffic stays out of the work log.
     assert.throws(() => readFileSync(app.workLog));

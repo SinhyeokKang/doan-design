@@ -733,9 +733,9 @@ test("a multi-line Codex exec header is read up to its working directory, not cu
   const stderr = readFileSync(new URL("./fixtures/codex-multiline-exec.stderr.log", import.meta.url), "utf8");
   const commands = shellCommands(stderr);
   assert.equal(commands.length, 1);
-  assert.ok(commands[0].startsWith(`/bin/zsh -c "python3 - <<'PY'\nfrom pathlib import Path\n`), commands[0]);
-  assert.ok(commands[0].endsWith(`write_text(mobile)\nPY"`), commands[0]);
-  assert.deepEqual(parseCommand(commands[0]), { words: [["python3", "-"]], incomplete: false });
+  assert.ok(commands[0]!.startsWith(`/bin/zsh -c "python3 - <<'PY'\nfrom pathlib import Path\n`), commands[0]);
+  assert.ok(commands[0]!.endsWith(`write_text(mobile)\nPY"`), commands[0]);
+  assert.deepEqual(parseCommand(commands[0]!), { words: [["python3", "-"]], incomplete: false });
   assert.equal(incompleteRead(commands), false);
   const header = `/bin/zsh -c "python3 - <<'PY'\nprint(\\"in /tmp\\")\nPY"`;
   for (const status of ["\n succeeded in 0ms:", " succeeded in 0ms:", "\n exited 1 in 4ms:", " exited 1 in 4ms:"])
@@ -760,8 +760,8 @@ test("a brace group's commands are read, each with the redirections on its closi
   const read = readCommands("mkdir -p .doan/assets && { echo '/* source: brand/status.css */'; cat brand/status.css; } > .doan/assets/status.css && doan check --json");
   assert.equal(read.incomplete, false);
   assert.deepEqual(read.commands.map(command => command.words), [["mkdir", "-p", ".doan/assets"], ["echo", "/* source: brand/status.css */"], ["cat", "brand/status.css"], ["doan", "check", "--json"]]);
-  for (const inner of [1, 2]) assert.deepEqual(read.commands[inner].redirects.map(redirect => [redirect.op, redirect.target]), [[">", ".doan/assets/status.css"]]);
-  assert.deepEqual(read.commands[3].redirects, []);
+  for (const inner of [1, 2]) assert.deepEqual(read.commands[inner]!.redirects.map(redirect => [redirect.op, redirect.target]), [[">", ".doan/assets/status.css"]]);
+  assert.deepEqual(read.commands[3]!.redirects, []);
   for (const command of ["{ doan active; }", "{\n  doan active\n}", "{ { doan active; }; }", "x=active; { doan $x; }"])
     assert.deepEqual(parseCommand(command), { words: [["doan", "active"]], incomplete: false }, command);
   // A brace group runs in the current shell: its assignments go on after it.

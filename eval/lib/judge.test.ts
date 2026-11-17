@@ -47,7 +47,7 @@ test("checks.ts output must be a list of well-formed checks", () => {
   for (const bad of [[], "x", [{ id: "a", pass: "false", detail: "" }], [{ id: "a", pass: 1, detail: "" }], [{ id: "a", pass: true }], [null]]) {
     const result = checkList(bad);
     assert.equal(result.length, 1, JSON.stringify(bad));
-    assert.deepEqual([result[0].id, result[0].pass], ["checks_error", false]);
+    assert.deepEqual([result[0]!.id, result[0]!.pass], ["checks_error", false]);
   }
 });
 
@@ -98,7 +98,7 @@ test("long repeated heredocs cannot displace MCP tools or batch excerpts", () =>
     { name: "mcp__doan__active", callId: "batch-2", scope: "batch" as const, excerpt: "LAST_BATCH" },
   ] };
   const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls });
-  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1].split("<<<\n")[1].split("\n>>>")[0]);
+  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1]!.split("<<<\n")[1]!.split("\n>>>")[0]!);
   assert.deepEqual(summary.mcpTools, ["mcp__doan__active"]);
   assert.deepEqual(summary.doanActive, { shellInvoked: true });
   assert.equal(summary.commands.length, 2);
@@ -125,7 +125,7 @@ test("doan calls anywhere in long commands survive extraction and batch deduplic
   const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript: "", calls: {
     commands, mcpTools: [], outputs: commands.map(command => ({ name: "exec_command", command, callId: "batch", scope: "batch" as const, excerpt: "RESULT" })),
   } });
-  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1].split("<<<\n")[1].split("\n>>>")[0]);
+  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1]!.split("<<<\n")[1]!.split("\n>>>")[0]!);
   assert.deepEqual(summary.commands, ["doan check --json", "doan ls --json", "doan active"]);
   assert.deepEqual(summary.outputs[0].calls, summary.commands);
 });
@@ -136,7 +136,7 @@ test("many tool searches leave room for invocation output", () => {
     outputs: [{ name: "mcp__doan__active", callId: "active", scope: "call", excerpt: "RETAINED_OUTPUT" }],
   } });
   assert.match(prompt, /RETAINED_OUTPUT/);
-  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1].split("<<<\n")[1].split("\n>>>")[0]);
+  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1]!.split("<<<\n")[1]!.split("\n>>>")[0]!);
   assert.equal(summary.toolSearches.length, 10);
   assert.equal(summary.omittedToolSearches, 90);
 });
@@ -160,7 +160,7 @@ test("patch candidates reach the judge as unresolved mentions, not execution evi
 
 function invocationSummary(transcript: string) {
   const prompt = buildJudgePrompt({ rubric: "", prompt: "", checks: [], changed: [], diff: "", transcript });
-  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1].split("<<<\n")[1].split("\n>>>")[0]);
+  const summary = JSON.parse(prompt.split("## Invoked commands and MCP tools")[1]!.split("<<<\n")[1]!.split("\n>>>")[0]!);
   return { prompt, summary };
 }
 

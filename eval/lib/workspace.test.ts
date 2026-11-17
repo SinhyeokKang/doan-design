@@ -44,8 +44,8 @@ test("real agents and fixture commands never inherit the runner's session identi
     }
   } finally {
     for (let i = 0; i < keys.length; i++) {
-      if (saved[i] === undefined) delete process.env[keys[i]];
-      else process.env[keys[i]] = saved[i];
+      if (saved[i] === undefined) delete process.env[keys[i]!];
+      else process.env[keys[i]!] = saved[i];
     }
   }
 });
@@ -59,7 +59,7 @@ test("work context and retained evidence read the fake app's v3 exchanges", asyn
     const started = ctx.doan(["work", "start", ".doan/canvases/profile.html"]);
     assert.equal(started.json.result.delivered, true);
     assert.equal(ctx.work().length, 1);
-    assert.equal(ctx.work()[0].request.path, ".doan/canvases/profile.html");
+    assert.equal(ctx.work()[0]!.request.path, ".doan/canvases/profile.html");
     const out = mkdtempSync(join(root, "run-"));
     keepOnboardingLog(ws, out);
     assert.equal(readFileSync(join(out, "work.jsonl"), "utf8"), readFileSync(ws.workLog, "utf8"));
@@ -82,7 +82,7 @@ test("a handoff scenario gives the agent the conversation key the fake app accep
       const asked = sh(cli, ["handoff", ".doan/canvases/next.html", "--message", "Continue on next.", "--repo", ws.repo, "--json"], ws.repo, ws.env);
       assert.equal(asked.code, 0, asked.stderr + asked.stdout);
       assert.equal(ctx.handoff().length, 1);
-      assert.equal(ctx.handoff()[0].request.handoff, ws.env.DOAN_HANDOFF);
+      assert.equal(ctx.handoff()[0]!.request.handoff, ws.env.DOAN_HANDOFF);
       const out = mkdtempSync(join(root, "run-"));
       keepOnboardingLog(ws, out);
       assert.equal(readFileSync(join(out, "handoff.jsonl"), "utf8"), readFileSync(ws.handoffLog, "utf8"));
@@ -107,7 +107,7 @@ test("git false leaves the folder outside any repository and keeps the baseline 
   const ws = await prepareWorkspace({ scenario: { ...seeded(), git: false }, agent: "codex", cli, stub: "stub\n" });
   try {
     assert.ok(ws.gitDir?.startsWith(`${ws.base}/`));
-    assert.ok(!ws.gitDir.startsWith(`${ws.repo}/`));
+    assert.ok(!ws.gitDir!.startsWith(`${ws.repo}/`));
     assert.equal(existsSync(join(ws.repo, ".git")), false);
     assert.notEqual(sh("git", ["rev-parse", "--git-dir"], ws.repo, ws.env).code, 0);
     // The agent still gets what a Git workspace commits, in the same place.
@@ -165,8 +165,8 @@ test("an onboarding script starts the fake app, and checks read its v2 exchanges
     assert.equal(start.code, 0, start.stderr);
     const log = ctx.onboarding();
     assert.equal(log.length, 1);
-    assert.deepEqual(log[0].request, { v: 2, op: "start" });
-    assert.equal(log[0].response.result.sessionId, "s_eval");
+    assert.deepEqual(log[0]!.request, { v: 2, op: "start" });
+    assert.equal(log[0]!.response.result.sessionId, "s_eval");
     // Kept with the run's evidence, since dispose deletes rt/.
     const out = mkdtempSync(join(root, "run-"));
     keepOnboardingLog(ws, out);
@@ -290,9 +290,9 @@ test("each real agent's environment leaves out the user's own instruction files;
     const codex = await prepareWorkspace({ scenario: seeded(), agent: "codex", cli, stub: "stub\n" });
     try {
       assert.ok(codex.env.CODEX_HOME?.startsWith(`${codex.base}/`), codex.env.CODEX_HOME);
-      assert.ok(!codex.env.CODEX_HOME.startsWith(`${codex.repo}/`));
-      assert.equal(existsSync(join(codex.env.CODEX_HOME, "AGENTS.md")), false);
-      assert.equal(readFileSync(join(codex.env.CODEX_HOME, "auth.json"), "utf8"), "{}\n");
+      assert.ok(!codex.env.CODEX_HOME!.startsWith(`${codex.repo}/`));
+      assert.equal(existsSync(join(codex.env.CODEX_HOME!, "AGENTS.md")), false);
+      assert.equal(readFileSync(join(codex.env.CODEX_HOME!, "auth.json"), "utf8"), "{}\n");
       assert.equal(git(codex.repo, ["status", "--porcelain"]), "");
     } finally { await codex.dispose(); }
     assert.equal(readFileSync(join(fake, "AGENTS.md"), "utf8"), "global\n");

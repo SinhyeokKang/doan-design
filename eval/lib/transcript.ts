@@ -132,7 +132,7 @@ function execCalls(source: string): ExtractedCall[] {
   const calls: ExtractedCall[] = [];
   for (let i = 0; i < tokens.length - 4; i++) {
     if (tokens[i] !== "tools" || tokens[i + 1] !== "." || tokens[i + 3] !== "(") continue;
-    const name = tokens[i + 2];
+    const name = tokens[i + 2]!;
     if (name === "apply_patch") {
       const patch = literal(tokens[i + 4]);
       if (patch !== undefined && tokens[i + 5] === ")") {
@@ -159,7 +159,7 @@ function execCalls(source: string): ExtractedCall[] {
         if (tokens[j] === "}") depth--;
         if (depth === 1 && (tokens[j] === "cmd" || literal(tokens[j]) === "cmd") && tokens[j + 1] === ":") {
           const value = literal(tokens[j + 2]);
-          command = value !== undefined && [",", "}"].includes(tokens[j + 3]) ? value : undefined;
+          command = value !== undefined && [",", "}"].includes(tokens[j + 3]!) ? value : undefined;
         }
       }
     }
@@ -171,7 +171,7 @@ function execCalls(source: string): ExtractedCall[] {
 // The script a recorded `<shell> -c <script>` argv ran, or undefined for any other shape.
 function shellScript(argv: unknown): string | undefined {
   if (!Array.isArray(argv) || argv.length !== 3 || !argv.every(word => typeof word === "string")) return undefined;
-  return /^(?:.*\/)?(?:sh|bash|zsh|dash)$/.test(argv[0]) && /^-[a-z]*c$/.test(argv[1]) ? argv[2] : undefined;
+  return /^(?:.*\/)?(?:sh|bash|zsh|dash)$/.test(argv[0]!) && /^-[a-z]*c$/.test(argv[1]!) ? argv[2] : undefined;
 }
 
 // Codex records each process an exec script starts as an item_completed CommandExecution event: the argv it ran, but
@@ -260,7 +260,7 @@ export function shellCommands(transcript: string): string[] {
   const recorded = recordedExecs(transcript);
   for (let i = 0; i < lines.length; i++) {
     try {
-      const event = JSON.parse(lines[i]);
+      const event = JSON.parse(lines[i]!);
       commands.push(...rolloutCalls(event, recorded).flatMap(c => c.command === undefined ? [] : [c.command]));
       if (event.type === "assistant") {
         for (const block of event.message?.content ?? []) {
@@ -839,7 +839,7 @@ function runGroups(groups: string[][], vars: Map<string, string>, state: ReadSta
     // find runs the command after -exec (or -execdir, -ok, -okdir) once per file, with the file's name in it: a shell
     // -c script is read as one, and doan, another shell or a wrapper cannot be.
     if (/^(?:.*\/)?find$/.test(words[0]!)) {
-      const runs = words.flatMap((word, k) => /^-(?:exec|execdir|ok|okdir)$/.test(words[k - 1] ?? "") ? [k] : []);
+      const runs = words.flatMap((_word, k) => /^-(?:exec|execdir|ok|okdir)$/.test(words[k - 1] ?? "") ? [k] : []);
       const script = (k: number) => /^(?:.*\/)?(?:ba|z|da)?sh$/.test(words[k]!) && /^-[a-z]*c$/.test(words[k + 1] ?? "") && words[k + 2] !== undefined && !open[k + 2];
       if (runs.some(k => open[k] || (RUNNER.test(words[k]!) && !script(k)))) { state.incomplete = true; continue; }
       out.push({ words, homePaths, redirects });

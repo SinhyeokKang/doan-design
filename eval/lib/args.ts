@@ -42,8 +42,8 @@ export function parseArgs(argv: string[], now: Date): Options {
       options.repeat = n;
     } else if (flag === "--round") {
       const [round] = list(argv[++i], flag);
-      if (argv[i].includes(",")) throw new Error("--round takes one name");
-      options.round = round;
+      if (argv[i]!.includes(",")) throw new Error("--round takes one name");
+      options.round = round!;
     } else throw new Error(`unknown argument ${JSON.stringify(flag)}`);
   }
   return options;

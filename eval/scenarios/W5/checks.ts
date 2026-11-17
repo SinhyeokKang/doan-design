@@ -64,21 +64,21 @@ export function updateBeforeEachFrameEdit(ctx: Parameters<Checks>[0]): Check {
   const seed = ctx.seed(path), final = ctx.read(path);
   const parsed = seed === null || final === null ? null : parse(ctx, [seed, ...updates.map(entry => entry.canvas ?? ""), final]);
   const frames = Object.fromEntries(Object.keys(labels).map(frame => [frame, parsed !== null && updates.some((entry, i) =>
-    entry.request.frame === frame && typeof entry.canvas === "string" && frame in parsed[0].frames && isDeepStrictEqual(parsed[i + 1].frames[frame], parsed[0].frames[frame]))]));
+    entry.request.frame === frame && typeof entry.canvas === "string" && frame in parsed[0]!.frames && isDeepStrictEqual(parsed[i + 1]!.frames[frame], parsed[0]!.frames[frame]))]));
   // unannounced[k]: frames that changed between snapshot k and k+1 although no update since the previous observed edit named them.
   const unannounced: { after: string | null; frames: string[] }[] = [];
   if (parsed !== null) {
     let announced = new Set<string>();
     for (let k = 0; k + 1 < parsed.length; k++) {
-      if (k > 0) announced.add(updates[k - 1].request.frame ?? "");
-      const changed = Object.keys(parsed[0].frames).filter(frame => !isDeepStrictEqual(parsed[k].frames[frame], parsed[k + 1].frames[frame]));
+      if (k > 0) announced.add(updates[k - 1]!.request.frame ?? "");
+      const changed = Object.keys(parsed[0]!.frames).filter(frame => !isDeepStrictEqual(parsed[k]!.frames[frame], parsed[k + 1]!.frames[frame]));
       const missing = changed.filter(frame => !announced.has(frame));
-      if (missing.length) unannounced.push({ after: k === 0 ? null : updates[k - 1].at, frames: missing });
+      if (missing.length) unannounced.push({ after: k === 0 ? null : updates[k - 1]!.at, frames: missing });
       if (changed.length) announced = new Set();
     }
   }
   const times = updates.map(entry => Date.parse(entry.at));
-  const intervalsSec = times.slice(1).map((time, i) => (time - times[i]) / 1000);
+  const intervalsSec = times.slice(1).map((time, i) => (time - times[i]!) / 1000);
   return {
     id: "update_before_each_frame_edit",
     pass: parsed !== null && Object.values(frames).every(Boolean) && unannounced.length === 0,

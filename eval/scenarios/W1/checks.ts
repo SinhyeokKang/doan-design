@@ -32,12 +32,12 @@ print(json.dumps(result))
   const linked = links.code === 0 ? JSON.parse(links.stdout).map((doc: { path: string; hrefs: string[]; css: string }) => {
     const seen = new Set<string>();
     const imports = (css: string, parent: string) => {
-      for (const match of css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/@import\s+(?:url\(\s*)?(?:"([^"]+)"|'([^']+)'|([^\s;)]+))/gi)) visit(match[1] ?? match[2] ?? match[3], parent);
+      for (const match of css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/@import\s+(?:url\(\s*)?(?:"([^"]+)"|'([^']+)'|([^\s;)]+))/gi)) visit(match[1] ?? match[2] ?? match[3]!, parent);
     };
     const visit = (href: string, parent: string) => {
       if (/^(?:[a-z]+:|\/|#)/i.test(href)) return;
       const parts = parent.split("/").slice(0, -1);
-      for (const part of decodeURIComponent(href.split(/[?#]/)[0]).split("/")) {
+      for (const part of decodeURIComponent(href.split(/[?#]/)[0]!).split("/")) {
         if (part === "..") { if (!parts.length) return; parts.pop(); }
         else if (part && part !== ".") parts.push(part);
       }
