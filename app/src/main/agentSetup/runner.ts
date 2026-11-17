@@ -130,8 +130,13 @@ function settled(target: PlannedTarget, home: string, result: SwapResult): Writt
 // very file (swap.ts swapFile): a save Claude Code makes meanwhile is kept and the next launch merges into it.
 function mergeSettings(target: PlannedTarget, before: Seen, temporary: string, real: string, home: string): Written {
   const merged = mergeClaudeAllow(before.content ?? null);
-  if (before.kind !== "file" || merged.kind !== "write" || before.id === undefined || before.bytes === undefined) return changed(target, home);
-  writeFileSync(temporary, merged.text, { flag: "wx" });
+  return merged.kind === "write" ? replaceFile(target, before, merged.text, temporary, real, home) : changed(target, home);
+}
+
+// Publishes `text` only in place of the very file Doan read, keeping its mode.
+function replaceFile(target: PlannedTarget, before: Seen, text: string, temporary: string, real: string, home: string): Written {
+  if (before.kind !== "file" || before.id === undefined || before.bytes === undefined) return changed(target, home);
+  writeFileSync(temporary, text, { flag: "wx" });
   chmodSync(temporary, lstatSync(real).mode & 0o777);
   if (observe(target).stamp !== before.stamp) return changed(target, home);
   return settled(target, home, swapFile({ lstatSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync },
@@ -152,6 +157,8 @@ function write(target: PlannedTarget, action: "create" | "replace", before: Seen
       linkSync(temporary, real);
     } else if (target.target === "claude-allow") {
       return mergeSettings(target, before, temporary, real, home);
+    } else if (target.file) {
+      return replaceFile(target, before, target.want, temporary, real, home);
     } else if (action === "create") {
       if (observe(target).stamp !== before.stamp) return changed(target, home);
       // symlink(2) fails on an existing name, so a competitor that wins the race is kept.

@@ -724,7 +724,7 @@ export function BuddyScene({ selection, preferences, heading, footer }: {
   const failure = selection.failure;
   const retry = (picked: BuddyId) => { void selection.select(picked).then(saved => { if (saved) requestAnimationFrame(() => focusChecked(document.querySelector(".ob-overlay .buddy-flow"))); }); };
   return <>
-    <div className="ob-heading"><h2 tabIndex={-1} id="ob-buddy-title" ref={heading}>Choose your buddy</h2><p>It keeps you company in Doan and sets the app’s accent color. You can change it later in Settings.</p></div>
+    <div className="ob-heading"><h2 tabIndex={-1} id="ob-buddy-title" ref={heading}>Choose your buddy</h2><p>It keeps you company in Doan and sets the app’s accent color. You can change it later in Settings. After each change there, your buddy stays for 24 hours.</p></div>
     {preferencesNotice(preferences?.notice, "doan-panel buddy-step-notice buddy-step-notice-top")}
     <BuddyFlow name="ob-buddy" labelledBy="ob-buddy-title" selected={selection.shown} disabled={buddyChoiceOff(preferences)} select={id => void selection.select(id)} />
     {failure && <BuddyFailureNotice failure={failure} id="ob-buddy-error" className="buddy-step-notice" panel running={selection.saving} retry={() => retry(failure.picked)} />}
