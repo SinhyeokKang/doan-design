@@ -6,13 +6,17 @@
 // FAKE_ACP_MODELS (JSON) is the `models` member of the session/new and session/load results, in the shape
 // a PoC recorded; FAKE_ACP_LOG names a file that receives every client line; FAKE_ACP_NO_IMAGE answers
 // initialize with promptCapabilities.image false. FAKE_ACP_SESSION (JSON) adds members such as `modes` and
-// `configOptions` to the session/new and session/load results.
+// `configOptions` to the session/new and session/load results. FAKE_ACP_COMMANDS (JSON) is an availableCommands list the
+// server pushes as Copilot 1.0.105 did: once before the session/new answer and once right after it, and before the
+// session/load answer; FAKE_ACP_COMMANDS_OTHER adds a first push for another session id.
 const readline = require("node:readline");
 const fixture = require(process.argv[2]);
 const mode = process.env.FAKE_ACP ?? "";
 const models = { ...(process.env.FAKE_ACP_MODELS ? { models: JSON.parse(process.env.FAKE_ACP_MODELS) } : {}), ...(process.env.FAKE_ACP_SESSION ? JSON.parse(process.env.FAKE_ACP_SESSION) : {}) };
 const sessionId = fixture.turn[0].params.sessionId;
 const send = value => process.stdout.write(JSON.stringify(value) + "\n");
+const commands = process.env.FAKE_ACP_COMMANDS ? JSON.parse(process.env.FAKE_ACP_COMMANDS) : null;
+const pushCommands = (id, list = commands) => { if (list) send({ jsonrpc: "2.0", method: "session/update", params: { sessionId: id, update: { sessionUpdate: "available_commands_update", availableCommands: list } } }); };
 let waiting = null, rejected = new Set(), promptId = null, step = 0;
 function play() {
   while (step < fixture.turn.length) {
@@ -45,10 +49,14 @@ readline.createInterface({ input: process.stdin }).on("line", line => {
     case "authenticate": send({ jsonrpc: "2.0", id: request.id, result: {} }); break;
     case "session/new":
       if (mode === "auth-link") { process.stderr.write("__DOAN_AUTH_URL__https://accounts.google.com/o/oauth2/v2/auth?response_type=code&state=s1&redirect_uri=http%3A%2F%2F127.0.0.1%3A4321%2F\n"); break; }
-      send({ jsonrpc: "2.0", id: request.id, result: mode === "no-session" ? {} : { sessionId, ...models } }); break;
+      if (process.env.FAKE_ACP_COMMANDS_OTHER) pushCommands("other-session", [{ name: "other", description: "" }]);
+      pushCommands(sessionId);
+      send({ jsonrpc: "2.0", id: request.id, result: mode === "no-session" ? {} : { sessionId, ...models } });
+      pushCommands(sessionId); break;
     case "session/load":
       if (request.params.sessionId !== sessionId) { send({ jsonrpc: "2.0", id: request.id, error: { code: -32002, message: "Session not found" } }); break; }
       for (const message of fixture.load) send(message);
+      pushCommands(sessionId);
       send({ jsonrpc: "2.0", id: request.id, result: models }); break;
     case "session/set_config_option": send({ jsonrpc: "2.0", id: request.id, result: { configOptions: [] } }); break;
     case "session/prompt":

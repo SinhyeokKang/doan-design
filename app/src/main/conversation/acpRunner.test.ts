@@ -435,3 +435,18 @@ it("keeps the same request a permission card for another ACP provider", async ()
   await sent;
   expect(replies()).toEqual([{ outcome: { outcome: "selected", optionId: "1" } }]);
 });
+
+// Copilot pushes its command list before session/new answers, again right after, and while session/load replays; the
+// runner passes on every push for its own session, whenever it comes.
+it("passes on the command lists the server pushes for its own session, before and after session/new and during session/load", async () => {
+  const listed = [{ name: "compact", description: "Compact the conversation", input: { hint: "focus instructions" } }];
+  const updates: unknown[] = [];
+  const env = { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_COMMANDS: JSON.stringify(listed), FAKE_ACP_COMMANDS_OTHER: "1" };
+  const fresh = await openAcp(input("copilot", { env, acpCommands: update => updates.push(update) }), () => {}, () => {}, () => {});
+  await fresh.send("hi", "turn-1");
+  expect(updates).toEqual([{ sessionUpdate: "available_commands_update", availableCommands: listed }, { sessionUpdate: "available_commands_update", availableCommands: listed }]);
+  updates.splice(0);
+  const loaded = await openAcp(input("copilot", { env, sessionId: SESSION_OF.copilot, acpCommands: update => updates.push(update) }), () => {}, () => {}, () => {});
+  expect(updates).toEqual([{ sessionUpdate: "available_commands_update", availableCommands: listed }]);
+  await loaded.close();
+});

@@ -631,6 +631,16 @@ test("a conversation stage has its own event with its own cleanup, apart from co
   stopEvents();
 });
 
+test("a command turn's boundary has its own event with its own cleanup", () => {
+  const boundaries = vi.fn();
+  const stop = api.onConversationBoundary(boundaries);
+  const signal = { conversationId: "c", turnId: "t", kind: "compacted" as const };
+  emitter.emit("conversation:boundary", {}, signal);
+  expect(boundaries).toHaveBeenCalledWith(signal);
+  stop(); stop(); emitter.emit("conversation:boundary", {}, signal);
+  expect(boundaries).toHaveBeenCalledOnce(); expect(emitter.listenerCount("conversation:boundary")).toBe(0);
+});
+
 test("conversation work has its own read and event with its own cleanup", async () => {
   const work = vi.fn(), terminal = vi.fn();
   const stop = api.onConversationWorkChanged(work), stopTerminal = api.onWorkChanged(terminal);

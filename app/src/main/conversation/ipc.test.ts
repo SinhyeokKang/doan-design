@@ -132,6 +132,23 @@ it("answers conversation:skills for an open project and refuses other windows, f
     expect(list).toHaveBeenCalledOnce();
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+// An ACP conversation's commands come from its own connection's last push, named by conversationId; Claude and Codex
+// commands come with the folder's list.
+it("adds an ACP conversation's commands to conversation:skills when the request names it", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+  try {
+    const prepare = vi.fn<Prepare>(async request => ({ runtime: request.runtime ?? "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }));
+    const service = new ConversationService(new ConversationStore(dir), prepare, vi.fn(), () => {});
+    const acp = vi.spyOn(service, "acpCommands").mockReturnValue([{ kind: "command", name: "compact", description: "Compact." }]);
+    const skills = new SkillCatalog((root, provider) => prepare({ root, mode: "new", runtime: provider, text: "", anchors: [] }), vi.fn());
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { skills });
+    const id = "6190301c-24ce-42a9-8a51-ad4fdf91835e";
+    expect(await handle(true, "skills", { root: "/repo", provider: "copilot", conversationId: id })).toEqual({ skills: [{ kind: "command", name: "compact", description: "Compact." }] });
+    expect(acp).toHaveBeenCalledWith(id, "/repo", "copilot");
+    expect(await handle(true, "skills", { root: "/repo", provider: "copilot" })).toEqual({ skills: [] });
+    expect(await handle(true, "skills", { root: "/repo", provider: "copilot", conversationId: "not an id" })).toEqual({ error: "bad_request" });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 it("answers conversation:skills with the start code when the provider cannot be read", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
   try {

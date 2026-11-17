@@ -176,7 +176,7 @@ const SHARED_CALLS: [SharedWithMain, (api: Pick<DoanApi, SharedWithMain>) => Pro
   ["readAgentUsage", a => a.readAgentUsage("refresh")],
 ];
 const SHARED_EVENTS: [SharedWithMain, string][] = [
-  ["onConversationEvent", "conversation:event"], ["onConversationStage", "conversation:stage"],
+  ["onConversationEvent", "conversation:event"], ["onConversationStage", "conversation:stage"], ["onConversationBoundary", "conversation:boundary"],
   ["onConversationListChanged", "conversation:listChanged"], ["onConversationHandoff", "conversation:handoff"],
 ];
 
