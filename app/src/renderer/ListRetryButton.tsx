@@ -23,7 +23,7 @@ export function retryButton({ running, variant, describedBy, onRetry }: { runnin
 
 // A host's Retry state when nothing else tracks its request: `work` resolves true when it succeeded. A press while one
 // runs does nothing. On success the line and its Retry go, so focus that was on the Retry moves to the first control
-// still in `scope` (the Retry's row or section) instead of falling to the page.
+// still in its row, else its section, else its page, instead of falling to <body>.
 const CONTROLS = 'button:not(:disabled):not([aria-disabled="true"]), [role="switch"]:not(:disabled), input:not(:disabled), [href]';
 export function useRetry(): ListRetry & { run(work: () => Promise<boolean>, pressed?: HTMLElement | null): void } {
   const [state, setState] = useState(LIST_RETRY_IDLE);
@@ -32,15 +32,18 @@ export function useRetry(): ListRetry & { run(work: () => Promise<boolean>, pres
     if (running.current) return;
     running.current = true;
     setState(previous => ({ ...previous, running: true }));
-    const scope = pressed?.closest(".doan-preference-row, .settings-section, .settings-sections") ?? null;
+    const scopes = [".doan-preference-row", ".settings-section", ".settings-page"].flatMap(selector => pressed?.closest(selector) ?? []);
     void work().catch(() => false).then(ok => {
       running.current = false;
       setState(previous => ({ running: false, failures: ok ? 0 : previous.failures + 1 }));
-      if (!ok || !scope) return;
+      if (!ok || scopes.length === 0) return;
       requestAnimationFrame(() => {
         if (pressed?.isConnected && document.activeElement === pressed) return;
         if (document.activeElement && document.activeElement !== document.body) return;
-        scope.querySelector<HTMLElement>(CONTROLS)?.focus();
+        for (const scope of scopes) {
+          const control = scope.isConnected ? scope.querySelector<HTMLElement>(CONTROLS) : null;
+          if (control) { control.focus(); return; }
+        }
       });
     });
   };
