@@ -41,6 +41,7 @@ BACKLOG에 "Fix (decided)"로 적었다. 구현이 끝나면 각 배치가 PRODU
 | B6 설정·격리 | `fix/setup-rule-history` | 6-1 `doan.rules` 이전 텍스트, 6-2 `isolatedEnv` PATH | `agentSetup/plan.ts`, `app/runtime/environment.ts` |
 | B7 eval transcript reader | `fix/eval-heredoc-doan` | 7-1 Python heredoc 안의 `doan` 호출 읽기 | `eval/lib/transcript.ts`, `eval/scenarios/D1/presets.ts` |
 | B8 lint `no-unnecessary-condition` | `refactor/lint-unnecessary-condition` | 8-1 규칙 켜기와 지적 정리 | `app/.oxlintrc.json`, `app/src`·`app/runtime`의 비테스트 파일 약 37개 |
+| B9 `eval/` 타입체크와 lint | `refactor/eval-typecheck` | 9-1 타입체크 켜기, 9-2 lint 켜기 | `eval/` 전체, 타입체크·lint 설정, verify 게이트 |
 
 **순서와 겹침.**
 - B1, B2, B3, B5, B6은 바로 동시에 돌려도 된다. 서로 고치는 파일이 겹치지 않는다.
@@ -157,6 +158,19 @@ BACKLOG에 "Fix (decided)"로 적었다. 구현이 끝나면 각 배치가 PRODU
    - 테스트 파일과 `eval/`은 이 배치 범위가 아니다(BACKLOG의 별도 항목).
    - 확인: `npm --prefix app run lint`가 오류 없이 통과하고, `/verify`를 돌린다. 앱 동작은 바뀌지 않으므로 `/runtime-test`는 필요 없다.
    - 고칠 문서: BACKLOG 항목을 지운다. verify 스킬의 lint 설명이 규칙 목록을 말하면 맞춘다.
+
+### B9 `eval/` 타입체크와 lint (`refactor/eval-typecheck`, B7 머지 뒤 2026-11-17 추가)
+
+BACKLOG "Lint for `eval/` needs type checking first…" 항목이다.
+
+1. **타입체크 켜기**
+   - 현상: `eval/`을 포함하는 tsconfig가 없다. 임시 tsconfig로 돌리면 TypeScript 오류가 110건 나온다(BACKLOG 기록 기준이며, B7 머지 뒤 숫자는 컨덕터가 다시 잰다).
+   - 수정: `eval/`을 타입체크하는 tsconfig를 두고 오류를 고친다. 그 타입체크를 공용 게이트(`.agents/skills/verify/scripts/verify.mjs`)에 넣는다. 런타임 동작은 바꾸지 않는다. `node eval/run.ts`처럼 Node가 TypeScript를 그대로 실행하는 방식도 그대로 둔다.
+2. **lint 켜기**
+   - 수정: 비테스트 `eval/` 코드에 앱과 같은 type-aware lint를 적용하고, `eval/lib/socket.ts`의 no-misused-promises 1건(자식 프로세스의 `process.stdin.on("end", …)` 처리기)을 고친다. 테스트 파일은 앱처럼 범위 밖이다.
+- 확인: `/verify --eval`, `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test`. 실제 에이전트 라운드는 돌리지 않는다.
+- 겹침: B8이 `app/.oxlintrc.json`을 고친다. lint 설정을 함께 건드리면 나중에 머지하는 쪽이 develop을 받아 맞춘다.
+- 고칠 문서: BACKLOG 항목을 지우고, AGENTS.md 'Commands'의 lint·typecheck 설명과 verify 스킬의 단계 설명을 지금 게이트에 맞춘다.
 
 ## 5. 리드 인수인계
 
