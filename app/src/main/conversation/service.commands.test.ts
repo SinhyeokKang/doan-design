@@ -35,12 +35,13 @@ describe("sending a command", () => {
     const h = fixture();
     const id = await h.start("/compact");
     h.service.receive(id, { type: "turn.done" });
-    await h.service.send(id, "/review the parser", []);
-    h.service.receive(id, { type: "turn.done" });
     await h.service.send(id, "hello", []);
-    expect(h.prompts().slice(0, 2)).toEqual(["/compact", "/review the parser"]);
-    expect(h.prompts()[2]).toMatch(/^The JSON below/);
-    expect(h.store.read(id).filter(e => e.type === "user.message").map(e => (e as { text: string }).text)).toEqual(["/compact", "/review the parser", "hello"]);
+    h.service.receive(id, { type: "turn.done" });
+    await h.service.send(id, "/review the parser", []);
+    expect(h.prompts()[0]).toBe("/compact");
+    expect(h.prompts()[1]).toMatch(/^The JSON below/);
+    expect(h.prompts()[2]).toBe("/review the parser");
+    expect(h.store.read(id).filter(e => e.type === "user.message").map(e => (e as { text: string }).text)).toEqual(["/compact", "hello", "/review the parser"]);
   });
   it("refuses a command that carries anchors or attachments, before anything runs", async () => {
     const h = fixture();
@@ -70,7 +71,7 @@ describe("sending a command", () => {
 describe("titles", () => {
   it("leaves a conversation started by a command untitled until its first message", async () => {
     const h = fixture();
-    const id = await h.start("/review");
+    const id = await h.start("/compact");
     expect(h.store.list()[0]!.title).toBe("");
     h.service.receive(id, { type: "turn.done" });
     await h.service.send(id, "/compact", []); h.service.receive(id, { type: "turn.done" });
