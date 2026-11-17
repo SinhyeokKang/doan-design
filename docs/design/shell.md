@@ -4,7 +4,7 @@
 
 ## App shell
 
-Reference: `.doan/canvases/doan-shell.html`, measured beside the implementation in Electron 45.0.0 / Chromium 156.0.8078.48 at content viewports 1238×780 and 960×600. This covers the header and sidebar (LNB), not Home, Overview or Inspector content.
+Reference: `.doan/canvases/doan-shell.html`, measured beside the implementation in Electron 45.0.0 / Chromium 156.0.8078.48 at content viewports 1238×780 and 960×600. This covers the header and sidebar (LNB), not Home or Overview content.
 
 **Header.** Height 56px. The Hide/Show sidebar button at x88/y12 and the history controls (Back x124, Forward x160, y12), all 32px, with the documented header corner 10. The centred mode capsule is 371.2578125×40px at a 1238px window width; its actions are 32px high with 16px inline insets, Plus/Grid/Settings glyphs, subtle ink when inactive and standard ink with the panel shadow when selected; on the Settings page the Settings tab is the selected one, and while a page is locked every tab, the selected one included, is `aria-disabled` with `--text-disabled` ink. Finite capsule/button radii are geometrically equivalent to the draft's clamped pills. Settled Back is transparent; hover is the shared chrome 6%-black fill on Back and 10%-black on Search. Back with no earlier visit and Forward with no later one are `aria-disabled`, never `disabled`, so a keyboard press to the end of the history keeps focus (runtime probe): `--text-disabled` ink, default cursor, no hover or pressed fill, and a press does nothing.
 
@@ -76,7 +76,7 @@ Reference for Quick Open: `.doan/canvases/doan-search.html`, and `.doan/canvases
 - **Toast for a canvas gone at relaunch:** the saved state keeps the canvas path and id but no title, so the message uses the file name without `.html` ("billing is no longer in .doan/canvases/" (or `.doan/ds/`)).
 - **Thumbnail visibility** travels in both directions, including when the Overview's right panel unmounts; main keeps visibility updates received during asynchronous cache reads.
 - **Navigation recovery:** unreadable width is reported without guessing a parser error; an explicit Open distinguishes unavailable projects from absent canvases; a problem root's overlay names the problem whether or not a canvas was open.
-- Unpinned (no current test): restore across relaunch (canvas, view and tree expansion; a frame selected before quit, with the Inspector and `doan active` set, comes back with neither and is absent from `ui-state.json`; Home, a gone canvas, a gone project, a broken `ui-state.json`) and Quick Open from the menu on Home and in a workspace.
+- Unpinned (no current test): restore across relaunch (canvas, view and tree expansion; a frame selected before quit, with `doan active` set, comes back without it and is absent from `ui-state.json`; Home, a gone canvas, a gone project, a broken `ui-state.json`) and Quick Open from the menu on Home and in a workspace.
 
 ### Quick Open
 
