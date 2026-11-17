@@ -23,7 +23,7 @@ import type { Anchor, AttachmentRecord, BoundarySignal, Canvas, ConversationEven
 import type { LiveTurn } from "../conversationWork";
 import type { AfterTurnCleanup } from "./process";
 import type { BoundaryKind } from "./commandRecords";
-import { claudeTranscript, readInTranscript, readTranscriptFrom, transcriptSize } from "./io";
+import { claudeClearedSession, readInTranscript, readTranscriptFrom, transcriptSize } from "./io";
 import { commandBoundary, commandName, passthroughCommands, passthroughName, unsupportedCommand } from "./providerCommands";
 import { copilotCompacted } from "./commandRecords";
 import { commandTurns } from "./commandTurns";
@@ -215,9 +215,9 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
   // The permission mode a Codex turn of a Doan connection stated on its thread (turn/start), absent for a command turn,
   // which states none (noteMode).
   statedMode?: PermissionModeId;
-  // The session a Claude run moved to during this turn (Prepared.sessionChanged), with the run's profile and cwd; judged
-  // at the turn's done end (followSession).
-  movedTo?: { sessionId: string; configDir: string; cwd: string } }
+  // The session a Claude run moved to during this turn (Prepared.sessionChanged), with the run's profile; judged at the
+  // turn's done end (followSession).
+  movedTo?: { sessionId: string; configDir: string } }
 interface TurnOf { root: string; provider: Provider; canvas?: Canvas }
 function turnOf(m: ConversationMetadata): TurnOf {
   return { root: m.root, provider: m.owner.kind === "doan" ? m.owner.provider : m.session.runtime, ...(m.canvas ? { canvas: m.canvas } : {}) };
@@ -467,7 +467,7 @@ export class ConversationService {
     const runtime = metadata.session.runtime;
     // command: one of the provider's table, which the thread draws; asIs: also an ACP server's unconfirmed one. Either
     // goes out as its own text.
-    const command = commandName(runtime, text), asIs = !!command || !!passthroughName(text, this.passthroughOf(id, runtime));
+    const command = commandName(runtime, text), asIsName = command ?? passthroughName(text, this.passthroughOf(id, runtime)), asIs = !!asIsName;
     checkCommand(runtime, text, anchors, extras.attachments?.length || attached ? 1 : 0, asIs);
     checkReview(runtime, text, metadata.owner.kind === "doan", this.statedModes.get(id), (extras.permissionMode !== undefined ? extras.permissionMode : metadata.permissionMode) ?? "default");
     // A history that stopped taking writes is left behind once its process is gone (releaseFailed): the send starts a
@@ -531,7 +531,7 @@ export class ConversationService {
       // One write: a turn.started refused by validation, the size limit or a failed open or read must not leave the
       // message, which would read as a turn that runs. A short write is not rolled back (no journal here).
       for (const event of this.store.appendAll(id, live.turnId, [message, { type: "turn.started" }])) this.deliver(event);
-      this.changedOf(id); live.accepted = true; live.turnOf = turnOf(updated); this.suggestions.delete(id); this.noteTranscript(live, input, live.runner.sessionId); this.noteCommand(id, live, command);
+      this.changedOf(id); live.accepted = true; live.turnOf = turnOf(updated); this.suggestions.delete(id); this.noteTranscript(live, input, live.runner.sessionId); this.noteCommand(id, live, command, asIsName);
       this.noteMode(live, runtime, metadata.owner.kind === "doan", command, chosen.permissionMode ?? "default");
       if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       // The previous turn's handoff was resolved before this send went on (handoffWait).
@@ -1584,8 +1584,9 @@ export class ConversationService {
   // What a Send now needs, as a send's checks (checkSend) plus a turn accepted and running in a runner that can steer.
   private steerable(id: string, live: Live): boolean {
     const m = this.store.list().find(entry => entry.conversationId === id);
+    // A command turn takes no other message: it runs alone, and a queued message waits for the next turn.
     return !this.quitting && this.live.get(id) === live && live.accepted && live.busy && !live.terminal && !live.closed && !live.failedPersistence &&
-      !live.exited && !this.stopped(live) && !!m && typeof live.runner?.steer === "function";
+      !live.exited && !this.stopped(live) && !!m && typeof live.runner?.steer === "function" && live.command === undefined;
   }
   private steering(id: string): [string, Steer][] { return [...this.steers].filter(([, steer]) => steer.id === id); }
   // The agent read a steered message: it joins its turn's history at this point and leaves the queue. The read decides,
@@ -1926,13 +1927,14 @@ export class ConversationService {
   private commandHooks(id: string, live: Live, turnId: string, prepared: Prepared): Pick<Prepared, "boundary" | "sessionChanged" | "acpCommands"> {
     return {
       boundary: kind => this.boundary(id, kind),
-      sessionChanged: sessionId => { if (this.live.get(id) === live && live.turnId === turnId && !live.terminal) live.movedTo = { sessionId, configDir: prepared.configDir, cwd: prepared.cwd }; },
+      sessionChanged: sessionId => { if (this.live.get(id) === live && live.turnId === turnId && !live.terminal) live.movedTo = { sessionId, configDir: prepared.configDir }; },
       acpCommands: update => this.acpPushed(id, prepared, update),
     };
   }
-  private noteCommand(id: string, live: Live, command: string | null): void {
-    if (!command) { delete live.command; return; }
-    live.command = command;
+  // asIs: the command the turn sent as its own text, an unconfirmed ACP one included; only the table's (command) draws.
+  private noteCommand(id: string, live: Live, command: string | null, asIs: string | null = command): void {
+    if (asIs) live.command = asIs; else delete live.command;
+    if (!command) return;
     const runs = this.commandRuns.get(id) ?? new Map<string, BoundaryKind | null>(); runs.set(live.turnId, null); this.commandRuns.set(id, runs);
   }
   // A boundary the provider reported for the running command turn; one in any other turn (an automatic compaction) is
@@ -1946,13 +1948,16 @@ export class ConversationService {
     this.boundaryChanged({ conversationId: id, turnId: live.turnId, kind });
   }
   // A done turn that moved its Claude run to another session: only the person's /clear follows it, and only to a session
-  // of the conversation's own profile and cwd (PRODUCT 'Session identity'); anything else fails the turn and keeps the
-  // binding. The reservation moves with it, so the session the conversation left is free and the new one is held.
+  // its own transcript proves is the conversation's (its project folder, its cwd; PRODUCT 'Session identity') and no other
+  // conversation holds, running or not (one session is one conversation). Anything else fails the turn and keeps the
+  // binding and the reservation. The reservation moves with it, so the session the conversation left is free and the new
+  // one is held.
   private followSession(id: string, live: Live, moved: NonNullable<Live["movedTo"]>): EventPayload {
     const lost: EventPayload = { type: "turn.failed", code: "session_unavailable" };
     const entries = this.store.list(), m = entries.find(e => e.conversationId === id);
-    if (!m || live.command !== "clear" || m.session.runtime !== "claude" || m.session.configDir !== moved.configDir || m.session.cwd !== moved.cwd ||
-      moved.sessionId.startsWith("-") || claudeTranscript(moved.configDir, moved.sessionId) === null) return lost;
+    if (!m || live.command !== "clear" || m.session.runtime !== "claude" || m.session.configDir !== moved.configDir ||
+      !claudeClearedSession(m.session.configDir, m.session.sessionId, moved.sessionId, m.session.cwd)) return lost;
+    if (entries.some(e => e.conversationId !== id && e.session.runtime === "claude" && e.session.configDir === m.session.configDir && e.session.sessionId === moved.sessionId)) return { type: "turn.failed", code: "session_in_use" };
     const rekeyed = rekeyReservation(this.reservations, id, { runtime: "claude", configDir: moved.configDir, sessionId: moved.sessionId });
     if (!rekeyed.ok) return { type: "turn.failed", code: "session_in_use" };
     this.store.save(entries.map(e => e === m ? { ...m, session: { ...m.session, sessionId: moved.sessionId } } as ConversationMetadata : e));

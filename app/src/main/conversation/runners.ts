@@ -499,11 +499,13 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             }
             const frame: unknown = raw;
             if (!after && object(frame) && !frame.parent_tool_use_id) {
-              const boundary = claudeBoundary(frame);
-              if (boundary) { if (boundary === "cleared") reset = true; input.boundary?.(boundary); }
-              const moved = (frame.type === "system" && frame.subtype === "init") || frame.type === "result" ? frame.session_id : undefined;
+              const boundary = claudeBoundary(frame); if (boundary) input.boundary?.(boundary);
+              if (frame.type === "conversation_reset" && frame.trigger === "clear") reset = true;
+              const init = frame.type === "system" && frame.subtype === "init";
+              const moved = init || frame.type === "result" ? frame.session_id : undefined;
               if (typeof moved === "string" && moved !== current) {
-                if (clearing && reset && current === sessionId) { current = moved; runner.sessionId = moved; input.sessionChanged?.(moved); }
+                // Once, from the system/init that follows the clear's own reset; a result only confirms it.
+                if (clearing && reset && init && current === sessionId) { current = moved; runner.sessionId = moved; input.sessionChanged?.(moved); }
                 else {
                   // Doan never follows a session it did not ask for (PRODUCT 'Resume and permissions').
                   const lost = claudeSessionLost(state); state = lost.state;
