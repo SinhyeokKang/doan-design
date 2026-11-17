@@ -115,6 +115,10 @@ const mocks = await vi.hoisted(async () => {
     canvasSeenFlushSync: vi.fn(),
     // Spied around the real prototype window, so a test can make its native teardown fail.
     prototypeDestroyForQuit: vi.fn(),
+    // Spied around the real prototype controller and draft store: what a removal or a Move to Trash cleans up.
+    prototypeRootsRemoved: vi.fn(),
+    discardRootStarts: vi.fn(),
+    discardCanvasStarts: vi.fn(),
     createUiStateStore: vi.fn(),
     thumbnails: { get: vi.fn(), visible: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
     createThumbnails: vi.fn(),
@@ -142,7 +146,14 @@ vi.mock("electron", () => ({
 }));
 vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return mocks.conversations; } finishDeletions() {} } }));
 // The fake store makes no conversations directory, so the queue's drafts stay in memory.
-vi.mock("./conversation/drafts", async (importOriginal) => { const original = await importOriginal<typeof import("./conversation/drafts")>(); return { ...original, DraftStore: class extends original.DraftStore { constructor() { super(null); } } }; });
+vi.mock("./conversation/drafts", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./conversation/drafts")>();
+  return { ...original, DraftStore: class extends original.DraftStore {
+    constructor() { super(null); }
+    override discardRootStarts(roots: readonly string[]) { mocks.discardRootStarts(roots); super.discardRootStarts(roots); }
+    override discardCanvasStarts(root: string, canvas: { path: string; id?: string }) { mocks.discardCanvasStarts(root, canvas); super.discardCanvasStarts(root, canvas); }
+  } };
+});
 vi.mock("./conversation/service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./conversation/service")>();
   return { ...actual, ConversationService: class extends actual.ConversationService {
@@ -195,7 +206,8 @@ vi.mock("./prototypeWindow", async (importOriginal) => {
   const original = await importOriginal<typeof import("./prototypeWindow")>();
   return { ...original, createPrototypeWindow: (deps: Parameters<typeof original.createPrototypeWindow>[0]) => {
     const prototype = original.createPrototypeWindow(deps);
-    return { ...prototype, destroyForQuit: () => { mocks.prototypeDestroyForQuit(); prototype.destroyForQuit(); } };
+    const controller = { ...prototype.controller, rootsRemoved: (roots: readonly string[]) => { mocks.prototypeRootsRemoved(roots); prototype.controller.rootsRemoved(roots); } };
+    return { ...prototype, controller, destroyForQuit: () => { mocks.prototypeDestroyForQuit(); prototype.destroyForQuit(); } };
   } };
 });
 vi.mock("./onboarding/projects", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/projects")>(), ...mocks.projects }));
@@ -1295,6 +1307,9 @@ describe("removing from the CLI", () => {
     expect(runtimeState().selection()).toBeNull();
     expect(stop).toHaveBeenCalledExactlyOnceWith([APP, WT]);
     expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith([APP, WT], entries);
+    // A prototype window on one of its canvases closes, and its starts a quit stopped go.
+    expect(mocks.prototypeRootsRemoved).toHaveBeenCalledExactlyOnceWith([APP, WT]);
+    expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith([APP, WT]);
     expect(removedEvents()).toEqual([{ paths: [APP, WT] }]);
     expect(window().show).not.toHaveBeenCalled();
     expect(window().focus).not.toHaveBeenCalled();
@@ -1307,6 +1322,8 @@ describe("removing from the CLI", () => {
     expect(await invoke("folders:remove", contents, null, { paths: [WT] })).toEqual({ kind: "removed" });
     expect(runtimeState().selection()).toBeNull();
     expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith([WT], entries);
+    expect(mocks.prototypeRootsRemoved).toHaveBeenCalledExactlyOnceWith([WT]);
+    expect(mocks.discardRootStarts).toHaveBeenCalledExactlyOnceWith([WT]);
     expect(removedEvents()).toEqual([]);
   });
 
@@ -1314,6 +1331,8 @@ describe("removing from the CLI", () => {
     mocks.shell.remove.mockResolvedValue({ paths: [] });
     expect(await remove(APP)).toMatchObject({ v: 7, ok: false, error: { code: "project_not_open" } });
     expect(removedEvents()).toEqual([]);
+    expect(mocks.prototypeRootsRemoved).not.toHaveBeenCalled();
+    expect(mocks.discardRootStarts).not.toHaveBeenCalled();
   });
 
   test("a running turn in another worktree of the group refuses and changes nothing", async () => {
@@ -1919,6 +1938,7 @@ describe("canvas trash on main's grounds", () => {
     expect(asked.list).toHaveBeenCalled();
     expect(asked.evidence).toHaveBeenCalled();
     expect(mocks.electronShell.trashItem.mock.calls).toEqual([[join(root, path)]]);
+    expect(mocks.discardCanvasStarts).toHaveBeenCalledExactlyOnceWith(root, { path, id: "a" });
   });
 
   test.each([
@@ -1959,6 +1979,7 @@ describe("canvas trash on main's grounds", () => {
     mocks.electronShell.trashItem.mockRejectedValueOnce(new Error("trash failed"));
     expect(await trash()).toEqual({ kind: "refused", reason: "failed" });
     expect(mocks.electronShell.trashItem).toHaveBeenCalledOnce();
+    expect(mocks.discardCanvasStarts).not.toHaveBeenCalled();
   });
 });
 

@@ -102,6 +102,13 @@ export function joined(items: readonly DraftParts[]): DraftParts {
   return { text: words.text, anchors: words.anchors, attachments: items.flatMap(item => item.attachments) };
 }
 
+// A start of root on canvas, or on none: a canvas matches by its id when both have one, else by its path.
+function startOn(start: ReturnedStart, root: string, canvas: Canvas | undefined): boolean {
+  if (start.root !== root) return false;
+  if (!start.canvas || !canvas) return !start.canvas && !canvas;
+  return start.canvas.id !== undefined && canvas.id !== undefined ? start.canvas.id === canvas.id : start.canvas.path === canvas.path;
+}
+
 // The input queue and the drafts it hands back, per conversation, in <userData>/conversations/drafts.json. Every change
 // is written at once (temporary file and rename); at the next start the queued messages become drafts and never go out
 // by themselves. A file that is not a drafts file is kept for diagnosis: nothing more is queued, and returned drafts
@@ -246,14 +253,23 @@ export class DraftStore {
   // The starts of root (on canvas, or on none) a previous run ended before acceptance, joined into one draft, once. A
   // canvas matches by its id when both have one, else by its path. Throws when the hand-over cannot be saved, and keeps them.
   takeStart(rootPath: string, canvas?: Canvas): ReturnedDraft | null {
-    const same = (start: ReturnedStart) => start.root === rootPath && (!start.canvas || !canvas ? !start.canvas && !canvas
-      : start.canvas.id !== undefined && canvas.id !== undefined ? start.canvas.id === canvas.id : start.canvas.path === canvas.path);
-    const keys = Object.keys(this.file.starts).filter(key => same(this.file.starts[key]!));
+    const keys = Object.keys(this.file.starts).filter(key => startOn(this.file.starts[key]!, rootPath, canvas));
     if (!keys.length) return null;
     const before = { ...this.file.starts };
     for (const key of keys) delete this.file.starts[key];
     try { this.write(); } catch (error) { this.file.starts = before; throw error; }
     return { ...joined(keys.map(key => before[key]!)), reason: "restarted" };
+  }
+  // No composer will take these any more: the canvas went to the Trash (the starts takeStart would hand its composer),
+  // or the project was removed from Doan (every start of its roots). Never throws: the move or the removal already
+  // happened. A paste such a start carried was never marked sent, so the next launch's attachment cleanup removes it.
+  discardCanvasStarts(rootPath: string, canvas: Canvas): void { this.discardStarts(start => startOn(start, rootPath, canvas)); }
+  discardRootStarts(roots: readonly string[]): void { this.discardStarts(start => roots.includes(start.root)); }
+  private discardStarts(gone: (start: ReturnedStart) => boolean): void {
+    const keys = Object.keys(this.file.starts).filter(key => gone(this.file.starts[key]!));
+    if (!keys.length) return;
+    for (const key of keys) delete this.file.starts[key];
+    this.save();
   }
   // A deleted conversation's queue and returned draft go with it, unread entries and items on their way out included
   // (a deletion waits for the turn to end, so none should be left). Never throws: the deletion is already committed.

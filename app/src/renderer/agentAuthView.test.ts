@@ -113,7 +113,12 @@ test("readiness action reauth: expiry, a missing Claude organization and a diffe
   expect(only(providerView(org))).toMatchObject({ button: null, notice: { body: "Sign in to Claude Code again so Doan can confirm your organization.", actions: ["subtle:Sign out:signOut", "prominent:Sign in again:reauth"] } });
   const mismatch = dto("claude", { account: ACCOUNT, verified: true, error: "account_mismatch", phase: "error" });
   expect(mismatch.readiness).toMatchObject({ cause: "account_mismatch", action: "reauth" });
-  expect(only(providerView(mismatch)).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "You signed in with a different Claude Code account. Sign in again with the same account, or sign out first.", actions: ["subtle:Sign out:signOut", "prominent:Sign in again:reauth"] });
+  // Main reports a different account and a different organization (GitHub Copilot: host) as one code, so the copy names both.
+  expect(only(providerView(mismatch)).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "You signed in with a different Claude Code account or organization. Sign in again with the same account and organization, or sign out first.", actions: ["subtle:Sign out:signOut", "prominent:Sign in again:reauth"] });
+  const host = dto("copilot", { account: ACCOUNT, verified: true, error: "account_mismatch", phase: "error" });
+  expect(only(providerView(host)).notice?.body).toBe("You signed in with a different GitHub Copilot account or host. Sign in again with the same account and host, or sign out first.");
+  const plain = dto("cursor", { account: ACCOUNT, verified: true, error: "account_mismatch", phase: "error" });
+  expect(only(providerView(plain)).notice?.body).toBe("You signed in with a different Cursor account. Sign in again with the same account, or sign out first.");
 });
 
 test("readiness ready: only the account identifier under the name, or nothing, and a disabled Connected", () => {

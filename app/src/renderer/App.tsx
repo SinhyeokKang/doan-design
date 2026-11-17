@@ -57,7 +57,7 @@ import { AddProjectsPage, type AddPageReport } from "./AddProjectsPage";
 import { addPageReturn, pageEnter, pageEscape, projectSettingsReentry, workspaceRemoved, type AddPageEvent, type AddPageOrigin, type PageName, type ShellScreen } from "./addProjectsNav";
 import type { FolderFocus } from "../main/shell";
 import type { RowAction } from "./homeCards";
-import { groupProjects } from "./homeCards";
+import { groupProjects, groupRoots } from "./homeCards";
 import { CanvasConversations } from "./RightPanel";
 import { CanvasRun, type CanvasTarget } from "./canvasRun";
 import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, composerFixed, settleChips } from "./CanvasConversationPanel";
@@ -94,7 +94,7 @@ import { QuickOpen } from "./QuickOpenDialog";
 import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, sameShownConversation, unavailableCanvasMessage, type ConversationLists, type SearchResult, type ShownConversation } from "./quickOpen";
 import { blockedLinkMessage, blockedReason, decideOpen, type OpenPage } from "./openDecision";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
-import { conversationCanvasKey, withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
+import { conversationCanvasKey, withoutCanvas, withoutConversation, withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
 import { attachmentLimit, defaultProject, type AttachmentDraft } from "./homeComposer";
 import { OverviewRun } from "./overviewRun";
@@ -884,6 +884,11 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
       else completeNavigation(to.root);
     }
   }
+  // Saved only when something was forgotten (withoutCanvas and withoutConversation answer the same map otherwise).
+  function forgetCanvasConversation(next: Record<string, Record<string, string>>) {
+    if (next === conversationByCanvas.current) return;
+    conversationByCanvas.current = next; setMemoryTick(tick => tick + 1);
+  }
   function forgetConversations(roots: readonly string[]) {
     if (!memoryRead.current) for (const root of roots) { memoryTouched.current.add(root); canvasMemoryRemoved.current.add(root); }
     conversationByRoot.current = withoutRoots(conversationByRoot.current, roots);
@@ -1395,6 +1400,9 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     rememberFocus();
     return homeRun.current.remove(paths, removalQuestionLabel(cards, paths, names));
   }
+  // A project's Remove from Doan (the sidebar, the problem overlay, Project Settings) takes the whole group as
+  // `doan remove` does, an auto-registered worktree hidden from the shown rows included (PRODUCT §5 item 1).
+  const removeProject = (shown: string[]) => remove(groupRoots(allEntries, shown));
   async function removeNow(paths: string[]) {
     cancelRestore();
     const result = await window.doan.removeProjects(paths);
@@ -1443,6 +1451,8 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const { root, row, seq } = current, marks = controller.current?.trash, mark = marks?.begin(root, row.path);
     const done = (reply: TrashReply) => {
       if (mark) marks!.settle(mark, reply.kind === "trashed" ? "trashed" : "refused");
+      // The canvas's conversation memory goes with it, so ui-state does not grow toward its cap.
+      if (reply.kind === "trashed") forgetCanvasConversation(withoutCanvas(conversationByCanvas.current, root, row));
       const open = trashingRef.current?.seq === seq ? trashingRef.current : null;
       if (open && reply.kind === "refused") { changeTrashing({ ...open, move: { pending: false, failed: reply } }); return; }
       if (open) closeTrash();
@@ -1491,6 +1501,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
           const shown = from === "overview" ? overviewView.kind === "conversation" && overviewView.conversationId === conversationId
             : from === "canvas" && canvasView?.kind === "conversation" && canvasView.conversationId === conversationId;
           overviewRuns.deleted(conversationId); canvasRuns.deleted(conversationId); homeRun.current.deleted(conversationId);
+          forgetCanvasConversation(withoutConversation(conversationByCanvas.current, conversationId));
           // The row the list chose can leave too before focus moves (another deletion, a re-read); the title stays, and
           // the deleted row's Delete, where focus would otherwise go back, leaves with its row.
           if (target.from === "canvasList") afterDelete.current = target.after.kind === "row"
@@ -1879,7 +1890,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     const root = loadedRoot;
     // The overlay's Remove from Doan is the project's, as the sidebar menu's and Project Settings' are (PRODUCT §5 item
     // 1): every registered worktree of the group, not only the open one.
-    if (name === "remove") { void remove(cards.find(card => card.rows.some(row => row.path === root))?.rows.map(row => row.path) ?? [root]); return; }
+    if (name === "remove") { void removeProject([root]); return; }
     if (name === "retry" || name === "locate" || name === "setUp") setPressed({ root, name });
     action(name, root, undefined, () => pressEnded(root, name));
   };
@@ -2415,7 +2426,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const shellSlots = sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas);
   const sidebarId = (home: boolean) => home ? "doan-page-sidebar" : "doan-workspace-sidebar";
-  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={(root, row, listed) => openSidebarCanvas(root, row, undefined, listed)} overview={showShellOverview} action={action} remove={remove}
+  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={(root, row, listed) => openSidebarCanvas(root, row, undefined, listed)} overview={showShellOverview} action={action} remove={removeProject}
     projectSettings={root => openProjectSettings(root)}
     canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash }}
     home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} lockReason={lockReason} {...(onSettings ? { settings: { section: settings.section, select: selectSection, mcp: mcpShown !== false } } : {})}
@@ -2452,7 +2463,7 @@ export function App({ paint }: { paint?: BuddyPaint } = {}) {
   {onProjectSettings && <ProjectSettingsPage key={projectSettings.key} header={topBar(true)} sidebar={sidebar(true)} root={projectSettings.root} entries={entries} reroot={reroot}
     origin={page.origin} homeDirectory={homeDirectory} arrival={projectSettings.arrival} onState={projectSettingsReport} onGone={() => leavePage({ kind: "gone" })}
     onRerooted={projectSettingsRerooted} onAction={(name, root, notice) => action(name, root, notice)}
-    onRemove={() => { const group = cards.find(card => card.rows.some(row => row.path === projectSettings.root)); if (group) void remove(group.rows.map(row => row.path)); }} />}
+    onRemove={() => void removeProject([projectSettings.root])} />}
   {onPage && <AddProjectsPage key={page.seq} header={topBar(true)} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} choose={page.chooseSeq} onState={pageReport} onCancel={() => leavePage({ kind: "cancel" })} onAdded={pageAdded} />}
   <main ref={shellRoot} className={`app-shell workspace${overlaid ? " overlaid" : ""}${strip ? " with-strip" : ""}`}

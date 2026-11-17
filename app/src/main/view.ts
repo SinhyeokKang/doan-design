@@ -1,3 +1,4 @@
+import { canvasKind } from "../formats/canvasPath";
 import type { FolderView } from "./cli";
 import type { FolderState } from "./folderState";
 import { capFrames, type StaticFrame } from "./frameCap";
@@ -80,7 +81,8 @@ export function canvasRows(canvases: readonly unknown[], baseUrl: string): Canva
     const path: unknown = Reflect.get(canvas, "path");
     const id: unknown = Reflect.get(canvas, "id");
     const width: unknown = Reflect.get(canvas, "width");
-    if (typeof path !== "string" || path === "") continue;
+    // `doan ls` also lists a folder it could not read (`unreadable_folder`); the app shows only canvases.
+    if (typeof path !== "string" || canvasKind(path) === null) continue;
     const row: CanvasRow = { path, url: servingUrl(baseUrl, path) };
     if (typeof id === "string") row.id = id;
     if (typeof width === "number" && Number.isSafeInteger(width) && width > 0) row.width = width;

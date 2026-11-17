@@ -158,6 +158,22 @@ test.each([
   expect(visits()).toEqual(before);
 });
 
+// ui-state's conversationByCanvas forgets a canvas moved to the Trash, so the memory shrinks with the canvases.
+test("a canvas moved to the Trash leaves the canvas conversation memory; a refused move keeps it", async () => {
+  await start({ ...workspace, conversationByCanvas: { "/w/a": { [A]: "c1", [B]: "c2" } } });
+  const saved = () => (doan.saveUiState!.mock.calls.at(-1)?.[0] as { conversationByCanvas?: unknown } | undefined)?.conversationByCanvas;
+  const move = async (row: CanvasRow, reply: unknown) => {
+    doan.planCanvasTrash = vi.fn(async () => ({ kind: "ready" }));
+    doan.trashCanvas = vi.fn(async () => reply);
+    sidebar().canvasMenu.trash("/w/a", row, null); await flush(); render();
+    dialog()!.confirm(); await flush(); render();
+  };
+  await move(rows()[1]!, { kind: "refused", reason: "busy" });
+  expect(saved()).toEqual({ "/w/a": { [A]: "c1", [B]: "c2" } });
+  await move(rows()[1]!, { kind: "trashed" });
+  expect(saved()).toEqual({ "/w/a": { [A]: "c1" } });
+});
+
 test("a canvas that leaves the list without a Move to Trash keeps the removed-canvas toast", async () => {
   await start();
   sidebar().open("/w/a", rows()[0]!); await flush(); render();
