@@ -124,7 +124,8 @@ test("the panel body renders, reads and starts a conversation through the call o
   expect(calls.listConversationSkills).toHaveBeenCalledWith({ root: ROOT, provider: "claude" });
   const composer = dockedProps(tree)! as { pick?: unknown; link?: unknown; onSend(request: unknown): Promise<unknown>; onAttach(): void };
   expect(composer.pick).toBeUndefined();
-  expect(await composer.onSend({ text: "This button does nothing", anchors: [{ frame: { id: "pay", title: "Pay" } }], attachments: [] })).toEqual({ ok: true });
+  // The reply names the conversation the panel now shows (a command's leftover draft follows it).
+  expect(await composer.onSend({ text: "This button does nothing", anchors: [{ frame: { id: "pay", title: "Pay" } }], attachments: [] })).toEqual({ ok: true, conversationId: "c9" });
   expect(calls.startConversation.mock.calls[0]![0]).toMatchObject({ root: ROOT, mode: "new", runtime: "claude", canvas: CANVAS, text: "This button does nothing", anchors: [{ frame: { id: "pay", title: "Pay" } }] });
   composer.onAttach();
   await flush();
